@@ -53,6 +53,9 @@ rustix = { version = "1", features = ["fs"] }
 [dev-dependencies]
 # Scratch worlds roots for the save tests.
 tempfile = "3"
+# `test_items`, the fixture item catalog the generator's tests and fixtures
+# arm over.
+nova_gameplay = { path = "../nova_gameplay", features = ["test-support"] }
 
 [lints]
 workspace = true
@@ -60,6 +63,6 @@ workspace = true
 [features]
 # `test_support`: an armed open world whose saves run the production save
 # path, for the menu's leave tests. Dev-dependencies only.
-test-support = []
+test-support = ["nova_gameplay/test-support"]
 # Debug-build extras, fanned out so the whole tree resolves ONE bevy variant.
 debug = ["bevy/track_location", "nova_world/debug", "nova_scenario/debug"]

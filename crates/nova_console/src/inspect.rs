@@ -142,7 +142,7 @@ pub fn section(world: &mut World, ship_id: &str, id: &str) -> Resolved {
     let entity_ref = world.entity(entity);
     let health = entity_ref.get::<Health>().cloned();
     let ammo = entity_ref.get::<SectionAmmo>().copied();
-    let reload = entity_ref.get::<SectionReload>().copied();
+    let reload = entity_ref.get::<SectionReload>().cloned();
     let unlimited = entity_ref.get::<SuspendedSectionAmmo>().is_some();
     let kind = section_kind_label(world, entity);
     Ok(

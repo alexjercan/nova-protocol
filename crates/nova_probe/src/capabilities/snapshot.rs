@@ -25,8 +25,8 @@
 //!   carrying no component is the all-enabled default.
 //! - `ships[].cargo` - the hold and the purse: `capacity_g`, `used_g`,
 //!   `free_g` (grams), `credits`, and `items` as `{item, count}` in
-//!   [`ItemType`](nova_gameplay::prelude::ItemType) order, empty when the hold
-//!   is.
+//!   [`ItemDesignId`](nova_gameplay::prelude::ItemDesignId) order, empty when
+//!   the hold is.
 //! - `ships[].docking` - whether a clamp holds the hull and to whom, and the
 //!   approach: the nearest pair of free ports between the ship and its travel
 //!   lock, measured the way the docking sight draws it and graded against the
@@ -133,7 +133,7 @@ use nova_events::prelude::{EntityId, EntityTypeName};
 use nova_gameplay::{
     prelude::{
         Allegiance, BeaconLabel, BeaconMarker, CargoCanister, CargoCanisterRuntimeId,
-        DefeatedMarker, DominantWell, GameObjectives, Health, HealthZeroMarker,
+        DefeatedMarker, DominantWell, GameItems, GameObjectives, Health, HealthZeroMarker,
         IntegrityDisabledMarker, NeutralizedMarker, ProjectileDamage, ProjectileOwner, RunCheats,
         SectionClass, SectionMarker, ShipCredits, ShipInventory, SpaceshipRootMarker, TempEntity,
         TempEntityState, TorpedoProjectileMarker, TurretBulletProjectileMarker,
@@ -1041,7 +1041,7 @@ fn canister_record(world: &World, entity: Entity) -> (u64, serde_json::Value) {
         "stacks": canister
             .stacks()
             .map(|(item, count)| {
-                serde_json::json!({ "item": format!("{item:?}"), "count": count })
+                serde_json::json!({ "item": item.as_str(), "count": count })
             })
             .collect::<Vec<_>>(),
     });
@@ -1064,6 +1064,7 @@ fn ship_record(
     let credits = world
         .get::<ShipCredits>(entity)
         .expect("a ship root carries ShipCredits");
+    let items = world.resource::<GameItems>();
     let skin = skin_index(world, entity);
     let sections = ordered(
         world
@@ -1100,13 +1101,13 @@ fn ship_record(
         "capabilities": capabilities(world, entity),
         "cargo": {
             "capacity_g": inventory.capacity_g(),
-            "used_g": inventory.used_g(),
-            "free_g": inventory.free_g(),
+            "used_g": inventory.used_g(items),
+            "free_g": inventory.free_g(items),
             "credits": credits.0,
             "items": inventory
                 .stacks()
                 .map(|(item, count)| {
-                    serde_json::json!({ "item": format!("{item:?}"), "count": count })
+                    serde_json::json!({ "item": item.as_str(), "count": count })
                 })
                 .collect::<Vec<_>>(),
         },
@@ -1634,7 +1635,10 @@ fn ordnance_record(world: &World, entity: Entity) -> (String, serde_json::Value)
 mod tests {
     use std::sync::atomic::{AtomicU32, Ordering};
 
-    use nova_gameplay::prelude::{DamageType, ItemType};
+    use nova_gameplay::{
+        prelude::{DamageType, ITEM_HULL_PLATE, ITEM_IRON_ORE, ITEM_PDC_ROUND},
+        test_support::test_items,
+    };
     use nova_ship::prelude::{unit_cube_link_points, SectionReloadConfig};
 
     use super::*;
@@ -1653,6 +1657,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
         app.init_resource::<FrameCount>();
+        app.insert_resource(test_items());
         app
     }
 
@@ -1682,7 +1687,7 @@ mod tests {
                 delay: 4.0,
                 amount: 5,
             },
-            ItemType::PdcRound,
+            ITEM_PDC_ROUND.into(),
         );
         reload.elapsed = 1.5;
         let section = app
@@ -1860,9 +1865,10 @@ mod tests {
     #[test]
     fn canister_snapshots_order_same_content_by_numeric_runtime_id() {
         fn spawn_canisters(app: &mut App, ids: [u64; 2]) {
+            let items = test_items();
             for id in ids {
-                let mut canister = CargoCanister::new(ItemType::IronOre, 2);
-                canister.add(ItemType::HullPlate, 1);
+                let mut canister = CargoCanister::new(&items, &ITEM_IRON_ORE.into(), 2);
+                canister.add(&items, &ITEM_HULL_PLATE.into(), 1);
                 app.world_mut().spawn((
                     canister,
                     CargoCanisterRuntimeId(id),
@@ -1913,7 +1919,7 @@ mod tests {
     fn a_live_canister_without_runtime_id_fails_snapshot_capture() {
         let mut app = rig();
         app.world_mut()
-            .spawn(CargoCanister::new(ItemType::IronOre, 1));
+            .spawn(CargoCanister::new(&test_items(), &ITEM_IRON_ORE.into(), 1));
         capture_snapshot(app.world_mut(), "test");
     }
 
@@ -1923,7 +1929,7 @@ mod tests {
         let mut app = rig();
         for _ in 0..2 {
             app.world_mut().spawn((
-                CargoCanister::new(ItemType::IronOre, 1),
+                CargoCanister::new(&test_items(), &ITEM_IRON_ORE.into(), 1),
                 CargoCanisterRuntimeId(7),
                 Transform::IDENTITY,
                 LinearVelocity(Vec3::ZERO),
@@ -1982,9 +1988,14 @@ mod tests {
     #[test]
     fn the_cargo_record_follows_the_hold_and_the_purse_through_a_change() {
         let mut app = rig();
+        let items = test_items();
         let player = ship(&mut app, "player", Vec3::ZERO);
         app.world_mut().entity_mut(player).insert((
-            ShipInventory::new(100_000, [(ItemType::IronOre, 3), (ItemType::HullPlate, 2)]),
+            ShipInventory::new(
+                &items,
+                100_000,
+                [(ITEM_IRON_ORE.into(), 3), (ITEM_HULL_PLATE.into(), 2)],
+            ),
             ShipCredits(250),
         ));
         app.update();
@@ -2005,8 +2016,8 @@ mod tests {
 
         let mut entity = app.world_mut().entity_mut(player);
         let mut inventory = entity.get_mut::<ShipInventory>().unwrap();
-        inventory.remove(ItemType::HullPlate, 2);
-        inventory.add(ItemType::PdcRound, 5);
+        inventory.remove(&ITEM_HULL_PLATE.into(), 2);
+        inventory.add(&items, &ITEM_PDC_ROUND.into(), 5);
         entity.get_mut::<ShipCredits>().unwrap().0 = 330;
         app.update();
 
@@ -2018,11 +2029,11 @@ mod tests {
                 "free_g": 69_000,
                 "credits": 330,
                 "items": [
-                    { "item": "PdcRound", "count": 5 },
                     { "item": "IronOre", "count": 3 },
+                    { "item": "PdcRound", "count": 5 },
                 ],
             }),
-            "an emptied stack leaves the list and items keep ItemType order",
+            "an emptied stack leaves the list and items keep id order",
         );
     }
 

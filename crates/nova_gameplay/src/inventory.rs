@@ -1,12 +1,18 @@
-//! What a ship carries: a closed set of item types, the category each belongs
-//! to, the per-ship stack counts and the mass the ship has room for.
+//! What a ship carries: the authored item catalog, the category each item
+//! belongs to, the per-ship stack counts and the mass the ship has room for.
+//!
+//! Items are content. Each [`ItemDesign`] is authored in RON and keyed by an
+//! [`ItemDesignId`]; the mod merge publishes the effective catalog as
+//! [`GameItems`], and every mass, price and name comes from it. Engine code
+//! names only the role items in [`ITEM_ROLES`], which content lint and the
+//! merge require with their categories.
 //!
 //! Every ship root requires a [`ShipInventory`]. Its `Default` has no room and
 //! no stock: a code-built ship that never states an inventory carries nothing.
 //! An authored ship states its stock as a [`ShipInventoryStock`] through
 //! `SpaceshipConfig::inventory`, which RON requires; the spawn consumes that
 //! stock into a `ShipInventory` whose capacity its design derives. A Ship pane
-//! repair spends [`ItemType::HullPlate`] by the [`plan_plate_repair`] rule, an
+//! repair spends [`ITEM_HULL_PLATE`] by the [`plan_plate_repair`] rule, an
 //! Inventory pane transfer moves items between two docked ships by the
 //! [`plan_item_transfer`] rule, and a jettison queues [`CargoCanister`]s by the
 //! [`plan_item_jettison`] rule, a weapon's idle reload moves its ammunition
@@ -17,7 +23,7 @@
 //! while its count is above zero, and the mass of all stacks never passes the
 //! capacity. Mass is counted in grams; [`kg_text`] shows it in kilograms.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 use bevy::prelude::*;
 
@@ -28,125 +34,160 @@ pub mod prelude {
     pub use super::{
         kg_text, plan_credit_take, plan_item_jettison, plan_item_trade, plan_item_transfer,
         plan_plate_repair, CargoCanister, CargoCanisterIdAllocator, CargoCanisterRuntimeId,
-        CreditTakeRefusalType, ItemCategoryType, ItemJettison, ItemJettisonRefusalType, ItemTrade,
-        ItemTradeRefusalType, ItemTradeType, ItemTransferRefusalType, ItemTransferType, ItemType,
-        LootableShipMarker, PlateRepair, PlateRepairRefusalType, ShipCredits, ShipInventory,
-        ShipInventoryStock, CARGO_CANISTER_MAX_MASS_G, HULL_PLATE_HEALTH,
+        CreditTakeRefusalType, GameItems, ItemCategoryType, ItemDesign, ItemDesignId, ItemJettison,
+        ItemJettisonRefusalType, ItemTrade, ItemTradeRefusalType, ItemTradeType,
+        ItemTransferRefusalType, ItemTransferType, LootableShipMarker, PlateRepair,
+        PlateRepairRefusalType, ShipCredits, ShipInventory, ShipInventoryStock,
+        CARGO_CANISTER_MAX_MASS_G, HULL_PLATE_HEALTH, ITEM_CARBON_ORE, ITEM_HULL_PLATE,
+        ITEM_IRON_ORE, ITEM_PDC_ROUND, ITEM_RAIL_SLUG, ITEM_RATIONS, ITEM_ROLES,
+        ITEM_SALVAGED_PARTS, ITEM_STONE_ORE, ITEM_TORPEDO, ITEM_WATER_ICE,
     };
 }
 
-/// An item a ship can carry.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
+/// The id an item is referenced by from stock, cargo, a save or a command.
+///
+/// An authored catalog id, resolved against [`GameItems`]. Serialized as the
+/// bare id string, so RON writes `{"PdcRound": 2000}`. An id no loaded item
+/// carries is refused at lint and at load; nothing resolves it to another
+/// item. Shared rather than owned, so the many copies a hold, a reload and a
+/// canister keep cost no allocation.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum ItemType {
-    /// Hull plating stock, counted in plates.
-    HullPlate,
-    /// One point-defense round. Kinetic and Pierce mounts load the same round;
-    /// the mount decides its damage type.
-    PdcRound,
-    /// One railgun slug.
-    RailSlug,
-    /// One torpedo. Every bay type loads the same torpedo; the bay decides its
-    /// flight.
-    Torpedo,
-    /// Ore mined from a rock-kind asteroid.
-    StoneOre,
-    /// Ore mined from a metal-kind asteroid.
-    IronOre,
-    /// Ice mined from an ice-kind asteroid.
-    WaterIce,
-    /// Ore mined from a carbon-kind asteroid.
-    CarbonOre,
-    /// Packed provisions for trade. Nothing eats them.
-    Rations,
-    /// Scavenged machine parts for trade.
-    SalvagedParts,
+#[cfg_attr(feature = "serde", serde(transparent))]
+pub struct ItemDesignId(Arc<str>);
+
+impl ItemDesignId {
+    /// The id as authored.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
-impl ItemType {
-    /// Fixed mass of one item in grams. Grams keep capacity and conservation
-    /// arithmetic exact for items lighter than a kilogram.
-    pub fn mass_g(self) -> u32 {
-        match self {
-            Self::HullPlate => 10_000,
-            Self::PdcRound => 200,
-            Self::RailSlug => 20_000,
-            Self::Torpedo => 150_000,
-            Self::StoneOre | Self::IronOre | Self::WaterIce | Self::CarbonOre => 10_000,
-            Self::Rations => 2_000,
-            Self::SalvagedParts => 25_000,
-        }
+impl From<&str> for ItemDesignId {
+    fn from(id: &str) -> Self {
+        Self(id.into())
     }
+}
 
-    /// Credits a trader asks for one item: what a Buy pays. Provisional
-    /// values, not a balance decision.
-    pub fn ask_cr(self) -> u32 {
-        match self {
-            Self::HullPlate => 40,
-            Self::PdcRound => 4,
-            Self::RailSlug => 40,
-            Self::Torpedo => 400,
-            Self::StoneOre => 4,
-            Self::IronOre => 16,
-            Self::WaterIce => 12,
-            Self::CarbonOre => 8,
-            Self::Rations => 8,
-            Self::SalvagedParts => 120,
-        }
+impl std::fmt::Display for ItemDesignId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
     }
+}
 
-    /// Credits a trader bids for one item: what a Sell earns. Below
-    /// [`ask_cr`](Self::ask_cr), so buying and selling back loses credits.
-    pub fn bid_cr(self) -> u32 {
-        match self {
-            Self::HullPlate => 30,
-            Self::PdcRound => 3,
-            Self::RailSlug => 30,
-            Self::Torpedo => 300,
-            Self::StoneOre => 3,
-            Self::IronOre => 12,
-            Self::WaterIce => 9,
-            Self::CarbonOre => 6,
-            Self::Rations => 6,
-            Self::SalvagedParts => 90,
-        }
-    }
+/// Hull plating stock, counted in plates. The repair item.
+pub const ITEM_HULL_PLATE: &str = "HullPlate";
+/// One point-defense round. Kinetic and Pierce mounts load the same round;
+/// the mount decides its damage type.
+pub const ITEM_PDC_ROUND: &str = "PdcRound";
+/// One railgun slug.
+pub const ITEM_RAIL_SLUG: &str = "RailSlug";
+/// One torpedo. Every bay type loads the same torpedo; the bay decides its
+/// flight.
+pub const ITEM_TORPEDO: &str = "Torpedo";
+/// Ore mined from a rock-kind asteroid.
+pub const ITEM_STONE_ORE: &str = "StoneOre";
+/// Ore mined from a metal-kind asteroid.
+pub const ITEM_IRON_ORE: &str = "IronOre";
+/// Ice mined from an ice-kind asteroid.
+pub const ITEM_WATER_ICE: &str = "WaterIce";
+/// Ore mined from a carbon-kind asteroid.
+pub const ITEM_CARBON_ORE: &str = "CarbonOre";
+/// Packed crew food. Generated sector ship holds draw it.
+pub const ITEM_RATIONS: &str = "Rations";
+/// Reusable ship components. Generated sector ship holds draw them.
+pub const ITEM_SALVAGED_PARTS: &str = "SalvagedParts";
 
+/// Every item engine code names, with the category it must keep. Content lint
+/// and the merge refuse a catalog without one of these ids and a definition
+/// that files one under another category: the repair, the weapon reloads,
+/// the mining yield and the sector hold draws would otherwise spend or make
+/// something else.
+pub const ITEM_ROLES: [(&str, ItemCategoryType); 10] = [
+    (ITEM_HULL_PLATE, ItemCategoryType::Repair),
+    (ITEM_PDC_ROUND, ItemCategoryType::Ammo),
+    (ITEM_RAIL_SLUG, ItemCategoryType::Ammo),
+    (ITEM_TORPEDO, ItemCategoryType::Ammo),
+    (ITEM_STONE_ORE, ItemCategoryType::Raw),
+    (ITEM_IRON_ORE, ItemCategoryType::Raw),
+    (ITEM_WATER_ICE, ItemCategoryType::Raw),
+    (ITEM_CARBON_ORE, ItemCategoryType::Raw),
+    (ITEM_RATIONS, ItemCategoryType::Food),
+    (ITEM_SALVAGED_PARTS, ItemCategoryType::Parts),
+];
+
+/// One authored item: what it is called, what it is for, what it weighs and
+/// what a trader pays for it. Every field is required.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct ItemDesign {
+    /// The catalog id stock, cargo and saves name it by.
+    pub id: ItemDesignId,
+    /// The display name, as the Inventory pane and a canister's tag show it.
+    pub name: String,
+    /// One or two sentences the Inventory pane shows for the selected item.
+    pub about: String,
+    /// The category the item is filed under; picks its icon and color.
+    pub category: ItemCategoryType,
+    /// Fixed mass of one item in grams, above zero. Grams keep capacity and
+    /// conservation arithmetic exact for items lighter than a kilogram.
+    pub mass_g: u32,
+    /// Credits a trader asks for one item: what a Buy pays.
+    pub ask_cr: u32,
+    /// Credits a trader bids for one item: what a Sell earns. At most
+    /// [`ask_cr`](Self::ask_cr), so buying and selling back never gains
+    /// credits.
+    pub bid_cr: u32,
+}
+
+impl ItemDesign {
     /// Mass of `count` of this item in grams. Wide so a count read from
     /// content or typed at the Command shell cannot overflow before a
     /// capacity check refuses it.
-    pub fn stack_mass_g(self, count: u32) -> u64 {
-        u64::from(count) * u64::from(self.mass_g())
+    pub fn stack_mass_g(&self, count: u32) -> u64 {
+        u64::from(count) * u64::from(self.mass_g)
+    }
+}
+
+/// The effective item catalog: every [`ItemDesign`] the enabled mods
+/// registered, after the merge applied its overlay rule. Inserted by the mod
+/// merge (`nova_assets`'s `register_bundles`) and read by every item flow.
+#[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
+pub struct GameItems(BTreeMap<ItemDesignId, ItemDesign>);
+
+impl GameItems {
+    /// The catalog of `designs`; a later design with an id replaces an earlier
+    /// one, as a dependent mod's overlay does.
+    pub fn new(designs: impl IntoIterator<Item = ItemDesign>) -> Self {
+        Self(
+            designs
+                .into_iter()
+                .map(|design| (design.id.clone(), design))
+                .collect(),
+        )
     }
 
-    /// The category the item is filed under.
-    pub fn category(self) -> ItemCategoryType {
-        match self {
-            Self::HullPlate => ItemCategoryType::Repair,
-            Self::PdcRound | Self::RailSlug | Self::Torpedo => ItemCategoryType::Ammo,
-            Self::StoneOre | Self::IronOre | Self::WaterIce | Self::CarbonOre => {
-                ItemCategoryType::Raw
-            }
-            Self::Rations => ItemCategoryType::Food,
-            Self::SalvagedParts => ItemCategoryType::Parts,
-        }
+    /// The item with this id, or `None` if nothing authored it.
+    pub fn get(&self, id: &ItemDesignId) -> Option<&ItemDesign> {
+        self.0.get(id)
     }
 
-    /// The item's display name, as the Inventory pane and a canister's tag
-    /// show it.
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::HullPlate => "Hull plate",
-            Self::PdcRound => "PDC round",
-            Self::RailSlug => "Rail slug",
-            Self::Torpedo => "Torpedo",
-            Self::StoneOre => "Stone ore",
-            Self::IronOre => "Iron ore",
-            Self::WaterIce => "Water ice",
-            Self::CarbonOre => "Carbon ore",
-            Self::Rations => "Rations",
-            Self::SalvagedParts => "Salvaged parts",
-        }
+    /// The item with this id, for an id content lint or a save check already
+    /// resolved.
+    ///
+    /// # Panics
+    ///
+    /// When no item has the id: the caller let an unchecked id into a hold,
+    /// a canister or a reload.
+    pub fn design(&self, id: &ItemDesignId) -> &ItemDesign {
+        self.get(id)
+            .unwrap_or_else(|| panic!("item '{id}' is not in the loaded item catalog"))
+    }
+
+    /// Every item, in id order.
+    pub fn iter(&self) -> impl Iterator<Item = &ItemDesign> {
+        self.0.values()
     }
 }
 
@@ -165,6 +206,7 @@ pub fn kg_text(grams: u64) -> String {
 /// What an item is for. There is no fuel category: thrust never consumes
 /// stock.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ItemCategoryType {
     /// Mined or salvaged bulk material.
     Raw,
@@ -178,18 +220,19 @@ pub enum ItemCategoryType {
     Parts,
 }
 
-/// The items an authored ship carries at spawn, as a count per item type.
-/// RON writes a bare map: `{HullPlate: 12}`, or `{}` for none.
+/// The items an authored ship carries at spawn, as a count per item id.
+/// RON writes a map with quoted keys: `{"HullPlate": 12}`, or `{}` for none.
 ///
 /// Holds no capacity: the spawn reads that from the resolved design and
 /// consumes this component into the ship's [`ShipInventory`]. Content lint
-/// refuses stock heavier than the design's hold before the spawn does.
+/// refuses an unknown item and stock heavier than the design's hold before
+/// the spawn does.
 ///
 /// The `Default` holds nothing, as `SpaceshipConfig`'s `Default` needs; RON
 /// still requires the field.
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq, Reflect)]
 pub struct ShipInventoryStock {
-    stacks: BTreeMap<ItemType, u32>,
+    stacks: BTreeMap<ItemDesignId, u32>,
 }
 
 impl ShipInventoryStock {
@@ -199,7 +242,7 @@ impl ShipInventoryStock {
     ///
     /// On a zero quantity or a repeated item: the same faults the authored RON
     /// refuses, so a builder that writes one has a bug.
-    pub fn new(stacks: impl IntoIterator<Item = (ItemType, u32)>) -> Self {
+    pub fn new(stacks: impl IntoIterator<Item = (ItemDesignId, u32)>) -> Self {
         match Self::checked(stacks) {
             Ok(stock) => stock,
             Err(fault) => panic!("{fault}"),
@@ -207,36 +250,41 @@ impl ShipInventoryStock {
     }
 
     /// The one validation both [`new`](Self::new) and the RON parse run.
-    fn checked(stacks: impl IntoIterator<Item = (ItemType, u32)>) -> Result<Self, String> {
+    fn checked(stacks: impl IntoIterator<Item = (ItemDesignId, u32)>) -> Result<Self, String> {
         let mut held = BTreeMap::new();
         for (item, count) in stacks {
             if count == 0 {
                 return Err(format!(
-                    "ShipInventoryStock stack of {item:?} has quantity 0"
+                    "ShipInventoryStock stack of '{item}' has quantity 0"
                 ));
             }
-            if held.insert(item, count).is_some() {
-                return Err(format!("ShipInventoryStock lists {item:?} twice"));
+            if held.contains_key(&item) {
+                return Err(format!("ShipInventoryStock lists '{item}' twice"));
             }
+            held.insert(item, count);
         }
         Ok(Self { stacks: held })
     }
 
-    /// Every stack, in [`ItemType`] order. Each count is above zero.
-    pub fn stacks(&self) -> impl Iterator<Item = (ItemType, u32)> + '_ {
-        self.stacks.iter().map(|(item, count)| (*item, *count))
+    /// Every stack, in id order. Each count is above zero.
+    pub fn stacks(&self) -> impl Iterator<Item = (&ItemDesignId, u32)> + '_ {
+        self.stacks.iter().map(|(item, count)| (item, *count))
     }
 
     /// Mass of every stack in grams. Wide because authored stock has no
     /// capacity bound until the spawn applies one.
-    pub fn mass_g(&self) -> u64 {
+    ///
+    /// # Panics
+    ///
+    /// When `items` lacks a stacked id; content lint refuses that stock first.
+    pub fn mass_g(&self, items: &GameItems) -> u64 {
         self.stacks()
-            .map(|(item, count)| item.stack_mass_g(count))
+            .map(|(item, count)| items.design(item).stack_mass_g(count))
             .sum()
     }
 }
 
-/// The items one ship carries, as a count per item type, and the mass it has
+/// The items one ship carries, as a count per item id, and the mass it has
 /// room for across all stacks. Required by every
 /// [`SpaceshipRootMarker`](crate::markers::SpaceshipRootMarker).
 ///
@@ -247,7 +295,7 @@ impl ShipInventoryStock {
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct ShipInventory {
     capacity_g: u32,
-    stacks: BTreeMap<ItemType, u32>,
+    stacks: BTreeMap<ItemDesignId, u32>,
 }
 
 impl ShipInventory {
@@ -255,12 +303,17 @@ impl ShipInventory {
     ///
     /// # Panics
     ///
-    /// On a zero quantity, a repeated item, or stacks heavier than
-    /// `capacity_g`. Content lint refuses authored stock past a design's
-    /// hold, so a spawn that reaches this panic loaded unlinted content.
-    pub fn new(capacity_g: u32, stacks: impl IntoIterator<Item = (ItemType, u32)>) -> Self {
+    /// On a zero quantity, a repeated item, an item `items` lacks, or stacks
+    /// heavier than `capacity_g`. Content lint refuses authored stock past a
+    /// design's hold, so a spawn that reaches this panic loaded unlinted
+    /// content.
+    pub fn new(
+        items: &GameItems,
+        capacity_g: u32,
+        stacks: impl IntoIterator<Item = (ItemDesignId, u32)>,
+    ) -> Self {
         let stock = ShipInventoryStock::new(stacks);
-        let mass_g = stock.mass_g();
+        let mass_g = stock.mass_g(items);
         assert!(
             mass_g <= u64::from(capacity_g),
             "ShipInventory holds {} but has capacity {}",
@@ -279,27 +332,26 @@ impl ShipInventory {
     }
 
     /// How many grams the ship carries across all stacks.
-    pub fn used_g(&self) -> u32 {
+    pub fn used_g(&self, items: &GameItems) -> u32 {
         // The capacity bounds the sum, so each product and the sum fit.
         self.stacks()
-            .map(|(item, count)| item.mass_g() * count)
+            .map(|(item, count)| items.design(item).mass_g * count)
             .sum()
     }
 
     /// How many more grams the ship has room for.
-    pub fn free_g(&self) -> u32 {
-        self.capacity_g - self.used_g()
+    pub fn free_g(&self, items: &GameItems) -> u32 {
+        self.capacity_g - self.used_g(items)
     }
 
     /// How many of `item` the ship carries; zero when it has no stack.
-    pub fn count(&self, item: ItemType) -> u32 {
-        self.stacks.get(&item).copied().unwrap_or(0)
+    pub fn count(&self, item: &ItemDesignId) -> u32 {
+        self.stacks.get(item).copied().unwrap_or(0)
     }
 
-    /// Every stack the ship carries, in [`ItemType`] order. Each count is above
-    /// zero.
-    pub fn stacks(&self) -> impl Iterator<Item = (ItemType, u32)> + '_ {
-        self.stacks.iter().map(|(item, count)| (*item, *count))
+    /// Every stack the ship carries, in id order. Each count is above zero.
+    pub fn stacks(&self) -> impl Iterator<Item = (&ItemDesignId, u32)> + '_ {
+        self.stacks.iter().map(|(item, count)| (item, *count))
     }
 
     /// True when the ship carries no stack.
@@ -313,15 +365,16 @@ impl ShipInventory {
     ///
     /// On `count == 0` or a mass past [`free_g`](Self::free_g): the caller
     /// has a bug and must plan the add first, as [`plan_item_transfer`] does.
-    pub fn add(&mut self, item: ItemType, count: u32) {
-        assert!(count > 0, "ShipInventory adds 0 of {item:?}");
-        let free_g = self.free_g();
+    pub fn add(&mut self, items: &GameItems, item: &ItemDesignId, count: u32) {
+        assert!(count > 0, "ShipInventory adds 0 of '{item}'");
+        let free_g = self.free_g(items);
         assert!(
-            item.stack_mass_g(count) <= u64::from(free_g),
-            "ShipInventory adds {count} of {item:?} but has room for {}",
+            items.design(item).stack_mass_g(count) <= u64::from(free_g),
+            "ShipInventory adds {count} of '{item}' but has room for {}",
             kg_text(u64::from(free_g)),
         );
-        self.stacks.insert(item, self.count(item) + count);
+        let held = self.count(item);
+        self.stacks.insert(item.clone(), held + count);
     }
 
     /// Remove `count` of `item`; delete the stack when it empties.
@@ -330,17 +383,17 @@ impl ShipInventory {
     ///
     /// On `count == 0` or more than the ship carries: the caller has a bug and
     /// must check [`count`](Self::count) first.
-    pub fn remove(&mut self, item: ItemType, count: u32) {
-        assert!(count > 0, "ShipInventory removes 0 of {item:?}");
+    pub fn remove(&mut self, item: &ItemDesignId, count: u32) {
+        assert!(count > 0, "ShipInventory removes 0 of '{item}'");
         let held = self.count(item);
         assert!(
             count <= held,
-            "ShipInventory removes {count} of {item:?} but carries {held}"
+            "ShipInventory removes {count} of '{item}' but carries {held}"
         );
         if count == held {
-            self.stacks.remove(&item);
+            self.stacks.remove(item);
         } else {
-            self.stacks.insert(item, held - count);
+            self.stacks.insert(item.clone(), held - count);
         }
     }
 }
@@ -396,11 +449,12 @@ pub enum ItemTransferRefusalType {
 /// needs `partner_lootable`: the partner is neutralized or carries
 /// [`LootableShipMarker`]; a Give does not read it. Checks run in
 /// [`ItemTransferRefusalType`] order. `quantity` is `None` when the typed
-/// text is not a whole number.
+/// text is not a whole number. `item` resolves in `items`.
 pub fn plan_item_transfer(
+    items: &GameItems,
     transfer: ItemTransferType,
     partner_lootable: bool,
-    item: ItemType,
+    item: &ItemDesignId,
     quantity: Option<u32>,
     own: &ShipInventory,
     partner: &ShipInventory,
@@ -422,8 +476,8 @@ pub fn plan_item_transfer(
     if quantity > held {
         return Err(ItemTransferRefusalType::Short { held });
     }
-    let free_g = target.free_g();
-    if item.stack_mass_g(quantity) > u64::from(free_g) {
+    let free_g = target.free_g(items);
+    if items.design(item).stack_mass_g(quantity) > u64::from(free_g) {
         return Err(ItemTransferRefusalType::NoRoom { free_g });
     }
     Ok(quantity)
@@ -482,17 +536,19 @@ pub enum ItemTradeRefusalType {
 ///
 /// `partner_trades` is true when the partner is neither neutralized nor
 /// carries [`LootableShipMarker`]. A Buy moves items from the partner to the
-/// player at [`ItemType::ask_cr`] each; a Sell moves them from the player to
-/// the partner at [`ItemType::bid_cr`] each. Checks run in
-/// [`ItemTradeRefusalType`] order, and a refusal changes nothing.
+/// player at [`ItemDesign::ask_cr`] each; a Sell moves them from the player to
+/// the partner at [`ItemDesign::bid_cr`] each. Checks run in
+/// [`ItemTradeRefusalType`] order, and a refusal changes nothing. `item`
+/// resolves in `items`.
 #[expect(
     clippy::too_many_arguments,
     reason = "both ships' stock and credits, read as one atomic plan"
 )]
 pub fn plan_item_trade(
+    items: &GameItems,
     trade: ItemTradeType,
     partner_trades: bool,
-    item: ItemType,
+    item: &ItemDesignId,
     quantity: Option<u32>,
     own: &ShipInventory,
     own_cr: u32,
@@ -506,16 +562,17 @@ pub fn plan_item_trade(
     if quantity == 0 {
         return Err(ItemTradeRefusalType::ZeroQuantity);
     }
+    let design = items.design(item);
     let (seller, buyer, buyer_cr, seller_cr, unit_cr) = match trade {
-        ItemTradeType::Buy => (partner, own, own_cr, partner_cr, item.ask_cr()),
-        ItemTradeType::Sell => (own, partner, partner_cr, own_cr, item.bid_cr()),
+        ItemTradeType::Buy => (partner, own, own_cr, partner_cr, design.ask_cr),
+        ItemTradeType::Sell => (own, partner, partner_cr, own_cr, design.bid_cr),
     };
     let held = seller.count(item);
     if quantity > held {
         return Err(ItemTradeRefusalType::Short { held });
     }
-    let free_g = buyer.free_g();
-    if item.stack_mass_g(quantity) > u64::from(free_g) {
+    let free_g = buyer.free_g(items);
+    if design.stack_mass_g(quantity) > u64::from(free_g) {
         return Err(ItemTradeRefusalType::NoRoom { free_g });
     }
     let price = u64::from(quantity) * u64::from(unit_cr);
@@ -579,44 +636,43 @@ pub const CARGO_CANISTER_MAX_MASS_G: u32 = 200_000;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CargoCanister {
-    stacks: BTreeMap<ItemType, u32>,
+    stacks: BTreeMap<ItemDesignId, u32>,
 }
 
 impl CargoCanister {
-    /// Start a canister with one valid stack.
-    pub fn new(item: ItemType, count: u32) -> Self {
+    /// Start a canister with one valid stack of an item `items` holds.
+    pub fn new(items: &GameItems, item: &ItemDesignId, count: u32) -> Self {
         assert!(
             count > 0
-                && u64::from(count) * u64::from(item.mass_g())
-                    <= u64::from(CARGO_CANISTER_MAX_MASS_G),
+                && items.design(item).stack_mass_g(count) <= u64::from(CARGO_CANISTER_MAX_MASS_G),
             "invalid canister stack"
         );
         Self {
-            stacks: [(item, count)].into(),
+            stacks: [(item.clone(), count)].into(),
         }
     }
 
-    /// Every held stack in item order.
-    pub fn stacks(&self) -> impl Iterator<Item = (ItemType, u32)> + '_ {
-        self.stacks.iter().map(|(&item, &count)| (item, count))
+    /// Every held stack in id order.
+    pub fn stacks(&self) -> impl Iterator<Item = (&ItemDesignId, u32)> + '_ {
+        self.stacks.iter().map(|(item, &count)| (item, count))
     }
 
     /// Total mass in grams.
-    pub fn total_mass_g(&self) -> u32 {
+    pub fn total_mass_g(&self, items: &GameItems) -> u32 {
         self.stacks()
-            .map(|(item, count)| item.mass_g() * count)
+            .map(|(item, count)| items.design(item).mass_g * count)
             .sum()
     }
 
     /// Add a stack after the jettison rule has checked the resulting mass.
-    pub fn add(&mut self, item: ItemType, count: u32) {
+    pub fn add(&mut self, items: &GameItems, item: &ItemDesignId, count: u32) {
         assert!(
             count > 0
-                && u64::from(self.total_mass_g()) + u64::from(count) * u64::from(item.mass_g())
+                && u64::from(self.total_mass_g(items)) + items.design(item).stack_mass_g(count)
                     <= u64::from(CARGO_CANISTER_MAX_MASS_G),
             "canister mass exceeded"
         );
-        *self.stacks.entry(item).or_default() += count;
+        *self.stacks.entry(item.clone()).or_default() += count;
     }
 }
 
@@ -687,7 +743,7 @@ pub enum ItemJettisonRefusalType {
         /// What the ship carries.
         held: u32,
     },
-    /// One item is heavier than a canister holds. No current item is.
+    /// One item is heavier than a canister holds.
     Overweight,
 }
 
@@ -713,10 +769,11 @@ pub struct ItemJettison {
 /// Checks run in [`ItemJettisonRefusalType`] order. `quantity` is `None` when
 /// the typed text is not a whole number.
 pub fn plan_item_jettison(
+    items: &GameItems,
     docked: bool,
     has_intake: bool,
     tail: Option<&CargoCanister>,
-    item: ItemType,
+    item: &ItemDesignId,
     quantity: Option<u32>,
     own: &ShipInventory,
 ) -> Result<ItemJettison, ItemJettisonRefusalType> {
@@ -734,19 +791,20 @@ pub fn plan_item_jettison(
     if quantity > held {
         return Err(ItemJettisonRefusalType::Short { held });
     }
-    let per_canister = CARGO_CANISTER_MAX_MASS_G / item.mass_g();
+    let mass_g = items.design(item).mass_g;
+    let per_canister = CARGO_CANISTER_MAX_MASS_G / mass_g;
     if per_canister == 0 {
         return Err(ItemJettisonRefusalType::Overweight);
     }
     let tail_room = tail.map_or(0, |tail| {
-        (CARGO_CANISTER_MAX_MASS_G - tail.total_mass_g()) / item.mass_g()
+        (CARGO_CANISTER_MAX_MASS_G - tail.total_mass_g(items)) / mass_g
     });
     let merged = quantity.min(tail_room);
     let mut rest = quantity - merged;
     let mut canisters = Vec::new();
     while rest > 0 {
         let count = rest.min(per_canister);
-        canisters.push(CargoCanister::new(item, count));
+        canisters.push(CargoCanister::new(items, item, count));
         rest -= count;
     }
     Ok(ItemJettison {
@@ -845,7 +903,7 @@ impl<'de> serde::Deserialize<'de> for ShipInventoryStock {
             type Value = ShipInventoryStock;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("a map of item type to stack count")
+                formatter.write_str("a map of item id to stack count")
             }
 
             fn visit_map<A: serde::de::MapAccess<'de>>(
@@ -853,7 +911,7 @@ impl<'de> serde::Deserialize<'de> for ShipInventoryStock {
                 mut map: A,
             ) -> Result<Self::Value, A::Error> {
                 let mut stacks = Vec::new();
-                while let Some(entry) = map.next_entry::<ItemType, u32>()? {
+                while let Some(entry) = map.next_entry::<ItemDesignId, u32>()? {
                     stacks.push(entry);
                 }
                 ShipInventoryStock::checked(stacks).map_err(serde::de::Error::custom)
@@ -871,14 +929,16 @@ mod tests {
     #[test]
     fn kg_text_shows_grams_as_kilograms_without_trailing_zeros() {
         assert_eq!(kg_text(0), "0 kg");
-        assert_eq!(kg_text(u64::from(ItemType::PdcRound.mass_g())), "0.2 kg");
-        assert_eq!(kg_text(u64::from(ItemType::HullPlate.mass_g())), "10 kg");
+        let items = crate::test_support::test_items();
+        let mass_g = |id: &str| u64::from(items.design(&ItemDesignId::from(id)).mass_g);
+        assert_eq!(kg_text(mass_g(ITEM_PDC_ROUND)), "0.2 kg");
+        assert_eq!(kg_text(mass_g(ITEM_HULL_PLATE)), "10 kg");
         assert_eq!(kg_text(1_050), "1.05 kg");
         assert_eq!(kg_text(3_520_001), "3520.001 kg");
         // 6000 PDC rounds weigh exactly 1200 kg: no float drift in the sum.
-        let rounds = ShipInventory::new(1_200_000, [(ItemType::PdcRound, 6000)]);
-        assert_eq!(rounds.used_g(), 1_200_000);
-        assert_eq!(rounds.free_g(), 0);
+        let rounds = ShipInventory::new(&items, 1_200_000, [(ITEM_PDC_ROUND.into(), 6000)]);
+        assert_eq!(rounds.used_g(&items), 1_200_000);
+        assert_eq!(rounds.free_g(&items), 0);
     }
 
     #[test]
@@ -945,15 +1005,18 @@ mod transfer_tests {
 
     #[test]
     fn item_transfer_plans_refuse_in_order_and_never_pass_capacity() {
+        let items = crate::test_support::test_items();
         use ItemTransferRefusalType::*;
         use ItemTransferType::*;
         // 400 kg holds 40 plates of 10 kg.
-        let plates = |count: u32| ShipInventory::new(400_000, [(ItemType::HullPlate, count)]);
+        let plates =
+            |count: u32| ShipInventory::new(&items, 400_000, [(ITEM_HULL_PLATE.into(), count)]);
         let plan = |transfer, lootable, quantity, own: &ShipInventory, partner: &ShipInventory| {
             plan_item_transfer(
+                &items,
                 transfer,
                 lootable,
-                ItemType::HullPlate,
+                &ItemDesignId::from(ITEM_HULL_PLATE),
                 quantity,
                 own,
                 partner,
@@ -1000,20 +1063,22 @@ mod transfer_tests {
         // A planned move conserves the total and empties a drained stack.
         let (mut own, mut partner) = (own, partner);
         let moved = plan(Take, true, Some(8), &own, &partner).expect("planned");
-        partner.remove(ItemType::HullPlate, moved);
-        own.add(ItemType::HullPlate, moved);
-        assert_eq!(own.count(ItemType::HullPlate), 20);
-        assert_eq!(own.used_g(), 200_000);
-        assert_eq!(own.free_g(), 200_000);
+        partner.remove(&ItemDesignId::from(ITEM_HULL_PLATE), moved);
+        own.add(&items, &ItemDesignId::from(ITEM_HULL_PLATE), moved);
+        assert_eq!(own.count(&ItemDesignId::from(ITEM_HULL_PLATE)), 20);
+        assert_eq!(own.used_g(&items), 200_000);
+        assert_eq!(own.free_g(&items), 200_000);
         assert!(partner.is_empty());
     }
 
     #[test]
     fn item_trade_plans_refuse_in_order_and_conserve_items_and_credits() {
+        let items = crate::test_support::test_items();
         use ItemTradeRefusalType::*;
         use ItemTradeType::*;
         // 400 kg of room; ore is 10 kg, ask 4 and bid 3 for stone.
-        let ore = |count: u32| ShipInventory::new(400_000, [(ItemType::StoneOre, count)]);
+        let ore =
+            |count: u32| ShipInventory::new(&items, 400_000, [(ITEM_STONE_ORE.into(), count)]);
         let plan = |trade,
                     trades,
                     quantity,
@@ -1022,9 +1087,10 @@ mod transfer_tests {
                     partner: &ShipInventory,
                     partner_cr| {
             plan_item_trade(
+                &items,
                 trade,
                 trades,
-                ItemType::StoneOre,
+                &ItemDesignId::from(ITEM_STONE_ORE),
                 quantity,
                 own,
                 own_cr,
@@ -1049,7 +1115,7 @@ mod transfer_tests {
             })
         );
         // Exact funds and exact room are valid; both balances may reach zero.
-        let mut exact = ShipInventory::new(50_000, []);
+        let mut exact = ShipInventory::new(&items, 50_000, []);
         let mut seller = ore(5);
         let (mut buyer_cr, mut seller_cr) = (20, 0);
         assert_eq!(
@@ -1064,7 +1130,7 @@ mod transfer_tests {
                 Buy,
                 true,
                 Some(5),
-                &ShipInventory::new(49_999, []),
+                &ShipInventory::new(&items, 49_999, []),
                 20,
                 &seller,
                 0
@@ -1075,13 +1141,14 @@ mod transfer_tests {
             plan(Buy, true, Some(5), &exact, 19, &seller, 0),
             Err(NoCredits { credits: 19 })
         );
-        seller.remove(ItemType::StoneOre, 5);
-        exact.add(ItemType::StoneOre, 5);
+        seller.remove(&ItemDesignId::from(ITEM_STONE_ORE), 5);
+        exact.add(&items, &ItemDesignId::from(ITEM_STONE_ORE), 5);
         buyer_cr -= 20;
         seller_cr += 20;
-        assert_eq!((buyer_cr, seller_cr, exact.free_g()), (0, 20, 0));
+        assert_eq!((buyer_cr, seller_cr, exact.free_g(&items)), (0, 20, 0));
         assert_eq!(
-            exact.count(ItemType::StoneOre) + seller.count(ItemType::StoneOre),
+            exact.count(&ItemDesignId::from(ITEM_STONE_ORE))
+                + seller.count(&ItemDesignId::from(ITEM_STONE_ORE)),
             5
         );
         assert_eq!(
@@ -1093,7 +1160,7 @@ mod transfer_tests {
                 Buy,
                 true,
                 Some(1),
-                &ShipInventory::new(400_000, []),
+                &ShipInventory::new(&items, 400_000, []),
                 buyer_cr,
                 &ore(1),
                 seller_cr,
@@ -1156,12 +1223,13 @@ mod transfer_tests {
         let (mut own, mut partner) = (own, partner);
         let (mut own_cr, mut partner_cr) = (100u32, 7u32);
         let trade = plan(Buy, true, Some(5), &own, own_cr, &partner, partner_cr).expect("planned");
-        partner.remove(ItemType::StoneOre, trade.count);
-        own.add(ItemType::StoneOre, trade.count);
+        partner.remove(&ItemDesignId::from(ITEM_STONE_ORE), trade.count);
+        own.add(&items, &ItemDesignId::from(ITEM_STONE_ORE), trade.count);
         own_cr -= trade.price_cr;
         partner_cr += trade.price_cr;
         assert_eq!(
-            own.count(ItemType::StoneOre) + partner.count(ItemType::StoneOre),
+            own.count(&ItemDesignId::from(ITEM_STONE_ORE))
+                + partner.count(&ItemDesignId::from(ITEM_STONE_ORE)),
             40
         );
         assert_eq!((own_cr, partner_cr), (80, 27));
@@ -1190,15 +1258,17 @@ mod transfer_tests {
 
     #[test]
     fn item_jettison_plans_refuse_in_order() {
+        let items = crate::test_support::test_items();
         use ItemJettisonRefusalType::*;
-        let own = ShipInventory::new(400_000, [(ItemType::HullPlate, 12)]);
-        let tail = CargoCanister::new(ItemType::HullPlate, 9);
+        let own = ShipInventory::new(&items, 400_000, [(ITEM_HULL_PLATE.into(), 12)]);
+        let tail = CargoCanister::new(&items, &ItemDesignId::from(ITEM_HULL_PLATE), 9);
         let plan = |docked, has_intake, tail: Option<&CargoCanister>, quantity| {
             plan_item_jettison(
+                &items,
                 docked,
                 has_intake,
                 tail,
-                ItemType::HullPlate,
+                &ItemDesignId::from(ITEM_HULL_PLATE),
                 quantity,
                 &own,
             )
@@ -1215,60 +1285,78 @@ mod transfer_tests {
 
     #[test]
     fn item_jettison_fills_the_waiting_tail_then_splits_the_rest_by_whole_items() {
+        let items = crate::test_support::test_items();
         let own = ShipInventory::new(
+            &items,
             10_000_000,
             [
-                (ItemType::HullPlate, 12),
-                (ItemType::PdcRound, 2_500),
-                (ItemType::RailSlug, 25),
-                (ItemType::Torpedo, 3),
+                (ITEM_HULL_PLATE.into(), 12),
+                (ITEM_PDC_ROUND.into(), 2_500),
+                (ITEM_RAIL_SLUG.into(), 25),
+                (ITEM_TORPEDO.into(), 3),
             ],
         );
         let plan = |tail: Option<&CargoCanister>, item, quantity| {
-            plan_item_jettison(false, true, tail, item, Some(quantity), &own)
-                .expect("the ship holds the quantity")
+            plan_item_jettison(
+                &items,
+                false,
+                true,
+                tail,
+                &ItemDesignId::from(item),
+                Some(quantity),
+                &own,
+            )
+            .expect("the ship holds the quantity")
         };
         let split = |jettison: &ItemJettison| {
             jettison
                 .canisters
                 .iter()
-                .map(|canister| canister.stacks().collect::<Vec<_>>())
+                .map(|canister| {
+                    canister
+                        .stacks()
+                        .map(|(item, count)| (item.as_str().to_string(), count))
+                        .collect::<Vec<_>>()
+                })
                 .collect::<Vec<_>>()
         };
 
         // One 150 kg torpedo per canister; 10 slugs and 1000 rounds fill one.
-        let torpedoes = plan(None, ItemType::Torpedo, 3);
+        let torpedoes = plan(None, ITEM_TORPEDO, 3);
         assert_eq!((torpedoes.count, torpedoes.merged), (3, 0));
-        assert_eq!(split(&torpedoes), vec![vec![(ItemType::Torpedo, 1)]; 3]);
-        let slugs = plan(None, ItemType::RailSlug, 25);
+        assert_eq!(
+            split(&torpedoes),
+            vec![vec![(ITEM_TORPEDO.to_string(), 1)]; 3]
+        );
+        let slugs = plan(None, ITEM_RAIL_SLUG, 25);
         assert_eq!(
             split(&slugs),
             [
-                vec![(ItemType::RailSlug, 10)],
-                vec![(ItemType::RailSlug, 10)],
-                vec![(ItemType::RailSlug, 5)],
+                vec![(ITEM_RAIL_SLUG.to_string(), 10)],
+                vec![(ITEM_RAIL_SLUG.to_string(), 10)],
+                vec![(ITEM_RAIL_SLUG.to_string(), 5)],
             ]
         );
-        let rounds = plan(None, ItemType::PdcRound, 2_500);
+        let rounds = plan(None, ITEM_PDC_ROUND, 2_500);
         assert_eq!(
             split(&rounds),
             [
-                vec![(ItemType::PdcRound, 1_000)],
-                vec![(ItemType::PdcRound, 1_000)],
-                vec![(ItemType::PdcRound, 500)],
+                vec![(ITEM_PDC_ROUND.to_string(), 1_000)],
+                vec![(ITEM_PDC_ROUND.to_string(), 1_000)],
+                vec![(ITEM_PDC_ROUND.to_string(), 500)],
             ]
         );
 
         // A waiting 90 kg tail has 110 kg of room: 5 slugs merge ...
-        let tail = CargoCanister::new(ItemType::HullPlate, 9);
-        let into_tail = plan(Some(&tail), ItemType::RailSlug, 7);
+        let tail = CargoCanister::new(&items, &ItemDesignId::from(ITEM_HULL_PLATE), 9);
+        let into_tail = plan(Some(&tail), ITEM_RAIL_SLUG, 7);
         assert_eq!((into_tail.count, into_tail.merged), (7, 5));
-        assert_eq!(split(&into_tail), [vec![(ItemType::RailSlug, 2)]]);
+        assert_eq!(split(&into_tail), [vec![(ITEM_RAIL_SLUG.to_string(), 2)]]);
         // ... and no torpedo, which starts a new canister.
-        let past_tail = plan(Some(&tail), ItemType::Torpedo, 1);
+        let past_tail = plan(Some(&tail), ITEM_TORPEDO, 1);
         assert_eq!(past_tail.merged, 0);
-        assert_eq!(split(&past_tail), [vec![(ItemType::Torpedo, 1)]]);
-        let fits = plan(Some(&tail), ItemType::HullPlate, 11);
+        assert_eq!(split(&past_tail), [vec![(ITEM_TORPEDO.to_string(), 1)]]);
+        let fits = plan(Some(&tail), ITEM_HULL_PLATE, 11);
         assert_eq!((fits.merged, fits.canisters.len()), (11, 0));
 
         // Every planned count is conserved across the tail and the canisters.
@@ -1290,26 +1378,35 @@ mod serde_tests {
 
     #[test]
     fn authored_stock_rejects_a_zero_stack_and_a_repeated_item() {
-        let ok: ShipInventoryStock = ron::from_str("{HullPlate: 12}").expect("valid stock parses");
-        assert_eq!(ok.stacks().collect::<Vec<_>>(), [(ItemType::HullPlate, 12)]);
-        assert_eq!(ok.mass_g(), 120_000);
+        let items = crate::test_support::test_items();
+        let ok: ShipInventoryStock =
+            ron::from_str(r#"{"HullPlate": 12}"#).expect("valid stock parses");
+        assert_eq!(
+            ok.stacks().collect::<Vec<_>>(),
+            [(&ItemDesignId::from(ITEM_HULL_PLATE), 12)]
+        );
+        assert_eq!(ok.mass_g(&items), 120_000);
         let round_trip: ShipInventoryStock =
             ron::from_str(&ron::to_string(&ok).expect("serializes")).expect("parses back");
         assert_eq!(round_trip, ok);
-        let empty: ShipInventoryStock = ron::from_str("{}").expect("empty stock parses");
-        assert_eq!(empty.mass_g(), 0);
+        let empty: ShipInventoryStock = ron::from_str(r#"{}"#).expect("empty stock parses");
+        assert_eq!(empty.mass_g(&items), 0);
 
-        let zero = ron::from_str::<ShipInventoryStock>("{HullPlate: 0}")
+        let zero = ron::from_str::<ShipInventoryStock>(r#"{"HullPlate": 0}"#)
             .expect_err("a zero-quantity stack must fail");
         assert!(zero.to_string().contains("quantity 0"), "{zero}");
 
-        let dup = ron::from_str::<ShipInventoryStock>("{HullPlate: 1, HullPlate: 2}")
+        let dup = ron::from_str::<ShipInventoryStock>(r#"{"HullPlate": 1, "HullPlate": 2}"#)
             .expect_err("a repeated item must fail");
         assert!(dup.to_string().contains("twice"), "{dup}");
 
+        // Ids are strings: the unquoted spelling of the closed enum is gone.
+        ron::from_str::<ShipInventoryStock>("{HullPlate: 1}")
+            .expect_err("an unquoted item id must fail");
+
         // The largest count still weighs without overflow, for lint to refuse.
         let huge: ShipInventoryStock =
-            ron::from_str("{HullPlate: 4294967295}").expect("a huge count parses");
-        assert_eq!(huge.mass_g(), 42_949_672_950_000);
+            ron::from_str(r#"{"HullPlate": 4294967295}"#).expect("a huge count parses");
+        assert_eq!(huge.mass_g(&items), 42_949_672_950_000);
     }
 }

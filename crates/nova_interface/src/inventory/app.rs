@@ -116,10 +116,10 @@ pub(crate) struct InventoryTakeCreditsButton;
 pub(crate) struct InventoryColumnPanel(pub(crate) InventorySideType);
 
 /// A drawn stack. A click selects it for the inspector.
-#[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Component, Clone, PartialEq, Eq, Debug)]
 pub(crate) struct InventoryRow {
     pub(crate) side: InventorySideType,
-    pub(crate) item: ItemType,
+    pub(crate) item: ItemDesignId,
 }
 
 /// A part of the inspector that shows with the selection or without it.
@@ -210,26 +210,10 @@ pub(crate) struct InventoryAboutBox;
 #[derive(Clone, PartialEq, Eq, Debug)]
 struct ColumnDraw {
     /// Every stack the side carries, or `None` when there is no partner.
-    stacks: Option<Vec<(ItemType, u32)>>,
+    stacks: Option<Vec<(ItemDesignId, u32)>>,
     /// The filter the rows apply; `None` as well when there are no stacks, so
     /// a filter click does not redraw an absent partner.
     filter: Option<ItemCategoryType>,
-}
-
-/// A one-line "what it is" for the inspector.
-fn item_about(item: ItemType) -> &'static str {
-    match item {
-        ItemType::HullPlate => "Structural plating for hull sections.",
-        ItemType::PdcRound => "Point-defense round. Kinetic and Pierce mounts reload from it.",
-        ItemType::RailSlug => "Railgun slug. Railgun mounts reload from it.",
-        ItemType::Torpedo => "Torpedo. Every torpedo bay reloads from it.",
-        ItemType::StoneOre => "Silicate rock, mined from rock asteroids.",
-        ItemType::IronOre => "Metal-rich ore, mined from metal asteroids.",
-        ItemType::WaterIce => "Frozen volatiles, mined from ice asteroids.",
-        ItemType::CarbonOre => "Carbon-rich ore, mined from carbon asteroids.",
-        ItemType::Rations => "Packed crew food. Traders buy and sell it.",
-        ItemType::SalvagedParts => "Reusable ship components. Traders buy and sell them.",
-    }
 }
 
 /// The filter and inspector word for a category.
@@ -881,15 +865,17 @@ fn draft_form(form: &mut ChildSpawnerCommands) {
 fn inventory_row(
     list: &mut ChildSpawnerCommands,
     side: InventorySideType,
-    (item, count): (ItemType, u32),
+    (item, count): (ItemDesignId, u32),
     selected: bool,
     icons: &InterfaceIcons,
+    items: &GameItems,
 ) {
-    let category = item.category();
+    let design = items.design(&item);
+    let category = design.category;
     let tone = category_color(category);
     let (fill, border) = row_alphas(selected);
     list.spawn((
-        Name::new(format!("InventoryRow{side:?}{item:?}")),
+        Name::new(format!("InventoryRow{side:?}{item}")),
         Button,
         InventoryRow { side, item },
         Node {
@@ -912,7 +898,7 @@ fn inventory_row(
     .with_children(|row| {
         row.spawn(icon_node(icons.category(category), tone, 18.0));
         row.spawn((
-            themed_label(item.label(), 13.0, UiColor::Body),
+            themed_label(&design.name, 13.0, UiColor::Body),
             Node {
                 flex_grow: 1.0,
                 min_width: px(0),
@@ -962,7 +948,7 @@ fn on_inventory_row(
     let Ok(row) = q_row.get(activate.entity) else {
         return;
     };
-    if select_inventory_row(&mut runtime, &ships, *row) {
+    if select_inventory_row(&mut runtime, &ships, row.clone()) {
         play_menu_select(&mut commands, bank.as_deref());
     }
 }
@@ -976,13 +962,13 @@ fn select_inventory_row(
     ships: &InventoryShips,
     row: InventoryRow,
 ) -> bool {
-    let picked = Some((row.side, row.item));
+    let picked = Some((row.side, row.item.clone()));
     let pair = ships.pair();
     let partner_lootable = pair.and_then(|pair| ships.partner_lootable(pair));
     let offer = pair.and_then(|pair| {
         offered_action(row.side, partner_lootable, ships.intake(pair.own).is_some())
     });
-    let kept = match (runtime.draft, offer) {
+    let kept = match (runtime.draft.as_ref(), offer) {
         (Some(draft), Some(action)) => {
             draft.item == row.item && draft_fits(action, draft.action, partner_lootable)
         }
@@ -1020,6 +1006,7 @@ pub(crate) fn inventory_keys(
     input: NovaOsAppInput,
     bindings: Res<InputBindings>,
     ships: InventoryShips,
+    items: Res<GameItems>,
     mut runtime: ResMut<InventoryRuntime>,
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
@@ -1073,17 +1060,20 @@ pub(crate) fn inventory_keys(
                 .ship(ship)
                 .1
                 .stacks()
-                .map(move |(item, _)| InventoryRow { side, item })
+                .map(move |(item, _)| InventoryRow {
+                    side,
+                    item: item.clone(),
+                })
                 .collect::<Vec<_>>()
         })
-        .filter(|row| filter.is_none_or(|category| row.item.category() == category))
+        .filter(|row| filter.is_none_or(|category| items.design(&row.item).category == category))
         .collect();
-        let current = runtime.selected.and_then(|(side, item)| {
+        let current = runtime.selected.clone().and_then(|(side, item)| {
             rows.iter()
-                .position(|row| *row == InventoryRow { side, item })
+                .position(|row| row.side == side && row.item == item)
         });
         if let Some(next) = cycle_index(current, rows.len(), forward) {
-            if select_inventory_row(&mut runtime, &ships, rows[next]) {
+            if select_inventory_row(&mut runtime, &ships, rows[next].clone()) {
                 play_menu_select(&mut commands, bank.as_deref());
             }
         }
@@ -1137,7 +1127,7 @@ fn on_inventory_draft_action_chip(
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
 ) {
-    let (Ok(chip), Some(draft)) = (q_chip.get(activate.entity), runtime.draft) else {
+    let (Ok(chip), Some(draft)) = (q_chip.get(activate.entity), runtime.draft.clone()) else {
         return;
     };
     let switchable = matches!(
@@ -1174,6 +1164,7 @@ fn on_take_credits_button(
 /// on a broken record.
 #[derive(SystemParam)]
 pub(crate) struct InventoryShips<'w, 's> {
+    items: Res<'w, GameItems>,
     players: Query<'w, 's, (Entity, Option<&'static DockedShip>), With<PlayerSpaceshipMarker>>,
     connections: Query<'w, 's, &'static DockingConnection>,
     ships: Query<
@@ -1295,7 +1286,7 @@ impl InventoryShips<'_, '_> {
 
     /// What the source ship of `draft` carries of its item, and never less than
     /// one, so the wheel's range is never empty.
-    fn draft_stock(&self, draft: InventoryDraft) -> u32 {
+    fn draft_stock(&self, draft: &InventoryDraft) -> u32 {
         let source = self.pair().and_then(|pair| match draft.action {
             InventoryActionType::Take | InventoryActionType::Buy => pair.partner,
             InventoryActionType::Give
@@ -1303,7 +1294,7 @@ impl InventoryShips<'_, '_> {
             | InventoryActionType::Jettison => Some(pair.own),
         });
         source
-            .map_or(0, |ship| self.ship(ship).1.count(draft.item))
+            .map_or(0, |ship| self.ship(ship).1.count(&draft.item))
             .max(1)
     }
 }
@@ -1325,7 +1316,7 @@ fn set_draft_quantity(
     commands: &mut Commands,
     bank: Option<&SoundBank<UiSfx>>,
 ) {
-    let Some(draft) = runtime.draft else {
+    let Some(draft) = runtime.draft.clone() else {
         return;
     };
     if draft.quantity == quantity {
@@ -1346,14 +1337,14 @@ fn wheel_inventory_draft(
     mut commands: Commands,
     mut runtime: ResMut<InventoryRuntime>,
 ) {
-    let Some(draft) = runtime.draft else {
+    let Some(draft) = runtime.draft.clone() else {
         return;
     };
     if scroll.y == 0.0 {
         return;
     }
     let step = if scroll.y > 0.0 { 1 } else { -1 };
-    let have = i64::from(ships.draft_stock(draft));
+    let have = i64::from(ships.draft_stock(&draft));
     let quantity = (i64::from(draft.quantity.unwrap_or(0)) + step).clamp(1, have) as u32;
     set_draft_quantity(&mut runtime, Some(quantity), &mut commands, bank.as_deref());
 }
@@ -1379,11 +1370,11 @@ fn fill_inventory_draft(
     mut commands: Commands,
     mut runtime: ResMut<InventoryRuntime>,
 ) {
-    let Some(draft) = runtime.draft else {
+    let Some(draft) = runtime.draft.clone() else {
         return;
     };
     runtime.draft = Some(InventoryDraft {
-        quantity: Some(ships.draft_stock(draft)),
+        quantity: Some(ships.draft_stock(&draft)),
         ..draft
     });
     play_menu_select(&mut commands, bank.as_deref());
@@ -1402,7 +1393,7 @@ fn confirm_inventory_draft(
     if q_disabled.contains(activate.entity) {
         return;
     }
-    if let Some(draft) = runtime.draft {
+    if let Some(draft) = runtime.draft.clone() {
         actions.write(InventoryActionCommand {
             action: draft.action,
             item: draft.item,
@@ -1455,7 +1446,7 @@ pub(crate) fn sync_inventory_draft_controls(
         With<InventoryDraftField>,
     >,
 ) {
-    let Some(draft) = runtime.draft else {
+    let Some(draft) = runtime.draft.clone() else {
         for (field, _, focused, _) in &fields {
             if focused {
                 commands.entity(field).remove::<TextFieldFocused>();
@@ -1463,7 +1454,7 @@ pub(crate) fn sync_inventory_draft_controls(
         }
         return;
     };
-    let have = ships.draft_stock(draft);
+    let have = ships.draft_stock(&draft);
     for (slider, value, range, mut node) in &mut sliders {
         let display = if have > 1 {
             Display::Flex
@@ -1525,6 +1516,7 @@ pub(crate) fn sync_inventory_draft_controls(
 pub(crate) fn apply_inventory_action_commands(
     mut actions: MessageReader<InventoryActionCommand>,
     mut ships: InventoryShips,
+    items: Res<GameItems>,
     mut runtime: ResMut<InventoryRuntime>,
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
@@ -1537,9 +1529,18 @@ pub(crate) fn apply_inventory_action_commands(
     let mut pending = BTreeMap::new();
     for command in actions.read() {
         let result = match (command.action.transfer(), command.action.trade()) {
-            (Some(transfer), _) => transfer_items(&mut ships, pair, transfer, *command),
-            (None, Some(trade)) => trade_items(&mut ships, pair, trade, *command),
-            (None, None) => jettison_items(&mut ships, pair, *command, &mut pending, &mut commands),
+            (Some(transfer), _) => {
+                transfer_items(&items, &mut ships, pair, transfer, command.clone())
+            }
+            (None, Some(trade)) => trade_items(&items, &mut ships, pair, trade, command.clone()),
+            (None, None) => jettison_items(
+                &items,
+                &mut ships,
+                pair,
+                command.clone(),
+                &mut pending,
+                &mut commands,
+            ),
         };
         let (note, cue, volume) = match result {
             Ok(note) => {
@@ -1621,6 +1622,7 @@ fn credit_take_refusal_text(refusal: CreditTakeRefusalType, partner_title: &str)
 
 /// Move one command's items, or say why not. Both texts are the note line.
 fn transfer_items(
+    items: &GameItems,
     ships: &mut InventoryShips,
     pair: InventoryPair,
     transfer: ItemTransferType,
@@ -1630,7 +1632,7 @@ fn transfer_items(
         return Err("Refused: not docked".to_string());
     };
     let InventoryActionCommand { item, quantity, .. } = command;
-    let label = item.label();
+    let label = &items.design(&item).name;
     let own_title = ships.title(pair.own, InventorySideType::Own);
     let partner_title = ships.title(partner, InventorySideType::Partner);
     let (source, target, source_title, target_title) = match transfer {
@@ -1639,16 +1641,23 @@ fn transfer_items(
     };
     let (_, own, ..) = ships.ship(pair.own);
     let (_, theirs, lootable, _) = ships.ship(partner);
-    let moved =
-        plan_item_transfer(transfer, lootable, item, quantity, own, theirs).map_err(|refusal| {
-            transfer_refusal_text(refusal, item, source_title, target_title, &partner_title)
+    let moved = plan_item_transfer(items, transfer, lootable, &item, quantity, own, theirs)
+        .map_err(|refusal| {
+            transfer_refusal_text(
+                items,
+                refusal,
+                &item,
+                source_title,
+                target_title,
+                &partner_title,
+            )
         })?;
     let [(_, mut from, ..), (_, mut to, ..)] = ships
         .ships
         .get_many_mut([source, target])
         .expect("InventoryShips::pair checked both ships, and a ship does not dock with itself");
-    from.remove(item, moved);
-    to.add(item, moved);
+    from.remove(&item, moved);
+    to.add(items, &item, moved);
     Ok(match transfer {
         ItemTransferType::Take => format!("Took {moved} {label} from {partner_title}"),
         ItemTransferType::Give => format!("Gave {moved} {label} to {partner_title}"),
@@ -1658,6 +1667,7 @@ fn transfer_items(
 /// Trade one command's items for credits with the trading partner, or say why
 /// not. Both texts are the note line.
 fn trade_items(
+    items: &GameItems,
     ships: &mut InventoryShips,
     pair: InventoryPair,
     trade: ItemTradeType,
@@ -1667,7 +1677,7 @@ fn trade_items(
         return Err("Refused: not docked".to_string());
     };
     let InventoryActionCommand { item, quantity, .. } = command;
-    let label = item.label();
+    let label = &items.design(&item).name;
     let own_title = ships.title(pair.own, InventorySideType::Own);
     let partner_title = ships.title(partner, InventorySideType::Partner);
     let (seller, buyer, seller_title, buyer_title) = match trade {
@@ -1677,17 +1687,24 @@ fn trade_items(
     let (_, own, _, own_cr) = ships.ship(pair.own);
     let (_, theirs, lootable, partner_cr) = ships.ship(partner);
     let planned = plan_item_trade(
-        trade, !lootable, item, quantity, own, own_cr, theirs, partner_cr,
+        items, trade, !lootable, &item, quantity, own, own_cr, theirs, partner_cr,
     )
     .map_err(|refusal| {
-        trade_refusal_text(refusal, item, seller_title, buyer_title, &partner_title)
+        trade_refusal_text(
+            items,
+            refusal,
+            &item,
+            seller_title,
+            buyer_title,
+            &partner_title,
+        )
     })?;
     let [(_, mut from, _, _, mut from_cr), (_, mut to, _, _, mut to_cr)] = ships
         .ships
         .get_many_mut([seller, buyer])
         .expect("InventoryShips::pair checked both ships, and a ship does not dock with itself");
-    from.remove(item, planned.count);
-    to.add(item, planned.count);
+    from.remove(&item, planned.count);
+    to.add(items, &item, planned.count);
     to_cr.0 -= planned.price_cr;
     from_cr.0 += planned.price_cr;
     let price = cr_text(planned.price_cr);
@@ -1709,13 +1726,14 @@ fn trade_items(
 
 /// The note text of a refused Take or Give.
 fn transfer_refusal_text(
+    items: &GameItems,
     refusal: ItemTransferRefusalType,
-    item: ItemType,
+    item: &ItemDesignId,
     source_title: &str,
     target_title: &str,
     partner_title: &str,
 ) -> String {
-    let label = item.label();
+    let label = &items.design(item).name;
     match refusal {
         ItemTransferRefusalType::NotLootable => {
             format!("Refused: {partner_title} is not neutralized or lootable")
@@ -1734,13 +1752,14 @@ fn transfer_refusal_text(
 
 /// The note text of a refused Buy or Sell.
 fn trade_refusal_text(
+    items: &GameItems,
     refusal: ItemTradeRefusalType,
-    item: ItemType,
+    item: &ItemDesignId,
     seller_title: &str,
     buyer_title: &str,
     partner_title: &str,
 ) -> String {
-    let label = item.label();
+    let label = &items.design(item).name;
     match refusal {
         ItemTradeRefusalType::NotTrader => format!("Refused: {partner_title} does not trade"),
         ItemTradeRefusalType::NoQuantity => "Refused: enter a quantity".to_string(),
@@ -1764,6 +1783,7 @@ fn trade_refusal_text(
 /// Queue one command's items on the player's cargo intake as canisters, or say
 /// why not. Both texts are the note line. `pending` tracks deferred queues.
 fn jettison_items(
+    items: &GameItems,
     ships: &mut InventoryShips,
     pair: InventoryPair,
     command: InventoryActionCommand,
@@ -1771,7 +1791,7 @@ fn jettison_items(
     commands: &mut Commands,
 ) -> Result<String, String> {
     let InventoryActionCommand { item, quantity, .. } = command;
-    let label = item.label();
+    let label = &items.design(&item).name;
     let own_title = ships.title(pair.own, InventorySideType::Own);
     let intake = ships.intake(pair.own);
     let tail = intake
@@ -1779,10 +1799,11 @@ fn jettison_items(
         .and_then(|(entity, waiting)| pending.get(entity).unwrap_or(waiting).back());
     let (_, own, ..) = ships.ship(pair.own);
     let jettison = plan_item_jettison(
+        items,
         pair.partner.is_some(),
         intake.is_some(),
         tail,
-        item,
+        &item,
         quantity,
         own,
     )
@@ -1804,13 +1825,13 @@ fn jettison_items(
         .ships
         .get_mut(pair.own)
         .expect("InventoryShips::pair checked the player ship");
-    own.remove(item, jettison.count);
+    own.remove(&item, jettison.count);
     let mut queue = pending.remove(&intake).unwrap_or(waiting);
     if jettison.merged > 0 {
         queue
             .back_mut()
             .expect("plan_item_jettison merges only into a waiting canister")
-            .add(item, jettison.merged);
+            .add(items, &item, jettison.merged);
     }
     queue.extend(jettison.canisters);
     let waiting = queue.len();
@@ -1834,15 +1855,15 @@ fn jettison_items(
 struct SideView {
     title: String,
     credits: String,
-    stacks: Option<Vec<(ItemType, u32)>>,
+    stacks: Option<Vec<(ItemDesignId, u32)>>,
 }
 
 impl SideView {
-    fn count(&self, item: ItemType) -> Option<u32> {
+    fn count(&self, item: &ItemDesignId) -> Option<u32> {
         self.stacks
             .as_ref()?
             .iter()
-            .find(|(each, _)| *each == item)
+            .find(|(each, _)| each == item)
             .map(|(_, count)| *count)
     }
 }
@@ -1903,6 +1924,7 @@ pub(crate) fn update_inventory_panel(
     let Some(pair) = ships.pair() else {
         return;
     };
+    let items: &GameItems = &ships.items;
     if let Some((_, remaining)) = runtime.note.as_mut() {
         *remaining -= time.delta_secs();
         if *remaining <= 0.0 {
@@ -1913,13 +1935,18 @@ pub(crate) fn update_inventory_panel(
     let own_title = ships.title(pair.own, InventorySideType::Own);
     let own_cargo = format!(
         "{} / {}",
-        kg_text(u64::from(own_inventory.used_g())),
+        kg_text(u64::from(own_inventory.used_g(&items))),
         kg_text(u64::from(own_inventory.capacity_g())),
     );
     let own = SideView {
         title: own_title,
         credits: cr_text(own_cr),
-        stacks: Some(own_inventory.stacks().collect()),
+        stacks: Some(
+            own_inventory
+                .stacks()
+                .map(|(item, count)| (item.clone(), count))
+                .collect(),
+        ),
     };
     let mut partner_credits = None;
     let partner = match pair.partner {
@@ -1930,7 +1957,12 @@ pub(crate) fn update_inventory_panel(
             SideView {
                 title,
                 credits: cr_text(credits),
-                stacks: Some(inventory.stacks().collect()),
+                stacks: Some(
+                    inventory
+                        .stacks()
+                        .map(|(item, count)| (item.clone(), count))
+                        .collect(),
+                ),
             }
         }
         None => SideView {
@@ -1948,16 +1980,17 @@ pub(crate) fn update_inventory_panel(
     };
 
     let filter = runtime.filter;
-    let shown = |item: ItemType| filter.is_none_or(|category| item.category() == category);
-    if let Some((which, item)) = runtime.selected {
-        if side(which).count(item).is_none() || !shown(item) {
+    let shown =
+        |item: &ItemDesignId| filter.is_none_or(|category| items.design(item).category == category);
+    if let Some((which, item)) = runtime.selected.clone() {
+        if side(which).count(&item).is_none() || !shown(&item) {
             runtime.selected = None;
             runtime.details = false;
         }
     }
-    let selected = runtime.selected;
-    if let Some(draft) = runtime.draft {
-        let offer = selected.and_then(|(which, item)| {
+    let selected = runtime.selected.clone();
+    if let Some(draft) = runtime.draft.clone() {
+        let offer = selected.clone().and_then(|(which, item)| {
             offered_action(which, partner_lootable, has_intake).map(|action| (action, item))
         });
         let fits = offer.is_some_and(|(action, item)| {
@@ -1967,7 +2000,7 @@ pub(crate) fn update_inventory_panel(
             runtime.draft = None;
         }
     }
-    let draft = runtime.draft;
+    let draft = runtime.draft.clone();
 
     for (list, mut column) in &mut q_column {
         let view = side(column.side);
@@ -1988,10 +2021,10 @@ pub(crate) fn update_inventory_panel(
                 rows.spawn(themed_label("Inventory empty.", 12.0, UiColor::Label));
                 return;
             }
-            let visible: Vec<(ItemType, u32)> = stacks
+            let visible: Vec<(ItemDesignId, u32)> = stacks
                 .iter()
-                .copied()
-                .filter(|(item, _)| shown(*item))
+                .cloned()
+                .filter(|(item, _)| shown(item))
                 .collect();
             if visible.is_empty() {
                 rows.spawn(themed_label(
@@ -2001,8 +2034,10 @@ pub(crate) fn update_inventory_panel(
                 ));
             }
             for stack in visible {
-                let picked = selected == Some((which, stack.0));
-                inventory_row(rows, which, stack, picked, &icons);
+                let picked = selected
+                    .as_ref()
+                    .is_some_and(|(side, id)| *side == which && *id == stack.0);
+                inventory_row(rows, which, stack, picked, &icons, &items);
             }
         });
         column.drawn = Some(draw);
@@ -2042,7 +2077,10 @@ pub(crate) fn update_inventory_panel(
     }
 
     for (row, mut fill, mut border) in &mut q_row {
-        let (fill_alpha, border_alpha) = row_alphas(selected == Some((row.side, row.item)));
+        let picked = selected
+            .as_ref()
+            .is_some_and(|(side, item)| *side == row.side && *item == row.item);
+        let (fill_alpha, border_alpha) = row_alphas(picked);
         if fill.alpha != fill_alpha {
             fill.alpha = fill_alpha;
         }
@@ -2064,7 +2102,7 @@ pub(crate) fn update_inventory_panel(
     }
 
     for (chip, mut fill, mut border) in &mut q_action_chip {
-        let current = draft.is_some_and(|draft| draft.action == chip.0);
+        let current = draft.as_ref().is_some_and(|draft| draft.action == chip.0);
         let (color, fill_alpha, border_alpha) = chip_paint(current);
         if fill.color != color || fill.alpha != fill_alpha {
             fill.color = color;
@@ -2086,7 +2124,7 @@ pub(crate) fn update_inventory_panel(
             InspectorPart::Form => (draft.is_some(), false),
             InspectorPart::ActionChips => (
                 partner_lootable == Some(false)
-                    && draft.is_some_and(|draft| {
+                    && draft.as_ref().is_some_and(|draft| {
                         matches!(
                             draft.action,
                             InventoryActionType::Give | InventoryActionType::Sell
@@ -2094,9 +2132,10 @@ pub(crate) fn update_inventory_panel(
                     }),
                 true,
             ),
-            InspectorPart::TotalWeight => {
-                (draft.is_some_and(|draft| draft.quantity.is_some()), true)
-            }
+            InspectorPart::TotalWeight => (
+                draft.as_ref().is_some_and(|draft| draft.quantity.is_some()),
+                true,
+            ),
             // `update_inventory_about` owns the description's parts.
             InspectorPart::AboutFull | InspectorPart::AboutMore => continue,
         };
@@ -2138,14 +2177,14 @@ pub(crate) fn update_inventory_panel(
     let picked = selected.map(|(which, item)| {
         let view = side(which);
         let count = view
-            .count(item)
+            .count(&item)
             .expect("the selection was cleared above unless its side carries the item");
         (item, format!("x{count} in {}", view.title))
     });
-    let total_weight = draft.and_then(|draft| {
-        draft
-            .quantity
-            .map(|quantity| kg_text(u64::from(draft.item.mass_g()) * u64::from(quantity)))
+    let total_weight = draft.clone().and_then(|draft| {
+        draft.quantity.map(|quantity| {
+            kg_text(u64::from(items.design(&draft.item).mass_g) * u64::from(quantity))
+        })
     });
     let form = draft.map(|draft| {
         let (source, title) = match draft.action {
@@ -2155,7 +2194,7 @@ pub(crate) fn update_inventory_panel(
             InventoryActionType::Sell => (&own, format!("Sell to {}", partner.title)),
             InventoryActionType::Jettison => (&own, "Jettison".to_string()),
         };
-        let have = source.count(draft.item).unwrap_or(0);
+        let have = source.count(&draft.item).unwrap_or(0);
         let summary = match (draft.quantity, pair.partner) {
             (None, _) => Err("Type a whole number".to_string()),
             // A jettison leaves the player's own stack.
@@ -2171,9 +2210,10 @@ pub(crate) fn update_inventory_panel(
                 let (_, their_stock, lootable, their_cr) = ships.ship(other);
                 match (draft.action.transfer(), draft.action.trade()) {
                     (Some(transfer), _) => plan_item_transfer(
+                        &items,
                         transfer,
                         lootable,
-                        draft.item,
+                        &draft.item,
                         Some(quantity),
                         own_stock,
                         their_stock,
@@ -2183,7 +2223,7 @@ pub(crate) fn update_inventory_panel(
                             ItemTransferType::Take => &own,
                             ItemTransferType::Give => &partner,
                         };
-                        let count = after.count(draft.item).unwrap_or(0).saturating_add(moved);
+                        let count = after.count(&draft.item).unwrap_or(0).saturating_add(moved);
                         format!("{} after: x{count}", after.title)
                     })
                     .map_err(|refusal| {
@@ -2191,12 +2231,20 @@ pub(crate) fn update_inventory_panel(
                             ItemTransferType::Take => (&partner.title, &own.title),
                             ItemTransferType::Give => (&own.title, &partner.title),
                         };
-                        transfer_refusal_text(refusal, draft.item, from, to, &partner.title)
+                        transfer_refusal_text(
+                            &items,
+                            refusal,
+                            &draft.item,
+                            from,
+                            to,
+                            &partner.title,
+                        )
                     }),
                     (None, Some(trade)) => plan_item_trade(
+                        &items,
                         trade,
                         !lootable,
-                        draft.item,
+                        &draft.item,
                         Some(quantity),
                         own_stock,
                         own_cr,
@@ -2219,7 +2267,14 @@ pub(crate) fn update_inventory_panel(
                             ItemTradeType::Buy => (&partner.title, &own.title),
                             ItemTradeType::Sell => (&own.title, &partner.title),
                         };
-                        trade_refusal_text(refusal, draft.item, seller, buyer, &partner.title)
+                        trade_refusal_text(
+                            &items,
+                            refusal,
+                            &draft.item,
+                            seller,
+                            buyer,
+                            &partner.title,
+                        )
                     }),
                     (None, None) => Err("Refused: undock to jettison".to_string()),
                 }
@@ -2232,23 +2287,27 @@ pub(crate) fn update_inventory_panel(
             (InventoryInspectorField::Context, ..) => (context.to_string(), UiColor::Label),
             (InventoryInspectorField::Note, ..) => (note.clone(), UiColor::Accent),
             (InventoryInspectorField::Name, Some((item, _)), _) => {
-                (item.label().to_string(), UiColor::Primary)
+                (items.design(item).name.clone(), UiColor::Primary)
             }
-            (InventoryInspectorField::Category, Some((item, _)), _) => (
-                category_label(item.category()).to_string(),
-                category_color(item.category()),
-            ),
+            (InventoryInspectorField::Category, Some((item, _)), _) => {
+                let category = items.design(item).category;
+                (
+                    category_label(category).to_string(),
+                    category_color(category),
+                )
+            }
             (
                 InventoryInspectorField::About | InventoryInspectorField::AboutFull,
                 Some((item, _)),
                 _,
-            ) => (item_about(*item).to_string(), UiColor::Body),
+            ) => (items.design(item).about.clone(), UiColor::Body),
             (InventoryInspectorField::Stock, Some((_, stock)), _) => {
                 (stock.clone(), UiColor::Primary)
             }
-            (InventoryInspectorField::Weight, Some((item, _)), _) => {
-                (kg_text(u64::from(item.mass_g())), UiColor::Primary)
-            }
+            (InventoryInspectorField::Weight, Some((item, _)), _) => (
+                kg_text(u64::from(items.design(item).mass_g)),
+                UiColor::Primary,
+            ),
             (InventoryInspectorField::TotalWeight, ..) => match &total_weight {
                 Some(total) => (total.clone(), UiColor::Primary),
                 None => continue,
@@ -2285,9 +2344,10 @@ pub(crate) fn update_inventory_panel(
     let Some((item, _)) = picked else {
         return;
     };
-    let tone = category_color(item.category());
+    let category = items.design(&item).category;
+    let tone = category_color(category);
     for (mut image, mut tint) in &mut q_icon {
-        let wanted = icons.category(item.category());
+        let wanted = icons.category(category);
         if image.image != wanted {
             image.image = wanted;
         }

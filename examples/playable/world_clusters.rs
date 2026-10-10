@@ -275,13 +275,14 @@ fn boot_clusters(
     game_assets: Res<GameAssets>,
     loaded: Res<LoadedSectionPacks>,
     styles: Res<GameStyles>,
+    items: Res<GameItems>,
 ) {
     commands.trigger(LoadScenario(free_play_scenario(
         &game_assets,
         SCENARIO_ID,
         "World Clusters Observer",
     )));
-    commands.insert_resource(clustered_world_config(&loaded, &styles));
+    commands.insert_resource(clustered_world_config(&loaded, &styles, &items));
 
     commands.spawn((
         Name::new("Observer Key Light"),
@@ -473,8 +474,13 @@ fn plan_new_roots(
         return;
     };
     for (entity, root) in &roots {
-        let plan = plan_cell(&fields.0, &config.generator.parts, config.input(root.0))
-            .unwrap_or_else(|fault| panic!("world clusters: {}: {fault}", root.0));
+        let plan = plan_cell(
+            &fields.0,
+            &config.generator.parts,
+            &config.generator.items,
+            config.input(root.0),
+        )
+        .unwrap_or_else(|fault| panic!("world clusters: {}: {fault}", root.0));
         // A scenario swap can despawn the root on this frame.
         commands.entity(entity).try_insert(RootPlan(plan));
     }

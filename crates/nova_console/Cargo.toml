@@ -17,6 +17,9 @@ nova_interface = { path = "../nova_interface" }
 nova_scenario = { path = "../nova_scenario" }
 nova_ship = { path = "../nova_ship" }
 
+[dev-dependencies]
+nova_gameplay = { path = "../nova_gameplay", features = ["test-support"] }
+
 [lints]
 workspace = true
 

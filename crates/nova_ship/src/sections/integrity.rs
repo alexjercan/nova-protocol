@@ -172,6 +172,15 @@ pub struct FrozenWreckFragment {
     sections: Vec<FrozenWreckSection>,
 }
 
+impl FrozenWreckFragment {
+    /// Every item id its sections hold, see [`FrozenSection::item_ids`].
+    pub fn item_ids(&self) -> impl Iterator<Item = &ItemDesignId> {
+        self.sections
+            .iter()
+            .flat_map(|section| section.state.item_ids())
+    }
+}
+
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]

@@ -45,6 +45,7 @@ use bevy::{
     prelude::*,
     reflect::TypePath,
 };
+use nova_gameplay::prelude::ItemDesign;
 // The pure serde format types live in the engine-free `nova_mod_format`
 // crate so the portal generator builds without bevy; re-exported here so game
 // code keeps importing them from nova_modding.
@@ -121,6 +122,15 @@ pub enum Content {
     /// would size every `Content` in every content file by it. `Box<T>`
     /// serializes exactly like `T`, so the RON wire shape is unchanged.
     UiTheme(Box<UiThemeConfig>),
+    /// An [`ItemDesign`] - registers into `GameItems` keyed by its id. What a
+    /// ship can carry, trade and drop: its name, category, mass and prices.
+    ///
+    /// A mod adds an item by declaring a new id. Only a mod that depends on
+    /// the item's owner may declare its id again, and then replaces the whole
+    /// item; two packs that declare one id without that are both refused
+    /// (`nova_assets::items`). Stock, cargo and saves name the id, so an id
+    /// is a promise.
+    Item(ItemDesign),
 }
 
 impl Content {
@@ -139,6 +149,7 @@ impl Content {
             Content::Ship(_) => "ship",
             Content::Lesson(_) => "lesson",
             Content::UiTheme(_) => "ui theme",
+            Content::Item(_) => "item",
         }
     }
 
@@ -153,6 +164,7 @@ impl Content {
             Content::Ship(cfg) => cfg.id.as_str(),
             Content::Lesson(lesson) => &lesson.id,
             Content::UiTheme(cfg) => &cfg.id,
+            Content::Item(design) => design.id.as_str(),
         }
     }
 

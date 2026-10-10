@@ -1,10 +1,20 @@
 //! The Load picker: a two-pane overlay in the Scenarios style listing every
 //! world folder under [`WorldsRoot`], that resumes the selected one through
 //! the New Game handoff.
+//!
+//! The list reads only each world's header. Each world whose header reads is
+//! then checked whole off the main thread with [`check_world`]: its state
+//! file is read and every item it holds is looked up in the loaded catalog.
+//! Until that check ends the row shows "Checking saved state" and Load is
+//! greyed; a refused check replaces the row's header with the refusal. Load
+//! checks again as it opens the world.
+
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 use bevy::{
     picking::hover::Hovered,
     prelude::*,
+    tasks::{block_on, futures_lite::future, IoTaskPool, Task},
     ui::InteractionDisabled,
     ui_widgets::{observe, Activate, Button},
 };
@@ -15,7 +25,7 @@ use nova_ui::{
     widget::{list_row, themed_button, ButtonVariant, Selected, ThemedText, UiText},
 };
 use nova_world_base::prelude::{
-    delete_world, list_worlds, open_world, resume_world, WorldListing, WorldRefusal,
+    check_world, delete_world, list_worlds, open_world, resume_world, WorldListing, WorldRefusal,
     WorldResumeRefused, WorldSaveSession,
 };
 
@@ -36,6 +46,22 @@ impl Default for WorldListings {
         Self(Ok(Vec::new()))
     }
 }
+
+/// The state checks still running, by world slug, for the worlds of
+/// [`WorldListings`] whose header read. Replaced on every re-read of the
+/// list; dropping a task cancels it.
+#[derive(Resource, Default)]
+pub(crate) struct WorldChecks(pub(crate) HashMap<String, Task<Result<(), WorldRefusal>>>);
+
+impl WorldChecks {
+    /// Whether the world `slug` is still being checked.
+    fn pending(&self, slug: &str) -> bool {
+        self.0.contains_key(slug)
+    }
+}
+
+/// The text a row and the details pane show while the world is checked.
+const CHECKING_TEXT: &str = "Checking saved state";
 
 /// The slug the details pane renders. `None` until the list populates;
 /// `refresh_load_list` default-selects the first row, `on_load_world_row_select`
@@ -81,19 +107,76 @@ pub(crate) struct LoadWorldDetails;
 #[derive(Component)]
 pub(crate) struct LoadWorldButton;
 
+/// Read the worlds under `root` and start a [`check_world`] task for each
+/// world whose header read, replacing every check still running.
+fn read_listings(
+    root: &Path,
+    packs: &LoadedSectionPacks,
+    items: &GameItems,
+    checks: &mut WorldChecks,
+) -> Result<Vec<WorldListing>, WorldRefusal> {
+    let listings = list_worlds(root, packs);
+    let packs = Arc::new(packs.clone());
+    let items = Arc::new(items.clone());
+    checks.0 = listings
+        .iter()
+        .flatten()
+        .filter(|listing| listing.header.is_ok())
+        .map(|listing| {
+            let (root, slug) = (root.to_path_buf(), listing.folder.slug.clone());
+            let (packs, items) = (Arc::clone(&packs), Arc::clone(&items));
+            let task =
+                IoTaskPool::get().spawn(async move { check_world(&root, &slug, &packs, &items) });
+            (listing.folder.slug.clone(), task)
+        })
+        .collect();
+    listings
+}
+
+/// Take every finished world check: a refusal replaces its row's header,
+/// and either end redraws the list.
+pub(crate) fn poll_world_checks(
+    mut checks: ResMut<WorldChecks>,
+    mut listings: ResMut<WorldListings>,
+) {
+    let mut finished = Vec::new();
+    checks.0.retain(|slug, task| {
+        let Some(result) = block_on(future::poll_once(task)) else {
+            return true;
+        };
+        finished.push((slug.clone(), result));
+        false
+    });
+    if finished.is_empty() {
+        return;
+    }
+    if let Ok(rows) = &mut listings.0 {
+        for (slug, result) in finished {
+            if let (Err(refusal), Some(row)) =
+                (result, rows.iter_mut().find(|row| row.folder.slug == slug))
+            {
+                row.header = Err(refusal);
+            }
+        }
+    }
+    listings.set_changed();
+}
+
 /// Open the Load panel: re-read the worlds root and show the panel the way
 /// `on_scenarios` does.
 pub(crate) fn on_load_screen(
     _activate: On<Activate>,
     root: Res<WorldsRoot>,
     packs: Res<LoadedSectionPacks>,
+    items: Res<GameItems>,
+    mut checks: ResMut<WorldChecks>,
     mut listings: ResMut<WorldListings>,
     mut selected: ResMut<SelectedWorldSlug>,
     mut step: ResMut<WorldDeleteStep>,
     mut panel: Single<&mut Visibility, With<LoadPanel>>,
 ) {
     listings.0 = match root.0.as_deref() {
-        Some(root) => list_worlds(root, &packs),
+        Some(root) => read_listings(root, &packs, &items, &mut checks),
         None => Ok(Vec::new()),
     };
     selected.0 = None;
@@ -158,6 +241,8 @@ pub(crate) fn on_delete_world_confirm(
     _activate: On<Activate>,
     root: Res<WorldsRoot>,
     packs: Res<LoadedSectionPacks>,
+    items: Res<GameItems>,
+    mut checks: ResMut<WorldChecks>,
     mut step: ResMut<WorldDeleteStep>,
     mut listings: ResMut<WorldListings>,
 ) {
@@ -169,7 +254,7 @@ pub(crate) fn on_delete_world_confirm(
     };
     let slug = slug.clone();
     let result = delete_world(root, &slug);
-    listings.0 = list_worlds(root, &packs);
+    listings.0 = read_listings(root, &packs, &items, &mut checks);
     *step = match result {
         Ok(()) => WorldDeleteStep::Idle,
         Err(refusal) => WorldDeleteStep::Refused {
@@ -179,15 +264,17 @@ pub(crate) fn on_delete_world_confirm(
     };
 }
 
-/// Load the selected world. On `Err` (a world locked or refused since the
-/// list was read), the refusal replaces that row's header so the list and
-/// details redraw with it; nothing starts. On `Ok`, resume the world and hand
-/// off to Playing exactly like New Game.
+/// Load the selected world, checked again as it opens. On `Err` (a world
+/// locked or refused since the list was read), the refusal replaces that
+/// row's header so the list and details redraw with it; nothing starts. On
+/// `Ok`, resume the world and hand off to Playing exactly like New Game.
 pub(crate) fn on_load_world(
     _activate: On<Activate>,
     mut commands: Commands,
     root: Res<WorldsRoot>,
     packs: Res<LoadedSectionPacks>,
+    items: Res<GameItems>,
+    checks: Res<WorldChecks>,
     selected: Res<SelectedWorldSlug>,
     mut listings: ResMut<WorldListings>,
     mut step: ResMut<WorldDeleteStep>,
@@ -198,10 +285,13 @@ pub(crate) fn on_load_world(
     let (Some(root), Some(slug)) = (root.0.as_deref(), selected.0.as_deref()) else {
         return;
     };
+    if checks.pending(slug) {
+        return;
+    }
     // A Load drops a Delete asked about, so a refused resume does not bring
     // its prompt back.
     *step = WorldDeleteStep::Idle;
-    match open_world(root, slug, &packs) {
+    match open_world(root, slug, &packs, &items) {
         Ok((folder, lock, header, world_state)) => {
             commands.queue(move |world: &mut World| {
                 resume_world(world, folder, lock, &header, world_state);
@@ -236,6 +326,8 @@ pub(crate) fn refuse_resumed_world(
     refused: Res<WorldResumeRefused>,
     root: Res<WorldsRoot>,
     packs: Res<LoadedSectionPacks>,
+    items: Res<GameItems>,
+    mut checks: ResMut<WorldChecks>,
     mut listings: ResMut<WorldListings>,
     mut state: ResMut<NextState<GameStates>>,
     mut pause: ResMut<NextState<PauseStates>>,
@@ -248,9 +340,11 @@ pub(crate) fn refuse_resumed_world(
         return;
     };
     listings.0 = match root.0.as_deref() {
-        Some(root) => list_worlds(root, &packs),
+        Some(root) => read_listings(root, &packs, &items, &mut checks),
         None => Ok(Vec::new()),
     };
+    // The refusal stands over whatever the new check of the world finds.
+    checks.0.remove(&refused.slug);
     if let Ok(rows) = &mut listings.0 {
         match rows.iter_mut().find(|row| row.folder.slug == refused.slug) {
             Some(row) => row.header = Err(WorldRefusal::Unrestored(refused.reason.clone())),
@@ -272,6 +366,7 @@ pub(crate) fn refresh_load_list(
     mut commands: Commands,
     root: Res<WorldsRoot>,
     listings: Res<WorldListings>,
+    checks: Res<WorldChecks>,
     mut selected: ResMut<SelectedWorldSlug>,
     lists: Query<Entity, With<LoadWorldList>>,
 ) {
@@ -314,7 +409,8 @@ pub(crate) fn refresh_load_list(
     commands.entity(list).with_children(|list| {
         for row in rows {
             let is_selected = selected.0.as_deref() == Some(row.folder.slug.as_str());
-            spawn_load_row(list, row, is_selected);
+            let checking = checks.pending(&row.folder.slug);
+            spawn_load_row(list, row, is_selected, checking);
         }
     });
 }
@@ -337,8 +433,14 @@ fn spawn_load_note(commands: &mut Commands, list: Entity, text: &str) {
 }
 
 /// Spawn one clickable world row: its name (or slug, when the header did not
-/// read) over the refusal text, when it has one.
-fn spawn_load_row(list: &mut ChildSpawnerCommands, listing: &WorldListing, selected: bool) {
+/// read) over the refusal text, when it has one, or [`CHECKING_TEXT`] while
+/// it is `checking`.
+fn spawn_load_row(
+    list: &mut ChildSpawnerCommands,
+    listing: &WorldListing,
+    selected: bool,
+    checking: bool,
+) {
     let title = match &listing.header {
         Ok(header) => header.name.clone(),
         Err(_) => listing.folder.slug.clone(),
@@ -368,6 +470,19 @@ fn spawn_load_row(list: &mut ChildSpawnerCommands, listing: &WorldListing, selec
             TextColor(Color::NONE),
             ThemedText::new(UiColor::Body),
         ));
+        if checking {
+            row.spawn((
+                Name::new("Load World Row Checking"),
+                UiText,
+                Text::new(CHECKING_TEXT),
+                TextFont {
+                    font_size: FontSize::Px(12.0),
+                    ..default()
+                },
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Label),
+            ));
+        }
         if let Err(refusal) = &listing.header {
             row.spawn((
                 Name::new("Load World Row Refusal"),
@@ -386,11 +501,12 @@ fn spawn_load_row(list: &mut ChildSpawnerCommands, listing: &WorldListing, selec
 
 /// Rebuild the world details pane from the selected world: name, seed,
 /// sector, credits, game version and saved time, or the refusal, and a Load
-/// button greyed on a refusal, and a Delete button (or its confirm prompt, or
-/// the reason a delete refused).
+/// button greyed on a refusal or while the world is checked, and a Delete
+/// button (or its confirm prompt, or the reason a delete refused).
 pub(crate) fn refresh_load_details(
     mut commands: Commands,
     listings: Res<WorldListings>,
+    checks: Res<WorldChecks>,
     selected: Res<SelectedWorldSlug>,
     step: Res<WorldDeleteStep>,
     panels: Query<Entity, With<LoadWorldDetails>>,
@@ -471,12 +587,25 @@ pub(crate) fn refresh_load_details(
                         ThemedText::new(UiColor::Body),
                     ));
                 }
-                details.spawn((
+                let mut load = details.spawn((
                     Name::new("Load World Button"),
                     themed_button("Load"),
                     LoadWorldButton,
                     observe(on_load_world),
                 ));
+                if checks.pending(&listing.folder.slug) {
+                    load.insert(InteractionDisabled);
+                    details.spawn((
+                        Name::new("Load World Details Checking"),
+                        Text::new(CHECKING_TEXT),
+                        TextFont {
+                            font_size: FontSize::Px(13.0),
+                            ..default()
+                        },
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColor::Label),
+                    ));
+                }
             }
             Err(refusal) => {
                 details.spawn((

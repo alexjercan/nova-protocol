@@ -75,13 +75,13 @@ struct CargoCanisterChipMassMarker;
 
 /// What a canister chip reads: the item line ("4 Hull plate" or "Mixed cargo"
 /// once it holds more than one stack) and its total mass.
-fn cargo_canister_chip_text(canister: &CargoCanister) -> (String, String) {
+fn cargo_canister_chip_text(items: &GameItems, canister: &CargoCanister) -> (String, String) {
     let mut stacks = canister.stacks();
     let label = match (stacks.next(), stacks.next()) {
-        (Some((item, count)), None) => format!("{count} {}", item.label()),
+        (Some((item, count)), None) => format!("{count} {}", items.design(item).name),
         _ => "Mixed cargo".to_string(),
     };
-    (label, kg_text(u64::from(canister.total_mass_g())))
+    (label, kg_text(u64::from(canister.total_mass_g(items))))
 }
 
 /// UI bundle for one canister's chip layer, spawned hidden: the range pass
@@ -163,6 +163,7 @@ fn update_cargo_canister_chips(
     q_lines: Query<&ChildOf>,
     q_canisters: Query<(&CargoCanister, &GlobalTransform)>,
     q_player: Query<&GlobalTransform, With<PlayerSpaceshipMarker>>,
+    items: Res<GameItems>,
 ) {
     let player = q_player.iter().next().map(GlobalTransform::translation);
     let range = CARGO_TAG_RANGE.to_engine();
@@ -191,7 +192,7 @@ fn update_cargo_canister_chips(
         let Ok((canister, _)) = q_canisters.get(**target) else {
             continue;
         };
-        let (label, mass) = cargo_canister_chip_text(canister);
+        let (label, mass) = cargo_canister_chip_text(&items, canister);
         let next = if is_mass { mass } else { label };
         if **text != next {
             **text = next;
@@ -201,7 +202,8 @@ fn update_cargo_canister_chips(
 
 /// Draws one content tag per [`CargoCanister`] near the player ship, reading
 /// its stacks and mass (Chrome tier). Adds the spawn and despawn observers and
-/// runs the range and label pass in Update within [`super::NovaHudSystems`].
+/// runs the range and label pass in Update within [`super::NovaHudSystems`],
+/// once the mod merge has published [`GameItems`].
 #[derive(Default)]
 pub struct CargoCanisterChipsHudPlugin;
 
@@ -211,9 +213,73 @@ impl Plugin for CargoCanisterChipsHudPlugin {
 
         app.add_observer(setup_cargo_canister_chip);
         app.add_observer(despawn_anchored_chips::<CargoCanister, CargoCanisterChipHudMarker>);
+        // NovaHudSystems runs from the first boot frame; the catalog lands
+        // only at the merge, and never on a refused base game.
         app.add_systems(
             Update,
-            update_cargo_canister_chips.in_set(super::NovaHudSystems),
+            update_cargo_canister_chips
+                .run_if(resource_exists::<GameItems>)
+                .in_set(super::NovaHudSystems),
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Before the mod merge publishes `GameItems`, Update skips the pass and
+    /// the app does not panic; once the catalog lands, the label line reads
+    /// the canister's authored item name.
+    #[test]
+    fn canister_chips_wait_for_the_merged_item_catalog() {
+        let fixture = ItemDesign {
+            id: ItemDesignId::from("fixture_core"),
+            name: "Fixture core".to_string(),
+            about: "A catalog-only item for tests.".to_string(),
+            category: ItemCategoryType::Parts,
+            mass_g: 5_000,
+            ask_cr: 60,
+            bid_cr: 45,
+        };
+        let catalog = GameItems::new(
+            nova_gameplay::test_support::test_items()
+                .iter()
+                .cloned()
+                .chain([fixture]),
+        );
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(CargoCanisterChipsHudPlugin);
+
+        app.world_mut().spawn((
+            CargoCanister::new(&catalog, &ItemDesignId::from("fixture_core"), 2),
+            GlobalTransform::default(),
+        ));
+
+        let label_of = |app: &mut App, want_mass: bool| -> Entity {
+            app.world_mut()
+                .query_filtered::<(Entity, Has<CargoCanisterChipMassMarker>), With<AnchoredChipLabelMarker>>()
+                .iter(app.world())
+                .find_map(|(entity, is_mass)| (is_mass == want_mass).then_some(entity))
+                .expect("chip label exists")
+        };
+        let label = label_of(&mut app, false);
+        let mass = label_of(&mut app, true);
+        let initial = app.world().get::<Text>(label).unwrap().0.clone();
+
+        app.update();
+        app.update();
+        assert_eq!(
+            app.world().get::<Text>(label).unwrap().0,
+            initial,
+            "without GameItems the update pass must not touch the label"
+        );
+
+        app.insert_resource(catalog);
+        app.update();
+        assert_eq!(app.world().get::<Text>(label).unwrap().0, "2 Fixture core");
+        assert_eq!(app.world().get::<Text>(mass).unwrap().0, kg_text(10_000));
     }
 }

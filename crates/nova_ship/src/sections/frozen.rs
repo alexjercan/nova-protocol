@@ -20,7 +20,7 @@ use avian3d::prelude::{
 use bevy::prelude::*;
 use nova_gameplay::prelude::{
     AssetRef, Health, HealthZeroMarker, IntegrityDestroyMarker, IntegrityDisabledMarker,
-    SectionInactiveMarker, TransientFreezeFault, UnsettledBody,
+    ItemDesignId, SectionInactiveMarker, TransientFreezeFault, UnsettledBody,
 };
 
 use super::{
@@ -89,6 +89,28 @@ pub struct FrozenSection {
     animations: FrozenSectionAnimations,
     hinges: FrozenTurretHinges,
     fixtures: Vec<FrozenFixture>,
+}
+
+impl FrozenSection {
+    /// Every item id the section holds: its reload's, a suspended reload's
+    /// and each waiting ejection canister's. A save checks them against the
+    /// loaded item catalog before it writes or opens.
+    pub fn item_ids(&self) -> impl Iterator<Item = &ItemDesignId> {
+        let suspended = self
+            .suspended_ammo
+            .as_ref()
+            .and_then(|ammo| ammo.reload.as_ref());
+        self.reload
+            .iter()
+            .chain(suspended)
+            .map(|reload| &reload.item)
+            .chain(
+                self.ejection_queue
+                    .iter()
+                    .flat_map(|queue| queue.0.iter())
+                    .flat_map(|canister| canister.stacks().map(|(item, _)| item)),
+            )
+    }
 }
 
 /// Whether `entity` is a fixture [`freeze_fixture`]/[`spawn_frozen_fixture`]
@@ -222,8 +244,8 @@ pub fn freeze_section(world: &World, section: Entity) -> Result<FrozenSection, U
         health: health.clone(),
         inactive: world.get::<SectionInactiveMarker>(section).is_some(),
         ammo: world.get::<SectionAmmo>(section).copied(),
-        suspended_ammo: world.get::<SuspendedSectionAmmo>(section).copied(),
-        reload: world.get::<SectionReload>(section).copied(),
+        suspended_ammo: world.get::<SuspendedSectionAmmo>(section).cloned(),
+        reload: world.get::<SectionReload>(section).cloned(),
         ejection_queue: world.get::<CargoIntakeEjectionQueue>(section).cloned(),
         turret_stow: world.get::<TurretStow>(section).copied(),
         railgun_charge: world.get::<RailgunCharge>(section).copied(),

@@ -26,6 +26,7 @@ mod plugin;
 mod reload;
 mod safe_mode;
 
+pub mod items;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod loose;
 pub mod mod_cache;

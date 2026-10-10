@@ -150,12 +150,13 @@ pub(crate) fn drive_pending_leave(
                 let opened = match (
                     &world.resource::<WorldsRoot>().0,
                     world.get_resource::<LoadedSectionPacks>(),
+                    world.get_resource::<GameItems>(),
                 ) {
-                    (Some(root), Some(packs)) => {
-                        open_world(root, &slug, packs).map_err(|refusal| refusal.to_string())
+                    (Some(root), Some(packs), Some(items)) => {
+                        open_world(root, &slug, packs, items).map_err(|refusal| refusal.to_string())
                     }
-                    (None, _) => Err("this system has no folder for saved worlds".to_string()),
-                    (_, None) => Err("no content is loaded".to_string()),
+                    (None, ..) => Err("this system has no folder for saved worlds".to_string()),
+                    (_, None, _) | (_, _, None) => Err("no content is loaded".to_string()),
                 };
                 match opened {
                     Ok((folder, lock, header, state)) => {

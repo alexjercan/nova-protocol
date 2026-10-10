@@ -67,7 +67,7 @@ A Load that cannot bring its sectors and transients back within 240 seconds is r
 
 ### A refused Load
 
-The Load screen lists every world folder and shows why one cannot be opened, on its row:
+The Load screen lists every world folder and shows why one cannot be opened, on its row. It checks each saved state in the background: while a check runs, the row reads `Checking saved state` and **Load** stays greyed. **Load** checks the world again before it starts.
 
 | Reason | Shown as |
 | --- | --- |
@@ -75,9 +75,12 @@ The Load screen lists every world folder and shows why one cannot be opened, on 
 | Saved with another save layout | `save format <found>; this build reads <current>` |
 | Saved with other content | `content changed; saved with <mods>` |
 | Save file missing, corrupt or of another generation | `unreadable: <reason>` |
+| The saved state holds an item this game's content does not define | `unreadable: state.<n>.ron: unknown item '<id>' held by <owner>` |
 | A file operation failed | the raw I/O error |
 | The sectors or transients did not come back in time | `the world did not come back within 240 s: <reason>` |
 | A saved reference matches two live bodies, or a saved style is not in this game's content | the reason, at once |
+
+The content check runs first. A world saved with a mod item whose mod is now off or changed shows `content changed`, not `unknown item`.
 
 ### Deleting a world
 

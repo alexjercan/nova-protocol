@@ -313,7 +313,10 @@ impl Plugin for PickupSightPlugin {
 #[cfg(test)]
 mod tests {
     use avian3d::prelude::*;
-    use nova_gameplay::{asset_ref::AssetRef, test_support::unfinished_integrity_physics_app};
+    use nova_gameplay::{
+        asset_ref::AssetRef,
+        test_support::{test_items, unfinished_integrity_physics_app},
+    };
 
     use super::*;
 
@@ -388,7 +391,7 @@ mod tests {
         app.world_mut()
             .spawn((
                 Name::new("canister"),
-                CargoCanister::new(ItemType::HullPlate, 1),
+                CargoCanister::new(&test_items(), &ITEM_HULL_PLATE.into(), 1),
                 health,
                 Transform::from_translation(at),
                 GlobalTransform::from_translation(at),
@@ -790,6 +793,7 @@ mod tests {
         let mut app = unfinished_integrity_physics_app();
         app.init_asset::<StandardMaterial>();
         app.init_resource::<CargoCanisterIdAllocator>();
+        app.insert_resource(test_items());
         app.add_plugins((
             SectionAnimationPlugin,
             CargoIntakeSectionPlugin { render: false },
@@ -804,7 +808,7 @@ mod tests {
                 RigidBody::Dynamic,
                 Transform::default(),
                 TravelLock(None),
-                ShipInventory::new(400_000, []),
+                ShipInventory::new(&test_items(), 400_000, []),
             ))
             .id();
         app.world_mut().spawn((
@@ -854,7 +858,7 @@ mod tests {
         let canister = app
             .world_mut()
             .spawn(cargo_canister(
-                CargoCanister::new(ItemType::HullPlate, 4),
+                CargoCanister::new(&test_items(), &ITEM_HULL_PLATE.into(), 4),
                 Transform::from_xyz(0.0, 0.0, -2.85),
                 Vec3::ZERO,
                 AssetRef::from("canister.glb#Scene0"),
@@ -891,7 +895,7 @@ mod tests {
             app.world()
                 .get::<ShipInventory>(player)
                 .unwrap()
-                .count(ItemType::HullPlate),
+                .count(&ITEM_HULL_PLATE.into()),
             4
         );
         assert_eq!(takes.load(std::sync::atomic::Ordering::Relaxed), 1);

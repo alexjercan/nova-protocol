@@ -421,6 +421,7 @@ pub struct RoundFired {
 mod tests {
     use bevy::time::TimeUpdateStrategy;
     use nova_events::units::prelude::*;
+    use nova_gameplay::test_support::test_items;
 
     use super::{super::config::default_joint_speed, *};
 
@@ -1020,12 +1021,14 @@ mod tests {
                     delay: 0.2,
                     amount: 3,
                 },
-                ItemType::PdcRound,
+                ITEM_PDC_ROUND.into(),
             ));
         let ship = app.world().get::<ChildOf>(turret).unwrap().parent();
-        app.world_mut()
-            .entity_mut(ship)
-            .insert(ShipInventory::new(10_000, [(ItemType::PdcRound, 30)]));
+        app.world_mut().entity_mut(ship).insert(ShipInventory::new(
+            &test_items(),
+            10_000,
+            [(ITEM_PDC_ROUND.into(), 30)],
+        ));
 
         for _ in 0..20 {
             app.update();

@@ -37,7 +37,11 @@
 
 use bevy::prelude::{Quat, Vec3};
 use nova_events::prelude::{Meters, Meters3};
-use nova_gameplay::prelude::{Fnv32, ItemType, SeedStream, ShipInventoryStock};
+use nova_gameplay::prelude::{
+    Fnv32, GameItems, ItemDesignId, SeedStream, ShipInventoryStock, ITEM_CARBON_ORE,
+    ITEM_HULL_PLATE, ITEM_IRON_ORE, ITEM_PDC_ROUND, ITEM_RAIL_SLUG, ITEM_RATIONS,
+    ITEM_SALVAGED_PARTS, ITEM_STONE_ORE, ITEM_TORPEDO, ITEM_WATER_ICE,
+};
 use nova_scenario::prelude::{ShipDesign, HULL_SECTION_CARGO_G};
 use nova_ship::prelude::SectionKind;
 use nova_world::prelude::*;
@@ -157,6 +161,7 @@ pub struct PlannedShip {
 /// `stock` when its hold cannot fit one unit of its role's lightest item.
 pub fn plan_ship(
     parts: &ShipPartSnapshot,
+    items: &GameItems,
     civilizations: &CivilizationField,
     seed: u32,
     hull: HullSlot<'_>,
@@ -232,6 +237,7 @@ pub fn plan_ship(
     };
     let stock = ship_stock(
         parts,
+        items,
         &layout.design,
         role,
         condition,
@@ -363,9 +369,11 @@ pub(crate) fn plan_patrol(
 /// # Panics
 ///
 /// When a section of `design` names no part of `parts`: every generated
-/// design is built from the snapshot it is checked against.
+/// design is built from the snapshot it is checked against. When `items`
+/// lacks an item of the role's mix.
 pub fn ship_stock(
     parts: &ShipPartSnapshot,
+    items: &GameItems,
     design: &ShipDesign,
     role: ShipRoleType,
     condition: SectorShipConditionType,
@@ -389,44 +397,44 @@ pub fn ship_stock(
         .count() as u64;
     let hold = hulls * u64::from(HULL_SECTION_CARGO_G);
     // Ammunition of every kind on an armed ship, whichever its weapons fire.
-    let mix: &[(ItemType, f32)] = match role {
+    let mix: &[(&str, f32)] = match role {
         ShipRoleType::Industrial => &[
-            (ItemType::StoneOre, 2.0),
-            (ItemType::IronOre, 2.0),
-            (ItemType::WaterIce, 2.0),
-            (ItemType::CarbonOre, 2.0),
-            (ItemType::SalvagedParts, 3.0),
-            (ItemType::Rations, 1.0),
+            (ITEM_STONE_ORE, 2.0),
+            (ITEM_IRON_ORE, 2.0),
+            (ITEM_WATER_ICE, 2.0),
+            (ITEM_CARBON_ORE, 2.0),
+            (ITEM_SALVAGED_PARTS, 3.0),
+            (ITEM_RATIONS, 1.0),
         ],
         ShipRoleType::Civilian => &[
-            (ItemType::Rations, 5.0),
-            (ItemType::SalvagedParts, 3.0),
-            (ItemType::WaterIce, 1.0),
-            (ItemType::HullPlate, 1.0),
+            (ITEM_RATIONS, 5.0),
+            (ITEM_SALVAGED_PARTS, 3.0),
+            (ITEM_WATER_ICE, 1.0),
+            (ITEM_HULL_PLATE, 1.0),
         ],
         ShipRoleType::Scavenger => &[
-            (ItemType::PdcRound, 2.0),
-            (ItemType::RailSlug, 1.0),
-            (ItemType::Torpedo, 1.0),
-            (ItemType::HullPlate, 3.0),
-            (ItemType::SalvagedParts, 3.0),
-            (ItemType::Rations, 1.0),
+            (ITEM_PDC_ROUND, 2.0),
+            (ITEM_RAIL_SLUG, 1.0),
+            (ITEM_TORPEDO, 1.0),
+            (ITEM_HULL_PLATE, 3.0),
+            (ITEM_SALVAGED_PARTS, 3.0),
+            (ITEM_RATIONS, 1.0),
         ],
         ShipRoleType::Armored => &[
-            (ItemType::PdcRound, 3.0),
-            (ItemType::RailSlug, 2.0),
-            (ItemType::Torpedo, 1.0),
-            (ItemType::HullPlate, 3.0),
-            (ItemType::SalvagedParts, 2.0),
-            (ItemType::Rations, 1.0),
+            (ITEM_PDC_ROUND, 3.0),
+            (ITEM_RAIL_SLUG, 2.0),
+            (ITEM_TORPEDO, 1.0),
+            (ITEM_HULL_PLATE, 3.0),
+            (ITEM_SALVAGED_PARTS, 2.0),
+            (ITEM_RATIONS, 1.0),
         ],
     };
     let lightest = mix
         .iter()
         .map(|(item, _)| *item)
-        .min_by_key(|item| item.mass_g())
+        .min_by_key(|item| items.design(&ItemDesignId::from(*item)).mass_g)
         .expect("every role mixes at least one item");
-    if hold < u64::from(lightest.mass_g()) {
+    if hold < u64::from(items.design(&ItemDesignId::from(lightest)).mass_g) {
         return None;
     }
 
@@ -450,17 +458,18 @@ pub fn ship_stock(
         drawn.push((item, 0.5 + stream.unit()));
     }
     let total: f32 = drawn.iter().map(|(_, weight)| weight).sum();
-    let mut stacks: Vec<(ItemType, u32)> = drawn
+    let mut stacks: Vec<(ItemDesignId, u32)> = drawn
         .into_iter()
         .filter_map(|(item, weight)| {
+            let id = ItemDesignId::from(item);
             let portion = (target as f64 * f64::from(weight / total)) as u64;
-            let units = portion / u64::from(item.mass_g());
+            let units = portion / u64::from(items.design(&id).mass_g);
             let units = u32::try_from(units).expect("a generated hold's units fit a u32");
-            (units > 0).then_some((item, units))
+            (units > 0).then_some((id, units))
         })
         .collect();
     if stacks.is_empty() {
-        stacks.push((lightest, 1));
+        stacks.push((ItemDesignId::from(lightest), 1));
     }
     Some(ShipInventoryStock::new(stacks))
 }

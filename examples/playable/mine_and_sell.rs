@@ -99,7 +99,7 @@ const TRADER_POSITION: Vec3 = Vec3::new(BERTH.x + 5.5, BERTH.y, BERTH.z);
 const PLAYER_CREDITS: u32 = 50;
 /// What the trader carries at spawn: no ore, so every ore it ends with is
 /// the ore it bought.
-const TRADER_STOCK: &[(ItemType, u32)] = &[(ItemType::Rations, 10)];
+const TRADER_STOCK: &[(&str, u32)] = &[("Rations", 10)];
 /// The trader's credits at spawn: enough for any one pulse's ore.
 const TRADER_CREDITS: u32 = 1_000;
 
@@ -176,7 +176,9 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
             controller: SpaceshipController::None,
             design: ShipDesignSource::Inline(spar()),
             allegiance: Some(Allegiance::Neutral),
-            inventory: ShipInventoryStock::new(TRADER_STOCK.iter().copied()),
+            inventory: ShipInventoryStock::new(
+                TRADER_STOCK.iter().map(|&(id, count)| (id.into(), count)),
+            ),
             lootable: false,
             credits: TRADER_CREDITS,
             ..default()
@@ -244,7 +246,7 @@ mod walk {
     const ROCK_NEAR_FACE: Vec3 = Vec3::new(1.0, 1.0, -13.3);
 
     /// The ore the rock's kind yields.
-    const ORE: ItemType = ItemType::StoneOre;
+    const ORE: &str = ITEM_STONE_ORE;
 
     /// Real-seconds backstop for a state wait, long enough for lavapipe
     /// frames.
@@ -435,15 +437,16 @@ mod walk {
     /// Record the rock's solid corners when its field first exists, and every
     /// canister's ore.
     fn record_proof(world: &mut World) {
+        let items = world.resource::<GameItems>().clone();
         let seen: Vec<(Entity, u32, u32)> = world
             .query::<(Entity, &CargoCanister)>()
             .iter(world)
-            .map(|(entity, canister)| (entity, ore_in(canister), canister.total_mass_g()))
+            .map(|(entity, canister)| (entity, ore_in(canister), canister.total_mass_g(&items)))
             .collect();
         for (entity, ore, mass) in seen {
             assert_eq!(
                 mass,
-                ore * ORE.mass_g(),
+                ore * items.design(&ORE.into()).mass_g,
                 "mine_and_sell: a canister's mass is not its ore's"
             );
             let mut proof = world.resource_mut::<FlowProof>();
@@ -472,7 +475,7 @@ mod walk {
     fn ore_in(canister: &CargoCanister) -> u32 {
         canister
             .stacks()
-            .filter(|(item, _)| *item == ORE)
+            .filter(|(item, _)| item.as_str() == ORE)
             .map(|(_, count)| count)
             .sum()
     }
@@ -577,7 +580,9 @@ mod walk {
         let taken = proof.taken;
         let spawned: u32 = live.values().sum();
         let picked: u32 = gone.iter().sum();
-        let held = inventory(world, PLAYER_ID).count(ORE) + inventory(world, TRADER_ID).count(ORE);
+        let ore_id = ORE.into();
+        let held =
+            inventory(world, PLAYER_ID).count(&ore_id) + inventory(world, TRADER_ID).count(&ore_id);
         info!(
             "mine_and_sell {stage}: {flipped} ore mined = {spawned} in {} live canister(s) \
              + {queued} queued + {picked} picked up in {} canister(s); holds carry {held}",
@@ -620,11 +625,17 @@ mod walk {
             picked, target_ore,
             "the intake took the tracked canister alone"
         );
+        let items = world.resource::<GameItems>().clone();
+        let ore_id = ORE.into();
         let hold = inventory(world, PLAYER_ID);
-        assert_eq!(hold.count(ORE), picked, "the hold holds the picked-up ore");
         assert_eq!(
-            hold.used_g(),
-            picked * ORE.mass_g(),
+            hold.count(&ore_id),
+            picked,
+            "the hold holds the picked-up ore"
+        );
+        assert_eq!(
+            hold.used_g(&items),
+            picked * items.design(&ore_id).mass_g,
             "the hold's mass is the picked-up ore's"
         );
         assert_eq!(credits(world, PLAYER_ID), PLAYER_CREDITS);
@@ -639,14 +650,19 @@ mod walk {
             .collected
             .expect("the take was checked");
         assert_eq!(check_ledger(world, "after the Sell"), collected);
-        let price = collected * ORE.bid_cr();
+        let items = world.resource::<GameItems>().clone();
+        let ore_id = ORE.into();
+        let price = collected * items.design(&ore_id).bid_cr;
         let own = inventory(world, PLAYER_ID);
         let partner = inventory(world, TRADER_ID);
         assert!(own.is_empty(), "the warship's hold is empty after the Sell");
-        let mut expected: Vec<(ItemType, u32)> = TRADER_STOCK.to_vec();
+        let mut expected: Vec<(&str, u32)> = TRADER_STOCK.to_vec();
         expected.push((ORE, collected));
         expected.sort_by_key(|(item, _)| *item);
-        let mut stacks: Vec<(ItemType, u32)> = partner.stacks().collect();
+        let mut stacks: Vec<(&str, u32)> = partner
+            .stacks()
+            .map(|(id, count)| (id.as_str(), count))
+            .collect();
         stacks.sort_by_key(|(item, _)| *item);
         assert_eq!(stacks, expected, "the trader holds its stock and the ore");
         let own_credits = credits(world, PLAYER_ID);
@@ -662,10 +678,12 @@ mod walk {
     /// The note line the Sell shows.
     fn sell_note(world: &World) -> Option<String> {
         let collected = world.resource::<FlowProof>().collected?;
+        let items = world.resource::<GameItems>();
+        let design = items.design(&ORE.into());
         Some(format!(
             "Sold {collected} {} to {TRADER_NAME} for {} cr",
-            ORE.label(),
-            collected * ORE.bid_cr()
+            design.name,
+            collected * design.bid_cr
         ))
     }
 
@@ -969,7 +987,10 @@ mod walk {
             .on_enter(|world: &mut World| {
                 let collected = world.resource::<FlowProof>().collected;
                 assert_eq!(Some(check_ledger(world, "docked")), collected);
-                assert_eq!(inventory(world, PLAYER_ID).count(ORE), collected.unwrap());
+                assert_eq!(
+                    inventory(world, PLAYER_ID).count(&ORE.into()),
+                    collected.unwrap()
+                );
             })
             .until(frames(1))
             .add()

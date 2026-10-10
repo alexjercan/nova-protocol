@@ -76,9 +76,11 @@ pub fn arm_save_fixture(world: &mut World) -> Entity {
             })
             .collect(),
     );
-    let generator = NovaLayeredWorld::from_loaded(&loaded, &styles)
+    let items = nova_gameplay::test_support::test_items();
+    let generator = NovaLayeredWorld::from_loaded(&loaded, &styles, &items)
         .expect("the fixture packs build a snapshot and every role has a style");
     world.insert_resource(loaded);
+    world.insert_resource(items);
     world.insert_resource(WorldConfig {
         seed: 42,
         sector_edge: OPEN_WORLD_SECTOR_EDGE,

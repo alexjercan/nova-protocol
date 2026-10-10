@@ -161,7 +161,7 @@ pub(super) fn unload_scenario(
 }
 
 /// The merged content the start gate lints a scenario against, as one system
-/// parameter rather than five: they are read together, in one place, and the
+/// parameter rather than six: they are read together, in one place, and the
 /// observer is already near Bevy's parameter ceiling.
 ///
 /// Every one is optional because a rig that merged no content still loads
@@ -172,6 +172,7 @@ pub(super) struct ContentGate<'w> {
     sections: Option<Res<'w, GameSections>>,
     ships: Option<Res<'w, GameShipDesigns>>,
     scenarios: Option<Res<'w, GameScenarios>>,
+    items: Option<Res<'w, GameItems>>,
 }
 
 /// The Error-level findings against a scenario about to start: what the merge
@@ -216,11 +217,19 @@ fn start_errors(scenario: &ScenarioConfig, gate: &ContentGate) -> Vec<String> {
     // that never merged content.
     known_scenarios.insert(scenario.id.clone());
 
+    let no_items = GameItems::default();
+    let known_items = gate.items.as_deref().unwrap_or(&no_items);
     messages.extend(
-        lint_scenario(scenario, &known_sections, &known_ships, &known_scenarios)
-            .into_iter()
-            .filter(|issue| issue.severity == LintSeverity::Error)
-            .map(|issue| issue.message),
+        lint_scenario(
+            scenario,
+            &known_sections,
+            &known_ships,
+            &known_scenarios,
+            known_items,
+        )
+        .into_iter()
+        .filter(|issue| issue.severity == LintSeverity::Error)
+        .map(|issue| issue.message),
     );
     let mut seen = std::collections::HashSet::new();
     messages.retain(|message| seen.insert(message.clone()));

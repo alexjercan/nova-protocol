@@ -9,8 +9,13 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use nova_assets::items::{item_pack_faults, ItemPack};
+use nova_gameplay::prelude::{GameItems, ItemDesign};
 use nova_input::prelude::InputSource;
-use nova_mod_format::{BundleManifest, BASE_MOD_ID};
+use nova_mod_format::{
+    deps::{transitive_deps, DepGraph},
+    BundleManifest, BASE_MOD_ID,
+};
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::{
     lint_campaign, lint_scenario, lint_ship_design_config, CampaignConfig, EventActionConfig,
@@ -46,6 +51,7 @@ pub mod prelude {
 struct WalkedBundle {
     id: String,
     manifest: BundleManifest,
+    items: Vec<ItemDesign>,
     sections: Vec<SectionConfig>,
     ships: Vec<ShipDesignPrototype>,
     scenarios: Vec<ScenarioConfig>,
@@ -109,6 +115,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
         .unwrap_or_else(|err| panic!("parse {}: {err}", path.display()));
         content.extend(items.into_iter().map(|item| (rel.clone(), item)));
     }
+    let mut items = Vec::new();
     let mut sections = Vec::new();
     let mut ships = Vec::new();
     let mut scenarios = Vec::new();
@@ -117,6 +124,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
     let mut ui_themes = Vec::new();
     for (_, item) in &content {
         match item {
+            Content::Item(design) => items.push(design.clone()),
             Content::Section(section) => sections.push(section.as_ref().clone()),
             Content::Ship(ship) => ships.push(ship.clone()),
             Content::Scenario(scenario) => scenarios.push(scenario.clone()),
@@ -132,6 +140,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
     WalkedBundle {
         id: id.to_string(),
         manifest,
+        items,
         sections,
         ships,
         scenarios,
@@ -267,9 +276,23 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
     visible_ships.extend(bundle.ships.iter());
     let known_ships = KnownShipDesigns::from_configs(visible_ships);
 
+    // Visible items: the catalog the merge builds when this bundle loads with
+    // what it depends on, a dependent's replacement winning.
+    let known_items = GameItems::new(
+        effective_item_bundles(bundle, all)
+            .into_iter()
+            .flat_map(|walked| walked.items.iter().cloned()),
+    );
+
     let mut issues = Vec::new();
     for scenario in &bundle.scenarios {
-        for issue in lint_scenario(scenario, &known_sections, &known_ships, &known_scenarios) {
+        for issue in lint_scenario(
+            scenario,
+            &known_sections,
+            &known_ships,
+            &known_scenarios,
+            &known_items,
+        ) {
             issues.push((bundle.id.clone(), issue));
         }
     }
@@ -561,6 +584,39 @@ pub fn repo_ship_part_packs(ids: &[&str]) -> Vec<ShipPartPack> {
     packs.into_values().collect()
 }
 
+/// The bundles whose items load with `bundle`: base, every bundle it depends
+/// on directly or through another, and itself, each after every bundle it
+/// depends on, so a later item replaces an earlier one as the merge does. A
+/// dependency missing from the walk is left out; a chain too deep to walk
+/// keeps only base and the bundle, and [`item_pack_faults`] names it.
+fn effective_item_bundles<'a>(
+    bundle: &WalkedBundle,
+    all: &'a [WalkedBundle],
+) -> Vec<&'a WalkedBundle> {
+    let graph: DepGraph = all
+        .iter()
+        .map(|walked| (walked.id.clone(), walked.manifest.meta.dependencies.clone()))
+        .collect();
+    let reach = |id: &str| -> BTreeSet<String> {
+        let mut deps: BTreeSet<String> = transitive_deps(&graph, id)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        if id != BASE_MOD_ID {
+            deps.insert(BASE_MOD_ID.to_string());
+        }
+        deps
+    };
+    let deps = reach(&bundle.id);
+    let mut bundles: Vec<&WalkedBundle> = all
+        .iter()
+        .filter(|walked| walked.id == bundle.id || deps.contains(&walked.id))
+        .collect();
+    // A bundle reaches strictly more than any bundle it depends on.
+    bundles.sort_by_cached_key(|walked| reach(&walked.id).len());
+    bundles
+}
+
 /// `bundle`'s effective section catalog as snapshot packs: base, every bundle
 /// it depends on directly or through another, and itself. `base` is every
 /// mod's implicit dependency. A dependency missing from the walk is left for
@@ -756,6 +812,49 @@ fn build_report(
         });
     }
 
+    // 1c. Items: the rule the merge applies, over every walked pack at once,
+    // since a player may enable any of them together and the merge then
+    // refuses both packs of an unrelated duplicate. A fault is reported against
+    // the pack the rule refuses, when a reported bundle loads that pack.
+    // This is stricter than the merge, which sees only the enabled packs: two
+    // repo packs that are never enabled together still fail here, and a
+    // `--target` mod is checked against every repo pack. A check of each
+    // bundle's own dependency set would never report an unrelated duplicate.
+    let loaded: HashSet<&str> = all
+        .iter()
+        .filter(|b| report_ids.contains(&b.id))
+        .flat_map(|bundle| effective_item_bundles(bundle, all))
+        .map(|walked| walked.id.as_str())
+        .collect();
+    let packs: Vec<ItemPack> = all
+        .iter()
+        .map(|walked| ItemPack {
+            id: walked.id.as_str(),
+            dependencies: walked.manifest.meta.dependencies.as_slice(),
+            items: walked.items.iter().collect(),
+        })
+        .collect();
+    let item_faults: Vec<(String, String)> = item_pack_faults(&packs)
+        .into_iter()
+        .filter(|(pack, _)| loaded.contains(pack.as_str()))
+        .flat_map(|(pack, messages)| {
+            messages
+                .into_iter()
+                .map(move |message| (pack.clone(), message))
+        })
+        .collect();
+    for (bundle, message) in item_faults {
+        findings.push(Finding {
+            file: None,
+            bundle,
+            severity: ReportSeverity::Error,
+            category: Category::Reference,
+            element: "items".to_string(),
+            message,
+            suggestion: None,
+        });
+    }
+
     // 2. Balance / fairness audit (nova_authoring::balance), acks applied.
     let audit_bundles: Vec<AuditBundle> = all
         .iter()
@@ -944,13 +1043,14 @@ pub fn collect_target(dir: &Path) -> ContentReport {
 
 #[cfg(test)]
 mod tests {
-    use nova_gameplay::prelude::AssetRef;
+    use nova_gameplay::prelude::{AssetRef, ItemCategoryType, ItemDesign, ItemDesignId};
     use nova_mod_format::{BundleManifest, ModMeta};
     use nova_modding::prelude::Content;
     use nova_scenario::prelude::ScenarioConfig;
     use nova_world_base::prelude::{ShipPartFamilyType, ShipPartFault};
 
     use super::{build_report, lint_bundle, scenario_input_overlaps, ReportSeverity, WalkedBundle};
+    use crate::base_content::items::item_catalog;
 
     fn scenario(id: &str, cubemap: &str) -> Content {
         Content::Scenario(ScenarioConfig {
@@ -1017,6 +1117,13 @@ mod tests {
                 _ => None,
             })
             .collect();
+        let items = content
+            .iter()
+            .filter_map(|c| match c {
+                Content::Item(design) => Some(design.clone()),
+                _ => None,
+            })
+            .collect();
         WalkedBundle {
             id: id.to_string(),
             manifest: BundleManifest {
@@ -1028,6 +1135,7 @@ mod tests {
                 },
                 new_game_scenario: None,
             },
+            items,
             sections,
             ships,
             scenarios,
@@ -1059,6 +1167,52 @@ mod tests {
     /// A generated-ship part fault belongs to the pack that authored the bad
     /// definition. A `--target` lint must not blame the target for a base
     /// stat, and a whole-tree lint must not repeat the base fault per mod.
+    /// Two bundles that each define one item id, with no dependency between
+    /// them, are both reported, as the merge refuses both when a player
+    /// enables them together.
+    #[test]
+    fn two_unrelated_bundles_defining_one_item_are_both_reported() {
+        let core = || {
+            Content::Item(ItemDesign {
+                id: ItemDesignId::from("core"),
+                name: "Core".to_string(),
+                about: "A fixture item.".to_string(),
+                category: ItemCategoryType::Parts,
+                mass_g: 1_000,
+                ask_cr: 10,
+                bid_cr: 5,
+            })
+        };
+        let all = vec![
+            walked(
+                "base",
+                &[],
+                &[],
+                item_catalog().into_iter().map(Content::Item).collect(),
+            ),
+            walked("a", &[], &[], vec![core()]),
+            walked("b", &[], &[], vec![core()]),
+        ];
+        let report_ids = ["a", "b"].into_iter().map(str::to_string).collect();
+        let mut reported: Vec<(String, String)> = build_report(&all, &report_ids, None)
+            .findings
+            .into_iter()
+            .filter(|finding| {
+                finding.element == "items" && finding.severity == ReportSeverity::Error
+            })
+            .map(|finding| (finding.bundle, finding.message))
+            .collect();
+        reported.sort();
+        let message = "item 'core' is defined by 'a' and 'b', and neither depends on the other";
+        assert_eq!(
+            reported,
+            [
+                ("a".to_string(), message.to_string()),
+                ("b".to_string(), message.to_string()),
+            ]
+        );
+    }
+
     #[test]
     fn a_ship_part_stat_fault_is_reported_once_against_its_authoring_bundle() {
         let hull = |id: &str, health: f32| -> Content {

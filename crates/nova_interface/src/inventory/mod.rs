@@ -41,7 +41,9 @@ mod app;
 mod tests;
 
 use bevy::prelude::*;
-use nova_gameplay::prelude::{ItemCategoryType, ItemTradeType, ItemTransferType, ItemType};
+use nova_gameplay::prelude::{
+    GameItems, ItemCategoryType, ItemDesignId, ItemTradeType, ItemTransferType,
+};
 use nova_ui::input_mode::prelude::{in_input_mode, InputMode};
 
 pub(crate) use self::app::*;
@@ -54,6 +56,12 @@ impl Plugin for InventoryPanePlugin {
         app.init_resource::<InventoryRuntime>();
         app.add_message::<InventoryActionCommand>();
         app.add_message::<CreditTakeCommand>();
+        // Every pane system reads the item catalog, which lands only at the mod
+        // merge and never on a refused base game; the set runs from boot.
+        app.configure_sets(
+            Update,
+            InventoryPaneSystems.run_if(resource_exists::<GameItems>),
+        );
         app.add_systems(
             Update,
             (
@@ -95,7 +103,7 @@ pub(crate) struct InventoryRuntime {
     /// The one category the rows show; `None` shows every category.
     pub(crate) filter: Option<ItemCategoryType>,
     /// The row the inspector shows.
-    pub(crate) selected: Option<(InventorySideType, ItemType)>,
+    pub(crate) selected: Option<(InventorySideType, ItemDesignId)>,
     /// The action form the selected row opened, if it offers one.
     pub(crate) draft: Option<InventoryDraft>,
     /// The last action result and its remaining seconds on screen.
@@ -141,12 +149,12 @@ impl InventoryActionType {
 }
 
 /// An action waiting for its quantity to be confirmed.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub(crate) struct InventoryDraft {
     /// Take, Give, Buy, Sell or Jettison.
     pub(crate) action: InventoryActionType,
     /// The item to move.
-    pub(crate) item: ItemType,
+    pub(crate) item: ItemDesignId,
     /// The one quantity the wheel, the slider, the field and All set. `None`
     /// while the field holds text that is not a whole number, which Confirm
     /// refuses.
@@ -155,12 +163,12 @@ pub(crate) struct InventoryDraft {
 
 /// A confirmed action on the player ship's inventory, written only by the
 /// form's Confirm and applied by [`apply_inventory_action_commands`].
-#[derive(Message, Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Message, Clone, PartialEq, Eq, Debug)]
 pub(crate) struct InventoryActionCommand {
     /// Take, Give, Buy, Sell or Jettison.
     pub(crate) action: InventoryActionType,
     /// The item to move.
-    pub(crate) item: ItemType,
+    pub(crate) item: ItemDesignId,
     /// The quantity; `None` when the typed text is not a whole number.
     pub(crate) quantity: Option<u32>,
 }

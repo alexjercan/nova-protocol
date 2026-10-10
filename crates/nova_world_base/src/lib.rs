@@ -37,7 +37,7 @@
 use bevy::prelude::*;
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_events::prelude::Meters;
-use nova_gameplay::prelude::PlayerSpaceshipMarker;
+use nova_gameplay::prelude::{GameItems, PlayerSpaceshipMarker};
 use nova_scenario::prelude::{CurrentScenario, ScenarioRole};
 use nova_ship::prelude::GameStyles;
 use nova_world::prelude::*;
@@ -59,9 +59,9 @@ mod tests;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use crate::save::{
-    create_world, delete_world, list_worlds, open_world, resume_world, world_slug, write_world,
-    FrozenTransient, FrozenTransientType, ResumedWorld, SaveReason, SavedPlayer, WorldFolder,
-    WorldListing, WorldLock, WorldRefusal, WorldResumeProgress, WorldResumeRefused,
+    check_world, create_world, delete_world, list_worlds, open_world, resume_world, world_slug,
+    write_world, FrozenTransient, FrozenTransientType, ResumedWorld, SaveReason, SavedPlayer,
+    WorldFolder, WorldListing, WorldLock, WorldRefusal, WorldResumeProgress, WorldResumeRefused,
     WorldSaveHeader, WorldSaveSession, WorldSaveState, WorldSaveStatus, WORLD_RESUME_SECONDS_MAX,
     WORLD_SAVE_FORMAT,
 };
@@ -92,10 +92,10 @@ pub use crate::{
 pub mod prelude {
     #[cfg(not(target_arch = "wasm32"))]
     pub use super::{
-        create_world, delete_world, list_worlds, open_world, resume_world, world_slug, write_world,
-        FrozenTransient, FrozenTransientType, ResumedWorld, SaveReason, SavedPlayer, WorldFolder,
-        WorldListing, WorldLock, WorldRefusal, WorldResumeProgress, WorldResumeRefused,
-        WorldSaveHeader, WorldSaveSession, WorldSaveState, WorldSaveStatus,
+        check_world, create_world, delete_world, list_worlds, open_world, resume_world, world_slug,
+        write_world, FrozenTransient, FrozenTransientType, ResumedWorld, SaveReason, SavedPlayer,
+        WorldFolder, WorldListing, WorldLock, WorldRefusal, WorldResumeProgress,
+        WorldResumeRefused, WorldSaveHeader, WorldSaveSession, WorldSaveState, WorldSaveStatus,
         WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_FORMAT,
     };
     pub use super::{
@@ -291,6 +291,12 @@ fn sync_open_world(world: &mut World) {
              merge refused the catalog and logged why"
         );
     };
+    let Some(items) = world.get_resource::<GameItems>() else {
+        panic!(
+            "nova_world_base: an OpenWorld scenario is live with no GameItems; the content \
+             merge refused the catalog and logged why"
+        );
+    };
     let armed = world.get_resource::<WorldConfig<NovaLayeredWorld>>();
     let generator = match armed {
         Some(armed) if armed.generator.catalog() != loaded.digest => panic!(
@@ -300,7 +306,7 @@ fn sync_open_world(world: &mut World) {
             loaded.digest.0
         ),
         Some(armed) => armed.generator.clone(),
-        None => NovaLayeredWorld::from_loaded(loaded, styles).unwrap_or_else(|faults| {
+        None => NovaLayeredWorld::from_loaded(loaded, styles, items).unwrap_or_else(|faults| {
             panic!(
                 "nova_world_base: the loaded content does not arm the open world:\n  {}",
                 faults

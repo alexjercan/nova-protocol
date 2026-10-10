@@ -148,14 +148,15 @@ const SPARK_UP_PROPERTY: &str = "up";
 
 /// The ore a pulse into an asteroid of `kind` yields, or `None` for a kind
 /// that holds none, such as `plain`, the unshaded control rock.
-pub fn ore_for_asteroid_kind(kind: &AsteroidKindId) -> Option<ItemType> {
-    match kind.as_str() {
-        KIND_ROCK => Some(ItemType::StoneOre),
-        KIND_METAL => Some(ItemType::IronOre),
-        KIND_ICE => Some(ItemType::WaterIce),
-        KIND_CARBON => Some(ItemType::CarbonOre),
-        _ => None,
-    }
+pub fn ore_for_asteroid_kind(kind: &AsteroidKindId) -> Option<ItemDesignId> {
+    let ore = match kind.as_str() {
+        KIND_ROCK => ITEM_STONE_ORE,
+        KIND_METAL => ITEM_IRON_ORE,
+        KIND_ICE => ITEM_WATER_ICE,
+        KIND_CARBON => ITEM_CARBON_ORE,
+        _ => return None,
+    };
+    Some(ore.into())
 }
 
 /// Why a pulse takes nothing, in check order.
@@ -198,12 +199,12 @@ pub struct MiningBeamHit {
 }
 
 /// Ore a rock node owes for corners mined since its last validated remesh.
-#[derive(Component, Clone, Copy, Debug, PartialEq)]
+#[derive(Component, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct MinedOre {
     /// The ore the rock's kind yields.
-    item: ItemType,
+    item: ItemDesignId,
     /// Corners flipped, one item each.
     corners: u32,
     /// The last pulse's surface point, in the node's local frame.
@@ -213,6 +214,11 @@ pub struct MinedOre {
 }
 
 impl MinedOre {
+    /// The ore the rock's kind yields.
+    pub(crate) fn item(&self) -> &ItemDesignId {
+        &self.item
+    }
+
     /// Add `later`'s corners and take its surface point.
     fn absorb(&mut self, later: MinedOre) {
         self.corners += later.corners;
@@ -270,6 +276,15 @@ pub struct MinedOreDrop;
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct FrozenOreDrop {
     queue: MinedCanisterQueue,
+}
+
+impl FrozenOreDrop {
+    /// Every item id its waiting canisters hold.
+    pub fn item_ids(&self) -> impl Iterator<Item = &ItemDesignId> {
+        self.queue
+            .canisters()
+            .flat_map(|canister| canister.stacks().map(|(item, _)| item))
+    }
 }
 
 /// Snapshot one ore drop's whole state so its sector can despawn it and
@@ -378,7 +393,7 @@ struct BeamAim {
     /// The rock's field node.
     node: Entity,
     /// The ore the rock yields.
-    item: ItemType,
+    item: ItemDesignId,
     /// Where the ray meets the rock's collider, in world space.
     at: Vec3,
     /// The collider's outward normal there.
@@ -588,7 +603,7 @@ fn carve(
         return 0;
     }
     let pulse = MinedOre {
-        item: aim.item,
+        item: aim.item.clone(),
         corners,
         at,
         normal: local_normal,
@@ -596,9 +611,9 @@ fn carve(
     match owed.get_mut(&aim.node) {
         Some(pending) => pending.absorb(pulse),
         None => {
-            let mut total = mined.copied().unwrap_or(MinedOre {
+            let mut total = mined.cloned().unwrap_or(MinedOre {
                 corners: 0,
-                ..pulse
+                ..pulse.clone()
             });
             total.absorb(pulse);
             owed.insert(aim.node, total);
@@ -876,6 +891,7 @@ fn release_mined_ore(
     )>,
     q_parents: Query<&ChildOf>,
     q_frames: Query<&GlobalTransform>,
+    items: Res<GameItems>,
 ) {
     let node = remeshed.entity;
     let Ok((frame, &ChildOf(root), owed, queue)) = q_nodes.get_mut(node) else {
@@ -883,12 +899,14 @@ fn release_mined_ore(
     };
     let mut waiting = queue.map_or_else(VecDeque::new, |queue| queue.waiting.clone());
     if let Some(owed) = owed {
-        let per_canister = CARGO_CANISTER_MAX_MASS_G / owed.item.mass_g();
+        // Content lint holds every ore under one canister's mass, so this is
+        // at least one.
+        let per_canister = CARGO_CANISTER_MAX_MASS_G / items.design(&owed.item).mass_g;
         let mut rest = owed.corners;
         while rest > 0 {
             let count = rest.min(per_canister);
             waiting.push_back(MinedCanister {
-                canister: CargoCanister::new(owed.item, count),
+                canister: CargoCanister::new(&items, &owed.item, count),
                 at: owed.at,
                 normal: owed.normal,
             });
@@ -1077,7 +1095,7 @@ impl Plugin for MiningPlugin {
 mod tests {
     use avian3d::prelude::*;
     use nova_events::prelude::*;
-    use nova_gameplay::test_support::{settle, unfinished_integrity_physics_app};
+    use nova_gameplay::test_support::{settle, test_items, unfinished_integrity_physics_app};
 
     use super::*;
     use crate::{
@@ -1134,6 +1152,7 @@ mod tests {
         app.init_resource::<Pulses>();
         app.init_resource::<Remeshes>();
         app.init_resource::<Played>();
+        app.insert_resource(test_items());
         app.init_asset::<AudioSource>();
         app.add_observer(|pulse: On<MiningPulse>, mut pulses: ResMut<Pulses>| {
             pulses.0.push((pulse.entity, pulse.outcome));
@@ -1258,11 +1277,11 @@ mod tests {
 
     /// Ore of `item` the world holds anywhere between a pulse and a hold:
     /// owed on a rock, queued for birth, or drifting in a canister.
-    fn ore_in_world(world: &mut World, item: ItemType) -> u32 {
+    fn ore_in_world(world: &mut World, item: &ItemDesignId) -> u32 {
         let owed: u32 = world
             .query::<&MinedOre>()
             .iter(world)
-            .filter(|owed| owed.item == item)
+            .filter(|owed| owed.item == *item)
             .map(|owed| owed.corners)
             .sum();
         let queued: u32 = world
@@ -1274,7 +1293,7 @@ mod tests {
         owed + queued + drifting(world, item)
     }
 
-    fn held(canister: &CargoCanister, item: ItemType) -> u32 {
+    fn held(canister: &CargoCanister, item: &ItemDesignId) -> u32 {
         canister
             .stacks()
             .filter(|(each, _)| *each == item)
@@ -1282,7 +1301,7 @@ mod tests {
             .sum()
     }
 
-    fn drifting(world: &mut World, item: ItemType) -> u32 {
+    fn drifting(world: &mut World, item: &ItemDesignId) -> u32 {
         world
             .query::<&CargoCanister>()
             .iter(world)
@@ -1328,7 +1347,10 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(1));
             let paid = app.world().resource::<Pulses>().paid();
             let world = app.world_mut();
-            assert_eq!(ore_in_world(world, ItemType::StoneOre), paid);
+            assert_eq!(
+                ore_in_world(world, &ItemDesignId::from(ITEM_STONE_ORE)),
+                paid
+            );
             let drifting_now = canisters(world);
             if !drifting_now.is_empty() {
                 assert!(
@@ -1363,7 +1385,7 @@ mod tests {
             );
         }
         let world = app.world_mut();
-        assert_eq!(drifting(world, ItemType::StoneOre), paid);
+        assert_eq!(drifting(world, &ItemDesignId::from(ITEM_STONE_ORE)), paid);
         let mut minted = Vec::new();
         for canister in canisters(world) {
             let id = world
@@ -1378,7 +1400,8 @@ mod tests {
                 .stacks()
                 .collect();
             assert!(
-                held.iter().all(|(item, _)| *item == ItemType::StoneOre),
+                held.iter()
+                    .all(|(item, _)| *item == &ItemDesignId::from(ITEM_STONE_ORE)),
                 "{held:?}"
             );
             assert!(world.get::<ScenarioScopedMarker>(canister).is_some());
@@ -1529,12 +1552,13 @@ mod tests {
         app.update();
         let world = app.world_mut();
         for item in [
-            ItemType::StoneOre,
-            ItemType::IronOre,
-            ItemType::WaterIce,
-            ItemType::CarbonOre,
+            ITEM_STONE_ORE,
+            ITEM_IRON_ORE,
+            ITEM_WATER_ICE,
+            ITEM_CARBON_ORE,
         ] {
-            assert_eq!(ore_in_world(world, item), 0, "{item:?}");
+            let item = ItemDesignId::from(item);
+            assert_eq!(ore_in_world(world, &item), 0, "{item:?}");
         }
     }
 
@@ -1619,6 +1643,7 @@ mod tests {
     /// time, and despawns with the last: all 45 ore, none lost.
     #[test]
     fn an_exhausted_rock_keeps_blocked_canisters_until_the_birth_point_clears() {
+        let iron = ItemDesignId::from(ITEM_IRON_ORE);
         let mut app = mining_app();
         let sector = app
             .world_mut()
@@ -1635,7 +1660,7 @@ mod tests {
                 Visibility::default(),
                 ChildOf(root),
                 MinedOre {
-                    item: ItemType::IronOre,
+                    item: iron.clone(),
                     corners: 45,
                     at: Vec3::new(0.5, 0.0, 0.0),
                     normal: Vec3::X,
@@ -1673,7 +1698,7 @@ mod tests {
             .map(|(drop, queue, child_of, frame)| {
                 let counts: Vec<u32> = queue
                     .canisters()
-                    .map(|canister| held(canister, ItemType::IronOre))
+                    .map(|canister| held(canister, &iron))
                     .collect();
                 (drop, counts, child_of.parent(), frame.translation())
             })
@@ -1694,10 +1719,7 @@ mod tests {
             let world = app.world_mut();
             for canister in canisters(world) {
                 if !born.iter().any(|(each, _)| *each == canister) {
-                    let count = held(
-                        world.get::<CargoCanister>(canister).unwrap(),
-                        ItemType::IronOre,
-                    );
+                    let count = held(world.get::<CargoCanister>(canister).unwrap(), &iron);
                     assert!(world.get::<ScenarioScopedMarker>(canister).is_some());
                     born.push((canister, count));
                 }
@@ -1720,15 +1742,16 @@ mod tests {
     /// corners again, and the drop drains its queue as it would have.
     #[test]
     fn owed_ore_and_a_waiting_drop_come_back_from_a_frozen_sector() {
+        let iron = ItemDesignId::from(ITEM_IRON_ORE);
         let mut app = mining_app();
         let (rock, node) = spawn_rock(&mut app, KIND_ROCK);
         let owed = MinedOre {
-            item: ItemType::IronOre,
+            item: iron.clone(),
             corners: 12,
             at: Vec3::new(0.5, 0.0, 0.0),
             normal: Vec3::X,
         };
-        app.world_mut().entity_mut(node).insert(owed);
+        app.world_mut().entity_mut(node).insert(owed.clone());
 
         // A drop far from the rock, its birth point blocked.
         let sector = app
@@ -1746,7 +1769,7 @@ mod tests {
                 Visibility::default(),
                 ChildOf(exhausted),
                 MinedOre {
-                    item: ItemType::IronOre,
+                    item: iron.clone(),
                     corners: 45,
                     at: Vec3::new(0.5, 0.0, 0.0),
                     normal: Vec3::X,
@@ -1778,7 +1801,7 @@ mod tests {
         else {
             panic!("the exhausted rock must leave one drop");
         };
-        assert_eq!(ore_in_world(world, ItemType::IronOre), 12 + 45);
+        assert_eq!(ore_in_world(world, &iron), 12 + 45);
 
         let frozen_rock = freeze_asteroid(world, rock).expect("a settled rock freezes");
         let frozen_drop = freeze_ore_drop(world, drop);
@@ -1786,7 +1809,7 @@ mod tests {
         world.entity_mut(rock).despawn();
         world.entity_mut(drop).despawn();
         assert_eq!(
-            ore_in_world(world, ItemType::IronOre),
+            ore_in_world(world, &iron),
             0,
             "frozen ore must not stay in the world"
         );
@@ -1826,7 +1849,7 @@ mod tests {
             Some(&owed),
             "the rock is owed the same ore"
         );
-        assert_eq!(ore_in_world(world, ItemType::IronOre), 12 + 45);
+        assert_eq!(ore_in_world(world, &iron), 12 + 45);
 
         world.entity_mut(blocker).despawn();
         let mut born = Vec::new();
@@ -1835,10 +1858,7 @@ mod tests {
             let world = app.world_mut();
             for canister in canisters(world) {
                 if !born.iter().any(|(each, _)| *each == canister) {
-                    let count = held(
-                        world.get::<CargoCanister>(canister).unwrap(),
-                        ItemType::IronOre,
-                    );
+                    let count = held(world.get::<CargoCanister>(canister).unwrap(), &iron);
                     born.push((canister, count));
                 }
             }

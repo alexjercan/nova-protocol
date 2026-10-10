@@ -191,8 +191,9 @@ fn inspector_plugin(app: &mut App, seed: Option<u32>) {
         move |commands: Commands,
               game_assets: Res<GameAssets>,
               loaded: Res<LoadedSectionPacks>,
-              styles: Res<GameStyles>| {
-            boot_inspector(commands, game_assets, loaded, styles, seed);
+              styles: Res<GameStyles>,
+              items: Res<GameItems>| {
+            boot_inspector(commands, game_assets, loaded, styles, items, seed);
         },
     );
     app.add_systems(
@@ -227,6 +228,7 @@ fn boot_inspector(
     game_assets: Res<GameAssets>,
     loaded: Res<LoadedSectionPacks>,
     styles: Res<GameStyles>,
+    items: Res<GameItems>,
     seed: Option<u32>,
 ) {
     let seed = match seed {
@@ -247,7 +249,7 @@ fn boot_inspector(
 
     let config = WorldConfig {
         seed,
-        ..featured_world_config(&loaded, &styles)
+        ..featured_world_config(&loaded, &styles, &items)
     };
     config
         .validate()

@@ -370,6 +370,7 @@ fn stand_position(index: usize, subjects: usize) -> Vec3 {
 fn bench_row(
     game_assets: &GameAssets,
     sections: &GameSections,
+    items: &GameItems,
     roster: Roster,
     style: StyleId,
 ) -> ScenarioConfig {
@@ -407,7 +408,7 @@ fn bench_row(
             game_assets.cubemap.clone().into(),
         )
     };
-    refuse_broken(&scenario, sections);
+    refuse_broken(&scenario, sections, items);
     scenario
 }
 
@@ -457,13 +458,14 @@ fn refuse_blocked(subject: &Subject, sections: &GameSections) {
 /// Run the roster through the game's OWN content gate before posing it, the
 /// `wfc_ships` claim held to by the hand-placed cases too: what stands on the
 /// bench is a ship the game would accept.
-fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections) {
+fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections, items: &GameItems) {
     let known = KnownSections::from_configs(sections.iter());
     let issues = lint_scenario(
         scenario,
         &known,
         &KnownShipDesigns::default(),
         &HashSet::from([scenario.id.clone()]),
+        items,
     );
     let errors: Vec<&str> = issues
         .iter()
@@ -487,6 +489,7 @@ fn load_roster(
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
     styles: Res<GameStyles>,
+    items: Res<GameItems>,
     requested: Res<StyleRequest>,
     mut roster: ResMut<Roster>,
 ) {
@@ -502,6 +505,7 @@ fn load_roster(
     commands.trigger(LoadScenario(bench_row(
         &game_assets,
         &sections,
+        &items,
         *roster,
         style,
     )));
@@ -518,6 +522,7 @@ fn restyle_on_key(
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
     styles: Res<GameStyles>,
+    items: Res<GameItems>,
     mut roster: ResMut<Roster>,
 ) {
     if keyboard.just_pressed(KeyCode::KeyL) {
@@ -534,6 +539,7 @@ fn restyle_on_key(
     commands.trigger(LoadScenario(bench_row(
         &game_assets,
         &sections,
+        &items,
         *roster,
         style,
     )));

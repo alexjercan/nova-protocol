@@ -4,7 +4,7 @@
 //
 // This bundle loads AFTER base (base first, mods in catalog order), so overlay
 // is last-wins by id: an item whose id already exists REPLACES it; a fresh id
-// ADDS alongside. This file does four things, in order:
+// ADDS alongside. This file does five things, in order:
 //
 //   1. OVERRIDE a base section  - `reinforced_hull_section` (same id -> replace)
 //   2. ADD a new section        - `example_plated_hull_section` (new id -> add)
@@ -13,6 +13,8 @@
 //                                  win check, and Victory/Defeat Outcomes)
 //   4. ADD a menu backdrop      - `example_menu` (a `role: Backdrop` scene:
 //                                  mods can ship main-menu ambience)
+//   5. ADD an item              - `example_survey_core` (cargo the arena's
+//                                  player ship starts with)
 //
 // Everything here is pure data - no engine changes. For the field-by-field
 // syntax behind it see the wiki: "Author a section", "Author a scenario",
@@ -370,7 +372,10 @@
                                 ],
                             )),
                             initial_velocity: (0.0, 0.0, 0.0),
-                            inventory: {},
+                            // Two of the item this mod adds (5 below): it
+                            // weighs, trades and jettisons like a base item.
+                            // Item ids are quoted map keys.
+                            inventory: {"example_survey_core": 2},
                             lootable: false,
                             credits: 2_000,
                         )),
@@ -828,5 +833,22 @@
                 ],
             ),
         ],
+    )),
+    // -- 5. ITEM ---------------------------------------------------------------
+    // A NEW item id, so it ADDS to the catalog. Any ship stock, canister or
+    // trade may carry it. Every field is required: `mass_g` above 0 grams, and
+    // `bid_cr` (what a Sell earns) at most `ask_cr` (what a Buy pays). The ten
+    // ids the game itself uses - "HullPlate", the ammunition, the ores,
+    // "Rations" and "SalvagedParts" - belong to base. A mod may replace one
+    // whole, with its own mass and prices but the same category, because base
+    // is a dependency of every mod.
+    Item((
+        id: "example_survey_core",
+        name: "Survey core",
+        about: "A sealed sensor core from the example mod. Traders buy and sell it.",
+        category: Parts,
+        mass_g: 5000,
+        ask_cr: 60,
+        bid_cr: 45,
     )),
 ]

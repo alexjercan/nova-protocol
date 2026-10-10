@@ -364,7 +364,7 @@ fn the_gun_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioC
         SpaceshipController::None,
         Some(Allegiance::Player),
         kit::catalog_ship(ships, "block_gunship"),
-        ShipInventoryStock::new([(ItemType::PdcRound, PDC_RESERVE)]),
+        ShipInventoryStock::new([(ITEM_PDC_ROUND.into(), PDC_RESERVE)]),
     );
     let boat = hollow::ship(
         BOAT_ID,

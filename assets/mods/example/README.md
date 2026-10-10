@@ -33,6 +33,8 @@ binary assets it ships).
   longer, blunt-nosed hauler drawing this mod's own plate and no weapons. The
   editor's Generate block lists it under HULL LINE beside the base warship and
   collapses whichever is picked.
+- **A new item** - `example_survey_core` adds a fresh id to the item catalog;
+  the arena's player ship starts with two of it in its hold.
 
 ## Layout
 
@@ -40,7 +42,7 @@ binary assets it ships).
 example/
   example.bundle.ron     # manifest: content + resources + meta
   example.content.ron    # section overlay + new section + arena + menu backdrop
-                         #   + hull line
+                         #   + hull line + item
   textures/
     nebula.png           # self:// skybox (stacked 1x6 cube faces)
     nebula.png.meta      # RowCount cube reinterpret sidecar (rides along, not listed)

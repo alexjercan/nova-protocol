@@ -20,8 +20,9 @@ use bevy_rand::prelude::{EntropyPlugin, WyRand};
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_core::loading_screen::LoadingScreenPlugin;
 use nova_gameplay::prelude::{
-    resumed_lifetime, AssetRef, ClockFreeze, DamageType, FreezeOwner, FrozenRoundFlight, GameMode,
-    GameStates, PauseStates, PlayerSpaceshipMarker, ProjectileDamage, SavedLifetime, SavedOwner,
+    resumed_lifetime, AssetRef, ClockFreeze, DamageType, FreezeOwner, FrozenRoundFlight, GameItems,
+    GameMode, GameStates, PauseStates, PlayerSpaceshipMarker, ProjectileDamage, SavedLifetime,
+    SavedOwner,
 };
 use nova_menu::prelude::NovaMenuPlugin;
 use nova_scenario::prelude::{CurrentScenario, GameScenarios, ScenarioConfig};
@@ -305,7 +306,12 @@ fn a_load_that_cannot_fill_its_window_is_refused_and_releases_the_clocks() {
 
     // The lock is free: a fresh open succeeds (and is dropped at once).
     {
-        let opened = open_world(&worlds_root, &slug, &packs);
+        let opened = open_world(
+            &worlds_root,
+            &slug,
+            &packs,
+            app.world().resource::<GameItems>(),
+        );
         assert!(opened.is_ok(), "world.lock is free: {opened:?}");
     }
 
@@ -518,7 +524,12 @@ fn a_load_that_cannot_fill_its_window_is_refused_and_releases_the_clocks() {
 
     // The lock is free: a fresh open succeeds (and is dropped at once).
     {
-        let opened = open_world(&worlds_root, &slug2, &packs);
+        let opened = open_world(
+            &worlds_root,
+            &slug2,
+            &packs,
+            app.world().resource::<GameItems>(),
+        );
         assert!(opened.is_ok(), "world.lock is free: {opened:?}");
     }
 

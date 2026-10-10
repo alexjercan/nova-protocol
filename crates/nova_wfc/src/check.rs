@@ -15,7 +15,7 @@ use std::collections::HashSet;
 
 use bevy::prelude::*;
 use nova_events::prelude::Meters3;
-use nova_gameplay::prelude::AssetRef;
+use nova_gameplay::prelude::{AssetRef, GameItems};
 use nova_scenario::prelude::{
     lint_scenario, BaseScenarioObjectConfig, EventActionConfig, EventConfig, KnownSections,
     KnownShipDesigns, LintSeverity, ScenarioConfig, ScenarioEventConfig, ScenarioObjectConfig,
@@ -227,7 +227,8 @@ pub fn unmated_contacts(
 ///
 /// Nothing here re-implements a check: `lint_scenario` is the same function the
 /// `content lint` gate and the runtime loader run, so what comes back is
-/// exactly what the game would refuse.
+/// exactly what the game would refuse. The item catalog is empty: a generated
+/// hull carries no stock, so any item it names is reported unknown.
 pub fn lint_errors(scenario: &ScenarioConfig, sections: &GameSections) -> Vec<String> {
     let known = KnownSections::from_configs(sections.iter());
     lint_scenario(
@@ -235,6 +236,7 @@ pub fn lint_errors(scenario: &ScenarioConfig, sections: &GameSections) -> Vec<St
         &known,
         &KnownShipDesigns::default(),
         &HashSet::from([scenario.id.clone()]),
+        &GameItems::default(),
     )
     .into_iter()
     .filter(|issue| issue.severity == LintSeverity::Error)

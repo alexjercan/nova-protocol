@@ -119,7 +119,7 @@ pub fn sense_hud_situations(
                     let reserve = q_inventory.get(ship).unwrap_or_else(|_| {
                         panic!("weapon section {name} reloads from a ship with no ShipInventory")
                     });
-                    reload.is_reloading(ammo, reserve.count(reload.item))
+                    reload.is_reloading(ammo, reserve.count(&reload.item))
                 });
             }
             HudSituations {
@@ -157,6 +157,8 @@ fn maneuver_chip(autopilot: &Autopilot) -> Option<ManeuverChip> {
 
 #[cfg(test)]
 mod tests {
+    use nova_gameplay::test_support::test_items;
+
     use super::*;
 
     fn sense_app() -> App {
@@ -261,11 +263,12 @@ mod tests {
     #[test]
     fn reload_reads_the_players_incomplete_magazine_with_reserve() {
         let mut app = sense_app();
+        let items = test_items();
         let ship = app
             .world_mut()
             .spawn((
                 PlayerSpaceshipMarker,
-                ShipInventory::new(10_000, [(ItemType::PdcRound, 4)]),
+                ShipInventory::new(&items, 10_000, [(ITEM_PDC_ROUND.into(), 4)]),
             ))
             .id();
         let section = app
@@ -278,7 +281,7 @@ mod tests {
                         delay: 3.0,
                         amount: 4,
                     },
-                    ItemType::PdcRound,
+                    ITEM_PDC_ROUND.into(),
                 ),
                 ChildOf(ship),
             ))
@@ -299,7 +302,7 @@ mod tests {
 
         app.world_mut()
             .entity_mut(ship)
-            .insert(ShipInventory::new(10_000, []));
+            .insert(ShipInventory::new(&items, 10_000, []));
         app.update();
         assert!(
             !situations(&app).reloading,

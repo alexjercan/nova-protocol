@@ -2,7 +2,7 @@
 //! shell down the hull's own line, and the recoil goes back through the hull
 //! at the muzzle.
 
-use nova_gameplay::test_support::{settle, unfinished_integrity_physics_app};
+use nova_gameplay::test_support::{settle, test_items, unfinished_integrity_physics_app};
 
 use super::*;
 use crate::sections::{
@@ -745,9 +745,11 @@ fn a_scripted_railgun_order_waits_for_an_empty_gun_to_reload() {
         },
         Vec3::NEG_Z * 2.0,
     );
-    app.world_mut()
-        .entity_mut(ship)
-        .insert(ShipInventory::new(20_000, [(ItemType::RailSlug, 1)]));
+    app.world_mut().entity_mut(ship).insert(ShipInventory::new(
+        &test_items(),
+        20_000,
+        [(ITEM_RAIL_SLUG.into(), 1)],
+    ));
 
     // Empty the magazine before the order lands.
     app.world_mut()

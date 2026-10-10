@@ -2,7 +2,7 @@
 
 use bevy::prelude::Vec3;
 use nova_events::units::prelude::*;
-use nova_gameplay::prelude::kg_text;
+use nova_gameplay::prelude::{kg_text, GameItems};
 use nova_ship::prelude::{
     candidate_link_point_mates, derive_link_point_graph, duplicate_muzzle_id, muzzle_ids,
     section_colliders_overlap, AmmoCapacity, CargoIntakeSectionConfig, ControllerSectionConfig,
@@ -17,8 +17,8 @@ use crate::prelude::*;
 
 /// Every reference a spawned (or scatter-template) ship makes must resolve:
 /// the design it names, the section prototypes that design is built from, and
-/// the sections its spawn-time patches aim at. Its inventory stock must also
-/// fit the resolved design's hold.
+/// the sections its spawn-time patches aim at. Its inventory stock must name
+/// only items `items` holds and fit the resolved design's hold.
 ///
 /// A `Prototype` design's own geometry is NOT re-checked here - it is linted
 /// where the design catalog is walked ([`lint_ship_design_config`]), the same
@@ -28,11 +28,22 @@ pub(super) fn check_object_prototypes(
     scenario: &str,
     sections: &KnownSections,
     designs: &KnownShipDesigns,
+    items: &GameItems,
     issues: &mut Vec<LintIssue>,
 ) {
     let ScenarioObjectKind::Spaceship(ship) = &config.kind else {
         return;
     };
+    let mut known_stock = true;
+    for (item, _) in ship.inventory.stacks() {
+        if items.get(item).is_none() {
+            known_stock = false;
+            issues.push(LintIssue::error(
+                scenario,
+                format!("ship '{}': unknown item '{item}'", config.base.id),
+            ));
+        }
+    }
     let catalog = GameShipDesigns(
         ship.design
             .prototype_id()
@@ -49,12 +60,15 @@ pub(super) fn check_object_prototypes(
     );
     let (resolved, errors) = resolve_ship_design(&ship.design, &catalog, sections.catalog());
     // The spawn fills the hold from this stock and panics when it does not fit.
-    // An unknown design already reports its own error and has no hold to fit.
+    // An unknown design or item already reports its own error, and the stock
+    // has no hold or no mass to weigh.
     let known_design = !errors
         .iter()
         .any(|error| matches!(error, ShipDesignError::UnknownDesign(_)));
-    let (stock_g, capacity_g) = (ship.inventory.mass_g(), resolved.cargo_capacity_g());
-    if known_design && stock_g > u64::from(capacity_g) {
+    let capacity_g = resolved.cargo_capacity_g();
+    let stock_g = known_stock.then(|| ship.inventory.mass_g(items));
+    if let Some(stock_g) = stock_g.filter(|&mass_g| known_design && mass_g > u64::from(capacity_g))
+    {
         issues.push(LintIssue::error(
             scenario,
             format!(
@@ -950,6 +964,7 @@ mod tests {
             &sections(&["known_proto"]),
             &ships(&[]),
             &known(&["test_scenario"]),
+            &GameItems::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -983,6 +998,7 @@ mod tests {
             &sections(&["hull"]),
             &ships(&["block_gunship"]),
             &known(&["test_scenario"]),
+            &GameItems::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -994,6 +1010,7 @@ mod tests {
             &sections(&["hull"]),
             &ships(&["block_gunship"]),
             &known(&["test_scenario"]),
+            &GameItems::default(),
         );
         assert!(issues.is_empty(), "a known ship lints clean: {issues:?}");
     }
@@ -1037,6 +1054,7 @@ mod tests {
             &sections(&["hull"]),
             &ships(&["block_gunship"]),
             &known(&["test_scenario"]),
+            &GameItems::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -1049,6 +1067,7 @@ mod tests {
             &sections(&["hull"]),
             &ships(&["block_gunship"]),
             &known(&["test_scenario"]),
+            &GameItems::default(),
         )
         .is_empty());
     }
@@ -1266,7 +1285,13 @@ mod tests {
             source: SectionSource::prototype("empty"),
         });
         let scenario = scenario(vec![action], vec![]);
-        let issues = lint_scenario(&scenario, &catalog, &ships(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(
+            &scenario,
+            &catalog,
+            &ships(&[]),
+            &known(&["test_scenario"]),
+            &GameItems::default(),
+        );
         assert!(
             issues
                 .iter()
@@ -1307,6 +1332,7 @@ mod tests {
             &sections(&["known_proto"]),
             &ships(&[]),
             &known(&["test_scenario"]),
+            &GameItems::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -1355,6 +1381,7 @@ mod tests {
             &sections(&["known"]),
             &ships(&[]),
             &known(&["test_scenario"]),
+            &GameItems::default(),
         );
         assert_eq!(
             issues
@@ -1372,6 +1399,7 @@ mod tests {
             &sections(&["known"]),
             &ships(&[]),
             &known(&["test_scenario"]),
+            &GameItems::default(),
         );
         assert!(issues.is_empty(), "{issues:?}");
     }
@@ -1436,7 +1464,13 @@ mod tests {
             )],
             vec![],
         );
-        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(
+            &s,
+            &sections(&[]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+            &GameItems::default(),
+        );
         assert_eq!(
             issues
                 .iter()
@@ -1454,7 +1488,13 @@ mod tests {
             )],
             vec![],
         );
-        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(
+            &s,
+            &sections(&[]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+            &GameItems::default(),
+        );
         assert!(
             issues
                 .iter()
@@ -1471,7 +1511,13 @@ mod tests {
             )],
             vec![],
         );
-        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(
+            &s,
+            &sections(&[]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+            &GameItems::default(),
+        );
         assert_eq!(
             issues
                 .iter()
@@ -1493,7 +1539,13 @@ mod tests {
         a.rotation = Quat::from_rotation_x(std::f32::consts::FRAC_PI_2);
         b.rotation = Quat::from_rotation_x(std::f32::consts::FRAC_PI_2);
         let s = scenario(vec![ship(a, b)], vec![]);
-        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(
+            &s,
+            &sections(&[]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+            &GameItems::default(),
+        );
         assert!(
             issues
                 .iter()
@@ -1509,7 +1561,13 @@ mod tests {
         a.rotation = Quat::from_rotation_x(std::f32::consts::FRAC_PI_2);
         b.rotation = Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
         let s = scenario(vec![ship(a, b)], vec![]);
-        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(
+            &s,
+            &sections(&[]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+            &GameItems::default(),
+        );
         assert!(
             issues
                 .iter()
@@ -1574,7 +1632,13 @@ mod tests {
     fn directly_mated_sections_may_overlap() {
         let (action, catalog) = ship_with_mated_overlap();
         let s = scenario(vec![action], vec![]);
-        let issues = lint_scenario(&s, &catalog, &ships(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(
+            &s,
+            &catalog,
+            &ships(&[]),
+            &known(&["test_scenario"]),
+            &GameItems::default(),
+        );
         assert!(issues.is_empty(), "{issues:?}");
     }
 

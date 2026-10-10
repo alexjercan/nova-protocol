@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPacks};
 use nova_events::prelude::Meters;
+use nova_gameplay::prelude::GameItems;
 use nova_ship::prelude::GameStyles;
 use nova_world::prelude::*;
 
@@ -51,15 +52,18 @@ const SECTOR_EDGE_MAX: Meters = Meters(128_000.0);
 /// `PlanetType` - so there is no list a caller could leave empty or fill with
 /// an id the game does not ship. The ship parts it pins are the snapshot of
 /// the loaded catalog it was built from, with that catalog's digest; every
-/// ship it plans is laid out from them.
+/// ship it plans is laid out from them. Generated stock reads masses from
+/// the pinned item catalog.
 #[derive(Clone, Debug)]
 pub struct NovaLayeredWorld {
     parts: Arc<ShipPartSnapshot>,
     catalog: ContentCatalogDigest,
+    items: Arc<GameItems>,
 }
 
 /// Equal when both pin one catalog and one ship-part snapshot. Compares two
 /// digests, never the parts, so the arming check stays cheap every frame.
+/// The catalog digest also covers the items.
 impl PartialEq for NovaLayeredWorld {
     fn eq(&self, other: &Self) -> bool {
         self.catalog == other.catalog && self.parts.content_hash() == other.parts.content_hash()
@@ -81,6 +85,7 @@ impl NovaLayeredWorld {
     pub fn from_loaded(
         loaded: &LoadedSectionPacks,
         styles: &GameStyles,
+        items: &GameItems,
     ) -> Result<Self, Vec<ShipPartFault>> {
         let packs: Vec<ShipPartPack> = loaded
             .packs
@@ -103,6 +108,7 @@ impl NovaLayeredWorld {
             Ok(parts) if unstyled.is_empty() => Ok(Self {
                 parts: Arc::new(parts),
                 catalog: loaded.digest,
+                items: Arc::new(items.clone()),
             }),
             Ok(_) => Err(unstyled),
             Err(mut faults) => {
@@ -120,6 +126,11 @@ impl NovaLayeredWorld {
     /// The digest of the catalog this world was armed over.
     pub fn catalog(&self) -> ContentCatalogDigest {
         self.catalog
+    }
+
+    /// The item catalog this world was armed with.
+    pub fn items(&self) -> &GameItems {
+        &self.items
     }
 }
 
@@ -142,7 +153,13 @@ impl SectorGenerator for NovaLayeredWorld {
     }
 
     fn generate(&self, input: SectorGenerationInput) -> Result<SectorManifest, SectorFault> {
-        plan_sector(&EnvironmentFields::new(input.seed), &self.parts, input)?.manifest()
+        plan_sector(
+            &EnvironmentFields::new(input.seed),
+            &self.parts,
+            &self.items,
+            input,
+        )?
+        .manifest()
     }
 }
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.0
+
+- **(breaking)** Add `example_survey_core`, an item this mod defines, and
+  start the arena's player ship with two. Needs a base game whose items are
+  content; item ids in ship stock are quoted map keys.
+
 ## 1.3.0
 
 - Add `example_freighter_hull`, a `Grammar` under a new id: a hull LINE the

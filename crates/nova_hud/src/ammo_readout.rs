@@ -840,7 +840,7 @@ fn drive_ammo_readouts(
                     .unwrap_or_else(|_| {
                         panic!("weapon section {name} reloads from a parent with no ShipInventory")
                     })
-                    .count(reload.item);
+                    .count(&reload.item);
                 (reload, reserve)
             })
             .filter(|(reload, reserve)| reload.is_reloading(ammo, *reserve));
@@ -1022,21 +1022,24 @@ impl Plugin for AmmoReadoutPlugin {
 #[cfg(test)]
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
+    use nova_gameplay::test_support::test_items;
 
     use super::*;
 
     /// The player ship, carrying a reserve for every weapon's reload.
     fn spawn_player(world: &mut World) -> Entity {
+        let items = test_items();
         world
             .spawn((
                 SpaceshipRootMarker,
                 PlayerSpaceshipMarker,
                 ShipInventory::new(
+                    &items,
                     10_000_000,
                     [
-                        (ItemType::PdcRound, 1000),
-                        (ItemType::RailSlug, 10),
-                        (ItemType::Torpedo, 10),
+                        (ITEM_PDC_ROUND.into(), 1000),
+                        (ITEM_RAIL_SLUG.into(), 10),
+                        (ITEM_TORPEDO.into(), 10),
                     ],
                 ),
             ))
@@ -1674,7 +1677,7 @@ mod tests {
             .count()
     }
 
-    fn reload_at(item: ItemType, delay: f32, amount: u32, progress: f32) -> SectionReload {
+    fn reload_at(item: ItemDesignId, delay: f32, amount: u32, progress: f32) -> SectionReload {
         let mut reload = SectionReload::from_config(SectionReloadConfig { delay, amount }, item);
         reload.elapsed = delay * progress;
         reload
@@ -1695,7 +1698,7 @@ mod tests {
             .rounds = 0;
         world
             .entity_mut(turret)
-            .insert(reload_at(ItemType::PdcRound, 3.0, 200, 0.5));
+            .insert(reload_at(ITEM_PDC_ROUND.into(), 3.0, 200, 0.5));
         world.run_system_once(sync_ammo_readouts).unwrap();
         world.run_system_once(drive_ammo_readouts).unwrap();
 
@@ -1708,9 +1711,12 @@ mod tests {
 
         // A short reserve previews only what it can load; an empty one
         // previews nothing.
-        world
-            .entity_mut(player)
-            .insert(ShipInventory::new(10_000_000, [(ItemType::PdcRound, 50)]));
+        let items = test_items();
+        world.entity_mut(player).insert(ShipInventory::new(
+            &items,
+            10_000_000,
+            [(ITEM_PDC_ROUND.into(), 50)],
+        ));
         world.run_system_once(drive_ammo_readouts).unwrap();
         assert_eq!(
             reload_pip_count(&mut world, turret),
@@ -1718,7 +1724,7 @@ mod tests {
         );
         world
             .entity_mut(player)
-            .insert(ShipInventory::new(10_000_000, []));
+            .insert(ShipInventory::new(&items, 10_000_000, []));
         world.run_system_once(drive_ammo_readouts).unwrap();
         assert_eq!(reload_pip_count(&mut world, turret), 0);
 
@@ -1742,7 +1748,7 @@ mod tests {
             .rounds = 1;
         world
             .entity_mut(torpedo)
-            .insert(reload_at(ItemType::Torpedo, 10.0, 1, 0.5));
+            .insert(reload_at(ITEM_TORPEDO.into(), 10.0, 1, 0.5));
         world.run_system_once(sync_ammo_readouts).unwrap();
         world.run_system_once(drive_ammo_readouts).unwrap();
 
@@ -1821,7 +1827,7 @@ mod tests {
             .rounds = 1;
         world
             .entity_mut(torpedo)
-            .insert(reload_at(ItemType::Torpedo, 4.0, 1, 0.5));
+            .insert(reload_at(ITEM_TORPEDO.into(), 4.0, 1, 0.5));
         world.run_system_once(sync_ammo_readouts).unwrap();
         world.run_system_once(drive_ammo_readouts).unwrap();
         let reloading = lit_pip_color(&mut world, torpedo).expect("a lit pip");
@@ -1848,7 +1854,7 @@ mod tests {
         let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(8)));
         world
             .entity_mut(turret)
-            .insert(reload_at(ItemType::PdcRound, 2.0, 8, 0.0));
+            .insert(reload_at(ITEM_PDC_ROUND.into(), 2.0, 8, 0.0));
         world.run_system_once(sync_ammo_readouts).unwrap();
         world.run_system_once(drive_ammo_readouts).unwrap();
 
@@ -1910,7 +1916,7 @@ mod tests {
             .rounds = 0;
         world
             .entity_mut(lance)
-            .insert(reload_at(ItemType::RailSlug, 12.0, 1, 0.25));
+            .insert(reload_at(ITEM_RAIL_SLUG.into(), 12.0, 1, 0.25));
         world.run_system_once(sync_ammo_readouts).unwrap();
         world.run_system_once(drive_ammo_readouts).unwrap();
 
@@ -1922,7 +1928,7 @@ mod tests {
 
         world
             .entity_mut(lance)
-            .insert(reload_at(ItemType::RailSlug, 12.0, 1, 0.75));
+            .insert(reload_at(ITEM_RAIL_SLUG.into(), 12.0, 1, 0.75));
         world.run_system_once(drive_ammo_readouts).unwrap();
         assert_eq!(
             fill_percent(&mut world, lance),
@@ -1978,7 +1984,7 @@ mod tests {
             .rounds = 0;
         world
             .entity_mut(turret)
-            .insert(reload_at(ItemType::PdcRound, 3.0, 200, 0.5));
+            .insert(reload_at(ITEM_PDC_ROUND.into(), 3.0, 200, 0.5));
         world.run_system_once(sync_ammo_readouts).unwrap();
         world.run_system_once(drive_ammo_readouts).unwrap();
 

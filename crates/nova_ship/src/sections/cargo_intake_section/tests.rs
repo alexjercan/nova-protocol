@@ -7,7 +7,7 @@
 
 use std::{collections::BTreeMap, f32::consts::FRAC_1_SQRT_2};
 
-use nova_gameplay::test_support::{settle, unfinished_integrity_physics_app};
+use nova_gameplay::test_support::{settle, test_items, unfinished_integrity_physics_app};
 
 use super::*;
 
@@ -53,7 +53,9 @@ fn intakes_app(stock: u32, intakes_x: &[f32]) -> (App, Entity, Vec<Entity>) {
     app.add_observer(|_: On<CargoCanisterTaken>, mut takes: ResMut<Takes>| {
         takes.0 += 1;
     });
+    app.insert_resource(test_items());
     app.finish();
+    let items = app.world().resource::<GameItems>().clone();
     let ship = app
         .world_mut()
         .spawn((
@@ -61,7 +63,7 @@ fn intakes_app(stock: u32, intakes_x: &[f32]) -> (App, Entity, Vec<Entity>) {
             SpaceshipRootMarker,
             RigidBody::Dynamic,
             Transform::default(),
-            ShipInventory::new(400_000, [(ItemType::HullPlate, stock)]),
+            ShipInventory::new(&items, 400_000, [(ITEM_HULL_PLATE.into(), stock)]),
         ))
         .id();
     app.world_mut().spawn((
@@ -119,9 +121,10 @@ fn drifting_canister(
     rotation: Quat,
     velocity: Vec3,
 ) -> Entity {
+    let items = app.world().resource::<GameItems>().clone();
     app.world_mut()
         .spawn(cargo_canister(
-            CargoCanister::new(ItemType::HullPlate, count),
+            CargoCanister::new(&items, &ITEM_HULL_PLATE.into(), count),
             Transform::from_translation(at).with_rotation(rotation),
             velocity,
             AssetRef::from("canister.glb#Scene0"),
@@ -145,7 +148,7 @@ fn plates(app: &App, ship: Entity) -> u32 {
     app.world()
         .get::<ShipInventory>(ship)
         .unwrap()
-        .count(ItemType::HullPlate)
+        .count(&ITEM_HULL_PLATE.into())
 }
 
 fn takes(app: &App) -> u32 {
@@ -469,10 +472,11 @@ fn a_canister_larger_than_the_free_room_is_refused_whole() {
         .iter()
         .any(|pair| pair.canister == canister && !pair.ready));
     assert_eq!(plates(&app, ship), 38, "no part of it is taken");
+    let items = app.world().resource::<GameItems>().clone();
     assert_eq!(
         app.world()
             .get::<CargoCanister>(canister)
-            .map(CargoCanister::total_mass_g),
+            .map(|canister| canister.total_mass_g(&items)),
         Some(40_000)
     );
 
@@ -480,7 +484,7 @@ fn a_canister_larger_than_the_free_room_is_refused_whole() {
     app.world_mut()
         .get_mut::<ShipInventory>(ship)
         .unwrap()
-        .remove(ItemType::HullPlate, 2);
+        .remove(&ITEM_HULL_PLATE.into(), 2);
     for _ in 0..4 {
         app.update();
     }
@@ -522,13 +526,15 @@ fn the_door_opens_for_a_canister_that_fits_beside_one_that_does_not() {
 #[test]
 fn an_ejected_canister_leaves_without_being_taken_back() {
     let (mut app, ship, intake) = intake_app(8);
+    let items = app.world().resource::<GameItems>().clone();
     app.world_mut()
         .entity_mut(intake)
         .insert(CargoIntakeEjectionQueue(VecDeque::from([
-            CargoCanister::new(ItemType::HullPlate, 4),
+            CargoCanister::new(&items, &ITEM_HULL_PLATE.into(), 4),
         ])));
 
     // The ejection waits for the door, then leaves across the face.
+    let hull_plate = ITEM_HULL_PLATE.into();
     let mut frames = 0;
     let (canister, birth) = loop {
         app.update();
@@ -536,10 +542,7 @@ fn an_ejected_canister_leaves_without_being_taken_back() {
         assert!(frames < 200, "the ejection never left");
         if let Some((entity, held, position)) = canisters(&mut app).first() {
             assert_eq!(door(&app, intake), 1.0, "it left through an open door");
-            assert_eq!(
-                held.stacks().collect::<Vec<_>>(),
-                [(ItemType::HullPlate, 4)]
-            );
+            assert_eq!(held.stacks().collect::<Vec<_>>(), [(&hull_plate, 4)]);
             break (*entity, *position);
         }
     };
@@ -565,11 +568,12 @@ fn an_ejected_canister_leaves_without_being_taken_back() {
 #[test]
 fn speculative_ejection_contact_is_refused_until_actual_reentry() {
     let (mut app, ship, intake) = intake_app(8);
+    let items = app.world().resource::<GameItems>().clone();
     app.world_mut().get_mut::<LinearVelocity>(ship).unwrap().0 = Vec3::NEG_Z * 3.0;
     app.world_mut()
         .entity_mut(intake)
         .insert(CargoIntakeEjectionQueue(VecDeque::from([
-            CargoCanister::new(ItemType::HullPlate, 4),
+            CargoCanister::new(&items, &ITEM_HULL_PLATE.into(), 4),
         ])));
 
     let mut frames = 0;
@@ -654,7 +658,7 @@ fn speculative_ejection_contact_is_refused_until_actual_reentry() {
 }
 
 /// The item counts held by live canisters and by `intake`'s queue.
-fn queued_and_drifting(app: &mut App, intake: Entity) -> BTreeMap<ItemType, u32> {
+fn queued_and_drifting(app: &mut App, intake: Entity) -> BTreeMap<ItemDesignId, u32> {
     let mut held = BTreeMap::new();
     let queued = app
         .world()
@@ -663,7 +667,7 @@ fn queued_and_drifting(app: &mut App, intake: Entity) -> BTreeMap<ItemType, u32>
     let drifting = canisters(app).into_iter().map(|(_, canister, _)| canister);
     for canister in queued.into_iter().chain(drifting) {
         for (item, count) in canister.stacks() {
-            *held.entry(item).or_default() += count;
+            *held.entry(item.clone()).or_default() += count;
         }
     }
     held
@@ -672,10 +676,11 @@ fn queued_and_drifting(app: &mut App, intake: Entity) -> BTreeMap<ItemType, u32>
 #[test]
 fn queued_canisters_leave_in_order_through_an_open_door_once_each_birth_point_clears() {
     let (mut app, ship, intake) = intake_app(8);
+    let items = app.world().resource::<GameItems>().clone();
     let queued = [
-        CargoCanister::new(ItemType::Torpedo, 1),
-        CargoCanister::new(ItemType::RailSlug, 10),
-        CargoCanister::new(ItemType::PdcRound, 1_000),
+        CargoCanister::new(&items, &ITEM_TORPEDO.into(), 1),
+        CargoCanister::new(&items, &ITEM_RAIL_SLUG.into(), 10),
+        CargoCanister::new(&items, &ITEM_PDC_ROUND.into(), 1_000),
     ];
 
     // The interface pauses virtual time: a queue confirmed then waits.
@@ -732,14 +737,53 @@ fn queued_canisters_leave_in_order_through_an_open_door_once_each_birth_point_cl
     assert_eq!(plates(&app, ship), 8, "the hold never changed");
 }
 
+/// An item only the content catalog defines, with no engine code naming it,
+/// is taken by the real avian intake sensor into the hold.
+#[test]
+fn a_canister_of_a_catalog_only_item_is_taken_into_the_hold() {
+    let fixture = ItemDesign {
+        id: ItemDesignId::from("fixture_core"),
+        name: "Fixture core".into(),
+        about: "A catalog-only item for tests.".into(),
+        category: ItemCategoryType::Parts,
+        mass_g: 5_000,
+        ask_cr: 60,
+        bid_cr: 45,
+    };
+    let fixture_id = ItemDesignId::from("fixture_core");
+    // One plate, because a stock stack may not be zero.
+    let (mut app, ship, _intake) = intake_app(1);
+    app.insert_resource(GameItems::new(
+        test_items().iter().cloned().chain([fixture]),
+    ));
+    let catalog = app.world().resource::<GameItems>().clone();
+    let canister = app
+        .world_mut()
+        .spawn(cargo_canister(
+            CargoCanister::new(&catalog, &fixture_id, 3),
+            Transform::from_xyz(0.0, 0.0, in_front(CAPTURE_GAP.to_engine() * 0.5)),
+            Vec3::ZERO,
+            AssetRef::from("canister.glb#Scene0"),
+        ))
+        .id();
+
+    assert!(run_until_gone(&mut app, canister, 600));
+    assert_eq!(takes(&app), 1);
+    let hold = app.world().get::<ShipInventory>(ship).unwrap();
+    assert_eq!(hold.count(&fixture_id), 3);
+    assert_eq!(hold.used_g(&catalog), 25_000);
+    assert_eq!(plates(&app, ship), 1);
+}
+
 #[test]
 fn a_despawned_intake_loses_its_waiting_canisters() {
     let (mut app, ship, intake) = intake_app(8);
+    let items = app.world().resource::<GameItems>().clone();
     app.world_mut()
         .entity_mut(intake)
         .insert(CargoIntakeEjectionQueue(VecDeque::from([
-            CargoCanister::new(ItemType::HullPlate, 4),
-            CargoCanister::new(ItemType::HullPlate, 3),
+            CargoCanister::new(&items, &ITEM_HULL_PLATE.into(), 4),
+            CargoCanister::new(&items, &ITEM_HULL_PLATE.into(), 3),
         ])));
     let mut frames = 0;
     while canisters(&mut app).is_empty() {
@@ -756,7 +800,10 @@ fn a_despawned_intake_loses_its_waiting_canisters() {
         .into_iter()
         .map(|(_, canister, _)| canister)
         .collect();
-    assert_eq!(left, [CargoCanister::new(ItemType::HullPlate, 4)]);
+    assert_eq!(
+        left,
+        [CargoCanister::new(&items, &ITEM_HULL_PLATE.into(), 4)]
+    );
     assert!(app
         .world_mut()
         .query::<&CargoIntakeEjectionQueue>()

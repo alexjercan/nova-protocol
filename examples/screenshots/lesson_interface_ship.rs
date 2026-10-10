@@ -201,11 +201,13 @@ fn hurt_the_turret(world: &mut World) {
     for mut health in turrets.iter_mut(world) {
         health.current = health.max * HURT_INTEGRITY;
     }
+    let items = world.resource::<GameItems>().clone();
     let mut ships = world.query_filtered::<&mut ShipInventory, With<PlayerSpaceshipMarker>>();
     for mut inventory in ships.iter_mut(world) {
         *inventory = ShipInventory::new(
+            &items,
             inventory.capacity_g(),
-            [(ItemType::HullPlate, STOCKED_PLATES)],
+            [(ITEM_HULL_PLATE.into(), STOCKED_PLATES)],
         );
     }
 }
@@ -232,7 +234,7 @@ fn the_ship_spent_hull_plates() -> std::sync::Arc<nova_protocol::nova_debug::har
             .is_some_and(|mut ships| {
                 ships
                     .iter(world)
-                    .any(|inventory| inventory.count(ItemType::HullPlate) < STOCKED_PLATES)
+                    .any(|inventory| inventory.count(&ITEM_HULL_PLATE.into()) < STOCKED_PLATES)
             })
     })
 }

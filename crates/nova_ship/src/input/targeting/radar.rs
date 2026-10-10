@@ -239,6 +239,7 @@ pub(super) fn lock_dwell_secs(distance: f32, modifier: f32, settings: &Targeting
 mod tests {
     use avian3d::prelude::*;
     use bevy::ecs::system::RunSystemOnce;
+    use nova_gameplay::test_support::test_items;
 
     use super::*;
 
@@ -547,7 +548,7 @@ mod tests {
         assert!(at.translation.length() > TargetingSettings::default().unsigned_lock_range);
         let canister = world
             .spawn(cargo_canister(
-                CargoCanister::new(ItemType::HullPlate, 1),
+                CargoCanister::new(&test_items(), &ITEM_HULL_PLATE.into(), 1),
                 at,
                 Vec3::ZERO,
                 AssetRef::from("canister.glb#Scene0"),

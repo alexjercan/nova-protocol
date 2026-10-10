@@ -773,7 +773,7 @@ fn mining_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 .map(|canister| {
                     canister
                         .stacks()
-                        .filter(|(item, _)| *item == ItemType::StoneOre)
+                        .filter(|(item, _)| item.as_str() == ITEM_STONE_ORE)
                         .map(|(_, count)| count)
                         .sum()
                 })
@@ -782,7 +782,7 @@ fn mining_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             let hold = world
                 .get::<ShipInventory>(player)
                 .expect("the warship has a hold")
-                .count(ItemType::StoneOre);
+                .count(&ITEM_STONE_ORE.into());
             let in_canisters: u32 = canisters.iter().sum();
             info!(
                 "mining_beam: {flipped} corner(s) flipped, the field lost {}, \

@@ -2,8 +2,8 @@
 
 A Nova Protocol mod is a folder that contains one bundle manifest, one or more
 content files, and any art or audio that the mod owns. Content files can define
-seven kinds of reusable item: campaigns, scenarios, ship sections, whole
-ships, ship skin styles, training lessons, and UI themes.
+eight kinds of reusable item: campaigns, scenarios, ship sections, whole
+ships, ship skin styles, training lessons, UI themes, and items.
 
 Use this page to choose the right file. Then open the detailed reference for the
 item you want to author.
@@ -156,7 +156,7 @@ content is rebalanced, prune the entry.
 ## Content files
 
 Every `*.content.ron` file is a RON list. One file may contain any mix of the
-seven item kinds:
+eight item kinds:
 
 ```ron
 [
@@ -207,14 +207,42 @@ seven item kinds:
         metrics: None,
         roles: (),
     )),
+    Item((
+        id: "my_mod/survey_core",
+        name: "Survey core",
+        about: "A sealed sensor core.",
+        category: Parts,
+        mass_g: 5000,
+        ask_cr: 60,
+        bid_cr: 45,
+    )),
 ]
 ```
+
+An `Item` adds a new entry to the item catalog, or replaces one your mod
+depends on. Every field is required: `id`, `name` and `about` are not blank;
+`category` is one of `Raw`, `Repair`, `Ammo`, `Food`, `Parts`; `mass_g` is
+above 0; `bid_cr` is at most `ask_cr`. Any ship's stock, a cargo canister, or
+a trade may carry the id, mod items included. The base game must define ten
+role ids that the game itself uses: `HullPlate` feeds a repair, the
+ammunition feeds a weapon's reload, the ores are mining yield, and generated
+ship holds draw the two trade goods `Rations` and `SalvagedParts`. A role id
+keeps its category: `HullPlate` is `Repair`; `PdcRound`, `RailSlug` and
+`Torpedo` are `Ammo`; `StoneOre`, `IronOre`, `WaterIce` and `CarbonOre` are
+`Raw`; `Rations` is `Food`; `SalvagedParts` is `Parts`. A mined ore fits one
+cargo canister, so its `mass_g` is at most `200000`. A mod that depends on
+the base game may replace a role id whole, with its own `name`, `about`,
+`mass_g`, `ask_cr` and `bid_cr`, but not another `category`. A replacement
+that breaks either rule is an error. An id two unrelated packs both define is refused in both, whatever
+load order; a pack that depends on the id's owner may replace it whole. See
+[Scenario objects](../objects/#inventory) for the item table and the stock
+format.
 
 Splitting these into `campaign.content.ron`, `scenarios.content.ron`, and
 `sections.content.ron` is a readability convention, not a loader requirement.
 Large mods can use one scenario per file and list all of them in `content`.
 
-## The seven content chapters
+## The eight content chapters
 
 <div id="wiki-children"></div>
 
@@ -234,6 +262,9 @@ Large mods can use one scenario per file and list all of them in `content`.
 - A [UI theme](../ui-themes/) is the look the whole interface paints in: the
   palette, the metrics, and the paint of every control in every state. The
   player picks one in Settings.
+- An [item](../objects/#inventory) is one entry in the catalog a ship's stock,
+  a cargo canister, or a trade can carry - what it is called, what it is for,
+  what it weighs, and what a trader pays for it.
 
 ## Paths and dependencies
 
@@ -249,12 +280,29 @@ the [base content catalog](../base-content/) for reusable base ids and assets.
 
 ## Overlay behavior
 
-Content merges by item id:
+Content merges by id:
 
 - A new id adds a campaign, scenario, section, ship, style, lesson, or theme.
-- An id that already exists replaces that whole item.
-- A duplicate id inside one bundle is a conflict; the first item is kept.
+- An id that already exists replaces that whole entry.
+- A duplicate id inside one bundle is a conflict: the load logs it, keeps the
+  first entry, and loads the rest of the bundle.
 
 For sections, the key is `base.id`. For campaigns, scenarios, ships, styles,
 lessons, and UI themes, the key is `id`. Prefix new ids with your mod id to
 avoid accidental collisions.
+
+An item id follows a stricter rule: a new id adds, but an id another pack
+already defines is replaced only when your mod depends on that pack, directly
+or through others (base counts as a dependency of every mod). Two packs that
+share an id with no such one-way chain between them are BOTH refused, in
+either load order. A pack that defines one item id twice is refused too. Any
+item error refuses the WHOLE pack, not only the item: a mod is switched off
+with every mod that depends on it, as for a failing section, and an error in
+`base` stops the game.
+
+`content lint` is stricter than the game here. The game checks only the mods
+you enable together. Lint checks every mod in the repository at once, so two
+repository mods that share an item id fail lint even when no one enables
+both. `content lint --target <dir>` checks your mod against every repository
+mod the same way. Lint cannot see mods from outside the repository, so such a
+mod can still conflict with yours when the game loads them together.

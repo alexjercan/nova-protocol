@@ -129,12 +129,14 @@ fn hurt_the_hull(world: &mut World) {
         hurt, 1,
         "screenshot_ship_repair: the player ship has one hull"
     );
+    let items = world.resource::<GameItems>().clone();
     let mut inventory = world
         .get_mut::<ShipInventory>(player)
         .expect("screenshot_ship_repair: the player ship has a ShipInventory");
     *inventory = ShipInventory::new(
+        &items,
         inventory.capacity_g(),
-        [(ItemType::HullPlate, STOCKED_PLATES)],
+        [(ITEM_HULL_PLATE.into(), STOCKED_PLATES)],
     );
 }
 
@@ -220,7 +222,7 @@ fn check_the_draft(world: &mut World) {
     let stock = ships
         .single(world)
         .expect("screenshot_ship_repair: one player inventory")
-        .count(ItemType::HullPlate);
+        .count(&ITEM_HULL_PLATE.into());
     assert_eq!(
         stock, STOCKED_PLATES,
         "screenshot_ship_repair: plates spent before Repair"

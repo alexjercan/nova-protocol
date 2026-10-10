@@ -7,6 +7,9 @@ in `the-ledger.bundle.ron`; the portal keeps every published version.
 
 ### Scenarios
 
+- **(breaking)** Quote the item ids in ship stock: `inventory: {"PdcRound":
+  2000}`. Needs a base game whose items are content; the bare key no longer
+  loads.
 - **(breaking)** Replace the old story and chapter ids with six replayable field
   trials: racing, arena combat, survey, patrol, convoy escort and assault. Add
   dense belts, planets and moving traffic. Tighten race gates to 50 m, sound

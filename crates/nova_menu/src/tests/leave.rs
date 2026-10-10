@@ -180,6 +180,7 @@ fn leaving_a_saved_world_waits_for_the_leave_save_with_input_still_paused() {
         "leave",
         app.world()
             .resource::<nova_assets::prelude::LoadedSectionPacks>(),
+        app.world().resource::<GameItems>(),
     )
     .unwrap();
     let [FrozenTransient {
@@ -422,6 +423,7 @@ fn entering_the_menu_after_a_death_releases_the_world() {
         "leave",
         app.world()
             .resource::<nova_assets::prelude::LoadedSectionPacks>(),
+        app.world().resource::<GameItems>(),
     )
     .expect("the world opens again");
     assert_eq!(on_disk(&app, root.path()), (1, 300));
@@ -494,6 +496,7 @@ fn a_write_in_flight_keeps_the_world_locked_after_a_death_exit() {
             "leave",
             app.world()
                 .resource::<nova_assets::prelude::LoadedSectionPacks>(),
+            app.world().resource::<GameItems>(),
         )
     };
     assert!(
