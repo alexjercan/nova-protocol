@@ -56,6 +56,12 @@ does NOT get an entry. Another page that states a different rule is wrong.
   `refusal_sound` at the emitter, once per pulse. Base content uses
   `radar_deny.wav`.
 
+### Internals & Tooling
+
+- `wfc_arena` fighters lose infinite ammo. Holds carry up to two spare
+  magazines per mounted ammo, PDC/torpedo/slug at 50/40/10% of hold. Old
+  infinite-ammo perf baselines are not directly comparable.
+
 ## [0.15.0] - 2026-10-06
 
 ### Gameplay & Flight

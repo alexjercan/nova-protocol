@@ -1060,8 +1060,16 @@ fn combatant(
     ship: &ShipSpec,
     place: (usize, usize),
     binding_overrides: &BTreeMap<(usize, String), Vec<InputSource>>,
+    sections: &GameSections,
 ) -> ScenarioObjectConfig {
     let team = &TEAMS[ship.team];
+    // A resolve error is not ignored: `refuse_broken_ships` lints this spawn
+    // with the same resolver and refuses the arena.
+    let (resolved, _) = resolve_ship_design(
+        &ShipDesignSource::Inline(hull.clone()),
+        &GameShipDesigns::default(),
+        sections,
+    );
     // The armament roll, per ship: the draft floor bounds it from below but one
     // team can still out-gun the other, and a lopsided fight reads differently
     // knowing that. This line is the roll's disclosure, and the only place the
@@ -1125,9 +1133,52 @@ fn combatant(
                 })
             },
             design: ShipDesignSource::Inline(hull),
+            inventory: spare_ammo(&resolved),
             ..Default::default()
         }),
     }
+}
+
+/// Each ammunition's share of a combatant's hold by mass, in percent.
+///
+/// The arena's loadout, not a balance rule: the shares sum to the whole hold,
+/// and the PDC rounds the guns spend fastest take half of it.
+const AMMO_HOLD_SHARE: [(ItemType, u32); 3] = [
+    (ItemType::PdcRound, 50),
+    (ItemType::Torpedo, 40),
+    (ItemType::RailSlug, 10),
+];
+
+/// The most full reloads a combatant carries of one ammunition, counted over
+/// every finite magazine that loads it.
+const SPARE_MAGAZINES: u32 = 2;
+
+/// The spare ammunition a drafted hull carries into the fight, AI and player
+/// slots alike: per item, the lesser of [`SPARE_MAGAZINES`] reloads for its
+/// mounted magazines and what its [`AMMO_HOLD_SHARE`] lifts.
+///
+/// A round no mounted magazine loads is not carried, and a share lighter than
+/// one item carries none - a small hull's torpedo share does not lift one
+/// 150 kg torpedo.
+fn spare_ammo(hull: &ResolvedShipDesign) -> ShipInventoryStock {
+    let capacity_g = u64::from(hull.cargo_capacity_g());
+    ShipInventoryStock::new(AMMO_HOLD_SHARE.into_iter().filter_map(|(item, share)| {
+        let magazines: u64 = hull
+            .sections
+            .iter()
+            .filter_map(|section| match (&section.config.kind, item) {
+                (SectionKind::Turret(turret), ItemType::PdcRound) => turret.ammunition.rounds(),
+                (SectionKind::Torpedo(bay), ItemType::Torpedo) => bay.ammunition.rounds(),
+                (SectionKind::Railgun(lance), ItemType::RailSlug) => lance.ammunition.rounds(),
+                _ => None,
+            })
+            .map(u64::from)
+            .sum();
+        let room = capacity_g * u64::from(share) / 100 / u64::from(item.mass_g());
+        let count = (magazines * u64::from(SPARE_MAGAZINES)).min(room);
+        let count = u32::try_from(count).expect("a share of a u32 hold counts in a u32");
+        (count > 0).then_some((item, count))
+    }))
 }
 
 /// One ring of dressing rocks, as a seeded scatter action - the editor
@@ -1454,26 +1505,16 @@ fn arena(
     let ships: Vec<EventActionConfig> = drafted
         .into_iter()
         .enumerate()
-        .flat_map(|(slot, (seed, hull))| {
-            [
-                EventActionConfig::SpawnScenarioObject(combatant(
-                    slot,
-                    seed,
-                    hull,
-                    &roster.ships[slot],
-                    places[slot],
-                    &roster.binding_overrides,
-                )),
-                // Perf-only override: the arena is a load fixture, and its
-                // fights keep the sustained fire the pre-M3 free reload gave
-                // them. A drafted hull's hold cannot carry a reserve for its
-                // armament, so combatants carry none and fire without a
-                // magazine.
-                EventActionConfig::SetInfiniteAmmo(SetInfiniteAmmoActionConfig {
-                    id: format!("{FIGHTER_ID_PREFIX}{slot}"),
-                    enabled: true,
-                }),
-            ]
+        .map(|(slot, (seed, hull))| {
+            EventActionConfig::SpawnScenarioObject(combatant(
+                slot,
+                seed,
+                hull,
+                &roster.ships[slot],
+                places[slot],
+                &roster.binding_overrides,
+                sections,
+            ))
         })
         .collect();
 
@@ -3298,5 +3339,156 @@ mod binding_tests {
             hull.presentation.skin,
             "and keeps the cladding it collapsed with"
         );
+    }
+}
+
+#[cfg(test)]
+mod reserve_tests {
+    use super::*;
+
+    /// The rounds every finite magazine of `item` holds across `hull`.
+    fn mounted_rounds(hull: &ResolvedShipDesign, item: ItemType) -> u32 {
+        hull.sections
+            .iter()
+            .filter_map(|section| match (&section.config.kind, item) {
+                (SectionKind::Turret(turret), ItemType::PdcRound) => turret.ammunition.rounds(),
+                (SectionKind::Torpedo(bay), ItemType::Torpedo) => bay.ammunition.rounds(),
+                (SectionKind::Railgun(lance), ItemType::RailSlug) => lance.ammunition.rounds(),
+                _ => None,
+            })
+            .sum()
+    }
+
+    /// A drafted hull's reserve: each ammunition is the lesser of two spare
+    /// magazines for what is mounted and its share of the hold, so a hull
+    /// whose share cannot lift one torpedo carries none, and a round no gun
+    /// loads is not carried at all.
+    #[test]
+    fn a_combatant_carries_a_bounded_reserve_for_its_mounted_magazines() {
+        let sections = GameSections(nova_authoring::generation::build_section_catalog());
+        let tiles = arena_tiles(&sections);
+        let [ai, pilot] = [false, true].map(|player| ShipSpec {
+            team: 0,
+            style: None,
+            seed: None,
+            player,
+        });
+        for seed in 0..6u64 {
+            let spawn = |ship: &ShipSpec| {
+                let hull = combat_hull(&tiles, seed, None, &sections);
+                combatant(0, seed, hull, ship, (0, 1), &BTreeMap::new(), &sections)
+            };
+            let config = spawn(&ai);
+            let ScenarioObjectKind::Spaceship(spaceship) = &config.kind else {
+                unreachable!("a combatant is a spaceship");
+            };
+            let (resolved, errors) =
+                resolve_ship_design(&spaceship.design, &GameShipDesigns::default(), &sections);
+            assert!(errors.is_empty(), "seed {seed}: {errors:?}");
+            let capacity_g = u64::from(resolved.cargo_capacity_g());
+            let stock = &spaceship.inventory;
+            assert!(
+                stock.mass_g() <= capacity_g,
+                "seed {seed}: {} g of stock in a {capacity_g} g hold",
+                stock.mass_g()
+            );
+            for (item, share) in [
+                (ItemType::PdcRound, 50),
+                (ItemType::Torpedo, 40),
+                (ItemType::RailSlug, 10),
+            ] {
+                let spare = u64::from(2 * mounted_rounds(&resolved, item));
+                let room = capacity_g * share / 100 / u64::from(item.mass_g());
+                let carried = stock
+                    .stacks()
+                    .find_map(|(held, count)| (held == item).then_some(count))
+                    .unwrap_or(0);
+                assert_eq!(
+                    u64::from(carried),
+                    spare.min(room),
+                    "seed {seed}: {item:?} with {spare} spare rounds and room for {room}"
+                );
+            }
+            assert!(
+                stock
+                    .stacks()
+                    .all(|(item, _)| item.category() == ItemCategoryType::Ammo),
+                "seed {seed}: the reserve is ammunition only"
+            );
+            let flown = spawn(&pilot);
+            let ScenarioObjectKind::Spaceship(flown) = &flown.kind else {
+                unreachable!("a combatant is a spaceship");
+            };
+            assert_eq!(
+                &flown.inventory, stock,
+                "seed {seed}: the player's hull collapses again with the AI's reserve"
+            );
+        }
+    }
+
+    /// A drafted hull resolved, with its hold cut to `hulls` hull sections and
+    /// every other section kept.
+    fn small_hull(sections: &GameSections, hulls: usize) -> ResolvedShipDesign {
+        let tiles = arena_tiles(sections);
+        let source = ShipDesignSource::Inline(combat_hull(&tiles, 0, None, sections));
+        let (mut resolved, _) = resolve_ship_design(&source, &GameShipDesigns::default(), sections);
+        let mut kept = 0;
+        resolved.sections.retain(|section| {
+            let hull = matches!(section.config.kind, SectionKind::Hull(_));
+            kept += usize::from(hull);
+            !hull || kept <= hulls
+        });
+        resolved
+    }
+
+    /// A 300 kg hold has a 120 kg torpedo share: its bays stay mounted and it
+    /// carries no torpedo, while its guns and lance still get a reserve.
+    #[test]
+    fn a_small_hold_carries_no_torpedo_its_share_cannot_lift() {
+        let sections = GameSections(nova_authoring::generation::build_section_catalog());
+        let hull = small_hull(&sections, 3);
+        assert_eq!(hull.cargo_capacity_g(), 300_000);
+        assert!(
+            mounted_rounds(&hull, ItemType::Torpedo) > 0,
+            "the bays are mounted"
+        );
+
+        let pdc = 750.min(2 * mounted_rounds(&hull, ItemType::PdcRound));
+        assert_eq!(
+            spare_ammo(&hull).stacks().collect::<Vec<_>>(),
+            [(ItemType::PdcRound, pdc), (ItemType::RailSlug, 1)],
+        );
+    }
+
+    /// The reserve is spendable: a dry gun reloads from it, and every round
+    /// the magazine gains leaves the hold.
+    #[test]
+    fn a_dry_gun_reloads_from_the_reserve_and_conserves_rounds() {
+        let sections = GameSections(nova_authoring::generation::build_section_catalog());
+        let hull = small_hull(&sections, 1);
+        let mut inventory = ShipInventory::new(hull.cargo_capacity_g(), spare_ammo(&hull).stacks());
+        let reserve = inventory.count(ItemType::PdcRound);
+        let (capacity, batch) = hull
+            .sections
+            .iter()
+            .find_map(|section| match &section.config.kind {
+                SectionKind::Turret(turret) => {
+                    Some((turret.ammunition.rounds()?, turret.reload.batch()?))
+                }
+                _ => None,
+            })
+            .expect("a drafted hull mounts a reloading gun");
+        let mut ammo = SectionAmmo {
+            rounds: 0,
+            capacity,
+        };
+        let mut reload = SectionReload::from_config(batch, ItemType::PdcRound);
+
+        for _ in 0..capacity {
+            reload.advance(&mut ammo, &mut inventory, batch.delay);
+        }
+
+        assert_eq!(ammo.rounds, capacity.min(reserve));
+        assert_eq!(ammo.rounds + inventory.count(ItemType::PdcRound), reserve);
     }
 }
