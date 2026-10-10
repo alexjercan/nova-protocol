@@ -13,6 +13,9 @@
 - Define mod-pack ownership, canonical ID namespace/order, validation and duplicate/conflict failure, per-item mass/quantity/category/display, eligible acquisition and consumption, effective-catalog fingerprint, missing-mod behavior, and save identity policy with `tasks/20260925-190156/TASK.md`. Never replace an unknown ID with another good or silently drop stored stock.
 - Decide shipped-format migration only if needed; remove obsolete unshipped paths rather than maintaining aliases. Author builders then generate/lint content.
 
+## Research (2026-10-10, not approved)
+- [RESEARCH.md](RESEARCH.md) inventories `ItemType` consumers, mod merge and save identity on master `467ae965b`, compares four plans and lists owner decisions. The owner favors Plan D (open authored item id, unrelated-pack duplicates refused) for further research. A separate preliminary attribute-only step is not approved. Any open-id plan breaks shipped bare-key stock spelling, including save inventories. Independent papers compare [salvage/refit](PROGRESSION-BUILDER.md) and [charters/economy](PROGRESSION-WORLD.md); [the synthesis](PROGRESSION-SYNTHESIS.md) recommends researching charter goals first, subject to observed play and owner choice. It corrects save/section-thaw and open-ID validation assumptions. Implementation stays deferred.
+
 ## Verification
 - The same effective pack set produces stable IDs and stock independently of load order. Unknown/duplicate IDs and missing required attributes fail at lint then load; a mod item moves through inventory, canister, market and sector lifetime without quantity or mass loss. Incompatible save/catalog changes refuse with a named reason.
 
