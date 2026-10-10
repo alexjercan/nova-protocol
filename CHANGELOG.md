@@ -36,14 +36,20 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** A scenario object id or a ship section id may not contain
   '/', and two sections of one ship may not share an id. Both fail at lint and
   at load.
+- **(breaking)** Items are content: mods add `Item` entries that ships carry,
+  trade and jettison. Stock keys are quoted, `{"HullPlate": 8}`; unknown ids
+  fail at lint and at load.
+- **(breaking)** Two mods that define one item id are both refused unless one
+  depends on the other, which replaces it whole. Base must define the ten
+  item ids the game uses, each in a fixed category.
 
 ### Interface & HUD
 
 - GOTO's predicted path now curves for a coasting or tumbling target, gravity
   included. It hides while the target changes course or spin; the guide stays.
-- Create names the world, New World by default. Load lists saved worlds, why
-  one cannot load, and deletes one on confirm. A status line shows the last
-  save; leaving shows a save overlay with Try again.
+- Create names the world, New World by default. Load checks saved worlds in
+  the background, says why one cannot load, and deletes on confirm. A status
+  line shows the last save; leaving offers a retry.
 
 ### Web & Platform
 

@@ -109,6 +109,9 @@ pub(crate) fn app_storing_settings_at(root: impl Into<std::path::PathBuf>) -> Ap
     // merges no content, and an empty registry would draw a picker with no
     // rows at all.
     app.insert_resource(GameUiThemes(base_ui_themes()));
+    // The item catalog the Load list checks each saved world against; the
+    // content merge publishes it in production.
+    app.insert_resource(nova_gameplay::test_support::test_items());
     // Headless: no TimePlugin, so provide the clocks the pause systems and the
     // handbook's looping demonstrations touch. Nothing advances them, so a test
     // that wants time to pass moves the clock itself.

@@ -139,7 +139,7 @@ pub(crate) fn trainer_with(capabilities: ShipCapabilities) -> ScenarioObjectConf
             // `PLANETOID_MASS`): an intentional stationary start.
             initial_velocity: MetersPerSecond3::ZERO,
             // The gun's idle reload draws on this finite reserve.
-            inventory: ShipInventoryStock::new([(ItemType::PdcRound, 2000)]),
+            inventory: ShipInventoryStock::new([(ITEM_PDC_ROUND.into(), 2000)]),
             lootable: false,
             credits: 2_000,
         }),

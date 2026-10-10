@@ -13,7 +13,7 @@
 //!
 //! A section may also carry a [`SectionReload`] (seeded from a
 //! [`SectionReloadConfig`] on the weapon config and the weapon's ammunition
-//! [`ItemType`]). Every successful shot resets its timer; each uninterrupted
+//! item id). Every successful shot resets its timer; each uninterrupted
 //! delay moves one batch of that item from the parent ship's [`ShipInventory`]
 //! into the magazine, never more than the magazine is missing or the ship
 //! carries. A ship with no matching item makes no reload progress. An
@@ -28,7 +28,7 @@
 //! [`TorpedoSectionConfig`]: super::torpedo_section::TorpedoSectionConfig
 
 use bevy::prelude::*;
-use nova_gameplay::prelude::{ItemType, SectionInactiveMarker, ShipInventory};
+use nova_gameplay::prelude::{ItemDesignId, SectionInactiveMarker, ShipInventory};
 
 /// `SectionAmmo`, `SectionReload` and `SectionReloadConfig`.
 pub mod prelude {
@@ -100,7 +100,7 @@ impl SectionAmmo {
 ///
 /// Only sections that HAD a magazine carry this, so a weapon authored unlimited
 /// stays unlimited when the cheat goes off.
-#[derive(Component, Clone, Copy, Debug, Reflect)]
+#[derive(Component, Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct SuspendedSectionAmmo {
@@ -189,12 +189,12 @@ pub struct SectionReloadConfig {
 /// ship's [`ShipInventory`]. Carries the authored parameters plus the in-flight
 /// cycle progress so the HUD ammo readout can render a reload/recharge state
 /// without a second source of truth.
-#[derive(Component, Clone, Copy, Debug, Reflect)]
+#[derive(Component, Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct SectionReload {
     /// The inventory item one round of this magazine consumes.
-    pub item: ItemType,
+    pub item: ItemDesignId,
     /// Seconds without a shot before one batch returns.
     pub delay: f32,
     /// Rounds restored by one completed delay.
@@ -209,7 +209,7 @@ pub struct SectionReload {
 impl SectionReload {
     /// Seed runtime reload state from authored parameters and the weapon's
     /// ammunition `item`.
-    pub fn from_config(config: SectionReloadConfig, item: ItemType) -> Self {
+    pub fn from_config(config: SectionReloadConfig, item: ItemDesignId) -> Self {
         debug_assert!(
             config.delay > 0.0 && config.delay.is_finite(),
             "SectionReloadConfig.delay must be positive and finite (got {})",
@@ -266,7 +266,7 @@ impl SectionReload {
     /// delay does not advance. A successful shot earlier in this tick wins the
     /// boundary and starts a fresh delay.
     pub fn advance(&mut self, ammo: &mut SectionAmmo, inventory: &mut ShipInventory, dt: f32) {
-        if !self.is_reloading(ammo, inventory.count(self.item)) {
+        if !self.is_reloading(ammo, inventory.count(&self.item)) {
             // Full, or nothing to load: a delay never runs toward a batch
             // that cannot move.
             if ammo.rounds >= ammo.capacity {
@@ -282,10 +282,10 @@ impl SectionReload {
         self.elapsed += dt;
         while self.delay > 0.0 && self.elapsed >= self.delay {
             self.elapsed -= self.delay;
-            let rounds = self.batch_rounds(ammo, inventory.count(self.item));
-            inventory.remove(self.item, rounds);
+            let rounds = self.batch_rounds(ammo, inventory.count(&self.item));
+            inventory.remove(&self.item, rounds);
             ammo.rounds += rounds;
-            if !self.is_reloading(ammo, inventory.count(self.item)) {
+            if !self.is_reloading(ammo, inventory.count(&self.item)) {
                 self.elapsed = 0.0;
                 break;
             }
@@ -368,6 +368,11 @@ pub struct SectionReloadComplete {
 
 #[cfg(test)]
 mod tests {
+    use nova_gameplay::{
+        prelude::{ITEM_PDC_ROUND, ITEM_TORPEDO},
+        test_support::test_items,
+    };
+
     use super::*;
 
     #[test]
@@ -400,15 +405,16 @@ mod tests {
     }
 
     fn reload_cfg(delay: f32, amount: u32) -> SectionReload {
-        SectionReload::from_config(SectionReloadConfig { delay, amount }, ItemType::PdcRound)
+        SectionReload::from_config(SectionReloadConfig { delay, amount }, ITEM_PDC_ROUND.into())
     }
 
     /// A hold of `rounds` PDC rounds with room to spare.
     fn reserve(rounds: u32) -> ShipInventory {
+        let items = test_items();
         if rounds == 0 {
-            return ShipInventory::new(1_000_000, []);
+            return ShipInventory::new(&items, 1_000_000, []);
         }
-        ShipInventory::new(1_000_000, [(ItemType::PdcRound, rounds)])
+        ShipInventory::new(&items, 1_000_000, [(ITEM_PDC_ROUND.into(), rounds)])
     }
 
     #[test]
@@ -423,12 +429,12 @@ mod tests {
         assert!((reload.progress() - 2.0 / 3.0).abs() < 1e-6);
         reload.advance(&mut ammo, &mut inventory, 1.0);
         assert_eq!(ammo.rounds, 200);
-        assert_eq!(inventory.count(ItemType::PdcRound), 800);
+        assert_eq!(inventory.count(&ITEM_PDC_ROUND.into()), 800);
         assert_eq!(reload.progress(), 0.0);
         reload.advance(&mut ammo, &mut inventory, 6.0);
         assert_eq!(ammo.rounds, 500, "the final batch clamps to capacity");
         assert_eq!(
-            inventory.count(ItemType::PdcRound),
+            inventory.count(&ITEM_PDC_ROUND.into()),
             500,
             "the clamped batch takes only the 100 rounds it loads"
         );
@@ -455,7 +461,7 @@ mod tests {
         assert_eq!(reload.progress(), 0.0);
 
         // Stock that arrives later starts a fresh delay, not an owed batch.
-        inventory.add(ItemType::PdcRound, 10);
+        inventory.add(&test_items(), &ITEM_PDC_ROUND.into(), 10);
         reload.advance(&mut ammo, &mut inventory, 1.0);
         assert_eq!(ammo.rounds, 150);
         reload.advance(&mut ammo, &mut inventory, 2.0);
@@ -472,12 +478,12 @@ mod tests {
                 delay: 1.0,
                 amount: 1,
             },
-            ItemType::Torpedo,
+            ITEM_TORPEDO.into(),
         );
         let mut inventory = reserve(1000);
         reload.advance(&mut ammo, &mut inventory, 5.0);
         assert_eq!(ammo.rounds, 0, "PDC rounds do not load a torpedo bay");
-        assert_eq!(inventory.count(ItemType::PdcRound), 1000);
+        assert_eq!(inventory.count(&ITEM_PDC_ROUND.into()), 1000);
     }
 
     #[test]
@@ -528,7 +534,7 @@ mod tests {
         assert!(!reload.is_reloading(&ammo, 10));
         reload.advance(&mut ammo, &mut inventory, 100.0);
         assert_eq!(ammo.rounds, 4);
-        assert_eq!(inventory.count(ItemType::PdcRound), 10);
+        assert_eq!(inventory.count(&ITEM_PDC_ROUND.into()), 10);
         assert_eq!(reload.progress(), 0.0);
     }
 
@@ -617,7 +623,7 @@ mod tests {
                 .world()
                 .get::<ShipInventory>(ship)
                 .unwrap()
-                .count(ItemType::PdcRound);
+                .count(&ITEM_PDC_ROUND.into());
             (loaded, held)
         };
 

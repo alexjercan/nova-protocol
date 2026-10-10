@@ -148,7 +148,7 @@ const HULK_POSITION: Vec3 = Vec3::new(-1_400.0, 0.0, 1_200.0);
 /// What the hulk carries and holds at spawn, stated here rather than drawn by
 /// `ship_stock` so beat 14 asserts exact counts. The player spawns with an
 /// empty hold and no credits, so after the Takes it holds exactly this.
-const HULK_STOCK: &[(ItemType, u32)] = &[(ItemType::Rations, 5), (ItemType::SalvagedParts, 2)];
+const HULK_STOCK: &[(&str, u32)] = &[("Rations", 5), ("SalvagedParts", 2)];
 const HULK_CREDITS: u32 = 340;
 #[cfg(feature = "debug")]
 const HULK_OUTSIDE_LEASH: Vec3 = Vec3::new(-800.0, 0.0, 2_500.0);
@@ -379,7 +379,9 @@ fn encounters_scenario(game_assets: &GameAssets, sections: &GameSections) -> Sce
                         dry(ShipRoleType::Civilian, HULK_SEED),
                         HULK_POSITION,
                         SpaceshipConfig {
-                            inventory: ShipInventoryStock::new(HULK_STOCK.iter().copied()),
+                            inventory: ShipInventoryStock::new(
+                                HULK_STOCK.iter().map(|&(id, count)| (id.into(), count)),
+                            ),
                             credits: HULK_CREDITS,
                             ..ai(Allegiance::Enemy)
                         },
@@ -1800,17 +1802,18 @@ fn record_boarding_beat(world: &mut World) {
 
 /// The Inventory pane's row for `item` on the docked partner's side.
 #[cfg(feature = "debug")]
-fn partner_row(item: ItemType) -> String {
-    format!("InventoryRowPartner{item:?}")
+fn partner_row(item: &str) -> String {
+    format!("InventoryRowPartner{item}")
 }
 
 /// A ship's stacks in item order and its credits.
 #[cfg(feature = "debug")]
-fn holdings(world: &World, ship: Entity) -> (Vec<(ItemType, u32)>, u32) {
+fn holdings(world: &World, ship: Entity) -> (Vec<(ItemDesignId, u32)>, u32) {
     let stacks = world
         .get::<ShipInventory>(ship)
         .expect("world_encounters: every ship root has a ShipInventory")
         .stacks()
+        .map(|(item, count)| (item.clone(), count))
         .collect();
     let credits = world
         .get::<ShipCredits>(ship)
@@ -1828,7 +1831,13 @@ fn assert_loot_seeded(world: &mut World) {
     let hulk = hull(world, HULK_ID);
     assert_eq!(
         holdings(world, hulk),
-        (HULK_STOCK.to_vec(), HULK_CREDITS),
+        (
+            HULK_STOCK
+                .iter()
+                .map(|&(id, count)| (id.into(), count))
+                .collect(),
+            HULK_CREDITS,
+        ),
         "world_encounters: beat 14: the boarded hulk does not hold its seeded stock and credits"
     );
     assert_eq!(
@@ -1852,8 +1861,9 @@ fn assert_loot_seeded(world: &mut World) {
 /// the hulk's count of `item` moves, then the next asserts it moved whole:
 /// a partial Take fails here, not at a deadline.
 #[cfg(feature = "debug")]
-fn take_all(script: Script, item: ItemType, count: u32) -> Script {
-    let label = item.label();
+fn take_all(script: Script, item: &'static str, count: u32) -> Script {
+    // The script is built before content loads, so steps name the item id.
+    let label = item;
     script
         .click_named(
             &format!("beat 14: pick {label} on the hulk's side"),
@@ -1877,12 +1887,13 @@ fn take_all(script: Script, item: ItemType, count: u32) -> Script {
         .on_enter(move |world: &mut World| {
             let player = hull(world, PLAYER_ID);
             let hulk = hull(world, HULK_ID);
+            let item_id = item.into();
             let taken = world
                 .get::<ShipInventory>(player)
-                .map(|own| own.count(item));
+                .map(|own| own.count(&item_id));
             let left = world
                 .get::<ShipInventory>(hulk)
-                .map(|hold| hold.count(item));
+                .map(|hold| hold.count(&item_id));
             assert_eq!(
                 (taken, left),
                 (Some(count), Some(0)),
@@ -1895,13 +1906,13 @@ fn take_all(script: Script, item: ItemType, count: u32) -> Script {
 
 #[cfg(feature = "debug")]
 fn hulk_count_moved(
-    item: ItemType,
+    item: &'static str,
     count: u32,
 ) -> Arc<nova_protocol::nova_debug::harness::Predicate> {
     Arc::new(move |world: &World| {
         staged_hull(world, HULK_ID)
             .and_then(|hulk| world.get::<ShipInventory>(hulk))
-            .is_some_and(|hold| hold.count(item) != count)
+            .is_some_and(|hold| hold.count(&item.into()) != count)
     })
 }
 
@@ -1927,7 +1938,10 @@ fn record_loot_beat(world: &mut World) {
     );
     assert_eq!(
         holdings(world, player),
-        (HULK_STOCK.to_vec(), HULK_CREDITS),
+        (
+            HULK_STOCK.iter().map(|&(id, count)| (id.into(), count)).collect(),
+            HULK_CREDITS,
+        ),
         "world_encounters: beat 14: the player does not hold exactly the hulk's seeded stock and credits"
     );
     info!("encounters: PASS loot: the Inventory pane took the neutralized Enemy hulk's whole stock {HULK_STOCK:?} and {HULK_CREDITS} cr");

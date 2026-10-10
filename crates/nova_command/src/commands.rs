@@ -109,6 +109,8 @@ pub mod live {
     pub const COMMAND: &str = "command";
     /// The labels the Map pane's live contact list is showing.
     pub const CONTACT: &str = "contact";
+    /// Item ids in the loaded item catalog, mod items included.
+    pub const ITEM: &str = "item";
 
     /// Every token, so [`noun`] can be pinned against the list by test.
     pub const ALL: &[&str] = &[
@@ -121,6 +123,7 @@ pub mod live {
         SOURCE,
         COMMAND,
         CONTACT,
+        ITEM,
     ];
 
     /// What the player is being ASKED for, as `help` phrases it. Tab is what
@@ -136,6 +139,7 @@ pub mod live {
             SOURCE => "a key, mouse button or pad button",
             COMMAND => "a command name",
             CONTACT => "a contact label on the map",
+            ITEM => "an item id",
             _ => UNNAMED,
         }
     }
@@ -143,22 +147,6 @@ pub mod live {
     /// The answer [`noun`] gives for a token nobody phrased. Pinned by test.
     pub const UNNAMED: &str = "a value the world knows";
 }
-
-/// The item ids `item give` accepts: the `ItemType` names content writes.
-/// This crate has no gameplay dependency; a `nova_console` cheats test pins
-/// the dispatcher's parse against this list and `ItemType`.
-const ITEM_WORDS: &[&str] = &[
-    "HullPlate",
-    "PdcRound",
-    "RailSlug",
-    "Torpedo",
-    "StoneOre",
-    "IronOre",
-    "WaterIce",
-    "CarbonOre",
-    "Rations",
-    "SalvagedParts",
-];
 
 /// The class words `commands [class]` accepts. Pinned against
 /// [`CommandClass::ALL`] by test, so a new class cannot go uncompleted.
@@ -495,7 +483,7 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         arg_hint: Some("<ship-id> <item-id> <quantity>"),
         args: &[
             CommandArg::Live(live::SHIP),
-            CommandArg::Words(ITEM_WORDS),
+            CommandArg::Live(live::ITEM),
             CommandArg::Free,
         ],
         examples: &["item give player_spaceship HullPlate 12"],

@@ -31,7 +31,8 @@ use bevy::prelude::*;
 use nova_assets::{prelude::LoadedSectionPacks, storage::write_atomic};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
-    CargoCanisterRuntimeId, SavedBodyRef, SavedOwner, SavedSectionRef, SavedTargetRef,
+    CargoCanisterRuntimeId, GameItems, ItemDesignId, SavedBodyRef, SavedOwner, SavedSectionRef,
+    SavedTargetRef,
 };
 use nova_scenario::prelude::FrozenShip;
 use nova_ship::prelude::{CameraView, SavedTorpedoTarget};
@@ -56,7 +57,7 @@ pub use transients::{
 /// Bump it with any change to the save layout, or to what the generator
 /// builds from a seed: an old save holds only the sectors the player changed
 /// and regenerates the rest, so another generator would change it silently.
-pub const WORLD_SAVE_FORMAT: u32 = 1;
+pub const WORLD_SAVE_FORMAT: u32 = 2;
 
 /// The most characters a world name has, after trimming.
 const WORLD_NAME_MAX: usize = 32;
@@ -281,20 +282,58 @@ pub fn create_world(root: &Path, name: &str) -> Result<(WorldFolder, WorldLock),
 
 /// Lock the world `slug` under `root` and read its save.
 ///
-/// Refuses a world another game has open, a header of another format or
-/// catalog, and a state file that is missing, corrupt, of another generation
-/// or holding a camera view or a transient that cannot open, and writes
-/// nothing then. On success it removes the state and temp files the header
-/// does not name.
+/// Refuses a world another game has open and every save [`check_world`]
+/// refuses, and writes nothing then. On success it removes the state and temp
+/// files the header does not name.
 pub fn open_world(
     root: &Path,
     slug: &str,
     loaded: &LoadedSectionPacks,
+    items: &GameItems,
 ) -> Result<(WorldFolder, WorldLock, WorldSaveHeader, WorldSaveState), WorldRefusal> {
     check_slug(slug)?;
     let path = root.join(slug);
     let lock = lock_world(&path)?;
     let header = read_header(&path, loaded)?;
+    let state = read_state(&path, &header, items)?;
+    sweep_orphans(&path, &state_file(header.generation));
+    Ok((
+        WorldFolder {
+            path,
+            slug: slug.to_string(),
+        },
+        lock,
+        header,
+        state,
+    ))
+}
+
+/// Read the save of the world `slug` under `root` and run every check
+/// [`open_world`] runs, without its lock or its cleanup.
+///
+/// Refuses a header of another format or catalog, and a state file that is
+/// missing, corrupt, of another generation, holding a camera view or a
+/// transient that cannot open, an id [`check_saved_ids`] refuses, or an item
+/// `items` does not hold. Reads the whole state, so run it off the main
+/// thread; the Load list does, before the player can pick the world.
+pub fn check_world(
+    root: &Path,
+    slug: &str,
+    loaded: &LoadedSectionPacks,
+    items: &GameItems,
+) -> Result<(), WorldRefusal> {
+    check_slug(slug)?;
+    let path = root.join(slug);
+    let header = read_header(&path, loaded)?;
+    read_state(&path, &header, items).map(drop)
+}
+
+/// Read and check the state file `header` names in the world folder `path`.
+fn read_state(
+    path: &Path,
+    header: &WorldSaveHeader,
+    items: &GameItems,
+) -> Result<WorldSaveState, WorldRefusal> {
     let state_name = state_file(header.generation);
     let text = std::fs::read_to_string(path.join(&state_name))
         .map_err(|e| WorldRefusal::Unreadable(format!("{state_name}: {e}")))?;
@@ -318,16 +357,51 @@ pub fn open_world(
     }
     check_saved_ids(&state)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
-    sweep_orphans(&path, &state_name);
-    Ok((
-        WorldFolder {
-            path,
-            slug: slug.to_string(),
-        },
-        lock,
-        header,
-        state,
-    ))
+    check_saved_items(&state, items)
+        .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
+    Ok(state)
+}
+
+/// Every item id the saved state holds is in `items`: the player's, every
+/// ledger body's and every held-back ship's stock. A save checks before it
+/// writes; Load checks after the header's catalog digest has matched. A
+/// changed or missing mod normally fails at that earlier digest check.
+fn check_saved_items(state: &WorldSaveState, items: &GameItems) -> Result<(), String> {
+    let unknown = |mut ids: &mut dyn Iterator<Item = &ItemDesignId>| {
+        Iterator::find(&mut ids, |item| items.get(item).is_none()).cloned()
+    };
+    if let Some(item) = unknown(&mut state.player.ship.item_ids()) {
+        return Err(format!(
+            "unknown item '{item}' held by the player ship '{}'",
+            state.player.id.0
+        ));
+    }
+    for (coord, record) in state.sectors.iter() {
+        for body in record.bodies() {
+            let found = match body.body() {
+                FrozenBodyType::Asteroid(rock) => unknown(&mut rock.item_ids()),
+                FrozenBodyType::Ship(ship) => unknown(&mut ship.item_ids()),
+                FrozenBodyType::PendingShip(ship) => {
+                    unknown(&mut ship.stock.stacks().map(|(item, _)| item))
+                }
+                FrozenBodyType::Canister(canister) => unknown(&mut canister.item_ids()),
+                FrozenBodyType::WreckFragment(fragment) => unknown(&mut fragment.item_ids()),
+                FrozenBodyType::OreDrop(drop) => unknown(&mut drop.item_ids()),
+            };
+            let Some(item) = found else {
+                continue;
+            };
+            let owner = match (body.id(), body.body()) {
+                (Some(id), _) => format!("'{id}'"),
+                (None, FrozenBodyType::Canister(canister)) => {
+                    format!("the canister {}", canister.id().0)
+                }
+                (None, _) => format!("a body in sector {coord}"),
+            };
+            return Err(format!("unknown item '{item}' held by {owner}"));
+        }
+    }
+    Ok(())
 }
 
 /// Why the ids of a saved state cannot open.

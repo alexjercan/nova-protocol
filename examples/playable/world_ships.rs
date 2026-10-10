@@ -1561,6 +1561,7 @@ fn offer_canister(world: &mut World) {
 /// [`offer_canister`] does.
 #[cfg(feature = "debug")]
 fn offer_canister_to(world: &mut World, ship: Entity) {
+    let items = world.resource::<GameItems>().clone();
     let mut intakes = world.query_filtered::<(
         &GlobalTransform,
         &SectionCollider,
@@ -1584,7 +1585,7 @@ fn offer_canister_to(world: &mut World, ship: Entity) {
     let id = world.resource_mut::<CargoCanisterIdAllocator>().mint();
     world.spawn((
         cargo_canister(
-            CargoCanister::new(ItemType::HullPlate, 1),
+            CargoCanister::new(&items, &ITEM_HULL_PLATE.into(), 1),
             Transform::from_translation(at).with_rotation(rotation),
             ship_velocity - normal * closing,
             config.canister_mesh.clone(),
@@ -1892,7 +1893,7 @@ fn check_wreck_intakes(world: &mut World) {
             .count();
         let taken = world
             .get::<ShipInventory>(root)
-            .map(|inventory| inventory.count(ItemType::HullPlate))
+            .map(|inventory| inventory.count(&ITEM_HULL_PLATE.into()))
             .unwrap_or_default();
         assert_eq!(
             taken, 0,
@@ -1973,6 +1974,7 @@ fn check_wreck_hits(world: &mut World) {
 /// each intake pair's ready flag and the hold's free mass.
 #[cfg(feature = "debug")]
 fn diagnose_intake(world: &World) -> String {
+    let items = world.resource::<GameItems>();
     let mut out = String::new();
     let Some(mut ships) = world.try_query_filtered::<(Entity, &ShipInventory, &LinearVelocity), (
         With<PlayerSpaceshipMarker>,
@@ -1986,7 +1988,7 @@ fn diagnose_intake(world: &World) -> String {
     let _ = write!(
         out,
         "hold free {}; ",
-        kg_text(u64::from(inventory.free_g()))
+        kg_text(u64::from(inventory.free_g(items)))
     );
     let Some(mut intakes) = world.try_query_filtered::<(Entity, &GlobalTransform, &SectionCollider, &ChildOf), With<CargoIntakeSectionMarker>>() else {
         return out;
@@ -2039,7 +2041,7 @@ fn canister_taken() -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sync> {
                 query
                     .iter(world)
                     .next()
-                    .map(|inventory| inventory.count(ItemType::HullPlate) >= 1)
+                    .map(|inventory| inventory.count(&ITEM_HULL_PLATE.into()) >= 1)
             })
             .unwrap_or(false)
     })

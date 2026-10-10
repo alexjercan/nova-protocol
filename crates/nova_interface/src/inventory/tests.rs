@@ -10,7 +10,7 @@ use bevy::{
     ui::{ComputedNode, InteractionDisabled, UiGlobalTransform},
     ui_widgets::{Activate, ValueChange},
 };
-use nova_gameplay::prelude::*;
+use nova_gameplay::{prelude::*, test_support::test_items};
 use nova_input::prelude::RegisterInputActions;
 use nova_ship::prelude::{
     CargoIntakeEjectionQueue, CargoIntakeSectionMarker, DockedHelmType, DockedShip,
@@ -44,7 +44,11 @@ fn spawn_inventory_body(app: &mut App, parent: Entity) {
 
 /// A 400 kg hold carrying `plates` hull plates of 10 kg.
 fn hold(plates: u32) -> ShipInventory {
-    ShipInventory::new(400_000, [(ItemType::HullPlate, plates)])
+    ShipInventory::new(
+        &test_items(),
+        400_000,
+        [(ItemDesignId::from(ITEM_HULL_PLATE), plates)],
+    )
 }
 
 /// A player ship carrying `plates` hull plates.
@@ -162,6 +166,7 @@ fn inventory_columns_show_the_player_and_docked_partner_stacks() {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
     app.insert_resource(InterfaceIcons::blank());
+    app.insert_resource(test_items());
     app.init_resource::<InventoryRuntime>();
     app.add_systems(Update, update_inventory_panel);
     let root = app.world_mut().spawn(Node::default()).id();
@@ -260,6 +265,7 @@ fn inventory_rig() -> (PanePointerRig, Entity) {
     rig.app
         .register_input_actions(crate::bindings::interface_bindings());
     rig.app.insert_resource(InterfaceIcons::blank());
+    rig.app.insert_resource(test_items());
     rig.app.add_plugins(InventoryPanePlugin);
     hear_ui_cues(&mut rig.app);
     track_node_churn(&mut rig.app);
@@ -327,13 +333,13 @@ fn a_dock_ending_mid_trade_hides_the_partner_column_and_closes_its_form() {
     let partner_row = centre_of::<InventoryRow>(rig.app.world_mut(), |row| {
         *row == InventoryRow {
             side: InventorySideType::Partner,
-            item: ItemType::HullPlate,
+            item: ItemDesignId::from(ITEM_HULL_PLATE),
         }
     });
     click_at(&mut rig, partner_row);
     let runtime = rig.app.world().resource::<InventoryRuntime>();
     assert_eq!(
-        runtime.draft.map(|draft| draft.action),
+        runtime.draft.as_ref().map(|draft| draft.action),
         Some(InventoryActionType::Buy),
         "the trading partner's row opens Buy"
     );
@@ -356,7 +362,10 @@ fn a_dock_ending_mid_trade_hides_the_partner_column_and_closes_its_form() {
     assert!(!partner_drawn, "the partner column is hidden");
     assert!(column_texts(rig.app.world_mut(), InventorySideType::Partner).is_empty());
     let runtime = rig.app.world().resource::<InventoryRuntime>();
-    assert_eq!((runtime.selected, runtime.draft), (None, None));
+    assert_eq!(
+        (runtime.selected.clone(), runtime.draft.clone()),
+        (None, None)
+    );
 }
 
 #[test]
@@ -391,7 +400,7 @@ fn clicking_a_row_inspects_it_and_a_filter_chip_hides_other_categories() {
         .world_mut()
         .get_mut::<ShipInventory>(partner)
         .expect("the partner has a hold")
-        .add(ItemType::PdcRound, 7);
+        .add(&test_items(), &ItemDesignId::from(ITEM_PDC_ROUND), 7);
     settle(&mut rig.app);
     take_churn(&mut rig.app);
     let rows = row_entities(rig.app.world_mut());
@@ -400,13 +409,16 @@ fn clicking_a_row_inspects_it_and_a_filter_chip_hides_other_categories() {
     let partner_row = centre_of::<InventoryRow>(rig.app.world_mut(), |row| {
         *row == InventoryRow {
             side: InventorySideType::Partner,
-            item: ItemType::HullPlate,
+            item: ItemDesignId::from(ITEM_HULL_PLATE),
         }
     });
     click_at(&mut rig, partner_row);
     assert_eq!(
         rig.app.world().resource::<InventoryRuntime>().selected,
-        Some((InventorySideType::Partner, ItemType::HullPlate))
+        Some((
+            InventorySideType::Partner,
+            ItemDesignId::from(ITEM_HULL_PLATE)
+        ))
     );
     assert_eq!(take_cues(&mut rig.app), [UiSfx::MenuSelect]);
     // Selecting repaints the rows in place: none is spawned or despawned.
@@ -449,6 +461,7 @@ fn clicking_a_row_inspects_it_and_a_filter_chip_hides_other_categories() {
         world
             .resource::<InventoryRuntime>()
             .draft
+            .as_ref()
             .map(|draft| draft.action),
         Some(InventoryActionType::Buy)
     );
@@ -463,6 +476,7 @@ fn clicking_a_row_inspects_it_and_a_filter_chip_hides_other_categories() {
             .world()
             .resource::<InventoryRuntime>()
             .draft
+            .as_ref()
             .map(|draft| draft.action),
         Some(InventoryActionType::Sell)
     );
@@ -475,7 +489,10 @@ fn clicking_a_row_inspects_it_and_a_filter_chip_hides_other_categories() {
     let runtime = rig.app.world().resource::<InventoryRuntime>().clone();
     assert_eq!(
         runtime.selected,
-        Some((InventorySideType::Partner, ItemType::HullPlate))
+        Some((
+            InventorySideType::Partner,
+            ItemDesignId::from(ITEM_HULL_PLATE)
+        ))
     );
     assert_eq!(
         runtime.draft.map(|draft| draft.action),
@@ -498,12 +515,12 @@ fn clicking_a_row_inspects_it_and_a_filter_chip_hides_other_categories() {
     assert!(full_shown(rig.app.world_mut()));
     assert_eq!(
         inspector(rig.app.world_mut(), InventoryInspectorField::AboutFull).as_deref(),
-        Some("Structural plating for hull sections.")
+        Some("Hull plate for tests.")
     );
     press_key(&mut rig.app, KeyCode::BracketLeft);
     assert_eq!(
         rig.app.world().resource::<InventoryRuntime>().selected,
-        Some((InventorySideType::Own, ItemType::HullPlate))
+        Some((InventorySideType::Own, ItemDesignId::from(ITEM_HULL_PLATE)))
     );
     assert!(!full_shown(rig.app.world_mut()));
     take_cues(&mut rig.app);
@@ -528,7 +545,7 @@ fn clicking_a_row_inspects_it_and_a_filter_chip_hides_other_categories() {
     let rounds_row = centre_of::<InventoryRow>(rig.app.world_mut(), |row| {
         *row == InventoryRow {
             side: InventorySideType::Partner,
-            item: ItemType::PdcRound,
+            item: ItemDesignId::from(ITEM_PDC_ROUND),
         }
     });
     click_at(&mut rig, rounds_row);
@@ -568,6 +585,7 @@ fn a_player_ship_without_an_inventory_panics_the_panel() {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
     app.insert_resource(InterfaceIcons::blank());
+    app.insert_resource(test_items());
     app.init_resource::<InventoryRuntime>();
     app.add_systems(Update, update_inventory_panel);
     let root = app.world_mut().spawn(Node::default()).id();
@@ -590,7 +608,7 @@ fn plates(world: &World, ship: Entity) -> u32 {
     world
         .get::<ShipInventory>(ship)
         .expect("a ship root carries a ShipInventory")
-        .count(ItemType::HullPlate)
+        .count(&ItemDesignId::from(ITEM_HULL_PLATE))
 }
 
 /// The note line's text, if a result is showing.
@@ -608,6 +626,7 @@ fn confirm_moves_items_between_docked_ships_and_a_refusal_changes_nothing() {
 
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+    app.insert_resource(test_items());
     app.init_resource::<InventoryRuntime>();
     app.add_message::<InventoryActionCommand>();
     app.add_systems(Update, apply_inventory_action_commands);
@@ -620,12 +639,12 @@ fn confirm_moves_items_between_docked_ships_and_a_refusal_changes_nothing() {
     let confirm = |app: &mut App, action, quantity: Option<u32>| {
         let command = InventoryActionCommand {
             action,
-            item: ItemType::HullPlate,
+            item: ItemDesignId::from(ITEM_HULL_PLATE),
             quantity,
         };
         app.world_mut().resource_mut::<InventoryRuntime>().draft = Some(InventoryDraft {
             action,
-            item: ItemType::HullPlate,
+            item: ItemDesignId::from(ITEM_HULL_PLATE),
             quantity,
         });
         app.world_mut().write_message(command);
@@ -734,6 +753,7 @@ fn confirm_trades_items_for_credits_and_a_refusal_changes_nothing() {
 
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+    app.insert_resource(test_items());
     app.init_resource::<InventoryRuntime>();
     app.add_message::<InventoryActionCommand>();
     app.add_systems(Update, apply_inventory_action_commands);
@@ -756,12 +776,12 @@ fn confirm_trades_items_for_credits_and_a_refusal_changes_nothing() {
     let confirm = |app: &mut App, action, quantity: Option<u32>| {
         app.world_mut().resource_mut::<InventoryRuntime>().draft = Some(InventoryDraft {
             action,
-            item: ItemType::HullPlate,
+            item: ItemDesignId::from(ITEM_HULL_PLATE),
             quantity,
         });
         app.world_mut().write_message(InventoryActionCommand {
             action,
-            item: ItemType::HullPlate,
+            item: ItemDesignId::from(ITEM_HULL_PLATE),
             quantity,
         });
         app.update();
@@ -805,7 +825,11 @@ fn confirm_trades_items_for_credits_and_a_refusal_changes_nothing() {
     // The buyer's hold binds before its credits.
     app.world_mut()
         .entity_mut(partner)
-        .insert(ShipInventory::new(100_000, [(ItemType::HullPlate, 9)]));
+        .insert(ShipInventory::new(
+            &test_items(),
+            100_000,
+            [(ItemDesignId::from(ITEM_HULL_PLATE), 9)],
+        ));
     assert_eq!(
         confirm(&mut app, Sell, Some(2)),
         refused("Refused: Trader has room for 10 kg more")
@@ -830,6 +854,7 @@ fn confirm_trades_items_for_credits_and_a_refusal_changes_nothing() {
 fn take_credits_moves_the_whole_balance_once_and_a_refusal_changes_nothing() {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+    app.insert_resource(test_items());
     app.init_resource::<InventoryRuntime>();
     app.add_message::<CreditTakeCommand>();
     app.add_systems(Update, apply_credit_take_commands);
@@ -1052,6 +1077,7 @@ fn confirm_is_disabled_while_the_draft_is_refused_and_enabled_at_exact_room_and_
 fn confirm_jettisons_through_the_intake_and_a_refusal_changes_nothing() {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+    app.insert_resource(test_items());
     app.init_resource::<InventoryRuntime>();
     app.add_message::<InventoryActionCommand>();
     app.add_systems(Update, apply_inventory_action_commands);
@@ -1059,7 +1085,7 @@ fn confirm_jettisons_through_the_intake_and_a_refusal_changes_nothing() {
     let player = spawn_player(app.world_mut(), 12);
     let command = |quantity: Option<u32>| InventoryActionCommand {
         action: InventoryActionType::Jettison,
-        item: ItemType::HullPlate,
+        item: ItemDesignId::from(ITEM_HULL_PLATE),
         quantity,
     };
     // Write confirmed commands with their draft open, and run them.
@@ -1067,7 +1093,7 @@ fn confirm_jettisons_through_the_intake_and_a_refusal_changes_nothing() {
         for &quantity in quantities {
             app.world_mut().resource_mut::<InventoryRuntime>().draft = Some(InventoryDraft {
                 action: InventoryActionType::Jettison,
-                item: ItemType::HullPlate,
+                item: ItemDesignId::from(ITEM_HULL_PLATE),
                 quantity,
             });
             app.world_mut().write_message(command(quantity));
@@ -1081,7 +1107,13 @@ fn confirm_jettisons_through_the_intake_and_a_refusal_changes_nothing() {
     let queue = |app: &App, intake: Entity| {
         app.world()
             .get::<CargoIntakeEjectionQueue>(intake)
-            .map(|queue| queue.0.iter().map(CargoCanister::total_mass_g).collect())
+            .map(|queue| {
+                queue
+                    .0
+                    .iter()
+                    .map(|canister| canister.total_mass_g(&test_items()))
+                    .collect()
+            })
     };
 
     assert_eq!(
@@ -1134,7 +1166,7 @@ fn confirm_jettisons_through_the_intake_and_a_refusal_changes_nothing() {
     app.world_mut()
         .entity_mut(intake)
         .insert(CargoIntakeEjectionQueue(VecDeque::from([
-            CargoCanister::new(ItemType::HullPlate, 19),
+            CargoCanister::new(&test_items(), &ItemDesignId::from(ITEM_HULL_PLATE), 19),
         ])));
     assert_eq!(
         confirm(&mut app, &[Some(40)]),
@@ -1186,8 +1218,153 @@ fn draft_quantity(app: &App) -> Option<u32> {
     app.world()
         .resource::<InventoryRuntime>()
         .draft
+        .as_ref()
         .expect("a draft is open")
         .quantity
+}
+
+/// Before the mod merge publishes the item catalog, the pane's systems wait
+/// and the app runs on; once the catalog lands, a confirmed jettison moves
+/// the stock into the intake's queue.
+#[test]
+fn the_inventory_pane_waits_for_the_merged_item_catalog() {
+    let (mut rig, player) = inventory_rig();
+    let catalog = rig
+        .app
+        .world_mut()
+        .remove_resource::<GameItems>()
+        .expect("the rig starts with a catalog");
+    let intake = rig
+        .app
+        .world_mut()
+        .spawn((ChildOf(player), CargoIntakeSectionMarker))
+        .id();
+    settle(&mut rig.app);
+    assert_eq!(plates(rig.app.world(), player), 12);
+
+    rig.app.insert_resource(catalog);
+    let jettison = InventoryActionType::Jettison;
+    let item = ItemDesignId::from(ITEM_HULL_PLATE);
+    rig.app.world_mut().resource_mut::<InventoryRuntime>().draft = Some(InventoryDraft {
+        action: jettison,
+        item: item.clone(),
+        quantity: Some(4),
+    });
+    rig.app.world_mut().write_message(InventoryActionCommand {
+        action: jettison,
+        item,
+        quantity: Some(4),
+    });
+    rig.app.update();
+    assert_eq!(plates(rig.app.world(), player), 8);
+    let queued: Vec<u32> = rig
+        .app
+        .world()
+        .get::<CargoIntakeEjectionQueue>(intake)
+        .expect("the jettison queues a canister on the intake")
+        .0
+        .iter()
+        .map(|canister| canister.total_mass_g(&test_items()))
+        .collect();
+    assert_eq!(queued, [40_000]);
+}
+
+/// An item only the content catalog defines, which no engine code names,
+/// leaves the hold through a jettison into the intake's waiting canister and
+/// trades at its authored prices. Count and credits are conserved.
+#[test]
+fn a_catalog_only_item_jettisons_sells_and_buys_through_the_pane_commands() {
+    use InventoryActionType::{Buy, Jettison, Sell};
+
+    let core = ItemDesignId::from("fixture_core");
+    let items = GameItems::new(test_items().iter().cloned().chain([ItemDesign {
+        id: core.clone(),
+        name: "Fixture core".to_string(),
+        about: "A catalog-only item for tests.".to_string(),
+        category: ItemCategoryType::Parts,
+        mass_g: 5_000,
+        ask_cr: 60,
+        bid_cr: 45,
+    }]));
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+    app.insert_resource(items.clone());
+    app.init_resource::<InventoryRuntime>();
+    app.add_message::<InventoryActionCommand>();
+    app.add_systems(Update, apply_inventory_action_commands);
+    hear_ui_cues(&mut app);
+    let stock = |count: u32| ShipInventory::new(&items, 400_000, [(core.clone(), count)]);
+    // `hold` refuses a zero stack, so both ships start with one plate and
+    // take a core-only hold in its place.
+    let player = spawn_player(app.world_mut(), 1);
+    app.world_mut()
+        .entity_mut(player)
+        .insert((stock(6), ShipCredits(100)));
+    let intake = app
+        .world_mut()
+        .spawn((ChildOf(player), CargoIntakeSectionMarker))
+        .id();
+    let confirm = |app: &mut App, action, quantity: u32| {
+        app.world_mut().resource_mut::<InventoryRuntime>().draft = Some(InventoryDraft {
+            action,
+            item: core.clone(),
+            quantity: Some(quantity),
+        });
+        app.world_mut().write_message(InventoryActionCommand {
+            action,
+            item: core.clone(),
+            quantity: Some(quantity),
+        });
+        app.update();
+        (note(app), take_cues(app))
+    };
+    let done = |text: &str| (Some(text.to_string()), vec![UiSfx::MenuSelect]);
+    let held = |app: &App, ship: Entity| {
+        let hold = app.world().get::<ShipInventory>(ship).unwrap();
+        let credits = app.world().get::<ShipCredits>(ship).unwrap().0;
+        (hold.count(&core), hold.used_g(&items), credits)
+    };
+    let queued = |app: &App| -> Vec<(Vec<(ItemDesignId, u32)>, u32)> {
+        app.world()
+            .get::<CargoIntakeEjectionQueue>(intake)
+            .expect("a jettison queues on the intake")
+            .0
+            .iter()
+            .map(|canister| {
+                let stacks = canister
+                    .stacks()
+                    .map(|(item, count)| (item.clone(), count))
+                    .collect();
+                (stacks, canister.total_mass_g(&items))
+            })
+            .collect()
+    };
+
+    assert_eq!(
+        confirm(&mut app, Jettison, 2),
+        done("Jettisoned 2 Fixture core: 1 canister queued")
+    );
+    assert_eq!(held(&app, player), (4, 20_000, 100));
+    assert_eq!(queued(&app), [(vec![(core.clone(), 2)], 10_000)]);
+
+    // The core asks 60 cr and bids 45 cr.
+    let partner = dock_partner(app.world_mut(), player, "Trader", 1);
+    app.world_mut()
+        .entity_mut(partner)
+        .insert((stock(4), ShipCredits(1_000)));
+    assert_eq!(
+        confirm(&mut app, Sell, 3),
+        done("Sold 3 Fixture core to Trader for 135 cr")
+    );
+    assert_eq!(held(&app, player), (1, 5_000, 235));
+    assert_eq!(held(&app, partner), (7, 35_000, 865));
+    assert_eq!(
+        confirm(&mut app, Buy, 2),
+        done("Bought 2 Fixture core from Trader for 120 cr")
+    );
+    assert_eq!(held(&app, player), (3, 15_000, 115));
+    assert_eq!(held(&app, partner), (5, 25_000, 985));
+    assert_eq!(queued(&app), [(vec![(core.clone(), 2)], 10_000)]);
 }
 
 #[test]
@@ -1210,7 +1387,7 @@ fn a_selected_row_opens_a_one_unit_draft_that_every_quantity_control_sets() {
         rig.app.world().resource::<InventoryRuntime>().draft,
         Some(InventoryDraft {
             action: InventoryActionType::Take,
-            item: ItemType::HullPlate,
+            item: ItemDesignId::from(ITEM_HULL_PLATE),
             quantity: Some(1),
         })
     );
@@ -1375,6 +1552,7 @@ fn a_selected_row_opens_a_one_unit_draft_that_every_quantity_control_sets() {
             .world()
             .resource::<InventoryRuntime>()
             .draft
+            .as_ref()
             .map(|draft| draft.action),
         Some(InventoryActionType::Give)
     );
@@ -1468,7 +1646,7 @@ mod generated_wreck {
     }
 
     /// How many of `item` `ship` carries.
-    fn count(world: &World, ship: Entity, item: ItemType) -> u32 {
+    fn count(world: &World, ship: Entity, item: &ItemDesignId) -> u32 {
         world
             .get::<ShipInventory>(ship)
             .expect("a ship root carries a ShipInventory")
@@ -1480,12 +1658,12 @@ mod generated_wreck {
     fn confirm(
         app: &mut App,
         action: InventoryActionType,
-        item: ItemType,
+        item: ItemDesignId,
         quantity: u32,
     ) -> Option<String> {
         let command = InventoryActionCommand {
             action,
-            item,
+            item: item.clone(),
             quantity: Some(quantity),
         };
         app.world_mut().resource_mut::<InventoryRuntime>().draft = Some(InventoryDraft {
@@ -1523,6 +1701,7 @@ mod generated_wreck {
             generate_wreck(&snapshot, request).unwrap_or_else(|failure| panic!("{failure}"));
         let stock = ship_stock(
             &snapshot,
+            &test_items(),
             &wreck.design,
             request.role,
             SectorShipConditionType::Derelict,
@@ -1533,6 +1712,7 @@ mod generated_wreck {
         let (drawn_item, drawn) = stock
             .stacks()
             .next()
+            .map(|(item, count)| (item.clone(), count))
             .expect("ship_stock never returns empty stock");
         let dock = wreck
             .design
@@ -1583,6 +1763,7 @@ mod generated_wreck {
         ));
         app.insert_resource(GameSections(sections));
         app.insert_resource(GameShipDesigns(ships));
+        app.insert_resource(test_items());
         app.init_resource::<nova_gameplay::inventory::CargoCanisterIdAllocator>();
         app.init_resource::<InventoryRuntime>();
         app.add_message::<InventoryActionCommand>();
@@ -1635,7 +1816,10 @@ mod generated_wreck {
                     initial_velocity: MetersPerSecond3::ZERO,
                     allegiance: None,
                     capabilities: default(),
-                    inventory: ShipInventoryStock::new([(ItemType::HullPlate, PLAYER_PLATES)]),
+                    inventory: ShipInventoryStock::new([(
+                        ItemDesignId::from(ITEM_HULL_PLATE),
+                        PLAYER_PLATES,
+                    )]),
                     lootable: false,
                     credits: 0,
                 }),
@@ -1662,7 +1846,7 @@ mod generated_wreck {
         assert!(!entity.contains::<NeutralizedMarker>());
         assert_eq!(entity.get::<Allegiance>(), Some(&Allegiance::Neutral));
         assert_eq!(
-            count(app.world(), wreck, drawn_item),
+            count(app.world(), wreck, &drawn_item),
             drawn,
             "the wreck spawns its stock"
         );
@@ -1670,22 +1854,28 @@ mod generated_wreck {
             .get::<Name>()
             .expect("the wreck is named")
             .to_string();
-        let label = drawn_item.label();
+        let items = test_items();
+        let label = &items.design(&drawn_item).name;
         let held = |app: &App| {
             (
-                count(app.world(), player, drawn_item),
-                count(app.world(), wreck, drawn_item),
+                count(app.world(), player, &drawn_item),
+                count(app.world(), wreck, &drawn_item),
             )
         };
         let before_take = held(&app).0;
 
         assert_eq!(
-            confirm(&mut app, InventoryActionType::Take, drawn_item, drawn),
+            confirm(
+                &mut app,
+                InventoryActionType::Take,
+                drawn_item.clone(),
+                drawn
+            ),
             Some(format!("Took {drawn} {label} from {name}"))
         );
         assert_eq!(held(&app), (before_take + drawn, 0));
         assert_eq!(
-            confirm(&mut app, InventoryActionType::Give, drawn_item, 1),
+            confirm(&mut app, InventoryActionType::Give, drawn_item.clone(), 1),
             Some(format!("Gave 1 {label} to {name}"))
         );
         assert_eq!(held(&app), (before_take + drawn - 1, 1));

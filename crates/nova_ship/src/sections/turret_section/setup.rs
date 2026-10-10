@@ -172,7 +172,7 @@ pub(super) fn insert_turret_section(
         if let Some(reload) = config.reload.batch() {
             commands
                 .entity(turret)
-                .insert(SectionReload::from_config(reload, ItemType::PdcRound));
+                .insert(SectionReload::from_config(reload, ITEM_PDC_ROUND.into()));
         }
     }
 }

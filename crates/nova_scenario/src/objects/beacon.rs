@@ -230,6 +230,7 @@ mod tests {
 
     use bevy::time::TimeUpdateStrategy;
     use nova_events::prelude::{EventHandler, GameEventsPlugin};
+    use nova_gameplay::test_support::test_items;
 
     use super::*;
 
@@ -379,9 +380,12 @@ mod tests {
             beacon_scenario_object(config(Some(Meters(100.0)))),
             Transform::IDENTITY,
         ));
+        let items = test_items();
+        let hull_plate = ItemDesignId::from(ITEM_HULL_PLATE);
         let inventory = ShipInventory::new(
-            ItemType::HullPlate.mass_g() * 10,
-            [(ItemType::HullPlate, 3)],
+            &items,
+            items.design(&hull_plate).mass_g * 10,
+            [(hull_plate.clone(), 3)],
         );
         // Three section colliders on one rigid body, as a ship's sections are,
         // flying from outside the 10-unit area to beyond its far side.

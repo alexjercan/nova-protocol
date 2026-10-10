@@ -24,6 +24,7 @@ pub(crate) fn publish_live_values(
     q_ships: Query<(Entity, &EntityId), With<SpaceshipRootMarker>>,
     q_sections: Query<(&ChildOf, &EntityId), With<SectionMarker>>,
     scenarios: Option<Res<GameScenarios>>,
+    items: Option<Res<GameItems>>,
     events: Option<Res<NovaEventWorld>>,
     bindings: Option<Res<InputBindings>>,
 ) {
@@ -61,6 +62,13 @@ pub(crate) fn publish_live_values(
         let mut ids: Vec<String> = scenarios.keys().cloned().collect();
         ids.sort_unstable();
         entries.push((live::SCENARIO.to_string(), ids));
+    }
+    if let Some(items) = items {
+        let ids: Vec<String> = items
+            .iter()
+            .map(|item| item.id.as_str().to_string())
+            .collect();
+        entries.push((live::ITEM.to_string(), ids));
     }
     if let Some(events) = events {
         let mut names: Vec<String> = events.variables().map(|(key, _)| key.clone()).collect();

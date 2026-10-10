@@ -135,7 +135,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
                 &ships,
                 "block_frame_tender_damaged",
             )),
-            inventory: ShipInventoryStock::new([(ItemType::HullPlate, DERELICT_PLATES)]),
+            inventory: ShipInventoryStock::new([(ITEM_HULL_PLATE.into(), DERELICT_PLATES)]),
             lootable: true,
             credits: 0,
             ..default()
@@ -328,7 +328,7 @@ mod walk {
         world
             .get::<ShipInventory>(ship)
             .unwrap_or_else(|| panic!("lesson_cargo: {id} has no ShipInventory"))
-            .count(ItemType::HullPlate)
+            .count(&ITEM_HULL_PLATE.into())
     }
 
     /// Advance once the warship's hold holds `count` hull plates.
@@ -339,7 +339,7 @@ mod walk {
                 .is_some_and(|mut ships| {
                     ships
                         .iter(world)
-                        .any(|inventory| inventory.count(ItemType::HullPlate) == count)
+                        .any(|inventory| inventory.count(&ITEM_HULL_PLATE.into()) == count)
                 })
         })
     }
@@ -509,15 +509,22 @@ mod walk {
     /// The Jettison emptied the hold into one queued canister of every plate.
     fn check_jettison(world: &mut World) {
         assert_eq!(plates(world, PLAYER_ID), 0, "the Jettison emptied the hold");
-        let queued: Vec<Vec<(ItemType, u32)>> = world
+        let queued: Vec<Vec<(&str, u32)>> = world
             .query::<&CargoIntakeEjectionQueue>()
             .iter(world)
-            .flat_map(|queue| queue.0.iter().map(|canister| canister.stacks().collect()))
+            .flat_map(|queue| {
+                queue.0.iter().map(|canister| {
+                    canister
+                        .stacks()
+                        .map(|(id, count)| (id.as_str(), count))
+                        .collect()
+                })
+            })
             .collect();
         info!("lesson_cargo: the intake queues {queued:?}");
         assert_eq!(
             queued,
-            vec![vec![(ItemType::HullPlate, DERELICT_PLATES)]],
+            vec![vec![(ITEM_HULL_PLATE, DERELICT_PLATES)]],
             "the Jettison queued one canister of every plate"
         );
     }
@@ -528,16 +535,21 @@ mod walk {
             !world_has::<CargoIntakeEjectionQueue>(world),
             "the queue is spent"
         );
-        let live: Vec<Vec<(ItemType, u32)>> = world
+        let live: Vec<Vec<(&str, u32)>> = world
             .query::<&CargoCanister>()
             .iter(world)
-            .map(|canister| canister.stacks().collect())
+            .map(|canister| {
+                canister
+                    .stacks()
+                    .map(|(id, count)| (id.as_str(), count))
+                    .collect()
+            })
             .collect();
         info!("lesson_cargo: live canisters {live:?}");
         assert_eq!(world.resource::<CargoProof>().ejected, 1);
         assert_eq!(
             live,
-            vec![vec![(ItemType::HullPlate, DERELICT_PLATES)]],
+            vec![vec![(ITEM_HULL_PLATE, DERELICT_PLATES)]],
             "the intake dropped one canister of every plate"
         );
     }

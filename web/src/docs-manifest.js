@@ -542,7 +542,7 @@ const CREATE_PAGES = [
         toc: true,
         tags: ["modding", "reference"],
         summary:
-            "The mod folder and bundle manifest, content and resource lists, asset schemes, overlay rules, and the content items: campaigns, scenarios, sections, ships, styles, lessons, and UI themes.",
+            "The mod folder and bundle manifest, content and resource lists, asset schemes, overlay rules, and the content items: campaigns, scenarios, sections, ships, styles, lessons, UI themes, and items.",
         related: [
             "campaigns",
             "scenarios",
@@ -551,13 +551,14 @@ const CREATE_PAGES = [
             "styles",
             "lessons",
             "ui-themes",
+            "objects",
         ],
         headings: [
             "Folder structure",
             "The bundle manifest",
             "Balance acknowledgments",
             "Content files",
-            "The seven content chapters",
+            "The eight content chapters",
             "Paths and dependencies",
             "Overlay behavior",
         ],

@@ -30,7 +30,7 @@ use nova_world::prelude::{
 };
 
 use super::{
-    check_saved_ids,
+    check_saved_ids, check_saved_items,
     transients::{freeze_transients, hold_resumed_transients},
     write_world, SavedIdFault, SavedPlayer, WorldFolder, WorldLock, WorldSaveHeader,
     WorldSaveState, WORLD_SAVE_FORMAT,
@@ -442,6 +442,12 @@ pub(crate) fn snapshot_world(world: &mut World) {
         .iter()
         .map(|pack| pack.id.clone())
         .collect();
+    // The catalog the world armed over: the arming check refuses any other.
+    let items = world
+        .resource::<WorldConfig<NovaLayeredWorld>>()
+        .generator
+        .items()
+        .clone();
     let canister_ids_next = world
         .resource::<CargoCanisterIdAllocator>()
         .next_unminted()
@@ -479,13 +485,18 @@ pub(crate) fn snapshot_world(world: &mut World) {
         canister_ids_next,
         transients,
     };
-    if let Err(fault) = check_saved_ids(&state) {
-        let error = match fault {
+    let checked = check_saved_ids(&state)
+        .map_err(|fault| match fault {
             SavedIdFault::Duplicate(id) => SectorSnapshotError::DuplicateId { id },
             fault => SectorSnapshotError::InvalidSavedState {
                 reason: fault.to_string(),
             },
-        };
+        })
+        .and_then(|()| {
+            check_saved_items(&state, &items)
+                .map_err(|reason| SectorSnapshotError::InvalidSavedState { reason })
+        });
+    if let Err(error) = checked {
         session.wanted = None;
         session.settling_frames = 0;
         session.status = WorldSaveStatus::Failed(error.to_string());

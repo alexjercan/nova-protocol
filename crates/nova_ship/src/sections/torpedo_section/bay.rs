@@ -168,7 +168,7 @@ pub(super) fn insert_torpedo_section(
         if let Some(reload) = config.reload.batch() {
             commands
                 .entity(entity)
-                .insert(SectionReload::from_config(reload, ItemType::Torpedo));
+                .insert(SectionReload::from_config(reload, ITEM_TORPEDO.into()));
         }
     }
 }
@@ -793,6 +793,7 @@ pub struct TorpedoBayDoorsMoved {
 #[cfg(test)]
 mod tests {
     use bevy::time::TimeUpdateStrategy;
+    use nova_gameplay::test_support::test_items;
 
     use super::*;
 
@@ -1376,12 +1377,14 @@ mod tests {
                     delay: 0.2,
                     amount: 1,
                 },
-                ItemType::Torpedo,
+                ITEM_TORPEDO.into(),
             ));
         let ship = app.world().get::<ChildOf>(section).unwrap().parent();
-        app.world_mut()
-            .entity_mut(ship)
-            .insert(ShipInventory::new(10_000_000, [(ItemType::Torpedo, 10)]));
+        app.world_mut().entity_mut(ship).insert(ShipInventory::new(
+            &test_items(),
+            10_000_000,
+            [(ITEM_TORPEDO.into(), 10)],
+        ));
 
         for _ in 0..12 {
             app.update();
@@ -1947,7 +1950,7 @@ mod tests {
     fn fly(torpedo_type: TorpedoTypeConfig) -> Flight {
         use nova_gameplay::{
             projectile_hooks::ProjectileHooks,
-            test_support::{settle, unfinished_integrity_physics_app_with},
+            test_support::{settle, test_items, unfinished_integrity_physics_app_with},
         };
 
         // `unfinished_integrity_physics_app_with` pins a manual clock, so a
@@ -1960,6 +1963,7 @@ mod tests {
         app.add_plugins(crate::physics::prelude::PDControllerPlugin);
         app.add_plugins(crate::sections::SpaceshipSectionPlugin { render: false });
         app.init_resource::<nova_gameplay::inventory::CargoCanisterIdAllocator>();
+        app.insert_resource(test_items());
         app.finish();
 
         let ship = app

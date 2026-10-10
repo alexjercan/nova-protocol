@@ -812,8 +812,10 @@ mod tests {
             let mut app = App::new();
             app.add_plugins(MinimalPlugins);
             app.add_plugins(crate::objects::spaceship::SpaceshipPlugin);
+            assert_eq!(app.world().resource::<GameItems>().iter().count(), 0);
             app.init_resource::<NovaEventWorld>();
             app.init_resource::<GameObjectives>();
+            app.insert_resource(nova_gameplay::test_support::test_items());
 
             let config = ScenarioObjectConfig {
                 base: BaseScenarioObjectConfig {
@@ -871,7 +873,7 @@ mod tests {
     /// reads back from text first.
     #[test]
     fn a_resumed_player_spawn_thaws_the_saved_ship() {
-        use nova_gameplay::test_support::settle;
+        use nova_gameplay::test_support::{settle, test_items};
         use nova_ship::prelude::{
             BaseSectionConfig, ControllerSectionConfig, ControllerSectionRotationInput,
             GameSections, HullSectionConfig, NovaFlightPlugin, PDControllerPlugin, SectionConfig,
@@ -905,6 +907,7 @@ mod tests {
             app.init_resource::<NovaEventWorld>();
             app.init_resource::<GameObjectives>();
             app.init_resource::<CargoCanisterIdAllocator>();
+            app.insert_resource(test_items());
             app.finish();
             app
         }
@@ -977,10 +980,12 @@ mod tests {
                 health.current = health.max * 0.4;
             }
         }
-        world
-            .get_mut::<ShipInventory>(ship)
-            .unwrap()
-            .add(ItemType::IronOre, 3);
+        let items = world.resource::<GameItems>().clone();
+        world.get_mut::<ShipInventory>(ship).unwrap().add(
+            &items,
+            &ItemDesignId::from(ITEM_IRON_ORE),
+            3,
+        );
         world.entity_mut(ship).insert(ShipCredits(555));
         settle(&mut played);
         let world = played.world_mut();

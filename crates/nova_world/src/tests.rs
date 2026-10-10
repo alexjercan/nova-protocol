@@ -21,7 +21,7 @@ use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{Meters, Meters3, MetersPerSecond3};
 use nova_gameplay::prelude::{
     Allegiance, AssetRef, DerelictShipMarker, GravityAffected, GravityWell, IntegrityEnvelope,
-    ItemType, LootableShipMarker, ShipCredits, ShipInventoryStock,
+    ItemDesignId, LootableShipMarker, ShipCredits, ShipInventoryStock, ITEM_HULL_PLATE,
 };
 use nova_scenario::prelude::{
     AIControllerConfig, AsteroidMarker, AsteroidPlugin, PlanetConfig, PlanetType, SectionSource,
@@ -900,7 +900,7 @@ fn intact_and_derelict(input: SectorGenerationInput) -> SectorManifest {
     manifest.ships.push(SectorShip {
         condition: SectorShipConditionType::Derelict,
         crew: None,
-        stock: ShipInventoryStock::new([(ItemType::HullPlate, 5)]),
+        stock: ShipInventoryStock::new([(ITEM_HULL_PLATE.into(), 5)]),
         credits: 15,
         ..ship(
             sector_id(input.coord, "ship", 1),
@@ -932,7 +932,7 @@ fn a_materialized_derelict_is_lootable_and_unflown_and_an_intact_ship_is_flown_b
     );
     world.flush();
 
-    let mut spawned: Vec<(String, bool, bool, Vec<(ItemType, u32)>, u32)> = world
+    let mut spawned: Vec<(String, bool, bool, Vec<(ItemDesignId, u32)>, u32)> = world
         .query::<(
             &Name,
             Has<DerelictShipMarker>,
@@ -946,7 +946,10 @@ fn a_materialized_derelict_is_lootable_and_unflown_and_an_intact_ship_is_flown_b
                 name.to_string(),
                 derelict,
                 lootable,
-                stock.stacks().collect(),
+                stock
+                    .stacks()
+                    .map(|(item, count)| (item.clone(), count))
+                    .collect(),
                 credits.0,
             )
         })
@@ -960,7 +963,7 @@ fn a_materialized_derelict_is_lootable_and_unflown_and_an_intact_ship_is_flown_b
                 "Solmar derelict, former civilian".to_string(),
                 true,
                 true,
-                vec![(ItemType::HullPlate, 5)],
+                vec![(ITEM_HULL_PLATE.into(), 5)],
                 15
             ),
         ]

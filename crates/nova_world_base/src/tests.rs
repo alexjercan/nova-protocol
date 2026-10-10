@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, panic::AssertUnwindSafe};
 use bevy::ecs::system::RunSystemOnce;
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack};
 use nova_events::prelude::Meters3;
-use nova_gameplay::prelude::{Fnv64, ItemType};
+use nova_gameplay::prelude::{Fnv64, ItemDesignId, ITEM_HULL_PLATE};
 use nova_scenario::prelude::{
     resolve_ship_design, GameShipDesigns, ScenarioConfig, SectionSource, ShipDesign,
     ShipDesignSource, SpaceshipSectionConfig,
@@ -50,8 +50,12 @@ fn styles() -> GameStyles {
 
 /// A generator pinned to [`loaded`] and checked against [`styles`].
 pub(crate) fn fixture_world() -> NovaLayeredWorld {
-    NovaLayeredWorld::from_loaded(&loaded(), &styles())
-        .expect("the fixture packs build a snapshot and every role has a style")
+    NovaLayeredWorld::from_loaded(
+        &loaded(),
+        &styles(),
+        &nova_gameplay::test_support::test_items(),
+    )
+    .expect("the fixture packs build a snapshot and every role has a style")
 }
 
 fn scenario(role: ScenarioRole) -> CurrentScenario {
@@ -68,6 +72,7 @@ fn world(role: ScenarioRole) -> World {
     world.insert_resource(OpenWorldSession { seed: SEED });
     world.insert_resource(loaded());
     world.insert_resource(styles());
+    world.insert_resource(nova_gameplay::test_support::test_items());
     world
 }
 
@@ -134,6 +139,7 @@ fn the_open_world_describes_the_same_sectors_in_any_visit_order() {
 fn every_planned_ship_carries_goods_its_hold_fits_and_credits() {
     let config = session_config();
     let parts = config.generator.parts();
+    let items = config.generator.items();
     let sections = GameSections(
         parts
             .parts()
@@ -146,7 +152,7 @@ fn every_planned_ship_carries_goods_its_hold_fits_and_credits() {
         let description = generate_sector(&config, coord)
             .unwrap_or_else(|fault| panic!("sector {coord:?}: {fault}"));
         for ship in description.ships() {
-            let stacks: Vec<(ItemType, u32)> = ship.stock.stacks().collect();
+            let stacks: Vec<(&ItemDesignId, u32)> = ship.stock.stacks().collect();
             assert!(!stacks.is_empty(), "ship {} carries no goods", ship.id);
             let (resolved, errors) = resolve_ship_design(
                 &ShipDesignSource::Inline(ship.design.clone()),
@@ -155,7 +161,7 @@ fn every_planned_ship_carries_goods_its_hold_fits_and_credits() {
             );
             assert!(errors.is_empty(), "ship {}: {errors:?}", ship.id);
             assert!(
-                ship.stock.mass_g() <= u64::from(resolved.cargo_capacity_g()),
+                ship.stock.mass_g(items) <= u64::from(resolved.cargo_capacity_g()),
                 "ship {} overfills its hold",
                 ship.id
             );
@@ -186,8 +192,11 @@ fn every_planned_ship_carries_goods_its_hold_fits_and_credits() {
                 }
                 SectorShipConditionType::Derelict => {
                     wrecks += 1;
-                    plateless_wrecks +=
-                        usize::from(!stacks.iter().any(|(item, _)| *item == ItemType::HullPlate));
+                    plateless_wrecks += usize::from(
+                        !stacks
+                            .iter()
+                            .any(|(item, _)| item.as_str() == ITEM_HULL_PLATE),
+                    );
                     1..=500
                 }
             };
@@ -231,6 +240,7 @@ fn every_planned_ship_carries_goods_its_hold_fits_and_credits() {
         assert_eq!(
             ship_stock(
                 parts,
+                items,
                 &docks_only,
                 role,
                 SectorShipConditionType::Derelict,
@@ -298,7 +308,7 @@ fn a_pinned_window_generates_the_recorded_bodies() {
         .collect();
     assert_eq!(
         Fnv64::new().write(canonical.as_bytes()).finish(),
-        0x172e_361a_95a1_a213,
+        0x81e9_2080_3e38_ff6b,
         "the pinned window's bodies changed"
     );
 }

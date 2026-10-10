@@ -594,6 +594,17 @@ struct FrozenShipState {
 }
 
 impl FrozenShip {
+    /// Every item id the ship holds: its hold's stacks and what each
+    /// surviving section holds, see [`FrozenSection::item_ids`].
+    pub fn item_ids(&self) -> impl Iterator<Item = &ItemDesignId> {
+        self.state.inventory.stacks().map(|(item, _)| item).chain(
+            self.state
+                .sections
+                .values()
+                .flat_map(FrozenSection::item_ids),
+        )
+    }
+
     /// Whether section `section` survived to freeze: whether it still has a
     /// state entry a thaw would spawn.
     #[must_use]
@@ -790,22 +801,24 @@ pub fn thaw_ship(entity: &mut EntityCommands, frozen: FrozenShip) {
 /// Spawns spaceship scenario objects: resolves each ship's hull and section
 /// list into child section entities and wires the player/AI controller.
 /// Adds the `Add<SpaceshipRootMarker>` section-insert observer, seeds empty
-/// [`GameSections`] and [`GameShipDesigns`] catalogs, and registers the
-/// section-modification components and their apply-on-add observers.
+/// [`GameSections`], [`GameShipDesigns`], and [`GameItems`] catalogs, and
+/// registers the section-modification components and their apply-on-add
+/// observers.
 pub struct SpaceshipPlugin;
 
 impl Plugin for SpaceshipPlugin {
     fn build(&self, app: &mut App) {
         trace!("SpaceshipPlugin: build");
 
-        // `insert_spaceship_sections` resolves Prototype sources against
-        // `GameSections` and `GameShipDesigns`, so the plugin self-provides
-        // (empty) defaults: production and the editor overwrite them with the
-        // loaded catalogs, and Inline-only spawns (examples, previews) then
-        // need no catalog wiring. Makes both resource dependencies
-        // self-satisfying instead of a spawn-order footgun.
+        // `insert_spaceship_sections` reads `GameSections`, `GameShipDesigns`,
+        // and `GameItems`, so the plugin self-provides empty defaults for all
+        // three: production and the editor replace them with the merged
+        // catalogs, and Inline-only spawns with empty stock (examples,
+        // previews) then need no catalog wiring. Nonempty stock still needs
+        // the merged item catalog; an unknown item panics at spawn.
         app.init_resource::<GameSections>();
         app.init_resource::<GameShipDesigns>();
+        app.init_resource::<GameItems>();
 
         app.add_observer(insert_spaceship_sections);
     }
@@ -816,6 +829,7 @@ fn insert_spaceship_sections(
     mut commands: Commands,
     game_sections: Res<GameSections>,
     game_designs: Res<GameShipDesigns>,
+    items: Res<GameItems>,
     q_spaceship: Query<
         (
             &SpaceshipDesign,
@@ -889,7 +903,11 @@ fn insert_spaceship_sections(
             rcs_loop: presentation.rcs_loop_sound.clone(),
         },
         ShipHullWarning(presentation.warn_hull_fraction.clamp(0.0, 1.0)),
-        ShipInventory::new(design.cargo_capacity_g(), stock.stacks()),
+        ShipInventory::new(
+            &items,
+            design.cargo_capacity_g(),
+            stock.stacks().map(|(item, count)| (item.clone(), count)),
+        ),
     ));
     commands.entity(entity).remove::<ShipInventoryStock>();
 
@@ -1195,6 +1213,8 @@ fn insert_spaceship_sections(
 
 #[cfg(test)]
 mod tests {
+    use nova_gameplay::test_support::test_items;
+
     use super::*;
     use crate::objects::ship_design::prelude::{
         ShipDesign, ShipDesignPrototype, ShipIntegrityConfig,
@@ -1210,6 +1230,7 @@ mod tests {
         // Inline hulls and sections, so empty catalogs are fine.
         world.init_resource::<GameSections>();
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
 
         let spawn = |world: &mut World, config: AIControllerConfig| {
@@ -1372,6 +1393,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<GameSections>();
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
         let blind = world
             .spawn((
@@ -1402,6 +1424,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<GameSections>();
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
         let boarder = world
             .spawn((
@@ -1434,6 +1457,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<GameSections>();
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
         let miner = world
             .spawn((
@@ -1463,6 +1487,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<GameSections>();
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
 
         let ship = world
@@ -1494,6 +1519,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<GameSections>();
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
 
         let turret_section = || SpaceshipSectionConfig {
@@ -1583,6 +1609,7 @@ mod tests {
         let world = app.world_mut();
         world.init_resource::<GameSections>();
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
 
         let ship = world
@@ -1637,6 +1664,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<GameSections>();
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
 
         let kinds = [
@@ -1718,6 +1746,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<GameSections>();
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
         let spawn = |world: &mut World, config: AIControllerConfig| {
             let entity = world
@@ -1766,6 +1795,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<GameSections>();
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
         let spawn = |world: &mut World, collapse_threshold| {
             let entity = world
@@ -1871,6 +1901,7 @@ mod tests {
                 ..default()
             },
         }]));
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
 
         let entity = world
@@ -1926,6 +1957,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<GameSections>();
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
 
         let entity = world
@@ -1992,6 +2024,7 @@ mod tests {
         let mut world = World::new();
         world.insert_resource(GameSections(catalog.0.clone()));
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
 
         let sections = sources
@@ -2045,6 +2078,7 @@ mod tests {
         let mut world = World::new();
         world.insert_resource(GameSections(vec![section_prototype("plate")]));
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
         let hull = |id: &str, z| SpaceshipSectionConfig {
             id: id.to_string(),
@@ -2060,7 +2094,10 @@ mod tests {
                         sections: vec![hull("bow", 0.0), hull("stern", 1.0)],
                         ..default()
                     }),
-                    inventory: ShipInventoryStock::new([(ItemType::HullPlate, plates)]),
+                    inventory: ShipInventoryStock::new([(
+                        ItemDesignId::from(ITEM_HULL_PLATE),
+                        plates,
+                    )]),
                     ..default()
                 }),
             ))
@@ -2077,8 +2114,8 @@ mod tests {
 
         let inventory = world.entity(ship).get::<ShipInventory>().unwrap();
         assert_eq!(inventory.capacity_g(), 200_000);
-        assert_eq!(inventory.used_g(), 120_000);
-        assert_eq!(inventory.count(ItemType::HullPlate), 12);
+        assert_eq!(inventory.used_g(&test_items()), 120_000);
+        assert_eq!(inventory.count(&ItemDesignId::from(ITEM_HULL_PLATE)), 12);
         assert!(world.entity(ship).get::<ShipInventoryStock>().is_none());
     }
 

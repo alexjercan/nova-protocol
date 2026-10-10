@@ -1267,7 +1267,7 @@ per contact. A symmetric rule - ram damage - wants both.
 - `SectionReload` (`sections/ammo.rs`): optional idle batch reload on a
   magazine, from the turret/torpedo/railgun config's
   `reload: ReloadConfig::Batch(SectionReloadConfig { delay, amount })`
-  (`Disabled` is the default). Seeded with the weapon's ammunition `ItemType`
+  (`Disabled` is the default). Seeded with the weapon's ammunition item id
   (`PdcRound` for a turret regardless of mount damage type, `RailSlug` for a
   railgun, `Torpedo` for a torpedo bay regardless of bay type). Every
   successful shot resets progress; every completed quiet delay moves

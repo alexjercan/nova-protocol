@@ -162,9 +162,9 @@ struct Wreck {
     name: String,
     /// The item the walk takes and gives back: the lowest-ordered item the
     /// wreck's actual stock carries, picked once here. A generated wreck is no
-    /// longer guaranteed a [`ItemType::HullPlate`], so Take and Give must work
+    /// longer guaranteed a [`ITEM_HULL_PLATE`], so Take and Give must work
     /// from whatever it actually holds, and never reroll it.
-    item: ItemType,
+    item: ItemDesignId,
     /// The two holds' counts of `item` when the wreck was picked: the
     /// player's, then the wreck's.
     stock: (u32, u32),
@@ -188,7 +188,7 @@ fn the_player(world: &World) -> Option<Entity> {
 
 /// How many of `item` a ship's hold carries.
 #[cfg(feature = "debug")]
-fn count_of(world: &World, ship: Entity, item: ItemType) -> u32 {
+fn count_of(world: &World, ship: Entity, item: &ItemDesignId) -> u32 {
     world
         .get::<ShipInventory>(ship)
         .expect("generated world: a ship carries a ShipInventory")
@@ -196,7 +196,7 @@ fn count_of(world: &World, ship: Entity, item: ItemType) -> u32 {
 }
 
 /// Pick the nearest lootable derelict, named the way the world names one, and
-/// the lowest-[`ItemType`]-ordered item its actual stock carries: the wreck's
+/// the lowest-ordered item its actual stock carries: the wreck's
 /// mixed loot is no longer guaranteed a hull plate.
 #[cfg(feature = "debug")]
 fn pick_the_wreck(world: &mut World) {
@@ -224,9 +224,12 @@ fn pick_the_wreck(world: &mut World) {
         .expect("generated world: a ship carries a ShipInventory")
         .stacks()
         .next()
-        .map(|(item, _)| item)
+        .map(|(item, _)| item.clone())
         .unwrap_or_else(|| panic!("generated world: derelict '{name}' carries no stock"));
-    let stock = (count_of(world, player, item), count_of(world, entity, item));
+    let stock = (
+        count_of(world, player, &item),
+        count_of(world, entity, &item),
+    );
     assert!(
         stock.1 > 0,
         "generated world: derelict '{name}' carries no {item:?}"
@@ -392,9 +395,10 @@ fn the_note_reads(
 ) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
     std::sync::Arc::new(move |world: &World| {
         let wreck = world.resource::<Wreck>();
+        let items = world.resource::<GameItems>();
         let note = format!(
             "{verb} 1 {} {preposition} {}",
-            wreck.item.label(),
+            items.design(&wreck.item).name,
             wreck.name
         );
         world
@@ -415,8 +419,8 @@ fn check_stock(stage: &'static str, moved: i64) -> impl Fn(&mut World) + Send + 
         let wreck = world.resource::<Wreck>().clone();
         let player = the_player(world).expect("generated world: exactly one player ship");
         let now = (
-            count_of(world, player, wreck.item),
-            count_of(world, wreck.entity, wreck.item),
+            count_of(world, player, &wreck.item),
+            count_of(world, wreck.entity, &wreck.item),
         );
         let want = (
             (i64::from(wreck.stock.0) + moved) as u32,
@@ -440,8 +444,8 @@ fn check_stock(stage: &'static str, moved: i64) -> impl Fn(&mut World) + Send + 
 /// The widget name [`inventory_row`](nova_interface) gives the wreck's
 /// selected item's row in the `side` column (`"Own"` or `"Partner"`).
 #[cfg(feature = "debug")]
-fn row_name(side: &str, item: ItemType) -> String {
-    format!("InventoryRow{side}{item:?}")
+fn row_name(side: &str, item: &ItemDesignId) -> String {
+    format!("InventoryRow{side}{}", item.as_str())
 }
 
 /// Advance once the docked pane lays out a visible row for the wreck's item in
@@ -455,8 +459,8 @@ fn row_present(
     side: &'static str,
 ) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
     std::sync::Arc::new(move |world: &World| {
-        let item = world.resource::<Wreck>().item;
-        ui_node_rect(world, &row_name(side, item)).is_some()
+        let item = world.resource::<Wreck>().item.clone();
+        ui_node_rect(world, &row_name(side, &item)).is_some()
     })
 }
 
@@ -501,8 +505,8 @@ fn quick_click_item(
     script
         .step(label)
         .on_enter(move |world: &mut World| {
-            let item = world.resource::<Wreck>().item;
-            hover_named(row_name(side, item))(world);
+            let item = world.resource::<Wreck>().item.clone();
+            hover_named(row_name(side, &item))(world);
         })
         .each(|world: &mut World, _, frame| match frame {
             2 => press_mouse(MouseButton::Left)(world),

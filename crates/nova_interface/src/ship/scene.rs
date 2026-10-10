@@ -561,7 +561,7 @@ pub(crate) fn ship_input(
         let stock = q_inventory
             .single()
             .ok()
-            .map(|stock| stock.count(ItemType::HullPlate));
+            .map(|stock| stock.count(&ItemDesignId::from(ITEM_HULL_PLATE)));
         runtime.requested_plates = view.map(|view| {
             plate_repair_limit(view.health.as_ref(), view.disabled, stock.unwrap_or(0))
         });
@@ -1020,7 +1020,7 @@ pub(crate) fn on_ship_repair_all_button(
     runtime.requested_plates = Some(plate_repair_limit(
         view.health.as_ref(),
         view.disabled,
-        stock.count(ItemType::HullPlate),
+        stock.count(&ItemDesignId::from(ITEM_HULL_PLATE)),
     ));
 }
 
@@ -1045,7 +1045,7 @@ pub(crate) fn on_ship_repair_slider(
     let max = plate_repair_limit(
         view.health.as_ref(),
         view.disabled,
-        stock.count(ItemType::HullPlate),
+        stock.count(&ItemDesignId::from(ITEM_HULL_PLATE)),
     );
     if max > 0 {
         runtime.requested_plates = Some(change.value.round().clamp(1.0, max as f32) as u32);
@@ -1149,7 +1149,9 @@ pub(crate) fn update_ship_panel(
     // no-section state rather than panicking on a query the scene hasn't
     // caught up to yet.
     let inventory = q_inventory.single().ok();
-    let stock = inventory.map_or(0, |inventory| inventory.count(ItemType::HullPlate));
+    let stock = inventory.map_or(0, |inventory| {
+        inventory.count(&ItemDesignId::from(ITEM_HULL_PLATE))
+    });
     let selected = inventory.and(selected);
     // This system's own rewrite below does not read as a change on its next
     // run, so only the player's typing lands here.

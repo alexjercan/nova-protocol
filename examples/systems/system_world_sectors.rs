@@ -453,6 +453,7 @@ fn streaming_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
             let config = featured_world_config(
                 world.resource::<LoadedSectionPacks>(),
                 world.resource::<GameStyles>(),
+                world.resource::<GameItems>(),
             );
             world.insert_resource(config);
         })
@@ -520,6 +521,7 @@ fn streaming_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
             let config = featured_world_config(
                 world.resource::<LoadedSectionPacks>(),
                 world.resource::<GameStyles>(),
+                world.resource::<GameItems>(),
             );
             world.insert_resource(WorldConfig {
                 seed: REPLACEMENT_SEED,
@@ -736,6 +738,7 @@ fn report_visit_order(world: &mut World) {
             &featured_world_config(
                 world.resource::<LoadedSectionPacks>(),
                 world.resource::<GameStyles>(),
+                world.resource::<GameItems>(),
             ),
             FEATURE_HOME,
         );
@@ -838,6 +841,7 @@ fn report_cluster_plan(world: &mut World) {
     let config = featured_world_config(
         world.resource::<LoadedSectionPacks>(),
         world.resource::<GameStyles>(),
+        world.resource::<GameItems>(),
     );
 
     // One cluster, however many cells own its bodies. Built as id -> every
@@ -1018,6 +1022,7 @@ fn report_clearance(world: &mut World) {
     let config = featured_world_config(
         world.resource::<LoadedSectionPacks>(),
         world.resource::<GameStyles>(),
+        world.resource::<GameItems>(),
     );
     let half_edge = config.sector_edge.get() * 0.5;
     let described = describe_window(FEATURE_HOME, &config);
@@ -1591,6 +1596,7 @@ fn report_world_replacement(world: &mut World) {
     let old_config = featured_world_config(
         world.resource::<LoadedSectionPacks>(),
         world.resource::<GameStyles>(),
+        world.resource::<GameItems>(),
     );
     let new_config = world.resource::<WorldConfig<NovaLayeredWorld>>().clone();
     assert_eq!(

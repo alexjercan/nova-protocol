@@ -41,7 +41,7 @@
                                     "pdc_ventral_starboard": [Keyboard(KeyM)],
                                 },
                             )),
-                            inventory: {PdcRound: 2000},
+                            inventory: {"PdcRound": 2000},
                             lootable: false,
                             credits: 2_000,
                         )),

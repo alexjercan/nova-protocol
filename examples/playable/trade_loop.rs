@@ -69,12 +69,12 @@ const TRADER_NAME: &str = "Trader";
 const TRADER_POSITION: Meters3 = Meters3::new(0.0, 0.0, -55.0);
 
 /// What the tender carries at spawn: plates to sell.
-const TENDER_STOCK: &[(ItemType, u32)] = &[(ItemType::HullPlate, 4)];
+const TENDER_STOCK: &[(&str, u32)] = &[(ITEM_HULL_PLATE, 4)];
 /// The tender's credits at spawn: enough for Rations, short of two Salvaged
 /// parts after the plates sell.
 const TENDER_CREDITS: u32 = 100;
 /// What the trader carries at spawn.
-const TRADER_STOCK: &[(ItemType, u32)] = &[(ItemType::Rations, 10), (ItemType::SalvagedParts, 2)];
+const TRADER_STOCK: &[(&str, u32)] = &[("Rations", 10), ("SalvagedParts", 2)];
 /// The trader's credits at spawn: enough to buy the plates.
 const TRADER_CREDITS: u32 = 1_000;
 
@@ -161,7 +161,9 @@ fn trade(game_assets: &GameAssets) -> ScenarioConfig {
         SpaceshipConfig {
             controller: SpaceshipController::Player(PlayerControllerConfig::default()),
             design: ShipDesignSource::Inline(tender()),
-            inventory: ShipInventoryStock::new(TENDER_STOCK.iter().copied()),
+            inventory: ShipInventoryStock::new(
+                TENDER_STOCK.iter().map(|&(id, count)| (id.into(), count)),
+            ),
             credits: TENDER_CREDITS,
             ..default()
         },
@@ -177,7 +179,9 @@ fn trade(game_assets: &GameAssets) -> ScenarioConfig {
             controller: SpaceshipController::None,
             design: ShipDesignSource::Inline(spar()),
             allegiance: Some(Allegiance::Neutral),
-            inventory: ShipInventoryStock::new(TRADER_STOCK.iter().copied()),
+            inventory: ShipInventoryStock::new(
+                TRADER_STOCK.iter().map(|&(id, count)| (id.into(), count)),
+            ),
             lootable: false,
             credits: TRADER_CREDITS,
             ..default()
@@ -208,7 +212,7 @@ fn trade(game_assets: &GameAssets) -> ScenarioConfig {
 /// One ship's hold and balance as the walk expects them.
 #[cfg(feature = "debug")]
 struct Ledger {
-    stacks: &'static [(ItemType, u32)],
+    stacks: &'static [(&'static str, u32)],
     credits: u32,
 }
 
@@ -216,11 +220,11 @@ struct Ledger {
 #[cfg(feature = "debug")]
 const AFTER_BUY: (Ledger, Ledger) = (
     Ledger {
-        stacks: &[(ItemType::HullPlate, 4), (ItemType::Rations, 1)],
+        stacks: &[(ITEM_HULL_PLATE, 4), ("Rations", 1)],
         credits: 92,
     },
     Ledger {
-        stacks: &[(ItemType::Rations, 9), (ItemType::SalvagedParts, 2)],
+        stacks: &[("Rations", 9), ("SalvagedParts", 2)],
         credits: 1_008,
     },
 );
@@ -230,15 +234,11 @@ const AFTER_BUY: (Ledger, Ledger) = (
 #[cfg(feature = "debug")]
 const AFTER_SELL: (Ledger, Ledger) = (
     Ledger {
-        stacks: &[(ItemType::Rations, 1)],
+        stacks: &[("Rations", 1)],
         credits: 212,
     },
     Ledger {
-        stacks: &[
-            (ItemType::HullPlate, 4),
-            (ItemType::Rations, 9),
-            (ItemType::SalvagedParts, 2),
-        ],
+        stacks: &[(ITEM_HULL_PLATE, 4), ("Rations", 9), ("SalvagedParts", 2)],
         credits: 888,
     },
 );
@@ -256,12 +256,13 @@ fn ship(world: &mut World, id: &str) -> Entity {
 
 /// A ship's stacks in item order and its credits, read from the ECS.
 #[cfg(feature = "debug")]
-fn read_ledger(world: &mut World, id: &str) -> (Vec<(ItemType, u32)>, u32) {
+fn read_ledger(world: &mut World, id: &str) -> (Vec<(ItemDesignId, u32)>, u32) {
     let root = ship(world, id);
     let stacks = world
         .get::<ShipInventory>(root)
         .unwrap_or_else(|| panic!("trade_loop: {id} has no ShipInventory"))
         .stacks()
+        .map(|(item, count)| (item.clone(), count))
         .collect();
     let credits = world
         .get::<ShipCredits>(root)
@@ -281,6 +282,10 @@ fn check_ledgers(world: &mut World, stage: &str, expected: &(Ledger, Ledger)) {
         (TENDER_NAME, &tender, &expected.0),
         (TRADER_NAME, &trader, &expected.1),
     ] {
+        let stacks: Vec<(&str, u32)> = stacks
+            .iter()
+            .map(|(id, count)| (id.as_str(), *count))
+            .collect();
         assert_eq!(
             stacks.as_slice(),
             want.stacks,
@@ -298,16 +303,23 @@ fn check_ledgers(world: &mut World, stage: &str, expected: &(Ledger, Ledger)) {
         .chain(TRADER_STOCK)
         .map(|(item, _)| *item)
     {
-        let held = |stacks: &[(ItemType, u32)]| {
+        let held_wanted = |stacks: &[(&str, u32)]| {
             stacks
                 .iter()
                 .filter(|(held, _)| *held == item)
                 .map(|(_, count)| count)
                 .sum::<u32>()
         };
-        let spawned = held(TENDER_STOCK) + held(TRADER_STOCK);
+        let held_actual = |stacks: &[(ItemDesignId, u32)]| {
+            stacks
+                .iter()
+                .filter(|(held, _)| held.as_str() == item)
+                .map(|(_, count)| count)
+                .sum::<u32>()
+        };
+        let spawned = held_wanted(TENDER_STOCK) + held_wanted(TRADER_STOCK);
         assert_eq!(
-            held(&tender.0) + held(&trader.0),
+            held_actual(&tender.0) + held_actual(&trader.0),
             spawned,
             "trade_loop {stage}: {item:?} made or lost"
         );

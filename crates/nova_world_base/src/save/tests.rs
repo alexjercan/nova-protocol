@@ -5,35 +5,44 @@ use std::{path::Path, time::Duration};
 use avian3d::prelude::{LinearVelocity, RigidBody, Rotation};
 use bevy::prelude::*;
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack, LoadedSectionPacks};
-use nova_events::prelude::EntityId;
+use nova_events::prelude::{EntityId, Meters, Meters3, MetersPerSecond3};
 use nova_gameplay::prelude::{
-    nova_blast, resumed_lifetime, AssetRef, CargoCanister, CargoCanisterIdAllocator,
+    nova_blast, resumed_lifetime, Allegiance, AssetRef, CargoCanister, CargoCanisterIdAllocator,
     CargoCanisterRuntimeId, ClockFreeze, DamageMarks, DamageType, FreezeOwner, FrozenRoundFlight,
-    Health, IntegrityDestroyMarker, ItemType, PlayerSpaceshipMarker, PointRotationOutput,
-    ProjectileDamage, ProjectileOwner, RailgunSlugProjectileMarker, RoundRake, SavedBodyRef,
-    SavedLifetime, SavedOwner, SavedSectionRef, SavedTargetRef, ShipCredits, ShipInventory,
-    SpaceshipRootMarker, TorpedoProjectileMarker, TurretBulletProjectileMarker,
+    GameItems, Health, IntegrityDestroyMarker, ItemCategoryType, ItemDesign, ItemDesignId,
+    PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage, ProjectileOwner,
+    RailgunSlugProjectileMarker, RoundRake, SavedBodyRef, SavedLifetime, SavedOwner,
+    SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory, ShipInventoryStock,
+    SpaceshipRootMarker, TorpedoProjectileMarker, TurretBulletProjectileMarker, ITEM_IRON_ORE,
 };
 use nova_scenario::prelude::{
-    freeze_ship, spaceship_scenario_object, CurrentScenario, SpaceshipConfig,
+    freeze_asteroid, freeze_ore_drop, freeze_ship, spaceship_scenario_object, AsteroidKind,
+    AsteroidKindId, AsteroidMarker, AsteroidRadius, AsteroidSeed, AsteroidTexture, CurrentScenario,
+    MinedCanisterQueue, MinedOre, MinedOreDrop, ShipDesign, SpaceshipConfig,
 };
 use nova_ship::prelude::{
-    cargo_canister, freeze_canister, thaw_round, thaw_torpedo, CameraView, ChaseZoom, FrozenRound,
-    FrozenTorpedo, RoundSourceType, SavedTorpedoTarget, SpaceshipCameraController,
-    SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker, TorpedoArming,
-    TorpedoControllerMarker, TorpedoSectionConfig, TorpedoTargetChosen, TorpedoTargetEntity,
-    TorpedoTargetPosition, TorpedoWeave,
+    cargo_canister, freeze_canister, freeze_wreck_fragment, thaw_round, thaw_torpedo,
+    BaseSectionConfig, BodyRadius, CameraView, CargoIntakeEjectionQueue, ChaseZoom, DestroySound,
+    FrozenRound, FrozenTorpedo, HullSectionConfig, LockSignature, RoundSourceType,
+    SavedTorpedoTarget, SectionAnimations, SectionBuildConfig, SectionConfig, SectionKind,
+    SectionReload, SectionReloadConfig, ShipWreckFragmentMarker, SpaceshipCameraController,
+    SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker, SuspendedSectionAmmo,
+    TorpedoArming, TorpedoControllerMarker, TorpedoSectionConfig, TorpedoTargetChosen,
+    TorpedoTargetEntity, TorpedoTargetPosition, TorpedoWeave,
 };
 use nova_world::{
-    prelude::{CurrentSector, FrozenSectors, SectorCoord, WorldConfig},
+    prelude::{
+        CivilizationId, CurrentSector, FrozenBodyType, FrozenSectors, SectorCoord, SectorShip,
+        SectorShipConditionType, SectorShipCrew, ShipRoleType, WorldConfig,
+    },
     SectorRoot,
 };
 
 use super::{
-    create_world, delete_world, list_worlds, open_world, restore_resumed_world, resume_world,
-    write_world, FrozenTransient, FrozenTransientType, ResumedTransients, SavedPlayer,
-    WorldRefusal, WorldResumeProgress, WorldResumeRefused, WorldSaveHeader, WorldSaveSession,
-    WorldSaveState, WorldSaveStatus, WORLD_SAVE_FORMAT,
+    check_world, create_world, delete_world, list_worlds, open_world, restore_resumed_world,
+    resume_world, write_world, FrozenTransient, FrozenTransientType, ResumedTransients,
+    SavedPlayer, WorldRefusal, WorldResumeProgress, WorldResumeRefused, WorldSaveHeader,
+    WorldSaveSession, WorldSaveState, WorldSaveStatus, WORLD_SAVE_FORMAT,
 };
 use crate::NovaLayeredWorld;
 
@@ -48,6 +57,11 @@ fn catalog(digest: u64) -> LoadedSectionPacks {
         packs: vec![pack("base"), pack("extra_hulls")],
         digest: ContentCatalogDigest(digest),
     }
+}
+
+/// The item catalog every opened world is checked against.
+fn items() -> GameItems {
+    nova_gameplay::test_support::test_items()
 }
 
 /// The header of generation `generation` of the world `name`, saved with the
@@ -161,11 +175,11 @@ fn a_world_another_game_holds_open_is_refused() {
     write_world(&folder, &header("Held", 1), &state(1, 750)).unwrap();
 
     assert_eq!(
-        open_world(root.path(), "held", &catalog(7)).unwrap_err(),
+        open_world(root.path(), "held", &catalog(7), &items()).unwrap_err(),
         WorldRefusal::Locked
     );
     drop(lock);
-    assert!(open_world(root.path(), "held", &catalog(7)).is_ok());
+    assert!(open_world(root.path(), "held", &catalog(7), &items()).is_ok());
 }
 
 /// The list shows every folder with the reason it cannot load: another
@@ -221,15 +235,15 @@ fn the_list_shows_why_each_refused_world_cannot_load() {
     );
 
     assert!(matches!(
-        open_world(root.path(), "good", &catalog(8)),
+        open_world(root.path(), "good", &catalog(8), &items()),
         Err(WorldRefusal::Catalog { .. })
     ));
     assert!(matches!(
-        open_world(root.path(), "other-format", &catalog(7)),
+        open_world(root.path(), "other-format", &catalog(7), &items()),
         Err(WorldRefusal::Format { found: 99 })
     ));
     assert!(matches!(
-        open_world(root.path(), "../good", &catalog(7)),
+        open_world(root.path(), "../good", &catalog(7), &items()),
         Err(WorldRefusal::InvalidName(_))
     ));
     let good = list_worlds(root.path(), &catalog(7)).unwrap();
@@ -266,7 +280,8 @@ fn a_written_world_opens_as_it_was_saved() {
     );
     drop(lock);
 
-    let (opened, _lock, read, saved) = open_world(root.path(), "round-trip", &catalog(7)).unwrap();
+    let (opened, _lock, read, saved) =
+        open_world(root.path(), "round-trip", &catalog(7), &items()).unwrap();
     assert_eq!(opened, folder);
     assert_eq!(read, header("Round Trip", 2));
     assert_eq!(saved.generation, 2);
@@ -293,7 +308,7 @@ fn a_failed_write_leaves_the_last_good_save() {
     assert!(write_world(&folder, &header("Kept", 2), &state(2, 990)).is_err());
     drop(lock);
 
-    let (_, _lock, read, saved) = open_world(root.path(), "kept", &catalog(7)).unwrap();
+    let (_, _lock, read, saved) = open_world(root.path(), "kept", &catalog(7), &items()).unwrap();
     assert_eq!(read.generation, 1);
     assert_eq!(
         ron::to_string(&saved).unwrap(),
@@ -313,7 +328,7 @@ fn opening_a_world_removes_the_files_its_header_does_not_name() {
     std::fs::write(folder.path.join(".world.ron.123.tmp"), "half").unwrap();
     std::fs::write(folder.path.join("notes.txt"), "mine").unwrap();
 
-    open_world(root.path(), "swept", &catalog(7)).unwrap();
+    open_world(root.path(), "swept", &catalog(7), &items()).unwrap();
     assert_eq!(
         files(&folder.path),
         ["notes.txt", "state.1.ron", "world.lock", "world.ron"]
@@ -525,7 +540,8 @@ fn the_first_frame_and_a_leave_each_write_a_save() {
     );
     let digest = world.resource::<LoadedSectionPacks>().digest.0;
     world.remove_resource::<WorldSaveSession>();
-    let (_, _lock, header, state) = open_world(root.path(), "session", &catalog(digest)).unwrap();
+    let (_, _lock, header, state) =
+        open_world(root.path(), "session", &catalog(digest), &items()).unwrap();
     assert_eq!((header.generation, header.credits), (2, 410));
     assert_eq!(state.player.id.0, "player");
 }
@@ -579,7 +595,8 @@ fn a_world_that_disarms_and_rearms_never_overwrites_its_save() {
         ));
         let digest = world.resource::<LoadedSectionPacks>().digest.0;
         world.remove_resource::<WorldSaveSession>();
-        let (_, _lock, header, _) = open_world(root.path(), "session", &catalog(digest)).unwrap();
+        let (_, _lock, header, _) =
+            open_world(root.path(), "session", &catalog(digest), &items()).unwrap();
         assert_eq!((header.generation, header.credits), (1, 300));
     }
 }
@@ -710,7 +727,8 @@ fn a_save_waits_visibly_until_the_player_camera_is_ready() {
     );
     let digest = world.resource::<LoadedSectionPacks>().digest.0;
     world.remove_resource::<WorldSaveSession>();
-    let (_, _lock, _, saved) = open_world(root.path(), "session", &catalog(digest)).unwrap();
+    let (_, _lock, _, saved) =
+        open_world(root.path(), "session", &catalog(digest), &items()).unwrap();
     assert_eq!(saved.player.view, expected_view);
 }
 
@@ -784,7 +802,8 @@ fn load(root: &Path, digest: u64) -> World {
         .remove_resource::<WorldConfig<NovaLayeredWorld>>()
         .unwrap();
     config.active_radius = 0;
-    let (folder, lock, header, state) = open_world(root, "session", &catalog(digest)).unwrap();
+    let (folder, lock, header, state) =
+        open_world(root, "session", &catalog(digest), &items()).unwrap();
     resume_world(&mut world, folder, lock, &header, state);
     world.insert_resource(config);
     restore_resumed_world(&mut world);
@@ -956,7 +975,8 @@ fn a_load_saves_nothing_until_its_transients_are_back() {
     );
     let digest = world.resource::<LoadedSectionPacks>().digest.0;
     world.remove_resource::<WorldSaveSession>();
-    let (_, _lock, header, state) = open_world(root.path(), "session", &catalog(digest)).unwrap();
+    let (_, _lock, header, state) =
+        open_world(root.path(), "session", &catalog(digest), &items()).unwrap();
     assert_eq!(header.generation, 2);
     assert_eq!(state.transients.len(), 1, "the new save keeps the round");
 }
@@ -1035,7 +1055,8 @@ fn a_save_waits_out_a_live_blast_and_a_raking_slug() {
     );
     let digest = world.resource::<LoadedSectionPacks>().digest.0;
     world.remove_resource::<WorldSaveSession>();
-    let (_, _lock, _, state) = open_world(root.path(), "session", &catalog(digest)).unwrap();
+    let (_, _lock, _, state) =
+        open_world(root.path(), "session", &catalog(digest), &items()).unwrap();
     let [FrozenTransient {
         body: FrozenTransientType::Round(round),
         ..
@@ -1749,7 +1770,7 @@ fn a_world_with_a_duplicate_id_is_refused_on_open() {
         };
         write_world(&folder, &header("Ids", generation), &state).unwrap();
         assert_eq!(
-            open_world(root.path(), "ids", &catalog(7)).map(|_| ()),
+            open_world(root.path(), "ids", &catalog(7), &items()).map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
                 "state.{generation}.ron: {expected}"
             ))),
@@ -1771,7 +1792,7 @@ fn a_world_with_a_duplicate_id_is_refused_on_open() {
     };
     write_world(&folder, &header("Ids", frozen_generation), &frozen_target).unwrap();
     {
-        let (_, _lock, _, saved) = open_world(root.path(), "ids", &catalog(7)).unwrap();
+        let (_, _lock, _, saved) = open_world(root.path(), "ids", &catalog(7), &items()).unwrap();
         assert_eq!(saved.transients.len(), 1);
     }
 
@@ -1794,7 +1815,7 @@ fn a_world_with_a_duplicate_id_is_refused_on_open() {
     )
     .unwrap();
     {
-        let (_, _lock, _, saved) = open_world(root.path(), "ids", &catalog(7)).unwrap();
+        let (_, _lock, _, saved) = open_world(root.path(), "ids", &catalog(7), &items()).unwrap();
         assert_eq!(saved.transients.len(), 1);
     }
 
@@ -1808,7 +1829,7 @@ fn a_world_with_a_duplicate_id_is_refused_on_open() {
         ..state(final_generation, 750)
     };
     write_world(&folder, &header("Ids", final_generation), &state).unwrap();
-    let (_, _lock, _, saved) = open_world(root.path(), "ids", &catalog(7)).unwrap();
+    let (_, _lock, _, saved) = open_world(root.path(), "ids", &catalog(7), &items()).unwrap();
     assert_eq!(saved.transients.len(), 2);
     assert_eq!(saved.sectors.len(), 1);
 }
@@ -1817,6 +1838,7 @@ fn a_world_with_a_duplicate_id_is_refused_on_open() {
 /// canister ids, built through the record's RON form like [`ledger`].
 fn canister_ledger(cells: &[(SectorCoord, &[u64])]) -> FrozenSectors {
     let mut world = World::new();
+    let items = nova_gameplay::test_support::test_items();
     let transform = ron::to_string(&Transform::IDENTITY).unwrap();
     let cells: Vec<String> = cells
         .iter()
@@ -1827,7 +1849,7 @@ fn canister_ledger(cells: &[(SectorCoord, &[u64])]) -> FrozenSectors {
                     let canister = world
                         .spawn((
                             cargo_canister(
-                                CargoCanister::new(ItemType::IronOre, 1),
+                                CargoCanister::new(&items, &ItemDesignId::from(ITEM_IRON_ORE), 1),
                                 Transform::IDENTITY,
                                 Vec3::ZERO,
                                 AssetRef::from("canister.glb#Scene0"),
@@ -1877,7 +1899,7 @@ fn a_world_with_a_duplicate_or_unminted_canister_is_refused_on_open() {
         assert_eq!(state.canister_ids_next, 12);
         write_world(&folder, &header("Canisters", generation), &state).unwrap();
         assert_eq!(
-            open_world(root.path(), "canisters", &catalog(7)).map(|_| ()),
+            open_world(root.path(), "canisters", &catalog(7), &items()).map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
                 "state.{generation}.ron: {expected}"
             ))),
@@ -1890,7 +1912,7 @@ fn a_world_with_a_duplicate_or_unminted_canister_is_refused_on_open() {
         ..state(3, 750)
     };
     write_world(&folder, &header("Canisters", 3), &state).unwrap();
-    let (_, _lock, _, saved) = open_world(root.path(), "canisters", &catalog(7)).unwrap();
+    let (_, _lock, _, saved) = open_world(root.path(), "canisters", &catalog(7), &items()).unwrap();
     assert_eq!(saved.sectors.len(), 1);
 }
 
@@ -1937,4 +1959,389 @@ fn a_save_with_a_duplicate_or_unminted_canister_fails_and_keeps_the_last_save() 
     }
     world.insert_resource(canister_ledger(&[(east, &[3, 3])]));
     refused(&mut world, "two saved canisters have the id 3");
+}
+
+/// The catalog [`items`] plus one item, `lost_core`, that no base fixture
+/// defines: a loaded catalog a saved item can fall outside of.
+fn items_with_lost_core() -> GameItems {
+    let mut designs: Vec<ItemDesign> = items().iter().cloned().collect();
+    designs.push(ItemDesign {
+        id: ItemDesignId::from("lost_core"),
+        name: "Lost core".to_string(),
+        about: "Lost core for tests.".to_string(),
+        category: ItemCategoryType::Parts,
+        mass_g: 5_000,
+        ask_cr: 60,
+        bid_cr: 45,
+    });
+    GameItems::new(designs)
+}
+
+/// The state of generation `generation`, like [`state`], except the
+/// player's hold carries one of `item`: built against
+/// [`items_with_lost_core`] so `freeze_ship` can build an inventory the base
+/// catalog lacks.
+fn state_with_player_item(generation: u64, item: &ItemDesignId) -> WorldSaveState {
+    let extended = items_with_lost_core();
+    let mut world = World::new();
+    let ship = world
+        .spawn((
+            spaceship_scenario_object(SpaceshipConfig {
+                credits: 750,
+                ..default()
+            }),
+            ShipInventory::new(&extended, 10_000, [(item.clone(), 1)]),
+            DamageMarks::default(),
+        ))
+        .id();
+    WorldSaveState {
+        player: SavedPlayer {
+            ship: freeze_ship(&world, ship).expect("a bare ship is settled"),
+            ..state(generation, 750).player
+        },
+        ..state(generation, 750)
+    }
+}
+
+/// A ledger cell at `coord` holding one ship `id` whose hold carries `item`,
+/// built through the record's RON form like [`ledger`], from a real frozen
+/// ship over [`items_with_lost_core`].
+fn ledger_with_item(id: &str, coord: SectorCoord, item: &ItemDesignId) -> FrozenSectors {
+    let extended = items_with_lost_core();
+    let mut world = World::new();
+    let ship = world
+        .spawn((
+            spaceship_scenario_object(SpaceshipConfig::default()),
+            ShipInventory::new(&extended, 10_000, [(item.clone(), 1)]),
+            DamageMarks::default(),
+        ))
+        .id();
+    let frozen = freeze_ship(&world, ship).expect("a bare ship is settled");
+    let transform = ron::to_string(&Transform::IDENTITY).unwrap();
+    ron::from_str(&format!(
+        "{{{}: Visited([(id: Some({id:?}), name: None, transform: {transform}, \
+         visibility: None, motion: None, body: Ship({}))])}}",
+        ron::to_string(&coord).unwrap(),
+        ron::to_string(&frozen).unwrap()
+    ))
+    .unwrap()
+}
+
+/// A ledger cell at `coord` holding one canister `id` whose contents carry
+/// `item`, built through the record's RON form like [`canister_ledger`],
+/// from a real frozen canister over [`items_with_lost_core`].
+fn canister_ledger_with_item(coord: SectorCoord, id: u64, item: &ItemDesignId) -> FrozenSectors {
+    let extended = items_with_lost_core();
+    let mut world = World::new();
+    let transform = ron::to_string(&Transform::IDENTITY).unwrap();
+    let canister = world
+        .spawn((
+            cargo_canister(
+                CargoCanister::new(&extended, item, 1),
+                Transform::IDENTITY,
+                Vec3::ZERO,
+                AssetRef::from("canister.glb#Scene0"),
+            ),
+            CargoCanisterRuntimeId(id),
+        ))
+        .id();
+    let frozen = freeze_canister(&world, canister).expect("a whole canister");
+    ron::from_str(&format!(
+        "{{{}: Visited([(id: None, name: None, transform: {transform}, \
+         visibility: None, motion: None, body: Canister({}))])}}",
+        ron::to_string(&coord).unwrap(),
+        ron::to_string(&frozen).unwrap()
+    ))
+    .unwrap()
+}
+
+/// A ledger cell at `coord` holding one ship `id` held back as a
+/// [`SectorShip`], whose spawn stock carries `item`, built through the
+/// record's RON form like [`ledger`].
+fn pending_ship_ledger(id: &str, coord: SectorCoord, item: &ItemDesignId) -> FrozenSectors {
+    let ship = SectorShip {
+        id: id.to_string(),
+        position: Meters3::ZERO,
+        rotation: Quat::IDENTITY,
+        initial_velocity: MetersPerSecond3::ZERO,
+        clearance: Meters(20.0),
+        design: ShipDesign::default(),
+        condition: SectorShipConditionType::Intact,
+        crew: Some(SectorShipCrew {
+            allegiance: Allegiance::Neutral,
+            patrol: Vec::new(),
+            stops: Vec::new(),
+            leash: Meters(5_000.0),
+        }),
+        civilization: CivilizationId {
+            world_seed: 0,
+            node: [0, 0, 0],
+        },
+        role: ShipRoleType::Civilian,
+        stock: ShipInventoryStock::new([(item.clone(), 1)]),
+        credits: 120,
+    };
+    let transform = ron::to_string(&Transform::IDENTITY).unwrap();
+    ron::from_str(&format!(
+        "{{{}: Visited([(id: Some({id:?}), name: None, transform: {transform}, \
+         visibility: None, motion: None, body: PendingShip({}))])}}",
+        ron::to_string(&coord).unwrap(),
+        ron::to_string(&ship).unwrap()
+    ))
+    .unwrap()
+}
+
+/// A ledger cell at `coord` holding `body` under `id`, built through the
+/// record's RON form like [`ledger`].
+fn ledger_holding(coord: SectorCoord, id: Option<&str>, body: &FrozenBodyType) -> FrozenSectors {
+    let transform = ron::to_string(&Transform::IDENTITY).unwrap();
+    ron::from_str(&format!(
+        "{{{}: Visited([(id: {}, name: None, transform: {transform}, visibility: None, \
+         motion: None, body: {})])}}",
+        ron::to_string(&coord).unwrap(),
+        ron::to_string(&id).unwrap(),
+        ron::to_string(body).unwrap()
+    ))
+    .unwrap()
+}
+
+/// Every frozen body field that can hold an item, each holding `item` in
+/// that one field only, frozen by the production `freeze_*` paths over
+/// [`items_with_lost_core`]: `(saved id, body, the holder a refusal names)`.
+/// The mined ore and the mined canister queue have no public constructor, so
+/// they are read from RON, as a load reads them.
+fn frozen_item_holders(item: &ItemDesignId) -> Vec<(Option<&'static str>, FrozenBodyType, String)> {
+    let extended = items_with_lost_core();
+    let mut world = World::new();
+    let canister = || CargoCanister::new(&extended, item, 1);
+    let reload = || {
+        SectionReload::from_config(
+            SectionReloadConfig {
+                delay: 1.0,
+                amount: 1,
+            },
+            item.clone(),
+        )
+    };
+    let section = |world: &mut World, parent: Entity, held: &dyn Fn(&mut EntityWorldMut)| {
+        let mut section = world.spawn((
+            SectionMarker,
+            EntityId("section".to_string()),
+            Health::new(100.0),
+            SectionAnimations::new(Vec::new()),
+            SectionBuildConfig(SectionConfig {
+                base: BaseSectionConfig {
+                    id: "hull".to_string(),
+                    ..default()
+                },
+                kind: SectionKind::Hull(HullSectionConfig::default()),
+            }),
+            ChildOf(parent),
+        ));
+        held(&mut section);
+    };
+    let ship = |world: &mut World, held: &dyn Fn(&mut EntityWorldMut)| {
+        let ship = world
+            .spawn((
+                spaceship_scenario_object(SpaceshipConfig::default()),
+                ShipInventory::new(&extended, 10_000, []),
+                DamageMarks::default(),
+            ))
+            .id();
+        section(world, ship, held);
+        FrozenBodyType::Ship(Box::new(
+            freeze_ship(world, ship).expect("a bare ship is settled"),
+        ))
+    };
+    let rock = |world: &mut World, node: &dyn Fn(&mut EntityWorldMut)| {
+        let rock = world
+            .spawn((
+                AsteroidMarker,
+                AsteroidSeed(1),
+                AsteroidRadius(1.0),
+                AsteroidKind(AsteroidKindId::from("rock")),
+                AsteroidTexture(AssetRef::from("asteroid.png".to_string())),
+                DestroySound(None),
+                LockSignature(1.0),
+                BodyRadius(1.0),
+            ))
+            .id();
+        node(&mut world.spawn((DamageMarks::default(), ChildOf(rock))));
+        FrozenBodyType::Asteroid(freeze_asteroid(world, rock).expect("a bare rock is settled"))
+    };
+    let mined_queue = || -> MinedCanisterQueue {
+        ron::from_str(&format!(
+            "(waiting: [(canister: {}, at: (0.0, 0.0, 0.0), normal: (1.0, 0.0, 0.0))])",
+            ron::to_string(&canister()).unwrap()
+        ))
+        .unwrap()
+    };
+    let east = SectorCoord::new(1, 0, 0);
+
+    let reload_ship = ship(&mut world, &|section| {
+        section.insert(reload());
+    });
+    let suspended_ship = ship(&mut world, &|section| {
+        section.insert(SuspendedSectionAmmo {
+            capacity: 1,
+            reload: Some(reload()),
+        });
+    });
+    let ejecting_ship = ship(&mut world, &|section| {
+        section.insert(CargoIntakeEjectionQueue([canister()].into()));
+    });
+    let fragment = world.spawn(ShipWreckFragmentMarker).id();
+    section(&mut world, fragment, &|section| {
+        section.insert(reload());
+    });
+    let fragment = FrozenBodyType::WreckFragment(
+        freeze_wreck_fragment(&world, fragment).expect("a bare wreck is settled"),
+    );
+    let mined_rock = rock(&mut world, &|node| {
+        node.insert(
+            ron::from_str::<MinedOre>(&format!(
+                "(item: {}, corners: 1, at: (0.0, 0.0, 0.0), normal: (1.0, 0.0, 0.0))",
+                ron::to_string(item).unwrap()
+            ))
+            .unwrap(),
+        );
+    });
+    let queued_rock = rock(&mut world, &|node| {
+        node.insert(mined_queue());
+    });
+    let drop = world.spawn((MinedOreDrop, mined_queue())).id();
+    let drop = FrozenBodyType::OreDrop(freeze_ore_drop(&world, drop));
+
+    let quoted = |id: &str| format!("'{id}'");
+    vec![
+        (Some("reload_ship"), reload_ship, quoted("reload_ship")),
+        (
+            Some("suspended_ship"),
+            suspended_ship,
+            quoted("suspended_ship"),
+        ),
+        (
+            Some("ejecting_ship"),
+            ejecting_ship,
+            quoted("ejecting_ship"),
+        ),
+        (None, fragment, format!("a body in sector {east}")),
+        (Some("mined_rock"), mined_rock, quoted("mined_rock")),
+        (Some("queued_rock"), queued_rock, quoted("queued_rock")),
+        (None, drop, format!("a body in sector {east}")),
+    ]
+}
+
+/// A saved world that holds an item the loaded catalog lacks is refused by
+/// the Load list's check and by open, with the item and its holder, in every
+/// holder class; the check takes no lock. The same world opens once the
+/// catalog holds the item.
+#[test]
+fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
+    let root = tempfile::tempdir().unwrap();
+    let (folder, lock) = create_world(root.path(), "Items").unwrap();
+    let extended = items_with_lost_core();
+    let item = ItemDesignId::from("lost_core");
+    let east = SectorCoord::new(1, 0, 0);
+    let refused = |generation: u64, owner: &str| {
+        Err(WorldRefusal::Unreadable(format!(
+            "state.{generation}.ron: unknown item 'lost_core' held by {owner}"
+        )))
+    };
+
+    // Each generation's state file replaces the last (write_world removes
+    // the previous one), so only the just-written case opens; check and open
+    // for it before moving to the next.
+    write_world(
+        &folder,
+        &header("Items", 1),
+        &state_with_player_item(1, &item),
+    )
+    .unwrap();
+    // check_world takes no lock: it still answers while `lock` is held.
+    assert_eq!(
+        check_world(root.path(), "items", &catalog(7), &items()),
+        refused(1, "the player ship 'player'")
+    );
+    drop(lock);
+    assert_eq!(
+        open_world(root.path(), "items", &catalog(7), &items()).map(|_| ()),
+        refused(1, "the player ship 'player'")
+    );
+
+    let mut cases: Vec<(FrozenSectors, String)> = vec![
+        (
+            ledger_with_item("held_ship", east, &item),
+            "'held_ship'".to_string(),
+        ),
+        (
+            canister_ledger_with_item(east, 5, &item),
+            "the canister 5".to_string(),
+        ),
+        (
+            pending_ship_ledger("pending_ship", east, &item),
+            "'pending_ship'".to_string(),
+        ),
+    ];
+    cases.extend(
+        frozen_item_holders(&item)
+            .into_iter()
+            .map(|(id, body, owner)| (ledger_holding(east, id, &body), owner)),
+    );
+    let last = 1 + cases.len() as u64;
+    for (generation, (sectors, owner)) in (2..).zip(cases) {
+        let saved_state = WorldSaveState {
+            sectors,
+            ..state(generation, 750)
+        };
+        write_world(&folder, &header("Items", generation), &saved_state).unwrap();
+        assert_eq!(
+            check_world(root.path(), "items", &catalog(7), &items()),
+            refused(generation, &owner),
+            "check_world at generation {generation}"
+        );
+        assert_eq!(
+            open_world(root.path(), "items", &catalog(7), &items()).map(|_| ()),
+            refused(generation, &owner),
+            "open_world at generation {generation}"
+        );
+    }
+
+    let (_, _lock, _, saved) = open_world(root.path(), "items", &catalog(7), &extended).unwrap();
+    assert_eq!(
+        saved.generation, last,
+        "the extended catalog opens the last case"
+    );
+}
+
+/// A save whose state holds an item the armed catalog lacks fails visibly
+/// and writes nothing, so the last good save stays.
+#[test]
+fn a_save_holding_an_item_the_catalog_lacks_fails_and_keeps_the_last_save() {
+    let root = tempfile::tempdir().unwrap();
+    let (mut world, player) = armed_session(root.path());
+    run_until_idle(&mut world);
+    assert_eq!(
+        world.resource::<WorldSaveSession>().status(),
+        &WorldSaveStatus::Saved { generation: 1 }
+    );
+    let folder = root.path().join("session");
+    let saved = std::fs::read(folder.join("state.1.ron")).unwrap();
+
+    let extended = items_with_lost_core();
+    let item = ItemDesignId::from("lost_core");
+    world
+        .entity_mut(player)
+        .insert(ShipInventory::new(&extended, 10_000, [(item, 1)]));
+    world.resource_mut::<WorldSaveSession>().request_leave();
+    run_until_idle(&mut world);
+    let WorldSaveStatus::Failed(reason) = world.resource::<WorldSaveSession>().status() else {
+        panic!(
+            "an item the catalog lacks fails the save, not {:?}",
+            world.resource::<WorldSaveSession>().status()
+        );
+    };
+    assert!(reason.contains("unknown item 'lost_core'"), "{reason}");
+    assert_eq!(files(&folder), ["state.1.ron", "world.lock", "world.ron"]);
+    assert_eq!(std::fs::read(folder.join("state.1.ron")).unwrap(), saved);
 }

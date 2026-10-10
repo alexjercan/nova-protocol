@@ -149,6 +149,8 @@ const ROCK_KINDS: [&str; 4] = [KIND_ROCK, KIND_METAL, KIND_ICE, KIND_CARBON];
 pub struct ClusteredWorld {
     /// The ship parts every hull is laid out from.
     pub parts: Arc<ShipPartSnapshot>,
+    /// The item catalog every hull's hold is laid out from.
+    pub items: Arc<GameItems>,
 }
 
 /// Equal when both pin one ship-part snapshot. Compares the digest, never the
@@ -172,7 +174,13 @@ impl SectorGenerator for ClusteredWorld {
     }
 
     fn generate(&self, input: SectorGenerationInput) -> Result<SectorManifest, SectorFault> {
-        Ok(plan_cell(&EnvironmentFields::new(input.seed), &self.parts, input)?.manifest())
+        Ok(plan_cell(
+            &EnvironmentFields::new(input.seed),
+            &self.parts,
+            &self.items,
+            input,
+        )?
+        .manifest())
     }
 }
 
@@ -886,6 +894,7 @@ fn halo_nodes(coord: SectorCoord, edge: Meters) -> Vec<[i32; 3]> {
 pub fn plan_cell(
     fields: &EnvironmentFields,
     parts: &ShipPartSnapshot,
+    items: &GameItems,
     input: SectorGenerationInput,
 ) -> Result<CellPlan, SectorFault> {
     let coord = input.coord;
@@ -926,6 +935,7 @@ pub fn plan_cell(
             if let ClusterBody::Hull { yaw, lineage } = member.body {
                 let ship = plan_ship(
                     parts,
+                    items,
                     &civilizations,
                     input.seed,
                     HullSlot {
@@ -1073,6 +1083,7 @@ mod tests {
                 digest: ContentCatalogDigest(0),
             },
             &GameStyles(nova_authoring::generation::build_styles()),
+            &GameItems::new(nova_authoring::generation::build_items()),
         )
     }
 
@@ -1082,8 +1093,13 @@ mod tests {
         desired_sectors(CLUSTER_HOME, EXAMPLE_ACTIVE_RADIUS)
             .into_iter()
             .map(|coord| {
-                let plan = plan_cell(&fields, &config.generator.parts, config.input(coord))
-                    .unwrap_or_else(|fault| panic!("{coord}: {fault}"));
+                let plan = plan_cell(
+                    &fields,
+                    &config.generator.parts,
+                    &config.generator.items,
+                    config.input(coord),
+                )
+                .unwrap_or_else(|fault| panic!("{coord}: {fault}"));
                 (coord, plan)
             })
             .collect()

@@ -289,6 +289,11 @@ impl FrozenCanister {
     pub fn id(&self) -> CargoCanisterRuntimeId {
         self.id
     }
+
+    /// Every item id the canister holds.
+    pub fn item_ids(&self) -> impl Iterator<Item = &ItemDesignId> {
+        self.contents.stacks().map(|(item, _)| item)
+    }
 }
 
 /// Capture `canister`'s id, contents, health and model.
@@ -512,6 +517,7 @@ fn run_cargo_intakes(
     collisions: Collisions,
     mut readiness: ResMut<CargoPickupReadiness>,
     mut canister_ids: ResMut<CargoCanisterIdAllocator>,
+    items: Res<GameItems>,
 ) {
     readiness.pairs.clear();
     let mut canisters: Vec<CanisterRead> = q_canisters
@@ -558,7 +564,7 @@ fn run_cargo_intakes(
                 !read.taken
                     && offset.dot(normal) >= 0.0
                     && offset.length() <= detection_range
-                    && inventory.free_g() >= read.canister.total_mass_g()
+                    && inventory.free_g(&items) >= read.canister.total_mass_g(&items)
             });
         let target = if wanted { 1.0 } else { 0.0 };
         if let Some(was) = animations.cue_target(SectionAnimationCue::IntakeDoor) {
@@ -581,7 +587,7 @@ fn run_cargo_intakes(
                         manifold.points.iter().any(|point| point.penetration >= 0.0)
                     })
                 })
-            }) && inventory.free_g() >= read.canister.total_mass_g();
+            }) && inventory.free_g(&items) >= read.canister.total_mass_g(&items);
             readiness.pairs.push(CargoPickupPair {
                 ship,
                 intake,
@@ -592,7 +598,7 @@ fn run_cargo_intakes(
                 continue;
             }
             for (item, count) in read.canister.stacks() {
-                inventory.add(item, count);
+                inventory.add(&items, item, count);
             }
             commands.entity(read.entity).despawn();
             commands.trigger(CargoCanisterTaken { entity: intake });

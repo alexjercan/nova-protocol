@@ -67,7 +67,8 @@
 use bevy::prelude::{Quat, Vec3};
 use nova_events::prelude::{Meters, Meters3, MetersPerSecond3, MetersPerSecondSquared};
 use nova_gameplay::prelude::{
-    circular_orbit_speed, unit_sphere_point, Fnv32, GravitySettings, GravityWell, SeedStream,
+    circular_orbit_speed, unit_sphere_point, Fnv32, GameItems, GravitySettings, GravityWell,
+    SeedStream,
 };
 use nova_scenario::prelude::{
     asteroid_seed_from_id, PlanetConfig, PlanetType, ASTEROID_GEOMETRIC_FACTOR_MAX, KIND_CARBON,
@@ -363,7 +364,13 @@ pub fn sector_clusters(
     world: &NovaLayeredWorld,
     input: SectorGenerationInput,
 ) -> Result<SectorClusters, SectorFault> {
-    Ok(plan_sector(&EnvironmentFields::new(input.seed), world.parts(), input)?.summary())
+    Ok(plan_sector(
+        &EnvironmentFields::new(input.seed),
+        world.parts(),
+        world.items(),
+        input,
+    )?
+    .summary())
 }
 
 /// Refuse a geometry this policy cannot fill.
@@ -1535,6 +1542,7 @@ fn halo_nodes(coord: SectorCoord, edge: Meters) -> Vec<[i32; 3]> {
 pub(crate) fn plan_sector(
     fields: &EnvironmentFields,
     parts: &ShipPartSnapshot,
+    items: &GameItems,
     input: SectorGenerationInput,
 ) -> Result<SectorPlan, SectorFault> {
     let coord = input.coord;
@@ -1593,6 +1601,7 @@ pub(crate) fn plan_sector(
             let mut planned = candidate("hull", index, BodySource::Hull(node, index), &hull.hull);
             let ship = plan_ship(
                 parts,
+                items,
                 &civilizations,
                 input.seed,
                 HullSlot {
@@ -1867,8 +1876,13 @@ mod tests {
         desired_sectors(SectorCoord::ORIGIN, config.active_radius)
             .into_iter()
             .map(|coord| {
-                let plan = plan_sector(&fields, config.generator.parts(), config.input(coord))
-                    .unwrap_or_else(|fault| panic!("{coord}: {fault}"));
+                let plan = plan_sector(
+                    &fields,
+                    config.generator.parts(),
+                    config.generator.items(),
+                    config.input(coord),
+                )
+                .unwrap_or_else(|fault| panic!("{coord}: {fault}"));
                 (coord, plan)
             })
             .collect()
@@ -1925,6 +1939,7 @@ mod tests {
         let fault = plan_sector(
             &EnvironmentFields::new(SEED),
             &unbuildable,
+            config().generator.items(),
             config().input(owner),
         )
         .expect_err("a hull no layout fits must fail its cell");
@@ -2226,8 +2241,13 @@ mod tests {
                 }
             }
             for coord in coords {
-                let plan = plan_sector(&fields, config.generator.parts(), config.input(coord))
-                    .unwrap_or_else(|fault| panic!("{seed} {coord}: {fault}"));
+                let plan = plan_sector(
+                    &fields,
+                    config.generator.parts(),
+                    config.generator.items(),
+                    config.input(coord),
+                )
+                .unwrap_or_else(|fault| panic!("{seed} {coord}: {fault}"));
                 alone += (plan.bodies.iter())
                     .filter(|body| body.skipped == Some(SkipType::Companion))
                     .count();
@@ -2471,6 +2491,7 @@ mod tests {
                 let plan = plan_sector(
                     &fields,
                     config.generator.parts(),
+                    config.generator.items(),
                     config.input(SectorCoord::new(x, 0, z)),
                 )
                 .unwrap_or_else(|fault| panic!("[{x}, 0, {z}]: {fault}"));
@@ -2552,7 +2573,13 @@ mod tests {
             .unwrap()
             .rocks[1]
             .position;
-        let mut plan = plan_sector(&fields, world.generator.parts(), world.input(coord)).unwrap();
+        let mut plan = plan_sector(
+            &fields,
+            world.generator.parts(),
+            world.generator.items(),
+            world.input(coord),
+        )
+        .unwrap();
         let escort_index = plan
             .bodies
             .iter()
@@ -2627,8 +2654,20 @@ mod tests {
             .unwrap()
             .rocks[1]
             .position;
-        let first = plan_sector(&fields, world.generator.parts(), world.input(coord)).unwrap();
-        let second = plan_sector(&fields, world.generator.parts(), world.input(coord)).unwrap();
+        let first = plan_sector(
+            &fields,
+            world.generator.parts(),
+            world.generator.items(),
+            world.input(coord),
+        )
+        .unwrap();
+        let second = plan_sector(
+            &fields,
+            world.generator.parts(),
+            world.generator.items(),
+            world.input(coord),
+        )
+        .unwrap();
         let id = "sector_2_0_1_cluster_1_0_1_rock_1";
         let placed = first.bodies.iter().find(|body| body.id == id).unwrap();
         assert!(placed.skipped.is_none());
@@ -2738,8 +2777,13 @@ mod tests {
             world.seed = seed;
             let fields = EnvironmentFields::new(seed);
             for coord in desired_sectors(SectorCoord::ORIGIN, world.active_radius) {
-                let plan =
-                    plan_sector(&fields, world.generator.parts(), world.input(coord)).unwrap();
+                let plan = plan_sector(
+                    &fields,
+                    world.generator.parts(),
+                    world.generator.items(),
+                    world.input(coord),
+                )
+                .unwrap();
                 let manifest = plan.manifest().unwrap();
                 let wells: Vec<_> = plan
                     .clusters

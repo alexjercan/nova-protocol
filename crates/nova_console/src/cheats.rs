@@ -138,14 +138,20 @@ pub fn ammo_refill_section(world: &mut World, ship_id: &str, section_id: &str) -
 /// free hold, or none of it is added.
 pub fn item_give(world: &mut World, ship_id: &str, item_id: &str, quantity: &str) -> Resolved {
     const NAME: &str = "item give";
-    let Some(item) = item_type(item_id) else {
-        let known = command_spec(NAME)
-            .and_then(|spec| spec.args.get(1))
-            .map_or_else(String::new, |arg| arg.words().join(", "));
+    let Some(items) = world.get_resource::<GameItems>().cloned() else {
         return Err(CommandResult::error(
             NAME,
             Some(CLASS),
-            format!("{NAME}: no item named '{item_id}' ({known})"),
+            format!("{NAME}: no item catalog is loaded; the world is inconsistent"),
+        ));
+    };
+    let item = ItemDesignId::from(item_id);
+    let Some(design) = items.get(&item).cloned() else {
+        let known: Vec<&str> = items.iter().map(|design| design.id.as_str()).collect();
+        return Err(CommandResult::error(
+            NAME,
+            Some(CLASS),
+            format!("{NAME}: no item named '{item_id}' ({})", known.join(", ")),
         ));
     };
     let Some(count) = quantity.parse::<u32>().ok().filter(|count| *count > 0) else {
@@ -165,7 +171,11 @@ pub fn item_give(world: &mut World, ship_id: &str, item_id: &str, quantity: &str
             format!("'{ship_id}' has no inventory; the world is inconsistent"),
         ));
     };
-    let (label, mass_g, free_g) = (item.label(), item.stack_mass_g(count), inventory.free_g());
+    let (label, mass_g, free_g) = (
+        design.name.as_str(),
+        design.stack_mass_g(count),
+        inventory.free_g(&items),
+    );
     if mass_g > u64::from(free_g) {
         return Err(CommandResult::refused(
             NAME,
@@ -177,11 +187,11 @@ pub fn item_give(world: &mut World, ship_id: &str, item_id: &str, quantity: &str
             ),
         ));
     }
-    inventory.add(item, count);
-    let held = inventory.count(item);
+    inventory.add(&items, &item, count);
+    let held = inventory.count(&item);
     let load = format!(
         "{} / {}",
-        kg_text(u64::from(inventory.used_g())),
+        kg_text(u64::from(inventory.used_g(&items))),
         kg_text(u64::from(inventory.capacity_g())),
     );
     Ok(CommandResult::ok(
@@ -192,24 +202,6 @@ pub fn item_give(world: &mut World, ship_id: &str, item_id: &str, quantity: &str
     .with_rows(vec![TerminalRow::warn(format!(
         "{ship_id}: {count} {label} added; {held} held, {load}."
     ))]))
-}
-
-/// The item a typed id names. The ids are the `ItemType` names content
-/// writes, so a player types what a scenario file says.
-fn item_type(id: &str) -> Option<ItemType> {
-    match id {
-        "HullPlate" => Some(ItemType::HullPlate),
-        "PdcRound" => Some(ItemType::PdcRound),
-        "RailSlug" => Some(ItemType::RailSlug),
-        "Torpedo" => Some(ItemType::Torpedo),
-        "StoneOre" => Some(ItemType::StoneOre),
-        "IronOre" => Some(ItemType::IronOre),
-        "WaterIce" => Some(ItemType::WaterIce),
-        "CarbonOre" => Some(ItemType::CarbonOre),
-        "Rations" => Some(ItemType::Rations),
-        "SalvagedParts" => Some(ItemType::SalvagedParts),
-        _ => None,
-    }
 }
 
 /// `scenario load <id>`: abandon the attempt and start a fresh one.
@@ -335,13 +327,15 @@ mod tests {
             cheats.arm();
         }
         world.insert_resource(cheats);
+        let items = nova_gameplay::test_support::test_items();
         let ship = world
             .spawn((
                 SpaceshipRootMarker,
                 EntityId("player_spaceship".to_string()),
-                ShipInventory::new(400_000, [(ItemType::HullPlate, 12)]),
+                ShipInventory::new(&items, 400_000, [(ItemDesignId::from(ITEM_HULL_PLATE), 12)]),
             ))
             .id();
+        world.insert_resource(items);
         (world, ship)
     }
 
@@ -363,29 +357,6 @@ mod tests {
         let (mut world, ship) = world_with_hold(true);
         let hold = |world: &World| world.get::<ShipInventory>(ship).expect("hold").clone();
 
-        // The catalog's item words parse to their own `ItemType` names. The
-        // match stops compiling when a variant is added, which sends its author
-        // to `ITEM_WORDS` and `item_type`.
-        let id = |item: ItemType| match item {
-            ItemType::HullPlate => "HullPlate",
-            ItemType::PdcRound => "PdcRound",
-            ItemType::RailSlug => "RailSlug",
-            ItemType::Torpedo => "Torpedo",
-            ItemType::StoneOre => "StoneOre",
-            ItemType::IronOre => "IronOre",
-            ItemType::WaterIce => "WaterIce",
-            ItemType::CarbonOre => "CarbonOre",
-            ItemType::Rations => "Rations",
-            ItemType::SalvagedParts => "SalvagedParts",
-        };
-        let words = command_spec("item give").expect("catalog row").args[1].words();
-        let parsed: Vec<&str> = words
-            .iter()
-            .filter_map(|word| item_type(word))
-            .map(id)
-            .collect();
-        assert_eq!(parsed, words);
-
         let result = give(&mut world, ["player_spaceship", "HullPlate", "5"]);
         assert_eq!(result.status, CommandStatus::Ok, "{}", result.detail);
         assert_eq!(result.detail, "player_spaceship: +5 Hull plate, 17 held");
@@ -398,18 +369,19 @@ mod tests {
             let result = give(&mut world, ["player_spaceship", id, count]);
             assert_eq!(result.status, CommandStatus::Ok, "{id}: {}", result.detail);
         }
+        let items = world.resource::<GameItems>().clone();
         let hold = hold(&world);
         assert_eq!(
             hold.stacks().collect::<Vec<_>>(),
             [
-                (ItemType::HullPlate, 17),
-                (ItemType::PdcRound, 300),
-                (ItemType::RailSlug, 1),
-                (ItemType::Torpedo, 1),
+                (&ItemDesignId::from(ITEM_HULL_PLATE), 17),
+                (&ItemDesignId::from(ITEM_PDC_ROUND), 300),
+                (&ItemDesignId::from(ITEM_RAIL_SLUG), 1),
+                (&ItemDesignId::from(ITEM_TORPEDO), 1),
             ]
         );
-        assert_eq!(hold.used_g(), 400_000);
-        assert_eq!(hold.free_g(), 0);
+        assert_eq!(hold.used_g(&items), 400_000);
+        assert_eq!(hold.free_g(&items), 0);
     }
 
     /// A give that is unarmed, names no single live ship, names an unknown
@@ -435,7 +407,7 @@ mod tests {
             (
                 ["player_spaceship", "hullplate", "1"],
                 CommandStatus::Error,
-                "no item named 'hullplate' (HullPlate, PdcRound, RailSlug, Torpedo, StoneOre, IronOre, WaterIce, CarbonOre, Rations, SalvagedParts)",
+                "no item named 'hullplate' (CarbonOre, HullPlate, IronOre, PdcRound, RailSlug, Rations, SalvagedParts, StoneOre, Torpedo, WaterIce)",
             ),
             (
                 ["player_spaceship", "HullPlate", "0"],

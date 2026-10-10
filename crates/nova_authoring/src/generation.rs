@@ -11,6 +11,7 @@
 //! build - `nova_modding` (a dependency) turns on `nova_scenario/serde`, and
 //! Cargo feature unification carries it here.
 
+use nova_gameplay::prelude::ItemDesign;
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::{
     CampaignConfig, ScenarioConfig, ShipDesignPrototype, ShipDesignSource, SpaceshipConfig,
@@ -27,10 +28,10 @@ use crate::base_content;
 /// parity test asserts.
 pub mod prelude {
     pub use super::{
-        build_campaign_content, build_campaigns, build_lesson_content, build_lessons,
-        build_scenario_contents, build_scenarios, build_section_catalog, build_section_content,
-        build_ship_content, build_ships, build_style_content, build_styles, content_files,
-        serialize_content, spawned_ship_sections,
+        build_campaign_content, build_campaigns, build_item_content, build_items,
+        build_lesson_content, build_lessons, build_scenario_contents, build_scenarios,
+        build_section_catalog, build_section_content, build_ship_content, build_ships,
+        build_style_content, build_styles, content_files, serialize_content, spawned_ship_sections,
     };
 }
 
@@ -68,6 +69,20 @@ pub fn build_campaign_content() -> Vec<Content> {
         .into_iter()
         .map(Content::Campaign)
         .collect()
+}
+
+/// The base game's items, in the order the file carries them.
+pub fn build_items() -> Vec<ItemDesign> {
+    base_content::build().items
+}
+
+/// The item catalog wrapped as one `Vec<Content>` of `Content::Item` items -
+/// the shape the committed `assets/base/items/base.content.ron` file carries.
+///
+/// ONE file for every item, like the styles: an item is a few numbers, and a
+/// price or a mass is read against the others.
+pub fn build_item_content() -> Vec<Content> {
+    build_items().into_iter().map(Content::Item).collect()
 }
 
 /// The base game's skin styles, in a stable order - the look a ship's derived
@@ -190,6 +205,10 @@ pub fn serialize_content(content: &[Content]) -> String {
 /// what it contains.
 pub fn content_files() -> Vec<(String, String)> {
     let mut files = vec![
+        (
+            "base/items/base.content.ron".to_string(),
+            serialize_content(&build_item_content()),
+        ),
         (
             "base/sections/base.content.ron".to_string(),
             serialize_content(&build_section_content()),

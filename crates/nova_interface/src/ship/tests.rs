@@ -10,7 +10,7 @@ use bevy::{
     ui_widgets::Activate,
 };
 use nova_events::prelude::EntityId;
-use nova_gameplay::{prelude::*, PauseStates};
+use nova_gameplay::{prelude::*, test_support::test_items, PauseStates};
 use nova_input::prelude::RegisterInputActions;
 use nova_ship::prelude::*;
 use nova_ui::{
@@ -123,6 +123,7 @@ fn ship_repair_spends_plates_only_on_a_damaged_player_section() {
     // Repair spends exactly the selected whole plates, each restoring up to 20
     // HP. Live stock and Health are validated before either mutates. Every
     // refusal leaves Health, markers and both ships' inventories untouched.
+    let items = test_items();
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
     app.init_resource::<ShipRuntime>();
@@ -148,7 +149,7 @@ fn ship_repair_spends_plates_only_on_a_damaged_player_section() {
         app.world()
             .get::<ShipInventory>(ship)
             .unwrap()
-            .count(ItemType::HullPlate)
+            .count(&ItemDesignId::from(ITEM_HULL_PLATE))
     };
     let note = |app: &App| {
         app.world()
@@ -157,7 +158,13 @@ fn ship_repair_spends_plates_only_on_a_damaged_player_section() {
             .clone()
             .map(|(text, _)| text)
     };
-    let stock = |count| ShipInventory::new(400_000, [(ItemType::HullPlate, count)]);
+    let stock = |count| {
+        ShipInventory::new(
+            &items,
+            400_000,
+            [(ItemDesignId::from(ITEM_HULL_PLATE), count)],
+        )
+    };
 
     // No plates: the P key still sends, and the hull stays at 80/100.
     repair(&mut app, &[(hull, 1)]);
@@ -253,6 +260,7 @@ fn ship_repair_spends_plates_only_on_a_damaged_player_section() {
 
 #[test]
 fn ship_repair_spends_selected_quantity_and_refuses_stale_requests_atomically() {
+    let items = test_items();
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
     app.init_resource::<ShipRuntime>();
@@ -263,13 +271,19 @@ fn ship_repair_spends_selected_quantity_and_refuses_stale_requests_atomically() 
         .run_system_once(assign_section_codes)
         .unwrap();
 
-    let stock = |count| ShipInventory::new(400_000, [(ItemType::HullPlate, count)]);
+    let stock = |count| {
+        ShipInventory::new(
+            &items,
+            400_000,
+            [(ItemDesignId::from(ITEM_HULL_PLATE), count)],
+        )
+    };
     let health = |app: &App| app.world().get::<Health>(turret).unwrap().current;
     let plates = |app: &App| {
         app.world()
             .get::<ShipInventory>(ship)
             .unwrap()
-            .count(ItemType::HullPlate)
+            .count(&ItemDesignId::from(ITEM_HULL_PLATE))
     };
     let repair = |app: &mut App, requested_plates| {
         app.world_mut().write_message(SectionRepairCommand {
@@ -780,6 +794,7 @@ fn ship_orbit_recenters_on_selected_section() {
 /// and starts the draft at All once the inventory arrives.
 #[test]
 fn ship_input_selection_repair_reset_survives_a_missing_player_inventory() {
+    let items = test_items();
     let (mut app, hull, _turret, _thruster) = offset_ship_app();
     let ship = app
         .world_mut()
@@ -799,9 +814,11 @@ fn ship_input_selection_repair_reset_survives_a_missing_player_inventory() {
         "no inventory means no plates to request, not a panic"
     );
 
-    app.world_mut()
-        .entity_mut(ship)
-        .insert(ShipInventory::new(400_000, [(ItemType::HullPlate, 10)]));
+    app.world_mut().entity_mut(ship).insert(ShipInventory::new(
+        &items,
+        400_000,
+        [(ItemDesignId::from(ITEM_HULL_PLATE), 10)],
+    ));
     app.world_mut().run_system_once(ship_input).unwrap();
     let runtime = app.world().resource::<ShipRuntime>();
     assert_eq!(runtime.repair_target, Some(hull));
@@ -1199,6 +1216,7 @@ fn panel_buttons_raise_section_repair_command() {
     // (`pin-each-caller-not-just-shared-core`).
     // A world trigger leaves the observers' commands queued, so each cue check
     // flushes first; a silent check without the flush would pass vacuously.
+    let items = test_items();
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, StatesPlugin, AssetPlugin::default()));
     app.insert_state(PauseStates::Interface);
@@ -1214,9 +1232,11 @@ fn panel_buttons_raise_section_repair_command() {
         .unwrap();
 
     // --- Repair button on the hull (starts at 80/100). ---
-    app.world_mut()
-        .entity_mut(ship)
-        .insert(ShipInventory::new(400_000, [(ItemType::HullPlate, 1)]));
+    app.world_mut().entity_mut(ship).insert(ShipInventory::new(
+        &items,
+        400_000,
+        [(ItemDesignId::from(ITEM_HULL_PLATE), 1)],
+    ));
     let repair = app
         .world_mut()
         .spawn(ShipPanelButton::Repair)
@@ -1294,6 +1314,7 @@ fn update_ship_panel_reflects_selection() {
     // caches the button-enabled flags the observers read. Reverting it to a
     // no-op must fail this (the fact rows would stay empty and the flags stay
     // false). Scheduled rather than run once, so typing reads as a change.
+    let items = test_items();
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
     app.init_asset::<Font>();
@@ -1301,9 +1322,11 @@ fn update_ship_panel_reflects_selection() {
     app.insert_resource(InterfaceIcons::blank());
     app.add_systems(Update, update_ship_panel);
     let (ship, hull, turret, thruster) = spawn_scripted_ship(app.world_mut());
-    app.world_mut()
-        .entity_mut(ship)
-        .insert(ShipInventory::new(400_000, [(ItemType::HullPlate, 1)]));
+    app.world_mut().entity_mut(ship).insert(ShipInventory::new(
+        &items,
+        400_000,
+        [(ItemDesignId::from(ITEM_HULL_PLATE), 1)],
+    ));
     app.world_mut()
         .entity_mut(turret)
         .insert(SpaceshipTurretInputBinding(vec![
@@ -1443,9 +1466,11 @@ fn update_ship_panel_reflects_selection() {
     // A section selected at full integrity has no draft of its own yet. The
     // damage that makes it repairable starts its draft at All, as in the
     // Ship lesson where the turret is hurt after the pane selects it.
-    app.world_mut()
-        .entity_mut(ship)
-        .insert(ShipInventory::new(400_000, [(ItemType::HullPlate, 10)]));
+    app.world_mut().entity_mut(ship).insert(ShipInventory::new(
+        &items,
+        400_000,
+        [(ItemDesignId::from(ITEM_HULL_PLATE), 10)],
+    ));
     app.world_mut().resource_mut::<ShipRuntime>().selected = Some(thruster);
     app.update();
     assert!(!shown(&mut app, ShipPanelField::RepairForm));
@@ -1473,9 +1498,11 @@ fn update_ship_panel_reflects_selection() {
     app.world_mut().resource_mut::<ShipRuntime>().selected = Some(turret);
     app.update();
     assert!(!shown(&mut app, ShipPanelField::RepairForm));
-    app.world_mut()
-        .entity_mut(ship)
-        .insert(ShipInventory::new(400_000, [(ItemType::HullPlate, 10)]));
+    app.world_mut().entity_mut(ship).insert(ShipInventory::new(
+        &items,
+        400_000,
+        [(ItemDesignId::from(ITEM_HULL_PLATE), 10)],
+    ));
     app.update();
     assert_eq!(
         app.world().resource::<ShipRuntime>().requested_plates,
@@ -1551,15 +1578,18 @@ fn update_ship_panel_shows_no_section_without_a_player_inventory() {
 fn update_ship_panel_preview_names_the_exact_repair_refusal() {
     // A section already at full integrity has no repair form; a damaged one
     // names the exact refusal of its draft in the form summary.
+    let items = test_items();
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
     app.init_asset::<Font>();
     app.init_resource::<ShipRuntime>();
     app.insert_resource(InterfaceIcons::blank());
     let (ship, hull, _turret, thruster) = spawn_scripted_ship(app.world_mut());
-    app.world_mut()
-        .entity_mut(ship)
-        .insert(ShipInventory::new(400_000, [(ItemType::HullPlate, 1)]));
+    app.world_mut().entity_mut(ship).insert(ShipInventory::new(
+        &items,
+        400_000,
+        [(ItemDesignId::from(ITEM_HULL_PLATE), 1)],
+    ));
     app.world_mut()
         .run_system_once(assign_section_codes)
         .unwrap();
@@ -1618,6 +1648,7 @@ fn update_ship_panel_hides_the_repair_form_after_a_full_repair() {
     // section but leaves `requested_plates` untouched; the panel hides the
     // form, and its field lets go of the keyboard, rather than restate the
     // outstanding request.
+    let items = test_items();
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
     app.init_asset::<Font>();
@@ -1626,9 +1657,11 @@ fn update_ship_panel_hides_the_repair_form_after_a_full_repair() {
     app.add_message::<SectionRepairCommand>();
     app.add_systems(Update, apply_ship_section_commands);
     let (ship, hull, _turret, _thruster) = spawn_scripted_ship(app.world_mut());
-    app.world_mut()
-        .entity_mut(ship)
-        .insert(ShipInventory::new(400_000, [(ItemType::HullPlate, 1)]));
+    app.world_mut().entity_mut(ship).insert(ShipInventory::new(
+        &items,
+        400_000,
+        [(ItemDesignId::from(ITEM_HULL_PLATE), 1)],
+    ));
     app.world_mut()
         .run_system_once(assign_section_codes)
         .unwrap();
