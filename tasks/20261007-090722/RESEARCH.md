@@ -2,6 +2,7 @@
 
 This is the source audit at the base revision below, not a description of current
 master. The post-audit delivery status and remaining proof gaps are in section 8.
+Section 9 traces the remaining flows at `2febf1b49` and ranks new candidates.
 
 Base: `master` at `cb9ab4c66`, after #110 (`b9f2b84f5`, frozen sectors) and
 #111 (`b210fee0c`, saved worlds with Load). Static code and evidence audit
@@ -46,12 +47,13 @@ Not edited. After #110/#111 these rows are wrong:
 | `tasks/20260925-190131/TASK.md:68-90` and its PNGs | 2026-10-02 | New Game seed 4426 via real menu; controlled `world_encounters` | Real New Game (player placed, not flown) plus controlled example | Enemy fired on the player; three side markers rendered. Take after boarding by ECS assertion. Streamed Take/dock/boarding not verified. |
 | `tasks/20261007-090756/p6-frames/*.png` | `655100c29`, 2026-10-09 | New Game via `system_world_resume` | Real menu path, disclosed fixture state | Status line, leave overlay, load screen render. The status-line frame shows a fresh spawn: empty space, three dock chips (STOP RADAR RCS), no objective. **Observed.** |
 | `examples/systems/system_open_world.rs:1-25` | HEAD | New Game, fire every weapon, Retry, menu | Real menu path, autopilot | Session lifecycle. No death, mining, pickup or trade. |
-| `crates/nova_bench/src/cli.rs:133-260` | HEAD | `bench play --session new-game` | Harness | A real New Game bench path exists. No recorded run found in `tasks/` or `bench-runs/`. |
+| `crates/nova_bench/src/cli.rs:133-260` | HEAD | `bench play --session new-game` | Harness | A real New Game bench path exists. No retained New Game recording was found in `tasks/` or `bench-runs/` during this audit; this does not mean no earlier runs occurred. |
 | `~/Videos/Recording/2026-10-09_*.mp4` | 2026-10-09 | - | Not Nova | Frames show a first-person interior from another project. Excluded. No `~/Videos/nova-bench-*` folder exists. |
 | `tasks/20260926-132243` | CLOSED | Docking | - | Resolved per owner. Not reopened. |
 
-No evidence at HEAD shows a human player in New Game. No recorded New Game
-mine, pickup, sell, repair or death flow exists.
+No evidence at this audit shows a human player in New Game. No retained recording
+of a complete New Game mine, pickup, sell, repair or death flow was found; earlier
+New Game experiments do not establish those complete outcomes.
 
 ## 4. Ranked polish candidates
 
@@ -189,9 +191,9 @@ mine, pickup, sell, repair or death flow exists.
 
 ### Minor, unranked
 
-- **Hypothesis:** the New Game modal may show "name the world" before the
-  player types, because `read_world_setup` runs on the field's first change
-  (`world_setup.rs:236-296`). Check one frame.
+- **Superseded by `a4f244427`:** the name field now opens on `New World`
+  (`crates/nova_menu/src/world_setup.rs:49-52,187`), so the empty-name state
+  is gone. See section 9 for the taken-default consequence.
 - **Code-backed:** repair refuses a plate count above need
   (`inventory.rs:816-818`) instead of clamping; the All button exists
   (`ship/app.rs:196-198`). Low impact.
@@ -224,8 +226,8 @@ mine, pickup, sell, repair or death flow exists.
     the test proves that gap closed.
 - Canisters have no expiry (`mining.rs:940-987`, `cargo_intake_section.rs`);
   scout claim, not refuted.
-- Not traced: hostile-encounter readability, player hit-direction feedback.
-  No hit-direction HUD file was found; that absence is a hypothesis.
+- Not traced at the base revision: hostile-encounter readability, player
+  hit-direction feedback. Section 9 traces both at `2febf1b49`.
 
 ## 7. Bounded next proof plan (not executed)
 
@@ -267,7 +269,8 @@ This does not turn the original source audit into player-observed evidence.
 The first-frame Load yaw fix is separate (`398fbc804`): a non-identity saved
 pose now seeds the body and helm before thaw. Its regression failed before and
 passed after the fix. A rendered non-identity Load transition is unverified.
-These commits are local and were not pushed at this audit.
+These commits are local and were not pushed at this audit (still 9 commits
+ahead of `origin/master` at `2febf1b49`).
 
 The original candidate text above describes the pre-fix code at `cb9ab4c66`;
 its claims that death has no recovery, mining refusals are silent, or an unfit
@@ -281,9 +284,11 @@ cheat-marked full/control pair (1533/1531 frames) retained one ejected
 canister and unchanged HullPlate counts. With zero free mass the door-close
 cue follows ejection by one tick; with 10,000 g free it follows after 713
 ticks near the 40 m range edge. Both #80 rejudgments pass after correcting
-a pre-spawn canister sample. See `tasks/20261009-184226/proof/bench/runs/`
-and `tasks/20261009-184234/proof/bench/runs/` for the logs, sidecars, scores,
-frames, and before/after judge results. The rear camera does **not** resolve
+a pre-spawn canister sample. The bench run trees under both proof folders
+were deleted after the tasks closed. Only these summaries and
+`tasks/20261009-184234/TASK.md` ("Proof and limits") remain; the run IDs and
+the `inspect/` frame cited below cannot be reopened. `tasks/20261009-184226/proof/`
+keeps only diffs and ignored check logs. The rear camera does **not** resolve
 the door pose. A later free-look pair (`control-20261010T094427-456478`,
 `full-20261010T095303-463592`) renders upright open door leaves and later
 folded leaves, but the combined free-look/aim gesture also turns the ship;
@@ -291,8 +296,8 @@ its control closes after 115 ticks and fails the unchanged 300-tick judge
 threshold. The corrected split-input pair (`control-20261010T101138-469984`,
 `full-20261010T101706-474036`) keeps turn rate zero, passes the unchanged
 judge (713 vs 1 tick until close), and renders visibly upright open leaves
-versus folded leaves in `full-20261010T101706-474036/inspect/matched-control-top-full-bottom.png`.
-The possible same-tick camera/ship steering bug is uninvestigated. Nobody
+versus folded leaves (deleted `inspect/matched-control-top-full-bottom.png`).
+Section 9, candidate A, traces the camera/ship steering mechanism in source. Nobody
 listened to the sound: sidecar voices and AAC levels prove a recorded cue,
 not perceptual quality. These fixtures do not prove a
 real New Game mine/pickup/sale flow or player usability.
@@ -304,3 +309,143 @@ authors an empty mapping for a player `block_line_warship`, while
 section lacks a key. This is source-backed, **not reproduced** in that bench
 scenario. Do not silently modify that shipped fixture under the task-local
 proof scope; reproduce, gate, then repair separately if confirmed.
+
+## 9. Remaining flows at `2febf1b49` (2026-10-10)
+
+Read-only source trace of travel/aim, inventory/trade/repair, combat and the
+first minute. No cargo, game, probe, bench or GPU run. Four read-only scouts
+mapped the flows; every claim below was rechecked in source by the main
+worker. Labels as in the header.
+
+### 9.1 Evidence since section 8
+
+No new player-run or rendered evidence exists. The #79/#80 bench trees are
+deleted (section 8). The newest rendered frames are still
+`tasks/20261007-090756/p6-frames/*.png` (2026-10-09, fixture New Game) and
+`tasks/20260925-190131/stream-seed4426-*.png` (2026-10-02, real New Game,
+player placed). **Observed** in `stream-seed4426-enemy-vasfenda-armored-firing.png`:
+a red marker on the locked enemy and inbound tracers, but no player hull or
+section element on screen. No `bench-runs/` score and no `~/Videos/nova-bench-*`
+folder records a New Game travel, trade, repair or combat flow.
+
+### 9.2 Ranked candidates
+
+**A. A camera mode switch leaves the hull-steering rate live (travel/aim, combat).**
+- **Code-backed chain.**
+  1. The rotate observer writes the mouse rate only into rigs that hold
+     `SpaceshipRotationInputActiveMarker` (`crates/nova_ship/src/camera/mode.rs:132-172`).
+  2. Free-look (Alt) or turret aim (RMB) moves the marker off the Normal rig
+     and does not zero the Normal rig's `PointRotationInput`
+     (`mode.rs:81-123`).
+  3. `point_rotation_update_system` integrates EVERY `PointRotation` rig in
+     `PostUpdate`, marker or not (`crates/nova_gameplay/src/transform/point_rotation.rs:53,79-87`).
+  4. The hull PD target reads the Normal rig's output, gated only on
+     `Without<Autopilot>` and `Without<RcsActive>` (`crates/nova_ship/src/input/player/intent.rs:20-52`).
+  5. The rate is cleared only when the rotate action completes
+     (`mode.rs:174-181`) or control is suspended (`input/player/control.rs:87`).
+     That `Complete` fires on the first frame without mouse motion is
+     inferred from the RCS precedent, not read in `bevy_enhanced_input` source.
+- **Precedent:** RCS had the same stale-rate drift and was fixed by zeroing
+  the rate (`mode.rs:162-167`, test `mode.rs:613-666`).
+- **Related observation (artifact deleted, cause unproven):** the #80 combined
+  free-look/aim gesture turned the hull and closed the door after 115 ticks;
+  splitting the press from aim kept turn rate zero (section 8).
+- **Hypothesis:** a player who presses Alt or RMB while the mouse moves keeps
+  turning the ship at the last Normal-mode rate until the mouse stops for one
+  frame. Turret aim in combat is the common case. Magnitude depends on mouse
+  event cadence. Not reproduced.
+- **Before (hypothesis, not reproduced):** free-look or aim started mid-motion
+  may steer the hull. **After (direction, not approved):** the mode switch zeroes the outgoing
+  rig's rate. The press-frame delta still lands on the Normal rig; whether
+  the observer should route by the derived mode is a separate decision.
+- **Blast radius:** `camera/mode.rs` only. May break nested-hold, seeding and
+  pause tests in `mode.rs:253-611`; autopilot free-look reads the same rigs.
+- **Proof:** disposable ECS repro on the `mode.rs:613` rig: Normal rig
+  active with mouse motion, hold FreeLook with motion for N updates, assert
+  the Normal `PointRotationOutput` stops changing after the switch frame.
+  Needs a test gate. **Effort:** repro S (hours), fix S.
+
+**B. The player cannot read their own integrity in flight (combat).**
+- **Code-backed:** the code states there is no hull readout in the HUD; one
+  falling-edge hull alarm is the only integrity instrument
+  (`crates/nova_ship/src/ship_audio/cues.rs:270-276`). A hostile lock plays one
+  alarm (`cues.rs:200-259`). No hit-direction or damage-flash code exists
+  (no match under `crates/` for hit direction or damage flash). A
+  neutralized player gets no self cue: every `NeutralizedMarker` HUD reader
+  is about another ship (`crates/nova_hud/src/allegiance_markers.rs`,
+  `target_inset.rs`). AI then drops the player as a target
+  (`crates/nova_ship/src/input/ai/acquisition.rs:691-697`) and the open world
+  handles only `OnDestroyed` (`open_world.rs:56-65`). The player drifts alive
+  with no state and no outcome. This extends candidate 4.
+- **Observed:** the 2026-10-02 enemy frame shows no player integrity element.
+- **Hypothesis:** players do not know they are losing until the alarm or death.
+- **Class:** feature work (new HUD element and a neutralized-player policy),
+  not small polish. **Proof:** one rendered real-New-Game combat capture with
+  hull deltas from the audit. **Effort:** proof S, fix M.
+- **Doc debt, XS:** "Nothing repairs a hull today" (`cues.rs:264,773`) is
+  stale; plate repair exists (`crates/nova_gameplay/src/inventory.rs:793-824`).
+
+**C. Mining and TAB are not shown in flight, and New Game does not point at training (first minute).**
+- **Code-backed:** the dock lists nine verbs, none for mining or the
+  interface (`crates/nova_hud/src/keybind_dock.rs:87-97`). The open world
+  authors only spawn and Defeat, no lesson or `HintEmphasis`
+  (`open_world.rs:40-65`). The New Game modal names derelicts only
+  (`world_setup.rs:160-163`); the Basic Training offer is a menu corner on a
+  fresh install (`crates/nova_menu/src/menu_ui.rs:531`). Clusters sit on a 50 km
+  lattice and a node may hold nothing (`crates/nova_world_base/src/clusters.rs:9-11,90,1223-1226`),
+  so a spawn can face empty space.
+- **Observed:** one fixture spawn frame is empty with three chips (STOP RADAR
+  RCS).
+- **Hypothesis:** a first-time player never finds V or TAB. Not observed.
+- **After (options, none approved):** (a) a MINE chip lit when the lock is a
+  mineable rock in reach, reusing the refusal checks
+  (`crates/nova_scenario/src/mining.rs:503-532`); (b) an open-world
+  `HintEmphasis` spotlight at start. (a) also states why mining is refused.
+- **Proof:** P-C (section 7) frames on three seeds, then owner judgement.
+  **Effort:** proof S, fix S to M.
+
+**D. Refused DOCK, GOTO and ORBIT give no reason (travel, trade).**
+- **Code-backed:** a refused dock is `debug!` only
+  (`crates/nova_ship/src/sections/docking_section/connection.rs:193-196`);
+  GOTO/STOP refusals are `debug!` only
+  (`crates/nova_ship/src/input/player/flight_rig.rs:424-500`); a GOTO or ORBIT
+  whose target or well is gone disengages with a log only
+  (`crates/nova_ship/src/flight/autopilot.rs:651-656`). The dock hides a verb
+  that cannot run (`keybind_dock.rs:8-13`, `input/player/hints.rs:271-283`),
+  so this is the shipped policy, not an accident.
+- **Hypothesis:** a player pressing D on a hostile or fighting ship cannot
+  tell why nothing happens. Whether a sector retire despawns a GOTO target
+  is not traced.
+- **After (option):** reuse the mining refusal pattern (`d274c5e2d`) for a
+  refused verb press. **Effort:** S. Ranked low because the hide is designed.
+
+### 9.3 Checked, no candidate
+
+- **Trade and repair refusals are named:** every transfer, trade and credit
+  refusal and every repair refusal, `Destroyed` included, reaches a note line
+  (`crates/nova_interface/src/inventory/app.rs:1711-1762`,
+  `crates/nova_interface/src/ship/sections.rs:453-470`). Undock mid-trade
+  re-resolves the pair and refuses `not docked` (`inventory/app.rs:1223-1253,1666-1668`).
+  Trade status is learned only from the Buy/Sell row action after docking
+  (`inventory/app.rs:1102-1115`); a pre-dock trader cue is feature work.
+- **Human trigger and stance:** the fire gate reads `WeaponsHot` live each
+  tick (`crates/nova_ship/src/sections/turret_section/firing.rs:140-158`), so
+  the autopilot same-frame drop does not apply to a human press.
+- **Empty trigger:** a player dry-fire click and gauge cue exist
+  (`cues.rs:121-192`).
+- **Taken default name:** a second New Game opens on `New World`, which is
+  refused only on Create (`world_setup.rs:242-301` vs `:324-361`; test
+  `crates/nova_menu/src/tests/world_setup.rs:221`). The owner chose "nothing
+  numbers it" (`world_setup.rs:49-50`). Not a candidate.
+
+### 9.4 Done-when status
+
+Not met. The plan is code-backed, but no candidate has bounded visual or
+player proof. Gaps:
+1. P-A: rendered native death-to-Load flow; web seed-only check.
+2. P-B: New Game mine, pickup and sale bench run with audit deltas.
+3. P-C: fresh-spawn frames on three seeds (candidate C).
+4. Candidate A: ECS repro, needs a test gate.
+5. Candidate B: one rendered combat capture with hull deltas.
+6. Perceptual listening for the #79 refusal and #80 door cues.
+Each run needs a quiet host and separate approval. The task stays OPEN.

@@ -653,6 +653,11 @@ path = "examples/screenshots/screenshot_menu.rs"
 name = "screenshot_scenario_picker"
 path = "examples/screenshots/screenshot_scenario_picker.rs"
 
+# Listen to one mono cue at six bearings through the exterior audio route.
+[[example]]
+name = "spatial_audio_directions"
+path = "examples/playable/spatial_audio_directions.rs"
+
 # The Training handbook: the front door with its corner card, the lesson list,
 # and a tip whose media frame is the visual under review. Run twice - plain,
 # and `-- --narrow` for the supported narrow window.
