@@ -3,11 +3,12 @@
 //!
 //! New Game does not leave the menu. It opens this modal over it with a fresh
 //! seed drawn from the game's entropy, and only Create starts the world. On
-//! the desktop build Create first makes the world's folder under
-//! [`WorldsRoot`]; a name that is taken or a folder that cannot be made is
-//! refused in the modal and starts nothing. The world then saves itself as
-//! it is played, and the Load screen brings it back. The web build saves
-//! nothing: the modal says so, and the seed is the whole handle on a world.
+//! the desktop build the name field opens on `New World`, and Create first
+//! makes the world's folder under [`WorldsRoot`]; a name that is taken or a
+//! folder that cannot be made is refused in the modal and starts nothing. The
+//! world then saves itself as it is played, and the Load screen brings it
+//! back. The web build saves nothing: the modal says so, and the seed is the
+//! whole handle on a world.
 
 use bevy::{
     prelude::*,
@@ -44,6 +45,11 @@ const SEED_REFUSAL: &str = "Enter a whole number from 0 to 4294967295";
 /// The longest name the field takes: where `world_slug` refuses a name.
 #[cfg(not(target_arch = "wasm32"))]
 const NAME_CHARS: usize = 32;
+
+/// The name the name field opens on. A taken name is refused like a typed
+/// one: the player renames the world, nothing numbers it.
+#[cfg(not(target_arch = "wasm32"))]
+const DEFAULT_WORLD_NAME: &str = "New World";
 
 /// The refusal under the name field when there is no worlds folder.
 #[cfg(not(target_arch = "wasm32"))]
@@ -178,7 +184,7 @@ pub(crate) fn on_new_game(
                         parent.spawn((
                             Name::new("World Name Field"),
                             WorldNameField,
-                            text_field(TextFieldSpec::new("").max_chars(NAME_CHARS)),
+                            text_field(TextFieldSpec::new(DEFAULT_WORLD_NAME).max_chars(NAME_CHARS)),
                         ));
                     }
                     #[cfg(target_arch = "wasm32")]

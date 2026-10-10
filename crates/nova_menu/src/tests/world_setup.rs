@@ -142,7 +142,6 @@ fn a_bad_seed_is_refused_inline_and_greys_create_until_it_is_fixed() {
     press(&mut app, "New Game Button");
     let field = named(&mut app, "World Seed Field");
     let create = named(&mut app, "Create World Button");
-    type_name(&mut app, "Somewhere");
 
     type_seed(&mut app, "4294967296");
     assert!(app.world().entity(field).contains::<TextFieldError>());
@@ -184,6 +183,22 @@ fn create_starts_the_declared_new_game_on_the_typed_seed() {
         Some(TEST_START_ID)
     );
     assert_eq!(overlays(&mut app), 0);
+}
+
+/// A player who types no name still gets a world: the field opens on a
+/// default name, and Create saves the world under it.
+#[test]
+fn create_on_the_untouched_name_saves_the_world_as_new_world() {
+    let mut app = menu();
+    let root = worlds_at(&mut app);
+    press(&mut app, "New Game Button");
+
+    press(&mut app, "Create World Button");
+
+    let session = app.world().resource::<WorldSaveSession>();
+    assert_eq!(session.name(), "New World");
+    assert_eq!(session.folder().path, root.path().join("new-world"));
+    assert_eq!(state(&app), GameStates::Playing);
 }
 
 #[test]

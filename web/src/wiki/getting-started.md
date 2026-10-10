@@ -53,7 +53,7 @@ On the desktop build, New Game saves what you play; the web build keeps no saved
 
 Each world is a folder named after it, under this system's data folder, inside `nova-protocol/worlds` (for example `~/.local/share/nova-protocol/worlds` on Linux, `~/Library/Application Support/nova-protocol/worlds` on macOS, or `%APPDATA%\nova-protocol\worlds` on Windows).
 
-**Create** takes a name of 1 to 32 letters, digits, spaces, `_` or `-`, and the seed field above it. A name already taken, or one this system cannot make a folder for, is refused under the field and nothing starts. The game takes the world's first save as soon as the world comes up.
+The name field opens on `New World`; keep it or type your own. **Create** takes a name of 1 to 32 letters, digits, spaces, `_` or `-`, and the seed field above it. A name already taken, or one this system cannot make a folder for, is refused under the field and nothing starts. The game takes the world's first save as soon as the world comes up.
 
 The game saves when you cross into a new sector, and again when you leave: **Back to Main Menu**, **Exit** and the window's close button each wait on that save before they act. A status line at the top right reads `World saved`, `Saving world...`, `Waiting to save: <reason>` or `SAVE FAILED: <reason>` for the open world's last attempt. Leaving shows an overlay while its save runs; a failed leave save offers **Try again** or **Leave without saving**, which keeps the last good save and leaves anyway.
 

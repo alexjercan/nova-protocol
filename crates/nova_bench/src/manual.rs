@@ -81,9 +81,7 @@ pub fn opening(target: &PlayTarget, goal: &str, first: &Value) -> String {
             "New Game: from MainMenu click `New Game Button`. For each click, move with \
 {{\"pointer\":{{\"to\":\"<target name>\"}}}}, then press and release left with separate acts \
 {{\"pointer\":{{\"press\":\"left\"}}}} and {{\"pointer\":{{\"release\":\"left\"}}}}. \
-For `World Name Field`, use its `ui.targets` rect [x,y,w,h] and move to \
-[x+w-2,y+h/2] before clicking: the field is empty, so no clearing is needed. Send \
-{{\"text\":\"Probe World\"}}. For `World Seed Field`, use its `ui.targets` rect [x,y,w,h] and move to \
+Leave `World Name Field` on the `New World` it opens with. For `World Seed Field`, use its `ui.targets` rect [x,y,w,h] and move to \
 [x+w-2,y+h/2] before clicking: the caret must be at the end, not the middle. Send ten \
 {{\"key\":\"Backspace\"}} gestures (one per digit of any u32) to clear the prefilled value. \
 Send {{\"text\":\"{world_seed}\"}}, then click `Create World Button`. Do not append to the \

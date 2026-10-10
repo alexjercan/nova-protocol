@@ -63,10 +63,6 @@ const WORLD_SEED: u32 = 115;
 #[cfg(feature = "debug")]
 const NEW_GAME_BUTTON: &str = "New Game Button";
 #[cfg(feature = "debug")]
-const WORLD_NAME_FIELD: &str = "World Name Field";
-#[cfg(feature = "debug")]
-const WORLD_NAME: &str = "Probe World";
-#[cfg(feature = "debug")]
 const SEED_FIELD: &str = "World Seed Field";
 #[cfg(feature = "debug")]
 const CREATE_WORLD_BUTTON: &str = "Create World Button";
@@ -131,7 +127,7 @@ fn main() -> bevy::app::AppExit {
 
     // This run's own settings and saved worlds, set before the app reads
     // them: Create makes a world, and neither a player's worlds nor an
-    // earlier run's "Probe World" may be in its way.
+    // earlier run's "New World" may be in its way.
     std::env::set_var(
         nova_assets::storage::CONFIG_ROOT_ENV,
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
@@ -606,15 +602,6 @@ fn move_to_seed_field_edge(world: &mut World) {
     move_cursor(Vec2::new(rect.max.x - 2.0, rect.center().y))(world);
 }
 
-/// Move the pointer to the name field's right edge.
-#[cfg(feature = "debug")]
-fn move_to_name_field_edge(world: &mut World) {
-    let rect = ui_node_rect(world, WORLD_NAME_FIELD).unwrap_or_else(|| {
-        panic!("world start: the name field '{WORLD_NAME_FIELD}' is not laid out")
-    });
-    move_cursor(Vec2::new(rect.max.x - 2.0, rect.center().y))(world);
-}
-
 /// The walk: into the world, a release-lead burn and lock, then a staged
 /// sector-streaming crossing.
 #[cfg(feature = "debug")]
@@ -630,25 +617,6 @@ fn world_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
             ui_node_present(CREATE_WORLD_BUTTON),
             BEAT_DEADLINE_SECS,
         )
-        .step("move to the name field's right edge")
-        .on_enter(move_to_name_field_edge)
-        .until(frames(1))
-        .add()
-        .step("click the name field to place the caret")
-        .on_enter(press_mouse(MouseButton::Left))
-        .until(pointer_pressed())
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        .step("release and let the caret land")
-        .on_enter(release_mouse(MouseButton::Left))
-        .until(pointer_released())
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        .step("type the world name")
-        .on_enter(type_text(WORLD_NAME.to_string()))
-        .until(text_field_reads(WORLD_NAME_FIELD, WORLD_NAME.to_string()))
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
         .step("move to the seed field's right edge")
         .on_enter(move_to_seed_field_edge)
         .until(frames(1))

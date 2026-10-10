@@ -135,11 +135,9 @@ Each gesture is one object with one verb:
   key gesture sends an event even if several land in one act. `Ctrl+A` is not
   a channel editing key.
 - `{"text": "<characters>"}`: type into the focused field. New Game also has
-  `World Name Field`, empty at open. Click it the same way as the seed field
-  (move to its rect's right edge, press, release), then send
-  `{"text": "Probe World"}`; it needs no clearing. Type the exact requested
-  world seed into `World Seed Field` after clearing it. Click
-  `Create World Button` only after typing both fields.
+  `World Name Field`, which opens on `New World`; leave it. Type the exact
+  requested world seed into `World Seed Field` after clearing it, then click
+  `Create World Button`.
 
 Gestures in one act apply on the same tick, in order. A held input stays
 held across acts until released; `inputs.held` reminds you.
