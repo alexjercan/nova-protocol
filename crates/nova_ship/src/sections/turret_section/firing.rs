@@ -1004,8 +1004,8 @@ mod tests {
     #[test]
     fn an_auto_reloading_turret_fires_again_after_running_dry() {
         // End-to-end recovery: a finite turret fires out its 3-round magazine,
-        // then the reload cycle refills it and it fires MORE than one magazine
-        // over time - the whole point of auto-reload.
+        // then the reload cycle refills it from ship stock until magazine and
+        // stock are both spent, and then it stays dry.
         // Contrast with `a_turret_with_ammo_fires_exactly_its_magazine_then_stops`,
         // the same rig with no reload, which caps at 3 forever.
         let mut app = firing_app(1.0);
@@ -1030,14 +1030,37 @@ mod tests {
             [(ITEM_PDC_ROUND.into(), 30)],
         ));
 
-        for _ in 0..20 {
+        // A full three-round magazine empties within one tick, and each
+        // reload transfers at most three rounds from stock. Allow slack for
+        // the first update's zero delta and either system order.
+        for _ in 0..40 {
             app.update();
         }
 
-        assert!(
-            bullet_count(&mut app) > 3,
-            "an auto-reloading turret must fire past a single magazine, got {}",
-            bullet_count(&mut app)
+        assert_eq!(
+            bullet_count(&mut app),
+            3 + 30,
+            "an auto-reloading turret fires its magazine plus the ship's stock, exactly"
+        );
+        assert_eq!(
+            app.world()
+                .get::<ShipInventory>(ship)
+                .unwrap()
+                .count(ItemType::PdcRound),
+            0,
+            "the reload must drain the ship's stock"
+        );
+        assert_eq!(app.world().get::<SectionAmmo>(turret).unwrap().rounds, 0);
+
+        // Trigger still held and barrel ready: a dry turret with no stock
+        // stays silent.
+        for _ in 0..10 {
+            app.update();
+        }
+        assert_eq!(
+            bullet_count(&mut app),
+            3 + 30,
+            "a dry turret with no stock must not fire again"
         );
     }
 
