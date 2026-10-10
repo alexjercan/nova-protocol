@@ -1046,7 +1046,7 @@ mod tests {
             app.world()
                 .get::<ShipInventory>(ship)
                 .unwrap()
-                .count(ItemType::PdcRound),
+                .count(&ITEM_PDC_ROUND.into()),
             0,
             "the reload must drain the ship's stock"
         );

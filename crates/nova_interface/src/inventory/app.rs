@@ -1935,7 +1935,7 @@ pub(crate) fn update_inventory_panel(
     let own_title = ships.title(pair.own, InventorySideType::Own);
     let own_cargo = format!(
         "{} / {}",
-        kg_text(u64::from(own_inventory.used_g(&items))),
+        kg_text(u64::from(own_inventory.used_g(items))),
         kg_text(u64::from(own_inventory.capacity_g())),
     );
     let own = SideView {
@@ -2023,8 +2023,8 @@ pub(crate) fn update_inventory_panel(
             }
             let visible: Vec<(ItemDesignId, u32)> = stacks
                 .iter()
+                .filter(|&(item, _)| shown(item))
                 .cloned()
-                .filter(|(item, _)| shown(item))
                 .collect();
             if visible.is_empty() {
                 rows.spawn(themed_label(
@@ -2037,7 +2037,7 @@ pub(crate) fn update_inventory_panel(
                 let picked = selected
                     .as_ref()
                     .is_some_and(|(side, id)| *side == which && *id == stack.0);
-                inventory_row(rows, which, stack, picked, &icons, &items);
+                inventory_row(rows, which, stack, picked, &icons, items);
             }
         });
         column.drawn = Some(draw);
@@ -2210,7 +2210,7 @@ pub(crate) fn update_inventory_panel(
                 let (_, their_stock, lootable, their_cr) = ships.ship(other);
                 match (draft.action.transfer(), draft.action.trade()) {
                     (Some(transfer), _) => plan_item_transfer(
-                        &items,
+                        items,
                         transfer,
                         lootable,
                         &draft.item,
@@ -2231,17 +2231,10 @@ pub(crate) fn update_inventory_panel(
                             ItemTransferType::Take => (&partner.title, &own.title),
                             ItemTransferType::Give => (&own.title, &partner.title),
                         };
-                        transfer_refusal_text(
-                            &items,
-                            refusal,
-                            &draft.item,
-                            from,
-                            to,
-                            &partner.title,
-                        )
+                        transfer_refusal_text(items, refusal, &draft.item, from, to, &partner.title)
                     }),
                     (None, Some(trade)) => plan_item_trade(
-                        &items,
+                        items,
                         trade,
                         !lootable,
                         &draft.item,
@@ -2268,7 +2261,7 @@ pub(crate) fn update_inventory_panel(
                             ItemTradeType::Sell => (&own.title, &partner.title),
                         };
                         trade_refusal_text(
-                            &items,
+                            items,
                             refusal,
                             &draft.item,
                             seller,
