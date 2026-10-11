@@ -21,7 +21,7 @@ naming-only refactor unless a feature touches these types.
 
 ## Delivered on master after this report (2026-10-11)
 
-Option B without item 4. Status stays OPEN for the naming criterion.
+Option B without item 4. Item 4 followed; see the next section.
 
 - Item 1: `docs/architecture.md` `nova_world` row now states the record rule,
   the full refusal list, `spawn.inventory` / `spawn.credits`, and that the
@@ -39,6 +39,24 @@ Option B without item 4. Status stays OPEN for the naming criterion.
   `check_asteroid_lock_signature` on direct spawns and scatter templates. The
   load path runs the same lint (`loader/lifecycle.rs:223`).
 - Module doc of `generation.rs` states the record and ownership rule.
+
+## Naming delivered on master (2026-10-11)
+
+Item 4 only. Automode selected the recommended reversible option; it is not
+an owner choice.
+
+- `PreparedRock` is now `PreparedSectorAsteroid` and `PreparedPlanetoid` is
+  now `PreparedSectorPlanet` (`crates/nova_world/src/generation.rs`,
+  `streaming.rs`). Both stay `pub(crate)`. Fields `body` / `geometry` and
+  `body` / `surface` are unchanged.
+- The `generation.rs` module doc states the naming rule: the pair for record
+  `Sector<Name>` is `PreparedSector<Name>`, with a `body` field and a payload
+  field named for what its owner prepares. A ship has nothing to prepare on
+  the worker, so `SectorShip` has no pair.
+- Not changed: item 5 (planet config travels with the surface) and item 6.
+  Item 5 is the documented ownership difference that TASK.md says not to hide.
+- Names `PreparedRock` and `PreparedPlanetoid` below are the old names in the
+  original snapshot.
 
 ## What #113 changed (evidence)
 

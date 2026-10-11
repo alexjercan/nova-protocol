@@ -1,6 +1,6 @@
 # Simplify generated-world data structures
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, world, refactor, api
 
@@ -18,13 +18,14 @@ Technical cleanup only: make generated rock, planet and ship records easier to r
 - Keep asset-backed fields on the main thread unless a measured design requires a worker-safe asset snapshot.
 - Preserve fail-loud count, pairing, geometry, ID, ownership, and clearance checks.
 - Replace obsolete interfaces directly. Do not keep aliases for unshipped world-generation types.
+- Naming (automode selected the recommended reversible option, not an owner choice): rename `PreparedRock` to `PreparedSectorAsteroid` and `PreparedPlanetoid` to `PreparedSectorPlanet`. Keep the `geometry` and `surface` fields and the planetoid config ownership.
 
 ## Agent findings
 
 - PR #113 made each generated record its id, its placement and the whole scenario spawn config: `SectorAsteroid` carries `AsteroidConfig`, `SectorPlanet` carries `PlanetConfig`, `SectorShip` carries `SpaceshipConfig` plus generator facts. The generator, not materialization, states controller, side, loot and stock.
-- Prepared payloads travel with their records (`PreparedRock`, `PreparedPlanetoid`); nothing pairs by vector position.
+- Prepared payloads travel with their records (`PreparedSectorAsteroid`, `PreparedSectorPlanet`); nothing pairs by vector position.
 - `validate_manifest` refuses every runtime asset handle in a record and an asteroid lock signature that `AsteroidConfig::validate_lock_signature` refuses; the scenario lint applies the same lock-signature rule. The `generation` module doc states the record and ownership rule.
-- Open: prepared and record names are not parallel (`SectorAsteroid`/`PreparedRock` against `SectorPlanet`/`PreparedPlanetoid`), and no naming rule is documented. See `report.md`.
+- The `generation` module doc states the naming rule: the pair for record `Sector<Name>` is `PreparedSector<Name>` with a `body` field and an owner-specific payload field (`geometry` for an asteroid, `surface` for a planet). See `report.md`.
 
 ## Delivery
 

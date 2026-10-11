@@ -25,6 +25,13 @@
 //! spawn pairs it with the record's config. A planetoid's prepared surface
 //! carries its own config. Section prototypes resolve against the catalog on
 //! the main thread.
+//!
+//! NAMING. A worker-prepared pair is `PreparedSector<Name>` for the record
+//! `Sector<Name>`: a `body` field holds the record, and the payload field is
+//! named for what its owner prepares. [`SectorAsteroid`] pairs with
+//! `geometry` and [`SectorPlanet`] with `surface`, because the two payloads
+//! own different data. A record with nothing to prepare on the worker, such
+//! as [`SectorShip`], has no pair and travels alone.
 
 use std::{collections::BTreeSet, fmt, sync::Arc};
 
@@ -520,7 +527,7 @@ pub struct PreparedSector {
     pub(crate) coord: SectorCoord,
     /// The description's planetoids. They never freeze, so a visited cell
     /// spawns them again beside its record.
-    pub(crate) planets: Vec<PreparedPlanetoid>,
+    pub(crate) planets: Vec<PreparedSectorPlanet>,
     pub(crate) bodies: PreparedBodies,
 }
 
@@ -539,7 +546,7 @@ pub(crate) enum PreparedBodies {
     /// that arrived into it while nobody held it live. A generated body an
     /// arrival overlaps is not removed.
     Fresh {
-        rocks: Vec<PreparedRock>,
+        rocks: Vec<PreparedSectorAsteroid>,
         ships: Vec<SectorShip>,
         arrivals: Vec<PreparedFrozenBody>,
     },
@@ -550,14 +557,14 @@ pub(crate) enum PreparedBodies {
 
 /// One generated rock with the geometry prepared for it.
 #[derive(Debug)]
-pub(crate) struct PreparedRock {
+pub(crate) struct PreparedSectorAsteroid {
     pub body: SectorAsteroid,
     pub geometry: PreparedAsteroid,
 }
 
 /// One generated planetoid with the surface prepared for it.
 #[derive(Debug)]
-pub(crate) struct PreparedPlanetoid {
+pub(crate) struct PreparedSectorPlanet {
     pub body: SectorPlanet,
     pub surface: PreparedPlanet,
 }
@@ -1064,7 +1071,7 @@ pub(crate) fn prepare_cell<G: SectorGenerator>(
     let planets = info_span!("nova_world::prepare_planets").in_scope(|| {
         planets
             .into_iter()
-            .map(|body| PreparedPlanetoid {
+            .map(|body| PreparedSectorPlanet {
                 surface: prepare_planet(body.config.clone()),
                 body,
             })
@@ -1090,7 +1097,7 @@ pub(crate) fn prepare_cell<G: SectorGenerator>(
             let rocks = info_span!("nova_world::prepare_asteroids").in_scope(|| {
                 asteroids
                     .into_iter()
-                    .map(|body| PreparedRock {
+                    .map(|body| PreparedSectorAsteroid {
                         geometry: prepare_asteroid_geometry(body.seed(), body.config.radius),
                         body,
                     })

@@ -35,7 +35,7 @@ use crate::{
         freeze_body, hold_unsettled, thaw_record, DockPolicy, FrozenBody, FrozenSector,
         FrozenSectors, PersistentBody, SettlingBodies,
     },
-    generation::{prepare_cell, PreparedBodies, PreparedPlanetoid, PreparedRock},
+    generation::{prepare_cell, PreparedBodies, PreparedSectorAsteroid, PreparedSectorPlanet},
     PreparedSector, SectorCoord, SectorFault, SectorGenerator, SectorShip, SectorShipConditionType,
     WorldConfig,
 };
@@ -233,7 +233,7 @@ pub fn materialize_sector(
         ))
         .id();
 
-    for PreparedRock { body, geometry } in rocks {
+    for PreparedSectorAsteroid { body, geometry } in rocks {
         let mut entity = commands.spawn((
             base_scenario_object(&BaseScenarioObjectConfig {
                 id: body.id.to_string(),
@@ -247,7 +247,7 @@ pub fn materialize_sector(
         asteroid_scenario_object_prepared(&mut entity, body.config, seed, geometry);
     }
 
-    for PreparedPlanetoid { body, surface } in planets {
+    for PreparedSectorPlanet { body, surface } in planets {
         let mut entity = commands.spawn((
             base_scenario_object(&BaseScenarioObjectConfig {
                 id: body.id.to_string(),
