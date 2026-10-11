@@ -8,20 +8,19 @@
 //! held to the same rule: it gets a seed, an edge and a coordinate, and
 //! nothing else.
 
-use std::{collections::BTreeSet, fmt};
+use std::{collections::BTreeSet, fmt, sync::Arc};
 
 use bevy::{log::info_span, math::Quat};
 use nova_events::prelude::{Meters, Meters3, MetersPerSecond3};
 use nova_gameplay::prelude::{Allegiance, Fnv32, SeedStream, ShipInventoryStock};
 use nova_scenario::prelude::{
-    is_asteroid_kind, prepare_asteroid_geometry, prepare_frozen_asteroid, prepare_planet,
-    AsteroidKindId, PlanetConfig, PreparedAsteroid, PreparedPlanet, SectionSource, ShipDesign,
-    ASTEROID_GEOMETRIC_FACTOR_MAX,
+    is_asteroid_kind, prepare_asteroid_geometry, prepare_planet, AsteroidKindId, PlanetConfig,
+    PreparedAsteroid, PreparedPlanet, SectionSource, ShipDesign, ASTEROID_GEOMETRIC_FACTOR_MAX,
 };
 
 use crate::{
-    frozen::FrozenSector, SectorCoord, SectorFault, SectorGenerationInput, SectorGenerator,
-    WorldConfig,
+    frozen::{FrozenSector, PreparedFrozenBody},
+    SectorCoord, SectorFault, SectorGenerationInput, SectorGenerator, WorldConfig,
 };
 
 /// One generated rock, in world meters.
@@ -432,31 +431,61 @@ fn canonical_rotation(rotation: Quat) -> String {
 }
 
 /// One sector described, validated and prepared: everything
-/// `materialize_sector` needs that a worker can produce.
+/// `materialize_sector` needs that a worker can produce, resolved against the
+/// cell's frozen record on the worker.
 ///
 /// Built only by [`prepare_sector`] and a [`crate::SectorJob`], and the fields
-/// are private, so `asteroids` is one prepared rock per description asteroid -
-/// or none, for a cell whose frozen record replaces its generated bodies -
-/// `planets` one prepared world per description planetoid, and `thawed` one
-/// pristine rock per frozen rock of the cell's record, all in order. The
-/// two halves are not the same shape: a [`PreparedAsteroid`] is the GEOMETRY
-/// only, and the rock's config is rebuilt from the description at spawn, while
-/// a [`PreparedPlanet`] carries its config beside its visual. A ship needs no
-/// preparation: its inline design's sections are resolved against the section
-/// catalog on the main thread, which is the one place the catalog exists.
+/// are private. Each record travels WITH what was prepared for it: a planetoid
+/// with its surface, a rock with its geometry, a frozen rock with the geometry
+/// its record describes. Nothing is paired by position, so the main thread has
+/// nothing to count. A ship needs no preparation: its inline design's sections
+/// are resolved against the section catalog on the main thread, which is the
+/// one place the catalog exists.
 #[derive(Debug)]
 pub struct PreparedSector {
-    pub(crate) description: SectorDescription,
-    pub(crate) asteroids: Vec<PreparedAsteroid>,
-    pub(crate) planets: Vec<PreparedPlanet>,
-    pub(crate) thawed: Vec<PreparedAsteroid>,
+    pub(crate) coord: SectorCoord,
+    /// The description's planetoids. They never freeze, so a visited cell
+    /// spawns them again beside its record.
+    pub(crate) planets: Vec<PreparedPlanetoid>,
+    pub(crate) bodies: PreparedBodies,
 }
 
 impl PreparedSector {
-    /// The validated description this was prepared from.
-    pub fn description(&self) -> &SectorDescription {
-        &self.description
+    /// The cell this was prepared for.
+    pub fn coord(&self) -> SectorCoord {
+        self.coord
     }
+}
+
+/// What a cell spawns beside its planetoids, decided once, on the worker,
+/// from the cell's frozen record.
+#[derive(Debug)]
+pub(crate) enum PreparedBodies {
+    /// A cell never visited: its generated rocks and ships, plus the bodies
+    /// that arrived into it while nobody held it live. A generated body an
+    /// arrival overlaps is not removed.
+    Fresh {
+        rocks: Vec<PreparedRock>,
+        ships: Vec<SectorShip>,
+        arrivals: Vec<PreparedFrozenBody>,
+    },
+    /// A visited cell: its record is the whole truth of it, and the
+    /// generated rocks and ships are not spawned.
+    Thawed(Vec<PreparedFrozenBody>),
+}
+
+/// One generated rock with the geometry prepared for it.
+#[derive(Debug)]
+pub(crate) struct PreparedRock {
+    pub body: SectorAsteroid,
+    pub geometry: PreparedAsteroid,
+}
+
+/// One generated planetoid with the surface prepared for it.
+#[derive(Debug)]
+pub(crate) struct PreparedPlanetoid {
+    pub body: SectorPlanet,
+    pub surface: PreparedPlanet,
 }
 
 /// The largest hull clearance a generated ship may declare.
@@ -859,48 +888,69 @@ pub fn prepare_sector<G: SectorGenerator>(
 
 /// [`prepare_sector`] for a cell that may hold a frozen record.
 ///
-/// A visited cell's record replaces its generated bodies, so its
-/// description's rocks are not meshed; the description is still drawn,
-/// because its planetoids never freeze. Each rock the record froze is
-/// prepared from its record: its pristine geometry, and for a carved one the
-/// surface its field meshes to.
+/// The one place the record rule is decided: a visited cell's record
+/// replaces its generated rocks and ships, so they are neither meshed nor
+/// returned; a never-visited cell's arrivals join its generated bodies. The
+/// description is drawn either way, because planetoids never freeze. Each
+/// frozen rock is prepared from its record: its pristine geometry, and for a
+/// carved one the surface its field meshes to.
 pub(crate) fn prepare_cell<G: SectorGenerator>(
     config: WorldConfig<G>,
     coord: SectorCoord,
-    record: Option<&FrozenSector>,
+    record: Option<Arc<FrozenSector>>,
 ) -> Result<PreparedSector, SectorFault> {
-    let visited = record.is_some_and(FrozenSector::is_visited);
     let _job = info_span!("nova_world::prepare_sector", cell = %coord).entered();
     let description = generate_sector(&config, coord)?;
-    let asteroids = if visited {
-        Vec::new()
-    } else {
-        info_span!("nova_world::prepare_asteroids").in_scope(|| {
-            description
-                .asteroids
-                .iter()
-                .map(|body| prepare_asteroid_geometry(body.seed, body.radius))
-                .collect()
-        })
-    };
-    let planets = info_span!("nova_world::prepare_planets").in_scope(|| {
-        description
-            .planets
-            .iter()
-            .map(|planet| prepare_planet(planet.config.clone()))
-            .collect()
-    });
-    let thawed = info_span!("nova_world::prepare_frozen_asteroids").in_scope(|| {
-        record
-            .into_iter()
-            .flat_map(FrozenSector::rocks)
-            .map(prepare_frozen_asteroid)
-            .collect()
-    });
-    Ok(PreparedSector {
-        description,
+    let SectorDescription {
+        coord,
         asteroids,
         planets,
-        thawed,
+        ships,
+    } = description;
+    let planets = info_span!("nova_world::prepare_planets").in_scope(|| {
+        planets
+            .into_iter()
+            .map(|body| PreparedPlanetoid {
+                surface: prepare_planet(body.config.clone()),
+                body,
+            })
+            .collect()
+    });
+    let thaw = |bodies: Vec<_>| {
+        info_span!("nova_world::prepare_frozen_asteroids").in_scope(|| {
+            bodies
+                .into_iter()
+                .map(PreparedFrozenBody::prepare)
+                .collect::<Vec<_>>()
+        })
+    };
+    let (visited, arrivals) = match record.map(Arc::unwrap_or_clone) {
+        None => (None, Vec::new()),
+        Some(FrozenSector::Visited(bodies)) => (Some(bodies), Vec::new()),
+        Some(FrozenSector::Arrivals(bodies)) => (None, bodies),
+    };
+    let bodies = match visited {
+        Some(bodies) => PreparedBodies::Thawed(thaw(bodies)),
+        None => {
+            let rocks = info_span!("nova_world::prepare_asteroids").in_scope(|| {
+                asteroids
+                    .into_iter()
+                    .map(|body| PreparedRock {
+                        geometry: prepare_asteroid_geometry(body.seed, body.radius),
+                        body,
+                    })
+                    .collect()
+            });
+            PreparedBodies::Fresh {
+                rocks,
+                ships,
+                arrivals: thaw(arrivals),
+            }
+        }
+    };
+    Ok(PreparedSector {
+        coord,
+        planets,
+        bodies,
     })
 }

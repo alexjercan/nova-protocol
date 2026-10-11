@@ -141,7 +141,10 @@ enum InspectorCameraType {
 /// The cell being prepared. Replaced, and so cancelled, by a newer request.
 struct SectorRequest {
     coord: SectorCoord,
-    task: Task<Result<PreparedSector, SectorFault>>,
+    /// The cell's description, for the readout, beside the payload that
+    /// spawns it. The payload no longer carries the description, so the
+    /// worker draws the cell twice; an inspector step affords it.
+    task: Task<Result<(SectorDescription, PreparedSector), SectorFault>>,
 }
 
 /// Everything the inspector knows about what it shows and what it waits for.
@@ -345,7 +348,11 @@ fn request_sector(
     let config = config.clone();
     inspector.request = Some(SectorRequest {
         coord,
-        task: AsyncComputeTaskPool::get().spawn(async move { prepare_sector(config, coord) }),
+        task: AsyncComputeTaskPool::get().spawn(async move {
+            let description = generate_sector(&config, coord)?;
+            let prepared = prepare_sector(config, coord)?;
+            Ok((description, prepared))
+        }),
     });
 }
 
@@ -447,7 +454,7 @@ fn collect_sector(
     };
     let coord = request.coord;
     inspector.request = None;
-    let prepared = result.unwrap_or_else(|fault| {
+    let (description, prepared) = result.unwrap_or_else(|fault| {
         panic!(
             "world_sector_inspector: seed {} cell {coord}: {fault}",
             world.0.seed
@@ -457,7 +464,6 @@ fn collect_sector(
         panic!("world_sector_inspector: no single scenario camera to observe {coord}");
     };
 
-    let description = prepared.description();
     let canonical = description.canonical();
     let rocks = description.asteroids().len();
     let planets = description.planets().len();
@@ -485,7 +491,7 @@ fn collect_sector(
         commands.entity(root).despawn();
     }
     let texture: AssetRef<Image> = game_assets.asteroid_texture.clone().into();
-    let root = materialize_sector(&mut commands, prepared, None, &texture, &sections, observer);
+    let root = materialize_sector(&mut commands, prepared, &texture, &sections, observer);
     info!(
         "inspector: live {coord} of seed {}: {rocks} rocks, {planets} planetoids, {ships} ships",
         world.0.seed

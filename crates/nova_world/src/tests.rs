@@ -660,7 +660,6 @@ fn a_materialized_asteroid_opts_into_gravity() {
     let root = materialize_sector(
         &mut world.commands(),
         prepared,
-        None,
         &AssetRef::default(),
         &GameSections::default(),
         ObserverBody {
@@ -806,7 +805,6 @@ fn materialize_one_ship(world: &mut World, offset: f32) -> Entity {
     let root = materialize_sector(
         &mut world.commands(),
         prepared,
-        None,
         &AssetRef::default(),
         &test_sections(),
         observer_at(config.input(SectorCoord::ORIGIN), offset),
@@ -925,7 +923,6 @@ fn a_materialized_derelict_is_lootable_and_unflown_and_an_intact_ship_is_flown_b
     materialize_sector(
         &mut world.commands(),
         prepared,
-        None,
         &AssetRef::default(),
         &test_sections(),
         observer_at(config.input(SectorCoord::ORIGIN), 5_000.0),
@@ -1032,7 +1029,6 @@ fn a_ship_design_the_loaded_sections_do_not_resolve_is_refused_at_spawn() {
     materialize_sector(
         &mut world.commands(),
         prepared,
-        None,
         &AssetRef::default(),
         &test_sections(),
         ObserverBody {

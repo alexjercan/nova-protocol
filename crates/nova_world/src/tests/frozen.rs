@@ -77,8 +77,9 @@ fn materialize<G: SectorGenerator>(
     observer: ObserverBody,
 ) -> Entity {
     let config = world.resource::<WorldConfig<G>>().clone();
-    let record = world.resource_mut::<FrozenSectors>().take(coord);
-    let prepared = prepare_cell(config, coord, record.as_ref()).expect("the cell prepares");
+    let record = world.resource::<FrozenSectors>().shared(coord);
+    let prepared = prepare_cell(config, coord, record).expect("the cell prepares");
+    world.resource_mut::<FrozenSectors>().consume(coord);
     let sections = world
         .get_resource::<GameSections>()
         .cloned()
@@ -86,7 +87,6 @@ fn materialize<G: SectorGenerator>(
     let root = materialize_sector(
         &mut world.commands(),
         prepared,
-        record,
         &AssetRef::Path(nova_assets::prelude::ASTEROID_TEXTURE_PATH.to_string()),
         &sections,
         observer,

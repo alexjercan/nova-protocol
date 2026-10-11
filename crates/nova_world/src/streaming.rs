@@ -40,7 +40,7 @@ use crate::{
         freeze_body, hold_unsettled, thaw_record, DockPolicy, FrozenBody, FrozenSector,
         FrozenSectors, PersistentBody, SettlingBodies,
     },
-    generation::prepare_cell,
+    generation::{prepare_cell, PreparedBodies, PreparedPlanetoid, PreparedRock},
     PreparedSector, SectorCoord, SectorFault, SectorGenerator, SectorShip, SectorShipConditionType,
     SectorShipCrew, WorldConfig,
 };
@@ -162,15 +162,13 @@ pub fn desired_sectors(centre: SectorCoord, radius: i32) -> BTreeSet<SectorCoord
     desired
 }
 
-/// Spawn one prepared sector: the sector root, and one child per object the
-/// description names - rocks, then planetoids, then ships - then the bodies
-/// of the cell's frozen `record`. Returns the root.
+/// Spawn one prepared sector: the sector root, then its bodies as the worker
+/// resolved them against the cell's frozen record - a fresh cell's rocks,
+/// planetoids, ships and arrivals in that order, or a visited cell's
+/// planetoids and then its record alone. Returns the root.
 ///
-/// A [`FrozenSector::Visited`] record is the whole truth of a cell that was
-/// generated before: only the description's planetoids spawn beside it,
-/// because nothing changes them, and its rocks and ships come from the record
-/// as they froze. A [`FrozenSector::Arrivals`] record spawns beside everything
-/// the description places, and a generated body it overlaps is not removed.
+/// The worker decided what the cell spawns; this transcribes it. See
+/// [`PreparedBodies`] for the rule.
 ///
 /// The root is an OWNERSHIP node and not a pose - it stays at the world origin
 /// and its children carry world positions. `base_scenario_object` seeds a
@@ -199,53 +197,36 @@ pub fn desired_sectors(centre: SectorCoord, radius: i32) -> BTreeSet<SectorCoord
 ///
 /// # Panics
 ///
-/// When `prepared` carries a different number of rocks than asteroids it
-/// spawns, a different number of surfaces than planetoids, or a different
-/// number of pristine rocks than `record` froze - zipping a short list would
-/// silently spawn a sector missing its tail - and on
-/// [`SectorFault::InvalidShipDesign`] when a ship's inline design does not
-/// resolve whole against `sections`. The spawn's resolver skips a broken
+/// On [`SectorFault::InvalidShipDesign`] when a ship's inline design does
+/// not resolve whole against `sections`. The spawn's resolver skips a broken
 /// section and flies the rest, so every design is resolved strictly here
 /// first. The catalog is a main-thread resource, so this is the first place
 /// the design CAN be resolved, and it is resolved before the root is spawned.
 pub fn materialize_sector(
     commands: &mut Commands,
     prepared: PreparedSector,
-    record: Option<FrozenSector>,
     texture: &AssetRef<Image>,
     sections: &GameSections,
     observer: ObserverBody,
 ) -> Entity {
     let PreparedSector {
-        mut description,
-        asteroids,
+        coord,
         planets,
-        thawed,
+        bodies,
     } = prepared;
-    let coord = description.coord;
-    if record.as_ref().is_some_and(FrozenSector::is_visited) {
-        description.asteroids.clear();
-        description.ships.clear();
-    }
-    assert_eq!(
-        description.asteroids.len(),
-        asteroids.len(),
-        "nova_world: {coord} was prepared with {} rocks for {} asteroids",
-        asteroids.len(),
-        description.asteroids.len()
-    );
-    assert_eq!(
-        description.planets.len(),
-        planets.len(),
-        "nova_world: {coord} was prepared with {} surfaces for {} planetoids",
-        planets.len(),
-        description.planets.len()
-    );
-    for ship in &description.ships {
+    let (rocks, ships, frozen) = match bodies {
+        PreparedBodies::Fresh {
+            rocks,
+            ships,
+            arrivals,
+        } => (rocks, ships, arrivals),
+        PreparedBodies::Thawed(frozen) => (Vec::new(), Vec::new(), frozen),
+    };
+    for ship in &ships {
         require_resolved(ship, sections);
     }
 
-    let objects = description.object_count();
+    let objects = planets.len() + rocks.len() + ships.len() + frozen.len();
     let root = commands
         .spawn((
             base_scenario_object(&BaseScenarioObjectConfig {
@@ -258,7 +239,7 @@ pub fn materialize_sector(
         ))
         .id();
 
-    for (body, rock) in description.asteroids.into_iter().zip(asteroids) {
+    for PreparedRock { body, geometry } in rocks {
         let mut entity = commands.spawn((
             base_scenario_object(&BaseScenarioObjectConfig {
                 id: body.id.clone(),
@@ -280,16 +261,16 @@ pub fn materialize_sector(
                 seed: Some(body.seed),
             },
             body.seed,
-            rock,
+            geometry,
         );
     }
 
-    for (planet, surface) in description.planets.into_iter().zip(planets) {
+    for PreparedPlanetoid { body, surface } in planets {
         let mut entity = commands.spawn((
             base_scenario_object(&BaseScenarioObjectConfig {
-                id: planet.id.clone(),
-                name: planet.id.clone(),
-                position: planet.position,
+                id: body.id.clone(),
+                name: body.id.clone(),
+                position: body.position,
                 rotation: Quat::IDENTITY,
             }),
             ChildOf(root),
@@ -297,7 +278,7 @@ pub fn materialize_sector(
         planet_scenario_object_prepared(&mut entity, surface);
     }
 
-    for ship in description.ships {
+    for ship in ships {
         if observer.overlaps(&ship) {
             debug!(
                 "nova_world: holding ship '{}' in {coord}: the observer overlaps its {:.0} m \
@@ -311,18 +292,12 @@ pub fn materialize_sector(
         }
     }
 
-    match record {
-        Some(record) => {
-            trace!(
-                "nova_world: thawing {} frozen body(ies) into {coord}",
-                record.bodies().len()
-            );
-            thaw_record(commands, root, coord, record, thawed);
-        }
-        None => assert!(
-            thawed.is_empty(),
-            "nova_world: {coord} was prepared with frozen rocks but holds no frozen record"
-        ),
+    if !frozen.is_empty() {
+        trace!(
+            "nova_world: thawing {} frozen body(ies) into {coord}",
+            frozen.len()
+        );
+        thaw_record(commands, root, frozen);
     }
 
     trace!("nova_world: materialized {coord} with {objects} object(s)");
@@ -546,11 +521,12 @@ pub struct SectorJob {
 impl SectorJob {
     /// Start one cell's preparation on `AsyncComputeTaskPool`.
     ///
-    /// `record` is the cell's frozen record, if it holds one: a visited cell's
-    /// description rocks are not meshed, and every frozen rock's geometry is
-    /// prepared from its record. A record changes only while its cell is off-window, and
+    /// `record` is the cell's frozen record, if it holds one. The worker
+    /// resolves the cell against it (see [`PreparedBodies`]) and the payload
+    /// carries the record's bodies, so the materialization only drops the
+    /// ledger's copy. A record changes only while its cell is off-window, and
     /// [`retire_sectors`] cancels every job for an off-window cell, so the
-    /// record a job was started from is the one its materialization takes.
+    /// record a job was started from is the one its cell comes back from.
     ///
     /// The config is MOVED into the task rather than read from the resource
     /// when it finishes: a job answers the question it was asked, and a dial
@@ -563,8 +539,8 @@ impl SectorJob {
         coord: SectorCoord,
         record: Option<Arc<FrozenSector>>,
     ) -> Self {
-        let task = AsyncComputeTaskPool::get()
-            .spawn(async move { prepare_cell(config, coord, record.as_deref()) });
+        let task =
+            AsyncComputeTaskPool::get().spawn(async move { prepare_cell(config, coord, record) });
         Self { coord, task }
     }
 }
@@ -841,20 +817,15 @@ pub fn materialize_ready_sector<G: SectorGenerator>(
         return;
     };
 
-    let coord = prepared.description().coord;
+    let coord = prepared.coord();
     let texture = AssetRef::<Image>::Path(ASTEROID_TEXTURE_PATH.to_string());
     let Ok((transform, envelope)) = observer.single() else {
         panic!("nova_world: {}", SectorFault::AbsentObserver);
     };
     let observer = ObserverBody::read(transform, envelope);
-    materialize_sector(
-        &mut commands,
-        prepared,
-        frozen.take(coord),
-        &texture,
-        &sections,
-        observer,
-    );
+    // The job carried the record's bodies; the ledger's copy is spent.
+    frozen.consume(coord);
+    materialize_sector(&mut commands, prepared, &texture, &sections, observer);
     stats.materialized += 1;
 
     if desired
