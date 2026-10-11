@@ -4,8 +4,8 @@
 //! A save freezes every live top-level [`TempEntity`] body by its kind. A
 //! body in a multi-frame process makes the save wait, and a body this module
 //! has no record for fails the save, so no transient is dropped without a
-//! decision. A body with no physics, such as a spark or a light, is visual
-//! only and is not saved.
+//! decision. Known visual effects, including sparks with kinematic bodies,
+//! are not saved.
 //!
 //! A Load keeps the records in [`ResumedTransients`] and holds the clocks
 //! ([`FreezeOwner::WorldResume`]) until every desired sector is live and every
@@ -27,18 +27,19 @@ use bevy::{
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
     resumed_lifetime, CargoCanisterRuntimeId, CarvedChunkMarker, Clocks, DetachedPieceMarker,
-    FreezeOwner, NovaBlast, RailgunSlugProjectileMarker, RoundVelocity, SavedBodyRef,
-    SavedLifetime, SavedOwner, SavedSectionRef, SavedTargetRef, SpaceshipRootMarker, TempEntity,
-    TorpedoProjectileMarker, TransientFreezeFault, TurretBulletProjectileMarker, UnsettledBody,
+    FreezeOwner, ImpactSparkMarker, NovaBlast, RailgunSlugProjectileMarker, RoundVelocity,
+    SavedBodyRef, SavedLifetime, SavedOwner, SavedSectionRef, SavedTargetRef, SpaceshipRootMarker,
+    TempEntity, TorpedoProjectileMarker, TransientFreezeFault, TurretBulletProjectileMarker,
+    UnsettledBody,
 };
 use nova_scenario::prelude::{
     freeze_rock_chunk, thaw_rock_chunk, AsteroidSurfaceMaterial, FrozenRockChunk,
 };
 use nova_ship::prelude::{
     freeze_detached_piece, freeze_round, freeze_shed_fixture, freeze_torpedo, thaw_detached_piece,
-    thaw_round, thaw_shed_fixture, thaw_torpedo, FrozenDetachedPiece, FrozenRound,
-    FrozenShedFixture, FrozenTorpedo, PlaceholderArt, SavedTorpedoTarget, ShedFixtureMarker,
-    SkinAssets, TorpedoTargetEntity,
+    thaw_round, thaw_shed_fixture, thaw_torpedo, DamageSparkMarker, FrozenDetachedPiece,
+    FrozenRound, FrozenShedFixture, FrozenTorpedo, PlaceholderArt, SavedTorpedoTarget,
+    ShedFixtureMarker, SkinAssets, TorpedoTargetEntity,
 };
 use nova_world::prelude::{
     desired_sectors, live_sectors, CurrentSector, SectorCoord, SectorRoot, SectorSnapshotError,
@@ -322,6 +323,8 @@ struct TransientKindQuery {
     shed: Has<ShedFixtureMarker>,
     chunk: Has<CarvedChunkMarker>,
     piece: Has<DetachedPieceMarker>,
+    damage_spark: Has<DamageSparkMarker>,
+    impact_spark: Has<ImpactSparkMarker>,
     swept: Has<RoundVelocity>,
     body: Has<avian3d::prelude::RigidBody>,
 }
@@ -340,6 +343,8 @@ impl TransientKindQueryItem<'_, '_> {
             TransientKind::RockChunk
         } else if self.piece {
             TransientKind::DetachedPiece
+        } else if self.damage_spark || self.impact_spark {
+            TransientKind::Visual
         } else if self.swept || self.body {
             TransientKind::Unknown
         } else {

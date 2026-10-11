@@ -51,7 +51,7 @@ pub enum SaveReason {
     Leave,
 }
 
-/// What the last save did, for the status line and the leave overlay.
+/// What the last save did, for the save notice and the leave overlay.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WorldSaveStatus {
     /// A created world that has no save yet.
@@ -199,11 +199,17 @@ impl WorldSaveSession {
         self.writer.is_none() && self.wanted.is_none()
     }
 
+    /// Record one failed save for the player and the log.
+    fn fail(&mut self, reason: String) {
+        error!("nova_world_base: the world save failed: {reason}");
+        self.status = WorldSaveStatus::Failed(reason);
+    }
+
     /// Drop the wanted save. A dropped leave save is a failure the player
     /// must see; a dropped crossing save keeps the status it had.
     fn drop_wanted(&mut self, reason: &str) {
         if self.wanted.take() == Some(SaveReason::Leave) {
-            self.status = WorldSaveStatus::Failed(reason.to_string());
+            self.fail(reason.to_string());
         }
         self.settling_frames = 0;
     }
@@ -388,7 +394,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
                 let reason = format!("{unsettled}; it did not settle");
                 session.wanted = None;
                 session.settling_frames = 0;
-                session.status = WorldSaveStatus::Failed(reason);
+                session.fail(reason);
             } else {
                 session.status = WorldSaveStatus::Waiting(unsettled.to_string());
             }
@@ -403,7 +409,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
             let mut session = world.resource_mut::<WorldSaveSession>();
             session.wanted = None;
             session.settling_frames = 0;
-            session.status = WorldSaveStatus::Failed(unowned.to_string());
+            session.fail(unowned.to_string());
             return;
         }
     };
@@ -500,7 +506,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
     if let Err(error) = checked {
         session.wanted = None;
         session.settling_frames = 0;
-        session.status = WorldSaveStatus::Failed(error.to_string());
+        session.fail(error.to_string());
         return;
     }
     let folder = session.folder.clone();
@@ -549,8 +555,7 @@ pub(crate) fn poll_world_writer(mut session: ResMut<WorldSaveSession>) {
             session.status = WorldSaveStatus::Saved { generation };
         }
         Err(reason) => {
-            error!("nova_world_base: the world save failed: {reason}");
-            session.status = WorldSaveStatus::Failed(reason);
+            session.fail(reason);
         }
     }
 }

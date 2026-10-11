@@ -47,9 +47,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - GOTO's predicted path now curves for a coasting or tumbling target, gravity
   included. It hides while the target changes course or spin; the guide stays.
-- Create names the world, New World by default. Load checks saved worlds in
-  the background, says why one cannot load, and deletes on confirm. A status
-  line shows the last save; leaving offers a retry.
+- Create names worlds; New World is the default. Load checks saves, reports
+  refusals, and deletes on confirm. Save notices show progress, success or
+  failure; `~` hides them. Leaving offers a retry.
 
 ### Web & Platform
 

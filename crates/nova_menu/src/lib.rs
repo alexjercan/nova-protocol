@@ -111,7 +111,7 @@ use pause::{
 };
 use portal::{drive_update_choreography, UpdateRequested};
 #[cfg(not(target_arch = "wasm32"))]
-use save_status::sync_save_status_line;
+use save_status::sync_save_notice;
 pub use scenarios::NewGameScenario;
 use scenarios::{
     poll_scenario_thumbnail, refresh_scenario_details, refresh_scenarios_list,
@@ -487,7 +487,7 @@ impl Plugin for NovaMenuPlugin {
         #[cfg(not(target_arch = "wasm32"))]
         app.add_systems(
             Update,
-            sync_save_status_line.run_if(in_state(GameStates::Playing)),
+            sync_save_notice.run_if(in_state(GameStates::Playing)),
         );
 
         // `resource_exists`-gated - headless rigs without the scenario

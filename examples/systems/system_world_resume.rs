@@ -52,7 +52,7 @@
 //! which waits for ITS OWN leave save before the process exits.
 //!
 //! ONE SUBJECT: a save written by one process opens correctly in another.
-//! The save and load screens, the leave overlay and the status line are
+//! The save and load screens, the leave overlay and the save notice are
 //! `nova_menu`'s own range; the save format and the writer are
 //! `nova_world_base`'s. This range is the player-visible round trip only.
 //!
@@ -170,8 +170,6 @@ const LEAVE_TRY_AGAIN_BUTTON: &str = "Leave Try Again Button";
 const LOAD_SCREEN: &str = "Scenario Loading Screen";
 #[cfg(feature = "debug")]
 const LEAVE_OVERLAY: &str = "Leave Overlay";
-#[cfg(feature = "debug")]
-const SAVE_STATUS_LINE: &str = "Save Status Line";
 
 /// Seconds a load or a stream gets on a software-rendered CI GPU.
 #[cfg(feature = "debug")]
@@ -1045,18 +1043,15 @@ fn create_script(
         .until(saved_past_first_write())
         .deadline(CROSSING_DEADLINE_SECS)
         .add()
-        // The crossing streams a full window under the Loading screen; the
-        // status line is only on screen once that comes down.
+        // The crossing streams a full window under the Loading screen. Wait
+        // for that stable screen to clear; the save notice is transient.
         .step("world_resume: wait for the Loading screen to come down")
-        .until(nova_autopilot::predicate::and(
-            nova_autopilot::predicate::not(ui_node_present(LOAD_SCREEN)),
-            ui_node_present(SAVE_STATUS_LINE),
-        ))
+        .until(nova_autopilot::predicate::not(ui_node_present(LOAD_SCREEN)))
         .deadline(SESSION_SECS)
         .add()
-        .step("world_resume: shoot the save status line")
-        .on_enter(|world: &mut World| shoot(world, "world_resume-status-line.png"))
-        .until(shot_written("world_resume-status-line.png"))
+        .step("world_resume: capture after crossing")
+        .on_enter(|world: &mut World| shoot(world, "world_resume-after-crossing.png"))
+        .until(shot_written("world_resume-after-crossing.png"))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("world_resume: assert the saved header on disk")

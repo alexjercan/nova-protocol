@@ -8,9 +8,10 @@ use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack, LoadedSectio
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
     nova_blast, resumed_lifetime, AssetRef, CargoCanister, CargoCanisterIdAllocator,
-    CargoCanisterRuntimeId, ClockFreeze, DamageMarks, DamageType, FreezeOwner, FrozenRoundFlight,
-    GameItems, Health, IntegrityDestroyMarker, ItemCategoryType, ItemDesign, ItemDesignId,
-    ItemRoleType, PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage, ProjectileOwner,
+    CargoCanisterRuntimeId, ClockFreeze, DamageLevel, DamageMarks, DamageType, FreezeOwner,
+    FrozenRoundFlight, GameItems, Health, ImpactSparkMarker, ImpactSparkPlugin, ImpactSparks,
+    IntegrityDestroyMarker, ItemCategoryType, ItemDesign, ItemDesignId, ItemRoleType,
+    PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage, ProjectileOwner,
     RailgunSlugProjectileMarker, RoundRake, SavedBodyRef, SavedLifetime, SavedOwner,
     SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory,
     SpaceshipRootMarker, TempEntity, TorpedoProjectileMarker, TurretBulletProjectileMarker,
@@ -22,13 +23,14 @@ use nova_scenario::prelude::{
 };
 use nova_ship::prelude::{
     cargo_canister, freeze_canister, freeze_wreck_fragment, thaw_round, thaw_torpedo,
-    BaseSectionConfig, BodyRadius, CameraView, CargoIntakeEjectionQueue, ChaseZoom, DestroySound,
-    FrozenRound, FrozenTorpedo, HullSectionConfig, LockSignature, RoundSourceType,
-    SavedTorpedoTarget, SectionAnimations, SectionBuildConfig, SectionConfig, SectionKind,
-    SectionReload, SectionReloadConfig, ShipWreckFragmentMarker, SpaceshipCameraController,
-    SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker, SuspendedSectionAmmo,
-    TorpedoArming, TorpedoControllerMarker, TorpedoSectionConfig, TorpedoTargetChosen,
-    TorpedoTargetEntity, TorpedoTargetPosition, TorpedoWeave,
+    BaseSectionConfig, BodyRadius, CameraView, CargoIntakeEjectionQueue, ChaseZoom,
+    DamageSparkMarker, DamageSparks, DamageSparksPlugin, DestroySound, FrozenRound, FrozenTorpedo,
+    HullSectionConfig, LockSignature, RoundSourceType, SavedTorpedoTarget, SectionAnimations,
+    SectionBuildConfig, SectionConfig, SectionKind, SectionReload, SectionReloadConfig,
+    ShipWreckFragmentMarker, SpaceshipCameraController, SpaceshipCameraInputMarker,
+    SpaceshipCameraNormalInputMarker, SuspendedSectionAmmo, TorpedoArming, TorpedoControllerMarker,
+    TorpedoSectionConfig, TorpedoTargetChosen, TorpedoTargetEntity, TorpedoTargetPosition,
+    TorpedoWeave,
 };
 use nova_world::{
     prelude::{CurrentSector, FrozenBodyType, FrozenSectors, SectorCoord, WorldConfig},
@@ -1063,6 +1065,88 @@ fn a_save_waits_out_a_live_blast_and_a_raking_slug() {
     };
     assert!(matches!(round.source, RoundSourceType::Railgun));
     assert_eq!(round.flight.rake_radius, Some(0.5));
+}
+
+/// A section throws a real kinematic damage spark; the save must accept
+/// that visual effect without trying to record it.
+#[test]
+fn a_damage_spark_does_not_fail_the_save() {
+    let root = tempfile::tempdir().unwrap();
+    let mut app = App::new();
+    app.add_plugins(crate::test_support::WorldSaveTestPlugin);
+    app.insert_resource(Assets::<Mesh>::default());
+    app.insert_resource(Assets::<StandardMaterial>::default());
+    app.add_plugins(DamageSparksPlugin);
+    let mut world = std::mem::take(app.world_mut());
+    crate::test_support::arm_save_fixture(&mut world);
+    let (folder, lock) = create_world(root.path(), "Sparking").unwrap();
+    world.insert_resource(WorldSaveSession::created(
+        folder,
+        lock,
+        "Sparking".to_string(),
+        42,
+    ));
+    world.spawn((
+        DamageSparks::default(),
+        DamageLevel(0.9),
+        GlobalTransform::IDENTITY,
+    ));
+
+    frame(&mut world);
+    assert!(
+        world
+            .query_filtered::<(), (With<TempEntity>, With<DamageSparkMarker>)>()
+            .iter(&world)
+            .count()
+            > 0,
+        "the failing section actually threw a damage spark"
+    );
+
+    world.resource_mut::<WorldSaveSession>().request_leave();
+    run_until_idle(&mut world);
+    assert_eq!(
+        world.resource::<WorldSaveSession>().status(),
+        &WorldSaveStatus::Saved { generation: 1 },
+        "a live damage spark must not fail the save"
+    );
+    let digest = world.resource::<LoadedSectionPacks>().digest.0;
+    world.remove_resource::<WorldSaveSession>();
+    let (_, _, _, saved) = open_world(root.path(), "sparking", &catalog(digest), &items()).unwrap();
+    assert!(
+        saved.transients.is_empty(),
+        "a visual spark has no save record"
+    );
+}
+
+/// A real impact burst throws kinematic sparks; the freeze skips their
+/// physics bodies without making a saved record.
+#[test]
+fn live_impact_sparks_have_no_frozen_records() {
+    let mut app = App::new();
+    app.insert_resource(Assets::<Mesh>::default());
+    app.insert_resource(Assets::<StandardMaterial>::default());
+    app.insert_resource(CurrentSector(SectorCoord::ORIGIN));
+    app.add_plugins(ImpactSparkPlugin);
+    app.world_mut().trigger(ImpactSparks {
+        at: Vec3::ZERO,
+        count: 2,
+        force: 1.0,
+    });
+    app.update();
+    let mut sparks = app
+        .world_mut()
+        .query_filtered::<(), With<ImpactSparkMarker>>();
+    assert_eq!(
+        sparks.iter(app.world()).count(),
+        2,
+        "the burst spawned sparks"
+    );
+    assert!(
+        super::transients::freeze_transients(app.world_mut())
+            .unwrap()
+            .is_empty(),
+        "visual sparks leave no save records"
+    );
 }
 
 /// Set the bodies `slug`'s rake is armed against, through its reflection.
