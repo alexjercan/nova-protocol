@@ -149,7 +149,7 @@ fn ship_repair_spends_plates_only_on_a_damaged_player_section() {
         app.world()
             .get::<ShipInventory>(ship)
             .unwrap()
-            .count(&ItemDesignId::from(ITEM_HULL_PLATE))
+            .count(&ItemDesignId::from(ItemRoleType::HullPlate))
     };
     let note = |app: &App| {
         app.world()
@@ -162,7 +162,7 @@ fn ship_repair_spends_plates_only_on_a_damaged_player_section() {
         ShipInventory::new(
             &items,
             400_000,
-            [(ItemDesignId::from(ITEM_HULL_PLATE), count)],
+            [(ItemDesignId::from(ItemRoleType::HullPlate), count)],
         )
     };
 
@@ -275,7 +275,7 @@ fn ship_repair_spends_selected_quantity_and_refuses_stale_requests_atomically() 
         ShipInventory::new(
             &items,
             400_000,
-            [(ItemDesignId::from(ITEM_HULL_PLATE), count)],
+            [(ItemDesignId::from(ItemRoleType::HullPlate), count)],
         )
     };
     let health = |app: &App| app.world().get::<Health>(turret).unwrap().current;
@@ -283,7 +283,7 @@ fn ship_repair_spends_selected_quantity_and_refuses_stale_requests_atomically() 
         app.world()
             .get::<ShipInventory>(ship)
             .unwrap()
-            .count(&ItemDesignId::from(ITEM_HULL_PLATE))
+            .count(&ItemDesignId::from(ItemRoleType::HullPlate))
     };
     let repair = |app: &mut App, requested_plates| {
         app.world_mut().write_message(SectionRepairCommand {
@@ -817,7 +817,7 @@ fn ship_input_selection_repair_reset_survives_a_missing_player_inventory() {
     app.world_mut().entity_mut(ship).insert(ShipInventory::new(
         &items,
         400_000,
-        [(ItemDesignId::from(ITEM_HULL_PLATE), 10)],
+        [(ItemDesignId::from(ItemRoleType::HullPlate), 10)],
     ));
     app.world_mut().run_system_once(ship_input).unwrap();
     let runtime = app.world().resource::<ShipRuntime>();
@@ -1235,7 +1235,7 @@ fn panel_buttons_raise_section_repair_command() {
     app.world_mut().entity_mut(ship).insert(ShipInventory::new(
         &items,
         400_000,
-        [(ItemDesignId::from(ITEM_HULL_PLATE), 1)],
+        [(ItemDesignId::from(ItemRoleType::HullPlate), 1)],
     ));
     let repair = app
         .world_mut()
@@ -1325,7 +1325,7 @@ fn update_ship_panel_reflects_selection() {
     app.world_mut().entity_mut(ship).insert(ShipInventory::new(
         &items,
         400_000,
-        [(ItemDesignId::from(ITEM_HULL_PLATE), 1)],
+        [(ItemDesignId::from(ItemRoleType::HullPlate), 1)],
     ));
     app.world_mut()
         .entity_mut(turret)
@@ -1469,7 +1469,7 @@ fn update_ship_panel_reflects_selection() {
     app.world_mut().entity_mut(ship).insert(ShipInventory::new(
         &items,
         400_000,
-        [(ItemDesignId::from(ITEM_HULL_PLATE), 10)],
+        [(ItemDesignId::from(ItemRoleType::HullPlate), 10)],
     ));
     app.world_mut().resource_mut::<ShipRuntime>().selected = Some(thruster);
     app.update();
@@ -1501,7 +1501,7 @@ fn update_ship_panel_reflects_selection() {
     app.world_mut().entity_mut(ship).insert(ShipInventory::new(
         &items,
         400_000,
-        [(ItemDesignId::from(ITEM_HULL_PLATE), 10)],
+        [(ItemDesignId::from(ItemRoleType::HullPlate), 10)],
     ));
     app.update();
     assert_eq!(
@@ -1588,7 +1588,7 @@ fn update_ship_panel_preview_names_the_exact_repair_refusal() {
     app.world_mut().entity_mut(ship).insert(ShipInventory::new(
         &items,
         400_000,
-        [(ItemDesignId::from(ITEM_HULL_PLATE), 1)],
+        [(ItemDesignId::from(ItemRoleType::HullPlate), 1)],
     ));
     app.world_mut()
         .run_system_once(assign_section_codes)
@@ -1660,7 +1660,7 @@ fn update_ship_panel_hides_the_repair_form_after_a_full_repair() {
     app.world_mut().entity_mut(ship).insert(ShipInventory::new(
         &items,
         400_000,
-        [(ItemDesignId::from(ITEM_HULL_PLATE), 1)],
+        [(ItemDesignId::from(ItemRoleType::HullPlate), 1)],
     ));
     app.world_mut()
         .run_system_once(assign_section_codes)

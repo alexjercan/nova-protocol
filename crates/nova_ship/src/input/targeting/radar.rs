@@ -548,7 +548,7 @@ mod tests {
         assert!(at.translation.length() > TargetingSettings::default().unsigned_lock_range);
         let canister = world
             .spawn(cargo_canister(
-                CargoCanister::new(&test_items(), &ITEM_HULL_PLATE.into(), 1),
+                CargoCanister::new(&test_items(), &ItemRoleType::HullPlate.into(), 1),
                 at,
                 Vec3::ZERO,
                 AssetRef::from("canister.glb#Scene0"),

@@ -332,7 +332,11 @@ mod tests {
             .spawn((
                 SpaceshipRootMarker,
                 EntityId("player_spaceship".to_string()),
-                ShipInventory::new(&items, 400_000, [(ItemDesignId::from(ITEM_HULL_PLATE), 12)]),
+                ShipInventory::new(
+                    &items,
+                    400_000,
+                    [(ItemDesignId::from(ItemRoleType::HullPlate), 12)],
+                ),
             ))
             .id();
         world.insert_resource(items);
@@ -374,10 +378,10 @@ mod tests {
         assert_eq!(
             hold.stacks().collect::<Vec<_>>(),
             [
-                (&ItemDesignId::from(ITEM_HULL_PLATE), 17),
-                (&ItemDesignId::from(ITEM_PDC_ROUND), 300),
-                (&ItemDesignId::from(ITEM_RAIL_SLUG), 1),
-                (&ItemDesignId::from(ITEM_TORPEDO), 1),
+                (&ItemDesignId::from(ItemRoleType::HullPlate), 17),
+                (&ItemDesignId::from(ItemRoleType::PdcRound), 300),
+                (&ItemDesignId::from(ItemRoleType::RailSlug), 1),
+                (&ItemDesignId::from(ItemRoleType::Torpedo), 1),
             ]
         );
         assert_eq!(hold.used_g(&items), 400_000);

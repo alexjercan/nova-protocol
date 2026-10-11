@@ -268,7 +268,7 @@ mod tests {
             .world_mut()
             .spawn((
                 PlayerSpaceshipMarker,
-                ShipInventory::new(&items, 10_000, [(ITEM_PDC_ROUND.into(), 4)]),
+                ShipInventory::new(&items, 10_000, [(ItemRoleType::PdcRound.into(), 4)]),
             ))
             .id();
         let section = app
@@ -281,7 +281,7 @@ mod tests {
                         delay: 3.0,
                         amount: 4,
                     },
-                    ITEM_PDC_ROUND.into(),
+                    ItemRoleType::PdcRound.into(),
                 ),
                 ChildOf(ship),
             ))

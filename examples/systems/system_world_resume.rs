@@ -363,7 +363,7 @@ fn inject_fixture(world: &mut World) {
         .get::<GlobalTransform>(rock)
         .expect("the fixture rock has a transform")
         .translation();
-    let canister_contents = CargoCanister::new(&items, &ITEM_IRON_ORE.into(), 3);
+    let canister_contents = CargoCanister::new(&items, &ItemRoleType::IronOre.into(), 3);
     let canister = world
         .spawn((
             cargo_canister(

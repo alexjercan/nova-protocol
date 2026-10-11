@@ -368,10 +368,7 @@ pub struct SectionReloadComplete {
 
 #[cfg(test)]
 mod tests {
-    use nova_gameplay::{
-        prelude::{ITEM_PDC_ROUND, ITEM_TORPEDO},
-        test_support::test_items,
-    };
+    use nova_gameplay::{prelude::ItemRoleType, test_support::test_items};
 
     use super::*;
 
@@ -405,7 +402,10 @@ mod tests {
     }
 
     fn reload_cfg(delay: f32, amount: u32) -> SectionReload {
-        SectionReload::from_config(SectionReloadConfig { delay, amount }, ITEM_PDC_ROUND.into())
+        SectionReload::from_config(
+            SectionReloadConfig { delay, amount },
+            ItemRoleType::PdcRound.into(),
+        )
     }
 
     /// A hold of `rounds` PDC rounds with room to spare.
@@ -414,7 +414,7 @@ mod tests {
         if rounds == 0 {
             return ShipInventory::new(&items, 1_000_000, []);
         }
-        ShipInventory::new(&items, 1_000_000, [(ITEM_PDC_ROUND.into(), rounds)])
+        ShipInventory::new(&items, 1_000_000, [(ItemRoleType::PdcRound.into(), rounds)])
     }
 
     #[test]
@@ -429,12 +429,12 @@ mod tests {
         assert!((reload.progress() - 2.0 / 3.0).abs() < 1e-6);
         reload.advance(&mut ammo, &mut inventory, 1.0);
         assert_eq!(ammo.rounds, 200);
-        assert_eq!(inventory.count(&ITEM_PDC_ROUND.into()), 800);
+        assert_eq!(inventory.count(&ItemRoleType::PdcRound.into()), 800);
         assert_eq!(reload.progress(), 0.0);
         reload.advance(&mut ammo, &mut inventory, 6.0);
         assert_eq!(ammo.rounds, 500, "the final batch clamps to capacity");
         assert_eq!(
-            inventory.count(&ITEM_PDC_ROUND.into()),
+            inventory.count(&ItemRoleType::PdcRound.into()),
             500,
             "the clamped batch takes only the 100 rounds it loads"
         );
@@ -461,7 +461,7 @@ mod tests {
         assert_eq!(reload.progress(), 0.0);
 
         // Stock that arrives later starts a fresh delay, not an owed batch.
-        inventory.add(&test_items(), &ITEM_PDC_ROUND.into(), 10);
+        inventory.add(&test_items(), &ItemRoleType::PdcRound.into(), 10);
         reload.advance(&mut ammo, &mut inventory, 1.0);
         assert_eq!(ammo.rounds, 150);
         reload.advance(&mut ammo, &mut inventory, 2.0);
@@ -478,12 +478,12 @@ mod tests {
                 delay: 1.0,
                 amount: 1,
             },
-            ITEM_TORPEDO.into(),
+            ItemRoleType::Torpedo.into(),
         );
         let mut inventory = reserve(1000);
         reload.advance(&mut ammo, &mut inventory, 5.0);
         assert_eq!(ammo.rounds, 0, "PDC rounds do not load a torpedo bay");
-        assert_eq!(inventory.count(&ITEM_PDC_ROUND.into()), 1000);
+        assert_eq!(inventory.count(&ItemRoleType::PdcRound.into()), 1000);
     }
 
     #[test]
@@ -534,7 +534,7 @@ mod tests {
         assert!(!reload.is_reloading(&ammo, 10));
         reload.advance(&mut ammo, &mut inventory, 100.0);
         assert_eq!(ammo.rounds, 4);
-        assert_eq!(inventory.count(&ITEM_PDC_ROUND.into()), 10);
+        assert_eq!(inventory.count(&ItemRoleType::PdcRound.into()), 10);
         assert_eq!(reload.progress(), 0.0);
     }
 
@@ -623,7 +623,7 @@ mod tests {
                 .world()
                 .get::<ShipInventory>(ship)
                 .unwrap()
-                .count(&ITEM_PDC_ROUND.into());
+                .count(&ItemRoleType::PdcRound.into());
             (loaded, held)
         };
 

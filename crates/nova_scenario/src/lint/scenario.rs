@@ -2424,10 +2424,10 @@ mod tests {
     #[test]
     fn inventory_stock_heavier_than_the_hold_fails_lint() {
         use nova_gameplay::{
-            prelude::{ItemDesignId, ITEM_HULL_PLATE, ITEM_PDC_ROUND},
+            prelude::{ItemDesignId, ItemRoleType},
             test_support::test_items,
         };
-        let overstock = |item: &str, count| {
+        let overstock = |item: ItemRoleType, count| {
             let mut spawn = spawn_armed_ship(
                 "warship",
                 SpaceshipController::AI(AIControllerConfig::default()),
@@ -2459,16 +2459,16 @@ mod tests {
         };
 
         assert!(
-            overstock(ITEM_HULL_PLATE, 10).is_empty(),
+            overstock(ItemRoleType::HullPlate, 10).is_empty(),
             "100 kg fits a 100 kg hold"
         );
         assert_eq!(
-            overstock(ITEM_HULL_PLATE, 11),
+            overstock(ItemRoleType::HullPlate, 11),
             ["ship 'warship': inventory stock of 110 kg exceeds its 100 kg hold"]
         );
-        assert!(overstock(ITEM_PDC_ROUND, 500).is_empty());
+        assert!(overstock(ItemRoleType::PdcRound, 500).is_empty());
         assert_eq!(
-            overstock(ITEM_PDC_ROUND, 501),
+            overstock(ItemRoleType::PdcRound, 501),
             ["ship 'warship': inventory stock of 100.2 kg exceeds its 100 kg hold"]
         );
     }
@@ -2478,7 +2478,7 @@ mod tests {
     #[test]
     fn a_ship_stocking_an_item_the_catalog_lacks_fails_lint() {
         use nova_gameplay::{
-            prelude::{ItemDesignId, ShipInventoryStock, ITEM_HULL_PLATE},
+            prelude::{ItemDesignId, ItemRoleType, ShipInventoryStock},
             test_support::test_items,
         };
         let mut spawn = spawn_armed_ship(
@@ -2493,7 +2493,7 @@ mod tests {
             unreachable!("spawn_armed_ship spawns a spaceship");
         };
         ship.inventory = ShipInventoryStock::new([
-            (ItemDesignId::from(ITEM_HULL_PLATE), 1),
+            (ItemDesignId::from(ItemRoleType::HullPlate), 1),
             (ItemDesignId::from("lost_core"), 50),
         ]);
         let s = scenario(vec![spawn], vec![]);

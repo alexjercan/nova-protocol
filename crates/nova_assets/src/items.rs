@@ -14,7 +14,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
-use nova_gameplay::prelude::{ItemDesign, CARGO_CANISTER_MAX_MASS_G, ITEM_ROLES};
+use nova_gameplay::prelude::{ItemDesign, ItemRoleType, CARGO_CANISTER_MAX_MASS_G};
 use nova_mod_format::deps::{transitive_deps, DepGraph};
 use nova_modding::prelude::BASE_MOD_ID;
 use nova_scenario::prelude::{ore_for_asteroid_kind, AsteroidKindId, ASTEROID_KINDS};
@@ -42,7 +42,7 @@ pub struct ItemPack<'a> {
 /// A pack is refused for an invalid item it defines, an item id it defines
 /// twice, an item id it shares with a pack it has no one-way dependency
 /// chain with, and a dependency chain too deep to walk. The base game is
-/// also refused when it lacks one of [`ITEM_ROLES`].
+/// also refused when it lacks one of [`ItemRoleType::ALL`].
 pub fn item_pack_faults(packs: &[ItemPack<'_>]) -> BTreeMap<String, Vec<String>> {
     let mut faults: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut fault = |pack: &str, message: String| {
@@ -102,9 +102,9 @@ pub fn item_pack_faults(packs: &[ItemPack<'_>]) -> BTreeMap<String, Vec<String>>
     }
 
     if let Some(base) = packs.iter().find(|pack| pack.id == BASE_MOD_ID) {
-        for (role, _) in ITEM_ROLES {
-            if !base.items.iter().any(|item| item.id.as_str() == role) {
-                fault(BASE_MOD_ID, format!("item '{role}' is not defined"));
+        for role in ItemRoleType::ALL {
+            if !base.items.iter().any(|item| item.id.as_str() == role.id()) {
+                fault(BASE_MOD_ID, format!("item '{}' is not defined", role.id()));
             }
         }
     }
@@ -133,11 +133,12 @@ fn item_faults(item: &ItemDesign) -> Vec<String> {
             item.bid_cr, item.ask_cr
         ));
     }
-    if let Some((_, category)) = ITEM_ROLES.iter().find(|(role, _)| *role == id) {
-        if item.category != *category {
+    if let Some(role) = ItemRoleType::ALL.iter().find(|role| role.id() == id) {
+        if item.category != role.category() {
             faults.push(format!(
-                "item '{id}' is filed under {:?}; the game uses it as {category:?}",
-                item.category
+                "item '{id}' is filed under {:?}; the game uses it as {:?}",
+                item.category,
+                role.category()
             ));
         }
     }
@@ -145,7 +146,7 @@ fn item_faults(item: &ItemDesign) -> Vec<String> {
     let mined = ASTEROID_KINDS
         .iter()
         .filter_map(|kind| ore_for_asteroid_kind(&AsteroidKindId::from(*kind)))
-        .any(|ore| ore.as_str() == id);
+        .any(|ore| ore.id() == id);
     if mined && item.mass_g > CARGO_CANISTER_MAX_MASS_G {
         faults.push(format!(
             "item '{id}' has a mass_g of {}; mined ore must fit one {CARGO_CANISTER_MAX_MASS_G} g \
@@ -163,10 +164,10 @@ mod tests {
     use super::*;
 
     fn item(id: &str, mass_g: u32) -> ItemDesign {
-        let category = ITEM_ROLES
+        let category = ItemRoleType::ALL
             .iter()
-            .find(|(role, _)| *role == id)
-            .map_or(ItemCategoryType::Parts, |(_, category)| *category);
+            .find(|role| role.id() == id)
+            .map_or(ItemCategoryType::Parts, |role| role.category());
         ItemDesign {
             id: ItemDesignId::from(id),
             name: id.to_string(),
@@ -179,9 +180,9 @@ mod tests {
     }
 
     fn base_items() -> Vec<ItemDesign> {
-        ITEM_ROLES
+        ItemRoleType::ALL
             .iter()
-            .map(|(role, _)| item(role, 1_000))
+            .map(|role| item(role.id(), 1_000))
             .collect()
     }
 
@@ -229,12 +230,12 @@ mod tests {
     #[test]
     fn a_dependent_pack_may_replace_an_item_and_a_cycle_may_not() {
         let base = base_items();
-        let mut rations = item(nova_gameplay::prelude::ITEM_RATIONS, 3_000);
+        let mut rations = item(ItemRoleType::Rations.id(), 3_000);
         rations.ask_cr = 20;
         rations.bid_cr = 15;
         let plate = [
-            item(nova_gameplay::prelude::ITEM_HULL_PLATE, 12_000),
-            item(nova_gameplay::prelude::ITEM_SALVAGED_PARTS, 30_000),
+            item(ItemRoleType::HullPlate.id(), 12_000),
+            item(ItemRoleType::SalvagedParts.id(), 30_000),
             rations.clone(),
         ];
         let core = [item("deep-salvage/reactor_core", 80_000)];
@@ -281,20 +282,16 @@ mod tests {
     fn the_base_game_keeps_every_role_and_no_pack_repeats_or_weightless_items() {
         let mut base = base_items();
         base.retain(|item| {
-            ![
-                nova_gameplay::prelude::ITEM_TORPEDO,
-                nova_gameplay::prelude::ITEM_SALVAGED_PARTS,
-            ]
-            .contains(&item.id.as_str())
+            ![ItemRoleType::Torpedo, ItemRoleType::SalvagedParts]
+                .iter()
+                .any(|role| role.id() == item.id.as_str())
         });
         base[0].category = ItemCategoryType::Food;
         for item in &mut base {
-            match item.id.as_str() {
-                nova_gameplay::prelude::ITEM_STONE_ORE => {
-                    item.mass_g = CARGO_CANISTER_MAX_MASS_G + 1;
-                }
-                nova_gameplay::prelude::ITEM_RATIONS => item.category = ItemCategoryType::Parts,
-                _ => {}
+            if item.id.as_str() == ItemRoleType::StoneOre.id() {
+                item.mass_g = CARGO_CANISTER_MAX_MASS_G + 1;
+            } else if item.id.as_str() == ItemRoleType::Rations.id() {
+                item.category = ItemCategoryType::Parts;
             }
         }
         base.push(item("Scrap", 0));

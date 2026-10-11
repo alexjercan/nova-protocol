@@ -1021,13 +1021,13 @@ mod tests {
                     delay: 0.2,
                     amount: 3,
                 },
-                ITEM_PDC_ROUND.into(),
+                ItemRoleType::PdcRound.into(),
             ));
         let ship = app.world().get::<ChildOf>(turret).unwrap().parent();
         app.world_mut().entity_mut(ship).insert(ShipInventory::new(
             &test_items(),
             10_000,
-            [(ITEM_PDC_ROUND.into(), 30)],
+            [(ItemRoleType::PdcRound.into(), 30)],
         ));
 
         // A full three-round magazine empties within one tick, and each
@@ -1046,7 +1046,7 @@ mod tests {
             app.world()
                 .get::<ShipInventory>(ship)
                 .unwrap()
-                .count(&ITEM_PDC_ROUND.into()),
+                .count(&ItemRoleType::PdcRound.into()),
             0,
             "the reload must drain the ship's stock"
         );

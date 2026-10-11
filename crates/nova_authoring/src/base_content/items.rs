@@ -6,26 +6,22 @@
 //! mod adds items under its own ids, and a mod that depends on another pack
 //! may replace that pack's whole item.
 //!
-//! The ids of [`ITEM_ROLES`](nova_gameplay::prelude::ITEM_ROLES) are the ones
-//! the game itself uses - weapons reload from them, repair spends one, mining
-//! yields them, generated sector ship holds draw them - so the base game must
-//! define each under its role's category. A dependent mod may replace one of
+//! The ids of [`ItemRoleType`](nova_gameplay::prelude::ItemRoleType) are the
+//! ones the game itself uses - weapons reload from them, repair spends one,
+//! mining yields them, generated sector ship holds draw them - so the base
+//! game must define each under its role's category. A dependent mod may replace one of
 //! them whole, with new mass and prices, under the same category.
 //! Prices are provisional values, not a balance decision; each bid is below
 //! its ask, so buying and selling back loses credits.
 
-use nova_gameplay::prelude::{
-    ItemCategoryType, ItemDesign, ItemDesignId, ITEM_CARBON_ORE, ITEM_HULL_PLATE, ITEM_IRON_ORE,
-    ITEM_PDC_ROUND, ITEM_RAIL_SLUG, ITEM_RATIONS, ITEM_SALVAGED_PARTS, ITEM_STONE_ORE,
-    ITEM_TORPEDO, ITEM_WATER_ICE,
-};
+use nova_gameplay::prelude::{ItemCategoryType, ItemDesign, ItemDesignId, ItemRoleType};
 
 /// The base game's items, in the order the file carries them.
 pub(crate) fn item_catalog() -> Vec<ItemDesign> {
     use ItemCategoryType::{Ammo, Food, Parts, Raw, Repair};
     [
         (
-            ITEM_HULL_PLATE,
+            ItemRoleType::HullPlate,
             "Hull plate",
             "Structural plating for hull sections.",
             Repair,
@@ -34,7 +30,7 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
             30,
         ),
         (
-            ITEM_PDC_ROUND,
+            ItemRoleType::PdcRound,
             "PDC round",
             "Point-defense round. Kinetic and Pierce mounts reload from it.",
             Ammo,
@@ -43,7 +39,7 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
             3,
         ),
         (
-            ITEM_RAIL_SLUG,
+            ItemRoleType::RailSlug,
             "Rail slug",
             "Railgun slug. Railgun mounts reload from it.",
             Ammo,
@@ -52,7 +48,7 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
             30,
         ),
         (
-            ITEM_TORPEDO,
+            ItemRoleType::Torpedo,
             "Torpedo",
             "Torpedo. Every torpedo bay reloads from it.",
             Ammo,
@@ -61,7 +57,7 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
             300,
         ),
         (
-            ITEM_STONE_ORE,
+            ItemRoleType::StoneOre,
             "Stone ore",
             "Silicate rock, mined from rock asteroids.",
             Raw,
@@ -70,7 +66,7 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
             3,
         ),
         (
-            ITEM_IRON_ORE,
+            ItemRoleType::IronOre,
             "Iron ore",
             "Metal-rich ore, mined from metal asteroids.",
             Raw,
@@ -79,7 +75,7 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
             12,
         ),
         (
-            ITEM_WATER_ICE,
+            ItemRoleType::WaterIce,
             "Water ice",
             "Frozen volatiles, mined from ice asteroids.",
             Raw,
@@ -88,7 +84,7 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
             9,
         ),
         (
-            ITEM_CARBON_ORE,
+            ItemRoleType::CarbonOre,
             "Carbon ore",
             "Carbon-rich ore, mined from carbon asteroids.",
             Raw,
@@ -97,7 +93,7 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
             6,
         ),
         (
-            ITEM_RATIONS,
+            ItemRoleType::Rations,
             "Rations",
             "Packed crew food. Traders buy and sell it.",
             Food,
@@ -106,7 +102,7 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
             6,
         ),
         (
-            ITEM_SALVAGED_PARTS,
+            ItemRoleType::SalvagedParts,
             "Salvaged parts",
             "Reusable ship components. Traders buy and sell them.",
             Parts,

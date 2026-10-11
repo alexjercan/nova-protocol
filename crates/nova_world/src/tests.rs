@@ -22,8 +22,8 @@ use nova_events::prelude::{Meters, Meters3, MetersPerSecond3};
 use nova_gameplay::{
     prelude::{
         Allegiance, AssetRef, DerelictShipMarker, GravityAffected, GravityWell, IntegrityEnvelope,
-        ItemDesignId, LootableShipMarker, ShipCredits, ShipInventory, ShipInventoryStock,
-        ITEM_HULL_PLATE,
+        ItemDesignId, ItemRoleType, LootableShipMarker, ShipCredits, ShipInventory,
+        ShipInventoryStock,
     },
     test_support::test_items,
 };
@@ -1039,7 +1039,7 @@ fn intact_and_derelict(input: SectorGenerationInput) -> SectorManifest {
     derelict.condition = SectorShipConditionType::Derelict;
     derelict.spawn.controller = SpaceshipController::None;
     derelict.spawn.lootable = true;
-    derelict.spawn.inventory = ShipInventoryStock::new([(ITEM_HULL_PLATE.into(), 5)]);
+    derelict.spawn.inventory = ShipInventoryStock::new([(ItemRoleType::HullPlate.into(), 5)]);
     derelict.spawn.credits = 15;
     manifest.ships.push(derelict);
     manifest
@@ -1100,7 +1100,7 @@ fn a_materialized_derelict_is_lootable_and_unflown_and_an_intact_ship_is_flown_b
                 "Solmar derelict, former civilian".to_string(),
                 true,
                 true,
-                vec![(ITEM_HULL_PLATE.into(), 5)],
+                vec![(ItemRoleType::HullPlate.into(), 5)],
                 15
             ),
         ]

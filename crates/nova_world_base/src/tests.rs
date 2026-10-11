@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, panic::AssertUnwindSafe};
 use bevy::ecs::system::RunSystemOnce;
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack};
 use nova_events::prelude::{Meters, Meters3};
-use nova_gameplay::prelude::{Allegiance, Fnv64, ItemDesignId, ITEM_HULL_PLATE};
+use nova_gameplay::prelude::{Allegiance, Fnv64, ItemDesignId, ItemRoleType};
 use nova_scenario::prelude::{
     resolve_ship_design, GameShipDesigns, ScenarioConfig, SectionSource, ShipDesign,
     SpaceshipController, SpaceshipSectionConfig,
@@ -225,7 +225,7 @@ fn every_planned_ship_carries_goods_its_hold_fits_and_credits() {
                     plateless_wrecks += usize::from(
                         !stacks
                             .iter()
-                            .any(|(item, _)| item.as_str() == ITEM_HULL_PLATE),
+                            .any(|(item, _)| item.as_str() == ItemRoleType::HullPlate.id()),
                     );
                     1..=500
                 }

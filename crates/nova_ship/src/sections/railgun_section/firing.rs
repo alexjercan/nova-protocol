@@ -29,9 +29,10 @@ pub(super) fn insert_railgun_section(
     };
     commands.entity(entity).insert(SectionAmmo::new(capacity));
     if let Some(reload) = config.reload.batch() {
-        commands
-            .entity(entity)
-            .insert(SectionReload::from_config(reload, ITEM_RAIL_SLUG.into()));
+        commands.entity(entity).insert(SectionReload::from_config(
+            reload,
+            ItemRoleType::RailSlug.into(),
+        ));
     }
 }
 

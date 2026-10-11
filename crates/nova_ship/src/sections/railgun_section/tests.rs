@@ -748,7 +748,7 @@ fn a_scripted_railgun_order_waits_for_an_empty_gun_to_reload() {
     app.world_mut().entity_mut(ship).insert(ShipInventory::new(
         &test_items(),
         20_000,
-        [(ITEM_RAIL_SLUG.into(), 1)],
+        [(ItemRoleType::RailSlug.into(), 1)],
     ));
 
     // Empty the magazine before the order lands.

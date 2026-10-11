@@ -166,9 +166,10 @@ pub(super) fn insert_torpedo_section(
         // Every bay type loads the same torpedo: the bay, not the item,
         // decides its flight.
         if let Some(reload) = config.reload.batch() {
-            commands
-                .entity(entity)
-                .insert(SectionReload::from_config(reload, ITEM_TORPEDO.into()));
+            commands.entity(entity).insert(SectionReload::from_config(
+                reload,
+                ItemRoleType::Torpedo.into(),
+            ));
         }
     }
 }
@@ -1377,13 +1378,13 @@ mod tests {
                     delay: 0.2,
                     amount: 1,
                 },
-                ITEM_TORPEDO.into(),
+                ItemRoleType::Torpedo.into(),
             ));
         let ship = app.world().get::<ChildOf>(section).unwrap().parent();
         app.world_mut().entity_mut(ship).insert(ShipInventory::new(
             &test_items(),
             10_000_000,
-            [(ITEM_TORPEDO.into(), 10)],
+            [(ItemRoleType::Torpedo.into(), 10)],
         ));
 
         for _ in 0..12 {

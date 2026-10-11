@@ -1636,7 +1636,7 @@ mod tests {
     use std::sync::atomic::{AtomicU32, Ordering};
 
     use nova_gameplay::{
-        prelude::{DamageType, ITEM_HULL_PLATE, ITEM_IRON_ORE, ITEM_PDC_ROUND},
+        prelude::{DamageType, ItemRoleType},
         test_support::test_items,
     };
     use nova_ship::prelude::{unit_cube_link_points, SectionReloadConfig};
@@ -1687,7 +1687,7 @@ mod tests {
                 delay: 4.0,
                 amount: 5,
             },
-            ITEM_PDC_ROUND.into(),
+            ItemRoleType::PdcRound.into(),
         );
         reload.elapsed = 1.5;
         let section = app
@@ -1867,8 +1867,8 @@ mod tests {
         fn spawn_canisters(app: &mut App, ids: [u64; 2]) {
             let items = test_items();
             for id in ids {
-                let mut canister = CargoCanister::new(&items, &ITEM_IRON_ORE.into(), 2);
-                canister.add(&items, &ITEM_HULL_PLATE.into(), 1);
+                let mut canister = CargoCanister::new(&items, &ItemRoleType::IronOre.into(), 2);
+                canister.add(&items, &ItemRoleType::HullPlate.into(), 1);
                 app.world_mut().spawn((
                     canister,
                     CargoCanisterRuntimeId(id),
@@ -1918,8 +1918,11 @@ mod tests {
     #[should_panic(expected = "has no runtime id")]
     fn a_live_canister_without_runtime_id_fails_snapshot_capture() {
         let mut app = rig();
-        app.world_mut()
-            .spawn(CargoCanister::new(&test_items(), &ITEM_IRON_ORE.into(), 1));
+        app.world_mut().spawn(CargoCanister::new(
+            &test_items(),
+            &ItemRoleType::IronOre.into(),
+            1,
+        ));
         capture_snapshot(app.world_mut(), "test");
     }
 
@@ -1929,7 +1932,7 @@ mod tests {
         let mut app = rig();
         for _ in 0..2 {
             app.world_mut().spawn((
-                CargoCanister::new(&test_items(), &ITEM_IRON_ORE.into(), 1),
+                CargoCanister::new(&test_items(), &ItemRoleType::IronOre.into(), 1),
                 CargoCanisterRuntimeId(7),
                 Transform::IDENTITY,
                 LinearVelocity(Vec3::ZERO),
@@ -1994,7 +1997,10 @@ mod tests {
             ShipInventory::new(
                 &items,
                 100_000,
-                [(ITEM_IRON_ORE.into(), 3), (ITEM_HULL_PLATE.into(), 2)],
+                [
+                    (ItemRoleType::IronOre.into(), 3),
+                    (ItemRoleType::HullPlate.into(), 2),
+                ],
             ),
             ShipCredits(250),
         ));
@@ -2016,8 +2022,8 @@ mod tests {
 
         let mut entity = app.world_mut().entity_mut(player);
         let mut inventory = entity.get_mut::<ShipInventory>().unwrap();
-        inventory.remove(&ITEM_HULL_PLATE.into(), 2);
-        inventory.add(&items, &ITEM_PDC_ROUND.into(), 5);
+        inventory.remove(&ItemRoleType::HullPlate.into(), 2);
+        inventory.add(&items, &ItemRoleType::PdcRound.into(), 5);
         entity.get_mut::<ShipCredits>().unwrap().0 = 330;
         app.update();
 

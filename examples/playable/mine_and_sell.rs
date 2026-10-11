@@ -246,7 +246,7 @@ mod walk {
     const ROCK_NEAR_FACE: Vec3 = Vec3::new(1.0, 1.0, -13.3);
 
     /// The ore the rock's kind yields.
-    const ORE: &str = ITEM_STONE_ORE;
+    const ORE: &str = ItemRoleType::StoneOre;
 
     /// Real-seconds backstop for a state wait, long enough for lavapipe
     /// frames.

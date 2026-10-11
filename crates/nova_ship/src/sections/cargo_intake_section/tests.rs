@@ -63,7 +63,7 @@ fn intakes_app(stock: u32, intakes_x: &[f32]) -> (App, Entity, Vec<Entity>) {
             SpaceshipRootMarker,
             RigidBody::Dynamic,
             Transform::default(),
-            ShipInventory::new(&items, 400_000, [(ITEM_HULL_PLATE.into(), stock)]),
+            ShipInventory::new(&items, 400_000, [(ItemRoleType::HullPlate.into(), stock)]),
         ))
         .id();
     app.world_mut().spawn((
@@ -124,7 +124,7 @@ fn drifting_canister(
     let items = app.world().resource::<GameItems>().clone();
     app.world_mut()
         .spawn(cargo_canister(
-            CargoCanister::new(&items, &ITEM_HULL_PLATE.into(), count),
+            CargoCanister::new(&items, &ItemRoleType::HullPlate.into(), count),
             Transform::from_translation(at).with_rotation(rotation),
             velocity,
             AssetRef::from("canister.glb#Scene0"),
@@ -148,7 +148,7 @@ fn plates(app: &App, ship: Entity) -> u32 {
     app.world()
         .get::<ShipInventory>(ship)
         .unwrap()
-        .count(&ITEM_HULL_PLATE.into())
+        .count(&ItemRoleType::HullPlate.into())
 }
 
 fn takes(app: &App) -> u32 {
@@ -484,7 +484,7 @@ fn a_canister_larger_than_the_free_room_is_refused_whole() {
     app.world_mut()
         .get_mut::<ShipInventory>(ship)
         .unwrap()
-        .remove(&ITEM_HULL_PLATE.into(), 2);
+        .remove(&ItemRoleType::HullPlate.into(), 2);
     for _ in 0..4 {
         app.update();
     }
@@ -530,11 +530,11 @@ fn an_ejected_canister_leaves_without_being_taken_back() {
     app.world_mut()
         .entity_mut(intake)
         .insert(CargoIntakeEjectionQueue(VecDeque::from([
-            CargoCanister::new(&items, &ITEM_HULL_PLATE.into(), 4),
+            CargoCanister::new(&items, &ItemRoleType::HullPlate.into(), 4),
         ])));
 
     // The ejection waits for the door, then leaves across the face.
-    let hull_plate = ITEM_HULL_PLATE.into();
+    let hull_plate = ItemRoleType::HullPlate.into();
     let mut frames = 0;
     let (canister, birth) = loop {
         app.update();
@@ -573,7 +573,7 @@ fn speculative_ejection_contact_is_refused_until_actual_reentry() {
     app.world_mut()
         .entity_mut(intake)
         .insert(CargoIntakeEjectionQueue(VecDeque::from([
-            CargoCanister::new(&items, &ITEM_HULL_PLATE.into(), 4),
+            CargoCanister::new(&items, &ItemRoleType::HullPlate.into(), 4),
         ])));
 
     let mut frames = 0;
@@ -678,9 +678,9 @@ fn queued_canisters_leave_in_order_through_an_open_door_once_each_birth_point_cl
     let (mut app, ship, intake) = intake_app(8);
     let items = app.world().resource::<GameItems>().clone();
     let queued = [
-        CargoCanister::new(&items, &ITEM_TORPEDO.into(), 1),
-        CargoCanister::new(&items, &ITEM_RAIL_SLUG.into(), 10),
-        CargoCanister::new(&items, &ITEM_PDC_ROUND.into(), 1_000),
+        CargoCanister::new(&items, &ItemRoleType::Torpedo.into(), 1),
+        CargoCanister::new(&items, &ItemRoleType::RailSlug.into(), 10),
+        CargoCanister::new(&items, &ItemRoleType::PdcRound.into(), 1_000),
     ];
 
     // The interface pauses virtual time: a queue confirmed then waits.
@@ -782,8 +782,8 @@ fn a_despawned_intake_loses_its_waiting_canisters() {
     app.world_mut()
         .entity_mut(intake)
         .insert(CargoIntakeEjectionQueue(VecDeque::from([
-            CargoCanister::new(&items, &ITEM_HULL_PLATE.into(), 4),
-            CargoCanister::new(&items, &ITEM_HULL_PLATE.into(), 3),
+            CargoCanister::new(&items, &ItemRoleType::HullPlate.into(), 4),
+            CargoCanister::new(&items, &ItemRoleType::HullPlate.into(), 3),
         ])));
     let mut frames = 0;
     while canisters(&mut app).is_empty() {
@@ -802,7 +802,11 @@ fn a_despawned_intake_loses_its_waiting_canisters() {
         .collect();
     assert_eq!(
         left,
-        [CargoCanister::new(&items, &ITEM_HULL_PLATE.into(), 4)]
+        [CargoCanister::new(
+            &items,
+            &ItemRoleType::HullPlate.into(),
+            4
+        )]
     );
     assert!(app
         .world_mut()

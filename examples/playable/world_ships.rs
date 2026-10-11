@@ -1585,7 +1585,7 @@ fn offer_canister_to(world: &mut World, ship: Entity) {
     let id = world.resource_mut::<CargoCanisterIdAllocator>().mint();
     world.spawn((
         cargo_canister(
-            CargoCanister::new(&items, &ITEM_HULL_PLATE.into(), 1),
+            CargoCanister::new(&items, &ItemRoleType::HullPlate.into(), 1),
             Transform::from_translation(at).with_rotation(rotation),
             ship_velocity - normal * closing,
             config.canister_mesh.clone(),
@@ -1893,7 +1893,7 @@ fn check_wreck_intakes(world: &mut World) {
             .count();
         let taken = world
             .get::<ShipInventory>(root)
-            .map(|inventory| inventory.count(&ITEM_HULL_PLATE.into()))
+            .map(|inventory| inventory.count(&ItemRoleType::HullPlate.into()))
             .unwrap_or_default();
         assert_eq!(
             taken, 0,
@@ -2041,7 +2041,7 @@ fn canister_taken() -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sync> {
                 query
                     .iter(world)
                     .next()
-                    .map(|inventory| inventory.count(&ITEM_HULL_PLATE.into()) >= 1)
+                    .map(|inventory| inventory.count(&ItemRoleType::HullPlate.into()) >= 1)
             })
             .unwrap_or(false)
     })

@@ -391,7 +391,7 @@ mod tests {
         app.world_mut()
             .spawn((
                 Name::new("canister"),
-                CargoCanister::new(&test_items(), &ITEM_HULL_PLATE.into(), 1),
+                CargoCanister::new(&test_items(), &ItemRoleType::HullPlate.into(), 1),
                 health,
                 Transform::from_translation(at),
                 GlobalTransform::from_translation(at),
@@ -858,7 +858,7 @@ mod tests {
         let canister = app
             .world_mut()
             .spawn(cargo_canister(
-                CargoCanister::new(&test_items(), &ITEM_HULL_PLATE.into(), 4),
+                CargoCanister::new(&test_items(), &ItemRoleType::HullPlate.into(), 4),
                 Transform::from_xyz(0.0, 0.0, -2.85),
                 Vec3::ZERO,
                 AssetRef::from("canister.glb#Scene0"),
@@ -895,7 +895,7 @@ mod tests {
             app.world()
                 .get::<ShipInventory>(player)
                 .unwrap()
-                .count(&ITEM_HULL_PLATE.into()),
+                .count(&ItemRoleType::HullPlate.into()),
             4
         );
         assert_eq!(takes.load(std::sync::atomic::Ordering::Relaxed), 1);

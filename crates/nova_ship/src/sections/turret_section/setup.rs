@@ -170,9 +170,10 @@ pub(super) fn insert_turret_section(
         // Kinetic and Pierce mounts load the same round: the mount, not
         // the item, decides the damage type.
         if let Some(reload) = config.reload.batch() {
-            commands
-                .entity(turret)
-                .insert(SectionReload::from_config(reload, ITEM_PDC_ROUND.into()));
+            commands.entity(turret).insert(SectionReload::from_config(
+                reload,
+                ItemRoleType::PdcRound.into(),
+            ));
         }
     }
 }

@@ -136,7 +136,7 @@ fn hurt_the_hull(world: &mut World) {
     *inventory = ShipInventory::new(
         &items,
         inventory.capacity_g(),
-        [(ITEM_HULL_PLATE.into(), STOCKED_PLATES)],
+        [(ItemRoleType::HullPlate.into(), STOCKED_PLATES)],
     );
 }
 
@@ -222,7 +222,7 @@ fn check_the_draft(world: &mut World) {
     let stock = ships
         .single(world)
         .expect("screenshot_ship_repair: one player inventory")
-        .count(&ITEM_HULL_PLATE.into());
+        .count(&ItemRoleType::HullPlate.into());
     assert_eq!(
         stock, STOCKED_PLATES,
         "screenshot_ship_repair: plates spent before Repair"

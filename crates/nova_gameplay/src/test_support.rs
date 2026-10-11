@@ -77,8 +77,8 @@ pub fn settle(app: &mut App) {
 /// mass or a price reads it through this catalog, never as a literal.
 pub fn test_items() -> crate::inventory::GameItems {
     use crate::inventory::{ItemCategoryType::*, *};
-    let item = |id: &str, name: &str, category, mass_g, ask_cr, bid_cr| ItemDesign {
-        id: ItemDesignId::from(id),
+    let item = |role: ItemRoleType, name: &str, category, mass_g, ask_cr, bid_cr| ItemDesign {
+        id: ItemDesignId::from(role),
         name: name.to_string(),
         about: format!("{name} for tests."),
         category,
@@ -87,17 +87,24 @@ pub fn test_items() -> crate::inventory::GameItems {
         bid_cr,
     };
     GameItems::new([
-        item(ITEM_HULL_PLATE, "Hull plate", Repair, 10_000, 40, 30),
-        item(ITEM_PDC_ROUND, "PDC round", Ammo, 200, 4, 3),
-        item(ITEM_RAIL_SLUG, "Rail slug", Ammo, 20_000, 40, 30),
-        item(ITEM_TORPEDO, "Torpedo", Ammo, 150_000, 400, 300),
-        item(ITEM_STONE_ORE, "Stone ore", Raw, 10_000, 4, 3),
-        item(ITEM_IRON_ORE, "Iron ore", Raw, 10_000, 16, 12),
-        item(ITEM_WATER_ICE, "Water ice", Raw, 10_000, 12, 9),
-        item(ITEM_CARBON_ORE, "Carbon ore", Raw, 10_000, 8, 6),
-        item(ITEM_RATIONS, "Rations", Food, 2_000, 8, 6),
         item(
-            ITEM_SALVAGED_PARTS,
+            ItemRoleType::HullPlate,
+            "Hull plate",
+            Repair,
+            10_000,
+            40,
+            30,
+        ),
+        item(ItemRoleType::PdcRound, "PDC round", Ammo, 200, 4, 3),
+        item(ItemRoleType::RailSlug, "Rail slug", Ammo, 20_000, 40, 30),
+        item(ItemRoleType::Torpedo, "Torpedo", Ammo, 150_000, 400, 300),
+        item(ItemRoleType::StoneOre, "Stone ore", Raw, 10_000, 4, 3),
+        item(ItemRoleType::IronOre, "Iron ore", Raw, 10_000, 16, 12),
+        item(ItemRoleType::WaterIce, "Water ice", Raw, 10_000, 12, 9),
+        item(ItemRoleType::CarbonOre, "Carbon ore", Raw, 10_000, 8, 6),
+        item(ItemRoleType::Rations, "Rations", Food, 2_000, 8, 6),
+        item(
+            ItemRoleType::SalvagedParts,
             "Salvaged parts",
             Parts,
             25_000,

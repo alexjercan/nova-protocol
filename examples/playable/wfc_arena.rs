@@ -1148,10 +1148,10 @@ fn combatant(
 ///
 /// The arena's loadout, not a balance rule: the shares sum to the whole hold,
 /// and the PDC rounds the guns spend fastest take half of it.
-const AMMO_HOLD_SHARE: [(&str, u32); 3] = [
-    (ITEM_PDC_ROUND, 50),
-    (ITEM_TORPEDO, 40),
-    (ITEM_RAIL_SLUG, 10),
+const AMMO_HOLD_SHARE: [(ItemRoleType, u32); 3] = [
+    (ItemRoleType::PdcRound, 50),
+    (ItemRoleType::Torpedo, 40),
+    (ItemRoleType::RailSlug, 10),
 ];
 
 /// The most full reloads a combatant carries of one ammunition, counted over
@@ -1172,18 +1172,18 @@ fn spare_ammo(hull: &ResolvedShipDesign, items: &GameItems) -> ShipInventoryStoc
             .sections
             .iter()
             .filter_map(|section| match (&section.config.kind, item) {
-                (SectionKind::Turret(turret), ITEM_PDC_ROUND) => turret.ammunition.rounds(),
-                (SectionKind::Torpedo(bay), ITEM_TORPEDO) => bay.ammunition.rounds(),
-                (SectionKind::Railgun(lance), ITEM_RAIL_SLUG) => lance.ammunition.rounds(),
+                (SectionKind::Turret(turret), ItemRoleType::PdcRound) => turret.ammunition.rounds(),
+                (SectionKind::Torpedo(bay), ItemRoleType::Torpedo) => bay.ammunition.rounds(),
+                (SectionKind::Railgun(lance), ItemRoleType::RailSlug) => lance.ammunition.rounds(),
                 _ => None,
             })
             .map(u64::from)
             .sum();
-        let item = ItemDesignId::from(item);
-        let room = capacity_g * u64::from(share) / 100 / u64::from(items.design(&item).mass_g);
+        let design = items.role(item);
+        let room = capacity_g * u64::from(share) / 100 / u64::from(design.mass_g);
         let count = (magazines * u64::from(SPARE_MAGAZINES)).min(room);
         let count = u32::try_from(count).expect("a share of a u32 hold counts in a u32");
-        (count > 0).then_some((item, count))
+        (count > 0).then_some((design.id.clone(), count))
     }))
 }
 
@@ -3356,13 +3356,13 @@ mod reserve_tests {
     use super::*;
 
     /// The rounds every finite magazine of `item` holds across `hull`.
-    fn mounted_rounds(hull: &ResolvedShipDesign, item: &str) -> u32 {
+    fn mounted_rounds(hull: &ResolvedShipDesign, item: ItemRoleType) -> u32 {
         hull.sections
             .iter()
             .filter_map(|section| match (&section.config.kind, item) {
-                (SectionKind::Turret(turret), ITEM_PDC_ROUND) => turret.ammunition.rounds(),
-                (SectionKind::Torpedo(bay), ITEM_TORPEDO) => bay.ammunition.rounds(),
-                (SectionKind::Railgun(lance), ITEM_RAIL_SLUG) => lance.ammunition.rounds(),
+                (SectionKind::Turret(turret), ItemRoleType::PdcRound) => turret.ammunition.rounds(),
+                (SectionKind::Torpedo(bay), ItemRoleType::Torpedo) => bay.ammunition.rounds(),
+                (SectionKind::Railgun(lance), ItemRoleType::RailSlug) => lance.ammunition.rounds(),
                 _ => None,
             })
             .sum()
@@ -3412,15 +3412,15 @@ mod reserve_tests {
                 stock.mass_g(&items)
             );
             for (item, share) in [
-                (ITEM_PDC_ROUND, 50),
-                (ITEM_TORPEDO, 40),
-                (ITEM_RAIL_SLUG, 10),
+                (ItemRoleType::PdcRound, 50),
+                (ItemRoleType::Torpedo, 40),
+                (ItemRoleType::RailSlug, 10),
             ] {
                 let spare = u64::from(2 * mounted_rounds(&resolved, item));
-                let room = capacity_g * share / 100 / u64::from(items.design(&item.into()).mass_g);
+                let room = capacity_g * share / 100 / u64::from(items.role(item).mass_g);
                 let carried = stock
                     .stacks()
-                    .find_map(|(held, count)| (held.as_str() == item).then_some(count))
+                    .find_map(|(held, count)| (held.as_str() == item.id()).then_some(count))
                     .unwrap_or(0);
                 assert_eq!(
                     u64::from(carried),
@@ -3518,17 +3518,20 @@ mod reserve_tests {
         let hull = small_hull(&sections, 3);
         assert_eq!(hull.cargo_capacity_g(), 300_000);
         assert!(
-            mounted_rounds(&hull, ITEM_TORPEDO) > 0,
+            mounted_rounds(&hull, ItemRoleType::Torpedo) > 0,
             "the bays are mounted"
         );
 
-        let pdc = 750.min(2 * mounted_rounds(&hull, ITEM_PDC_ROUND));
+        let pdc = 750.min(2 * mounted_rounds(&hull, ItemRoleType::PdcRound));
         assert_eq!(
             spare_ammo(&hull, &items)
                 .stacks()
                 .map(|(item, count)| (item.as_str(), count))
                 .collect::<Vec<_>>(),
-            [(ITEM_PDC_ROUND, pdc), (ITEM_RAIL_SLUG, 1)],
+            [
+                (ItemRoleType::PdcRound.id(), pdc),
+                (ItemRoleType::RailSlug.id(), 1)
+            ],
         );
     }
 
@@ -3546,7 +3549,7 @@ mod reserve_tests {
                 .stacks()
                 .map(|(item, count)| (item.clone(), count)),
         );
-        let pdc_round = ItemDesignId::from(ITEM_PDC_ROUND);
+        let pdc_round = ItemDesignId::from(ItemRoleType::PdcRound);
         let reserve = inventory.count(&pdc_round);
         let (capacity, batch) = hull
             .sections

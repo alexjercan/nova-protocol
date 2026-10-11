@@ -207,7 +207,7 @@ fn hurt_the_turret(world: &mut World) {
         *inventory = ShipInventory::new(
             &items,
             inventory.capacity_g(),
-            [(ITEM_HULL_PLATE.into(), STOCKED_PLATES)],
+            [(ItemRoleType::HullPlate.into(), STOCKED_PLATES)],
         );
     }
 }
@@ -232,9 +232,9 @@ fn the_ship_spent_hull_plates() -> std::sync::Arc<nova_protocol::nova_debug::har
         world
             .try_query_filtered::<&ShipInventory, With<PlayerSpaceshipMarker>>()
             .is_some_and(|mut ships| {
-                ships
-                    .iter(world)
-                    .any(|inventory| inventory.count(&ITEM_HULL_PLATE.into()) < STOCKED_PLATES)
+                ships.iter(world).any(|inventory| {
+                    inventory.count(&ItemRoleType::HullPlate.into()) < STOCKED_PLATES
+                })
             })
     })
 }

@@ -1037,9 +1037,9 @@ mod tests {
                     &items,
                     10_000_000,
                     [
-                        (ITEM_PDC_ROUND.into(), 1000),
-                        (ITEM_RAIL_SLUG.into(), 10),
-                        (ITEM_TORPEDO.into(), 10),
+                        (ItemRoleType::PdcRound.into(), 1000),
+                        (ItemRoleType::RailSlug.into(), 10),
+                        (ItemRoleType::Torpedo.into(), 10),
                     ],
                 ),
             ))
@@ -1698,7 +1698,7 @@ mod tests {
             .rounds = 0;
         world
             .entity_mut(turret)
-            .insert(reload_at(ITEM_PDC_ROUND.into(), 3.0, 200, 0.5));
+            .insert(reload_at(ItemRoleType::PdcRound.into(), 3.0, 200, 0.5));
         world.run_system_once(sync_ammo_readouts).unwrap();
         world.run_system_once(drive_ammo_readouts).unwrap();
 
@@ -1715,7 +1715,7 @@ mod tests {
         world.entity_mut(player).insert(ShipInventory::new(
             &items,
             10_000_000,
-            [(ITEM_PDC_ROUND.into(), 50)],
+            [(ItemRoleType::PdcRound.into(), 50)],
         ));
         world.run_system_once(drive_ammo_readouts).unwrap();
         assert_eq!(
@@ -1748,7 +1748,7 @@ mod tests {
             .rounds = 1;
         world
             .entity_mut(torpedo)
-            .insert(reload_at(ITEM_TORPEDO.into(), 10.0, 1, 0.5));
+            .insert(reload_at(ItemRoleType::Torpedo.into(), 10.0, 1, 0.5));
         world.run_system_once(sync_ammo_readouts).unwrap();
         world.run_system_once(drive_ammo_readouts).unwrap();
 
@@ -1827,7 +1827,7 @@ mod tests {
             .rounds = 1;
         world
             .entity_mut(torpedo)
-            .insert(reload_at(ITEM_TORPEDO.into(), 4.0, 1, 0.5));
+            .insert(reload_at(ItemRoleType::Torpedo.into(), 4.0, 1, 0.5));
         world.run_system_once(sync_ammo_readouts).unwrap();
         world.run_system_once(drive_ammo_readouts).unwrap();
         let reloading = lit_pip_color(&mut world, torpedo).expect("a lit pip");
@@ -1854,7 +1854,7 @@ mod tests {
         let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(8)));
         world
             .entity_mut(turret)
-            .insert(reload_at(ITEM_PDC_ROUND.into(), 2.0, 8, 0.0));
+            .insert(reload_at(ItemRoleType::PdcRound.into(), 2.0, 8, 0.0));
         world.run_system_once(sync_ammo_readouts).unwrap();
         world.run_system_once(drive_ammo_readouts).unwrap();
 
@@ -1916,7 +1916,7 @@ mod tests {
             .rounds = 0;
         world
             .entity_mut(lance)
-            .insert(reload_at(ITEM_RAIL_SLUG.into(), 12.0, 1, 0.25));
+            .insert(reload_at(ItemRoleType::RailSlug.into(), 12.0, 1, 0.25));
         world.run_system_once(sync_ammo_readouts).unwrap();
         world.run_system_once(drive_ammo_readouts).unwrap();
 
@@ -1928,7 +1928,7 @@ mod tests {
 
         world
             .entity_mut(lance)
-            .insert(reload_at(ITEM_RAIL_SLUG.into(), 12.0, 1, 0.75));
+            .insert(reload_at(ItemRoleType::RailSlug.into(), 12.0, 1, 0.75));
         world.run_system_once(drive_ammo_readouts).unwrap();
         assert_eq!(
             fill_percent(&mut world, lance),
@@ -1984,7 +1984,7 @@ mod tests {
             .rounds = 0;
         world
             .entity_mut(turret)
-            .insert(reload_at(ITEM_PDC_ROUND.into(), 3.0, 200, 0.5));
+            .insert(reload_at(ItemRoleType::PdcRound.into(), 3.0, 200, 0.5));
         world.run_system_once(sync_ammo_readouts).unwrap();
         world.run_system_once(drive_ammo_readouts).unwrap();
 

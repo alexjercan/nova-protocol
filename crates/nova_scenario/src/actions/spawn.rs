@@ -972,7 +972,7 @@ mod tests {
         let items = world.resource::<GameItems>().clone();
         world.get_mut::<ShipInventory>(ship).unwrap().add(
             &items,
-            &ItemDesignId::from(ITEM_IRON_ORE),
+            &ItemDesignId::from(ItemRoleType::IronOre),
             3,
         );
         world.entity_mut(ship).insert(ShipCredits(555));

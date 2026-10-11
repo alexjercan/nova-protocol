@@ -10,11 +10,10 @@ use nova_gameplay::prelude::{
     nova_blast, resumed_lifetime, AssetRef, CargoCanister, CargoCanisterIdAllocator,
     CargoCanisterRuntimeId, ClockFreeze, DamageMarks, DamageType, FreezeOwner, FrozenRoundFlight,
     GameItems, Health, IntegrityDestroyMarker, ItemCategoryType, ItemDesign, ItemDesignId,
-    PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage, ProjectileOwner,
+    ItemRoleType, PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage, ProjectileOwner,
     RailgunSlugProjectileMarker, RoundRake, SavedBodyRef, SavedLifetime, SavedOwner,
     SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory,
     SpaceshipRootMarker, TempEntity, TorpedoProjectileMarker, TurretBulletProjectileMarker,
-    ITEM_IRON_ORE, ITEM_TORPEDO,
 };
 use nova_scenario::prelude::{
     freeze_asteroid, freeze_ore_drop, freeze_ship, spaceship_scenario_object, AsteroidKind,
@@ -1847,7 +1846,11 @@ fn canister_ledger(cells: &[(SectorCoord, &[u64])]) -> FrozenSectors {
                     let canister = world
                         .spawn((
                             cargo_canister(
-                                CargoCanister::new(&items, &ItemDesignId::from(ITEM_IRON_ORE), 1),
+                                CargoCanister::new(
+                                    &items,
+                                    &ItemDesignId::from(ItemRoleType::IronOre),
+                                    1,
+                                ),
                                 Transform::IDENTITY,
                                 Vec3::ZERO,
                                 AssetRef::from("canister.glb#Scene0"),
@@ -2350,8 +2353,8 @@ fn a_world_whose_saved_stock_is_over_its_hold_or_canister_cap_is_refused_on_open
     let (folder, lock) = create_world(root.path(), "Stock").unwrap();
     drop(lock);
     let east = SectorCoord::new(1, 0, 0);
-    let iron = ron::to_string(&ItemDesignId::from(ITEM_IRON_ORE)).unwrap();
-    let torpedo = ron::to_string(&ItemDesignId::from(ITEM_TORPEDO)).unwrap();
+    let iron = ron::to_string(&ItemDesignId::from(ItemRoleType::IronOre)).unwrap();
+    let torpedo = ron::to_string(&ItemDesignId::from(ItemRoleType::Torpedo)).unwrap();
     // Read from RON, as a load reads them: the constructors refuse both.
     let player_with_hold = |capacity_g: u32| {
         let mut world = World::new();

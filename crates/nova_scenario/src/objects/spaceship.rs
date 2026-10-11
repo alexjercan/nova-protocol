@@ -2129,7 +2129,7 @@ mod tests {
                         ..default()
                     }),
                     inventory: ShipInventoryStock::new([(
-                        ItemDesignId::from(ITEM_HULL_PLATE),
+                        ItemDesignId::from(ItemRoleType::HullPlate),
                         plates,
                     )]),
                     ..default()
@@ -2149,7 +2149,10 @@ mod tests {
         let inventory = world.entity(ship).get::<ShipInventory>().unwrap();
         assert_eq!(inventory.capacity_g(), 200_000);
         assert_eq!(inventory.used_g(&test_items()), 120_000);
-        assert_eq!(inventory.count(&ItemDesignId::from(ITEM_HULL_PLATE)), 12);
+        assert_eq!(
+            inventory.count(&ItemDesignId::from(ItemRoleType::HullPlate)),
+            12
+        );
         assert!(world.entity(ship).get::<ShipInventoryStock>().is_none());
     }
 

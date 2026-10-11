@@ -13,8 +13,8 @@ use nova_events::prelude::{EntityId, Meters, Meters3, ScenarioAddressableMarker}
 use nova_gameplay::{
     prelude::{
         AssetRef, CargoCanister, CargoCanisterRuntimeId, DamageMark, DamageMarks, Health,
-        IntegrityDestroyMarker, PlayerSpaceshipMarker, SectionMarker, ShipCredits, ShipInventory,
-        ShipInventoryStock, SpaceshipRootMarker, TempEntity, ITEM_IRON_ORE, ITEM_WATER_ICE,
+        IntegrityDestroyMarker, ItemRoleType, PlayerSpaceshipMarker, SectionMarker, ShipCredits,
+        ShipInventory, ShipInventoryStock, SpaceshipRootMarker, TempEntity,
     },
     test_support::{settle, test_items, unfinished_integrity_physics_app},
 };
@@ -628,7 +628,7 @@ fn wreckable(input: SectorGenerationInput) -> SectorManifest {
     aft.position = Vec3::Z;
     aft.source = SectionSource::prototype(TEST_TURRET_SECTION_ID);
     design.sections.push(aft);
-    fought.spawn.inventory = ShipInventoryStock::new([(ITEM_IRON_ORE.into(), 10)]);
+    fought.spawn.inventory = ShipInventoryStock::new([(ItemRoleType::IronOre.into(), 10)]);
     let held = ship(
         sector_id(input.coord, "ship", 1),
         centre + Meters3::new(0.0, 0.0, quarter),
@@ -767,7 +767,7 @@ fn wreck_home(app: &mut App) -> (Entity, Entity) {
     world
         .get_mut::<ShipInventory>(fought)
         .expect("a ship has a hold")
-        .remove(&ITEM_IRON_ORE.into(), 7);
+        .remove(&ItemRoleType::IronOre.into(), 7);
     world.entity_mut(fought).insert(ShipCredits(0));
     settle(app);
     (rock, fought)
@@ -908,7 +908,7 @@ fn a_snapshot_of_the_live_world_reads_back_as_the_same_world() {
     let id = world
         .resource_mut::<nova_gameplay::inventory::CargoCanisterIdAllocator>()
         .mint();
-    let contents = CargoCanister::new(&test_items(), &ITEM_IRON_ORE.into(), 4);
+    let contents = CargoCanister::new(&test_items(), &ItemRoleType::IronOre.into(), 4);
     world.spawn((
         cargo_canister(
             contents.clone(),
@@ -1181,8 +1181,8 @@ fn a_loose_canister_freezes_with_the_cell_it_drifts_in() {
         .resource_mut::<nova_gameplay::inventory::CargoCanisterIdAllocator>()
         .mint();
     let items = test_items();
-    let mut contents = CargoCanister::new(&items, &ITEM_IRON_ORE.into(), 4);
-    contents.add(&items, &ITEM_WATER_ICE.into(), 2);
+    let mut contents = CargoCanister::new(&items, &ItemRoleType::IronOre.into(), 4);
+    contents.add(&items, &ItemRoleType::WaterIce.into(), 2);
     let at = Transform::from_translation(home.centre(edge).to_engine() + Vec3::Y * 40.0);
     let canister = world
         .spawn((

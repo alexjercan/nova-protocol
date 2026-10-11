@@ -69,7 +69,7 @@ const TRADER_NAME: &str = "Trader";
 const TRADER_POSITION: Meters3 = Meters3::new(0.0, 0.0, -55.0);
 
 /// What the tender carries at spawn: plates to sell.
-const TENDER_STOCK: &[(&str, u32)] = &[(ITEM_HULL_PLATE, 4)];
+const TENDER_STOCK: &[(&str, u32)] = &[(ItemRoleType::HullPlate.id(), 4)];
 /// The tender's credits at spawn: enough for Rations, short of two Salvaged
 /// parts after the plates sell.
 const TENDER_CREDITS: u32 = 100;
@@ -220,7 +220,7 @@ struct Ledger {
 #[cfg(feature = "debug")]
 const AFTER_BUY: (Ledger, Ledger) = (
     Ledger {
-        stacks: &[(ITEM_HULL_PLATE, 4), ("Rations", 1)],
+        stacks: &[(ItemRoleType::HullPlate.id(), 4), ("Rations", 1)],
         credits: 92,
     },
     Ledger {
@@ -238,7 +238,11 @@ const AFTER_SELL: (Ledger, Ledger) = (
         credits: 212,
     },
     Ledger {
-        stacks: &[(ITEM_HULL_PLATE, 4), ("Rations", 9), ("SalvagedParts", 2)],
+        stacks: &[
+            (ItemRoleType::HullPlate.id(), 4),
+            ("Rations", 9),
+            ("SalvagedParts", 2),
+        ],
         credits: 888,
     },
 );

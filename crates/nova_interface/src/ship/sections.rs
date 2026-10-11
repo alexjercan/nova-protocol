@@ -491,10 +491,10 @@ pub(crate) fn repair_section(
         Some(health),
         disabled,
         requested_plates,
-        inventory.count(&ItemDesignId::from(ITEM_HULL_PLATE)),
+        inventory.count(&ItemDesignId::from(ItemRoleType::HullPlate)),
     ) {
         Ok(repair) => {
-            inventory.remove(&ItemDesignId::from(ITEM_HULL_PLATE), repair.plates);
+            inventory.remove(&ItemDesignId::from(ItemRoleType::HullPlate), repair.plates);
             health.current = repair.current;
             let noun = if repair.plates == 1 {
                 "plate"

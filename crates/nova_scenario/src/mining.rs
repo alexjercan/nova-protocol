@@ -148,15 +148,14 @@ const SPARK_UP_PROPERTY: &str = "up";
 
 /// The ore a pulse into an asteroid of `kind` yields, or `None` for a kind
 /// that holds none, such as `plain`, the unshaded control rock.
-pub fn ore_for_asteroid_kind(kind: &AsteroidKindId) -> Option<ItemDesignId> {
-    let ore = match kind.as_str() {
-        KIND_ROCK => ITEM_STONE_ORE,
-        KIND_METAL => ITEM_IRON_ORE,
-        KIND_ICE => ITEM_WATER_ICE,
-        KIND_CARBON => ITEM_CARBON_ORE,
-        _ => return None,
-    };
-    Some(ore.into())
+pub fn ore_for_asteroid_kind(kind: &AsteroidKindId) -> Option<ItemRoleType> {
+    match kind.as_str() {
+        KIND_ROCK => Some(ItemRoleType::StoneOre),
+        KIND_METAL => Some(ItemRoleType::IronOre),
+        KIND_ICE => Some(ItemRoleType::WaterIce),
+        KIND_CARBON => Some(ItemRoleType::CarbonOre),
+        _ => None,
+    }
 }
 
 /// Why a pulse takes nothing, in check order.
@@ -393,7 +392,7 @@ struct BeamAim {
     /// The rock's field node.
     node: Entity,
     /// The ore the rock yields.
-    item: ItemDesignId,
+    item: ItemRoleType,
     /// Where the ray meets the rock's collider, in world space.
     at: Vec3,
     /// The collider's outward normal there.
@@ -433,6 +432,7 @@ fn pulse_mining_beams(
     q_locks: Query<&TravelLock>,
     q_rocks: RockQuery,
     mut q_nodes: RockNodeQuery,
+    items: Res<GameItems>,
 ) {
     for section in &q_inactive {
         commands
@@ -496,6 +496,7 @@ fn pulse_mining_beams(
                 &aim,
                 direction,
                 config.carve_radius_cells,
+                &items,
                 &mut commands,
                 &mut q_nodes,
                 &mut owed,
@@ -563,6 +564,7 @@ fn carve(
     aim: &BeamAim,
     direction: Vec3,
     radius_cells: f32,
+    items: &GameItems,
     commands: &mut Commands,
     q_nodes: &mut RockNodeQuery,
     owed: &mut HashMap<Entity, MinedOre>,
@@ -603,7 +605,7 @@ fn carve(
         return 0;
     }
     let pulse = MinedOre {
-        item: aim.item.clone(),
+        item: items.role(aim.item).id.clone(),
         corners,
         at,
         normal: local_normal,
@@ -1348,7 +1350,7 @@ mod tests {
             let paid = app.world().resource::<Pulses>().paid();
             let world = app.world_mut();
             assert_eq!(
-                ore_in_world(world, &ItemDesignId::from(ITEM_STONE_ORE)),
+                ore_in_world(world, &ItemDesignId::from(ItemRoleType::StoneOre)),
                 paid
             );
             let drifting_now = canisters(world);
@@ -1385,7 +1387,10 @@ mod tests {
             );
         }
         let world = app.world_mut();
-        assert_eq!(drifting(world, &ItemDesignId::from(ITEM_STONE_ORE)), paid);
+        assert_eq!(
+            drifting(world, &ItemDesignId::from(ItemRoleType::StoneOre)),
+            paid
+        );
         let mut minted = Vec::new();
         for canister in canisters(world) {
             let id = world
@@ -1401,7 +1406,7 @@ mod tests {
                 .collect();
             assert!(
                 held.iter()
-                    .all(|(item, _)| *item == &ItemDesignId::from(ITEM_STONE_ORE)),
+                    .all(|(item, _)| *item == &ItemDesignId::from(ItemRoleType::StoneOre)),
                 "{held:?}"
             );
             assert!(world.get::<ScenarioScopedMarker>(canister).is_some());
@@ -1552,10 +1557,10 @@ mod tests {
         app.update();
         let world = app.world_mut();
         for item in [
-            ITEM_STONE_ORE,
-            ITEM_IRON_ORE,
-            ITEM_WATER_ICE,
-            ITEM_CARBON_ORE,
+            ItemRoleType::StoneOre,
+            ItemRoleType::IronOre,
+            ItemRoleType::WaterIce,
+            ItemRoleType::CarbonOre,
         ] {
             let item = ItemDesignId::from(item);
             assert_eq!(ore_in_world(world, &item), 0, "{item:?}");
@@ -1643,7 +1648,7 @@ mod tests {
     /// time, and despawns with the last: all 45 ore, none lost.
     #[test]
     fn an_exhausted_rock_keeps_blocked_canisters_until_the_birth_point_clears() {
-        let iron = ItemDesignId::from(ITEM_IRON_ORE);
+        let iron = ItemDesignId::from(ItemRoleType::IronOre);
         let mut app = mining_app();
         let sector = app
             .world_mut()
@@ -1742,7 +1747,7 @@ mod tests {
     /// corners again, and the drop drains its queue as it would have.
     #[test]
     fn owed_ore_and_a_waiting_drop_come_back_from_a_frozen_sector() {
-        let iron = ItemDesignId::from(ITEM_IRON_ORE);
+        let iron = ItemDesignId::from(ItemRoleType::IronOre);
         let mut app = mining_app();
         let (rock, node) = spawn_rock(&mut app, KIND_ROCK);
         let owed = MinedOre {

@@ -135,7 +135,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
                 &ships,
                 "block_frame_tender_damaged",
             )),
-            inventory: ShipInventoryStock::new([(ITEM_HULL_PLATE.into(), DERELICT_PLATES)]),
+            inventory: ShipInventoryStock::new([(ItemRoleType::HullPlate.into(), DERELICT_PLATES)]),
             lootable: true,
             credits: 0,
             ..default()
@@ -328,7 +328,7 @@ mod walk {
         world
             .get::<ShipInventory>(ship)
             .unwrap_or_else(|| panic!("lesson_cargo: {id} has no ShipInventory"))
-            .count(&ITEM_HULL_PLATE.into())
+            .count(&ItemRoleType::HullPlate.into())
     }
 
     /// Advance once the warship's hold holds `count` hull plates.
@@ -339,7 +339,7 @@ mod walk {
                 .is_some_and(|mut ships| {
                     ships
                         .iter(world)
-                        .any(|inventory| inventory.count(&ITEM_HULL_PLATE.into()) == count)
+                        .any(|inventory| inventory.count(&ItemRoleType::HullPlate.into()) == count)
                 })
         })
     }
@@ -524,7 +524,7 @@ mod walk {
         info!("lesson_cargo: the intake queues {queued:?}");
         assert_eq!(
             queued,
-            vec![vec![(ITEM_HULL_PLATE, DERELICT_PLATES)]],
+            vec![vec![(ItemRoleType::HullPlate, DERELICT_PLATES)]],
             "the Jettison queued one canister of every plate"
         );
     }
@@ -549,7 +549,7 @@ mod walk {
         assert_eq!(world.resource::<CargoProof>().ejected, 1);
         assert_eq!(
             live,
-            vec![vec![(ITEM_HULL_PLATE, DERELICT_PLATES)]],
+            vec![vec![(ItemRoleType::HullPlate, DERELICT_PLATES)]],
             "the intake dropped one canister of every plate"
         );
     }

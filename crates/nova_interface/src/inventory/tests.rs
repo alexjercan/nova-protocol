@@ -47,7 +47,7 @@ fn hold(plates: u32) -> ShipInventory {
     ShipInventory::new(
         &test_items(),
         400_000,
-        [(ItemDesignId::from(ITEM_HULL_PLATE), plates)],
+        [(ItemDesignId::from(ItemRoleType::HullPlate), plates)],
     )
 }
 
@@ -333,7 +333,7 @@ fn a_dock_ending_mid_trade_hides_the_partner_column_and_closes_its_form() {
     let partner_row = centre_of::<InventoryRow>(rig.app.world_mut(), |row| {
         *row == InventoryRow {
             side: InventorySideType::Partner,
-            item: ItemDesignId::from(ITEM_HULL_PLATE),
+            item: ItemDesignId::from(ItemRoleType::HullPlate),
         }
     });
     click_at(&mut rig, partner_row);
@@ -400,7 +400,11 @@ fn clicking_a_row_inspects_it_and_a_filter_chip_hides_other_categories() {
         .world_mut()
         .get_mut::<ShipInventory>(partner)
         .expect("the partner has a hold")
-        .add(&test_items(), &ItemDesignId::from(ITEM_PDC_ROUND), 7);
+        .add(
+            &test_items(),
+            &ItemDesignId::from(ItemRoleType::PdcRound),
+            7,
+        );
     settle(&mut rig.app);
     take_churn(&mut rig.app);
     let rows = row_entities(rig.app.world_mut());
@@ -409,7 +413,7 @@ fn clicking_a_row_inspects_it_and_a_filter_chip_hides_other_categories() {
     let partner_row = centre_of::<InventoryRow>(rig.app.world_mut(), |row| {
         *row == InventoryRow {
             side: InventorySideType::Partner,
-            item: ItemDesignId::from(ITEM_HULL_PLATE),
+            item: ItemDesignId::from(ItemRoleType::HullPlate),
         }
     });
     click_at(&mut rig, partner_row);
@@ -417,7 +421,7 @@ fn clicking_a_row_inspects_it_and_a_filter_chip_hides_other_categories() {
         rig.app.world().resource::<InventoryRuntime>().selected,
         Some((
             InventorySideType::Partner,
-            ItemDesignId::from(ITEM_HULL_PLATE)
+            ItemDesignId::from(ItemRoleType::HullPlate)
         ))
     );
     assert_eq!(take_cues(&mut rig.app), [UiSfx::MenuSelect]);
@@ -491,7 +495,7 @@ fn clicking_a_row_inspects_it_and_a_filter_chip_hides_other_categories() {
         runtime.selected,
         Some((
             InventorySideType::Partner,
-            ItemDesignId::from(ITEM_HULL_PLATE)
+            ItemDesignId::from(ItemRoleType::HullPlate)
         ))
     );
     assert_eq!(
@@ -520,7 +524,10 @@ fn clicking_a_row_inspects_it_and_a_filter_chip_hides_other_categories() {
     press_key(&mut rig.app, KeyCode::BracketLeft);
     assert_eq!(
         rig.app.world().resource::<InventoryRuntime>().selected,
-        Some((InventorySideType::Own, ItemDesignId::from(ITEM_HULL_PLATE)))
+        Some((
+            InventorySideType::Own,
+            ItemDesignId::from(ItemRoleType::HullPlate)
+        ))
     );
     assert!(!full_shown(rig.app.world_mut()));
     take_cues(&mut rig.app);
@@ -545,7 +552,7 @@ fn clicking_a_row_inspects_it_and_a_filter_chip_hides_other_categories() {
     let rounds_row = centre_of::<InventoryRow>(rig.app.world_mut(), |row| {
         *row == InventoryRow {
             side: InventorySideType::Partner,
-            item: ItemDesignId::from(ITEM_PDC_ROUND),
+            item: ItemDesignId::from(ItemRoleType::PdcRound),
         }
     });
     click_at(&mut rig, rounds_row);
@@ -608,7 +615,7 @@ fn plates(world: &World, ship: Entity) -> u32 {
     world
         .get::<ShipInventory>(ship)
         .expect("a ship root carries a ShipInventory")
-        .count(&ItemDesignId::from(ITEM_HULL_PLATE))
+        .count(&ItemDesignId::from(ItemRoleType::HullPlate))
 }
 
 /// The note line's text, if a result is showing.
@@ -639,12 +646,12 @@ fn confirm_moves_items_between_docked_ships_and_a_refusal_changes_nothing() {
     let confirm = |app: &mut App, action, quantity: Option<u32>| {
         let command = InventoryActionCommand {
             action,
-            item: ItemDesignId::from(ITEM_HULL_PLATE),
+            item: ItemDesignId::from(ItemRoleType::HullPlate),
             quantity,
         };
         app.world_mut().resource_mut::<InventoryRuntime>().draft = Some(InventoryDraft {
             action,
-            item: ItemDesignId::from(ITEM_HULL_PLATE),
+            item: ItemDesignId::from(ItemRoleType::HullPlate),
             quantity,
         });
         app.world_mut().write_message(command);
@@ -776,12 +783,12 @@ fn confirm_trades_items_for_credits_and_a_refusal_changes_nothing() {
     let confirm = |app: &mut App, action, quantity: Option<u32>| {
         app.world_mut().resource_mut::<InventoryRuntime>().draft = Some(InventoryDraft {
             action,
-            item: ItemDesignId::from(ITEM_HULL_PLATE),
+            item: ItemDesignId::from(ItemRoleType::HullPlate),
             quantity,
         });
         app.world_mut().write_message(InventoryActionCommand {
             action,
-            item: ItemDesignId::from(ITEM_HULL_PLATE),
+            item: ItemDesignId::from(ItemRoleType::HullPlate),
             quantity,
         });
         app.update();
@@ -828,7 +835,7 @@ fn confirm_trades_items_for_credits_and_a_refusal_changes_nothing() {
         .insert(ShipInventory::new(
             &test_items(),
             100_000,
-            [(ItemDesignId::from(ITEM_HULL_PLATE), 9)],
+            [(ItemDesignId::from(ItemRoleType::HullPlate), 9)],
         ));
     assert_eq!(
         confirm(&mut app, Sell, Some(2)),
@@ -1085,7 +1092,7 @@ fn confirm_jettisons_through_the_intake_and_a_refusal_changes_nothing() {
     let player = spawn_player(app.world_mut(), 12);
     let command = |quantity: Option<u32>| InventoryActionCommand {
         action: InventoryActionType::Jettison,
-        item: ItemDesignId::from(ITEM_HULL_PLATE),
+        item: ItemDesignId::from(ItemRoleType::HullPlate),
         quantity,
     };
     // Write confirmed commands with their draft open, and run them.
@@ -1093,7 +1100,7 @@ fn confirm_jettisons_through_the_intake_and_a_refusal_changes_nothing() {
         for &quantity in quantities {
             app.world_mut().resource_mut::<InventoryRuntime>().draft = Some(InventoryDraft {
                 action: InventoryActionType::Jettison,
-                item: ItemDesignId::from(ITEM_HULL_PLATE),
+                item: ItemDesignId::from(ItemRoleType::HullPlate),
                 quantity,
             });
             app.world_mut().write_message(command(quantity));
@@ -1166,7 +1173,11 @@ fn confirm_jettisons_through_the_intake_and_a_refusal_changes_nothing() {
     app.world_mut()
         .entity_mut(intake)
         .insert(CargoIntakeEjectionQueue(VecDeque::from([
-            CargoCanister::new(&test_items(), &ItemDesignId::from(ITEM_HULL_PLATE), 19),
+            CargoCanister::new(
+                &test_items(),
+                &ItemDesignId::from(ItemRoleType::HullPlate),
+                19,
+            ),
         ])));
     assert_eq!(
         confirm(&mut app, &[Some(40)]),
@@ -1244,7 +1255,7 @@ fn the_inventory_pane_waits_for_the_merged_item_catalog() {
 
     rig.app.insert_resource(catalog);
     let jettison = InventoryActionType::Jettison;
-    let item = ItemDesignId::from(ITEM_HULL_PLATE);
+    let item = ItemDesignId::from(ItemRoleType::HullPlate);
     rig.app.world_mut().resource_mut::<InventoryRuntime>().draft = Some(InventoryDraft {
         action: jettison,
         item: item.clone(),
@@ -1387,7 +1398,7 @@ fn a_selected_row_opens_a_one_unit_draft_that_every_quantity_control_sets() {
         rig.app.world().resource::<InventoryRuntime>().draft,
         Some(InventoryDraft {
             action: InventoryActionType::Take,
-            item: ItemDesignId::from(ITEM_HULL_PLATE),
+            item: ItemDesignId::from(ItemRoleType::HullPlate),
             quantity: Some(1),
         })
     );
@@ -1820,7 +1831,7 @@ mod generated_wreck {
                     allegiance: None,
                     capabilities: default(),
                     inventory: ShipInventoryStock::new([(
-                        ItemDesignId::from(ITEM_HULL_PLATE),
+                        ItemDesignId::from(ItemRoleType::HullPlate),
                         PLAYER_PLATES,
                     )]),
                     lootable: false,

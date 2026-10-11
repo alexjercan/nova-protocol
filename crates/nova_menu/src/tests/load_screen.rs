@@ -199,7 +199,7 @@ fn load_greys_a_world_while_its_check_runs_and_refuses_one_holding_an_unknown_it
     let player = arm_save_fixture(app.world_mut());
     // The fixture player holds no stock; give it one item so the loaded
     // catalog can go on to lack it.
-    let hull_plate = ItemDesignId::from(ITEM_HULL_PLATE);
+    let hull_plate = ItemDesignId::from(ItemRoleType::HullPlate);
     let items = app.world().resource::<GameItems>().clone();
     let mut inventory = ShipInventory::new(&items, 10_000, std::iter::empty());
     inventory.add(&items, &hull_plate, 1);

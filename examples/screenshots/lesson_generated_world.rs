@@ -162,7 +162,7 @@ struct Wreck {
     name: String,
     /// The item the walk takes and gives back: the lowest-ordered item the
     /// wreck's actual stock carries, picked once here. A generated wreck is no
-    /// longer guaranteed a [`ITEM_HULL_PLATE`], so Take and Give must work
+    /// longer guaranteed a [`ItemRoleType::HullPlate`], so Take and Give must work
     /// from whatever it actually holds, and never reroll it.
     item: ItemDesignId,
     /// The two holds' counts of `item` when the wreck was picked: the

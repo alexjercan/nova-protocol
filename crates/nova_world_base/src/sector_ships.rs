@@ -38,9 +38,7 @@
 use bevy::prelude::{Quat, Vec3};
 use nova_events::prelude::{Meters, Meters3, MetersPerSecond3};
 use nova_gameplay::prelude::{
-    Allegiance, Fnv32, GameItems, ItemDesignId, SeedStream, ShipInventoryStock, ITEM_CARBON_ORE,
-    ITEM_HULL_PLATE, ITEM_IRON_ORE, ITEM_PDC_ROUND, ITEM_RAIL_SLUG, ITEM_RATIONS,
-    ITEM_SALVAGED_PARTS, ITEM_STONE_ORE, ITEM_TORPEDO, ITEM_WATER_ICE,
+    Allegiance, Fnv32, GameItems, ItemDesignId, ItemRoleType, SeedStream, ShipInventoryStock,
 };
 use nova_scenario::prelude::{
     AIControllerConfig, ShipDesign, ShipDesignSource, SpaceshipConfig, SpaceshipController,
@@ -418,44 +416,44 @@ pub fn ship_stock(
         .count() as u64;
     let hold = hulls * u64::from(HULL_SECTION_CARGO_G);
     // Ammunition of every kind on an armed ship, whichever its weapons fire.
-    let mix: &[(&str, f32)] = match role {
+    let mix: &[(ItemRoleType, f32)] = match role {
         ShipRoleType::Industrial => &[
-            (ITEM_STONE_ORE, 2.0),
-            (ITEM_IRON_ORE, 2.0),
-            (ITEM_WATER_ICE, 2.0),
-            (ITEM_CARBON_ORE, 2.0),
-            (ITEM_SALVAGED_PARTS, 3.0),
-            (ITEM_RATIONS, 1.0),
+            (ItemRoleType::StoneOre, 2.0),
+            (ItemRoleType::IronOre, 2.0),
+            (ItemRoleType::WaterIce, 2.0),
+            (ItemRoleType::CarbonOre, 2.0),
+            (ItemRoleType::SalvagedParts, 3.0),
+            (ItemRoleType::Rations, 1.0),
         ],
         ShipRoleType::Civilian => &[
-            (ITEM_RATIONS, 5.0),
-            (ITEM_SALVAGED_PARTS, 3.0),
-            (ITEM_WATER_ICE, 1.0),
-            (ITEM_HULL_PLATE, 1.0),
+            (ItemRoleType::Rations, 5.0),
+            (ItemRoleType::SalvagedParts, 3.0),
+            (ItemRoleType::WaterIce, 1.0),
+            (ItemRoleType::HullPlate, 1.0),
         ],
         ShipRoleType::Scavenger => &[
-            (ITEM_PDC_ROUND, 2.0),
-            (ITEM_RAIL_SLUG, 1.0),
-            (ITEM_TORPEDO, 1.0),
-            (ITEM_HULL_PLATE, 3.0),
-            (ITEM_SALVAGED_PARTS, 3.0),
-            (ITEM_RATIONS, 1.0),
+            (ItemRoleType::PdcRound, 2.0),
+            (ItemRoleType::RailSlug, 1.0),
+            (ItemRoleType::Torpedo, 1.0),
+            (ItemRoleType::HullPlate, 3.0),
+            (ItemRoleType::SalvagedParts, 3.0),
+            (ItemRoleType::Rations, 1.0),
         ],
         ShipRoleType::Armored => &[
-            (ITEM_PDC_ROUND, 3.0),
-            (ITEM_RAIL_SLUG, 2.0),
-            (ITEM_TORPEDO, 1.0),
-            (ITEM_HULL_PLATE, 3.0),
-            (ITEM_SALVAGED_PARTS, 2.0),
-            (ITEM_RATIONS, 1.0),
+            (ItemRoleType::PdcRound, 3.0),
+            (ItemRoleType::RailSlug, 2.0),
+            (ItemRoleType::Torpedo, 1.0),
+            (ItemRoleType::HullPlate, 3.0),
+            (ItemRoleType::SalvagedParts, 2.0),
+            (ItemRoleType::Rations, 1.0),
         ],
     };
     let lightest = mix
         .iter()
         .map(|(item, _)| *item)
-        .min_by_key(|item| items.design(&ItemDesignId::from(*item)).mass_g)
+        .min_by_key(|item| items.role(*item).mass_g)
         .expect("every role mixes at least one item");
-    if hold < u64::from(items.design(&ItemDesignId::from(lightest)).mass_g) {
+    if hold < u64::from(items.role(lightest).mass_g) {
         return None;
     }
 
@@ -482,15 +480,15 @@ pub fn ship_stock(
     let mut stacks: Vec<(ItemDesignId, u32)> = drawn
         .into_iter()
         .filter_map(|(item, weight)| {
-            let id = ItemDesignId::from(item);
+            let design = items.role(item);
             let portion = (target as f64 * f64::from(weight / total)) as u64;
-            let units = portion / u64::from(items.design(&id).mass_g);
+            let units = portion / u64::from(design.mass_g);
             let units = u32::try_from(units).expect("a generated hold's units fit a u32");
-            (units > 0).then_some((id, units))
+            (units > 0).then_some((design.id.clone(), units))
         })
         .collect();
     if stacks.is_empty() {
-        stacks.push((ItemDesignId::from(lightest), 1));
+        stacks.push((items.role(lightest).id.clone(), 1));
     }
     Some(ShipInventoryStock::new(stacks))
 }

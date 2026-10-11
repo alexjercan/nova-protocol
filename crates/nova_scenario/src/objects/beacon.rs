@@ -381,7 +381,7 @@ mod tests {
             Transform::IDENTITY,
         ));
         let items = test_items();
-        let hull_plate = ItemDesignId::from(ITEM_HULL_PLATE);
+        let hull_plate = ItemDesignId::from(ItemRoleType::HullPlate);
         let inventory = ShipInventory::new(
             &items,
             items.design(&hull_plate).mass_g * 10,
