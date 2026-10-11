@@ -279,7 +279,7 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
     // Visible items: the catalog the merge builds when this bundle loads with
     // what it depends on, a dependent's replacement winning.
     let known_items = GameItems::new(
-        effective_item_bundles(bundle, all)
+        effective_bundles(bundle, all)
             .into_iter()
             .flat_map(|walked| walked.items.iter().cloned()),
     );
@@ -571,28 +571,27 @@ pub fn lint_target(dir: &Path) -> Vec<(String, LintIssue)> {
 /// If the repo tree holds no bundle with one of the ids.
 pub fn repo_ship_part_packs(ids: &[&str]) -> Vec<ShipPartPack> {
     let all = walk_repo_bundles();
-    let by_id: HashMap<&str, &WalkedBundle> = all.iter().map(|b| (b.id.as_str(), b)).collect();
     let mut packs = BTreeMap::new();
     for id in ids {
-        let bundle = by_id
-            .get(id)
+        let bundle = all
+            .iter()
+            .find(|bundle| bundle.id == *id)
             .unwrap_or_else(|| panic!("the repo tree holds no bundle '{id}'"));
-        for pack in ship_part_packs(bundle, &by_id) {
+        for pack in ship_part_packs(bundle, &all) {
             packs.entry(pack.id.clone()).or_insert(pack);
         }
     }
     packs.into_values().collect()
 }
 
-/// The bundles whose items load with `bundle`: base, every bundle it depends
-/// on directly or through another, and itself, each after every bundle it
-/// depends on, so a later item replaces an earlier one as the merge does. A
-/// dependency missing from the walk is left out; a chain too deep to walk
-/// keeps only base and the bundle, and [`item_pack_faults`] names it.
-fn effective_item_bundles<'a>(
-    bundle: &WalkedBundle,
-    all: &'a [WalkedBundle],
-) -> Vec<&'a WalkedBundle> {
+/// The bundles whose content loads with `bundle`: base, every bundle it
+/// depends on directly or through another, and itself, each after every
+/// bundle it depends on, so a later item or section replaces an earlier one
+/// as the merge does. One walk for items and ship parts, so the two lints
+/// cannot disagree on a mod chain. A dependency missing from the walk is left
+/// out; a chain deeper than the mod format walks keeps only base and the
+/// bundle, and [`item_pack_faults`] names it.
+fn effective_bundles<'a>(bundle: &WalkedBundle, all: &'a [WalkedBundle]) -> Vec<&'a WalkedBundle> {
     let graph: DepGraph = all
         .iter()
         .map(|walked| (walked.id.clone(), walked.manifest.meta.dependencies.clone()))
@@ -617,42 +616,26 @@ fn effective_item_bundles<'a>(
     bundles
 }
 
-/// `bundle`'s effective section catalog as snapshot packs: base, every bundle
-/// it depends on directly or through another, and itself. `base` is every
-/// mod's implicit dependency. A dependency missing from the walk is left for
-/// the snapshot to name.
-fn ship_part_packs(
-    bundle: &WalkedBundle,
-    by_id: &HashMap<&str, &WalkedBundle>,
-) -> Vec<ShipPartPack> {
-    let dependencies = |walked: &WalkedBundle| -> Vec<String> {
-        let mut dependencies: BTreeSet<String> =
-            walked.manifest.meta.dependencies.iter().cloned().collect();
-        if walked.id != BASE_MOD_ID {
-            dependencies.insert(BASE_MOD_ID.to_string());
-        }
-        dependencies.into_iter().collect()
-    };
-    let mut packs = Vec::new();
-    let mut seen = HashSet::new();
-    let mut pending = vec![bundle];
-    while let Some(walked) = pending.pop() {
-        if !seen.insert(walked.id.as_str()) {
-            continue;
-        }
-        let dependencies = dependencies(walked);
-        pending.extend(
-            dependencies
-                .iter()
-                .filter_map(|dependency| by_id.get(dependency.as_str()).copied()),
-        );
-        packs.push(ShipPartPack {
-            id: walked.id.clone(),
-            dependencies,
-            sections: walked.sections.clone(),
-        });
-    }
-    packs
+/// `bundle`'s effective section catalog as snapshot packs: one per bundle of
+/// [`effective_bundles`], each naming its declared dependencies and `base`,
+/// every mod's implicit dependency, so a dependency missing from the walk is
+/// left for the snapshot to name.
+fn ship_part_packs(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<ShipPartPack> {
+    effective_bundles(bundle, all)
+        .into_iter()
+        .map(|walked| {
+            let mut dependencies: BTreeSet<String> =
+                walked.manifest.meta.dependencies.iter().cloned().collect();
+            if walked.id != BASE_MOD_ID {
+                dependencies.insert(BASE_MOD_ID.to_string());
+            }
+            ShipPartPack {
+                id: walked.id.clone(),
+                dependencies: dependencies.into_iter().collect(),
+                sections: walked.sections.clone(),
+            }
+        })
+        .collect()
 }
 
 /// The flight-rig input overlaps in one scenario: every player
@@ -767,11 +750,11 @@ fn build_report(
     let base_id = BASE_MOD_ID.to_string();
     let base_ship_part_faults = by_id
         .get(BASE_MOD_ID)
-        .and_then(|base| ShipPartSnapshot::build(&ship_part_packs(base, &by_id)).err())
+        .and_then(|base| ShipPartSnapshot::build(&ship_part_packs(base, all)).err())
         .unwrap_or_default();
     let mut ship_part_faults: BTreeSet<(String, String, String)> = BTreeSet::new();
     for bundle in all.iter().filter(|b| report_ids.contains(&b.id)) {
-        let Err(faults) = ShipPartSnapshot::build(&ship_part_packs(bundle, &by_id)) else {
+        let Err(faults) = ShipPartSnapshot::build(&ship_part_packs(bundle, all)) else {
             continue;
         };
         for fault in faults {
@@ -823,7 +806,7 @@ fn build_report(
     let loaded: HashSet<&str> = all
         .iter()
         .filter(|b| report_ids.contains(&b.id))
-        .flat_map(|bundle| effective_item_bundles(bundle, all))
+        .flat_map(|bundle| effective_bundles(bundle, all))
         .map(|walked| walked.id.as_str())
         .collect();
     let packs: Vec<ItemPack> = all
