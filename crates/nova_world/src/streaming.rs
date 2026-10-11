@@ -23,8 +23,7 @@ use bevy::{
 use nova_assets::prelude::ASTEROID_TEXTURE_PATH;
 use nova_events::prelude::{Meters, Meters3, ScenarioAddressableMarker};
 use nova_gameplay::prelude::{
-    Allegiance, AssetRef, DerelictShipMarker, IntegrityEnvelope, LootableShipMarker, TempEntity,
-    UnsettledBody,
+    Allegiance, AssetRef, DerelictShipMarker, IntegrityEnvelope, TempEntity, UnsettledBody,
 };
 use nova_scenario::prelude::{
     asteroid_scenario_object_prepared, base_scenario_object, planet_scenario_object_prepared,
@@ -344,13 +343,9 @@ const SECTOR_ENEMY_ENGAGE_DELAY: f32 = 8.0;
 /// so a cell that streams in around the player does not open fire on the
 /// spawn frame. A derelict has nobody aboard and nobody's side.
 ///
-/// The allegiance is inserted beside the bundle for the same reason the
-/// scenario loader does it - the controller marker's requirement default would
-/// otherwise decide. A derelict also carries [`DerelictShipMarker`] in the
-/// same bundle, so the section spawn sees it and every section but hull and
-/// docking port spawns inactive, and [`LootableShipMarker`], so a ship docked
-/// to it may Take its stock. The scenario spawn action inserts that marker
-/// from `lootable`; this spawn does not run through it.
+/// A derelict carries [`DerelictShipMarker`] in the same bundle as the root,
+/// so the section spawn sees it and every section but hull and docking port
+/// spawns inactive; its `lootable` config lets a docked ship Take its stock.
 fn spawn_sector_ship(commands: &mut Commands, root: Entity, ship: SectorShip) {
     let SectorShip {
         id,
@@ -409,11 +404,10 @@ fn spawn_sector_ship(commands: &mut Commands, root: Entity, ship: SectorShip) {
             credits,
             ..default()
         }),
-        allegiance,
         ChildOf(root),
     );
     if derelict {
-        commands.spawn((ship, DerelictShipMarker, LootableShipMarker));
+        commands.spawn((ship, DerelictShipMarker));
     } else {
         commands.spawn(ship);
     }

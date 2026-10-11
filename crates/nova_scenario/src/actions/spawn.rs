@@ -4,7 +4,6 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use nova_events::prelude::*;
-use nova_gameplay::prelude::LootableShipMarker;
 
 use crate::prelude::*;
 
@@ -317,16 +316,6 @@ fn spawn_scenario_spaceship(
         }
         None => {
             entity_commands.insert(spaceship_scenario_object(config.clone()));
-            // The authored allegiance override. Ordering is safe either way:
-            // the controller marker's requirement only fills an absent
-            // `Allegiance`, and a plain insert overwrites the requirement
-            // default - so the authored side always wins.
-            if let Some(allegiance) = config.allegiance {
-                entity_commands.insert(allegiance);
-            }
-            if config.lootable {
-                entity_commands.insert(LootableShipMarker);
-            }
         }
     }
     world.flush();

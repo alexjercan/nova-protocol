@@ -19,14 +19,18 @@
 use avian3d::prelude::{LinearVelocity, RigidBody};
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{Meters, Meters3, MetersPerSecond3};
-use nova_gameplay::prelude::{
-    Allegiance, AssetRef, DerelictShipMarker, GravityAffected, GravityWell, IntegrityEnvelope,
-    ItemDesignId, LootableShipMarker, ShipCredits, ShipInventoryStock, ITEM_HULL_PLATE,
+use nova_gameplay::{
+    prelude::{
+        Allegiance, AssetRef, DerelictShipMarker, GravityAffected, GravityWell, IntegrityEnvelope,
+        ItemDesignId, LootableShipMarker, ShipCredits, ShipInventory, ShipInventoryStock,
+        ITEM_HULL_PLATE,
+    },
+    test_support::test_items,
 };
 use nova_scenario::prelude::{
     AIControllerConfig, AsteroidMarker, AsteroidPlugin, PlanetConfig, PlanetType, SectionSource,
-    ShipDesign, SpaceshipController, SpaceshipSectionConfig, ASTEROID_GEOMETRIC_FACTOR_MAX,
-    KIND_ROCK,
+    ShipDesign, SpaceshipController, SpaceshipPlugin, SpaceshipSectionConfig,
+    ASTEROID_GEOMETRIC_FACTOR_MAX, KIND_ROCK,
 };
 use nova_ship::prelude::{
     BaseSectionConfig, GameSections, HullSectionConfig, SectionConfig, SectionKind,
@@ -913,13 +917,18 @@ fn intact_and_derelict(input: SectorGenerationInput) -> SectorManifest {
 /// Take it, and flown by nobody on nobody's side; an intact ship spawns
 /// neither lootable nor stocked, flown by an AI on its crew's side along its
 /// crew's loop, an Enemy crew holding fire for its arrival grace. Each spawns
-/// with its manifest credits.
+/// with its manifest credits. Through the real ship spawn: the side and the
+/// loot marker land when the section observer applies the spawn policy.
 #[test]
 fn a_materialized_derelict_is_lootable_and_unflown_and_an_intact_ship_is_flown_by_its_crew() {
     let config = answering(intact_and_derelict);
     let prepared =
         prepare_sector(config.clone(), SectorCoord::ORIGIN).expect("two valid ships must prepare");
-    let mut world = World::new();
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, SpaceshipPlugin));
+    app.insert_resource(test_sections());
+    app.insert_resource(test_items());
+    let world = app.world_mut();
     materialize_sector(
         &mut world.commands(),
         prepared,
@@ -934,17 +943,16 @@ fn a_materialized_derelict_is_lootable_and_unflown_and_an_intact_ship_is_flown_b
             &Name,
             Has<DerelictShipMarker>,
             Has<LootableShipMarker>,
-            &ShipInventoryStock,
+            &ShipInventory,
             &ShipCredits,
         )>()
-        .iter(&world)
-        .map(|(name, derelict, lootable, stock, credits)| {
+        .iter(world)
+        .map(|(name, derelict, lootable, hold, credits)| {
             (
                 name.to_string(),
                 derelict,
                 lootable,
-                stock
-                    .stacks()
+                hold.stacks()
                     .map(|(item, count)| (item.clone(), count))
                     .collect(),
                 credits.0,
@@ -968,7 +976,7 @@ fn a_materialized_derelict_is_lootable_and_unflown_and_an_intact_ship_is_flown_b
 
     let mut flown: Vec<(String, Allegiance, Option<AIControllerConfig>)> = world
         .query::<(&Name, &Allegiance, &SpaceshipController)>()
-        .iter(&world)
+        .iter(world)
         .map(|(name, allegiance, controller)| {
             let crew = match controller {
                 SpaceshipController::AI(config) => Some(config.clone()),

@@ -278,9 +278,7 @@ fn stand_the_wreck(_: On<ScenarioLoaded>, mut commands: Commands, stage: Res<Sta
             rotation: Quat::from_rotation_y(SHIP_YAW),
         }),
         spaceship_scenario_object(wreck.config.clone()),
-        Allegiance::Neutral,
         DerelictShipMarker,
-        LootableShipMarker,
     ));
 }
 

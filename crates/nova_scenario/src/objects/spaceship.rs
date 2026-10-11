@@ -33,7 +33,7 @@ pub mod prelude {
         freeze_ship, patrol_stops_fault, spaceship_scenario_object, thaw_ship, AIControllerConfig,
         FrozenShip, PlayerControllerConfig, ResumedSpaceship, SectionId, SectionSource,
         SpaceshipConfig, SpaceshipController, SpaceshipDesign, SpaceshipPlugin,
-        SpaceshipSectionConfig, SpaceshipSectionConfigPatch,
+        SpaceshipSectionConfig, SpaceshipSectionConfigPatch, SpaceshipSpawnPolicy,
     };
 }
 
@@ -448,6 +448,22 @@ pub struct SpaceshipSectionConfigPatch {
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut, Reflect)]
 pub struct SpaceshipDesign(pub ShipDesignSource);
 
+/// The side and loot policy a ship was authored with, carried on the root
+/// from the spawn bundle to `insert_spaceship_sections`, which applies and
+/// removes it like [`ShipInventoryStock`].
+///
+/// A bundle cannot hold an optional component, and the controller marker's
+/// requirement default (Player ships `Allegiance::Player`, AI ships
+/// `Allegiance::Enemy`) only exists once the observer inserts that marker, so
+/// the observer is the one place the authored override can land after it.
+#[derive(Component, Clone, Debug, Default, Reflect)]
+pub struct SpaceshipSpawnPolicy {
+    /// [`SpaceshipConfig::allegiance`]: `Some` overrides the marker default.
+    pub allegiance: Option<Allegiance>,
+    /// [`SpaceshipConfig::lootable`]: `true` inserts [`LootableShipMarker`].
+    pub lootable: bool,
+}
+
 /// The scenario/modding RON surface for a spaceship object: WHICH design it
 /// spawns, who drives it, which side it is on, and what it is permitted to do.
 /// Passed to `spaceship_scenario_object` to build the ship-root bundle.
@@ -508,9 +524,10 @@ pub struct SpaceshipConfig {
 }
 
 /// Build the ship-root bundle from a [`SpaceshipConfig`]: the marker, type
-/// name, controller, and the hull reference the `insert_spaceship_sections`
+/// name, controller, the hull reference the `insert_spaceship_sections`
 /// observer resolves to spawn the section children and wire the driver at
-/// spawn.
+/// spawn, and the [`SpaceshipSpawnPolicy`] that observer applies for the
+/// authored allegiance and the lootable marker. No caller re-applies either.
 ///
 /// The design's own components (collapse threshold, skin, style, the feedback
 /// voice) are inserted by that observer rather than here: a `Prototype` design
@@ -535,6 +552,10 @@ pub fn spaceship_scenario_object(config: SpaceshipConfig) -> impl Bundle {
         SpaceshipDesign(config.design),
         config.capabilities,
         config.inventory,
+        SpaceshipSpawnPolicy {
+            allegiance: config.allegiance,
+            lootable: config.lootable,
+        },
         ShipCredits(config.credits),
         RigidBody::Dynamic,
         LinearVelocity(config.initial_velocity.to_engine()),
@@ -790,12 +811,6 @@ pub fn thaw_ship(entity: &mut EntityCommands, frozen: FrozenShip) {
         }),
         ThawingShip(Some(state)),
     ));
-    if let Some(allegiance) = allegiance {
-        entity.insert(allegiance);
-    }
-    if lootable {
-        entity.insert(LootableShipMarker);
-    }
 }
 
 /// Spawns spaceship scenario objects: resolves each ship's hull and section
@@ -836,6 +851,7 @@ fn insert_spaceship_sections(
             &SpaceshipController,
             &Transform,
             &ShipInventoryStock,
+            &SpaceshipSpawnPolicy,
             Has<DerelictShipMarker>,
         ),
         With<SpaceshipRootMarker>,
@@ -845,7 +861,7 @@ fn insert_spaceship_sections(
     let entity = add.entity;
     trace!("insert_spaceship_sections: entity {:?}", entity);
 
-    let Ok((design_source, controller_config, transform, stock, derelict)) =
+    let Ok((design_source, controller_config, transform, stock, policy, derelict)) =
         q_spaceship.get(entity)
     else {
         // NOT an error: a root with no [`SpaceshipDesign`] is a hull somebody
@@ -910,6 +926,17 @@ fn insert_spaceship_sections(
         ),
     ));
     commands.entity(entity).remove::<ShipInventoryStock>();
+
+    // Order against the controller marker below does not matter: the
+    // marker's requirement only fills an absent `Allegiance`, and a plain
+    // insert overwrites the requirement default, so the authored side wins.
+    if let Some(allegiance) = policy.allegiance {
+        commands.entity(entity).insert(allegiance);
+    }
+    if policy.lootable {
+        commands.entity(entity).insert(LootableShipMarker);
+    }
+    commands.entity(entity).remove::<SpaceshipSpawnPolicy>();
 
     // An AI ship with no weapon section cannot fight; it becomes a
     // non-combatant below so it flies its routine and never chases. Counted
