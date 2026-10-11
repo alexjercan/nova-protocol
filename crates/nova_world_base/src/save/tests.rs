@@ -5,20 +5,20 @@ use std::{path::Path, time::Duration};
 use avian3d::prelude::{LinearVelocity, RigidBody, Rotation};
 use bevy::prelude::*;
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack, LoadedSectionPacks};
-use nova_events::prelude::{EntityId, Meters, Meters3, MetersPerSecond3};
+use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
-    nova_blast, resumed_lifetime, Allegiance, AssetRef, CargoCanister, CargoCanisterIdAllocator,
+    nova_blast, resumed_lifetime, AssetRef, CargoCanister, CargoCanisterIdAllocator,
     CargoCanisterRuntimeId, ClockFreeze, DamageMarks, DamageType, FreezeOwner, FrozenRoundFlight,
     GameItems, Health, IntegrityDestroyMarker, ItemCategoryType, ItemDesign, ItemDesignId,
     PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage, ProjectileOwner,
     RailgunSlugProjectileMarker, RoundRake, SavedBodyRef, SavedLifetime, SavedOwner,
-    SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory, ShipInventoryStock,
+    SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory,
     SpaceshipRootMarker, TorpedoProjectileMarker, TurretBulletProjectileMarker, ITEM_IRON_ORE,
 };
 use nova_scenario::prelude::{
     freeze_asteroid, freeze_ore_drop, freeze_ship, spaceship_scenario_object, AsteroidKind,
     AsteroidKindId, AsteroidMarker, AsteroidRadius, AsteroidSeed, AsteroidTexture, CurrentScenario,
-    MinedCanisterQueue, MinedOre, MinedOreDrop, ShipDesign, SpaceshipConfig,
+    MinedCanisterQueue, MinedOre, MinedOreDrop, SpaceshipConfig,
 };
 use nova_ship::prelude::{
     cargo_canister, freeze_canister, freeze_wreck_fragment, thaw_round, thaw_torpedo,
@@ -31,10 +31,7 @@ use nova_ship::prelude::{
     TorpedoTargetEntity, TorpedoTargetPosition, TorpedoWeave,
 };
 use nova_world::{
-    prelude::{
-        CivilizationId, CurrentSector, FrozenBodyType, FrozenSectors, SectorCoord, SectorShip,
-        SectorShipConditionType, SectorShipCrew, ShipRoleType, WorldConfig,
-    },
+    prelude::{CurrentSector, FrozenBodyType, FrozenSectors, SectorCoord, WorldConfig},
     SectorRoot,
 };
 
@@ -2055,42 +2052,6 @@ fn canister_ledger_with_item(coord: SectorCoord, id: u64, item: &ItemDesignId) -
     .unwrap()
 }
 
-/// A ledger cell at `coord` holding one ship `id` held back as a
-/// [`SectorShip`], whose spawn stock carries `item`, built through the
-/// record's RON form like [`ledger`].
-fn pending_ship_ledger(id: &str, coord: SectorCoord, item: &ItemDesignId) -> FrozenSectors {
-    let ship = SectorShip {
-        id: id.to_string(),
-        position: Meters3::ZERO,
-        rotation: Quat::IDENTITY,
-        initial_velocity: MetersPerSecond3::ZERO,
-        clearance: Meters(20.0),
-        design: ShipDesign::default(),
-        condition: SectorShipConditionType::Intact,
-        crew: Some(SectorShipCrew {
-            allegiance: Allegiance::Neutral,
-            patrol: Vec::new(),
-            stops: Vec::new(),
-            leash: Meters(5_000.0),
-        }),
-        civilization: CivilizationId {
-            world_seed: 0,
-            node: [0, 0, 0],
-        },
-        role: ShipRoleType::Civilian,
-        stock: ShipInventoryStock::new([(item.clone(), 1)]),
-        credits: 120,
-    };
-    let transform = ron::to_string(&Transform::IDENTITY).unwrap();
-    ron::from_str(&format!(
-        "{{{}: Visited([(id: Some({id:?}), name: None, transform: {transform}, \
-         visibility: None, motion: None, body: PendingShip({}))])}}",
-        ron::to_string(&coord).unwrap(),
-        ron::to_string(&ship).unwrap()
-    ))
-    .unwrap()
-}
-
 /// A ledger cell at `coord` holding `body` under `id`, built through the
 /// record's RON form like [`ledger`].
 fn ledger_holding(coord: SectorCoord, id: Option<&str>, body: &FrozenBodyType) -> FrozenSectors {
@@ -2277,10 +2238,6 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
         (
             canister_ledger_with_item(east, 5, &item),
             "the canister 5".to_string(),
-        ),
-        (
-            pending_ship_ledger("pending_ship", east, &item),
-            "'pending_ship'".to_string(),
         ),
     ];
     cases.extend(

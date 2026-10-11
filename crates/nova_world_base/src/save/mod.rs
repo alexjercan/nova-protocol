@@ -57,7 +57,7 @@ pub use transients::{
 /// Bump it with any change to the save layout, or to what the generator
 /// builds from a seed: an old save holds only the sectors the player changed
 /// and regenerates the rest, so another generator would change it silently.
-pub const WORLD_SAVE_FORMAT: u32 = 2;
+pub const WORLD_SAVE_FORMAT: u32 = 3;
 
 /// The most characters a world name has, after trimming.
 const WORLD_NAME_MAX: usize = 32;
@@ -362,8 +362,8 @@ fn read_state(
     Ok(state)
 }
 
-/// Every item id the saved state holds is in `items`: the player's, every
-/// ledger body's and every held-back ship's stock. A save checks before it
+/// Every item id the saved state holds is in `items`: the player's and every
+/// ledger body's. A save checks before it
 /// writes; Load checks after the header's catalog digest has matched. A
 /// changed or missing mod normally fails at that earlier digest check.
 fn check_saved_items(state: &WorldSaveState, items: &GameItems) -> Result<(), String> {
@@ -381,9 +381,8 @@ fn check_saved_items(state: &WorldSaveState, items: &GameItems) -> Result<(), St
             let found = match body.body() {
                 FrozenBodyType::Asteroid(rock) => unknown(&mut rock.item_ids()),
                 FrozenBodyType::Ship(ship) => unknown(&mut ship.item_ids()),
-                FrozenBodyType::PendingShip(ship) => {
-                    unknown(&mut ship.stock.stacks().map(|(item, _)| item))
-                }
+                // A held ship is an id; its stock is regenerated.
+                FrozenBodyType::PendingShip { .. } => None,
                 FrozenBodyType::Canister(canister) => unknown(&mut canister.item_ids()),
                 FrozenBodyType::WreckFragment(fragment) => unknown(&mut fragment.item_ids()),
                 FrozenBodyType::OreDrop(drop) => unknown(&mut drop.item_ids()),

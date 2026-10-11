@@ -814,7 +814,7 @@ fn a_mined_fought_and_looted_cell_returns_as_it_was_left() {
         record
             .bodies()
             .iter()
-            .any(|body| matches!(body.body(), FrozenBodyType::PendingShip(_))),
+            .any(|body| matches!(body.body(), FrozenBodyType::PendingShip { .. })),
         "the held ship froze held"
     );
 

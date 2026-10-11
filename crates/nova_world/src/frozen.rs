@@ -293,24 +293,52 @@ impl FrozenSector {
 }
 
 /// One frozen body with what a worker prepared for it: a rock's geometry,
-/// pristine and, for a carved one, the surface its field meshes to.
+/// pristine and, for a carved one, the surface its field meshes to; a held
+/// ship's manifest entry, regenerated.
 ///
 /// Built only by [`PreparedFrozenBody::prepare`], so a rock always travels
-/// with its geometry and nothing else carries one.
+/// with its geometry, a held ship always with its entry, and nothing else
+/// carries either.
 #[derive(Debug)]
-pub(crate) struct PreparedFrozenBody {
-    body: FrozenBody,
-    geometry: Option<PreparedAsteroid>,
+pub(crate) enum PreparedFrozenBody {
+    /// A body that thaws where it froze.
+    Body {
+        body: FrozenBody,
+        geometry: Option<PreparedAsteroid>,
+    },
+    /// A ship still held back, to spawn once the observer is clear of it.
+    HeldShip(SectorShip),
 }
 
 impl PreparedFrozenBody {
-    /// Prepare `body` for its thaw. PURE, for the cell's worker.
-    pub(crate) fn prepare(body: FrozenBody) -> Self {
-        let geometry = match &body.body {
-            FrozenBodyType::Asteroid(rock) => Some(prepare_frozen_asteroid(rock)),
-            _ => None,
-        };
-        Self { body, geometry }
+    /// Prepare `body` of `coord` for its thaw, `ships` being the cell's
+    /// regenerated ships. PURE, for the cell's worker.
+    ///
+    /// # Panics
+    ///
+    /// When a held ship's id names none of `ships`. The generator is pinned
+    /// by the catalog digest the save carries, so the cell cannot regenerate
+    /// without it: an assembly fault, not a runtime condition.
+    pub(crate) fn prepare(coord: SectorCoord, body: FrozenBody, ships: &[SectorShip]) -> Self {
+        match &body.body {
+            FrozenBodyType::PendingShip { id } => {
+                let Some(ship) = ships.iter().find(|ship| ship.id == *id) else {
+                    panic!(
+                        "nova_world: {coord} froze the held ship '{id}' but regenerates no ship \
+                         of that id"
+                    );
+                };
+                Self::HeldShip(ship.clone())
+            }
+            FrozenBodyType::Asteroid(rock) => {
+                let geometry = Some(prepare_frozen_asteroid(rock));
+                Self::Body { body, geometry }
+            }
+            _ => Self::Body {
+                body,
+                geometry: None,
+            },
+        }
     }
 }
 
@@ -399,9 +427,14 @@ pub enum FrozenBodyType {
     Asteroid(FrozenAsteroid),
     /// A ship, with its hold, damage, surviving sections, ammunition and AI.
     Ship(Box<FrozenShip>),
-    /// A ship held back because the observer overlapped it, still a manifest
-    /// entry.
-    PendingShip(Box<SectorShip>),
+    /// A ship held back because the observer overlapped it, by the id of
+    /// its manifest entry. The cell regenerates the entry on its worker:
+    /// the catalog digest a save carries pins the generator, so the same id
+    /// names the same ship.
+    PendingShip {
+        /// The held ship's generated id.
+        id: String,
+    },
     /// A loose cargo canister with its own runtime id.
     Canister(FrozenCanister),
     /// Structure severed from a ship.
@@ -441,14 +474,14 @@ pub(crate) fn freeze_body(
 ) -> Result<FrozenBody, UnsettledBody> {
     let body = world.entity(entity);
     if let Some(held) = body.get::<PendingSectorShip>() {
-        let ship = held.ship().clone();
+        let id = held.ship().id.clone();
         return Ok(FrozenBody {
-            id: Some(EntityId::new(ship.id.clone())),
+            id: Some(EntityId::new(id.clone())),
             name: None,
             transform: Transform::IDENTITY,
             visibility: None,
             motion: None,
-            body: FrozenBodyType::PendingShip(Box::new(ship)),
+            body: FrozenBodyType::PendingShip { id },
         });
     }
     let name = body.get::<Name>().map(ToString::to_string);
@@ -497,22 +530,23 @@ pub(crate) fn freeze_body(
 /// geometry the cell's worker prepared for it.
 pub(crate) fn thaw_record(commands: &mut Commands, root: Entity, bodies: Vec<PreparedFrozenBody>) {
     for prepared in bodies {
-        let PreparedFrozenBody {
-            body:
-                FrozenBody {
-                    id,
-                    name,
-                    transform,
-                    visibility,
-                    motion,
-                    body,
-                },
+        let (
+            FrozenBody {
+                id,
+                name,
+                transform,
+                visibility,
+                motion,
+                body,
+            },
             geometry,
-        } = prepared;
-        if let FrozenBodyType::PendingShip(ship) = body {
-            commands.spawn((PendingSectorShip(*ship), ChildOf(root)));
-            continue;
-        }
+        ) = match prepared {
+            PreparedFrozenBody::HeldShip(ship) => {
+                commands.spawn((PendingSectorShip(ship), ChildOf(root)));
+                continue;
+            }
+            PreparedFrozenBody::Body { body, geometry } => (body, geometry),
+        };
         let mut entity = commands.spawn((
             ScenarioScopedMarker,
             transform,
@@ -540,7 +574,9 @@ pub(crate) fn thaw_record(commands: &mut Commands, root: Entity, bodies: Vec<Pre
             FrozenBodyType::OreDrop(drop) => {
                 entity.insert(thaw_ore_drop(drop));
             }
-            FrozenBodyType::PendingShip(_) => unreachable!("spawned above"),
+            FrozenBodyType::PendingShip { .. } => {
+                unreachable!("PreparedFrozenBody::prepare resolves a held ship to HeldShip")
+            }
         }
         // After the owner's thaw: a spawn bundle seeds the velocity and the
         // visibility it was authored with, and the body keeps the ones it

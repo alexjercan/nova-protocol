@@ -198,8 +198,6 @@ impl ShipRoleType {
 
 /// Who flies an intact generated ship, and where.
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct SectorShipCrew {
     /// The side it fights for: its civilization's side.
     pub allegiance: Allegiance,
@@ -214,8 +212,6 @@ pub struct SectorShipCrew {
 
 /// One generated ship: a hull, its civilization, and its crew if it works.
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct SectorShip {
     /// The ship's scenario id, prefixed with its owning cell's slug.
     pub id: String,
@@ -891,9 +887,10 @@ pub fn prepare_sector<G: SectorGenerator>(
 /// The one place the record rule is decided: a visited cell's record
 /// replaces its generated rocks and ships, so they are neither meshed nor
 /// returned; a never-visited cell's arrivals join its generated bodies. The
-/// description is drawn either way, because planetoids never freeze. Each
-/// frozen rock is prepared from its record: its pristine geometry, and for a
-/// carved one the surface its field meshes to.
+/// description is drawn either way, because planetoids never freeze and a
+/// held ship's record names only its id. Each frozen rock is prepared from
+/// its record: its pristine geometry, and for a carved one the surface its
+/// field meshes to.
 pub(crate) fn prepare_cell<G: SectorGenerator>(
     config: WorldConfig<G>,
     coord: SectorCoord,
@@ -916,11 +913,11 @@ pub(crate) fn prepare_cell<G: SectorGenerator>(
             })
             .collect()
     });
-    let thaw = |bodies: Vec<_>| {
-        info_span!("nova_world::prepare_frozen_asteroids").in_scope(|| {
+    let thaw = |bodies: Vec<_>, ships: &[SectorShip]| {
+        info_span!("nova_world::prepare_frozen_bodies").in_scope(|| {
             bodies
                 .into_iter()
-                .map(PreparedFrozenBody::prepare)
+                .map(|body| PreparedFrozenBody::prepare(coord, body, ships))
                 .collect::<Vec<_>>()
         })
     };
@@ -930,8 +927,9 @@ pub(crate) fn prepare_cell<G: SectorGenerator>(
         Some(FrozenSector::Arrivals(bodies)) => (None, bodies),
     };
     let bodies = match visited {
-        Some(bodies) => PreparedBodies::Thawed(thaw(bodies)),
+        Some(bodies) => PreparedBodies::Thawed(thaw(bodies, &ships)),
         None => {
+            let arrivals = thaw(arrivals, &ships);
             let rocks = info_span!("nova_world::prepare_asteroids").in_scope(|| {
                 asteroids
                     .into_iter()
@@ -944,7 +942,7 @@ pub(crate) fn prepare_cell<G: SectorGenerator>(
             PreparedBodies::Fresh {
                 rocks,
                 ships,
-                arrivals: thaw(arrivals),
+                arrivals,
             }
         }
     };
