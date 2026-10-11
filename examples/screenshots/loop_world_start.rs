@@ -451,7 +451,7 @@ fn predict_arrival_body(
             (
                 rock.id.clone(),
                 rock.position,
-                Meters(rock.radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX),
+                Meters(rock.config.radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX),
             )
         });
         let planets = sector

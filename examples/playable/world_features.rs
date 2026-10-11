@@ -848,7 +848,7 @@ fn search_ship_shots(world: &mut World) {
                 for ship in manifest.ships {
                     planned += 1;
                     assert_eq!(
-                        ship.design.presentation.style.as_deref(),
+                        ship.design().presentation.style.as_deref(),
                         Some(role_style_id(ship.role)),
                         "world features: ship {} is planned in another style",
                         ship.id

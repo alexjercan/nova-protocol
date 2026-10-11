@@ -117,7 +117,7 @@ impl SectorGenerator for UniformAsteroids {
                 .find(|candidate| {
                     asteroids.iter().all(|rock| {
                         let rock_clearance =
-                            Meters(rock.radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX);
+                            Meters(rock.config.radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX);
                         bodies_clear(
                             rock.position,
                             rock_clearance,
@@ -136,12 +136,17 @@ impl SectorGenerator for UniformAsteroids {
             let kind =
                 self.asteroid_kinds[stream.next_u32() as usize % self.asteroid_kinds.len()].clone();
             asteroids.push(SectorAsteroid {
-                seed: asteroid_seed_from_id(&id),
+                config: AsteroidConfig {
+                    radius,
+                    initial_velocity: MetersPerSecond3::ZERO,
+                    texture: AssetRef::Path(ASTEROID_TEXTURE_PATH.to_string()),
+                    kind,
+                    destroy_sound: None,
+                    lock_signature: None,
+                    seed: Some(asteroid_seed_from_id(&id)),
+                },
                 id,
                 position,
-                radius,
-                kind,
-                initial_velocity: MetersPerSecond3::ZERO,
             });
         }
         Ok(SectorManifest {

@@ -65,14 +65,16 @@
 //! small background scatter instead, so open space is not always empty.
 
 use bevy::prelude::{Quat, Vec3};
+use nova_assets::prelude::ASTEROID_TEXTURE_PATH;
 use nova_events::prelude::{Meters, Meters3, MetersPerSecond3, MetersPerSecondSquared};
 use nova_gameplay::prelude::{
-    circular_orbit_speed, unit_sphere_point, Fnv32, GameItems, GravitySettings, GravityWell,
-    SeedStream,
+    circular_orbit_speed, unit_sphere_point, AssetRef, Fnv32, GameItems, GravitySettings,
+    GravityWell, SeedStream,
 };
 use nova_scenario::prelude::{
-    asteroid_seed_from_id, PlanetConfig, PlanetType, ASTEROID_GEOMETRIC_FACTOR_MAX, KIND_CARBON,
-    KIND_ICE, KIND_METAL, KIND_ROCK,
+    asteroid_seed_from_id, AsteroidConfig, PlanetConfig, PlanetType, SpaceshipConfig,
+    SpaceshipController, ASTEROID_GEOMETRIC_FACTOR_MAX, KIND_CARBON, KIND_ICE, KIND_METAL,
+    KIND_ROCK,
 };
 use nova_world::prelude::*;
 
@@ -957,20 +959,25 @@ impl SectorPlan {
             let position = planned.position;
             match &planned.body {
                 ClusterBody::Rock { radius, kind } => manifest.asteroids.push(SectorAsteroid {
-                    seed: asteroid_seed_from_id(&id),
+                    config: AsteroidConfig {
+                        radius: *radius,
+                        initial_velocity: generated_initial_velocity(
+                            &planned.id,
+                            position,
+                            Meters(radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX),
+                            self.coord,
+                            self.edge,
+                            &wells,
+                            &settings,
+                        )?,
+                        texture: AssetRef::Path(ASTEROID_TEXTURE_PATH.to_string()),
+                        kind: (*kind).into(),
+                        destroy_sound: None,
+                        lock_signature: None,
+                        seed: Some(asteroid_seed_from_id(&id)),
+                    },
                     id,
                     position,
-                    radius: *radius,
-                    kind: (*kind).into(),
-                    initial_velocity: generated_initial_velocity(
-                        &planned.id,
-                        position,
-                        Meters(radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX),
-                        self.coord,
-                        self.edge,
-                        &wells,
-                        &settings,
-                    )?,
                 }),
                 ClusterBody::Planetoid(config) => manifest.planets.push(SectorPlanet {
                     id,
@@ -981,23 +988,22 @@ impl SectorPlan {
                     id,
                     position,
                     rotation: ship.rotation,
-                    initial_velocity: generated_initial_velocity(
-                        &planned.id,
-                        position,
-                        ship.clearance,
-                        self.coord,
-                        self.edge,
-                        &wells,
-                        &settings,
-                    )?,
                     clearance: ship.clearance,
-                    design: ship.design.clone(),
                     condition: ship.condition,
                     civilization: ship.civilization,
                     role: ship.role,
-                    stock: ship.stock.clone(),
-                    credits: ship.credits,
-                    crew: ship.crew.clone(),
+                    spawn: SpaceshipConfig {
+                        initial_velocity: generated_initial_velocity(
+                            &planned.id,
+                            position,
+                            ship.clearance,
+                            self.coord,
+                            self.edge,
+                            &wells,
+                            &settings,
+                        )?,
+                        ..ship.spawn.clone()
+                    },
                 }),
                 ClusterBody::Hull { .. } => {
                     unreachable!("a cell lays out every hull it owns before it resolves them")
@@ -1058,10 +1064,10 @@ impl SectorPlan {
                 .iter()
                 .filter(|body| body.skipped.is_none())
                 .filter(|body| match &body.body {
-                    ClusterBody::Ship(ship) => ship
-                        .crew
-                        .as_ref()
-                        .is_some_and(|crew| crew.patrol.is_empty()),
+                    ClusterBody::Ship(ship) => matches!(
+                        &ship.spawn.controller,
+                        SpaceshipController::AI(crew) if crew.patrol.is_empty()
+                    ),
                     _ => false,
                 })
                 .count(),
@@ -1703,7 +1709,7 @@ fn plan_patrols(input: SectorGenerationInput, bodies: &mut [PlannedBody]) {
         };
         let clearance = ship.clearance;
         let rotation = ship.rotation;
-        let Some(crew) = ship.crew.as_mut() else {
+        let SpaceshipController::AI(crew) = &mut ship.spawn.controller else {
             continue;
         };
         let others: Vec<(Meters3, Meters)> = standing
@@ -1711,7 +1717,7 @@ fn plan_patrols(input: SectorGenerationInput, bodies: &mut [PlannedBody]) {
             .filter(|(other, ..)| *other != index)
             .map(|&(_, position, clearance)| (position, clearance))
             .collect();
-        (crew.patrol, crew.stops) = plan_patrol(
+        (crew.patrol, crew.patrol_stops) = plan_patrol(
             input.seed,
             node,
             slot,
@@ -2723,6 +2729,7 @@ mod tests {
                     .iter()
                     .find(|rock| rock.id == id)
                     .unwrap()
+                    .config
                     .initial_velocity,
                 MetersPerSecond3::ZERO
             );
@@ -2814,13 +2821,13 @@ mod tests {
                         .asteroids
                         .iter()
                         .find(|rock| rock.id == body.id)
-                        .map(|rock| rock.initial_velocity)
+                        .map(|rock| rock.config.initial_velocity)
                         .or_else(|| {
                             manifest
                                 .ships
                                 .iter()
                                 .find(|ship| ship.id == body.id)
-                                .map(|ship| ship.initial_velocity)
+                                .map(|ship| ship.spawn.initial_velocity)
                         })
                         .expect("every placed mobile body is in the manifest");
                     assert!(velocity.is_finite(), "{} velocity", body.id);

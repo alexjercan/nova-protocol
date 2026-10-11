@@ -452,12 +452,17 @@ impl CellPlan {
             let position = planned.position;
             match &planned.body {
                 ClusterBody::Rock { radius, kind } => manifest.asteroids.push(SectorAsteroid {
-                    seed: asteroid_seed_from_id(&id),
+                    config: AsteroidConfig {
+                        radius: *radius,
+                        initial_velocity: MetersPerSecond3::ZERO,
+                        texture: AssetRef::Path(ASTEROID_TEXTURE_PATH.to_string()),
+                        kind: (*kind).into(),
+                        destroy_sound: None,
+                        lock_signature: None,
+                        seed: Some(asteroid_seed_from_id(&id)),
+                    },
                     id,
                     position,
-                    radius: *radius,
-                    kind: (*kind).into(),
-                    initial_velocity: MetersPerSecond3::ZERO,
                 }),
                 ClusterBody::Planetoid(config) => manifest.planets.push(SectorPlanet {
                     id,
@@ -468,15 +473,11 @@ impl CellPlan {
                     id,
                     position,
                     rotation: ship.rotation,
-                    initial_velocity: MetersPerSecond3::ZERO,
                     clearance: ship.clearance,
-                    design: ship.design.clone(),
                     condition: ship.condition,
                     civilization: ship.civilization,
                     role: ship.role,
-                    stock: ship.stock.clone(),
-                    credits: ship.credits,
-                    crew: ship.crew.clone(),
+                    spawn: ship.spawn.clone(),
                 }),
                 ClusterBody::Hull { .. } => {
                     unreachable!("a cell lays out every hull it owns before it resolves them")

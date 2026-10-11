@@ -1040,7 +1040,7 @@ fn report_clearance(world: &mut World) {
                     body.position,
                     // A rock's meshed surface reaches up to this multiple past
                     // its nominal radius, so that is what has to clear.
-                    Meters(body.radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX),
+                    Meters(body.config.radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX),
                 )
             })
             .chain(description.planets().iter().map(|planet| {

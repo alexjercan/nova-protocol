@@ -9,9 +9,7 @@ use std::time::Duration;
 
 use avian3d::prelude::*;
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
-use nova_events::prelude::{
-    EntityId, Meters, Meters3, MetersPerSecond3, ScenarioAddressableMarker,
-};
+use nova_events::prelude::{EntityId, Meters, Meters3, ScenarioAddressableMarker};
 use nova_gameplay::{
     prelude::{
         AssetRef, CargoCanister, CargoCanisterRuntimeId, DamageMark, DamageMarks, Health,
@@ -23,7 +21,7 @@ use nova_gameplay::{
 use nova_scenario::prelude::{
     freeze_ship, AsteroidCarvePlugin, AsteroidField, AsteroidMarker, AsteroidPlugin, SectionSource,
     ShipDesign, ShipDesignSource, SpaceshipController, SpaceshipDesign, SpaceshipPlugin,
-    SpaceshipSectionConfig, KIND_ROCK,
+    SpaceshipSectionConfig,
 };
 use nova_ship::prelude::{
     cargo_canister, docking_section, thruster_section, AINonCombatant, BaseSectionConfig,
@@ -33,7 +31,10 @@ use nova_ship::prelude::{
     SpaceshipSectionPlugin, ThrusterSectionConfig, TurretSectionConfig,
 };
 
-use super::{answering, empty, rocks, ship, test_sections, Answers, Rocks, TEST_HULL_SECTION_ID};
+use super::{
+    answering, design_mut, empty, rock_config, rocks, ship, test_sections, Answers, Rocks,
+    TEST_HULL_SECTION_ID,
+};
 use crate::{
     adopt_moving_bodies, clear_sector_work, frozen::SettlingBodies, generation::prepare_cell,
     materialize_sector, retire_sectors, sector_id, streaming::ClearedConfig, CurrentSector,
@@ -84,13 +85,7 @@ fn materialize<G: SectorGenerator>(
         .get_resource::<GameSections>()
         .cloned()
         .unwrap_or_default();
-    let root = materialize_sector(
-        &mut world.commands(),
-        prepared,
-        &AssetRef::Path(nova_assets::prelude::ASTEROID_TEXTURE_PATH.to_string()),
-        &sections,
-        observer,
-    );
+    let root = materialize_sector(&mut world.commands(), prepared, &sections, observer);
     world.flush();
     root
 }
@@ -613,23 +608,21 @@ fn wreckable(input: SectorGenerationInput) -> SectorManifest {
     let rock = SectorAsteroid {
         id: sector_id(input.coord, "body", 0),
         position: centre + Meters3::new(-quarter, 0.0, 0.0),
-        radius: Meters(60.0),
-        initial_velocity: MetersPerSecond3::ZERO,
-        kind: KIND_ROCK.into(),
-        seed: 3,
+        config: rock_config(Meters(60.0), 3),
     };
     let mut fought = ship(
         sector_id(input.coord, "ship", 0),
         centre + Meters3::new(quarter, 0.0, 0.0),
         TEST_HULL_SECTION_ID,
     );
-    let mut aft = fought.design.sections[0].clone();
-    fought.design.sections[0].id = "fore".into();
+    let design = design_mut(&mut fought);
+    let mut aft = design.sections[0].clone();
+    design.sections[0].id = "fore".into();
     aft.id = "aft".into();
     aft.position = Vec3::Z;
     aft.source = SectionSource::prototype(TEST_TURRET_SECTION_ID);
-    fought.design.sections.push(aft);
-    fought.stock = ShipInventoryStock::new([(ITEM_IRON_ORE.into(), 10)]);
+    design.sections.push(aft);
+    fought.spawn.inventory = ShipInventoryStock::new([(ITEM_IRON_ORE.into(), 10)]);
     let held = ship(
         sector_id(input.coord, "ship", 1),
         centre + Meters3::new(0.0, 0.0, quarter),

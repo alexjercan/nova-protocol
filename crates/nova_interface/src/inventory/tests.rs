@@ -1576,7 +1576,7 @@ mod generated_wreck {
         flight::prelude::NovaFlightPlugin,
         prelude::{
             DockingConnectionRequest, GameSections, PDControllerPlugin, SectionConfig,
-            SpaceshipSectionPlugin,
+            ShipCapabilities, SpaceshipSectionPlugin,
         },
     };
     use nova_world::{materialize_sector, prelude::*, ObserverBody};
@@ -1740,15 +1740,20 @@ mod generated_wreck {
                 id: sector_id(SectorCoord::ORIGIN, "ship", 0),
                 position: centre,
                 rotation: Quat::IDENTITY,
-                initial_velocity: MetersPerSecond3::ZERO,
                 clearance: wreck.clearance,
-                design: wreck.design.clone(),
                 condition: SectorShipConditionType::Derelict,
-                crew: None,
                 civilization: request.civilization,
                 role: request.role,
-                stock,
-                credits: 0,
+                spawn: SpaceshipConfig {
+                    design: ShipDesignSource::Inline(wreck.design.clone()),
+                    controller: SpaceshipController::None,
+                    initial_velocity: MetersPerSecond3::ZERO,
+                    allegiance: Some(Allegiance::Neutral),
+                    capabilities: ShipCapabilities::default(),
+                    inventory: stock,
+                    lootable: true,
+                    credits: 0,
+                },
             }),
         };
         let prepared =
@@ -1777,7 +1782,6 @@ mod generated_wreck {
         materialize_sector(
             &mut world.commands(),
             prepared,
-            &AssetRef::default(),
             &loaded,
             ObserverBody {
                 position: centre + Meters3::new(0.0, 0.0, 10_000.0),

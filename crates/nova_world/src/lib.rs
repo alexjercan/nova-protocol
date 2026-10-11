@@ -192,8 +192,7 @@ pub use crate::{
     generation::{
         bodies_clear, generate_sector, prepare_sector, sector_id, validate_manifest,
         CivilizationId, PreparedSector, SectorAsteroid, SectorDescription, SectorManifest,
-        SectorPlanet, SectorShip, SectorShipConditionType, SectorShipCrew, ShipRoleType,
-        SECTOR_SHIP_CLEARANCE_MAX,
+        SectorPlanet, SectorShip, SectorShipConditionType, ShipRoleType, SECTOR_SHIP_CLEARANCE_MAX,
     },
     streaming::{
         clear_sector_work, collect_sector_jobs, desired_sectors, live_sectors,
@@ -211,9 +210,8 @@ pub mod prelude {
         bodies_clear, generate_sector, prepare_sector, sector_id, validate_manifest,
         CivilizationId, NovaWorldPlugin, NovaWorldSystems, PreparedSector, SectorAsteroid,
         SectorCoord, SectorDescription, SectorFault, SectorGenerationInput, SectorGenerator,
-        SectorManifest, SectorPlanet, SectorShip, SectorShipConditionType, SectorShipCrew,
-        ShipRoleType, WorldConfig, WorldGeometry, ACTIVE_WINDOW_SECTORS_MAX,
-        SECTOR_SHIP_CLEARANCE_MAX,
+        SectorManifest, SectorPlanet, SectorShip, SectorShipConditionType, ShipRoleType,
+        WorldConfig, WorldGeometry, ACTIVE_WINDOW_SECTORS_MAX, SECTOR_SHIP_CLEARANCE_MAX,
     };
     pub use crate::{
         frozen::{

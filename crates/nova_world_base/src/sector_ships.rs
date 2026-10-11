@@ -36,14 +36,17 @@
 //! travel.
 
 use bevy::prelude::{Quat, Vec3};
-use nova_events::prelude::{Meters, Meters3};
+use nova_events::prelude::{Meters, Meters3, MetersPerSecond3};
 use nova_gameplay::prelude::{
-    Fnv32, GameItems, ItemDesignId, SeedStream, ShipInventoryStock, ITEM_CARBON_ORE,
+    Allegiance, Fnv32, GameItems, ItemDesignId, SeedStream, ShipInventoryStock, ITEM_CARBON_ORE,
     ITEM_HULL_PLATE, ITEM_IRON_ORE, ITEM_PDC_ROUND, ITEM_RAIL_SLUG, ITEM_RATIONS,
     ITEM_SALVAGED_PARTS, ITEM_STONE_ORE, ITEM_TORPEDO, ITEM_WATER_ICE,
 };
-use nova_scenario::prelude::{ShipDesign, HULL_SECTION_CARGO_G};
-use nova_ship::prelude::SectionKind;
+use nova_scenario::prelude::{
+    AIControllerConfig, ShipDesign, ShipDesignSource, SpaceshipConfig, SpaceshipController,
+    HULL_SECTION_CARGO_G,
+};
+use nova_ship::prelude::{SectionKind, ShipCapabilities};
 use nova_world::prelude::*;
 
 use crate::{
@@ -82,6 +85,10 @@ const PATROL_STOP: (f32, f32) = (30.0, 60.0);
 
 /// How far a generated crew chases from its patrol centre.
 const CREW_LEASH: Meters = Meters(5_000.0);
+
+/// Seconds an Enemy crew holds fire after it spawns, so a cell that streams
+/// in around the player does not open fire on the spawn frame.
+const ENEMY_ENGAGE_DELAY: f32 = 8.0;
 
 /// The share of its hold an intact ship's stock aims for, as a `(least,
 /// most)` band at advancement 0 and at advancement 1, interpolated linearly
@@ -128,8 +135,6 @@ pub struct HullSlot<'a> {
 /// fits.
 #[derive(Clone, Debug)]
 pub struct PlannedShip {
-    /// The generated design.
-    pub design: ShipDesign,
     /// Its full orientation.
     pub rotation: Quat,
     /// The radius around its root that holds the hull.
@@ -140,13 +145,14 @@ pub struct PlannedShip {
     pub civilization: CivilizationId,
     /// The role it was laid out for. A wreck keeps the role it was built for.
     pub role: ShipRoleType,
-    /// What its hold carries, see [`ship_stock`].
-    pub stock: ShipInventoryStock,
-    /// Its credit balance.
-    pub credits: u32,
-    /// Who flies it: `Some` exactly when it is intact, with no patrol until
-    /// the cell gives it one with `plan_patrol` after it places every body.
-    pub crew: Option<SectorShipCrew>,
+    /// The ship as the spawn builds it: the generated design inline, the
+    /// stock of [`ship_stock`], the balance, and the crew. An intact ship is
+    /// flown by an AI on its civilization's side with no patrol until the
+    /// cell gives it one with `plan_patrol` after it places every body, and
+    /// an Enemy crew waits [`ENEMY_ENGAGE_DELAY`] before it first engages. A
+    /// derelict is flown by nobody, Neutral and lootable. At rest: the cell
+    /// sets the initial motion once it knows the wells around it.
+    pub spawn: SpaceshipConfig,
 }
 
 /// Lay out the ship `hull` stands for.
@@ -279,23 +285,38 @@ pub fn plan_ship(
         SectorShipConditionType::Derelict => uniform_rotation(turn),
     };
 
-    let crew = (condition == SectorShipConditionType::Intact).then(|| SectorShipCrew {
-        allegiance: civilization.allegiance,
-        patrol: Vec::new(),
-        stops: Vec::new(),
-        leash: CREW_LEASH,
-    });
+    let (controller, allegiance, lootable) = match condition {
+        SectorShipConditionType::Intact => (
+            SpaceshipController::AI(AIControllerConfig {
+                patrol: Vec::new(),
+                patrol_stops: Vec::new(),
+                leash: Some(CREW_LEASH),
+                engage_delay: (civilization.allegiance == Allegiance::Enemy)
+                    .then_some(ENEMY_ENGAGE_DELAY),
+                ..AIControllerConfig::default()
+            }),
+            civilization.allegiance,
+            false,
+        ),
+        SectorShipConditionType::Derelict => (SpaceshipController::None, Allegiance::Neutral, true),
+    };
 
     Ok(PlannedShip {
-        design: layout.design,
         rotation,
         clearance: layout.clearance,
         condition,
         civilization: civilization.id,
         role,
-        stock,
-        credits,
-        crew,
+        spawn: SpaceshipConfig {
+            design: ShipDesignSource::Inline(layout.design),
+            controller,
+            initial_velocity: MetersPerSecond3::ZERO,
+            allegiance: Some(allegiance),
+            capabilities: ShipCapabilities::default(),
+            inventory: stock,
+            lootable,
+            credits,
+        },
     })
 }
 

@@ -2,11 +2,11 @@ use std::{collections::BTreeMap, panic::AssertUnwindSafe};
 
 use bevy::ecs::system::RunSystemOnce;
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack};
-use nova_events::prelude::Meters3;
-use nova_gameplay::prelude::{Fnv64, ItemDesignId, ITEM_HULL_PLATE};
+use nova_events::prelude::{Meters, Meters3};
+use nova_gameplay::prelude::{Allegiance, Fnv64, ItemDesignId, ITEM_HULL_PLATE};
 use nova_scenario::prelude::{
     resolve_ship_design, GameShipDesigns, ScenarioConfig, SectionSource, ShipDesign,
-    ShipDesignSource, SpaceshipSectionConfig,
+    SpaceshipController, SpaceshipSectionConfig,
 };
 use nova_ship::prelude::{GameSections, ShipStyleConfig};
 
@@ -134,7 +134,10 @@ fn the_open_world_describes_the_same_sectors_in_any_visit_order() {
 /// Every planned ship is a goods and credit source: each in the live window
 /// carries stock its resolved hold fits and a positive balance in its
 /// condition's band, and a wreck's mixed stock need not hold a plate. A hold
-/// that cannot fit one unit of its role's lightest item gets no stock.
+/// that cannot fit one unit of its role's lightest item gets no stock. The
+/// generator states the whole spawn: an intact ship is AI-flown on its
+/// civilization's side with the crew leash, an Enemy crew arrives holding
+/// fire, and a wreck is unflown, Neutral and lootable.
 #[test]
 fn every_planned_ship_carries_goods_its_hold_fits_and_credits() {
     let config = session_config();
@@ -152,25 +155,40 @@ fn every_planned_ship_carries_goods_its_hold_fits_and_credits() {
         let description = generate_sector(&config, coord)
             .unwrap_or_else(|fault| panic!("sector {coord:?}: {fault}"));
         for ship in description.ships() {
-            let stacks: Vec<(&ItemDesignId, u32)> = ship.stock.stacks().collect();
+            let spawn = &ship.spawn;
+            let stacks: Vec<(&ItemDesignId, u32)> = spawn.inventory.stacks().collect();
             assert!(!stacks.is_empty(), "ship {} carries no goods", ship.id);
-            let (resolved, errors) = resolve_ship_design(
-                &ShipDesignSource::Inline(ship.design.clone()),
-                &GameShipDesigns::default(),
-                &sections,
-            );
+            let (resolved, errors) =
+                resolve_ship_design(&spawn.design, &GameShipDesigns::default(), &sections);
             assert!(errors.is_empty(), "ship {}: {errors:?}", ship.id);
             assert!(
-                ship.stock.mass_g(items) <= u64::from(resolved.cargo_capacity_g()),
+                spawn.inventory.mass_g(items) <= u64::from(resolved.cargo_capacity_g()),
                 "ship {} overfills its hold",
                 ship.id
             );
+            let side = spawn.allegiance.expect("a generated ship states its side");
             let credits = match ship.condition {
                 SectorShipConditionType::Intact => {
                     intact += 1;
-                    let crew = ship.crew.as_ref().expect("an intact ship has a crew");
+                    let SpaceshipController::AI(crew) = &spawn.controller else {
+                        panic!("intact ship {} is not AI-flown", ship.id);
+                    };
+                    assert!(!spawn.lootable, "intact ship {} is lootable", ship.id);
+                    assert_eq!(crew.leash, Some(Meters(5_000.0)), "ship {} leash", ship.id);
+                    assert_eq!(
+                        crew.engage_delay,
+                        (side == Allegiance::Enemy).then_some(8.0),
+                        "ship {} arrival grace: only an Enemy crew holds fire",
+                        ship.id
+                    );
                     patrolling += usize::from(!crew.patrol.is_empty());
-                    for (waypoint, stop) in crew.patrol.iter().zip(&crew.stops) {
+                    assert_eq!(
+                        crew.patrol.len(),
+                        crew.patrol_stops.len(),
+                        "ship {} stops",
+                        ship.id
+                    );
+                    for (waypoint, stop) in crew.patrol.iter().zip(&crew.patrol_stops) {
                         let reach = (waypoint.get() - ship.position.get()).length();
                         assert!(
                             (reach - 1_500.0).abs() < 1.0,
@@ -192,6 +210,18 @@ fn every_planned_ship_carries_goods_its_hold_fits_and_credits() {
                 }
                 SectorShipConditionType::Derelict => {
                     wrecks += 1;
+                    assert!(
+                        matches!(spawn.controller, SpaceshipController::None),
+                        "derelict {} is flown",
+                        ship.id
+                    );
+                    assert_eq!(
+                        side,
+                        Allegiance::Neutral,
+                        "derelict {} takes a side",
+                        ship.id
+                    );
+                    assert!(spawn.lootable, "derelict {} is not lootable", ship.id);
                     plateless_wrecks += usize::from(
                         !stacks
                             .iter()
@@ -201,10 +231,10 @@ fn every_planned_ship_carries_goods_its_hold_fits_and_credits() {
                 }
             };
             assert!(
-                credits.contains(&ship.credits),
+                credits.contains(&spawn.credits),
                 "ship {} holds {} credits",
                 ship.id,
-                ship.credits
+                spawn.credits
             );
         }
     }
@@ -287,9 +317,9 @@ fn a_patrol_needs_two_fitting_waypoints() {
 /// the 125 cells around the origin, walked in `desired_sectors` order, for
 /// seed 20,260,922 at a 32 km edge. Every input is written out here rather
 /// than read from the session constants, so retuning New Game cannot move the
-/// recorded window. A deliberate change to the generator's output changes
-/// this digest; record the new value from the left side of this test's
-/// failure message.
+/// recorded window. A deliberate change to the generator's output, or to the
+/// canonical text itself, changes this digest; record the new value from the
+/// left side of this test's failure message and say which of the two moved.
 #[test]
 fn a_pinned_window_generates_the_recorded_bodies() {
     let config = WorldConfig {
@@ -308,7 +338,7 @@ fn a_pinned_window_generates_the_recorded_bodies() {
         .collect();
     assert_eq!(
         Fnv64::new().write(canonical.as_bytes()).finish(),
-        0x81e9_2080_3e38_ff6b,
+        0x67a2_6108_0bd0_8a05,
         "the pinned window's bodies changed"
     );
 }

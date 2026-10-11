@@ -20,16 +20,12 @@ use bevy::{
     prelude::*,
     tasks::{block_on, poll_once, AsyncComputeTaskPool, Task},
 };
-use nova_assets::prelude::ASTEROID_TEXTURE_PATH;
 use nova_events::prelude::{Meters, Meters3, ScenarioAddressableMarker};
-use nova_gameplay::prelude::{
-    Allegiance, AssetRef, DerelictShipMarker, IntegrityEnvelope, TempEntity, UnsettledBody,
-};
+use nova_gameplay::prelude::{DerelictShipMarker, IntegrityEnvelope, TempEntity, UnsettledBody};
 use nova_scenario::prelude::{
     asteroid_scenario_object_prepared, base_scenario_object, planet_scenario_object_prepared,
-    resolve_ship_design, spaceship_scenario_object, AIControllerConfig, AsteroidConfig,
-    BaseScenarioObjectConfig, GameShipDesigns, PlanetMarker, ShipDesignSource, SpaceshipConfig,
-    SpaceshipController,
+    resolve_ship_design, spaceship_scenario_object, BaseScenarioObjectConfig, GameShipDesigns,
+    PlanetMarker,
 };
 use nova_ship::prelude::GameSections;
 
@@ -41,7 +37,7 @@ use crate::{
     },
     generation::{prepare_cell, PreparedBodies, PreparedPlanetoid, PreparedRock},
     PreparedSector, SectorCoord, SectorFault, SectorGenerator, SectorShip, SectorShipConditionType,
-    SectorShipCrew, WorldConfig,
+    WorldConfig,
 };
 
 /// Marks the entity the desired set is centred on.
@@ -204,7 +200,6 @@ pub fn desired_sectors(centre: SectorCoord, radius: i32) -> BTreeSet<SectorCoord
 pub fn materialize_sector(
     commands: &mut Commands,
     prepared: PreparedSector,
-    texture: &AssetRef<Image>,
     sections: &GameSections,
     observer: ObserverBody,
 ) -> Entity {
@@ -248,20 +243,8 @@ pub fn materialize_sector(
             }),
             ChildOf(root),
         ));
-        asteroid_scenario_object_prepared(
-            &mut entity,
-            AsteroidConfig {
-                radius: body.radius,
-                texture: texture.clone(),
-                kind: body.kind.clone(),
-                destroy_sound: None,
-                initial_velocity: body.initial_velocity,
-                lock_signature: None,
-                seed: Some(body.seed),
-            },
-            body.seed,
-            geometry,
-        );
+        let seed = body.seed();
+        asteroid_scenario_object_prepared(&mut entity, body.config, seed, geometry);
     }
 
     for PreparedPlanetoid { body, surface } in planets {
@@ -310,11 +293,8 @@ pub fn materialize_sector(
 ///
 /// On [`SectorFault::InvalidShipDesign`] with every resolver error.
 fn require_resolved(ship: &SectorShip, sections: &GameSections) {
-    // The source is borrowed through a clone because the resolver takes a
-    // `ShipDesignSource`, and the manifest entry keeps its design for a held
-    // ship. Once per ship per materialized cell.
-    let source = ShipDesignSource::Inline(ship.design.clone());
-    let (_, errors) = resolve_ship_design(&source, &GameShipDesigns::default(), sections);
+    let (_, errors) =
+        resolve_ship_design(&ship.spawn.design, &GameShipDesigns::default(), sections);
     if !errors.is_empty() {
         panic!(
             "nova_world: {}",
@@ -326,66 +306,27 @@ fn require_resolved(ship: &SectorShip, sections: &GameSections) {
     }
 }
 
-/// Seconds an Enemy crew of a streamed ship holds fire after it spawns.
-const SECTOR_ENEMY_ENGAGE_DELAY: f32 = 8.0;
-
 /// Spawn one generated ship under `root`, where and as its manifest entry
-/// says, its hold filled with the entry's stock and its balance the entry's
-/// credits.
-///
-/// Its `Name` says whose it is and what it was built for, `<civilization>
-/// <role>` or `<civilization> derelict, former <role>`. Inspection and the
-/// selected target show it; a distant map blip shows a minted code instead.
-///
-/// An intact ship carries an AI crew on its civilization's side: it patrols
-/// its manifest loop, holding at each waypoint, and fights inside its leash.
-/// An Enemy crew waits [`SECTOR_ENEMY_ENGAGE_DELAY`] before it first engages,
-/// so a cell that streams in around the player does not open fire on the
-/// spawn frame. A derelict has nobody aboard and nobody's side.
-///
-/// A derelict carries [`DerelictShipMarker`] in the same bundle as the root,
-/// so the section spawn sees it and every section but hull and docking port
-/// spawns inactive; its `lootable` config lets a docked ship Take its stock.
+/// says: the entry's `spawn` config is the whole ship, and this adds only
+/// the pose, the identity and, for a derelict, [`DerelictShipMarker`] in
+/// the same bundle as the root, so the section spawn sees it and every
+/// section but hull and docking port spawns inactive.
 fn spawn_sector_ship(commands: &mut Commands, root: Entity, ship: SectorShip) {
     let SectorShip {
         id,
         position,
         rotation,
-        initial_velocity,
         clearance: _,
-        design,
         condition,
-        crew,
         civilization,
         role,
-        stock,
-        credits,
+        spawn,
     } = ship;
-    let derelict = condition == SectorShipConditionType::Derelict;
     let name = match condition {
         SectorShipConditionType::Intact => format!("{} {}", civilization.name(), role.label()),
         SectorShipConditionType::Derelict => {
             format!("{} derelict, former {}", civilization.name(), role.label())
         }
-    };
-    let (controller, allegiance) = match crew {
-        Some(SectorShipCrew {
-            allegiance,
-            patrol,
-            stops,
-            leash,
-        }) => (
-            SpaceshipController::AI(AIControllerConfig {
-                patrol,
-                patrol_stops: stops,
-                leash: Some(leash),
-                engage_delay: (allegiance == Allegiance::Enemy)
-                    .then_some(SECTOR_ENEMY_ENGAGE_DELAY),
-                ..default()
-            }),
-            allegiance,
-        ),
-        None => (SpaceshipController::None, Allegiance::Neutral),
     };
     let ship = (
         base_scenario_object(&BaseScenarioObjectConfig {
@@ -394,23 +335,13 @@ fn spawn_sector_ship(commands: &mut Commands, root: Entity, ship: SectorShip) {
             position,
             rotation,
         }),
-        spaceship_scenario_object(SpaceshipConfig {
-            design: ShipDesignSource::Inline(design),
-            controller,
-            initial_velocity,
-            allegiance: Some(allegiance),
-            inventory: stock,
-            lootable: derelict,
-            credits,
-            ..default()
-        }),
+        spaceship_scenario_object(spawn),
         ChildOf(root),
     );
-    if derelict {
-        commands.spawn((ship, DerelictShipMarker));
-    } else {
-        commands.spawn(ship);
-    }
+    match condition {
+        SectorShipConditionType::Intact => commands.spawn(ship),
+        SectorShipConditionType::Derelict => commands.spawn((ship, DerelictShipMarker)),
+    };
 }
 
 /// The live sector roots, keyed by cell.
@@ -812,14 +743,13 @@ pub fn materialize_ready_sector<G: SectorGenerator>(
     };
 
     let coord = prepared.coord();
-    let texture = AssetRef::<Image>::Path(ASTEROID_TEXTURE_PATH.to_string());
     let Ok((transform, envelope)) = observer.single() else {
         panic!("nova_world: {}", SectorFault::AbsentObserver);
     };
     let observer = ObserverBody::read(transform, envelope);
     // The job carried the record's bodies; the ledger's copy is spent.
     frozen.consume(coord);
-    materialize_sector(&mut commands, prepared, &texture, &sections, observer);
+    materialize_sector(&mut commands, prepared, &sections, observer);
     stats.materialized += 1;
 
     if desired

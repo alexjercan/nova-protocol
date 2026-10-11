@@ -441,7 +441,6 @@ fn leave_orbit(keys: Res<ButtonInput<KeyCode>>, mut inspector: ResMut<Inspector>
 fn collect_sector(
     mut commands: Commands,
     mut inspector: ResMut<Inspector>,
-    game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
     world: Res<InspectorWorld>,
     cameras: Query<Entity, With<ScenarioCameraMarker>>,
@@ -473,7 +472,7 @@ fn collect_sector(
         .iter()
         .map(|body| InspectedObject {
             id: body.id.clone(),
-            clearance: Meters(body.radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX),
+            clearance: Meters(body.config.radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX),
         })
         .chain(description.planets().iter().map(|planet| InspectedObject {
             id: planet.id.clone(),
@@ -490,8 +489,7 @@ fn collect_sector(
         debug!("inspector: retiring {old}");
         commands.entity(root).despawn();
     }
-    let texture: AssetRef<Image> = game_assets.asteroid_texture.clone().into();
-    let root = materialize_sector(&mut commands, prepared, &texture, &sections, observer);
+    let root = materialize_sector(&mut commands, prepared, &sections, observer);
     info!(
         "inspector: live {coord} of seed {}: {rocks} rocks, {planets} planetoids, {ships} ships",
         world.0.seed
