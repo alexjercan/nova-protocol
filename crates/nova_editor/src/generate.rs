@@ -18,6 +18,7 @@
 //! made the player's.
 
 use bevy::{prelude::*, ui::InteractionDisabled, ui_widgets::Activate};
+use nova_gameplay::prelude::GameItems;
 use nova_scenario::prelude::ShipDesign;
 use nova_ship::prelude::{GameSections, GameStyles, SectionFootprint, SectionKind};
 use nova_ui::{
@@ -133,6 +134,7 @@ pub(crate) fn generate_ship(
     mut commands: Commands,
     seed: Res<HullSeed>,
     sections: Option<Res<GameSections>>,
+    items: Option<Res<GameItems>>,
     styles: Option<Res<GameStyles>>,
     drawable: Query<(&PartChoice, Has<Selected>)>,
     held: Query<&Children>,
@@ -147,7 +149,7 @@ pub(crate) fn generate_ship(
         says.refuse("go inside a ship to generate a hull into it");
         return;
     };
-    let Some(sections) = sections.as_deref() else {
+    let (Some(sections), Some(items)) = (sections.as_deref(), items.as_deref()) else {
         says.refuse("the content has not finished loading");
         return;
     };
@@ -169,6 +171,7 @@ pub(crate) fn generate_ship(
     let hull = match drawn_plan(sections, &drawn).and_then(|plan| {
         collapse(
             sections,
+            items,
             &plan,
             styles.as_deref(),
             seed.0,
@@ -380,6 +383,7 @@ fn holding(sections: &GameSections, plan: &WfcPlan) -> WfcGrid {
 /// still has that after a reroll.
 fn collapse(
     sections: &GameSections,
+    items: &GameItems,
     plan: &WfcPlan,
     styles: Option<&GameStyles>,
     seed: u64,
@@ -400,7 +404,7 @@ fn collapse(
         })
         .flatten();
     let hull = tiles.hull(seed, clad, style)?;
-    let errors = hull_errors(&hull, sections);
+    let errors = hull_errors(&hull, sections, items);
     match errors.first() {
         Some(first) => Err(format!(
             "the collapse built a hull the game refuses: {first}"

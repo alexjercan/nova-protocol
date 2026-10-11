@@ -259,9 +259,9 @@ const LINT_SCENARIO_ID: &str = "generated_hull";
 /// The caller that has a hull and no scenario - the editor's Generate verb -
 /// asks this. It wraps the hull in the smallest scenario that can carry it and
 /// hands back what [`lint_errors`] found, so a hull is refused by exactly the
-/// rules that would refuse it in a mod file. The item catalog is empty: a
-/// generated hull carries no stock, so any item it names is reported unknown.
-pub fn hull_errors(hull: &ShipDesign, sections: &GameSections) -> Vec<String> {
+/// rules that would refuse it in a mod file, against the `items` the game
+/// loaded.
+pub fn hull_errors(hull: &ShipDesign, sections: &GameSections, items: &GameItems) -> Vec<String> {
     let spawn = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: LINT_SCENARIO_ID.to_string(),
@@ -290,7 +290,7 @@ pub fn hull_errors(hull: &ShipDesign, sections: &GameSections) -> Vec<String> {
             AssetRef::from(LINT_CUBEMAP),
         )
     };
-    lint_errors(&scenario, sections, &GameItems::default())
+    lint_errors(&scenario, sections, items)
 }
 
 /// The skybox the throwaway scenario names. The gate does not read it; a

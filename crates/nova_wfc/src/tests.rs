@@ -5,6 +5,7 @@
 //! content change rather than on a missing file.
 
 use bevy::prelude::{default, Quat, UVec3, Vec3};
+use nova_gameplay::prelude::GameItems;
 use nova_scenario::prelude::{SectionSource, ShipDesign, SpaceshipSectionConfig};
 use nova_ship::prelude::{
     BaseSectionConfig, GameSections, HullSectionConfig, LinkPoint, SectionCollider, SectionConfig,
@@ -21,6 +22,12 @@ use crate::{
 
 /// The shipped catalog and the standard plan read against each other - the
 /// same pair the running game builds.
+/// The shipped item catalog, which the content gate checks a hull's stock
+/// against.
+fn catalog_items() -> GameItems {
+    GameItems::new(nova_authoring::generation::build_items())
+}
+
 fn catalog_tiles() -> (GameSections, TileSet) {
     let sections = GameSections(nova_authoring::generation::build_section_catalog());
     let tiles = TileSet::build(&sections, &WfcPlan::standard_hull())
@@ -265,7 +272,7 @@ fn generated_hulls_clear_the_games_own_content_lint() {
     let (sections, tiles) = catalog_tiles();
     for seed in 0..8u64 {
         let hull = tiles.hull(seed, true, None).expect("the seed collapses");
-        let errors = hull_errors(&hull, &sections);
+        let errors = hull_errors(&hull, &sections, &catalog_items());
         assert!(
             errors.is_empty(),
             "seed {seed} produced content the game would refuse:\n  {}",
@@ -501,7 +508,7 @@ fn a_drive_bigger_than_one_cell_reaches_the_transom_of_every_hull() {
                 drives, 2,
                 "'{id}' is seeded once and mirrored, so seed {seed} owes the hull a PAIR"
             );
-            let errors = hull_errors(&hull, &sections);
+            let errors = hull_errors(&hull, &sections, &catalog_items());
             assert!(
                 errors.is_empty(),
                 "'{id}' seed {seed} produced content the game would refuse:\n  {}",
@@ -621,7 +628,7 @@ fn a_seeded_bow_gun_stands_on_the_nose_of_every_hull() {
                 gun.position.z
             );
         }
-        let errors = hull_errors(&hull, &sections);
+        let errors = hull_errors(&hull, &sections, &catalog_items());
         assert!(
             errors.is_empty(),
             "seed {seed} produced content the game would refuse:\n  {}",
