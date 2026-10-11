@@ -221,8 +221,8 @@ pub mod prelude {
             SectorSnapshotError,
         },
         streaming::{
-            desired_sectors, CurrentSector, PendingSectorShip, ReadySectors, SectorJob,
-            SectorJobStats, SectorRoot, WorldObserver,
+            desired_sectors, live_sectors, CurrentSector, PendingSectorShip, ReadySectors,
+            SectorJob, SectorJobStats, SectorRoot, WorldObserver,
         },
     };
 }

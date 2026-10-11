@@ -40,10 +40,9 @@ use nova_ship::prelude::{
     FrozenShedFixture, FrozenTorpedo, PlaceholderArt, SavedTorpedoTarget, ShedFixtureMarker,
     SkinAssets, TorpedoTargetEntity,
 };
-use nova_world::{
-    desired_sectors, live_sectors,
-    prelude::{CurrentSector, SectorCoord, WorldConfig},
-    SectorRoot, SectorSnapshotError,
+use nova_world::prelude::{
+    desired_sectors, live_sectors, CurrentSector, SectorCoord, SectorRoot, SectorSnapshotError,
+    WorldConfig,
 };
 use serde::{Deserialize, Serialize};
 
