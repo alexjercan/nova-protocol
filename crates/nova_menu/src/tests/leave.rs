@@ -11,6 +11,7 @@ use bevy::{
     window::WindowCloseRequested,
 };
 use nova_gameplay::prelude::*;
+use nova_hud::prelude::HudTier;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::{
     thaw_torpedo, FrozenTorpedo, SavedTorpedoTarget, TorpedoArming, TorpedoSectionConfig,
@@ -74,6 +75,77 @@ fn saved_world() -> (App, TempDir, Entity) {
 
 fn session(app: &App) -> Option<&WorldSaveSession> {
     app.world().get_resource::<WorldSaveSession>()
+}
+
+/// A new success expires on real time; a failed leave stays visible until
+/// another attempt, without changing the leave controls.
+#[test]
+fn the_save_notice_shows_new_saves_for_three_real_seconds_and_keeps_failures() {
+    let (mut app, root, player) = saved_world();
+    let notice = |app: &mut App| {
+        find_named(app, "Save Notice")
+            .map(|entity| app.world().get::<Text>(entity).unwrap().0.clone())
+    };
+    app.update();
+    assert_eq!(notice(&mut app).as_deref(), Some("World saved"));
+    let notice_entity = find_named(&mut app, "Save Notice").unwrap();
+    assert_eq!(
+        app.world().get::<HudTier>(notice_entity),
+        Some(&HudTier::Status)
+    );
+    assert_eq!(
+        app.world().get::<Visibility>(notice_entity),
+        Some(&Visibility::Inherited)
+    );
+    for _ in 0..180 {
+        app.update();
+    }
+    assert_eq!(notice(&mut app).as_deref(), Some("World saved"));
+    for _ in 0..10 {
+        app.update();
+    }
+    assert_eq!(notice(&mut app), None);
+
+    app.world_mut().entity_mut(player).despawn();
+    app.world_mut()
+        .resource_mut::<WorldSaveSession>()
+        .request_leave();
+    update_until(&mut app, "the failed leave save", |app| {
+        session(app).is_some_and(|session| matches!(session.status(), WorldSaveStatus::Failed(_)))
+    });
+    app.update();
+    assert!(notice(&mut app)
+        .as_deref()
+        .is_some_and(|text| text.starts_with("SAVE FAILED:")));
+    for _ in 0..190 {
+        app.update();
+    }
+    assert!(notice(&mut app)
+        .as_deref()
+        .is_some_and(|text| text.starts_with("SAVE FAILED:")));
+    app.world_mut()
+        .resource_mut::<WorldSaveSession>()
+        .request_leave();
+    assert!(matches!(
+        session(&app).unwrap().status(),
+        WorldSaveStatus::Waiting(_)
+    ));
+    app.world_mut().remove_resource::<WorldSaveSession>();
+    let (folder, lock, header, _) = open_world(
+        root.path(),
+        "leave",
+        app.world()
+            .resource::<nova_assets::prelude::LoadedSectionPacks>(),
+        app.world().resource::<GameItems>(),
+    )
+    .unwrap();
+    app.insert_resource(WorldSaveSession::opened(folder, lock, &header));
+    app.update();
+    assert_eq!(
+        notice(&mut app),
+        None,
+        "an opened world's old save stays silent"
+    );
 }
 
 fn update_until(app: &mut App, what: &str, done: impl Fn(&App) -> bool) {
@@ -180,6 +252,7 @@ fn leaving_a_saved_world_waits_for_the_leave_save_with_input_still_paused() {
         "leave",
         app.world()
             .resource::<nova_assets::prelude::LoadedSectionPacks>(),
+        app.world().resource::<GameItems>(),
     )
     .unwrap();
     let [FrozenTransient {
@@ -422,6 +495,7 @@ fn entering_the_menu_after_a_death_releases_the_world() {
         "leave",
         app.world()
             .resource::<nova_assets::prelude::LoadedSectionPacks>(),
+        app.world().resource::<GameItems>(),
     )
     .expect("the world opens again");
     assert_eq!(on_disk(&app, root.path()), (1, 300));
@@ -494,6 +568,7 @@ fn a_write_in_flight_keeps_the_world_locked_after_a_death_exit() {
             "leave",
             app.world()
                 .resource::<nova_assets::prelude::LoadedSectionPacks>(),
+            app.world().resource::<GameItems>(),
         )
     };
     assert!(

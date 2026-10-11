@@ -56,5 +56,10 @@ serde_json = { version = "1" }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys = { version = "0.3", features = ["Window", "Location"] }
 
+[dev-dependencies]
+# `test_items`: the snapshot tests build ShipInventory and CargoCanister
+# fixtures against the fixture catalog rather than a merged mod's.
+nova_gameplay = { path = "../nova_gameplay", features = ["test-support"] }
+
 [lints]
 workspace = true

@@ -36,10 +36,15 @@
 //! travel.
 
 use bevy::prelude::{Quat, Vec3};
-use nova_events::prelude::{Meters, Meters3};
-use nova_gameplay::prelude::{Fnv32, ItemType, SeedStream, ShipInventoryStock};
-use nova_scenario::prelude::{ShipDesign, HULL_SECTION_CARGO_G};
-use nova_ship::prelude::SectionKind;
+use nova_events::prelude::{Meters, Meters3, MetersPerSecond3};
+use nova_gameplay::prelude::{
+    Allegiance, Fnv32, GameItems, ItemDesignId, ItemRoleType, SeedStream, ShipInventoryStock,
+};
+use nova_scenario::prelude::{
+    AIControllerConfig, ShipDesign, ShipDesignSource, SpaceshipConfig, SpaceshipController,
+    HULL_SECTION_CARGO_G,
+};
+use nova_ship::prelude::{SectionKind, ShipCapabilities};
 use nova_world::prelude::*;
 
 use crate::{
@@ -78,6 +83,10 @@ const PATROL_STOP: (f32, f32) = (30.0, 60.0);
 
 /// How far a generated crew chases from its patrol centre.
 const CREW_LEASH: Meters = Meters(5_000.0);
+
+/// Seconds an Enemy crew holds fire after it spawns, so a cell that streams
+/// in around the player does not open fire on the spawn frame.
+const ENEMY_ENGAGE_DELAY: f32 = 8.0;
 
 /// The share of its hold an intact ship's stock aims for, as a `(least,
 /// most)` band at advancement 0 and at advancement 1, interpolated linearly
@@ -124,8 +133,6 @@ pub struct HullSlot<'a> {
 /// fits.
 #[derive(Clone, Debug)]
 pub struct PlannedShip {
-    /// The generated design.
-    pub design: ShipDesign,
     /// Its full orientation.
     pub rotation: Quat,
     /// The radius around its root that holds the hull.
@@ -136,13 +143,14 @@ pub struct PlannedShip {
     pub civilization: CivilizationId,
     /// The role it was laid out for. A wreck keeps the role it was built for.
     pub role: ShipRoleType,
-    /// What its hold carries, see [`ship_stock`].
-    pub stock: ShipInventoryStock,
-    /// Its credit balance.
-    pub credits: u32,
-    /// Who flies it: `Some` exactly when it is intact, with no patrol until
-    /// the cell gives it one with `plan_patrol` after it places every body.
-    pub crew: Option<SectorShipCrew>,
+    /// The ship as the spawn builds it: the generated design inline, the
+    /// stock of [`ship_stock`], the balance, and the crew. An intact ship is
+    /// flown by an AI on its civilization's side with no patrol until the
+    /// cell gives it one with `plan_patrol` after it places every body, and
+    /// an Enemy crew waits [`ENEMY_ENGAGE_DELAY`] before it first engages. A
+    /// derelict is flown by nobody, Neutral and lootable. At rest: the cell
+    /// sets the initial motion once it knows the wells around it.
+    pub spawn: SpaceshipConfig,
 }
 
 /// Lay out the ship `hull` stands for.
@@ -157,6 +165,7 @@ pub struct PlannedShip {
 /// `stock` when its hold cannot fit one unit of its role's lightest item.
 pub fn plan_ship(
     parts: &ShipPartSnapshot,
+    items: &GameItems,
     civilizations: &CivilizationField,
     seed: u32,
     hull: HullSlot<'_>,
@@ -232,6 +241,7 @@ pub fn plan_ship(
     };
     let stock = ship_stock(
         parts,
+        items,
         &layout.design,
         role,
         condition,
@@ -273,23 +283,38 @@ pub fn plan_ship(
         SectorShipConditionType::Derelict => uniform_rotation(turn),
     };
 
-    let crew = (condition == SectorShipConditionType::Intact).then(|| SectorShipCrew {
-        allegiance: civilization.allegiance,
-        patrol: Vec::new(),
-        stops: Vec::new(),
-        leash: CREW_LEASH,
-    });
+    let (controller, allegiance, lootable) = match condition {
+        SectorShipConditionType::Intact => (
+            SpaceshipController::AI(AIControllerConfig {
+                patrol: Vec::new(),
+                patrol_stops: Vec::new(),
+                leash: Some(CREW_LEASH),
+                engage_delay: (civilization.allegiance == Allegiance::Enemy)
+                    .then_some(ENEMY_ENGAGE_DELAY),
+                ..AIControllerConfig::default()
+            }),
+            civilization.allegiance,
+            false,
+        ),
+        SectorShipConditionType::Derelict => (SpaceshipController::None, Allegiance::Neutral, true),
+    };
 
     Ok(PlannedShip {
-        design: layout.design,
         rotation,
         clearance: layout.clearance,
         condition,
         civilization: civilization.id,
         role,
-        stock,
-        credits,
-        crew,
+        spawn: SpaceshipConfig {
+            design: ShipDesignSource::Inline(layout.design),
+            controller,
+            initial_velocity: MetersPerSecond3::ZERO,
+            allegiance: Some(allegiance),
+            capabilities: ShipCapabilities::default(),
+            inventory: stock,
+            lootable,
+            credits,
+        },
     })
 }
 
@@ -363,9 +388,11 @@ pub(crate) fn plan_patrol(
 /// # Panics
 ///
 /// When a section of `design` names no part of `parts`: every generated
-/// design is built from the snapshot it is checked against.
+/// design is built from the snapshot it is checked against. When `items`
+/// lacks an item of the role's mix.
 pub fn ship_stock(
     parts: &ShipPartSnapshot,
+    items: &GameItems,
     design: &ShipDesign,
     role: ShipRoleType,
     condition: SectorShipConditionType,
@@ -389,44 +416,44 @@ pub fn ship_stock(
         .count() as u64;
     let hold = hulls * u64::from(HULL_SECTION_CARGO_G);
     // Ammunition of every kind on an armed ship, whichever its weapons fire.
-    let mix: &[(ItemType, f32)] = match role {
+    let mix: &[(ItemRoleType, f32)] = match role {
         ShipRoleType::Industrial => &[
-            (ItemType::StoneOre, 2.0),
-            (ItemType::IronOre, 2.0),
-            (ItemType::WaterIce, 2.0),
-            (ItemType::CarbonOre, 2.0),
-            (ItemType::SalvagedParts, 3.0),
-            (ItemType::Rations, 1.0),
+            (ItemRoleType::StoneOre, 2.0),
+            (ItemRoleType::IronOre, 2.0),
+            (ItemRoleType::WaterIce, 2.0),
+            (ItemRoleType::CarbonOre, 2.0),
+            (ItemRoleType::SalvagedParts, 3.0),
+            (ItemRoleType::Rations, 1.0),
         ],
         ShipRoleType::Civilian => &[
-            (ItemType::Rations, 5.0),
-            (ItemType::SalvagedParts, 3.0),
-            (ItemType::WaterIce, 1.0),
-            (ItemType::HullPlate, 1.0),
+            (ItemRoleType::Rations, 5.0),
+            (ItemRoleType::SalvagedParts, 3.0),
+            (ItemRoleType::WaterIce, 1.0),
+            (ItemRoleType::HullPlate, 1.0),
         ],
         ShipRoleType::Scavenger => &[
-            (ItemType::PdcRound, 2.0),
-            (ItemType::RailSlug, 1.0),
-            (ItemType::Torpedo, 1.0),
-            (ItemType::HullPlate, 3.0),
-            (ItemType::SalvagedParts, 3.0),
-            (ItemType::Rations, 1.0),
+            (ItemRoleType::PdcRound, 2.0),
+            (ItemRoleType::RailSlug, 1.0),
+            (ItemRoleType::Torpedo, 1.0),
+            (ItemRoleType::HullPlate, 3.0),
+            (ItemRoleType::SalvagedParts, 3.0),
+            (ItemRoleType::Rations, 1.0),
         ],
         ShipRoleType::Armored => &[
-            (ItemType::PdcRound, 3.0),
-            (ItemType::RailSlug, 2.0),
-            (ItemType::Torpedo, 1.0),
-            (ItemType::HullPlate, 3.0),
-            (ItemType::SalvagedParts, 2.0),
-            (ItemType::Rations, 1.0),
+            (ItemRoleType::PdcRound, 3.0),
+            (ItemRoleType::RailSlug, 2.0),
+            (ItemRoleType::Torpedo, 1.0),
+            (ItemRoleType::HullPlate, 3.0),
+            (ItemRoleType::SalvagedParts, 2.0),
+            (ItemRoleType::Rations, 1.0),
         ],
     };
     let lightest = mix
         .iter()
         .map(|(item, _)| *item)
-        .min_by_key(|item| item.mass_g())
+        .min_by_key(|item| items.role(*item).mass_g)
         .expect("every role mixes at least one item");
-    if hold < u64::from(lightest.mass_g()) {
+    if hold < u64::from(items.role(lightest).mass_g) {
         return None;
     }
 
@@ -450,17 +477,18 @@ pub fn ship_stock(
         drawn.push((item, 0.5 + stream.unit()));
     }
     let total: f32 = drawn.iter().map(|(_, weight)| weight).sum();
-    let mut stacks: Vec<(ItemType, u32)> = drawn
+    let mut stacks: Vec<(ItemDesignId, u32)> = drawn
         .into_iter()
         .filter_map(|(item, weight)| {
+            let design = items.role(item);
             let portion = (target as f64 * f64::from(weight / total)) as u64;
-            let units = portion / u64::from(item.mass_g());
+            let units = portion / u64::from(design.mass_g);
             let units = u32::try_from(units).expect("a generated hold's units fit a u32");
-            (units > 0).then_some((item, units))
+            (units > 0).then_some((design.id.clone(), units))
         })
         .collect();
     if stacks.is_empty() {
-        stacks.push((lightest, 1));
+        stacks.push((items.role(lightest).id.clone(), 1));
     }
     Some(ShipInventoryStock::new(stacks))
 }

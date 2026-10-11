@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
-use nova_gameplay::prelude::{ItemType, ShipInventoryStock};
+use nova_gameplay::prelude::{ItemRoleType, ShipInventoryStock};
 use nova_input::prelude::InputSource;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::ShipCapabilities;
@@ -90,10 +90,10 @@ fn player() -> ScenarioObjectConfig {
             // Plates for repair and a finite reserve for every idle reload:
             // point defense, railgun and torpedo bays. 3,520 kg in all.
             inventory: ShipInventoryStock::new([
-                (ItemType::HullPlate, 12),
-                (ItemType::PdcRound, 6000),
-                (ItemType::RailSlug, 20),
-                (ItemType::Torpedo, 12),
+                (ItemRoleType::HullPlate.into(), 12),
+                (ItemRoleType::PdcRound.into(), 6000),
+                (ItemRoleType::RailSlug.into(), 20),
+                (ItemRoleType::Torpedo.into(), 12),
             ]),
             lootable: false,
             credits: 2_000,

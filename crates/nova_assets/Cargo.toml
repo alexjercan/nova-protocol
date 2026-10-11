@@ -64,6 +64,9 @@ wasm-bindgen-futures = "0.4"
 
 [dev-dependencies]
 nova_events = { path = "../nova_events" }
+# `test_items`: a synthetic base pack must define every role item, or the
+# merge refuses it.
+nova_gameplay = { path = "../nova_gameplay", features = ["test-support"] }
 # The provocation walk spawns real ships through the OnStart action, so it needs
 # `test_support` to run the rig out to a LIVE world before firing the next
 # event: the dispatcher holds every handler while objects are still landing.

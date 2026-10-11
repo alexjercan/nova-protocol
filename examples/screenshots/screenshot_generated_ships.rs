@@ -278,9 +278,7 @@ fn stand_the_wreck(_: On<ScenarioLoaded>, mut commands: Commands, stage: Res<Sta
             rotation: Quat::from_rotation_y(SHIP_YAW),
         }),
         spaceship_scenario_object(wreck.config.clone()),
-        Allegiance::Neutral,
         DerelictShipMarker,
-        LootableShipMarker,
     ));
 }
 
@@ -333,7 +331,7 @@ fn build_scenario(
             game_assets.cubemap.clone().into(),
         )
     };
-    let errors = lint_errors(&scenario, sections);
+    let errors = lint_errors(&scenario, sections, &GameItems::default());
     assert!(
         errors.is_empty(),
         "screenshot_generated_ships: a posed ship is content the game would refuse:\n  {}",

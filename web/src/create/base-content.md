@@ -158,10 +158,10 @@ draws them under. A mod may add its own campaigns, or replace `season_one` by
 reusing its id - see [Campaigns](../campaigns/).
 
 There are no other content kinds - a content file holds `Section`, `Scenario`,
-`Campaign`, `Ship`, `Style`, `Lesson` and `UiTheme` items only; factions are
-not content, and neither is impact audio, a comms channel or the table a
-generated hull is drawn from - all three are engine-owned. The base ship ids
-are tabled in [Ships](../ships/#base-ships), the style ids
+`Campaign`, `Ship`, `Style`, `Lesson`, `UiTheme` and `Item` items only;
+factions are not content, and neither is impact audio, a comms channel or the
+table a generated hull is drawn from - all three are engine-owned. The base
+ship ids are tabled in [Ships](../ships/#base-ships), the style ids
 [above](#skin-styles), the theme ids [below](#ui-theme-ids).
 
 New Game is base-owned: `new_game_scenario: Some("open_world")` in
@@ -302,22 +302,30 @@ the upload itself is fatal.
 ## The overlay rule
 
 How a mod item interacts with this catalog (implemented in
-`crates/nova_assets/src/merge.rs`):
+`crates/nova_assets/src/merge.rs`, with `Item` collision checks in
+`crates/nova_assets/src/items.rs`):
 
 - The matching key is the id string per kind - `Section` matches on
-  `base.id`; `Scenario`, `Campaign`, `Ship`, `Style`, `Lesson` and `UiTheme`
-  on `id`. Names and file paths never participate.
+  `base.id`; `Scenario`, `Campaign`, `Ship`, `Style`, `Lesson`, `UiTheme` and
+  `Item` on `id`. Names and file paths never participate.
 - Same id as base (or an earlier bundle) = REPLACE, whole item. It is not a
   field-level patch: an overlay must restate every field it wants to keep.
-  Sections replace in place, so the editor palette order is preserved.
+  `Item` replacement requires a one-way dependency chain from the replacing
+  pack to the original, directly or through other packs. Base counts as a
+  dependency of every mod. Sections replace in place, so the editor palette
+  order is preserved.
 - New id = ADD alongside the catalog. Prefix your own ids with your mod's
   name (`example_*` in the shipped example mod) so they cannot collide.
-- Same id twice within ONE bundle = a conflict: the first item is kept, the
-  duplicate skipped and logged.
+- Same id twice within ONE bundle = a conflict: for kinds other than `Item`,
+  the first definition is kept and the duplicate is skipped and logged. A
+  duplicate `Item` id refuses the defining pack.
 - Merge order is catalog order (base first), then downloaded mods, then a
-  topological pass so a dependency merges before its dependents - so a mod
-  overlays base and everything it depends on, and the last independent mod
-  wins.
+  topological pass so a dependency merges before its dependents. For kinds
+  other than `Item`, the last independent mod defining an id wins. For `Item`,
+  only a dependent pack may replace the whole item. Two unrelated packs, or
+  two packs in a dependency cycle, defining the same item id are both refused
+  regardless of load order. Their dependent packs are refused too; a base
+  refusal stops loading.
 
 ## See the source
 
@@ -326,10 +334,10 @@ The builders behind this page live under
 prototypes, one module per family (`hull`, `controller`, `thruster`, `turret`,
 `torpedo_bay`, `railgun`, `docking_port`), `styles.rs` the
 skin styles, `ships/` owns the block hulls,
-`scenarios/` groups the training range and the main-menu backdrops, and
-`lessons.rs` owns the handbook screens. The two UI themes are built one level
-down, in `crates/nova_ui/src/theme/base.rs`, beside the format they are
-written in. If this page and the generated RON
-ever disagree, the RON is the
+`scenarios/` groups the training range and the main-menu backdrops,
+`lessons.rs` owns the handbook screens, and `items.rs` owns the item catalog
+(generated into `assets/base/items/base.content.ron`). The two UI themes are
+built one level down, in `crates/nova_ui/src/theme/base.rs`, beside their
+format. If this page and the generated RON ever disagree, the RON is the
 truth and this page has a bug - the `content_ron_parity` test pins the RON to
 the builders.

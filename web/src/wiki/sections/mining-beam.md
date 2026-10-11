@@ -72,7 +72,7 @@ A pulse that passes draws the beam to the hit, flares it, throws sparks and play
 
 ## Where the ore goes
 
-<!-- Ore by kind: ore_for_asteroid_kind in crates/nova_scenario/src/mining.rs. One item per field corner cut, paid once the rock's remesh lands; canisters of at most CARGO_CANISTER_MAX_MASS_G 200 kg (crates/nova_gameplay/src/inventory.rs), born MINED_CANISTER_OFFSET 1 unit (10 m) off the last cut along its outward normal and drifting at MINED_CANISTER_SPEED 0.2 units/s (2 m/s) plus the rock's own motion there. Ore mass 10 kg each: ItemType::mass_g. Open-world rock kinds: ROCK_KINDS in crates/nova_world_base/src/clusters.rs. -->
+<!-- Ore by kind: ore_for_asteroid_kind in crates/nova_scenario/src/mining.rs. One item per field corner cut, paid once the rock's remesh lands; canisters of at most CARGO_CANISTER_MAX_MASS_G 200 kg (crates/nova_gameplay/src/inventory.rs), born MINED_CANISTER_OFFSET 1 unit (10 m) off the last cut along its outward normal and drifting at MINED_CANISTER_SPEED 0.2 units/s (2 m/s) plus the rock's own motion there. Ore mass 10 kg each: mass_g in crates/nova_authoring/src/base_content/items.rs `item_catalog`. Open-world rock kinds: ROCK_KINDS in crates/nova_world_base/src/clusters.rs. -->
 
 What a rock is made of decides the ore. Every ore weighs 10 kg, so one canister carries up to 20.
 

@@ -252,6 +252,7 @@ fn slice_app() -> App {
     app.add_plugins(bevy::asset::AssetPlugin::default());
     app.init_asset::<Image>();
     app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+    app.add_plugins(SpaceshipPlugin);
     app.init_resource::<NovaEventWorld>();
     app.init_resource::<GameObjectives>();
     app.init_resource::<CurrentOutcome>();

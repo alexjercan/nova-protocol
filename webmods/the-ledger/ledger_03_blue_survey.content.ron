@@ -33,7 +33,7 @@
                             controller: Player((input_mapping: {})),
                             initial_velocity: (0.0, 0.0, 0.0),
                             allegiance: Some(Player),
-                            inventory: {PdcRound: 2000},
+                            inventory: {"PdcRound": 2000},
                             lootable: false,
                             credits: 2_000,
                         )),

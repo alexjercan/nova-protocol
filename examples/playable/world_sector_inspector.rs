@@ -141,7 +141,10 @@ enum InspectorCameraType {
 /// The cell being prepared. Replaced, and so cancelled, by a newer request.
 struct SectorRequest {
     coord: SectorCoord,
-    task: Task<Result<PreparedSector, SectorFault>>,
+    /// The cell's description, for the readout, beside the payload that
+    /// spawns it. The payload no longer carries the description, so the
+    /// worker draws the cell twice; an inspector step affords it.
+    task: Task<Result<(SectorDescription, PreparedSector), SectorFault>>,
 }
 
 /// Everything the inspector knows about what it shows and what it waits for.
@@ -191,8 +194,9 @@ fn inspector_plugin(app: &mut App, seed: Option<u32>) {
         move |commands: Commands,
               game_assets: Res<GameAssets>,
               loaded: Res<LoadedSectionPacks>,
-              styles: Res<GameStyles>| {
-            boot_inspector(commands, game_assets, loaded, styles, seed);
+              styles: Res<GameStyles>,
+              items: Res<GameItems>| {
+            boot_inspector(commands, game_assets, loaded, styles, items, seed);
         },
     );
     app.add_systems(
@@ -227,6 +231,7 @@ fn boot_inspector(
     game_assets: Res<GameAssets>,
     loaded: Res<LoadedSectionPacks>,
     styles: Res<GameStyles>,
+    items: Res<GameItems>,
     seed: Option<u32>,
 ) {
     let seed = match seed {
@@ -247,7 +252,7 @@ fn boot_inspector(
 
     let config = WorldConfig {
         seed,
-        ..featured_world_config(&loaded, &styles)
+        ..featured_world_config(&loaded, &styles, &items)
     };
     config
         .validate()
@@ -343,7 +348,11 @@ fn request_sector(
     let config = config.clone();
     inspector.request = Some(SectorRequest {
         coord,
-        task: AsyncComputeTaskPool::get().spawn(async move { prepare_sector(config, coord) }),
+        task: AsyncComputeTaskPool::get().spawn(async move {
+            let description = generate_sector(&config, coord)?;
+            let prepared = prepare_sector(config, coord)?;
+            Ok((description, prepared))
+        }),
     });
 }
 
@@ -432,7 +441,6 @@ fn leave_orbit(keys: Res<ButtonInput<KeyCode>>, mut inspector: ResMut<Inspector>
 fn collect_sector(
     mut commands: Commands,
     mut inspector: ResMut<Inspector>,
-    game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
     world: Res<InspectorWorld>,
     cameras: Query<Entity, With<ScenarioCameraMarker>>,
@@ -445,7 +453,7 @@ fn collect_sector(
     };
     let coord = request.coord;
     inspector.request = None;
-    let prepared = result.unwrap_or_else(|fault| {
+    let (description, prepared) = result.unwrap_or_else(|fault| {
         panic!(
             "world_sector_inspector: seed {} cell {coord}: {fault}",
             world.0.seed
@@ -455,7 +463,6 @@ fn collect_sector(
         panic!("world_sector_inspector: no single scenario camera to observe {coord}");
     };
 
-    let description = prepared.description();
     let canonical = description.canonical();
     let rocks = description.asteroids().len();
     let planets = description.planets().len();
@@ -464,15 +471,15 @@ fn collect_sector(
         .asteroids()
         .iter()
         .map(|body| InspectedObject {
-            id: body.id.clone(),
-            clearance: Meters(body.radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX),
+            id: body.id.to_string(),
+            clearance: Meters(body.config.radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX),
         })
         .chain(description.planets().iter().map(|planet| InspectedObject {
-            id: planet.id.clone(),
+            id: planet.id.to_string(),
             clearance: planet.config.body_radius(),
         }))
         .chain(description.ships().iter().map(|ship| InspectedObject {
-            id: ship.id.clone(),
+            id: ship.id.to_string(),
             clearance: ship.clearance,
         }))
         .collect();
@@ -482,8 +489,7 @@ fn collect_sector(
         debug!("inspector: retiring {old}");
         commands.entity(root).despawn();
     }
-    let texture: AssetRef<Image> = game_assets.asteroid_texture.clone().into();
-    let root = materialize_sector(&mut commands, prepared, None, &texture, &sections, observer);
+    let root = materialize_sector(&mut commands, prepared, &sections, observer);
     info!(
         "inspector: live {coord} of seed {}: {rocks} rocks, {planets} planetoids, {ships} ships",
         world.0.seed

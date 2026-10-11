@@ -19,11 +19,17 @@ use bevy::{
     state::app::StatesPlugin,
 };
 use nova_assets::prelude::*;
-use nova_gameplay::prelude::GameStates;
+use nova_gameplay::{
+    prelude::{GameItems, GameStates, ItemCategoryType, ItemDesign, ItemDesignId, ShipInventory},
+    test_support::test_items,
+};
 use nova_modding::prelude::{
     BundleAsset, CatalogEntry, Content, ContentAsset, InstalledCatalog, ModEntry, NovaModdingPlugin,
 };
-use nova_scenario::prelude::{ContentIssues, GameScenarios, NewGameStart, ScenarioConfig};
+use nova_scenario::prelude::{
+    ContentIssues, EventActionConfig, GameScenarios, NewGameStart, ScenarioConfig,
+    ScenarioObjectKind,
+};
 use nova_ship::prelude::GameSections;
 
 /// A headless app with the asset server pointed at the workspace `assets/` and the
@@ -316,10 +322,10 @@ fn mod_catalog_lists_installed_mods_metadata() {
     );
     assert_eq!(
         mods[1].meta.description,
-        "The copy-me tutorial mod: a section overlay, a new section, a playable arena, mod-shipped art, and a menu backdrop - a little of everything.",
+        "The copy-me tutorial mod: a section overlay, a new section, a playable arena, mod-shipped art, a menu backdrop, and an item - a little of everything.",
         "example's description comes from its bundle meta (the catalog has none)"
     );
-    assert_eq!(mods[1].meta.version, "1.3.0", "bundle meta version decodes");
+    assert_eq!(mods[1].meta.version, "1.4.0", "bundle meta version decodes");
     assert_eq!(mods[1].meta.author, "Nova Protocol");
 }
 
@@ -817,11 +823,18 @@ fn base_bundle_declares_the_new_game_start() {
 #[test]
 fn new_game_declaration_is_honored_only_from_base() {
     let mut app = headless_app();
+    // The merge refuses a base pack without every role item.
+    let base_items = app
+        .world_mut()
+        .resource_mut::<Assets<ContentAsset>>()
+        .add(ContentAsset(
+            test_items().iter().cloned().map(Content::Item).collect(),
+        ));
     let (base_bundle, mod_bundle) = {
         let mut bundles = app.world_mut().resource_mut::<Assets<BundleAsset>>();
         (
             bundles.add(BundleAsset {
-                content: vec![],
+                content: vec![base_items],
                 meta: ModMeta::default(),
                 new_game_scenario: Some("base_start".to_string()),
                 resources: vec![],
@@ -934,7 +947,12 @@ fn merge_sweep_flags_bad_content_and_passes_the_shipped_tree() {
     let content = app
         .world_mut()
         .resource_mut::<Assets<ContentAsset>>()
-        .add(ContentAsset(vec![Content::Scenario(broken)]));
+        // The merge refuses a base pack without every role item.
+        .add(ContentAsset(
+            std::iter::once(Content::Scenario(broken))
+                .chain(test_items().iter().cloned().map(Content::Item))
+                .collect(),
+        ));
     let bundle = app
         .world_mut()
         .resource_mut::<Assets<BundleAsset>>()
@@ -971,4 +989,209 @@ fn merge_sweep_flags_bad_content_and_passes_the_shipped_tree() {
     let errors = issues.errors("broken_scenario");
     assert_eq!(errors.len(), 1, "{:?}", issues.0);
     assert!(errors[0].message.contains("no_such_chapter"));
+}
+
+/// The example mod's item reaches the merged catalog only with the mod
+/// enabled, with its authored fields, and the arena player's authored stock
+/// resolves against that catalog. The ECS jettison, pickup and trade of a
+/// catalog-only item are proven in `nova_interface` and `nova_ship`.
+#[test]
+fn the_example_mod_item_merges_and_the_arena_stock_resolves_against_it() {
+    let core = ItemDesignId::from("example_survey_core");
+
+    let base_items = merged_app(&["base"])
+        .world()
+        .resource::<GameItems>()
+        .clone();
+    assert!(
+        base_items.get(&core).is_none(),
+        "the example item must not appear without the mod enabled"
+    );
+
+    let app = merged_app(&["base", "example"]);
+    let items = app.world().resource::<GameItems>().clone();
+    let design = items
+        .get(&core)
+        .expect("the enabled example mod's item must be in the merged catalog");
+    assert_eq!(design.name, "Survey core");
+    assert_eq!(
+        design.about,
+        "A sealed sensor core from the example mod. Traders buy and sell it."
+    );
+    assert_eq!(design.category, ItemCategoryType::Parts);
+    assert_eq!(design.mass_g, 5_000);
+    assert_eq!(design.ask_cr, 60);
+    assert_eq!(design.bid_cr, 45);
+
+    // The arena's authored `player_spaceship` spawn carries the stock this test moves.
+    let scenarios = app.world().resource::<GameScenarios>().clone();
+    let arena = scenarios
+        .get("example_arena")
+        .expect("the example mod's scenario is registered");
+    let stock = arena
+        .events
+        .iter()
+        .flat_map(|event| &event.actions)
+        .find_map(|action| match action {
+            EventActionConfig::SpawnScenarioObject(object)
+                if object.base.id == "player_spaceship" =>
+            {
+                match &object.kind {
+                    ScenarioObjectKind::Spaceship(ship) => Some(ship.inventory.clone()),
+                    _ => None,
+                }
+            }
+            _ => None,
+        })
+        .expect("the arena's player_spaceship spawn carries an inventory");
+
+    let player = ShipInventory::new(
+        &items,
+        200_000,
+        stock.stacks().map(|(item, count)| (item.clone(), count)),
+    );
+    assert_eq!(player.count(&core), 2);
+    assert_eq!(player.used_g(&items), 10_000);
+}
+
+/// A fixture item definition, filed under `Parts` like a mod's own item would be.
+fn fixture_item(id: &str) -> ItemDesign {
+    ItemDesign {
+        id: ItemDesignId::from(id),
+        name: id.to_string(),
+        about: format!("{id} fixture item."),
+        category: ItemCategoryType::Parts,
+        mass_g: 1_000,
+        ask_cr: 10,
+        bid_cr: 5,
+    }
+}
+
+/// One fixture bundle carrying a single item, with `dependencies` as its meta
+/// declares.
+fn fixture_item_bundle(
+    app: &mut App,
+    dependencies: &[&str],
+    item: ItemDesign,
+) -> Handle<BundleAsset> {
+    let content = app
+        .world_mut()
+        .resource_mut::<Assets<ContentAsset>>()
+        .add(ContentAsset(vec![Content::Item(item)]));
+    app.world_mut()
+        .resource_mut::<Assets<BundleAsset>>()
+        .add(BundleAsset {
+            content: vec![content],
+            meta: ModMeta {
+                dependencies: dependencies.iter().map(|dep| dep.to_string()).collect(),
+                ..ModMeta::default()
+            },
+            new_game_scenario: None,
+            resources: vec![],
+            resource_base: "mods/fixture".to_string(),
+        })
+}
+
+/// The real catalog plus three fixture mods: `item-a` and `item-b` each define
+/// `shared_core` with no dependency between them, and `item-a-plus` depends on
+/// `item-a` and defines its own `plus_core`. `item_a_first` picks which of the
+/// two colliding entries the catalog lists first.
+fn item_collision_fixture_app(item_a_first: bool) -> App {
+    let mut app = headless_app();
+    let asset_server = app.world().resource::<AssetServer>().clone();
+    let catalog: Handle<InstalledCatalog> = asset_server.load("mods.catalog.ron");
+    wait_recursive_loaded(
+        &mut app,
+        &asset_server,
+        catalog.id().untyped(),
+        "the mods catalog",
+    );
+
+    let item_a = fixture_item_bundle(&mut app, &[], fixture_item("shared_core"));
+    let item_b = fixture_item_bundle(&mut app, &[], fixture_item("shared_core"));
+    let item_a_plus = fixture_item_bundle(&mut app, &["item-a"], fixture_item("plus_core"));
+    app.world_mut().insert_resource(OptionalBundles(vec![
+        OptionalBundle {
+            id: "item-a".to_string(),
+            bundle: item_a,
+        },
+        OptionalBundle {
+            id: "item-b".to_string(),
+            bundle: item_b,
+        },
+        OptionalBundle {
+            id: "item-a-plus".to_string(),
+            bundle: item_a_plus,
+        },
+    ]));
+
+    let order: [&str; 2] = if item_a_first {
+        ["item-a", "item-b"]
+    } else {
+        ["item-b", "item-a"]
+    };
+    let synthetic = {
+        let catalogs = app.world().resource::<Assets<InstalledCatalog>>();
+        let mut entries = catalogs
+            .get(&catalog)
+            .expect("catalog loaded")
+            .entries
+            .clone();
+        for id in order.into_iter().chain(["item-a-plus"]) {
+            entries.push(CatalogEntry {
+                decl: ModEntry {
+                    id: id.to_string(),
+                    bundle: format!("mods/{id}/{id}.bundle.ron"),
+                    base: false,
+                },
+                bundle: None,
+            });
+        }
+        InstalledCatalog { entries }
+    };
+    let handle = app
+        .world_mut()
+        .resource_mut::<Assets<InstalledCatalog>>()
+        .add(synthetic);
+    app.world_mut()
+        .insert_resource(game_assets_with_catalog(handle));
+    app.world_mut().insert_resource(EnabledMods(
+        ["base", "item-a", "item-b", "item-a-plus"]
+            .into_iter()
+            .map(str::to_string)
+            .collect(),
+    ));
+    app.world_mut()
+        .run_system_once(nova_assets::register_bundles_for_test)
+        .expect("register bundles");
+    app
+}
+
+/// Two enabled mods that define one item id with no dependency between them
+/// are both refused, in either catalog order, and so is a mod that depends on
+/// one of them; base still loads.
+#[test]
+fn two_unrelated_mods_defining_one_item_are_both_refused_with_their_dependents() {
+    for item_a_first in [true, false] {
+        let app = item_collision_fixture_app(item_a_first);
+
+        let mut disabled: Vec<&str> = app
+            .world()
+            .resource::<ModQuarantine>()
+            .disabled
+            .iter()
+            .map(|mod_| mod_.id.as_str())
+            .collect();
+        disabled.sort_unstable();
+        assert_eq!(
+            disabled,
+            ["item-a", "item-a-plus", "item-b"],
+            "item_a_first={item_a_first}"
+        );
+
+        let items = app.world().resource::<GameItems>();
+        assert!(items.get(&ItemDesignId::from("HullPlate")).is_some());
+        assert!(items.get(&ItemDesignId::from("shared_core")).is_none());
+        assert!(items.get(&ItemDesignId::from("plus_core")).is_none());
+    }
 }

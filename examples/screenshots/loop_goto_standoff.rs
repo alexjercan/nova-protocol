@@ -85,9 +85,10 @@ fn load_standoff(
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
     ships: Res<GameShipDesigns>,
+    items: Res<GameItems>,
 ) {
     let scenario = standoff(&game_assets);
-    refuse_broken(&scenario, &sections, &ships);
+    refuse_broken(&scenario, &sections, &ships, &items);
     commands.trigger(LoadScenario(scenario));
 }
 
@@ -174,13 +175,19 @@ fn ship_object(
     }
 }
 
-fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections, ships: &GameShipDesigns) {
+fn refuse_broken(
+    scenario: &ScenarioConfig,
+    sections: &GameSections,
+    ships: &GameShipDesigns,
+    items: &GameItems,
+) {
     let known = KnownSections::from_configs(sections.iter());
     let issues = lint_scenario(
         scenario,
         &known,
         &KnownShipDesigns::from_configs(ships.iter()),
         &HashSet::from([scenario.id.clone()]),
+        items,
     );
     let errors: Vec<_> = issues
         .iter()

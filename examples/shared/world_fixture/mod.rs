@@ -106,12 +106,13 @@ pub fn uniform_world_config() -> WorldConfig<UniformAsteroids> {
 pub fn featured_world_config(
     loaded: &LoadedSectionPacks,
     styles: &GameStyles,
+    items: &GameItems,
 ) -> WorldConfig<NovaLayeredWorld> {
     WorldConfig {
         seed: EXAMPLE_SEED,
         sector_edge: EXAMPLE_SECTOR_EDGE,
         active_radius: EXAMPLE_ACTIVE_RADIUS,
-        generator: NovaLayeredWorld::from_loaded(loaded, styles).unwrap_or_else(|faults| {
+        generator: NovaLayeredWorld::from_loaded(loaded, styles, items).unwrap_or_else(|faults| {
             panic!(
                 "world fixture: the loaded catalog does not arm:\n  {}",
                 faults
@@ -141,8 +142,9 @@ pub const FEATURE_HOME: SectorCoord = SectorCoord::ORIGIN;
 pub fn clustered_world_config(
     loaded: &LoadedSectionPacks,
     styles: &GameStyles,
+    items: &GameItems,
 ) -> WorldConfig<ClusteredWorld> {
-    let world = NovaLayeredWorld::from_loaded(loaded, styles).unwrap_or_else(|faults| {
+    let world = NovaLayeredWorld::from_loaded(loaded, styles, items).unwrap_or_else(|faults| {
         panic!(
             "world fixture: the loaded catalog does not arm:\n  {}",
             faults
@@ -158,6 +160,7 @@ pub fn clustered_world_config(
         active_radius: EXAMPLE_ACTIVE_RADIUS,
         generator: ClusteredWorld {
             parts: Arc::new(world.parts().clone()),
+            items: Arc::new(items.clone()),
         },
     }
 }

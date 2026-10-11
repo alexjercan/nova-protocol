@@ -843,6 +843,7 @@ mod tests {
         app.add_plugins(TempEntityPlugin);
         app.add_plugins(SpaceshipSectionPlugin { render: true });
         app.init_resource::<CargoCanisterIdAllocator>();
+        app.insert_resource(nova_gameplay::test_support::test_items());
         // The destroy path's debris observers need the global rng even in a
         // headless run.
         app.add_plugins(EntropyPlugin::<WyRand>::default());

@@ -4994,7 +4994,6 @@ version = "0.15.0"
 dependencies = [
  "avian3d",
  "bevy",
- "nova_assets",
  "nova_events",
  "nova_gameplay",
  "nova_scenario",

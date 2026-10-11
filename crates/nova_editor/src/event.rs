@@ -2223,7 +2223,7 @@ mod tests;
 mod name_coverage {
     use std::collections::HashSet;
 
-    use nova_gameplay::prelude::AssetRef;
+    use nova_gameplay::prelude::{AssetRef, GameItems};
     use nova_scenario::prelude::*;
 
     use super::{ActionChoice, ActionChoiceExt, ActionKind};
@@ -2280,6 +2280,7 @@ mod name_coverage {
                 &KnownSections::default(),
                 &KnownShipDesigns::default(),
                 &HashSet::new(),
+                &GameItems::default(),
             );
             let dangling = issues
                 .iter()

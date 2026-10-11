@@ -458,6 +458,17 @@ pub struct FrozenAsteroid {
 }
 
 impl FrozenAsteroid {
+    /// Every item id the rock still owes: its pending ore and its waiting
+    /// canisters.
+    pub fn item_ids(&self) -> impl Iterator<Item = &ItemDesignId> {
+        self.mined_ore.iter().map(MinedOre::item).chain(
+            self.mined_queue
+                .iter()
+                .flat_map(MinedCanisterQueue::canisters)
+                .flat_map(|canister| canister.stacks().map(|(item, _)| item)),
+        )
+    }
+
     /// The silhouette seed its pristine geometry is prepared from.
     pub fn seed(&self) -> u32 {
         self.seed
@@ -586,7 +597,7 @@ pub fn freeze_asteroid(world: &World, asteroid: Entity) -> Result<FrozenAsteroid
         damage_marks,
         carved,
         pending_seed,
-        mined_ore: world.get::<MinedOre>(node).copied(),
+        mined_ore: world.get::<MinedOre>(node).cloned(),
         mined_queue: world.get::<MinedCanisterQueue>(node).cloned(),
     })
 }

@@ -70,3 +70,46 @@ pub fn settle(app: &mut App) {
         app.update();
     }
 }
+
+/// An item catalog with the base game's ten items and their base values, for
+/// tests that move stock without merging content. Mirrors the base content
+/// builder (`nova_authoring`'s `base_content::items`); a test that reads a
+/// mass or a price reads it through this catalog, never as a literal.
+pub fn test_items() -> crate::inventory::GameItems {
+    use crate::inventory::{ItemCategoryType::*, *};
+    let item = |role: ItemRoleType, name: &str, category, mass_g, ask_cr, bid_cr| ItemDesign {
+        id: ItemDesignId::from(role),
+        name: name.to_string(),
+        about: format!("{name} for tests."),
+        category,
+        mass_g,
+        ask_cr,
+        bid_cr,
+    };
+    GameItems::new([
+        item(
+            ItemRoleType::HullPlate,
+            "Hull plate",
+            Repair,
+            10_000,
+            40,
+            30,
+        ),
+        item(ItemRoleType::PdcRound, "PDC round", Ammo, 200, 4, 3),
+        item(ItemRoleType::RailSlug, "Rail slug", Ammo, 20_000, 40, 30),
+        item(ItemRoleType::Torpedo, "Torpedo", Ammo, 150_000, 400, 300),
+        item(ItemRoleType::StoneOre, "Stone ore", Raw, 10_000, 4, 3),
+        item(ItemRoleType::IronOre, "Iron ore", Raw, 10_000, 16, 12),
+        item(ItemRoleType::WaterIce, "Water ice", Raw, 10_000, 12, 9),
+        item(ItemRoleType::CarbonOre, "Carbon ore", Raw, 10_000, 8, 6),
+        item(ItemRoleType::Rations, "Rations", Food, 2_000, 8, 6),
+        item(
+            ItemRoleType::SalvagedParts,
+            "Salvaged parts",
+            Parts,
+            25_000,
+            120,
+            90,
+        ),
+    ])
+}

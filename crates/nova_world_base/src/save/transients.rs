@@ -3,9 +3,9 @@
 //!
 //! A save freezes every live top-level [`TempEntity`] body by its kind. A
 //! body in a multi-frame process makes the save wait, and a body this module
-//! has no record for panics, so no transient is dropped without a decision.
-//! A body with no physics, such as a spark or a light, is visual only and is
-//! not saved.
+//! has no record for fails the save, so no transient is dropped without a
+//! decision. Known visual effects, including sparks with kinematic bodies,
+//! are not saved.
 //!
 //! A Load keeps the records in [`ResumedTransients`] and holds the clocks
 //! ([`FreezeOwner::WorldResume`]) until every desired sector is live and every
@@ -27,23 +27,23 @@ use bevy::{
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
     resumed_lifetime, CargoCanisterRuntimeId, CarvedChunkMarker, Clocks, DetachedPieceMarker,
-    FreezeOwner, NovaBlast, RailgunSlugProjectileMarker, RoundVelocity, SavedBodyRef,
-    SavedLifetime, SavedOwner, SavedSectionRef, SavedTargetRef, SpaceshipRootMarker, TempEntity,
-    TorpedoProjectileMarker, TransientFreezeFault, TurretBulletProjectileMarker, UnsettledBody,
+    FreezeOwner, ImpactSparkMarker, NovaBlast, RailgunSlugProjectileMarker, RoundVelocity,
+    SavedBodyRef, SavedLifetime, SavedOwner, SavedSectionRef, SavedTargetRef, SpaceshipRootMarker,
+    TempEntity, TorpedoProjectileMarker, TransientFreezeFault, TurretBulletProjectileMarker,
+    UnsettledBody,
 };
 use nova_scenario::prelude::{
     freeze_rock_chunk, thaw_rock_chunk, AsteroidSurfaceMaterial, FrozenRockChunk,
 };
 use nova_ship::prelude::{
     freeze_detached_piece, freeze_round, freeze_shed_fixture, freeze_torpedo, thaw_detached_piece,
-    thaw_round, thaw_shed_fixture, thaw_torpedo, FrozenDetachedPiece, FrozenRound,
-    FrozenShedFixture, FrozenTorpedo, PlaceholderArt, SavedTorpedoTarget, ShedFixtureMarker,
-    SkinAssets, TorpedoTargetEntity,
+    thaw_round, thaw_shed_fixture, thaw_torpedo, DamageSparkMarker, FrozenDetachedPiece,
+    FrozenRound, FrozenShedFixture, FrozenTorpedo, PlaceholderArt, SavedTorpedoTarget,
+    ShedFixtureMarker, SkinAssets, TorpedoTargetEntity,
 };
-use nova_world::{
-    desired_sectors, live_sectors,
-    prelude::{CurrentSector, SectorCoord, WorldConfig},
-    SectorRoot, SectorSnapshotError,
+use nova_world::prelude::{
+    desired_sectors, live_sectors, CurrentSector, SectorCoord, SectorRoot, SectorSnapshotError,
+    WorldConfig,
 };
 use serde::{Deserialize, Serialize};
 
@@ -198,11 +198,9 @@ pub(crate) fn hold_resumed_transients(world: &mut World, transients: Vec<FrozenT
 /// [`SectorSnapshotError::Unsettled`] while a Load still waits for its saved
 /// transients, while a blast resolves, and while a body is mid-process.
 /// [`SectorSnapshotError::NoDurableId`] when a transient points at a live
-/// body with no id.
-///
-/// # Panics
-///
-/// A top-level transient with a physics body that has no record here.
+/// body with no id. [`SectorSnapshotError::InvalidSavedState`] for a
+/// top-level transient with a physics body that has no record here: the
+/// save fails like every other save fault, and the last save is kept.
 pub(crate) fn freeze_transients(
     world: &mut World,
 ) -> Result<Vec<FrozenTransient>, SectorSnapshotError> {
@@ -274,9 +272,13 @@ pub(crate) fn freeze_transients(
             TransientKind::DetachedPiece => {
                 freeze_detached_piece(world, entity).map(FrozenTransientType::DetachedPiece)
             }
-            TransientKind::Unknown => panic!(
-                "nova_world_base: '{label}' is a transient with a physics body and no save record"
-            ),
+            TransientKind::Unknown => {
+                return Err(SectorSnapshotError::InvalidSavedState {
+                    reason: format!(
+                        "'{label}' is a transient with a physics body and no save record"
+                    ),
+                });
+            }
         };
         let body = body.map_err(|fault| match fault {
             TransientFreezeFault::Unsettled(reason) => SectorSnapshotError::Unsettled {
@@ -321,6 +323,8 @@ struct TransientKindQuery {
     shed: Has<ShedFixtureMarker>,
     chunk: Has<CarvedChunkMarker>,
     piece: Has<DetachedPieceMarker>,
+    damage_spark: Has<DamageSparkMarker>,
+    impact_spark: Has<ImpactSparkMarker>,
     swept: Has<RoundVelocity>,
     body: Has<avian3d::prelude::RigidBody>,
 }
@@ -339,6 +343,8 @@ impl TransientKindQueryItem<'_, '_> {
             TransientKind::RockChunk
         } else if self.piece {
             TransientKind::DetachedPiece
+        } else if self.damage_spark || self.impact_spark {
+            TransientKind::Visual
         } else if self.swept || self.body {
             TransientKind::Unknown
         } else {

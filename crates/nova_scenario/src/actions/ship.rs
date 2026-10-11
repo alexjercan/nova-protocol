@@ -1937,7 +1937,7 @@ pub fn apply_infinite_ammo(world: &mut World, section: Entity, enabled: bool) ->
             // state the caller asked for.
             return false;
         };
-        let reload = entity.get::<SectionReload>().copied();
+        let reload = entity.get::<SectionReload>().cloned();
         entity.insert(SuspendedSectionAmmo {
             capacity: ammo.capacity,
             reload,
@@ -1945,7 +1945,7 @@ pub fn apply_infinite_ammo(world: &mut World, section: Entity, enabled: bool) ->
         entity.remove::<SectionAmmo>();
         entity.remove::<SectionReload>();
     } else {
-        let Some(suspended) = entity.get::<SuspendedSectionAmmo>().copied() else {
+        let Some(suspended) = entity.get::<SuspendedSectionAmmo>().cloned() else {
             return false;
         };
         entity.insert(SectionAmmo::new(suspended.capacity));

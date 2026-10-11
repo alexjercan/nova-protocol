@@ -9,21 +9,19 @@ use std::time::Duration;
 
 use avian3d::prelude::*;
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
-use nova_events::prelude::{
-    EntityId, Meters, Meters3, MetersPerSecond3, ScenarioAddressableMarker,
-};
+use nova_events::prelude::{EntityId, Meters, Meters3, ScenarioAddressableMarker};
 use nova_gameplay::{
     prelude::{
         AssetRef, CargoCanister, CargoCanisterRuntimeId, DamageMark, DamageMarks, Health,
-        IntegrityDestroyMarker, ItemType, PlayerSpaceshipMarker, SectionMarker, ShipCredits,
+        IntegrityDestroyMarker, ItemRoleType, PlayerSpaceshipMarker, SectionMarker, ShipCredits,
         ShipInventory, ShipInventoryStock, SpaceshipRootMarker, TempEntity,
     },
-    test_support::{settle, unfinished_integrity_physics_app},
+    test_support::{settle, test_items, unfinished_integrity_physics_app},
 };
 use nova_scenario::prelude::{
     freeze_ship, AsteroidCarvePlugin, AsteroidField, AsteroidMarker, AsteroidPlugin, SectionSource,
     ShipDesign, ShipDesignSource, SpaceshipController, SpaceshipDesign, SpaceshipPlugin,
-    SpaceshipSectionConfig, KIND_ROCK,
+    SpaceshipSectionConfig,
 };
 use nova_ship::prelude::{
     cargo_canister, docking_section, thruster_section, AINonCombatant, BaseSectionConfig,
@@ -33,13 +31,16 @@ use nova_ship::prelude::{
     SpaceshipSectionPlugin, ThrusterSectionConfig, TurretSectionConfig,
 };
 
-use super::{answering, empty, rocks, ship, test_sections, Answers, Rocks, TEST_HULL_SECTION_ID};
+use super::{
+    answering, design_mut, empty, rock_config, rocks, ship, test_sections, Answers, Rocks,
+    TEST_HULL_SECTION_ID,
+};
 use crate::{
     adopt_moving_bodies, clear_sector_work, frozen::SettlingBodies, generation::prepare_cell,
     materialize_sector, retire_sectors, sector_id, streaming::ClearedConfig, CurrentSector,
     FrozenBodyType, FrozenSector, FrozenSectors, ObserverBody, PendingSectorShip, ReadySectors,
     SectorAsteroid, SectorCoord, SectorGenerationInput, SectorGenerator, SectorJobStats,
-    SectorManifest, SectorRoot, WorldConfig, WorldObserver,
+    SectorManifest, SectorObjectId, SectorRoot, WorldConfig, WorldObserver,
 };
 
 /// Arm `config` around `centre` with nothing live yet, so the arming frame's
@@ -77,20 +78,14 @@ fn materialize<G: SectorGenerator>(
     observer: ObserverBody,
 ) -> Entity {
     let config = world.resource::<WorldConfig<G>>().clone();
-    let record = world.resource_mut::<FrozenSectors>().take(coord);
-    let prepared = prepare_cell(config, coord, record.as_ref()).expect("the cell prepares");
+    let record = world.resource::<FrozenSectors>().shared(coord);
+    let prepared = prepare_cell(config, coord, record).expect("the cell prepares");
+    world.resource_mut::<FrozenSectors>().consume(coord);
     let sections = world
         .get_resource::<GameSections>()
         .cloned()
         .unwrap_or_default();
-    let root = materialize_sector(
-        &mut world.commands(),
-        prepared,
-        record,
-        &AssetRef::Path(nova_assets::prelude::ASTEROID_TEXTURE_PATH.to_string()),
-        &sections,
-        observer,
-    );
+    let root = materialize_sector(&mut world.commands(), prepared, &sections, observer);
     world.flush();
     root
 }
@@ -466,7 +461,7 @@ fn a_rock_that_leaves_the_window_arrives_in_its_ungenerated_cell_beside_its_gene
     let landing = far_cell.centre(edge) + Meters3::new(-quarter, 0.0, quarter);
     let wanderer = sector_id(home, "body", 0);
     let world = app.world_mut();
-    let [rock] = body_with_id(world, &wanderer)[..] else {
+    let [rock] = body_with_id(world, wanderer.as_str())[..] else {
         panic!("home must spawn its first rock");
     };
     assert_eq!(
@@ -506,7 +501,7 @@ fn a_rock_that_leaves_the_window_arrives_in_its_ungenerated_cell_beside_its_gene
         ),
         "an ungenerated cell keeps the rock as an arrival"
     );
-    assert_eq!(frozen_ids(world, far_cell), vec![wanderer.clone()]);
+    assert_eq!(frozen_ids(world, far_cell), vec![wanderer.to_string()]);
 
     walk_to::<Rocks>(world, far_cell);
     let root = materialize::<Rocks>(world, far_cell, far());
@@ -521,16 +516,22 @@ fn a_rock_that_leaves_the_window_arrives_in_its_ungenerated_cell_beside_its_gene
         .collect();
     under.sort_by(|a, b| a.0.cmp(&b.0));
     let mut expected: Vec<String> = (0..4)
-        .map(|index| sector_id(far_cell, "body", index))
+        .map(|index| sector_id(far_cell, "body", index).to_string())
         .collect();
-    expected.push(wanderer.clone());
+    expected.push(wanderer.to_string());
     expected.sort();
     assert_eq!(
         under.iter().map(|(id, _)| id.clone()).collect::<Vec<_>>(),
         expected,
         "the generated rocks and the arrival all stand in the cell"
     );
-    let at = |id: &str| under.iter().find(|(each, _)| each == id).unwrap().1;
+    let at = |id: &SectorObjectId| {
+        under
+            .iter()
+            .find(|(each, _)| each == id.as_str())
+            .unwrap()
+            .1
+    };
     assert_eq!(
         at(&wanderer),
         landing.to_engine(),
@@ -560,7 +561,7 @@ fn ending_the_session_forgets_every_frozen_cell() {
     app.update();
 
     let world = app.world_mut();
-    let [rock] = body_with_id(world, &sector_id(home, "body", 0))[..] else {
+    let [rock] = body_with_id(world, sector_id(home, "body", 0).as_str())[..] else {
         panic!("home must spawn its first rock");
     };
     world.entity_mut(rock).despawn();
@@ -613,23 +614,21 @@ fn wreckable(input: SectorGenerationInput) -> SectorManifest {
     let rock = SectorAsteroid {
         id: sector_id(input.coord, "body", 0),
         position: centre + Meters3::new(-quarter, 0.0, 0.0),
-        radius: Meters(60.0),
-        initial_velocity: MetersPerSecond3::ZERO,
-        kind: KIND_ROCK.into(),
-        seed: 3,
+        config: rock_config(Meters(60.0), 3),
     };
     let mut fought = ship(
         sector_id(input.coord, "ship", 0),
         centre + Meters3::new(quarter, 0.0, 0.0),
         TEST_HULL_SECTION_ID,
     );
-    let mut aft = fought.design.sections[0].clone();
-    fought.design.sections[0].id = "fore".into();
+    let design = design_mut(&mut fought);
+    let mut aft = design.sections[0].clone();
+    design.sections[0].id = "fore".into();
     aft.id = "aft".into();
     aft.position = Vec3::Z;
     aft.source = SectionSource::prototype(TEST_TURRET_SECTION_ID);
-    fought.design.sections.push(aft);
-    fought.stock = ShipInventoryStock::new([(ItemType::IronOre, 10)]);
+    design.sections.push(aft);
+    fought.spawn.inventory = ShipInventoryStock::new([(ItemRoleType::IronOre.into(), 10)]);
     let held = ship(
         sector_id(input.coord, "ship", 1),
         centre + Meters3::new(0.0, 0.0, quarter),
@@ -652,6 +651,7 @@ fn ship_app() -> App {
         AsteroidCarvePlugin { render: false },
     ));
     app.insert_resource(test_sections());
+    app.insert_resource(test_items());
     app.init_resource::<nova_gameplay::inventory::CargoCanisterIdAllocator>();
     app.init_resource::<Remeshes>();
     app.add_observer(
@@ -718,10 +718,10 @@ fn wreck_home(app: &mut App) -> (Entity, Entity) {
     settle(app);
 
     let world = app.world_mut();
-    let [rock] = body_with_id(world, &sector_id(home, "body", 0))[..] else {
+    let [rock] = body_with_id(world, sector_id(home, "body", 0).as_str())[..] else {
         panic!("home must spawn its rock");
     };
-    let [fought] = body_with_id(world, &sector_id(home, "ship", 0))[..] else {
+    let [fought] = body_with_id(world, sector_id(home, "ship", 0).as_str())[..] else {
         panic!("home must spawn the ship to fight");
     };
     // Mined: one crater, carried through the carve chain to a validated
@@ -767,7 +767,7 @@ fn wreck_home(app: &mut App) -> (Entity, Entity) {
     world
         .get_mut::<ShipInventory>(fought)
         .expect("a ship has a hold")
-        .remove(ItemType::IronOre, 7);
+        .remove(&ItemRoleType::IronOre.into(), 7);
     world.entity_mut(fought).insert(ShipCredits(0));
     settle(app);
     (rock, fought)
@@ -813,7 +813,7 @@ fn a_mined_fought_and_looted_cell_returns_as_it_was_left() {
         record
             .bodies()
             .iter()
-            .any(|body| matches!(body.body(), FrozenBodyType::PendingShip(_))),
+            .any(|body| matches!(body.body(), FrozenBodyType::PendingShip { .. })),
         "the held ship froze held"
     );
 
@@ -822,10 +822,10 @@ fn a_mined_fought_and_looted_cell_returns_as_it_was_left() {
     settle(&mut app);
 
     let world = app.world_mut();
-    let [rock] = body_with_id(world, &sector_id(home, "body", 0))[..] else {
+    let [rock] = body_with_id(world, sector_id(home, "body", 0).as_str())[..] else {
         panic!("the rock must come back once");
     };
-    let [fought] = body_with_id(world, &sector_id(home, "ship", 0))[..] else {
+    let [fought] = body_with_id(world, sector_id(home, "ship", 0).as_str())[..] else {
         panic!("the fought ship must come back once");
     };
     assert_eq!(world.get::<ChildOf>(rock).map(ChildOf::parent), Some(root));
@@ -878,9 +878,9 @@ fn a_mined_fought_and_looted_cell_returns_as_it_was_left() {
     let held: Vec<String> = world
         .query::<&PendingSectorShip>()
         .iter(world)
-        .map(|held| held.ship().id.clone())
+        .map(|held| held.ship().id.to_string())
         .collect();
-    assert_eq!(held, vec![sector_id(home, "ship", 1)]);
+    assert_eq!(held, vec![sector_id(home, "ship", 1).to_string()]);
     assert_eq!(
         world
             .query_filtered::<(), With<AsteroidMarker>>()
@@ -908,7 +908,7 @@ fn a_snapshot_of_the_live_world_reads_back_as_the_same_world() {
     let id = world
         .resource_mut::<nova_gameplay::inventory::CargoCanisterIdAllocator>()
         .mint();
-    let contents = CargoCanister::new(ItemType::IronOre, 4);
+    let contents = CargoCanister::new(&test_items(), &ItemRoleType::IronOre.into(), 4);
     world.spawn((
         cargo_canister(
             contents.clone(),
@@ -962,10 +962,10 @@ fn a_snapshot_of_the_live_world_reads_back_as_the_same_world() {
     materialize::<Answers>(world, home, far());
     settle(&mut fresh);
     let world = fresh.world_mut();
-    let [rock] = body_with_id(world, &sector_id(home, "body", 0))[..] else {
+    let [rock] = body_with_id(world, sector_id(home, "body", 0).as_str())[..] else {
         panic!("the rock must come back once");
     };
-    let [fought] = body_with_id(world, &sector_id(home, "ship", 0))[..] else {
+    let [fought] = body_with_id(world, sector_id(home, "ship", 0).as_str())[..] else {
         panic!("the fought ship must come back once");
     };
     let node = rock_node(world, rock);
@@ -984,9 +984,9 @@ fn a_snapshot_of_the_live_world_reads_back_as_the_same_world() {
     let held: Vec<String> = world
         .query::<&PendingSectorShip>()
         .iter(world)
-        .map(|held| held.ship().id.clone())
+        .map(|held| held.ship().id.to_string())
         .collect();
-    assert_eq!(held, vec![sector_id(home, "ship", 1)]);
+    assert_eq!(held, vec![sector_id(home, "ship", 1).to_string()]);
 }
 
 /// A docked pair is undocked ON PAPER before it freezes: `snapshot_sectors`
@@ -1180,8 +1180,9 @@ fn a_loose_canister_freezes_with_the_cell_it_drifts_in() {
     let id = world
         .resource_mut::<nova_gameplay::inventory::CargoCanisterIdAllocator>()
         .mint();
-    let mut contents = CargoCanister::new(ItemType::IronOre, 4);
-    contents.add(ItemType::WaterIce, 2);
+    let items = test_items();
+    let mut contents = CargoCanister::new(&items, &ItemRoleType::IronOre.into(), 4);
+    contents.add(&items, &ItemRoleType::WaterIce.into(), 2);
     let at = Transform::from_translation(home.centre(edge).to_engine() + Vec3::Y * 40.0);
     let canister = world
         .spawn((
@@ -1239,14 +1240,16 @@ fn settled_rocks_freeze_while_an_unsettled_sibling_holds_its_cell() {
 
     let world = app.world_mut();
     let unsettled_id = sector_id(home, "body", 0);
-    let [unsettled] = body_with_id(world, &unsettled_id)[..] else {
+    let [unsettled] = body_with_id(world, unsettled_id.as_str())[..] else {
         panic!("home must spawn its first rock");
     };
     let node = rock_node(world, unsettled);
     world.entity_mut(node).insert(IntegrityDestroyMarker);
 
     walk_to::<Rocks>(world, home.offset(5, 0, 0));
-    let settled: Vec<String> = (1..4).map(|index| sector_id(home, "body", index)).collect();
+    let settled: Vec<String> = (1..4)
+        .map(|index| sector_id(home, "body", index).to_string())
+        .collect();
     assert_eq!(frozen_ids(world, home), settled, "the settled rocks froze");
     assert_eq!(
         world.get::<ChildOf>(unsettled).map(ChildOf::parent),
@@ -1289,7 +1292,7 @@ fn an_unsettled_rock_retires_its_cell_once_it_settles() {
     app.update();
 
     let world = app.world_mut();
-    let [unsettled] = body_with_id(world, &sector_id(home, "body", 0))[..] else {
+    let [unsettled] = body_with_id(world, sector_id(home, "body", 0).as_str())[..] else {
         panic!("home must spawn its first rock");
     };
     let node = rock_node(world, unsettled);
@@ -1307,7 +1310,9 @@ fn an_unsettled_rock_retires_its_cell_once_it_settles() {
     assert!(world.get_entity(root).is_err(), "the cell retired");
     let mut ids = frozen_ids(world, home);
     ids.sort();
-    let expected: Vec<String> = (0..4).map(|index| sector_id(home, "body", index)).collect();
+    let expected: Vec<String> = (0..4)
+        .map(|index| sector_id(home, "body", index).to_string())
+        .collect();
     assert_eq!(ids, expected, "one record holds every rock");
 
     walk_to::<Rocks>(world, home);
@@ -1340,7 +1345,7 @@ fn a_rock_that_never_settles_fails_at_the_bound() {
     app.update();
 
     let world = app.world_mut();
-    let [unsettled] = body_with_id(world, &sector_id(home, "body", 0))[..] else {
+    let [unsettled] = body_with_id(world, sector_id(home, "body", 0).as_str())[..] else {
         panic!("home must spawn its first rock");
     };
     let node = rock_node(world, unsettled);
@@ -1400,7 +1405,7 @@ fn replacing_the_world_takes_the_bodies_waiting_top_level() {
 
     let world = app.world_mut();
     let [desired, unsettled, authored] = [0, 1, 2].map(|index| {
-        let [rock] = body_with_id(world, &sector_id(home, "body", index))[..] else {
+        let [rock] = body_with_id(world, sector_id(home, "body", index).as_str())[..] else {
             panic!("home must spawn rock {index}");
         };
         rock

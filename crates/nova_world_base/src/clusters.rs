@@ -65,13 +65,16 @@
 //! small background scatter instead, so open space is not always empty.
 
 use bevy::prelude::{Quat, Vec3};
+use nova_assets::prelude::ASTEROID_TEXTURE_PATH;
 use nova_events::prelude::{Meters, Meters3, MetersPerSecond3, MetersPerSecondSquared};
 use nova_gameplay::prelude::{
-    circular_orbit_speed, unit_sphere_point, Fnv32, GravitySettings, GravityWell, SeedStream,
+    circular_orbit_speed, unit_sphere_point, AssetRef, Fnv32, GameItems, GravitySettings,
+    GravityWell, SeedStream,
 };
 use nova_scenario::prelude::{
-    asteroid_seed_from_id, PlanetConfig, PlanetType, ASTEROID_GEOMETRIC_FACTOR_MAX, KIND_CARBON,
-    KIND_ICE, KIND_METAL, KIND_ROCK,
+    asteroid_seed_from_id, AsteroidConfig, PlanetConfig, PlanetType, SpaceshipConfig,
+    SpaceshipController, ASTEROID_GEOMETRIC_FACTOR_MAX, KIND_CARBON, KIND_ICE, KIND_METAL,
+    KIND_ROCK,
 };
 use nova_world::prelude::*;
 
@@ -363,7 +366,13 @@ pub fn sector_clusters(
     world: &NovaLayeredWorld,
     input: SectorGenerationInput,
 ) -> Result<SectorClusters, SectorFault> {
-    Ok(plan_sector(&EnvironmentFields::new(input.seed), world.parts(), input)?.summary())
+    Ok(plan_sector(
+        &EnvironmentFields::new(input.seed),
+        world.parts(),
+        world.items(),
+        input,
+    )?
+    .summary())
 }
 
 /// Refuse a geometry this policy cannot fill.
@@ -582,7 +591,7 @@ impl SkipType {
 /// One body a cell owns, and what the cell did with it.
 #[derive(Clone, Debug)]
 struct PlannedBody {
-    id: String,
+    id: SectorObjectId,
     source: BodySource,
     body: ClusterBody,
     position: Meters3,
@@ -752,7 +761,7 @@ impl SectorPlan {
                 .find(|cluster| body.source.node() == Some(cluster.node))
             else {
                 return Err(SectorFault::Generation {
-                    id: body.id.clone(),
+                    id: body.id.to_string(),
                     field: "placement",
                     value: format!(
                         "seed {seed} sector {} has no owning cluster for an overlapped body",
@@ -848,7 +857,7 @@ impl SectorPlan {
                 Fnv32::new()
                     .write(&seed.to_le_bytes())
                     .write(b"overlap-placement")
-                    .write(body.id.as_bytes())
+                    .write(body.id.as_str().as_bytes())
                     .finish(),
             );
             let mut replacement = None;
@@ -902,7 +911,7 @@ impl SectorPlan {
                 }
             }
             let position = replacement.ok_or_else(|| SectorFault::Generation {
-                id: self.bodies[index].id.clone(),
+                id: self.bodies[index].id.to_string(),
                 field: "placement",
                 value: format!("seed {seed} sector {} has no unique-well safe-band or well-free position after deterministic retries", self.coord),
             })?;
@@ -950,20 +959,25 @@ impl SectorPlan {
             let position = planned.position;
             match &planned.body {
                 ClusterBody::Rock { radius, kind } => manifest.asteroids.push(SectorAsteroid {
-                    seed: asteroid_seed_from_id(&id),
+                    config: AsteroidConfig {
+                        radius: *radius,
+                        initial_velocity: generated_initial_velocity(
+                            planned.id.as_str(),
+                            position,
+                            Meters(radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX),
+                            self.coord,
+                            self.edge,
+                            &wells,
+                            &settings,
+                        )?,
+                        texture: AssetRef::Path(ASTEROID_TEXTURE_PATH.to_string()),
+                        kind: (*kind).into(),
+                        destroy_sound: None,
+                        lock_signature: None,
+                        seed: Some(asteroid_seed_from_id(id.as_str())),
+                    },
                     id,
                     position,
-                    radius: *radius,
-                    kind: (*kind).into(),
-                    initial_velocity: generated_initial_velocity(
-                        &planned.id,
-                        position,
-                        Meters(radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX),
-                        self.coord,
-                        self.edge,
-                        &wells,
-                        &settings,
-                    )?,
                 }),
                 ClusterBody::Planetoid(config) => manifest.planets.push(SectorPlanet {
                     id,
@@ -974,23 +988,22 @@ impl SectorPlan {
                     id,
                     position,
                     rotation: ship.rotation,
-                    initial_velocity: generated_initial_velocity(
-                        &planned.id,
-                        position,
-                        ship.clearance,
-                        self.coord,
-                        self.edge,
-                        &wells,
-                        &settings,
-                    )?,
                     clearance: ship.clearance,
-                    design: ship.design.clone(),
                     condition: ship.condition,
                     civilization: ship.civilization,
                     role: ship.role,
-                    stock: ship.stock.clone(),
-                    credits: ship.credits,
-                    crew: ship.crew.clone(),
+                    spawn: SpaceshipConfig {
+                        initial_velocity: generated_initial_velocity(
+                            planned.id.as_str(),
+                            position,
+                            ship.clearance,
+                            self.coord,
+                            self.edge,
+                            &wells,
+                            &settings,
+                        )?,
+                        ..ship.spawn.clone()
+                    },
                 }),
                 ClusterBody::Hull { .. } => {
                     unreachable!("a cell lays out every hull it owns before it resolves them")
@@ -1051,10 +1064,10 @@ impl SectorPlan {
                 .iter()
                 .filter(|body| body.skipped.is_none())
                 .filter(|body| match &body.body {
-                    ClusterBody::Ship(ship) => ship
-                        .crew
-                        .as_ref()
-                        .is_some_and(|crew| crew.patrol.is_empty()),
+                    ClusterBody::Ship(ship) => matches!(
+                        &ship.spawn.controller,
+                        SpaceshipController::AI(crew) if crew.patrol.is_empty()
+                    ),
                     _ => false,
                 })
                 .count(),
@@ -1535,6 +1548,7 @@ fn halo_nodes(coord: SectorCoord, edge: Meters) -> Vec<[i32; 3]> {
 pub(crate) fn plan_sector(
     fields: &EnvironmentFields,
     parts: &ShipPartSnapshot,
+    items: &GameItems,
     input: SectorGenerationInput,
 ) -> Result<SectorPlan, SectorFault> {
     let coord = input.coord;
@@ -1593,10 +1607,11 @@ pub(crate) fn plan_sector(
             let mut planned = candidate("hull", index, BodySource::Hull(node, index), &hull.hull);
             let ship = plan_ship(
                 parts,
+                items,
                 &civilizations,
                 input.seed,
                 HullSlot {
-                    id: &planned.id,
+                    id: planned.id.as_str(),
                     node,
                     slot: index,
                     anchor: cluster.anchor,
@@ -1694,7 +1709,7 @@ fn plan_patrols(input: SectorGenerationInput, bodies: &mut [PlannedBody]) {
         };
         let clearance = ship.clearance;
         let rotation = ship.rotation;
-        let Some(crew) = ship.crew.as_mut() else {
+        let SpaceshipController::AI(crew) = &mut ship.spawn.controller else {
             continue;
         };
         let others: Vec<(Meters3, Meters)> = standing
@@ -1702,7 +1717,7 @@ fn plan_patrols(input: SectorGenerationInput, bodies: &mut [PlannedBody]) {
             .filter(|(other, ..)| *other != index)
             .map(|&(_, position, clearance)| (position, clearance))
             .collect();
-        (crew.patrol, crew.stops) = plan_patrol(
+        (crew.patrol, crew.patrol_stops) = plan_patrol(
             input.seed,
             node,
             slot,
@@ -1715,7 +1730,7 @@ fn plan_patrols(input: SectorGenerationInput, bodies: &mut [PlannedBody]) {
 
 /// One body a cell owns, before it is resolved.
 struct Candidate {
-    id: String,
+    id: SectorObjectId,
     source: BodySource,
     body: ClusterBody,
     position: Meters3,
@@ -1783,13 +1798,13 @@ fn resolve(
     } in candidates
     {
         if !position.get().is_finite() {
-            return Err(SectorFault::InvalidGeometry { id });
+            return Err(SectorFault::InvalidGeometry { id: id.to_string() });
         }
         let clearance = body.clearance();
         let mut skipped = fits(input, &standing, position, clearance);
         if let (BodySource::Parent(..), Some(reason)) = (source, skipped) {
             return Err(SectorFault::Generation {
-                id,
+                id: id.to_string(),
                 field: "parent",
                 value: format!("skipped for {}", reason.label()),
             });
@@ -1804,7 +1819,9 @@ fn resolve(
                 skipped = Some(SkipType::Companion);
                 for escort in escorts {
                     if !escort.position.get().is_finite() {
-                        return Err(SectorFault::InvalidGeometry { id: escort.id });
+                        return Err(SectorFault::InvalidGeometry {
+                            id: escort.id.to_string(),
+                        });
                     }
                     let escort_clearance = escort.body.clearance();
                     // `validate` keeps the escort band clear of its hull.
@@ -1867,8 +1884,13 @@ mod tests {
         desired_sectors(SectorCoord::ORIGIN, config.active_radius)
             .into_iter()
             .map(|coord| {
-                let plan = plan_sector(&fields, config.generator.parts(), config.input(coord))
-                    .unwrap_or_else(|fault| panic!("{coord}: {fault}"));
+                let plan = plan_sector(
+                    &fields,
+                    config.generator.parts(),
+                    config.generator.items(),
+                    config.input(coord),
+                )
+                .unwrap_or_else(|fault| panic!("{coord}: {fault}"));
                 (coord, plan)
             })
             .collect()
@@ -1925,6 +1947,7 @@ mod tests {
         let fault = plan_sector(
             &EnvironmentFields::new(SEED),
             &unbuildable,
+            config().generator.items(),
             config().input(owner),
         )
         .expect_err("a hull no layout fits must fail its cell");
@@ -2100,7 +2123,11 @@ mod tests {
         )
         .expect_err("a parent over a placed body must refuse");
         assert!(
-            matches!(&fault, SectorFault::Generation { id, field: "parent", .. } if id == "parent"),
+            matches!(
+                &fault,
+                SectorFault::Generation { id, field: "parent", .. }
+                    if *id == sector_id(SectorCoord::ORIGIN, "parent", 0).to_string()
+            ),
             "got {fault:?}"
         );
     }
@@ -2108,7 +2135,7 @@ mod tests {
     /// A 40 m rock candidate on the z axis of the origin cell.
     fn rock_at(id: &str, source: BodySource, z: f32) -> Candidate {
         Candidate {
-            id: id.to_string(),
+            id: sector_id(SectorCoord::ORIGIN, id, 0),
             source,
             body: ClusterBody::Rock {
                 radius: Meters(40.0),
@@ -2123,7 +2150,7 @@ mod tests {
     /// given z.
     fn hull_at(node: [i32; 3], z: f32, escorts: &[f32]) -> Candidate {
         Candidate {
-            id: "hull".to_string(),
+            id: sector_id(SectorCoord::ORIGIN, "hull", 0),
             source: BodySource::Hull(node, 0),
             body: ClusterBody::Hull {
                 yaw: 0.0,
@@ -2166,7 +2193,10 @@ mod tests {
                 rock_at("rock", BodySource::Rock(own, 0), 0.0),
                 hull_at(own, 12_000.0, &[13_500.0]),
             ]),
-            [("rock".into(), None), ("hull".into(), None)],
+            [
+                (sector_id(SectorCoord::ORIGIN, "rock", 0), None),
+                (sector_id(SectorCoord::ORIGIN, "hull", 0), None)
+            ],
             "a hull beside its own cluster's rock needs no escort"
         );
         assert_eq!(
@@ -2176,9 +2206,12 @@ mod tests {
                 &[15_900.0, 13_500.0, 10_500.0]
             )]),
             [
-                ("escort_0".into(), Some(SkipType::Face)),
-                ("escort_1".into(), None),
-                ("hull".into(), None)
+                (
+                    sector_id(SectorCoord::ORIGIN, "escort_0", 0),
+                    Some(SkipType::Face)
+                ),
+                (sector_id(SectorCoord::ORIGIN, "escort_1", 0), None),
+                (sector_id(SectorCoord::ORIGIN, "hull", 0), None)
             ],
             "a lone hull places its first escort that fits, counts the one it \
              tried before it, and tries no more"
@@ -2189,10 +2222,19 @@ mod tests {
                 hull_at(own, 12_000.0, &[15_900.0, 10_500.0]),
             ]),
             [
-                ("rock".into(), None),
-                ("escort_0".into(), Some(SkipType::Face)),
-                ("escort_1".into(), Some(SkipType::Clearance)),
-                ("hull".into(), Some(SkipType::Companion))
+                (sector_id(SectorCoord::ORIGIN, "rock", 0), None),
+                (
+                    sector_id(SectorCoord::ORIGIN, "escort_0", 0),
+                    Some(SkipType::Face)
+                ),
+                (
+                    sector_id(SectorCoord::ORIGIN, "escort_1", 0),
+                    Some(SkipType::Clearance)
+                ),
+                (
+                    sector_id(SectorCoord::ORIGIN, "hull", 0),
+                    Some(SkipType::Companion)
+                )
             ],
             "another cluster's rock is no companion, and no escort fits"
         );
@@ -2226,8 +2268,13 @@ mod tests {
                 }
             }
             for coord in coords {
-                let plan = plan_sector(&fields, config.generator.parts(), config.input(coord))
-                    .unwrap_or_else(|fault| panic!("{seed} {coord}: {fault}"));
+                let plan = plan_sector(
+                    &fields,
+                    config.generator.parts(),
+                    config.generator.items(),
+                    config.input(coord),
+                )
+                .unwrap_or_else(|fault| panic!("{seed} {coord}: {fault}"));
                 alone += (plan.bodies.iter())
                     .filter(|body| body.skipped == Some(SkipType::Companion))
                     .count();
@@ -2471,6 +2518,7 @@ mod tests {
                 let plan = plan_sector(
                     &fields,
                     config.generator.parts(),
+                    config.generator.items(),
                     config.input(SectorCoord::new(x, 0, z)),
                 )
                 .unwrap_or_else(|fault| panic!("[{x}, 0, {z}]: {fault}"));
@@ -2552,11 +2600,17 @@ mod tests {
             .unwrap()
             .rocks[1]
             .position;
-        let mut plan = plan_sector(&fields, world.generator.parts(), world.input(coord)).unwrap();
+        let mut plan = plan_sector(
+            &fields,
+            world.generator.parts(),
+            world.generator.items(),
+            world.input(coord),
+        )
+        .unwrap();
         let escort_index = plan
             .bodies
             .iter()
-            .position(|body| body.id == "sector_2_0_1_cluster_1_0_1_rock_1")
+            .position(|body| body.id == sector_id(coord, "cluster_1_0_1_rock", 1))
             .unwrap();
         let misplaced = plan.bodies[escort_index].position;
         let hull_position =
@@ -2565,7 +2619,7 @@ mod tests {
         plan.bodies[escort_index].source = BodySource::Escort([1, 0, 1], 0, 0);
         plan.bodies[escort_index].position = original;
         plan.bodies.push(PlannedBody {
-            id: "artificial_paired_hull".to_string(),
+            id: sector_id(plan.coord, "artificial_paired_hull", 0),
             source: BodySource::Hull([1, 0, 1], 0),
             body: ClusterBody::Hull {
                 yaw: 0.0,
@@ -2627,9 +2681,21 @@ mod tests {
             .unwrap()
             .rocks[1]
             .position;
-        let first = plan_sector(&fields, world.generator.parts(), world.input(coord)).unwrap();
-        let second = plan_sector(&fields, world.generator.parts(), world.input(coord)).unwrap();
-        let id = "sector_2_0_1_cluster_1_0_1_rock_1";
+        let first = plan_sector(
+            &fields,
+            world.generator.parts(),
+            world.generator.items(),
+            world.input(coord),
+        )
+        .unwrap();
+        let second = plan_sector(
+            &fields,
+            world.generator.parts(),
+            world.generator.items(),
+            world.input(coord),
+        )
+        .unwrap();
+        let id = sector_id(coord, "cluster_1_0_1_rock", 1);
         let placed = first.bodies.iter().find(|body| body.id == id).unwrap();
         assert!(placed.skipped.is_none());
         assert_ne!(placed.position, original, "overlapping candidate must move");
@@ -2684,6 +2750,7 @@ mod tests {
                     .iter()
                     .find(|rock| rock.id == id)
                     .unwrap()
+                    .config
                     .initial_velocity,
                 MetersPerSecond3::ZERO
             );
@@ -2738,8 +2805,13 @@ mod tests {
             world.seed = seed;
             let fields = EnvironmentFields::new(seed);
             for coord in desired_sectors(SectorCoord::ORIGIN, world.active_radius) {
-                let plan =
-                    plan_sector(&fields, world.generator.parts(), world.input(coord)).unwrap();
+                let plan = plan_sector(
+                    &fields,
+                    world.generator.parts(),
+                    world.generator.items(),
+                    world.input(coord),
+                )
+                .unwrap();
                 let manifest = plan.manifest().unwrap();
                 let wells: Vec<_> = plan
                     .clusters
@@ -2770,13 +2842,13 @@ mod tests {
                         .asteroids
                         .iter()
                         .find(|rock| rock.id == body.id)
-                        .map(|rock| rock.initial_velocity)
+                        .map(|rock| rock.config.initial_velocity)
                         .or_else(|| {
                             manifest
                                 .ships
                                 .iter()
                                 .find(|ship| ship.id == body.id)
-                                .map(|ship| ship.initial_velocity)
+                                .map(|ship| ship.spawn.initial_velocity)
                         })
                         .expect("every placed mobile body is in the manifest");
                     assert!(velocity.is_finite(), "{} velocity", body.id);

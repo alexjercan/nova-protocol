@@ -22,6 +22,7 @@ fn generate_app() -> (App, Entity) {
     app.insert_resource(GameSections(
         nova_authoring::generation::build_section_catalog(),
     ));
+    app.insert_resource(GameItems::new(nova_authoring::generation::build_items()));
     app.insert_resource(GameStyles(nova_authoring::generation::build_styles()));
     let scenario = app
         .world_mut()
@@ -635,21 +636,23 @@ fn a_reroll_leaves_the_ships_own_look_alone() {
 fn the_collapse_dresses_the_hull_in_the_ship_it_is_built_for() {
     let (app, _) = generate_app();
     let sections = app.world().resource::<GameSections>();
+    let items = app.world().resource::<GameItems>();
     let styles = app.world().resource::<GameStyles>();
     let plan = WfcPlan::standard_hull();
     let second = styles.get(1).expect("more than one style").id.clone();
 
-    let bare = collapse(sections, &plan, Some(styles), 7, false, None).expect("a hull");
+    let bare = collapse(sections, items, &plan, Some(styles), 7, false, None).expect("a hull");
     assert!(
         !bare.presentation.skin,
         "a ship with its plating off gets a bare hull"
     );
     assert_eq!(bare.presentation.style, None, "and no style to wear it in");
 
-    let chosen = collapse(sections, &plan, Some(styles), 7, true, Some(&second)).expect("a hull");
+    let chosen =
+        collapse(sections, items, &plan, Some(styles), 7, true, Some(&second)).expect("a hull");
     assert_eq!(chosen.presentation.style.as_deref(), Some(second.as_str()));
 
-    let unchosen = collapse(sections, &plan, Some(styles), 7, true, None).expect("a hull");
+    let unchosen = collapse(sections, items, &plan, Some(styles), 7, true, None).expect("a hull");
     assert_eq!(
         unchosen.presentation.style.as_deref(),
         styles.first().map(|style| style.id.as_str()),

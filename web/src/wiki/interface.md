@@ -206,8 +206,9 @@ A reserved flight control is refused on the spot - `Space is already bound to fl
     </div>
 </figure>
 
-<!-- Items and categories: crates/nova_gameplay/src/inventory.rs (`ItemType`,
-     `ItemCategoryType`, `ShipInventory`, required by `SpaceshipRootMarker`).
+<!-- Items and categories: crates/nova_gameplay/src/inventory.rs (`ItemDesign`,
+     `ItemCategoryType`, `GameItems`, `ShipInventory`, required by
+     `SpaceshipRootMarker`).
      Pane: crates/nova_interface/src/inventory/app.rs `update_inventory_panel`
      (partner through `DockedShip` -> `DockingConnection`); keys and their
      cues: `inventory_keys`; clipped description: `about_box`,
@@ -223,7 +224,7 @@ A reserved flight control is refused on the spot - `Space is already bound to fl
      Take and Give: crates/nova_gameplay/src/inventory.rs `plan_item_transfer`;
      Take credits: `plan_credit_take`, applied by
      `apply_credit_take_commands`; Buy and Sell: `plan_item_trade`, prices
-     `ItemType::ask_cr` and `ItemType::bid_cr`, balance `ShipCredits` from
+     `ItemDesign::ask_cr` and `ItemDesign::bid_cr`, balance `ShipCredits` from
      `SpaceshipConfig::credits`; Jettison: `plan_item_jettison`; all but Take
      credits applied by crates/nova_interface/src/inventory/app.rs
      `apply_inventory_action_commands`; the action a row opens:

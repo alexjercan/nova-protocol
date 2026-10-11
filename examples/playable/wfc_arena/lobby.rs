@@ -89,6 +89,7 @@ fn load_or_open_lobby(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
+    items: Res<GameItems>,
     styles: Res<GameStyles>,
     requested: Res<StyleRequest>,
     mut roster: ResMut<Roster>,
@@ -113,7 +114,14 @@ fn load_or_open_lobby(
     roster.drafted.clone_from(&drafted_seeds);
 
     if std::env::var_os("NOVA_AUTOPILOT").is_some() {
-        start_match(&mut commands, &game_assets, &sections, &styles, &mut roster);
+        start_match(
+            &mut commands,
+            &game_assets,
+            &sections,
+            &items,
+            &styles,
+            &mut roster,
+        );
         return;
     }
 
@@ -146,10 +154,17 @@ fn start_match(
     commands: &mut Commands,
     game_assets: &GameAssets,
     sections: &GameSections,
+    items: &GameItems,
     styles: &GameStyles,
     roster: &mut Roster,
 ) {
-    commands.trigger(LoadScenario(arena(game_assets, sections, styles, roster)));
+    commands.trigger(LoadScenario(arena(
+        game_assets,
+        sections,
+        items,
+        styles,
+        roster,
+    )));
     result::begin_match(commands, roster.ships.len());
 }
 
@@ -462,6 +477,7 @@ fn on_lobby_action(
     cameras: Query<Entity, With<LobbyCamera>>,
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
+    items: Res<GameItems>,
     styles: Res<GameStyles>,
     model: Option<ResMut<LobbyModel>>,
     mut roster: ResMut<Roster>,
@@ -603,7 +619,14 @@ fn on_lobby_action(
             for camera in &cameras {
                 commands.entity(camera).despawn();
             }
-            start_match(&mut commands, &game_assets, &sections, &styles, &mut roster);
+            start_match(
+                &mut commands,
+                &game_assets,
+                &sections,
+                &items,
+                &styles,
+                &mut roster,
+            );
             rebuild = false;
         }
         LobbyAction::Quit => {

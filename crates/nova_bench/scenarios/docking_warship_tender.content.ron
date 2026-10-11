@@ -60,7 +60,7 @@
                             controller: Player((
                                 input_mapping: {},
                             )),
-                            inventory: {PdcRound: 6000, RailSlug: 20, Torpedo: 12},
+                            inventory: {"PdcRound": 6000, "RailSlug": 20, "Torpedo": 12},
                             lootable: false,
                             credits: 2_000,
                         )),

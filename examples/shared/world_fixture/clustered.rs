@@ -149,6 +149,8 @@ const ROCK_KINDS: [&str; 4] = [KIND_ROCK, KIND_METAL, KIND_ICE, KIND_CARBON];
 pub struct ClusteredWorld {
     /// The ship parts every hull is laid out from.
     pub parts: Arc<ShipPartSnapshot>,
+    /// The item catalog every hull's hold is laid out from.
+    pub items: Arc<GameItems>,
 }
 
 /// Equal when both pin one ship-part snapshot. Compares the digest, never the
@@ -172,7 +174,13 @@ impl SectorGenerator for ClusteredWorld {
     }
 
     fn generate(&self, input: SectorGenerationInput) -> Result<SectorManifest, SectorFault> {
-        Ok(plan_cell(&EnvironmentFields::new(input.seed), &self.parts, input)?.manifest())
+        Ok(plan_cell(
+            &EnvironmentFields::new(input.seed),
+            &self.parts,
+            &self.items,
+            input,
+        )?
+        .manifest())
     }
 }
 
@@ -386,7 +394,7 @@ pub enum Outcome {
 #[derive(Clone, Debug)]
 pub struct PlannedBody {
     /// Its scenario id, prefixed with the owning cell's slug.
-    pub id: String,
+    pub id: SectorObjectId,
     /// Where it came from.
     pub source: BodySource,
     /// What it is.
@@ -444,12 +452,17 @@ impl CellPlan {
             let position = planned.position;
             match &planned.body {
                 ClusterBody::Rock { radius, kind } => manifest.asteroids.push(SectorAsteroid {
-                    seed: asteroid_seed_from_id(&id),
+                    config: AsteroidConfig {
+                        radius: *radius,
+                        initial_velocity: MetersPerSecond3::ZERO,
+                        texture: AssetRef::Path(ASTEROID_TEXTURE_PATH.to_string()),
+                        kind: (*kind).into(),
+                        destroy_sound: None,
+                        lock_signature: None,
+                        seed: Some(asteroid_seed_from_id(id.as_str())),
+                    },
                     id,
                     position,
-                    radius: *radius,
-                    kind: (*kind).into(),
-                    initial_velocity: MetersPerSecond3::ZERO,
                 }),
                 ClusterBody::Planetoid(config) => manifest.planets.push(SectorPlanet {
                     id,
@@ -460,15 +473,11 @@ impl CellPlan {
                     id,
                     position,
                     rotation: ship.rotation,
-                    initial_velocity: MetersPerSecond3::ZERO,
                     clearance: ship.clearance,
-                    design: ship.design.clone(),
                     condition: ship.condition,
                     civilization: ship.civilization,
                     role: ship.role,
-                    stock: ship.stock.clone(),
-                    credits: ship.credits,
-                    crew: ship.crew.clone(),
+                    spawn: ship.spawn.clone(),
                 }),
                 ClusterBody::Hull { .. } => {
                     unreachable!("a cell lays out every hull it owns before it resolves them")
@@ -886,6 +895,7 @@ fn halo_nodes(coord: SectorCoord, edge: Meters) -> Vec<[i32; 3]> {
 pub fn plan_cell(
     fields: &EnvironmentFields,
     parts: &ShipPartSnapshot,
+    items: &GameItems,
     input: SectorGenerationInput,
 ) -> Result<CellPlan, SectorFault> {
     let coord = input.coord;
@@ -926,10 +936,11 @@ pub fn plan_cell(
             if let ClusterBody::Hull { yaw, lineage } = member.body {
                 let ship = plan_ship(
                     parts,
+                    items,
                     &civilizations,
                     input.seed,
                     HullSlot {
-                        id: &member.id,
+                        id: member.id.as_str(),
                         node: group.id.0,
                         slot: index,
                         anchor: group.anchor,
@@ -984,7 +995,7 @@ pub fn plan_cell(
 
 /// One body a cell owns, before it is resolved.
 struct Candidate {
-    id: String,
+    id: SectorObjectId,
     source: BodySource,
     body: ClusterBody,
     position: Meters3,
@@ -1016,7 +1027,7 @@ fn resolve(
     } in candidates
     {
         if !position.get().is_finite() {
-            return Err(SectorFault::InvalidGeometry { id });
+            return Err(SectorFault::InvalidGeometry { id: id.to_string() });
         }
         let clearance = body.clearance();
         let inside = SectorCoord::containing(position, edge) == input.coord
@@ -1032,7 +1043,7 @@ fn resolve(
         };
         if let (BodySource::Parent(..), Outcome::Skipped(reason)) = (source, outcome) {
             return Err(SectorFault::Generation {
-                id,
+                id: id.to_string(),
                 field: "parent",
                 value: format!("skipped for {}", reason.label()),
             });
@@ -1073,6 +1084,7 @@ mod tests {
                 digest: ContentCatalogDigest(0),
             },
             &GameStyles(nova_authoring::generation::build_styles()),
+            &GameItems::new(nova_authoring::generation::build_items()),
         )
     }
 
@@ -1082,8 +1094,13 @@ mod tests {
         desired_sectors(CLUSTER_HOME, EXAMPLE_ACTIVE_RADIUS)
             .into_iter()
             .map(|coord| {
-                let plan = plan_cell(&fields, &config.generator.parts, config.input(coord))
-                    .unwrap_or_else(|fault| panic!("{coord}: {fault}"));
+                let plan = plan_cell(
+                    &fields,
+                    &config.generator.parts,
+                    &config.generator.items,
+                    config.input(coord),
+                )
+                .unwrap_or_else(|fault| panic!("{coord}: {fault}"));
                 (coord, plan)
             })
             .collect()
@@ -1271,7 +1288,7 @@ mod tests {
         let input = config().input(SectorCoord::ORIGIN);
         let group = GroupId([0, 0, 0]);
         let hull = |id: &str, source: BodySource| Candidate {
-            id: id.to_string(),
+            id: sector_id(SectorCoord::ORIGIN, id, 0),
             source,
             body: ClusterBody::Hull {
                 yaw: 0.0,
@@ -1301,7 +1318,11 @@ mod tests {
         )
         .expect_err("a parent over a placed body must refuse");
         assert!(
-            matches!(&fault, SectorFault::Generation { id, field: "parent", .. } if id == "parent"),
+            matches!(
+                &fault,
+                SectorFault::Generation { id, field: "parent", .. }
+                    if *id == sector_id(SectorCoord::ORIGIN, "parent", 0).to_string()
+            ),
             "got {fault:?}"
         );
     }

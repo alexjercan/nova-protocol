@@ -20,6 +20,7 @@
         // than a thing a scenario names, and the Settings picker reads this
         // order, so the shipped default has to stand first in it.
         "ui_themes/base.content.ron",
+        "items/base.content.ron",
         "sections/base.content.ron",
         "styles/base.content.ron",
         "ships/base.content.ron",

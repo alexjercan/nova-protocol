@@ -11,7 +11,7 @@ use bevy::prelude::*;
 use nova_events::prelude::MetersPerSecond3;
 use nova_gameplay::{
     prelude::*,
-    test_support::{settle, unfinished_integrity_physics_app},
+    test_support::{settle, test_items, unfinished_integrity_physics_app},
 };
 use nova_ship::{flight::prelude::*, prelude::*};
 use serde::Deserialize;
@@ -136,6 +136,7 @@ fn app() -> App {
     app.insert_resource(sections);
     app.insert_resource(ships);
     app.init_resource::<CargoCanisterIdAllocator>();
+    app.insert_resource(test_items());
     app.add_systems(
         FixedUpdate,
         slew_helm

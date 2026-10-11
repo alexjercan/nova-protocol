@@ -528,7 +528,7 @@
                             ),
                             allegiance: Some(Player),
                             inventory: {
-                                PdcRound: 2000,
+                                "PdcRound": 2000,
                             },
                             lootable: false,
                             credits: 2000,
@@ -1198,7 +1198,7 @@
                                 0.0,
                             ),
                             inventory: {
-                                PdcRound: 2000,
+                                "PdcRound": 2000,
                             },
                             lootable: false,
                             credits: 2000,

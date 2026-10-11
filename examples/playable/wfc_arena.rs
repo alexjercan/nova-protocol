@@ -1053,6 +1053,10 @@ fn player_bindings(
 /// One combatant: a drafted hull, clad, on its team's colors and in its
 /// team's line - under the same AI pilot the campaign's raiders fly, or
 /// under the VIEWER for the one slot `:player` names.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one spawn config over the roster slot and both catalogs"
+)]
 fn combatant(
     slot: usize,
     seed: u64,
@@ -1061,6 +1065,7 @@ fn combatant(
     place: (usize, usize),
     binding_overrides: &BTreeMap<(usize, String), Vec<InputSource>>,
     sections: &GameSections,
+    items: &GameItems,
 ) -> ScenarioObjectConfig {
     let team = &TEAMS[ship.team];
     // A resolve error is not ignored: `refuse_broken_ships` lints this spawn
@@ -1133,7 +1138,7 @@ fn combatant(
                 })
             },
             design: ShipDesignSource::Inline(hull),
-            inventory: spare_ammo(&resolved),
+            inventory: spare_ammo(&resolved, items),
             ..Default::default()
         }),
     }
@@ -1143,10 +1148,10 @@ fn combatant(
 ///
 /// The arena's loadout, not a balance rule: the shares sum to the whole hold,
 /// and the PDC rounds the guns spend fastest take half of it.
-const AMMO_HOLD_SHARE: [(ItemType, u32); 3] = [
-    (ItemType::PdcRound, 50),
-    (ItemType::Torpedo, 40),
-    (ItemType::RailSlug, 10),
+const AMMO_HOLD_SHARE: [(ItemRoleType, u32); 3] = [
+    (ItemRoleType::PdcRound, 50),
+    (ItemRoleType::Torpedo, 40),
+    (ItemRoleType::RailSlug, 10),
 ];
 
 /// The most full reloads a combatant carries of one ammunition, counted over
@@ -1160,24 +1165,25 @@ const SPARE_MAGAZINES: u32 = 2;
 /// A round no mounted magazine loads is not carried, and a share lighter than
 /// one item carries none - a small hull's torpedo share does not lift one
 /// 150 kg torpedo.
-fn spare_ammo(hull: &ResolvedShipDesign) -> ShipInventoryStock {
+fn spare_ammo(hull: &ResolvedShipDesign, items: &GameItems) -> ShipInventoryStock {
     let capacity_g = u64::from(hull.cargo_capacity_g());
     ShipInventoryStock::new(AMMO_HOLD_SHARE.into_iter().filter_map(|(item, share)| {
         let magazines: u64 = hull
             .sections
             .iter()
             .filter_map(|section| match (&section.config.kind, item) {
-                (SectionKind::Turret(turret), ItemType::PdcRound) => turret.ammunition.rounds(),
-                (SectionKind::Torpedo(bay), ItemType::Torpedo) => bay.ammunition.rounds(),
-                (SectionKind::Railgun(lance), ItemType::RailSlug) => lance.ammunition.rounds(),
+                (SectionKind::Turret(turret), ItemRoleType::PdcRound) => turret.ammunition.rounds(),
+                (SectionKind::Torpedo(bay), ItemRoleType::Torpedo) => bay.ammunition.rounds(),
+                (SectionKind::Railgun(lance), ItemRoleType::RailSlug) => lance.ammunition.rounds(),
                 _ => None,
             })
             .map(u64::from)
             .sum();
-        let room = capacity_g * u64::from(share) / 100 / u64::from(item.mass_g());
+        let design = items.role(item);
+        let room = capacity_g * u64::from(share) / 100 / u64::from(design.mass_g);
         let count = (magazines * u64::from(SPARE_MAGAZINES)).min(room);
         let count = u32::try_from(count).expect("a share of a u32 hold counts in a u32");
-        (count > 0).then_some((item, count))
+        (count > 0).then_some((design.id.clone(), count))
     }))
 }
 
@@ -1488,6 +1494,7 @@ fn ship_style<'a>(styles: &'a GameStyles, ship: &ShipSpec, run: StyleId<'a>) -> 
 fn arena(
     game_assets: &GameAssets,
     sections: &GameSections,
+    items: &GameItems,
     styles: &GameStyles,
     roster: &mut Roster,
 ) -> ScenarioConfig {
@@ -1514,6 +1521,7 @@ fn arena(
                 places[slot],
                 &roster.binding_overrides,
                 sections,
+                items,
             ))
         })
         .collect();
@@ -1566,7 +1574,7 @@ fn arena(
             game_assets.cubemap.clone().into(),
         )
     };
-    refuse_broken_ships(&scenario, sections);
+    refuse_broken_ships(&scenario, sections, items);
     scenario
 }
 
@@ -1574,9 +1582,10 @@ fn arena(
 ///
 /// Nothing here re-implements a check: `lint_errors` runs `lint_scenario`, the
 /// same function the `content lint` gate and the runtime loader run, so a
-/// clean arena is one the game would accept.
-fn refuse_broken_ships(scenario: &ScenarioConfig, sections: &GameSections) {
-    let errors = lint_errors(scenario, sections);
+/// clean arena is one the game would accept. The combatants carry spare
+/// ammunition, so the gate reads the loaded item catalog.
+fn refuse_broken_ships(scenario: &ScenarioConfig, sections: &GameSections, items: &GameItems) {
+    let errors = lint_errors(scenario, sections, items);
     assert!(
         errors.is_empty(),
         "wfc_arena: the collapse produced content the game would refuse:\n  {}",
@@ -3347,13 +3356,13 @@ mod reserve_tests {
     use super::*;
 
     /// The rounds every finite magazine of `item` holds across `hull`.
-    fn mounted_rounds(hull: &ResolvedShipDesign, item: ItemType) -> u32 {
+    fn mounted_rounds(hull: &ResolvedShipDesign, item: ItemRoleType) -> u32 {
         hull.sections
             .iter()
             .filter_map(|section| match (&section.config.kind, item) {
-                (SectionKind::Turret(turret), ItemType::PdcRound) => turret.ammunition.rounds(),
-                (SectionKind::Torpedo(bay), ItemType::Torpedo) => bay.ammunition.rounds(),
-                (SectionKind::Railgun(lance), ItemType::RailSlug) => lance.ammunition.rounds(),
+                (SectionKind::Turret(turret), ItemRoleType::PdcRound) => turret.ammunition.rounds(),
+                (SectionKind::Torpedo(bay), ItemRoleType::Torpedo) => bay.ammunition.rounds(),
+                (SectionKind::Railgun(lance), ItemRoleType::RailSlug) => lance.ammunition.rounds(),
                 _ => None,
             })
             .sum()
@@ -3366,6 +3375,7 @@ mod reserve_tests {
     #[test]
     fn a_combatant_carries_a_bounded_reserve_for_its_mounted_magazines() {
         let sections = GameSections(nova_authoring::generation::build_section_catalog());
+        let items = GameItems::new(nova_authoring::generation::build_items());
         let tiles = arena_tiles(&sections);
         let [ai, pilot] = [false, true].map(|player| ShipSpec {
             team: 0,
@@ -3376,7 +3386,16 @@ mod reserve_tests {
         for seed in 0..6u64 {
             let spawn = |ship: &ShipSpec| {
                 let hull = combat_hull(&tiles, seed, None, &sections);
-                combatant(0, seed, hull, ship, (0, 1), &BTreeMap::new(), &sections)
+                combatant(
+                    0,
+                    seed,
+                    hull,
+                    ship,
+                    (0, 1),
+                    &BTreeMap::new(),
+                    &sections,
+                    &items,
+                )
             };
             let config = spawn(&ai);
             let ScenarioObjectKind::Spaceship(spaceship) = &config.kind else {
@@ -3388,20 +3407,20 @@ mod reserve_tests {
             let capacity_g = u64::from(resolved.cargo_capacity_g());
             let stock = &spaceship.inventory;
             assert!(
-                stock.mass_g() <= capacity_g,
+                stock.mass_g(&items) <= capacity_g,
                 "seed {seed}: {} g of stock in a {capacity_g} g hold",
-                stock.mass_g()
+                stock.mass_g(&items)
             );
             for (item, share) in [
-                (ItemType::PdcRound, 50),
-                (ItemType::Torpedo, 40),
-                (ItemType::RailSlug, 10),
+                (ItemRoleType::PdcRound, 50),
+                (ItemRoleType::Torpedo, 40),
+                (ItemRoleType::RailSlug, 10),
             ] {
                 let spare = u64::from(2 * mounted_rounds(&resolved, item));
-                let room = capacity_g * share / 100 / u64::from(item.mass_g());
+                let room = capacity_g * share / 100 / u64::from(items.role(item).mass_g);
                 let carried = stock
                     .stacks()
-                    .find_map(|(held, count)| (held == item).then_some(count))
+                    .find_map(|(held, count)| (held.as_str() == item.id()).then_some(count))
                     .unwrap_or(0);
                 assert_eq!(
                     u64::from(carried),
@@ -3412,7 +3431,7 @@ mod reserve_tests {
             assert!(
                 stock
                     .stacks()
-                    .all(|(item, _)| item.category() == ItemCategoryType::Ammo),
+                    .all(|(item, _)| items.design(item).category == ItemCategoryType::Ammo),
                 "seed {seed}: the reserve is ammunition only"
             );
             let flown = spawn(&pilot);
@@ -3424,6 +3443,55 @@ mod reserve_tests {
                 "seed {seed}: the player's hull collapses again with the AI's reserve"
             );
         }
+    }
+
+    /// A stocked combatant names real catalog ammunition, so the arena's own
+    /// content gate has to lint it against the loaded item catalog and accept
+    /// it.
+    #[test]
+    fn a_stocked_arena_clears_the_content_gate() {
+        let sections = GameSections(nova_authoring::generation::build_section_catalog());
+        let items = GameItems::new(nova_authoring::generation::build_items());
+        let tiles = arena_tiles(&sections);
+        let ship = ShipSpec {
+            team: 0,
+            style: None,
+            seed: None,
+            player: false,
+        };
+        let config = combatant(
+            0,
+            0,
+            combat_hull(&tiles, 0, None, &sections),
+            &ship,
+            (0, 1),
+            &BTreeMap::new(),
+            &sections,
+            &items,
+        );
+        let ScenarioObjectKind::Spaceship(spaceship) = &config.kind else {
+            unreachable!("a combatant is a spaceship");
+        };
+        assert!(
+            spaceship.inventory.stacks().next().is_some(),
+            "the combatant carries a reserve"
+        );
+        let scenario = ScenarioConfig {
+            events: vec![ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnStart,
+                once: false,
+                filters: vec![],
+                actions: vec![EventActionConfig::SpawnScenarioObject(config)],
+            }],
+            ..ScenarioConfig::new(
+                "wfc_arena".to_string(),
+                "WFC Arena".to_string(),
+                AssetRef::from("base/textures/cubemap.png"),
+            )
+        };
+
+        refuse_broken_ships(&scenario, &sections, &items);
     }
 
     /// A drafted hull resolved, with its hold cut to `hulls` hull sections and
@@ -3446,17 +3514,24 @@ mod reserve_tests {
     #[test]
     fn a_small_hold_carries_no_torpedo_its_share_cannot_lift() {
         let sections = GameSections(nova_authoring::generation::build_section_catalog());
+        let items = GameItems::new(nova_authoring::generation::build_items());
         let hull = small_hull(&sections, 3);
         assert_eq!(hull.cargo_capacity_g(), 300_000);
         assert!(
-            mounted_rounds(&hull, ItemType::Torpedo) > 0,
+            mounted_rounds(&hull, ItemRoleType::Torpedo) > 0,
             "the bays are mounted"
         );
 
-        let pdc = 750.min(2 * mounted_rounds(&hull, ItemType::PdcRound));
+        let pdc = 750.min(2 * mounted_rounds(&hull, ItemRoleType::PdcRound));
         assert_eq!(
-            spare_ammo(&hull).stacks().collect::<Vec<_>>(),
-            [(ItemType::PdcRound, pdc), (ItemType::RailSlug, 1)],
+            spare_ammo(&hull, &items)
+                .stacks()
+                .map(|(item, count)| (item.as_str(), count))
+                .collect::<Vec<_>>(),
+            [
+                (ItemRoleType::PdcRound.id(), pdc),
+                (ItemRoleType::RailSlug.id(), 1)
+            ],
         );
     }
 
@@ -3465,9 +3540,17 @@ mod reserve_tests {
     #[test]
     fn a_dry_gun_reloads_from_the_reserve_and_conserves_rounds() {
         let sections = GameSections(nova_authoring::generation::build_section_catalog());
+        let items = GameItems::new(nova_authoring::generation::build_items());
         let hull = small_hull(&sections, 1);
-        let mut inventory = ShipInventory::new(hull.cargo_capacity_g(), spare_ammo(&hull).stacks());
-        let reserve = inventory.count(ItemType::PdcRound);
+        let mut inventory = ShipInventory::new(
+            &items,
+            hull.cargo_capacity_g(),
+            spare_ammo(&hull, &items)
+                .stacks()
+                .map(|(item, count)| (item.clone(), count)),
+        );
+        let pdc_round = ItemDesignId::from(ItemRoleType::PdcRound);
+        let reserve = inventory.count(&pdc_round);
         let (capacity, batch) = hull
             .sections
             .iter()
@@ -3482,13 +3565,13 @@ mod reserve_tests {
             rounds: 0,
             capacity,
         };
-        let mut reload = SectionReload::from_config(batch, ItemType::PdcRound);
+        let mut reload = SectionReload::from_config(batch, pdc_round.clone());
 
         for _ in 0..capacity {
             reload.advance(&mut ammo, &mut inventory, batch.delay);
         }
 
         assert_eq!(ammo.rounds, capacity.min(reserve));
-        assert_eq!(ammo.rounds + inventory.count(ItemType::PdcRound), reserve);
+        assert_eq!(ammo.rounds + inventory.count(&pdc_round), reserve);
     }
 }

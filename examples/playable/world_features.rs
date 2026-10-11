@@ -165,13 +165,14 @@ fn boot_observer(
     game_assets: Res<GameAssets>,
     loaded: Res<LoadedSectionPacks>,
     styles: Res<GameStyles>,
+    items: Res<GameItems>,
 ) {
     commands.trigger(LoadScenario(free_play_scenario(
         &game_assets,
         SCENARIO_ID,
         "World Features Observer",
     )));
-    commands.insert_resource(featured_world_config(&loaded, &styles));
+    commands.insert_resource(featured_world_config(&loaded, &styles, &items));
 
     commands.spawn((
         Name::new("Observer Key Light"),
@@ -847,7 +848,7 @@ fn search_ship_shots(world: &mut World) {
                 for ship in manifest.ships {
                     planned += 1;
                     assert_eq!(
-                        ship.design.presentation.style.as_deref(),
+                        ship.design().presentation.style.as_deref(),
                         Some(role_style_id(ship.role)),
                         "world features: ship {} is planned in another style",
                         ship.id
@@ -862,12 +863,12 @@ fn search_ship_shots(world: &mut World) {
                             .distance(home)
                             .get()
                             .total_cmp(&best.position.distance(home).get())
-                            .then_with(|| ship.id.cmp(&best.id))
+                            .then_with(|| ship.id.as_str().cmp(best.id.as_str()))
                             .is_lt()
                     });
                     if nearer {
                         shots[r][c] = Some(ShipShot {
-                            id: ship.id,
+                            id: ship.id.as_str().to_owned(),
                             cell,
                             civilization: ship.civilization,
                             role: ship.role,

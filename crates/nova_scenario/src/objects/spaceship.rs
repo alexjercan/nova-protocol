@@ -33,7 +33,7 @@ pub mod prelude {
         freeze_ship, patrol_stops_fault, spaceship_scenario_object, thaw_ship, AIControllerConfig,
         FrozenShip, PlayerControllerConfig, ResumedSpaceship, SectionId, SectionSource,
         SpaceshipConfig, SpaceshipController, SpaceshipDesign, SpaceshipPlugin,
-        SpaceshipSectionConfig, SpaceshipSectionConfigPatch,
+        SpaceshipSectionConfig, SpaceshipSectionConfigPatch, SpaceshipSpawnPolicy,
     };
 }
 
@@ -448,6 +448,22 @@ pub struct SpaceshipSectionConfigPatch {
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut, Reflect)]
 pub struct SpaceshipDesign(pub ShipDesignSource);
 
+/// The side and loot policy a ship was authored with, carried on the root
+/// from the spawn bundle to `insert_spaceship_sections`, which applies and
+/// removes it like [`ShipInventoryStock`].
+///
+/// A bundle cannot hold an optional component, and the controller marker's
+/// requirement default (Player ships `Allegiance::Player`, AI ships
+/// `Allegiance::Enemy`) only exists once the observer inserts that marker, so
+/// the observer is the one place the authored override can land after it.
+#[derive(Component, Clone, Debug, Default, Reflect)]
+pub struct SpaceshipSpawnPolicy {
+    /// [`SpaceshipConfig::allegiance`]: `Some` overrides the marker default.
+    pub allegiance: Option<Allegiance>,
+    /// [`SpaceshipConfig::lootable`]: `true` inserts [`LootableShipMarker`].
+    pub lootable: bool,
+}
+
 /// The scenario/modding RON surface for a spaceship object: WHICH design it
 /// spawns, who drives it, which side it is on, and what it is permitted to do.
 /// Passed to `spaceship_scenario_object` to build the ship-root bundle.
@@ -508,9 +524,10 @@ pub struct SpaceshipConfig {
 }
 
 /// Build the ship-root bundle from a [`SpaceshipConfig`]: the marker, type
-/// name, controller, and the hull reference the `insert_spaceship_sections`
+/// name, controller, the hull reference the `insert_spaceship_sections`
 /// observer resolves to spawn the section children and wire the driver at
-/// spawn.
+/// spawn, and the [`SpaceshipSpawnPolicy`] that observer applies for the
+/// authored allegiance and the lootable marker. No caller re-applies either.
 ///
 /// The design's own components (collapse threshold, skin, style, the feedback
 /// voice) are inserted by that observer rather than here: a `Prototype` design
@@ -535,6 +552,10 @@ pub fn spaceship_scenario_object(config: SpaceshipConfig) -> impl Bundle {
         SpaceshipDesign(config.design),
         config.capabilities,
         config.inventory,
+        SpaceshipSpawnPolicy {
+            allegiance: config.allegiance,
+            lootable: config.lootable,
+        },
         ShipCredits(config.credits),
         RigidBody::Dynamic,
         LinearVelocity(config.initial_velocity.to_engine()),
@@ -594,11 +615,29 @@ struct FrozenShipState {
 }
 
 impl FrozenShip {
+    /// Every item id the ship holds: its hold's stacks and what each
+    /// surviving section holds, see [`FrozenSection::item_ids`].
+    pub fn item_ids(&self) -> impl Iterator<Item = &ItemDesignId> {
+        self.state.inventory.stacks().map(|(item, _)| item).chain(
+            self.state
+                .sections
+                .values()
+                .flat_map(FrozenSection::item_ids),
+        )
+    }
+
     /// Whether section `section` survived to freeze: whether it still has a
     /// state entry a thaw would spawn.
     #[must_use]
     pub fn has_section(&self, section: &str) -> bool {
         self.state.sections.contains_key(section)
+    }
+
+    /// The hold the ship froze with, as the save checks it against its
+    /// capacity.
+    #[must_use]
+    pub fn inventory(&self) -> &ShipInventory {
+        &self.state.inventory
     }
 }
 
@@ -779,33 +818,29 @@ pub fn thaw_ship(entity: &mut EntityCommands, frozen: FrozenShip) {
         }),
         ThawingShip(Some(state)),
     ));
-    if let Some(allegiance) = allegiance {
-        entity.insert(allegiance);
-    }
-    if lootable {
-        entity.insert(LootableShipMarker);
-    }
 }
 
 /// Spawns spaceship scenario objects: resolves each ship's hull and section
 /// list into child section entities and wires the player/AI controller.
 /// Adds the `Add<SpaceshipRootMarker>` section-insert observer, seeds empty
-/// [`GameSections`] and [`GameShipDesigns`] catalogs, and registers the
-/// section-modification components and their apply-on-add observers.
+/// [`GameSections`], [`GameShipDesigns`], and [`GameItems`] catalogs, and
+/// registers the section-modification components and their apply-on-add
+/// observers.
 pub struct SpaceshipPlugin;
 
 impl Plugin for SpaceshipPlugin {
     fn build(&self, app: &mut App) {
         trace!("SpaceshipPlugin: build");
 
-        // `insert_spaceship_sections` resolves Prototype sources against
-        // `GameSections` and `GameShipDesigns`, so the plugin self-provides
-        // (empty) defaults: production and the editor overwrite them with the
-        // loaded catalogs, and Inline-only spawns (examples, previews) then
-        // need no catalog wiring. Makes both resource dependencies
-        // self-satisfying instead of a spawn-order footgun.
+        // `insert_spaceship_sections` reads `GameSections`, `GameShipDesigns`,
+        // and `GameItems`, so the plugin self-provides empty defaults for all
+        // three: production and the editor replace them with the merged
+        // catalogs, and Inline-only spawns with empty stock (examples,
+        // previews) then need no catalog wiring. Nonempty stock still needs
+        // the merged item catalog; an unknown item panics at spawn.
         app.init_resource::<GameSections>();
         app.init_resource::<GameShipDesigns>();
+        app.init_resource::<GameItems>();
 
         app.add_observer(insert_spaceship_sections);
     }
@@ -816,12 +851,14 @@ fn insert_spaceship_sections(
     mut commands: Commands,
     game_sections: Res<GameSections>,
     game_designs: Res<GameShipDesigns>,
+    items: Res<GameItems>,
     q_spaceship: Query<
         (
             &SpaceshipDesign,
             &SpaceshipController,
             &Transform,
             &ShipInventoryStock,
+            &SpaceshipSpawnPolicy,
             Has<DerelictShipMarker>,
         ),
         With<SpaceshipRootMarker>,
@@ -831,7 +868,7 @@ fn insert_spaceship_sections(
     let entity = add.entity;
     trace!("insert_spaceship_sections: entity {:?}", entity);
 
-    let Ok((design_source, controller_config, transform, stock, derelict)) =
+    let Ok((design_source, controller_config, transform, stock, policy, derelict)) =
         q_spaceship.get(entity)
     else {
         // NOT an error: a root with no [`SpaceshipDesign`] is a hull somebody
@@ -889,9 +926,24 @@ fn insert_spaceship_sections(
             rcs_loop: presentation.rcs_loop_sound.clone(),
         },
         ShipHullWarning(presentation.warn_hull_fraction.clamp(0.0, 1.0)),
-        ShipInventory::new(design.cargo_capacity_g(), stock.stacks()),
+        ShipInventory::new(
+            &items,
+            design.cargo_capacity_g(),
+            stock.stacks().map(|(item, count)| (item.clone(), count)),
+        ),
     ));
     commands.entity(entity).remove::<ShipInventoryStock>();
+
+    // Order against the controller marker below does not matter: the
+    // marker's requirement only fills an absent `Allegiance`, and a plain
+    // insert overwrites the requirement default, so the authored side wins.
+    if let Some(allegiance) = policy.allegiance {
+        commands.entity(entity).insert(allegiance);
+    }
+    if policy.lootable {
+        commands.entity(entity).insert(LootableShipMarker);
+    }
+    commands.entity(entity).remove::<SpaceshipSpawnPolicy>();
 
     // An AI ship with no weapon section cannot fight; it becomes a
     // non-combatant below so it flies its routine and never chases. Counted
@@ -1195,6 +1247,8 @@ fn insert_spaceship_sections(
 
 #[cfg(test)]
 mod tests {
+    use nova_gameplay::test_support::test_items;
+
     use super::*;
     use crate::objects::ship_design::prelude::{
         ShipDesign, ShipDesignPrototype, ShipIntegrityConfig,
@@ -1210,6 +1264,7 @@ mod tests {
         // Inline hulls and sections, so empty catalogs are fine.
         world.init_resource::<GameSections>();
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
 
         let spawn = |world: &mut World, config: AIControllerConfig| {
@@ -1372,6 +1427,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<GameSections>();
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
         let blind = world
             .spawn((
@@ -1402,6 +1458,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<GameSections>();
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
         let boarder = world
             .spawn((
@@ -1434,6 +1491,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<GameSections>();
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
         let miner = world
             .spawn((
@@ -1463,6 +1521,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<GameSections>();
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
 
         let ship = world
@@ -1494,6 +1553,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<GameSections>();
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
 
         let turret_section = || SpaceshipSectionConfig {
@@ -1583,6 +1643,7 @@ mod tests {
         let world = app.world_mut();
         world.init_resource::<GameSections>();
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
 
         let ship = world
@@ -1637,6 +1698,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<GameSections>();
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
 
         let kinds = [
@@ -1718,6 +1780,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<GameSections>();
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
         let spawn = |world: &mut World, config: AIControllerConfig| {
             let entity = world
@@ -1766,6 +1829,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<GameSections>();
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
         let spawn = |world: &mut World, collapse_threshold| {
             let entity = world
@@ -1871,6 +1935,7 @@ mod tests {
                 ..default()
             },
         }]));
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
 
         let entity = world
@@ -1926,6 +1991,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<GameSections>();
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
 
         let entity = world
@@ -1992,6 +2058,7 @@ mod tests {
         let mut world = World::new();
         world.insert_resource(GameSections(catalog.0.clone()));
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
 
         let sections = sources
@@ -2045,6 +2112,7 @@ mod tests {
         let mut world = World::new();
         world.insert_resource(GameSections(vec![section_prototype("plate")]));
         world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
         world.add_observer(insert_spaceship_sections);
         let hull = |id: &str, z| SpaceshipSectionConfig {
             id: id.to_string(),
@@ -2060,7 +2128,10 @@ mod tests {
                         sections: vec![hull("bow", 0.0), hull("stern", 1.0)],
                         ..default()
                     }),
-                    inventory: ShipInventoryStock::new([(ItemType::HullPlate, plates)]),
+                    inventory: ShipInventoryStock::new([(
+                        ItemDesignId::from(ItemRoleType::HullPlate),
+                        plates,
+                    )]),
                     ..default()
                 }),
             ))
@@ -2077,8 +2148,11 @@ mod tests {
 
         let inventory = world.entity(ship).get::<ShipInventory>().unwrap();
         assert_eq!(inventory.capacity_g(), 200_000);
-        assert_eq!(inventory.used_g(), 120_000);
-        assert_eq!(inventory.count(ItemType::HullPlate), 12);
+        assert_eq!(inventory.used_g(&test_items()), 120_000);
+        assert_eq!(
+            inventory.count(&ItemDesignId::from(ItemRoleType::HullPlate)),
+            12
+        );
         assert!(world.entity(ship).get::<ShipInventoryStock>().is_none());
     }
 

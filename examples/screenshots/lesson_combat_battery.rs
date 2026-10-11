@@ -329,7 +329,7 @@ fn the_battery(
         // gauge only exists for a section that carries a `SectionAmmo`, so a
         // rig with unlimited guns has nothing for this lesson to photograph.
         player_hull,
-        ShipInventoryStock::new([(ItemType::PdcRound, PDC_RESERVE)]),
+        ShipInventoryStock::new([(ItemRoleType::PdcRound.into(), PDC_RESERVE)]),
     );
 
     let boats: Vec<EventActionConfig> = BOAT_IDS
@@ -457,7 +457,7 @@ fn loaded_plus_reserve(world: &mut World) -> (u32, u32) {
     let reserve = world
         .get::<ShipInventory>(player)
         .expect("every ship root carries a ShipInventory")
-        .count(ItemType::PdcRound);
+        .count(&ItemRoleType::PdcRound.into());
     (loaded, reserve)
 }
 

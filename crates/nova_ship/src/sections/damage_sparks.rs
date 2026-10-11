@@ -25,9 +25,9 @@ use avian3d::prelude::{LinearVelocity, RigidBody};
 use bevy::prelude::*;
 use nova_gameplay::prelude::{unit_sphere_point, DamageLevel, Fnv32, TempEntity};
 
-/// `DamageSparks` and `DamageSparksPlugin`.
+/// `DamageSparkMarker`, `DamageSparks` and `DamageSparksPlugin`.
 pub mod prelude {
-    pub use super::{DamageSparks, DamageSparksPlugin};
+    pub use super::{DamageSparkMarker, DamageSparks, DamageSparksPlugin};
 }
 
 /// The level below which a section throws nothing at all.
@@ -76,6 +76,14 @@ pub struct DamageSparks {
     /// the next one. See [`spark_direction`] for why a counter and not an RNG.
     pub thrown: u32,
 }
+
+/// A spark in flight off a failing section. A range can count these to
+/// assert a burst happened; the save classifies a live one by this marker, as
+/// [`ImpactSparkMarker`](nova_gameplay::prelude::ImpactSparkMarker) names the
+/// other spark.
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct DamageSparkMarker;
 
 /// Which way the `nth` spark off `section` is thrown: a point on the unit
 /// sphere, spread by a hash of the two.
@@ -133,6 +141,7 @@ impl Plugin for DamageSparksPlugin {
         trace!("DamageSparksPlugin: build");
 
         app.register_type::<DamageSparks>();
+        app.register_type::<DamageSparkMarker>();
         app.init_resource::<SparkAssets>();
         app.add_systems(Update, throw_damage_sparks);
     }
@@ -180,6 +189,7 @@ fn throw_damage_sparks(
 
         commands.spawn((
             Name::new("Damage Spark"),
+            DamageSparkMarker,
             Mesh3d(assets.mesh.clone()),
             MeshMaterial3d(assets.material.clone()),
             Transform::from_translation(origin + direction * 0.4),

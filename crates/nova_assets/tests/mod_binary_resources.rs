@@ -20,7 +20,7 @@ use bevy::{
     state::app::StatesPlugin,
 };
 use nova_assets::prelude::*;
-use nova_gameplay::prelude::GameStates;
+use nova_gameplay::{prelude::GameStates, test_support::test_items};
 use nova_modding::prelude::{
     BundleAsset, CatalogEntry, Content, ContentAsset, InstalledCatalog, ModEntry, ModMeta,
     NovaModdingPlugin,
@@ -202,7 +202,12 @@ fn an_undeclared_self_ref_is_an_error_content_issue() {
     let content = app
         .world_mut()
         .resource_mut::<Assets<ContentAsset>>()
-        .add(ContentAsset(vec![Content::Scenario(scenario)]));
+        // The merge refuses a base pack without every role item.
+        .add(ContentAsset(
+            std::iter::once(Content::Scenario(scenario))
+                .chain(test_items().iter().cloned().map(Content::Item))
+                .collect(),
+        ));
     let bundle = app
         .world_mut()
         .resource_mut::<Assets<BundleAsset>>()
@@ -510,11 +515,18 @@ fn a_dep_ref_to_base_resolves_against_base_folder_without_declaring_base() {
     // `dep://base/X` WITHOUT listing base in meta.dependencies, and it resolves
     // against base's own folder. (Synthetic base bundle.)
     let mut app = headless_app();
+    // The merge refuses a base pack without every role item.
+    let base_items = app
+        .world_mut()
+        .resource_mut::<Assets<ContentAsset>>()
+        .add(ContentAsset(
+            test_items().iter().cloned().map(Content::Item).collect(),
+        ));
     let base_bundle = app
         .world_mut()
         .resource_mut::<Assets<BundleAsset>>()
         .add(BundleAsset {
-            content: vec![],
+            content: vec![base_items],
             meta: ModMeta::default(),
             new_game_scenario: None,
             resources: vec!["textures/cubemap.png".to_string()],

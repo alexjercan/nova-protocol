@@ -268,9 +268,11 @@ spawn only; it has no runtime action yet.
 
 ### Inventory
 
-What the ship carries at spawn: a map from item to stack count. The field is
-required; write `inventory: {}` for an empty hold. A count of `0` or the same
-item listed twice fails lint and load. The design sets the hold: 100 kg per
+What the ship carries at spawn: a map from item id to stack count, with
+quoted keys (`inventory: {"HullPlate": 8}`; a bare key fails to load). The
+field is required; write `inventory: {}` for an empty hold. A count of `0` or
+the same item listed twice fails lint and load. An item id no loaded mod
+defines fails lint, then load. The design sets the hold: 100 kg per
 hull section. Stock heavier than the hold fails lint, then load. Stock shows
 in the TAB interface's Inventory pane. A Ship pane repair spends hull plates,
 and every weapon's idle reload draws its matching round from this same stock
@@ -283,6 +285,14 @@ seller carries and credits the buyer holds; nothing restocks. An undocked player
 [cargo intake](../sections/#cargo-intake) can Jettison items in canisters and
 take canisters back in. Outside a saved Open World (desktop build only), nothing is
 saved: stock and credits return to their authored values when the scenario loads again.
+
+The table below is the base catalog; a mod adds its own items under its own
+ids, and any ship's stock, a canister or a trade may carry them the same way.
+The base game must define all ten ids below, each in its category: `HullPlate`
+feeds a repair, the ammunition a weapon's reload, the ores mining yield, and
+generated ship holds draw `Rations` and `SalvagedParts`. A dependent mod may
+replace one with its own mass and prices, never another category; a mod item
+of its own is generic authored stock. See [Content files](../mod-files/#content-files).
 
 | Item | Mass | Category | Ask | Bid |
 | --- | --- | --- | --- | --- |
@@ -308,7 +318,7 @@ Serpent and Lance alike - the bay decides the flight.
 controller: None,
 allegiance: Some(Neutral),
 inventory: {
-    HullPlate: 8,
+    "HullPlate": 8,
 },
 lootable: true,
 credits: 0,
@@ -323,9 +333,10 @@ credits: 0,
      Hold: crates/nova_scenario/src/objects/ship_design.rs
      (`ResolvedShipDesign::cargo_capacity_g` :402, `HULL_SECTION_CARGO_G` :393);
      overstock lint in crates/nova_scenario/src/lint/ship.rs
-     `check_object_prototypes`. Item catalog, masses and categories:
-     crates/nova_gameplay/src/inventory.rs `ItemType::mass_g`,
-     `ItemType::category`, `ItemType::ask_cr`, `ItemType::bid_cr`. -->
+     `check_object_prototypes`. Item catalog: crates/nova_gameplay/src/inventory.rs
+     `ItemDesign` (`mass_g`, `category`, `ask_cr`, `bid_cr`); the base
+     catalog's values: crates/nova_authoring/src/base_content/items.rs
+     `item_catalog`. -->
 
 ### Section patches
 

@@ -1,7 +1,7 @@
 //! The content MERGE: flatten every enabled bundle's `Content` in dependency
 //! order and overlay it by id into the game's registries (`GameSections`,
-//! `GameShipDesigns`, `GameScenarios`, `GameCampaigns`, `GameStyles`), linting
-//! the result as it goes.
+//! `GameShipDesigns`, `GameScenarios`, `GameCampaigns`, `GameStyles`,
+//! `GameItems`), linting the result as it goes.
 
 /// Glob-import surface: `use nova_assets::merge::prelude::*` re-exports the
 /// public API of this module.
@@ -17,7 +17,7 @@ mod canonical;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use bevy::prelude::*;
-use nova_gameplay::prelude::{Fnv64, GameStates};
+use nova_gameplay::prelude::{Fnv64, GameItems, GameStates, ItemDesign};
 use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog, BASE_MOD_ID};
 use nova_scenario::prelude::{
     GameCampaigns, GameScenarios, GameShipDesigns, NewGameStart, ScenarioRole, ShipDesignPrototype,
@@ -65,9 +65,12 @@ use crate::{
 /// Every section a loaded enabled bundle carries passes
 /// [`lint_section_config`](nova_scenario::prelude::lint_section_config), and
 /// every ship design it carries passes
-/// [`section_id_errors`](nova_scenario::prelude::section_id_errors), before
-/// anything is published, used or not, and the finding is charged to the
-/// bundle that authored it. An error in the base bundle refuses the load: it
+/// [`section_id_errors`](nova_scenario::prelude::section_id_errors), and every
+/// bundle passes the item rule
+/// ([`item_pack_faults`](crate::items::item_pack_faults)), before anything is
+/// published, used or not, and the finding is charged to the bundle that
+/// authored it. Two unrelated bundles that define one item id are both
+/// charged. An error in the base bundle refuses the load: it
 /// inserts [`FatalAssetFailure`] and publishes nothing. An error in any other
 /// bundle quarantines that whole mod and every enabled mod that depends on it,
 /// and this pass merges without them - so no registry ever holds an invalid
@@ -163,6 +166,35 @@ pub fn register_bundles(
         1 => errors[0].message.clone(),
         n => format!("{} (+{} more)", errors[0].message, n - 1),
     };
+    // The item rule judges every loaded bundle at once: whether two packs may
+    // define one item depends on both, never on which loaded first.
+    let item_packs: Vec<(&str, &BundleAsset, Vec<&ItemDesign>)> = ordered
+        .iter()
+        .filter_map(|(mod_id, handle)| {
+            let bundle = bundles.get(*handle)?;
+            let items = bundle
+                .content
+                .iter()
+                .filter_map(|handle| contents.get(handle))
+                .flat_map(|content| content.0.iter())
+                .filter_map(|item| match item {
+                    Content::Item(design) => Some(design),
+                    _ => None,
+                })
+                .collect();
+            Some((*mod_id, bundle, items))
+        })
+        .collect();
+    let mut item_faults = crate::items::item_pack_faults(
+        &item_packs
+            .iter()
+            .map(|(id, bundle, items)| crate::items::ItemPack {
+                id,
+                dependencies: &bundle.meta.dependencies,
+                items: items.clone(),
+            })
+            .collect::<Vec<_>>(),
+    );
     // Every bundle is checked before any verdict, so a refused base changes no
     // mod: the run ends, and nothing about the enabled set is persisted.
     let mut base_errors = Vec::new();
@@ -171,7 +203,18 @@ pub fn register_bundles(
         let Some(bundle) = bundles.get(*handle) else {
             continue;
         };
-        let errors = section_errors(mod_id, bundle, &contents);
+        let mut errors = section_errors(mod_id, bundle, &contents);
+        errors.extend(
+            item_faults
+                .remove(*mod_id)
+                .into_iter()
+                .flatten()
+                .map(|message| nova_scenario::prelude::LintIssue {
+                    severity: nova_scenario::prelude::LintSeverity::Error,
+                    scenario: mod_id.to_string(),
+                    message,
+                }),
+        );
         if errors.is_empty() {
             continue;
         }
@@ -498,6 +541,7 @@ pub fn register_bundles(
         .filter(|(_, role)| !role.is_backdrop())
         .map(|(id, _)| id.clone())
         .collect();
+    let merged_items = GameItems::new(outcome.items);
     let mut content_issues = nova_scenario::prelude::ContentIssues::default();
     // Every MERGED ship, checked where it is authored: a scenario referencing
     // one only checks that the id resolves, so this is the pass that sees the
@@ -528,6 +572,7 @@ pub fn register_bundles(
             &merged_sections,
             &merged_ships,
             &merged_scenarios,
+            &merged_items,
         );
         for issue in &found {
             warn!(
@@ -617,6 +662,7 @@ pub fn register_bundles(
     commands.insert_resource(GameShipDesigns(outcome.ships));
     commands.insert_resource(TrainingCatalog::new(outcome.lessons));
     commands.insert_resource(GameUiThemes(outcome.ui_themes));
+    commands.insert_resource(merged_items);
 }
 
 /// Every error [`lint_section_config`](nova_scenario::prelude::lint_section_config)
@@ -670,7 +716,7 @@ fn section_errors(
 /// The version of the canonical form [`ContentCatalogDigest`] hashes. Change
 /// it with any change to what the digest covers or how it is written, so an
 /// old pin cannot match a new form.
-const CONTENT_CATALOG_DIGEST_VERSION: u32 = 1;
+const CONTENT_CATALOG_DIGEST_VERSION: u32 = 2;
 
 /// One merged bundle: its mod id, its asset and its rewritten content items,
 /// in merge order.
@@ -836,6 +882,10 @@ pub struct MergeOutcome {
     /// new id. The order is what the Settings picker lists, so the base mod's
     /// default stays first.
     pub ui_themes: Vec<UiThemeConfig>,
+    /// Items in registration order, overlaid last-wins by id. The gate in
+    /// [`register_bundles`] has already refused every pack that may not
+    /// replace an item it shares, so the winner is the dependent pack.
+    pub items: Vec<ItemDesign>,
     /// Human-readable messages, one per intra-bundle duplicate id that was
     /// skipped. Empty on clean data.
     pub conflicts: Vec<String>,
@@ -936,6 +986,10 @@ fn merge_content_item(item: &Content, into: &mut MergeOutcome) {
         Content::UiTheme(cfg) => match into.ui_themes.iter_mut().find(|t| t.id == cfg.id) {
             Some(existing) => *existing = cfg.as_ref().clone(),
             None => into.ui_themes.push(cfg.as_ref().clone()),
+        },
+        Content::Item(design) => match into.items.iter_mut().find(|i| i.id == design.id) {
+            Some(existing) => *existing = design.clone(),
+            None => into.items.push(design.clone()),
         },
     }
 }

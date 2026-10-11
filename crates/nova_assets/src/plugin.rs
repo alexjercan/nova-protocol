@@ -355,7 +355,7 @@ fn finish_processing(mut state: ResMut<NextState<GameAssetsStates>>) {
 mod tests {
     use bevy::{asset::AssetPlugin, state::app::StatesPlugin};
     use nova_events::units::prelude::Meters;
-    use nova_gameplay::prelude::AssetRef;
+    use nova_gameplay::{prelude::AssetRef, test_support::test_items};
     use nova_modding::prelude::{
         BundleAsset, CatalogEntry, Content, ContentAsset, InstalledCatalog, ModEntry, ModMeta,
         NovaModdingPlugin,
@@ -462,6 +462,11 @@ mod tests {
             };
             (entry, content)
         };
+        // The merge refuses a base pack without every role item.
+        let base = base
+            .into_iter()
+            .chain(test_items().iter().cloned().map(Content::Item))
+            .collect();
         let (base_entry, base_content) = entry("base", true, base);
         let (extra_entry, extra_content) = entry("extra", false, extra);
         let catalog = app

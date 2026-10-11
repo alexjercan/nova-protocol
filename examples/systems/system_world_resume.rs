@@ -52,7 +52,7 @@
 //! which waits for ITS OWN leave save before the process exits.
 //!
 //! ONE SUBJECT: a save written by one process opens correctly in another.
-//! The save and load screens, the leave overlay and the status line are
+//! The save and load screens, the leave overlay and the save notice are
 //! `nova_menu`'s own range; the save format and the writer are
 //! `nova_world_base`'s. This range is the player-visible round trip only.
 //!
@@ -170,8 +170,6 @@ const LEAVE_TRY_AGAIN_BUTTON: &str = "Leave Try Again Button";
 const LOAD_SCREEN: &str = "Scenario Loading Screen";
 #[cfg(feature = "debug")]
 const LEAVE_OVERLAY: &str = "Leave Overlay";
-#[cfg(feature = "debug")]
-const SAVE_STATUS_LINE: &str = "Save Status Line";
 
 /// Seconds a load or a stream gets on a software-rendered CI GPU.
 #[cfg(feature = "debug")]
@@ -337,6 +335,7 @@ fn nearest_asteroid(world: &mut World, from: Vec3) -> (Entity, EntityId) {
 /// remesh.
 #[cfg(feature = "debug")]
 fn inject_fixture(world: &mut World) {
+    let items = world.resource::<GameItems>().clone();
     let player = the_player(world).expect("world_resume: exactly one player ship");
     let player_pos = world
         .get::<GlobalTransform>(player)
@@ -362,7 +361,7 @@ fn inject_fixture(world: &mut World) {
         .get::<GlobalTransform>(rock)
         .expect("the fixture rock has a transform")
         .translation();
-    let canister_contents = CargoCanister::new(ItemType::IronOre, 3);
+    let canister_contents = CargoCanister::new(&items, &ItemRoleType::IronOre.into(), 3);
     let canister = world
         .spawn((
             cargo_canister(
@@ -385,14 +384,15 @@ fn inject_fixture(world: &mut World) {
         let mut inventory = world
             .get_mut::<ShipInventory>(player)
             .expect("the player ship carries ShipInventory");
-        let unit_mass = u64::from(ItemType::Rations.mass_g());
-        let max_count = (u64::from(inventory.free_g()) / unit_mass) as u32;
+        let ration_id = "Rations".into();
+        let unit_mass = u64::from(items.design(&ration_id).mass_g);
+        let max_count = (u64::from(inventory.free_g(&items)) / unit_mass) as u32;
         assert!(
             max_count >= 1,
             "world_resume: the line warship has no room for fixture stock (free {}g)",
-            inventory.free_g()
+            inventory.free_g(&items)
         );
-        inventory.add(ItemType::Rations, max_count.clamp(1, 5));
+        inventory.add(&items, &ration_id, max_count.clamp(1, 5));
     }
 
     let mut fixture = world.resource_mut::<Fixture>();
@@ -458,7 +458,7 @@ fn record_expected_state(world: &mut World) -> serde_json::Value {
         .get::<ShipInventory>(player)
         .expect("the player ship carries ShipInventory")
         .stacks()
-        .map(|(item, count)| serde_json::json!({ "item": format!("{item:?}"), "count": count }))
+        .map(|(item, count)| serde_json::json!({ "item": item.as_str(), "count": count }))
         .collect();
     let fixture = world.resource::<Fixture>();
     let rock_id = fixture
@@ -484,7 +484,7 @@ fn record_expected_state(world: &mut World) -> serde_json::Value {
         .get::<CargoCanister>(canister_entity)
         .expect("a mined canister carries CargoCanister")
         .stacks()
-        .map(|(item, count)| serde_json::json!({ "item": format!("{item:?}"), "count": count }))
+        .map(|(item, count)| serde_json::json!({ "item": item.as_str(), "count": count }))
         .collect();
     let sector = world.resource::<CurrentSector>().0;
 
@@ -746,13 +746,18 @@ fn fixture_transients_expired() -> std::sync::Arc<nova_protocol::nova_debug::har
 fn record_transient_fixture_state(world: &mut World) -> serde_json::Value {
     let root = nova_assets::storage::worlds_root()
         .expect("world_resume: the sandboxed CONFIG_ROOT must give a worlds root");
-    let (_folder, _lock, header, state) =
-        open_world(&root, WORLD_SLUG, world.resource::<LoadedSectionPacks>()).unwrap_or_else(|e| {
-            panic!(
-                "world_resume: cannot open the just-saved '{WORLD_SLUG}' to read its leave save's \
+    let (_folder, _lock, header, state) = open_world(
+        &root,
+        WORLD_SLUG,
+        world.resource::<LoadedSectionPacks>(),
+        world.resource::<GameItems>(),
+    )
+    .unwrap_or_else(|e| {
+        panic!(
+            "world_resume: cannot open the just-saved '{WORLD_SLUG}' to read its leave save's \
                  transients: {e}"
-            )
-        });
+        )
+    });
     // _lock drops at the end of this function, well before the load phase is
     // spawned as its own process, so it never contends with the real Load's
     // own lock on the same folder.
@@ -1038,18 +1043,15 @@ fn create_script(
         .until(saved_past_first_write())
         .deadline(CROSSING_DEADLINE_SECS)
         .add()
-        // The crossing streams a full window under the Loading screen; the
-        // status line is only on screen once that comes down.
+        // The crossing streams a full window under the Loading screen. Wait
+        // for that stable screen to clear; the save notice is transient.
         .step("world_resume: wait for the Loading screen to come down")
-        .until(nova_autopilot::predicate::and(
-            nova_autopilot::predicate::not(ui_node_present(LOAD_SCREEN)),
-            ui_node_present(SAVE_STATUS_LINE),
-        ))
+        .until(nova_autopilot::predicate::not(ui_node_present(LOAD_SCREEN)))
         .deadline(SESSION_SECS)
         .add()
-        .step("world_resume: shoot the save status line")
-        .on_enter(|world: &mut World| shoot(world, "world_resume-status-line.png"))
-        .until(shot_written("world_resume-status-line.png"))
+        .step("world_resume: capture after crossing")
+        .on_enter(|world: &mut World| shoot(world, "world_resume-after-crossing.png"))
+        .until(shot_written("world_resume-after-crossing.png"))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("world_resume: assert the saved header on disk")
@@ -1401,7 +1403,7 @@ fn assert_resumed_state(
             });
         let contents: Vec<_> = canister
             .stacks()
-            .map(|(item, count)| serde_json::json!({ "item": format!("{item:?}"), "count": count }))
+            .map(|(item, count)| serde_json::json!({ "item": item.as_str(), "count": count }))
             .collect();
         assert_eq!(
             serde_json::Value::Array(contents),
@@ -1479,7 +1481,9 @@ fn load_script(
         std::sync::Mutex<Vec<(Entity, &'static str, Option<String>, Vec3, f32)>>,
     >,
     post_resume_inserts: std::sync::Arc<std::sync::Mutex<u32>>,
-    player_snapshot: std::sync::Arc<std::sync::Mutex<Option<(Vec3, u32, Vec<(ItemType, u32)>)>>>,
+    player_snapshot: std::sync::Arc<
+        std::sync::Mutex<Option<(Vec3, u32, Vec<(ItemDesignId, u32)>)>>,
+    >,
 ) -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
         .step("world_resume load: reach the main menu")
@@ -1662,10 +1666,10 @@ fn load_script(
                     })
                     .collect();
                 saved_stock.sort_by(|a, b| a.0.cmp(&b.0));
-                snapshot_stock.sort_by(|a, b| format!("{:?}", a.0).cmp(&format!("{:?}", b.0)));
+                snapshot_stock.sort_by(|a, b| a.0.as_str().cmp(b.0.as_str()));
                 let snapshot_stock: Vec<(String, u32)> = snapshot_stock
                     .into_iter()
-                    .map(|(item, count)| (format!("{item:?}"), count))
+                    .map(|(item, count)| (item.as_str().to_string(), count))
                     .collect();
                 assert_eq!(
                     snapshot_stock, saved_stock,
@@ -1899,7 +1903,7 @@ fn run_load() -> bevy::app::AppExit {
     // player's pre-thaw default here - `Transform` is also what the save
     // itself records (`SavedPlayer.transform`).
     let player_snapshot: std::sync::Arc<
-        std::sync::Mutex<Option<(Vec3, u32, Vec<(ItemType, u32)>)>>,
+        std::sync::Mutex<Option<(Vec3, u32, Vec<(ItemDesignId, u32)>)>>,
     > = std::sync::Arc::new(std::sync::Mutex::new(None));
     {
         let recorded = std::sync::Arc::clone(&recorded);
@@ -1954,7 +1958,10 @@ fn run_load() -> bevy::app::AppExit {
                             *snapshot = Some((
                                 transform.translation,
                                 credits.0,
-                                inventory.stacks().collect(),
+                                inventory
+                                    .stacks()
+                                    .map(|(item, count)| (item.clone(), count))
+                                    .collect(),
                             ));
                         }
                     }

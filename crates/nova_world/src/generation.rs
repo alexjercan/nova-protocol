@@ -8,45 +8,85 @@
 //! held to the same rule: it gets a seed, an edge and a coordinate, and
 //! nothing else.
 
-use std::{collections::BTreeSet, fmt};
+use std::{collections::BTreeSet, fmt, sync::Arc};
 
 use bevy::{log::info_span, math::Quat};
-use nova_events::prelude::{Meters, Meters3, MetersPerSecond3};
-use nova_gameplay::prelude::{Allegiance, Fnv32, SeedStream, ShipInventoryStock};
+use nova_events::prelude::{EntityId, Meters, Meters3};
+use nova_gameplay::prelude::{AssetRef, Fnv32, SeedStream};
 use nova_scenario::prelude::{
-    is_asteroid_kind, prepare_asteroid_geometry, prepare_frozen_asteroid, prepare_planet,
-    AsteroidKindId, PlanetConfig, PreparedAsteroid, PreparedPlanet, SectionSource, ShipDesign,
+    is_asteroid_kind, patrol_stops_fault, prepare_asteroid_geometry, prepare_planet,
+    AIControllerConfig, AsteroidConfig, PlanetConfig, PreparedAsteroid, PreparedPlanet,
+    SectionSource, ShipDesign, ShipDesignSource, SpaceshipConfig, SpaceshipController,
     ASTEROID_GEOMETRIC_FACTOR_MAX,
 };
 
 use crate::{
-    frozen::FrozenSector, SectorCoord, SectorFault, SectorGenerationInput, SectorGenerator,
-    WorldConfig,
+    frozen::{FrozenSector, PreparedFrozenBody},
+    SectorCoord, SectorFault, SectorGenerationInput, SectorGenerator, WorldConfig,
 };
 
+/// A sector object's scenario id: `<cell slug>_<name>_<index>`, built only by
+/// [`sector_id`], so every id names the cell that owns it and a scenario
+/// cannot author one by accident. One cell cannot hold the same id twice;
+/// [`validate_manifest`] refuses the repeat.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SectorObjectId(String);
+
+impl SectorObjectId {
+    /// The id as the scenario addresses it.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for SectorObjectId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl From<SectorObjectId> for EntityId {
+    fn from(id: SectorObjectId) -> Self {
+        EntityId(id.0)
+    }
+}
+
 /// One generated rock, in world meters.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct SectorAsteroid {
-    /// The rock's scenario id, prefixed with its owning cell's slug.
-    pub id: String,
+    /// The rock's scenario id.
+    pub id: SectorObjectId,
     /// Where it stands, in meters from the world origin.
     pub position: Meters3,
-    /// Its nominal radius.
-    pub radius: Meters,
-    /// Its asteroid kind id, drawn from the generator's table.
-    pub kind: AsteroidKindId,
-    /// Its silhouette seed.
-    pub seed: u32,
-    /// Explicit initial motion in meters per second. Zero is an intentional
-    /// coasting start and does not disable gravity.
-    pub initial_velocity: MetersPerSecond3,
+    /// The rock as the spawn builds it. `seed` is `Some`: the generator pins
+    /// the silhouette, the spawn never derives one. `texture` is a path: a
+    /// saved cell names it on disk. [`validate_manifest`] refuses both
+    /// otherwise.
+    pub config: AsteroidConfig,
+}
+
+impl SectorAsteroid {
+    /// The silhouette seed the generator pinned.
+    ///
+    /// # Panics
+    ///
+    /// On an entry with none. [`validate_manifest`] refuses one, so a
+    /// description never panics here.
+    pub fn seed(&self) -> u32 {
+        self.config.seed.unwrap_or_else(|| {
+            panic!(
+                "nova_world: rock '{}' pins no silhouette seed; validate_manifest refuses one",
+                self.id
+            )
+        })
+    }
 }
 
 /// One generated planetoid: a real [`PlanetConfig`], not a big rock.
 #[derive(Clone, Debug)]
 pub struct SectorPlanet {
-    /// The planetoid's scenario id, prefixed with its owning cell's slug.
-    pub id: String,
+    /// The planetoid's scenario id.
+    pub id: SectorObjectId,
     /// Where it stands, in meters from the world origin.
     pub position: Meters3,
     /// The world it is, ready for `prepare_planet`.
@@ -197,55 +237,52 @@ impl ShipRoleType {
     }
 }
 
-/// Who flies an intact generated ship, and where.
+/// One generated ship: where a hull stands, what it is, and the spawn that
+/// builds it.
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
-pub struct SectorShipCrew {
-    /// The side it fights for: its civilization's side.
-    pub allegiance: Allegiance,
-    /// The waypoint loop it patrols, in meters from the world origin. Empty
-    /// when no loop fit its cell: the ship then holds its spawn point.
-    pub patrol: Vec<Meters3>,
-    /// Seconds it holds at each waypoint, one per `patrol` entry.
-    pub stops: Vec<f32>,
-    /// How far from its patrol centre, or its spawn point, it may chase.
-    pub leash: Meters,
-}
-
-/// One generated ship: a hull, its civilization, and its crew if it works.
-#[derive(Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct SectorShip {
-    /// The ship's scenario id, prefixed with its owning cell's slug.
-    pub id: String,
+    /// The ship's scenario id.
+    pub id: SectorObjectId,
     /// Where its root floats, in meters from the world origin.
     pub position: Meters3,
     /// Its full orientation: a finite unit quaternion.
     pub rotation: Quat,
-    /// Explicit initial motion in meters per second.
-    pub initial_velocity: MetersPerSecond3,
     /// The radius around the root that holds the whole hull in any
     /// orientation. At most [`SECTOR_SHIP_CLEARANCE_MAX`].
     pub clearance: Meters,
-    /// The generated design, carried inline: every section names a section
-    /// prototype of the loaded catalog.
-    pub design: ShipDesign,
-    /// Whether it works or is a derelict.
+    /// Whether it works or is a derelict. A derelict spawns with every
+    /// section but hull and docking port inactive.
     pub condition: SectorShipConditionType,
-    /// Who flies it: `Some` exactly when it is intact. A derelict has nobody
-    /// aboard and nobody's side.
-    pub crew: Option<SectorShipCrew>,
     /// The civilization it belongs to, or belonged to as a derelict.
     pub civilization: CivilizationId,
     /// What it was built for. A derelict keeps its former role.
     pub role: ShipRoleType,
-    /// What its hold carries when it spawns. The spawn refuses stock past
-    /// the hold its resolved design gives it.
-    pub stock: ShipInventoryStock,
-    /// Its credit balance when it spawns.
-    pub credits: u32,
+    /// The ship as the spawn builds it, whole: the generator states the
+    /// design (inline, every section a prototype of the loaded catalog), who
+    /// flies it, its side (`Some`), its motion, its stock, whether it may be
+    /// looted and its balance. Materialization adds nothing. A derelict is
+    /// flown by nobody; [`validate_manifest`] refuses an AI on one, a player
+    /// on any, a catalog design and a `None` side.
+    pub spawn: SpaceshipConfig,
+}
+
+impl SectorShip {
+    /// The inline design.
+    ///
+    /// # Panics
+    ///
+    /// On a design that names a catalog prototype. [`validate_manifest`]
+    /// refuses one, so a description never panics here.
+    pub fn design(&self) -> &ShipDesign {
+        match &self.spawn.design {
+            ShipDesignSource::Inline(design) => design,
+            ShipDesignSource::Prototype { id, .. } => panic!(
+                "nova_world: ship '{}' names the catalog design '{id}'; validate_manifest refuses \
+                 one",
+                self.id
+            ),
+        }
+    }
 }
 
 /// What a [`SectorGenerator`] says one cell holds. UNTRUSTED.
@@ -303,7 +340,7 @@ impl SectorDescription {
 
     /// Every object id this cell spawns, in spawn order: rocks, then
     /// planetoids, then ships.
-    pub fn object_ids(&self) -> Vec<String> {
+    pub fn object_ids(&self) -> Vec<SectorObjectId> {
         self.asteroids
             .iter()
             .map(|body| body.id.clone())
@@ -328,15 +365,16 @@ impl SectorDescription {
     /// values, not placement: they are printed exact, as the shortest text
     /// that reads back to the same f32, and `None` prints apart from every
     /// `Some`. Rounding them would call two different worlds the same one.
-    /// A ship's stock prints every stack and count, and its credits their
-    /// balance. Its crew prints its side, leash, and each waypoint and stop,
-    /// or `none`. Its civilization, role,
-    /// design integrity, design presentation and each section's prototype
-    /// patch print through `Debug`: field by field in declaration order, a
-    /// float as the shortest text that reads back to it, a non-finite float
-    /// as `NaN` or `inf`, apart from `None`. An asset handle prints its
-    /// runtime id, so a design that carries one compares equal only within
-    /// one run; generated designs carry none.
+    /// A rock's texture, destroy sound and lock signature, a ship's stock,
+    /// side, capabilities, loot flag, civilization, role, design integrity,
+    /// design presentation, each section's prototype patch and its controller
+    /// apart from its route print through `Debug`: field by field in
+    /// declaration order, a float as the shortest text that reads back to it,
+    /// a non-finite float as `NaN` or `inf`, apart from `None`. A ship's
+    /// credits print their balance; an AI's route prints each waypoint as
+    /// placement with its stop. An asset handle prints its runtime id, so a
+    /// config that carries one compares equal only within one run; generated
+    /// configs carry none.
     pub fn canonical(&self) -> String {
         let point = |position: Meters3| {
             let p = position.get();
@@ -344,14 +382,19 @@ impl SectorDescription {
         };
         let mut out = format!("{}\n", self.coord);
         for body in &self.asteroids {
+            let config = &body.config;
             out.push_str(&format!(
-                "asteroid {} {} r{:.2} {} s{} velocity {:?}\n",
+                "asteroid {} {} r{:.2} {} seed {:?} velocity {:?} texture {:?} destroy_sound {:?} \
+                 lock_signature {:?}\n",
                 body.id,
                 point(body.position),
-                body.radius.get(),
-                body.kind,
-                body.seed,
-                body.initial_velocity.get()
+                config.radius.get(),
+                config.kind,
+                config.seed,
+                config.initial_velocity.get(),
+                config.texture,
+                config.destroy_sound,
+                config.lock_signature.map(Meters::get),
             ));
         }
         for planet in &self.planets {
@@ -370,36 +413,46 @@ impl SectorDescription {
             ));
         }
         for ship in &self.ships {
+            let spawn = &ship.spawn;
+            let design = ship.design();
             out.push_str(&format!(
-                "ship {} {} {} velocity {:?} c{:.2} {} {} {} stock {:?} credits {} integrity {:?} \
-                 presentation {:?}\n",
+                "ship {} {} {} velocity {:?} c{:.2} {} {} {} stock {:?} credits {} side {:?} \
+                 lootable {} capabilities {:?} integrity {:?} presentation {:?}\n",
                 ship.id,
                 point(ship.position),
                 canonical_rotation(ship.rotation),
-                ship.initial_velocity.get(),
+                spawn.initial_velocity.get(),
                 ship.clearance.get(),
                 ship.condition.label(),
                 ship.civilization,
                 ship.role.label(),
-                ship.stock.stacks().collect::<Vec<_>>(),
-                ship.credits,
-                ship.design.integrity,
-                ship.design.presentation,
+                spawn.inventory.stacks().collect::<Vec<_>>(),
+                spawn.credits,
+                spawn.allegiance,
+                spawn.lootable,
+                spawn.capabilities,
+                design.integrity,
+                design.presentation,
             ));
-            match &ship.crew {
-                Some(crew) => {
-                    out.push_str(&format!(
-                        "  crew {:?} leash {:.2}\n",
-                        crew.allegiance,
-                        crew.leash.get()
-                    ));
-                    for (waypoint, stop) in crew.patrol.iter().zip(&crew.stops) {
+            match &spawn.controller {
+                SpaceshipController::None => out.push_str("  controller none\n"),
+                SpaceshipController::Player(config) => {
+                    out.push_str(&format!("  controller player {config:?}\n"));
+                }
+                SpaceshipController::AI(config) => {
+                    let routine = AIControllerConfig {
+                        patrol: Vec::new(),
+                        patrol_stops: Vec::new(),
+                        ..config.clone()
+                    };
+                    out.push_str(&format!("  controller ai {routine:?}\n"));
+                    for (index, waypoint) in config.patrol.iter().enumerate() {
+                        let stop = config.patrol_stops.get(index);
                         out.push_str(&format!("  waypoint {} stop {stop:?}\n", point(*waypoint)));
                     }
                 }
-                None => out.push_str("  crew none\n"),
             }
-            for section in &ship.design.sections {
+            for section in &design.sections {
                 let p = section.position;
                 out.push_str(&format!(
                     "  section {} {} {:.3} {:.3} {:.3} {} patch {:?}\n",
@@ -432,31 +485,61 @@ fn canonical_rotation(rotation: Quat) -> String {
 }
 
 /// One sector described, validated and prepared: everything
-/// `materialize_sector` needs that a worker can produce.
+/// `materialize_sector` needs that a worker can produce, resolved against the
+/// cell's frozen record on the worker.
 ///
 /// Built only by [`prepare_sector`] and a [`crate::SectorJob`], and the fields
-/// are private, so `asteroids` is one prepared rock per description asteroid -
-/// or none, for a cell whose frozen record replaces its generated bodies -
-/// `planets` one prepared world per description planetoid, and `thawed` one
-/// pristine rock per frozen rock of the cell's record, all in order. The
-/// two halves are not the same shape: a [`PreparedAsteroid`] is the GEOMETRY
-/// only, and the rock's config is rebuilt from the description at spawn, while
-/// a [`PreparedPlanet`] carries its config beside its visual. A ship needs no
-/// preparation: its inline design's sections are resolved against the section
-/// catalog on the main thread, which is the one place the catalog exists.
+/// are private. Each record travels WITH what was prepared for it: a planetoid
+/// with its surface, a rock with its geometry, a frozen rock with the geometry
+/// its record describes. Nothing is paired by position, so the main thread has
+/// nothing to count. A ship needs no preparation: its inline design's sections
+/// are resolved against the section catalog on the main thread, which is the
+/// one place the catalog exists.
 #[derive(Debug)]
 pub struct PreparedSector {
-    pub(crate) description: SectorDescription,
-    pub(crate) asteroids: Vec<PreparedAsteroid>,
-    pub(crate) planets: Vec<PreparedPlanet>,
-    pub(crate) thawed: Vec<PreparedAsteroid>,
+    pub(crate) coord: SectorCoord,
+    /// The description's planetoids. They never freeze, so a visited cell
+    /// spawns them again beside its record.
+    pub(crate) planets: Vec<PreparedPlanetoid>,
+    pub(crate) bodies: PreparedBodies,
 }
 
 impl PreparedSector {
-    /// The validated description this was prepared from.
-    pub fn description(&self) -> &SectorDescription {
-        &self.description
+    /// The cell this was prepared for.
+    pub fn coord(&self) -> SectorCoord {
+        self.coord
     }
+}
+
+/// What a cell spawns beside its planetoids, decided once, on the worker,
+/// from the cell's frozen record.
+#[derive(Debug)]
+pub(crate) enum PreparedBodies {
+    /// A cell never visited: its generated rocks and ships, plus the bodies
+    /// that arrived into it while nobody held it live. A generated body an
+    /// arrival overlaps is not removed.
+    Fresh {
+        rocks: Vec<PreparedRock>,
+        ships: Vec<SectorShip>,
+        arrivals: Vec<PreparedFrozenBody>,
+    },
+    /// A visited cell: its record is the whole truth of it, and the
+    /// generated rocks and ships are not spawned.
+    Thawed(Vec<PreparedFrozenBody>),
+}
+
+/// One generated rock with the geometry prepared for it.
+#[derive(Debug)]
+pub(crate) struct PreparedRock {
+    pub body: SectorAsteroid,
+    pub geometry: PreparedAsteroid,
+}
+
+/// One generated planetoid with the surface prepared for it.
+#[derive(Debug)]
+pub(crate) struct PreparedPlanetoid {
+    pub body: SectorPlanet,
+    pub surface: PreparedPlanet,
 }
 
 /// The largest hull clearance a generated ship may declare.
@@ -506,8 +589,8 @@ fn position_is_finite(position: Meters3) -> bool {
 /// Formatting only. The slug prefix is the cross-generator contract:
 /// [`validate_manifest`] refuses an id without it, so no two cells can claim
 /// one object, and refuses an id claimed twice inside the cell.
-pub fn sector_id(coord: SectorCoord, name: &str, index: usize) -> String {
-    format!("{}_{name}_{index}", coord.slug())
+pub fn sector_id(coord: SectorCoord, name: &str, index: usize) -> SectorObjectId {
+    SectorObjectId(format!("{}_{name}_{index}", coord.slug()))
 }
 
 /// Turn a generator's manifest into a trusted [`SectorDescription`], or refuse
@@ -538,10 +621,12 @@ pub fn sector_id(coord: SectorCoord, name: &str, index: usize) -> String {
 /// centre has no finite position in meters;
 /// [`SectorFault::Manifest`] for the wrong cell, an object outside its cell or
 /// overlapping another, an id another cell owns, a non-finite initial
-/// velocity, a planet config
-/// [`PlanetConfig::validate`] refuses, a ship clearance above the maximum, or
-/// a ship design with no sections, a repeated section id, an inline section or
-/// a non-finite section pose;
+/// velocity, a rock with no silhouette seed or a texture that is a runtime
+/// handle, a planet config [`PlanetConfig::validate`] refuses, a ship
+/// clearance above the maximum, a ship design that names a catalog prototype,
+/// has no sections, a repeated section id, an inline section or a non-finite
+/// section pose, a ship with no side, flown by a player, a derelict flown by
+/// an AI, or an AI route the controller could not fly;
 /// [`SectorFault::InvalidGeometry`] for non-finite geometry, a ship rotation
 /// that is not a unit quaternion and a ship clearance that is not positive;
 /// [`SectorFault::DuplicateId`] and [`SectorFault::UnknownKind`].
@@ -561,31 +646,24 @@ pub fn validate_manifest(
     if !position_is_finite(centre) {
         return Err(SectorFault::InvalidGeometry { id: coord.slug() });
     }
-    let refuse = |id: &str, field: &'static str, value: String| SectorFault::Manifest {
+    let refuse = |id: &SectorObjectId, field: &'static str, value: String| SectorFault::Manifest {
         id: id.to_string(),
         field,
         value,
     };
 
     if manifest.coord != coord {
-        return Err(refuse(
-            &coord.slug(),
-            "coord",
-            format!("{}, not the requested {coord}", manifest.coord),
-        ));
+        return Err(SectorFault::Manifest {
+            id: coord.slug(),
+            field: "coord",
+            value: format!("{}, not the requested {coord}", manifest.coord),
+        });
     }
 
     let mut ids = BTreeSet::new();
     let mut standing = Vec::new();
-    let mut own = |id: &str| {
-        if !id.starts_with(&format!("{}_", coord.slug())) {
-            return Err(refuse(
-                id,
-                "id",
-                format!("'{id}', not prefixed with {}", coord.slug()),
-            ));
-        }
-        if !ids.insert(id.to_string()) {
+    let mut own = |id: &SectorObjectId| {
+        if !ids.insert(id.clone()) {
             return Err(SectorFault::DuplicateId { id: id.to_string() });
         }
         Ok(())
@@ -593,24 +671,39 @@ pub fn validate_manifest(
 
     for body in &manifest.asteroids {
         own(&body.id)?;
-        if !body.radius.get().is_finite() || body.radius.get() <= 0.0 {
+        let config = &body.config;
+        if !config.radius.get().is_finite() || config.radius.get() <= 0.0 {
             return Err(SectorFault::InvalidGeometry {
-                id: body.id.clone(),
+                id: body.id.to_string(),
             });
         }
-        if !is_asteroid_kind(&body.kind) {
+        if !is_asteroid_kind(&config.kind) {
             return Err(SectorFault::UnknownKind {
-                kind: body.kind.clone(),
+                kind: config.kind.clone(),
             });
         }
-        if !body.initial_velocity.is_finite() {
+        if !config.initial_velocity.is_finite() {
             return Err(refuse(
                 &body.id,
                 "initial_velocity",
-                format!("{:?}", body.initial_velocity.get()),
+                format!("{:?}", config.initial_velocity.get()),
             ));
         }
-        let clearance = Meters(body.radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX);
+        if config.seed.is_none() {
+            return Err(refuse(
+                &body.id,
+                "seed",
+                "none; a generated rock pins its silhouette".to_string(),
+            ));
+        }
+        if let AssetRef::Handle(handle) = &config.texture {
+            return Err(refuse(
+                &body.id,
+                "texture",
+                format!("the runtime handle {handle:?}, not an asset path"),
+            ));
+        }
+        let clearance = Meters(config.radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX);
         stand_inside(input, &mut standing, &body.id, body.position, clearance)?;
     }
     for planet in &manifest.planets {
@@ -622,31 +715,32 @@ pub fn validate_manifest(
         let clearance = planet.config.body_radius();
         if !clearance.get().is_finite() || clearance.get() <= 0.0 {
             return Err(SectorFault::InvalidGeometry {
-                id: planet.id.clone(),
+                id: planet.id.to_string(),
             });
         }
         stand_inside(input, &mut standing, &planet.id, planet.position, clearance)?;
     }
     for ship in &manifest.ships {
         own(&ship.id)?;
-        if !ship.initial_velocity.is_finite() {
+        let spawn = &ship.spawn;
+        if !spawn.initial_velocity.is_finite() {
             return Err(refuse(
                 &ship.id,
                 "initial_velocity",
-                format!("{:?}", ship.initial_velocity.get()),
+                format!("{:?}", spawn.initial_velocity.get()),
             ));
         }
         if !ship.rotation.is_finite()
             || (ship.rotation.length() - 1.0).abs() > ROTATION_LENGTH_TOLERANCE
         {
             return Err(SectorFault::InvalidGeometry {
-                id: ship.id.clone(),
+                id: ship.id.to_string(),
             });
         }
         let clearance = ship.clearance.get();
         if !clearance.is_finite() || clearance <= 0.0 {
             return Err(SectorFault::InvalidGeometry {
-                id: ship.id.clone(),
+                id: ship.id.to_string(),
             });
         }
         if ship.clearance > SECTOR_SHIP_CLEARANCE_MAX {
@@ -659,8 +753,26 @@ pub fn validate_manifest(
                 ),
             ));
         }
-        check_ship_design(ship).map_err(|value| refuse(&ship.id, "design", value))?;
-        check_ship_crew(ship).map_err(|value| refuse(&ship.id, "crew", value))?;
+        let design = match &spawn.design {
+            ShipDesignSource::Inline(design) => design,
+            ShipDesignSource::Prototype { id, .. } => {
+                return Err(refuse(
+                    &ship.id,
+                    "design",
+                    format!("the catalog design '{id}', not an inline design"),
+                ));
+            }
+        };
+        check_ship_design(design).map_err(|value| refuse(&ship.id, "design", value))?;
+        if spawn.allegiance.is_none() {
+            return Err(refuse(
+                &ship.id,
+                "allegiance",
+                "none; a generated ship states its side".to_string(),
+            ));
+        }
+        check_ship_controller(ship.condition, &spawn.controller)
+            .map_err(|value| refuse(&ship.id, "controller", value))?;
         stand_inside(
             input,
             &mut standing,
@@ -683,41 +795,41 @@ pub fn validate_manifest(
     })
 }
 
-/// Refuse a crew that does not match the condition, or one the AI could not
-/// fly: a waypoint that is not finite, a stop count that differs from the
-/// waypoint count, a stop that is not a finite positive duration, or a leash
-/// that is not a finite positive distance.
-fn check_ship_crew(ship: &SectorShip) -> Result<(), String> {
-    let crew = match (ship.condition, &ship.crew) {
-        (SectorShipConditionType::Intact, Some(crew)) => crew,
-        (SectorShipConditionType::Derelict, None) => return Ok(()),
-        (SectorShipConditionType::Intact, None) => {
-            return Err("missing on an intact ship".to_string());
+/// Refuse a controller the streamed world cannot host: a player (the
+/// scenario spawns the one player), an AI on a derelict (its systems spawn
+/// inactive), or an AI route the controller could not fly, by the same
+/// [`patrol_stops_fault`] the scenario lint and the spawn apply, plus a
+/// waypoint that is not finite, a leash or an engage delay that is not
+/// finite, or a leash that is not positive.
+fn check_ship_controller(
+    condition: SectorShipConditionType,
+    controller: &SpaceshipController,
+) -> Result<(), String> {
+    let config = match (condition, controller) {
+        (_, SpaceshipController::Player(_)) => {
+            return Err("a player; the scenario spawns the player".to_string());
         }
-        (SectorShipConditionType::Derelict, Some(_)) => {
-            return Err("present on a derelict".to_string());
+        (_, SpaceshipController::None) => return Ok(()),
+        (SectorShipConditionType::Derelict, SpaceshipController::AI(_)) => {
+            return Err("an AI on a derelict".to_string());
         }
+        (SectorShipConditionType::Intact, SpaceshipController::AI(config)) => config,
     };
-    if !crew.patrol.iter().copied().all(position_is_finite) {
+    if !config.patrol.iter().copied().all(position_is_finite) {
         return Err("a patrol waypoint is not finite".to_string());
     }
-    if crew.stops.len() != crew.patrol.len() {
-        return Err(format!(
-            "{} stop(s) for {} waypoint(s)",
-            crew.stops.len(),
-            crew.patrol.len()
-        ));
+    if let Some(fault) = patrol_stops_fault(config) {
+        return Err(fault);
     }
-    if let Some(stop) = crew
-        .stops
-        .iter()
-        .find(|stop| !stop.is_finite() || **stop <= 0.0)
+    if let Some(leash) = config
+        .leash
+        .map(Meters::get)
+        .filter(|leash| !leash.is_finite() || *leash <= 0.0)
     {
-        return Err(format!("stop {stop} s is not a finite positive duration"));
-    }
-    let leash = crew.leash.get();
-    if !leash.is_finite() || leash <= 0.0 {
         return Err(format!("leash {leash} m is not a finite positive distance"));
+    }
+    if let Some(delay) = config.engage_delay.filter(|delay| !delay.is_finite()) {
+        return Err(format!("engage delay {delay} s is not finite"));
     }
     Ok(())
 }
@@ -726,12 +838,12 @@ fn check_ship_crew(ship: &SectorShip) -> Result<(), String> {
 /// sections, a section id used twice, an inline section rather than a
 /// prototype reference, or a section pose that is not finite. Whether each
 /// prototype resolves is main-thread work in `materialize_sector`.
-fn check_ship_design(ship: &SectorShip) -> Result<(), String> {
-    if ship.design.sections.is_empty() {
+fn check_ship_design(design: &ShipDesign) -> Result<(), String> {
+    if design.sections.is_empty() {
         return Err("no sections".to_string());
     }
     let mut ids = BTreeSet::new();
-    for section in &ship.design.sections {
+    for section in &design.sections {
         if !ids.insert(section.id.as_str()) {
             return Err(format!("section id '{}' used twice", section.id));
         }
@@ -758,7 +870,7 @@ fn check_ship_design(ship: &SectorShip) -> Result<(), String> {
 fn stand_inside(
     input: SectorGenerationInput,
     standing: &mut Vec<Occupied>,
-    id: &str,
+    id: &SectorObjectId,
     position: Meters3,
     clearance: Meters,
 ) -> Result<(), SectorFault> {
@@ -859,48 +971,71 @@ pub fn prepare_sector<G: SectorGenerator>(
 
 /// [`prepare_sector`] for a cell that may hold a frozen record.
 ///
-/// A visited cell's record replaces its generated bodies, so its
-/// description's rocks are not meshed; the description is still drawn,
-/// because its planetoids never freeze. Each rock the record froze is
-/// prepared from its record: its pristine geometry, and for a carved one the
-/// surface its field meshes to.
+/// The one place the record rule is decided: a visited cell's record
+/// replaces its generated rocks and ships, so they are neither meshed nor
+/// returned; a never-visited cell's arrivals join its generated bodies. The
+/// description is drawn either way, because planetoids never freeze and a
+/// held ship's record names only its id. Each frozen rock is prepared from
+/// its record: its pristine geometry, and for a carved one the surface its
+/// field meshes to.
 pub(crate) fn prepare_cell<G: SectorGenerator>(
     config: WorldConfig<G>,
     coord: SectorCoord,
-    record: Option<&FrozenSector>,
+    record: Option<Arc<FrozenSector>>,
 ) -> Result<PreparedSector, SectorFault> {
-    let visited = record.is_some_and(FrozenSector::is_visited);
     let _job = info_span!("nova_world::prepare_sector", cell = %coord).entered();
     let description = generate_sector(&config, coord)?;
-    let asteroids = if visited {
-        Vec::new()
-    } else {
-        info_span!("nova_world::prepare_asteroids").in_scope(|| {
-            description
-                .asteroids
-                .iter()
-                .map(|body| prepare_asteroid_geometry(body.seed, body.radius))
-                .collect()
-        })
-    };
-    let planets = info_span!("nova_world::prepare_planets").in_scope(|| {
-        description
-            .planets
-            .iter()
-            .map(|planet| prepare_planet(planet.config.clone()))
-            .collect()
-    });
-    let thawed = info_span!("nova_world::prepare_frozen_asteroids").in_scope(|| {
-        record
-            .into_iter()
-            .flat_map(FrozenSector::rocks)
-            .map(prepare_frozen_asteroid)
-            .collect()
-    });
-    Ok(PreparedSector {
-        description,
+    let SectorDescription {
+        coord,
         asteroids,
         planets,
-        thawed,
+        ships,
+    } = description;
+    let planets = info_span!("nova_world::prepare_planets").in_scope(|| {
+        planets
+            .into_iter()
+            .map(|body| PreparedPlanetoid {
+                surface: prepare_planet(body.config.clone()),
+                body,
+            })
+            .collect()
+    });
+    let thaw = |bodies: Vec<_>, ships: &[SectorShip]| {
+        info_span!("nova_world::prepare_frozen_bodies").in_scope(|| {
+            bodies
+                .into_iter()
+                .map(|body| PreparedFrozenBody::prepare(coord, body, ships))
+                .collect::<Vec<_>>()
+        })
+    };
+    let (visited, arrivals) = match record.map(Arc::unwrap_or_clone) {
+        None => (None, Vec::new()),
+        Some(FrozenSector::Visited(bodies)) => (Some(bodies), Vec::new()),
+        Some(FrozenSector::Arrivals(bodies)) => (None, bodies),
+    };
+    let bodies = match visited {
+        Some(bodies) => PreparedBodies::Thawed(thaw(bodies, &ships)),
+        None => {
+            let arrivals = thaw(arrivals, &ships);
+            let rocks = info_span!("nova_world::prepare_asteroids").in_scope(|| {
+                asteroids
+                    .into_iter()
+                    .map(|body| PreparedRock {
+                        geometry: prepare_asteroid_geometry(body.seed(), body.config.radius),
+                        body,
+                    })
+                    .collect()
+            });
+            PreparedBodies::Fresh {
+                rocks,
+                ships,
+                arrivals,
+            }
+        }
+    };
+    Ok(PreparedSector {
+        coord,
+        planets,
+        bodies,
     })
 }

@@ -19,17 +19,23 @@
 use avian3d::prelude::{LinearVelocity, RigidBody};
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{Meters, Meters3, MetersPerSecond3};
-use nova_gameplay::prelude::{
-    Allegiance, AssetRef, DerelictShipMarker, GravityAffected, GravityWell, IntegrityEnvelope,
-    ItemType, LootableShipMarker, ShipCredits, ShipInventoryStock,
+use nova_gameplay::{
+    prelude::{
+        Allegiance, AssetRef, DerelictShipMarker, GravityAffected, GravityWell, IntegrityEnvelope,
+        ItemDesignId, ItemRoleType, LootableShipMarker, ShipCredits, ShipInventory,
+        ShipInventoryStock,
+    },
+    test_support::test_items,
 };
 use nova_scenario::prelude::{
-    AIControllerConfig, AsteroidMarker, AsteroidPlugin, PlanetConfig, PlanetType, SectionSource,
-    ShipDesign, SpaceshipController, SpaceshipSectionConfig, ASTEROID_GEOMETRIC_FACTOR_MAX,
+    AIControllerConfig, AsteroidConfig, AsteroidMarker, AsteroidPlugin, PlanetConfig, PlanetType,
+    PlayerControllerConfig, SectionSource, ShipDesign, ShipDesignSource, SpaceshipConfig,
+    SpaceshipController, SpaceshipPlugin, SpaceshipSectionConfig, ASTEROID_GEOMETRIC_FACTOR_MAX,
     KIND_ROCK,
 };
 use nova_ship::prelude::{
     BaseSectionConfig, GameSections, HullSectionConfig, SectionConfig, SectionKind,
+    ShipCapabilities,
 };
 
 mod frozen;
@@ -38,10 +44,42 @@ use crate::{
     generate_sector, materialize_pending_ships, materialize_sector, prepare_sector, sector_id,
     validate_manifest, CivilizationId, NovaWorldPlugin, ObserverBody, PendingSectorShip,
     SectorAsteroid, SectorCoord, SectorFault, SectorGenerationInput, SectorGenerator,
-    SectorManifest, SectorPlanet, SectorShip, SectorShipConditionType, SectorShipCrew,
+    SectorManifest, SectorObjectId, SectorPlanet, SectorShip, SectorShipConditionType,
     ShipRoleType, WorldConfig, WorldGeometry, WorldObserver, ACTIVE_WINDOW_SECTORS_MAX,
     SECTOR_SHIP_CLEARANCE_MAX,
 };
+
+/// The texture path every test rock names. Never loaded: no test here renders.
+const TEST_ROCK_TEXTURE: &str = "test/asteroid.png";
+
+/// A rock config of `radius` with silhouette `seed`, at rest.
+fn rock_config(radius: Meters, seed: u32) -> AsteroidConfig {
+    AsteroidConfig {
+        radius,
+        initial_velocity: MetersPerSecond3::ZERO,
+        texture: AssetRef::Path(TEST_ROCK_TEXTURE.to_string()),
+        kind: KIND_ROCK.into(),
+        destroy_sound: None,
+        lock_signature: None,
+        seed: Some(seed),
+    }
+}
+
+/// `ship`'s inline design, to edit.
+fn design_mut(ship: &mut SectorShip) -> &mut ShipDesign {
+    let ShipDesignSource::Inline(design) = &mut ship.spawn.design else {
+        panic!("the fixture ship's design is inline");
+    };
+    design
+}
+
+/// `ship`'s AI crew, to edit.
+fn crew_mut(ship: &mut SectorShip) -> &mut AIControllerConfig {
+    let SpaceshipController::AI(crew) = &mut ship.spawn.controller else {
+        panic!("the fixture ship is AI-flown");
+    };
+    crew
+}
 
 /// The section prototype every test ship is built from.
 const TEST_HULL_SECTION_ID: &str = "test_hull";
@@ -77,10 +115,7 @@ impl SectorGenerator for Rocks {
             .map(|(index, (x, z))| SectorAsteroid {
                 id: sector_id(input.coord, "body", index),
                 position: input.coord.centre(edge) + Meters3::new(x * quarter, 0.0, z * quarter),
-                radius: self.radius_max,
-                initial_velocity: MetersPerSecond3::ZERO,
-                kind: KIND_ROCK.into(),
-                seed: index as u32,
+                config: rock_config(self.radius_max, index as u32),
             })
             .collect();
         Ok(empty(input.coord, asteroids))
@@ -113,37 +148,41 @@ fn empty(coord: SectorCoord, asteroids: Vec<SectorAsteroid>) -> SectorManifest {
 }
 
 /// A one-section intact ship at `position`, built from the section prototype
-/// `prototype`, with a 20 m clearance.
-fn ship(id: String, position: Meters3, prototype: &str) -> SectorShip {
+/// `prototype`, with a 20 m clearance, flown by a routeless Neutral AI crew
+/// on a 5 km leash, with an empty hold and 120 credits.
+fn ship(id: SectorObjectId, position: Meters3, prototype: &str) -> SectorShip {
     SectorShip {
         id,
         position,
-        initial_velocity: MetersPerSecond3::ZERO,
         rotation: Quat::IDENTITY,
         clearance: Meters(20.0),
-        design: ShipDesign {
-            sections: vec![SpaceshipSectionConfig {
-                id: "hull".into(),
-                position: Vec3::ZERO,
-                rotation: Quat::IDENTITY,
-                source: SectionSource::prototype(prototype),
-            }],
-            ..default()
-        },
         condition: SectorShipConditionType::Intact,
-        crew: Some(SectorShipCrew {
-            allegiance: Allegiance::Neutral,
-            patrol: Vec::new(),
-            stops: Vec::new(),
-            leash: Meters(5_000.0),
-        }),
         civilization: CivilizationId {
             world_seed: 0,
             node: [0, 0, 0],
         },
         role: ShipRoleType::Civilian,
-        stock: ShipInventoryStock::default(),
-        credits: 120,
+        spawn: SpaceshipConfig {
+            design: ShipDesignSource::Inline(ShipDesign {
+                sections: vec![SpaceshipSectionConfig {
+                    id: "hull".into(),
+                    position: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                    source: SectionSource::prototype(prototype),
+                }],
+                ..default()
+            }),
+            controller: SpaceshipController::AI(AIControllerConfig {
+                leash: Some(Meters(5_000.0)),
+                ..default()
+            }),
+            initial_velocity: MetersPerSecond3::ZERO,
+            allegiance: Some(Allegiance::Neutral),
+            capabilities: ShipCapabilities::default(),
+            inventory: ShipInventoryStock::default(),
+            lootable: false,
+            credits: 120,
+        },
     }
 }
 
@@ -215,49 +254,37 @@ fn a_valid_config_describes_a_sector() {
 /// the lint.
 #[test]
 fn a_malformed_generator_answer_is_refused_before_preparation() {
-    fn rock(input: SectorGenerationInput, id: &str, offset: f32) -> SectorAsteroid {
+    fn rock(input: SectorGenerationInput, index: usize, offset: f32) -> SectorAsteroid {
         SectorAsteroid {
-            id: format!("{}_{id}", input.coord.slug()),
+            id: sector_id(input.coord, "body", index),
             position: input.coord.centre(input.geometry.sector_edge)
                 + Meters3::new(offset, 0.0, 0.0),
-            radius: Meters(40.0),
-            initial_velocity: MetersPerSecond3::ZERO,
-            kind: KIND_ROCK.into(),
-            seed: 7,
+            config: rock_config(Meters(40.0), 7),
         }
     }
     let cases: [(
         &str,
         fn(SectorGenerationInput) -> SectorManifest,
         fn(&SectorFault) -> bool,
-    ); 18] = [
+    ); 22] = [
         (
             "the wrong cell",
             |input| empty(input.coord.offset(1, 0, 0), Vec::new()),
             |fault| matches!(fault, SectorFault::Manifest { field: "coord", .. }),
         ),
         (
-            "an id another cell owns",
-            |input| {
-                let mut body = rock(input, "body_0", 0.0);
-                body.id = "sector_1_0_0_body_0".to_string();
-                empty(input.coord, vec![body])
-            },
-            |fault| matches!(fault, SectorFault::Manifest { field: "id", .. }),
-        ),
-        (
             "one id twice",
             |input| {
                 empty(
                     input.coord,
-                    vec![rock(input, "body_0", 0.0), rock(input, "body_0", 9_000.0)],
+                    vec![rock(input, 0, 0.0), rock(input, 0, 9_000.0)],
                 )
             },
             |fault| matches!(fault, SectorFault::DuplicateId { .. }),
         ),
         (
             "a rock across a face",
-            |input| empty(input.coord, vec![rock(input, "body_0", 15_900.0)]),
+            |input| empty(input.coord, vec![rock(input, 0, 15_900.0)]),
             |fault| {
                 matches!(
                     fault,
@@ -273,7 +300,7 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
             |input| {
                 empty(
                     input.coord,
-                    vec![rock(input, "body_0", 0.0), rock(input, "body_1", 100.0)],
+                    vec![rock(input, 0, 0.0), rock(input, 1, 100.0)],
                 )
             },
             |fault| {
@@ -289,8 +316,8 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
         (
             "an asteroid kind the game does not ship",
             |input| {
-                let mut body = rock(input, "body_0", 0.0);
-                body.kind = "obsidian".into();
+                let mut body = rock(input, 0, 0.0);
+                body.config.kind = "obsidian".into();
                 empty(input.coord, vec![body])
             },
             |fault| matches!(fault, SectorFault::UnknownKind { kind } if kind.as_str() == "obsidian"),
@@ -298,8 +325,8 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
         (
             "an asteroid with a non-finite initial velocity",
             |input| {
-                let mut body = rock(input, "body_0", 0.0);
-                body.initial_velocity = MetersPerSecond3::new(f32::NAN, 0.0, 0.0);
+                let mut body = rock(input, 0, 0.0);
+                body.config.initial_velocity = MetersPerSecond3::new(f32::NAN, 0.0, 0.0);
                 empty(input.coord, vec![body])
             },
             |fault| {
@@ -313,10 +340,37 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
             },
         ),
         (
+            "an asteroid that pins no silhouette seed",
+            |input| {
+                let mut body = rock(input, 0, 0.0);
+                body.config.seed = None;
+                empty(input.coord, vec![body])
+            },
+            |fault| matches!(fault, SectorFault::Manifest { field: "seed", .. }),
+        ),
+        (
+            "an asteroid whose texture is a runtime handle",
+            |input| {
+                let mut body = rock(input, 0, 0.0);
+                body.config.texture = AssetRef::Handle(Handle::default());
+                empty(input.coord, vec![body])
+            },
+            |fault| {
+                matches!(
+                    fault,
+                    SectorFault::Manifest {
+                        field: "texture",
+                        ..
+                    }
+                )
+            },
+        ),
+        (
             "a ship with a non-finite initial velocity",
             |input| {
                 let mut manifest = one_ship(input);
-                manifest.ships[0].initial_velocity = MetersPerSecond3::new(0.0, f32::INFINITY, 0.0);
+                manifest.ships[0].spawn.initial_velocity =
+                    MetersPerSecond3::new(0.0, f32::INFINITY, 0.0);
                 manifest
             },
             |fault| {
@@ -334,7 +388,7 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
             |input| {
                 let mut manifest = empty(input.coord, Vec::new());
                 manifest.planets.push(SectorPlanet {
-                    id: format!("{}_planet_0", input.coord.slug()),
+                    id: sector_id(input.coord, "planet", 0),
                     position: input.coord.centre(input.geometry.sector_edge),
                     config: PlanetConfig::new(PlanetType::BarrenRock, Meters(800.0), 3, f32::NAN),
                 });
@@ -345,7 +399,7 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
         (
             "a rock at a non-finite position",
             |input| {
-                let mut body = rock(input, "body_0", 0.0);
+                let mut body = rock(input, 0, 0.0);
                 body.position = Meters3::new(f32::NAN, 0.0, 0.0);
                 empty(input.coord, vec![body])
             },
@@ -355,7 +409,7 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
             "a ship with no sections",
             |input| {
                 let mut manifest = one_ship(input);
-                manifest.ships[0].design.sections.clear();
+                design_mut(&mut manifest.ships[0]).sections.clear();
                 manifest
             },
             |fault| {
@@ -404,48 +458,124 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
             },
         ),
         (
-            "an intact ship with no crew",
+            "a ship whose design names a catalog prototype",
             |input| {
                 let mut manifest = one_ship(input);
-                manifest.ships[0].crew = None;
+                manifest.ships[0].spawn.design = ShipDesignSource::prototype("corvette");
                 manifest
             },
-            |fault| matches!(fault, SectorFault::Manifest { field: "crew", .. }),
+            |fault| {
+                matches!(
+                    fault,
+                    SectorFault::Manifest {
+                        field: "design",
+                        ..
+                    }
+                )
+            },
         ),
         (
-            "a derelict with a crew",
+            "a ship with no side",
+            |input| {
+                let mut manifest = one_ship(input);
+                manifest.ships[0].spawn.allegiance = None;
+                manifest
+            },
+            |fault| {
+                matches!(
+                    fault,
+                    SectorFault::Manifest {
+                        field: "allegiance",
+                        ..
+                    }
+                )
+            },
+        ),
+        (
+            "a ship flown by a player",
+            |input| {
+                let mut manifest = one_ship(input);
+                manifest.ships[0].spawn.controller =
+                    SpaceshipController::Player(PlayerControllerConfig::default());
+                manifest
+            },
+            |fault| {
+                matches!(
+                    fault,
+                    SectorFault::Manifest {
+                        field: "controller",
+                        ..
+                    }
+                )
+            },
+        ),
+        (
+            "a derelict flown by an AI",
             |input| {
                 let mut manifest = one_ship(input);
                 manifest.ships[0].condition = SectorShipConditionType::Derelict;
                 manifest
             },
-            |fault| matches!(fault, SectorFault::Manifest { field: "crew", .. }),
+            |fault| {
+                matches!(
+                    fault,
+                    SectorFault::Manifest {
+                        field: "controller",
+                        ..
+                    }
+                )
+            },
         ),
         (
             "a crew with a stop for a missing waypoint",
             |input| {
                 let mut manifest = one_ship(input);
-                manifest.ships[0]
-                    .crew
-                    .as_mut()
-                    .expect("the fixture ship is crewed")
-                    .stops = vec![30.0];
+                crew_mut(&mut manifest.ships[0]).patrol_stops = vec![30.0];
                 manifest
             },
-            |fault| matches!(fault, SectorFault::Manifest { field: "crew", .. }),
+            |fault| {
+                matches!(
+                    fault,
+                    SectorFault::Manifest {
+                        field: "controller",
+                        ..
+                    }
+                )
+            },
+        ),
+        (
+            "a crew with a waypoint that is not finite",
+            |input| {
+                let mut manifest = one_ship(input);
+                crew_mut(&mut manifest.ships[0]).patrol = vec![Meters3::new(f32::NAN, 0.0, 0.0)];
+                manifest
+            },
+            |fault| {
+                matches!(
+                    fault,
+                    SectorFault::Manifest {
+                        field: "controller",
+                        ..
+                    }
+                )
+            },
         ),
         (
             "a crew with a zero leash",
             |input| {
                 let mut manifest = one_ship(input);
-                manifest.ships[0]
-                    .crew
-                    .as_mut()
-                    .expect("the fixture ship is crewed")
-                    .leash = Meters(0.0);
+                crew_mut(&mut manifest.ships[0]).leash = Some(Meters(0.0));
                 manifest
             },
-            |fault| matches!(fault, SectorFault::Manifest { field: "crew", .. }),
+            |fault| {
+                matches!(
+                    fault,
+                    SectorFault::Manifest {
+                        field: "controller",
+                        ..
+                    }
+                )
+            },
         ),
     ];
     for (what, answer, expected) in cases {
@@ -470,10 +600,7 @@ fn bodies_closer_than_a_generator_margin_but_not_overlapping_are_accepted() {
             let rock = |index: usize, offset: f32| SectorAsteroid {
                 id: sector_id(input.coord, "body", index),
                 position: centre + Meters3::new(offset, 0.0, 0.0),
-                radius: Meters(40.0),
-                initial_velocity: MetersPerSecond3::ZERO,
-                kind: KIND_ROCK.into(),
-                seed: index as u32,
+                config: rock_config(Meters(40.0), index as u32),
             };
             empty(input.coord, vec![rock(0, 0.0), rock(1, 580.0)])
         }),
@@ -500,10 +627,7 @@ fn populated(input: SectorGenerationInput, rocks: usize, count: usize) -> Sector
         .map(|index| SectorAsteroid {
             id: sector_id(coord, "body", index),
             position: point(index),
-            radius: Meters(40.0),
-            initial_velocity: MetersPerSecond3::ZERO,
-            kind: KIND_ROCK.into(),
-            seed: index as u32,
+            config: rock_config(Meters(40.0), index as u32),
         })
         .collect();
     let mut manifest = empty(coord, asteroids);
@@ -616,10 +740,10 @@ fn canonical_text_tells_asteroid_velocities_apart() {
         let body = SectorAsteroid {
             id: sector_id(input.coord, "body", 0),
             position: input.coord.centre(input.geometry.sector_edge),
-            radius: Meters(40.0),
-            initial_velocity,
-            kind: KIND_ROCK.into(),
-            seed: 7,
+            config: AsteroidConfig {
+                initial_velocity,
+                ..rock_config(Meters(40.0), 7)
+            },
         };
         validate_manifest(input, empty(input.coord, vec![body]))
             .expect("a valid rock must describe")
@@ -644,10 +768,10 @@ fn a_materialized_asteroid_opts_into_gravity() {
         let rock = SectorAsteroid {
             id: sector_id(input.coord, "body", 0),
             position: input.coord.centre(input.geometry.sector_edge),
-            radius: Meters(60.0),
-            initial_velocity: MetersPerSecond3::new(24.0, -8.0, 4.0),
-            kind: KIND_ROCK.into(),
-            seed: 7,
+            config: AsteroidConfig {
+                initial_velocity: MetersPerSecond3::new(24.0, -8.0, 4.0),
+                ..rock_config(Meters(60.0), 7)
+            },
         };
         empty(input.coord, vec![rock])
     });
@@ -660,8 +784,6 @@ fn a_materialized_asteroid_opts_into_gravity() {
     let root = materialize_sector(
         &mut world.commands(),
         prepared,
-        None,
-        &AssetRef::default(),
         &GameSections::default(),
         ObserverBody {
             position: Meters3::new(0.0, 0.0, 0.0),
@@ -695,7 +817,7 @@ fn a_materialized_asteroid_opts_into_gravity() {
     assert_eq!(
         materialized,
         vec![(
-            sector_id(SectorCoord::ORIGIN, "body", 0),
+            sector_id(SectorCoord::ORIGIN, "body", 0).to_string(),
             RigidBody::Dynamic,
             Vec3::new(2.4, -0.8, 0.4),
             root,
@@ -732,32 +854,44 @@ fn canonical_text_describes_a_rotation_and_its_negation_alike() {
 
 /// Every ship field that changes what spawns, or whose ship it is, is part of
 /// "the same sector": the design's integrity and presentation, a section's
-/// prototype patch, the civilization and the role each describe a different
-/// cell. A non-finite value prints apart from `None` and from another
-/// non-finite value, never as one shared `null`.
+/// prototype patch, the side, the loot flag, the controller and its grace,
+/// the civilization and the role each describe a different cell. A
+/// non-finite value prints apart from `None` and from another non-finite
+/// value, never as one shared `null`.
 #[test]
 fn canonical_text_tells_ship_design_fields_and_identity_apart() {
     fn patch_health(ship: &mut SectorShip, health: f32) {
-        let SectionSource::Prototype { patch, .. } = &mut ship.design.sections[0].source else {
+        let SectionSource::Prototype { patch, .. } = &mut design_mut(ship).sections[0].source
+        else {
             panic!("the fixture ship's hull is a prototype reference");
         };
         patch.health = Some(health);
     }
     let input = rocks().input(SectorCoord::ORIGIN);
-    let variants: [(&str, fn(&mut SectorShip)); 11] = [
+    let variants: [(&str, fn(&mut SectorShip)); 15] = [
         ("as built", |_| {}),
         ("collapse 0.1", |ship| {
-            ship.design.integrity.collapse_threshold = Some(0.1);
+            design_mut(ship).integrity.collapse_threshold = Some(0.1);
         }),
         ("collapse NaN", |ship| {
-            ship.design.integrity.collapse_threshold = Some(f32::NAN);
+            design_mut(ship).integrity.collapse_threshold = Some(f32::NAN);
         }),
         ("collapse inf", |ship| {
-            ship.design.integrity.collapse_threshold = Some(f32::INFINITY);
+            design_mut(ship).integrity.collapse_threshold = Some(f32::INFINITY);
         }),
-        ("skinned", |ship| ship.design.presentation.skin = true),
+        ("skinned", |ship| design_mut(ship).presentation.skin = true),
         ("styled", |ship| {
-            ship.design.presentation.style = Some("armoured".to_string());
+            design_mut(ship).presentation.style = Some("armoured".to_string());
+        }),
+        ("another side", |ship| {
+            ship.spawn.allegiance = Some(Allegiance::Enemy);
+        }),
+        ("lootable", |ship| ship.spawn.lootable = true),
+        ("unflown", |ship| {
+            ship.spawn.controller = SpaceshipController::None
+        }),
+        ("holding fire", |ship| {
+            crew_mut(ship).engage_delay = Some(8.0);
         }),
         ("patched health 50", |ship| patch_health(ship, 50.0)),
         ("patched health NaN", |ship| patch_health(ship, f32::NAN)),
@@ -806,8 +940,6 @@ fn materialize_one_ship(world: &mut World, offset: f32) -> Entity {
     let root = materialize_sector(
         &mut world.commands(),
         prepared,
-        None,
-        &AssetRef::default(),
         &test_sections(),
         observer_at(config.input(SectorCoord::ORIGIN), offset),
     );
@@ -827,7 +959,7 @@ fn ships_under(world: &mut World, root: Entity) -> (Vec<String>, Vec<String>) {
         .query::<(&PendingSectorShip, &ChildOf)>()
         .iter(world)
         .filter(|(_, child_of)| child_of.parent() == root)
-        .map(|(held, _)| held.ship().id.clone())
+        .map(|(held, _)| held.ship().id.to_string())
         .collect();
     (spawned, held)
 }
@@ -843,7 +975,7 @@ fn a_ship_the_observer_overlaps_is_held_until_the_observer_is_clear() {
     let id = sector_id(SectorCoord::ORIGIN, "ship", 0);
     assert_eq!(
         ships_under(&mut world, root),
-        (Vec::new(), vec![id.clone()]),
+        (Vec::new(), vec![id.to_string()]),
         "an overlapped ship must be held, not spawned"
     );
 
@@ -861,7 +993,7 @@ fn a_ship_the_observer_overlaps_is_held_until_the_observer_is_clear() {
     world.flush();
     assert_eq!(
         ships_under(&mut world, root),
-        (Vec::new(), vec![id.clone()]),
+        (Vec::new(), vec![id.to_string()]),
         "a ship must stay held while the observer overlaps it"
     );
 
@@ -888,65 +1020,73 @@ fn a_ship_the_observer_overlaps_is_held_until_the_observer_is_clear() {
 fn intact_and_derelict(input: SectorGenerationInput) -> SectorManifest {
     let centre = input.coord.centre(input.geometry.sector_edge);
     let mut manifest = one_ship(input);
-    manifest.ships[0].crew = Some(SectorShipCrew {
-        allegiance: Allegiance::Enemy,
+    manifest.ships[0].spawn.allegiance = Some(Allegiance::Enemy);
+    *crew_mut(&mut manifest.ships[0]) = AIControllerConfig {
         patrol: vec![
             centre + Meters3::new(0.0, 0.0, 1_500.0),
             centre + Meters3::new(0.0, 0.0, -1_500.0),
         ],
-        stops: vec![30.0, 45.0],
-        leash: Meters(5_000.0),
-    });
-    manifest.ships.push(SectorShip {
-        condition: SectorShipConditionType::Derelict,
-        crew: None,
-        stock: ShipInventoryStock::new([(ItemType::HullPlate, 5)]),
-        credits: 15,
-        ..ship(
-            sector_id(input.coord, "ship", 1),
-            centre + Meters3::new(1_000.0, 0.0, 0.0),
-            TEST_HULL_SECTION_ID,
-        )
-    });
+        patrol_stops: vec![30.0, 45.0],
+        leash: Some(Meters(5_000.0)),
+        engage_delay: Some(8.0),
+        ..default()
+    };
+    let mut derelict = ship(
+        sector_id(input.coord, "ship", 1),
+        centre + Meters3::new(1_000.0, 0.0, 0.0),
+        TEST_HULL_SECTION_ID,
+    );
+    derelict.condition = SectorShipConditionType::Derelict;
+    derelict.spawn.controller = SpaceshipController::None;
+    derelict.spawn.lootable = true;
+    derelict.spawn.inventory = ShipInventoryStock::new([(ItemRoleType::HullPlate.into(), 5)]);
+    derelict.spawn.credits = 15;
+    manifest.ships.push(derelict);
     manifest
 }
 
-/// A derelict spawns lootable with its manifest stock, so a docked ship may
-/// Take it, and flown by nobody on nobody's side; an intact ship spawns
-/// neither lootable nor stocked, flown by an AI on its crew's side along its
-/// crew's loop, an Enemy crew holding fire for its arrival grace. Each spawns
-/// with its manifest credits.
+/// A ship spawns as its manifest entry says and materialization adds nothing:
+/// the derelict lootable with its stock, so a docked ship may Take it, flown
+/// by nobody on nobody's side and marked a derelict; the intact ship neither
+/// lootable nor stocked, flown by an AI on the entry's side along the entry's
+/// loop with its leash and its arrival grace. Each spawns with its entry's
+/// credits. Through the real ship spawn: the side and the loot marker land
+/// when the section observer applies the spawn policy.
 #[test]
 fn a_materialized_derelict_is_lootable_and_unflown_and_an_intact_ship_is_flown_by_its_crew() {
     let config = answering(intact_and_derelict);
     let prepared =
         prepare_sector(config.clone(), SectorCoord::ORIGIN).expect("two valid ships must prepare");
-    let mut world = World::new();
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, SpaceshipPlugin));
+    app.insert_resource(test_sections());
+    app.insert_resource(test_items());
+    let world = app.world_mut();
     materialize_sector(
         &mut world.commands(),
         prepared,
-        None,
-        &AssetRef::default(),
         &test_sections(),
         observer_at(config.input(SectorCoord::ORIGIN), 5_000.0),
     );
     world.flush();
 
-    let mut spawned: Vec<(String, bool, bool, Vec<(ItemType, u32)>, u32)> = world
+    let mut spawned: Vec<(String, bool, bool, Vec<(ItemDesignId, u32)>, u32)> = world
         .query::<(
             &Name,
             Has<DerelictShipMarker>,
             Has<LootableShipMarker>,
-            &ShipInventoryStock,
+            &ShipInventory,
             &ShipCredits,
         )>()
-        .iter(&world)
-        .map(|(name, derelict, lootable, stock, credits)| {
+        .iter(world)
+        .map(|(name, derelict, lootable, hold, credits)| {
             (
                 name.to_string(),
                 derelict,
                 lootable,
-                stock.stacks().collect(),
+                hold.stacks()
+                    .map(|(item, count)| (item.clone(), count))
+                    .collect(),
                 credits.0,
             )
         })
@@ -960,7 +1100,7 @@ fn a_materialized_derelict_is_lootable_and_unflown_and_an_intact_ship_is_flown_b
                 "Solmar derelict, former civilian".to_string(),
                 true,
                 true,
-                vec![(ItemType::HullPlate, 5)],
+                vec![(ItemRoleType::HullPlate.into(), 5)],
                 15
             ),
         ]
@@ -968,7 +1108,7 @@ fn a_materialized_derelict_is_lootable_and_unflown_and_an_intact_ship_is_flown_b
 
     let mut flown: Vec<(String, Allegiance, Option<AIControllerConfig>)> = world
         .query::<(&Name, &Allegiance, &SpaceshipController)>()
-        .iter(&world)
+        .iter(world)
         .map(|(name, allegiance, controller)| {
             let crew = match controller {
                 SpaceshipController::AI(config) => Some(config.clone()),
@@ -993,11 +1133,7 @@ fn a_materialized_derelict_is_lootable_and_unflown_and_an_intact_ship_is_flown_b
     );
     assert_eq!(crew.patrol_stops, [30.0, 45.0]);
     assert_eq!(crew.leash, Some(Meters(5_000.0)));
-    assert_eq!(
-        crew.engage_delay,
-        Some(8.0),
-        "an Enemy crew arrives holding fire"
-    );
+    assert_eq!(crew.engage_delay, Some(8.0));
     assert_eq!(*derelict_side, Allegiance::Neutral);
 }
 
@@ -1011,8 +1147,7 @@ fn a_ship_design_the_loaded_sections_do_not_resolve_is_refused_at_spawn() {
     let prepared = prepare_sector(
         answering(|input| {
             let mut manifest = one_ship(input);
-            manifest.ships[0]
-                .design
+            design_mut(&mut manifest.ships[0])
                 .sections
                 .push(SpaceshipSectionConfig {
                     id: "missing".into(),
@@ -1029,8 +1164,6 @@ fn a_ship_design_the_loaded_sections_do_not_resolve_is_refused_at_spawn() {
     materialize_sector(
         &mut world.commands(),
         prepared,
-        None,
-        &AssetRef::default(),
         &test_sections(),
         ObserverBody {
             position: Meters3::new(0.0, 0.0, 0.0),

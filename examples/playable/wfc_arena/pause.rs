@@ -160,6 +160,7 @@ fn on_pause_action(
     mut next: ResMut<NextState<PauseStates>>,
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
+    items: Res<GameItems>,
     styles: Res<GameStyles>,
     model: Option<Res<lobby::LobbyModel>>,
     mut roster: ResMut<Roster>,
@@ -173,6 +174,7 @@ fn on_pause_action(
             commands.trigger(LoadScenario(arena(
                 &game_assets,
                 &sections,
+                &items,
                 &styles,
                 &mut roster,
             )));

@@ -31,9 +31,9 @@ use bevy::prelude::*;
 use nova_events::prelude::{EntityId, Meters3, ScenarioAddressableMarker};
 use nova_gameplay::prelude::{CargoCanister, SpaceshipRootMarker, TempEntity, UnsettledBody};
 use nova_scenario::prelude::{
-    freeze_asteroid, freeze_ore_drop, freeze_ship, thaw_asteroid, thaw_ore_drop, thaw_ship,
-    AsteroidMarker, FrozenAsteroid, FrozenOreDrop, FrozenShip, MinedOreDrop, PreparedAsteroid,
-    ScenarioScopedMarker,
+    freeze_asteroid, freeze_ore_drop, freeze_ship, prepare_frozen_asteroid, thaw_asteroid,
+    thaw_ore_drop, thaw_ship, AsteroidMarker, FrozenAsteroid, FrozenOreDrop, FrozenShip,
+    MinedOreDrop, PreparedAsteroid, ScenarioScopedMarker,
 };
 use nova_ship::prelude::{
     freeze_canister, freeze_wreck_fragment, thaw_canister, thaw_wreck_fragment, DockedShip,
@@ -105,9 +105,13 @@ impl FrozenSectors {
         self.0.is_empty()
     }
 
-    /// Take a cell's record, for the materialization that spawns it.
-    pub(crate) fn take(&mut self, coord: SectorCoord) -> Option<FrozenSector> {
-        self.0.remove(&coord).map(Arc::unwrap_or_clone)
+    /// Drop a cell's record on the frame the cell materializes: the job that
+    /// prepared the cell took the record's bodies with it. Returns how many
+    /// bodies the record held.
+    pub(crate) fn consume(&mut self, coord: SectorCoord) -> usize {
+        self.0
+            .remove(&coord)
+            .map_or(0, |record| record.bodies().len())
     }
 
     /// Keep the bodies a retiring cell froze this frame.
@@ -286,19 +290,48 @@ impl FrozenSector {
     pub fn is_visited(&self) -> bool {
         matches!(self, Self::Visited(_))
     }
+}
 
-    /// Each frozen rock, in record order: what a worker prepares the
-    /// geometry of before the main thread thaws them.
-    pub(crate) fn rocks(&self) -> impl Iterator<Item = &FrozenAsteroid> {
-        self.bodies().iter().filter_map(|body| match &body.body {
-            FrozenBodyType::Asteroid(rock) => Some(rock),
-            _ => None,
-        })
-    }
+/// One frozen body with what a worker prepared for it: a rock's geometry,
+/// pristine and, for a carved one, the surface its field meshes to; a held
+/// ship's manifest entry, regenerated.
+///
+/// Built only by [`PreparedFrozenBody::prepare`], so a rock always travels
+/// with its geometry, a held ship always with its entry, and nothing else
+/// carries either.
+#[derive(Debug)]
+pub(crate) enum PreparedFrozenBody {
+    /// A body that thaws where it froze.
+    Body(Box<(FrozenBody, Option<PreparedAsteroid>)>),
+    /// A ship still held back, to spawn once the observer is clear of it.
+    HeldShip(Box<SectorShip>),
+}
 
-    fn into_bodies(self) -> Vec<FrozenBody> {
-        match self {
-            Self::Visited(bodies) | Self::Arrivals(bodies) => bodies,
+impl PreparedFrozenBody {
+    /// Prepare `body` of `coord` for its thaw, `ships` being the cell's
+    /// regenerated ships. PURE, for the cell's worker.
+    ///
+    /// # Panics
+    ///
+    /// When a held ship's id names none of `ships`. The generator is pinned
+    /// by the catalog digest the save carries, so the cell cannot regenerate
+    /// without it: an assembly fault, not a runtime condition.
+    pub(crate) fn prepare(coord: SectorCoord, body: FrozenBody, ships: &[SectorShip]) -> Self {
+        match &body.body {
+            FrozenBodyType::PendingShip { id } => {
+                let Some(ship) = ships.iter().find(|ship| ship.id.as_str() == id) else {
+                    panic!(
+                        "nova_world: {coord} froze the held ship '{id}' but regenerates no ship \
+                         of that id"
+                    );
+                };
+                Self::HeldShip(Box::new(ship.clone()))
+            }
+            FrozenBodyType::Asteroid(rock) => {
+                let geometry = prepare_frozen_asteroid(rock);
+                Self::Body(Box::new((body, Some(geometry))))
+            }
+            _ => Self::Body(Box::new((body, None))),
         }
     }
 }
@@ -388,9 +421,14 @@ pub enum FrozenBodyType {
     Asteroid(FrozenAsteroid),
     /// A ship, with its hold, damage, surviving sections, ammunition and AI.
     Ship(Box<FrozenShip>),
-    /// A ship held back because the observer overlapped it, still a manifest
-    /// entry.
-    PendingShip(Box<SectorShip>),
+    /// A ship held back because the observer overlapped it, by the id of
+    /// its manifest entry. The cell regenerates the entry on its worker:
+    /// the catalog digest a save carries pins the generator, so the same id
+    /// names the same ship.
+    PendingShip {
+        /// The held ship's generated id.
+        id: String,
+    },
     /// A loose cargo canister with its own runtime id.
     Canister(FrozenCanister),
     /// Structure severed from a ship.
@@ -430,14 +468,14 @@ pub(crate) fn freeze_body(
 ) -> Result<FrozenBody, UnsettledBody> {
     let body = world.entity(entity);
     if let Some(held) = body.get::<PendingSectorShip>() {
-        let ship = held.ship().clone();
+        let id = held.ship().id.to_string();
         return Ok(FrozenBody {
-            id: Some(EntityId::new(ship.id.clone())),
+            id: Some(EntityId::new(id.clone())),
             name: None,
             transform: Transform::IDENTITY,
             visibility: None,
             motion: None,
-            body: FrozenBodyType::PendingShip(Box::new(ship)),
+            body: FrozenBodyType::PendingShip { id },
         });
     }
     let name = body.get::<Name>().map(ToString::to_string);
@@ -482,38 +520,27 @@ pub(crate) fn freeze_body(
     })
 }
 
-/// Spawn a record's bodies under `root`, each where and as it froze.
-///
-/// `rocks` is the pristine geometry of each frozen rock, prepared on the
-/// cell's worker from [`FrozenSector::rocks`], in record order.
-///
-/// # Panics
-///
-/// When `rocks` does not hold exactly one geometry per frozen rock. A
-/// record changes only while its cell is off-window, and every job for an
-/// off-window cell is cancelled, so a mismatch is a job prepared against
-/// another record.
-pub(crate) fn thaw_record(
-    commands: &mut Commands,
-    root: Entity,
-    coord: SectorCoord,
-    record: FrozenSector,
-    rocks: Vec<PreparedAsteroid>,
-) {
-    let mut rocks = rocks.into_iter();
-    for frozen in record.into_bodies() {
-        let FrozenBody {
-            id,
-            name,
-            transform,
-            visibility,
-            motion,
-            body,
-        } = frozen;
-        if let FrozenBodyType::PendingShip(ship) = body {
-            commands.spawn((PendingSectorShip(*ship), ChildOf(root)));
-            continue;
-        }
+/// Spawn frozen `bodies` under `root`, each where and as it froze, with the
+/// geometry the cell's worker prepared for it.
+pub(crate) fn thaw_record(commands: &mut Commands, root: Entity, bodies: Vec<PreparedFrozenBody>) {
+    for prepared in bodies {
+        let (
+            FrozenBody {
+                id,
+                name,
+                transform,
+                visibility,
+                motion,
+                body,
+            },
+            geometry,
+        ) = match prepared {
+            PreparedFrozenBody::HeldShip(ship) => {
+                commands.spawn((PendingSectorShip(*ship), ChildOf(root)));
+                continue;
+            }
+            PreparedFrozenBody::Body(prepared) => *prepared,
+        };
         let mut entity = commands.spawn((
             ScenarioScopedMarker,
             transform,
@@ -528,9 +555,8 @@ pub(crate) fn thaw_record(
         }
         match body {
             FrozenBodyType::Asteroid(rock) => {
-                let Some(geometry) = rocks.next() else {
-                    panic!("nova_world: {coord} thawed more frozen rocks than its job prepared");
-                };
+                let geometry =
+                    geometry.expect("PreparedFrozenBody::prepare pairs every rock with geometry");
                 thaw_asteroid(&mut entity, rock, geometry);
             }
             FrozenBodyType::Ship(ship) => thaw_ship(&mut entity, *ship),
@@ -542,7 +568,9 @@ pub(crate) fn thaw_record(
             FrozenBodyType::OreDrop(drop) => {
                 entity.insert(thaw_ore_drop(drop));
             }
-            FrozenBodyType::PendingShip(_) => unreachable!("spawned above"),
+            FrozenBodyType::PendingShip { .. } => {
+                unreachable!("PreparedFrozenBody::prepare resolves a held ship to HeldShip")
+            }
         }
         // After the owner's thaw: a spawn bundle seeds the velocity and the
         // visibility it was authored with, and the body keeps the ones it
@@ -554,10 +582,6 @@ pub(crate) fn thaw_record(
             entity.insert(visibility);
         }
     }
-    assert!(
-        rocks.next().is_none(),
-        "nova_world: {coord} was prepared with more rock geometry than it froze rocks"
-    );
 }
 
 /// The persistent bodies adoption moves between cells, and a replaced world

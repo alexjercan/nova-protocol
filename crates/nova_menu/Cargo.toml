@@ -48,6 +48,8 @@ bevy_rand = { version = "0.15.0", features = ["wasm_js"] }
 
 
 [dev-dependencies]
+# The item catalog fixture the Load list checks saved worlds against.
+nova_gameplay = { path = "../nova_gameplay", features = ["serde", "test-support"] }
 # The leave tests' saving world: the production save systems on a fixture.
 nova_world_base = { path = "../nova_world_base", features = ["test-support"] }
 # Scratch worlds folders.
