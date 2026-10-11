@@ -294,6 +294,13 @@ impl FrozenCanister {
     pub fn item_ids(&self) -> impl Iterator<Item = &ItemDesignId> {
         self.contents.stacks().map(|(item, _)| item)
     }
+
+    /// The stacks the canister froze with, as the save checks them against
+    /// the canister cap.
+    #[must_use]
+    pub fn contents(&self) -> &CargoCanister {
+        &self.contents
+    }
 }
 
 /// Capture `canister`'s id, contents, health and model.

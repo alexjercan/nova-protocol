@@ -30,7 +30,7 @@ use nova_world::prelude::{
 };
 
 use super::{
-    check_saved_ids, check_saved_items,
+    check_saved_ids, check_saved_items, check_saved_stock,
     transients::{freeze_transients, hold_resumed_transients},
     write_world, SavedIdFault, SavedPlayer, WorldFolder, WorldLock, WorldSaveHeader,
     WorldSaveState, WORLD_SAVE_FORMAT,
@@ -494,6 +494,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
         })
         .and_then(|()| {
             check_saved_items(&state, &items)
+                .and_then(|()| check_saved_stock(&state, &items))
                 .map_err(|reason| SectorSnapshotError::InvalidSavedState { reason })
         });
     if let Err(error) = checked {

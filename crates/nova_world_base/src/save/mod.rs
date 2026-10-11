@@ -31,8 +31,8 @@ use bevy::prelude::*;
 use nova_assets::{prelude::LoadedSectionPacks, storage::write_atomic};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
-    CargoCanisterRuntimeId, GameItems, ItemDesignId, SavedBodyRef, SavedOwner, SavedSectionRef,
-    SavedTargetRef,
+    kg_text, CargoCanisterRuntimeId, GameItems, ItemDesignId, SavedBodyRef, SavedOwner,
+    SavedSectionRef, SavedTargetRef, CARGO_CANISTER_MAX_MASS_G,
 };
 use nova_scenario::prelude::FrozenShip;
 use nova_ship::prelude::{CameraView, SavedTorpedoTarget};
@@ -362,6 +362,8 @@ fn read_state(
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     check_saved_items(&state, items)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
+    check_saved_stock(&state, items)
+        .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     Ok(state)
 }
 
@@ -401,6 +403,66 @@ fn check_saved_items(state: &WorldSaveState, items: &GameItems) -> Result<(), St
                 (None, _) => format!("a body in sector {coord}"),
             };
             return Err(format!("unknown item '{item}' held by {owner}"));
+        }
+    }
+    Ok(())
+}
+
+/// Every saved hold is within its cap: the player's and every ledger ship's
+/// stock weighs at most its hull capacity, and every ledger canister weighs
+/// at most [`CARGO_CANISTER_MAX_MASS_G`]. Runs after [`check_saved_items`],
+/// so every stacked id has a mass. A save checks before it writes; Load
+/// checks on open, as a thaw would otherwise spawn a hold the game never
+/// lets a ship take.
+fn check_saved_stock(state: &WorldSaveState, items: &GameItems) -> Result<(), String> {
+    let mass_g = |stacks: &mut dyn Iterator<Item = (&ItemDesignId, u32)>| -> u64 {
+        stacks
+            .map(|(item, count)| items.design(item).stack_mass_g(count))
+            .sum()
+    };
+    let check_hold = |ship: &FrozenShip, owner: &str| -> Result<(), String> {
+        let hold = ship.inventory();
+        let held = mass_g(&mut hold.stacks());
+        let capacity = u64::from(hold.capacity_g());
+        if held > capacity {
+            return Err(format!(
+                "{owner} holds {} in a hold of {}",
+                kg_text(held),
+                kg_text(capacity)
+            ));
+        }
+        Ok(())
+    };
+    check_hold(
+        &state.player.ship,
+        &format!("the player ship '{}'", state.player.id.0),
+    )?;
+    for (_, record) in state.sectors.iter() {
+        for body in record.bodies() {
+            match body.body() {
+                FrozenBodyType::Ship(ship) => {
+                    let id = body
+                        .id()
+                        .expect("a frozen ship is a persistent body with an id");
+                    check_hold(ship, &format!("'{id}'"))?;
+                }
+                FrozenBodyType::Canister(canister) => {
+                    let held = mass_g(&mut canister.contents().stacks());
+                    let cap = u64::from(CARGO_CANISTER_MAX_MASS_G);
+                    if held > cap {
+                        return Err(format!(
+                            "the canister {} holds {} over the canister cap of {}",
+                            canister.id().0,
+                            kg_text(held),
+                            kg_text(cap)
+                        ));
+                    }
+                }
+                FrozenBodyType::Asteroid(_)
+                | FrozenBodyType::PendingShip { .. }
+                | FrozenBodyType::WreckFragment(_)
+                | FrozenBodyType::OreDrop(_) => {}
+            }
         }
     }
     Ok(())

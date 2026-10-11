@@ -632,6 +632,13 @@ impl FrozenShip {
     pub fn has_section(&self, section: &str) -> bool {
         self.state.sections.contains_key(section)
     }
+
+    /// The hold the ship froze with, as the save checks it against its
+    /// capacity.
+    #[must_use]
+    pub fn inventory(&self) -> &ShipInventory {
+        &self.state.inventory
+    }
 }
 
 /// The ship a scenario's spawn of [`ResumedSpaceship::id`] thaws instead of

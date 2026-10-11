@@ -13,7 +13,8 @@ use nova_gameplay::prelude::{
     PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage, ProjectileOwner,
     RailgunSlugProjectileMarker, RoundRake, SavedBodyRef, SavedLifetime, SavedOwner,
     SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory,
-    SpaceshipRootMarker, TorpedoProjectileMarker, TurretBulletProjectileMarker, ITEM_IRON_ORE,
+    SpaceshipRootMarker, TempEntity, TorpedoProjectileMarker, TurretBulletProjectileMarker,
+    ITEM_IRON_ORE, ITEM_TORPEDO,
 };
 use nova_scenario::prelude::{
     freeze_asteroid, freeze_ore_drop, freeze_ship, spaceship_scenario_object, AsteroidKind,
@@ -2301,4 +2302,128 @@ fn a_save_holding_an_item_the_catalog_lacks_fails_and_keeps_the_last_save() {
     assert!(reason.contains("unknown item 'lost_core'"), "{reason}");
     assert_eq!(files(&folder), ["state.1.ron", "world.lock", "world.ron"]);
     assert_eq!(std::fs::read(folder.join("state.1.ron")).unwrap(), saved);
+}
+
+/// A live top-level transient with a physics body and no save record fails
+/// the save visibly and writes nothing, so the last good save stays; the
+/// game keeps running.
+#[test]
+fn a_save_over_a_physics_transient_with_no_record_fails_and_keeps_the_last_save() {
+    let root = tempfile::tempdir().unwrap();
+    let (mut world, _player) = armed_session(root.path());
+    run_until_idle(&mut world);
+    assert_eq!(
+        world.resource::<WorldSaveSession>().status(),
+        &WorldSaveStatus::Saved { generation: 1 }
+    );
+    let folder = root.path().join("session");
+    let saved = std::fs::read(folder.join("state.1.ron")).unwrap();
+
+    world.spawn((
+        Name::new("Mystery Debris"),
+        TempEntity(5.0),
+        RigidBody::Dynamic,
+        Transform::IDENTITY,
+    ));
+    world.resource_mut::<WorldSaveSession>().request_leave();
+    run_until_idle(&mut world);
+    let WorldSaveStatus::Failed(reason) = world.resource::<WorldSaveSession>().status() else {
+        panic!(
+            "a transient with no record fails the save, not {:?}",
+            world.resource::<WorldSaveSession>().status()
+        );
+    };
+    assert!(
+        reason.contains("'Mystery Debris' is a transient with a physics body and no save record"),
+        "{reason}"
+    );
+    assert_eq!(files(&folder), ["state.1.ron", "world.lock", "world.ron"]);
+    assert_eq!(std::fs::read(folder.join("state.1.ron")).unwrap(), saved);
+}
+
+/// A saved world whose player hold weighs more than its capacity, or whose
+/// ledger holds a canister over the canister cap, is refused on open with
+/// the holder and both masses; the same holds within their caps open.
+#[test]
+fn a_world_whose_saved_stock_is_over_its_hold_or_canister_cap_is_refused_on_open() {
+    let root = tempfile::tempdir().unwrap();
+    let (folder, lock) = create_world(root.path(), "Stock").unwrap();
+    drop(lock);
+    let east = SectorCoord::new(1, 0, 0);
+    let iron = ron::to_string(&ItemDesignId::from(ITEM_IRON_ORE)).unwrap();
+    let torpedo = ron::to_string(&ItemDesignId::from(ITEM_TORPEDO)).unwrap();
+    // Read from RON, as a load reads them: the constructors refuse both.
+    let player_with_hold = |capacity_g: u32| {
+        let mut world = World::new();
+        let ship = world
+            .spawn((
+                spaceship_scenario_object(SpaceshipConfig::default()),
+                ron::from_str::<ShipInventory>(&format!(
+                    "(capacity_g: {capacity_g}, stacks: {{{iron}: 1}})"
+                ))
+                .unwrap(),
+                DamageMarks::default(),
+            ))
+            .id();
+        SavedPlayer {
+            ship: freeze_ship(&world, ship).expect("a bare ship is settled"),
+            ..state(1, 750).player
+        }
+    };
+    let canister_holding = |torpedoes: u32| {
+        let mut world = World::new();
+        let canister = world
+            .spawn((
+                cargo_canister(
+                    ron::from_str::<CargoCanister>(&format!(
+                        "(stacks: {{{torpedo}: {torpedoes}}})"
+                    ))
+                    .unwrap(),
+                    Transform::IDENTITY,
+                    Vec3::ZERO,
+                    AssetRef::from("canister.glb#Scene0"),
+                ),
+                CargoCanisterRuntimeId(5),
+            ))
+            .id();
+        let frozen = freeze_canister(&world, canister).expect("a whole canister");
+        ledger_holding(east, None, &FrozenBodyType::Canister(frozen))
+    };
+
+    let cases = [
+        (
+            player_with_hold(5_000),
+            FrozenSectors::default(),
+            "the player ship 'player' holds 10 kg in a hold of 5 kg",
+        ),
+        (
+            player_with_hold(10_000),
+            canister_holding(2),
+            "the canister 5 holds 300 kg over the canister cap of 200 kg",
+        ),
+    ];
+    for (generation, (player, sectors, expected)) in (1..).zip(cases) {
+        let saved_state = WorldSaveState {
+            player,
+            sectors,
+            ..state(generation, 750)
+        };
+        write_world(&folder, &header("Stock", generation), &saved_state).unwrap();
+        assert_eq!(
+            open_world(root.path(), "stock", &catalog(7), &items()).map(|_| ()),
+            Err(WorldRefusal::Unreadable(format!(
+                "state.{generation}.ron: {expected}"
+            ))),
+            "case at generation {generation}"
+        );
+    }
+
+    let within = WorldSaveState {
+        player: player_with_hold(10_000),
+        sectors: canister_holding(1),
+        ..state(3, 750)
+    };
+    write_world(&folder, &header("Stock", 3), &within).unwrap();
+    let (_, _lock, _, saved) = open_world(root.path(), "stock", &catalog(7), &items()).unwrap();
+    assert_eq!(saved.generation, 3, "stock within its caps opens");
 }
