@@ -785,6 +785,7 @@ fn check_action(
             check_spawned_arrival_standoff(config, scenario, issues);
             check_spawned_patrol_stops(config, scenario, issues);
             check_asteroid_kind(config, scenario, issues);
+            check_asteroid_lock_signature(config, scenario, issues);
             check_initial_velocity(config, scenario, issues);
             check_planet(config, scenario, issues);
         }
@@ -812,6 +813,7 @@ fn check_action(
                 );
             }
             check_scatter_kind_mix(config, scenario, issues);
+            check_asteroid_lock_signature(&config.template, scenario, issues);
             check_initial_velocity(&config.template, scenario, issues);
             check_planet(&config.template, scenario, issues);
             // The runtime clamps rather than OOMs, but a clamped field is not
@@ -1464,6 +1466,31 @@ fn check_planet(config: &ScenarioObjectConfig, scenario: &str, issues: &mut Vec<
         _ => format!("planet '{id}' authors {field} {value}, which no planet can be built from"),
     };
     issues.push(LintIssue::error(scenario, message));
+}
+
+/// An asteroid's lock-signature override has to be a radar size the
+/// targeting can compare against.
+///
+/// [`AsteroidConfig::validate_lock_signature`] owns the rule; this names the
+/// file and says how to fix it.
+fn check_asteroid_lock_signature(
+    config: &ScenarioObjectConfig,
+    scenario: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    let ScenarioObjectKind::Asteroid(asteroid) = &config.kind else {
+        return;
+    };
+    if let Err(value) = asteroid.validate_lock_signature() {
+        issues.push(LintIssue::error(
+            scenario,
+            format!(
+                "asteroid '{}' authors a lock signature of {value}; drop the override to read \
+                 at the true size instead",
+                config.base.id
+            ),
+        ));
+    }
 }
 
 /// A section-addressed weapon action must name a section the ship carries, of
@@ -3334,6 +3361,82 @@ mod tests {
                         .any(|issue| issue.message.contains("initial_velocity")),
                     "a {kind} {path} with zero initial_velocity is a legal stationary start: \
                      {issues:?}"
+                );
+            }
+        }
+    }
+
+    /// An asteroid's lock-signature override reaches `LockSignature`
+    /// unchecked at spawn, so a NaN or non-positive one is an error on both
+    /// authored paths: a direct spawn and a Scatter template. A positive
+    /// override and no override stay legal.
+    #[test]
+    fn an_asteroid_lock_signature_must_be_finite_and_positive_on_spawn_and_scatter() {
+        fn asteroid(lock_signature: Option<Meters>) -> ScenarioObjectConfig {
+            ScenarioObjectConfig {
+                base: BaseScenarioObjectConfig {
+                    id: "rock".to_string(),
+                    name: "Rock".to_string(),
+                    position: Meters3::ZERO,
+                    rotation: Quat::IDENTITY,
+                },
+                kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                    kind: KIND_ROCK.into(),
+                    destroy_sound: None,
+                    radius: Meters(20.0),
+                    initial_velocity: MetersPerSecond3::ZERO,
+                    texture: nova_gameplay::prelude::AssetRef::default(),
+                    lock_signature,
+                    seed: None,
+                }),
+            }
+        }
+        fn spawn(template: ScenarioObjectConfig) -> EventActionConfig {
+            EventActionConfig::SpawnScenarioObject(template)
+        }
+        fn scatter(template: ScenarioObjectConfig) -> EventActionConfig {
+            EventActionConfig::ScatterObjects(ScatterObjectsConfig {
+                id_prefix: "rock_".to_string(),
+                count: 1,
+                seed: 1,
+                region: ScatterRegion::Box {
+                    min: Meters3::new(-100.0, -100.0, -100.0),
+                    max: Meters3::new(100.0, 100.0, 100.0),
+                },
+                template,
+                asteroid_radius: None,
+                asteroid_kinds: vec![(KIND_ROCK.into(), 1)],
+                min_separation: None,
+            })
+        }
+        let lint_of = |action| {
+            let s = scenario(vec![action], vec![]);
+            lint_scenario(
+                &s,
+                &sections(&[]),
+                &ships(&[]),
+                &known(&["test_scenario"]),
+                &GameItems::default(),
+            )
+        };
+        let paths: [(&str, fn(ScenarioObjectConfig) -> EventActionConfig); 2] =
+            [("spawn", spawn), ("scatter", scatter)];
+
+        for (path, action) in paths {
+            for bad in [f32::NAN, f32::INFINITY, 0.0, -30.0] {
+                let issues = lint_of(action(asteroid(Some(Meters(bad)))));
+                assert!(
+                    errors(&issues)
+                        .iter()
+                        .any(|issue| issue.message.contains("lock signature")),
+                    "an asteroid {path} with lock_signature {bad} m is an error: {issues:?}"
+                );
+            }
+            for good in [None, Some(Meters(30.0))] {
+                let issues = lint_of(action(asteroid(good)));
+                assert!(
+                    errors(&issues).is_empty(),
+                    "an asteroid {path} with lock_signature {good:?} is legal: {issues:?}"
                 );
             }
         }

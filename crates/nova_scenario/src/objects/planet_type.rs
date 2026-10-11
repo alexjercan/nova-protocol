@@ -365,8 +365,9 @@ pub struct PlanetConfig {
     /// REQUIRED: a planet is always a static gravity well, at any radius.
     /// There is no size threshold and no default mass to fall back to.
     pub mass: f32,
-    /// Override how loud this body reads to the lock scanner. `None` is the
-    /// mean radius, so a planet locks from proportionally far out.
+    /// Override how loud this body reads to the lock scanner. `None` is ten
+    /// times the relieved [`Self::body_radius`]; `Some` must be a finite
+    /// positive length, which [`Self::validate`] enforces.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")

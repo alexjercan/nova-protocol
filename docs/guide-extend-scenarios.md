@@ -334,12 +334,13 @@ integrity graph entirely.
    first, a loud refusal on the load path second. It is never resolved to a
    house answer. An `Option` is right only where absence is a documented
    OVERRIDE with runtime-derived behavior behind it, and the field's own doc
-   comment says what the absence MEANS. `lock_signature` (absent = the radius)
-   is one shipped precedent. `PlanetConfig::mass` is required because every
-   planet is a static gravity well. There is no `AsteroidConfig::mass` field:
-   mobile asteroids and ship roots respond to gravity rather than authoring
-   wells. `AsteroidConfig::kind` is a plain required `AsteroidKindId`, because
-   shading has no runtime answer to fall back on.
+   comment says what the absence MEANS. A rock's `lock_signature` (absent =
+   100 m plus half its true geometric radius) is one shipped precedent.
+   `PlanetConfig::mass` is required because every planet is a static gravity
+   well. There is no `AsteroidConfig::mass` field: mobile asteroids and ship
+   roots respond to gravity rather than authoring wells. `AsteroidConfig::kind`
+   is a plain required `AsteroidKindId`, because shading has no runtime answer
+   to fall back on.
 
    ```rust
    #[derive(Component, Clone, Debug, Reflect)]

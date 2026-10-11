@@ -116,6 +116,26 @@ pub struct AsteroidConfig {
     pub seed: Option<u32>,
 }
 
+impl AsteroidConfig {
+    /// Refuse a lock-signature override that is not a finite positive
+    /// length. The spawn hands it to [`LockSignature`] unchecked, so a NaN or
+    /// non-positive override must stop at the scenario lint and at
+    /// generated-world validation, which both call this. `None` is valid: the
+    /// rock reads at its true size.
+    ///
+    /// # Errors
+    ///
+    /// The refused value as text, in meters.
+    pub fn validate_lock_signature(&self) -> Result<(), String> {
+        match self.lock_signature {
+            Some(signature) if !signature.get().is_finite() || signature.get() <= 0.0 => {
+                Err(format!("{} m", signature.get()))
+            }
+            _ => Ok(()),
+        }
+    }
+}
+
 /// The silhouette seed an asteroid gets when its config authors none: a stable
 /// [`Fnv32`] hash of the scenario object's own id.
 ///

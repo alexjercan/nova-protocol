@@ -1,7 +1,8 @@
 # Report: Simplify generated-world data structures (20260923-110247)
 
 Date: 2026-10-11. Base: `master` at `37e2a9256`. Read-only investigation. No code,
-test, or TASK.md change.
+test, or TASK.md change. All sections except "Delivered on master after this
+report" are that original snapshot.
 
 ## Answer
 
@@ -17,6 +18,27 @@ items are small validation gaps. The rest is naming and one documented rule.
 Recommendation: fix the stale doc now. Decide whether to close the validation
 gaps under this task or under a smaller task. Then close this task. Do not do a
 naming-only refactor unless a feature touches these types.
+
+## Delivered on master after this report (2026-10-11)
+
+Option B without item 4. Status stays OPEN for the naming criterion.
+
+- Item 1: `docs/architecture.md` `nova_world` row now states the record rule,
+  the full refusal list, `spawn.inventory` / `spawn.credits`, and that the
+  crew policy is the generator's.
+- Item 2: `validate_manifest` also refuses a handle in the rock
+  `destroy_sound` (field `destroy_sound`) and in each of the ten design
+  presentation sounds (field `design`, value names the sound).
+  `check_ship_design` destructures `ShipPresentationConfig` exhaustively, so a
+  new presentation field fails to compile until it is sorted. Section
+  prototype patches carry no asset refs (`nova_ship/src/sections/patch.rs`).
+  Correction: the presentation sounds span `ship_design.rs:152-201`, not
+  `:152-186`.
+- Item 3: `AsteroidConfig::validate_lock_signature` owns the rule. Callers:
+  `validate_manifest` (field `lock_signature`) and the lint helper
+  `check_asteroid_lock_signature` on direct spawns and scatter templates. The
+  load path runs the same lint (`loader/lifecycle.rs:223`).
+- Module doc of `generation.rs` states the record and ownership rule.
 
 ## What #113 changed (evidence)
 

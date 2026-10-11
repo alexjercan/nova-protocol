@@ -21,9 +21,10 @@ Technical cleanup only: make generated rock, planet and ship records easier to r
 
 ## Agent findings
 
-- `SectorAsteroid` stores radius, raw kind, and seed directly; `SectorPlanet` stores `PlanetConfig`; the ship record stores design and yaw while materialization supplies controller and allegiance.
-- `AsteroidConfig` contains an asset-backed texture, while `PlanetConfig` is worker-complete. Blindly storing both full configs would cross the worker/main-thread boundary incorrectly.
-- `PreparedAsteroidGeometry` contains only worker-built geometry. `PreparedPlanet` carries its config and visual. `PreparedSector` also relies on positional agreement between description and prepared vectors.
+- PR #113 made each generated record its id, its placement and the whole scenario spawn config: `SectorAsteroid` carries `AsteroidConfig`, `SectorPlanet` carries `PlanetConfig`, `SectorShip` carries `SpaceshipConfig` plus generator facts. The generator, not materialization, states controller, side, loot and stock.
+- Prepared payloads travel with their records (`PreparedRock`, `PreparedPlanetoid`); nothing pairs by vector position.
+- `validate_manifest` refuses every runtime asset handle in a record and an asteroid lock signature that `AsteroidConfig::validate_lock_signature` refuses; the scenario lint applies the same lock-signature rule. The `generation` module doc states the record and ownership rule.
+- Open: prepared and record names are not parallel (`SectorAsteroid`/`PreparedRock` against `SectorPlanet`/`PreparedPlanetoid`), and no naming rule is documented. See `report.md`.
 
 ## Delivery
 

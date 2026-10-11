@@ -266,7 +266,7 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
         &str,
         fn(SectorGenerationInput) -> SectorManifest,
         fn(&SectorFault) -> bool,
-    ); 22] = [
+    ); 26] = [
         (
             "the wrong cell",
             |input| empty(input.coord.offset(1, 0, 0), Vec::new()),
@@ -366,6 +366,57 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
             },
         ),
         (
+            "an asteroid whose destroy sound is a runtime handle",
+            |input| {
+                let mut body = rock(input, 0, 0.0);
+                body.config.destroy_sound = Some(AssetRef::Handle(Handle::default()));
+                empty(input.coord, vec![body])
+            },
+            |fault| {
+                matches!(
+                    fault,
+                    SectorFault::Manifest {
+                        field: "destroy_sound",
+                        ..
+                    }
+                )
+            },
+        ),
+        (
+            "an asteroid with a NaN lock signature",
+            |input| {
+                let mut body = rock(input, 0, 0.0);
+                body.config.lock_signature = Some(Meters(f32::NAN));
+                empty(input.coord, vec![body])
+            },
+            |fault| {
+                matches!(
+                    fault,
+                    SectorFault::Manifest {
+                        field: "lock_signature",
+                        ..
+                    }
+                )
+            },
+        ),
+        (
+            "an asteroid with a zero lock signature",
+            |input| {
+                let mut body = rock(input, 0, 0.0);
+                body.config.lock_signature = Some(Meters(0.0));
+                empty(input.coord, vec![body])
+            },
+            |fault| {
+                matches!(
+                    fault,
+                    SectorFault::Manifest {
+                        field: "lock_signature",
+                        ..
+                    }
+                )
+            },
+        ),
+        (
             "a ship with a non-finite initial velocity",
             |input| {
                 let mut manifest = one_ship(input);
@@ -419,6 +470,26 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
                         field: "design",
                         ..
                     }
+                )
+            },
+        ),
+        (
+            "a ship whose design plays a runtime-handle sound",
+            |input| {
+                let mut manifest = one_ship(input);
+                design_mut(&mut manifest.ships[0])
+                    .presentation
+                    .warn_hull_sound = Some(AssetRef::Handle(Handle::default()));
+                manifest
+            },
+            |fault| {
+                matches!(
+                    fault,
+                    SectorFault::Manifest {
+                        field: "design",
+                        value,
+                        ..
+                    } if value.contains("warn_hull_sound")
                 )
             },
         ),

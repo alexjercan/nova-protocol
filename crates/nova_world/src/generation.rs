@@ -7,6 +7,24 @@
 //! makes a cell the same cell in any visit order. A [`SectorGenerator`] is
 //! held to the same rule: it gets a seed, an edge and a coordinate, and
 //! nothing else.
+//!
+//! RECORD RULE. Each generated record is its [`SectorObjectId`], its
+//! placement and the whole scenario spawn config the object is built from:
+//! [`SectorAsteroid`] carries an [`AsteroidConfig`], [`SectorPlanet`] a
+//! [`PlanetConfig`], [`SectorShip`] a [`SpaceshipConfig`]. Facts only the
+//! generator knows (a ship's rotation, clearance, condition, civilization and
+//! role) sit beside the config, never inside a hidden default.
+//! Materialization adds only the pose, the id, the derived name and the
+//! derelict marker; rocks and planetoids spawn at identity rotation, named by
+//! their id.
+//!
+//! OWNERSHIP. A worker reads the configs and never resolves an asset or a
+//! catalog. Every asset ref in a record must be a path, so the record saves
+//! and compares the same in any run; [`validate_manifest`] refuses a runtime
+//! handle. A rock's prepared geometry holds only its seed and radius, and the
+//! spawn pairs it with the record's config. A planetoid's prepared surface
+//! carries its own config. Section prototypes resolve against the catalog on
+//! the main thread.
 
 use std::{collections::BTreeSet, fmt, sync::Arc};
 
@@ -16,8 +34,8 @@ use nova_gameplay::prelude::{AssetRef, Fnv32, SeedStream};
 use nova_scenario::prelude::{
     is_asteroid_kind, patrol_stops_fault, prepare_asteroid_geometry, prepare_planet,
     AIControllerConfig, AsteroidConfig, PlanetConfig, PreparedAsteroid, PreparedPlanet,
-    SectionSource, ShipDesign, ShipDesignSource, SpaceshipConfig, SpaceshipController,
-    ASTEROID_GEOMETRIC_FACTOR_MAX,
+    SectionSource, ShipDesign, ShipDesignSource, ShipPresentationConfig, SpaceshipConfig,
+    SpaceshipController, ASTEROID_GEOMETRIC_FACTOR_MAX,
 };
 
 use crate::{
@@ -59,9 +77,10 @@ pub struct SectorAsteroid {
     /// Where it stands, in meters from the world origin.
     pub position: Meters3,
     /// The rock as the spawn builds it. `seed` is `Some`: the generator pins
-    /// the silhouette, the spawn never derives one. `texture` is a path: a
-    /// saved cell names it on disk. [`validate_manifest`] refuses both
-    /// otherwise.
+    /// the silhouette, the spawn never derives one. `texture` and
+    /// `destroy_sound` are paths: a saved cell names them on disk. A
+    /// `lock_signature` override is a finite positive length.
+    /// [`validate_manifest`] refuses each otherwise.
     pub config: AsteroidConfig,
 }
 
@@ -258,7 +277,8 @@ pub struct SectorShip {
     /// What it was built for. A derelict keeps its former role.
     pub role: ShipRoleType,
     /// The ship as the spawn builds it, whole: the generator states the
-    /// design (inline, every section a prototype of the loaded catalog), who
+    /// design (inline, every section a prototype of the loaded catalog, every
+    /// presentation sound a path), who
     /// flies it, its side (`Some`), its motion, its stock, whether it may be
     /// looted and its balance. Materialization adds nothing. A derelict is
     /// flown by nobody; [`validate_manifest`] refuses an AI on one, a player
@@ -373,8 +393,8 @@ impl SectorDescription {
     /// a non-finite float as `NaN` or `inf`, apart from `None`. A ship's
     /// credits print their balance; an AI's route prints each waypoint as
     /// placement with its stop. An asset handle prints its runtime id, so a
-    /// config that carries one compares equal only within one run; generated
-    /// configs carry none.
+    /// config that carries one compares equal only within one run;
+    /// [`validate_manifest`] refuses one, so a description carries none.
     pub fn canonical(&self) -> String {
         let point = |position: Meters3| {
             let p = position.get();
@@ -605,14 +625,16 @@ pub fn sector_id(coord: SectorCoord, name: &str, index: usize) -> SectorObjectId
 /// so two cells never claim one object; every body standing inside its own
 /// cell with its whole clearance sphere, so retiring a neighbour never takes
 /// it; no two bodies overlapping; shipped asteroid kinds; finite initial
-/// velocities; and planet configs that [`PlanetConfig::validate`] accepts. How many bodies a generator places
-/// and how far apart it spaces them is its own policy; this check only refuses
-/// what cannot be materialized. A ship's rotation must be a finite unit
-/// quaternion, its declared clearance positive and at most
+/// velocities; every asset ref a path, not a runtime handle; asteroid lock
+/// signatures that [`AsteroidConfig::validate_lock_signature`] accepts; and
+/// planet configs that [`PlanetConfig::validate`] accepts. How many bodies a
+/// generator places and how far apart it spaces them is its own policy; this
+/// check only refuses what cannot be materialized. A ship's rotation must be
+/// a finite unit quaternion, its declared clearance positive and at most
 /// [`SECTOR_SHIP_CLEARANCE_MAX`], and its clearance sphere is the one that
 /// must stand inside the cell. Its inline design is checked for what needs no
-/// catalog; the strict resolve against the loaded sections is main-thread work
-/// in `materialize_sector`.
+/// catalog; the strict resolve against the loaded sections is main-thread
+/// work in `materialize_sector`.
 ///
 /// # Errors
 ///
@@ -621,12 +643,14 @@ pub fn sector_id(coord: SectorCoord, name: &str, index: usize) -> SectorObjectId
 /// centre has no finite position in meters;
 /// [`SectorFault::Manifest`] for the wrong cell, an object outside its cell or
 /// overlapping another, an id another cell owns, a non-finite initial
-/// velocity, a rock with no silhouette seed or a texture that is a runtime
-/// handle, a planet config [`PlanetConfig::validate`] refuses, a ship
+/// velocity, a rock with no silhouette seed, a texture or destroy sound that
+/// is a runtime handle or a lock signature that is not a finite positive
+/// length, a planet config [`PlanetConfig::validate`] refuses, a ship
 /// clearance above the maximum, a ship design that names a catalog prototype,
-/// has no sections, a repeated section id, an inline section or a non-finite
-/// section pose, a ship with no side, flown by a player, a derelict flown by
-/// an AI, or an AI route the controller could not fly;
+/// has no sections, a repeated section id, an inline section, a non-finite
+/// section pose or a presentation sound that is a runtime handle, a ship with
+/// no side, flown by a player, a derelict flown by an AI, or an AI route the
+/// controller could not fly;
 /// [`SectorFault::InvalidGeometry`] for non-finite geometry, a ship rotation
 /// that is not a unit quaternion and a ship clearance that is not positive;
 /// [`SectorFault::DuplicateId`] and [`SectorFault::UnknownKind`].
@@ -703,6 +727,16 @@ pub fn validate_manifest(
                 format!("the runtime handle {handle:?}, not an asset path"),
             ));
         }
+        if let Some(AssetRef::Handle(handle)) = &config.destroy_sound {
+            return Err(refuse(
+                &body.id,
+                "destroy_sound",
+                format!("the runtime handle {handle:?}, not an asset path"),
+            ));
+        }
+        config
+            .validate_lock_signature()
+            .map_err(|value| refuse(&body.id, "lock_signature", value))?;
         let clearance = Meters(config.radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX);
         stand_inside(input, &mut standing, &body.id, body.position, clearance)?;
     }
@@ -836,9 +870,45 @@ fn check_ship_controller(
 
 /// Refuse a design the worker can tell is broken without the catalog: no
 /// sections, a section id used twice, an inline section rather than a
-/// prototype reference, or a section pose that is not finite. Whether each
+/// prototype reference, a section pose that is not finite, or a presentation
+/// sound that is a runtime handle rather than an asset path. Whether each
 /// prototype resolves is main-thread work in `materialize_sector`.
 fn check_ship_design(design: &ShipDesign) -> Result<(), String> {
+    // Exhaustive, so a new presentation field is a compile error here until
+    // it is sorted into an asset ref (checked) or a plain value (skipped).
+    let ShipPresentationConfig {
+        skin: _,
+        style: _,
+        collapse_sound,
+        lock_on_sound,
+        lock_off_sound,
+        radar_deny_sound,
+        radar_retarget_sound,
+        safety_on_sound,
+        warn_lock_sound,
+        ammo_dry_sound,
+        warn_hull_sound,
+        warn_hull_fraction: _,
+        rcs_loop_sound,
+    } = &design.presentation;
+    for (field, sound) in [
+        ("collapse_sound", collapse_sound),
+        ("lock_on_sound", lock_on_sound),
+        ("lock_off_sound", lock_off_sound),
+        ("radar_deny_sound", radar_deny_sound),
+        ("radar_retarget_sound", radar_retarget_sound),
+        ("safety_on_sound", safety_on_sound),
+        ("warn_lock_sound", warn_lock_sound),
+        ("ammo_dry_sound", ammo_dry_sound),
+        ("warn_hull_sound", warn_hull_sound),
+        ("rcs_loop_sound", rcs_loop_sound),
+    ] {
+        if let Some(AssetRef::Handle(handle)) = sound {
+            return Err(format!(
+                "presentation {field} is the runtime handle {handle:?}, not an asset path"
+            ));
+        }
+    }
     if design.sections.is_empty() {
         return Err("no sections".to_string());
     }

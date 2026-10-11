@@ -42,6 +42,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** Two mods that define one item id are both refused unless one
   depends on the other, which replaces it whole. Base must define the ten
   item ids the game uses, each in a fixed category.
+- **(breaking)** An asteroid `lock_signature` override must be finite and above
+  zero. Any other value fails at lint and at load.
 
 ### Interface & HUD
 
