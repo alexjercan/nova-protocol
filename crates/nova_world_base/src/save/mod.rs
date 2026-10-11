@@ -55,8 +55,11 @@ pub use transients::{
 /// The save layout this build reads and writes.
 ///
 /// Bump it with any change to the save layout, or to what the generator
-/// builds from a seed: an old save holds only the sectors the player changed
-/// and regenerates the rest, so another generator would change it silently.
+/// builds from a seed. A save records every cell the window held live as
+/// Visited, on each save, and never drops one; a body that moved into a cell
+/// nobody held live is recorded as an arrival there. Every cell the player
+/// never visited regenerates from the seed on Load, so another generator
+/// would change it silently.
 pub const WORLD_SAVE_FORMAT: u32 = 3;
 
 /// The most characters a world name has, after trimming.
