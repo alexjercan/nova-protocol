@@ -125,3 +125,35 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
     )
     .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use nova_gameplay::test_support::test_items;
+
+    use super::*;
+
+    /// The gameplay test fixture restates the base rows, so a retune in this
+    /// builder that leaves the fixture behind fails here instead of leaving
+    /// every price and mass test green on old numbers.
+    #[test]
+    fn the_test_item_fixture_matches_the_base_catalog() {
+        let fixture = test_items();
+        let catalog = item_catalog();
+        assert_eq!(fixture.iter().count(), catalog.len());
+        for design in &catalog {
+            let row = |item: &ItemDesign| {
+                (
+                    item.name.clone(),
+                    item.category,
+                    item.mass_g,
+                    item.ask_cr,
+                    item.bid_cr,
+                )
+            };
+            let mirrored = fixture
+                .get(&design.id)
+                .unwrap_or_else(|| panic!("test_items lacks '{}'", design.id));
+            assert_eq!(row(mirrored), row(design), "'{}'", design.id);
+        }
+    }
+}

@@ -53,6 +53,9 @@ bevy_rand = { version = "0.15.0", default-features = false, features = [
 # up to a LIVE world: the dispatcher holds every handler while the scenario's
 # objects are still landing.
 nova_scenario = { path = "../nova_scenario", features = ["test-support"] }
+# The item parity test reads `test_support::test_items`, the fixture every
+# gameplay test prices and weighs items from, and holds it to the builder.
+nova_gameplay = { path = "../nova_gameplay", features = ["test-support"] }
 # The lint and RON-parity gates build throwaway content trees on disk.
 tempfile = "3"
 # `lesson_media.rs` decodes each committed demonstration to check its size
