@@ -13,7 +13,7 @@ use nova_world_base::{
 
 use super::support::{app, dummy_scenarios};
 use crate::{
-    load_screen::{SelectedWorldSlug, WorldChecks},
+    load_screen::{SelectedWorldSlug, WorldChecks, WorldOpen},
     scenarios::NewGameScenario,
     world_setup::WorldsRoot,
 };
@@ -80,6 +80,24 @@ fn checks_settle(app: &mut App) {
         thread::sleep(Duration::from_millis(5));
     }
     panic!("the world checks did not settle in time");
+}
+
+/// Press the Load World button and run `app` until its [`WorldOpen`] lands
+/// and the frame after it applies the state it asked for, or panic after a
+/// generous number of frames - the open runs off the main thread on the
+/// `IoTaskPool`, so more than one frame can pass before the world resumes or
+/// the refusal shows.
+fn press_load_world(app: &mut App) {
+    press(app, "Load World Button");
+    for _ in 0..200 {
+        if app.world().resource::<WorldOpen>().0.is_none() {
+            app.update();
+            return;
+        }
+        thread::sleep(Duration::from_millis(5));
+        app.update();
+    }
+    panic!("the world open did not land in time");
 }
 
 /// Whether any entity in `app` is named `name`.
@@ -156,7 +174,7 @@ fn load_lists_a_saved_world_and_a_refused_one_and_loads_only_the_saved_one() {
         "a saved world's Load button is not greyed"
     );
 
-    press(&mut app, "Load World Button");
+    press_load_world(&mut app);
 
     assert_eq!(
         app.world().resource::<WorldSaveSession>().name(),
@@ -296,7 +314,7 @@ fn load_greys_a_world_while_its_check_runs_and_refuses_one_holding_an_unknown_it
             .filter(|design| design.id != hull_plate)
             .cloned(),
     ));
-    press(&mut app, "Load World Button");
+    press_load_world(&mut app);
     assert_eq!(
         state(&app),
         GameStates::MainMenu,

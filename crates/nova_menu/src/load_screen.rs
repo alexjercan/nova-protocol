@@ -7,7 +7,8 @@
 //! file is read and every item it holds is looked up in the loaded catalog.
 //! Until that check ends the row shows "Checking saved state" and Load is
 //! greyed; a refused check replaces the row's header with the refusal. Load
-//! checks again as it opens the world.
+//! checks again as it opens the world, off the main thread as well
+//! ([`WorldOpen`]); the world resumes on the frame the open lands.
 
 use std::{collections::HashMap, path::Path, sync::Arc};
 
@@ -25,8 +26,8 @@ use nova_ui::{
     widget::{list_row, themed_button, ButtonVariant, Selected, ThemedText, UiText},
 };
 use nova_world_base::prelude::{
-    check_world, delete_world, list_worlds, open_world, resume_world, WorldListing, WorldRefusal,
-    WorldResumeRefused, WorldSaveSession,
+    check_world, delete_world, list_worlds, open_world, resume_world, WorldFolder, WorldListing,
+    WorldLock, WorldRefusal, WorldResumeRefused, WorldSaveHeader, WorldSaveSession, WorldSaveState,
 };
 
 use crate::{scenarios::NewGameScenario, widgets::button_variant, world_setup::WorldsRoot};
@@ -59,6 +60,15 @@ impl WorldChecks {
         self.0.contains_key(slug)
     }
 }
+
+/// What [`open_world`] hands back: the world to resume, or why not.
+type OpenedWorld = Result<(WorldFolder, WorldLock, WorldSaveHeader, WorldSaveState), WorldRefusal>;
+
+/// The world the Load button is opening off the main thread, by slug.
+/// [`on_load_world`] starts it and ignores clicks until [`poll_world_open`]
+/// takes the result; dropping the task cancels the open.
+#[derive(Resource, Default)]
+pub(crate) struct WorldOpen(pub(crate) Option<(String, Task<OpenedWorld>)>);
 
 /// The text a row and the details pane show while the world is checked.
 const CHECKING_TEXT: &str = "Checking saved state";
@@ -264,34 +274,57 @@ pub(crate) fn on_delete_world_confirm(
     };
 }
 
-/// Load the selected world, checked again as it opens. On `Err` (a world
-/// locked or refused since the list was read), the refusal replaces that
-/// row's header so the list and details redraw with it; nothing starts. On
-/// `Ok`, resume the world and hand off to Playing exactly like New Game.
+/// Start opening the selected world off the main thread, checked again as
+/// it opens; [`poll_world_open`] finishes the Load. A click while a check or
+/// an open is still running does nothing.
 pub(crate) fn on_load_world(
     _activate: On<Activate>,
-    mut commands: Commands,
     root: Res<WorldsRoot>,
     packs: Res<LoadedSectionPacks>,
     items: Res<GameItems>,
     checks: Res<WorldChecks>,
     selected: Res<SelectedWorldSlug>,
-    mut listings: ResMut<WorldListings>,
+    mut opening: ResMut<WorldOpen>,
     mut step: ResMut<WorldDeleteStep>,
-    mut pick: ResMut<NewGameScenario>,
-    mut mode: ResMut<GameMode>,
-    mut state: ResMut<NextState<GameStates>>,
 ) {
     let (Some(root), Some(slug)) = (root.0.as_deref(), selected.0.as_deref()) else {
         return;
     };
-    if checks.pending(slug) {
+    if checks.pending(slug) || opening.0.is_some() {
         return;
     }
     // A Load drops a Delete asked about, so a refused resume does not bring
     // its prompt back.
     *step = WorldDeleteStep::Idle;
-    match open_world(root, slug, &packs, &items) {
+    let (root, slug) = (root.to_path_buf(), slug.to_string());
+    let (packs, items) = (packs.clone(), items.clone());
+    let task = {
+        let slug = slug.clone();
+        IoTaskPool::get().spawn(async move { open_world(&root, &slug, &packs, &items) })
+    };
+    opening.0 = Some((slug, task));
+}
+
+/// Take a finished [`WorldOpen`]. On `Err` (a world locked or refused since
+/// the list was read), the refusal replaces that row's header so the list
+/// and details redraw with it; nothing starts. On `Ok`, resume the world and
+/// hand off to Playing exactly like New Game.
+pub(crate) fn poll_world_open(
+    mut commands: Commands,
+    mut opening: ResMut<WorldOpen>,
+    mut listings: ResMut<WorldListings>,
+    mut pick: ResMut<NewGameScenario>,
+    mut mode: ResMut<GameMode>,
+    mut state: ResMut<NextState<GameStates>>,
+) {
+    let Some((_, task)) = &mut opening.0 else {
+        return;
+    };
+    let Some(result) = block_on(future::poll_once(task)) else {
+        return;
+    };
+    let (slug, _) = opening.0.take().expect("the open polled above");
+    match result {
         Ok((folder, lock, header, world_state)) => {
             commands.queue(move |world: &mut World| {
                 resume_world(world, folder, lock, &header, world_state);
