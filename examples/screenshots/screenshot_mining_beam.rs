@@ -773,7 +773,7 @@ fn mining_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 .map(|canister| {
                     canister
                         .stacks()
-                        .filter(|(item, _)| item.as_str() == ItemRoleType::StoneOre)
+                        .filter(|(item, _)| item.as_str() == ItemRoleType::StoneOre.id())
                         .map(|(_, count)| count)
                         .sum()
                 })

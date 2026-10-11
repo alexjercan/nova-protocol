@@ -524,7 +524,7 @@ mod walk {
         info!("lesson_cargo: the intake queues {queued:?}");
         assert_eq!(
             queued,
-            vec![vec![(ItemRoleType::HullPlate, DERELICT_PLATES)]],
+            vec![vec![(ItemRoleType::HullPlate.id(), DERELICT_PLATES)]],
             "the Jettison queued one canister of every plate"
         );
     }
@@ -549,7 +549,7 @@ mod walk {
         assert_eq!(world.resource::<CargoProof>().ejected, 1);
         assert_eq!(
             live,
-            vec![vec![(ItemRoleType::HullPlate, DERELICT_PLATES)]],
+            vec![vec![(ItemRoleType::HullPlate.id(), DERELICT_PLATES)]],
             "the intake dropped one canister of every plate"
         );
     }
