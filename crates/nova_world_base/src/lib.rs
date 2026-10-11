@@ -176,8 +176,18 @@ impl Plugin for NovaWorldBasePlugin {
         // `StateTransition`, and a ship destroyed in `FixedUpdate` leaves the
         // world. Both land after `PreUpdate`, and the streaming stages would
         // then read a config nobody re-checked. Exclusive, so its writes are
-        // in the world before `Cleanup` decides what to clear.
-        app.add_systems(Update, sync_open_world.before(NovaWorldSystems::Cleanup));
+        // in the world before `Cleanup` decides what to clear. Skipped until
+        // New Game or a Load inserts the session, or a config is armed: a
+        // campaign that never opened a world pays nothing for it.
+        app.add_systems(
+            Update,
+            sync_open_world
+                .run_if(
+                    resource_exists::<OpenWorldSession>
+                        .or_else(resource_exists::<WorldConfig<NovaLayeredWorld>>),
+                )
+                .before(NovaWorldSystems::Cleanup),
+        );
         // The saved world, native only. Restore runs on the arming frame,
         // after `Cleanup` cleared the ledger and before `Observe` asks the
         // first cells for their records. The save runs after `Retire`, so the
@@ -218,6 +228,9 @@ impl Plugin for NovaWorldBasePlugin {
 ///   An armed world keeps the generator it armed with; an unarmed one builds
 ///   its ship-part snapshot from [`LoadedSectionPacks`], once, and checks
 ///   [`GameStyles`] for every role's style.
+///
+/// The plugin runs it only while an [`OpenWorldSession`] or an armed
+/// [`WorldConfig`] exists; an app that never opened a world skips it.
 ///
 /// # Panics
 ///
