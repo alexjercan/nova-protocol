@@ -44,8 +44,9 @@ use crate::{
     generate_sector, materialize_pending_ships, materialize_sector, prepare_sector, sector_id,
     validate_manifest, CivilizationId, NovaWorldPlugin, ObserverBody, PendingSectorShip,
     SectorAsteroid, SectorCoord, SectorFault, SectorGenerationInput, SectorGenerator,
-    SectorManifest, SectorPlanet, SectorShip, SectorShipConditionType, ShipRoleType, WorldConfig,
-    WorldGeometry, WorldObserver, ACTIVE_WINDOW_SECTORS_MAX, SECTOR_SHIP_CLEARANCE_MAX,
+    SectorManifest, SectorObjectId, SectorPlanet, SectorShip, SectorShipConditionType,
+    ShipRoleType, WorldConfig, WorldGeometry, WorldObserver, ACTIVE_WINDOW_SECTORS_MAX,
+    SECTOR_SHIP_CLEARANCE_MAX,
 };
 
 /// The texture path every test rock names. Never loaded: no test here renders.
@@ -149,7 +150,7 @@ fn empty(coord: SectorCoord, asteroids: Vec<SectorAsteroid>) -> SectorManifest {
 /// A one-section intact ship at `position`, built from the section prototype
 /// `prototype`, with a 20 m clearance, flown by a routeless Neutral AI crew
 /// on a 5 km leash, with an empty hold and 120 credits.
-fn ship(id: String, position: Meters3, prototype: &str) -> SectorShip {
+fn ship(id: SectorObjectId, position: Meters3, prototype: &str) -> SectorShip {
     SectorShip {
         id,
         position,
@@ -253,9 +254,9 @@ fn a_valid_config_describes_a_sector() {
 /// the lint.
 #[test]
 fn a_malformed_generator_answer_is_refused_before_preparation() {
-    fn rock(input: SectorGenerationInput, id: &str, offset: f32) -> SectorAsteroid {
+    fn rock(input: SectorGenerationInput, index: usize, offset: f32) -> SectorAsteroid {
         SectorAsteroid {
-            id: format!("{}_{id}", input.coord.slug()),
+            id: sector_id(input.coord, "body", index),
             position: input.coord.centre(input.geometry.sector_edge)
                 + Meters3::new(offset, 0.0, 0.0),
             config: rock_config(Meters(40.0), 7),
@@ -265,34 +266,25 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
         &str,
         fn(SectorGenerationInput) -> SectorManifest,
         fn(&SectorFault) -> bool,
-    ); 23] = [
+    ); 22] = [
         (
             "the wrong cell",
             |input| empty(input.coord.offset(1, 0, 0), Vec::new()),
             |fault| matches!(fault, SectorFault::Manifest { field: "coord", .. }),
         ),
         (
-            "an id another cell owns",
-            |input| {
-                let mut body = rock(input, "body_0", 0.0);
-                body.id = "sector_1_0_0_body_0".to_string();
-                empty(input.coord, vec![body])
-            },
-            |fault| matches!(fault, SectorFault::Manifest { field: "id", .. }),
-        ),
-        (
             "one id twice",
             |input| {
                 empty(
                     input.coord,
-                    vec![rock(input, "body_0", 0.0), rock(input, "body_0", 9_000.0)],
+                    vec![rock(input, 0, 0.0), rock(input, 0, 9_000.0)],
                 )
             },
             |fault| matches!(fault, SectorFault::DuplicateId { .. }),
         ),
         (
             "a rock across a face",
-            |input| empty(input.coord, vec![rock(input, "body_0", 15_900.0)]),
+            |input| empty(input.coord, vec![rock(input, 0, 15_900.0)]),
             |fault| {
                 matches!(
                     fault,
@@ -308,7 +300,7 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
             |input| {
                 empty(
                     input.coord,
-                    vec![rock(input, "body_0", 0.0), rock(input, "body_1", 100.0)],
+                    vec![rock(input, 0, 0.0), rock(input, 1, 100.0)],
                 )
             },
             |fault| {
@@ -324,7 +316,7 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
         (
             "an asteroid kind the game does not ship",
             |input| {
-                let mut body = rock(input, "body_0", 0.0);
+                let mut body = rock(input, 0, 0.0);
                 body.config.kind = "obsidian".into();
                 empty(input.coord, vec![body])
             },
@@ -333,7 +325,7 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
         (
             "an asteroid with a non-finite initial velocity",
             |input| {
-                let mut body = rock(input, "body_0", 0.0);
+                let mut body = rock(input, 0, 0.0);
                 body.config.initial_velocity = MetersPerSecond3::new(f32::NAN, 0.0, 0.0);
                 empty(input.coord, vec![body])
             },
@@ -350,7 +342,7 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
         (
             "an asteroid that pins no silhouette seed",
             |input| {
-                let mut body = rock(input, "body_0", 0.0);
+                let mut body = rock(input, 0, 0.0);
                 body.config.seed = None;
                 empty(input.coord, vec![body])
             },
@@ -359,7 +351,7 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
         (
             "an asteroid whose texture is a runtime handle",
             |input| {
-                let mut body = rock(input, "body_0", 0.0);
+                let mut body = rock(input, 0, 0.0);
                 body.config.texture = AssetRef::Handle(Handle::default());
                 empty(input.coord, vec![body])
             },
@@ -396,7 +388,7 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
             |input| {
                 let mut manifest = empty(input.coord, Vec::new());
                 manifest.planets.push(SectorPlanet {
-                    id: format!("{}_planet_0", input.coord.slug()),
+                    id: sector_id(input.coord, "planet", 0),
                     position: input.coord.centre(input.geometry.sector_edge),
                     config: PlanetConfig::new(PlanetType::BarrenRock, Meters(800.0), 3, f32::NAN),
                 });
@@ -407,7 +399,7 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
         (
             "a rock at a non-finite position",
             |input| {
-                let mut body = rock(input, "body_0", 0.0);
+                let mut body = rock(input, 0, 0.0);
                 body.position = Meters3::new(f32::NAN, 0.0, 0.0);
                 empty(input.coord, vec![body])
             },
@@ -825,7 +817,7 @@ fn a_materialized_asteroid_opts_into_gravity() {
     assert_eq!(
         materialized,
         vec![(
-            sector_id(SectorCoord::ORIGIN, "body", 0),
+            sector_id(SectorCoord::ORIGIN, "body", 0).to_string(),
             RigidBody::Dynamic,
             Vec3::new(2.4, -0.8, 0.4),
             root,
@@ -967,7 +959,7 @@ fn ships_under(world: &mut World, root: Entity) -> (Vec<String>, Vec<String>) {
         .query::<(&PendingSectorShip, &ChildOf)>()
         .iter(world)
         .filter(|(_, child_of)| child_of.parent() == root)
-        .map(|(held, _)| held.ship().id.clone())
+        .map(|(held, _)| held.ship().id.to_string())
         .collect();
     (spawned, held)
 }
@@ -983,7 +975,7 @@ fn a_ship_the_observer_overlaps_is_held_until_the_observer_is_clear() {
     let id = sector_id(SectorCoord::ORIGIN, "ship", 0);
     assert_eq!(
         ships_under(&mut world, root),
-        (Vec::new(), vec![id.clone()]),
+        (Vec::new(), vec![id.to_string()]),
         "an overlapped ship must be held, not spawned"
     );
 
@@ -1001,7 +993,7 @@ fn a_ship_the_observer_overlaps_is_held_until_the_observer_is_clear() {
     world.flush();
     assert_eq!(
         ships_under(&mut world, root),
-        (Vec::new(), vec![id.clone()]),
+        (Vec::new(), vec![id.to_string()]),
         "a ship must stay held while the observer overlaps it"
     );
 

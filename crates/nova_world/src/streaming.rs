@@ -236,8 +236,8 @@ pub fn materialize_sector(
     for PreparedRock { body, geometry } in rocks {
         let mut entity = commands.spawn((
             base_scenario_object(&BaseScenarioObjectConfig {
-                id: body.id.clone(),
-                name: body.id.clone(),
+                id: body.id.to_string(),
+                name: body.id.to_string(),
                 position: body.position,
                 rotation: Quat::IDENTITY,
             }),
@@ -250,8 +250,8 @@ pub fn materialize_sector(
     for PreparedPlanetoid { body, surface } in planets {
         let mut entity = commands.spawn((
             base_scenario_object(&BaseScenarioObjectConfig {
-                id: body.id.clone(),
-                name: body.id.clone(),
+                id: body.id.to_string(),
+                name: body.id.to_string(),
                 position: body.position,
                 rotation: Quat::IDENTITY,
             }),
@@ -299,7 +299,7 @@ fn require_resolved(ship: &SectorShip, sections: &GameSections) {
         panic!(
             "nova_world: {}",
             SectorFault::InvalidShipDesign {
-                id: ship.id.clone(),
+                id: ship.id.to_string(),
                 errors,
             }
         );
@@ -330,7 +330,7 @@ fn spawn_sector_ship(commands: &mut Commands, root: Entity, ship: SectorShip) {
     };
     let ship = (
         base_scenario_object(&BaseScenarioObjectConfig {
-            id,
+            id: id.to_string(),
             name,
             position,
             rotation,

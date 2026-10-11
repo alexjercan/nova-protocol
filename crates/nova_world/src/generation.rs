@@ -11,7 +11,7 @@
 use std::{collections::BTreeSet, fmt, sync::Arc};
 
 use bevy::{log::info_span, math::Quat};
-use nova_events::prelude::{Meters, Meters3};
+use nova_events::prelude::{EntityId, Meters, Meters3};
 use nova_gameplay::prelude::{AssetRef, Fnv32, SeedStream};
 use nova_scenario::prelude::{
     is_asteroid_kind, patrol_stops_fault, prepare_asteroid_geometry, prepare_planet,
@@ -25,11 +25,37 @@ use crate::{
     SectorCoord, SectorFault, SectorGenerationInput, SectorGenerator, WorldConfig,
 };
 
+/// A sector object's scenario id: `<cell slug>_<name>_<index>`, built only by
+/// [`sector_id`], so every id names the cell that owns it and a scenario
+/// cannot author one by accident. One cell cannot hold the same id twice;
+/// [`validate_manifest`] refuses the repeat.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SectorObjectId(String);
+
+impl SectorObjectId {
+    /// The id as the scenario addresses it.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for SectorObjectId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl From<SectorObjectId> for EntityId {
+    fn from(id: SectorObjectId) -> Self {
+        EntityId(id.0)
+    }
+}
+
 /// One generated rock, in world meters.
 #[derive(Clone, Debug)]
 pub struct SectorAsteroid {
-    /// The rock's scenario id, prefixed with its owning cell's slug.
-    pub id: String,
+    /// The rock's scenario id.
+    pub id: SectorObjectId,
     /// Where it stands, in meters from the world origin.
     pub position: Meters3,
     /// The rock as the spawn builds it. `seed` is `Some`: the generator pins
@@ -59,8 +85,8 @@ impl SectorAsteroid {
 /// One generated planetoid: a real [`PlanetConfig`], not a big rock.
 #[derive(Clone, Debug)]
 pub struct SectorPlanet {
-    /// The planetoid's scenario id, prefixed with its owning cell's slug.
-    pub id: String,
+    /// The planetoid's scenario id.
+    pub id: SectorObjectId,
     /// Where it stands, in meters from the world origin.
     pub position: Meters3,
     /// The world it is, ready for `prepare_planet`.
@@ -215,8 +241,8 @@ impl ShipRoleType {
 /// builds it.
 #[derive(Clone, Debug)]
 pub struct SectorShip {
-    /// The ship's scenario id, prefixed with its owning cell's slug.
-    pub id: String,
+    /// The ship's scenario id.
+    pub id: SectorObjectId,
     /// Where its root floats, in meters from the world origin.
     pub position: Meters3,
     /// Its full orientation: a finite unit quaternion.
@@ -314,7 +340,7 @@ impl SectorDescription {
 
     /// Every object id this cell spawns, in spawn order: rocks, then
     /// planetoids, then ships.
-    pub fn object_ids(&self) -> Vec<String> {
+    pub fn object_ids(&self) -> Vec<SectorObjectId> {
         self.asteroids
             .iter()
             .map(|body| body.id.clone())
@@ -563,8 +589,8 @@ fn position_is_finite(position: Meters3) -> bool {
 /// Formatting only. The slug prefix is the cross-generator contract:
 /// [`validate_manifest`] refuses an id without it, so no two cells can claim
 /// one object, and refuses an id claimed twice inside the cell.
-pub fn sector_id(coord: SectorCoord, name: &str, index: usize) -> String {
-    format!("{}_{name}_{index}", coord.slug())
+pub fn sector_id(coord: SectorCoord, name: &str, index: usize) -> SectorObjectId {
+    SectorObjectId(format!("{}_{name}_{index}", coord.slug()))
 }
 
 /// Turn a generator's manifest into a trusted [`SectorDescription`], or refuse
@@ -620,31 +646,24 @@ pub fn validate_manifest(
     if !position_is_finite(centre) {
         return Err(SectorFault::InvalidGeometry { id: coord.slug() });
     }
-    let refuse = |id: &str, field: &'static str, value: String| SectorFault::Manifest {
+    let refuse = |id: &SectorObjectId, field: &'static str, value: String| SectorFault::Manifest {
         id: id.to_string(),
         field,
         value,
     };
 
     if manifest.coord != coord {
-        return Err(refuse(
-            &coord.slug(),
-            "coord",
-            format!("{}, not the requested {coord}", manifest.coord),
-        ));
+        return Err(SectorFault::Manifest {
+            id: coord.slug(),
+            field: "coord",
+            value: format!("{}, not the requested {coord}", manifest.coord),
+        });
     }
 
     let mut ids = BTreeSet::new();
     let mut standing = Vec::new();
-    let mut own = |id: &str| {
-        if !id.starts_with(&format!("{}_", coord.slug())) {
-            return Err(refuse(
-                id,
-                "id",
-                format!("'{id}', not prefixed with {}", coord.slug()),
-            ));
-        }
-        if !ids.insert(id.to_string()) {
+    let mut own = |id: &SectorObjectId| {
+        if !ids.insert(id.clone()) {
             return Err(SectorFault::DuplicateId { id: id.to_string() });
         }
         Ok(())
@@ -655,7 +674,7 @@ pub fn validate_manifest(
         let config = &body.config;
         if !config.radius.get().is_finite() || config.radius.get() <= 0.0 {
             return Err(SectorFault::InvalidGeometry {
-                id: body.id.clone(),
+                id: body.id.to_string(),
             });
         }
         if !is_asteroid_kind(&config.kind) {
@@ -696,7 +715,7 @@ pub fn validate_manifest(
         let clearance = planet.config.body_radius();
         if !clearance.get().is_finite() || clearance.get() <= 0.0 {
             return Err(SectorFault::InvalidGeometry {
-                id: planet.id.clone(),
+                id: planet.id.to_string(),
             });
         }
         stand_inside(input, &mut standing, &planet.id, planet.position, clearance)?;
@@ -715,13 +734,13 @@ pub fn validate_manifest(
             || (ship.rotation.length() - 1.0).abs() > ROTATION_LENGTH_TOLERANCE
         {
             return Err(SectorFault::InvalidGeometry {
-                id: ship.id.clone(),
+                id: ship.id.to_string(),
             });
         }
         let clearance = ship.clearance.get();
         if !clearance.is_finite() || clearance <= 0.0 {
             return Err(SectorFault::InvalidGeometry {
-                id: ship.id.clone(),
+                id: ship.id.to_string(),
             });
         }
         if ship.clearance > SECTOR_SHIP_CLEARANCE_MAX {
@@ -851,7 +870,7 @@ fn check_ship_design(design: &ShipDesign) -> Result<(), String> {
 fn stand_inside(
     input: SectorGenerationInput,
     standing: &mut Vec<Occupied>,
-    id: &str,
+    id: &SectorObjectId,
     position: Meters3,
     clearance: Meters,
 ) -> Result<(), SectorFault> {

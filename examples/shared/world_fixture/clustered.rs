@@ -394,7 +394,7 @@ pub enum Outcome {
 #[derive(Clone, Debug)]
 pub struct PlannedBody {
     /// Its scenario id, prefixed with the owning cell's slug.
-    pub id: String,
+    pub id: SectorObjectId,
     /// Where it came from.
     pub source: BodySource,
     /// What it is.
@@ -459,7 +459,7 @@ impl CellPlan {
                         kind: (*kind).into(),
                         destroy_sound: None,
                         lock_signature: None,
-                        seed: Some(asteroid_seed_from_id(&id)),
+                        seed: Some(asteroid_seed_from_id(id.as_str())),
                     },
                     id,
                     position,
@@ -940,7 +940,7 @@ pub fn plan_cell(
                     &civilizations,
                     input.seed,
                     HullSlot {
-                        id: &member.id,
+                        id: member.id.as_str(),
                         node: group.id.0,
                         slot: index,
                         anchor: group.anchor,
@@ -995,7 +995,7 @@ pub fn plan_cell(
 
 /// One body a cell owns, before it is resolved.
 struct Candidate {
-    id: String,
+    id: SectorObjectId,
     source: BodySource,
     body: ClusterBody,
     position: Meters3,
@@ -1027,7 +1027,7 @@ fn resolve(
     } in candidates
     {
         if !position.get().is_finite() {
-            return Err(SectorFault::InvalidGeometry { id });
+            return Err(SectorFault::InvalidGeometry { id: id.to_string() });
         }
         let clearance = body.clearance();
         let inside = SectorCoord::containing(position, edge) == input.coord
@@ -1043,7 +1043,7 @@ fn resolve(
         };
         if let (BodySource::Parent(..), Outcome::Skipped(reason)) = (source, outcome) {
             return Err(SectorFault::Generation {
-                id,
+                id: id.to_string(),
                 field: "parent",
                 value: format!("skipped for {}", reason.label()),
             });
@@ -1288,7 +1288,7 @@ mod tests {
         let input = config().input(SectorCoord::ORIGIN);
         let group = GroupId([0, 0, 0]);
         let hull = |id: &str, source: BodySource| Candidate {
-            id: id.to_string(),
+            id: sector_id(SectorCoord::ORIGIN, id, 0),
             source,
             body: ClusterBody::Hull {
                 yaw: 0.0,
@@ -1318,7 +1318,11 @@ mod tests {
         )
         .expect_err("a parent over a placed body must refuse");
         assert!(
-            matches!(&fault, SectorFault::Generation { id, field: "parent", .. } if id == "parent"),
+            matches!(
+                &fault,
+                SectorFault::Generation { id, field: "parent", .. }
+                    if *id == sector_id(SectorCoord::ORIGIN, "parent", 0).to_string()
+            ),
             "got {fault:?}"
         );
     }

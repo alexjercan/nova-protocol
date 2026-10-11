@@ -471,15 +471,15 @@ fn collect_sector(
         .asteroids()
         .iter()
         .map(|body| InspectedObject {
-            id: body.id.clone(),
+            id: body.id.to_string(),
             clearance: Meters(body.config.radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX),
         })
         .chain(description.planets().iter().map(|planet| InspectedObject {
-            id: planet.id.clone(),
+            id: planet.id.to_string(),
             clearance: planet.config.body_radius(),
         }))
         .chain(description.ships().iter().map(|ship| InspectedObject {
-            id: ship.id.clone(),
+            id: ship.id.to_string(),
             clearance: ship.clearance,
         }))
         .collect();

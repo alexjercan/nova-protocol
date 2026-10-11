@@ -591,7 +591,7 @@ impl SkipType {
 /// One body a cell owns, and what the cell did with it.
 #[derive(Clone, Debug)]
 struct PlannedBody {
-    id: String,
+    id: SectorObjectId,
     source: BodySource,
     body: ClusterBody,
     position: Meters3,
@@ -761,7 +761,7 @@ impl SectorPlan {
                 .find(|cluster| body.source.node() == Some(cluster.node))
             else {
                 return Err(SectorFault::Generation {
-                    id: body.id.clone(),
+                    id: body.id.to_string(),
                     field: "placement",
                     value: format!(
                         "seed {seed} sector {} has no owning cluster for an overlapped body",
@@ -857,7 +857,7 @@ impl SectorPlan {
                 Fnv32::new()
                     .write(&seed.to_le_bytes())
                     .write(b"overlap-placement")
-                    .write(body.id.as_bytes())
+                    .write(body.id.as_str().as_bytes())
                     .finish(),
             );
             let mut replacement = None;
@@ -911,7 +911,7 @@ impl SectorPlan {
                 }
             }
             let position = replacement.ok_or_else(|| SectorFault::Generation {
-                id: self.bodies[index].id.clone(),
+                id: self.bodies[index].id.to_string(),
                 field: "placement",
                 value: format!("seed {seed} sector {} has no unique-well safe-band or well-free position after deterministic retries", self.coord),
             })?;
@@ -962,7 +962,7 @@ impl SectorPlan {
                     config: AsteroidConfig {
                         radius: *radius,
                         initial_velocity: generated_initial_velocity(
-                            &planned.id,
+                            planned.id.as_str(),
                             position,
                             Meters(radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX),
                             self.coord,
@@ -974,7 +974,7 @@ impl SectorPlan {
                         kind: (*kind).into(),
                         destroy_sound: None,
                         lock_signature: None,
-                        seed: Some(asteroid_seed_from_id(&id)),
+                        seed: Some(asteroid_seed_from_id(id.as_str())),
                     },
                     id,
                     position,
@@ -994,7 +994,7 @@ impl SectorPlan {
                     role: ship.role,
                     spawn: SpaceshipConfig {
                         initial_velocity: generated_initial_velocity(
-                            &planned.id,
+                            planned.id.as_str(),
                             position,
                             ship.clearance,
                             self.coord,
@@ -1611,7 +1611,7 @@ pub(crate) fn plan_sector(
                 &civilizations,
                 input.seed,
                 HullSlot {
-                    id: &planned.id,
+                    id: planned.id.as_str(),
                     node,
                     slot: index,
                     anchor: cluster.anchor,
@@ -1730,7 +1730,7 @@ fn plan_patrols(input: SectorGenerationInput, bodies: &mut [PlannedBody]) {
 
 /// One body a cell owns, before it is resolved.
 struct Candidate {
-    id: String,
+    id: SectorObjectId,
     source: BodySource,
     body: ClusterBody,
     position: Meters3,
@@ -1798,13 +1798,13 @@ fn resolve(
     } in candidates
     {
         if !position.get().is_finite() {
-            return Err(SectorFault::InvalidGeometry { id });
+            return Err(SectorFault::InvalidGeometry { id: id.to_string() });
         }
         let clearance = body.clearance();
         let mut skipped = fits(input, &standing, position, clearance);
         if let (BodySource::Parent(..), Some(reason)) = (source, skipped) {
             return Err(SectorFault::Generation {
-                id,
+                id: id.to_string(),
                 field: "parent",
                 value: format!("skipped for {}", reason.label()),
             });
@@ -1819,7 +1819,9 @@ fn resolve(
                 skipped = Some(SkipType::Companion);
                 for escort in escorts {
                     if !escort.position.get().is_finite() {
-                        return Err(SectorFault::InvalidGeometry { id: escort.id });
+                        return Err(SectorFault::InvalidGeometry {
+                            id: escort.id.to_string(),
+                        });
                     }
                     let escort_clearance = escort.body.clearance();
                     // `validate` keeps the escort band clear of its hull.
@@ -2121,7 +2123,11 @@ mod tests {
         )
         .expect_err("a parent over a placed body must refuse");
         assert!(
-            matches!(&fault, SectorFault::Generation { id, field: "parent", .. } if id == "parent"),
+            matches!(
+                &fault,
+                SectorFault::Generation { id, field: "parent", .. }
+                    if *id == sector_id(SectorCoord::ORIGIN, "parent", 0).to_string()
+            ),
             "got {fault:?}"
         );
     }
@@ -2129,7 +2135,7 @@ mod tests {
     /// A 40 m rock candidate on the z axis of the origin cell.
     fn rock_at(id: &str, source: BodySource, z: f32) -> Candidate {
         Candidate {
-            id: id.to_string(),
+            id: sector_id(SectorCoord::ORIGIN, id, 0),
             source,
             body: ClusterBody::Rock {
                 radius: Meters(40.0),
@@ -2144,7 +2150,7 @@ mod tests {
     /// given z.
     fn hull_at(node: [i32; 3], z: f32, escorts: &[f32]) -> Candidate {
         Candidate {
-            id: "hull".to_string(),
+            id: sector_id(SectorCoord::ORIGIN, "hull", 0),
             source: BodySource::Hull(node, 0),
             body: ClusterBody::Hull {
                 yaw: 0.0,
@@ -2187,7 +2193,10 @@ mod tests {
                 rock_at("rock", BodySource::Rock(own, 0), 0.0),
                 hull_at(own, 12_000.0, &[13_500.0]),
             ]),
-            [("rock".into(), None), ("hull".into(), None)],
+            [
+                (sector_id(SectorCoord::ORIGIN, "rock", 0), None),
+                (sector_id(SectorCoord::ORIGIN, "hull", 0), None)
+            ],
             "a hull beside its own cluster's rock needs no escort"
         );
         assert_eq!(
@@ -2197,9 +2206,12 @@ mod tests {
                 &[15_900.0, 13_500.0, 10_500.0]
             )]),
             [
-                ("escort_0".into(), Some(SkipType::Face)),
-                ("escort_1".into(), None),
-                ("hull".into(), None)
+                (
+                    sector_id(SectorCoord::ORIGIN, "escort_0", 0),
+                    Some(SkipType::Face)
+                ),
+                (sector_id(SectorCoord::ORIGIN, "escort_1", 0), None),
+                (sector_id(SectorCoord::ORIGIN, "hull", 0), None)
             ],
             "a lone hull places its first escort that fits, counts the one it \
              tried before it, and tries no more"
@@ -2210,10 +2222,19 @@ mod tests {
                 hull_at(own, 12_000.0, &[15_900.0, 10_500.0]),
             ]),
             [
-                ("rock".into(), None),
-                ("escort_0".into(), Some(SkipType::Face)),
-                ("escort_1".into(), Some(SkipType::Clearance)),
-                ("hull".into(), Some(SkipType::Companion))
+                (sector_id(SectorCoord::ORIGIN, "rock", 0), None),
+                (
+                    sector_id(SectorCoord::ORIGIN, "escort_0", 0),
+                    Some(SkipType::Face)
+                ),
+                (
+                    sector_id(SectorCoord::ORIGIN, "escort_1", 0),
+                    Some(SkipType::Clearance)
+                ),
+                (
+                    sector_id(SectorCoord::ORIGIN, "hull", 0),
+                    Some(SkipType::Companion)
+                )
             ],
             "another cluster's rock is no companion, and no escort fits"
         );
@@ -2589,7 +2610,7 @@ mod tests {
         let escort_index = plan
             .bodies
             .iter()
-            .position(|body| body.id == "sector_2_0_1_cluster_1_0_1_rock_1")
+            .position(|body| body.id == sector_id(coord, "cluster_1_0_1_rock", 1))
             .unwrap();
         let misplaced = plan.bodies[escort_index].position;
         let hull_position =
@@ -2598,7 +2619,7 @@ mod tests {
         plan.bodies[escort_index].source = BodySource::Escort([1, 0, 1], 0, 0);
         plan.bodies[escort_index].position = original;
         plan.bodies.push(PlannedBody {
-            id: "artificial_paired_hull".to_string(),
+            id: sector_id(plan.coord, "artificial_paired_hull", 0),
             source: BodySource::Hull([1, 0, 1], 0),
             body: ClusterBody::Hull {
                 yaw: 0.0,
@@ -2674,7 +2695,7 @@ mod tests {
             world.input(coord),
         )
         .unwrap();
-        let id = "sector_2_0_1_cluster_1_0_1_rock_1";
+        let id = sector_id(coord, "cluster_1_0_1_rock", 1);
         let placed = first.bodies.iter().find(|body| body.id == id).unwrap();
         assert!(placed.skipped.is_none());
         assert_ne!(placed.position, original, "overlapping candidate must move");

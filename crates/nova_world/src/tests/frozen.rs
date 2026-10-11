@@ -40,7 +40,7 @@ use crate::{
     materialize_sector, retire_sectors, sector_id, streaming::ClearedConfig, CurrentSector,
     FrozenBodyType, FrozenSector, FrozenSectors, ObserverBody, PendingSectorShip, ReadySectors,
     SectorAsteroid, SectorCoord, SectorGenerationInput, SectorGenerator, SectorJobStats,
-    SectorManifest, SectorRoot, WorldConfig, WorldObserver,
+    SectorManifest, SectorObjectId, SectorRoot, WorldConfig, WorldObserver,
 };
 
 /// Arm `config` around `centre` with nothing live yet, so the arming frame's
@@ -461,7 +461,7 @@ fn a_rock_that_leaves_the_window_arrives_in_its_ungenerated_cell_beside_its_gene
     let landing = far_cell.centre(edge) + Meters3::new(-quarter, 0.0, quarter);
     let wanderer = sector_id(home, "body", 0);
     let world = app.world_mut();
-    let [rock] = body_with_id(world, &wanderer)[..] else {
+    let [rock] = body_with_id(world, wanderer.as_str())[..] else {
         panic!("home must spawn its first rock");
     };
     assert_eq!(
@@ -501,7 +501,7 @@ fn a_rock_that_leaves_the_window_arrives_in_its_ungenerated_cell_beside_its_gene
         ),
         "an ungenerated cell keeps the rock as an arrival"
     );
-    assert_eq!(frozen_ids(world, far_cell), vec![wanderer.clone()]);
+    assert_eq!(frozen_ids(world, far_cell), vec![wanderer.to_string()]);
 
     walk_to::<Rocks>(world, far_cell);
     let root = materialize::<Rocks>(world, far_cell, far());
@@ -516,16 +516,22 @@ fn a_rock_that_leaves_the_window_arrives_in_its_ungenerated_cell_beside_its_gene
         .collect();
     under.sort_by(|a, b| a.0.cmp(&b.0));
     let mut expected: Vec<String> = (0..4)
-        .map(|index| sector_id(far_cell, "body", index))
+        .map(|index| sector_id(far_cell, "body", index).to_string())
         .collect();
-    expected.push(wanderer.clone());
+    expected.push(wanderer.to_string());
     expected.sort();
     assert_eq!(
         under.iter().map(|(id, _)| id.clone()).collect::<Vec<_>>(),
         expected,
         "the generated rocks and the arrival all stand in the cell"
     );
-    let at = |id: &str| under.iter().find(|(each, _)| each == id).unwrap().1;
+    let at = |id: &SectorObjectId| {
+        under
+            .iter()
+            .find(|(each, _)| each == id.as_str())
+            .unwrap()
+            .1
+    };
     assert_eq!(
         at(&wanderer),
         landing.to_engine(),
@@ -555,7 +561,7 @@ fn ending_the_session_forgets_every_frozen_cell() {
     app.update();
 
     let world = app.world_mut();
-    let [rock] = body_with_id(world, &sector_id(home, "body", 0))[..] else {
+    let [rock] = body_with_id(world, sector_id(home, "body", 0).as_str())[..] else {
         panic!("home must spawn its first rock");
     };
     world.entity_mut(rock).despawn();
@@ -712,10 +718,10 @@ fn wreck_home(app: &mut App) -> (Entity, Entity) {
     settle(app);
 
     let world = app.world_mut();
-    let [rock] = body_with_id(world, &sector_id(home, "body", 0))[..] else {
+    let [rock] = body_with_id(world, sector_id(home, "body", 0).as_str())[..] else {
         panic!("home must spawn its rock");
     };
-    let [fought] = body_with_id(world, &sector_id(home, "ship", 0))[..] else {
+    let [fought] = body_with_id(world, sector_id(home, "ship", 0).as_str())[..] else {
         panic!("home must spawn the ship to fight");
     };
     // Mined: one crater, carried through the carve chain to a validated
@@ -816,10 +822,10 @@ fn a_mined_fought_and_looted_cell_returns_as_it_was_left() {
     settle(&mut app);
 
     let world = app.world_mut();
-    let [rock] = body_with_id(world, &sector_id(home, "body", 0))[..] else {
+    let [rock] = body_with_id(world, sector_id(home, "body", 0).as_str())[..] else {
         panic!("the rock must come back once");
     };
-    let [fought] = body_with_id(world, &sector_id(home, "ship", 0))[..] else {
+    let [fought] = body_with_id(world, sector_id(home, "ship", 0).as_str())[..] else {
         panic!("the fought ship must come back once");
     };
     assert_eq!(world.get::<ChildOf>(rock).map(ChildOf::parent), Some(root));
@@ -872,9 +878,9 @@ fn a_mined_fought_and_looted_cell_returns_as_it_was_left() {
     let held: Vec<String> = world
         .query::<&PendingSectorShip>()
         .iter(world)
-        .map(|held| held.ship().id.clone())
+        .map(|held| held.ship().id.to_string())
         .collect();
-    assert_eq!(held, vec![sector_id(home, "ship", 1)]);
+    assert_eq!(held, vec![sector_id(home, "ship", 1).to_string()]);
     assert_eq!(
         world
             .query_filtered::<(), With<AsteroidMarker>>()
@@ -956,10 +962,10 @@ fn a_snapshot_of_the_live_world_reads_back_as_the_same_world() {
     materialize::<Answers>(world, home, far());
     settle(&mut fresh);
     let world = fresh.world_mut();
-    let [rock] = body_with_id(world, &sector_id(home, "body", 0))[..] else {
+    let [rock] = body_with_id(world, sector_id(home, "body", 0).as_str())[..] else {
         panic!("the rock must come back once");
     };
-    let [fought] = body_with_id(world, &sector_id(home, "ship", 0))[..] else {
+    let [fought] = body_with_id(world, sector_id(home, "ship", 0).as_str())[..] else {
         panic!("the fought ship must come back once");
     };
     let node = rock_node(world, rock);
@@ -978,9 +984,9 @@ fn a_snapshot_of_the_live_world_reads_back_as_the_same_world() {
     let held: Vec<String> = world
         .query::<&PendingSectorShip>()
         .iter(world)
-        .map(|held| held.ship().id.clone())
+        .map(|held| held.ship().id.to_string())
         .collect();
-    assert_eq!(held, vec![sector_id(home, "ship", 1)]);
+    assert_eq!(held, vec![sector_id(home, "ship", 1).to_string()]);
 }
 
 /// A docked pair is undocked ON PAPER before it freezes: `snapshot_sectors`
@@ -1234,14 +1240,16 @@ fn settled_rocks_freeze_while_an_unsettled_sibling_holds_its_cell() {
 
     let world = app.world_mut();
     let unsettled_id = sector_id(home, "body", 0);
-    let [unsettled] = body_with_id(world, &unsettled_id)[..] else {
+    let [unsettled] = body_with_id(world, unsettled_id.as_str())[..] else {
         panic!("home must spawn its first rock");
     };
     let node = rock_node(world, unsettled);
     world.entity_mut(node).insert(IntegrityDestroyMarker);
 
     walk_to::<Rocks>(world, home.offset(5, 0, 0));
-    let settled: Vec<String> = (1..4).map(|index| sector_id(home, "body", index)).collect();
+    let settled: Vec<String> = (1..4)
+        .map(|index| sector_id(home, "body", index).to_string())
+        .collect();
     assert_eq!(frozen_ids(world, home), settled, "the settled rocks froze");
     assert_eq!(
         world.get::<ChildOf>(unsettled).map(ChildOf::parent),
@@ -1284,7 +1292,7 @@ fn an_unsettled_rock_retires_its_cell_once_it_settles() {
     app.update();
 
     let world = app.world_mut();
-    let [unsettled] = body_with_id(world, &sector_id(home, "body", 0))[..] else {
+    let [unsettled] = body_with_id(world, sector_id(home, "body", 0).as_str())[..] else {
         panic!("home must spawn its first rock");
     };
     let node = rock_node(world, unsettled);
@@ -1302,7 +1310,9 @@ fn an_unsettled_rock_retires_its_cell_once_it_settles() {
     assert!(world.get_entity(root).is_err(), "the cell retired");
     let mut ids = frozen_ids(world, home);
     ids.sort();
-    let expected: Vec<String> = (0..4).map(|index| sector_id(home, "body", index)).collect();
+    let expected: Vec<String> = (0..4)
+        .map(|index| sector_id(home, "body", index).to_string())
+        .collect();
     assert_eq!(ids, expected, "one record holds every rock");
 
     walk_to::<Rocks>(world, home);
@@ -1335,7 +1345,7 @@ fn a_rock_that_never_settles_fails_at_the_bound() {
     app.update();
 
     let world = app.world_mut();
-    let [unsettled] = body_with_id(world, &sector_id(home, "body", 0))[..] else {
+    let [unsettled] = body_with_id(world, sector_id(home, "body", 0).as_str())[..] else {
         panic!("home must spawn its first rock");
     };
     let node = rock_node(world, unsettled);
@@ -1395,7 +1405,7 @@ fn replacing_the_world_takes_the_bodies_waiting_top_level() {
 
     let world = app.world_mut();
     let [desired, unsettled, authored] = [0, 1, 2].map(|index| {
-        let [rock] = body_with_id(world, &sector_id(home, "body", index))[..] else {
+        let [rock] = body_with_id(world, sector_id(home, "body", index).as_str())[..] else {
             panic!("home must spawn rock {index}");
         };
         rock

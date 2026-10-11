@@ -322,7 +322,7 @@ impl PreparedFrozenBody {
     pub(crate) fn prepare(coord: SectorCoord, body: FrozenBody, ships: &[SectorShip]) -> Self {
         match &body.body {
             FrozenBodyType::PendingShip { id } => {
-                let Some(ship) = ships.iter().find(|ship| ship.id == *id) else {
+                let Some(ship) = ships.iter().find(|ship| ship.id.as_str() == id) else {
                     panic!(
                         "nova_world: {coord} froze the held ship '{id}' but regenerates no ship \
                          of that id"
@@ -474,7 +474,7 @@ pub(crate) fn freeze_body(
 ) -> Result<FrozenBody, UnsettledBody> {
     let body = world.entity(entity);
     if let Some(held) = body.get::<PendingSectorShip>() {
-        let id = held.ship().id.clone();
+        let id = held.ship().id.to_string();
         return Ok(FrozenBody {
             id: Some(EntityId::new(id.clone())),
             name: None,

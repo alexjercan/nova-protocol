@@ -129,7 +129,7 @@ impl SectorGenerator for UniformAsteroids {
                 })
             else {
                 return Err(SectorFault::Clearance {
-                    id,
+                    id: id.to_string(),
                     attempts: PLACEMENT_ATTEMPTS,
                 });
             };
@@ -143,7 +143,7 @@ impl SectorGenerator for UniformAsteroids {
                     kind,
                     destroy_sound: None,
                     lock_signature: None,
-                    seed: Some(asteroid_seed_from_id(&id)),
+                    seed: Some(asteroid_seed_from_id(id.as_str())),
                 },
                 id,
                 position,
