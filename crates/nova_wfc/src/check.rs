@@ -227,16 +227,20 @@ pub fn unmated_contacts(
 ///
 /// Nothing here re-implements a check: `lint_scenario` is the same function the
 /// `content lint` gate and the runtime loader run, so what comes back is
-/// exactly what the game would refuse. The item catalog is empty: a generated
-/// hull carries no stock, so any item it names is reported unknown.
-pub fn lint_errors(scenario: &ScenarioConfig, sections: &GameSections) -> Vec<String> {
+/// exactly what the game would refuse. Stock is checked against `items`, so an
+/// item id the catalog does not hold is reported unknown.
+pub fn lint_errors(
+    scenario: &ScenarioConfig,
+    sections: &GameSections,
+    items: &GameItems,
+) -> Vec<String> {
     let known = KnownSections::from_configs(sections.iter());
     lint_scenario(
         scenario,
         &known,
         &KnownShipDesigns::default(),
         &HashSet::from([scenario.id.clone()]),
-        &GameItems::default(),
+        items,
     )
     .into_iter()
     .filter(|issue| issue.severity == LintSeverity::Error)
@@ -255,7 +259,8 @@ const LINT_SCENARIO_ID: &str = "generated_hull";
 /// The caller that has a hull and no scenario - the editor's Generate verb -
 /// asks this. It wraps the hull in the smallest scenario that can carry it and
 /// hands back what [`lint_errors`] found, so a hull is refused by exactly the
-/// rules that would refuse it in a mod file.
+/// rules that would refuse it in a mod file. The item catalog is empty: a
+/// generated hull carries no stock, so any item it names is reported unknown.
 pub fn hull_errors(hull: &ShipDesign, sections: &GameSections) -> Vec<String> {
     let spawn = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -285,7 +290,7 @@ pub fn hull_errors(hull: &ShipDesign, sections: &GameSections) -> Vec<String> {
             AssetRef::from(LINT_CUBEMAP),
         )
     };
-    lint_errors(&scenario, sections)
+    lint_errors(&scenario, sections, &GameItems::default())
 }
 
 /// The skybox the throwaway scenario names. The gate does not read it; a

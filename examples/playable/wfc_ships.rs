@@ -439,7 +439,7 @@ fn wfc_row(
 /// those checks - `lint_errors` runs `lint_scenario`, the same function the
 /// `content lint` gate and the runtime loader run.
 fn refuse_broken_ships(scenario: &ScenarioConfig, sections: &GameSections) {
-    let errors = lint_errors(scenario, sections);
+    let errors = lint_errors(scenario, sections, &GameItems::default());
     assert!(
         errors.is_empty(),
         "wfc_ships: the collapse produced content the game would refuse:\n  {}",

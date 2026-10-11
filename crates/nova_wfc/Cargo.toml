@@ -18,9 +18,11 @@ nova_ship = { path = "../nova_ship" }
 # A hull is a `ShipHull` of `SpaceshipSectionConfig`s - the same thing an
 # authored ship carries, so what comes out is content and not a special case.
 nova_scenario = { path = "../nova_scenario" }
-# `AssetRef` and `Meters3`: the two fields the throwaway scenario `hull_errors`
-# wraps a hull in cannot be defaulted. Nothing else here reaches for either.
+# `AssetRef`, a field the throwaway scenario `hull_errors` wraps a hull in
+# cannot default, and `GameItems`, the catalog `lint_errors` checks stock
+# against.
 nova_gameplay = { path = "../nova_gameplay" }
+# `Meters3`, the throwaway scenario's other field that cannot default.
 nova_events = { path = "../nova_events" }
 
 [lints]

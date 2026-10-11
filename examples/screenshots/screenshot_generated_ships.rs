@@ -333,7 +333,7 @@ fn build_scenario(
             game_assets.cubemap.clone().into(),
         )
     };
-    let errors = lint_errors(&scenario, sections);
+    let errors = lint_errors(&scenario, sections, &GameItems::default());
     assert!(
         errors.is_empty(),
         "screenshot_generated_ships: a posed ship is content the game would refuse:\n  {}",

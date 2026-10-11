@@ -1196,7 +1196,7 @@ fn scenario(
             game_assets.cubemap.clone().into(),
         )
     };
-    let errors = lint_errors(&scenario, sections);
+    let errors = lint_errors(&scenario, sections, &GameItems::default());
     assert!(
         errors.is_empty(),
         "world_ships: a posed ship is content the game would refuse:\n  {}",

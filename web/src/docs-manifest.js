@@ -558,7 +558,7 @@ const CREATE_PAGES = [
             "The bundle manifest",
             "Balance acknowledgments",
             "Content files",
-            "The eight content chapters",
+            "The content chapters",
             "Paths and dependencies",
             "Overlay behavior",
         ],

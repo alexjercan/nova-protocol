@@ -242,7 +242,7 @@ Splitting these into `campaign.content.ron`, `scenarios.content.ron`, and
 `sections.content.ron` is a readability convention, not a loader requirement.
 Large mods can use one scenario per file and list all of them in `content`.
 
-## The eight content chapters
+## The content chapters
 
 <div id="wiki-children"></div>
 

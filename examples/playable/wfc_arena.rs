@@ -1574,7 +1574,7 @@ fn arena(
             game_assets.cubemap.clone().into(),
         )
     };
-    refuse_broken_ships(&scenario, sections);
+    refuse_broken_ships(&scenario, sections, items);
     scenario
 }
 
@@ -1582,9 +1582,10 @@ fn arena(
 ///
 /// Nothing here re-implements a check: `lint_errors` runs `lint_scenario`, the
 /// same function the `content lint` gate and the runtime loader run, so a
-/// clean arena is one the game would accept.
-fn refuse_broken_ships(scenario: &ScenarioConfig, sections: &GameSections) {
-    let errors = lint_errors(scenario, sections);
+/// clean arena is one the game would accept. The combatants carry spare
+/// ammunition, so the gate reads the loaded item catalog.
+fn refuse_broken_ships(scenario: &ScenarioConfig, sections: &GameSections, items: &GameItems) {
+    let errors = lint_errors(scenario, sections, items);
     assert!(
         errors.is_empty(),
         "wfc_arena: the collapse produced content the game would refuse:\n  {}",
@@ -3442,6 +3443,55 @@ mod reserve_tests {
                 "seed {seed}: the player's hull collapses again with the AI's reserve"
             );
         }
+    }
+
+    /// A stocked combatant names real catalog ammunition, so the arena's own
+    /// content gate has to lint it against the loaded item catalog and accept
+    /// it.
+    #[test]
+    fn a_stocked_arena_clears_the_content_gate() {
+        let sections = GameSections(nova_authoring::generation::build_section_catalog());
+        let items = GameItems::new(nova_authoring::generation::build_items());
+        let tiles = arena_tiles(&sections);
+        let ship = ShipSpec {
+            team: 0,
+            style: None,
+            seed: None,
+            player: false,
+        };
+        let config = combatant(
+            0,
+            0,
+            combat_hull(&tiles, 0, None, &sections),
+            &ship,
+            (0, 1),
+            &BTreeMap::new(),
+            &sections,
+            &items,
+        );
+        let ScenarioObjectKind::Spaceship(spaceship) = &config.kind else {
+            unreachable!("a combatant is a spaceship");
+        };
+        assert!(
+            spaceship.inventory.stacks().next().is_some(),
+            "the combatant carries a reserve"
+        );
+        let scenario = ScenarioConfig {
+            events: vec![ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnStart,
+                once: false,
+                filters: vec![],
+                actions: vec![EventActionConfig::SpawnScenarioObject(config)],
+            }],
+            ..ScenarioConfig::new(
+                "wfc_arena".to_string(),
+                "WFC Arena".to_string(),
+                AssetRef::from("base/textures/cubemap.png"),
+            )
+        };
+
+        refuse_broken_ships(&scenario, &sections, &items);
     }
 
     /// A drafted hull resolved, with its hold cut to `hulls` hull sections and
