@@ -1,6 +1,6 @@
 # Research RON-authored items and open-world identity migration
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.16.0, items, mods, spike
 

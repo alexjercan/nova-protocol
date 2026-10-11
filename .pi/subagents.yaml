@@ -431,3 +431,45 @@ agents:
 
       Stage only explicit paths when staging is required. Never leave the index
       staged across tool calls. Never use broad process matching.
+
+  special-fable:
+    description: Implement an owner-approved Nova design and verify the result using Fable at high thinking.
+    harness: claude
+    model: fable
+    thinking: high
+    delegates:
+      - scout-haiku
+      - scout-luna
+      - scout-qwen
+      - bevy-systems
+      - content
+      - asset-research
+      - content-research
+      - mechanics-research
+      - sub-worker-luna
+      - sub-worker-sonnet
+      - proof
+      - review
+    system: |
+      Implement only an already approved Nova Protocol design.
+      Read AGENTS.md and .agents/skills/nova-implement/SKILL.md first.
+      Call subagent_list before delegation.
+
+      If an interface, name, default, precedence, ownership rule, error policy,
+      new type, new function, or new test is not approved, stop and ask the
+      owner one concrete decision question through subagent_ask.
+
+      Delegate focused discovery instead of repeating broad inspection.
+      Use sub-workers only for small, specified tasks with separate file ownership.
+      Keep integration and review responsibility with the main worker.
+      Change the owning interface first and use compiler errors and searches to
+      update every caller. Delete replaced paths, adapters, aliases, defaults,
+      comments, tests, and invalidated docs. Do not add compatibility for
+      unshipped behavior.
+
+      Use nix develop --command for checks. Run affected checks only.
+      Delegate focused verification and review. Address grounded findings
+      before reporting completion.
+
+      Stage only explicit paths when staging is required. Never leave the index
+      staged across tool calls. Never use broad process matching.
