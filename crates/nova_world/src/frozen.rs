@@ -302,12 +302,9 @@ impl FrozenSector {
 #[derive(Debug)]
 pub(crate) enum PreparedFrozenBody {
     /// A body that thaws where it froze.
-    Body {
-        body: FrozenBody,
-        geometry: Option<PreparedAsteroid>,
-    },
+    Body(Box<(FrozenBody, Option<PreparedAsteroid>)>),
     /// A ship still held back, to spawn once the observer is clear of it.
-    HeldShip(SectorShip),
+    HeldShip(Box<SectorShip>),
 }
 
 impl PreparedFrozenBody {
@@ -328,16 +325,13 @@ impl PreparedFrozenBody {
                          of that id"
                     );
                 };
-                Self::HeldShip(ship.clone())
+                Self::HeldShip(Box::new(ship.clone()))
             }
             FrozenBodyType::Asteroid(rock) => {
-                let geometry = Some(prepare_frozen_asteroid(rock));
-                Self::Body { body, geometry }
+                let geometry = prepare_frozen_asteroid(rock);
+                Self::Body(Box::new((body, Some(geometry))))
             }
-            _ => Self::Body {
-                body,
-                geometry: None,
-            },
+            _ => Self::Body(Box::new((body, None))),
         }
     }
 }
@@ -542,10 +536,10 @@ pub(crate) fn thaw_record(commands: &mut Commands, root: Entity, bodies: Vec<Pre
             geometry,
         ) = match prepared {
             PreparedFrozenBody::HeldShip(ship) => {
-                commands.spawn((PendingSectorShip(ship), ChildOf(root)));
+                commands.spawn((PendingSectorShip(*ship), ChildOf(root)));
                 continue;
             }
-            PreparedFrozenBody::Body { body, geometry } => (body, geometry),
+            PreparedFrozenBody::Body(prepared) => *prepared,
         };
         let mut entity = commands.spawn((
             ScenarioScopedMarker,
