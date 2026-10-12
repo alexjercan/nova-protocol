@@ -71,14 +71,14 @@ pub fn settle(app: &mut App) {
     }
 }
 
-/// An item catalog with the base game's ten items and their base values, for
+/// An item catalog with the base game's twenty items and their base values, for
 /// tests that move stock without merging content. Mirrors the base content
 /// builder (`nova_authoring`'s `base_content::items`); a test that reads a
 /// mass or a price reads it through this catalog, never as a literal.
 pub fn test_items() -> crate::inventory::GameItems {
     use crate::inventory::{ItemCategoryType::*, *};
-    let item = |role: ItemRoleType, name: &str, category, mass_g, ask_cr, bid_cr| ItemDesign {
-        id: ItemDesignId::from(role),
+    let item = |id: &str, name: &str, category, mass_g, ask_cr, bid_cr| ItemDesign {
+        id: ItemDesignId::from(id),
         name: name.to_string(),
         about: format!("{name} for tests."),
         category,
@@ -86,8 +86,11 @@ pub fn test_items() -> crate::inventory::GameItems {
         ask_cr,
         bid_cr,
     };
+    let role = |role: ItemRoleType, name: &str, category, mass_g, ask_cr, bid_cr| {
+        item(role.id(), name, category, mass_g, ask_cr, bid_cr)
+    };
     GameItems::new([
-        item(
+        role(
             ItemRoleType::HullPlate,
             "Hull plate",
             Repair,
@@ -95,15 +98,15 @@ pub fn test_items() -> crate::inventory::GameItems {
             40,
             30,
         ),
-        item(ItemRoleType::PdcRound, "PDC round", Ammo, 200, 4, 3),
-        item(ItemRoleType::RailSlug, "Rail slug", Ammo, 20_000, 40, 30),
-        item(ItemRoleType::Torpedo, "Torpedo", Ammo, 150_000, 400, 300),
-        item(ItemRoleType::StoneOre, "Stone ore", Raw, 10_000, 4, 3),
-        item(ItemRoleType::IronOre, "Iron ore", Raw, 10_000, 16, 12),
-        item(ItemRoleType::WaterIce, "Water ice", Raw, 10_000, 12, 9),
-        item(ItemRoleType::CarbonOre, "Carbon ore", Raw, 10_000, 8, 6),
-        item(ItemRoleType::Rations, "Rations", Food, 2_000, 8, 6),
-        item(
+        role(ItemRoleType::PdcRound, "PDC round", Ammo, 200, 4, 3),
+        role(ItemRoleType::RailSlug, "Rail slug", Ammo, 20_000, 40, 30),
+        role(ItemRoleType::Torpedo, "Torpedo", Ammo, 150_000, 400, 300),
+        role(ItemRoleType::StoneOre, "Stone ore", Raw, 10_000, 4, 3),
+        role(ItemRoleType::IronOre, "Iron ore", Raw, 10_000, 16, 12),
+        role(ItemRoleType::WaterIce, "Water ice", Raw, 10_000, 12, 9),
+        role(ItemRoleType::CarbonOre, "Carbon ore", Raw, 10_000, 8, 6),
+        role(ItemRoleType::Rations, "Rations", Food, 2_000, 8, 6),
+        role(
             ItemRoleType::SalvagedParts,
             "Salvaged parts",
             Parts,
@@ -111,5 +114,22 @@ pub fn test_items() -> crate::inventory::GameItems {
             120,
             90,
         ),
+        item("SectionPanel", "Section panel", Parts, 10_000, 20, 15),
+        item("FrameSpar", "Frame spar", Parts, 40_000, 60, 45),
+        item("ActuatorPack", "Actuator pack", Parts, 15_000, 80, 60),
+        item("TurretBody", "Turret body", Parts, 60_000, 200, 150),
+        item("TurretBarrel", "Turret barrel", Parts, 20_000, 60, 45),
+        item("DriveBell", "Drive bell", Parts, 80_000, 160, 120),
+        item(
+            "FlightCore",
+            "Flight computer core",
+            Parts,
+            10_000,
+            400,
+            300,
+        ),
+        item("CapacitorBank", "Capacitor bank", Parts, 40_000, 240, 180),
+        item("TorpedoTube", "Torpedo tube", Parts, 80_000, 240, 180),
+        item("DockingCollar", "Docking collar", Parts, 80_000, 200, 150),
     ])
 }

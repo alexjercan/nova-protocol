@@ -71,10 +71,10 @@ Every field is required.
 The `Docking` section is what a ship docks to. The `Controller` section is
 what levels the station, see below.
 
-Only the hull, the stock and the credits do anything in play today: a docked
-ship trades with a station as it trades with a ship. The service list and
-the storage cap are checked and carried, and the docked-ship service screens
-that read them are their own task.
+A docked ship trades with a station as it trades with a ship. Of the
+services, only `Rebuild` does anything in play today (see
+[Rebuild](#rebuild)); the others and the storage cap are checked and carried,
+and the screens that read them are their own task.
 
 ## How a station behaves
 
@@ -111,6 +111,31 @@ differs is who the station lets in and who flies the pair.
 The proof is `system_station_docking`: a living station holds the helm under
 a held burn, a dead station hands it over, an Enemy station refuses with the
 line on the HUD.
+
+## Rebuild
+
+A ship docked to a living station that offers `Rebuild` can rebuild a section
+it lost. The Ship pane lists each lost section under its old code (`PDC-1`)
+with a price or the reason it cannot be built. A lost section is one the
+ship's design places and the ship no longer has.
+
+| rule | what happens |
+|---|---|
+| the gate | docked to a living station whose `services` list `Rebuild`. A dead station and a ship offer no rebuild |
+| the recipe | the section's [build recipe](../sections/#build-recipe): its `credits` plus every part |
+| parts | taken from the ship's hold first; the rest are bought from the station's stock at ask |
+| credits | the ship pays the recipe's `credits` plus the bought parts. The station receives all of it |
+| refusals | in this order: not docked, no `Rebuild` service, section not lost, no live section to attach to where the design places it, a part neither hold can cover, too few credits |
+| the result | the section spawns where the design places it, at full health, with the key binding it had when it was lost |
+| events | `OnRebuilt` and one `OnCreditsChanged` per party with `cause: Rebuild`, see [Hold events](../events/#hold-events) |
+
+A section code reads the ship's design, not its live sections, so a lost
+section keeps its code and a rebuilt one gets it back. A key binding the
+player set on a section is kept when the section is lost and across a save.
+
+The proof is `system_station_rebuild`: a ship loses a rebound PDC, docks,
+rebuilds it from hold and bought parts, and keeps it with its binding across
+a freeze and thaw.
 
 ## Spawning one
 
@@ -195,4 +220,4 @@ see [Docking at a station](#docking-at-a-station).
 
 | id | what it is |
 |---|---|
-| `block_waystation` | Waystation - a plated two-deck block, a bridge set into the top deck, a docking collar off the port flank (`port_collar`). Offers Rebuild, Refit, Trade and Storage; its hold opens with hull plates, rations and salvaged parts |
+| `block_waystation` | Waystation - a plated two-deck block, a bridge set into the top deck, a docking collar off the port flank (`port_collar`). Offers Rebuild, Refit, Trade and Storage; its hold opens with hull plates, rations, salvaged parts and a few of each hull, drive, controller and PDC part |

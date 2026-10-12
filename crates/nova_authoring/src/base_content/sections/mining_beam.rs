@@ -8,6 +8,7 @@ use bevy::prelude::*;
 use nova_events::prelude::*;
 use nova_ship::prelude::*;
 
+use super::recipes;
 use crate::base_content::assets::BaseContentAssets;
 
 /// The emitter prototype id. Only the block fleet mounts it by name.
@@ -84,6 +85,7 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                           the tip retracts before the doors shut."
                 .to_string(),
             health: MINING_BEAM_BASE_HEALTH,
+            build: recipes::mining_beam(),
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
             collider: Some(SectionCollider::Cuboid { size: Vec3::ONE }),
             link_points: mining_beam_link_points(),

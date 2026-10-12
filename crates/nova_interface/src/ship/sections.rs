@@ -76,18 +76,33 @@ pub(crate) fn kind_index(kind: SectionClass) -> usize {
     }
 }
 
+/// The code of design section `id`: its class prefix and its index among the
+/// design's sections of that class in id order ([`ShipDesignSections::class_index`]).
+/// A lost section and its rebuild show the same code.
+pub(crate) fn design_section_code(design: &ShipDesignSections, id: &str) -> Option<String> {
+    design
+        .class_index(id)
+        .map(|(class, index)| format!("{}-{index}", code_prefix(class)))
+}
+
 /// Assign a stable [`SectionCode`] to every player-ship section that lacks one.
 /// Runs as a system (not an `Add` observer) so it sees sections inserted by the
 /// deferred spawn inside the ship-root `Add` observer
 /// (`require-default-lands-after-root-add-observer`). Existing codes are never
-/// reassigned; a newly appearing section takes the next free index for its kind.
+/// reassigned. A section of the ship's design takes its design code
+/// ([`design_section_code`]), so a rebuilt section gets its old code back. A
+/// section of a hand-built ship with no design takes the next free index for
+/// its kind.
 #[expect(
     clippy::type_complexity,
     reason = "one query term per section kind the code assignment reads"
 )]
 pub(crate) fn assign_section_codes(
     mut commands: Commands,
-    q_player: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+    q_player: Query<
+        (Entity, Option<&ShipDesignSections>),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
     q_sections: Query<
         (
             Entity,
@@ -104,7 +119,7 @@ pub(crate) fn assign_section_codes(
         With<SectionMarker>,
     >,
 ) {
-    let Ok(ship) = q_player.single() else {
+    let Ok((ship, design)) = q_player.single() else {
         return;
     };
     // The highest index already handed out per kind, so new sections continue the
@@ -132,6 +147,11 @@ pub(crate) fn assign_section_codes(
                 let slot = &mut next[kind_index(kind)];
                 *slot = (*slot).max(index);
             }
+        } else if let Some(code) = design
+            .zip(id)
+            .and_then(|(design, id)| design_section_code(design, &id.0))
+        {
+            commands.entity(entity).insert(SectionCode(code));
         } else {
             // Sort key: the stable authored id, so indices are deterministic across
             // runs regardless of ECS iteration order.

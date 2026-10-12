@@ -8,6 +8,7 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 
+use super::recipes;
 use crate::base_content::assets::BaseContentAssets;
 
 /// Exposed propulsion: fragile, takes more damage per hit than an armoured
@@ -50,6 +51,8 @@ struct LargeDriveSpec<'a> {
     description: &'a str,
     cells: UVec3,
     health: f32,
+    /// What a station charges to rebuild the drive.
+    build: BuildRecipe,
     magnitude: f32,
     mesh: &'a AssetRef<WorldAsset>,
     /// The drive's own hum. The three sizes run 34 / 52 / 78 Hz and are
@@ -68,6 +71,7 @@ fn large_thruster_prototype(meshes: &BaseContentAssets, spec: LargeDriveSpec<'_>
             name: spec.name.to_string(),
             description: spec.description.to_string(),
             health: spec.health,
+            build: spec.build,
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
             collider: Some(SectionCollider::Cuboid {
                 size: spec.cells.as_vec3(),
@@ -119,6 +123,7 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                 // Exposed propulsion: fragile, takes more damage per hit than
                 // an armored mount.
                 health: THRUSTER_BASE_HEALTH,
+                build: recipes::basic_thruster(),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
                 // ONE socket, on the mounting face. The authored bell opens
@@ -162,6 +167,7 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                 description: "A 3x3x2 vectoring drive for larger ships.",
                 cells: UVec3::new(3, 3, 2),
                 health: 480.0,
+                build: recipes::vector_thruster(),
                 magnitude: 9.0,
                 mesh: &meshes.thruster_vector,
                 loop_sound: &meshes.thruster_vector_loop_sound,
@@ -179,6 +185,7 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                 description: "A 5x5x3 capital drive for the largest ships.",
                 cells: UVec3::new(5, 5, 3),
                 health: 1250.0,
+                build: recipes::capital_thruster(),
                 magnitude: 25.0,
                 mesh: &meshes.thruster_capital,
                 loop_sound: &meshes.thruster_capital_loop_sound,

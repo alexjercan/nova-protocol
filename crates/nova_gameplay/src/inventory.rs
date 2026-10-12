@@ -18,6 +18,8 @@
 //! by the [`plan_item_jettison`] rule, a weapon's idle reload moves its
 //! ammunition item into the magazine, and a Buy or Sell with a docked trader
 //! moves items and [`ShipCredits`] together by the [`plan_item_trade`] rule.
+//! Every section config carries a [`BuildRecipe`]; a Ship pane rebuild at a
+//! docked station spends it by the [`plan_section_rebuild`] rule.
 //! A saved world keeps stock and credits across a Load; any other scenario
 //! returns them to their authored values when it loads again. A stack exists
 //! only while its count is above zero, and the mass of all stacks never passes
@@ -36,11 +38,12 @@ pub mod prelude {
 
     pub use super::{
         kg_text, plan_credit_take, plan_item_jettison, plan_item_trade, plan_item_transfer,
-        plan_plate_repair, CargoCanister, CargoCanisterIdAllocator, CargoCanisterRuntimeId,
-        CreditTakeRefusalType, GameItems, ItemCategoryType, ItemDesign, ItemDesignId, ItemJettison,
-        ItemJettisonRefusalType, ItemRoleType, ItemTrade, ItemTradeRefusalType,
-        ItemTransferRefusalType, ItemTransferType, LootableShipMarker, PlateRepair,
-        PlateRepairRefusalType, ShipCredits, ShipInventory, ShipInventoryReport,
+        plan_plate_repair, plan_section_rebuild, BuildRecipe, CargoCanister,
+        CargoCanisterIdAllocator, CargoCanisterRuntimeId, CreditTakeRefusalType, GameItems,
+        ItemCategoryType, ItemDesign, ItemDesignId, ItemJettison, ItemJettisonRefusalType,
+        ItemRoleType, ItemTrade, ItemTradeRefusalType, ItemTransferRefusalType, ItemTransferType,
+        LootableShipMarker, PlateRepair, PlateRepairRefusalType, RebuildPartner, SectionRebuild,
+        SectionRebuildRefusalType, ShipCredits, ShipInventory, ShipInventoryReport,
         ShipInventoryReports, ShipInventoryStock, CARGO_CANISTER_MAX_MASS_G, HULL_PLATE_HEALTH,
     };
 }
@@ -536,6 +539,16 @@ pub enum ShipInventoryReport {
         /// Plates spent.
         count: u32,
     },
+    /// A Ship pane rebuild at a docked station spent one section's
+    /// [`BuildRecipe`] and put the section back.
+    Rebuilt {
+        /// Pane code of the rebuilt section (`PDC-1`).
+        section: String,
+        /// Every part the recipe spent, from the hold and bought together.
+        parts: BTreeMap<ItemDesignId, u32>,
+        /// Credits the ship paid the station.
+        price_cr: u32,
+    },
 }
 
 /// The [`ShipInventoryReport`]s a ship's owning systems queued since the
@@ -1030,6 +1043,185 @@ pub fn plan_plate_repair(
         current: health
             .max
             .min(health.current + HULL_PLATE_HEALTH * requested_plates as f32),
+    })
+}
+
+/// What a station charges to build one section, and what stripping the
+/// section would give back. Authored as the required `build` field of every
+/// section config.
+///
+/// The value rule keeps a build from paying: content lint refuses a recipe
+/// whose strip value is not below its recipe value, see
+/// [`value_cr`](Self::value_cr) and [`strip_value_cr`](Self::strip_value_cr).
+/// The `Default` is the empty recipe that lint refuses; it exists for code
+/// built test sections, never for authored content.
+#[derive(Clone, Debug, Default, PartialEq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct BuildRecipe {
+    /// Credits the station takes for the work, above zero.
+    pub credits: u32,
+    /// Part items the build consumes, as a count per item id. Each item is in
+    /// [`ItemCategoryType::Parts`] and each count is above zero.
+    pub parts: BTreeMap<ItemDesignId, u32>,
+    /// The share of each part count a strip returns, rounded down per part,
+    /// in `(0, 1]`.
+    pub strip_yield: f32,
+}
+
+impl BuildRecipe {
+    /// The recipe at ask: its credits plus every part at
+    /// [`ItemDesign::ask_cr`]. Wide so no authored count overflows it.
+    ///
+    /// # Panics
+    ///
+    /// When `items` lacks a part; content lint refuses that recipe first.
+    pub fn value_cr(&self, items: &GameItems) -> u64 {
+        u64::from(self.credits)
+            + self
+                .parts
+                .iter()
+                .map(|(item, count)| u64::from(*count) * u64::from(items.design(item).ask_cr))
+                .sum::<u64>()
+    }
+
+    /// What a strip returns at bid: `floor(strip_yield * count)` of each part
+    /// at [`ItemDesign::bid_cr`].
+    ///
+    /// # Panics
+    ///
+    /// When `items` lacks a part; content lint refuses that recipe first.
+    pub fn strip_value_cr(&self, items: &GameItems) -> u64 {
+        self.parts
+            .iter()
+            .map(|(item, count)| {
+                let returned = (f64::from(self.strip_yield) * f64::from(*count)).floor() as u64;
+                returned * u64::from(items.design(item).bid_cr)
+            })
+            .sum()
+    }
+}
+
+/// The docked partner a rebuild reads: whether it offers the service, the
+/// stock missing parts are bought from and its balance.
+#[derive(Clone, Copy, Debug)]
+pub struct RebuildPartner<'a> {
+    /// The partner is a living station whose design offers Rebuild.
+    pub offers_rebuild: bool,
+    /// The partner's hold.
+    pub stock: &'a ShipInventory,
+    /// The partner's credits.
+    pub credits_cr: u32,
+}
+
+/// A planned rebuild: the parts to take from each hold and the credits to
+/// move from the ship to the station.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SectionRebuild {
+    /// Parts to remove from the ship's hold.
+    pub from_hold: BTreeMap<ItemDesignId, u32>,
+    /// Parts to remove from the station's hold, paid at ask.
+    pub bought: BTreeMap<ItemDesignId, u32>,
+    /// Credits to remove from the ship and add to the station: the recipe's
+    /// credits plus the bought parts at ask.
+    pub price_cr: u32,
+}
+
+/// Why a rebuild changes nothing, in check order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SectionRebuildRefusalType {
+    /// The ship has no docked partner.
+    NotDocked,
+    /// The partner is not a living station that offers Rebuild.
+    NoRebuildService,
+    /// The section is live on the ship.
+    SectionNotLost,
+    /// No live section mates with the section where the design places it.
+    Unanchored,
+    /// Neither hold has enough of a part.
+    MissingParts {
+        /// The first part, in id order, the holds cannot cover.
+        item: ItemDesignId,
+        /// How many more of it the build needs.
+        short: u32,
+    },
+    /// The ship holds fewer credits than the price.
+    InsufficientCredits {
+        /// The price: the recipe's credits plus the bought parts at ask.
+        need: u64,
+        /// What the ship holds.
+        have: u32,
+    },
+    /// The station's balance after the rebuild would not fit in
+    /// [`ShipCredits`].
+    CreditOverflow,
+}
+
+/// Plan rebuilding one lost section from its `recipe` while docked with
+/// `partner`.
+///
+/// `partner` is `None` while the ship is not docked. `lost` is true when the
+/// design section is not live on the ship, and `anchored` when a live section
+/// mates with it where the design places it. Parts come from the ship's `own`
+/// hold first; the rest are bought from the partner's stock at
+/// [`ItemDesign::ask_cr`]. The price is the recipe's credits plus the bought
+/// parts. Checks run in [`SectionRebuildRefusalType`] order, and a refusal
+/// changes nothing. Every part resolves in `items`.
+pub fn plan_section_rebuild(
+    items: &GameItems,
+    recipe: &BuildRecipe,
+    partner: Option<RebuildPartner<'_>>,
+    lost: bool,
+    anchored: bool,
+    own: &ShipInventory,
+    own_cr: u32,
+) -> Result<SectionRebuild, SectionRebuildRefusalType> {
+    let partner = partner.ok_or(SectionRebuildRefusalType::NotDocked)?;
+    if !partner.offers_rebuild {
+        return Err(SectionRebuildRefusalType::NoRebuildService);
+    }
+    if !lost {
+        return Err(SectionRebuildRefusalType::SectionNotLost);
+    }
+    if !anchored {
+        return Err(SectionRebuildRefusalType::Unanchored);
+    }
+    let mut from_hold = BTreeMap::new();
+    let mut bought = BTreeMap::new();
+    let mut price = u64::from(recipe.credits);
+    for (item, &count) in &recipe.parts {
+        let held = own.count(item).min(count);
+        let missing = count - held;
+        let stocked = partner.stock.count(item);
+        if missing > stocked {
+            return Err(SectionRebuildRefusalType::MissingParts {
+                item: item.clone(),
+                short: missing - stocked,
+            });
+        }
+        if held > 0 {
+            from_hold.insert(item.clone(), held);
+        }
+        if missing > 0 {
+            bought.insert(item.clone(), missing);
+            price += u64::from(missing) * u64::from(items.design(item).ask_cr);
+        }
+    }
+    if price > u64::from(own_cr) {
+        return Err(SectionRebuildRefusalType::InsufficientCredits {
+            need: price,
+            have: own_cr,
+        });
+    }
+    // The price fits: it is at most the ship's u32 balance.
+    let price_cr = price as u32;
+    if partner.credits_cr.checked_add(price_cr).is_none() {
+        return Err(SectionRebuildRefusalType::CreditOverflow);
+    }
+    Ok(SectionRebuild {
+        from_hold,
+        bought,
+        price_cr,
     })
 }
 
@@ -1565,6 +1757,148 @@ mod transfer_tests {
                 .sum();
             assert_eq!(jettison.merged + queued, jettison.count);
         }
+    }
+}
+
+#[cfg(test)]
+mod rebuild_tests {
+    use super::*;
+
+    /// The approved PDC recipe: a turret body, a barrel, an actuator pack and
+    /// two section panels, plus 100 cr of work.
+    fn pdc_recipe() -> BuildRecipe {
+        BuildRecipe {
+            credits: 100,
+            parts: [
+                ("TurretBody".into(), 1),
+                ("TurretBarrel".into(), 1),
+                ("ActuatorPack".into(), 1),
+                ("SectionPanel".into(), 2),
+            ]
+            .into(),
+            strip_yield: 0.5,
+        }
+    }
+
+    fn hold(items: &GameItems, stacks: &[(&str, u32)]) -> ShipInventory {
+        ShipInventory::new(
+            items,
+            10_000_000,
+            stacks
+                .iter()
+                .map(|(item, count)| (ItemDesignId::from(*item), *count)),
+        )
+    }
+
+    /// Parts come from the hold first and only the rest is bought: two panels
+    /// in the hold are spent, the body, barrel and actuator are bought at ask,
+    /// and the price is the work plus those three asks.
+    #[test]
+    fn rebuild_spends_hold_parts_first_and_buys_the_rest_at_ask() {
+        let items = crate::test_support::test_items();
+        let own = hold(&items, &[("SectionPanel", 5)]);
+        let station = hold(
+            &items,
+            &[("TurretBody", 1), ("TurretBarrel", 3), ("ActuatorPack", 2)],
+        );
+        let partner = RebuildPartner {
+            offers_rebuild: true,
+            stock: &station,
+            credits_cr: 1_000,
+        };
+
+        let rebuild =
+            plan_section_rebuild(&items, &pdc_recipe(), Some(partner), true, true, &own, 500)
+                .expect("a docked, lost, anchored section with parts and credits rebuilds");
+
+        assert_eq!(rebuild.from_hold, [("SectionPanel".into(), 2)].into());
+        assert_eq!(
+            rebuild.bought,
+            [
+                ("ActuatorPack".into(), 1),
+                ("TurretBarrel".into(), 1),
+                ("TurretBody".into(), 1),
+            ]
+            .into()
+        );
+        assert_eq!(rebuild.price_cr, 100 + 200 + 60 + 80);
+    }
+
+    /// Each refusal fires in its documented order: the first failing check
+    /// names the refusal, whatever fails after it.
+    #[test]
+    fn rebuild_refuses_in_order_and_names_the_short_part_and_the_price() {
+        use SectionRebuildRefusalType::*;
+        let items = crate::test_support::test_items();
+        let recipe = pdc_recipe();
+        let empty = hold(&items, &[]);
+        let stocked = hold(
+            &items,
+            &[
+                ("TurretBody", 1),
+                ("TurretBarrel", 1),
+                ("ActuatorPack", 1),
+                ("SectionPanel", 2),
+            ],
+        );
+        let station = |offers_rebuild, stock, credits_cr| {
+            Some(RebuildPartner {
+                offers_rebuild,
+                stock,
+                credits_cr,
+            })
+        };
+        let plan = |partner, lost, anchored, own_cr| {
+            plan_section_rebuild(&items, &recipe, partner, lost, anchored, &empty, own_cr)
+        };
+
+        assert_eq!(plan(None, false, false, 0), Err(NotDocked));
+        assert_eq!(
+            plan(station(false, &stocked, 0), false, false, 0),
+            Err(NoRebuildService)
+        );
+        assert_eq!(
+            plan(station(true, &stocked, 0), false, false, 0),
+            Err(SectionNotLost)
+        );
+        assert_eq!(
+            plan(station(true, &stocked, 0), true, false, 0),
+            Err(Unanchored)
+        );
+        assert_eq!(
+            plan(station(true, &empty, 0), true, true, 0),
+            Err(MissingParts {
+                item: "ActuatorPack".into(),
+                short: 1,
+            })
+        );
+        let price = 100 + 200 + 60 + 80 + 2 * 20;
+        assert_eq!(
+            plan(station(true, &stocked, 0), true, true, price - 1),
+            Err(InsufficientCredits {
+                need: u64::from(price),
+                have: price - 1,
+            })
+        );
+        assert_eq!(
+            plan(station(true, &stocked, u32::MAX), true, true, price),
+            Err(CreditOverflow)
+        );
+        assert_eq!(
+            plan(station(true, &stocked, 0), true, true, price).map(|plan| plan.price_cr),
+            Ok(price)
+        );
+    }
+
+    /// The value rule's two sides: the recipe at ask counts the work, the
+    /// strip at bid rounds each part's share down.
+    #[test]
+    fn recipe_value_counts_the_work_and_strip_value_rounds_each_part_down() {
+        let items = crate::test_support::test_items();
+        let recipe = pdc_recipe();
+        assert_eq!(recipe.value_cr(&items), 100 + 200 + 60 + 80 + 2 * 20);
+        // Half of one is none; half of two panels is one panel at 15 bid.
+        assert_eq!(recipe.strip_value_cr(&items), 15);
     }
 }
 

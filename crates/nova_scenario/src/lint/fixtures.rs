@@ -57,6 +57,16 @@ pub(crate) fn campaign(id: &str, members: &[&str]) -> CampaignConfig {
         scenarios: members.iter().map(|s| s.to_string()).collect(),
     }
 }
+/// A recipe every item catalog accepts: no parts, so it names nothing a
+/// fixture catalog could lack, and some credits, so it is never free.
+pub(crate) fn fixture_recipe() -> nova_gameplay::prelude::BuildRecipe {
+    nova_gameplay::prelude::BuildRecipe {
+        credits: 1,
+        parts: Default::default(),
+        strip_yield: 0.5,
+    }
+}
+
 /// A catalog of known unit-cube hull prototypes.
 pub(crate) fn sections(ids: &[&str]) -> KnownSections {
     let configs: Vec<_> = ids
@@ -65,6 +75,7 @@ pub(crate) fn sections(ids: &[&str]) -> KnownSections {
             base: nova_ship::prelude::BaseSectionConfig {
                 id: (*id).to_string(),
                 link_points: nova_ship::prelude::unit_cube_link_points(),
+                build: fixture_recipe(),
                 ..default()
             },
             kind: nova_ship::prelude::SectionKind::Hull(default()),
@@ -179,6 +190,7 @@ pub(crate) fn spawn_armed_ship(id: &str, controller: SpaceshipController) -> Eve
                 base: nova_ship::prelude::BaseSectionConfig {
                     id: section_id.to_string(),
                     link_points: nova_ship::prelude::unit_cube_link_points(),
+                    build: fixture_recipe(),
                     ..default()
                 },
                 kind,

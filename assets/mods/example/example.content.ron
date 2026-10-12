@@ -47,6 +47,14 @@
             name: "Reinforced Hull Section (Example Mod)",
             description: "Base hull, up-armored by the example mod to show section overlay by id.",
             health: 400.0,
+            build: (
+                credits: 160,
+                parts: {
+                    "FrameSpar": 2,
+                    "SectionPanel": 6,
+                },
+                strip_yield: 0.5,
+            ),
             link_points: [
                 (
                     id: "positive_x",
@@ -149,6 +157,14 @@
             name: "Plated Hull Section (Example Mod)",
             description: "A brand-new section the example mod adds: the toughest hull on the board at 500 hp.",
             health: 500.0,
+            build: (
+                credits: 160,
+                parts: {
+                    "FrameSpar": 2,
+                    "SectionPanel": 6,
+                },
+                strip_yield: 0.5,
+            ),
             link_points: [
                 (
                     id: "positive_x",

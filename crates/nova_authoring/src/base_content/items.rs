@@ -13,15 +13,40 @@
 //! them whole, with new mass and prices, under the same category.
 //! Prices are provisional values, not a balance decision; each bid is below
 //! its ask, so buying and selling back loses credits.
+//!
+//! The section parts below have no role: no system spends them by id. Section
+//! build recipes name them, so a lost section is rebuilt from them at a
+//! station, and the recipe lint holds each recipe above its strip value.
 
 use nova_gameplay::prelude::{ItemCategoryType, ItemDesign, ItemDesignId, ItemRoleType};
+
+/// Light structural panel: every section recipe spends some.
+pub(crate) const SECTION_PANEL: &str = "SectionPanel";
+/// Load-bearing frame member for large sections.
+pub(crate) const FRAME_SPAR: &str = "FrameSpar";
+/// Motor and gearing for anything that moves.
+pub(crate) const ACTUATOR_PACK: &str = "ActuatorPack";
+/// Turret housing and traverse ring.
+pub(crate) const TURRET_BODY: &str = "TurretBody";
+/// One gun barrel.
+pub(crate) const TURRET_BARREL: &str = "TurretBarrel";
+/// Thrust chamber and nozzle.
+pub(crate) const DRIVE_BELL: &str = "DriveBell";
+/// Flight computer core for a controller.
+pub(crate) const FLIGHT_CORE: &str = "FlightCore";
+/// Energy store for railguns and beams.
+pub(crate) const CAPACITOR_BANK: &str = "CapacitorBank";
+/// Launch tube for a torpedo bay.
+pub(crate) const TORPEDO_TUBE: &str = "TorpedoTube";
+/// Seal ring and latches for a docking port.
+pub(crate) const DOCKING_COLLAR: &str = "DockingCollar";
 
 /// The base game's items, in the order the file carries them.
 pub(crate) fn item_catalog() -> Vec<ItemDesign> {
     use ItemCategoryType::{Ammo, Food, Parts, Raw, Repair};
     [
         (
-            ItemRoleType::HullPlate,
+            ItemRoleType::HullPlate.id(),
             "Hull plate",
             "Structural plating for hull sections.",
             Repair,
@@ -30,7 +55,7 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
             30,
         ),
         (
-            ItemRoleType::PdcRound,
+            ItemRoleType::PdcRound.id(),
             "PDC round",
             "Point-defense round. Kinetic and Pierce mounts reload from it.",
             Ammo,
@@ -39,7 +64,7 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
             3,
         ),
         (
-            ItemRoleType::RailSlug,
+            ItemRoleType::RailSlug.id(),
             "Rail slug",
             "Railgun slug. Railgun mounts reload from it.",
             Ammo,
@@ -48,7 +73,7 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
             30,
         ),
         (
-            ItemRoleType::Torpedo,
+            ItemRoleType::Torpedo.id(),
             "Torpedo",
             "Torpedo. Every torpedo bay reloads from it.",
             Ammo,
@@ -57,7 +82,7 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
             300,
         ),
         (
-            ItemRoleType::StoneOre,
+            ItemRoleType::StoneOre.id(),
             "Stone ore",
             "Silicate rock, mined from rock asteroids.",
             Raw,
@@ -66,7 +91,7 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
             3,
         ),
         (
-            ItemRoleType::IronOre,
+            ItemRoleType::IronOre.id(),
             "Iron ore",
             "Metal-rich ore, mined from metal asteroids.",
             Raw,
@@ -75,7 +100,7 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
             12,
         ),
         (
-            ItemRoleType::WaterIce,
+            ItemRoleType::WaterIce.id(),
             "Water ice",
             "Frozen volatiles, mined from ice asteroids.",
             Raw,
@@ -84,7 +109,7 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
             9,
         ),
         (
-            ItemRoleType::CarbonOre,
+            ItemRoleType::CarbonOre.id(),
             "Carbon ore",
             "Carbon-rich ore, mined from carbon asteroids.",
             Raw,
@@ -93,7 +118,7 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
             6,
         ),
         (
-            ItemRoleType::Rations,
+            ItemRoleType::Rations.id(),
             "Rations",
             "Packed crew food. Traders buy and sell it.",
             Food,
@@ -102,13 +127,103 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
             6,
         ),
         (
-            ItemRoleType::SalvagedParts,
+            ItemRoleType::SalvagedParts.id(),
             "Salvaged parts",
             "Reusable ship components. Traders buy and sell them.",
             Parts,
             25_000,
             120,
             90,
+        ),
+        (
+            SECTION_PANEL,
+            "Section panel",
+            "Light structural panel. Every section build spends some.",
+            Parts,
+            10_000,
+            20,
+            15,
+        ),
+        (
+            FRAME_SPAR,
+            "Frame spar",
+            "Load-bearing frame member for large sections.",
+            Parts,
+            40_000,
+            60,
+            45,
+        ),
+        (
+            ACTUATOR_PACK,
+            "Actuator pack",
+            "Motor and gearing for mounts, doors and intakes.",
+            Parts,
+            15_000,
+            80,
+            60,
+        ),
+        (
+            TURRET_BODY,
+            "Turret body",
+            "Turret housing and traverse ring.",
+            Parts,
+            60_000,
+            200,
+            150,
+        ),
+        (
+            TURRET_BARREL,
+            "Turret barrel",
+            "One gun barrel for a point-defense mount.",
+            Parts,
+            20_000,
+            60,
+            45,
+        ),
+        (
+            DRIVE_BELL,
+            "Drive bell",
+            "Thrust chamber and nozzle for a drive section.",
+            Parts,
+            80_000,
+            160,
+            120,
+        ),
+        (
+            FLIGHT_CORE,
+            "Flight computer core",
+            "Flight computer for a controller section.",
+            Parts,
+            10_000,
+            400,
+            300,
+        ),
+        (
+            CAPACITOR_BANK,
+            "Capacitor bank",
+            "Energy store for railguns and mining beams.",
+            Parts,
+            40_000,
+            240,
+            180,
+        ),
+        (
+            TORPEDO_TUBE,
+            "Torpedo tube",
+            "Launch tube for a torpedo bay.",
+            Parts,
+            80_000,
+            240,
+            180,
+        ),
+        (
+            DOCKING_COLLAR,
+            "Docking collar",
+            "Seal ring and latches for a docking port.",
+            Parts,
+            80_000,
+            200,
+            150,
         ),
     ]
     .into_iter()

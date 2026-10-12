@@ -8,6 +8,7 @@
 use bevy::prelude::*;
 use nova_ship::prelude::*;
 
+use super::recipes;
 use crate::base_content::assets::BaseContentAssets;
 
 /// The plate prototypes, in catalog order.
@@ -22,6 +23,7 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                 name: "Reinforced Hull Section".to_string(),
                 description: "A reinforced hull section for spaceships.".to_string(),
                 health: 200.0,
+                build: recipes::heavy_hull(),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
                 link_points: unit_cube_link_points(),
@@ -42,6 +44,7 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                 // A third of reinforced, so a hull plated with it comes apart
                 // in a short burst rather than in a slugging match.
                 health: 60.0,
+                build: recipes::light_hull(),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
                 link_points: unit_cube_link_points(),
@@ -66,6 +69,7 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                               face reads the same."
                     .to_string(),
                 health: 200.0,
+                build: recipes::heavy_hull(),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
                 link_points: unit_cube_link_points(),
@@ -86,6 +90,7 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                               open frame rails."
                     .to_string(),
                 health: 200.0,
+                build: recipes::heavy_hull(),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
                 link_points: unit_cube_link_points(),

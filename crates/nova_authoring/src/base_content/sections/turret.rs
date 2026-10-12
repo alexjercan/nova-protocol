@@ -10,6 +10,7 @@ use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 
+use super::recipes;
 use crate::base_content::assets::BaseContentAssets;
 
 /// Armoured weapon mount: shrugs off more than the mid baseline. The HEALTH
@@ -396,6 +397,7 @@ fn pdc_turret_prototype(
             name: name.to_string(),
             description: description.to_string(),
             health: TURRET_BASE_HEALTH,
+            build: recipes::pdc_turret(art.muzzles_at.len() as u32),
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
             // A turret is all function - the barrel has to point and the mount
             // has to turn - so it fails by sparking and never by losing a

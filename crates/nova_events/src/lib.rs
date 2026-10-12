@@ -52,22 +52,22 @@ pub mod prelude {
         OnExitEvent, OnExitEventInfo, OnGotoCompleteEvent, OnGotoCompleteEventInfo,
         OnJettisonedEvent, OnMinedEvent, OnNeutralizedEvent, OnNeutralizedEventInfo,
         OnOrbitEndEvent, OnOrbitLapEvent, OnOrbitStableEvent, OnOrbitStartEvent,
-        OnOrbitUnstableEvent, OnPickedUpEvent, OnRepairedEvent, OnResumeEvent, OnResumeEventInfo,
-        OnShipOrderCanceledEvent, OnShipOrderCanceledEventInfo, OnShipOrderCompleteEvent,
-        OnShipOrderCompleteEventInfo, OnShipOrderFailedEvent, OnShipOrderFailedEventInfo,
-        OnShipOrderInterruptedEvent, OnShipOrderInterruptedEventInfo, OnShipOrderResumedEvent,
-        OnShipOrderResumedEventInfo, OnStartEvent, OnStartEventInfo, OnStopCompleteEvent,
-        OnStopCompleteEventInfo, OnTimerEndEvent, OnTimerEndEventInfo, OnTradedEvent,
-        OnTravelLockEndEvent, OnTravelLockStartEvent, OnUndockedEvent, OnUpdateEvent,
-        OnUpdateEventInfo, OrbitEventInfo, RepairedEventInfo, ScenarioAddressableMarker,
-        ShipOrderKind, TradedEventInfo, ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME, BEACON_TYPE_NAME,
-        CANISTER_FIELD_NAME, CINEMATIC_KEY_FIELD_NAME, CREDIT_CAUSE_FIELD_NAME,
-        CURRENT_CREDITS_FIELD_NAME, DELTA_CREDITS_FIELD_NAME, ENTITY_ID_COMPONENT_NAME,
-        ENTITY_OTHER_ID_COMPONENT_NAME, ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME,
-        ENTITY_TYPE_NAME_COMPONENT_NAME, ITEM_COUNT_FIELD_NAME, ITEM_FIELD_NAME, LIGHT_TYPE_NAME,
-        PLANET_TYPE_NAME, PREVIOUS_CREDITS_FIELD_NAME, PRICE_FIELD_NAME, SECTION_FIELD_NAME,
-        SHIP_ORDER_FIELD_NAME, SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME,
-        TIMER_KEY_FIELD_NAME, TRADE_FIELD_NAME,
+        OnOrbitUnstableEvent, OnPickedUpEvent, OnRebuiltEvent, OnRepairedEvent, OnResumeEvent,
+        OnResumeEventInfo, OnShipOrderCanceledEvent, OnShipOrderCanceledEventInfo,
+        OnShipOrderCompleteEvent, OnShipOrderCompleteEventInfo, OnShipOrderFailedEvent,
+        OnShipOrderFailedEventInfo, OnShipOrderInterruptedEvent, OnShipOrderInterruptedEventInfo,
+        OnShipOrderResumedEvent, OnShipOrderResumedEventInfo, OnStartEvent, OnStartEventInfo,
+        OnStopCompleteEvent, OnStopCompleteEventInfo, OnTimerEndEvent, OnTimerEndEventInfo,
+        OnTradedEvent, OnTravelLockEndEvent, OnTravelLockStartEvent, OnUndockedEvent,
+        OnUpdateEvent, OnUpdateEventInfo, OrbitEventInfo, RebuiltEventInfo, RepairedEventInfo,
+        ScenarioAddressableMarker, ShipOrderKind, TradedEventInfo, ANCHOR_TYPE_NAME,
+        ASTEROID_TYPE_NAME, BEACON_TYPE_NAME, CANISTER_FIELD_NAME, CINEMATIC_KEY_FIELD_NAME,
+        CREDIT_CAUSE_FIELD_NAME, CURRENT_CREDITS_FIELD_NAME, DELTA_CREDITS_FIELD_NAME,
+        ENTITY_ID_COMPONENT_NAME, ENTITY_OTHER_ID_COMPONENT_NAME,
+        ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME, ENTITY_TYPE_NAME_COMPONENT_NAME,
+        ITEM_COUNT_FIELD_NAME, ITEM_FIELD_NAME, LIGHT_TYPE_NAME, PLANET_TYPE_NAME,
+        PREVIOUS_CREDITS_FIELD_NAME, PRICE_FIELD_NAME, SECTION_FIELD_NAME, SHIP_ORDER_FIELD_NAME,
+        SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME, TIMER_KEY_FIELD_NAME, TRADE_FIELD_NAME,
     };
 }
 
@@ -915,6 +915,8 @@ pub enum CreditChangeCauseType {
     Trade,
     /// A Take emptied a docked derelict's strongbox.
     Take,
+    /// A rebuild at a docked station paid for a section's recipe.
+    Rebuild,
 }
 
 impl CreditChangeCauseType {
@@ -923,6 +925,7 @@ impl CreditChangeCauseType {
         match self {
             CreditChangeCauseType::Trade => "Trade",
             CreditChangeCauseType::Take => "Take",
+            CreditChangeCauseType::Rebuild => "Rebuild",
         }
     }
 }
@@ -1151,6 +1154,43 @@ pub struct RepairedEventInfo {
     pub count: u32,
 }
 
+/// A Ship pane rebuild at a docked station put a lost section back
+/// (`onrebuilt`).
+///
+/// One event per rebuild the rule allows; a refused rebuild fires nothing.
+/// The credits it paid also raise one `OnCreditsChanged` per party.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onrebuilt")]
+#[event_info(RebuiltEventInfo)]
+pub struct OnRebuiltEvent;
+
+/// Payload for [`OnRebuiltEvent`]: the ship (`id` / `type_name`), the pane
+/// code of the rebuilt section, every part the recipe spent and the credits
+/// the ship paid the station.
+///
+/// The section is named by its pane code (`PDC-1`), as a repair names it:
+/// the code derives from the design, so it is the code the section had
+/// before it was lost.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
+pub struct RebuiltEventInfo {
+    /// Scenario id of the rebuilt ship.
+    #[serde(rename = "id")]
+    pub id: String,
+    /// Type name of that ship.
+    #[serde(rename = "type_name")]
+    pub type_name: String,
+    /// Pane section code of the rebuilt section.
+    #[serde(rename = "section")]
+    pub section: String,
+    /// Every part the recipe spent, as a count per item design id, from the
+    /// hold and bought together.
+    #[serde(rename = "parts")]
+    pub parts: std::collections::BTreeMap<String, u32>,
+    /// Credits the ship paid: the recipe's work plus the bought parts at ask.
+    #[serde(rename = "price_cr")]
+    pub price_cr: u32,
+}
+
 #[cfg(test)]
 mod inventory_event_tests {
     use super::*;
@@ -1163,7 +1203,11 @@ mod inventory_event_tests {
             let serialized = serde_json::to_value(trade).expect("a unit variant serializes");
             assert_eq!(serialized.as_str(), Some(trade.as_str()));
         }
-        for cause in [CreditChangeCauseType::Trade, CreditChangeCauseType::Take] {
+        for cause in [
+            CreditChangeCauseType::Trade,
+            CreditChangeCauseType::Take,
+            CreditChangeCauseType::Rebuild,
+        ] {
             let serialized = serde_json::to_value(cause).expect("a unit variant serializes");
             assert_eq!(serialized.as_str(), Some(cause.as_str()));
         }

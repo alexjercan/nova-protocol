@@ -178,6 +178,11 @@ nine item kinds:
             name: "My Hull",
             description: "A custom armor block.",
             health: 150.0,
+            build: (
+                credits: 80,
+                parts: {"SectionPanel": 2},
+                strip_yield: 0.5,
+            ),
         ),
         kind: Hull((
             render_mesh: Some("dep://base/gltf/hull-01.glb#Scene0"),

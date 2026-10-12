@@ -3634,6 +3634,7 @@ mod tests {
                 base: nova_ship::prelude::BaseSectionConfig {
                     id: id.to_string(),
                     link_points: nova_ship::prelude::unit_cube_link_points(),
+                    build: fixture_recipe(),
                     ..default()
                 },
                 kind: nova_ship::prelude::SectionKind::Mining(
@@ -5459,7 +5460,12 @@ mod tests {
             name: "corvette".to_string(),
             design: design.clone(),
         };
-        let catalog_issues = lint_ship_design_config(&prototype, &sections(&["hull"]), "corvette");
+        let catalog_issues = lint_ship_design_config(
+            &prototype,
+            &sections(&["hull"]),
+            &GameItems::default(),
+            "corvette",
+        );
         assert!(
             catalog_issues
                 .iter()

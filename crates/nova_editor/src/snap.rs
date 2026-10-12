@@ -790,8 +790,12 @@ mod tests {
                 ..default()
             },
         };
-        let issues =
-            lint_ship_design_config(&saved, &KnownSections::from_configs(&configs), "editor");
+        let issues = lint_ship_design_config(
+            &saved,
+            &KnownSections::from_configs(&configs),
+            &nova_gameplay::prelude::GameItems::default(),
+            "editor",
+        );
         assert!(issues.is_empty(), "{issues:?}");
     }
 

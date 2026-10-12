@@ -310,6 +310,23 @@ of its own is generic authored stock. See [Content files](../mod-files/#content-
 
 Ask and Bid are credits for one item, the same on every ship.
 
+Base also ships ten `Parts` items that section build recipes spend (see
+[Build recipe](../sections/#build-recipe)). They are not role ids: a mod may
+replace or skip them, and its own recipes may name its own `Parts` items.
+
+| Item | Mass | Category | Ask | Bid |
+| --- | --- | --- | --- | --- |
+| `SectionPanel` | 10 kg | Parts | 20 | 15 |
+| `FrameSpar` | 40 kg | Parts | 60 | 45 |
+| `ActuatorPack` | 15 kg | Parts | 80 | 60 |
+| `TurretBody` | 60 kg | Parts | 200 | 150 |
+| `TurretBarrel` | 20 kg | Parts | 60 | 45 |
+| `DriveBell` | 80 kg | Parts | 160 | 120 |
+| `FlightCore` | 10 kg | Parts | 400 | 300 |
+| `CapacitorBank` | 40 kg | Parts | 240 | 180 |
+| `TorpedoTube` | 80 kg | Parts | 240 | 180 |
+| `DockingCollar` | 80 kg | Parts | 200 | 150 |
+
 `PdcRound` feeds both Kinetic and Pierce turret mounts - the mount decides the
 round's damage type, not the item. `Torpedo` feeds every torpedo bay type,
 Serpent and Lance alike - the bay decides the flight.

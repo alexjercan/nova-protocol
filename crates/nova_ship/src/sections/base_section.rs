@@ -20,7 +20,9 @@ use nova_events::prelude::EntityTypeName;
 use nova_gameplay::{
     asset_ref::AssetRef,
     markers::prelude::*,
-    prelude::{destructible_body, ConnectedTo, ExplodableEntity, ImpactSurface, SectionClass},
+    prelude::{
+        destructible_body, BuildRecipe, ConnectedTo, ExplodableEntity, ImpactSurface, SectionClass,
+    },
 };
 
 use super::prelude::*;
@@ -351,6 +353,12 @@ pub struct BaseSectionConfig {
     pub description: String,
     /// Section hit points; reaching zero destroys the section.
     pub health: f32,
+    /// What a station charges to build this section: credits and part items,
+    /// and what a strip returns. Required in RON; content lint refuses a
+    /// recipe that names an unknown or non-Parts item, a zero count, zero
+    /// credits, a `strip_yield` outside `(0, 1]` or a strip worth as much as
+    /// the build (`lint_section_recipe`).
+    pub build: BuildRecipe,
     /// The sound this section's destruction plays. Unlike the hit voice this
     /// stays per-target: a section failing is one event with one sound, and
     /// nothing about what killed it changes how the structure lets go.
@@ -897,6 +905,22 @@ mod tests {
         );
     }
 
+    /// A section is rebuilt from its recipe, so a config that omits one is
+    /// refused where it is read rather than spawning a part nothing can
+    /// rebuild.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn a_section_config_without_a_build_recipe_is_refused_at_load() {
+        let bare = r#"(id: "s", name: "s", description: "", health: 100.0)"#;
+        let err = ron::from_str::<BaseSectionConfig>(bare).expect_err("no build recipe");
+        assert!(err.to_string().contains("build"), "{err}");
+
+        let built = r#"(id: "s", name: "s", description: "", health: 100.0,
+            build: (credits: 80, parts: {"SectionPanel": 2}, strip_yield: 0.5))"#;
+        let config = ron::from_str::<BaseSectionConfig>(built).expect("recipe present");
+        assert_eq!(config.build.credits, 80);
+    }
+
     #[cfg(feature = "serde")]
     #[test]
     fn collider_field_round_trips_and_is_omitted_when_unset() {
@@ -906,6 +930,7 @@ mod tests {
             name: "s".to_string(),
             description: String::new(),
             health: 100.0,
+            build: BuildRecipe::default(),
             destroy_sound: None,
             collider: Some(SectionCollider::Cuboid {
                 size: Vec3::new(0.8, 0.8, 0.8),
@@ -943,6 +968,7 @@ mod tests {
             name: "s".to_string(),
             description: String::new(),
             health: 100.0,
+            build: BuildRecipe::default(),
             destroy_sound: None,
             collider: None,
             link_points: Vec::new(),

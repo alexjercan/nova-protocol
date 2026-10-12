@@ -5,6 +5,14 @@
             name: "Reinforced Hull Section",
             description: "A reinforced hull section for spaceships.",
             health: 200.0,
+            build: (
+                credits: 160,
+                parts: {
+                    "FrameSpar": 2,
+                    "SectionPanel": 6,
+                },
+                strip_yield: 0.5,
+            ),
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -97,6 +105,13 @@
             name: "Light Hull Section",
             description: "A thin-walled hull section; scavenger grade.",
             health: 60.0,
+            build: (
+                credits: 80,
+                parts: {
+                    "SectionPanel": 2,
+                },
+                strip_yield: 0.5,
+            ),
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -189,6 +204,14 @@
             name: "Cargo Hull Section",
             description: "A hull section packed with caged freight; every face reads the same.",
             health: 200.0,
+            build: (
+                credits: 160,
+                parts: {
+                    "FrameSpar": 2,
+                    "SectionPanel": 6,
+                },
+                strip_yield: 0.5,
+            ),
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -281,6 +304,14 @@
             name: "Tank Hull Section",
             description: "A hull section carrying a pressure vessel in open frame rails.",
             health: 200.0,
+            build: (
+                credits: 160,
+                parts: {
+                    "FrameSpar": 2,
+                    "SectionPanel": 6,
+                },
+                strip_yield: 0.5,
+            ),
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -373,6 +404,14 @@
             name: "Basic Thruster Section",
             description: "A basic thruster section for spaceships.",
             health: 70.0,
+            build: (
+                credits: 60,
+                parts: {
+                    "DriveBell": 1,
+                    "SectionPanel": 2,
+                },
+                strip_yield: 0.5,
+            ),
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -443,6 +482,15 @@
             name: "Vector Thruster Section",
             description: "A 3x3x2 vectoring drive for larger ships.",
             health: 480.0,
+            build: (
+                credits: 400,
+                parts: {
+                    "DriveBell": 4,
+                    "FrameSpar": 4,
+                    "SectionPanel": 8,
+                },
+                strip_yield: 0.3,
+            ),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -624,6 +672,15 @@
             name: "Capital Thruster Section",
             description: "A 5x5x3 capital drive for the largest ships.",
             health: 1250.0,
+            build: (
+                credits: 1200,
+                parts: {
+                    "DriveBell": 10,
+                    "FrameSpar": 10,
+                    "SectionPanel": 20,
+                },
+                strip_yield: 0.3,
+            ),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -1013,6 +1070,14 @@
             name: "Basic Controller Section",
             description: "A basic controller section for spaceships.",
             health: 100.0,
+            build: (
+                credits: 100,
+                parts: {
+                    "FlightCore": 1,
+                    "SectionPanel": 2,
+                },
+                strip_yield: 0.5,
+            ),
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -1111,6 +1176,16 @@
             name: "PDC Turret (Kinetic)",
             description: "A compact point-defense mount that fits any hull face. Slugs: the hardest single hit, harder still on a charge, and they stop at anything they cannot destroy.",
             health: 130.0,
+            build: (
+                credits: 100,
+                parts: {
+                    "ActuatorPack": 1,
+                    "SectionPanel": 2,
+                    "TurretBarrel": 1,
+                    "TurretBody": 1,
+                },
+                strip_yield: 0.5,
+            ),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -1295,6 +1370,16 @@
             name: "PDC Turret (Pierce)",
             description: "The same mount firing penetrators. Half the damage per hit, dealt to EVERY section the round rakes through - closing fast buys depth, not damage. Worse against one thin target, better against a deep one.",
             health: 130.0,
+            build: (
+                credits: 100,
+                parts: {
+                    "ActuatorPack": 1,
+                    "SectionPanel": 2,
+                    "TurretBarrel": 1,
+                    "TurretBody": 1,
+                },
+                strip_yield: 0.5,
+            ),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -1479,6 +1564,16 @@
             name: "Twin PDC Turret (Kinetic)",
             description: "The same slugs from a two-barrel mount. Each tube fires at half the gatling\'s cadence, so the magazine drains no faster - the trade is two offset streams instead of one dense one.",
             health: 130.0,
+            build: (
+                credits: 100,
+                parts: {
+                    "ActuatorPack": 1,
+                    "SectionPanel": 2,
+                    "TurretBarrel": 2,
+                    "TurretBody": 1,
+                },
+                strip_yield: 0.5,
+            ),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -1674,6 +1769,16 @@
             name: "Twin PDC Turret (Pierce)",
             description: "Penetrators from the two-barrel mount: half per-hit damage dealt through every layer, split across two offset streams at the same total rate.",
             health: 130.0,
+            build: (
+                credits: 100,
+                parts: {
+                    "ActuatorPack": 1,
+                    "SectionPanel": 2,
+                    "TurretBarrel": 2,
+                    "TurretBody": 1,
+                },
+                strip_yield: 0.5,
+            ),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -1869,6 +1974,16 @@
             name: "Torpedo Bay (Serpent)",
             description: "The standard bay, loaded with Serpent assault torpedoes. They run in on a terminal weave, so point defense spends roughly three times the rounds to stop one and only kills it on the doorstep. The corkscrew is a longer path: a Serpent arrives later than a Lance and gains less on a target that is running.",
             health: 100.0,
+            build: (
+                credits: 150,
+                parts: {
+                    "ActuatorPack": 1,
+                    "FrameSpar": 1,
+                    "SectionPanel": 4,
+                    "TorpedoTube": 1,
+                },
+                strip_yield: 0.5,
+            ),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -2063,6 +2178,16 @@
             name: "Torpedo Bay (Lance)",
             description: "The same bay and the same warhead, loaded with Lance bombardment torpedoes: no weave, the bare intercept. The shortest path there is - it arrives soonest and keeps closing on a runner - which is also the path point defense is built to solve. Ordnance for a target that will not shoot back.",
             health: 100.0,
+            build: (
+                credits: 150,
+                parts: {
+                    "ActuatorPack": 1,
+                    "FrameSpar": 1,
+                    "SectionPanel": 4,
+                    "TorpedoTube": 1,
+                },
+                strip_yield: 0.5,
+            ),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -2257,6 +2382,15 @@
             name: "Railgun Lance",
             description: "A spinal kinetic lance: no traverse, so the HULL aims it. Tapping the trigger COMMITS - the bolt walks the bore and the shot leaves when it arrives, whether or not the nose is still on the target. What leaves rakes through everything in the line, and shoves the ship that fired.",
             health: 180.0,
+            build: (
+                credits: 300,
+                parts: {
+                    "CapacitorBank": 3,
+                    "FrameSpar": 3,
+                    "SectionPanel": 6,
+                },
+                strip_yield: 0.5,
+            ),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -2486,6 +2620,15 @@
             name: "Docking Port Section",
             description: "A sealed-hatch docking port. Lock the ship you want to dock with, close to within a cell of its port with your own port facing it, and DOCK clamps the two hulls together; the sleeves reach across once the clamp holds. The pair flies as one body: the other ship flies it until HELM takes it, and DOCK again from either side lets go.",
             health: 90.0,
+            build: (
+                credits: 80,
+                parts: {
+                    "ActuatorPack": 1,
+                    "DockingCollar": 1,
+                    "SectionPanel": 2,
+                },
+                strip_yield: 0.5,
+            ),
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -2588,6 +2731,15 @@
             name: "Cargo Intake Section",
             description: "A hold mouth behind an accordion door. The door folds open for a canister within 40 m of it. The intake takes, whole and at any speed, a canister that reaches into the 1 m in front of its opening, if the hold has room. Jettison in the Inventory pane drops a canister out through the same door.",
             health: 90.0,
+            build: (
+                credits: 60,
+                parts: {
+                    "ActuatorPack": 2,
+                    "FrameSpar": 1,
+                    "SectionPanel": 4,
+                },
+                strip_yield: 0.5,
+            ),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -2843,6 +2995,15 @@
             name: "Mining Beam Section",
             description: "A compact ore emitter behind sliding doors. Hold its key with a rock travel-locked: the doors part, the tip runs out, and once a second the beam cuts the rock where it hits, if the rock is within 100 m of the emitter face. The ore it cuts free leaves the rock as canisters. Release the key and the tip retracts before the doors shut.",
             health: 90.0,
+            build: (
+                credits: 100,
+                parts: {
+                    "ActuatorPack": 1,
+                    "CapacitorBank": 1,
+                    "SectionPanel": 2,
+                },
+                strip_yield: 0.5,
+            ),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (

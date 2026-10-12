@@ -509,7 +509,7 @@ fn freeze_and_thaw_station(world: &mut World) {
             Visibility::default(),
         ))
         .id();
-    let prepared = PreparedFrozenBody::prepare(SectorCoord::new(0, 0, 0), frozen.clone(), &[]);
+    let prepared = PreparedFrozenBody::prepare(SectorCoord::new(0, 0, 0), frozen.clone(), &[], &[]);
     let mut commands = world.commands();
     thaw_record(&mut commands, root, vec![prepared]);
     world.flush();

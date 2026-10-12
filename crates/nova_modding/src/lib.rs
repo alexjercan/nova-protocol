@@ -574,6 +574,7 @@ mod tests {
                     name: "Basic Hull",
                     description: "a hull",
                     health: 100.0,
+                    build: (credits: 1, parts: {}, strip_yield: 0.5),
                 ),
                 kind: Hull((
                     render_mesh: Some("gltf/hull-01.glb#Scene0"),

@@ -2,7 +2,7 @@
 
 use bevy::prelude::Vec3;
 use nova_events::units::prelude::*;
-use nova_gameplay::prelude::{kg_text, GameItems};
+use nova_gameplay::prelude::{kg_text, GameItems, ItemCategoryType};
 use nova_ship::prelude::{
     candidate_link_point_mates, derive_link_point_graph, duplicate_muzzle_id, muzzle_ids,
     section_colliders_overlap, AmmoCapacity, CargoIntakeSectionConfig, ControllerSectionConfig,
@@ -105,6 +105,7 @@ pub(super) fn check_object_prototypes(
             design,
             scenario,
             sections,
+            items,
             issues,
         );
         return;
@@ -146,6 +147,7 @@ pub(super) fn check_design_sections(
     design: &ShipDesign,
     source: &str,
     sections: &KnownSections,
+    items: &GameItems,
     issues: &mut Vec<LintIssue>,
 ) {
     // The design's OWN layer: each section reference resolved and patched, by
@@ -170,6 +172,7 @@ pub(super) fn check_design_sections(
     for section in &design.sections {
         if let SectionSource::Inline(inline) = &section.source {
             issues.extend(lint_section_config(inline, source));
+            issues.extend(lint_section_recipe(inline, items, source));
         }
     }
 }
@@ -181,6 +184,7 @@ pub(super) fn check_design_sections(
 pub fn lint_ship_design_config(
     design: &ShipDesignPrototype,
     sections: &KnownSections,
+    items: &GameItems,
     source: &str,
 ) -> Vec<LintIssue> {
     let mut issues = Vec::new();
@@ -190,8 +194,87 @@ pub fn lint_ship_design_config(
         &design.design,
         source,
         sections,
+        items,
         &mut issues,
     );
+    issues
+}
+
+/// Whether one section's build recipe can be built and never pays: every part
+/// is a known [`ItemCategoryType::Parts`] item with a count above zero, the
+/// work costs credits, `strip_yield` is in `(0, 1]`, and the strip value at
+/// bid is below the recipe value at ask (`R = credits + sum(n * ask)`,
+/// `S = sum(floor(yield * n) * bid)`). Every finding is an Error.
+///
+/// Reads `items` for the parts, so it runs where the effective item catalog
+/// is known: after the merge, in the authoring walk, and on every inline
+/// section a design carries.
+pub fn lint_section_recipe(
+    config: &SectionConfig,
+    items: &GameItems,
+    source: &str,
+) -> Vec<LintIssue> {
+    let id = config.base.id.as_str();
+    let recipe = &config.base.build;
+    let mut issues = Vec::new();
+    let mut priced = true;
+    for (item, &count) in &recipe.parts {
+        match items.get(item) {
+            None => {
+                priced = false;
+                issues.push(LintIssue::error(
+                    source,
+                    format!("section '{id}': build recipe names unknown item '{item}'"),
+                ));
+            }
+            Some(design) if design.category != ItemCategoryType::Parts => {
+                priced = false;
+                issues.push(LintIssue::error(
+                    source,
+                    format!(
+                        "section '{id}': build recipe part '{item}' is {:?}, not Parts",
+                        design.category
+                    ),
+                ));
+            }
+            Some(_) => {}
+        }
+        if count == 0 {
+            issues.push(LintIssue::error(
+                source,
+                format!("section '{id}': build recipe part '{item}' has count 0"),
+            ));
+        }
+    }
+    if recipe.credits == 0 {
+        issues.push(LintIssue::error(
+            source,
+            format!("section '{id}': build recipe costs 0 credits"),
+        ));
+    }
+    let yield_valid = recipe.strip_yield > 0.0 && recipe.strip_yield <= 1.0;
+    if !yield_valid {
+        issues.push(LintIssue::error(
+            source,
+            format!(
+                "section '{id}': build recipe strip_yield {} is outside (0, 1]",
+                recipe.strip_yield
+            ),
+        ));
+    }
+    if priced && yield_valid {
+        let value = recipe.value_cr(items);
+        let strip = recipe.strip_value_cr(items);
+        if strip >= value {
+            issues.push(LintIssue::error(
+                source,
+                format!(
+                    "section '{id}': build recipe strips for {strip} cr at bid, not below \
+                     its {value} cr at ask"
+                ),
+            ));
+        }
+    }
     issues
 }
 
@@ -1127,7 +1210,13 @@ mod tests {
         };
 
         assert!(
-            lint_ship_design_config(&ship(Quat::IDENTITY), &sections(&["hull"]), "base").is_empty(),
+            lint_ship_design_config(
+                &ship(Quat::IDENTITY),
+                &sections(&["hull"]),
+                &GameItems::default(),
+                "base"
+            )
+            .is_empty(),
             "fixture guard: an ordinary mount lints clean"
         );
 
@@ -1135,7 +1224,12 @@ mod tests {
             Quat::from_xyzw(0.0, 0.0, 0.0, 0.0),
             Quat::from_xyzw(f32::NAN, 0.0, 0.0, 1.0),
         ] {
-            let issues = lint_ship_design_config(&ship(rotation), &sections(&["hull"]), "base");
+            let issues = lint_ship_design_config(
+                &ship(rotation),
+                &sections(&["hull"]),
+                &GameItems::default(),
+                "base",
+            );
             assert!(
                 errors(&issues)
                     .iter()
@@ -1200,11 +1294,22 @@ mod tests {
             },
         };
 
-        let issues = lint_ship_design_config(&ship("no_such_proto"), &sections(&["hull"]), "base");
+        let issues = lint_ship_design_config(
+            &ship("no_such_proto"),
+            &sections(&["hull"]),
+            &GameItems::default(),
+            "base",
+        );
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("no_such_proto"));
 
-        assert!(lint_ship_design_config(&ship("hull"), &sections(&["hull"]), "base").is_empty());
+        assert!(lint_ship_design_config(
+            &ship("hull"),
+            &sections(&["hull"]),
+            &GameItems::default(),
+            "base"
+        )
+        .is_empty());
     }
 
     #[test]
@@ -1746,7 +1851,12 @@ mod tests {
             },
         };
 
-        let issues = lint_ship_design_config(&ship, &KnownSections::from_configs(&configs), "base");
+        let issues = lint_ship_design_config(
+            &ship,
+            &KnownSections::from_configs(&configs),
+            &GameItems::default(),
+            "base",
+        );
         let overlaps: Vec<_> = issues
             .iter()
             .filter(|issue| issue.message.contains("overlap"))
@@ -2035,5 +2145,129 @@ mod tests {
             lint(cuboid, vec![door], wide),
             "wider than the collider face",
         );
+    }
+
+    /// A section whose recipe names `parts` at `credits` and `strip_yield`.
+    fn recipe_section(parts: &[(&str, u32)], credits: u32, strip_yield: f32) -> SectionConfig {
+        use nova_ship::prelude::{BaseSectionConfig, HullSectionConfig, SectionKind};
+        SectionConfig {
+            base: BaseSectionConfig {
+                id: "pdc".to_string(),
+                build: nova_gameplay::prelude::BuildRecipe {
+                    credits,
+                    parts: parts
+                        .iter()
+                        .map(|&(id, count)| (id.into(), count))
+                        .collect(),
+                    strip_yield,
+                },
+                ..default()
+            },
+            kind: SectionKind::Hull(HullSectionConfig::default()),
+        }
+    }
+
+    /// The single recipe Error `config` draws against `items`, which must
+    /// contain `needle`.
+    fn recipe_refused(config: &SectionConfig, items: &GameItems, needle: &str) {
+        let issues = lint_section_recipe(config, items, "pdc");
+        let errs = errors(&issues);
+        assert_eq!(errs.len(), 1, "{issues:?}");
+        assert!(errs[0].message.contains(needle), "{issues:?}");
+    }
+
+    #[test]
+    fn a_buildable_recipe_that_strips_below_its_price_is_clean() {
+        let items = nova_gameplay::test_support::test_items();
+        let pdc = recipe_section(
+            &[
+                ("TurretBody", 1),
+                ("TurretBarrel", 1),
+                ("ActuatorPack", 1),
+                ("SectionPanel", 2),
+            ],
+            100,
+            0.5,
+        );
+        assert!(lint_section_recipe(&pdc, &items, "pdc").is_empty());
+    }
+
+    #[test]
+    fn a_recipe_part_no_catalog_holds_is_an_error() {
+        let items = nova_gameplay::test_support::test_items();
+        recipe_refused(
+            &recipe_section(&[("NoSuchPart", 1)], 100, 0.5),
+            &items,
+            "unknown item 'NoSuchPart'",
+        );
+    }
+
+    #[test]
+    fn a_recipe_part_outside_the_parts_category_is_an_error() {
+        let items = nova_gameplay::test_support::test_items();
+        recipe_refused(
+            &recipe_section(&[("Rations", 1)], 100, 0.5),
+            &items,
+            "not Parts",
+        );
+    }
+
+    #[test]
+    fn a_recipe_part_counted_zero_is_an_error() {
+        let items = nova_gameplay::test_support::test_items();
+        recipe_refused(
+            &recipe_section(&[("SectionPanel", 0)], 100, 0.5),
+            &items,
+            "count 0",
+        );
+    }
+
+    #[test]
+    fn a_recipe_that_costs_no_credits_is_an_error() {
+        let items = nova_gameplay::test_support::test_items();
+        recipe_refused(
+            &recipe_section(&[("SectionPanel", 2)], 0, 0.5),
+            &items,
+            "0 credits",
+        );
+    }
+
+    #[test]
+    fn a_strip_yield_outside_zero_to_one_is_an_error() {
+        let items = nova_gameplay::test_support::test_items();
+        for bad in [0.0, -0.5, 1.01, f32::NAN] {
+            recipe_refused(
+                &recipe_section(&[("SectionPanel", 2)], 100, bad),
+                &items,
+                "outside (0, 1]",
+            );
+        }
+        let full = recipe_section(&[("SectionPanel", 2)], 100, 1.0);
+        assert!(lint_section_recipe(&full, &items, "pdc").is_empty());
+    }
+
+    /// The money pump: a part whose bid matches its ask, stripped whole,
+    /// sells for more than the build costs once the work is cheap enough.
+    #[test]
+    fn a_recipe_that_strips_for_its_price_or_more_is_an_error() {
+        use nova_gameplay::prelude::{ItemCategoryType, ItemDesign};
+        let items = GameItems::new([ItemDesign {
+            id: "Gold".into(),
+            name: "Gold".to_string(),
+            about: "Sells at what it costs.".to_string(),
+            category: ItemCategoryType::Parts,
+            mass_g: 1_000,
+            ask_cr: 100,
+            bid_cr: 100,
+        }]);
+        // R = 1 + 2 * 100 = 201, S = 2 * 100 = 200: below, clean.
+        let below = recipe_section(&[("Gold", 2)], 1, 1.0);
+        assert!(lint_section_recipe(&below, &items, "pdc").is_empty());
+        let items = GameItems::new([ItemDesign {
+            bid_cr: 101,
+            ..items.get(&"Gold".into()).unwrap().clone()
+        }]);
+        // R = 201, S = 202: the strip pays.
+        recipe_refused(&below, &items, "strips for 202 cr");
     }
 }

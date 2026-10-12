@@ -77,6 +77,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Docking at a station: an Enemy station refuses with `<NAME> REFUSES
   DOCKING` on the HUD; a living station holds the pair's helm and refuses
   `HELM`; a dead station hands the helm to the docked player.
+- **(breaking)** Every section needs a `build` recipe of credits and `Parts`
+  items. Docked at a station with `Rebuild`, the Ship pane rebuilds a lost
+  section with its old code and key.
 
 ### Interface & HUD
 

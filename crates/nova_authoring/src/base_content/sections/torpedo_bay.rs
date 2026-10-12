@@ -43,6 +43,7 @@ use bevy::prelude::*;
 use nova_events::prelude::*;
 use nova_ship::prelude::*;
 
+use super::recipes;
 use crate::base_content::assets::BaseContentAssets;
 
 /// Torpedo bay: the mid durability baseline (`nova_gameplay::damage` scales a
@@ -145,6 +146,7 @@ fn torpedo_bay_prototype(
             description: description.to_string(),
             // Torpedo bay: mid durability baseline.
             health: TORPEDO_BASE_HEALTH,
+            build: recipes::torpedo_bay(),
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
             // Two cells long: the tube art earns its length, and the collider
             // has to claim it or half the bay would be a ghost.

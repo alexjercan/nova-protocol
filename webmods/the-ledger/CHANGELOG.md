@@ -21,6 +21,8 @@ in `the-ledger.bundle.ron`; the portal keeps every published version.
 - **(breaking)** Ships and rocks now require `initial_velocity` in m/s;
   asteroids drop `mass`. Move scattered rocks outside planet wells. Old 2.0.0
   content fails to load.
+- **(breaking)** Every mod section now carries a `build` recipe from the base
+  parts, so a station can rebuild it. Needs a base game that requires one.
 
 ### Balance
 

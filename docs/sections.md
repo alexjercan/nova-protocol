@@ -12,10 +12,41 @@ how sections connect and handles damage, disabling, and cascading destruction.
 
 A section is a `SectionConfig { base: BaseSectionConfig, kind: SectionKind }`.
 `BaseSectionConfig` is shared by all kinds: `id`, `name`, `description`,
-`health`, optional `destroy_sound`, optional `collider`,
-structural `link_points`, `hide_in_editor`, and `damage_effects` - the authored
-list of looks this section wears as it is damaged (see [Damage is two
-readings](#damage-is-two-readings)).
+`health`, a required `build` recipe, optional `destroy_sound`, optional
+`collider`, structural `link_points`, `hide_in_editor`, and `damage_effects` -
+the authored list of looks this section wears as it is damaged (see [Damage is
+two readings](#damage-is-two-readings)).
+
+`build` is a `BuildRecipe` (`nova_gameplay::inventory`): `credits` for the
+work, `parts` as a count per `Parts` item id, and `strip_yield` in `(0, 1]`.
+It has no serde default, so a section without one fails to load.
+`lint_section_recipe` (`nova_scenario/src/lint/ship.rs`) refuses an unknown or
+non-Parts item, a zero count, zero credits, a yield outside `(0, 1]`, and a
+recipe whose yielded parts at bid are worth as much as the recipe at ask. The
+merge lint runs it on every catalog section; the authoring walk and
+`check_design_sections` run it on bundle and inline sections. Base rows live
+in `crates/nova_authoring/src/base_content/sections/recipes.rs`.
+
+### Lost sections and the rebuild
+
+The section spawn of an authored ship inserts `ShipDesignSections`
+(`design_sections.rs`) on the root: every design section with its pose and
+patched config, live or not. A lost section is a design section with no live
+child of that id. Section codes (`PDC-1`) derive from the design by
+`ShipDesignSections::class_index`, so a code holds while a sibling is lost and
+after a rebuild; a root with no design falls back to the live order.
+
+`remember_lost_section_binding` copies a lost section's live input binding
+into the root's `input_mapping` before it despawns, so a rebind the player made
+survives the loss and a save. The Ship pane (`nova_interface/src/ship/rebuild.rs`)
+lists lost sections while docked to a station that offers `Rebuild`. Its plan
+is `plan_section_rebuild` (`nova_gameplay::inventory`): hold parts first, the
+rest bought at ask, refused when the station lacks stock, the ship lacks
+credits, or `rebuild_anchored` finds no live mate for the lost section's
+sockets. A confirmed rebuild moves parts and credits (cause `Rebuild` on both
+parties), pushes `ShipInventoryReport::Rebuilt` (`OnRebuilt`), and triggers
+`SectionRebuildRequest`; `rebuild_design_section` spawns the section again at
+full health through the same per-section spawn the ship was built with.
 
 `SectionKind` variants (one module per kind under `crates/nova_ship/src/sections/`;
 `turret_section/` and `torpedo_section/` are directories, not single files):
@@ -1331,6 +1362,12 @@ per contact. A symmetric rule - ram damage - wants both.
   `crates/nova_ship/src/sections/base_section.rs`.
 - Spawn path: `insert_spaceship_sections` -
   `crates/nova_scenario/src/objects/spaceship.rs`.
+- Design sections, lost-section codes and rebuild: `ShipDesignSections`,
+  `SectionRebuildRequest`, `rebuild_anchored` -
+  `crates/nova_ship/src/sections/design_sections.rs`; `plan_section_rebuild` -
+  `crates/nova_gameplay/src/inventory.rs`; the pane:
+  `crates/nova_interface/src/ship/rebuild.rs`; proof:
+  `examples/systems/system_station_rebuild.rs`.
 - Integrity core: `NovaIntegrityPlugin` -
   `crates/nova_gameplay/src/integrity/mod.rs`; graph, sever and collapse:
   `ShipIntegrityPlugin` - `crates/nova_ship/src/sections/integrity.rs`.

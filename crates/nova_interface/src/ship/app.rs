@@ -18,7 +18,7 @@ use nova_ui::{
     widget::{button, slider_track, text_field, ButtonSpec, TextFieldSpec, ThemedFill},
 };
 
-use super::{scene::*, sections::*};
+use super::{rebuild::spawn_ship_rebuild_list, scene::*, sections::*};
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
     pane::{
@@ -29,7 +29,8 @@ use crate::{
 
 /// Build the section panel: the selected section's icon over its code, name,
 /// status and condition bar; its description; its labelled facts; Prev, Next
-/// and Rebind; the repair form; and the note line, beside the view.
+/// and Rebind; the repair form; the lost-section list; and the note line,
+/// beside the view.
 /// [`update_ship_panel`] fills it. The texts carry a [`ShipPanelField`] so one
 /// system refreshes them, and a fact row or the form carries the field it
 /// holds so the same system hides it. The buttons carry a [`ShipPanelButton`]
@@ -229,6 +230,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                             .observe(on_ship_repair_button);
                         });
                 });
+            spawn_ship_rebuild_list(panel);
             panel.spawn((ShipPanelField::Note, themed_label("", 12.0, UiColor::Label)));
         });
 }

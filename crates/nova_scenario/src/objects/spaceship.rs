@@ -25,7 +25,7 @@ use crate::{
     names::prelude::Names,
     objects::{
         ship_design::prelude::{resolve_ship_design, GameShipDesigns, ShipDesignSource},
-        station::prelude::GameStationDesigns,
+        station::{insert_station_services, prelude::GameStationDesigns},
     },
 };
 
@@ -707,9 +707,11 @@ pub fn freeze_ship(world: &World, ship: Entity) -> Result<FrozenShip, UnsettledB
         .cloned()
         .unwrap_or_else(|| required("SpaceshipController"));
     // A rebind writes the live section's binding, not the authored table the
-    // spawn read, so the record reads every surviving section's binding back.
+    // spawn read, so the record reads every surviving section's binding back,
+    // and keeps the table's entry for a design section the ship has lost so a
+    // rebuild after the reload gets its key back.
     if let SpaceshipController::Player(config) = &mut controller {
-        config.input_mapping = live_input_mapping(world, ship);
+        config.input_mapping = live_input_mapping(world, ship, &config.input_mapping);
     }
     Ok(FrozenShip {
         design: design.0.clone(),
@@ -748,41 +750,118 @@ pub fn freeze_ship(world: &World, ship: Entity) -> Result<FrozenShip, UnsettledB
 
 /// The per-section bindings a player ship flies with now, keyed by section id:
 /// the table `insert_spaceship_sections` would spawn the same bindings from.
-fn live_input_mapping(world: &World, ship: Entity) -> BTreeMap<SectionId, Vec<InputSource>> {
+/// A design section with no live entity keeps its entry from `saved`, the
+/// table the root carries, see [`keep_lost_bindings`].
+fn live_input_mapping(
+    world: &World,
+    ship: Entity,
+    saved: &BTreeMap<SectionId, Vec<InputSource>>,
+) -> BTreeMap<SectionId, Vec<InputSource>> {
     let mut mapping = BTreeMap::new();
+    let mut live = std::collections::BTreeSet::new();
     for child in world.entity(ship).get::<Children>().into_iter().flatten() {
         let section = world.entity(*child);
         let Some(id) = section.get::<EntityId>() else {
             continue;
         };
-        let bindings = section
-            .get::<SpaceshipThrusterInputBinding>()
-            .map(|binding| &binding.0)
-            .or_else(|| {
-                section
-                    .get::<SpaceshipTurretInputBinding>()
-                    .map(|binding| &binding.0)
-            })
-            .or_else(|| {
-                section
-                    .get::<SpaceshipTorpedoInputBinding>()
-                    .map(|binding| &binding.0)
-            })
-            .or_else(|| {
-                section
-                    .get::<SpaceshipRailgunInputBinding>()
-                    .map(|binding| &binding.0)
-            })
-            .or_else(|| {
-                section
-                    .get::<SpaceshipMiningInputBinding>()
-                    .map(|binding| &binding.0)
-            });
-        if let Some(bindings) = bindings {
-            mapping.insert(id.0.clone(), bindings.clone());
+        live.insert(id.0.clone());
+        if let Some(bindings) = section_bindings(section) {
+            mapping.insert(id.0.clone(), bindings.to_vec());
+        }
+    }
+    let design = world.get::<ShipDesignSections>(ship);
+    keep_lost_bindings(
+        mapping,
+        &live,
+        design
+            .into_iter()
+            .flat_map(|design| design.0.iter().map(|section| section.id.as_str())),
+        saved,
+    )
+}
+
+/// The five player binding components a section may carry, one per bindable
+/// kind.
+type SectionBindingQuery = (
+    Option<&'static SpaceshipThrusterInputBinding>,
+    Option<&'static SpaceshipTurretInputBinding>,
+    Option<&'static SpaceshipTorpedoInputBinding>,
+    Option<&'static SpaceshipRailgunInputBinding>,
+    Option<&'static SpaceshipMiningInputBinding>,
+);
+
+/// A live section's player binding, whichever bindable kind it is.
+fn section_bindings(section: EntityRef<'_>) -> Option<&[InputSource]> {
+    first_binding((
+        section.get::<SpaceshipThrusterInputBinding>(),
+        section.get::<SpaceshipTurretInputBinding>(),
+        section.get::<SpaceshipTorpedoInputBinding>(),
+        section.get::<SpaceshipRailgunInputBinding>(),
+        section.get::<SpaceshipMiningInputBinding>(),
+    ))
+}
+
+/// The one binding a section carries out of the five kinds' components.
+fn first_binding<'a>(
+    (thruster, turret, torpedo, railgun, mining): (
+        Option<&'a SpaceshipThrusterInputBinding>,
+        Option<&'a SpaceshipTurretInputBinding>,
+        Option<&'a SpaceshipTorpedoInputBinding>,
+        Option<&'a SpaceshipRailgunInputBinding>,
+        Option<&'a SpaceshipMiningInputBinding>,
+    ),
+) -> Option<&'a [InputSource]> {
+    thruster
+        .map(|binding| binding.0.as_slice())
+        .or_else(|| turret.map(|binding| binding.0.as_slice()))
+        .or_else(|| torpedo.map(|binding| binding.0.as_slice()))
+        .or_else(|| railgun.map(|binding| binding.0.as_slice()))
+        .or_else(|| mining.map(|binding| binding.0.as_slice()))
+}
+
+/// `live` bindings plus the `saved` entry of every `design` section id that
+/// is not in `live_ids`: a lost section's key survives the save, so the
+/// rebuild that brings the section back binds it the way it was.
+fn keep_lost_bindings<'a>(
+    mut mapping: BTreeMap<SectionId, Vec<InputSource>>,
+    live_ids: &std::collections::BTreeSet<SectionId>,
+    design: impl IntoIterator<Item = &'a str>,
+    saved: &BTreeMap<SectionId, Vec<InputSource>>,
+) -> BTreeMap<SectionId, Vec<InputSource>> {
+    for id in design {
+        if live_ids.contains(id) {
+            continue;
+        }
+        if let Some(bindings) = saved.get(id) {
+            mapping.insert(id.to_string(), bindings.clone());
         }
     }
     mapping
+}
+
+/// Write a player section's binding into its ship's controller table as the
+/// section leaves the world, so a rebind made before the loss is the key a
+/// save keeps and a rebuild restores.
+fn remember_lost_section_binding(
+    remove: On<Remove, SectionMarker>,
+    q_section: Query<(&ChildOf, &EntityId, SectionBindingQuery)>,
+    mut q_controller: Query<&mut SpaceshipController>,
+) {
+    let Ok((parent, id, bindings)) = q_section.get(remove.entity) else {
+        return;
+    };
+    let Some(bindings) = first_binding(bindings) else {
+        return;
+    };
+    let Ok(mut controller) = q_controller.get_mut(parent.0) else {
+        return;
+    };
+    let SpaceshipController::Player(config) = controller.as_mut() else {
+        return;
+    };
+    if config.input_mapping.get(&id.0).map(Vec::as_slice) != Some(bindings) {
+        config.input_mapping.insert(id.0.clone(), bindings.to_vec());
+    }
 }
 
 /// Rebuild a frozen ship on `entity`, which the caller spawned with its pose,
@@ -848,7 +927,184 @@ impl Plugin for SpaceshipPlugin {
         app.init_resource::<GameStationDesigns>();
 
         app.add_observer(insert_spaceship_sections);
+        app.add_observer(rebuild_design_section);
+        app.add_observer(remember_lost_section_binding);
+        app.add_observer(insert_station_services);
     }
+}
+
+/// Spawn one design section under `parent`: its identity and pose, its body
+/// (inactive on a derelict unless it is structure or a port), the player's
+/// binding for it from `controller`, and `frozen` state over the fresh one.
+///
+/// The one per-section spawn: the ship spawn runs it for every design section
+/// and a rebuild runs it for the one it puts back, so a rebuilt section is
+/// built exactly as the first spawn built it. The integrity graph rebuilds
+/// from the new section's link points on the next update.
+///
+/// # Panics
+///
+/// On a player mining section with no binding, or one whose key another
+/// emitter in `mining_sources` already holds: the lint refuses both first.
+fn spawn_design_section(
+    parent: &mut ChildSpawnerCommands,
+    section: &DesignSection,
+    controller_config: &SpaceshipController,
+    derelict: bool,
+    mining_sources: &mut Vec<(InputSource, String)>,
+    frozen: Option<FrozenSection>,
+) {
+    let config = &section.config;
+    let mut section_entity = parent.spawn((
+        EntityId::new(section.id.clone()),
+        Transform::from_translation(section.position).with_rotation(section.rotation),
+    ));
+
+    // A derelict keeps its structure and its docking ports live, so
+    // it can be hit, carved and docked with; every system it could
+    // run spawns inactive, before any tick can fire or thrust it.
+    let passive = matches!(config.kind, SectionKind::Hull(_) | SectionKind::Docking(_));
+    section_body(&mut section_entity, config, derelict && !passive);
+
+    match &config.kind {
+        SectionKind::Hull(_)
+        | SectionKind::Controller(_)
+        | SectionKind::Docking(_)
+        | SectionKind::CargoIntake(_) => {}
+        SectionKind::Thruster(_) => match controller_config {
+            SpaceshipController::None => {}
+            SpaceshipController::Player(config) => {
+                if let Some(bindings) = config.input_mapping.get(&section.id) {
+                    section_entity.insert(SpaceshipThrusterInputBinding(bindings.clone()));
+                };
+            }
+            SpaceshipController::AI(_) => {}
+        },
+        SectionKind::Turret(_) => match controller_config {
+            SpaceshipController::None => {}
+            SpaceshipController::Player(config) => {
+                if let Some(bindings) = config.input_mapping.get(&section.id) {
+                    section_entity.insert(SpaceshipTurretInputBinding(bindings.clone()));
+                }
+            }
+            SpaceshipController::AI(_) => {}
+        },
+        SectionKind::Torpedo(_) => match controller_config {
+            SpaceshipController::None => {}
+            SpaceshipController::Player(config) => {
+                if let Some(bindings) = config.input_mapping.get(&section.id) {
+                    section_entity.insert(SpaceshipTorpedoInputBinding(bindings.clone()));
+                }
+            }
+            SpaceshipController::AI(_) => {}
+        },
+        // Each emitter deploys on its own key. A player emitter without
+        // one could never be used; the lint refuses it first.
+        SectionKind::Mining(_) => match controller_config {
+            SpaceshipController::None => {}
+            SpaceshipController::Player(config) => {
+                let bindings = match config.input_mapping.get(&section.id) {
+                    Some(bindings) if !bindings.is_empty() => bindings,
+                    _ => panic!(
+                        "spaceship: player mining section '{}' has no \
+                             input_mapping entry",
+                        section.id
+                    ),
+                };
+                for &source in bindings {
+                    if let Some((_, other)) =
+                        mining_sources.iter().find(|(taken, _)| *taken == source)
+                    {
+                        panic!(
+                            "spaceship: player mining sections '{other}' and '{}' \
+                                 share {}",
+                            section.id,
+                            source.label()
+                        );
+                    }
+                    mining_sources.push((source, section.id.clone()));
+                }
+                section_entity.insert(SpaceshipMiningInputBinding(bindings.clone()));
+            }
+            SpaceshipController::AI(_) => {}
+        },
+        SectionKind::Railgun(_) => match controller_config {
+            SpaceshipController::None => {}
+            SpaceshipController::Player(config) => {
+                if let Some(bindings) = config.input_mapping.get(&section.id) {
+                    section_entity.insert(SpaceshipRailgunInputBinding(bindings.clone()));
+                }
+            }
+            SpaceshipController::AI(_) => {}
+        },
+    }
+    // Last, so the frozen state overrides the fresh one the kind
+    // bundle seeded.
+    if let Some(frozen) = frozen {
+        thaw_section(&mut section_entity, frozen);
+    }
+}
+
+/// Spawn a lost design section of a ship again, at full health, as a Ship
+/// pane rebuild asks once the rebuild rule took its recipe. The section is
+/// built by [`spawn_design_section`] with the binding the ship's controller
+/// table keeps for it.
+///
+/// # Panics
+///
+/// On a request for a root with no [`ShipDesignSections`], an id its design
+/// lacks, or a section that is still live: the pane plans a rebuild only for a
+/// lost section of the player's authored ship.
+fn rebuild_design_section(
+    request: On<SectionRebuildRequest>,
+    mut commands: Commands,
+    q_ship: Query<
+        (
+            &ShipDesignSections,
+            &SpaceshipController,
+            Has<DerelictShipMarker>,
+            Option<&Children>,
+        ),
+        With<SpaceshipRootMarker>,
+    >,
+    q_ids: Query<&EntityId, With<SectionMarker>>,
+) {
+    let ship = request.entity;
+    let Ok((design, controller, derelict, children)) = q_ship.get(ship) else {
+        panic!("rebuild_design_section: {ship:?} is not an authored ship root");
+    };
+    let Some(section) = design.get(&request.section) else {
+        panic!(
+            "rebuild_design_section: ship {ship:?} has no design section '{}'",
+            request.section
+        );
+    };
+    let live = children
+        .into_iter()
+        .flatten()
+        .filter_map(|child| q_ids.get(*child).ok())
+        .any(|id| id.0 == section.id);
+    assert!(
+        !live,
+        "rebuild_design_section: section '{}' of ship {ship:?} is live",
+        section.id
+    );
+    let section = section.clone();
+    let controller = controller.clone();
+    debug!(
+        "rebuild_design_section: ship {ship:?} rebuilds '{}'",
+        section.id
+    );
+    commands.entity(ship).with_children(|parent| {
+        spawn_design_section(
+            parent,
+            &section,
+            &controller,
+            derelict,
+            &mut Vec::new(),
+            None,
+        );
+    });
 }
 
 fn insert_spaceship_sections(
@@ -950,6 +1206,19 @@ fn insert_spaceship_sections(
     }
     commands.entity(entity).remove::<SpaceshipSpawnPolicy>();
 
+    // The design keeps its sections on the root, so a lost one can be named
+    // and rebuilt; each section entity is spawned from the same list.
+    let design_sections: Vec<DesignSection> = design
+        .sections
+        .into_iter()
+        .map(|section| DesignSection {
+            id: section.id,
+            position: section.position,
+            rotation: section.rotation,
+            config: section.config,
+        })
+        .collect();
+
     // An AI ship with no weapon section cannot fight; it becomes a
     // non-combatant below so it flies its routine and never chases. Counted
     // over the sections this spawn builds, so a thawed ship whose last weapon
@@ -957,11 +1226,10 @@ fn insert_spaceship_sections(
     let mut has_weapon = false;
     // Every source a player mining section holds so far, so a second emitter on
     // the same key is refused rather than deployed by the same press.
-    let mut mining_sources: Vec<(InputSource, &str)> = Vec::new();
+    let mut mining_sources: Vec<(InputSource, String)> = Vec::new();
 
     commands.entity(entity).with_children(|parent| {
-        for section in &design.sections {
-            let config = &section.config;
+        for section in &design_sections {
             // A thawing ship spawns only the sections that survived, each
             // with its frozen state.
             let frozen = match thawing.as_mut() {
@@ -972,100 +1240,22 @@ fn insert_spaceship_sections(
                 None => None,
             };
             has_weapon |= matches!(
-                config.kind,
+                section.config.kind,
                 SectionKind::Turret(_) | SectionKind::Torpedo(_) | SectionKind::Railgun(_)
             );
-
-            let mut section_entity = parent.spawn((
-                EntityId::new(section.id.clone()),
-                Transform::from_translation(section.position).with_rotation(section.rotation),
-            ));
-
-            // A derelict keeps its structure and its docking ports live, so
-            // it can be hit, carved and docked with; every system it could
-            // run spawns inactive, before any tick can fire or thrust it.
-            let passive = matches!(config.kind, SectionKind::Hull(_) | SectionKind::Docking(_));
-            section_body(&mut section_entity, config, derelict && !passive);
-
-            match &config.kind {
-                SectionKind::Hull(_)
-                | SectionKind::Controller(_)
-                | SectionKind::Docking(_)
-                | SectionKind::CargoIntake(_) => {}
-                SectionKind::Thruster(_) => match controller_config {
-                    SpaceshipController::None => {}
-                    SpaceshipController::Player(config) => {
-                        if let Some(bindings) = config.input_mapping.get(&section.id) {
-                            section_entity.insert(SpaceshipThrusterInputBinding(bindings.clone()));
-                        };
-                    }
-                    SpaceshipController::AI(_) => {}
-                },
-                SectionKind::Turret(_) => match controller_config {
-                    SpaceshipController::None => {}
-                    SpaceshipController::Player(config) => {
-                        if let Some(bindings) = config.input_mapping.get(&section.id) {
-                            section_entity.insert(SpaceshipTurretInputBinding(bindings.clone()));
-                        }
-                    }
-                    SpaceshipController::AI(_) => {}
-                },
-                SectionKind::Torpedo(_) => match controller_config {
-                    SpaceshipController::None => {}
-                    SpaceshipController::Player(config) => {
-                        if let Some(bindings) = config.input_mapping.get(&section.id) {
-                            section_entity.insert(SpaceshipTorpedoInputBinding(bindings.clone()));
-                        }
-                    }
-                    SpaceshipController::AI(_) => {}
-                },
-                // Each emitter deploys on its own key. A player emitter without
-                // one could never be used; the lint refuses it first.
-                SectionKind::Mining(_) => match controller_config {
-                    SpaceshipController::None => {}
-                    SpaceshipController::Player(config) => {
-                        let bindings = match config.input_mapping.get(&section.id) {
-                            Some(bindings) if !bindings.is_empty() => bindings,
-                            _ => panic!(
-                                "spaceship: player mining section '{}' has no \
-                                     input_mapping entry",
-                                section.id
-                            ),
-                        };
-                        for &source in bindings {
-                            if let Some((_, other)) =
-                                mining_sources.iter().find(|(taken, _)| *taken == source)
-                            {
-                                panic!(
-                                    "spaceship: player mining sections '{other}' and '{}' \
-                                         share {}",
-                                    section.id,
-                                    source.label()
-                                );
-                            }
-                            mining_sources.push((source, section.id.as_str()));
-                        }
-                        section_entity.insert(SpaceshipMiningInputBinding(bindings.clone()));
-                    }
-                    SpaceshipController::AI(_) => {}
-                },
-                SectionKind::Railgun(_) => match controller_config {
-                    SpaceshipController::None => {}
-                    SpaceshipController::Player(config) => {
-                        if let Some(bindings) = config.input_mapping.get(&section.id) {
-                            section_entity.insert(SpaceshipRailgunInputBinding(bindings.clone()));
-                        }
-                    }
-                    SpaceshipController::AI(_) => {}
-                },
-            }
-            // Last, so the frozen state overrides the fresh one the kind
-            // bundle seeded.
-            if let Some(frozen) = frozen {
-                thaw_section(&mut section_entity, frozen);
-            }
+            spawn_design_section(
+                parent,
+                section,
+                controller_config,
+                derelict,
+                &mut mining_sources,
+                frozen,
+            );
         }
     });
+    commands
+        .entity(entity)
+        .insert(ShipDesignSections(design_sections));
 
     match controller_config {
         SpaceshipController::None => {}
@@ -1258,6 +1448,35 @@ mod tests {
     use crate::objects::ship_design::prelude::{
         ShipDesign, ShipDesignPrototype, ShipIntegrityConfig,
     };
+
+    /// A save keeps the key of a section the ship has lost, so its rebuild
+    /// binds the way it was; a live section's binding wins over the saved
+    /// one, and an id no longer in the design drops out.
+    #[test]
+    fn a_save_keeps_the_binding_of_a_lost_design_section() {
+        let key = |code| vec![InputSource::Keyboard(code)];
+        let live = BTreeMap::from([("pdc_port".to_string(), key(KeyCode::KeyQ))]);
+        let live_ids =
+            std::collections::BTreeSet::from(["pdc_port".to_string(), "hull".to_string()]);
+        let saved = BTreeMap::from([
+            ("pdc_port".to_string(), key(KeyCode::KeyZ)),
+            ("pdc_starboard".to_string(), key(KeyCode::KeyE)),
+            ("retired_gun".to_string(), key(KeyCode::KeyR)),
+        ]);
+        let kept = keep_lost_bindings(
+            live,
+            &live_ids,
+            ["hull", "pdc_port", "pdc_starboard"],
+            &saved,
+        );
+        assert_eq!(
+            kept,
+            BTreeMap::from([
+                ("pdc_port".to_string(), key(KeyCode::KeyQ)),
+                ("pdc_starboard".to_string(), key(KeyCode::KeyE)),
+            ])
+        );
+    }
 
     /// The AI controller config maps to the per-entity directive components
     /// exactly: patrol -> AIPatrolRoute, orbit -> AIOrbitDirective, absent

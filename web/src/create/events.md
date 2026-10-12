@@ -53,6 +53,7 @@ The whole vocabulary at a glance:
 | [`OnTraded`](#hold-events) | `id`, `other_id`, `other_type_name`, `trade`, `item`, `count`, `price_cr` | the player buys or sells a stack across a dock |
 | [`OnCreditsChanged`](#hold-events) | `id`, `type_name`, `previous_cr`, `current_cr`, `delta_cr`, `cause` | a ship's credits move |
 | [`OnRepaired`](#hold-events) | `id`, `type_name`, `section`, `item`, `count` | the Ship pane spends plates on a section |
+| [`OnRebuilt`](#hold-events) | `id`, `type_name`, `section`, `parts`, `price_cr` | the Ship pane rebuilds a lost section at a docked station |
 
 Entity payload fields are what an `Entity` filter can match: `id` /
 `type_name` name the event's SUBJECT, `other_id` / `other_type_name` its other
@@ -792,7 +793,7 @@ To react to a dock with anything, omit `id` and keep `other_id`.
 
 ## Hold events
 
-Six edges report what a ship's hold and purse do. Each fires ONCE per
+Seven edges report what a ship's hold and purse do. Each fires ONCE per
 occurrence from the system that did the work, never from a poll of the
 inventory, so a handler counts occurrences, not frames.
 
@@ -802,8 +803,9 @@ inventory, so a handler counts occurrences, not frames.
 | `OnPickedUp` | the ship whose intake took the stack | none | `canister`, `item`, `count` |
 | `OnJettisoned` | the ship whose intake dropped the stack | none | `canister`, `item`, `count` |
 | `OnTraded` | the ship traded WITH | the player's ship | `trade` (`Buy` or `Sell`, from the player's side), `item`, `count`, `price_cr` |
-| `OnCreditsChanged` | the ship whose purse moved | none | `previous_cr`, `current_cr`, `delta_cr` (signed), `cause` (`Trade` or `Take`) |
+| `OnCreditsChanged` | the ship whose purse moved | none | `previous_cr`, `current_cr`, `delta_cr` (signed), `cause` (`Trade`, `Take` or `Rebuild`) |
 | `OnRepaired` | the repaired ship | none | `section` (the Ship pane code, `CTL-1`), `item`, `count` (plates spent) |
+| `OnRebuilt` | the rebuilt ship | none | `section` (the code the lost section had, `PDC-1`), `parts` (every recipe part, item id to count), `price_cr` (work plus bought parts) |
 
 <details class="explain">
 <summary>Show explanation</summary>
@@ -821,10 +823,12 @@ same `canister`.
 `OnTraded` fires once per confirmed trade on the player's queue, so a buy of
 four rations is one event with `count: 4`. The credits move it causes raises
 one `OnCreditsChanged` per party, `cause: Trade`, in the same frame; the
-loot-take of a dead ship's purse raises one with `cause: Take`. A move that
+loot-take of a dead ship's purse raises one with `cause: Take`; a rebuild
+raises one per party with `cause: Rebuild`, the ship paying and the station
+paid. A move that
 leaves the purse unchanged raises nothing.
 
-Trades and repairs come from the interface panes, which run while the world
+Trades, repairs and rebuilds come from the interface panes, which run while the world
 is paused: their events arrive on the first simulation tick after the pane
 closes. Intake and mining events arrive the frame the hold changes.
 
@@ -851,7 +855,7 @@ A prospecting berth that wants one of each:
 ),
 ```
 
-The example mod's `example_prospect` scenario runs all six.
+The example mod's `example_prospect` scenario runs all but `OnRebuilt`.
 
 </details>
 

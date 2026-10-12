@@ -5,8 +5,9 @@
 //! It is authored once as a [`StationDesign`] and spawned by id through
 //! [`StationConfig`]. The spawn builds the same root a spaceship gets - the
 //! dock, the trade, the sever and the freeze all query `SpaceshipRootMarker` -
-//! and adds [`StationMarker`] and [`StationStorage`] over it. Nothing here
-//! inserts a player or AI marker: a station has no driver.
+//! and adds [`StationMarker`] and [`StationStorage`] over it; the marker
+//! brings the design's [`StationServices`] with it. Nothing here inserts a
+//! player or AI marker: a station has no driver.
 //!
 //! The body is a dynamic thrusterless hull, never `RigidBody::Static`:
 //! gravity pulls it and a ram shoves it. Its Controller section is the whole
@@ -34,7 +35,9 @@ use nova_gameplay::prelude::{
     circular_orbit_speed, Allegiance, DerelictShipMarker, ItemDesignId, ShipInventoryStock,
     UnsettledBody,
 };
-pub use nova_gameplay::prelude::{StationDesignId, StationMarker};
+pub use nova_gameplay::prelude::{
+    StationDesignId, StationMarker, StationServiceType, StationServices,
+};
 use nova_ship::prelude::ShipCapabilities;
 
 use crate::objects::{
@@ -50,8 +53,8 @@ pub mod prelude {
     pub use super::{
         freeze_station, station_orbit_velocity, station_scenario_object, thaw_station,
         FrozenStation, GameStationDesigns, StationConfig, StationDesign, StationDesignId,
-        StationMarker, StationServiceType, StationStorage, STATION_LEVEL_TOLERANCE_RAD,
-        STATION_ORBIT_TOLERANCE,
+        StationMarker, StationServiceType, StationServices, StationStorage,
+        STATION_LEVEL_TOLERANCE_RAD, STATION_ORBIT_TOLERANCE,
     };
 }
 
@@ -107,25 +110,6 @@ pub fn station_orbit_velocity(
     let speed = circular_orbit_speed(mu, station_position.distance(well_position));
     let velocity = MetersPerSecond3::from_engine(tangent * speed);
     velocity.is_finite().then_some(velocity)
-}
-
-/// What a docked ship can do at a station. The closed set the game knows;
-/// a design lists the ones it offers.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum StationServiceType {
-    /// Rebuild destroyed sections of the docked ship.
-    Rebuild,
-    /// Change the docked ship's section layout.
-    Refit,
-    /// Buy from and sell to the station's stock.
-    Trade,
-    /// Leave items in the station's own storage, up to its cap.
-    Storage,
-    /// Take contracts posted at the station.
-    Jobs,
-    /// Hire and drop crew.
-    Roster,
 }
 
 /// What a station IS, apart from any one spawn of it: its hull, what it
@@ -255,6 +239,34 @@ pub fn station_scenario_object(
         StationMarker(design.id.clone()),
         StationStorage::new(design.storage_cap_g),
     ));
+}
+
+/// Insert a station root's [`StationServices`] from its design whenever a
+/// [`StationMarker`] lands, so a fresh spawn and a thaw read the same list.
+///
+/// # Panics
+///
+/// On a marker naming a design the catalog lacks: lint and the save load
+/// refuse such an id before anything spawns it.
+pub(crate) fn insert_station_services(
+    add: On<Add, StationMarker>,
+    q_marker: Query<&StationMarker>,
+    designs: Res<GameStationDesigns>,
+    mut commands: Commands,
+) {
+    let Ok(marker) = q_marker.get(add.entity) else {
+        return;
+    };
+    let Some(design) = designs.get_design(&marker.0) else {
+        panic!(
+            "insert_station_services: station {:?} names design '{}', which the station \
+             catalog lacks",
+            add.entity, marker.0
+        );
+    };
+    commands
+        .entity(add.entity)
+        .insert(StationServices(design.services.clone()));
 }
 
 /// What a station is permitted to do: receive a dock, and nothing a hull

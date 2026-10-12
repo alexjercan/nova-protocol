@@ -9,6 +9,7 @@ use bevy::prelude::*;
 use nova_events::prelude::*;
 use nova_ship::prelude::*;
 
+use super::recipes;
 use crate::base_content::assets::BaseContentAssets;
 
 /// The intake prototype id. Only the block fleet mounts it by name.
@@ -95,6 +96,7 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                           pane drops a canister out through the same door."
                 .to_string(),
             health: CARGO_INTAKE_BASE_HEALTH,
+            build: recipes::cargo_intake(),
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
             collider: Some(SectionCollider::Cuboid { size: INTAKE_CELLS }),
             link_points: intake_link_points(),

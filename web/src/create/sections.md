@@ -39,6 +39,11 @@ shared `base` block and one kind-specific block:
             name: "Compact Thruster",
             description: "A light engine for small ships.",
             health: 70.0,
+            build: (
+                credits: 60,
+                parts: {"DriveBell": 1, "SectionPanel": 2},
+                strip_yield: 0.5,
+            ),
         ),
         kind: Thruster((
             magnitude: 1.0,
@@ -55,6 +60,7 @@ shared `base` block and one kind-specific block:
 | `base.name` | string | required | Display name in the editor palette and ship UI. |
 | `base.description` | string | required | Editor and tooltip description. |
 | `base.health` | number | required | Hit points before the section is destroyed. Positive and finite. |
+| `base.build` | build recipe | required | What a station charges to rebuild this section. See [Build recipe](#build-recipe). |
 | `base.destroy_sound` | `Option` asset ref | `None` | Sound played when this section is destroyed. Omitted means silent. |
 | `base.collider` | `Option` collider | `None` | Physics shape. Omitted means a 1 x 1 x 1 cube. |
 | `base.link_points` | link-point list | `[]` | Structural sockets. Multi-section ships must derive one connected graph from their mates. |
@@ -86,6 +92,53 @@ never creates structure. Non-integral cuboids and non-cuboid shapes remain
 one-cell footprints.
 
 Every collider size, radius, length and height must be positive and finite.
+
+### Build recipe
+
+Every section carries a `build` recipe: the credits and `Parts` items a
+docked station takes to rebuild it after the ship lost it. A section without
+one fails to load.
+
+```ron
+build: (
+    credits: 160,
+    parts: {"SectionPanel": 6, "FrameSpar": 2},
+    strip_yield: 0.5,
+),
+```
+
+| field | type | meaning |
+|---|---|---|
+| `credits` | integer | Credits for the work, paid to the station. Above zero. |
+| `parts` | map of item id to count | Part items the build spends. Keys are quoted item ids in the `Parts` category; each count is above zero. |
+| `strip_yield` | number | The share of each part count a strip gives back, rounded down per part. In `(0, 1]`. |
+
+A rebuild takes the parts from the ship's hold first and buys the rest from
+the station's stock at ask. The ship pays the recipe's `credits` plus the
+bought parts; see [Rebuild](../stations/#rebuild).
+
+Content lint rejects a recipe that names an unknown item or an item outside
+`Parts`, a count of 0, `credits: 0`, or a `strip_yield` outside `(0, 1]`. It
+also rejects a recipe whose strip pays as much as the build: the yielded parts
+at bid must be worth less than `credits` plus every part at ask. An inline
+section in a ship design is checked the same way.
+
+Base recipes, from the [item table](../objects/#inventory):
+
+| sections | credits | parts | strip_yield |
+|---|---|---|---|
+| reinforced, cargo and tank hull | 160 | 6 SectionPanel, 2 FrameSpar | 0.5 |
+| light hull | 80 | 2 SectionPanel | 0.5 |
+| basic thruster | 60 | 1 DriveBell, 2 SectionPanel | 0.5 |
+| vector thruster | 400 | 4 DriveBell, 8 SectionPanel, 4 FrameSpar | 0.3 |
+| capital thruster | 1200 | 10 DriveBell, 20 SectionPanel, 10 FrameSpar | 0.3 |
+| controller | 100 | 1 FlightCore, 2 SectionPanel | 0.5 |
+| PDC turret | 100 | 1 TurretBody, 1 TurretBarrel per muzzle, 1 ActuatorPack, 2 SectionPanel | 0.5 |
+| torpedo bay | 150 | 1 TorpedoTube, 1 ActuatorPack, 4 SectionPanel, 1 FrameSpar | 0.5 |
+| railgun lance | 300 | 3 CapacitorBank, 3 FrameSpar, 6 SectionPanel | 0.5 |
+| docking port | 80 | 1 DockingCollar, 1 ActuatorPack, 2 SectionPanel | 0.5 |
+| cargo intake | 60 | 2 ActuatorPack, 4 SectionPanel, 1 FrameSpar | 0.5 |
+| mining beam | 100 | 1 CapacitorBank, 1 ActuatorPack, 2 SectionPanel | 0.5 |
 
 ### Stats that content lint checks
 
@@ -346,6 +399,11 @@ Section((
         name: "Reinforced Hull Section",
         description: "A reinforced hull section for spaceships.",
         health: 200.0,
+        build: (
+            credits: 160,
+            parts: {"SectionPanel": 6, "FrameSpar": 2},
+            strip_yield: 0.5,
+        ),
     ),
     kind: Hull((
         render_mesh: Some("dep://base/gltf/hull-01.glb#Scene0"),
@@ -1211,6 +1269,11 @@ Section((
         name: "Reinforced Hull Section (Example Mod)",
         description: "Base hull, up-armored by the example mod to show section overlay by id.",
         health: 400.0,
+        build: (
+            credits: 160,
+            parts: {"SectionPanel": 6, "FrameSpar": 2},
+            strip_yield: 0.5,
+        ),
     ),
     kind: Hull((
         render_mesh: Some("dep://base/gltf/hull-01.glb#Scene0"),

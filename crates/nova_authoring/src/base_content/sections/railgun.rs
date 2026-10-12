@@ -8,6 +8,7 @@ use bevy::prelude::*;
 use nova_events::prelude::*;
 use nova_ship::prelude::*;
 
+use super::recipes;
 use crate::base_content::assets::BaseContentAssets;
 
 /// Three cells of ship behind ONE health pool, which is the lance's whole
@@ -102,6 +103,7 @@ fn railgun_lance_prototype(meshes: &BaseContentAssets, spec: LanceSpec<'_>) -> S
             name: spec.name.to_string(),
             description: spec.description.to_string(),
             health: RAILGUN_BASE_HEALTH,
+            build: recipes::railgun_lance(),
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
             // Three cells long, and the collider has to claim all of it: the
             // lance is the biggest single target on any ship carrying one.

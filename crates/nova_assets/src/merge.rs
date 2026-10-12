@@ -553,6 +553,7 @@ pub fn register_bundles(
         let found = nova_scenario::prelude::lint_ship_design_config(
             ship,
             &merged_sections,
+            &merged_items,
             ship.id.as_str(),
         );
         for issue in &found {
@@ -565,6 +566,26 @@ pub fn register_bundles(
             content_issues
                 .0
                 .entry(ship.id.to_string())
+                .or_default()
+                .extend(found);
+        }
+    }
+    // Every MERGED section prototype's build recipe, checked against the
+    // merged item catalog: a recipe names parts, so only the effective catalog
+    // can say whether it is buildable. Findings key on the section id.
+    for section in merged_sections.catalog().0.iter() {
+        let id = section.base.id.as_str();
+        let found = nova_scenario::prelude::lint_section_recipe(section, &merged_items, id);
+        for issue in &found {
+            warn!(
+                "register_bundles: content lint [{:?}] section '{}': {}",
+                issue.severity, issue.scenario, issue.message
+            );
+        }
+        if !found.is_empty() {
+            content_issues
+                .0
+                .entry(id.to_string())
                 .or_default()
                 .extend(found);
         }

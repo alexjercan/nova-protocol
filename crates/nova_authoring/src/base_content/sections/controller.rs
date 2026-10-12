@@ -7,6 +7,7 @@
 use bevy::prelude::*;
 use nova_ship::prelude::*;
 
+use super::recipes;
 use crate::base_content::assets::BaseContentAssets;
 
 /// Command core: the mid durability baseline (`nova_gameplay::damage` scales a
@@ -24,6 +25,7 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
             description: "A basic controller section for spaceships.".to_string(),
             // Command core: mid durability baseline.
             health: CONTROLLER_BASE_HEALTH,
+            build: recipes::controller(),
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
             collider: None,
             link_points: unit_cube_link_points(),

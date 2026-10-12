@@ -23,6 +23,7 @@ mod docking_port;
 mod hull;
 mod mining_beam;
 mod railgun;
+pub(crate) mod recipes;
 mod thruster;
 mod torpedo_bay;
 mod turret;

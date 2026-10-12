@@ -28,9 +28,9 @@ pub mod prelude {
     pub use super::{
         ControllerSectionMarker, DerelictShipMarker, GunRoundMarker, PlayerSpaceshipMarker,
         RailgunSectionMarker, RailgunSlugProjectileMarker, SectionInactiveMarker, SectionMarker,
-        SpaceshipRootMarker, StationDesignId, StationMarker, ThrusterSectionMarker,
-        TorpedoProjectileMarker, TorpedoSectionMarker, TurretBulletProjectileMarker,
-        TurretSectionMarker,
+        SpaceshipRootMarker, StationDesignId, StationMarker, StationServiceType, StationServices,
+        ThrusterSectionMarker, TorpedoProjectileMarker, TorpedoSectionMarker,
+        TurretBulletProjectileMarker, TurretSectionMarker,
     };
 }
 
@@ -118,6 +118,42 @@ impl std::fmt::Display for StationDesignId {
 /// that can be fought into a derelict - is a later rule, not a gap here.
 #[derive(Component, Clone, Debug, PartialEq, Eq, Reflect)]
 pub struct StationMarker(pub StationDesignId);
+
+/// What a docked ship can do at a station. The closed set the game knows; a
+/// station design lists the ones it offers.
+///
+/// Here rather than beside the station design so the interface can read a
+/// docked station's [`StationServices`] without the scenario crate.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum StationServiceType {
+    /// Rebuild destroyed sections of the docked ship.
+    Rebuild,
+    /// Change the docked ship's section layout.
+    Refit,
+    /// Buy from and sell to the station's stock.
+    Trade,
+    /// Leave items in the station's own storage, up to its cap.
+    Storage,
+    /// Take contracts posted at the station.
+    Jobs,
+    /// Hire and drop crew.
+    Roster,
+}
+
+/// The services a station root's design offers, inserted beside its
+/// [`StationMarker`] whenever one lands, by spawn or thaw, from the loaded
+/// station catalog. A derelict station keeps the list; a service reader
+/// checks [`DerelictShipMarker`] itself.
+#[derive(Component, Clone, Debug, Default, PartialEq, Eq, Reflect)]
+pub struct StationServices(pub Vec<StationServiceType>);
+
+impl StationServices {
+    /// Whether the design offers `service`.
+    pub fn offers(&self, service: StationServiceType) -> bool {
+        self.0.contains(&service)
+    }
+}
 
 /// Marks a live section entity in a ship tree. Present on every spawned section
 /// (added by `base_section`); its absence marks the editor preview

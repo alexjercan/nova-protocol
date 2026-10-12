@@ -35,7 +35,15 @@ pub fn lint_station_design(
 ) -> Vec<LintIssue> {
     let mut issues = Vec::new();
     let id = design.id.as_str();
-    check_design_sections("station", id, &design.hull, source, sections, &mut issues);
+    check_design_sections(
+        "station",
+        id,
+        &design.hull,
+        source,
+        sections,
+        items,
+        &mut issues,
+    );
 
     let (resolved, _) = resolve_ship_design(
         &ShipDesignSource::Inline(design.hull.clone()),

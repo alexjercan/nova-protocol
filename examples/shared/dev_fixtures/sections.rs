@@ -24,6 +24,15 @@ const LANCE_CELLS: Vec3 = Vec3::new(1.0, 1.0, 3.0);
 /// fixture guns are no harder to shoot off than the balanced one.
 const SIEGE_SECTION_HEALTH: f32 = 180.0;
 
+/// A recipe over the base parts, at the base strip share.
+fn recipe(credits: u32, parts: &[(&str, u32)]) -> BuildRecipe {
+    BuildRecipe {
+        credits,
+        parts: parts.iter().map(|&(id, n)| (id.into(), n)).collect(),
+        strip_yield: 0.5,
+    }
+}
+
 fn art(path: &str) -> AssetRef<WorldAsset> {
     AssetRef::from(format!("base/gltf/{path}"))
 }
@@ -49,6 +58,11 @@ pub fn siege_railgun_lance() -> SectionConfig {
                           catalog."
                 .to_string(),
             health: SIEGE_SECTION_HEALTH,
+            // The catalog lance's row: the same casing and rails.
+            build: recipe(
+                300,
+                &[("CapacitorBank", 3), ("FrameSpar", 3), ("SectionPanel", 6)],
+            ),
             destroy_sound: Some(sound("explosion")),
             // Three cells long, and the collider has to claim all of it.
             collider: Some(SectionCollider::Cuboid { size: LANCE_CELLS }),
@@ -101,6 +115,16 @@ pub fn siege_torpedo_bay() -> SectionConfig {
                           outside the balanced catalog."
                 .to_string(),
             health: 100.0,
+            // The catalog bay's row: the same tube.
+            build: recipe(
+                150,
+                &[
+                    ("TorpedoTube", 1),
+                    ("ActuatorPack", 1),
+                    ("SectionPanel", 4),
+                    ("FrameSpar", 1),
+                ],
+            ),
             destroy_sound: Some(sound("explosion")),
             collider: Some(SectionCollider::Cuboid { size: BAY_CELLS }),
             link_points: bay_link_points(),

@@ -9,6 +9,7 @@ use bevy::prelude::*;
 use nova_events::prelude::*;
 use nova_ship::prelude::*;
 
+use super::recipes;
 use crate::base_content::assets::BaseContentAssets;
 
 /// A hatch, a sleeve and the machinery that drives it, all behind hull plate.
@@ -75,6 +76,7 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
             // Light machinery behind a hatch: softer than the command core
             // it is bolted beside, tougher than exposed propulsion.
             health: DOCKING_BASE_HEALTH,
+            build: recipes::docking_port(),
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
             collider: None,
             link_points: dock_link_points(),

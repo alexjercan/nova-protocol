@@ -641,6 +641,14 @@ name = "system_station_docking"
 path = "examples/systems/system_station_docking.rs"
 required-features = ["debug"]
 
+# A section the ship lost, rebuilt at a living station from the Ship pane:
+# hold parts first, the rest bought at ask, the price paid to the station,
+# the old code and key back, and the rebuild kept through a freeze and thaw.
+[[example]]
+name = "system_station_rebuild"
+path = "examples/systems/system_station_rebuild.rs"
+required-features = ["debug"]
+
 # Then the one range that grades SHIPPED content rather than a fixture built
 # beside it: the campaign's first chapter, booted by scenario id and walked
 # from the opening scene to the banner. Every other range above owns its world,

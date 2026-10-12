@@ -179,12 +179,18 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
            name: "Basic Shield Section".to_string(),
            description: "A basic shield section for spaceships.".to_string(),
            health: 100.0,
+           build: recipes::shield(),
            damage_effects: DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Sparks]),
            ..default()
        },
        kind: SectionKind::Shield(ShieldSectionConfig { /* ... */ }),
    },
    ```
+
+   `build` is required: add a recipe row to
+   `crates/nova_authoring/src/base_content/sections/recipes.rs` from the
+   `Parts` items in `items.rs`. Content lint refuses a recipe that strips for
+   as much as it costs (see [Ship sections internals](sections.md#sections-nova_shipsections)).
 
    `damage_effects` is a real design decision per kind, not boilerplate. The
    shipped rule: a hull authors nothing (defaulting to `[Cracks]`), anything

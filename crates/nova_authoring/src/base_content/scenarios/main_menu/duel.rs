@@ -13,7 +13,7 @@ use nova_ship::prelude::*;
 
 use super::shared::{backdrop_camera, backdrop_rig, planetoid_glow};
 use crate::{
-    base_content::{assets::BaseContentAssets, scenarios::SCATTER_SEED, ships},
+    base_content::{assets::BaseContentAssets, scenarios::SCATTER_SEED, sections::recipes, ships},
     scenario_helpers::{entity, entity_pair, number, number_equals, set_number},
 };
 
@@ -94,6 +94,9 @@ fn siege_bay(assets: &BaseContentAssets) -> SectionConfig {
                           armored ordnance, ship-killing blast."
                 .to_string(),
             health: 100.0,
+            // The standard bay's row: the battery is a bay with heavier
+            // ordnance, not a different tube.
+            build: recipes::torpedo_bay(),
             destroy_sound: Some(assets.section_destroy_sound.clone()),
             collider: Some(SectionCollider::Cuboid { size: BAY_CELLS }),
             link_points: bay_link_points(),

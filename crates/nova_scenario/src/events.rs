@@ -175,13 +175,17 @@ scenario_events! {
     /// Once per confirmed trade.
     OnTraded => OnTradedEvent { label: "On Traded" },
     /// A ship's credits balance moved (`id` = the ship; `previous_cr`,
-    /// `current_cr`, `delta_cr`, `cause` = `Trade` or `Take`). Once per ship
+    /// `current_cr`, `delta_cr`, `cause` = `Trade`, `Take` or `Rebuild`). Once per ship
     /// per change, so a trade raises one for each party.
     OnCreditsChanged => OnCreditsChangedEvent { label: "On Credits Changed" },
     /// A Ship pane repair spent hull plates (`id` = the ship; `section` = the
     /// pane code such as `HULL-3`, `item`, `count` = plates spent). Once per
     /// repair that spends at least one plate.
     OnRepaired => OnRepairedEvent { label: "On Repaired" },
+    /// A Ship pane rebuild at a docked station put a lost section back (`id`
+    /// = the ship; `section` = the pane code such as `PDC-1`, `parts` = every
+    /// part spent, `price_cr` = credits paid). Once per rebuild.
+    OnRebuilt => OnRebuiltEvent { label: "On Rebuilt" },
 }
 
 #[cfg(all(test, feature = "serde"))]
