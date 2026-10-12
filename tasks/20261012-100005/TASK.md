@@ -1,8 +1,8 @@
 # Stations: buy stock, store and withdraw parts, sell goods while docked
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 83
-- TAGS: v0.16.0,stations
+- TAGS: v0.16.0, stations
 
 ## User facts
 - Epic `20261012-095958`. Decisions 2b and 4 (2026-10-12): transactions only while docked; station storage holds parts and goods, capped, never sections; sell what you brought back at the station's bid.
@@ -11,6 +11,8 @@
 ## Agent findings
 - Docked trade exists between ships (`crates/nova_gameplay/src/inventory.rs`, the docked-partner logic knows only trade and loot); `ShipInventory { capacity_g, stacks }` on the ship root. Generated stock and credits are planned by advancement (`crates/nova_world_base/src/sector_ships.rs:92-108`).
 - Landed: `StationStorage` moved to `nova_gameplay::inventory`, one gate `station_offers` for Rebuild, Trade and Storage, `plan_item_storage` (Store/Withdraw, no credits), Inventory pane Storage column, `OnStored`/`OnWithdrawn`. Generated living-station stock and credits scale by advancement (`STATION_STOCK_SHARE` 0.5..1.0); a dead station keeps its authored stock as loot. World save format 5 -> 6. Proof: `examples/systems/system_station_storage.rs` (retire, thaw, save, load). The `TODO(20261012-100005)` at `station_design_id` in `sector_stations.rs` is untouched.
+
+- Orchestrator close 2026-10-13: landed in 42d502e91; follow-up 6129789a3 rewrote the `station_design_id` TODO without a task id (every civilization still builds the base waystation until a second station design exists) and trimmed two changelog entries to 200 chars. `content lint` re-run: 0 errors, 0 warnings. Agent-chosen values for owner review: `STATION_STOCK_SHARE` 0.5..1.0, dead stations keep full stock as loot, live proof on seed 10.
 
 ## Delivery gate
 - A station inventory on the station body with a cap from its design; the Inventory pane gains Store and Withdraw while docked to a station; Buy and Sell reuse the docked trade path. Reference prices only (the economy strand computes actual prices later).
