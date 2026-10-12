@@ -1,8 +1,8 @@
 # Stations: dynamic thrusterless body that self-levels; orbit proof
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 87
-- TAGS: v0.16.0,stations
+- TAGS: v0.16.0, stations
 
 ## User facts
 - Epic `20261012-095958`. Decision 3 and 3a (2026-10-12): a station is a dynamic body affected by gravity and hits, never `RigidBody::Static`; its controller sections damp spin so it self-levels; a cluster with a planet gets its station in orbit (circular orbital velocity at materialize), else it stands beside a rock with clearance; no station-keeping thrust; the frozen pose is whatever it was when the player left. Needs a test.
@@ -18,6 +18,8 @@
 - Orbit: `station_orbit_velocity(mu, well, position)` reuses `circular_orbit_speed`; `seeded_orbit_velocity` stays private to the rock generator (seed-keyed sign flip). `STATION_ORBIT_TOLERANCE = 0.15`: gravity is a force held constant per fixed step, so an orbit gains about 1.5 % of its binding energy per orbit on the proof's 30 s orbit before any hit (measured, `track_orbit` energy trace), and a 1 % tangential kick adds about 4 % radius. Generator placement is `20261012-100001`.
 - Proofs: `system_station_body` (void nudge, 0.0038 rad) and new `system_station_orbit` (200 m planet, mass 4000, station at 450 m on a 30 s orbit; real Serpent torpedo at 5.2 u, authored 0.5 rad / 0.3 rad/s / 1 % kick): radius 45.00..49.30 u, drift 0.0956, 0.0007 rad off attitude after 18.88 rad swept, 71 pools whole.
 - `content lint` reports 4 pre-existing example-mod errors (`example_*` ships, disconnected link-point graph at a thruster); not touched here.
+
+- Orchestrator close 2026-10-12: commit 506b8dc57. `STATION_LEVEL_TOLERANCE_RAD = 0.03`, `STATION_ORBIT_TOLERANCE = 0.15` (measured: the 64 Hz constant-per-step gravity gains ~1.5 % binding energy per orbit before any hit; reducing that gain is engine debt, not this task), `station_orbit_velocity` reuses `circular_orbit_speed`; invulnerability gated once in `on_damage` under `StationMarker` (moved to nova_gameplay markers), living or dead; proofs `system_station_body` and `system_station_orbit` (three orbits + torpedo, drift 0.0956, level 0.0007 rad). Follow-up fix commit: the 095959 lint probe had left four example-mod ships with a docking port for a thruster; restored.
 
 ## Delivery gate
 - Reuse the ship controller for attitude only; show which input the station controller writes and why thrust stays zero. Orbit: compute circular velocity from the planet mass at materialize; state the tolerance.
