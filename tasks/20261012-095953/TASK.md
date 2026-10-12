@@ -12,6 +12,8 @@
 - Owner pick 2026-10-12 (research note `tasks/20261012-095949/RESEARCH.md`): shape 1. Types: `ScenarioConfig.world: ScenarioWorldType` with `serde(default, skip_serializing_if = is_void)`; `ScenarioWorldType::{Void, Generated(GeneratedWorldConfig)}`; `GeneratedWorldConfig { seed: Option<u32>, bounds: Option<ScenarioBoundsConfig> }`; `ScenarioBoundsConfig { position: Meters3, radius: Meters }`. `ScenarioRole::OpenWorld` is deleted. `ScenarioConfig::picker_lists()` = `role == Chapter && !world.needs_session()`, so fixed-seed chapters are picker rows. `OpenWorldSession` keeps its name.
 - Areas and `OnEnter`/`OnExit` exist (`crates/nova_scenario/src/events.rs:76-160`; `CreateScenarioArea` in `crates/nova_scenario/src/actions/mod.rs:124-481`). The active window is a 160 km cube (`crates/nova_world_base/src/lib.rs:139-145`).
 
+- Landed with `20261012-095950` (commit bd1838e75): `ScenarioBoundsConfig { position, radius }` exists on `GeneratedWorldConfig.bounds`, and lint already refuses a radius past `nova_world_base::OPEN_WORLD_BOUNDS_RADIUS_MAX` (`crates/nova_authoring/src/lint_walk.rs:315-368`). `Void` cannot carry bounds structurally. Remaining here: spawn the sphere as an addressable area with id `bounds` at load so `OnExit` fires, plus the example-mod bounded scenario.
+
 ## Delivery gate
 - Reuse the area type for bounds; lint refuses bounds larger than the active window and bounds on a `Void` scenario. Decide with the owner whether a bounded harness streams sectors outside the bounds (visible but unreachable) or clamps the window; show both consequences first.
 
