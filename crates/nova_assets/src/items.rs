@@ -17,7 +17,6 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use nova_gameplay::prelude::{ItemDesign, ItemRoleType, CARGO_CANISTER_MAX_MASS_G};
 use nova_mod_format::deps::{transitive_deps, DepGraph};
 use nova_modding::prelude::BASE_MOD_ID;
-use nova_scenario::prelude::{ore_for_asteroid_kind, AsteroidKindId, ASTEROID_KINDS};
 
 /// Glob-import surface: `use nova_assets::items::prelude::*` re-exports the
 /// public API of this module.
@@ -142,14 +141,10 @@ fn item_faults(item: &ItemDesign) -> Vec<String> {
             ));
         }
     }
-    // Mining packs each ore it yields into one canister.
-    let mined = ASTEROID_KINDS
-        .iter()
-        .filter_map(|kind| ore_for_asteroid_kind(&AsteroidKindId::from(*kind)))
-        .any(|ore| ore.id() == id);
-    if mined && item.mass_g > CARGO_CANISTER_MAX_MASS_G {
+    // Mining, a jettison and a destroyed hold all pack items into canisters.
+    if item.mass_g > CARGO_CANISTER_MAX_MASS_G {
         faults.push(format!(
-            "item '{id}' has a mass_g of {}; mined ore must fit one {CARGO_CANISTER_MAX_MASS_G} g \
+            "item '{id}' has a mass_g of {}; an item must fit one {CARGO_CANISTER_MAX_MASS_G} g \
              canister",
             item.mass_g
         ));
@@ -276,8 +271,8 @@ mod tests {
     }
 
     /// The base game must define every role item under its category, an id
-    /// may appear once per pack, a mass of zero is refused, and an ore mining
-    /// yields must fit one canister.
+    /// may appear once per pack, a mass of zero is refused, and an item must
+    /// fit one canister.
     #[test]
     fn the_base_game_keeps_every_role_and_no_pack_repeats_or_weightless_items() {
         let mut base = base_items();
@@ -288,7 +283,7 @@ mod tests {
         });
         base[0].category = ItemCategoryType::Food;
         for item in &mut base {
-            if item.id.as_str() == ItemRoleType::StoneOre.id() {
+            if item.id.as_str() == ItemRoleType::PdcRound.id() {
                 item.mass_g = CARGO_CANISTER_MAX_MASS_G + 1;
             } else if item.id.as_str() == ItemRoleType::Rations.id() {
                 item.category = ItemCategoryType::Parts;
@@ -302,7 +297,7 @@ mod tests {
             faults[BASE_MOD_ID],
             [
                 "item 'HullPlate' is filed under Food; the game uses it as Repair",
-                "item 'StoneOre' has a mass_g of 200001; mined ore must fit one 200000 g \
+                "item 'PdcRound' has a mass_g of 200001; an item must fit one 200000 g \
                  canister",
                 "item 'Rations' is filed under Parts; the game uses it as Food",
                 "item 'Scrap' has a mass_g of 0",

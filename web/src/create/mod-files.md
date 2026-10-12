@@ -244,7 +244,7 @@ ammunition feeds a weapon's reload, the ores are mining yield, and generated
 ship holds draw the two trade goods `Rations` and `SalvagedParts`. A role id
 keeps its category: `HullPlate` is `Repair`; `PdcRound`, `RailSlug` and
 `Torpedo` are `Ammo`; `StoneOre`, `IronOre`, `WaterIce` and `CarbonOre` are
-`Raw`; `Rations` is `Food`; `SalvagedParts` is `Parts`. A mined ore fits one
+`Raw`; `Rations` is `Food`; `SalvagedParts` is `Parts`. Every item fits one
 cargo canister, so its `mass_g` is at most `200000`. A mod that depends on
 the base game may replace a role id whole, with its own `name`, `about`,
 `mass_g`, `ask_cr` and `bid_cr`, but not another `category`. A replacement

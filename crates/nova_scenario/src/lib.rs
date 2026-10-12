@@ -49,6 +49,8 @@ pub mod test_support;
 pub mod variables;
 /// The [`world::NovaEventWorld`] resource holding live scenario state.
 pub mod world;
+/// The canisters a destroyed ship or section leaves.
+pub mod wreck_cargo;
 
 /// Glob-import surface: `use nova_scenario::prelude::*` re-exports the public
 /// API of the scenario engine (the module preludes plus [`NovaScenarioPlugin`]).
@@ -57,7 +59,8 @@ pub mod prelude {
         actions::prelude::*, events::prelude::*, filters::prelude::*, lint::prelude::*,
         loader::prelude::*, marks::prelude::*, mining::prelude::*, names::prelude::*,
         objects::prelude::*, queries::prelude::*, render_scale::prelude::*, resume::prelude::*,
-        syntax::prelude::*, variables::prelude::*, world::prelude::*, NovaScenarioPlugin,
+        syntax::prelude::*, variables::prelude::*, world::prelude::*, wreck_cargo::prelude::*,
+        NovaScenarioPlugin,
     };
 }
 
@@ -86,6 +89,7 @@ impl Plugin for NovaScenarioPlugin {
         app.add_plugins(mining::MiningPlugin {
             render: self.render,
         });
+        app.add_plugins(wreck_cargo::WreckCargoPlugin);
 
         // The render-scale lever only means anything with a window/GPU; a
         // headless rig (render == false) has no scenario view to downscale.

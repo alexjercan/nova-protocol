@@ -1036,6 +1036,27 @@ impl CargoCanister {
         }
     }
 
+    /// `count` of `item` packed into new canisters, each filled to the last
+    /// whole item under [`CARGO_CANISTER_MAX_MASS_G`] except the last. Empty
+    /// for a count of zero.
+    ///
+    /// # Panics
+    ///
+    /// When one `item` is heavier than a canister holds; the item lint
+    /// refuses that item first.
+    pub fn split(items: &GameItems, item: &ItemDesignId, count: u32) -> Vec<Self> {
+        let per_canister = CARGO_CANISTER_MAX_MASS_G / items.design(item).mass_g;
+        assert!(per_canister > 0, "item '{item}' is heavier than a canister");
+        let mut rest = count;
+        let mut canisters = Vec::new();
+        while rest > 0 {
+            let packed = rest.min(per_canister);
+            canisters.push(Self::new(items, item, packed));
+            rest -= packed;
+        }
+        canisters
+    }
+
     /// Every held stack in id order.
     pub fn stacks(&self) -> impl Iterator<Item = (&ItemDesignId, u32)> + '_ {
         self.stacks.iter().map(|(item, &count)| (item, count))
@@ -1127,8 +1148,6 @@ pub enum ItemJettisonRefusalType {
         /// What the ship carries.
         held: u32,
     },
-    /// One item is heavier than a canister holds.
-    Overweight,
 }
 
 /// A planned jettison. The whole count leaves the ship: `merged` joins the
@@ -1176,25 +1195,14 @@ pub fn plan_item_jettison(
         return Err(ItemJettisonRefusalType::Short { held });
     }
     let mass_g = items.design(item).mass_g;
-    let per_canister = CARGO_CANISTER_MAX_MASS_G / mass_g;
-    if per_canister == 0 {
-        return Err(ItemJettisonRefusalType::Overweight);
-    }
     let tail_room = tail.map_or(0, |tail| {
         (CARGO_CANISTER_MAX_MASS_G - tail.total_mass_g(items)) / mass_g
     });
     let merged = quantity.min(tail_room);
-    let mut rest = quantity - merged;
-    let mut canisters = Vec::new();
-    while rest > 0 {
-        let count = rest.min(per_canister);
-        canisters.push(CargoCanister::new(items, item, count));
-        rest -= count;
-    }
     Ok(ItemJettison {
         count: quantity,
         merged,
-        canisters,
+        canisters: CargoCanister::split(items, item, quantity - merged),
     })
 }
 
@@ -1304,19 +1312,25 @@ impl BuildRecipe {
                 .sum::<u64>()
     }
 
-    /// What a strip returns at bid: `floor(strip_yield * count)` of each part
-    /// at [`ItemDesign::bid_cr`].
+    /// The parts a strip returns: `floor(strip_yield * count)` of each part,
+    /// in id order. A part whose share rounds down to zero is left out.
+    pub fn strip_parts(&self) -> impl Iterator<Item = (&ItemDesignId, u32)> + '_ {
+        self.parts.iter().filter_map(|(item, &count)| {
+            // `strip_yield` is in `(0, 1]`, so the share is at most `count`.
+            let returned = (f64::from(self.strip_yield) * f64::from(count)).floor() as u32;
+            (returned > 0).then_some((item, returned))
+        })
+    }
+
+    /// What a strip returns at bid: [`Self::strip_parts`] at
+    /// [`ItemDesign::bid_cr`].
     ///
     /// # Panics
     ///
     /// When `items` lacks a part; content lint refuses that recipe first.
     pub fn strip_value_cr(&self, items: &GameItems) -> u64 {
-        self.parts
-            .iter()
-            .map(|(item, count)| {
-                let returned = (f64::from(self.strip_yield) * f64::from(*count)).floor() as u64;
-                returned * u64::from(items.design(item).bid_cr)
-            })
+        self.strip_parts()
+            .map(|(item, count)| u64::from(count) * u64::from(items.design(item).bid_cr))
             .sum()
     }
 }

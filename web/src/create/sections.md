@@ -97,7 +97,8 @@ Every collider size, radius, length and height must be positive and finite.
 
 Every section carries a `build` recipe: the credits and `Parts` items a
 docked station takes to rebuild it after the ship lost it. A section without
-one fails to load.
+one fails to load. A destroyed section drops its `strip_yield` share of the
+parts as cargo canisters.
 
 ```ron
 build: (
@@ -111,7 +112,7 @@ build: (
 |---|---|---|
 | `credits` | integer | Credits for the work, paid to the station. Above zero. |
 | `parts` | map of item id to count | Part items the build spends. Keys are quoted item ids in the `Parts` category; each count is above zero. |
-| `strip_yield` | number | The share of each part count a strip gives back, rounded down per part. In `(0, 1]`. |
+| `strip_yield` | number | The share of each part count a strip or the section's destruction gives back, rounded down per part. In `(0, 1]`. |
 
 A rebuild takes the parts from the ship's hold first and buys the rest from
 the station's stock at ask. The ship pays the recipe's `credits` plus the

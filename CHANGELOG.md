@@ -30,6 +30,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - A cargo intake's door now stays shut for a canister the hold has no room
   for. A canister that fits still opens it.
+- A destroyed ship drops its hold as cargo canisters, and a destroyed section
+  drops its `strip_yield` share of each recipe part, rounded down. Both freeze
+  and save.
 
 ### Scenarios & Objectives
 

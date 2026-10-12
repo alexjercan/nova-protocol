@@ -12,17 +12,18 @@ use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{EntityId, Meters, Meters3, ScenarioAddressableMarker};
 use nova_gameplay::{
     prelude::{
-        AssetRef, CargoCanister, CargoCanisterRuntimeId, DamageMark, DamageMarks,
-        DerelictShipMarker, Health, IntegrityDestroyMarker, ItemRoleType, PlayerSpaceshipMarker,
-        SectionMarker, ShipCredits, ShipInventory, ShipInventoryStock, SpaceshipRootMarker,
-        TempEntity,
+        AssetRef, BuildRecipe, CargoCanister, CargoCanisterRuntimeId, DamageMark, DamageMarks,
+        DerelictShipMarker, Health, HealthApplyDamage, IntegrityDestroyMarker, ItemDesignId,
+        ItemRoleType, PlayerSpaceshipMarker, SectionMarker, ShipCredits, ShipInventory,
+        ShipInventoryStock, SpaceshipRootMarker, TempEntity,
     },
     test_support::{settle, test_items, unfinished_integrity_physics_app},
 };
 use nova_scenario::prelude::{
-    freeze_ship, AsteroidCarvePlugin, AsteroidField, AsteroidMarker, AsteroidPlugin, SectionSource,
-    ShipDesign, ShipDesignSource, SpaceshipController, SpaceshipDesign, SpaceshipPlugin,
-    SpaceshipSectionConfig, StationMarker, StationStorage,
+    freeze_ship, AsteroidCarvePlugin, AsteroidField, AsteroidMarker, AsteroidPlugin,
+    MinedCanisterQueue, MinedOreDrop, MiningPlugin, SectionSource, ShipDesign, ShipDesignSource,
+    SpaceshipController, SpaceshipDesign, SpaceshipPlugin, SpaceshipSectionConfig, StationMarker,
+    StationStorage, WreckCargoPlugin,
 };
 use nova_ship::prelude::{
     cargo_canister, docking_section, thruster_section, AINonCombatant, BaseSectionConfig,
@@ -33,8 +34,8 @@ use nova_ship::prelude::{
 };
 
 use super::{
-    answering, design_mut, empty, rock_config, rocks, ship, station, test_sections, Answers, Rocks,
-    TEST_HULL_SECTION_ID,
+    answering, design_mut, empty, one_ship, rock_config, rocks, ship, station, test_sections,
+    Answers, Rocks, TEST_HULL_SECTION_ID,
 };
 use crate::{
     adopt_moving_bodies, clear_sector_work, frozen::SettlingBodies, generation::prepare_cell,
@@ -653,6 +654,13 @@ fn wreckable(input: SectorGenerationInput) -> SectorManifest {
 
 /// The world-side ship and rock plugins, headless.
 fn ship_app() -> App {
+    let mut app = unfinished_ship_app();
+    app.finish();
+    app
+}
+
+/// [`ship_app`] before `finish`, for a test that adds plugins of its own.
+fn unfinished_ship_app() -> App {
     let mut app = unfinished_integrity_physics_app();
     app.add_plugins((
         PDControllerPlugin,
@@ -671,7 +679,6 @@ fn ship_app() -> App {
             remeshes.0 += 1;
         },
     );
-    app.finish();
     app
 }
 
@@ -1401,6 +1408,173 @@ fn a_loose_canister_freezes_with_the_cell_it_drifts_in() {
         .map(|(id, contents, health)| (*id, contents.clone(), health.current))
         .collect();
     assert_eq!(thawed, vec![(id, contents, 11.0)]);
+}
+
+/// [`one_ship`] holding five iron ore and 200 PDC rounds: 90 kg of its one
+/// hull section's 100 kg hold.
+fn laden_ship(input: SectorGenerationInput) -> SectorManifest {
+    let mut manifest = one_ship(input);
+    manifest.ships[0].spawn.inventory = ShipInventoryStock::new([
+        (ItemRoleType::IronOre.into(), 5),
+        (ItemRoleType::PdcRound.into(), 200),
+    ]);
+    manifest
+}
+
+/// The wreck cargo live in a world: every drifting canister with its id, by
+/// id, and every waiting drop's canisters, front first, in a stable order.
+fn wreck_cargo(world: &mut World) -> (Vec<(u64, CargoCanister)>, Vec<Vec<CargoCanister>>) {
+    let mut drifting: Vec<(u64, CargoCanister)> = world
+        .query::<(&CargoCanisterRuntimeId, &CargoCanister)>()
+        .iter(world)
+        .map(|(id, contents)| (id.0, contents.clone()))
+        .collect();
+    drifting.sort_by_key(|(id, _)| *id);
+    let mut waiting: Vec<Vec<CargoCanister>> = world
+        .query_filtered::<&MinedCanisterQueue, With<MinedOreDrop>>()
+        .iter(world)
+        .map(|queue| queue.canisters().cloned().collect())
+        .collect();
+    waiting.sort_by_key(|queue| format!("{queue:?}"));
+    (drifting, waiting)
+}
+
+/// A destroyed laden ship's cargo is persistent: its section's parts share
+/// and its hold, some already drifting and some still waiting in their drops,
+/// freeze with the cell, come back with the same ids and contents (through a
+/// written and read ledger where the save format is built), and then drain to
+/// exactly the hold plus `floor(0.5 * count)` of each recipe part.
+#[test]
+fn a_destroyed_ships_cargo_freezes_and_thaws_with_its_cell() {
+    let mut app = unfinished_ship_app();
+    app.add_plugins((MiningPlugin { render: false }, WreckCargoPlugin));
+    app.finish();
+    {
+        let mut sections = app.world_mut().resource_mut::<GameSections>();
+        let hull = &mut sections.0[0].base;
+        // The test hull has no health by default, and a hit of nothing
+        // destroys nothing.
+        hull.health = 100.0;
+        hull.build = BuildRecipe {
+            credits: 80,
+            parts: [("FrameSpar", 4), ("SectionPanel", 3)]
+                .into_iter()
+                .map(|(item, count)| (ItemDesignId::from(item), count))
+                .collect(),
+            strip_yield: 0.5,
+        };
+    }
+    let home = SectorCoord::ORIGIN;
+    arm(app.world_mut(), answering(laden_ship), home);
+    materialize::<Answers>(app.world_mut(), home, far());
+    settle(&mut app);
+
+    let world = app.world_mut();
+    let ship_id = sector_id(home, "ship", 0);
+    let [ship] = body_with_id(world, &ship_id)[..] else {
+        panic!("home must spawn its ship");
+    };
+    let [section] = world
+        .query_filtered::<(Entity, &ChildOf), With<SectionMarker>>()
+        .iter(world)
+        .filter(|(_, child_of)| child_of.parent() == ship)
+        .map(|(section, _)| section)
+        .collect::<Vec<_>>()[..]
+    else {
+        panic!("the ship has one section");
+    };
+    let amount = world.get::<Health>(section).unwrap().max;
+    world.trigger(HealthApplyDamage {
+        entity: section,
+        source: None,
+        amount,
+    });
+    // Both drops stand where the one section was and leave along the same
+    // line, so the second waits on the first's canister: some cargo drifts
+    // and some still waits when the cell retires.
+    for _ in 0..120 {
+        app.update();
+        let world = app.world_mut();
+        let (drifting, waiting) = wreck_cargo(world);
+        if world.get_entity(ship).is_err() && !drifting.is_empty() && !waiting.is_empty() {
+            break;
+        }
+    }
+    let world = app.world_mut();
+    assert!(world.get_entity(ship).is_err(), "the ship never died");
+    let before = wreck_cargo(world);
+    assert!(
+        !before.0.is_empty() && !before.1.is_empty(),
+        "the cell must retire with cargo both drifting and waiting: {before:?}"
+    );
+
+    walk_to::<Answers>(world, home);
+    walk_to::<Answers>(world, home.offset(5, 0, 0));
+    assert_eq!(
+        wreck_cargo(world),
+        (Vec::new(), Vec::new()),
+        "frozen cargo must not stay in the world"
+    );
+    let record = world.resource::<FrozenSectors>().get(home).unwrap();
+    assert!(record
+        .bodies()
+        .iter()
+        .any(|body| matches!(body.body(), FrozenBodyType::Canister(_))));
+    assert!(record
+        .bodies()
+        .iter()
+        .any(|body| matches!(body.body(), FrozenBodyType::OreDrop(_))));
+    #[cfg(feature = "serde")]
+    {
+        let text = ron::to_string(world.resource::<FrozenSectors>()).expect("the ledger writes");
+        let read: FrozenSectors = ron::from_str(&text).expect("the ledger reads back");
+        // The same session thaws the ledger it read back, so the canister id
+        // allocator stays this session's.
+        *world.resource_mut::<FrozenSectors>() = read;
+    }
+
+    walk_to::<Answers>(world, home);
+    materialize::<Answers>(world, home, far());
+    settle(&mut app);
+    let world = app.world_mut();
+    assert!(
+        body_with_id(world, &ship_id).is_empty(),
+        "a destroyed ship stays destroyed"
+    );
+    let thawed = wreck_cargo(world);
+    assert_eq!(thawed, before, "the cargo comes back as it froze");
+
+    for _ in 0..20_000 {
+        app.update();
+        let world = app.world_mut();
+        if world.query::<&MinedOreDrop>().iter(world).next().is_none() {
+            break;
+        }
+    }
+    let world = app.world_mut();
+    let (drifting, waiting) = wreck_cargo(world);
+    assert!(waiting.is_empty(), "the thawed drops never drained");
+    let mut ids: Vec<u64> = drifting.iter().map(|(id, _)| *id).collect();
+    ids.sort_unstable();
+    ids.dedup();
+    assert_eq!(ids.len(), drifting.len(), "every canister keeps its own id");
+    let mut totals: Vec<(String, u32)> = Vec::new();
+    for (item, count) in drifting.iter().flat_map(|(_, contents)| contents.stacks()) {
+        match totals.iter_mut().find(|(each, _)| each == item.as_str()) {
+            Some((_, total)) => *total += count,
+            None => totals.push((item.to_string(), count)),
+        }
+    }
+    totals.sort();
+    assert_eq!(
+        totals,
+        vec![
+            ("FrameSpar".to_string(), 2),
+            ("IronOre".to_string(), 5),
+            ("PdcRound".to_string(), 200),
+            ("SectionPanel".to_string(), 1),
+        ]
+    );
 }
 
 /// One advancing frame of virtual time.

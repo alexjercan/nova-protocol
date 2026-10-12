@@ -2070,10 +2070,6 @@ fn jettison_items(
         ItemJettisonRefusalType::Short { held } => {
             format!("Refused: only {held} {label} in {own_title}")
         }
-        ItemJettisonRefusalType::Overweight => format!(
-            "Refused: one {label} exceeds a {} canister",
-            kg_text(u64::from(CARGO_CANISTER_MAX_MASS_G))
-        ),
     })?;
     let (intake, waiting) = intake.expect("plan_item_jettison refuses a ship with no intake");
     let (_, mut own, ..) = ships

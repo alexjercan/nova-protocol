@@ -32,6 +32,8 @@ A big ship dies big. The fires of a collapse are spread across the whole wreck r
 
 A ship coming apart is still a ship for those moments. Its guns keep firing until the sections carrying them blow off, so a kill you have already earned can shoot back on the way down.
 
+A destroyed ship spills its cargo. The canisters leave one at a time from where it died: everything still in its hold, plus a share of the parts each lost section was built from. A section shot off a ship that keeps flying drops its own share of parts where it died. Fly a [cargo intake](../sections/cargo-intake/) onto a canister to take it in.
+
 That is a different thing from being **out of the fight**. An armed ship that has lost every weapon, or the flight computer that aims and flies it, stops fighting but keeps its hull - it drifts as a derelict until someone finishes it, or does not. An unarmed ship that ever had a thruster goes the same way once the last working one dies; an unarmed hull that never had a thruster can only be destroyed, not neutralized. The [viewfinder](../hud/#target-viewfinder) tags it NEUTRALIZED, and a neutralized hull stops defending itself too: nobody is left aboard to work the mounts, so a wreck lets your ordnance fly straight past even with an intact turret still bolted to it. It is still solid and it still takes damage; it just does not answer.
 
 The health bar on your combat lock's readout measures a target against the hull it was BUILT with, so it only ever falls as you work through the sections.

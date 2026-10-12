@@ -240,6 +240,25 @@ pub struct MinedCanisterQueue {
 }
 
 impl MinedCanisterQueue {
+    /// `canisters` waiting to leave from `at` along `normal`, both in the
+    /// owner's frame, in order. `None` for no canisters: a queue is never
+    /// empty.
+    pub(crate) fn leaving(
+        canisters: impl IntoIterator<Item = CargoCanister>,
+        at: Vec3,
+        normal: Vec3,
+    ) -> Option<Self> {
+        let waiting: VecDeque<MinedCanister> = canisters
+            .into_iter()
+            .map(|canister| MinedCanister {
+                canister,
+                at,
+                normal,
+            })
+            .collect();
+        (!waiting.is_empty()).then_some(Self { waiting })
+    }
+
     /// The canisters still waiting, front first.
     pub fn canisters(&self) -> impl Iterator<Item = &CargoCanister> {
         self.waiting.iter().map(|waiting| &waiting.canister)
@@ -262,13 +281,26 @@ struct MinedCanister {
 struct MiningPulseClock(f32);
 
 /// Marks the entity a rock that ran out of material hands its queue to. It
-/// carries the rock's last pose and despawns once the queue drains.
+/// carries the rock's last pose and despawns once the queue drains. A
+/// destroyed ship or section leaves its cargo in one too (see
+/// [`crate::wreck_cargo`]).
 ///
 /// PUBLIC so a streamed sector can find one among the entities it is about to
 /// despawn and freeze it with [`freeze_ore_drop`] - a drop is its own entity,
 /// not a child of any live rock, so nothing else would name it.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct MinedOreDrop;
+
+/// A drop holding `queue`: its name, marker, scope and queue. The caller adds
+/// its pose and the `ChildOf` of the sector it belongs to.
+pub(crate) fn ore_drop(queue: MinedCanisterQueue) -> impl Bundle {
+    (
+        Name::new("Mined Ore Drop"),
+        MinedOreDrop,
+        ScenarioScopedMarker,
+        queue,
+    )
+}
 
 /// A [`MinedOreDrop`]'s whole state while its sector is frozen: its waiting
 /// canister queue, which is the only thing a drop carries beyond its pose
@@ -314,12 +346,7 @@ pub fn freeze_ore_drop(world: &World, drop: Entity) -> FrozenOreDrop {
 /// `ChildOf` the sector it belonged to, the same fields `release_mined_ore`
 /// gives a fresh one.
 pub fn thaw_ore_drop(frozen: FrozenOreDrop) -> impl Bundle {
-    (
-        Name::new("Mined Ore Drop"),
-        MinedOreDrop,
-        ScenarioScopedMarker,
-        frozen.queue,
-    )
+    ore_drop(frozen.queue)
 }
 
 /// The drawn beam, a child of its mining section.
@@ -944,19 +971,15 @@ fn release_mined_ore(
     };
     let mut waiting = queue.map_or_else(VecDeque::new, |queue| queue.waiting.clone());
     if let Some(owed) = owed {
-        // Content lint holds every ore under one canister's mass, so this is
-        // at least one.
-        let per_canister = CARGO_CANISTER_MAX_MASS_G / items.design(&owed.item).mass_g;
-        let mut rest = owed.corners;
-        while rest > 0 {
-            let count = rest.min(per_canister);
-            waiting.push_back(MinedCanister {
-                canister: CargoCanister::new(&items, &owed.item, count),
-                at: owed.at,
-                normal: owed.normal,
-            });
-            rest -= count;
-        }
+        waiting.extend(
+            CargoCanister::split(&items, &owed.item, owed.corners)
+                .into_iter()
+                .map(|canister| MinedCanister {
+                    canister,
+                    at: owed.at,
+                    normal: owed.normal,
+                }),
+        );
         commands.entity(node).remove::<MinedOre>();
     }
     if waiting.is_empty() {
@@ -975,14 +998,7 @@ fn release_mined_ore(
         Some(parent_frame) => frame.reparented_to(parent_frame),
         None => frame.compute_transform(),
     };
-    let mut drop = commands.spawn((
-        Name::new("Mined Ore Drop"),
-        MinedOreDrop,
-        ScenarioScopedMarker,
-        queue,
-        local,
-        *frame,
-    ));
+    let mut drop = commands.spawn((ore_drop(queue), local, *frame));
     if let Some(parent) = parent {
         drop.insert(ChildOf(parent));
     }
