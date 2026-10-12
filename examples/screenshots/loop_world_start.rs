@@ -461,7 +461,7 @@ fn predict_arrival_body(
         asteroids
             .chain(planets)
             .max_by(|a, b| a.2.get().total_cmp(&b.2.get()))
-            .map(|(id, position, radius)| (coord, id.as_str().to_owned(), position, radius))
+            .map(|(id, position, radius)| (coord, id.to_string(), position, radius))
     })
 }
 

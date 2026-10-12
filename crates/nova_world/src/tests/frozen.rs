@@ -123,6 +123,17 @@ fn body_with_id(world: &mut World, id: &GeneratedBodyId) -> Vec<Entity> {
         .collect()
 }
 
+/// The persistent body whose authored id is `id`: one a test named itself,
+/// which thaws without a `GeneratedBodyId`.
+fn body_with_entity_id(world: &mut World, id: &str) -> Vec<Entity> {
+    world
+        .query::<(Entity, &EntityId)>()
+        .iter(world)
+        .filter(|(_, each)| each.0 == id)
+        .map(|(entity, _)| entity)
+        .collect()
+}
+
 /// A bare docking hull: a root, a collider and one port section named
 /// `fore`, which the hull is sized from.
 fn docking_hull(app: &mut App, at: Vec3, rotation: Quat, parent: Option<Entity>) -> Entity {
@@ -1139,7 +1150,7 @@ fn a_docked_pair_saves_both_ships_undocked_at_their_poses() {
     settle(&mut fresh);
 
     let world = fresh.world_mut();
-    let [restored_partner] = body_with_id(world, "partner")[..] else {
+    let [restored_partner] = body_with_entity_id(world, "partner")[..] else {
         panic!("the partner must come back once");
     };
     assert_eq!(

@@ -863,12 +863,12 @@ fn search_ship_shots(world: &mut World) {
                             .distance(home)
                             .get()
                             .total_cmp(&best.position.distance(home).get())
-                            .then_with(|| ship.id.as_str().cmp(best.id.as_str()))
+                            .then_with(|| ship.id.to_string().cmp(&best.id.to_string()))
                             .is_lt()
                     });
                     if nearer {
                         shots[r][c] = Some(ShipShot {
-                            id: ship.id.as_str().to_owned(),
+                            id: ship.id.to_string(),
                             cell,
                             civilization: ship.civilization,
                             role: ship.role,

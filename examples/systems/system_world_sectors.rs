@@ -580,7 +580,7 @@ fn held_objects(world: &mut World) -> BTreeMap<String, (SectorCoord, Entity)> {
             let id = if let Some(id) = world.get::<EntityId>(*child) {
                 id.0.clone()
             } else if let Some(pending) = world.get::<PendingSectorShip>(*child) {
-                pending.ship().id.as_str().to_owned()
+                pending.ship().id.to_string()
             } else {
                 continue;
             };
@@ -604,7 +604,7 @@ fn named_objects<G: SectorGenerator>(
             describe(coord, config)
                 .object_ids()
                 .into_iter()
-                .map(|id| id.as_str().to_owned())
+                .map(|id| id.to_string())
         })
         .collect()
 }
@@ -632,7 +632,7 @@ fn exhaust_retiring_rock(world: &mut World) {
             describe(*coord, &config)
                 .asteroids()
                 .iter()
-                .map(|rock| rock.id.as_str().to_owned())
+                .map(|rock| rock.id.to_string())
                 .collect::<Vec<_>>()
         })
         .collect();
@@ -1041,7 +1041,7 @@ fn report_clearance(world: &mut World) {
             .iter()
             .map(|body| {
                 (
-                    body.id.as_str().to_owned(),
+                    body.id.to_string(),
                     body.position,
                     // A rock's meshed surface reaches up to this multiple past
                     // its nominal radius, so that is what has to clear.
@@ -1050,7 +1050,7 @@ fn report_clearance(world: &mut World) {
             })
             .chain(description.planets().iter().map(|planet| {
                 (
-                    planet.id.as_str().to_owned(),
+                    planet.id.to_string(),
                     planet.position,
                     planet.config.body_radius(),
                 )
@@ -1059,7 +1059,7 @@ fn report_clearance(world: &mut World) {
                 description
                     .ships()
                     .iter()
-                    .map(|ship| (ship.id.as_str().to_owned(), ship.position, ship.clearance)),
+                    .map(|ship| (ship.id.to_string(), ship.position, ship.clearance)),
             )
             .collect();
         objects += placed.len();
@@ -1154,7 +1154,7 @@ fn report_initial_set(world: &mut World) {
             !describe(*coord, &config)
                 .object_ids()
                 .iter()
-                .any(|object_id| object_id.as_str() == id.as_str())
+                .any(|object_id| object_id.to_string() == **id)
         })
         .map(|(id, _)| id)
         .collect();
@@ -1282,7 +1282,7 @@ fn report_places(world: &mut World) {
         }
 
         for planet in description.planets() {
-            let entity = *by_id.get(planet.id.as_str()).unwrap_or_else(|| {
+            let entity = *by_id.get(&planet.id.to_string()).unwrap_or_else(|| {
                 panic!(
                     "world sectors: {coord} describes planetoid '{}' but spawned none",
                     planet.id
@@ -1318,7 +1318,7 @@ fn report_places(world: &mut World) {
         }
 
         for ship in description.ships() {
-            let entity = *by_id.get(ship.id.as_str()).unwrap_or_else(|| {
+            let entity = *by_id.get(&ship.id.to_string()).unwrap_or_else(|| {
                 panic!(
                     "world sectors: {coord} describes derelict '{}' but spawned none",
                     ship.id
@@ -1624,12 +1624,12 @@ fn report_world_replacement(world: &mut World) {
         let old_ids: BTreeSet<String> = describe(cell, &old_config)
             .object_ids()
             .into_iter()
-            .map(|id| id.as_str().to_owned())
+            .map(|id| id.to_string())
             .collect();
         let new_ids: BTreeSet<String> = describe(cell, &new_config)
             .object_ids()
             .into_iter()
-            .map(|id| id.as_str().to_owned())
+            .map(|id| id.to_string())
             .collect();
         assert!(
             !old_ids.is_empty() && !new_ids.is_empty(),

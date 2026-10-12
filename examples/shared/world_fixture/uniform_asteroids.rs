@@ -143,7 +143,7 @@ impl SectorGenerator for UniformAsteroids {
                     kind,
                     destroy_sound: None,
                     lock_signature: None,
-                    seed: Some(asteroid_seed_from_id(id.as_str())),
+                    seed: Some(asteroid_seed_from_id(&id.to_string())),
                 },
                 id,
                 position,

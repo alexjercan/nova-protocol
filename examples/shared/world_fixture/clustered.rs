@@ -459,7 +459,7 @@ impl CellPlan {
                         kind: (*kind).into(),
                         destroy_sound: None,
                         lock_signature: None,
-                        seed: Some(asteroid_seed_from_id(id.as_str())),
+                        seed: Some(asteroid_seed_from_id(&id.to_string())),
                     },
                     id,
                     position,
@@ -934,13 +934,14 @@ pub fn plan_cell(
                 continue;
             };
             if let ClusterBody::Hull { yaw, lineage } = member.body {
+                let member_id = member.id.to_string();
                 let ship = plan_ship(
                     parts,
                     items,
                     &civilizations,
                     input.seed,
                     HullSlot {
-                        id: member.id.as_str(),
+                        id: &member_id,
                         node: group.id.0,
                         slot: index,
                         anchor: group.anchor,

@@ -1090,7 +1090,7 @@ fn check_seam_groups(world: &mut World) {
             owners.entry(body.source).or_default().push(plan.coord);
             if body.outcome == Outcome::Placed {
                 assert!(
-                    live.contains(body.id.as_str()),
+                    live.contains(&body.id.to_string()),
                     "world clusters: planned body {} is not live in {}",
                     body.id,
                     plan.coord
