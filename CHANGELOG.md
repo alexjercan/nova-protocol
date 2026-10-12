@@ -68,6 +68,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** Stations are content: `Station` entries a scenario spawns by
   id as `kind: Station`, frozen as their own body type. World save format 5;
   older saves are refused.
+- A station is a dynamic body: gravity and rams move it, its bridge levels
+  it and its sections take no damage. In a planet's well it spawns on a
+  circular orbit and holds it.
 
 ### Interface & HUD
 

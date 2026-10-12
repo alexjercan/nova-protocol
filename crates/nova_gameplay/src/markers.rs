@@ -1,13 +1,14 @@
 //! The ship-structure vocabulary: what a ship root, a section and a fired
 //! projectile ARE, with none of the behavior that builds or flies them.
 //!
-//! These are the fourteen markers that both sides of the ship seam read. The ship
+//! These are the fifteen markers that both sides of the ship seam read. The ship
 //! crate spawns them; `integrity` and `gravity` here classify entities by them
-//! (is this a ship root? a live section? a torpedo?) without depending on the
-//! sections that define one. They are plain unit components with no systems and
-//! minimal requirements, which lets them sit below the seam instead of
-//! straddling it. A ship root declares the generic integrity role and the
-//! inventory every ship requires.
+//! (is this a ship root? a live section? a torpedo? a station?) without
+//! depending on the sections that define one. They are plain components with no
+//! systems and minimal requirements, which lets them sit below the seam instead
+//! of straddling it. A ship root declares the generic integrity role and the
+//! inventory every ship requires; a station root names the design it was built
+//! from, which is the one datum the marker carries.
 //!
 //! The AI counterparts are deliberately NOT here: `AISpaceshipMarker` requires
 //! the AI behavior state, and `AINonCombatant` is an AI directive, so both live
@@ -27,8 +28,9 @@ pub mod prelude {
     pub use super::{
         ControllerSectionMarker, DerelictShipMarker, GunRoundMarker, PlayerSpaceshipMarker,
         RailgunSectionMarker, RailgunSlugProjectileMarker, SectionInactiveMarker, SectionMarker,
-        SpaceshipRootMarker, ThrusterSectionMarker, TorpedoProjectileMarker, TorpedoSectionMarker,
-        TurretBulletProjectileMarker, TurretSectionMarker,
+        SpaceshipRootMarker, StationDesignId, StationMarker, ThrusterSectionMarker,
+        TorpedoProjectileMarker, TorpedoSectionMarker, TurretBulletProjectileMarker,
+        TurretSectionMarker,
     };
 }
 
@@ -72,6 +74,50 @@ pub struct PlayerSpaceshipMarker;
 /// and fires no defeat event.
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 pub struct DerelictShipMarker;
+
+/// The id a station design is referenced by, from a scenario spawn or another
+/// mod.
+///
+/// A `DesignId`: an authored catalog identifier, resolved against the station
+/// catalog the scenario crate owns. Serialized as the bare id string, so
+/// authored RON writes `design: "block_waystation"`. An id no loaded design
+/// carries is refused at lint and at load; nothing resolves it to another
+/// design.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
+pub struct StationDesignId(String);
+
+impl StationDesignId {
+    /// The id as authored.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl From<&str> for StationDesignId {
+    fn from(id: &str) -> Self {
+        Self(id.to_string())
+    }
+}
+
+impl std::fmt::Display for StationDesignId {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+/// Marks a station root, carrying the design it was built from.
+///
+/// Sits beside [`SpaceshipRootMarker`] on the same root: a station is built
+/// as a ship (sections, dock, hold, freeze) and this is what tells the two
+/// apart. The health store reads it to refuse every hit under it, see
+/// `integrity::health::on_damage`: a station's sections never lose health,
+/// so it is never neutralized and never destroyed. That holds for a living
+/// and a dead (derelict) station alike. Station integrity - a living station
+/// that can be fought into a derelict - is a later rule, not a gap here.
+#[derive(Component, Clone, Debug, PartialEq, Eq, Reflect)]
+pub struct StationMarker(pub StationDesignId);
 
 /// Marks a live section entity in a ship tree. Present on every spawned section
 /// (added by `base_section`); its absence marks the editor preview

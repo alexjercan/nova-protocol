@@ -68,15 +68,30 @@ Every field is required.
 | `stock` | stock | what the hull's own hold opens with, in the [stock format](../objects/#inventory). It must fit the hull's hold (100 kg per hull section) |
 | `credits` | whole number | the credits the station trades with at spawn |
 
-The hull's `Controller` section is what holds the station's attitude: a
-nudged station turns back to the pose it was parked in, with no thruster to
-move it. The `Docking` section is what a ship docks to.
+The `Docking` section is what a ship docks to. The `Controller` section is
+what levels the station, see below.
 
 Only the hull, the stock and the credits do anything in play today: a docked
 ship trades with a station as it trades with a ship. The service list and
 the storage cap are checked and carried, and the docked-ship service screens
-that read them are their own task, as are a station's invulnerability and the
-tuning of how firmly it levels itself.
+that read them are their own task.
+
+## How a station behaves
+
+A station is a dynamic body, never a fixed one. Gravity pulls it, a ram
+shoves it, and nothing holds it where it was placed: where a hit leaves it is
+where it stays, and a world save keeps that pose and motion.
+
+| behaviour | rule |
+|---|---|
+| self-levelling | the `Controller` section parks its target attitude on the spawn rotation and drives the hull with torque alone. Spun by a hit, the hull comes to rest within `STATION_LEVEL_TOLERANCE_RAD` (0.03 rad, about 1.7 degrees) of that attitude. No thrust is ever applied: only a `Thruster` section writes thrust, and the lint refuses one |
+| invulnerable sections | a hit anywhere under a station root spends no health, so a station is never disabled, neutralized or destroyed. The rule is the station body's, living or dead alike: a derelict station is lootable, not breakable. A living station that can be fought into a derelict is a later rule |
+| orbit | a station spawned in a planet's well rides a circular orbit: its `initial_velocity` is `sqrt(mass / r)` on the tangent of its radial with +Y (with +X when the radial is near +Y), in engine units, the speed the gravity pull integrates. The generator sets it; a scenario that parks a station in a well authors the same number or watches it fall |
+| orbit tolerance | over three orbits, with a hit, the radius stays within `STATION_ORBIT_TOLERANCE` (15 percent) of where it started. The pull is held constant over each physics step, so every orbit widens a little (about 1.5 percent of its energy per orbit on the proof's fast 30 s orbit, less on a real planetoid's), and a kick of one percent of orbital speed swings the radius about four percent; past the tolerance the orbit is walking out of the well or down onto the planet |
+
+The proofs are `system_station_body` (a nudged station in a void) and
+`system_station_orbit` (a torpedo, a shove and three orbits of a small
+planet).
 
 ## Spawning one
 

@@ -238,14 +238,11 @@ const NUDGE_RAD: f32 = 0.5;
 const NUDGE_RAD_PER_SEC: f32 = 0.3;
 
 /// How far off the spawn attitude the nudge must take the hull before the
-/// hold is asked to recover it. Above [`HOLD_TOLERANCE_RAD`], so a hull that
-/// never moved cannot pass the recovery assert for free.
+/// hold is asked to recover it. Above [`STATION_LEVEL_TOLERANCE_RAD`], the
+/// contract the hold is graded on, so a hull that never moved cannot pass the
+/// recovery assert for free.
 #[cfg(feature = "debug")]
 const TURNED_RAD: f32 = 0.1;
-
-/// How close to its spawn attitude a held hull must come to rest.
-#[cfg(feature = "debug")]
-const HOLD_TOLERANCE_RAD: f32 = 0.03;
 
 /// The angular speed under which the hull counts as at rest.
 #[cfg(feature = "debug")]
@@ -451,9 +448,9 @@ fn station_settled() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
 fn assert_station_holds(world: &mut World) {
     let error = attitude_error(world).expect("station probe: the station must be up");
     assert!(
-        error < HOLD_TOLERANCE_RAD,
+        error < STATION_LEVEL_TOLERANCE_RAD,
         "station probe: the hull came to rest {error:.3} rad off its spawn attitude \
-         (tolerance {HOLD_TOLERANCE_RAD}); the computer is not holding"
+         (tolerance {STATION_LEVEL_TOLERANCE_RAD}); the computer is not holding"
     );
     let elapsed = world.resource::<Time>().elapsed_secs();
     info!("station probe: the waystation holds its attitude ({error:.4} rad off spawn)");
@@ -595,7 +592,7 @@ fn assert_thawed_station(world: &mut World) {
         "station probe: the thawed station is {turn:.3} rad off the attitude it froze at"
     );
     assert!(
-        rotation.angle_between(spawn_rotation) < HOLD_TOLERANCE_RAD + THAW_TOLERANCE,
+        rotation.angle_between(spawn_rotation) < STATION_LEVEL_TOLERANCE_RAD + THAW_TOLERANCE,
         "station probe: the thawed station is off the attitude the live one was parked at"
     );
     assert!(

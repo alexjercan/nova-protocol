@@ -8,16 +8,33 @@
 //! and adds [`StationMarker`] and [`StationStorage`] over it. Nothing here
 //! inserts a player or AI marker: a station has no driver.
 //!
-//! Invulnerability and the self-levelling tuning are the next task; a station
-//! here takes damage like the hull it is built from.
+//! The body is a dynamic thrusterless hull, never `RigidBody::Static`:
+//! gravity pulls it and a ram shoves it. Its Controller section is the whole
+//! of its station-keeping: the controller parks its target attitude on the
+//! spawn rotation and drives the root with PD torque alone
+//! (`controller_section::insert_controller_section_target` and
+//! `sync_controller_section_forces`), so a hit that spins the hull is damped
+//! back onto the parked attitude within [`STATION_LEVEL_TOLERANCE_RAD`], and
+//! nothing ever pushes the body back to where it was placed. Thrust stays
+//! zero because only a Thruster section writes thrust and the station lint
+//! refuses one (`lint::station`). Station sections take no damage: the health
+//! store refuses every hit under a [`StationMarker`] root
+//! (`nova_gameplay::integrity::health::on_damage`).
+//!
+//! Where a cluster has a planet its station orbits it: the generator spawns
+//! it with [`station_orbit_velocity`], the circular speed the gravity layer
+//! itself integrates, and the orbit is held within
+//! [`STATION_ORBIT_TOLERANCE`] of its radius.
 
 use std::collections::BTreeMap;
 
 use bevy::prelude::*;
 use nova_events::prelude::MetersPerSecond3;
 use nova_gameplay::prelude::{
-    Allegiance, DerelictShipMarker, ItemDesignId, ShipInventoryStock, UnsettledBody,
+    circular_orbit_speed, Allegiance, DerelictShipMarker, ItemDesignId, ShipInventoryStock,
+    UnsettledBody,
 };
+pub use nova_gameplay::prelude::{StationDesignId, StationMarker};
 use nova_ship::prelude::ShipCapabilities;
 
 use crate::objects::{
@@ -31,41 +48,65 @@ use crate::objects::{
 /// Glob-import surface for the station content kind and object.
 pub mod prelude {
     pub use super::{
-        freeze_station, station_scenario_object, thaw_station, FrozenStation, GameStationDesigns,
-        StationConfig, StationDesign, StationDesignId, StationMarker, StationServiceType,
-        StationStorage,
+        freeze_station, station_orbit_velocity, station_scenario_object, thaw_station,
+        FrozenStation, GameStationDesigns, StationConfig, StationDesign, StationDesignId,
+        StationMarker, StationServiceType, StationStorage, STATION_LEVEL_TOLERANCE_RAD,
+        STATION_ORBIT_TOLERANCE,
     };
 }
 
-/// The id a station design is referenced by, from a scenario spawn or another
-/// mod.
+/// How far off its parked attitude a settled station may rest, in radians.
 ///
-/// A `DesignId`: an authored catalog identifier, resolved against
-/// [`GameStationDesigns`]. Serialized as the bare id string, so authored RON
-/// writes `design: "block_waystation"`. An id no loaded design carries is
-/// refused at lint and at load; nothing resolves it to another design.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(transparent))]
-pub struct StationDesignId(String);
+/// 0.03 rad is eight times the residual the controller leaves after a 0.5 rad
+/// nudge (`system_station_body` settles 0.0038 rad off spawn), so float noise
+/// and one fixed step of integration never fail it, and well under the
+/// 0.1 rad a proof turns the hull before it counts as moved, so a hull that
+/// never recovered cannot pass. On the 30 m waystation it is a 0.45 m sway of
+/// the collar: not a thing a docking approach notices.
+pub const STATION_LEVEL_TOLERANCE_RAD: f32 = 0.03;
 
-impl StationDesignId {
-    /// The id as authored.
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
+/// How far a station's orbital radius may drift over three orbits, as a
+/// fraction of the radius it was placed at.
+///
+/// Two things spend this budget. The pull is a force held constant over each
+/// fixed step, so an orbit gains energy every step and widens: measured at
+/// about 1.5 % of its binding energy per orbit on `system_station_orbit`'s
+/// 30 s orbit, less on a generated planetoid's slower one, since the gain
+/// scales with the angle swept per step. And a hit: a tangential kick of one
+/// percent of orbital speed swings the radius about four percent (the
+/// apoapsis of the new ellipse is roughly `r (1 + 4 f)`). Three orbits of
+/// the first plus one of the second measure a tenth; 0.15 leaves the
+/// integrator's per-orbit wobble room and still refuses an orbit that is
+/// walking out of the well's unfaded core or down onto its surface clamp.
+pub const STATION_ORBIT_TOLERANCE: f32 = 0.15;
 
-impl From<&str> for StationDesignId {
-    fn from(id: &str) -> Self {
-        Self(id.to_string())
-    }
-}
-
-impl std::fmt::Display for StationDesignId {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(&self.0)
-    }
+/// The velocity a station spawns with to ride a circular orbit of the well at
+/// `well_position` with strength `mu` (engine units, as `GravityWell::mu`),
+/// placed at `station_position` (engine units).
+///
+/// The speed is the gravity layer's own [`circular_orbit_speed`], so the
+/// station rides the rule the FixedUpdate pull integrates. The tangent is the
+/// radial crossed with +Y, or +X when the radial is near +Y: the rule the
+/// generated rocks seed with, without their per-id sign flip, so every
+/// station in a cluster rides the same way round.
+///
+/// `None` when the station sits on the well's centre or the geometry is not
+/// finite: no orbit exists there, and the caller refuses the placement.
+pub fn station_orbit_velocity(
+    mu: f32,
+    well_position: Vec3,
+    station_position: Vec3,
+) -> Option<MetersPerSecond3> {
+    let radial = (station_position - well_position).try_normalize()?;
+    let axis = if radial.y.abs() < 0.8 {
+        Vec3::Y
+    } else {
+        Vec3::X
+    };
+    let tangent = radial.cross(axis).try_normalize()?;
+    let speed = circular_orbit_speed(mu, station_position.distance(well_position));
+    let velocity = MetersPerSecond3::from_engine(tangent * speed);
+    velocity.is_finite().then_some(velocity)
 }
 
 /// What a docked ship can do at a station. The closed set the game knows;
@@ -150,10 +191,6 @@ pub struct StationConfig {
     /// stationary start, not immunity to gravity.
     pub initial_velocity: MetersPerSecond3,
 }
-
-/// The station root's own marker, carrying the design it was built from.
-#[derive(Component, Clone, Debug, PartialEq, Eq, Reflect)]
-pub struct StationMarker(pub StationDesignId);
 
 /// What a station keeps for the ships that dock with it: a capped store
 /// beside the hull's own hold. Empty at spawn.
@@ -306,4 +343,39 @@ pub fn thaw_station(entity: &mut EntityCommands, frozen: FrozenStation) {
     } = frozen;
     thaw_ship(entity, ship);
     entity.insert((StationMarker(design), storage));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The orbit velocity is the gravity layer's circular speed on a tangent:
+    /// it is perpendicular to the radial, its magnitude is `sqrt(mu / r)`,
+    /// and a station placed on the well's centre gets no orbit at all.
+    #[test]
+    fn station_orbit_velocity_is_the_circular_tangent_speed() {
+        let well = Vec3::new(10.0, -5.0, 2.0);
+        let station = well + Vec3::new(45.0, 0.0, 0.0);
+        let mu = 4000.0;
+
+        let velocity = station_orbit_velocity(mu, well, station)
+            .expect("a station off the centre gets an orbit")
+            .to_engine();
+
+        let radial = station - well;
+        assert!(
+            velocity.dot(radial).abs() < 1e-3,
+            "the orbit velocity {velocity:?} is not tangent to the radial {radial:?}"
+        );
+        let expected = circular_orbit_speed(mu, radial.length());
+        assert!(
+            (velocity.length() - expected).abs() < 1e-3,
+            "the orbit speed is {} not {expected}",
+            velocity.length()
+        );
+        assert!(
+            station_orbit_velocity(mu, well, well).is_none(),
+            "a station on the well's centre must get no orbit"
+        );
+    }
 }

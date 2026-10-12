@@ -17,6 +17,8 @@
 
 use bevy::prelude::*;
 
+use crate::markers::prelude::StationMarker;
+
 /// `Health` with its damage message and zero marker, the `destructible_body` bundle and
 /// `NovaHealthPlugin`.
 pub mod prelude {
@@ -117,6 +119,14 @@ impl Plugin for NovaHealthPlugin {
 /// parents. A [`HealthIsolated`] node stops the walk outright, whether or not it
 /// had anything left to give - a spent plate is still a plate in the way, and
 /// the round behind it is what carries damage inward, not the event.
+///
+/// A node under a [`StationMarker`] root spends nothing and stops the walk:
+/// station sections are invulnerable. This is the one gate, so every weapon,
+/// a blast, a ram, a scripted `destroy` and a test rig all meet it, and it
+/// sits before the pool lookup so a chunk or plate with no pool of its own
+/// cannot bubble a hit up to a section that has one. Every destruction path
+/// starts at the [`HealthZeroMarker`] this observer inserts, so a station
+/// that never reaches zero is never disabled, neutralized or destroyed.
 fn on_damage(
     mut damage: On<HealthApplyDamage>,
     mut commands: Commands,
@@ -126,9 +136,21 @@ fn on_damage(
         Has<HealthZeroMarker>,
         Has<HealthIsolated>,
     )>,
+    q_parent: Query<&ChildOf>,
+    q_station: Query<(), With<StationMarker>>,
 ) {
     let target = damage.entity;
     trace!("on_damage: target {:?}, damage {:?}", target, damage.amount);
+
+    if under_station(target, &q_parent, &q_station) {
+        trace!(
+            "on_damage: entity {:?} is part of a station, spending nothing",
+            target
+        );
+        damage.propagate(false);
+        damage.amount = 0.0;
+        return;
+    }
 
     let Ok((entity, mut health, destroyed, isolated)) = q_health.get_mut(target) else {
         trace!("on_damage: entity {:?} has no Health, bubbling on", target);
@@ -151,6 +173,29 @@ fn on_damage(
     if health.current <= 0.0 {
         health.current = 0.0;
         commands.entity(entity).insert(HealthZeroMarker);
+    }
+}
+
+/// Whether `entity` is a station root or hangs under one: the gate
+/// [`on_damage`] refuses a hit on.
+///
+/// Walks `ChildOf` to the top because a hit lands on whatever collider was
+/// struck - a section, a plate under it, a carved chunk - and the marker sits
+/// on the root alone.
+fn under_station(
+    entity: Entity,
+    q_parent: &Query<&ChildOf>,
+    q_station: &Query<(), With<StationMarker>>,
+) -> bool {
+    let mut node = entity;
+    loop {
+        if q_station.contains(node) {
+            return true;
+        }
+        match q_parent.get(node) {
+            Ok(ChildOf(parent)) => node = *parent,
+            Err(_) => return false,
+        }
     }
 }
 
@@ -206,6 +251,53 @@ mod tests {
             100.0,
             "the parent is charged the child's remaining health, not the raw hit"
         );
+    }
+
+    /// Station sections are invulnerable: a hit anywhere under a station root
+    /// spends nothing, at the struck node or above it, and marks nothing at
+    /// zero. The plate case is the one that matters: a plate has no station
+    /// marker of its own, so the gate has to find the root through two links.
+    #[test]
+    fn a_hit_under_a_station_root_leaves_every_pool_whole() {
+        use crate::markers::prelude::StationDesignId;
+
+        let mut app = health_app();
+        let station = app
+            .world_mut()
+            .spawn((
+                StationMarker(StationDesignId::from("test_station")),
+                Health::new(200.0),
+            ))
+            .id();
+        let section = app
+            .world_mut()
+            .spawn((Health::new(100.0), ChildOf(station)))
+            .id();
+        let plate = app
+            .world_mut()
+            .spawn((Health::new(50.0), ChildOf(section)))
+            .id();
+
+        for target in [plate, section, station] {
+            app.world_mut().trigger(HealthApplyDamage {
+                entity: target,
+                source: None,
+                amount: 1000.0,
+            });
+        }
+        app.world_mut().flush();
+
+        for (node, full) in [(plate, 50.0), (section, 100.0), (station, 200.0)] {
+            assert_eq!(
+                app.world().get::<Health>(node).unwrap().current,
+                full,
+                "a station node lost health to a hit"
+            );
+            assert!(
+                app.world().get::<HealthZeroMarker>(node).is_none(),
+                "a station node was marked at zero"
+            );
+        }
     }
 
     /// Cladding is armour, so it must not double as a damage relay: a plate

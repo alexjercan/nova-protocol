@@ -615,6 +615,15 @@ name = "system_station_body"
 path = "examples/systems/system_station_body.rs"
 required-features = ["debug"]
 
+# A station is a body in a planet's well: the base waystation rides a circular
+# orbit at the speed `station_orbit_velocity` gives it, keeps every hit point
+# through a torpedo, levels itself after a ram's worth of spin and shove, and
+# holds its radius over three orbits.
+[[example]]
+name = "system_station_orbit"
+path = "examples/systems/system_station_orbit.rs"
+required-features = ["debug"]
+
 # Then the one range that grades SHIPPED content rather than a fixture built
 # beside it: the campaign's first chapter, booted by scenario id and walked
 # from the opening scene to the banner. Every other range above owns its world,

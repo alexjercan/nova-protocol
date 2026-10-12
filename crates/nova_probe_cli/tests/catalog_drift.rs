@@ -973,10 +973,19 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "station thaws whole",
         ],
     ),
+    (
+        "system_station_orbit",
+        &[
+            "station rides its orbit",
+            "station shrugs off a torpedo",
+            "station levels after a hit under gravity",
+            "station holds its orbit",
+        ],
+    ),
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 482;
+const SYSTEMS_INVARIANTS: usize = 486;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///
