@@ -376,7 +376,7 @@
                                         id: "thruster",
                                         position: (0.0, 0.0, 3.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype(id: "docking_port_section"),
+                                        source: Prototype(id: "basic_thruster_section"),
                                     ),
                                     (
                                         id: "turret",
@@ -814,7 +814,7 @@
                                         id: "thruster",
                                         position: (0.0, 0.0, 2.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype(id: "docking_port_section"),
+                                        source: Prototype(id: "basic_thruster_section"),
                                     ),
                                 ],
                             )),
@@ -994,7 +994,7 @@
                                         id: "thruster",
                                         position: (0.0, 0.0, 3.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype(id: "docking_port_section"),
+                                        source: Prototype(id: "basic_thruster_section"),
                                     ),
                                     (
                                         id: "turret",
@@ -1480,7 +1480,7 @@
                                         id: "thruster",
                                         position: (0.0, 0.0, 3.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype(id: "docking_port_section"),
+                                        source: Prototype(id: "basic_thruster_section"),
                                     ),
                                     (
                                         id: "turret",
