@@ -168,7 +168,24 @@ fn parse_canonical_u32(digits: &str) -> Option<u32> {
 /// action resolves a generated body by: such a body is never
 /// [`ScenarioAddressableMarker`](crate::ScenarioAddressableMarker), because
 /// `nova_world` reads that marker's absence as "mine to freeze".
-#[derive(Component, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+///
+/// Serde is the struct form, not the `Display` spelling: a world save lists
+/// the marks a scenario attached to generated bodies by this id, and the
+/// struct form keeps a hand-edited save from smuggling in a stem that would
+/// not round-trip.
+#[derive(
+    Component,
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+)]
+#[serde(deny_unknown_fields)]
 pub struct GeneratedBodyId {
     /// The cell the generator placed the body in.
     pub origin: SectorCoord,

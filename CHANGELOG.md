@@ -48,6 +48,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - `ObjectiveMarkerAttach`/`Detach` take `$id` or `$other_id` from the event,
   so a handler marks a generated rock or derelict; the mark outlives a
   retire and thaw. A written generated id fails lint.
+- **(breaking)** A world save carries its scenario: objectives, variables,
+  story, readouts, timers, fired once handlers and marks. Load fires
+  `OnResume`, not `OnStart`; a `seed: None` scenario needs it.
 
 ### Modding & Mod Portal
 

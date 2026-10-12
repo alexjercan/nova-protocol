@@ -1054,8 +1054,91 @@ impl NovaEventWorld {
     }
 
     /// Current pause-frozen scenario time.
-    pub(crate) fn scenario_elapsed(&self) -> f64 {
+    pub fn scenario_elapsed(&self) -> f64 {
         self.scenario_elapsed
+    }
+
+    /// The objectives on the HUD, in posting order.
+    pub fn objectives(&self) -> &[ObjectiveActionConfig] {
+        &self.objectives
+    }
+
+    /// The story log, in delivery order.
+    pub fn story_messages(&self) -> &[NarrativeCueActionConfig] {
+        &self.story_messages
+    }
+
+    /// The active HUD readouts, in authored order.
+    pub fn hud_readouts(&self) -> &[HudReadoutActionConfig] {
+        &self.hud_readouts
+    }
+
+    /// The mutable scenario variables alone (unordered): what a save keeps.
+    /// Watched values are derived from the world and come back on their own.
+    pub fn mutable_variables(&self) -> impl Iterator<Item = (&String, &VariableLiteral)> {
+        self.variables.iter()
+    }
+
+    /// Every running keyed timer with the seconds it has left (unordered).
+    pub fn timers_remaining(&self) -> impl Iterator<Item = (String, f64)> + '_ {
+        self.timers
+            .iter()
+            .map(|(key, deadline)| (key.clone(), deadline - self.scenario_elapsed))
+    }
+
+    /// The seconds a running timer has left, or `None` when no timer runs
+    /// under `key`.
+    pub fn timer_remaining(&self, key: &str) -> Option<f64> {
+        self.timers
+            .get(key)
+            .map(|deadline| deadline - self.scenario_elapsed)
+    }
+
+    /// The key of a sequence or cinematic still playing, or one whose ending
+    /// is not announced yet. A world save waits while this is `Some`: a
+    /// saved script is never mid-beat.
+    pub fn running_script(&self) -> Option<&str> {
+        self.sequences
+            .iter()
+            .find(|run| !run.stopped && run.step < run.steps.len())
+            .map(|run| run.key.as_str())
+            .or_else(|| {
+                self.cinematic_endings
+                    .first()
+                    .map(|ending| ending.key.as_str())
+            })
+    }
+
+    /// Put a saved scenario's state back, after the scenario's shape
+    /// (watches, wake profile) is configured and before its first event
+    /// fires.
+    ///
+    /// The clock is set first, so every timer is rebased on it: a timer that
+    /// had `remaining` seconds left ends `remaining` seconds of scenario
+    /// time after the resume. Variables go through [`Self::insert_variable`],
+    /// so the restored names count as written and the first `OnUpdate` pulse
+    /// wakes for them.
+    pub fn restore(&mut self, saved: &SavedScenario) {
+        self.scenario_elapsed = saved.elapsed;
+        self.query_values.insert(
+            QueryConfig::Scenario(ScenarioQuery {
+                property: ScenarioProperty::Elapsed,
+            }),
+            VariableLiteral::Number(self.scenario_elapsed),
+        );
+        self.publish_watches();
+        self.wake_checked_at = self.scenario_elapsed;
+        for (key, value) in &saved.variables {
+            self.insert_variable(key.clone(), value.clone());
+        }
+        self.objectives = saved.objectives.clone();
+        self.story_messages = saved.story.clone();
+        self.hud_readouts = saved.readouts.clone();
+        self.timers = saved
+            .timers
+            .iter()
+            .map(|(key, remaining)| (key.clone(), self.scenario_elapsed + remaining))
+            .collect();
     }
 
     /// Advance the pause-frozen scenario time.
@@ -1810,5 +1893,35 @@ mod tests {
                 .is_none(),
             "the offer goes with the scene"
         );
+    }
+
+    /// A saved timer keeps the seconds it had LEFT, not its deadline: a save
+    /// at 15 s with 25 s left ends 25 s after the resume whatever the clock
+    /// reads then. Restoring the deadline instead would end it 25 s early on
+    /// a resume whose clock starts over, or never on one that starts later.
+    #[test]
+    fn a_restored_timer_ends_its_remaining_seconds_after_the_resume() {
+        let mut saved_run = NovaEventWorld::default();
+        saved_run.advance_scenario_elapsed(10.0);
+        assert!(saved_run.start_timer("fuse".to_string(), 30.0));
+        saved_run.advance_scenario_elapsed(5.0);
+        assert_eq!(saved_run.timer_remaining("fuse"), Some(25.0));
+
+        let saved = SavedScenario {
+            scenario_id: "test".to_string(),
+            elapsed: saved_run.scenario_elapsed(),
+            timers: saved_run.timers_remaining().collect(),
+            ..default()
+        };
+
+        let mut resumed = NovaEventWorld::default();
+        resumed.restore(&saved);
+        assert_eq!(resumed.scenario_elapsed(), 15.0);
+        assert_eq!(resumed.timer_remaining("fuse"), Some(25.0));
+        assert!(
+            resumed.drain_ended_timers(39.9).is_empty(),
+            "the fuse has a tenth of a second left"
+        );
+        assert_eq!(resumed.drain_ended_timers(40.0), vec!["fuse".to_string()]);
     }
 }

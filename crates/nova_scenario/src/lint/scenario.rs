@@ -195,23 +195,7 @@ pub fn lint_scenario(
     // would play as a void; with two `nova_world_base` refuses to arm at all.
     // An Error at author time rather than a silent void or a runtime panic.
     if scenario.world.is_generated() {
-        let mut players = 0;
-        for action in scenario
-            .events
-            .iter()
-            .filter(|event| matches!(event.name, EventConfig::OnStart))
-            .flat_map(|event| &event.actions)
-        {
-            action.walk(&mut |action| {
-                if let EventActionConfig::SpawnScenarioObject(config) = action {
-                    if let ScenarioObjectKind::Spaceship(ship) = &config.kind {
-                        if matches!(ship.controller, SpaceshipController::Player(_)) {
-                            players += 1;
-                        }
-                    }
-                }
-            });
-        }
+        let players = player_spawns(scenario, EventConfig::OnStart);
         if players != 1 {
             issues.push(LintIssue::error(
                 id,
@@ -221,6 +205,45 @@ pub fn lint_scenario(
                 ),
             ));
         }
+    }
+
+    // A session-seeded world is the one that saves, and a Load fires
+    // `OnResume` instead of `OnStart` over the restored state. Without an
+    // `OnResume` handler a Load would stream a world around no player ship;
+    // with two players `nova_world_base` refuses to arm. A scenario that
+    // cannot save never fires `OnResume`, so a handler there is dead content.
+    let has_resume = scenario
+        .events
+        .iter()
+        .any(|event| event.name == EventConfig::OnResume);
+    if scenario.world.needs_session() {
+        if has_resume {
+            let players = player_spawns(scenario, EventConfig::OnResume);
+            if players != 1 {
+                issues.push(LintIssue::error(
+                    id,
+                    format!(
+                        "`world: Generated((seed: None))` spawns {players} player ships in \
+                         OnResume; a resumed load streams around exactly one"
+                    ),
+                ));
+            }
+        } else {
+            issues.push(LintIssue::error(
+                id,
+                "`world: Generated((seed: None))` saves and loads, and a Load fires OnResume \
+                 instead of OnStart; author an OnResume handler that spawns the player ship \
+                 and the lights"
+                    .to_string(),
+            ));
+        }
+    } else if has_resume {
+        issues.push(LintIssue::warn(
+            id,
+            "OnResume on a scenario that cannot be saved (only `world: Generated((seed: \
+             None))` saves); it never fires"
+                .to_string(),
+        ));
     }
 
     // Only New Game's Create and Load carry the typed seed, and both load a
@@ -300,7 +323,9 @@ pub fn lint_scenario(
     // definitely answer one id (Error); across handlers the spawns may sit
     // in mutually exclusive branches (e.g. a choice fork spawning the same
     // boss id either way), which is fine IF only one can fire - flag it for
-    // eyes, do not fail the gate (Warn).
+    // eyes, do not fail the gate (Warn). An OnStart and an OnResume spawner
+    // of one id are exclusive by the loader's contract (one opening event
+    // per run), so that pair is not flagged.
     for event_spawns in &spawns_per_event {
         let mut seen = HashSet::new();
         for spawn_id in event_spawns {
@@ -312,11 +337,17 @@ pub fn lint_scenario(
             }
         }
     }
-    let mut seen_across: HashSet<&str> = HashSet::new();
+    let mut seen_across: HashMap<&str, &EventConfig> = HashMap::new();
     let mut warned: HashSet<&str> = HashSet::new();
-    for event_spawns in &spawns_per_event {
+    for (event, event_spawns) in scenario.events.iter().zip(&spawns_per_event) {
         for spawn_id in event_spawns.iter().collect::<HashSet<_>>() {
-            if !seen_across.insert(spawn_id.as_str()) && warned.insert(spawn_id.as_str()) {
+            let Some(first) = seen_across.insert(spawn_id.as_str(), &event.name) else {
+                continue;
+            };
+            let openings = [EventConfig::OnStart, EventConfig::OnResume];
+            let exclusive_openings =
+                first != &event.name && openings.contains(first) && openings.contains(&event.name);
+            if !exclusive_openings && warned.insert(spawn_id.as_str()) {
                 issues.push(LintIssue::warn(
                     id,
                     format!(
@@ -2023,6 +2054,29 @@ fn compares_the_clock_to_a_non_literal(
     (clock_side(left) && !literal_side(right)) || (clock_side(right) && !literal_side(left))
 }
 
+/// How many player-controlled ships the handlers on `trigger` spawn, however
+/// deeply nested.
+fn player_spawns(scenario: &ScenarioConfig, trigger: EventConfig) -> usize {
+    let mut players = 0;
+    for action in scenario
+        .events
+        .iter()
+        .filter(|event| event.name == trigger)
+        .flat_map(|event| &event.actions)
+    {
+        action.walk(&mut |action| {
+            if let EventActionConfig::SpawnScenarioObject(config) = action {
+                if let ScenarioObjectKind::Spaceship(ship) = &config.kind {
+                    if matches!(ship.controller, SpaceshipController::Player(_)) {
+                        players += 1;
+                    }
+                }
+            }
+        });
+    }
+    players
+}
+
 #[cfg(test)]
 mod tests {
     use bevy::prelude::*;
@@ -2714,6 +2768,7 @@ mod tests {
 
         let mut two = scenario(vec![player(), player()], vec![]);
         two.world = generated(None);
+        two.events.push(on_resume(vec![player()]));
         let issues = lint(&two);
         assert!(
             errors(&issues)
@@ -2724,6 +2779,7 @@ mod tests {
 
         let mut one = scenario(vec![player()], vec![]);
         one.world = generated(None);
+        one.events.push(on_resume(vec![player()]));
         let issues = lint(&one);
         assert!(errors(&issues).is_empty(), "{issues:?}");
 
@@ -2756,6 +2812,7 @@ mod tests {
             let mut config = scenario(vec![player()], vec![]);
             config.role = role;
             config.world = generated(None);
+            config.events.push(on_resume(vec![player()]));
             config
         };
 
@@ -2781,6 +2838,96 @@ mod tests {
 
         let issues = lint(&session_seeded(ScenarioRole::Chapter));
         assert!(errors(&issues).is_empty(), "{issues:?}");
+    }
+
+    /// An `OnResume` handler running `actions`, as the open world authors
+    /// one.
+    fn on_resume(actions: Vec<EventActionConfig>) -> ScenarioEventConfig {
+        ScenarioEventConfig {
+            label: None,
+            name: EventConfig::OnResume,
+            once: true,
+            filters: vec![],
+            actions,
+        }
+    }
+
+    /// The world that saves is the one that resumes: a session-seeded world
+    /// without an `OnResume` handler is an Error, as is one whose `OnResume`
+    /// spawns other than one player. A world that never saves gets a Warning
+    /// for an `OnResume` that never fires.
+    #[test]
+    fn a_session_seeded_world_must_resume_around_one_player() {
+        let player = || {
+            spawn_armed_ship(
+                "player",
+                SpaceshipController::Player(PlayerControllerConfig::default()),
+            )
+        };
+        let lint = |scenario: &ScenarioConfig| {
+            lint_scenario(
+                scenario,
+                &sections(&["hull"]),
+                &ships(&[]),
+                &known(&["test_scenario"]),
+                &GameItems::default(),
+            )
+        };
+
+        let mut no_resume = scenario(vec![player()], vec![]);
+        no_resume.world = generated(None);
+        let issues = lint(&no_resume);
+        assert!(
+            errors(&issues)
+                .iter()
+                .any(|issue| issue.message.contains("author an OnResume handler")),
+            "{issues:?}"
+        );
+
+        let mut no_player = scenario(vec![player()], vec![]);
+        no_player.world = generated(None);
+        no_player.events.push(on_resume(vec![]));
+        let issues = lint(&no_player);
+        assert!(
+            errors(&issues)
+                .iter()
+                .any(|issue| issue.message.contains("spawns 0 player ships in OnResume")),
+            "{issues:?}"
+        );
+
+        let mut fixed = scenario(vec![player()], vec![]);
+        fixed.world = generated(Some(3));
+        fixed.events.push(on_resume(vec![player()]));
+        let issues = lint(&fixed);
+        assert!(errors(&issues).is_empty(), "{issues:?}");
+        assert!(
+            issues
+                .iter()
+                .any(|issue| issue.severity == LintSeverity::Warn
+                    && issue
+                        .message
+                        .contains("OnResume on a scenario that cannot be saved")),
+            "{issues:?}"
+        );
+
+        let void = scenario(vec![player()], vec![]);
+        let issues = lint(&void);
+        assert!(
+            !issues
+                .iter()
+                .any(|issue| issue.message.contains("OnResume")),
+            "a void without OnResume says nothing about it: {issues:?}"
+        );
+
+        let mut session = scenario(vec![player()], vec![]);
+        session.world = generated(None);
+        session.events.push(on_resume(vec![player()]));
+        let issues = lint(&session);
+        assert!(
+            issues.is_empty(),
+            "one player in OnStart and the same in OnResume is the saving shape, not a \
+             duplicate spawner: {issues:?}"
+        );
     }
 
     /// The backdrop camera contract: a menu backdrop must pose its own

@@ -21,13 +21,15 @@ use bevy::{
 };
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_gameplay::prelude::*;
+use nova_scenario::prelude::GameScenarios;
 use nova_ui::{
     theme::UiColor,
     widget::{list_row, themed_button, ButtonVariant, Selected, ThemedText, UiText},
 };
 use nova_world_base::prelude::{
-    check_world, delete_world, list_worlds, open_world, resume_world, WorldFolder, WorldListing,
-    WorldLock, WorldRefusal, WorldResumeRefused, WorldSaveHeader, WorldSaveSession, WorldSaveState,
+    check_world, delete_world, list_worlds, open_world, resume_world, RegisteredScenarios,
+    WorldFolder, WorldListing, WorldLock, WorldRefusal, WorldResumeRefused, WorldSaveHeader,
+    WorldSaveSession, WorldSaveState,
 };
 
 use crate::{scenarios::NewGameScenario, widgets::button_variant, world_setup::WorldsRoot};
@@ -123,11 +125,13 @@ fn read_listings(
     root: &Path,
     packs: &LoadedSectionPacks,
     items: &GameItems,
+    scenarios: &GameScenarios,
     checks: &mut WorldChecks,
 ) -> Result<Vec<WorldListing>, WorldRefusal> {
     let listings = list_worlds(root, packs);
     let packs = Arc::new(packs.clone());
     let items = Arc::new(items.clone());
+    let scenarios = Arc::new(RegisteredScenarios::from(scenarios));
     checks.0 = listings
         .iter()
         .flatten()
@@ -135,8 +139,9 @@ fn read_listings(
         .map(|listing| {
             let (root, slug) = (root.to_path_buf(), listing.folder.slug.clone());
             let (packs, items) = (Arc::clone(&packs), Arc::clone(&items));
-            let task =
-                IoTaskPool::get().spawn(async move { check_world(&root, &slug, &packs, &items) });
+            let scenarios = Arc::clone(&scenarios);
+            let task = IoTaskPool::get()
+                .spawn(async move { check_world(&root, &slug, &packs, &items, &scenarios) });
             (listing.folder.slug.clone(), task)
         })
         .collect();
@@ -179,6 +184,7 @@ pub(crate) fn on_load_screen(
     root: Res<WorldsRoot>,
     packs: Res<LoadedSectionPacks>,
     items: Res<GameItems>,
+    scenarios: Res<GameScenarios>,
     mut checks: ResMut<WorldChecks>,
     mut listings: ResMut<WorldListings>,
     mut selected: ResMut<SelectedWorldSlug>,
@@ -186,7 +192,7 @@ pub(crate) fn on_load_screen(
     mut panel: Single<&mut Visibility, With<LoadPanel>>,
 ) {
     listings.0 = match root.0.as_deref() {
-        Some(root) => read_listings(root, &packs, &items, &mut checks),
+        Some(root) => read_listings(root, &packs, &items, &scenarios, &mut checks),
         None => Ok(Vec::new()),
     };
     selected.0 = None;
@@ -252,6 +258,7 @@ pub(crate) fn on_delete_world_confirm(
     root: Res<WorldsRoot>,
     packs: Res<LoadedSectionPacks>,
     items: Res<GameItems>,
+    scenarios: Res<GameScenarios>,
     mut checks: ResMut<WorldChecks>,
     mut step: ResMut<WorldDeleteStep>,
     mut listings: ResMut<WorldListings>,
@@ -264,7 +271,7 @@ pub(crate) fn on_delete_world_confirm(
     };
     let slug = slug.clone();
     let result = delete_world(root, &slug);
-    listings.0 = read_listings(root, &packs, &items, &mut checks);
+    listings.0 = read_listings(root, &packs, &items, &scenarios, &mut checks);
     *step = match result {
         Ok(()) => WorldDeleteStep::Idle,
         Err(refusal) => WorldDeleteStep::Refused {
@@ -282,6 +289,7 @@ pub(crate) fn on_load_world(
     root: Res<WorldsRoot>,
     packs: Res<LoadedSectionPacks>,
     items: Res<GameItems>,
+    scenarios: Res<GameScenarios>,
     checks: Res<WorldChecks>,
     selected: Res<SelectedWorldSlug>,
     mut opening: ResMut<WorldOpen>,
@@ -298,9 +306,10 @@ pub(crate) fn on_load_world(
     *step = WorldDeleteStep::Idle;
     let (root, slug) = (root.to_path_buf(), slug.to_string());
     let (packs, items) = (packs.clone(), items.clone());
+    let scenarios = RegisteredScenarios::from(&*scenarios);
     let task = {
         let slug = slug.clone();
-        IoTaskPool::get().spawn(async move { open_world(&root, &slug, &packs, &items) })
+        IoTaskPool::get().spawn(async move { open_world(&root, &slug, &packs, &items, &scenarios) })
     };
     opening.0 = Some((slug, task));
 }
@@ -360,6 +369,7 @@ pub(crate) fn refuse_resumed_world(
     root: Res<WorldsRoot>,
     packs: Res<LoadedSectionPacks>,
     items: Res<GameItems>,
+    scenarios: Res<GameScenarios>,
     mut checks: ResMut<WorldChecks>,
     mut listings: ResMut<WorldListings>,
     mut state: ResMut<NextState<GameStates>>,
@@ -373,7 +383,7 @@ pub(crate) fn refuse_resumed_world(
         return;
     };
     listings.0 = match root.0.as_deref() {
-        Some(root) => read_listings(root, &packs, &items, &mut checks),
+        Some(root) => read_listings(root, &packs, &items, &scenarios, &mut checks),
         None => Ok(Vec::new()),
     };
     // The refusal stands over whatever the new check of the world finds.

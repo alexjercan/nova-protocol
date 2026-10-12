@@ -19,6 +19,14 @@
 //! The format is strict: an unknown field, a format other than
 //! [`WORLD_SAVE_FORMAT`] or another catalog refuses the world. Nothing is
 //! migrated. Native only: the web build has no saved worlds.
+//!
+//! The state carries the scenario ([`SavedScenario`]) beside the sectors: a
+//! Load resumes the same scenario with its objectives, variables, timers and
+//! spent handlers, and refuses a save naming a scenario the loaded content
+//! does not register ([`WorldRefusal::Scenario`]). A persistent ship a
+//! handler spawned after the opening is not a sector's and makes the
+//! snapshot refuse (`nova_world::snapshot_sectors`, `UnownedBody`); a
+//! scenario that saves spawns only the player.
 
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
@@ -34,7 +42,7 @@ use nova_gameplay::prelude::{
     kg_text, CargoCanisterRuntimeId, GameItems, ItemDesignId, SavedBodyRef, SavedOwner,
     SavedSectionRef, SavedTargetRef, CARGO_CANISTER_MAX_MASS_G,
 };
-use nova_scenario::prelude::FrozenShip;
+use nova_scenario::prelude::{FrozenShip, GameScenarios, SavedScenario, ScenarioId};
 use nova_ship::prelude::{CameraView, SavedTorpedoTarget};
 use nova_world::prelude::{FrozenBody, FrozenBodyType, FrozenSectors, SectorCoord};
 use serde::{Deserialize, Serialize};
@@ -60,7 +68,7 @@ pub use transients::{
 /// nobody held live is recorded as an arrival there. Every cell the player
 /// never visited regenerates from the seed on Load, so another generator
 /// would change it silently.
-pub const WORLD_SAVE_FORMAT: u32 = 3;
+pub const WORLD_SAVE_FORMAT: u32 = 4;
 
 /// The most characters a world name has, after trimming.
 const WORLD_NAME_MAX: usize = 32;
@@ -114,6 +122,8 @@ pub struct WorldSaveState {
     pub canister_ids_next: u64,
     /// Every combat transient in flight in the window.
     pub transients: Vec<FrozenTransient>,
+    /// The scenario that was running and what it had done.
+    pub scenario: SavedScenario,
 }
 
 /// The player ship as it was saved.
@@ -195,6 +205,11 @@ pub enum WorldRefusal {
     /// The world was opened but did not come back, so the Load was refused.
     /// Nothing was written.
     Unrestored(String),
+    /// The save names a scenario the loaded content does not register.
+    Scenario {
+        /// The scenario id it was saved with.
+        saved: ScenarioId,
+    },
 }
 
 impl std::fmt::Display for WorldRefusal {
@@ -213,10 +228,24 @@ impl std::fmt::Display for WorldRefusal {
             Self::Catalog { saved_mods, .. } => {
                 write!(f, "content changed; saved with {}", saved_mods.join(", "))
             }
+            Self::Scenario { saved } => {
+                write!(f, "its scenario '{saved}' is not in the loaded content")
+            }
             Self::Foreign(reason) | Self::Io(reason) | Self::Unrestored(reason) => {
                 f.write_str(reason)
             }
         }
+    }
+}
+
+/// The scenario ids the loaded content registers: what a save's scenario is
+/// checked against before the world opens.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RegisteredScenarios(pub BTreeSet<ScenarioId>);
+
+impl From<&GameScenarios> for RegisteredScenarios {
+    fn from(scenarios: &GameScenarios) -> Self {
+        Self(scenarios.keys().cloned().collect())
     }
 }
 
@@ -293,12 +322,13 @@ pub fn open_world(
     slug: &str,
     loaded: &LoadedSectionPacks,
     items: &GameItems,
+    scenarios: &RegisteredScenarios,
 ) -> Result<(WorldFolder, WorldLock, WorldSaveHeader, WorldSaveState), WorldRefusal> {
     check_slug(slug)?;
     let path = root.join(slug);
     let lock = lock_world(&path)?;
     let header = read_header(&path, loaded)?;
-    let state = read_state(&path, &header, items)?;
+    let state = read_state(&path, &header, items, scenarios)?;
     sweep_orphans(&path, &state_file(header.generation));
     Ok((
         WorldFolder {
@@ -324,11 +354,12 @@ pub fn check_world(
     slug: &str,
     loaded: &LoadedSectionPacks,
     items: &GameItems,
+    scenarios: &RegisteredScenarios,
 ) -> Result<(), WorldRefusal> {
     check_slug(slug)?;
     let path = root.join(slug);
     let header = read_header(&path, loaded)?;
-    read_state(&path, &header, items).map(drop)
+    read_state(&path, &header, items, scenarios).map(drop)
 }
 
 /// Read and check the state file `header` names in the world folder `path`.
@@ -336,6 +367,7 @@ fn read_state(
     path: &Path,
     header: &WorldSaveHeader,
     items: &GameItems,
+    scenarios: &RegisteredScenarios,
 ) -> Result<WorldSaveState, WorldRefusal> {
     let state_name = state_file(header.generation);
     let text = std::fs::read_to_string(path.join(&state_name))
@@ -364,6 +396,11 @@ fn read_state(
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     check_saved_stock(&state, items)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
+    if !scenarios.0.contains(&state.scenario.scenario_id) {
+        return Err(WorldRefusal::Scenario {
+            saved: state.scenario.scenario_id.clone(),
+        });
+    }
     Ok(state)
 }
 

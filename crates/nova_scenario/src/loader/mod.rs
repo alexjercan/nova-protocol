@@ -46,6 +46,8 @@ use lifecycle::{
     on_player_spaceship_spawned, rebuild_scenario_input_on_rebind, register_scenario_scoping,
     scenario_bindings, unload_scenario, ScenarioInputMarker,
 };
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) use lifecycle::{open_scenario_run, spawn_scenario_handlers};
 use preload::register_scenario_preload;
 pub use trackers::ORBIT_LAP_GRACE_SECS;
 use trackers::{
@@ -748,6 +750,10 @@ impl Plugin for ScenarioLoaderPlugin {
         // re-apply runs every live frame because a thaw is an ordinary spawn.
         app.init_resource::<GeneratedMarks>();
         app.add_systems(Update, reapply_generated_marks.run_if(scenario_is_live));
+        // Which `once` handlers fired, for the world save; the engine
+        // announces each retirement before the despawn.
+        app.init_resource::<SpentHandlers>();
+        app.add_observer(crate::resume::record_spent_handler);
 
         register_scenario_scoping(app);
 

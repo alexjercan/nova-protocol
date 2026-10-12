@@ -27,7 +27,8 @@ use bevy::{
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::{
-    CurrentScenario, LoadScenario, ScenarioStartFailure, ScenarioStartFailureReport, UnloadScenario,
+    GameScenarios, LoadScenario, ResumedScenario, ScenarioStartFailure, ScenarioStartFailureReport,
+    UnloadScenario,
 };
 use nova_ui::{
     prelude::PAUSE_Z,
@@ -35,7 +36,9 @@ use nova_ui::{
     theme::UiColor,
     widget::{panel, ButtonVariant, ThemedRadius, ThemedText, UiText},
 };
-use nova_world_base::prelude::{open_world, resume_world, WorldSaveSession, WorldSaveStatus};
+use nova_world_base::prelude::{
+    open_world, resume_world, RegisteredScenarios, WorldSaveSession, WorldSaveStatus,
+};
 
 use crate::{widgets::button_variant, world_setup::WorldsRoot};
 
@@ -153,7 +156,10 @@ pub(crate) fn drive_pending_leave(
                     world.get_resource::<GameItems>(),
                 ) {
                     (Some(root), Some(packs), Some(items)) => {
-                        open_world(root, &slug, packs, items).map_err(|refusal| refusal.to_string())
+                        let scenarios =
+                            RegisteredScenarios::from(world.resource::<GameScenarios>());
+                        open_world(root, &slug, packs, items, &scenarios)
+                            .map_err(|refusal| refusal.to_string())
                     }
                     (None, ..) => Err("this system has no folder for saved worlds".to_string()),
                     (_, None, _) | (_, _, None) => Err("no content is loaded".to_string()),
@@ -161,8 +167,11 @@ pub(crate) fn drive_pending_leave(
                 match opened {
                     Ok((folder, lock, header, state)) => {
                         resume_world(world, folder, lock, &header, state);
-                        if let Some(scenario) = world.resource::<CurrentScenario>().0.clone() {
-                            world.trigger(LoadScenario(scenario));
+                        // The scenario the save names, as Load loads it; the
+                        // open above refused a save naming an unregistered one.
+                        let saved = world.resource::<ResumedScenario>().0.scenario_id.clone();
+                        if let Some(scenario) = world.resource::<GameScenarios>().get(&saved) {
+                            world.trigger(LoadScenario(scenario.clone()));
                         }
                         world
                             .resource_mut::<NextState<PauseStates>>()

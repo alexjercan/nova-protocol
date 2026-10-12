@@ -75,6 +75,11 @@ macro_rules! scenario_events {
 scenario_events! {
     /// Fires once, right after a scenario loads.
     OnStart => OnStartEvent { label: "On Start" },
+    /// Fires once, instead of `OnStart`, when a saved world's scenario loads
+    /// again: the saved objectives, variables, timers, story, readouts and
+    /// marks are already restored, so the handler spawns only what the save
+    /// does not carry.
+    OnResume => OnResumeEvent { label: "On Resume" },
     /// Fires once when a ship is neutralized or directly destroyed.
     OnDefeated => OnDefeatedEvent { label: "On Defeated" },
     /// Fires when an entity is physically destroyed.

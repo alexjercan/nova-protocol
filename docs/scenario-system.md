@@ -54,6 +54,10 @@ the panel says about it, through `bevy/reflect_documentation`.
   base generator streams sectors around the ONE player ship the scenario spawns
   in `OnStart` (lint refuses zero or two). `seed: None` takes the seed the
   player typed on New Game, carried by `nova_world_base::OpenWorldSession`;
+  it also authors an `OnResume` handler spawning that one player ship and the
+  lights (lint Error without one; one player exactly), because a Load fires
+  `OnResume` instead of `OnStart`. The open world builds one spawn list and
+  hangs it on both;
   only New Game and Load may start such a scenario, so the picker renders no
   row for it, a campaign may not list it, and `--scenario <id>` refuses it at
   boot. `seed: Some(n)` is a fixed seed: the scenario is a bounded world the
@@ -93,8 +97,9 @@ to another scenario.
 - `LoadScenario(ScenarioConfig)` - trigger to load: look one up in
   `GameScenarios`, `commands.trigger(LoadScenario(cfg.clone()))` (see
   `examples/systems/system_scenario_grammar.rs`). Load tears down the previous
-  scenario, spawns the camera, input context, one handler per event, fires
-  `OnStart`. The camera opens on the authored PLAYER spawn, in the chase rig's
+  scenario, spawns the camera, input context, one handler per event (each
+  wearing its `ScenarioHandlerIndex`), fires `OnStart`. The camera opens on the
+  authored PLAYER spawn, in the chase rig's
   own pose for that hull's envelope (`chase_camera_opening_pose`), so the first
   frame is already the shot the live rig will hold; a scenario with no player
   falls back to 100 m up and 200 m back from the origin. No engine
@@ -102,6 +107,21 @@ to another scenario.
   none renders black.
 - `ScenarioLoaded` - fired after a load; carries `scenario_id`,
   `handler_count`, `object_count` for smoke-test assertions.
+- `ResumedScenario(SavedScenario)` - a world Load's saved scenario state,
+  inserted by `nova_world_base::resume_world` before the load. The load whose
+  id it names takes it: `open_scenario_run` (`loader/lifecycle.rs`) skips the
+  handlers `spent_handlers` lists (the `once` handlers that fired in the saved
+  run, recorded by `SpentHandlers` from the engine's `HandlerRetired`
+  trigger), calls `NovaEventWorld::restore` (clock, variables, objectives,
+  story, readouts, timers rebased from their REMAINING seconds), mirrors the
+  objectives into `GameObjectives`, seeds `SpentHandlers` and `GeneratedMarks`,
+  and fires `OnResume` instead of `OnStart`. A resumed id that does not match
+  the loading scenario is dropped with an error log and `OnStart` fires. A
+  save naming a scenario that is not in `GameScenarios` is refused at Load
+  (`WorldRefusal::Scenario`). The snapshot that writes the state waits (the
+  bounded settle) while a `Sequence` or cinematic is running, so a save is
+  never mid-beat; the `test_support::open_scenario_run` rig helper opens a
+  fresh or resumed run headlessly.
 - `UnloadScenario` - tears everything down and clears `CurrentScenario`.
 - `ScenarioScopedMarker` - any entity carrying it is despawned (recursively)
   on load/unload. Teardown also runs `NovaEventWorld::clear()` and clears all
@@ -262,7 +282,8 @@ Three consequences, each with its owner:
 - **The mark outlives the body.** `GeneratedMarks` (`marks.rs`) remembers each
   mark by typed id; `reapply_generated_marks` puts it back on
   `Added<GeneratedBodyId>`, which a thaw is. The map clears with the scenario.
-  Within one session only: the world save does not carry it yet.
+  The world save lists the map (`SavedScenario::marks`) and a resumed load
+  puts it back before the first cell streams in.
 
 `system_generated_marks` is the proof: the example mod's `example_survey`
 chapter marks a rock through `$other_id`, a one-cell jump retires its sector,

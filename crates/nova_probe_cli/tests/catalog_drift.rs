@@ -915,6 +915,9 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "the load phase resumes every piece of the saved fixture state",
             "a world folder with no world.ron lists refused and disabled",
             "every saved transient pairs with the thaw-time entry at the same save-list index, agreeing on kind and, for a round, a torpedo or a detached piece, owner, pose and remaining lifetime; the observer saw no duplicate entity (post-resume TempEntityState inserts, if any, are unrelated live gameplay, logged not asserted)",
+            "the leave save carries the scenario state the fixture's own handlers authored: the spent once handlers, the variables, the objective, the running timer's remaining seconds and the generated mark",
+            "the load phase resumes the saved scenario state: OnResume fired once and OnStart never, the spent once handlers stayed spent, and the objective, the variables, the timer's remaining seconds and the generated mark came back",
+            "the resumed timer ends on its saved clock and its once handler completes the objective exactly once",
         ],
     ),
     (
@@ -963,7 +966,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 474;
+const SYSTEMS_INVARIANTS: usize = 477;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

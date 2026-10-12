@@ -23,7 +23,10 @@ use nova_gameplay::prelude::{
     CargoCanisterIdAllocator, CargoCanisterRuntimeId, PlayerSpaceshipMarker, ShipCredits,
     UnsettledBody,
 };
-use nova_scenario::prelude::{freeze_ship, CurrentScenario, ResumedSpaceship};
+use nova_scenario::prelude::{
+    freeze_ship, CurrentScenario, GeneratedMarks, NovaEventWorld, ResumedScenario,
+    ResumedSpaceship, SavedScenario, SpentHandlers,
+};
 use nova_ship::prelude::{CameraView, ResumedCameraView};
 use nova_world::prelude::{
     snapshot_sectors, CurrentSector, FrozenSectors, SectorSnapshotError, WorldConfig,
@@ -244,10 +247,12 @@ pub fn resume_world(
         sectors,
         canister_ids_next,
         transients,
+        scenario,
         ..
     } = state;
     world.insert_resource(WorldSaveSession::opened(folder, lock, header));
     world.insert_resource(ResumedWorld { sectors });
+    world.insert_resource(ResumedScenario(scenario));
     world.insert_resource(ResumedCameraView {
         view: player.view,
         steer: player.transform.rotation * player.view.steer_from_ship,
@@ -376,15 +381,16 @@ pub(crate) fn snapshot_world(world: &mut World) {
         .and_then(|view| {
             let sectors = snapshot_sectors::<NovaLayeredWorld>(world)?;
             let transients = freeze_transients(world)?;
+            let scenario = capture_scenario(world)?;
             freeze_ship(world, player)
-                .map(|ship| (sectors, transients, ship, view))
+                .map(|ship| (sectors, transients, scenario, ship, view))
                 .map_err(|reason| SectorSnapshotError::Unsettled {
                     label: "the player ship".to_string(),
                     coord: world.resource::<CurrentSector>().0,
                     reason,
                 })
         });
-    let (sectors, transients, ship, view) = match snapshot {
+    let (sectors, transients, scenario, ship, view) = match snapshot {
         Ok(snapshot) => snapshot,
         Err(unsettled @ SectorSnapshotError::Unsettled { .. }) => {
             let advanced = world.resource::<Time<Virtual>>().delta() > Duration::ZERO;
@@ -396,7 +402,13 @@ pub(crate) fn snapshot_world(world: &mut World) {
                 session.settling_frames = 0;
                 session.fail(reason);
             } else {
-                session.status = WorldSaveStatus::Waiting(unsettled.to_string());
+                let waiting = WorldSaveStatus::Waiting(unsettled.to_string());
+                // Logged once per reason, not per frame: a script can hold
+                // a save for hundreds of frames.
+                if session.status != waiting {
+                    info!("nova_world_base: the save waits: {unsettled}");
+                    session.status = waiting;
+                }
             }
             return;
         }
@@ -490,6 +502,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
         sectors,
         canister_ids_next,
         transients,
+        scenario,
     };
     let checked = check_saved_ids(&state)
         .map_err(|fault| match fault {
@@ -519,6 +532,39 @@ pub(crate) fn snapshot_world(world: &mut World) {
     session.wanted = None;
     session.settling_frames = 0;
     session.status = WorldSaveStatus::Writing;
+}
+
+/// The loaded scenario's state for the save, or why it cannot be taken this
+/// frame.
+///
+/// A sequence or cinematic still playing holds the save like an unsettled
+/// body does: the script's cursor is not saved, so a save taken mid-beat
+/// would resume with the beats that had not run yet lost. The settle bound
+/// above applies, so a script that never ends fails the save with its name.
+/// No loaded scenario is not a wait: a world save names its scenario, and an
+/// armed world without one is a fault.
+fn capture_scenario(world: &World) -> Result<SavedScenario, SectorSnapshotError> {
+    let Some(scenario) = world.resource::<CurrentScenario>().0.as_ref() else {
+        return Err(SectorSnapshotError::InvalidSavedState {
+            reason: "no scenario is loaded; a world save names its scenario".to_string(),
+        });
+    };
+    let events = world.resource::<NovaEventWorld>();
+    if let Some(key) = events.running_script() {
+        return Err(SectorSnapshotError::Unsettled {
+            label: format!("the scenario script '{key}'"),
+            coord: world.resource::<CurrentSector>().0,
+            reason: UnsettledBody {
+                reason: "a sequence or cinematic is running",
+            },
+        });
+    }
+    Ok(SavedScenario::capture(
+        scenario,
+        events,
+        world.resource::<SpentHandlers>(),
+        world.resource::<GeneratedMarks>(),
+    ))
 }
 
 impl Drop for WorldSaveSession {

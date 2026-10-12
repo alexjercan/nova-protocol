@@ -30,8 +30,8 @@ use nova_ship::prelude::{thaw_round, FrozenRound, RoundSourceType};
 use nova_world::prelude::{CurrentSector, SectorCoord, SectorRoot, WorldConfig};
 use nova_world_base::{
     prelude::{
-        create_world, open_world, NovaLayeredWorld, ResumedWorld, WorldResumeProgress,
-        WorldResumeRefused, WorldSaveSession, WorldSaveState, WorldSaveStatus,
+        create_world, open_world, NovaLayeredWorld, RegisteredScenarios, ResumedWorld,
+        WorldResumeProgress, WorldResumeRefused, WorldSaveSession, WorldSaveState, WorldSaveStatus,
         WORLD_RESUME_SECONDS_MAX,
     },
     test_support::{arm_save_fixture, WorldSaveTestPlugin},
@@ -136,7 +136,10 @@ fn a_load_that_cannot_fill_its_window_is_refused_and_releases_the_clocks() {
     app.init_resource::<ClockFreeze>();
     // `load_menu_ambience` (`OnEnter(MainMenu)`) reads this with a hard `Res`;
     // empty is a legal "no clean backdrop" catalog.
-    app.init_resource::<GameScenarios>();
+    // The save names the open world's scenario; a Load checks it is registered.
+    let mut scenarios = GameScenarios::default();
+    scenarios.insert("open_world".to_string(), dummy_scenario("open_world"));
+    app.insert_resource(scenarios);
 
     app.add_plugins(LoadingScreenPlugin);
     app.add_plugins(NovaMenuPlugin);
@@ -311,6 +314,7 @@ fn a_load_that_cannot_fill_its_window_is_refused_and_releases_the_clocks() {
             &slug,
             &packs,
             app.world().resource::<GameItems>(),
+            &RegisteredScenarios::from(app.world().resource::<GameScenarios>()),
         );
         assert!(opened.is_ok(), "world.lock is free: {opened:?}");
     }
@@ -529,6 +533,7 @@ fn a_load_that_cannot_fill_its_window_is_refused_and_releases_the_clocks() {
             &slug2,
             &packs,
             app.world().resource::<GameItems>(),
+            &RegisteredScenarios::from(app.world().resource::<GameScenarios>()),
         );
         assert!(opened.is_ok(), "world.lock is free: {opened:?}");
     }

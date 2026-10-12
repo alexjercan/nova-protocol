@@ -14,7 +14,7 @@ use crate::prelude::*;
 /// this scenario-action wrapper stays nova-local because it implements the (foreign)
 /// `EventAction` trait - which the orphan rule forbids implementing on the foreign
 /// `Objective` type directly.
-#[derive(Clone, Debug, Reflect)]
+#[derive(Clone, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ObjectiveActionConfig {
     /// Opaque identifier, used to complete/remove the objective later.

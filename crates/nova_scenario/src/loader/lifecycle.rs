@@ -1,6 +1,8 @@
 //! Scenario load, unload, and teardown: the observers that swap one running
 //! scenario for the next, plus the scenario-liveness system gating.
 
+use std::collections::BTreeSet;
+
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 use nova_events::prelude::*;
@@ -79,11 +81,18 @@ fn teardown_scenario_entities(
     // not the next one's.
     commands.queue(clear_pending_severs);
     // A mark on a generated body is the scenario's, like its objectives: the
-    // next scenario streams its own world and owes the old one no chips.
+    // next scenario streams its own world and owes the old one no chips. The
+    // spent-handler record goes with it; a resumed load seeds its own after
+    // this command, in the same queue.
     commands.queue(|world: &mut World| {
         if let Some(mut marks) = world.get_resource_mut::<GeneratedMarks>() {
             if !marks.is_empty() {
                 marks.clear();
+            }
+        }
+        if let Some(mut spent) = world.get_resource_mut::<SpentHandlers>() {
+            if !spent.0.is_empty() {
+                spent.0.clear();
             }
         }
     });
@@ -368,6 +377,8 @@ pub(super) fn on_load_scenario(
     bindings: Res<InputBindings>,
     // Absent in a scenario-only app, which has no chase camera to zoom.
     zoom: Option<Res<ChaseZoom>>,
+    // A Load's saved scenario state, taken by the load whose id it names.
+    resumed: Option<Res<ResumedScenario>>,
 ) {
     // The runtime content gate: a scenario with Error-level findings REFUSES to
     // start - better a clear failure than a silently half-spawned scene.
@@ -425,6 +436,27 @@ pub(super) fn on_load_scenario(
     **current_scenario = Some(scenario.clone());
     debug!("on_load_scenario: scenario {:?}", scenario.name);
 
+    // The saved state is for ONE scenario. A load of any other drops it and
+    // starts fresh, loudly: a Load that reached the wrong scenario is a
+    // menu fault, and resuming the saved objectives over it would be worse
+    // than the fresh start.
+    let resumed = match resumed {
+        Some(resumed) if resumed.0.scenario_id == scenario.id => {
+            commands.remove_resource::<ResumedScenario>();
+            Some(resumed.0.clone())
+        }
+        Some(resumed) => {
+            error!(
+                "on_load_scenario: the save names scenario '{}' but '{}' is loading; the saved \
+                 scenario state is dropped and OnStart fires",
+                resumed.0.scenario_id, scenario.id
+            );
+            commands.remove_resource::<ResumedScenario>();
+            None
+        }
+        None => None,
+    };
+
     // `SfxListenerMarker` makes this the explicit
     // SFX/juice listener (attenuation, camera shake, flash facing); the editor
     // camera deliberately never carries it.
@@ -474,33 +506,116 @@ pub(super) fn on_load_scenario(
         ),
     ));
 
-    for event in scenario.events.iter() {
-        commands.spawn((
-            ScenarioScopedMarker,
-            Name::new(format!("Event Handler: {:?}", event.name)),
-            event.build_handler(),
-        ));
-        // A gated `Sequence` step is woken by a handler of its own, registered
-        // up front and live for the whole run: the step it belongs to may be
-        // many beats away, and the gate has to still be listening when the
-        // cursor gets there.
-        for gate in event.gate_handlers() {
-            commands.spawn((
-                ScenarioScopedMarker,
-                Name::new("Event Handler: Sequence Gate"),
-                gate,
-            ));
-        }
-    }
-
     let loaded = ScenarioLoaded::from_config(&scenario);
     debug!(
         "on_load_scenario: loaded scenario '{}' with {} handler(s) and {} object(s)",
         loaded.scenario_id, loaded.handler_count, loaded.object_count
     );
     commands.trigger(loaded);
+    // Queued behind teardown's clear of the marks and the spent record, so a
+    // resumed load's restore lands after it.
+    commands.queue(move |world: &mut World| open_scenario_run(world, &scenario, resumed));
+}
 
-    commands.fire::<OnStartEvent>(OnStartEventInfo);
+/// Spawn the scenario's handlers into `world`: one per authored event,
+/// wearing its index, except the ones `spent` lists, plus the engine's own
+/// gate handlers. Returns how many authored handlers were skipped.
+///
+/// The loader and every headless rig go through here, so a handler kind or a
+/// component the loader adds is not one a rig quietly does without.
+pub(crate) fn spawn_scenario_handlers(
+    world: &mut World,
+    scenario: &ScenarioConfig,
+    spent: &BTreeSet<usize>,
+) -> usize {
+    let mut skipped = 0;
+    for (index, event) in scenario.events.iter().enumerate() {
+        // A `once` handler the save lists as spent is not rebuilt: it fired
+        // in the saved run, and what it did is in the saved state.
+        if spent.contains(&index) {
+            debug!(
+                "spawn_scenario_handlers: handler {index} ({:?}) is spent in the save; not rebuilt",
+                event.name
+            );
+            skipped += 1;
+        } else {
+            world.spawn((
+                ScenarioScopedMarker,
+                Name::new(format!("Event Handler: {:?}", event.name)),
+                ScenarioHandlerIndex(index),
+                event.build_handler(),
+            ));
+        }
+        // A gated `Sequence` step is woken by a handler of its own, registered
+        // up front and live for the whole run: the step it belongs to may be
+        // many beats away, and the gate has to still be listening when the
+        // cursor gets there.
+        for gate in event.gate_handlers() {
+            world.spawn((
+                ScenarioScopedMarker,
+                Name::new("Event Handler: Sequence Gate"),
+                gate,
+            ));
+        }
+    }
+    skipped
+}
+
+/// Open the loaded scenario's run: build its handlers and fire the event
+/// that starts it.
+///
+/// A fresh load builds every handler and fires `OnStart`. A resumed load
+/// (`resumed` is the save's state for this scenario) skips the spent
+/// handlers, puts the clock, the variables, the objectives, the story, the
+/// readouts and the timers back into the event world, writes the HUD's
+/// objective mirror so the first frame draws them, seeds the spent record and
+/// the generated marks, and fires `OnResume` instead.
+pub(crate) fn open_scenario_run(
+    world: &mut World,
+    scenario: &ScenarioConfig,
+    resumed: Option<SavedScenario>,
+) {
+    let Some(saved) = resumed else {
+        spawn_scenario_handlers(world, scenario, &BTreeSet::new());
+        world.trigger(GameEvent::new(
+            OnStartEvent::name(),
+            OnStartEventInfo.into(),
+        ));
+        return;
+    };
+    let spent: BTreeSet<usize> = saved.spent_handlers.iter().copied().collect();
+    let skipped = spawn_scenario_handlers(world, scenario, &spent);
+    world.resource_mut::<NovaEventWorld>().restore(&saved);
+    if let Some(mut objectives) = world.get_resource_mut::<GameObjectives>() {
+        objectives.objectives = saved
+            .objectives
+            .iter()
+            .map(|objective| Objective::new(&objective.id, &objective.message))
+            .collect();
+    }
+    if let Some(mut live) = world.get_resource_mut::<SpentHandlers>() {
+        live.0 = spent;
+    }
+    if let Some(mut marks) = world.get_resource_mut::<GeneratedMarks>() {
+        marks.0 = saved.marks.iter().cloned().collect();
+    }
+    info!(
+        "open_scenario_run: resumed '{}' at {:.1} s: {} variable(s), {} objective(s), {} story \
+         line(s), {} readout(s), {} timer(s), {skipped} spent handler(s) skipped, {} mark(s); \
+         OnResume fires",
+        scenario.id,
+        saved.elapsed,
+        saved.variables.len(),
+        saved.objectives.len(),
+        saved.story.len(),
+        saved.readouts.len(),
+        saved.timers.len(),
+        saved.marks.len(),
+    );
+    world.trigger(GameEvent::new(
+        OnResumeEvent::name(),
+        OnResumeEventInfo.into(),
+    ));
 }
 
 /// Register what a live scenario CLAIMS: a TRANSIENT belongs to the scenario
@@ -2222,6 +2337,160 @@ mod tests {
                 .any(|message| message.contains("dup")),
             "the refusal names the repeated section id: {:?}",
             report.messages
+        );
+    }
+
+    /// A resumed load is the saved run picked up, not a second start: the
+    /// `once` handlers that fired in the saved run are not rebuilt, the saved
+    /// objectives and variables are back before the first event, and that
+    /// event is `OnResume`, never `OnStart`.
+    ///
+    /// Fail-first: a loader that rebuilt every handler would list three
+    /// handlers and fire the spent `OnStart` work twice; one that fired
+    /// `OnStart` on a resume would count it twice.
+    #[test]
+    fn a_resumed_load_skips_spent_handlers_and_fires_on_resume_not_on_start() {
+        #[derive(Resource, Default)]
+        struct Seen(Vec<&'static str>);
+
+        fn watch(event: On<GameEvent>, mut seen: ResMut<Seen>) {
+            seen.0.push(event.name());
+        }
+
+        fn rig() -> App {
+            let mut app = App::new();
+            app.add_plugins(MinimalPlugins);
+            app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+            app.init_resource::<GameObjectives>();
+            app.init_resource::<SpentHandlers>();
+            app.init_resource::<GeneratedMarks>();
+            app.init_resource::<Seen>();
+            app.add_observer(crate::resume::record_spent_handler);
+            app.add_observer(watch);
+            app
+        }
+
+        fn set(key: &str, value: f64) -> EventActionConfig {
+            EventActionConfig::VariableSet(VariableSetActionConfig {
+                key: key.to_string(),
+                expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                    VariableFactorNode::new_literal(VariableLiteral::Number(value)),
+                )),
+            })
+        }
+
+        fn once(name: EventConfig, actions: Vec<EventActionConfig>) -> ScenarioEventConfig {
+            ScenarioEventConfig {
+                once: true,
+                name,
+                ..event_with(actions)
+            }
+        }
+
+        let scenario = scenario_with(
+            "resumable",
+            vec![
+                once(
+                    EventConfig::OnStart,
+                    vec![EventActionConfig::Objective(ObjectiveActionConfig::new(
+                        "find_the_wreck",
+                        "Find the wreck",
+                    ))],
+                ),
+                once(EventConfig::OnResume, vec![set("resumes", 1.0)]),
+                once(EventConfig::OnStart, vec![set("stage", 2.0)]),
+            ],
+        );
+
+        // The saved run: a fresh open, which fires OnStart and spends both
+        // OnStart handlers.
+        let mut app = rig();
+        {
+            let mut world = app.world_mut().resource_mut::<NovaEventWorld>();
+            super::super::configure_scenario_shape(&mut world, &scenario);
+        }
+        open_scenario_run(app.world_mut(), &scenario, None);
+        app.update();
+        app.update();
+        assert_eq!(app.world().resource::<Seen>().0, vec!["onstart"]);
+        assert_eq!(
+            app.world().resource::<SpentHandlers>().0,
+            BTreeSet::from([0, 2]),
+            "both once OnStart handlers retired and were recorded by index"
+        );
+        let saved = SavedScenario::capture(
+            &scenario,
+            app.world().resource::<NovaEventWorld>(),
+            app.world().resource::<SpentHandlers>(),
+            app.world().resource::<GeneratedMarks>(),
+        );
+        assert_eq!(saved.spent_handlers, vec![0, 2]);
+        assert_eq!(saved.objectives.len(), 1);
+
+        // The resumed run, in a fresh process.
+        let mut app = rig();
+        {
+            let mut world = app.world_mut().resource_mut::<NovaEventWorld>();
+            super::super::configure_scenario_shape(&mut world, &scenario);
+        }
+        open_scenario_run(app.world_mut(), &scenario, Some(saved));
+        let rebuilt: Vec<usize> = app
+            .world_mut()
+            .query::<&ScenarioHandlerIndex>()
+            .iter(app.world())
+            .map(|index| index.0)
+            .collect();
+        assert_eq!(
+            rebuilt,
+            vec![1],
+            "only the unspent OnResume handler is rebuilt"
+        );
+        app.update();
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<Seen>().0,
+            vec!["onresume"],
+            "OnResume fires instead of OnStart"
+        );
+        let world = app.world();
+        let events = world.resource::<NovaEventWorld>();
+        assert_eq!(
+            events.get_variable("stage"),
+            Some(&VariableLiteral::Number(2.0)),
+            "the spent handler's work came back from the save, not from a rerun"
+        );
+        assert_eq!(
+            events.get_variable("resumes"),
+            Some(&VariableLiteral::Number(1.0)),
+            "the OnResume handler ran"
+        );
+        assert_eq!(events.objectives().len(), 1);
+        assert_eq!(
+            world
+                .resource::<GameObjectives>()
+                .objectives
+                .iter()
+                .map(|objective| objective.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["find_the_wreck"],
+            "the HUD mirror is written on the resume, not left for the next objective action"
+        );
+        assert_eq!(
+            world.resource::<SpentHandlers>().0,
+            BTreeSet::from([0, 1, 2]),
+            "the resumed run's own OnResume handler retired too"
+        );
+        let saved_again = SavedScenario::capture(
+            &scenario,
+            events,
+            world.resource::<SpentHandlers>(),
+            world.resource::<GeneratedMarks>(),
+        );
+        assert_eq!(
+            saved_again.spent_handlers,
+            vec![0, 2],
+            "a save of the resumed run never lists OnResume as spent: the next resume needs it"
         );
     }
 }

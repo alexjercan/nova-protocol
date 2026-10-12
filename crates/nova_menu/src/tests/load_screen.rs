@@ -8,10 +8,10 @@ use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPacks};
 use nova_gameplay::prelude::*;
 use nova_world_base::{
     prelude::{create_world, ResumedWorld, WorldRefusal, WorldSaveSession, WorldSaveStatus},
-    test_support::{arm_save_fixture, WorldSaveTestPlugin},
+    test_support::{arm_save_fixture, WorldSaveTestPlugin, FIXTURE_SCENARIO_ID},
 };
 
-use super::support::{app, dummy_scenarios};
+use super::support::{app, dummy_scenarios, dummy_start};
 use crate::{
     load_screen::{SelectedWorldSlug, WorldChecks, WorldOpen},
     scenarios::NewGameScenario,
@@ -22,7 +22,10 @@ use crate::{
 /// place.
 fn menu() -> App {
     let mut app = app();
-    app.insert_resource(dummy_scenarios());
+    // The fixture saves under its own scenario id; a Load looks it up.
+    let mut scenarios = dummy_scenarios();
+    scenarios.0.extend([dummy_start(FIXTURE_SCENARIO_ID)]);
+    app.insert_resource(scenarios);
     app.world_mut()
         .resource_mut::<NextState<GameStates>>()
         .set(GameStates::MainMenu);

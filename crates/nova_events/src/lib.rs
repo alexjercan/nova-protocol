@@ -39,7 +39,7 @@ pub mod prelude {
     pub use super::{
         engine::{
             CommandsGameEventExt, EventAction, EventFilter, EventHandler, EventHandlerIndex,
-            EventKind, EventWorld, GameEvent, GameEventInfo, GameEventsPlugin,
+            EventKind, EventWorld, GameEvent, GameEventInfo, GameEventsPlugin, HandlerRetired,
         },
         generated::{GeneratedBodyId, NotAGeneratedBodyId, SectorCoord},
         scale::LOAD_LIMIT,
@@ -52,21 +52,22 @@ pub mod prelude {
         OnExitEvent, OnExitEventInfo, OnGotoCompleteEvent, OnGotoCompleteEventInfo,
         OnJettisonedEvent, OnMinedEvent, OnNeutralizedEvent, OnNeutralizedEventInfo,
         OnOrbitEndEvent, OnOrbitLapEvent, OnOrbitStableEvent, OnOrbitStartEvent,
-        OnOrbitUnstableEvent, OnPickedUpEvent, OnRepairedEvent, OnShipOrderCanceledEvent,
-        OnShipOrderCanceledEventInfo, OnShipOrderCompleteEvent, OnShipOrderCompleteEventInfo,
-        OnShipOrderFailedEvent, OnShipOrderFailedEventInfo, OnShipOrderInterruptedEvent,
-        OnShipOrderInterruptedEventInfo, OnShipOrderResumedEvent, OnShipOrderResumedEventInfo,
-        OnStartEvent, OnStartEventInfo, OnStopCompleteEvent, OnStopCompleteEventInfo,
-        OnTimerEndEvent, OnTimerEndEventInfo, OnTradedEvent, OnTravelLockEndEvent,
-        OnTravelLockStartEvent, OnUndockedEvent, OnUpdateEvent, OnUpdateEventInfo, OrbitEventInfo,
-        RepairedEventInfo, ScenarioAddressableMarker, ShipOrderKind, TradedEventInfo,
-        ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME, BEACON_TYPE_NAME, CANISTER_FIELD_NAME,
-        CINEMATIC_KEY_FIELD_NAME, CREDIT_CAUSE_FIELD_NAME, CURRENT_CREDITS_FIELD_NAME,
-        DELTA_CREDITS_FIELD_NAME, ENTITY_ID_COMPONENT_NAME, ENTITY_OTHER_ID_COMPONENT_NAME,
-        ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME, ENTITY_TYPE_NAME_COMPONENT_NAME,
-        ITEM_COUNT_FIELD_NAME, ITEM_FIELD_NAME, LIGHT_TYPE_NAME, PLANET_TYPE_NAME,
-        PREVIOUS_CREDITS_FIELD_NAME, PRICE_FIELD_NAME, SECTION_FIELD_NAME, SHIP_ORDER_FIELD_NAME,
-        SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME, TIMER_KEY_FIELD_NAME, TRADE_FIELD_NAME,
+        OnOrbitUnstableEvent, OnPickedUpEvent, OnRepairedEvent, OnResumeEvent, OnResumeEventInfo,
+        OnShipOrderCanceledEvent, OnShipOrderCanceledEventInfo, OnShipOrderCompleteEvent,
+        OnShipOrderCompleteEventInfo, OnShipOrderFailedEvent, OnShipOrderFailedEventInfo,
+        OnShipOrderInterruptedEvent, OnShipOrderInterruptedEventInfo, OnShipOrderResumedEvent,
+        OnShipOrderResumedEventInfo, OnStartEvent, OnStartEventInfo, OnStopCompleteEvent,
+        OnStopCompleteEventInfo, OnTimerEndEvent, OnTimerEndEventInfo, OnTradedEvent,
+        OnTravelLockEndEvent, OnTravelLockStartEvent, OnUndockedEvent, OnUpdateEvent,
+        OnUpdateEventInfo, OrbitEventInfo, RepairedEventInfo, ScenarioAddressableMarker,
+        ShipOrderKind, TradedEventInfo, ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME, BEACON_TYPE_NAME,
+        CANISTER_FIELD_NAME, CINEMATIC_KEY_FIELD_NAME, CREDIT_CAUSE_FIELD_NAME,
+        CURRENT_CREDITS_FIELD_NAME, DELTA_CREDITS_FIELD_NAME, ENTITY_ID_COMPONENT_NAME,
+        ENTITY_OTHER_ID_COMPONENT_NAME, ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME,
+        ENTITY_TYPE_NAME_COMPONENT_NAME, ITEM_COUNT_FIELD_NAME, ITEM_FIELD_NAME, LIGHT_TYPE_NAME,
+        PLANET_TYPE_NAME, PREVIOUS_CREDITS_FIELD_NAME, PRICE_FIELD_NAME, SECTION_FIELD_NAME,
+        SHIP_ORDER_FIELD_NAME, SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME,
+        TIMER_KEY_FIELD_NAME, TRADE_FIELD_NAME,
     };
 }
 
@@ -212,6 +213,22 @@ pub struct OnStartEvent;
 /// Payload for [`OnStartEvent`] - empty (the start event carries no operands).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
 pub struct OnStartEventInfo;
+
+/// Event kind fired once when a saved world's scenario is loaded again
+/// (`onresume`); carries [`OnResumeEventInfo`]. It fires INSTEAD of
+/// [`OnStartEvent`] on a resumed load: the saved state (objectives,
+/// variables, timers, story, readouts, marks) is already restored when it
+/// fires, so its handler spawns what the save does not carry, such as the
+/// player and the lights, and never re-seeds scenario state.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onresume")]
+#[event_info(OnResumeEventInfo)]
+pub struct OnResumeEvent;
+
+/// Payload for [`OnResumeEvent`] - empty (the resume event carries no
+/// operands).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
+pub struct OnResumeEventInfo;
 
 /// Event kind fired once when a ship is defeated (`ondefeated`) by either
 /// neutralization or direct physical destruction. Later destruction of an

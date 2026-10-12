@@ -19,8 +19,8 @@ use nova_ship::prelude::{
 };
 use nova_world_base::{
     prelude::{
-        create_world, list_worlds, open_world, FrozenTransient, FrozenTransientType, WorldRefusal,
-        WorldSaveSession, WorldSaveStatus,
+        create_world, list_worlds, open_world, FrozenTransient, FrozenTransientType,
+        RegisteredScenarios, WorldRefusal, WorldSaveSession, WorldSaveStatus,
     },
     test_support::{arm_save_fixture, WorldSaveTestPlugin},
 };
@@ -41,7 +41,11 @@ use crate::{
 fn saved_world() -> (App, TempDir, Entity) {
     let root = tempfile::tempdir().unwrap();
     let mut app = app();
-    app.insert_resource(dummy_scenarios());
+    // The world is saved under `open_world`, which a Load and a Retry look
+    // up in the registry.
+    let mut scenarios = dummy_scenarios();
+    scenarios.0.extend([dummy_scenario("open_world")]);
+    app.insert_resource(scenarios);
     app.insert_resource(WorldsRoot(Some(root.path().to_path_buf())));
     app.init_resource::<Time>();
     app.add_systems(
@@ -137,6 +141,7 @@ fn the_save_notice_shows_new_saves_for_three_real_seconds_and_keeps_failures() {
         app.world()
             .resource::<nova_assets::prelude::LoadedSectionPacks>(),
         app.world().resource::<GameItems>(),
+        &RegisteredScenarios::from(app.world().resource::<GameScenarios>()),
     )
     .unwrap();
     app.insert_resource(WorldSaveSession::opened(folder, lock, &header));
@@ -253,6 +258,7 @@ fn leaving_a_saved_world_waits_for_the_leave_save_with_input_still_paused() {
         app.world()
             .resource::<nova_assets::prelude::LoadedSectionPacks>(),
         app.world().resource::<GameItems>(),
+        &RegisteredScenarios::from(app.world().resource::<GameScenarios>()),
     )
     .unwrap();
     let [FrozenTransient {
@@ -496,6 +502,7 @@ fn entering_the_menu_after_a_death_releases_the_world() {
         app.world()
             .resource::<nova_assets::prelude::LoadedSectionPacks>(),
         app.world().resource::<GameItems>(),
+        &RegisteredScenarios::from(app.world().resource::<GameScenarios>()),
     )
     .expect("the world opens again");
     assert_eq!(on_disk(&app, root.path()), (1, 300));
@@ -569,6 +576,7 @@ fn a_write_in_flight_keeps_the_world_locked_after_a_death_exit() {
             app.world()
                 .resource::<nova_assets::prelude::LoadedSectionPacks>(),
             app.world().resource::<GameItems>(),
+            &RegisteredScenarios::from(app.world().resource::<GameScenarios>()),
         )
     };
     assert!(

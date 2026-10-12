@@ -50,9 +50,19 @@ pub(crate) fn open_world(assets: &BaseContentAssets) -> ScenarioConfig {
             bounds: None,
         }),
         events: vec![
+            // One spawn list for both openings: a fresh start and a resumed
+            // load put the same ship and the same lights at the origin, and
+            // the save's ship state lands on the ship once it stands.
             ScenarioEventConfig {
                 label: None,
                 name: EventConfig::OnStart,
+                once: true,
+                filters: vec![],
+                actions: start.clone(),
+            },
+            ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnResume,
                 once: true,
                 filters: vec![],
                 actions: start,

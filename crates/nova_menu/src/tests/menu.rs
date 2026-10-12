@@ -154,7 +154,7 @@ fn the_new_game_start_is_refused_unless_it_takes_the_session_seed() {
     let start = |id: Option<&str>| NewGameStart(id.map(str::to_string));
     let pick = |id: Option<&str>| NewGameScenario(id.map(str::to_string));
     let resolve = |start: NewGameStart, pick: NewGameScenario, session: bool| {
-        resolve_new_game_scenario(&scenarios, &start, &pick, session).map(|s| s.id)
+        resolve_new_game_scenario(&scenarios, None, &start, &pick, session).map(|s| s.id)
     };
 
     assert_eq!(
@@ -195,6 +195,28 @@ fn the_new_game_start_is_refused_unless_it_takes_the_session_seed() {
         resolve(start(Some(TEST_START_ID)), pick(Some("fixed")), false),
         Ok("fixed".to_string()),
         "a fixed-seed pick needs no session"
+    );
+
+    // A Load loads the scenario its save names, over the pick and the
+    // declared start; one the registry lacks is a named fault.
+    let resumed = |id: &str, pick: NewGameScenario| {
+        resolve_new_game_scenario(
+            &scenarios,
+            Some(&id.to_string()),
+            &start(Some(TEST_START_ID)),
+            &pick,
+            true,
+        )
+        .map(|s| s.id)
+    };
+    assert_eq!(
+        resumed("fixed", pick(Some(TEST_START_ID))),
+        Ok("fixed".to_string()),
+        "the saved scenario loads over the pick and the start"
+    );
+    assert_eq!(
+        resumed("gone", pick(None)),
+        Err(NewGameStartFault::ResumedNotRegistered("gone".to_string()))
     );
 }
 

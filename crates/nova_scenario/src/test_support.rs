@@ -36,12 +36,25 @@ pub fn register_scenario_handlers(app: &mut App, scenario: &ScenarioConfig) {
         let mut world = app.world_mut().resource_mut::<NovaEventWorld>();
         crate::loader::configure_scenario_shape(&mut world, scenario);
     }
-    for event in &scenario.events {
-        app.world_mut().spawn(event.build_handler());
-        for gate in event.gate_handlers() {
-            app.world_mut().spawn(gate);
-        }
+    crate::loader::spawn_scenario_handlers(
+        app.world_mut(),
+        scenario,
+        &std::collections::BTreeSet::new(),
+    );
+}
+
+/// Open a scenario's run in a rig exactly as `on_load_scenario` opens it
+/// once the scene is torn down and its shape configured: a fresh run builds
+/// every handler and fires `OnStart`; a resumed run (`resumed` is the save's
+/// state for this scenario) skips the spent handlers, restores the saved
+/// state and fires `OnResume`. The event is queued; the rig's next update
+/// dispatches it.
+pub fn open_scenario_run(app: &mut App, scenario: &ScenarioConfig, resumed: Option<SavedScenario>) {
+    {
+        let mut world = app.world_mut().resource_mut::<NovaEventWorld>();
+        crate::loader::configure_scenario_shape(&mut world, scenario);
     }
+    crate::loader::open_scenario_run(app.world_mut(), scenario, resumed);
 }
 
 /// Advance a rig's scenario clock by `seconds`, then run the two systems the

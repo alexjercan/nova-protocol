@@ -27,10 +27,8 @@ pub mod prelude {
 /// [`reapply_generated_marks`] whenever a body wearing a marked id spawns -
 /// on a cell's first stream, on its thaw, or on a held ship's late spawn.
 /// Scoped to the scenario: the unload sweep clears it with the event world.
-///
-/// WITHIN ONE SESSION ONLY. TODO(20261012-095956): the map is not part of the
-/// world save, so a mark does not survive Load; drop this note when the save
-/// carries it.
+/// A world save lists the map and a resumed load puts it back before the
+/// first cell streams in.
 #[derive(Resource, Clone, Debug, Default, Deref, DerefMut)]
 pub struct GeneratedMarks(pub BTreeMap<GeneratedBodyId, String>);
 

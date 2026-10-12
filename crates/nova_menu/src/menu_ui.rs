@@ -589,6 +589,9 @@ pub(crate) enum NewGameStartFault {
     /// The resolved scenario takes its seed from the session and none exists:
     /// something other than New Game or Load reached the loader with it.
     NoSession(ScenarioId),
+    /// The save Load brought in names a scenario the registry lacks. Load
+    /// refuses such a save before it opens, so reaching this is a fault.
+    ResumedNotRegistered(ScenarioId),
 }
 
 impl std::fmt::Display for NewGameStartFault {
@@ -613,30 +616,39 @@ impl std::fmt::Display for NewGameStartFault {
                 "'{id}' declares `world: Generated((seed: None))` and no OpenWorldSession \
                  exists; only New Game's Create and Load may start it"
             ),
+            Self::ResumedNotRegistered(id) => {
+                write!(f, "the saved world's scenario '{id}' is not registered")
+            }
         }
     }
 }
 
-/// The scenario the New Game hand-off loads: the [`NewGameScenario`] pick when
-/// the picker, the handbook or `--scenario` set one, else the base bundle's
-/// declared start ([`NewGameStart`], written by the bundle merge from
-/// `base.bundle.ron`'s `new_game_scenario`).
+/// The scenario the New Game hand-off loads: the scenario a Load's save
+/// names (`resumed`) when one is waiting, else the [`NewGameScenario`] pick
+/// when the picker, the handbook or `--scenario` set one, else the base
+/// bundle's declared start ([`NewGameStart`], written by the bundle merge
+/// from `base.bundle.ron`'s `new_game_scenario`).
 ///
-/// The declared start must take its seed from the session, and whichever
-/// scenario resolves may need the session only when `has_session`. There is
-/// no fallback past a fault: a start the base got wrong is refused, not
-/// replaced by the first listed scenario.
+/// A Load loads what it saved, not today's declared start: the saved state
+/// belongs to that scenario. The declared start must take its seed from the
+/// session, and whichever scenario resolves may need the session only when
+/// `has_session`. There is no fallback past a fault: a start the base got
+/// wrong is refused, not replaced by the first listed scenario.
 pub(crate) fn resolve_new_game_scenario(
     scenarios: &GameScenarios,
+    resumed: Option<&ScenarioId>,
     start: &NewGameStart,
     pick: &NewGameScenario,
     has_session: bool,
 ) -> Result<ScenarioConfig, NewGameStartFault> {
-    let scenario = match (&pick.0, &start.0) {
-        (Some(id), _) => scenarios
+    let scenario = match (resumed, &pick.0, &start.0) {
+        (Some(id), ..) => scenarios
+            .get(id)
+            .ok_or_else(|| NewGameStartFault::ResumedNotRegistered(id.clone()))?,
+        (None, Some(id), _) => scenarios
             .get(id)
             .ok_or_else(|| NewGameStartFault::PickNotRegistered(id.clone()))?,
-        (None, Some(id)) => {
+        (None, None, Some(id)) => {
             let scenario = scenarios
                 .get(id)
                 .ok_or_else(|| NewGameStartFault::StartNotRegistered(id.clone()))?;
@@ -648,7 +660,7 @@ pub(crate) fn resolve_new_game_scenario(
             }
             scenario
         }
-        (None, None) => return Err(NewGameStartFault::NoStartDeclared),
+        (None, None, None) => return Err(NewGameStartFault::NoStartDeclared),
     };
     if scenario.world.needs_session() && !has_session {
         return Err(NewGameStartFault::NoSession(scenario.id.clone()));
@@ -666,12 +678,14 @@ pub(crate) fn resolve_new_game_scenario(
 pub(crate) fn start_new_game_scenario(
     mut commands: Commands,
     scenarios: Res<GameScenarios>,
+    resumed: Option<Res<ResumedScenario>>,
     start: Res<NewGameStart>,
     pick: Res<NewGameScenario>,
     session: Option<Res<OpenWorldSession>>,
     mut exit: MessageWriter<AppExit>,
 ) {
-    match resolve_new_game_scenario(&scenarios, &start, &pick, session.is_some()) {
+    let resumed = resumed.as_ref().map(|resumed| &resumed.0.scenario_id);
+    match resolve_new_game_scenario(&scenarios, resumed, &start, &pick, session.is_some()) {
         Ok(scenario) => commands.trigger(LoadScenario(scenario)),
         Err(fault) => {
             error!("start_new_game_scenario: {fault}; New Game loads nothing");

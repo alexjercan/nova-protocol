@@ -19,6 +19,7 @@ The whole vocabulary at a glance:
 | event | payload | fires when |
 |---|---|---|
 | [`OnStart`](#onstart) | none | once, right after the scenario loads |
+| [`OnResume`](#onresume) | none | once, right after a saved world loads, instead of `OnStart` |
 | [`OnUpdate`](#onupdate) | none | every frame while live, unpaused and fully spawned |
 | [`OnTimerEnd`](#ontimerend) | `key` | a keyed scenario timer ends |
 | [`OnCinematicFinished`](#cinematic-endings) | `cinematic` | a scene ends, by ANY path |
@@ -93,6 +94,42 @@ Its spawns arrive over the next few frames, and the scenario is HELD until they
 have: no other handler runs, the scenario clock does not tick, and the LOADING
 panel stays up. So the first `OnUpdate` after `OnStart` already sees every
 object `OnStart` asked for - a count gate cannot read a half-built world.
+
+</details>
+
+## OnResume
+
+Fires exactly once, instead of `OnStart`, when a saved world loads. By then
+the saved scenario state is already back: the variables, the objectives, the
+story log, the readouts, the running timers and the generated marks. A `once`
+handler that fired before the save is not rebuilt, so what it did is not
+done twice. Carries no payload.
+
+Only a scenario with `world: Generated((seed: None))` saves, and lint
+requires its `OnResume` to spawn exactly one player ship. Hang the same
+spawn list on both openings - the ship and the lights - and keep the seeds
+and the first objective on `OnStart` alone: the save brings those back.
+
+```ron
+(
+    name: OnResume,
+    once: true,
+    actions: [
+        // ... the same player spawn and lights as OnStart ...
+    ],
+),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+The save does not keep the player ship as a spawn: the open world streams
+around the ship `OnResume` spawns, and the save's ship state lands on it
+once it stands. A `VariableSet` here would overwrite the saved value, and an
+`Objective` would post a second copy of one the save already lists.
+
+`OnResume` on a scenario that cannot be saved is a lint warning: it never
+fires there.
 
 </details>
 

@@ -63,6 +63,8 @@ Dying ends the run with a **DEFEAT** panel: "Your ship was destroyed." On the de
 
 A Load restores your ship (pose, motion, sections, damage, plates, ammo, reloads, hold, credits, key bindings and the chase-camera zoom), every frozen off-window sector, and every live sector in the streamed window as it was at the last good save - including a turret round, a torpedo, a rock chunk cut off a rock, a detached hull piece and a shed plate or decor fixture still in flight, each resuming on its own remaining lifetime. A visual-only effect, such as a spark or a muzzle flash, is not saved and does not come back.
 
+A Load also brings the scenario back as it was: your objectives and their markers, the story log, the scenario's variables and readouts, and any timer still running, with the seconds it had left. A one-shot scenario event that already fired before the save does not fire again.
+
 A Load that cannot bring its sectors and transients back within 240 seconds is refused, and the loading screen shows `RESTORING SECTORS <live> / <desired>` while it waits.
 
 ### A refused Load
@@ -74,6 +76,7 @@ The Load screen lists every world folder and shows why one cannot be opened, on 
 | Another game has it open | `open in another game` |
 | Saved with another save layout | `save format <found>; this build reads <current>` |
 | Saved with other content | `content changed; saved with <mods>` |
+| The scenario the save names is not in this game's content | `its scenario '<id>' is not in the loaded content` |
 | Save file missing, corrupt or of another generation | `unreadable: <reason>` |
 | The saved state holds an item this game's content does not define | `unreadable: state.<n>.ron: unknown item '<id>' held by <owner>` |
 | A file operation failed | the raw I/O error |

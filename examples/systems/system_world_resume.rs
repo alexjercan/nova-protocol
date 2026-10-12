@@ -30,6 +30,20 @@
 //! spawns itself again with `--phase load`, inheriting the same sandboxed
 //! `NOVA_CONFIG_ROOT` and stdio, and waits for it.
 //!
+//! The world plays `resume_fixture`, the shipped open world registered
+//! again under its own id with handlers that author scenario state: its
+//! `OnStart` posts an objective and seeds three variables, a `once`
+//! `OnUpdate` counts itself into one of them, and a `once` `OnTimerEnd`
+//! completes the objective when the fixture timer ends. The create phase
+//! attaches an objective marker to the fixture rock (a generated mark) and
+//! starts that timer right before the leave, then reads the leave save's
+//! `scenario` block off disk: the spent handler indexes, the variables, the
+//! objective, the timer's remaining seconds and the mark. The load phase
+//! counts the opening events under the fixture scenario: `OnResume` fires
+//! once and `OnStart` never, the spent handlers are not rebuilt, the saved
+//! state is back before the first event, the timer keeps its remaining
+//! seconds across the resume, and when it ends its handler fires once.
+//!
 //! Phase `load` is a second, independent process. It never creates a world:
 //! it opens the Load screen, asserts a world with no `world.ron` is listed
 //! and refused, selects "Probe World" and loads it, then waits for all three
@@ -147,6 +161,49 @@ const WORLD_SEED: &str = "20261007";
 #[cfg(feature = "debug")]
 const FIXTURE_CREDITS: u32 = 918_273;
 
+/// The scenario the world plays: the shipped open world plus the handlers
+/// that author the scenario state the save carries.
+#[cfg(feature = "debug")]
+const FIXTURE_SCENARIO_ID: &str = "resume_fixture";
+
+/// The objective the fixture's `OnStart` posts and its timer's end completes.
+#[cfg(feature = "debug")]
+const FIXTURE_OBJECTIVE_ID: &str = "fixture_objective";
+
+/// The timer the create phase starts right before the leave.
+#[cfg(feature = "debug")]
+const FIXTURE_TIMER_KEY: &str = "fixture_timer";
+
+/// How long that timer runs, in scenario seconds: long enough to survive the
+/// leave and the load phase's resume checks, short enough to end while the
+/// load phase still watches.
+#[cfg(feature = "debug")]
+const FIXTURE_TIMER_SECS: f64 = 60.0;
+
+/// The marker label the create phase attaches to the fixture rock.
+#[cfg(feature = "debug")]
+const FIXTURE_MARK_LABEL: &str = "FIXTURE";
+
+/// The fixture's once handlers, by index in `resume_fixture`'s event list:
+/// `OnStart`, the self-counting `OnUpdate` and the timer-starting `OnUpdate`
+/// fire in the create phase.
+#[cfg(feature = "debug")]
+const SPENT_BY_THE_LEAVE: [usize; 3] = [0, 3, 5];
+
+/// The index of the `OnTimerEnd` handler, spent only once the timer ends.
+#[cfg(feature = "debug")]
+const TIMER_END_HANDLER: usize = 4;
+
+/// The index of the once `OnResume` handler: spent in the load phase's live
+/// record once it fires, never listed by a save (the next resume needs it).
+#[cfg(feature = "debug")]
+const ON_RESUME_HANDLER: usize = 1;
+
+/// The variable the create phase raises to make the scenario start its
+/// timer: the lint wants the `TimerStart` authored beside the `Timer` filter.
+#[cfg(feature = "debug")]
+const START_TIMER_VARIABLE: &str = "start_timer";
+
 /// The main menu's way in.
 #[cfg(feature = "debug")]
 const NEW_GAME_BUTTON: &str = "New Game Button";
@@ -212,6 +269,12 @@ const PDC_FIRE_DEADLINE_SECS: f32 = 180.0;
 #[cfg(feature = "debug")]
 const TRANSIENT_EXPIRE_DEADLINE_SECS: f32 = 240.0;
 
+/// How long the load phase waits for the fixture timer to end on its saved
+/// clock: the 60 s it carries, under a software renderer whose clamped frames
+/// run scenario time slower than real time.
+#[cfg(feature = "debug")]
+const TIMER_END_DEADLINE_SECS: f32 = 300.0;
+
 /// This run's own sandboxed config root: a world folder Create makes, and
 /// nothing a player's own saves or another run's "Probe World" can collide
 /// with.
@@ -254,6 +317,454 @@ fn watch_resumed_world(resumed: Option<Res<ResumedWorld>>, mut watch: ResMut<Loa
     if resumed.is_some() {
         watch.saw_resumed_world = true;
     }
+}
+
+/// How many times each opening event fired under the fixture scenario. The
+/// menu backdrops fire `OnStart` of their own, so the count is gated on the
+/// loaded scenario's id.
+#[cfg(feature = "debug")]
+#[derive(Resource, Default, Debug, Clone, Copy)]
+struct OpeningEvents {
+    on_start: u32,
+    on_resume: u32,
+}
+
+#[cfg(feature = "debug")]
+fn count_opening_events(
+    event: On<GameEvent>,
+    current: Res<CurrentScenario>,
+    mut counts: ResMut<OpeningEvents>,
+) {
+    if current
+        .0
+        .as_ref()
+        .is_none_or(|scenario| scenario.id != FIXTURE_SCENARIO_ID)
+    {
+        return;
+    }
+    match event.name() {
+        "onstart" => counts.on_start += 1,
+        "onresume" => counts.on_resume += 1,
+        _ => {}
+    }
+}
+
+/// A literal number as an expression.
+#[cfg(feature = "debug")]
+fn number(value: f64) -> VariableExpressionNode {
+    VariableExpressionNode::new_term(VariableTermNode::new_factor(
+        VariableFactorNode::new_literal(VariableLiteral::Number(value)),
+    ))
+}
+
+/// `key = value`.
+#[cfg(feature = "debug")]
+fn set_number(key: &str, value: f64) -> EventActionConfig {
+    EventActionConfig::VariableSet(VariableSetActionConfig {
+        key: key.to_string(),
+        expression: number(value),
+    })
+}
+
+/// Register `resume_fixture`: the shipped open world under its own id, with
+/// the handlers that author the scenario state the save must carry. Runs in
+/// both phases, in the runtime scenario set, so the Load finds the id the
+/// save names.
+#[cfg(feature = "debug")]
+fn register_fixture_scenario(mut scenarios: ResMut<GameScenarios>) {
+    let mut scenario = scenarios
+        .get(OPEN_WORLD_SCENARIO_ID)
+        .cloned()
+        .expect("world_resume: the base bundle registers the open world");
+    scenario.id = FIXTURE_SCENARIO_ID.to_string();
+    scenario.name = "Resume Fixture".to_string();
+    let start = scenario
+        .events
+        .iter_mut()
+        .find(|event| event.name == EventConfig::OnStart)
+        .expect("world_resume: the open world opens with OnStart");
+    assert!(
+        start.once,
+        "world_resume: the open world's OnStart is a once handler"
+    );
+    start.actions.extend([
+        set_number("fixture_var", 42.0),
+        set_number("once_count", 0.0),
+        set_number("timer_ended", 0.0),
+        set_number(START_TIMER_VARIABLE, 0.0),
+        EventActionConfig::Objective(ObjectiveActionConfig::new(
+            FIXTURE_OBJECTIVE_ID,
+            "Fixture: survive the leave",
+        )),
+    ]);
+    assert_eq!(
+        scenario.events.len(),
+        SPENT_BY_THE_LEAVE[1],
+        "world_resume: the open world's event list grew; re-pin the fixture handler indexes"
+    );
+    scenario.events.push(ScenarioEventConfig {
+        label: Some("count once".to_string()),
+        name: EventConfig::OnUpdate,
+        once: true,
+        filters: vec![],
+        actions: vec![EventActionConfig::VariableSet(VariableSetActionConfig {
+            key: "once_count".to_string(),
+            expression: VariableExpressionNode::new_add(
+                VariableTermNode::new_factor(VariableFactorNode::new_name("once_count")),
+                number(1.0),
+            ),
+        })],
+    });
+    scenario.events.push(ScenarioEventConfig {
+        label: Some("the fixture timer ends".to_string()),
+        name: EventConfig::OnTimerEnd,
+        once: true,
+        filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
+            key: FIXTURE_TIMER_KEY.to_string(),
+        })],
+        actions: vec![
+            EventActionConfig::ObjectiveComplete(ObjectiveCompleteActionConfig {
+                id: FIXTURE_OBJECTIVE_ID.to_string(),
+            }),
+            set_number("timer_ended", 1.0),
+        ],
+    });
+    assert_eq!(scenario.events.len(), TIMER_END_HANDLER + 1);
+    scenario.events.push(ScenarioEventConfig {
+        label: Some("start the fixture timer".to_string()),
+        name: EventConfig::OnUpdate,
+        once: true,
+        filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
+            VariableConditionNode::new_equals(
+                VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                    VariableFactorNode::new_name(START_TIMER_VARIABLE),
+                )),
+                number(1.0),
+            ),
+        ))],
+        actions: vec![EventActionConfig::TimerStart(TimerStartActionConfig {
+            key: FIXTURE_TIMER_KEY.to_string(),
+            seconds: number(FIXTURE_TIMER_SECS),
+        })],
+    });
+    assert_eq!(scenario.events.len(), SPENT_BY_THE_LEAVE[2] + 1);
+    scenarios.insert(FIXTURE_SCENARIO_ID.to_string(), scenario);
+}
+
+/// Keep the declared New Game start on the fixture scenario. Create clears
+/// the `NewGameScenario` pick (`nova_menu::world_setup`) and resolves the
+/// bundle's declared start, which the bundle merge writes by command at
+/// content load; pinned every frame so whichever wrote last, New Game plays
+/// the fixture.
+#[cfg(feature = "debug")]
+fn pin_new_game_start(mut start: ResMut<NewGameStart>) {
+    if start.0.as_deref() != Some(FIXTURE_SCENARIO_ID) {
+        start.0 = Some(FIXTURE_SCENARIO_ID.to_string());
+    }
+}
+
+/// The fixture scenario's handlers, by index, and the opening event
+/// counter, in whichever phase builds `app`.
+#[cfg(feature = "debug")]
+fn add_fixture_scenario(app: &mut App) {
+    app.add_systems(
+        OnEnter(GameAssetsStates::Loaded),
+        register_fixture_scenario.in_set(RuntimeScenarioSystems),
+    );
+    app.init_resource::<OpeningEvents>();
+    app.add_observer(count_opening_events);
+}
+
+/// Raise the variable the scenario's own once `OnUpdate` handler starts the
+/// fixture timer on; the next live pulse fires it.
+#[cfg(feature = "debug")]
+fn raise_start_timer(world: &mut World) {
+    let mut events = world.resource_mut::<NovaEventWorld>();
+    set_number(START_TIMER_VARIABLE, 1.0).action(&mut events, &GameEventInfo::default());
+    info!(
+        "world_resume: {START_TIMER_VARIABLE} raised at scenario time {:.1} s; the scenario \
+         starts '{FIXTURE_TIMER_KEY}' on its next pulse",
+        events.scenario_elapsed()
+    );
+}
+
+/// The scenario started its timer.
+#[cfg(feature = "debug")]
+fn fixture_timer_running() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        world
+            .resource::<NovaEventWorld>()
+            .timer_is_running(FIXTURE_TIMER_KEY)
+    })
+}
+
+/// Log the timer the scenario started, on the live clock.
+#[cfg(feature = "debug")]
+fn log_fixture_timer(world: &mut World) {
+    let events = world.resource::<NovaEventWorld>();
+    let remaining = events
+        .timer_remaining(FIXTURE_TIMER_KEY)
+        .expect("world_resume: the fixture timer is running");
+    info!(
+        "world_resume: fixture timer '{FIXTURE_TIMER_KEY}' running with {remaining:.1} s at \
+         scenario time {:.1} s",
+        events.scenario_elapsed()
+    );
+}
+
+/// The live scenario variable `key` as a number.
+#[cfg(feature = "debug")]
+fn variable_number(world: &World, key: &str) -> Option<f64> {
+    match world.resource::<NovaEventWorld>().get_variable(key) {
+        Some(VariableLiteral::Number(value)) => Some(*value),
+        _ => None,
+    }
+}
+
+/// The fixture timer's `OnTimerEnd` handler has run.
+#[cfg(feature = "debug")]
+fn fixture_timer_ended() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| variable_number(world, "timer_ended") == Some(1.0))
+}
+
+/// The saved scenario block, read back off the leave save, as the load
+/// phase will check it; asserted here against what the create phase did so
+/// a save that dropped a piece fails in the process that wrote it.
+#[cfg(feature = "debug")]
+fn record_saved_scenario(world: &World, saved: &SavedScenario) -> serde_json::Value {
+    assert_eq!(saved.scenario_id, FIXTURE_SCENARIO_ID);
+    let counts = world.resource::<OpeningEvents>();
+    assert_eq!(
+        (counts.on_start, counts.on_resume),
+        (1, 0),
+        "world_resume: the create phase opens with one OnStart and no OnResume"
+    );
+    assert_eq!(
+        saved.spent_handlers,
+        SPENT_BY_THE_LEAVE.to_vec(),
+        "world_resume: the leave save lists the once handlers that fired"
+    );
+    assert_eq!(
+        saved.variables.get("fixture_var"),
+        Some(&VariableLiteral::Number(42.0))
+    );
+    assert_eq!(
+        saved.variables.get("once_count"),
+        Some(&VariableLiteral::Number(1.0)),
+        "world_resume: the once OnUpdate counted itself exactly once"
+    );
+    assert!(
+        saved
+            .objectives
+            .iter()
+            .any(|objective| objective.id == FIXTURE_OBJECTIVE_ID),
+        "world_resume: the saved objectives list the fixture objective: {:?}",
+        saved.objectives
+    );
+    let remaining = *saved
+        .timers
+        .get(FIXTURE_TIMER_KEY)
+        .expect("world_resume: the leave save carries the running fixture timer");
+    assert!(
+        remaining > 0.0 && remaining <= FIXTURE_TIMER_SECS,
+        "world_resume: the saved timer has {remaining} s left of {FIXTURE_TIMER_SECS}"
+    );
+    let rock_id = world
+        .resource::<Fixture>()
+        .rock_id
+        .clone()
+        .expect("world_resume: the fixture rock was chosen");
+    let mark: GeneratedBodyId = rock_id
+        .0
+        .parse()
+        .expect("world_resume: the fixture rock is a generated body");
+    assert!(
+        saved
+            .marks
+            .contains(&(mark.clone(), FIXTURE_MARK_LABEL.to_string())),
+        "world_resume: the leave save carries the rock's mark: {:?}",
+        saved.marks
+    );
+    info!(
+        "world_resume: the leave save carries scenario '{}' at {:.1} s: spent {:?}, timer \
+         '{FIXTURE_TIMER_KEY}' {remaining:.2} s left, {} variable(s), {} objective(s), {} mark(s)",
+        saved.scenario_id,
+        saved.elapsed,
+        saved.spent_handlers,
+        saved.variables.len(),
+        saved.objectives.len(),
+        saved.marks.len()
+    );
+    serde_json::to_value(saved).expect("world_resume: the saved scenario encodes as JSON")
+}
+
+/// The load phase's check of the resumed scenario state against the leave
+/// save's `scenario` block.
+#[cfg(feature = "debug")]
+fn assert_resumed_scenario(world: &mut World, saved: &serde_json::Value) {
+    let counts = *world.resource::<OpeningEvents>();
+    assert_eq!(
+        (counts.on_resume, counts.on_start),
+        (1, 0),
+        "world_resume load: OnResume fires once and OnStart never under the resumed scenario"
+    );
+    let current = world
+        .resource::<CurrentScenario>()
+        .0
+        .as_ref()
+        .map(|scenario| scenario.id.clone());
+    assert_eq!(current.as_deref(), Some(FIXTURE_SCENARIO_ID));
+
+    let spent = world.resource::<SpentHandlers>().0.clone();
+    let mut expected_spent: std::collections::BTreeSet<usize> =
+        SPENT_BY_THE_LEAVE.into_iter().collect();
+    expected_spent.insert(ON_RESUME_HANDLER);
+    assert_eq!(
+        spent, expected_spent,
+        "world_resume load: the spent record is the save's plus the OnResume handler that just \
+         fired"
+    );
+    let rebuilt: std::collections::BTreeSet<usize> = world
+        .query::<&ScenarioHandlerIndex>()
+        .iter(world)
+        .map(|index| index.0)
+        .collect();
+    assert!(
+        rebuilt.is_disjoint(&spent),
+        "world_resume load: a spent handler was rebuilt: rebuilt {rebuilt:?}, spent {spent:?}"
+    );
+    assert!(
+        rebuilt.contains(&TIMER_END_HANDLER),
+        "world_resume load: the unspent OnTimerEnd handler is live: {rebuilt:?}"
+    );
+
+    assert_eq!(variable_number(world, "fixture_var"), Some(42.0));
+    assert_eq!(
+        variable_number(world, "once_count"),
+        Some(1.0),
+        "world_resume load: the spent OnUpdate did not count again"
+    );
+    assert_eq!(variable_number(world, "timer_ended"), Some(0.0));
+
+    let events = world.resource::<NovaEventWorld>();
+    assert!(
+        events
+            .objectives()
+            .iter()
+            .any(|objective| objective.id == FIXTURE_OBJECTIVE_ID),
+        "world_resume load: the event world lists the fixture objective"
+    );
+    assert!(
+        world
+            .resource::<GameObjectives>()
+            .objectives
+            .iter()
+            .any(|objective| objective.id == FIXTURE_OBJECTIVE_ID),
+        "world_resume load: the HUD lists the fixture objective"
+    );
+
+    // The timer keeps the seconds it had left: what ran off it since the
+    // resume is exactly what ran on the scenario clock.
+    let saved_elapsed = saved["elapsed"].as_f64().expect("scenario.elapsed");
+    let saved_remaining = saved["timers"][FIXTURE_TIMER_KEY]
+        .as_f64()
+        .expect("scenario.timers carries the fixture timer");
+    let elapsed = events.scenario_elapsed();
+    let remaining = events
+        .timer_remaining(FIXTURE_TIMER_KEY)
+        .expect("world_resume load: the fixture timer is running after the resume");
+    let ran_off_the_timer = saved_remaining - remaining;
+    let ran_on_the_clock = elapsed - saved_elapsed;
+    assert!(
+        (ran_off_the_timer - ran_on_the_clock).abs() < 1e-3,
+        "world_resume load: the timer lost {ran_off_the_timer:.3} s while the clock ran \
+         {ran_on_the_clock:.3} s (saved {saved_remaining:.3} s left at {saved_elapsed:.3} s; \
+         now {remaining:.3} s left at {elapsed:.3} s)"
+    );
+
+    let rock_id = saved["marks"][0][0].clone();
+    let mark: GeneratedBodyId =
+        serde_json::from_value(rock_id).expect("scenario.marks[0] names a generated body");
+    assert_eq!(
+        world.resource::<GeneratedMarks>().get(&mark),
+        Some(&FIXTURE_MARK_LABEL.to_string()),
+        "world_resume load: the generated mark is back in the map"
+    );
+    let marked: Vec<String> = world
+        .query::<(&GeneratedBodyId, &ObjectiveMarkerTarget)>()
+        .iter(world)
+        .filter(|(id, _)| **id == mark)
+        .map(|(_, target)| target.label.clone())
+        .collect();
+    assert_eq!(
+        marked,
+        vec![FIXTURE_MARK_LABEL.to_string()],
+        "world_resume load: the streamed-in rock wears the marker again"
+    );
+
+    info!(
+        "world_resume load: scenario resumed: OnResume {} OnStart {}, spent {spent:?}, rebuilt \
+         {rebuilt:?}, timer {remaining:.2} s left after {ran_on_the_clock:.2} s, mark '{}' on \
+         {mark}",
+        counts.on_resume, counts.on_start, FIXTURE_MARK_LABEL
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the load phase resumes the saved scenario state: OnResume fired once and OnStart never, the spent once handlers stayed spent, and the objective, the variables, the timer's remaining seconds and the generated mark came back",
+        serde_json::json!({
+            "spent": spent,
+            "rebuilt": rebuilt,
+            "timer_remaining": remaining,
+            "ran_on_the_clock": ran_on_the_clock,
+        }),
+    );
+}
+
+/// After the fixture timer ended on its saved clock: its once handler
+/// completed the objective and fired exactly once.
+#[cfg(feature = "debug")]
+fn assert_timer_end_handled(world: &mut World) {
+    assert_eq!(variable_number(world, "timer_ended"), Some(1.0));
+    assert_eq!(
+        variable_number(world, "once_count"),
+        Some(1.0),
+        "world_resume load: the spent OnUpdate stayed spent through the timer's end"
+    );
+    let events = world.resource::<NovaEventWorld>();
+    assert!(
+        events.timer_remaining(FIXTURE_TIMER_KEY).is_none(),
+        "world_resume load: the ended timer is gone"
+    );
+    assert!(
+        !events
+            .objectives()
+            .iter()
+            .any(|objective| objective.id == FIXTURE_OBJECTIVE_ID),
+        "world_resume load: the timer's end completed the objective in the event world"
+    );
+    assert!(
+        !world
+            .resource::<GameObjectives>()
+            .objectives
+            .iter()
+            .any(|objective| objective.id == FIXTURE_OBJECTIVE_ID),
+        "world_resume load: the timer's end completed the objective on the HUD"
+    );
+    let spent = world.resource::<SpentHandlers>().0.clone();
+    assert!(
+        spent.contains(&TIMER_END_HANDLER),
+        "world_resume load: the OnTimerEnd handler retired into the spent record: {spent:?}"
+    );
+    info!(
+        "world_resume load: the fixture timer ended at {:.1} s and its handler fired once; spent \
+         {spent:?}",
+        events.scenario_elapsed()
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the resumed timer ends on its saved clock and its once handler completes the objective exactly once",
+        serde_json::json!({ "spent": spent }),
+    );
 }
 
 /// The one player ship, if exactly one stands.
@@ -394,6 +905,17 @@ fn inject_fixture(world: &mut World) {
         );
         inventory.add(&items, &ration_id, max_count.clamp(1, 5));
     }
+
+    // The generated mark: the objective marker attach, through its own
+    // action, remembers the rock by its generated id in `GeneratedMarks`.
+    rock_id
+        .0
+        .parse::<GeneratedBodyId>()
+        .expect("world_resume: the nearest asteroid is a generated body");
+    ObjectiveMarkerAttachActionConfig::new(&rock_id.0, FIXTURE_MARK_LABEL).action(
+        &mut world.resource_mut::<NovaEventWorld>(),
+        &GameEventInfo::default(),
+    );
 
     let mut fixture = world.resource_mut::<Fixture>();
     fixture.rock = Some(rock);
@@ -751,6 +1273,7 @@ fn record_transient_fixture_state(world: &mut World) -> serde_json::Value {
         WORLD_SLUG,
         world.resource::<LoadedSectionPacks>(),
         world.resource::<GameItems>(),
+        &RegisteredScenarios::from(world.resource::<GameScenarios>()),
     )
     .unwrap_or_else(|e| {
         panic!(
@@ -891,9 +1414,17 @@ fn record_transient_fixture_state(world: &mut World) -> serde_json::Value {
         "stock": saved_stock,
     });
 
+    let scenario = record_saved_scenario(world, &state.scenario);
+    nova_probe::probe_marker(
+        world,
+        "outcome: the leave save carries the scenario state the fixture's own handlers authored: the spent once handlers, the variables, the objective, the running timer's remaining seconds and the generated mark",
+        scenario.clone(),
+    );
+
     serde_json::json!({
         "transients": transients_json,
         "saved_player": saved_player,
+        "scenario": scenario,
     })
 }
 
@@ -1056,6 +1587,18 @@ fn create_script(
         .add()
         .step("world_resume: assert the saved header on disk")
         .on_enter(assert_probe_world_on_disk)
+        .add()
+        // Live, before the pause menu freezes the clocks, and BEFORE the
+        // transient beats: the PDC round's 2 s lifetime cannot spare the
+        // frames these two steps cost. The scenario's own once handler starts
+        // the timer on the next OnUpdate pulse.
+        .step("world_resume: the scenario starts the fixture timer")
+        .on_enter(raise_start_timer)
+        .until(fixture_timer_running())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("world_resume: note the running fixture timer")
+        .on_enter(log_fixture_timer)
         .add()
         // Fired HERE, LIVE, before the pause menu ever opens: the pause
         // overlay holds `FreezeOwner::PauseMenu`
@@ -1242,6 +1785,7 @@ fn create_script(
 
             expected["transients"] = recorded["transients"].clone();
             expected["saved_player"] = saved_player;
+            expected["scenario"] = recorded["scenario"].clone();
             std::fs::write(
                 &expected_path,
                 serde_json::to_string_pretty(&expected).expect("expected state must encode"),
@@ -1299,6 +1843,9 @@ fn run_create() -> bevy::app::AppExit {
     }
     app.init_resource::<Fixture>();
     app.init_resource::<FireHeld>();
+    add_fixture_scenario(&mut app);
+    // New Game plays the fixture scenario: Create resolves the declared start.
+    app.add_systems(Update, pin_new_game_start);
     app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
     app.add_plugins(create_script(expected_path.clone()));
 
@@ -1428,6 +1975,8 @@ fn assert_resumed_state(
         // the screenshot and the pixel-diff) - see `load_script`. By the
         // time this runs, that step has already panicked if any record
         // failed to pair one-to-one with a live body.
+
+        assert_resumed_scenario(world, &expected["scenario"]);
 
         info!("world_resume load: PASS every fixture value matched");
         nova_probe::probe_marker(
@@ -1823,6 +2372,13 @@ fn load_script(
         .until(fixture_transients_expired())
         .deadline(TRANSIENT_EXPIRE_DEADLINE_SECS)
         .add()
+        .step("world_resume load: the fixture timer ends on its saved clock")
+        .until(fixture_timer_ended())
+        .deadline(TIMER_END_DEADLINE_SECS)
+        .add()
+        .step("world_resume load: the timer's once handler fired once")
+        .on_enter(assert_timer_end_handled)
+        .add()
         .step("world_resume load: open the pause menu")
         .on_enter(press_key(KeyCode::Escape))
         .until(ui_node_present(PAUSE_EXIT_BUTTON))
@@ -1864,6 +2420,9 @@ fn run_load() -> bevy::app::AppExit {
     }
     app.init_resource::<LoadWatch>();
     app.add_systems(Update, watch_resumed_world);
+    // The scenario the save names, registered; no New Game pick: the Load
+    // itself resolves the saved id.
+    add_fixture_scenario(&mut app);
 
     // Thaw-time capture: `spawn_resumed` (crates/nova_world_base/src/save/
     // transients.rs:707-736) queues each saved transient's spawn, then its

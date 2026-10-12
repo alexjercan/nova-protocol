@@ -15,7 +15,10 @@ use nova_gameplay::prelude::{
     CargoCanisterIdAllocator, ClockFreeze, DamageMarks, PlayerSpaceshipMarker, PointRotationOutput,
     ShipInventory,
 };
-use nova_scenario::prelude::{spaceship_scenario_object, CurrentScenario, SpaceshipConfig};
+use nova_scenario::prelude::{
+    spaceship_scenario_object, CurrentScenario, GeneratedMarks, NovaEventWorld, ScenarioConfig,
+    SpaceshipConfig, SpentHandlers,
+};
 use nova_ship::prelude::{
     ChaseCameraPlugin, ChaseZoom, ShipStyleConfig, SpaceshipCameraController,
     SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker,
@@ -26,6 +29,9 @@ use crate::{
     role_style_id, save, GameStyles, NovaLayeredWorld, ShipRoleType, OPEN_WORLD_ACTIVE_RADIUS,
     OPEN_WORLD_SECTOR_EDGE,
 };
+
+/// The scenario id the fixture's save names.
+pub const FIXTURE_SCENARIO_ID: &str = "session";
 
 /// The production save systems and the transient restore before them, in
 /// their production order, with no streaming before them, and the chase sync
@@ -94,7 +100,22 @@ pub fn arm_save_fixture(world: &mut World) -> Entity {
     world.init_resource::<ClockFreeze>();
     // The chase sync reads the generic clock, which `TimePlugin` would add.
     world.init_resource::<Time>();
-    world.init_resource::<CurrentScenario>();
+    // The save names its scenario and takes the scenario state. A rig that
+    // loaded a scenario of its own first keeps it; otherwise a bare session
+    // scenario with nothing done yet.
+    if world
+        .get_resource::<CurrentScenario>()
+        .is_none_or(|current| current.0.is_none())
+    {
+        world.insert_resource(CurrentScenario(Some(ScenarioConfig::new(
+            FIXTURE_SCENARIO_ID,
+            "Session",
+            default(),
+        ))));
+    }
+    world.init_resource::<NovaEventWorld>();
+    world.init_resource::<SpentHandlers>();
+    world.init_resource::<GeneratedMarks>();
     world.insert_resource(CurrentSector(SectorCoord::ORIGIN));
     let player = world
         .spawn((

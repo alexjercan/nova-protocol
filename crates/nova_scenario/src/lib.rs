@@ -37,6 +37,8 @@ pub mod objects;
 /// Typed read-only scenario queries and continuously sampled watches.
 pub mod queries;
 pub mod render_scale;
+/// The scenario state a world save carries and a resumed load restores.
+pub mod resume;
 /// The text form of the variables grammar.
 pub mod syntax;
 /// Driving a rig's scenario to live, for tests in this crate and the crates
@@ -54,8 +56,8 @@ pub mod prelude {
     pub use super::{
         actions::prelude::*, events::prelude::*, filters::prelude::*, lint::prelude::*,
         loader::prelude::*, marks::prelude::*, mining::prelude::*, names::prelude::*,
-        objects::prelude::*, queries::prelude::*, render_scale::prelude::*, syntax::prelude::*,
-        variables::prelude::*, world::prelude::*, NovaScenarioPlugin,
+        objects::prelude::*, queries::prelude::*, render_scale::prelude::*, resume::prelude::*,
+        syntax::prelude::*, variables::prelude::*, world::prelude::*, NovaScenarioPlugin,
     };
 }
 

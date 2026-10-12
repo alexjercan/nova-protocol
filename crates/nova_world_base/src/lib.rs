@@ -60,10 +60,10 @@ mod tests;
 #[cfg(not(target_arch = "wasm32"))]
 pub use crate::save::{
     check_world, create_world, delete_world, list_worlds, open_world, resume_world, world_slug,
-    write_world, FrozenTransient, FrozenTransientType, ResumedWorld, SaveReason, SavedPlayer,
-    WorldFolder, WorldListing, WorldLock, WorldRefusal, WorldResumeProgress, WorldResumeRefused,
-    WorldSaveHeader, WorldSaveSession, WorldSaveState, WorldSaveStatus, WORLD_RESUME_SECONDS_MAX,
-    WORLD_SAVE_FORMAT,
+    write_world, FrozenTransient, FrozenTransientType, RegisteredScenarios, ResumedWorld,
+    SaveReason, SavedPlayer, WorldFolder, WorldListing, WorldLock, WorldRefusal,
+    WorldResumeProgress, WorldResumeRefused, WorldSaveHeader, WorldSaveSession, WorldSaveState,
+    WorldSaveStatus, WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_FORMAT,
 };
 pub use crate::{
     civilizations::{
@@ -93,10 +93,10 @@ pub mod prelude {
     #[cfg(not(target_arch = "wasm32"))]
     pub use super::{
         check_world, create_world, delete_world, list_worlds, open_world, resume_world, world_slug,
-        write_world, FrozenTransient, FrozenTransientType, ResumedWorld, SaveReason, SavedPlayer,
-        WorldFolder, WorldListing, WorldLock, WorldRefusal, WorldResumeProgress,
-        WorldResumeRefused, WorldSaveHeader, WorldSaveSession, WorldSaveState, WorldSaveStatus,
-        WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_FORMAT,
+        write_world, FrozenTransient, FrozenTransientType, RegisteredScenarios, ResumedWorld,
+        SaveReason, SavedPlayer, WorldFolder, WorldListing, WorldLock, WorldRefusal,
+        WorldResumeProgress, WorldResumeRefused, WorldSaveHeader, WorldSaveSession, WorldSaveState,
+        WorldSaveStatus, WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_FORMAT,
     };
     pub use super::{
         generate_ship, generate_wreck, plan_ship, role_style_id, sector_clusters, ship_stock,

@@ -23,7 +23,7 @@ use bevy::{ecs::component::Mutable, prelude::*};
 pub mod prelude {
     pub use super::{
         CommandsGameEventExt, EventAction, EventFilter, EventHandler, EventHandlerIndex, EventKind,
-        EventWorld, GameEvent, GameEventInfo, GameEventsPlugin,
+        EventWorld, GameEvent, GameEventInfo, GameEventsPlugin, HandlerRetired,
     };
 }
 
@@ -451,6 +451,16 @@ fn maintain_handler_index<W: EventWorld>(
     }
 }
 
+/// Fired for a `once` handler the moment its filters pass, before the despawn
+/// that retires it, so an observer can still read the handler entity's
+/// components. The scenario loader records which authored handler was spent
+/// from this, so a world save can list it and a resumed load can skip it.
+#[derive(Event, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HandlerRetired {
+    /// The handler entity about to be despawned.
+    pub handler: Entity,
+}
+
 /// Processes the event queue by applying handlers and executing actions.
 ///
 /// A `once` handler is retired the moment its filters pass: the entity is
@@ -481,6 +491,7 @@ fn queue_system<W: EventWorld>(
 
                 if handler.once {
                     spent.insert(*entity);
+                    commands.trigger(HandlerRetired { handler: *entity });
                     commands.entity(*entity).despawn();
                     trace!("queue_system: retiring one-shot handler {:?}", handler.name);
                 }
