@@ -1,8 +1,8 @@
 # Stations: docking admission and helm ownership
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 85
-- TAGS: v0.16.0,stations
+- TAGS: v0.16.0, stations
 
 ## User facts
 - Epic `20261012-095958`. Decisions 3b and 6b (2026-10-12): one connection per hull stays; a station exposes several ports but admits one player connection; docked to a living station the station owns the helm and the player cannot take it; a dead station is a derelict and hands the helm to the docked player; a station of an Enemy civilization refuses admission.
@@ -10,6 +10,8 @@
 
 ## Agent findings
 - Docking owner `crates/nova_ship/src/sections/docking_section/` (`DockingSectionConfig` at `mod.rs:66-118`); the pair flies as one `DockedAssembly`; helm Neutral then Held today. Allegiance is `Player / Enemy / Neutral` (`crates/nova_gameplay/src/relations.rs:37-44`).
+
+- Orchestrator close 2026-10-12: commit b90838a4c reviewed; content lint re-run: 0 errors. `station_admission(allegiance, derelict, occupied)` in `docking_section/admission.rs:46-58`; `DockedHelmType::Station` in connection.rs; HUD lines `<NAME> REFUSES DOCKING`, `<NAME> DOCK OCCUPIED`, chip `STATION HELM`; proof `system_station_docking` (three steps). Retire: the player's pair never retires; a docked NPC pair stays the freeze fault since nothing on master issues an NPC dock. Design page Docking row matches; no page edit needed.
 
 ## Delivery gate
 - Admission reads the station's civilization allegiance; refusal is a visible HUD line, not a silent no-capture. Helm rule as one admission branch, no joint change. State what happens to a docked pair at retire (today a docked ship at retirement is a fault, `crates/nova_world/src/frozen.rs:442-451`).
