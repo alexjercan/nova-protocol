@@ -11,6 +11,8 @@
 ## Agent findings
 - Gravity wells live in `crates/nova_gameplay/src/gravity`; controller sections and the AI stance in `crates/nova_ship/src/input/ai/`. Planetoids are 500-1600 m (`crates/nova_world_base/src/clusters.rs:116-126`); 500 m clearance (`crates/nova_world_base/src/layered.rs:31`).
 
+- Handed from `20261012-095959` (2026-10-12): section invulnerability for stations (design page, sections invulnerable in v1) is owned HERE; nothing in the code can do it yet. The station root already self-levels through its Controller section with no thruster (`controller_section.rs:481-533`); `system_station_body` nudges 0.5 rad + 0.3 rad/s and sees 0.0038 rad off spawn after settling.
+
 ## Delivery gate
 - Reuse the ship controller for attitude only; show which input the station controller writes and why thrust stays zero. Orbit: compute circular velocity from the planet mass at materialize; state the tolerance.
 
