@@ -205,9 +205,20 @@ pub(crate) fn dummy_lesson_range(id: &str) -> (String, ScenarioConfig) {
     (key, config)
 }
 
+/// The New Game start: a chapter whose world takes the typed seed, as the base
+/// `new_game_scenario` must. Create and Load insert the session it needs.
+pub(crate) fn dummy_start(id: &str) -> (String, ScenarioConfig) {
+    let (key, mut config) = dummy_scenario(id);
+    config.world = ScenarioWorldType::Generated(GeneratedWorldConfig {
+        seed: None,
+        bounds: None,
+    });
+    (key, config)
+}
+
 pub(crate) fn dummy_scenarios() -> GameScenarios {
     GameScenarios(bevy::platform::collections::HashMap::from([
-        dummy_scenario(TEST_START_ID),
+        dummy_start(TEST_START_ID),
         dummy_backdrop(TEST_BACKDROP_ID),
         dummy_lesson_range(TEST_RANGE_ID),
     ]))

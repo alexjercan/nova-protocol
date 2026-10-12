@@ -222,6 +222,22 @@ pub fn lint_scenario(
         }
     }
 
+    // Only New Game's Create and Load carry the typed seed, and both load a
+    // chapter: the menu draws a backdrop and the handbook starts a practice
+    // range with no session, so either would reach the generator with no seed.
+    // An Error here keeps the backdrop out of the menu draw and the range off
+    // the handbook's launch, instead of the arming panic at runtime.
+    if scenario.world.needs_session() && scenario.role != ScenarioRole::Chapter {
+        issues.push(LintIssue::error(
+            id,
+            format!(
+                "`world: Generated((seed: None))` on a `role: {:?}` scenario; only a chapter \
+                 started by New Game takes the typed seed - give it a fixed seed",
+                scenario.role
+            ),
+        ));
+    }
+
     let mut watch_names = HashSet::new();
     for watch in &scenario.watches {
         if watch.variable.trim().is_empty() {
@@ -2383,6 +2399,57 @@ mod tests {
 
         let void = scenario(vec![spawn_ship("escort", "hull")], vec![]);
         let issues = lint(&void);
+        assert!(errors(&issues).is_empty(), "{issues:?}");
+    }
+
+    /// The typed seed reaches a chapter through New Game and Load only: a
+    /// backdrop the menu draws or a range the handbook starts never has a
+    /// session, so `seed: None` on either is an Error. A fixed seed is fine.
+    #[test]
+    fn a_session_seeded_world_on_a_backdrop_or_lesson_is_an_error() {
+        let player = || {
+            spawn_armed_ship(
+                "player",
+                SpaceshipController::Player(PlayerControllerConfig::default()),
+            )
+        };
+        let lint = |scenario: &ScenarioConfig| {
+            lint_scenario(
+                scenario,
+                &sections(&["hull"]),
+                &ships(&[]),
+                &known(&["test_scenario"]),
+                &GameItems::default(),
+            )
+        };
+        let session_seeded = |role: ScenarioRole| {
+            let mut config = scenario(vec![player()], vec![]);
+            config.role = role;
+            config.world = generated(None);
+            config
+        };
+
+        for role in [ScenarioRole::Backdrop, ScenarioRole::Lesson] {
+            let issues = lint(&session_seeded(role));
+            assert!(
+                errors(&issues)
+                    .iter()
+                    .any(|issue| issue.message.contains("only a chapter started by New Game")),
+                "{role:?}: {issues:?}"
+            );
+        }
+
+        let mut fixed = session_seeded(ScenarioRole::Lesson);
+        fixed.world = generated(Some(3));
+        let issues = lint(&fixed);
+        assert!(
+            !errors(&issues)
+                .iter()
+                .any(|issue| issue.message.contains("only a chapter started by New Game")),
+            "{issues:?}"
+        );
+
+        let issues = lint(&session_seeded(ScenarioRole::Chapter));
         assert!(errors(&issues).is_empty(), "{issues:?}");
     }
 

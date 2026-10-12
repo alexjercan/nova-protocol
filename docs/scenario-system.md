@@ -57,13 +57,23 @@ the panel says about it, through `bevy/reflect_documentation`.
   only New Game and Load may start such a scenario, so the picker renders no
   row for it, a campaign may not list it, and `--scenario <id>` refuses it at
   boot. `seed: Some(n)` is a fixed seed: the scenario is a bounded world the
-  picker lists and launches with no session. `bounds` is a sphere in metres,
-  radius at most `nova_world_base::OPEN_WORLD_BOUNDS_RADIUS_MAX` (lint).
+  picker lists and launches with no session, and it is session-only on every
+  build: no world folder, no `WorldSaveSession`, so the pause Retry reloads
+  the scenario and Load last save is never offered. Only a chapter may take
+  `seed: None`; a backdrop or a lesson range with it is a lint Error, since
+  the menu and the handbook start them with no session. `bounds` is a sphere
+  in metres, radius at most `nova_world_base::OPEN_WORLD_BOUNDS_RADIUS_MAX`
+  (lint).
 
 `nova_world_base::sync_open_world` arms `WorldConfig` from this block and the
 player ship, and disarms it under a `Void` scenario or none. The base bundle's
 `new_game_scenario` must name a scenario whose world is
-`Generated((seed: None))`; the content lint checks it.
+`Generated((seed: None))`; the content lint checks it, and
+`nova_menu::start_new_game_scenario` checks it again on the way into Playing:
+a start that takes no session, a start or pick nobody registered, and a
+session-seeded scenario reached with no `OpenWorldSession` each log a
+`NewGameStartFault` and end the app with an error exit. There is no fallback
+to another scenario.
 
 ## Loading / unloading (`loader/`)
 

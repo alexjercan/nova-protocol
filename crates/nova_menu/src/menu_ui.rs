@@ -21,6 +21,7 @@ use nova_ui::{
         ThemedText, ThemedTextShadow, UiText,
     },
 };
+use nova_world_base::prelude::OpenWorldSession;
 #[cfg(not(target_arch = "wasm32"))]
 use nova_world_base::prelude::WorldSaveSession;
 
@@ -35,8 +36,8 @@ use crate::{
         ModsTab, ModsTabKind, SelectedModId,
     },
     scenarios::{
-        listed_scenarios, on_scenarios, on_scenarios_back, NewGameScenario, ScenarioDetailsPanel,
-        ScenariosList, ScenariosPanel, SelectedScenarioId,
+        on_scenarios, on_scenarios_back, NewGameScenario, ScenarioDetailsPanel, ScenariosList,
+        ScenariosPanel, SelectedScenarioId,
     },
     settings::{
         build_settings_tabs, on_settings, on_settings_back, SettingsActiveTab, SettingsPanel,
@@ -565,73 +566,116 @@ pub(crate) fn on_exit(
     exit.write(AppExit::Success);
 }
 
-/// In `NewGame` mode the menu itself provides the game: load a scenario (player
-/// ship included) the moment gameplay starts. `Sandbox` mode does nothing here -
-/// the editor owns that path.
+/// Why the New Game hand-off could not resolve a scenario to load. Each is an
+/// assembly fault in the base bundle or in the launch request, not a runtime
+/// condition: the content lint refuses the declared-start faults offline, and
+/// the picker, the handbook and `--scenario` only hand over registered ids.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum NewGameStartFault {
+    /// The base bundle declares no `new_game_scenario`.
+    NoStartDeclared,
+    /// The declared start is not in the registry.
+    StartNotRegistered(ScenarioId),
+    /// The declared start's world takes no session seed, so the seed New Game
+    /// supplies would go unused (lint rule: the start must need the session).
+    StartTakesNoSession {
+        /// The declared start.
+        id: ScenarioId,
+        /// The world it declares instead.
+        world: ScenarioWorldType,
+    },
+    /// The picked scenario is not in the registry.
+    PickNotRegistered(ScenarioId),
+    /// The resolved scenario takes its seed from the session and none exists:
+    /// something other than New Game or Load reached the loader with it.
+    NoSession(ScenarioId),
+}
+
+impl std::fmt::Display for NewGameStartFault {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NoStartDeclared => {
+                write!(f, "the base bundle declares no new_game_scenario")
+            }
+            Self::StartNotRegistered(id) => {
+                write!(f, "the base-declared start '{id}' is not registered")
+            }
+            Self::StartTakesNoSession { id, world } => write!(
+                f,
+                "the base-declared start '{id}' declares world {world:?}; New Game supplies \
+                 the seed, so the start must declare `world: Generated((seed: None))`"
+            ),
+            Self::PickNotRegistered(id) => {
+                write!(f, "the picked scenario '{id}' is not registered")
+            }
+            Self::NoSession(id) => write!(
+                f,
+                "'{id}' declares `world: Generated((seed: None))` and no OpenWorldSession \
+                 exists; only New Game's Create and Load may start it"
+            ),
+        }
+    }
+}
+
+/// The scenario the New Game hand-off loads: the [`NewGameScenario`] pick when
+/// the picker, the handbook or `--scenario` set one, else the base bundle's
+/// declared start ([`NewGameStart`], written by the bundle merge from
+/// `base.bundle.ron`'s `new_game_scenario`).
 ///
-/// Which scenario, in fallback order (each miss warns and falls through):
-/// 1. the [`NewGameScenario`] override, if the Scenarios picker set one and it
-///    is still registered (a mod can get disabled between pick and play);
-/// 2. the base bundle's declared start ([`NewGameStart`], written by the
-///    bundle merge from `base.bundle.ron`'s `new_game_scenario` - base-owned,
-///    not moddable);
-/// 3. the first LISTED scenario (the picker's own order), so a base bundle
-///    that forgot to declare a start still launches something;
-/// 4. nothing registered at all: log an error and load nothing.
+/// The declared start must take its seed from the session, and whichever
+/// scenario resolves may need the session only when `has_session`. There is
+/// no fallback past a fault: a start the base got wrong is refused, not
+/// replaced by the first listed scenario.
+pub(crate) fn resolve_new_game_scenario(
+    scenarios: &GameScenarios,
+    start: &NewGameStart,
+    pick: &NewGameScenario,
+    has_session: bool,
+) -> Result<ScenarioConfig, NewGameStartFault> {
+    let scenario = match (&pick.0, &start.0) {
+        (Some(id), _) => scenarios
+            .get(id)
+            .ok_or_else(|| NewGameStartFault::PickNotRegistered(id.clone()))?,
+        (None, Some(id)) => {
+            let scenario = scenarios
+                .get(id)
+                .ok_or_else(|| NewGameStartFault::StartNotRegistered(id.clone()))?;
+            if !scenario.world.needs_session() {
+                return Err(NewGameStartFault::StartTakesNoSession {
+                    id: id.clone(),
+                    world: scenario.world.clone(),
+                });
+            }
+            scenario
+        }
+        (None, None) => return Err(NewGameStartFault::NoStartDeclared),
+    };
+    if scenario.world.needs_session() && !has_session {
+        return Err(NewGameStartFault::NoSession(scenario.id.clone()));
+    }
+    Ok(scenario.clone())
+}
+
+/// In `NewGame` mode the menu itself provides the game: load the scenario
+/// [`resolve_new_game_scenario`] names the moment gameplay starts. `Sandbox`
+/// mode does nothing here - the editor owns that path.
+///
+/// A fault is logged and ends the app with an error exit, loading nothing:
+/// the same refusal `--scenario` gives a session-seeded id at boot, reached
+/// from the menu's Create, Load, the picker and the handbook.
 pub(crate) fn start_new_game_scenario(
     mut commands: Commands,
     scenarios: Res<GameScenarios>,
     start: Res<NewGameStart>,
     pick: Res<NewGameScenario>,
+    session: Option<Res<OpenWorldSession>>,
+    mut exit: MessageWriter<AppExit>,
 ) {
-    let picked = pick.0.as_ref().filter(|id| {
-        let registered = scenarios.contains_key(*id);
-        if !registered {
-            warn!(
-                "start_new_game_scenario: picked scenario '{id}' not in GameScenarios; \
-                 falling back to the base-declared start"
-            );
+    match resolve_new_game_scenario(&scenarios, &start, &pick, session.is_some()) {
+        Ok(scenario) => commands.trigger(LoadScenario(scenario)),
+        Err(fault) => {
+            error!("start_new_game_scenario: {fault}; New Game loads nothing");
+            exit.write(AppExit::error());
         }
-        registered
-    });
-    let declared = picked.is_none().then(|| {
-        start.0.as_ref().filter(|id| {
-            let registered = scenarios.contains_key(*id);
-            if !registered {
-                warn!(
-                    "start_new_game_scenario: the base-declared start '{id}' is not \
-                     registered; falling back to the first listed scenario"
-                );
-            }
-            registered
-        })
-    });
-
-    let id = match (picked, declared) {
-        (Some(id), _) => id.clone(),
-        (None, Some(Some(id))) => id.clone(),
-        _ => {
-            if start.0.is_none() {
-                warn!(
-                    "start_new_game_scenario: the base bundle declares no \
-                     new_game_scenario; falling back to the first listed scenario"
-                );
-            }
-            match listed_scenarios(&scenarios).into_iter().next() {
-                Some(first) => first.id,
-                None => {
-                    error!(
-                        "start_new_game_scenario: no scenario is registered at all; \
-                         New Game loads nothing"
-                    );
-                    return;
-                }
-            }
-        }
-    };
-    let scenario = scenarios
-        .get(&id)
-        .expect("the fallback chain only yields registered ids")
-        .clone();
-    commands.trigger(LoadScenario(scenario));
+    }
 }

@@ -9,6 +9,9 @@ use nova_ui::{
     screen::{scroll_viewports, ScrollViewport},
     widget::Selected,
 };
+use nova_world_base::prelude::OpenWorldSession;
+#[cfg(not(target_arch = "wasm32"))]
+use nova_world_base::prelude::WorldSaveSession;
 
 use super::support::{
     app, entity_by_name, label_of, observe_load_scenario, LoadedScenario, TEST_BACKDROP_ID,
@@ -564,6 +567,56 @@ fn play_button_hands_off_and_loads_the_chosen_scenario() {
         app.world().resource::<LoadedScenario>().0.as_deref(),
         Some("practice_run"),
         "the chosen scenario is loaded, not the canned New Game start"
+    );
+}
+
+/// A fixed-seed generated chapter is a picker row that plays session-only:
+/// Play loads it with no `OpenWorldSession` and, on desktop, no
+/// `WorldSaveSession`, so nothing of it is saved and the leave flow's
+/// Load last save is never offered for it.
+#[test]
+fn playing_a_fixed_seed_chapter_from_the_picker_keeps_no_save_session() {
+    let (key, mut bounded) = picker_scenario("bounded_belt", "Bounded Belt");
+    bounded.world = ScenarioWorldType::Generated(GeneratedWorldConfig {
+        seed: Some(42),
+        bounds: None,
+    });
+    let mut app = app();
+    app.insert_resource(GameScenarios(bevy::platform::collections::HashMap::from([
+        (key, bounded),
+        picker_scenario(TEST_START_ID, "Shakedown Run"),
+        picker_backdrop(TEST_BACKDROP_ID, "Menu Ambience"),
+    ])));
+    app.world_mut()
+        .resource_mut::<NextState<GameStates>>()
+        .set(GameStates::MainMenu);
+    app.update();
+    observe_load_scenario(&mut app);
+
+    // "Bounded Belt" sorts first, so it is the default selection and its
+    // Play button is the one on the details pane.
+    assert!(scenario_row(&mut app, "bounded_belt").is_some());
+    assert_eq!(selected_scenario(&app).as_deref(), Some("bounded_belt"));
+    let play = entity_by_name(&mut app, "Scenario Play Button").expect("play button");
+    app.world_mut().trigger(Activate { entity: play });
+    app.update();
+
+    assert_eq!(
+        *app.world().resource::<State<GameStates>>().get(),
+        GameStates::Playing
+    );
+    assert_eq!(
+        app.world().resource::<LoadedScenario>().0.as_deref(),
+        Some("bounded_belt")
+    );
+    assert!(
+        app.world().get_resource::<OpenWorldSession>().is_none(),
+        "a fixed seed takes no session"
+    );
+    #[cfg(not(target_arch = "wasm32"))]
+    assert!(
+        app.world().get_resource::<WorldSaveSession>().is_none(),
+        "a picker launch saves nothing"
     );
 }
 

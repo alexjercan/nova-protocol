@@ -1,6 +1,6 @@
 //! The main menu buttons: that an activation only counts as a click when it
 //! really was one, that Sandbox sets the mode, and that the New Game start
-//! resolves the scenario override and falls back past a bad declaration.
+//! loads the pick or the session-seeded start and refuses everything else.
 
 use bevy::{
     prelude::*,
@@ -9,13 +9,15 @@ use bevy::{
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::HudVisibility;
 use nova_scenario::prelude::*;
+use nova_world_base::prelude::OpenWorldSession;
 
 use super::support::{
-    app, cue_app, dummy_scenarios, enter_playing, observe_load_scenario, observe_unload_scenario,
-    take_cues, LoadedScenario, PlayedCues, Unloaded, TEST_BACKDROP_ID, TEST_START_ID,
+    app, cue_app, dummy_scenario, dummy_scenarios, dummy_start, enter_playing,
+    observe_load_scenario, observe_unload_scenario, take_cues, LoadedScenario, PlayedCues,
+    Unloaded, TEST_BACKDROP_ID, TEST_START_ID,
 };
 use crate::{
-    menu_ui::on_sandbox,
+    menu_ui::{on_sandbox, resolve_new_game_scenario, NewGameStartFault},
     scenarios::NewGameScenario,
     widgets::{button, on_menu_button_activate},
 };
@@ -81,70 +83,118 @@ fn sandbox_button_sets_mode_and_loads_no_scenario() {
     assert_eq!(*app.world().resource::<HudVisibility>(), HudVisibility::On);
 }
 
-/// `start_new_game_scenario` reads the override: `Some(existing)` loads that
-/// scenario, `None` loads the canned start, and `Some(missing)` falls back
-/// to the canned start rather than panicking.
+/// `start_new_game_scenario` loads the pick when one is set, else the
+/// session-seeded start over the session Create or Load inserted. With no
+/// session the start is refused: nothing loads and the app exits with an
+/// error, the same refusal `--scenario` gives a session-seeded id.
 #[test]
-fn start_new_game_scenario_honors_the_override_and_falls_back() {
-    let loaded_for = |pick: Option<&str>| -> Option<String> {
+fn start_new_game_scenario_loads_the_pick_or_the_session_seeded_start() {
+    let started = |pick: Option<&str>, session: bool| -> (Option<String>, Vec<AppExit>) {
         let mut app = app();
         app.insert_resource(dummy_scenarios());
         observe_load_scenario(&mut app);
         *app.world_mut().resource_mut::<GameMode>() = GameMode::NewGame;
         app.insert_resource(NewGameScenario(pick.map(|s| s.to_string())));
+        if session {
+            app.insert_resource(OpenWorldSession { seed: 7 });
+        }
         enter_playing(&mut app);
-        app.world().resource::<LoadedScenario>().0.clone()
+        let loaded = app.world().resource::<LoadedScenario>().0.clone();
+        let exits = app
+            .world_mut()
+            .resource_mut::<Messages<AppExit>>()
+            .drain()
+            .collect();
+        (loaded, exits)
     };
 
+    let (loaded, exits) = started(Some(TEST_BACKDROP_ID), false);
     assert_eq!(
-        loaded_for(Some(TEST_BACKDROP_ID)).as_deref(),
+        loaded.as_deref(),
         Some(TEST_BACKDROP_ID),
-        "an existing override loads that scenario"
+        "a registered pick loads that scenario, session or not"
     );
+    assert!(exits.is_empty(), "{exits:?}");
+
+    let (loaded, exits) = started(None, true);
     assert_eq!(
-        loaded_for(None).as_deref(),
+        loaded.as_deref(),
         Some(TEST_START_ID),
-        "no override loads the canned New Game start"
+        "no pick loads the declared start over the session"
     );
+    assert!(exits.is_empty(), "{exits:?}");
+
+    let (loaded, exits) = started(None, false);
     assert_eq!(
-        loaded_for(Some("no-such-scenario")).as_deref(),
-        Some(TEST_START_ID),
-        "a missing override falls back to the canned start"
+        loaded, None,
+        "the start takes the session's seed; without one nothing loads"
     );
+    assert_eq!(exits, vec![AppExit::error()], "the refusal ends the app");
 }
 
-/// The rest of the New Game fallback chain: a missing or absent base declaration falls
-/// back to the first LISTED scenario, and an empty registry loads nothing without
-/// panicking.
+/// The Create gate: the declared start must take the typed seed, so a void or
+/// fixed-seed start, a start nobody registered and no start at all are each
+/// a named fault, never a fallback to another scenario. A pick must be
+/// registered, and a session-seeded one needs the session.
 #[test]
-fn start_new_game_scenario_falls_back_past_a_bad_declaration() {
-    let loaded_with = |start: Option<&str>, scenarios: GameScenarios| -> Option<String> {
-        let mut app = app();
-        app.insert_resource(scenarios);
-        app.insert_resource(NewGameStart(start.map(|s| s.to_string())));
-        observe_load_scenario(&mut app);
-        *app.world_mut().resource_mut::<GameMode>() = GameMode::NewGame;
-        app.insert_resource(NewGameScenario(None));
-        enter_playing(&mut app);
-        app.world().resource::<LoadedScenario>().0.clone()
+fn the_new_game_start_is_refused_unless_it_takes_the_session_seed() {
+    let fixed = {
+        let (key, mut config) = dummy_scenario("fixed");
+        config.world = ScenarioWorldType::Generated(GeneratedWorldConfig {
+            seed: Some(3),
+            bounds: None,
+        });
+        (key, config)
+    };
+    let scenarios = GameScenarios(bevy::platform::collections::HashMap::from([
+        dummy_start(TEST_START_ID),
+        dummy_scenario("void"),
+        fixed,
+    ]));
+    let start = |id: Option<&str>| NewGameStart(id.map(str::to_string));
+    let pick = |id: Option<&str>| NewGameScenario(id.map(str::to_string));
+    let resolve = |start: NewGameStart, pick: NewGameScenario, session: bool| {
+        resolve_new_game_scenario(&scenarios, &start, &pick, session).map(|s| s.id)
     };
 
-    // Both dummy fixtures share the display name, so the LISTED order
-    // tiebreaks on id: TEST_START_ID ("story_start") sorts first.
     assert_eq!(
-        loaded_with(Some("gone-with-a-mod"), dummy_scenarios()).as_deref(),
-        Some(TEST_START_ID),
-        "an unregistered base declaration falls back to the first listed scenario"
+        resolve(start(Some("void")), pick(None), true),
+        Err(NewGameStartFault::StartTakesNoSession {
+            id: "void".to_string(),
+            world: ScenarioWorldType::Void,
+        })
     );
     assert_eq!(
-        loaded_with(None, dummy_scenarios()).as_deref(),
-        Some(TEST_START_ID),
-        "no declaration at all falls back to the first listed scenario"
+        resolve(start(Some("fixed")), pick(None), true),
+        Err(NewGameStartFault::StartTakesNoSession {
+            id: "fixed".to_string(),
+            world: scenarios["fixed"].world.clone(),
+        })
     );
     assert_eq!(
-        loaded_with(Some("gone"), GameScenarios::default()),
-        None,
-        "an empty registry loads nothing - and must not panic"
+        resolve(start(Some("gone")), pick(None), true),
+        Err(NewGameStartFault::StartNotRegistered("gone".to_string()))
+    );
+    assert_eq!(
+        resolve(start(None), pick(None), true),
+        Err(NewGameStartFault::NoStartDeclared)
+    );
+    assert_eq!(
+        resolve(start(Some(TEST_START_ID)), pick(Some("gone")), true),
+        Err(NewGameStartFault::PickNotRegistered("gone".to_string()))
+    );
+    assert_eq!(
+        resolve(start(None), pick(Some(TEST_START_ID)), false),
+        Err(NewGameStartFault::NoSession(TEST_START_ID.to_string()))
+    );
+    assert_eq!(
+        resolve(start(Some(TEST_START_ID)), pick(None), true),
+        Ok(TEST_START_ID.to_string())
+    );
+    assert_eq!(
+        resolve(start(Some(TEST_START_ID)), pick(Some("fixed")), false),
+        Ok("fixed".to_string()),
+        "a fixed-seed pick needs no session"
     );
 }
 

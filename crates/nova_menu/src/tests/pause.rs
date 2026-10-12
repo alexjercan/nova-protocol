@@ -10,6 +10,7 @@ use bevy::{
 };
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
+use nova_world_base::prelude::OpenWorldSession;
 
 use super::support::{
     app, clocks_paused, cue_app, dummy_scenario, dummy_scenarios, enter_playing, find_named,
@@ -277,12 +278,14 @@ fn pause_overlay_offers_retry_only_over_a_live_scenario() {
 }
 
 /// The Retry button reloads the CURRENT scenario (the same config the
-/// loader holds) and unpauses: overlay gone, both clocks running.
+/// loader holds) and unpauses: overlay gone, both clocks running. The New
+/// Game session stays, so a retried open world streams the same seed.
 #[test]
-fn pause_retry_reloads_the_current_scenario_and_unpauses() {
+fn pause_retry_reloads_the_current_scenario_keeps_the_session_and_unpauses() {
     let mut app = app();
     app.insert_resource(dummy_scenarios());
     app.insert_resource(CurrentScenario(Some(dummy_scenario("live_run").1)));
+    app.insert_resource(OpenWorldSession { seed: 9 });
     observe_load_scenario(&mut app);
     enter_playing(&mut app);
     press_escape(&mut app);
@@ -297,6 +300,11 @@ fn pause_retry_reloads_the_current_scenario_and_unpauses() {
         app.world().resource::<LoadedScenario>().0.as_deref(),
         Some("live_run"),
         "Retry re-triggers LoadScenario with the live config"
+    );
+    assert_eq!(
+        app.world().get_resource::<OpenWorldSession>(),
+        Some(&OpenWorldSession { seed: 9 }),
+        "Retry keeps the session"
     );
     assert_eq!(pause_state(&app), PauseStates::Unpaused);
     assert_eq!(clocks_paused(&app), (false, false), "both clocks resume");

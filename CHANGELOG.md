@@ -36,6 +36,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** `role: OpenWorld` is gone. A scenario declares `world:
   Generated((seed: None))` for the New Game seed or a fixed seed the picker
   lists; no line is a void. It spawns one player ship.
+- A fixed-seed chapter from Scenarios saves no world: Retry reloads it, no
+  Load last save. New Game refuses a start that takes no session; a backdrop
+  or lesson may not take `seed: None`.
 
 ### Modding & Mod Portal
 

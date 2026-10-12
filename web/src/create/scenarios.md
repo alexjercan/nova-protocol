@@ -114,10 +114,12 @@ ranges in the handbook show:
 |---|---|---|
 | `Void` | No streamed world: the objects your handlers spawn are the whole scene. The default. | Whatever the role says. |
 | `Generated((seed: None))` | The generated open world, streamed around the one player ship your `OnStart` spawns, from the seed the player typed on New Game. | New Game and Load only: the Scenarios list hides it, a campaign may not list it, and `--scenario` refuses it. The base `open_world` start. |
-| `Generated((seed: Some(42)))` | The same generator on a fixed seed: a bounded world that always comes up the same. | The Scenarios list and campaigns, like any chapter. |
+| `Generated((seed: Some(42)))` | The same generator on a fixed seed: a bounded world that always comes up the same. Session-only: it makes no saved world, Retry reloads it, and Load last save is not offered. | The Scenarios list and campaigns, like any chapter. |
 
 A generated world must spawn EXACTLY ONE player ship in `OnStart`; zero or
-two is a content Error. `Generated` also takes an optional
+two is a content Error. Only a chapter may take `seed: None`: a `role:
+Backdrop` or `role: Lesson` scenario with it is a content Error, because the
+menu and the handbook start those with no seed. `Generated` also takes an optional
 `bounds: Some((position: (0, 0, 0), radius: 20000))`, a sphere in meters the
 player is meant to stay in; its radius may not exceed 80,000 m, the half edge
 of the streamed window.
