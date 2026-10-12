@@ -518,6 +518,10 @@ occupancy rows are pruned silently.
 Use `other_type_name: Some("spaceship")` instead of `other_id` when every ship
 leaving the area should match.
 
+A generated world's `bounds` block (see [World](../scenarios/#world)) is an
+area named `bounds` the loader spawns before `OnStart`, so `id:
+Some("bounds")` here is how a scenario answers the player leaving it.
+
 </details>
 
 ## Player maneuver completion

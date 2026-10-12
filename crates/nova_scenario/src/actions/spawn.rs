@@ -712,8 +712,23 @@ pub struct ScenarioAreaConfig {
     pub radius: Meters,
 }
 
-impl EventAction<NovaEventWorld> for ScenarioAreaConfig {
-    fn action(&self, world: &mut NovaEventWorld, _info: &GameEventInfo) {
+impl ScenarioAreaConfig {
+    /// The area a generated world's `bounds` block authors, under
+    /// [`BOUNDS_AREA_ID`]: the sphere at its absolute position, unrotated.
+    pub fn bounds(bounds: &ScenarioBoundsConfig) -> Self {
+        Self {
+            id: BOUNDS_AREA_ID.to_string(),
+            name: "World Bounds".to_string(),
+            position: bounds.position,
+            rotation: Quat::IDENTITY,
+            radius: bounds.radius,
+        }
+    }
+
+    /// Queue the sensor on `world`. The ONE spawn path for an area, whether a
+    /// handler's `CreateScenarioArea` or the loader's bounds asked for it, so
+    /// both carry the same bundle and die with the scenario.
+    pub fn queue(&self, world: &mut NovaEventWorld) {
         let config = self.clone();
         debug!(
             "CreateScenarioArea: creating area '{}' (radius: {} m)",
@@ -738,6 +753,12 @@ impl EventAction<NovaEventWorld> for ScenarioAreaConfig {
                 Visibility::Visible,
             ));
         });
+    }
+}
+
+impl EventAction<NovaEventWorld> for ScenarioAreaConfig {
+    fn action(&self, world: &mut NovaEventWorld, _info: &GameEventInfo) {
+        self.queue(world);
     }
 }
 

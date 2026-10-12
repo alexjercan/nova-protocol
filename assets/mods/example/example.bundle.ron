@@ -10,8 +10,8 @@
 // What this bundle carries:
 //   - content: one `*.content.ron` file. It OVERRIDES a base section by id, ADDS
 //     a new section, ADDS a playable arena scenario, ADDS a menu-backdrop
-//     scenario, and ADDS an item - see the header of example.content.ron for
-//     the tour.
+//     scenario, ADDS an item, and ADDS a bounded fixed-seed world - see the
+//     header of example.content.ron for the tour.
 //   - resources: the binary files this mod ships itself (bundle-dir-relative,
 //     the same base as `content` and `meta.icon`). Content references them with
 //     `self://<path>`, which resolves against THIS folder - `mods/example/...`
@@ -33,9 +33,9 @@
     ],
     meta: (
         name: "Example Mod",
-        description: "The copy-me tutorial mod: a section overlay, a new section, a playable arena, mod-shipped art, a menu backdrop, and an item - a little of everything.",
+        description: "The copy-me tutorial mod: a section overlay, a new section, a playable arena, mod-shipped art, a menu backdrop, an item, and a bounded fixed-seed world - a little of everything.",
         author: "Nova Protocol",
-        version: "1.4.0",
+        version: "1.5.0",
         // base is an implicit dependency and is never declared (see the header
         // comment); list only OTHER mods this one depends on. This mod has none.
         dependencies: [],

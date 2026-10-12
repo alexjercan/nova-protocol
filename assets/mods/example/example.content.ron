@@ -15,6 +15,9 @@
 //                                  mods can ship main-menu ambience)
 //   5. ADD an item              - `example_survey_core` (cargo the arena's
 //                                  player ship starts with)
+//   6. ADD a bounded world      - `example_bounds` (the base generator on a
+//                                  fixed seed, with a `bounds` sphere whose
+//                                  `OnExit` ends the run)
 //
 // Everything here is pure data - no engine changes. For the field-by-field
 // syntax behind it see the wiki: "Author a section", "Author a scenario",
@@ -850,5 +853,196 @@
         mass_g: 5000,
         ask_cr: 60,
         bid_cr: 45,
+    )),
+    // -- 6. BOUNDED GENERATED WORLD -----------------------------------------
+    // `world: Generated((seed: Some(n), bounds: Some(..)))` runs the base
+    // world generator on a FIXED seed, so the same sectors stream in every
+    // time around the ONE player ship OnStart spawns (lint refuses zero or
+    // two). The Scenarios list offers it like any chapter; it saves no world.
+    //
+    // `bounds` is a sphere in meters the player is meant to stay in. The
+    // loader spawns it as the scenario area `bounds` before OnStart runs, so
+    // leaving it is an ordinary `OnExit` with `id: "bounds"` and the outcome
+    // is YOURS to author: the engine ends nothing on its own, and the world
+    // keeps streaming past the edge. A `bounds` no OnExit reads is a lint
+    // warning; a handler spawning its own `bounds` object is a lint error.
+    // The radius may not exceed 80,000 m, the half edge of the streamed
+    // window.
+    Scenario((
+        id: "example_bounds",
+        name: "Example Bounded Range",
+        description: "A fixed-seed slice of the generated world: stay within 2 km of your start or the range closes.",
+        cubemap: "self://textures/nebula.png",
+        world: Generated((
+            seed: Some(1701),
+            bounds: Some((
+                position: (0.0, 0.0, 0.0),
+                radius: 2000.0,
+            )),
+        )),
+        events: [
+            (
+                name: OnStart,
+                filters: [],
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "example_bounds_key",
+                            name: "Key Light",
+                            position: (-600.0, 500.0, 600.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 11000.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.96,
+                                blue: 0.9,
+                                alpha: 1.0,
+                            )),
+                            shadows: true,
+                            aim: Some((0.0, 0.0, 0.0)),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "example_bounds_fill",
+                            name: "Fill Light",
+                            position: (700.0, -200.0, 400.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 2600.0,
+                            color: Srgba((
+                                red: 0.62,
+                                green: 0.72,
+                                blue: 0.95,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                            aim: Some((0.0, 0.0, 0.0)),
+                        )),
+                    )),
+                    DebugMessage((
+                        message: "Example bounded range loaded: fixed seed 1701, bounds 2 km.",
+                    )),
+                    NarrativeCue((
+                        speaker: "Range Control",
+                        text: "Fixed-seed slice. Stay within two kilometres of your start - the sensor is live.",
+                    )),
+                    // Seeded so the OnExit handler's counter has a number to
+                    // add to; an undefined variable fails closed.
+                    VariableSet((
+                        key: "bounds_exits",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    Objective((
+                        id: "hold_the_bounds",
+                        message: "Stay within 2 km of your start.",
+                    )),
+                    // The one player ship a generated world streams around:
+                    // the arena's hull, with no cargo this time.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "player_spaceship",
+                            name: "Player Spaceship",
+                            position: (0.0, 0.0, 0.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: Player((
+                                input_mapping: {
+                                    "turret": [
+                                        Mouse(Left),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                },
+                            )),
+                            design: Inline((
+                                sections: [
+                                    (
+                                        id: "controller",
+                                        position: (0.0, 0.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "basic_controller_section"),
+                                    ),
+                                    (
+                                        id: "hull_front",
+                                        position: (0.0, 0.0, 1.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "hull_rear",
+                                        position: (0.0, 0.0, 2.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "example_plated_hull_section"),
+                                    ),
+                                    (
+                                        id: "thruster",
+                                        position: (0.0, 0.0, 3.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "basic_thruster_section"),
+                                    ),
+                                    (
+                                        id: "turret",
+                                        position: (0.0, 0.0, -0.75),
+                                        rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
+                                        source: Prototype(id: "pdc_kinetic_turret_section"),
+                                    ),
+                                ],
+                            )),
+                            initial_velocity: (0.0, 0.0, 0.0),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2_000,
+                        )),
+                    )),
+                ],
+            ),
+            // Leaving the bounds. `id` is the area the `bounds` block spawned;
+            // `other_id` pins it to the player, because a generated derelict
+            // drifting out raises the same event under its own id. No `once`:
+            // the counter is the proof the sensor fires exactly one exit.
+            (
+                name: OnExit,
+                filters: [
+                    Entity((
+                        id: Some("bounds"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "bounds_exits",
+                        expression: Add(
+                            Factor(Name("bounds_exits")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                    // The overlay's message is the whole beat: a cue beside
+                    // an Outcome is never read (lint warns).
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("You crossed the line. Range closed."),
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("Your ship broke apart on the range."),
+                    )),
+                ],
+            ),
+        ],
     )),
 ]

@@ -70,7 +70,8 @@ pub mod prelude {
         ScenarioConfig, ScenarioEventConfig, ScenarioId, ScenarioLoaded, ScenarioLoaderPlugin,
         ScenarioRole, ScenarioScopedMarker, ScenarioStartFailure, ScenarioStartFailureReport,
         ScenarioWorldType, ScriptedCameraAnchor, ScriptedCameraBlend, ScriptedCameraLookAt,
-        ScriptedCameraPose, ScriptedCameraTransform, UnloadScenario, ORBIT_LAP_GRACE_SECS,
+        ScriptedCameraPose, ScriptedCameraTransform, UnloadScenario, BOUNDS_AREA_ID,
+        ORBIT_LAP_GRACE_SECS,
     };
 }
 
@@ -295,7 +296,15 @@ pub struct GeneratedWorldConfig {
     pub bounds: Option<ScenarioBoundsConfig>,
 }
 
-/// The sphere a bounded generated world keeps the player in.
+/// The scenario `EntityId` of the area a generated world's `bounds` block
+/// spawns at load, so `OnEnter`/`OnExit` report it and a handler filters on it
+/// like any authored area. A handler may not spawn its own object under it.
+pub const BOUNDS_AREA_ID: &str = "bounds";
+
+/// The sphere a bounded generated world keeps the player in. The loader
+/// spawns it as the scenario area [`BOUNDS_AREA_ID`] through the same path as
+/// `CreateScenarioArea`; nothing else reads it. The world keeps streaming
+/// sectors past the edge: leaving is only what the authored `OnExit` does.
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]

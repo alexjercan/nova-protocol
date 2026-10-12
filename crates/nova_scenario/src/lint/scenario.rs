@@ -363,6 +363,41 @@ pub fn lint_scenario(
         );
     }
 
+    // A generated world's `bounds` block spawns the area `bounds` at load,
+    // before any handler runs, so it is a declared id every filter may read.
+    // A handler spawning the same id answers it twice (Error, like a duplicate
+    // within one handler). A `bounds` no `OnExit` reads is a sensor with no
+    // outcome (Warn, like a deadline with nothing to wait for): the player
+    // leaves and nothing happens, which is what the block exists to author.
+    if let ScenarioWorldType::Generated(GeneratedWorldConfig {
+        bounds: Some(_), ..
+    }) = &scenario.world
+    {
+        declared.spawn_ids.push(BOUNDS_AREA_ID.to_string());
+        if spawns_per_event
+            .iter()
+            .flatten()
+            .any(|spawn_id| spawn_id == BOUNDS_AREA_ID)
+        {
+            issues.push(LintIssue::error(
+                id,
+                format!(
+                    "a handler spawns object id '{BOUNDS_AREA_ID}', which the generated \
+                     world's `bounds` block already spawns at load"
+                ),
+            ));
+        }
+        if !exits_bounds(scenario) {
+            issues.push(LintIssue::warn(
+                id,
+                format!(
+                    "`bounds` is set but no OnExit handler filters on area \
+                     '{BOUNDS_AREA_ID}'; leaving the bounds does nothing"
+                ),
+            ));
+        }
+    }
+
     let satisfiable = |target: &str| {
         object_reference_resolves(target, &declared.spawn_ids, &declared.scatter_prefixes)
     };
@@ -750,6 +785,50 @@ fn check_step_chain(
                 ),
             ));
         }
+    }
+}
+
+/// Whether an `OnExit` handler, or a `Sequence` gate waiting on `OnExit`,
+/// filters on the bounds area.
+fn exits_bounds(scenario: &ScenarioConfig) -> bool {
+    let on_bounds = |name: EventConfig, filters: &[EventFilterConfig]| {
+        matches!(name, EventConfig::OnExit)
+            && filters
+                .iter()
+                .any(|filter| filter_names_area(filter, BOUNDS_AREA_ID))
+    };
+    scenario.events.iter().any(|event| {
+        on_bounds(event.name, &event.filters)
+            || event.actions.iter().any(|action| {
+                let mut found = false;
+                action.walk(&mut |action| {
+                    if let Some((_, steps)) = action.step_chain() {
+                        found |= steps
+                            .iter()
+                            .filter_map(|step| step.until.as_ref())
+                            .any(|gate| on_bounds(gate.name, &gate.filters));
+                    }
+                });
+                found
+            })
+    })
+}
+
+/// Whether `filter` matches the event's primary entity against `area`, under
+/// any conditional wrapping.
+fn filter_names_area(filter: &EventFilterConfig, area: &str) -> bool {
+    match filter {
+        EventFilterConfig::Entity(config) => config.id.as_deref() == Some(area),
+        EventFilterConfig::Conditional(ConditionalFilterConfig::Not(inner)) => {
+            filter_names_area(inner, area)
+        }
+        EventFilterConfig::Conditional(
+            ConditionalFilterConfig::And(left, right) | ConditionalFilterConfig::Or(left, right),
+        ) => filter_names_area(left, area) || filter_names_area(right, area),
+        EventFilterConfig::Expression(_)
+        | EventFilterConfig::Timer(_)
+        | EventFilterConfig::ShipOrder(_)
+        | EventFilterConfig::Cinematic(_) => false,
     }
 }
 
@@ -2352,6 +2431,102 @@ mod tests {
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(errs[0].message.contains("ghost"));
         assert!(errs[0].message.contains("SetAllegiance"));
+    }
+
+    /// The `bounds` block spawns its area at load: an `OnExit` on `bounds`
+    /// resolves with no `CreateScenarioArea` (clean), no `OnExit` on it is a
+    /// sensor with no outcome (Warn), a handler spawning `bounds` doubles the
+    /// id (Error), and a void has no `bounds` to read (Error).
+    #[test]
+    fn a_bounds_block_owns_the_bounds_area_id() {
+        let bounded = ScenarioWorldType::Generated(GeneratedWorldConfig {
+            seed: Some(1),
+            bounds: Some(ScenarioBoundsConfig {
+                position: Meters3::ZERO,
+                radius: Meters(1_000.0),
+            }),
+        });
+        let player = || {
+            spawn_armed_ship(
+                "player",
+                SpaceshipController::Player(PlayerControllerConfig::default()),
+            )
+        };
+        let exit = ScenarioEventConfig {
+            label: None,
+            name: EventConfig::OnExit,
+            once: true,
+            filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
+                id: Some(BOUNDS_AREA_ID.to_string()),
+                other_id: Some("player".to_string()),
+                ..default()
+            })],
+            actions: vec![EventActionConfig::DebugMessage(DebugMessageActionConfig {
+                message: "out".to_string(),
+            })],
+        };
+        let lint = |scenario: &ScenarioConfig| {
+            lint_scenario(
+                scenario,
+                &sections(&["hull"]),
+                &ships(&[]),
+                &known(&["test_scenario"]),
+                &GameItems::default(),
+            )
+        };
+
+        let mut read = scenario(vec![player()], vec![]);
+        read.world = bounded.clone();
+        read.events.push(exit.clone());
+        let issues = lint(&read);
+        assert!(issues.is_empty(), "{issues:?}");
+
+        let mut unread = scenario(vec![player()], vec![]);
+        unread.world = bounded.clone();
+        let issues = lint(&unread);
+        assert!(errors(&issues).is_empty(), "{issues:?}");
+        assert!(
+            issues
+                .iter()
+                .any(|issue| issue.severity == LintSeverity::Warn
+                    && issue
+                        .message
+                        .contains("no OnExit handler filters on area 'bounds'")),
+            "{issues:?}"
+        );
+
+        let mut doubled = scenario(
+            vec![
+                player(),
+                EventActionConfig::CreateScenarioArea(ScenarioAreaConfig {
+                    id: BOUNDS_AREA_ID.to_string(),
+                    name: "Again".to_string(),
+                    position: Meters3::ZERO,
+                    rotation: Quat::IDENTITY,
+                    radius: Meters(10.0),
+                }),
+            ],
+            vec![],
+        );
+        doubled.world = bounded;
+        doubled.events.push(exit.clone());
+        let issues = lint(&doubled);
+        let errs = errors(&issues);
+        assert_eq!(errs.len(), 1, "{issues:?}");
+        assert!(
+            errs[0].message.contains("already spawns at load"),
+            "{errs:?}"
+        );
+
+        let mut void = scenario(vec![player()], vec![]);
+        void.events.push(exit);
+        let issues = lint(&void);
+        assert!(
+            errors(&issues)
+                .iter()
+                .any(|issue| issue.message.contains("references id 'bounds'")),
+            "{issues:?}"
+        );
     }
 
     /// A generated world streams around the one player ship its `OnStart`

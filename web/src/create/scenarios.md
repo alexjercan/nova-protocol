@@ -119,10 +119,35 @@ ranges in the handbook show:
 A generated world must spawn EXACTLY ONE player ship in `OnStart`; zero or
 two is a content Error. Only a chapter may take `seed: None`: a `role:
 Backdrop` or `role: Lesson` scenario with it is a content Error, because the
-menu and the handbook start those with no seed. `Generated` also takes an optional
-`bounds: Some((position: (0, 0, 0), radius: 20000))`, a sphere in meters the
-player is meant to stay in; its radius may not exceed 80,000 m, the half edge
-of the streamed window.
+menu and the handbook start those with no seed.
+
+`Generated` also takes an optional `bounds: Some((position: (0, 0, 0),
+radius: 20000))`, a sphere in meters the player is meant to stay in. The
+loader spawns it as a scenario area with the id `bounds` before `OnStart`
+runs, so leaving it is an ordinary [`OnExit`](../events/#onexit) with `id:
+Some("bounds")`, and what happens then is yours to author: the engine ends
+nothing on its own, and the world keeps streaming sectors past the edge.
+
+```ron
+world: Generated((
+    seed: Some(1701),
+    bounds: Some((position: (0.0, 0.0, 0.0), radius: 2000.0)),
+)),
+events: [
+    // ...OnStart spawns the one player ship...
+    (
+        name: OnExit,
+        filters: [Entity((id: Some("bounds"), other_id: Some("player_spaceship")))],
+        actions: [Outcome((outcome: Defeat, message: Some("You crossed the line.")))],
+    ),
+],
+```
+
+Rules the content lint checks: the radius may not exceed 80,000 m, the half
+edge of the streamed window (Error); no handler may spawn its own object or
+area named `bounds` (Error); a `bounds` that no `OnExit` handler reads does
+nothing and is a Warning. The example mod's `example_bounds` is the copyable
+instance.
 
 ## Handler shape
 

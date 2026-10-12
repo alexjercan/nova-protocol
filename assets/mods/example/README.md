@@ -29,6 +29,11 @@ binary assets it ships).
   ship their own main-menu ambience, not just playable levels. It reports its
   act finished with `BackdropDone` after a 150 s timer, and the menu picks
   what plays next.
+- **A bounded generated world** - `example_bounds` runs the base world
+  generator on a fixed seed (`world: Generated((seed: Some(1701), bounds:
+  Some(..)))`). The loader spawns the `bounds` sphere as the scenario area
+  `bounds`; the scenario's own `OnExit` handler on it counts the exit and
+  ends the run in Defeat. The world keeps streaming past the edge.
 - **A hull line** - `example_freighter_hull` is a `Grammar` under a new id: a
   longer, blunt-nosed hauler drawing this mod's own plate and no weapons. The
   editor's Generate block lists it under HULL LINE beside the base warship and

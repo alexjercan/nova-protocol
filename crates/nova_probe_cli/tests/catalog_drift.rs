@@ -925,10 +925,22 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "no map blip carries a generated ship's name",
         ],
     ),
+    (
+        "system_world_bounds",
+        &[
+            "the bounded range is a picker row the scenarios hand-off starts",
+            "the fixed seed arms the world with no session around the one player ship",
+            "the bounds block spawns one scenario area named bounds",
+            "the sectors stream in around the bounded range",
+            "leaving the bounds fires OnExit for the player exactly once",
+            "the authored OnExit outcome shows",
+            "the world stays armed and streamed past the edge",
+        ],
+    ),
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 454;
+const SYSTEMS_INVARIANTS: usize = 461;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

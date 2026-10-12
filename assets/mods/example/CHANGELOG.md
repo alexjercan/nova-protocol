@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.0
+
+- Add `example_bounds`, a chapter on the base world generator with a fixed
+  seed and a 2 km `bounds` sphere. Leaving it raises `OnExit` on the area
+  `bounds`, which the scenario answers with a Defeat. Needs a base game whose
+  scenarios take a `world` block.
+
 ## 1.4.0
 
 - **(breaking)** Add `example_survey_core`, an item this mod defines, and

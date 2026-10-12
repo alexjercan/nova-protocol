@@ -39,6 +39,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A fixed-seed chapter from Scenarios saves no world: Retry reloads it, no
   Load last save. New Game refuses a start that takes no session; a backdrop
   or lesson may not take `seed: None`.
+- A generated world's `bounds` spawns the scenario area `bounds` at load.
+  Leaving it raises `OnExit` for the authored outcome; the world streams on
+  past the edge. Lint warns when no `OnExit` reads it.
 
 ### Modding & Mod Portal
 

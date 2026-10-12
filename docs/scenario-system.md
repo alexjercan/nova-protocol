@@ -61,9 +61,22 @@ the panel says about it, through `bevy/reflect_documentation`.
   build: no world folder, no `WorldSaveSession`, so the pause Retry reloads
   the scenario and Load last save is never offered. Only a chapter may take
   `seed: None`; a backdrop or a lesson range with it is a lint Error, since
-  the menu and the handbook start them with no session. `bounds` is a sphere
-  in metres, radius at most `nova_world_base::OPEN_WORLD_BOUNDS_RADIUS_MAX`
-  (lint).
+  the menu and the handbook start them with no session.
+
+`bounds: Some((position, radius))` is a sphere in metres the player is meant
+to stay in. `configure_scenario_shape` (`loader/wake.rs`) queues it as ONE
+scenario area through `ScenarioAreaConfig::bounds` and the same `queue` path
+`CreateScenarioArea` uses, under the id `BOUNDS_AREA_ID` (`"bounds"`), before
+`OnStart` fires, so the player ship lands inside it and leaving it is an
+ordinary `OnExit` with `id: "bounds"`. The outcome is authored, never
+hard-coded: the engine ends nothing and clamps nothing, and the world keeps
+streaming sectors past the edge. Lint: the radius is at most
+`nova_world_base::OPEN_WORLD_BOUNDS_RADIUS_MAX` (the active window's half
+edge, Error); a handler spawning its own `bounds` object doubles the id
+(Error); a `bounds` no `OnExit` handler or `Sequence` gate filters on is a
+sensor with no outcome (Warn). A `Void` scenario cannot carry `bounds`
+structurally. The example mod's `example_bounds` is the shipped instance, and
+`system_world_bounds` the asserted range.
 
 `nova_world_base::sync_open_world` arms `WorldConfig` from this block and the
 player ship, and disarms it under a `Void` scenario or none. The base bundle's

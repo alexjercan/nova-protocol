@@ -37,15 +37,27 @@ pub enum WakeProfile {
 }
 
 /// Install the shape a loaded scenario declares: its watches, whether anything
-/// reads an entity query, and what the pulse must wake for.
+/// reads an entity query, what the pulse must wake for, and the area a
+/// generated world's `bounds` block authors.
 ///
 /// The ONE place a config becomes live world shape, for the same reason
 /// `ScenarioEventConfig::build_handler` is the one place a config becomes a
 /// handler: nine headless rigs re-implement the loader, and a fact derived in
 /// only one of them is a scenario the game does not run.
+///
+/// The bounds area is queued before `OnStart` fires, so the player ship that
+/// handler spawns lands inside it and leaving it is an ordinary `OnExit` for
+/// [`BOUNDS_AREA_ID`].
 pub(crate) fn configure_scenario_shape(world: &mut NovaEventWorld, scenario: &ScenarioConfig) {
     world.set_watches(scenario.watches.clone(), scenario.reads_an_entity_query());
     world.set_wake(profile(scenario));
+    if let ScenarioWorldType::Generated(GeneratedWorldConfig {
+        bounds: Some(bounds),
+        ..
+    }) = &scenario.world
+    {
+        ScenarioAreaConfig::bounds(bounds).queue(world);
+    }
 }
 
 /// Everything that can be dispatched on `OnUpdate`, scanned for what it reads.
@@ -308,6 +320,79 @@ mod tests {
 
     use super::*;
     use crate::loader::fixtures::*;
+
+    /// A generated world's `bounds` block is ONE scenario area, named
+    /// `bounds`, at the authored centre and radius, scoped to the scenario;
+    /// a world without one queues no area. Through the loader's shape install
+    /// and the production spawn drain, so what the game runs is what the test
+    /// reads.
+    #[test]
+    fn a_bounded_generated_world_installs_one_bounds_area() {
+        use avian3d::prelude::Collider;
+        use bevy::prelude::*;
+        use nova_events::prelude::{EntityId, Meters, Meters3};
+        use nova_gameplay::prelude::GameObjectives;
+
+        let areas = |world: ScenarioWorldType| {
+            let mut app = App::new();
+            app.add_plugins(MinimalPlugins);
+            app.init_resource::<NovaEventWorld>();
+            app.init_resource::<GameObjectives>();
+            let scenario = ScenarioConfig {
+                world,
+                ..crate::loader::fixtures::scenario_with("bounded", vec![])
+            };
+            configure_scenario_shape(
+                &mut app.world_mut().resource_mut::<NovaEventWorld>(),
+                &scenario,
+            );
+            crate::test_support::drain_spawns(app.world_mut());
+            let mut areas = app.world_mut().query_filtered::<(
+                &EntityId,
+                &Transform,
+                &Collider,
+                Has<ScenarioScopedMarker>,
+            ), With<ScenarioAreaMarker>>();
+            areas
+                .iter(app.world())
+                .map(|(id, transform, collider, scoped)| {
+                    let radius = collider
+                        .shape()
+                        .as_ball()
+                        .expect("an area is a sphere")
+                        .radius;
+                    (id.0.clone(), transform.translation, radius, scoped)
+                })
+                .collect::<Vec<_>>()
+        };
+
+        let centre = Meters3::new(1_000.0, 0.0, -2_000.0);
+        let bounded = areas(ScenarioWorldType::Generated(GeneratedWorldConfig {
+            seed: Some(7),
+            bounds: Some(ScenarioBoundsConfig {
+                position: centre,
+                radius: Meters(2_500.0),
+            }),
+        }));
+        assert_eq!(
+            bounded,
+            vec![(
+                BOUNDS_AREA_ID.to_string(),
+                centre.to_engine(),
+                Meters(2_500.0).to_engine(),
+                true
+            )],
+            "one scoped area named `bounds` at the authored centre and radius"
+        );
+
+        let unbounded = areas(ScenarioWorldType::Generated(GeneratedWorldConfig {
+            seed: Some(7),
+            bounds: None,
+        }));
+        assert!(unbounded.is_empty(), "no bounds, no area: {unbounded:?}");
+        let void = areas(ScenarioWorldType::Void);
+        assert!(void.is_empty(), "a void queues no area: {void:?}");
+    }
 
     fn number(value: f64) -> VariableExpressionNode {
         VariableExpressionNode::new_term(VariableTermNode::new_factor(
