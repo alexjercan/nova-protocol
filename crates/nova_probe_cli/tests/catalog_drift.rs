@@ -938,6 +938,16 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_generated_marks",
+        &[
+            "the first survey contact is a generated body marked by payload binding",
+            "the mark is remembered by the body's typed id",
+            "the marked body's sector retires behind the player and takes the body",
+            "the thawed body wears the same generated id and the remembered mark",
+            "the remembered mark needs no second event",
+        ],
+    ),
+    (
         "system_hold_events",
         &[
             "the berth lists one objective per hold event and none fires at load",
@@ -953,7 +963,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 469;
+const SYSTEMS_INVARIANTS: usize = 474;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

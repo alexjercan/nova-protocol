@@ -582,6 +582,15 @@ name = "system_world_bounds"
 path = "examples/systems/system_world_bounds.rs"
 required-features = ["debug"]
 
+# An objective mark on a GENERATED body outlives its sector: the example mod's
+# survey chapter marks a rock through the `$other_id` payload binding, a
+# one-cell jump retires the rock's sector and the return thaws it, and the
+# thawed body wears the same typed id and the same chip.
+[[example]]
+name = "system_generated_marks"
+path = "examples/systems/system_generated_marks.rs"
+required-features = ["debug"]
+
 # The six hold events on their production paths in the example mod's berth:
 # a Buy, its two balance moves, a Ship pane repair, a jettison, a pickup and a
 # paying mining pulse each fire once and complete their authored objective.

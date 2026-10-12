@@ -27,6 +27,7 @@ pub mod filters;
 pub mod lint;
 /// Parse, register, and load/unload scenario bundles at runtime.
 pub mod loader;
+pub mod marks;
 /// The player's mining beam and the ore canisters it drops.
 pub mod mining;
 /// What an authored string in a config names.
@@ -52,9 +53,9 @@ pub mod world;
 pub mod prelude {
     pub use super::{
         actions::prelude::*, events::prelude::*, filters::prelude::*, lint::prelude::*,
-        loader::prelude::*, mining::prelude::*, names::prelude::*, objects::prelude::*,
-        queries::prelude::*, render_scale::prelude::*, syntax::prelude::*, variables::prelude::*,
-        world::prelude::*, NovaScenarioPlugin,
+        loader::prelude::*, marks::prelude::*, mining::prelude::*, names::prelude::*,
+        objects::prelude::*, queries::prelude::*, render_scale::prelude::*, syntax::prelude::*,
+        variables::prelude::*, world::prelude::*, NovaScenarioPlugin,
     };
 }
 

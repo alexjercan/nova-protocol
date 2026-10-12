@@ -23,6 +23,10 @@
 //                                  `OnTraded`, `OnCreditsChanged`,
 //                                  `OnRepaired`, `OnJettisoned`, `OnPickedUp`
 //                                  and `OnMined`)
+//   8. ADD a survey contact     - `example_survey` (the fixed-seed world
+//                                  again; an `OnEnter` marks a GENERATED body
+//                                  through `$other_id`, and the mark outlives
+//                                  the body's sector)
 //
 // Everything here is pure data - no engine changes. For the field-by-field
 // syntax behind it see the wiki: "Author a section", "Author a scenario",
@@ -1368,6 +1372,169 @@
                     Outcome((
                         outcome: Defeat,
                         message: Some("Your ship broke apart at the berth."),
+                    )),
+                ],
+            ),
+        ],
+    )),
+    // -- 8. SURVEY CONTACT: a marker on a GENERATED body ---------------------
+    // The same fixed-seed world as `example_bounds`, unbounded, with a survey
+    // sphere 64 km out in the -X face of the streamed window. Whatever drifts
+    // into it is a body the world generator placed - a rock, a derelict - and
+    // its id (`sector_n2_0_0_background_rock_3`) is minted at runtime, so no
+    // handler can write it: lint refuses the literal. The `OnEnter` handler
+    // marks it anyway, by binding `$other_id` from the event payload. The
+    // scenario remembers the mark by that id, so when the body's sector
+    // retires behind the player and thaws on the way back, the chip is on
+    // the body again.
+    Scenario((
+        id: "example_survey",
+        name: "Example Survey Contact",
+        description: "A fixed-seed slice of the generated world: the first body to drift into the survey sphere wears a marker chip that outlives its sector.",
+        cubemap: "self://textures/nebula.png",
+        world: Generated((
+            seed: Some(1701),
+            bounds: None,
+        )),
+        events: [
+            (
+                name: OnStart,
+                filters: [],
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "example_survey_key",
+                            name: "Key Light",
+                            position: (-600.0, 500.0, 600.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 11000.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.96,
+                                blue: 0.9,
+                                alpha: 1.0,
+                            )),
+                            shadows: true,
+                            aim: Some((0.0, 0.0, 0.0)),
+                        )),
+                    )),
+                    VariableSet((
+                        key: "contacts",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    Objective((
+                        id: "survey_contact",
+                        message: "Mark the first contact in the survey sphere.",
+                    )),
+                    // Inside sector (-2, 0, 0): the face a one-cell burn along
+                    // +X retires, and the return brings back.
+                    CreateScenarioArea((
+                        id: "survey",
+                        name: "Survey Sphere",
+                        position: (-64000.0, 0.0, 12000.0),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                        radius: 1000.0,
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "player_spaceship",
+                            name: "Player Spaceship",
+                            position: (0.0, 0.0, 0.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: Player((
+                                input_mapping: {
+                                    "turret": [
+                                        Mouse(Left),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                },
+                            )),
+                            design: Inline((
+                                sections: [
+                                    (
+                                        id: "controller",
+                                        position: (0.0, 0.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "basic_controller_section"),
+                                    ),
+                                    (
+                                        id: "hull_front",
+                                        position: (0.0, 0.0, 1.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "hull_rear",
+                                        position: (0.0, 0.0, 2.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "example_plated_hull_section"),
+                                    ),
+                                    (
+                                        id: "thruster",
+                                        position: (0.0, 0.0, 3.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "basic_thruster_section"),
+                                    ),
+                                    (
+                                        id: "turret",
+                                        position: (0.0, 0.0, -0.75),
+                                        rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
+                                        source: Prototype(id: "pdc_kinetic_turret_section"),
+                                    ),
+                                ],
+                            )),
+                            initial_velocity: (0.0, 0.0, 0.0),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2_000,
+                        )),
+                    )),
+                ],
+            ),
+            // The first body into the sphere. `$other_id` is the entering
+            // body's id, read from the payload; a literal generated id in
+            // its place fails lint. `once`, so the thaw of a marked body
+            // standing in the sphere re-fires nothing: the chip it comes
+            // back with is the remembered mark.
+            (
+                name: OnEnter,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("survey"),
+                    )),
+                ],
+                actions: [
+                    ObjectiveMarkerAttach((
+                        target_id: "$other_id",
+                        label: "CONTACT",
+                    )),
+                    VariableSet((
+                        key: "contacts",
+                        expression: Add(
+                            Factor(Name("contacts")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                    ObjectiveComplete((id: "survey_contact")),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("Survey ship lost."),
                     )),
                 ],
             ),

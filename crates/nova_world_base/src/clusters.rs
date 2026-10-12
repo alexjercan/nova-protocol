@@ -591,7 +591,7 @@ impl SkipType {
 /// One body a cell owns, and what the cell did with it.
 #[derive(Clone, Debug)]
 struct PlannedBody {
-    id: SectorObjectId,
+    id: GeneratedBodyId,
     source: BodySource,
     body: ClusterBody,
     position: Meters3,
@@ -857,7 +857,7 @@ impl SectorPlan {
                 Fnv32::new()
                     .write(&seed.to_le_bytes())
                     .write(b"overlap-placement")
-                    .write(body.id.as_str().as_bytes())
+                    .write(body.id.to_string().as_bytes())
                     .finish(),
             );
             let mut replacement = None;
@@ -962,7 +962,7 @@ impl SectorPlan {
                     config: AsteroidConfig {
                         radius: *radius,
                         initial_velocity: generated_initial_velocity(
-                            planned.id.as_str(),
+                            &planned.id.to_string(),
                             position,
                             Meters(radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX),
                             self.coord,
@@ -974,7 +974,7 @@ impl SectorPlan {
                         kind: (*kind).into(),
                         destroy_sound: None,
                         lock_signature: None,
-                        seed: Some(asteroid_seed_from_id(id.as_str())),
+                        seed: Some(asteroid_seed_from_id(&id.to_string())),
                     },
                     id,
                     position,
@@ -994,7 +994,7 @@ impl SectorPlan {
                     role: ship.role,
                     spawn: SpaceshipConfig {
                         initial_velocity: generated_initial_velocity(
-                            planned.id.as_str(),
+                            &planned.id.to_string(),
                             position,
                             ship.clearance,
                             self.coord,
@@ -1605,13 +1605,14 @@ pub(crate) fn plan_sector(
                 unreachable!("a cluster plans its hulls as hulls");
             };
             let mut planned = candidate("hull", index, BodySource::Hull(node, index), &hull.hull);
+            let planned_id = planned.id.to_string();
             let ship = plan_ship(
                 parts,
                 items,
                 &civilizations,
                 input.seed,
                 HullSlot {
-                    id: planned.id.as_str(),
+                    id: &planned_id,
                     node,
                     slot: index,
                     anchor: cluster.anchor,
@@ -1730,7 +1731,7 @@ fn plan_patrols(input: SectorGenerationInput, bodies: &mut [PlannedBody]) {
 
 /// One body a cell owns, before it is resolved.
 struct Candidate {
-    id: SectorObjectId,
+    id: GeneratedBodyId,
     source: BodySource,
     body: ClusterBody,
     position: Meters3,

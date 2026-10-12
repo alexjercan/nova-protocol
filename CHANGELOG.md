@@ -45,6 +45,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Hold events `OnMined`, `OnPickedUp`, `OnJettisoned`, `OnTraded`,
   `OnCreditsChanged` and `OnRepaired` fire once per occurrence; the example
   mod's `example_prospect` berth runs all six.
+- `ObjectiveMarkerAttach`/`Detach` take `$id` or `$other_id` from the event,
+  so a handler marks a generated rock or derelict; the mark outlives a
+  retire and thaw. A written generated id fails lint.
 
 ### Modding & Mod Portal
 

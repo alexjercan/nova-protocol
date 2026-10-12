@@ -394,7 +394,7 @@ pub enum Outcome {
 #[derive(Clone, Debug)]
 pub struct PlannedBody {
     /// Its scenario id, prefixed with the owning cell's slug.
-    pub id: SectorObjectId,
+    pub id: GeneratedBodyId,
     /// Where it came from.
     pub source: BodySource,
     /// What it is.
@@ -995,7 +995,7 @@ pub fn plan_cell(
 
 /// One body a cell owns, before it is resolved.
 struct Candidate {
-    id: SectorObjectId,
+    id: GeneratedBodyId,
     source: BodySource,
     body: ClusterBody,
     position: Meters3,

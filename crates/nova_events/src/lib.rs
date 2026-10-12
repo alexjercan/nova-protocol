@@ -9,10 +9,12 @@
 //! dispatches those events.
 //!
 //! It also owns [`units`], the physical quantities Nova authors and reasons in,
-//! and [`scale`], the structural load limit. Those are not events; they live
-//! here because this is the deepest crate BOTH the physics side (`nova_ship`)
-//! and the display side (`nova_ui`) can reach, and the scale has to have
-//! exactly one definition in the workspace.
+//! [`scale`], the structural load limit, and [`generated`], the world grid
+//! cell and the typed id of a body a generator placed in one. Those are not
+//! events; they live here because this is the deepest crate BOTH the physics
+//! side (`nova_ship`) and the display side (`nova_ui`) can reach, the scale
+//! has to have exactly one definition in the workspace, and a generated id is
+//! minted by `nova_world` above `nova_scenario`, which resolves it.
 #![warn(missing_docs)]
 
 use bevy::prelude::*;
@@ -21,6 +23,7 @@ use nova_events_macros::EventKind;
 use crate::engine::*;
 
 pub mod engine;
+pub mod generated;
 pub mod scale;
 pub mod units;
 
@@ -38,6 +41,7 @@ pub mod prelude {
             CommandsGameEventExt, EventAction, EventFilter, EventHandler, EventHandlerIndex,
             EventKind, EventWorld, GameEvent, GameEventInfo, GameEventsPlugin,
         },
+        generated::{GeneratedBodyId, NotAGeneratedBodyId, SectorCoord},
         scale::LOAD_LIMIT,
         units::prelude::*,
         CargoEventInfo, CinematicEventInfo, CreditChangeCauseType, CreditsChangedEventInfo,

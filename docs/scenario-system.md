@@ -232,6 +232,43 @@ a surface keeping its own list of which field names what goes stale the day an
 action is added, which is the failure the attribute removes. A new string field
 that refers to something declares what, or it is a blank box.
 
+### Generated bodies: reached by typed id, never by name
+
+A streamed body - a rock, a planetoid, a derelict the world generator placed -
+is scenario-SCOPED but deliberately not `ScenarioAddressableMarker`:
+`nova_world` reads that marker's absence as "mine to adopt and freeze"
+(`frozen.rs::adopt_moving_bodies`, and the save refuses an addressable
+persistent body as `UnownedBody`). So no authored id reaches one, and the
+`scoped_entities` family never returns one. Instead every streamed body wears
+`GeneratedBodyId` (`nova_events::generated`) beside its `EntityId`, at spawn
+and at thaw: the cell it was generated in, the generator's stem and an index.
+`Display` spells it as the `EntityId` string the body always had
+(`sector_n2_0_0_background_rock_3`) and `FromStr` reads exactly that back,
+so a payload string that names a generated body is the typed id and nothing
+written by hand is.
+
+Three consequences, each with its owner:
+
+- **Lint refuses the literal.** A `Names::Object` or `Names::NewObject` field,
+  or an `Entity` filter id, that parses as a `GeneratedBodyId` is an Error
+  naming the field (`lint/scenario.rs::check_object_names`). Such a body exists
+  only at runtime, on a seed.
+- **A handler binds it from the event.** `ObjectiveMarkerAttach` and
+  `ObjectiveMarkerDetach` take `target_id: "$id"` or `"$other_id"`, read from
+  the firing event's payload (`actions/mod.rs::bind_object_reference`); the
+  bound string parses as a `GeneratedBodyId` and resolves through
+  `generated_entity`, the one lookup for streamed bodies. No other reference
+  field reads a binding, and lint refuses a `$` spelling anywhere else.
+- **The mark outlives the body.** `GeneratedMarks` (`marks.rs`) remembers each
+  mark by typed id; `reapply_generated_marks` puts it back on
+  `Added<GeneratedBodyId>`, which a thaw is. The map clears with the scenario.
+  Within one session only: the world save does not carry it yet.
+
+`system_generated_marks` is the proof: the example mod's `example_survey`
+chapter marks a rock through `$other_id`, a one-cell jump retires its sector,
+and the thawed body wears the same id and the same chip with the `once`
+handler still at one firing.
+
 Events carry identity, not payload-by-position: entities wear
 `EntityId(String)` and `EntityTypeName(String)`, and every PAIR event has the
 same filter shape - a subject `id` plus an `other_id` / `other_type_name`.

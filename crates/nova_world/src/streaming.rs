@@ -180,11 +180,17 @@ pub fn desired_sectors(centre: SectorCoord, radius: i32) -> BTreeSet<SectorCoord
 /// authored spawn seam grants: a cell id is derived from a coordinate, so a
 /// scenario that happened to author an object named `sector_0_0_0` would
 /// otherwise have every despawn and objective-marker action for that id reach
-/// into the streamed world too. The marker lives in `nova_events` beside
-/// `EntityId`, so `nova_ship` enforces the same rule when it resolves an
-/// authored well target of an orbit directive or an Orbit helm order - a
+/// into the streamed world too, and `adopt_moving_bodies` reads the marker's
+/// absence as "a body this crate freezes". The marker lives in `nova_events`
+/// beside `EntityId`, so `nova_ship` enforces the same rule when it resolves
+/// an authored well target of an orbit directive or an Orbit helm order - a
 /// streamed planetoid carries a `GravityWell` and would otherwise be orbitable
 /// by name. A nearest-well target reaches it on purpose: it names no id.
+///
+/// Every body ALSO wears its typed `GeneratedBodyId` beside the `EntityId`
+/// string, here and at thaw. That is the seam a scenario reaches a generated
+/// body through - an objective marker bound from an event payload - without
+/// the addressable marker: `nova_scenario::generated_entity`.
 ///
 /// A ship whose clearance sphere `observer` overlaps is not spawned: it is
 /// held as a [`PendingSectorShip`] child of the root, for
@@ -241,6 +247,7 @@ pub fn materialize_sector(
                 position: body.position,
                 rotation: Quat::IDENTITY,
             }),
+            body.id.clone(),
             ChildOf(root),
         ));
         let seed = body.seed();
@@ -255,6 +262,7 @@ pub fn materialize_sector(
                 position: body.position,
                 rotation: Quat::IDENTITY,
             }),
+            body.id.clone(),
             ChildOf(root),
         ));
         planet_scenario_object_prepared(&mut entity, surface);
@@ -335,6 +343,7 @@ fn spawn_sector_ship(commands: &mut Commands, root: Entity, ship: SectorShip) {
             position,
             rotation,
         }),
+        id,
         spaceship_scenario_object(spawn),
         ChildOf(root),
     );

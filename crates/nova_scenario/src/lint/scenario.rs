@@ -3,6 +3,7 @@
 use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::Alpha;
+use nova_events::prelude::GeneratedBodyId;
 use nova_gameplay::prelude::{GameItems, SectionClass};
 use nova_input::prelude::InputSource;
 
@@ -1328,10 +1329,19 @@ fn check_target(
 /// right by [`EventActionConfig::walk`].
 ///
 /// A [`Names::NewObject`] field is checked too, but for a different fault: it
-/// MINTS an id rather than resolving one, so the only thing that can be wrong
-/// with it here is the character `/`, reserved for the ids a sever mints
-/// (D-T7 second amendment). A duplicate `NewObject` id is caught separately by
-/// the per-handler and cross-handler spawn-id passes above.
+/// MINTS an id rather than resolving one, so what can be wrong with it here is
+/// the character `/`, reserved for the ids a sever mints (D-T7 second
+/// amendment), or a spelling that parses as a [`GeneratedBodyId`], reserved
+/// for the ids the world generator mints. A duplicate `NewObject` id is caught
+/// separately by the per-handler and cross-handler spawn-id passes above.
+///
+/// A GENERATED id is refused in a reference too, and ahead of the resolve: a
+/// body like `sector_0_0_0_background_rock_3` exists only at runtime, on a
+/// seed, so no scenario spawns it and no author may name it. A handler reaches
+/// one through the firing event instead - `$id` or `$other_id` on the two
+/// objective-marker actions, the only fields that read a payload binding. A
+/// `$` spelling anywhere else is refused by name, so it cannot lint green and
+/// then resolve as a literal nobody spawned.
 fn check_object_names(
     action: &EventActionConfig,
     scenario: &str,
@@ -1342,7 +1352,44 @@ fn check_object_names(
         return;
     };
     let tag = action.tag().name();
+    let reads_payload = matches!(
+        action,
+        EventActionConfig::ObjectiveMarkerAttach(_) | EventActionConfig::ObjectiveMarkerDetach(_)
+    );
     walk_names(payload, &mut |named| match named.names {
+        Names::Object if payload_binding(named.text).is_some() => {
+            if !reads_payload {
+                issues.push(LintIssue::error(
+                    scenario,
+                    format!(
+                        "{tag} `{}` is '{}', a payload binding only ObjectiveMarkerAttach and \
+                         ObjectiveMarkerDetach read",
+                        named.field, named.text
+                    ),
+                ));
+            }
+        }
+        Names::Object if named.text.starts_with('$') => {
+            issues.push(LintIssue::error(
+                scenario,
+                format!(
+                    "{tag} `{}` is '{}'; a payload binding is '{PAYLOAD_SUBJECT_REFERENCE}' or \
+                     '{PAYLOAD_OTHER_REFERENCE}'",
+                    named.field, named.text
+                ),
+            ));
+        }
+        Names::Object if named.text.parse::<GeneratedBodyId>().is_ok() => {
+            issues.push(LintIssue::error(
+                scenario,
+                format!(
+                    "{tag} `{}` names the generated body '{}', which exists only at runtime; \
+                     bind it from the event with '{PAYLOAD_SUBJECT_REFERENCE}' or \
+                     '{PAYLOAD_OTHER_REFERENCE}'",
+                    named.field, named.text
+                ),
+            ));
+        }
         Names::Object => {
             check_target(
                 named.text,
@@ -1357,6 +1404,16 @@ fn check_object_names(
                 scenario,
                 format!(
                     "object '{}' field '{}': '/' is reserved for minted ids",
+                    named.text, named.field
+                ),
+            ));
+        }
+        Names::NewObject if named.text.parse::<GeneratedBodyId>().is_ok() => {
+            issues.push(LintIssue::error(
+                scenario,
+                format!(
+                    "object '{}' field '{}' spells a generated body id, which only the world \
+                     generator mints",
                     named.text, named.field
                 ),
             ));
@@ -1769,7 +1826,15 @@ fn check_filter(
     match filter {
         EventFilterConfig::Entity(config) => {
             for reference in [&config.id, &config.other_id].into_iter().flatten() {
-                if !satisfiable(reference) {
+                if reference.parse::<GeneratedBodyId>().is_ok() {
+                    issues.push(LintIssue::error(
+                        scenario,
+                        format!(
+                            "entity filter names the generated body '{reference}', which \
+                             exists only at runtime; filter on `other_type_name` instead"
+                        ),
+                    ));
+                } else if !satisfiable(reference) {
                     issues.push(LintIssue::error(
                         scenario,
                         format!(
@@ -1966,6 +2031,96 @@ mod tests {
 
     use super::*;
     use crate::lint::{fixtures::*, LintSeverity};
+
+    /// A generated body's id is minted at runtime, so an author cannot name
+    /// one: as a marker target, as a spawn id, or in an entity filter. The
+    /// marker actions reach one through a payload binding, which no other
+    /// reference field may spell.
+    #[test]
+    fn a_generated_body_id_is_refused_everywhere_an_author_could_write_it() {
+        let generated = "sector_n2_0_0_background_rock_3";
+        let s = scenario(
+            vec![
+                EventActionConfig::ObjectiveMarkerAttach(ObjectiveMarkerAttachActionConfig::new(
+                    generated, "ROCK",
+                )),
+                spawn_object(generated),
+                EventActionConfig::DespawnScenarioObject(DespawnScenarioObjectActionConfig::new(
+                    "$other_id",
+                )),
+                EventActionConfig::ObjectiveMarkerDetach(ObjectiveMarkerDetachActionConfig::new(
+                    "$target",
+                )),
+            ],
+            vec![EventFilterConfig::Entity(EntityFilterConfig {
+                id: None,
+                type_name: None,
+                other_id: Some(generated.to_string()),
+                other_type_name: None,
+            })],
+        );
+        let issues = lint_scenario(
+            &s,
+            &sections(&[]),
+            &ships(&[]),
+            &known(&[]),
+            &GameItems::default(),
+        );
+        let messages: Vec<&str> = errors(&issues)
+            .iter()
+            .map(|issue| issue.message.as_str())
+            .collect();
+        for expected in [
+            "ObjectiveMarkerAttach `target_id` names the generated body \
+             'sector_n2_0_0_background_rock_3', which exists only at runtime",
+            "object 'sector_n2_0_0_background_rock_3' field 'id' spells a generated body id",
+            "DespawnScenarioObject `id` is '$other_id', a payload binding only \
+             ObjectiveMarkerAttach and ObjectiveMarkerDetach read",
+            "ObjectiveMarkerDetach `target_id` is '$target'; a payload binding is '$id' or \
+             '$other_id'",
+            "entity filter names the generated body 'sector_n2_0_0_background_rock_3'",
+        ] {
+            assert!(
+                messages.iter().any(|message| message.contains(expected)),
+                "expected an error containing {expected:?}, got {messages:#?}"
+            );
+        }
+        assert!(
+            !messages
+                .iter()
+                .any(|message| message.contains("which nothing in this scenario")),
+            "a generated id or a binding is refused by name, not as a typo: {messages:#?}"
+        );
+    }
+
+    /// The two marker actions may bind their target from the event payload:
+    /// `$id` and `$other_id` lint green there with nothing spawned.
+    #[test]
+    fn marker_actions_accept_a_payload_binding() {
+        let s = scenario(
+            vec![
+                EventActionConfig::ObjectiveMarkerAttach(ObjectiveMarkerAttachActionConfig::new(
+                    "$other_id",
+                    "CONTACT",
+                )),
+                EventActionConfig::ObjectiveMarkerDetach(ObjectiveMarkerDetachActionConfig::new(
+                    "$id",
+                )),
+            ],
+            vec![],
+        );
+        let issues = lint_scenario(
+            &s,
+            &sections(&[]),
+            &ships(&[]),
+            &known(&[]),
+            &GameItems::default(),
+        );
+        assert!(
+            errors(&issues).is_empty(),
+            "a bound marker target is not a dangling reference: {issues:#?}"
+        );
+    }
 
     #[test]
     fn timer_keys_and_literal_durations_are_linted() {

@@ -42,9 +42,9 @@ mod frozen;
 
 use crate::{
     generate_sector, materialize_pending_ships, materialize_sector, prepare_sector, sector_id,
-    validate_manifest, CivilizationId, NovaWorldPlugin, ObserverBody, PendingSectorShip,
-    SectorAsteroid, SectorCoord, SectorFault, SectorGenerationInput, SectorGenerator,
-    SectorManifest, SectorObjectId, SectorPlanet, SectorShip, SectorShipConditionType,
+    validate_manifest, CivilizationId, GeneratedBodyId, NovaWorldPlugin, ObserverBody,
+    PendingSectorShip, SectorAsteroid, SectorCoord, SectorFault, SectorGenerationInput,
+    SectorGenerator, SectorManifest, SectorPlanet, SectorShip, SectorShipConditionType,
     ShipRoleType, WorldConfig, WorldGeometry, WorldObserver, ACTIVE_WINDOW_SECTORS_MAX,
     SECTOR_SHIP_CLEARANCE_MAX,
 };
@@ -150,7 +150,7 @@ fn empty(coord: SectorCoord, asteroids: Vec<SectorAsteroid>) -> SectorManifest {
 /// A one-section intact ship at `position`, built from the section prototype
 /// `prototype`, with a 20 m clearance, flown by a routeless Neutral AI crew
 /// on a 5 km leash, with an empty hold and 120 credits.
-fn ship(id: SectorObjectId, position: Meters3, prototype: &str) -> SectorShip {
+fn ship(id: GeneratedBodyId, position: Meters3, prototype: &str) -> SectorShip {
     SectorShip {
         id,
         position,

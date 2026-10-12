@@ -8,7 +8,7 @@
 //! held to the same rule: it gets a seed, an edge and a coordinate, and
 //! nothing else.
 //!
-//! RECORD RULE. Each generated record is its [`SectorObjectId`], its
+//! RECORD RULE. Each generated record is its [`GeneratedBodyId`], its
 //! placement and the whole scenario spawn config the object is built from:
 //! [`SectorAsteroid`] carries an [`AsteroidConfig`], [`SectorPlanet`] a
 //! [`PlanetConfig`], [`SectorShip`] a [`SpaceshipConfig`]. Facts only the
@@ -36,7 +36,7 @@
 use std::{collections::BTreeSet, fmt, sync::Arc};
 
 use bevy::{log::info_span, math::Quat};
-use nova_events::prelude::{EntityId, Meters, Meters3};
+use nova_events::prelude::{GeneratedBodyId, Meters, Meters3};
 use nova_gameplay::prelude::{AssetRef, Fnv32, SeedStream};
 use nova_scenario::prelude::{
     is_asteroid_kind, patrol_stops_fault, prepare_asteroid_geometry, prepare_planet,
@@ -50,37 +50,11 @@ use crate::{
     SectorCoord, SectorFault, SectorGenerationInput, SectorGenerator, WorldConfig,
 };
 
-/// A sector object's scenario id: `<cell slug>_<name>_<index>`, built only by
-/// [`sector_id`], so every id names the cell that owns it and a scenario
-/// cannot author one by accident. One cell cannot hold the same id twice;
-/// [`validate_manifest`] refuses the repeat.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SectorObjectId(String);
-
-impl SectorObjectId {
-    /// The id as the scenario addresses it.
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl fmt::Display for SectorObjectId {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&self.0)
-    }
-}
-
-impl From<SectorObjectId> for EntityId {
-    fn from(id: SectorObjectId) -> Self {
-        EntityId(id.0)
-    }
-}
-
 /// One generated rock, in world meters.
 #[derive(Clone, Debug)]
 pub struct SectorAsteroid {
     /// The rock's scenario id.
-    pub id: SectorObjectId,
+    pub id: GeneratedBodyId,
     /// Where it stands, in meters from the world origin.
     pub position: Meters3,
     /// The rock as the spawn builds it. `seed` is `Some`: the generator pins
@@ -112,7 +86,7 @@ impl SectorAsteroid {
 #[derive(Clone, Debug)]
 pub struct SectorPlanet {
     /// The planetoid's scenario id.
-    pub id: SectorObjectId,
+    pub id: GeneratedBodyId,
     /// Where it stands, in meters from the world origin.
     pub position: Meters3,
     /// The world it is, ready for `prepare_planet`.
@@ -268,7 +242,7 @@ impl ShipRoleType {
 #[derive(Clone, Debug)]
 pub struct SectorShip {
     /// The ship's scenario id.
-    pub id: SectorObjectId,
+    pub id: GeneratedBodyId,
     /// Where its root floats, in meters from the world origin.
     pub position: Meters3,
     /// Its full orientation: a finite unit quaternion.
@@ -367,7 +341,7 @@ impl SectorDescription {
 
     /// Every object id this cell spawns, in spawn order: rocks, then
     /// planetoids, then ships.
-    pub fn object_ids(&self) -> Vec<SectorObjectId> {
+    pub fn object_ids(&self) -> Vec<GeneratedBodyId> {
         self.asteroids
             .iter()
             .map(|body| body.id.clone())
@@ -610,14 +584,22 @@ fn position_is_finite(position: Meters3) -> bool {
     position.get().is_finite()
 }
 
-/// The id `<cell slug>_<name>_<index>` of one object a generator places in
-/// `coord`.
+/// The id of object `index` under `name` that a generator places in `coord`:
+/// the typed [`GeneratedBodyId`], which spells itself
+/// `<cell slug>_<name>_<index>`.
 ///
-/// Formatting only. The slug prefix is the cross-generator contract:
-/// [`validate_manifest`] refuses an id without it, so no two cells can claim
-/// one object, and refuses an id claimed twice inside the cell.
-pub fn sector_id(coord: SectorCoord, name: &str, index: usize) -> SectorObjectId {
-    SectorObjectId(format!("{}_{name}_{index}", coord.slug()))
+/// The slug prefix is the cross-generator contract: [`validate_manifest`]
+/// refuses an id whose origin is another cell, so no two cells can claim one
+/// object, and refuses an id claimed twice inside the cell.
+///
+/// # Panics
+///
+/// When `index` does not fit the id's `u32`, or `name` is not snake_case.
+/// Both are a generator's fixed policy, not a runtime condition.
+pub fn sector_id(coord: SectorCoord, name: &str, index: usize) -> GeneratedBodyId {
+    let index = u32::try_from(index)
+        .unwrap_or_else(|_| panic!("nova_world: {coord} places more than u32::MAX '{name}'"));
+    GeneratedBodyId::new(coord, name, index)
 }
 
 /// Turn a generator's manifest into a trusted [`SectorDescription`], or refuse
@@ -677,7 +659,7 @@ pub fn validate_manifest(
     if !position_is_finite(centre) {
         return Err(SectorFault::InvalidGeometry { id: coord.slug() });
     }
-    let refuse = |id: &SectorObjectId, field: &'static str, value: String| SectorFault::Manifest {
+    let refuse = |id: &GeneratedBodyId, field: &'static str, value: String| SectorFault::Manifest {
         id: id.to_string(),
         field,
         value,
@@ -693,7 +675,14 @@ pub fn validate_manifest(
 
     let mut ids = BTreeSet::new();
     let mut standing = Vec::new();
-    let mut own = |id: &SectorObjectId| {
+    let mut own = |id: &GeneratedBodyId| {
+        if id.origin != coord {
+            return Err(SectorFault::Manifest {
+                id: id.to_string(),
+                field: "id",
+                value: format!("generated in {}, not the requested {coord}", id.origin),
+            });
+        }
         if !ids.insert(id.clone()) {
             return Err(SectorFault::DuplicateId { id: id.to_string() });
         }
@@ -947,7 +936,7 @@ fn check_ship_design(design: &ShipDesign) -> Result<(), String> {
 fn stand_inside(
     input: SectorGenerationInput,
     standing: &mut Vec<Occupied>,
-    id: &SectorObjectId,
+    id: &GeneratedBodyId,
     position: Meters3,
     clearance: Meters,
 ) -> Result<(), SectorFault> {

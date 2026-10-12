@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7.0
+
+- Add `example_survey`, the fixed-seed world with a survey sphere 64 km out.
+  Its `OnEnter` marks the first body in with `ObjectiveMarkerAttach((target_id:
+  "$other_id", ..))`, a generated rock or derelict no handler could name, and
+  the mark comes back when the body's sector retires and thaws. Needs a base
+  game whose marker actions read `$id` / `$other_id`.
+
 ## 1.6.0
 
 - Add `example_prospect`, a berth with a trader alongside and an ore rock

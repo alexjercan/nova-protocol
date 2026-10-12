@@ -744,6 +744,10 @@ impl Plugin for ScenarioLoaderPlugin {
         app.init_resource::<ContentIssues>();
         app.init_resource::<ScenarioStartFailure>();
         app.add_observer(on_load_scenario);
+        // Objective marks on generated bodies outlive the bodies' cells; the
+        // re-apply runs every live frame because a thaw is an ordinary spawn.
+        app.init_resource::<GeneratedMarks>();
+        app.add_systems(Update, reapply_generated_marks.run_if(scenario_is_live));
 
         register_scenario_scoping(app);
 

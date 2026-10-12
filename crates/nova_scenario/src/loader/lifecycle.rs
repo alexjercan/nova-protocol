@@ -78,6 +78,15 @@ fn teardown_scenario_entities(
     // reason the event world is: whatever the last scenario had in flight is
     // not the next one's.
     commands.queue(clear_pending_severs);
+    // A mark on a generated body is the scenario's, like its objectives: the
+    // next scenario streams its own world and owes the old one no chips.
+    commands.queue(|world: &mut World| {
+        if let Some(mut marks) = world.get_resource_mut::<GeneratedMarks>() {
+            if !marks.is_empty() {
+                marks.clear();
+            }
+        }
+    });
     // The objectives HUD mirror dies with the scenario too (same reset class as
     // the event world / emphasis / outcome above). The panel rides the player
     // ship, so it is despawned and rebuilt EMPTY on every (re)load, and bcs

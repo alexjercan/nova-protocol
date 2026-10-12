@@ -226,10 +226,19 @@ impl EventAction<NovaEventWorld> for ObjectiveCompleteActionConfig {
 /// HUD's objective-markers observer grows the chip. Scoped-only lookup, same
 /// rule as DespawnScenarioObject. Attaching to an already-marked entity just
 /// updates the label.
+///
+/// `target_id` may instead be `$id` or `$other_id`, read from the firing
+/// event's payload. That is how a handler marks a GENERATED body - a streamed
+/// rock or derelict the player locked, docked with or flew an area into - whose
+/// id no author can write: the bound id parses as a [`GeneratedBodyId`], the
+/// lookup goes through [`generated_entity`], and the mark is remembered in
+/// [`GeneratedMarks`] so it comes back when the body's cell retires and
+/// thaws.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ObjectiveMarkerAttachActionConfig {
-    /// The `EntityId` of the scoped object the marker chip attaches to.
+    /// The `EntityId` of the scoped object the marker chip attaches to, or
+    /// `$id` / `$other_id` for the firing event's subject or other party.
     #[reflect(@Names::Object)]
     pub target_id: String,
     /// The short name the marker chip shows next to the distance.
@@ -247,8 +256,14 @@ impl ObjectiveMarkerAttachActionConfig {
 }
 
 impl EventAction<NovaEventWorld> for ObjectiveMarkerAttachActionConfig {
-    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
-        let id = self.target_id.clone();
+    fn action(&self, world: &mut NovaEventWorld, info: &GameEventInfo) {
+        let Some(id) = bind_object_reference(&self.target_id, info) else {
+            warn!(
+                "ObjectiveMarkerAttach: '{}' binds a payload field this event does not carry",
+                self.target_id
+            );
+            return;
+        };
         let label = self.label.clone();
         debug!("ObjectiveMarkerAttach: '{}' <- '{}'", id, label);
 
@@ -258,7 +273,17 @@ impl EventAction<NovaEventWorld> for ObjectiveMarkerAttachActionConfig {
         // handler sees the freshly spawned entity.
         world.push_command(move |commands| {
             commands.queue(move |world: &mut World| {
-                let matches = scoped_entities(world, &id);
+                let matches = match id.parse::<GeneratedBodyId>() {
+                    Ok(generated) => {
+                        // Remembered first: a body whose cell is retired is
+                        // marked when it thaws.
+                        world
+                            .resource_mut::<GeneratedMarks>()
+                            .insert(generated.clone(), label.clone());
+                        generated_entity(world, &generated).into_iter().collect()
+                    }
+                    Err(_) => scoped_entities(world, &id),
+                };
                 if matches.is_empty() {
                     warn!(
                         "ObjectiveMarkerAttach: no scoped entity with id '{}'; check the \
@@ -279,11 +304,13 @@ impl EventAction<NovaEventWorld> for ObjectiveMarkerAttachActionConfig {
 /// Detach the objective marker from the scenario object whose [`EntityId`]
 /// matches `target_id` (no-op with a warning when nothing matches; a
 /// marker whose entity despawned is already detached - the chip died with
-/// it).
+/// it). Takes `$id` / `$other_id` like the attach, and forgets a generated
+/// body's remembered mark whether or not the body stands right now.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ObjectiveMarkerDetachActionConfig {
-    /// The `EntityId` of the scoped object to detach the marker chip from.
+    /// The `EntityId` of the scoped object to detach the marker chip from, or
+    /// `$id` / `$other_id` for the firing event's subject or other party.
     #[reflect(@Names::Object)]
     pub target_id: String,
 }
@@ -298,13 +325,25 @@ impl ObjectiveMarkerDetachActionConfig {
 }
 
 impl EventAction<NovaEventWorld> for ObjectiveMarkerDetachActionConfig {
-    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
-        let id = self.target_id.clone();
+    fn action(&self, world: &mut NovaEventWorld, info: &GameEventInfo) {
+        let Some(id) = bind_object_reference(&self.target_id, info) else {
+            warn!(
+                "ObjectiveMarkerDetach: '{}' binds a payload field this event does not carry",
+                self.target_id
+            );
+            return;
+        };
         debug!("ObjectiveMarkerDetach: '{}'", id);
 
         world.push_command(move |commands| {
             commands.queue(move |world: &mut World| {
-                let matches = scoped_entities(world, &id);
+                let matches = match id.parse::<GeneratedBodyId>() {
+                    Ok(generated) => {
+                        world.resource_mut::<GeneratedMarks>().remove(&generated);
+                        generated_entity(world, &generated).into_iter().collect()
+                    }
+                    Err(_) => scoped_entities(world, &id),
+                };
                 if matches.is_empty() {
                     // Quieter than attach: detaching an entity that already
                     // despawned (crate picked up) is a legitimate script
@@ -643,6 +682,92 @@ mod tests {
         assert!(
             world.get::<ObjectiveMarkerTarget>(beacon).is_none(),
             "detach removes the marker"
+        );
+    }
+
+    /// A marker target bound from the payload reaches a generated body: the
+    /// attach marks the one scoped entity wearing the typed id - never an
+    /// authored or unscoped one that shares the string - and remembers the
+    /// mark; the detach takes both away. A retired body (no entity) still
+    /// gets its mark remembered, and a payload without the bound field is a
+    /// warned no-op.
+    #[test]
+    fn a_bound_marker_target_reaches_a_generated_body_and_is_remembered() {
+        use nova_events::prelude::{EventWorld, SectorCoord};
+
+        let mut world = World::new();
+        world.init_resource::<NovaEventWorld>();
+        world.init_resource::<GameObjectives>();
+        world.init_resource::<GeneratedMarks>();
+
+        let id = GeneratedBodyId::new(SectorCoord::new(-2, 0, 0), "cluster_n1_0_0_hull", 0);
+        let rock = world
+            .spawn((ScenarioScopedMarker, EntityId::from(id.clone()), id.clone()))
+            .id();
+        let unscoped = world.spawn((EntityId::from(id.clone()), id.clone())).id();
+        let payload = GameEventInfo::from_data(OnEnterEventInfo {
+            id: "survey".to_string(),
+            other_id: id.to_string(),
+            other_type_name: SPACESHIP_TYPE_NAME.to_string(),
+        });
+
+        let attach = ObjectiveMarkerAttachActionConfig::new("$other_id", "CONTACT");
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        attach.action(&mut event_world, &payload);
+        NovaEventWorld::state_to_world_system(&mut world);
+
+        assert_eq!(
+            world
+                .get::<ObjectiveMarkerTarget>(rock)
+                .map(|marker| marker.label.as_str()),
+            Some("CONTACT"),
+            "the scoped generated body is marked through the binding"
+        );
+        assert!(
+            world.get::<ObjectiveMarkerTarget>(unscoped).is_none(),
+            "an unscoped entity wearing the same id is never marked"
+        );
+        assert_eq!(
+            world
+                .resource::<GeneratedMarks>()
+                .get(&id)
+                .map(String::as_str),
+            Some("CONTACT"),
+            "the mark is remembered by typed id"
+        );
+
+        // The body's cell retired: the mark is still taken, for the thaw.
+        world.entity_mut(rock).despawn();
+        let relabel = ObjectiveMarkerAttachActionConfig::new("$other_id", "WRECK");
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        relabel.action(&mut event_world, &payload);
+        NovaEventWorld::state_to_world_system(&mut world);
+        assert_eq!(
+            world
+                .resource::<GeneratedMarks>()
+                .get(&id)
+                .map(String::as_str),
+            Some("WRECK"),
+            "a mark on a retired body is remembered for its thaw"
+        );
+
+        // A payload without the bound field marks nothing and forgets nothing.
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        ObjectiveMarkerDetachActionConfig::new("$other_id")
+            .action(&mut event_world, &GameEventInfo::default());
+        NovaEventWorld::state_to_world_system(&mut world);
+        assert!(
+            world.resource::<GeneratedMarks>().contains_key(&id),
+            "an unbound detach is a no-op"
+        );
+
+        let detach = ObjectiveMarkerDetachActionConfig::new("$other_id");
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        detach.action(&mut event_world, &payload);
+        NovaEventWorld::state_to_world_system(&mut world);
+        assert!(
+            world.resource::<GeneratedMarks>().is_empty(),
+            "detach forgets the remembered mark"
         );
     }
 

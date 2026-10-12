@@ -280,11 +280,18 @@ ObjectiveMarkerAttach((target_id: "beacon_1", label: "BEACON 1")),
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `target_id` | string | required | scoped object to mark; spawn it first |
+| `target_id` | string | required | scoped object to mark; spawn it first - or `$id` / `$other_id`, the firing event's subject or other party |
 | `label` | string | required | short chip text ("BEACON 1") |
 
 Re-attaching updates the label in place. A despawned target detaches
 implicitly.
+
+`$id` and `$other_id` are how a handler marks a body the world generator
+placed - a streamed rock or derelict the player locked, docked with or flew
+into an area. Its id is minted at runtime, so a literal one fails lint; the
+binding reads it from the event that fired. Such a mark is remembered by the
+body's id: when its sector retires behind you and thaws on the way back, the
+chip is on the body again. It does not survive a save and load yet.
 
 </details>
 
@@ -298,6 +305,9 @@ ObjectiveMarkerDetach((target_id: "beacon_1")),
 
 <details class="explain">
 <summary>Show explanation</summary>
+
+`target_id` takes `$id` / `$other_id` like the attach, and forgets a generated
+body's remembered mark whether or not the body stands right now.
 
 | field | type | default | meaning |
 |---|---|---|---|

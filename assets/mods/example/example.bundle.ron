@@ -34,9 +34,9 @@
     ],
     meta: (
         name: "Example Mod",
-        description: "The copy-me tutorial mod: a section overlay, a new section, a playable arena, mod-shipped art, a menu backdrop, an item, a bounded fixed-seed world, and a hold tour - a little of everything.",
+        description: "The copy-me tutorial mod: a section overlay, a new section, a playable arena, mod-shipped art, a menu backdrop, an item, a bounded fixed-seed world, a hold tour, and a survey contact on a generated body - a little of everything.",
         author: "Nova Protocol",
-        version: "1.6.0",
+        version: "1.7.0",
         // base is an implicit dependency and is never declared (see the header
         // comment); list only OTHER mods this one depends on. This mod has none.
         dependencies: [],

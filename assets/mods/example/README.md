@@ -44,6 +44,12 @@ binary assets it ships).
   a trader with an ore rock ahead. Six `once` handlers complete one objective
   each on `OnTraded`, `OnCreditsChanged`, `OnRepaired`, `OnJettisoned`,
   `OnPickedUp` and `OnMined`, and the sixth ends the run in Victory.
+- **A survey contact** - `example_survey` runs the fixed-seed world unbounded
+  with a 1 km survey sphere in the -X face of the window. The first body in
+  is one the generator placed, whose id no handler can write; the `OnEnter`
+  marks it with `ObjectiveMarkerAttach((target_id: "$other_id", ..))`, bound
+  from the event payload, and the mark follows the body through its sector's
+  retire and thaw.
 
 ## Layout
 

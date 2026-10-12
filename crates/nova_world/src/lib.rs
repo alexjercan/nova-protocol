@@ -173,7 +173,8 @@
 use std::{any::type_name, fmt::Debug, marker::PhantomData};
 
 use bevy::{ecs::change_detection::CheckChangeTicks, prelude::*};
-use nova_events::prelude::{Meters, Meters3};
+use nova_events::prelude::Meters;
+pub use nova_events::prelude::{GeneratedBodyId, SectorCoord};
 use nova_gameplay::prelude::{Fnv32, SeedStream};
 use nova_scenario::prelude::{scenario_is_live, AsteroidKindId, CurrentScenario, ShipDesignError};
 
@@ -192,8 +193,7 @@ pub use crate::{
     generation::{
         bodies_clear, generate_sector, prepare_sector, sector_id, validate_manifest,
         CivilizationId, PreparedSector, SectorAsteroid, SectorDescription, SectorManifest,
-        SectorObjectId, SectorPlanet, SectorShip, SectorShipConditionType, ShipRoleType,
-        SECTOR_SHIP_CLEARANCE_MAX,
+        SectorPlanet, SectorShip, SectorShipConditionType, ShipRoleType, SECTOR_SHIP_CLEARANCE_MAX,
     },
     streaming::{
         clear_sector_work, collect_sector_jobs, desired_sectors, live_sectors,
@@ -209,9 +209,9 @@ pub use crate::{
 pub mod prelude {
     pub use super::{
         bodies_clear, generate_sector, prepare_sector, sector_id, validate_manifest,
-        CivilizationId, NovaWorldPlugin, NovaWorldSystems, PreparedSector, SectorAsteroid,
-        SectorCoord, SectorDescription, SectorFault, SectorGenerationInput, SectorGenerator,
-        SectorManifest, SectorObjectId, SectorPlanet, SectorShip, SectorShipConditionType,
+        CivilizationId, GeneratedBodyId, NovaWorldPlugin, NovaWorldSystems, PreparedSector,
+        SectorAsteroid, SectorCoord, SectorDescription, SectorFault, SectorGenerationInput,
+        SectorGenerator, SectorManifest, SectorPlanet, SectorShip, SectorShipConditionType,
         ShipRoleType, WorldConfig, WorldGeometry, ACTIVE_WINDOW_SECTORS_MAX,
         SECTOR_SHIP_CLEARANCE_MAX,
     };
@@ -274,99 +274,6 @@ pub(crate) fn window_cells(radius: i32) -> Result<usize, SectorFault> {
             "{radius}, a desired window of more cells than this machine can count, above the \
              {ACTIVE_WINDOW_SECTORS_MAX} cell maximum"
         ))),
-    }
-}
-
-/// An integer sector coordinate: which cell of the world grid, never where in
-/// meters.
-///
-/// `Ord` is derived so a desired set and a live set are both ordered
-/// collections. Generation must not depend on iteration order, but a REPORT
-/// that lists sectors in hash order is unreadable.
-#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
-pub struct SectorCoord {
-    /// Cell index along +X.
-    pub x: i32,
-    /// Cell index along +Y.
-    pub y: i32,
-    /// Cell index along +Z.
-    pub z: i32,
-}
-
-impl SectorCoord {
-    /// The cell the world origin falls in.
-    pub const ORIGIN: Self = Self { x: 0, y: 0, z: 0 };
-
-    /// The cell at these indices.
-    pub const fn new(x: i32, y: i32, z: i32) -> Self {
-        Self { x, y, z }
-    }
-
-    /// The cell `position` falls in.
-    ///
-    /// A cell is CENTRED on its coordinate - cell `n` spans
-    /// `[n * edge - edge/2, n * edge + edge/2)` - rather than cornered at it.
-    /// That keeps cell (0, 0, 0) around the world origin, which is where the
-    /// scenario loader parks a cameraless scene's free-fly camera: a cornered
-    /// grid would open every run looking out of the field instead of into it.
-    ///
-    /// `floor` after the half-cell shift rather than `round`: `f32::round`
-    /// goes half AWAY FROM ZERO, so it put `-edge/2` in cell -1 while the span
-    /// above says cell 0 owns it. That broke the interval on the negative face
-    /// only, and the face a position lands on decides which cell owns what
-    /// stands there.
-    pub fn containing(position: Meters3, edge: Meters) -> Self {
-        let cell = |meters: Meters| (meters.get() / edge.get() + 0.5).floor() as i32;
-        Self {
-            x: cell(position.x()),
-            y: cell(position.y()),
-            z: cell(position.z()),
-        }
-    }
-
-    /// The cell's centre, in meters.
-    pub fn centre(self, edge: Meters) -> Meters3 {
-        let axis = |index: i32| index as f32 * edge.get();
-        Meters3::new(axis(self.x), axis(self.y), axis(self.z))
-    }
-
-    /// The cell this many cells away.
-    pub const fn offset(self, x: i32, y: i32, z: i32) -> Self {
-        Self {
-            x: self.x + x,
-            y: self.y + y,
-            z: self.z + z,
-        }
-    }
-
-    /// The cell's stable id text, and the prefix every body it owns is named
-    /// from. `n` reads as minus, because a `-` in a scenario id is not a
-    /// snake_case slug.
-    pub fn slug(self) -> String {
-        format!(
-            "sector_{}_{}_{}",
-            index_slug(self.x),
-            index_slug(self.y),
-            index_slug(self.z)
-        )
-    }
-}
-
-impl std::fmt::Display for SectorCoord {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "({}, {}, {})", self.x, self.y, self.z)
-    }
-}
-
-/// One signed cell index as a snake_case-safe slug. `n` reads as minus,
-/// because a `-` in a scenario id is not a slug.
-pub(crate) fn index_slug(index: i32) -> String {
-    if index < 0 {
-        format!("n{}", index.unsigned_abs())
-    } else {
-        index.to_string()
     }
 }
 

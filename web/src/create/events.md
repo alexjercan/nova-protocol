@@ -528,6 +528,12 @@ A generated world's `bounds` block (see [World](../scenarios/#world)) is an
 area named `bounds` the loader spawns before `OnStart`, so `id:
 Some("bounds")` here is how a scenario answers the player leaving it.
 
+In a generated world the entering body may be one the generator placed - a
+rock, a derelict - whose id (`sector_n2_0_0_background_rock_3`) exists only
+at runtime. You cannot write that id in a filter or an action (lint refuses
+it); pass it on from the event instead with
+[`ObjectiveMarkerAttach((target_id: "$other_id", ..))`](../actions/#objectivemarkerattach).
+
 </details>
 
 ## Player maneuver completion

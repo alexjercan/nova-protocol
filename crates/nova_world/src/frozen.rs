@@ -28,7 +28,7 @@ use std::{
 
 use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
 use bevy::prelude::*;
-use nova_events::prelude::{EntityId, Meters3, ScenarioAddressableMarker};
+use nova_events::prelude::{EntityId, GeneratedBodyId, Meters3, ScenarioAddressableMarker};
 use nova_gameplay::prelude::{CargoCanister, SpaceshipRootMarker, TempEntity, UnsettledBody};
 use nova_scenario::prelude::{
     freeze_asteroid, freeze_ore_drop, freeze_ship, prepare_frozen_asteroid, thaw_asteroid,
@@ -319,7 +319,7 @@ impl PreparedFrozenBody {
     pub(crate) fn prepare(coord: SectorCoord, body: FrozenBody, ships: &[SectorShip]) -> Self {
         match &body.body {
             FrozenBodyType::PendingShip { id } => {
-                let Some(ship) = ships.iter().find(|ship| ship.id.as_str() == id) else {
+                let Some(ship) = ships.iter().find(|ship| ship.id.to_string() == *id) else {
                     panic!(
                         "nova_world: {coord} froze the held ship '{id}' but regenerates no ship \
                          of that id"
@@ -548,6 +548,12 @@ pub(crate) fn thaw_record(commands: &mut Commands, root: Entity, bodies: Vec<Pre
             ChildOf(root),
         ));
         if let Some(id) = id {
+            // A generated body thaws with its typed id beside the string, as
+            // it spawned. A transient's id - a canister's, a wreck's - is not
+            // generated and gets none.
+            if let Ok(generated) = id.0.parse::<GeneratedBodyId>() {
+                entity.insert(generated);
+            }
             entity.insert(id);
         }
         if let Some(name) = name {

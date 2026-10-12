@@ -121,6 +121,64 @@ pub fn scoped_ship(world: &mut World, id: &str) -> Option<Entity> {
         .map(|(entity, _)| entity)
 }
 
+/// The live entity wearing a generated body's typed id, or none while its
+/// cell is retired.
+///
+/// The seam a scenario reaches a streamed body through. Such a body is scoped
+/// but deliberately not [`ScenarioAddressableMarker`]: `nova_world` reads that
+/// marker's absence as "mine to adopt and freeze", so granting it would stop
+/// the body freezing and refuse the save. The typed id is the capability
+/// instead - an author cannot write one (lint refuses a literal that parses as
+/// one), so a handler only holds one it was handed by an event payload.
+///
+/// Singular: one cell never mints one id twice, and a body keeps its id when
+/// another cell adopts it.
+pub fn generated_entity(world: &mut World, id: &GeneratedBodyId) -> Option<Entity> {
+    let mut query =
+        world.query_filtered::<(Entity, &GeneratedBodyId), With<ScenarioScopedMarker>>();
+    query
+        .iter(world)
+        .find(|(_, worn)| *worn == id)
+        .map(|(entity, _)| entity)
+}
+
+/// The spelling that binds an object reference to the firing event's subject.
+pub const PAYLOAD_SUBJECT_REFERENCE: &str = "$id";
+/// The spelling that binds an object reference to the firing event's other
+/// party.
+pub const PAYLOAD_OTHER_REFERENCE: &str = "$other_id";
+
+/// The payload field a `$`-spelled object reference reads, or none for a
+/// literal id.
+///
+/// Two spellings and no more: `$id` for the event's subject and `$other_id`
+/// for its other party, the two identity fields every entity event carries.
+/// `$` is outside snake_case, so no authored id can collide with a binding.
+/// Only the two objective-marker actions read a binding; the lint refuses it
+/// on every other reference field.
+pub fn payload_binding(reference: &str) -> Option<&'static str> {
+    match reference {
+        PAYLOAD_SUBJECT_REFERENCE => Some(ENTITY_ID_COMPONENT_NAME),
+        PAYLOAD_OTHER_REFERENCE => Some(ENTITY_OTHER_ID_COMPONENT_NAME),
+        _ => None,
+    }
+}
+
+/// The id an object reference names when `info` fires it: a literal is
+/// itself, a binding is the payload field it reads. `None` when the binding's
+/// field is not in the payload - an `OnTimerEnd` carries no `id` - which the
+/// caller reports as its own miss.
+pub fn bind_object_reference(reference: &str, info: &GameEventInfo) -> Option<String> {
+    let Some(field) = payload_binding(reference) else {
+        return Some(reference.to_string());
+    };
+    info.data
+        .as_ref()
+        .and_then(|data| data.get(field))
+        .and_then(|value| value.as_str())
+        .map(ToString::to_string)
+}
+
 registry::scenario_actions! {
     /// Add a HUD objective by id.
     Objective(ObjectiveActionConfig) {
