@@ -58,10 +58,10 @@ const STATION_NODE_SEARCH: i32 = 2;
 
 /// The station design `civilization` builds.
 ///
-/// TODO(20261012-100005): every civilization builds the base waystation
-/// until the per-civilization station catalogue lands; replace this with a
-/// seeded draw from the civilization's own designs and delete
-/// [`GENERATED_STATION_DESIGN_IDS`] when that task widens the catalogue.
+/// TODO: every civilization builds the base waystation because base content
+/// authors one station design. When a second design exists, replace this
+/// with a seeded draw from the civilization's own designs and delete
+/// [`GENERATED_STATION_DESIGN_IDS`].
 pub fn station_design_id(_civilization: &Civilization) -> &'static str {
     GENERATED_STATION_DESIGN_IDS[0]
 }

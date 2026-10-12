@@ -50,7 +50,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
   retire and thaw. A written generated id fails lint.
 - **(breaking)** A world save carries its scenario: objectives, variables,
   story, readouts, timers, fired once handlers and marks. Load fires
-  `OnResume`, not `OnStart`; a `seed: None` scenario needs it.
+  `OnResume`, not `OnStart`; `seed: None` needs it.
 
 ### Modding & Mod Portal
 
@@ -75,7 +75,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
   it and its sections take no damage. In a planet's well it spawns on a
   circular orbit and holds it.
 - Docking at a station: an Enemy station refuses with `<NAME> REFUSES
-  DOCKING` on the HUD; a living station holds the pair's helm and refuses
+  DOCKING` on HUD; a living station holds the pair's helm and refuses
   `HELM`; a dead station hands the helm to the docked player.
 - **(breaking)** Every section needs a `build` recipe of credits and `Parts`
   items. Docked at a station with `Rebuild`, the Ship pane rebuilds a lost
