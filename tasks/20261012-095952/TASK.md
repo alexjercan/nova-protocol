@@ -1,8 +1,8 @@
 # World first: New Game harness takes the wizard seed; chapters declare Void
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 96
-- TAGS: v0.16.0,world-first
+- TAGS: v0.16.0, world-first
 
 ## User facts
 - Epic `20261012-095526`. After the world block lands, the `open_world` scenario becomes the New Game harness: `Generated { seed: None }` means the seed comes from the New Game modal. Every shipped chapter, backdrop and tutorial declares `Void` and behaves exactly as today.
@@ -14,6 +14,8 @@
 - `resume_world` re-inserts the session from the save header (`crates/nova_world_base/src/save/session.rs:234-268`); Retry streams the same world again (`crates/nova_world_base/src/lib.rs:150-156`).
 
 - Landed with `20261012-095950` (commit bd1838e75): `open_world` already declares `world: Generated((seed: None, bounds: None))` and every other shipped scenario is `Void` by default; `sync_open_world` takes the seed from `OpenWorldSession` for `seed: None`. Remaining here: confirm the New Game modal path end to end (Create, Retry, Load) and add any runtime load gate the lint-walk rule 4 lacks.
+
+- Landed 2026-10-12 in commit abd14d8f7: `resolve_new_game_scenario` + `NewGameStartFault` in `crates/nova_menu/src/menu_ui.rs` (error log + `AppExit::error()`, fallback chain deleted); lint Error for `seed: None` on a backdrop or lesson in `crates/nova_scenario/src/lint/scenario.rs`; fixed-seed picker chapter is session-only (no `WorldSaveSession`, Retry reloads, Load last save not offered). Live runs under Xvfb/lavapipe: system_open_world (Create, Retry, disarm), system_scenario_picker, system_world_resume all reached Playing.
 
 ## Delivery gate
 - The harness reads its seed from the session when the block says `None`; a `Generated { seed: Some }` scenario launched from the picker creates no save folder on desktop unless the note decided otherwise. Migrate every base scenario builder to declare its block; regenerate RON; migrate the hand-written example mod.
