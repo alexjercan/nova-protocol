@@ -26,11 +26,11 @@ use crate::{
 /// The whole module - every marker is part of the shared vocabulary.
 pub mod prelude {
     pub use super::{
-        ControllerSectionMarker, DerelictShipMarker, GunRoundMarker, PlayerSpaceshipMarker,
-        RailgunSectionMarker, RailgunSlugProjectileMarker, SectionInactiveMarker, SectionMarker,
-        SpaceshipRootMarker, StationDesignId, StationMarker, StationServiceType, StationServices,
-        ThrusterSectionMarker, TorpedoProjectileMarker, TorpedoSectionMarker,
-        TurretBulletProjectileMarker, TurretSectionMarker,
+        station_offers, ControllerSectionMarker, DerelictShipMarker, GunRoundMarker,
+        PlayerSpaceshipMarker, RailgunSectionMarker, RailgunSlugProjectileMarker,
+        SectionInactiveMarker, SectionMarker, SpaceshipRootMarker, StationDesignId, StationMarker,
+        StationServiceType, StationServices, ThrusterSectionMarker, TorpedoProjectileMarker,
+        TorpedoSectionMarker, TurretBulletProjectileMarker, TurretSectionMarker,
     };
 }
 
@@ -144,7 +144,7 @@ pub enum StationServiceType {
 /// The services a station root's design offers, inserted beside its
 /// [`StationMarker`] whenever one lands, by spawn or thaw, from the loaded
 /// station catalog. A derelict station keeps the list; a service reader
-/// checks [`DerelictShipMarker`] itself.
+/// asks [`station_offers`], which checks [`DerelictShipMarker`] too.
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq, Reflect)]
 pub struct StationServices(pub Vec<StationServiceType>);
 
@@ -153,6 +153,21 @@ impl StationServices {
     pub fn offers(&self, service: StationServiceType) -> bool {
         self.0.contains(&service)
     }
+}
+
+/// Whether a docked partner offers `service` now: it is a living station
+/// whose design lists it. `services` is the partner's [`StationServices`],
+/// `None` for a partner that is not a station, and `derelict` is whether it
+/// carries [`DerelictShipMarker`].
+///
+/// The one gate every station service reads (Rebuild, Trade, Storage), so a
+/// dead station offers none: a docked ship only loots it.
+pub fn station_offers(
+    services: Option<&StationServices>,
+    derelict: bool,
+    service: StationServiceType,
+) -> bool {
+    !derelict && services.is_some_and(|services| services.offers(service))
 }
 
 /// Marks a live section entity in a ship tree. Present on every spawned section

@@ -974,12 +974,12 @@ The hold events cross the crate line the same way ship orders do: a queue
 component. `ShipInventoryReports` (`nova_gameplay`) is required by every
 spaceship root, and the owning system pushes one report per occurrence - the
 cargo intake for a taken or dropped stack, the inventory pane for a confirmed
-trade and each purse it moved, the ship pane for a repair or a rebuild. Credits have one
+trade and each purse it moved or a station store or withdraw, the ship pane for a repair or a rebuild. Credits have one
 choke point, `ShipInventoryReports::change_credits`, which is the only
 post-spawn writer and reports nothing for a no-op. `track_ship_inventory_reports`
 drains the queue in `FixedUpdate` after `SpaceshipSectionSystems` and fires
-`OnPickedUp`, `OnJettisoned`, `OnTraded`, `OnCreditsChanged`, `OnRepaired` and
-`OnRebuilt`;
+`OnPickedUp`, `OnJettisoned`, `OnTraded`, `OnCreditsChanged`, `OnRepaired`,
+`OnRebuilt`, `OnStored` and `OnWithdrawn`;
 pane reports pushed under the interface pause arrive on the first fixed tick
 after it closes. `OnMined` has no queue: `pulse_mining_beams` (`mining.rs`)
 fires it per pulse that flips at least one corner, with the rock as `id` and

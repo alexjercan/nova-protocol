@@ -19,7 +19,10 @@
 //! ammunition item into the magazine, and a Buy or Sell with a docked trader
 //! moves items and [`ShipCredits`] together by the [`plan_item_trade`] rule.
 //! Every section config carries a [`BuildRecipe`]; a Ship pane rebuild at a
-//! docked station spends it by the [`plan_section_rebuild`] rule.
+//! docked station spends it by the [`plan_section_rebuild`] rule. A living
+//! station that offers Storage keeps a capped [`StationStorage`] beside its
+//! hold, and a Store or Withdraw moves items between it and the docked ship
+//! by the [`plan_item_storage`] rule, with no credits.
 //! A saved world keeps stock and credits across a Load; any other scenario
 //! returns them to their authored values when it loads again. A stack exists
 //! only while its count is above zero, and the mass of all stacks never passes
@@ -37,14 +40,15 @@ pub mod prelude {
     pub use nova_events::prelude::{CreditChangeCauseType, ItemTradeType};
 
     pub use super::{
-        kg_text, plan_credit_take, plan_item_jettison, plan_item_trade, plan_item_transfer,
-        plan_plate_repair, plan_section_rebuild, BuildRecipe, CargoCanister,
+        kg_text, plan_credit_take, plan_item_jettison, plan_item_storage, plan_item_trade,
+        plan_item_transfer, plan_plate_repair, plan_section_rebuild, BuildRecipe, CargoCanister,
         CargoCanisterIdAllocator, CargoCanisterRuntimeId, CreditTakeRefusalType, GameItems,
         ItemCategoryType, ItemDesign, ItemDesignId, ItemJettison, ItemJettisonRefusalType,
-        ItemRoleType, ItemTrade, ItemTradeRefusalType, ItemTransferRefusalType, ItemTransferType,
-        LootableShipMarker, PlateRepair, PlateRepairRefusalType, RebuildPartner, SectionRebuild,
-        SectionRebuildRefusalType, ShipCredits, ShipInventory, ShipInventoryReport,
-        ShipInventoryReports, ShipInventoryStock, CARGO_CANISTER_MAX_MASS_G, HULL_PLATE_HEALTH,
+        ItemRoleType, ItemStorageRefusalType, ItemStorageType, ItemTrade, ItemTradeRefusalType,
+        ItemTransferRefusalType, ItemTransferType, LootableShipMarker, PlateRepair,
+        PlateRepairRefusalType, RebuildPartner, SectionRebuild, SectionRebuildRefusalType,
+        ShipCredits, ShipInventory, ShipInventoryReport, ShipInventoryReports, ShipInventoryStock,
+        StationStorage, CARGO_CANISTER_MAX_MASS_G, HULL_PLATE_HEALTH,
     };
 }
 
@@ -470,6 +474,109 @@ impl ShipInventory {
     }
 }
 
+/// What a station keeps for the ships that dock with it: a count per item id
+/// beside the hull's own hold, and the mass it takes across all stacks.
+/// Inserted empty by the station spawn with its design's `storage_cap_g`,
+/// frozen and thawed with the station, and saved in its record.
+///
+/// One store per station, shared by every ship that docks there; the player
+/// is the only depositor. Any item may be stored: sections are never items,
+/// so nothing is refused by category. A stack exists only while its count is
+/// above zero, and the mass of all stacks never passes the cap.
+#[derive(Component, Clone, Debug, Default, PartialEq, Eq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct StationStorage {
+    cap_g: u32,
+    items: BTreeMap<ItemDesignId, u32>,
+}
+
+impl StationStorage {
+    /// An empty store that takes `cap_g` grams.
+    pub fn new(cap_g: u32) -> Self {
+        Self {
+            cap_g,
+            items: BTreeMap::new(),
+        }
+    }
+
+    /// How many grams the store takes.
+    pub fn cap_g(&self) -> u32 {
+        self.cap_g
+    }
+
+    /// How many grams the store holds across all stacks.
+    pub fn used_g(&self, items: &GameItems) -> u32 {
+        // The cap bounds the sum, so each product and the sum fit.
+        self.stacks()
+            .map(|(item, count)| items.design(item).mass_g * count)
+            .sum()
+    }
+
+    /// How many more grams the store takes.
+    pub fn free_g(&self, items: &GameItems) -> u32 {
+        self.cap_g - self.used_g(items)
+    }
+
+    /// How many of `item` the store holds; zero when it has no stack.
+    pub fn count(&self, item: &ItemDesignId) -> u32 {
+        self.items.get(item).copied().unwrap_or(0)
+    }
+
+    /// Every stack held, in id order. Each count is above zero.
+    pub fn stacks(&self) -> impl Iterator<Item = (&ItemDesignId, u32)> + '_ {
+        self.items.iter().map(|(item, count)| (item, *count))
+    }
+
+    /// Every item id held.
+    pub fn item_ids(&self) -> impl Iterator<Item = &ItemDesignId> {
+        self.items.keys()
+    }
+
+    /// True when the store holds no stack.
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
+    /// Add `count` of `item`; create the stack when the store has none.
+    ///
+    /// # Panics
+    ///
+    /// On `count == 0` or a mass past [`free_g`](Self::free_g): the caller
+    /// has a bug and must plan the add first with [`plan_item_storage`].
+    pub fn add(&mut self, items: &GameItems, item: &ItemDesignId, count: u32) {
+        assert!(count > 0, "StationStorage adds 0 of '{item}'");
+        let free_g = self.free_g(items);
+        assert!(
+            items.design(item).stack_mass_g(count) <= u64::from(free_g),
+            "StationStorage adds {count} of '{item}' but has room for {}",
+            kg_text(u64::from(free_g)),
+        );
+        let held = self.count(item);
+        self.items.insert(item.clone(), held + count);
+    }
+
+    /// Remove `count` of `item`; delete the stack when it empties.
+    ///
+    /// # Panics
+    ///
+    /// On `count == 0` or more than the store holds: the caller has a bug
+    /// and must plan the removal first with [`plan_item_storage`].
+    pub fn remove(&mut self, item: &ItemDesignId, count: u32) {
+        assert!(count > 0, "StationStorage removes 0 of '{item}'");
+        let held = self.count(item);
+        assert!(
+            count <= held,
+            "StationStorage removes {count} of '{item}' but holds {held}"
+        );
+        if count == held {
+            self.items.remove(item);
+        } else {
+            self.items.insert(item.clone(), held - count);
+        }
+    }
+}
+
 /// The credits one ship holds. Required by every
 /// [`SpaceshipRootMarker`](crate::markers::SpaceshipRootMarker); the `Default`
 /// of zero is the value for a ship that no config states. An authored ship
@@ -529,6 +636,26 @@ pub enum ShipInventoryReport {
         current_cr: u32,
         /// Why it moved.
         cause: CreditChangeCauseType,
+    },
+    /// A Store at a docked station moved items from this ship's hold into
+    /// the station's storage; queued on the ship that stored.
+    Stored {
+        /// Root of the station.
+        station: Entity,
+        /// The item that moved.
+        item: ItemDesignId,
+        /// Units that moved.
+        count: u32,
+    },
+    /// A Withdraw at a docked station moved items from the station's storage
+    /// into this ship's hold; queued on the ship that withdrew.
+    Withdrawn {
+        /// Root of the station.
+        station: Entity,
+        /// The item that moved.
+        item: ItemDesignId,
+        /// Units that moved.
+        count: u32,
     },
     /// A Ship pane repair spent hull plates on one section.
     Repaired {
@@ -790,6 +917,98 @@ pub fn plan_credit_take(
         .checked_add(partner_cr)
         .ok_or(CreditTakeRefusalType::Overflow)?;
     Ok(partner_cr)
+}
+
+/// Which way a Store or Withdraw at a docked station moves items.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
+pub enum ItemStorageType {
+    /// From the docked ship's hold into the station's storage.
+    Store,
+    /// From the station's storage into the docked ship's hold.
+    Withdraw,
+}
+
+/// Why a Store or Withdraw moves nothing, in check order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ItemStorageRefusalType {
+    /// The ship has no docked partner.
+    NotDocked,
+    /// The partner is not a living station that offers Storage.
+    NoStorageService,
+    /// No loaded item carries the id.
+    UnknownItem,
+    /// The quantity text is not a whole number.
+    NoQuantity,
+    /// A quantity of zero.
+    ZeroQuantity,
+    /// The source holds fewer than the quantity: the hold for a Store, the
+    /// storage for a Withdraw.
+    NotEnoughItems {
+        /// What the source holds.
+        have: u32,
+    },
+    /// A Store heavier than the room left in the storage.
+    StorageFull {
+        /// How many more grams the storage takes.
+        free_g: u32,
+    },
+    /// A Withdraw heavier than the room left in the hold.
+    HoldFull {
+        /// How many more grams the hold takes.
+        free_g: u32,
+    },
+}
+
+/// Plan a Store or Withdraw of `quantity` of `item` between the player ship's
+/// `own` hold and its docked station's storage.
+///
+/// `docked` is true while the ship has a docked partner. `storage` is that
+/// partner's [`StationStorage`] when the partner is a living station that
+/// offers Storage, and `None` otherwise. Returns the count to remove from
+/// the source and add to the target; no credits move. Checks run in
+/// [`ItemStorageRefusalType`] order, and a refusal changes nothing.
+/// `quantity` is `None` when the typed text is not a whole number.
+pub fn plan_item_storage(
+    items: &GameItems,
+    direction: ItemStorageType,
+    docked: bool,
+    storage: Option<&StationStorage>,
+    item: &ItemDesignId,
+    quantity: Option<u32>,
+    own: &ShipInventory,
+) -> Result<u32, ItemStorageRefusalType> {
+    if !docked {
+        return Err(ItemStorageRefusalType::NotDocked);
+    }
+    let storage = storage.ok_or(ItemStorageRefusalType::NoStorageService)?;
+    let design = items.get(item).ok_or(ItemStorageRefusalType::UnknownItem)?;
+    let quantity = quantity.ok_or(ItemStorageRefusalType::NoQuantity)?;
+    if quantity == 0 {
+        return Err(ItemStorageRefusalType::ZeroQuantity);
+    }
+    let have = match direction {
+        ItemStorageType::Store => own.count(item),
+        ItemStorageType::Withdraw => storage.count(item),
+    };
+    if quantity > have {
+        return Err(ItemStorageRefusalType::NotEnoughItems { have });
+    }
+    let mass_g = design.stack_mass_g(quantity);
+    match direction {
+        ItemStorageType::Store => {
+            let free_g = storage.free_g(items);
+            if mass_g > u64::from(free_g) {
+                return Err(ItemStorageRefusalType::StorageFull { free_g });
+            }
+        }
+        ItemStorageType::Withdraw => {
+            let free_g = own.free_g(items);
+            if mass_g > u64::from(free_g) {
+                return Err(ItemStorageRefusalType::HoldFull { free_g });
+            }
+        }
+    }
+    Ok(quantity)
 }
 
 /// Maximum mass of a drifting canister, in grams.
@@ -1300,6 +1519,94 @@ mod tests {
                 },
             ]
         );
+    }
+
+    /// A Store moves hold items into the storage and a Withdraw moves them
+    /// back, the count planned and no credit in either; each refusal comes
+    /// in check order and names what it read.
+    #[test]
+    fn storage_plans_store_and_withdraw_and_refuses_in_order() {
+        use ItemStorageRefusalType::*;
+        use ItemStorageType::{Store, Withdraw};
+
+        let items = crate::test_support::test_items();
+        let panel = ItemDesignId::from("SectionPanel");
+        // 30 kg hold carrying three 10 kg panels; a 25 kg store.
+        let mut own = ShipInventory::new(&items, 30_000, [(panel.clone(), 3)]);
+        let mut storage = StationStorage::new(25_000);
+        let plan = |direction,
+                    docked,
+                    storage: Option<&StationStorage>,
+                    item: &ItemDesignId,
+                    quantity,
+                    own: &ShipInventory| {
+            plan_item_storage(&items, direction, docked, storage, item, quantity, own)
+        };
+
+        assert_eq!(
+            plan(Store, false, Some(&storage), &panel, Some(1), &own),
+            Err(NotDocked)
+        );
+        assert_eq!(
+            plan(Store, true, None, &panel, Some(1), &own),
+            Err(NoStorageService)
+        );
+        assert_eq!(
+            plan(
+                Store,
+                true,
+                Some(&storage),
+                &"NoSuchItem".into(),
+                Some(1),
+                &own
+            ),
+            Err(UnknownItem)
+        );
+        assert_eq!(
+            plan(Store, true, Some(&storage), &panel, None, &own),
+            Err(NoQuantity)
+        );
+        assert_eq!(
+            plan(Store, true, Some(&storage), &panel, Some(0), &own),
+            Err(ZeroQuantity)
+        );
+        assert_eq!(
+            plan(Store, true, Some(&storage), &panel, Some(4), &own),
+            Err(NotEnoughItems { have: 3 })
+        );
+        assert_eq!(
+            plan(Store, true, Some(&storage), &panel, Some(3), &own),
+            Err(StorageFull { free_g: 25_000 })
+        );
+
+        let stored = plan(Store, true, Some(&storage), &panel, Some(2), &own).expect("two fit");
+        assert_eq!(stored, 2);
+        own.remove(&panel, stored);
+        storage.add(&items, &panel, stored);
+        assert_eq!((own.count(&panel), storage.count(&panel)), (1, 2));
+        assert_eq!(storage.free_g(&items), 5_000);
+        assert_eq!(
+            plan(Store, true, Some(&storage), &panel, Some(1), &own),
+            Err(StorageFull { free_g: 5_000 })
+        );
+
+        assert_eq!(
+            plan(Withdraw, true, Some(&storage), &panel, Some(3), &own),
+            Err(NotEnoughItems { have: 2 })
+        );
+        // Fill the hold to one free panel's room: the second withdrawn panel
+        // has nowhere to go.
+        let full = ShipInventory::new(&items, 30_000, [(panel.clone(), 2)]);
+        assert_eq!(
+            plan(Withdraw, true, Some(&storage), &panel, Some(2), &full),
+            Err(HoldFull { free_g: 10_000 })
+        );
+        let withdrawn = plan(Withdraw, true, Some(&storage), &panel, Some(2), &own)
+            .expect("the hold takes both back");
+        storage.remove(&panel, withdrawn);
+        own.add(&items, &panel, withdrawn);
+        assert_eq!(own.count(&panel), 3);
+        assert!(storage.is_empty(), "an emptied stack is deleted");
     }
 
     #[test]

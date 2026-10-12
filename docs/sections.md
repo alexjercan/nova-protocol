@@ -39,7 +39,9 @@ after a rebuild; a root with no design falls back to the live order.
 `remember_lost_section_binding` copies a lost section's live input binding
 into the root's `input_mapping` before it despawns, so a rebind the player made
 survives the loss and a save. The Ship pane (`nova_interface/src/ship/rebuild.rs`)
-lists lost sections while docked to a station that offers `Rebuild`. Its plan
+lists lost sections while docked to a station that offers `Rebuild`, by
+`station_offers` (`nova_gameplay::markers`), the one gate the Inventory pane's
+Trade and Storage also read. Its plan
 is `plan_section_rebuild` (`nova_gameplay::inventory`): hold parts first, the
 rest bought at ask, refused when the station lacks stock, the ship lacks
 credits, or `rebuild_anchored` finds no live mate for the lost section's

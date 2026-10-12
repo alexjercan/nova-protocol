@@ -71,10 +71,11 @@ Every field is required.
 The `Docking` section is what a ship docks to. The `Controller` section is
 what levels the station, see below.
 
-A docked ship trades with a station as it trades with a ship. Of the
-services, only `Rebuild` does anything in play today (see
-[Rebuild](#rebuild)); the others and the storage cap are checked and carried,
-and the screens that read them are their own task.
+A docked ship trades with a living station that offers `Trade` as it trades
+with a ship, and keeps items in the storage of one that offers `Storage` (see
+[Trade and storage](#trade-and-storage)). `Rebuild` is the third service in
+play (see [Rebuild](#rebuild)); `Refit`, `Jobs` and `Roster` are checked and
+carried, and the screens that read them are their own task.
 
 ## How a station behaves
 
@@ -111,6 +112,27 @@ differs is who the station lets in and who flies the pair.
 The proof is `system_station_docking`: a living station holds the helm under
 a held burn, a dead station hands it over, an Enemy station refuses with the
 line on the HUD.
+
+## Trade and storage
+
+A ship docked to a living station uses the station from the Inventory pane.
+Every service below reads one gate: the partner is the docked station, it is
+not a derelict, and its `services` list the service.
+
+| rule | what happens |
+|---|---|
+| trade | with `Trade`, the station's column lists its hold: the station's row opens Buy, the player's row Sell, at the item's reference `ask_cr` and `bid_cr`, against both purses. Without `Trade`, Buy and Sell refuse with `<NAME> does not trade` |
+| storage | with `Storage`, a third column lists the station's storage and its used mass against `storage_cap_g`. The player's row opens Store, the storage row Withdraw. No credits move |
+| one store | a station keeps one storage, for the player alone. Nothing else stores or takes from it |
+| refusals | Store and Withdraw refuse in this order, on the form with Confirm disabled, and on the note line: not docked, no `Storage` service, unknown item, no quantity, quantity zero, fewer items than the quantity, then `storage full, <N> kg free` for a Store or `<SHIP> has room for <N> more` for a Withdraw |
+| persistence | the storage freezes with the station when its cell retires, thaws with it, and is in the world save; a save checks it against `storage_cap_g` |
+| events | `OnTraded` for a trade; `OnStored` and `OnWithdrawn` for a store or withdraw, the station as `id` and the player as `other_id`, see [Hold events](../events/#hold-events) |
+| a derelict | a dead station offers no service. Its hold is loot: Take and Give, as for a derelict ship |
+
+The proof is `system_station_storage`: on a generated world, the player docks
+at a living waystation, buys, sells and stores through the pane, leaves until
+the station's cell retires, comes back, withdraws the same stacks, meets the
+over-cap refusal, and finds the storage in the leave save and after a Load.
 
 ## Rebuild
 
@@ -195,6 +217,14 @@ without one it stands at rest beside one of the cluster's rocks, 500 m
 clear of it, on the anchor-facing side when that side is free. A station is
 never placed inside another body, never across a cell face, and never
 where its cluster placed no rock or planetoid in its cell.
+
+A living station's hold and credits scale with its civilization's
+advancement: every stock line and the credits are multiplied by a share that
+runs from 0.5 at advancement 0 to 1.0 at advancement 1. A line floors but
+never below one, so every item the design stocks is still stocked, and the
+credits round. The share never passes 1, so the stock always fits the hold
+the lint checked. A dead station keeps the design's stock and credits as
+loot.
 
 Every civilization builds `block_waystation` today. The generator pins each
 design it places from the loaded catalog when the open world arms; a base

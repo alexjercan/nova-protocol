@@ -853,6 +853,162 @@ fn confirm_trades_items_for_credits_and_a_refusal_changes_nothing() {
     assert_eq!(state(&app), (11, 110, 9, 990));
 }
 
+/// At a living station that offers Storage, the player's row opens Store and
+/// the storage row Withdraw; Confirm moves items between the hold and the
+/// station's storage with no credits and reports each move on the player; a
+/// store past the cap and a withdraw past the hold refuse with no change. A
+/// derelict station offers no service: its rows open Give and Take, and a
+/// Store or Buy against it refuses.
+#[test]
+fn a_living_station_stores_and_withdraws_and_a_derelict_one_only_loots() {
+    use InventoryActionType::{Buy, Store, Withdraw};
+
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+    app.insert_resource(test_items());
+    app.init_resource::<InventoryRuntime>();
+    app.add_message::<InventoryActionCommand>();
+    app.add_systems(Update, apply_inventory_action_commands);
+    hear_ui_cues(&mut app);
+    let player = spawn_player(app.world_mut(), 12);
+    let station = dock_partner(app.world_mut(), player, "Waystation", 1);
+    app.world_mut().entity_mut(player).insert(ShipCredits(100));
+    app.world_mut().entity_mut(station).insert((
+        ShipCredits(1_000),
+        StationMarker(StationDesignId::from("waystation")),
+        StationServices(vec![StationServiceType::Storage]),
+        StationStorage::new(100_000),
+    ));
+    let plate = ItemDesignId::from(ItemRoleType::HullPlate);
+    let stored = |app: &App| {
+        app.world()
+            .get::<StationStorage>(station)
+            .expect("a station root carries StationStorage")
+            .count(&plate)
+    };
+    let credits = |app: &App| {
+        (
+            app.world().get::<ShipCredits>(player).unwrap().0,
+            app.world().get::<ShipCredits>(station).unwrap().0,
+        )
+    };
+    let offers = |app: &mut App| {
+        app.world_mut()
+            .run_system_once(|ships: InventoryShips| {
+                let pair = ships.pair().expect("one player ship");
+                let terms = ships.partner_terms(pair);
+                [
+                    InventorySideType::Own,
+                    InventorySideType::Partner,
+                    InventorySideType::Storage,
+                ]
+                .map(|side| offered_action(side, terms, false))
+            })
+            .expect("reading the offers")
+    };
+    let confirm = |app: &mut App, action, quantity: Option<u32>| {
+        app.world_mut().resource_mut::<InventoryRuntime>().draft = Some(InventoryDraft {
+            action,
+            item: plate.clone(),
+            quantity,
+        });
+        app.world_mut().write_message(InventoryActionCommand {
+            action,
+            item: plate.clone(),
+            quantity,
+        });
+        app.update();
+        assert_eq!(
+            plates(app.world(), player) + stored(app),
+            12,
+            "items conserve"
+        );
+        assert_eq!(credits(app), (100, 1_000), "no credits move");
+        let draft_open = app.world().resource::<InventoryRuntime>().draft.is_some();
+        (note(app), take_cues(app), draft_open)
+    };
+    let moved = |text: &str| (Some(text.to_string()), vec![UiSfx::MenuSelect], false);
+    let refused = |text: &str| (Some(text.to_string()), vec![UiSfx::EditorDeny], true);
+
+    assert_eq!(
+        offers(&mut app),
+        [Some(Store), None, Some(Withdraw)],
+        "a station without Trade sells nothing"
+    );
+    assert_eq!(
+        confirm(&mut app, Store, Some(5)),
+        moved("Stored 5 Hull plate at Waystation")
+    );
+    assert_eq!((plates(app.world(), player), stored(&app)), (7, 5));
+    assert_eq!(
+        confirm(&mut app, Withdraw, Some(2)),
+        moved("Withdrew 2 Hull plate from Waystation")
+    );
+    assert_eq!((plates(app.world(), player), stored(&app)), (9, 3));
+    assert_eq!(
+        app.world()
+            .get::<ShipInventoryReports>(player)
+            .expect("a ship root carries ShipInventoryReports")
+            .0,
+        vec![
+            ShipInventoryReport::Stored {
+                station,
+                item: plate.clone(),
+                count: 5,
+            },
+            ShipInventoryReport::Withdrawn {
+                station,
+                item: plate.clone(),
+                count: 2,
+            },
+        ]
+    );
+    // 3 plates stored leave 70 kg of the 100 kg cap: 8 plates are 80 kg.
+    assert_eq!(
+        confirm(&mut app, Store, Some(8)),
+        refused("Refused: storage full, 70 kg free")
+    );
+    assert_eq!(
+        confirm(&mut app, Withdraw, Some(4)),
+        refused("Refused: only 3 Hull plate in storage")
+    );
+    assert_eq!(
+        confirm(&mut app, Buy, Some(1)),
+        refused("Refused: Waystation does not trade")
+    );
+    // The hold binds a withdraw: 9 plates in a 95 kg hold leave 5 kg.
+    app.world_mut()
+        .entity_mut(player)
+        .insert(ShipInventory::new(
+            &test_items(),
+            95_000,
+            [(plate.clone(), 9)],
+        ));
+    assert_eq!(
+        confirm(&mut app, Withdraw, Some(1)),
+        refused("Refused: NOVA has room for 5 kg more")
+    );
+    assert_eq!((plates(app.world(), player), stored(&app)), (9, 3));
+
+    // A dead station keeps its services list but offers none: it is loot.
+    app.world_mut()
+        .entity_mut(station)
+        .insert((DerelictShipMarker, LootableShipMarker));
+    assert_eq!(
+        offers(&mut app),
+        [
+            Some(InventoryActionType::Give),
+            Some(InventoryActionType::Take),
+            None
+        ]
+    );
+    assert_eq!(
+        confirm(&mut app, Store, Some(1)),
+        refused("Refused: Waystation offers no storage")
+    );
+    assert_eq!((plates(app.world(), player), stored(&app)), (9, 3));
+}
+
 /// A click moves the docked partner's whole credit balance in one
 /// confirmation and zeros it; an intact, non-neutralized partner is never
 /// robbed; repeating the action against a zeroed balance refuses again; and

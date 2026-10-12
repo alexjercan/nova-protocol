@@ -117,8 +117,7 @@ impl RebuildSite<'_, '_> {
             connection.first_ship
         };
         let offers = self.stations.get(other).is_ok_and(|(services, derelict)| {
-            !derelict
-                && services.is_some_and(|services| services.offers(StationServiceType::Rebuild))
+            station_offers(services, derelict, StationServiceType::Rebuild)
         });
         (other, offers)
     }

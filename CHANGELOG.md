@@ -69,7 +69,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** An asteroid `lock_signature` override must be finite and above
   zero. Any other value fails at lint and at load.
 - **(breaking)** Stations are content: `Station` entries a scenario spawns by
-  id as `kind: Station`, frozen as their own body type. World save format 5;
+  id as `kind: Station`, frozen as their own body type. World save format 6;
   older saves are refused.
 - A station is a dynamic body: gravity and rams move it, its bridge levels
   it and its sections take no damage. In a planet's well it spawns on a
@@ -80,6 +80,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** Every section needs a `build` recipe of credits and `Parts`
   items. Docked at a station with `Rebuild`, the Ship pane rebuilds a lost
   section with its old code and key.
+- At a living station the Inventory pane trades with `Trade` and stores
+  items with `Storage`, kept through retire and save, firing `OnStored` and
+  `OnWithdrawn`. Stock scales with advancement.
 
 ### Interface & HUD
 

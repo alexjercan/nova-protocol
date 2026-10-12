@@ -18,12 +18,19 @@
 //! lattice stands centroids at least 160 km apart, and a nearest cluster node
 //! is within 44 km of its centroid.
 //!
+//! A living station's stock and credits scale with its civilization's
+//! advancement, from half its design's at advancement 0 to all of it at 1; a
+//! dead station keeps the design's stock and credits as loot. See
+//! [`generated_station_design`].
+//!
 //! Every chance here is provisional until generated stations are reviewed in
 //! travel.
 
 use std::collections::BTreeMap;
 
 use nova_events::prelude::Meters3;
+use nova_gameplay::prelude::ShipInventoryStock;
+use nova_scenario::prelude::StationDesign;
 use nova_world::prelude::*;
 
 use crate::{
@@ -57,6 +64,44 @@ const STATION_NODE_SEARCH: i32 = 2;
 /// [`GENERATED_STATION_DESIGN_IDS`] when that task widens the catalogue.
 pub fn station_design_id(_civilization: &Civilization) -> &'static str {
     GENERATED_STATION_DESIGN_IDS[0]
+}
+
+/// The share of its design's stock and credits a living station is generated
+/// with, at advancement 0 and at advancement 1, read linearly between. Never
+/// above 1, so the scaled stock always fits the hull hold that content lint
+/// checked the authored stock against; at least a half, so a frontier
+/// station still trades enough to be worth the dock.
+const STATION_STOCK_SHARE: (f32, f32) = (0.5, 1.0);
+
+/// The design a generated station of `civilization` is built from.
+///
+/// A living civilization's station takes `design` with every stock line and
+/// the credits scaled by [`STATION_STOCK_SHARE`] read at its advancement: a
+/// stack floors, but never below one, so every line the design stocks is
+/// still stocked; the credits round to the nearest. An extinct
+/// civilization's dead station keeps the authored stock and credits: it is
+/// loot a docked ship takes, as a derelict hull's hold is. Every other field
+/// is the design's.
+///
+/// PURE: the same design and civilization give the same result.
+pub fn generated_station_design(
+    design: &StationDesign,
+    civilization: &Civilization,
+) -> StationDesign {
+    if civilization.status == CivilizationStatusType::Extinct {
+        return design.clone();
+    }
+    let (least, most) = STATION_STOCK_SHARE;
+    let share = least + (most - least) * civilization.advancement.clamp(0.0, 1.0);
+    StationDesign {
+        stock: ShipInventoryStock::new(
+            design.stock.stacks().map(|(item, count)| {
+                (item.clone(), ((count as f32 * share).floor() as u32).max(1))
+            }),
+        ),
+        credits: (design.credits as f32 * share).round() as u32,
+        ..design.clone()
+    }
 }
 
 /// How many stations `civilization` keeps: one plus a tier per
@@ -212,6 +257,72 @@ mod tests {
             active_radius: 2,
             generator: crate::tests::fixture_world(),
         }
+    }
+
+    /// A living station is generated with half its design's stock and
+    /// credits at advancement 0 and all of it at 1, every stocked line kept
+    /// at one at least; an extinct civilization's dead station keeps the
+    /// design's stock and credits as loot.
+    #[test]
+    fn a_living_station_scales_its_stock_by_advancement_and_a_dead_one_keeps_it() {
+        use nova_gameplay::prelude::{ItemDesignId, ItemRoleType};
+
+        let plate = ItemDesignId::from(ItemRoleType::HullPlate);
+        let rations = ItemDesignId::from(ItemRoleType::Rations);
+        let core = ItemDesignId::from(ItemRoleType::SalvagedParts);
+        let design = StationDesign {
+            stock: ShipInventoryStock::new([
+                (plate.clone(), 8),
+                (rations.clone(), 21),
+                (core.clone(), 1),
+            ]),
+            credits: 5_001,
+            ..crate::test_support::fixture_stations().0.remove(0)
+        };
+        let base =
+            CivilizationField::new(20_260_922, SHIP_ADVANCEMENT_CURVE).civilization([0, 0, 0]);
+        let at = |status, advancement| {
+            let generated = generated_station_design(
+                &design,
+                &Civilization {
+                    status,
+                    advancement,
+                    ..base
+                },
+            );
+            assert_eq!(
+                (&generated.id, &generated.services, generated.storage_cap_g),
+                (&design.id, &design.services, design.storage_cap_g),
+                "only the stock and credits scale"
+            );
+            let stock: Vec<(ItemDesignId, u32)> = generated
+                .stock
+                .stacks()
+                .map(|(item, count)| (item.clone(), count))
+                .collect();
+            (stock, generated.credits)
+        };
+        let living = CivilizationStatusType::Living;
+        assert_eq!(
+            at(living, 0.0),
+            (
+                vec![(plate.clone(), 4), (rations.clone(), 10), (core.clone(), 1)],
+                2_501
+            )
+        );
+        assert_eq!(
+            at(living, 0.5),
+            (
+                vec![(plate.clone(), 6), (rations.clone(), 15), (core.clone(), 1)],
+                3_751
+            )
+        );
+        let authored = (
+            vec![(plate.clone(), 8), (rations.clone(), 21), (core.clone(), 1)],
+            5_001,
+        );
+        assert_eq!(at(living, 1.0), authored);
+        assert_eq!(at(CivilizationStatusType::Extinct, 0.0), authored);
     }
 
     /// Across three seeds, every civilization of the 27 nodes around the

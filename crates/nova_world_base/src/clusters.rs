@@ -83,7 +83,7 @@ use crate::{
     environment::{Environment, EnvironmentFields},
     layered::PinnedStation,
     sector_ships::{plan_patrol, plan_ship, HullSlot, PlannedShip, SHIP_ADVANCEMENT_CURVE},
-    sector_stations::{station_design_id, StationClaims},
+    sector_stations::{generated_station_design, station_design_id, StationClaims},
     ship_parts::ShipPartSnapshot,
     NovaLayeredWorld, CLEARANCE_MARGIN,
 };
@@ -1904,7 +1904,7 @@ pub(crate) fn plan_sector(
                         civilization: civilization.id,
                         dead,
                         allegiance,
-                        design: station.design.clone(),
+                        design: generated_station_design(&station.design, &civilization),
                     })),
                     position: pose.position,
                     escorts: Vec::new(),

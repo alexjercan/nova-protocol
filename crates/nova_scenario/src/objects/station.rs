@@ -27,8 +27,6 @@
 //! itself integrates, and the orbit is held within
 //! [`STATION_ORBIT_TOLERANCE`] of its radius.
 
-use std::collections::BTreeMap;
-
 use bevy::prelude::*;
 use nova_events::prelude::MetersPerSecond3;
 use nova_gameplay::prelude::{
@@ -36,7 +34,7 @@ use nova_gameplay::prelude::{
     UnsettledBody,
 };
 pub use nova_gameplay::prelude::{
-    StationDesignId, StationMarker, StationServiceType, StationServices,
+    StationDesignId, StationMarker, StationServiceType, StationServices, StationStorage,
 };
 use nova_ship::prelude::ShipCapabilities;
 
@@ -174,41 +172,6 @@ pub struct StationConfig {
     /// Explicit initial motion in meters per second. Zero means an intentional
     /// stationary start, not immunity to gravity.
     pub initial_velocity: MetersPerSecond3,
-}
-
-/// What a station keeps for the ships that dock with it: a capped store
-/// beside the hull's own hold. Empty at spawn.
-#[derive(Component, Clone, Debug, Default, PartialEq, Eq, Reflect)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
-pub struct StationStorage {
-    cap_g: u32,
-    items: BTreeMap<ItemDesignId, u32>,
-}
-
-impl StationStorage {
-    /// An empty store that takes `cap_g` grams.
-    pub fn new(cap_g: u32) -> Self {
-        Self {
-            cap_g,
-            items: BTreeMap::new(),
-        }
-    }
-
-    /// How many grams the store takes.
-    pub fn cap_g(&self) -> u32 {
-        self.cap_g
-    }
-
-    /// Every stack held, by item.
-    pub fn stacks(&self) -> impl Iterator<Item = (&ItemDesignId, u32)> + '_ {
-        self.items.iter().map(|(item, count)| (item, *count))
-    }
-
-    /// Every item id held.
-    pub fn item_ids(&self) -> impl Iterator<Item = &ItemDesignId> {
-        self.items.keys()
-    }
 }
 
 /// Build the station `design` on `entity` as `config` spawns it: the ship

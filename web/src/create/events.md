@@ -54,6 +54,8 @@ The whole vocabulary at a glance:
 | [`OnCreditsChanged`](#hold-events) | `id`, `type_name`, `previous_cr`, `current_cr`, `delta_cr`, `cause` | a ship's credits move |
 | [`OnRepaired`](#hold-events) | `id`, `type_name`, `section`, `item`, `count` | the Ship pane spends plates on a section |
 | [`OnRebuilt`](#hold-events) | `id`, `type_name`, `section`, `parts`, `price_cr` | the Ship pane rebuilds a lost section at a docked station |
+| [`OnStored`](#hold-events) | `id`, `other_id`, `other_type_name`, `item`, `count` | the player stores a stack in a docked station's storage |
+| [`OnWithdrawn`](#hold-events) | `id`, `other_id`, `other_type_name`, `item`, `count` | the player withdraws a stack from a docked station's storage |
 
 Entity payload fields are what an `Entity` filter can match: `id` /
 `type_name` name the event's SUBJECT, `other_id` / `other_type_name` its other
@@ -793,7 +795,7 @@ To react to a dock with anything, omit `id` and keep `other_id`.
 
 ## Hold events
 
-Seven edges report what a ship's hold and purse do. Each fires ONCE per
+Nine edges report what a ship's hold and purse do. Each fires ONCE per
 occurrence from the system that did the work, never from a poll of the
 inventory, so a handler counts occurrences, not frames.
 
@@ -806,12 +808,15 @@ inventory, so a handler counts occurrences, not frames.
 | `OnCreditsChanged` | the ship whose purse moved | none | `previous_cr`, `current_cr`, `delta_cr` (signed), `cause` (`Trade`, `Take` or `Rebuild`) |
 | `OnRepaired` | the repaired ship | none | `section` (the Ship pane code, `CTL-1`), `item`, `count` (plates spent) |
 | `OnRebuilt` | the rebuilt ship | none | `section` (the code the lost section had, `PDC-1`), `parts` (every recipe part, item id to count), `price_cr` (work plus bought parts) |
+| `OnStored` | the station whose storage took the stack | the player's ship | `item`, `count` |
+| `OnWithdrawn` | the station whose storage gave the stack | the player's ship | `item`, `count` |
 
 <details class="explain">
 <summary>Show explanation</summary>
 
 The pair events follow the docking rule: the PASSIVE party is `id` and the
-ship that acted is `other_id`. A rock is mined, a tender is traded with. The
+ship that acted is `other_id`. A rock is mined, a tender is traded with, a
+station is stored at. The
 single-ship events name the ship the hold or purse belongs to.
 
 `OnMined` fires per paying pulse: a pulse that flips no corner is silent, and
@@ -826,9 +831,11 @@ one `OnCreditsChanged` per party, `cause: Trade`, in the same frame; the
 loot-take of a dead ship's purse raises one with `cause: Take`; a rebuild
 raises one per party with `cause: Rebuild`, the ship paying and the station
 paid. A move that
-leaves the purse unchanged raises nothing.
+leaves the purse unchanged raises nothing. `OnStored` and `OnWithdrawn` fire
+once per confirmed move and move no credits, so they raise no
+`OnCreditsChanged`.
 
-Trades, repairs and rebuilds come from the interface panes, which run while the world
+Trades, stores, withdraws, repairs and rebuilds come from the interface panes, which run while the world
 is paused: their events arrive on the first simulation tick after the pane
 closes. Intake and mining events arrive the frame the hold changes.
 
@@ -855,7 +862,8 @@ A prospecting berth that wants one of each:
 ),
 ```
 
-The example mod's `example_prospect` scenario runs all but `OnRebuilt`.
+The example mod's `example_prospect` scenario runs all but `OnRebuilt`,
+`OnStored` and `OnWithdrawn`.
 
 </details>
 

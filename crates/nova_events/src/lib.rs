@@ -57,17 +57,18 @@ pub mod prelude {
         OnShipOrderCompleteEvent, OnShipOrderCompleteEventInfo, OnShipOrderFailedEvent,
         OnShipOrderFailedEventInfo, OnShipOrderInterruptedEvent, OnShipOrderInterruptedEventInfo,
         OnShipOrderResumedEvent, OnShipOrderResumedEventInfo, OnStartEvent, OnStartEventInfo,
-        OnStopCompleteEvent, OnStopCompleteEventInfo, OnTimerEndEvent, OnTimerEndEventInfo,
-        OnTradedEvent, OnTravelLockEndEvent, OnTravelLockStartEvent, OnUndockedEvent,
-        OnUpdateEvent, OnUpdateEventInfo, OrbitEventInfo, RebuiltEventInfo, RepairedEventInfo,
-        ScenarioAddressableMarker, ShipOrderKind, TradedEventInfo, ANCHOR_TYPE_NAME,
-        ASTEROID_TYPE_NAME, BEACON_TYPE_NAME, CANISTER_FIELD_NAME, CINEMATIC_KEY_FIELD_NAME,
-        CREDIT_CAUSE_FIELD_NAME, CURRENT_CREDITS_FIELD_NAME, DELTA_CREDITS_FIELD_NAME,
-        ENTITY_ID_COMPONENT_NAME, ENTITY_OTHER_ID_COMPONENT_NAME,
-        ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME, ENTITY_TYPE_NAME_COMPONENT_NAME,
-        ITEM_COUNT_FIELD_NAME, ITEM_FIELD_NAME, LIGHT_TYPE_NAME, PLANET_TYPE_NAME,
-        PREVIOUS_CREDITS_FIELD_NAME, PRICE_FIELD_NAME, SECTION_FIELD_NAME, SHIP_ORDER_FIELD_NAME,
-        SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME, TIMER_KEY_FIELD_NAME, TRADE_FIELD_NAME,
+        OnStopCompleteEvent, OnStopCompleteEventInfo, OnStoredEvent, OnTimerEndEvent,
+        OnTimerEndEventInfo, OnTradedEvent, OnTravelLockEndEvent, OnTravelLockStartEvent,
+        OnUndockedEvent, OnUpdateEvent, OnUpdateEventInfo, OnWithdrawnEvent, OrbitEventInfo,
+        RebuiltEventInfo, RepairedEventInfo, ScenarioAddressableMarker, ShipOrderKind,
+        StorageEventInfo, TradedEventInfo, ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME, BEACON_TYPE_NAME,
+        CANISTER_FIELD_NAME, CINEMATIC_KEY_FIELD_NAME, CREDIT_CAUSE_FIELD_NAME,
+        CURRENT_CREDITS_FIELD_NAME, DELTA_CREDITS_FIELD_NAME, ENTITY_ID_COMPONENT_NAME,
+        ENTITY_OTHER_ID_COMPONENT_NAME, ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME,
+        ENTITY_TYPE_NAME_COMPONENT_NAME, ITEM_COUNT_FIELD_NAME, ITEM_FIELD_NAME, LIGHT_TYPE_NAME,
+        PLANET_TYPE_NAME, PREVIOUS_CREDITS_FIELD_NAME, PRICE_FIELD_NAME, SECTION_FIELD_NAME,
+        SHIP_ORDER_FIELD_NAME, SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME,
+        TIMER_KEY_FIELD_NAME, TRADE_FIELD_NAME,
     };
 }
 
@@ -1189,6 +1190,52 @@ pub struct RebuiltEventInfo {
     /// Credits the ship paid: the recipe's work plus the bought parts at ask.
     #[serde(rename = "price_cr")]
     pub price_cr: u32,
+}
+
+/// A Store at a docked station moved items from the ship's hold into the
+/// station's storage (`onstored`).
+///
+/// One event per confirmed Store; a refused one fires nothing. No credits
+/// move, so no [`OnCreditsChangedEvent`] follows.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onstored")]
+#[event_info(StorageEventInfo)]
+pub struct OnStoredEvent;
+
+/// A Withdraw at a docked station moved items from the station's storage
+/// into the ship's hold (`onwithdrawn`).
+///
+/// One event per confirmed Withdraw; a refused one fires nothing. No credits
+/// move.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onwithdrawn")]
+#[event_info(StorageEventInfo)]
+pub struct OnWithdrawnEvent;
+
+/// Payload for [`OnStoredEvent`] and [`OnWithdrawnEvent`]: the station
+/// (`id`), the ship that stored or withdrew (`other_id` /
+/// `other_type_name`), the item and the count.
+///
+/// The station is the passive subject, as the trader is in
+/// [`TradedEventInfo`], so a handler that watches one station filters on
+/// `id`.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
+pub struct StorageEventInfo {
+    /// Scenario id of the station.
+    #[serde(rename = "id")]
+    pub id: String,
+    /// Scenario id of the ship that stored or withdrew.
+    #[serde(rename = "other_id")]
+    pub other_id: String,
+    /// Type name of that ship.
+    #[serde(rename = "other_type_name")]
+    pub other_type_name: String,
+    /// Item design id that moved.
+    #[serde(rename = "item")]
+    pub item: String,
+    /// Units that moved.
+    #[serde(rename = "count")]
+    pub count: u32,
 }
 
 #[cfg(test)]

@@ -1626,11 +1626,11 @@ mod tests {
 }
 
 /// Drain every ship's [`ShipInventoryReports`] into the hold events: pickup,
-/// jettison, trade, credits change, repair and rebuild.
+/// jettison, trade, credits change, repair, rebuild, store and withdraw.
 ///
 /// The intake pushes in the same fixed tick this drains, so a pickup reaches
 /// its handler in the frame it happened; a pane pushes in `Update`, so a
-/// trade, take, repair or rebuild reaches its handler on the next fixed tick. Draining
+/// trade, take, repair, rebuild, store or withdraw reaches its handler on the next fixed tick. Draining
 /// preserves the order the reports were queued in: a trade's two balance
 /// moves fire before the trade itself, which queued last.
 pub(super) fn track_ship_inventory_reports(
@@ -1734,6 +1734,28 @@ pub(super) fn track_ship_inventory_reports(
                         count,
                     });
                 }
+                ShipInventoryReport::Stored {
+                    station,
+                    item,
+                    count,
+                } => {
+                    if let Some(info) =
+                        storage_event_info(&q_partners, station, id, type_name, item, count)
+                    {
+                        commands.fire::<OnStoredEvent>(info);
+                    }
+                }
+                ShipInventoryReport::Withdrawn {
+                    station,
+                    item,
+                    count,
+                } => {
+                    if let Some(info) =
+                        storage_event_info(&q_partners, station, id, type_name, item, count)
+                    {
+                        commands.fire::<OnWithdrawnEvent>(info);
+                    }
+                }
                 ShipInventoryReport::Rebuilt {
                     section,
                     parts,
@@ -1753,4 +1775,32 @@ pub(super) fn track_ship_inventory_reports(
             }
         }
     }
+}
+
+/// The storage event payload for a Store or Withdraw `ship_id` made at
+/// `station`, or `None` when the station has no scenario id. The station is
+/// the passive subject, as the trader is for `OnTraded`: a payload without
+/// `id` would match no filter and mislead a handler that reads it.
+fn storage_event_info(
+    q_partners: &Query<&EntityId, With<SpaceshipRootMarker>>,
+    station: Entity,
+    ship_id: String,
+    ship_type_name: String,
+    item: ItemDesignId,
+    count: u32,
+) -> Option<StorageEventInfo> {
+    let Ok(station_id) = q_partners.get(station) else {
+        warn!(
+            "track_ship_inventory_reports: ship '{ship_id}' used the storage of {station:?}, \
+             which has no scenario id; the storage event dropped"
+        );
+        return None;
+    };
+    Some(StorageEventInfo {
+        id: station_id.0.clone(),
+        other_id: ship_id,
+        other_type_name: ship_type_name,
+        item: item.to_string(),
+        count,
+    })
 }

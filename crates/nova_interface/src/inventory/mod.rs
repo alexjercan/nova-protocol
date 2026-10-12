@@ -1,21 +1,28 @@
 //! The TAB interface's Inventory pane: what the player ship carries and, while
-//! it is docked, what the docked ship carries.
+//! it is docked, what the docked ship carries and, at a living station that
+//! offers Storage, what the station stores for the player.
 //!
 //! The pane reads the live [`ShipInventory`](nova_gameplay::prelude::ShipInventory)
 //! of the player ship and of the partner its `DockingConnection` names: category
 //! filters, one column per ship with its credits, the player's load against its
 //! capacity, and an inspector for the clicked row. While docked, the inspector
-//! opens an action form. The player's row opens Sell when the partner trades:
-//! it is neither neutralized nor lootable. The form switches a Sell to Give and
-//! back. The player's row opens Give when the partner is neutralized or
-//! lootable. The partner's row
-//! opens Take when the partner is neutralized or lootable, and Buy otherwise.
-//! While undocked with a live cargo intake, the player's row opens a Jettison
-//! form. Confirm writes an [`InventoryActionCommand`], and
-//! [`apply_inventory_action_commands`] moves the items, and for a trade the
-//! credits, by the
+//! opens an action form. A ship partner trades while it is neither neutralized
+//! nor lootable; a station partner trades only while it is living and offers
+//! Trade, by [`station_offers`](nova_gameplay::prelude::station_offers). The
+//! player's row opens Give when the partner is neutralized or lootable, Sell
+//! when it trades, Store when it is a living station that offers Storage, and
+//! Give otherwise; the form switches between Give, Sell and Store where the
+//! partner takes them. The partner's row opens Take when the partner is
+//! neutralized or lootable, Buy when it trades, and nothing otherwise. A
+//! storage column lists the station's [`StationStorage`](nova_gameplay::prelude::StationStorage)
+//! while it offers Storage, and its row opens Withdraw. A derelict station is
+//! lootable and offers no service. While undocked with a live cargo intake,
+//! the player's row opens a Jettison form. Confirm writes an
+//! [`InventoryActionCommand`], and [`apply_inventory_action_commands`] moves
+//! the items, and for a trade the credits, by the
 //! [`plan_item_transfer`](nova_gameplay::prelude::plan_item_transfer),
-//! [`plan_item_trade`](nova_gameplay::prelude::plan_item_trade) or
+//! [`plan_item_trade`](nova_gameplay::prelude::plan_item_trade),
+//! [`plan_item_storage`](nova_gameplay::prelude::plan_item_storage) or
 //! [`plan_item_jettison`](nova_gameplay::prelude::plan_item_jettison) rule, or
 //! refuses with no change. The partner column header also carries a
 //! separate Take credits button, shown only while the partner is neutralized
@@ -42,7 +49,7 @@ mod tests;
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::{
-    GameItems, ItemCategoryType, ItemDesignId, ItemTradeType, ItemTransferType,
+    GameItems, ItemCategoryType, ItemDesignId, ItemStorageType, ItemTradeType, ItemTransferType,
 };
 use nova_ui::input_mode::prelude::{in_input_mode, InputMode};
 
@@ -90,6 +97,8 @@ pub(crate) enum InventorySideType {
     Own,
     /// The ship the player ship is docked with.
     Partner,
+    /// The storage of the living station the player ship is docked with.
+    Storage,
 }
 
 /// What the Inventory pane shows: the category filter, the selected row, the
@@ -126,24 +135,37 @@ pub(crate) enum InventoryActionType {
     Sell,
     /// Queue items from the player ship as canisters on its cargo intake.
     Jettison,
+    /// Move items from the player ship into the docked station's storage.
+    Store,
+    /// Move items from the docked station's storage to the player ship.
+    Withdraw,
 }
 
 impl InventoryActionType {
-    /// The transfer this action is, or `None` for a trade or a jettison.
+    /// The transfer this action is, or `None` for any other action.
     pub(crate) fn transfer(self) -> Option<ItemTransferType> {
         match self {
             Self::Take => Some(ItemTransferType::Take),
             Self::Give => Some(ItemTransferType::Give),
-            Self::Buy | Self::Sell | Self::Jettison => None,
+            Self::Buy | Self::Sell | Self::Jettison | Self::Store | Self::Withdraw => None,
         }
     }
 
-    /// The trade this action is, or `None` for a transfer or a jettison.
+    /// The trade this action is, or `None` for any other action.
     pub(crate) fn trade(self) -> Option<ItemTradeType> {
         match self {
             Self::Buy => Some(ItemTradeType::Buy),
             Self::Sell => Some(ItemTradeType::Sell),
-            Self::Take | Self::Give | Self::Jettison => None,
+            Self::Take | Self::Give | Self::Jettison | Self::Store | Self::Withdraw => None,
+        }
+    }
+
+    /// The storage move this action is, or `None` for any other action.
+    pub(crate) fn storage(self) -> Option<ItemStorageType> {
+        match self {
+            Self::Store => Some(ItemStorageType::Store),
+            Self::Withdraw => Some(ItemStorageType::Withdraw),
+            Self::Take | Self::Give | Self::Buy | Self::Sell | Self::Jettison => None,
         }
     }
 }
@@ -151,7 +173,7 @@ impl InventoryActionType {
 /// An action waiting for its quantity to be confirmed.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub(crate) struct InventoryDraft {
-    /// Take, Give, Buy, Sell or Jettison.
+    /// What the draft or command does with its items.
     pub(crate) action: InventoryActionType,
     /// The item to move.
     pub(crate) item: ItemDesignId,
@@ -165,7 +187,7 @@ pub(crate) struct InventoryDraft {
 /// form's Confirm and applied by [`apply_inventory_action_commands`].
 #[derive(Message, Clone, PartialEq, Eq, Debug)]
 pub(crate) struct InventoryActionCommand {
-    /// Take, Give, Buy, Sell or Jettison.
+    /// What the draft or command does with its items.
     pub(crate) action: InventoryActionType,
     /// The item to move.
     pub(crate) item: ItemDesignId,

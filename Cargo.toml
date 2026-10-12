@@ -649,6 +649,15 @@ name = "system_station_rebuild"
 path = "examples/systems/system_station_rebuild.rs"
 required-features = ["debug"]
 
+# A living generated station's trade and storage through the Inventory pane:
+# buy, sell and store by clicks, the storage kept through a retire and a thaw,
+# withdrawn whole, an over-cap store refused on the form, and the storage
+# read back from the leave save and from a Load.
+[[example]]
+name = "system_station_storage"
+path = "examples/systems/system_station_storage.rs"
+required-features = ["debug"]
+
 # Then the one range that grades SHIPPED content rather than a fixture built
 # beside it: the campaign's first chapter, booted by scenario id and walked
 # from the opening scene to the banner. Every other range above owns its world,
