@@ -1,6 +1,6 @@
 # Plan v0.16.0 as a gameplay-polish sprint
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.16.0,planning
 
