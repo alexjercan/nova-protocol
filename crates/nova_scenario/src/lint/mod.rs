@@ -21,16 +21,19 @@ use crate::prelude::*;
 mod fixtures;
 mod scenario;
 mod ship;
+mod station;
 
 pub use scenario::{lint_campaign, lint_scenario};
 pub use ship::{lint_section_config, lint_ship_design_config};
+pub use station::lint_station_design;
 
 /// Glob-import surface: `use nova_scenario::lint::prelude::*` brings the
 /// content-lint entry points and result types into scope.
 pub mod prelude {
     pub use super::{
-        lint_campaign, lint_scenario, lint_section_config, lint_ship_design_config, KnownSections,
-        KnownShipDesigns, LintIssue, LintSeverity,
+        lint_campaign, lint_scenario, lint_section_config, lint_ship_design_config,
+        lint_station_design, KnownSections, KnownShipDesigns, KnownStationDesigns, LintIssue,
+        LintSeverity,
     };
 }
 
@@ -101,6 +104,30 @@ impl KnownShipDesigns {
 
     /// The design one id resolves to, or `None` if nothing authored it.
     pub fn get(&self, id: &ShipDesignId) -> Option<&ShipDesign> {
+        self.entries.get(id)
+    }
+}
+
+/// Last-wins station-design view for scenario lint: what each visible station
+/// id resolves to, so a `Station` spawn's design reference can be checked.
+#[derive(Clone, Debug, Default)]
+pub struct KnownStationDesigns {
+    entries: HashMap<StationDesignId, StationDesign>,
+}
+
+impl KnownStationDesigns {
+    /// Resolve full station designs in iterator order; later duplicate ids
+    /// replace earlier ones.
+    pub fn from_configs<'a>(configs: impl IntoIterator<Item = &'a StationDesign>) -> Self {
+        let mut entries = HashMap::new();
+        for config in configs {
+            entries.insert(config.id.clone(), config.clone());
+        }
+        Self { entries }
+    }
+
+    /// The design one id resolves to, or `None` if nothing authored it.
+    pub fn get(&self, id: &StationDesignId) -> Option<&StationDesign> {
         self.entries.get(id)
     }
 }

@@ -464,6 +464,7 @@ fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections, items: &Gam
         scenario,
         &known,
         &KnownShipDesigns::default(),
+        &KnownStationDesigns::default(),
         &HashSet::from([scenario.id.clone()]),
         items,
     );

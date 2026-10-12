@@ -4,7 +4,7 @@
 //
 // This bundle loads AFTER base (base first, mods in catalog order), so overlay
 // is last-wins by id: an item whose id already exists REPLACES it; a fresh id
-// ADDS alongside. This file does five things, in order:
+// ADDS alongside. This file does nine things, in order:
 //
 //   1. OVERRIDE a base section  - `reinforced_hull_section` (same id -> replace)
 //   2. ADD a new section        - `example_plated_hull_section` (new id -> add)
@@ -27,6 +27,9 @@
 //                                  again; an `OnEnter` marks a GENERATED body
 //                                  through `$other_id`, and the mark outlives
 //                                  the body's sector)
+//   9. ADD a station            - `example_outpost` (a parked hull with a
+//                                  collar and a bridge, no drive; what it
+//                                  offers, stores and trades)
 //
 // Everything here is pure data - no engine changes. For the field-by-field
 // syntax behind it see the wiki: "Author a section", "Author a scenario",
@@ -373,7 +376,7 @@
                                         id: "thruster",
                                         position: (0.0, 0.0, 3.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype(id: "basic_thruster_section"),
+                                        source: Prototype(id: "docking_port_section"),
                                     ),
                                     (
                                         id: "turret",
@@ -811,7 +814,7 @@
                                         id: "thruster",
                                         position: (0.0, 0.0, 2.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype(id: "basic_thruster_section"),
+                                        source: Prototype(id: "docking_port_section"),
                                     ),
                                 ],
                             )),
@@ -991,7 +994,7 @@
                                         id: "thruster",
                                         position: (0.0, 0.0, 3.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype(id: "basic_thruster_section"),
+                                        source: Prototype(id: "docking_port_section"),
                                     ),
                                     (
                                         id: "turret",
@@ -1477,7 +1480,7 @@
                                         id: "thruster",
                                         position: (0.0, 0.0, 3.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype(id: "basic_thruster_section"),
+                                        source: Prototype(id: "docking_port_section"),
                                     ),
                                     (
                                         id: "turret",
@@ -1539,5 +1542,65 @@
                 ],
             ),
         ],
+    )),
+    // -- 9. STATION ---------------------------------------------------------
+    // A `Station` is a hull that never flies: a docking port, a flight
+    // computer and plating, NO thruster (lint refuses one), authored once and
+    // spawned by id with `kind: Station((design: "example_outpost", ..))`.
+    // Every field is required. `services` is the closed set Rebuild, Refit,
+    // Trade, Storage, Jobs, Roster; at least one, each once. `storage_cap_g`
+    // is above zero exactly when Storage is listed. `stock` seeds the hull's
+    // own hold (four plates here = 400 kg) and `credits` is what it trades
+    // with. The hull takes the same fields a `Ship` design does; this one is
+    // four of this mod's plates, a bridge on top and a collar off the -X
+    // flank, built from base prototypes.
+    Station((
+        id: "example_outpost",
+        name: "Outpost (Example Mod)",
+        about: "A four-plate block with a bridge and one collar. Dock to trade survey cores and leave cargo in its store.",
+        hull: (
+            sections: [
+                (
+                    id: "plate_0",
+                    position: (0.0, 0.0, 0.0),
+                    rotation: (0.0, 0.0, 0.0, 1.0),
+                    source: Prototype(id: "reinforced_hull_section"),
+                ),
+                (
+                    id: "plate_1",
+                    position: (1.0, 0.0, 0.0),
+                    rotation: (0.0, 0.0, 0.0, 1.0),
+                    source: Prototype(id: "reinforced_hull_section"),
+                ),
+                (
+                    id: "plate_2",
+                    position: (0.0, 0.0, 1.0),
+                    rotation: (0.0, 0.0, 0.0, 1.0),
+                    source: Prototype(id: "reinforced_hull_section"),
+                ),
+                (
+                    id: "plate_3",
+                    position: (1.0, 0.0, 1.0),
+                    rotation: (0.0, 0.0, 0.0, 1.0),
+                    source: Prototype(id: "reinforced_hull_section"),
+                ),
+                (
+                    id: "bridge",
+                    position: (0.0, 1.0, 0.0),
+                    rotation: (0.0, 0.0, 0.0, 1.0),
+                    source: Prototype(id: "basic_controller_section"),
+                ),
+                (
+                    id: "collar",
+                    position: (-1.0, 0.0, 0.0),
+                    rotation: (0.0, 0.70710677, 0.0, 0.70710677),
+                    source: Prototype(id: "docking_port_section"),
+                ),
+            ],
+        ),
+        services: [Trade, Storage],
+        storage_cap_g: 50000,
+        stock: {"example_survey_core": 4},
+        credits: 1000,
     )),
 ]

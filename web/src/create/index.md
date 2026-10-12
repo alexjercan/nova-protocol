@@ -61,6 +61,8 @@ The [modding reference](reference/) is the exhaustive catalog:
 - [Scenario files](scenarios/) - scenario metadata and handler shape.
 - [Ship sections for mods](sections/) - every section kind and field.
 - [Ships for mods](ships/) - whole hulls authored once and spawned by id.
+- [Stations for mods](stations/) - parked hulls with a docking port, the
+  services they offer and what they hold.
 - [Ship skin styles for mods](styles/) - the look a hull's cladding wears.
 - [Training lessons for mods](lessons/) - a handbook screen and the practice
   range it hands off to.

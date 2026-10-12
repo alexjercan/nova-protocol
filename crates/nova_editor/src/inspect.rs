@@ -869,6 +869,8 @@ const PLANET_PICKS: &[FieldSpec] = &[PLANET_TYPE, SEED, RADIUS, MASS];
 /// pick takes the field with everything under it - so the hull's source and the
 /// controller's own fields come along.
 const SPACESHIP_PICKS: &[FieldSpec] = &[DESIGN, CONTROLLER, INITIAL_VELOCITY, ALLEGIANCE];
+/// A station is WHICH design, parked: no controller to pick.
+const STATION_PICKS: &[FieldSpec] = &[DESIGN, INITIAL_VELOCITY, ALLEGIANCE];
 const BEACON_PICKS: &[FieldSpec] = &[LABEL, RADIUS, COLOR, AREA_RADIUS];
 /// No `aim`. The node's ROTATION aims the light (`node.rs`), and two controls
 /// on one output is a builder turning the gizmo and watching nothing happen.
@@ -2115,6 +2117,7 @@ pub(crate) fn object_config(kind: &ScenarioObjectKind) -> Option<&dyn PartialRef
         ScenarioObjectKind::Light(config) => Some(config),
         ScenarioObjectKind::Planet(config) => Some(config),
         ScenarioObjectKind::Spaceship(config) => Some(config),
+        ScenarioObjectKind::Station(config) => Some(config),
     }
 }
 
@@ -2127,6 +2130,7 @@ pub(crate) fn object_config_mut(kind: &mut ScenarioObjectKind) -> Option<&mut dy
         ScenarioObjectKind::Light(config) => Some(config),
         ScenarioObjectKind::Planet(config) => Some(config),
         ScenarioObjectKind::Spaceship(config) => Some(config),
+        ScenarioObjectKind::Station(config) => Some(config),
     }
 }
 
@@ -2262,6 +2266,7 @@ fn object_picks(kind: &ScenarioObjectKind) -> &'static [FieldSpec] {
         ScenarioObjectKind::Beacon(_) => BEACON_PICKS,
         ScenarioObjectKind::Light(_) => LIGHT_PICKS,
         ScenarioObjectKind::Planet(_) => PLANET_PICKS,
+        ScenarioObjectKind::Station(_) => STATION_PICKS,
     }
 }
 

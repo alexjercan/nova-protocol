@@ -23,7 +23,10 @@ use nova_ship::prelude::*;
 
 use crate::{
     names::prelude::Names,
-    objects::ship_design::prelude::{resolve_ship_design, GameShipDesigns, ShipDesignSource},
+    objects::{
+        ship_design::prelude::{resolve_ship_design, GameShipDesigns, ShipDesignSource},
+        station::prelude::GameStationDesigns,
+    },
 };
 
 /// The spaceship scenario object, its config and section sources, the player and AI controller
@@ -841,6 +844,8 @@ impl Plugin for SpaceshipPlugin {
         app.init_resource::<GameSections>();
         app.init_resource::<GameShipDesigns>();
         app.init_resource::<GameItems>();
+        // The station spawn reads the station catalog the same way.
+        app.init_resource::<GameStationDesigns>();
 
         app.add_observer(insert_spaceship_sections);
     }

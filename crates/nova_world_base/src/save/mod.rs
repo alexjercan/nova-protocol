@@ -68,7 +68,7 @@ pub use transients::{
 /// nobody held live is recorded as an arrival there. Every cell the player
 /// never visited regenerates from the seed on Load, so another generator
 /// would change it silently.
-pub const WORLD_SAVE_FORMAT: u32 = 4;
+pub const WORLD_SAVE_FORMAT: u32 = 5;
 
 /// The most characters a world name has, after trimming.
 const WORLD_NAME_MAX: usize = 32;
@@ -423,6 +423,7 @@ fn check_saved_items(state: &WorldSaveState, items: &GameItems) -> Result<(), St
             let found = match body.body() {
                 FrozenBodyType::Asteroid(rock) => unknown(&mut rock.item_ids()),
                 FrozenBodyType::Ship(ship) => unknown(&mut ship.item_ids()),
+                FrozenBodyType::Station(station) => unknown(&mut station.item_ids()),
                 // A held ship is an id; its stock is regenerated.
                 FrozenBodyType::PendingShip { .. } => None,
                 FrozenBodyType::Canister(canister) => unknown(&mut canister.item_ids()),
@@ -446,7 +447,8 @@ fn check_saved_items(state: &WorldSaveState, items: &GameItems) -> Result<(), St
 }
 
 /// Every saved hold is within its cap: the player's and every ledger ship's
-/// stock weighs at most its hull capacity, and every ledger canister weighs
+/// stock weighs at most its hull capacity, a ledger station's hull the same
+/// and its storage at most its own cap, and every ledger canister weighs
 /// at most [`CARGO_CANISTER_MAX_MASS_G`]. Runs after [`check_saved_items`],
 /// so every stacked id has a mass. A save checks before it writes; Load
 /// checks on open, as a thaw would otherwise spawn a hold the game never
@@ -482,6 +484,22 @@ fn check_saved_stock(state: &WorldSaveState, items: &GameItems) -> Result<(), St
                         .id()
                         .expect("a frozen ship is a persistent body with an id");
                     check_hold(ship, &format!("'{id}'"))?;
+                }
+                FrozenBodyType::Station(station) => {
+                    let id = body
+                        .id()
+                        .expect("a frozen station is a persistent body with an id");
+                    check_hold(station.ship(), &format!("'{id}'"))?;
+                    let storage = station.storage();
+                    let held = mass_g(&mut storage.stacks());
+                    let cap = u64::from(storage.cap_g());
+                    if held > cap {
+                        return Err(format!(
+                            "'{id}' stores {} in a storage of {}",
+                            kg_text(held),
+                            kg_text(cap)
+                        ));
+                    }
                 }
                 FrozenBodyType::Canister(canister) => {
                     let held = mass_g(&mut canister.contents().stacks());

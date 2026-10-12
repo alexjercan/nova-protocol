@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.8.0
+
+- Add `example_outpost`, a `Station`: four plates, a bridge and one collar,
+  no drive, offering Trade and Storage with four survey cores in its hold.
+  Needs a base game whose content carries the `Station` kind.
+
 ## 1.7.0
 
 - Add `example_survey`, the fixed-seed world with a survey sphere 64 km out.

@@ -37,6 +37,9 @@ pub mod planet_type;
 pub mod ship_design;
 /// Spaceship scenario object: player/AI ships built from a section list.
 pub mod spaceship;
+/// The STATION content kind and object: a parked hull with a docking port,
+/// authored once and spawned by id.
+pub mod station;
 
 /// Every scenario object submodule's prelude plus `ScenarioObjectsPlugin`.
 pub mod prelude {
@@ -44,7 +47,7 @@ pub mod prelude {
         anchor::prelude::*, area::prelude::*, asteroid::prelude::*, asteroid_carve::prelude::*,
         asteroid_kind::prelude::*, asteroid_surface::prelude::*, beacon::prelude::*,
         light::prelude::*, planet::prelude::*, planet_surface::prelude::*, planet_type::prelude::*,
-        ship_design::prelude::*, spaceship::prelude::*, ScenarioObjectsPlugin,
+        ship_design::prelude::*, spaceship::prelude::*, station::prelude::*, ScenarioObjectsPlugin,
     };
 }
 

@@ -20,8 +20,8 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::{Fnv64, GameItems, GameStates, ItemDesign};
 use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog, BASE_MOD_ID};
 use nova_scenario::prelude::{
-    GameCampaigns, GameScenarios, GameShipDesigns, NewGameStart, ScenarioConfig,
-    ShipDesignPrototype,
+    GameCampaigns, GameScenarios, GameShipDesigns, GameStationDesigns, NewGameStart,
+    ScenarioConfig, ShipDesignPrototype, StationDesign,
 };
 use nova_ship::prelude::*;
 use nova_training::prelude::{Lesson, LessonSeverity, TrainingCatalog};
@@ -520,6 +520,8 @@ pub fn register_bundles(
     let merged_sections =
         nova_scenario::prelude::KnownSections::from_configs(outcome.sections.iter());
     let merged_ships = nova_scenario::prelude::KnownShipDesigns::from_configs(outcome.ships.iter());
+    let merged_stations =
+        nova_scenario::prelude::KnownStationDesigns::from_configs(outcome.stations.iter());
     let merged_scenarios: std::collections::HashSet<String> =
         outcome.scenarios.keys().cloned().collect();
     // Every merged scenario by id, so campaign lint can refuse a member that
@@ -567,11 +569,34 @@ pub fn register_bundles(
                 .extend(found);
         }
     }
+    // Every MERGED station, checked where it is authored, like the ships.
+    for station in &outcome.stations {
+        let found = nova_scenario::prelude::lint_station_design(
+            station,
+            &merged_sections,
+            &merged_items,
+            station.id.as_str(),
+        );
+        for issue in &found {
+            warn!(
+                "register_bundles: content lint [{:?}] station '{}': {}",
+                issue.severity, issue.scenario, issue.message
+            );
+        }
+        if !found.is_empty() {
+            content_issues
+                .0
+                .entry(station.id.to_string())
+                .or_default()
+                .extend(found);
+        }
+    }
     for scenario in outcome.scenarios.values() {
         let found = nova_scenario::prelude::lint_scenario(
             scenario,
             &merged_sections,
             &merged_ships,
+            &merged_stations,
             &merged_scenarios,
             &merged_items,
         );
@@ -660,6 +685,7 @@ pub fn register_bundles(
     commands.insert_resource(outcome.campaigns);
     commands.insert_resource(GameStyles(outcome.styles));
     commands.insert_resource(GameShipDesigns(outcome.ships));
+    commands.insert_resource(GameStationDesigns(outcome.stations));
     commands.insert_resource(TrainingCatalog::new(outcome.lessons));
     commands.insert_resource(GameUiThemes(outcome.ui_themes));
     commands.insert_resource(merged_items);
@@ -668,8 +694,8 @@ pub fn register_bundles(
 /// Every error [`lint_section_config`](nova_scenario::prelude::lint_section_config)
 /// finds in one bundle's sections, plus every
 /// [`section_id_errors`](nova_scenario::prelude::section_id_errors) finds in
-/// one bundle's ship designs, charged to `mod_id`. Warnings are logged here
-/// and do not refuse the bundle.
+/// one bundle's ship designs and station hulls, charged to `mod_id`. Warnings
+/// are logged here and do not refuse the bundle.
 ///
 /// A content file that did not load is skipped: the flatten reports it.
 fn section_errors(
@@ -704,6 +730,15 @@ fn section_errors(
                         severity: nova_scenario::prelude::LintSeverity::Error,
                         scenario: mod_id.to_string(),
                         message: format!("ship '{}': {error}", prototype.id),
+                    });
+                }
+            }
+            Content::Station(design) => {
+                for error in nova_scenario::prelude::section_id_errors(&design.hull) {
+                    errors.push(nova_scenario::prelude::LintIssue {
+                        severity: nova_scenario::prelude::LintSeverity::Error,
+                        scenario: mod_id.to_string(),
+                        message: format!("station '{}': {error}", design.id),
                     });
                 }
             }
@@ -886,6 +921,9 @@ pub struct MergeOutcome {
     /// [`register_bundles`] has already refused every pack that may not
     /// replace an item it shares, so the winner is the dependent pack.
     pub items: Vec<ItemDesign>,
+    /// Stations in registration order, overlaid last-wins by id - so a mod
+    /// rebuilds a base station by declaring the same id.
+    pub stations: Vec<StationDesign>,
     /// Human-readable messages, one per intra-bundle duplicate id that was
     /// skipped. Empty on clean data.
     pub conflicts: Vec<String>,
@@ -990,6 +1028,11 @@ fn merge_content_item(item: &Content, into: &mut MergeOutcome) {
         Content::Item(design) => match into.items.iter_mut().find(|i| i.id == design.id) {
             Some(existing) => *existing = design.clone(),
             None => into.items.push(design.clone()),
+        },
+        // A Vec, overlaid in place, like the ships it is spawned beside.
+        Content::Station(design) => match into.stations.iter_mut().find(|s| s.id == design.id) {
+            Some(existing) => *existing = design.clone(),
+            None => into.stations.push(design.clone()),
         },
     }
 }

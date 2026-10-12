@@ -156,7 +156,7 @@ content is rebalanced, prune the entry.
 ## Content files
 
 Every `*.content.ron` file is a RON list. One file may contain any mix of the
-eight item kinds:
+nine item kinds:
 
 ```ron
 [
@@ -186,7 +186,17 @@ eight item kinds:
     Ship((
         id: "my_corvette",
         name: "My Corvette",
+        design: (sections: []),
+    )),
+    Station((
+        id: "my_outpost",
+        name: "My Outpost",
+        about: "A collar, a bridge and a plate.",
         hull: (sections: []),
+        services: [Trade],
+        storage_cap_g: 0,
+        stock: {},
+        credits: 500,
     )),
     Style((
         id: "my_look",
@@ -254,6 +264,9 @@ Large mods can use one scenario per file and list all of them in `content`.
   turret, or torpedo bay.
 - A [ship](../ships/) defines a whole hull - its section layout and cladding -
   that any scenario can spawn by id.
+- A [station](../stations/) defines a hull that never flies - a docking port,
+  a flight computer, what it offers and holds - that any scenario can park by
+  id.
 - A [style](../styles/) defines the look a ship's derived cladding wears: the
   two plate surfaces, and the destructible decoration scattered over them.
 - A [lesson](../lessons/) is one screen of the in-game training handbook: a

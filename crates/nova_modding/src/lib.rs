@@ -50,7 +50,7 @@ use nova_gameplay::prelude::ItemDesign;
 // crate so the portal generator builds without bevy; re-exported here so game
 // code keeps importing them from nova_modding.
 pub use nova_mod_format::{BundleManifest, CatalogManifest, ModEntry, ModMeta, BASE_MOD_ID};
-use nova_scenario::prelude::{CampaignConfig, ScenarioConfig, ShipDesignPrototype};
+use nova_scenario::prelude::{CampaignConfig, ScenarioConfig, ShipDesignPrototype, StationDesign};
 use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
 use nova_training::prelude::Lesson;
 use nova_ui::theme::UiThemeConfig;
@@ -131,6 +131,15 @@ pub enum Content {
     /// (`nova_assets::items`). Stock, cargo and saves name the id, so an id
     /// is a promise.
     Item(ItemDesign),
+    /// A [`StationDesign`] - registers into `GameStationDesigns` keyed by its
+    /// id. A parked hull with a docking port, what it offers, what it holds
+    /// and what it pays with, authored once and spawned by id through a
+    /// `Station` scenario object.
+    ///
+    /// A mod adds a station by declaring a new id and rebuilds a base one by
+    /// declaring its id. A spawn naming an id no bundle declares fails at
+    /// lint and at load.
+    Station(StationDesign),
 }
 
 impl Content {
@@ -150,6 +159,7 @@ impl Content {
             Content::Lesson(_) => "lesson",
             Content::UiTheme(_) => "ui theme",
             Content::Item(_) => "item",
+            Content::Station(_) => "station",
         }
     }
 
@@ -165,6 +175,7 @@ impl Content {
             Content::Lesson(lesson) => &lesson.id,
             Content::UiTheme(cfg) => &cfg.id,
             Content::Item(design) => design.id.as_str(),
+            Content::Station(design) => design.id.as_str(),
         }
     }
 

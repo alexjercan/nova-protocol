@@ -275,6 +275,18 @@ pub(crate) fn insert_preview_object(
                 }
             });
         }
+        // A station names a catalog design the editor does not build and
+        // cannot edit, so it is drawn as the unit cell a click can reach.
+        // Drawing its hull needs the station catalog on the rig; the editor
+        // does not mint stations, so that is debt for the station tooling.
+        ScenarioObjectKind::Station(_) => {
+            let (centre, extents) = hull_bounds(&[]);
+            entity.insert(Collider::compound(vec![(
+                centre,
+                Quat::IDENTITY,
+                Collider::cuboid(extents.x, extents.y, extents.z),
+            )]));
+        }
     }
 }
 
@@ -331,6 +343,7 @@ fn drawn_fields(kind: &ScenarioObjectKind) -> &'static [&'static str] {
         ScenarioObjectKind::Beacon(_) => &["radius", "color"],
         ScenarioObjectKind::Light(_) => &["color"],
         ScenarioObjectKind::Spaceship(_) => &["hull"],
+        ScenarioObjectKind::Station(_) => &["design"],
     }
 }
 

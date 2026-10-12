@@ -4,11 +4,11 @@ use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
-use nova_gameplay::prelude::AssetRef;
+use nova_gameplay::prelude::{AssetRef, ShipInventoryStock};
 use nova_ship::prelude::SectionConfig;
 
 use crate::{
-    lint::{KnownSections, KnownShipDesigns},
+    lint::{KnownSections, KnownShipDesigns, KnownStationDesigns},
     prelude::*,
 };
 
@@ -92,6 +92,33 @@ pub(crate) fn ships(ids: &[&str]) -> KnownShipDesigns {
         })
         .collect();
     KnownShipDesigns::from_configs(&configs)
+}
+
+/// The station catalog a lint resolves `Station` spawns against: one design
+/// per id over a one-cell hull, enough for an id to resolve.
+pub(crate) fn stations(ids: &[&str]) -> KnownStationDesigns {
+    let configs: Vec<_> = ids
+        .iter()
+        .map(|id| StationDesign {
+            id: (*id).into(),
+            name: (*id).to_string(),
+            about: String::new(),
+            hull: ShipDesign {
+                sections: vec![SpaceshipSectionConfig {
+                    id: "hull".to_string(),
+                    position: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                    source: SectionSource::prototype("hull"),
+                }],
+                ..default()
+            },
+            services: vec![StationServiceType::Trade],
+            storage_cap_g: 0,
+            stock: ShipInventoryStock::default(),
+            credits: 0,
+        })
+        .collect();
+    KnownStationDesigns::from_configs(&configs)
 }
 
 pub(crate) fn spawn_object(id: &str) -> EventActionConfig {

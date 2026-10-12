@@ -606,6 +606,15 @@ required-features = ["debug"]
 name = "system_open_world_identity"
 path = "examples/systems/system_open_world_identity.rs"
 
+# A station is content and its own body: the base waystation spawns from the
+# catalog with no thruster, holds its attitude after a nudge, freezes as a
+# station record and thaws with the same design, pose, motion, sections and
+# storage.
+[[example]]
+name = "system_station_body"
+path = "examples/systems/system_station_body.rs"
+required-features = ["debug"]
+
 # Then the one range that grades SHIPPED content rather than a fixture built
 # beside it: the campaign's first chapter, booted by scenario id and walked
 # from the opening scene to the banner. Every other range above owns its world,

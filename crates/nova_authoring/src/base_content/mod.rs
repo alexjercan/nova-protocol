@@ -6,7 +6,7 @@
 //! helpers, lint, and serialization tooling stay outside it.
 
 use nova_gameplay::prelude::ItemDesign;
-use nova_scenario::prelude::{CampaignConfig, ScenarioConfig, ShipDesignPrototype};
+use nova_scenario::prelude::{CampaignConfig, ScenarioConfig, ShipDesignPrototype, StationDesign};
 use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
 use nova_training::prelude::Lesson;
 
@@ -17,6 +17,7 @@ pub(crate) mod lessons;
 pub(crate) mod scenarios;
 pub(crate) mod sections;
 pub(crate) mod ships;
+pub(crate) mod stations;
 pub(crate) mod styles;
 
 use assets::BaseContentAssets;
@@ -26,6 +27,7 @@ pub(crate) struct BaseContent {
     pub(crate) items: Vec<ItemDesign>,
     pub(crate) sections: Vec<SectionConfig>,
     pub(crate) ships: Vec<ShipDesignPrototype>,
+    pub(crate) stations: Vec<StationDesign>,
     pub(crate) scenarios: Vec<ScenarioConfig>,
     pub(crate) campaigns: Vec<CampaignConfig>,
     pub(crate) styles: Vec<ShipStyleConfig>,
@@ -39,6 +41,7 @@ pub(crate) fn build() -> BaseContent {
         items: items::item_catalog(),
         sections: sections::section_catalog(&assets),
         ships: ships::ship_catalog(&assets),
+        stations: stations::station_catalog(&assets),
         scenarios: scenarios::catalog(&assets),
         campaigns: campaigns::campaign_catalog(),
         styles: styles::style_catalog(&assets),

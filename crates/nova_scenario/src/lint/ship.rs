@@ -12,25 +12,40 @@ use nova_ship::prelude::{
     TurretJoint, TurretSectionConfig,
 };
 
-use super::{KnownSections, KnownShipDesigns, LintIssue};
+use super::{KnownSections, KnownShipDesigns, KnownStationDesigns, LintIssue};
 use crate::prelude::*;
 
 /// Every reference a spawned (or scatter-template) ship makes must resolve:
 /// the design it names, the section prototypes that design is built from, and
 /// the sections its spawn-time patches aim at. Its inventory stock must name
-/// only items `items` holds and fit the resolved design's hold.
+/// only items `items` holds and fit the resolved design's hold. A station
+/// spawn must name a design `stations` holds.
 ///
 /// A `Prototype` design's own geometry is NOT re-checked here - it is linted
 /// where the design catalog is walked ([`lint_ship_design_config`]), the same
-/// rule a `Prototype` section follows.
+/// rule a `Prototype` section follows. A station design is linted the same
+/// way where its catalog is walked (`lint_station_design`).
 pub(super) fn check_object_prototypes(
     config: &ScenarioObjectConfig,
     scenario: &str,
     sections: &KnownSections,
     designs: &KnownShipDesigns,
+    stations: &KnownStationDesigns,
     items: &GameItems,
     issues: &mut Vec<LintIssue>,
 ) {
+    if let ScenarioObjectKind::Station(station) = &config.kind {
+        if stations.get(&station.design).is_none() {
+            issues.push(LintIssue::error(
+                scenario,
+                format!(
+                    "station '{}': unknown station design '{}'",
+                    config.base.id, station.design
+                ),
+            ));
+        }
+        return;
+    }
     let ScenarioObjectKind::Spaceship(ship) = &config.kind else {
         return;
     };
@@ -84,7 +99,14 @@ pub(super) fn check_object_prototypes(
     // separately - it IS the design - and resolving it twice would report
     // every broken reference twice.
     if let ShipDesignSource::Inline(design) = &ship.design {
-        check_design_sections(config.base.id.as_str(), design, scenario, sections, issues);
+        check_design_sections(
+            "ship",
+            config.base.id.as_str(),
+            design,
+            scenario,
+            sections,
+            issues,
+        );
         return;
     }
 
@@ -116,8 +138,10 @@ pub(super) fn check_object_prototypes(
 ///
 /// Run on an inline design where the scenario spawns it, and on a catalog
 /// design where the design catalog is walked - so a design is checked exactly
-/// once, wherever it is authored.
-fn check_design_sections(
+/// once, wherever it is authored. `what` names the owner in each finding:
+/// `ship` for a ship design, `station` for a station's hull.
+pub(super) fn check_design_sections(
+    what: &str,
     ship_id: &str,
     design: &ShipDesign,
     source: &str,
@@ -134,7 +158,7 @@ fn check_design_sections(
     for error in errors {
         issues.push(LintIssue::error(
             source,
-            format!("ship '{ship_id}': {error}"),
+            format!("{what} '{ship_id}': {error}"),
         ));
     }
 
@@ -161,6 +185,7 @@ pub fn lint_ship_design_config(
 ) -> Vec<LintIssue> {
     let mut issues = Vec::new();
     check_design_sections(
+        "ship",
         design.id.as_str(),
         &design.design,
         source,
@@ -963,6 +988,7 @@ mod tests {
             &s,
             &sections(&["known_proto"]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -997,6 +1023,7 @@ mod tests {
             &s,
             &sections(&["hull"]),
             &ships(&["block_gunship"]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -1009,6 +1036,7 @@ mod tests {
             &s,
             &sections(&["hull"]),
             &ships(&["block_gunship"]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -1053,6 +1081,7 @@ mod tests {
             &s,
             &sections(&["hull"]),
             &ships(&["block_gunship"]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -1066,6 +1095,7 @@ mod tests {
             &s,
             &sections(&["hull"]),
             &ships(&["block_gunship"]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         )
@@ -1289,6 +1319,7 @@ mod tests {
             &scenario,
             &catalog,
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -1331,6 +1362,7 @@ mod tests {
             &s,
             &sections(&["known_proto"]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -1380,6 +1412,7 @@ mod tests {
             &s,
             &sections(&["known"]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -1398,6 +1431,7 @@ mod tests {
             &s,
             &sections(&["known"]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -1468,6 +1502,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -1492,6 +1527,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -1515,6 +1551,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -1543,6 +1580,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -1565,6 +1603,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -1636,6 +1675,7 @@ mod tests {
             &s,
             &catalog,
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );

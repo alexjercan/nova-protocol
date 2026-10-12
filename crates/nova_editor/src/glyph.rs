@@ -102,6 +102,8 @@ pub(crate) fn object_mark(object: &ObjectNode) -> (&'static str, &'static str) {
         // CIRCLE WITH LEFT HALF BLACK - a lit world with a terminator, told
         // apart from the rock's solid disc at a glance.
         ScenarioObjectKind::Planet(_) => ("\u{25d0}", "PLANET"),
+        // WHITE SQUARE WITH ROUNDED CORNERS - a parked block nothing flies.
+        ScenarioObjectKind::Station(_) => ("\u{25a2}", "STATION"),
     }
 }
 

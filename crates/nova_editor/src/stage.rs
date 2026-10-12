@@ -365,6 +365,7 @@ fn trigger_radius(kind: &ScenarioObjectKind) -> Option<Meters> {
         ScenarioObjectKind::Anchor(_)
         | ScenarioObjectKind::Asteroid(_)
         | ScenarioObjectKind::Spaceship(_)
+        | ScenarioObjectKind::Station(_)
         | ScenarioObjectKind::Light(_)
         | ScenarioObjectKind::Planet(_) => None,
     }

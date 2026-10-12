@@ -651,6 +651,25 @@ const CREATE_PAGES = [
         ],
     },
     {
+        slug: "stations",
+        md: "stations.md",
+        title: "Stations for mods",
+        category: "Modding reference",
+        parent: "mod-files",
+        toc: true,
+        tags: ["modding", "reference", "ships"],
+        summary:
+            "Author a hull that never flies as content and park it by id: a docking port and a flight computer with no thruster, the services it offers, its storage cap, stock and credits.",
+        related: ["ships", "objects", "base-content"],
+        headings: [
+            "Why a station is its own kind",
+            "The Station item",
+            "Spawning one",
+            "Overlay and lint",
+            "Base stations",
+        ],
+    },
+    {
         slug: "styles",
         md: "styles.md",
         title: "Ship skin styles for mods",
@@ -861,6 +880,7 @@ const CREATE_PAGES = [
             "Spaceship",
             "The controller",
             "The sections list",
+            "Station",
             "Beacon",
             "Light",
             "Traps for the unwary",

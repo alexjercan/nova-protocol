@@ -189,6 +189,7 @@ pub(super) struct ContentGate<'w> {
     issues: Option<Res<'w, ContentIssues>>,
     sections: Option<Res<'w, GameSections>>,
     ships: Option<Res<'w, GameShipDesigns>>,
+    stations: Option<Res<'w, GameStationDesigns>>,
     scenarios: Option<Res<'w, GameScenarios>>,
     items: Option<Res<'w, GameItems>>,
 }
@@ -225,6 +226,11 @@ fn start_errors(scenario: &ScenarioConfig, gate: &ContentGate) -> Vec<String> {
             .as_deref()
             .map_or(&[][..], |registry| &registry.0),
     );
+    let known_stations = KnownStationDesigns::from_configs(
+        gate.stations
+            .as_deref()
+            .map_or(&[][..], |registry| &registry.0),
+    );
     let mut known_scenarios: std::collections::HashSet<String> = gate
         .scenarios
         .as_deref()
@@ -242,6 +248,7 @@ fn start_errors(scenario: &ScenarioConfig, gate: &ContentGate) -> Vec<String> {
             scenario,
             &known_sections,
             &known_ships,
+            &known_stations,
             &known_scenarios,
             known_items,
         )

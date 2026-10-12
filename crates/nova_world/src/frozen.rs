@@ -31,9 +31,10 @@ use bevy::prelude::*;
 use nova_events::prelude::{EntityId, GeneratedBodyId, Meters3, ScenarioAddressableMarker};
 use nova_gameplay::prelude::{CargoCanister, SpaceshipRootMarker, TempEntity, UnsettledBody};
 use nova_scenario::prelude::{
-    freeze_asteroid, freeze_ore_drop, freeze_ship, prepare_frozen_asteroid, thaw_asteroid,
-    thaw_ore_drop, thaw_ship, AsteroidMarker, FrozenAsteroid, FrozenOreDrop, FrozenShip,
-    MinedOreDrop, PreparedAsteroid, ScenarioScopedMarker,
+    freeze_asteroid, freeze_ore_drop, freeze_ship, freeze_station, prepare_frozen_asteroid,
+    thaw_asteroid, thaw_ore_drop, thaw_ship, thaw_station, AsteroidMarker, FrozenAsteroid,
+    FrozenOreDrop, FrozenShip, FrozenStation, MinedOreDrop, PreparedAsteroid, ScenarioScopedMarker,
+    StationMarker,
 };
 use nova_ship::prelude::{
     freeze_canister, freeze_wreck_fragment, thaw_canister, thaw_wreck_fragment, DockedShip,
@@ -300,7 +301,7 @@ impl FrozenSector {
 /// with its geometry, a held ship always with its entry, and nothing else
 /// carries either.
 #[derive(Debug)]
-pub(crate) enum PreparedFrozenBody {
+pub enum PreparedFrozenBody {
     /// A body that thaws where it froze.
     Body(Box<(FrozenBody, Option<PreparedAsteroid>)>),
     /// A ship still held back, to spawn once the observer is clear of it.
@@ -316,7 +317,7 @@ impl PreparedFrozenBody {
     /// When a held ship's id names none of `ships`. The generator is pinned
     /// by the catalog digest the save carries, so the cell cannot regenerate
     /// without it: an assembly fault, not a runtime condition.
-    pub(crate) fn prepare(coord: SectorCoord, body: FrozenBody, ships: &[SectorShip]) -> Self {
+    pub fn prepare(coord: SectorCoord, body: FrozenBody, ships: &[SectorShip]) -> Self {
         match &body.body {
             FrozenBodyType::PendingShip { id } => {
                 let Some(ship) = ships.iter().find(|ship| ship.id.to_string() == *id) else {
@@ -400,6 +401,12 @@ impl FrozenBody {
         self.transform
     }
 
+    /// The linear and angular velocity the body froze with, in engine
+    /// units; `None` for a body that had no physics motion.
+    pub fn motion(&self) -> Option<(Vec3, Vec3)> {
+        self.motion
+    }
+
     /// What the body is.
     pub fn body(&self) -> &FrozenBodyType {
         &self.body
@@ -421,6 +428,8 @@ pub enum FrozenBodyType {
     Asteroid(FrozenAsteroid),
     /// A ship, with its hold, damage, surviving sections, ammunition and AI.
     Ship(Box<FrozenShip>),
+    /// A station: its design id, its hull as a ship record, and its storage.
+    Station(Box<FrozenStation>),
     /// A ship held back because the observer overlapped it, by the id of
     /// its manifest entry. The cell regenerates the entry on its worker:
     /// the catalog digest a save carries pins the generator, so the same id
@@ -439,7 +448,7 @@ pub enum FrozenBodyType {
 
 /// What freezing a docked ship means to the caller.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum DockPolicy {
+pub enum DockPolicy {
     /// The body is about to despawn: a docked ship is a fault, because
     /// freezing one half of a pair would release the dock and leave its
     /// partner flying alone.
@@ -461,7 +470,7 @@ pub(crate) enum DockPolicy {
 ///
 /// On a docked ship under [`DockPolicy::Refuse`]. And on an entity that is no
 /// persistent body this module knows how to freeze.
-pub(crate) fn freeze_body(
+pub fn freeze_body(
     world: &World,
     entity: Entity,
     docked: DockPolicy,
@@ -489,7 +498,16 @@ pub(crate) fn freeze_body(
         transform.translation = position.0;
         transform.rotation = rotation.0;
     }
-    let frozen = if body.contains::<SpaceshipRootMarker>() {
+    // A station root also carries `SpaceshipRootMarker`, so its own marker
+    // decides first.
+    let frozen = if body.contains::<StationMarker>() {
+        assert!(
+            docked == DockPolicy::Undock || !body.contains::<DockedShip>(),
+            "nova_world: station '{label}' has a ship docked and its cell is about to freeze \
+             it; a docked pair cannot be split across the active window"
+        );
+        FrozenBodyType::Station(Box::new(freeze_station(world, entity)?))
+    } else if body.contains::<SpaceshipRootMarker>() {
         assert!(
             docked == DockPolicy::Undock || !body.contains::<DockedShip>(),
             "nova_world: ship '{label}' is docked and its cell is about to freeze it; a docked \
@@ -522,7 +540,7 @@ pub(crate) fn freeze_body(
 
 /// Spawn frozen `bodies` under `root`, each where and as it froze, with the
 /// geometry the cell's worker prepared for it.
-pub(crate) fn thaw_record(commands: &mut Commands, root: Entity, bodies: Vec<PreparedFrozenBody>) {
+pub fn thaw_record(commands: &mut Commands, root: Entity, bodies: Vec<PreparedFrozenBody>) {
     for prepared in bodies {
         let (
             FrozenBody {
@@ -566,6 +584,7 @@ pub(crate) fn thaw_record(commands: &mut Commands, root: Entity, bodies: Vec<Pre
                 thaw_asteroid(&mut entity, rock, geometry);
             }
             FrozenBodyType::Ship(ship) => thaw_ship(&mut entity, *ship),
+            FrozenBodyType::Station(station) => thaw_station(&mut entity, *station),
             FrozenBodyType::Canister(canister) => {
                 let linear = motion.map_or(Vec3::ZERO, |(linear, _)| linear);
                 entity.insert(thaw_canister(canister, transform, linear));

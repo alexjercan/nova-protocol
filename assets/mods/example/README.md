@@ -50,6 +50,11 @@ binary assets it ships).
   marks it with `ObjectiveMarkerAttach((target_id: "$other_id", ..))`, bound
   from the event payload, and the mark follows the body through its sector's
   retire and thaw.
+- **A station** - `example_outpost` is a `Station`: a hull that never flies
+  (a collar, a bridge, four of this mod's plates, no thruster), the services
+  it offers (`Trade`, `Storage`), its storage cap, the stock its hold opens
+  with and the credits it trades with. A scenario spawns it with
+  `kind: Station((design: "example_outpost", ..))`.
 
 ## Layout
 
@@ -57,7 +62,7 @@ binary assets it ships).
 example/
   example.bundle.ron     # manifest: content + resources + meta
   example.content.ron    # section overlay + new section + arena + menu backdrop
-                         #   + hull line + item
+                         #   + hull line + item + station
   textures/
     nebula.png           # self:// skybox (stacked 1x6 cube faces)
     nebula.png.meta      # RowCount cube reinterpret sidecar (rides along, not listed)

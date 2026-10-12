@@ -7,7 +7,9 @@ use nova_events::prelude::GeneratedBodyId;
 use nova_gameplay::prelude::{GameItems, SectionClass};
 use nova_input::prelude::InputSource;
 
-use super::{ship::check_object_prototypes, KnownSections, KnownShipDesigns, LintIssue};
+use super::{
+    ship::check_object_prototypes, KnownSections, KnownShipDesigns, KnownStationDesigns, LintIssue,
+};
 use crate::prelude::*;
 
 /// Everything a scenario's actions can DECLARE, collected in one pass:
@@ -37,6 +39,7 @@ struct Declared {
 struct Catalog<'a> {
     sections: &'a KnownSections,
     ships: &'a KnownShipDesigns,
+    stations: &'a KnownStationDesigns,
     scenarios: &'a HashSet<String>,
     items: &'a GameItems,
 }
@@ -114,20 +117,22 @@ pub fn lint_campaign(
 
 /// Lint one scenario against the identifier sets the caller knows about:
 /// `sections` (the section-prototype catalog visible to this scenario's
-/// bundle), `ships` (the ship catalog it may spawn by id), `known_scenarios`
-/// (every scenario id a `NextScenario` may target) and `items` (every item a
-/// ship's stock may name) - all of them normally base + all installed
-/// bundles.
+/// bundle), `ships` (the ship catalog it may spawn by id), `stations` (the
+/// station catalog it may spawn by id), `known_scenarios` (every scenario id
+/// a `NextScenario` may target) and `items` (every item a ship's stock may
+/// name) - all of them normally base + all installed bundles.
 pub fn lint_scenario(
     scenario: &ScenarioConfig,
     sections: &KnownSections,
     ships: &KnownShipDesigns,
+    stations: &KnownStationDesigns,
     known_scenarios: &HashSet<String>,
     items: &GameItems,
 ) -> Vec<LintIssue> {
     let catalog = Catalog {
         sections,
         ships,
+        stations,
         scenarios: known_scenarios,
         items,
     };
@@ -681,9 +686,9 @@ fn check_asteroid_kind(config: &ScenarioObjectConfig, scenario: &str, issues: &m
     }
 }
 
-/// A ship or asteroid's authored initial motion must be one the physics step
-/// can integrate. Zero means an authored stationary start; a NaN or infinite
-/// component would hand avian a velocity it cannot advance.
+/// A ship, station or asteroid's authored initial motion must be one the
+/// physics step can integrate. Zero means an authored stationary start; a NaN
+/// or infinite component would hand avian a velocity it cannot advance.
 fn check_initial_velocity(
     config: &ScenarioObjectConfig,
     scenario: &str,
@@ -691,6 +696,7 @@ fn check_initial_velocity(
 ) {
     let (object, velocity) = match &config.kind {
         ScenarioObjectKind::Spaceship(ship) => ("ship", ship.initial_velocity),
+        ScenarioObjectKind::Station(station) => ("station", station.initial_velocity),
         ScenarioObjectKind::Asteroid(asteroid) => ("asteroid", asteroid.initial_velocity),
         _ => return,
     };
@@ -943,6 +949,7 @@ fn check_action(
                 scenario,
                 catalog.sections,
                 catalog.ships,
+                catalog.stations,
                 catalog.items,
                 issues,
             );
@@ -961,6 +968,7 @@ fn check_action(
                 scenario,
                 catalog.sections,
                 catalog.ships,
+                catalog.stations,
                 catalog.items,
                 issues,
             );
@@ -2117,6 +2125,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&[]),
             &GameItems::default(),
         );
@@ -2167,6 +2176,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&[]),
             &GameItems::default(),
         );
@@ -2196,6 +2206,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&[]),
             &GameItems::default(),
         );
@@ -2231,6 +2242,7 @@ mod tests {
                 &s,
                 &sections(&[]),
                 &ships(&[]),
+                &stations(&[]),
                 &known(&[]),
                 &GameItems::default(),
             );
@@ -2251,6 +2263,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&[]),
             &GameItems::default(),
         );
@@ -2284,6 +2297,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&[]),
             &GameItems::default(),
         );
@@ -2476,6 +2490,7 @@ mod tests {
             &s,
             &sections(&["known_proto"]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario", "next_chapter"]),
             &GameItems::default(),
         );
@@ -2510,6 +2525,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -2536,6 +2552,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -2569,6 +2586,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -2602,6 +2620,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -2633,6 +2652,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -2679,6 +2699,7 @@ mod tests {
                 scenario,
                 &sections(&["hull"]),
                 &ships(&[]),
+                &stations(&[]),
                 &known(&["test_scenario"]),
                 &GameItems::default(),
             )
@@ -2754,6 +2775,7 @@ mod tests {
                 scenario,
                 &sections(&["hull"]),
                 &ships(&[]),
+                &stations(&[]),
                 &known(&["test_scenario"]),
                 &GameItems::default(),
             )
@@ -2804,6 +2826,7 @@ mod tests {
                 scenario,
                 &sections(&["hull"]),
                 &ships(&[]),
+                &stations(&[]),
                 &known(&["test_scenario"]),
                 &GameItems::default(),
             )
@@ -2869,6 +2892,7 @@ mod tests {
                 scenario,
                 &sections(&["hull"]),
                 &ships(&[]),
+                &stations(&[]),
                 &known(&["test_scenario"]),
                 &GameItems::default(),
             )
@@ -2942,6 +2966,7 @@ mod tests {
             &poseless,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -2965,6 +2990,7 @@ mod tests {
             &posed,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -2976,6 +3002,7 @@ mod tests {
             &plain,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -2993,6 +3020,7 @@ mod tests {
                 scenario,
                 &sections(&[]),
                 &ships(&[]),
+                &stations(&[]),
                 &known(&["test_scenario"]),
                 &GameItems::default(),
             );
@@ -3070,6 +3098,7 @@ mod tests {
                 &s,
                 &sections(&[]),
                 &ships(&[]),
+                &stations(&[]),
                 &known(&["test_scenario"]),
                 &GameItems::default(),
             );
@@ -3122,6 +3151,7 @@ mod tests {
                 &s,
                 &sections(&[]),
                 &ships(&[]),
+                &stations(&[]),
                 &known(&["test_scenario"]),
                 &test_items(),
             );
@@ -3175,6 +3205,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &test_items(),
         );
@@ -3208,6 +3239,7 @@ mod tests {
                 &s,
                 &sections(&[]),
                 &ships(&[]),
+                &stations(&[]),
                 &known(&["test_scenario"]),
                 &GameItems::default(),
             );
@@ -3241,6 +3273,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -3274,6 +3307,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -3315,6 +3349,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -3350,6 +3385,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -3405,6 +3441,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -3473,6 +3510,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -3524,6 +3562,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -3558,6 +3597,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -3642,6 +3682,7 @@ mod tests {
                 &s,
                 &sections(&[]),
                 &ships(&[]),
+                &stations(&[]),
                 &known(&["test_scenario"]),
                 &GameItems::default(),
             );
@@ -3727,6 +3768,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -3765,6 +3807,7 @@ mod tests {
             &waits_for(Some("halt")),
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -3774,6 +3817,7 @@ mod tests {
             &waits_for(None),
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -3786,6 +3830,7 @@ mod tests {
             &waits_for(Some("never_issued")),
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -3812,6 +3857,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -3829,6 +3875,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -3853,6 +3900,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -3891,6 +3939,7 @@ mod tests {
             &bad,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -3906,6 +3955,7 @@ mod tests {
             &good,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -3978,6 +4028,7 @@ mod tests {
                 &s,
                 &sections(&[]),
                 &ships(&[]),
+                &stations(&[]),
                 &known(&["test_scenario"]),
                 &GameItems::default(),
             )
@@ -4062,6 +4113,7 @@ mod tests {
                 &s,
                 &sections(&[]),
                 &ships(&[]),
+                &stations(&[]),
                 &known(&["test_scenario"]),
                 &GameItems::default(),
             )
@@ -4131,6 +4183,7 @@ mod tests {
                 &s,
                 &sections(&[]),
                 &ships(&[]),
+                &stations(&[]),
                 &known(&["test_scenario"]),
                 &GameItems::default(),
             )
@@ -4195,6 +4248,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -4243,6 +4297,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -4287,6 +4342,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -4319,6 +4375,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -4353,6 +4410,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -4364,6 +4422,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -4374,6 +4433,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -4409,6 +4469,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -4420,6 +4481,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -4431,6 +4493,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         )
@@ -4463,6 +4526,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -4477,6 +4541,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -4491,6 +4556,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -4501,6 +4567,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -4513,6 +4580,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         )
@@ -4522,6 +4590,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         )
@@ -4556,6 +4625,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -4594,6 +4664,7 @@ mod tests {
             &read_only,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -4617,6 +4688,7 @@ mod tests {
             &stomp,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -4661,6 +4733,7 @@ mod tests {
             &read_only,
             &sections(&["hull"]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -4687,6 +4760,7 @@ mod tests {
             &stomp,
             &sections(&["hull"]),
             &ships(&[]),
+            &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
         );
@@ -4760,6 +4834,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&[]),
             &GameItems::default(),
         );
@@ -4786,6 +4861,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&[]),
             &GameItems::default(),
         );
@@ -4818,6 +4894,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&[]),
             &GameItems::default(),
         );
@@ -4858,6 +4935,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&[]),
             &GameItems::default(),
         );
@@ -4889,6 +4967,7 @@ mod tests {
             &paced,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&[]),
             &GameItems::default(),
         );
@@ -4911,6 +4990,7 @@ mod tests {
             &burst,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&[]),
             &GameItems::default(),
         );
@@ -4947,6 +5027,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&[]),
             &GameItems::default(),
         );
@@ -4991,6 +5072,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&[]),
             &GameItems::default(),
         );
@@ -5034,6 +5116,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&[]),
             &GameItems::default(),
         );
@@ -5075,6 +5158,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&[]),
             &GameItems::default(),
         );
@@ -5111,6 +5195,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&[]),
             &GameItems::default(),
         );
@@ -5143,6 +5228,7 @@ mod tests {
                 &s,
                 &sections(&[]),
                 &ships(&[]),
+                &stations(&[]),
                 &known(&[]),
                 &GameItems::default(),
             );
@@ -5180,6 +5266,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&[]),
             &GameItems::default(),
         );
@@ -5219,6 +5306,7 @@ mod tests {
             &typo,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&[]),
             &GameItems::default(),
         );
@@ -5235,6 +5323,7 @@ mod tests {
             &matched,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&[]),
             &GameItems::default(),
         );
@@ -5270,6 +5359,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&[]),
             &GameItems::default(),
         );
@@ -5292,6 +5382,7 @@ mod tests {
             &s,
             &sections(&[]),
             &ships(&[]),
+            &stations(&[]),
             &known(&[]),
             &GameItems::default(),
         );
@@ -5328,6 +5419,7 @@ mod tests {
             &s,
             &sections(&["hull"]),
             &ships(&[]),
+            &stations(&[]),
             &known(&[]),
             &GameItems::default(),
         );
@@ -5393,6 +5485,7 @@ mod tests {
             &s,
             &sections(&["hull"]),
             &ships(&[]),
+            &stations(&[]),
             &known(&[]),
             &GameItems::default(),
         );

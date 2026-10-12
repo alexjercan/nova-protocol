@@ -24,6 +24,7 @@
         "sections/base.content.ron",
         "styles/base.content.ron",
         "ships/base.content.ron",
+        "stations/base.content.ron",
         "scenarios/menu_waystation.content.ron",
         "scenarios/menu_gauntlet.content.ron",
         "scenarios/menu_weave.content.ron",

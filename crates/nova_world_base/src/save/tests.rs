@@ -17,9 +17,10 @@ use nova_gameplay::prelude::{
     SpaceshipRootMarker, TempEntity, TorpedoProjectileMarker, TurretBulletProjectileMarker,
 };
 use nova_scenario::prelude::{
-    freeze_asteroid, freeze_ore_drop, freeze_ship, spaceship_scenario_object, AsteroidKind,
-    AsteroidKindId, AsteroidMarker, AsteroidRadius, AsteroidSeed, AsteroidTexture, CurrentScenario,
-    MinedCanisterQueue, MinedOre, MinedOreDrop, SpaceshipConfig,
+    freeze_asteroid, freeze_ore_drop, freeze_ship, freeze_station, spaceship_scenario_object,
+    AsteroidKind, AsteroidKindId, AsteroidMarker, AsteroidRadius, AsteroidSeed, AsteroidTexture,
+    CurrentScenario, MinedCanisterQueue, MinedOre, MinedOreDrop, SpaceshipConfig, StationMarker,
+    StationStorage,
 };
 use nova_ship::prelude::{
     cargo_canister, freeze_canister, freeze_wreck_fragment, thaw_round, thaw_torpedo,
@@ -2240,8 +2241,8 @@ fn ledger_holding(coord: SectorCoord, id: Option<&str>, body: &FrozenBodyType) -
 /// Every frozen body field that can hold an item, each holding `item` in
 /// that one field only, frozen by the production `freeze_*` paths over
 /// [`items_with_lost_core`]: `(saved id, body, the holder a refusal names)`.
-/// The mined ore and the mined canister queue have no public constructor, so
-/// they are read from RON, as a load reads them.
+/// The mined ore, the mined canister queue and a filled station storage have
+/// no public constructor, so they are read from RON, as a load reads them.
 fn frozen_item_holders(item: &ItemDesignId) -> Vec<(Option<&'static str>, FrozenBodyType, String)> {
     let extended = items_with_lost_core();
     let mut world = World::new();
@@ -2343,6 +2344,23 @@ fn frozen_item_holders(item: &ItemDesignId) -> Vec<(Option<&'static str>, Frozen
     });
     let drop = world.spawn((MinedOreDrop, mined_queue())).id();
     let drop = FrozenBodyType::OreDrop(freeze_ore_drop(&world, drop));
+    let station = world
+        .spawn((
+            spaceship_scenario_object(SpaceshipConfig::default()),
+            ShipInventory::new(&extended, 10_000, []),
+            DamageMarks::default(),
+            StationMarker("post".into()),
+            ron::from_str::<StationStorage>(&format!(
+                "(cap_g: 10000, items: {{{}: 1}})",
+                ron::to_string(item).unwrap()
+            ))
+            .unwrap(),
+        ))
+        .id();
+    section(&mut world, station, &|_| {});
+    let storing_station = FrozenBodyType::Station(Box::new(
+        freeze_station(&world, station).expect("a bare station is settled"),
+    ));
 
     let quoted = |id: &str| format!("'{id}'");
     vec![
@@ -2361,6 +2379,11 @@ fn frozen_item_holders(item: &ItemDesignId) -> Vec<(Option<&'static str>, Frozen
         (Some("mined_rock"), mined_rock, quoted("mined_rock")),
         (Some("queued_rock"), queued_rock, quoted("queued_rock")),
         (None, drop, format!("a body in sector {east}")),
+        (
+            Some("storing_station"),
+            storing_station,
+            quoted("storing_station"),
+        ),
     ]
 }
 
@@ -2516,7 +2539,7 @@ fn a_save_over_a_physics_transient_with_no_record_fails_and_keeps_the_last_save(
 /// ledger holds a canister over the canister cap, is refused on open with
 /// the holder and both masses; the same holds within their caps open.
 #[test]
-fn a_world_whose_saved_stock_is_over_its_hold_or_canister_cap_is_refused_on_open() {
+fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused_on_open() {
     let root = tempfile::tempdir().unwrap();
     let (folder, lock) = create_world(root.path(), "Stock").unwrap();
     drop(lock);
@@ -2560,6 +2583,27 @@ fn a_world_whose_saved_stock_is_over_its_hold_or_canister_cap_is_refused_on_open
         let frozen = freeze_canister(&world, canister).expect("a whole canister");
         ledger_holding(east, None, &FrozenBodyType::Canister(frozen))
     };
+    let station_storing = |ore: u32, cap_g: u32| {
+        let mut world = World::new();
+        let station = world
+            .spawn((
+                spaceship_scenario_object(SpaceshipConfig::default()),
+                ShipInventory::new(&items(), 10_000, []),
+                DamageMarks::default(),
+                StationMarker("post".into()),
+                ron::from_str::<StationStorage>(&format!(
+                    "(cap_g: {cap_g}, items: {{{iron}: {ore}}})"
+                ))
+                .unwrap(),
+            ))
+            .id();
+        let frozen = freeze_station(&world, station).expect("a bare station is settled");
+        ledger_holding(
+            east,
+            Some("post"),
+            &FrozenBodyType::Station(Box::new(frozen)),
+        )
+    };
 
     let cases = [
         (
@@ -2571,6 +2615,11 @@ fn a_world_whose_saved_stock_is_over_its_hold_or_canister_cap_is_refused_on_open
             player_with_hold(10_000),
             canister_holding(2),
             "the canister 5 holds 300 kg over the canister cap of 200 kg",
+        ),
+        (
+            player_with_hold(10_000),
+            station_storing(2, 15_000),
+            "'post' stores 20 kg in a storage of 15 kg",
         ),
     ];
     for (generation, (player, sectors, expected)) in (1..).zip(cases) {
@@ -2589,13 +2638,16 @@ fn a_world_whose_saved_stock_is_over_its_hold_or_canister_cap_is_refused_on_open
         );
     }
 
-    let within = WorldSaveState {
-        player: player_with_hold(10_000),
-        sectors: canister_holding(1),
-        ..state(3, 750)
-    };
-    write_world(&folder, &header("Stock", 3), &within).unwrap();
-    let (_, _lock, _, saved) =
-        open_world(root.path(), "stock", &catalog(7), &items(), &scenarios()).unwrap();
-    assert_eq!(saved.generation, 3, "stock within its caps opens");
+    for (generation, sectors) in [(4, canister_holding(1)), (5, station_storing(1, 10_000))] {
+        let within = WorldSaveState {
+            player: player_with_hold(10_000),
+            sectors,
+            ..state(generation, 750)
+        };
+        write_world(&folder, &header("Stock", generation), &within).unwrap();
+        let (_, lock, _, saved) =
+            open_world(root.path(), "stock", &catalog(7), &items(), &scenarios()).unwrap();
+        assert_eq!(saved.generation, generation, "stock within its caps opens");
+        drop(lock);
+    }
 }

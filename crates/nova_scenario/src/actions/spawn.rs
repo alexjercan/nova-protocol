@@ -140,6 +140,8 @@ pub enum ScenarioObjectKind {
     /// A world: a seeded planet type with a gravity well. An asteroid with a
     /// big radius is a rock; this is the body that reads as somewhere.
     Planet(PlanetConfig),
+    /// A station: a catalog [`StationDesign`] parked here, with no driver.
+    Station(StationConfig),
 }
 
 impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
@@ -164,6 +166,7 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
         let motion = match &self.kind {
             ScenarioObjectKind::Asteroid(asteroid) => Some(("asteroid", asteroid.initial_velocity)),
             ScenarioObjectKind::Spaceship(ship) => Some(("ship", ship.initial_velocity)),
+            ScenarioObjectKind::Station(station) => Some(("station", station.initial_velocity)),
             _ => None,
         };
         if let Some((object, velocity)) = motion.filter(|(_, velocity)| !velocity.is_finite()) {
@@ -196,6 +199,18 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
                 });
                 return;
             }
+            if let ScenarioObjectKind::Station(station) = &config.kind {
+                let base = config.base.clone();
+                let id = config.base.id.clone();
+                let station = station.clone();
+                // Queued with world access for the same reason: the design is
+                // read from a resource, and an unknown id must be refused
+                // before a root exists.
+                commands.queue(move |world: &mut World| {
+                    spawn_scenario_station(world, &base, &id, &station);
+                });
+                return;
+            }
 
             // The authored seam, and the only production one: `base_scenario_object`
             // is shared with `nova_world`'s streamed cells, whose ids nobody wrote.
@@ -219,8 +234,8 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
                         .unwrap_or_else(|| asteroid_seed_from_id(&config.base.id));
                     asteroid_scenario_object(&mut entity_commands, asteroid.clone(), seed);
                 }
-                ScenarioObjectKind::Spaceship(_) => {
-                    unreachable!("the Spaceship arm returns above before this spawn")
+                ScenarioObjectKind::Spaceship(_) | ScenarioObjectKind::Station(_) => {
+                    unreachable!("the Spaceship and Station arms return above before this spawn")
                 }
                 ScenarioObjectKind::Beacon(config) => {
                     entity_commands.insert(beacon_scenario_object(config.clone()));
@@ -238,6 +253,53 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
             }
         });
     }
+}
+
+/// Build the scenario station `id` on a fresh root spawned from `base`, from
+/// the catalog design `config` names.
+///
+/// # Panics
+///
+/// `config.design` names no loaded [`StationDesign`], or one whose hull
+/// carries a [`ShipDesignError::ReservedSectionId`] or
+/// [`ShipDesignError::DuplicateSectionId`]: the content gate (`lint_scenario`
+/// and `lint_station_design`) refuses both before a load, so nothing should
+/// reach this function carrying either.
+fn spawn_scenario_station(
+    world: &mut World,
+    base: &BaseScenarioObjectConfig,
+    id: &str,
+    config: &StationConfig,
+) {
+    let Some(design) = world
+        .resource::<GameStationDesigns>()
+        .get_design(&config.design)
+        .cloned()
+    else {
+        panic!(
+            "spawn_scenario_station: object '{id}' names the station design '{}', which no loaded \
+             content declares; the content gate should have refused it",
+            config.design
+        );
+    };
+    let id_errors = section_id_errors(&design.hull);
+    if !id_errors.is_empty() {
+        let errors = id_errors
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("; ");
+        panic!(
+            "spawn_scenario_station: object '{id}' names the station design '{}' the content \
+             gate should have refused: {errors}",
+            config.design
+        );
+    }
+    let mut commands = world.commands();
+    let mut entity_commands =
+        commands.spawn((base_scenario_object(base), ScenarioAddressableMarker));
+    station_scenario_object(&mut entity_commands, &design, config);
+    world.flush();
 }
 
 /// Build the scenario ship `id` on a fresh root spawned from `base`: thawed
@@ -531,8 +593,8 @@ impl ScatterObjectsConfig {
 ///
 /// A kind with no body - a beacon, a crate, a light, an anchor - reaches
 /// nothing and is placed anywhere an authored `min_separation` allows. A ship
-/// is not measured either: nothing scatters hulls, and a hull's reach needs the
-/// catalogs a command has no access to.
+/// or a station is not measured either: nothing scatters hulls, and a hull's
+/// reach needs the catalogs a command has no access to.
 fn body_reach(kind: &ScenarioObjectKind) -> Meters {
     match kind {
         ScenarioObjectKind::Asteroid(rock) => {
@@ -545,6 +607,7 @@ fn body_reach(kind: &ScenarioObjectKind) -> Meters {
         ScenarioObjectKind::Planet(planet) => planet.body_radius(),
         ScenarioObjectKind::Anchor(_)
         | ScenarioObjectKind::Spaceship(_)
+        | ScenarioObjectKind::Station(_)
         | ScenarioObjectKind::Beacon(_)
         | ScenarioObjectKind::Light(_) => Meters::ZERO,
     }

@@ -15,7 +15,7 @@ use nova_gameplay::prelude::ItemDesign;
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::{
     CampaignConfig, ScenarioConfig, ShipDesignPrototype, ShipDesignSource, SpaceshipConfig,
-    SpaceshipSectionConfig,
+    SpaceshipSectionConfig, StationDesign,
 };
 use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
 use nova_training::prelude::Lesson;
@@ -31,7 +31,8 @@ pub mod prelude {
         build_campaign_content, build_campaigns, build_item_content, build_items,
         build_lesson_content, build_lessons, build_scenario_contents, build_scenarios,
         build_section_catalog, build_section_content, build_ship_content, build_ships,
-        build_style_content, build_styles, content_files, serialize_content, spawned_ship_sections,
+        build_station_content, build_stations, build_style_content, build_styles, content_files,
+        serialize_content, spawned_ship_sections,
     };
 }
 
@@ -140,6 +141,18 @@ pub fn build_ship_content() -> Vec<Content> {
     build_ships().into_iter().map(Content::Ship).collect()
 }
 
+/// The base game's station designs, in the order the file carries them.
+pub fn build_stations() -> Vec<StationDesign> {
+    base_content::build().stations
+}
+
+/// The station catalog wrapped as one `Vec<Content>` of `Content::Station`
+/// items - the shape the committed `assets/base/stations/base.content.ron`
+/// file carries.
+pub fn build_station_content() -> Vec<Content> {
+    build_stations().into_iter().map(Content::Station).collect()
+}
+
 /// The base game's training lessons, in the order the file carries them.
 pub fn build_lessons() -> Vec<Lesson> {
     base_content::build().lessons
@@ -220,6 +233,10 @@ pub fn content_files() -> Vec<(String, String)> {
         (
             "base/ships/base.content.ron".to_string(),
             serialize_content(&build_ship_content()),
+        ),
+        (
+            "base/stations/base.content.ron".to_string(),
+            serialize_content(&build_station_content()),
         ),
         (
             "base/training/base.content.ron".to_string(),

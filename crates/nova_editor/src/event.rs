@@ -2279,6 +2279,7 @@ mod name_coverage {
                 &scenario,
                 &KnownSections::default(),
                 &KnownShipDesigns::default(),
+                &KnownStationDesigns::default(),
                 &HashSet::new(),
                 &GameItems::default(),
             );

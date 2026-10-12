@@ -605,6 +605,30 @@ fn salvage_craft(cells: Vec<IVec3>, specials: Vec<Special>) -> BlockShip {
     }
 }
 
+/// The waystation: a two-deck plated block with the bridge set into the top
+/// deck and a docking collar standing off the port flank. No drive: a
+/// station is parked, and its computer only holds the attitude it was
+/// placed at.
+pub(super) fn waystation() -> BlockShip {
+    BlockShip {
+        cells: block(IVec3::new(-1, 0, -1), IVec3::new(3, 2, 3)),
+        specials: vec![
+            cell_part(
+                BLOCK_BRIDGE_SECTION_ID,
+                BASIC_CONTROLLER_SECTION_ID,
+                IVec3::new(0, 1, 0),
+            ),
+            flank_collar(
+                BLOCK_PORT_COLLAR_SECTION_ID,
+                FlankType::Port,
+                IVec3::new(-2, 0, 0),
+            ),
+        ],
+        plate: REINFORCED_HULL_SECTION_ID,
+        style: INDUSTRIAL_STYLE_ID,
+    }
+}
+
 /// One debris piece: industrial plating with no computer, drive or gun, so it
 /// never reports itself neutralized.
 fn wreck(cells: Vec<IVec3>) -> BlockShip {
@@ -772,6 +796,7 @@ mod tests {
             ("raider", salvage_raider()),
             ("picket", salvage_picket()),
             ("wreck plate", carrier_wreck_plate()),
+            ("waystation", waystation()),
         ]
     }
 

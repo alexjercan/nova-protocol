@@ -18,9 +18,9 @@ use nova_events::prelude::Meters3;
 use nova_gameplay::prelude::{AssetRef, GameItems};
 use nova_scenario::prelude::{
     lint_scenario, BaseScenarioObjectConfig, EventActionConfig, EventConfig, KnownSections,
-    KnownShipDesigns, LintSeverity, ScenarioConfig, ScenarioEventConfig, ScenarioObjectConfig,
-    ScenarioObjectKind, SectionSource, ShipDesign, ShipDesignSource, SpaceshipConfig,
-    SpaceshipController,
+    KnownShipDesigns, KnownStationDesigns, LintSeverity, ScenarioConfig, ScenarioEventConfig,
+    ScenarioObjectConfig, ScenarioObjectKind, SectionSource, ShipDesign, ShipDesignSource,
+    SpaceshipConfig, SpaceshipController,
 };
 use nova_ship::prelude::{
     derive_link_point_graph, GameSections, LinkPointRef, PlacedSectionLinkPoints, SectionConfig,
@@ -239,6 +239,7 @@ pub fn lint_errors(
         scenario,
         &known,
         &KnownShipDesigns::default(),
+        &KnownStationDesigns::default(),
         &HashSet::from([scenario.id.clone()]),
         items,
     )

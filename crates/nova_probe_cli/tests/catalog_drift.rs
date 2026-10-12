@@ -963,10 +963,20 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "each hold event completes its authored objective and the tour ends in Victory",
         ],
     ),
+    (
+        "system_station_body",
+        &[
+            "station spawns from content",
+            "station stands and is seen",
+            "station holds its attitude",
+            "station freezes as a station",
+            "station thaws whole",
+        ],
+    ),
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 477;
+const SYSTEMS_INVARIANTS: usize = 482;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

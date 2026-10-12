@@ -274,22 +274,23 @@ pub(crate) fn default_presentation(assets: &BaseContentAssets) -> ShipPresentati
     }
 }
 
-/// One catalog entry over a built section list. Every shipped ship keeps the
-/// engine's default collapse threshold.
-fn ship(
-    assets: &BaseContentAssets,
-    id: &str,
-    name: &str,
-    sections: Vec<SpaceshipSectionConfig>,
-) -> ShipDesignPrototype {
-    ShipDesignPrototype {
-        id: id.into(),
-        name: name.to_string(),
-        design: ShipDesign {
-            sections,
-            presentation: default_presentation(assets),
-            ..Default::default()
-        },
+/// The waystation's hull, for the station catalog: the block hull with the
+/// skin, the style and the voice every shipped design carries.
+pub(crate) fn waystation_hull(assets: &BaseContentAssets) -> ShipDesign {
+    block_hull(assets, block::waystation())
+}
+
+/// A BLOCK hull as a design: its section list, a derived skin, the style it
+/// wears and the shipped voice.
+fn block_hull(assets: &BaseContentAssets, design: block::BlockShip) -> ShipDesign {
+    let style = design.style.to_string();
+    let mut presentation = default_presentation(assets);
+    presentation.skin = true;
+    presentation.style = Some(style);
+    ShipDesign {
+        sections: design.sections(),
+        presentation,
+        ..Default::default()
     }
 }
 
@@ -301,11 +302,11 @@ fn block_ship(
     name: &str,
     design: block::BlockShip,
 ) -> ShipDesignPrototype {
-    let style = design.style.to_string();
-    let mut config = ship(assets, id, name, design.sections());
-    config.design.presentation.skin = true;
-    config.design.presentation.style = Some(style);
-    config
+    ShipDesignPrototype {
+        id: id.into(),
+        name: name.to_string(),
+        design: block_hull(assets, design),
+    }
 }
 
 #[cfg(test)]

@@ -106,9 +106,9 @@ pub mod prelude {
         PlannedShip, SectorClusters, ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType,
         ShipLayoutFailure, ShipLayoutRequest, ShipPart, ShipPartExclusionType, ShipPartFamilyType,
         ShipPartFault, ShipPartPack, ShipPartSnapshot, ARMOURED_STYLE_ID,
-        BLOCK_LINE_WARSHIP_SHIP_ID, CIVILIAN_STYLE_ID, CLEARANCE_MARGIN, INDUSTRIAL_STYLE_ID,
-        OPEN_WORLD_BOUNDS_RADIUS_MAX, OPEN_WORLD_SCENARIO_ID, SALVAGE_STYLE_ID,
-        SHIP_ADVANCEMENT_CURVE,
+        BLOCK_LINE_WARSHIP_SHIP_ID, BLOCK_WAYSTATION_STATION_ID, CIVILIAN_STYLE_ID,
+        CLEARANCE_MARGIN, INDUSTRIAL_STYLE_ID, OPEN_WORLD_BOUNDS_RADIUS_MAX,
+        OPEN_WORLD_SCENARIO_ID, SALVAGE_STYLE_ID, SHIP_ADVANCEMENT_CURVE,
     };
 }
 
@@ -120,6 +120,11 @@ pub const OPEN_WORLD_SCENARIO_ID: &str = "open_world";
 /// hull, with six point-defense mounts, one spinal railgun and two torpedo
 /// bays.
 pub const BLOCK_LINE_WARSHIP_SHIP_ID: &str = "block_line_warship";
+
+/// The id the block-built waystation is spawned by: the base game's one
+/// station, a plated block with a bridge on top and a docking collar off its
+/// port flank, no drive.
+pub const BLOCK_WAYSTATION_STATION_ID: &str = "block_waystation";
 
 /// The id the industrial look is named by. Industrial world ships wear it.
 pub const INDUSTRIAL_STYLE_ID: &str = "industrial";

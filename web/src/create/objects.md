@@ -3,7 +3,7 @@
 Everything a scenario can place in the world. An object is spawned by
 [`SpawnScenarioObject`](../actions/#spawnscenarioobject) (or in bulk by
 [`ScatterObjects`](../actions/#scatterobjects)): a shared `base` block plus a
-`kind` that picks one of the SIX kinds below. Every object gets the base's
+`kind` that picks one of the SEVEN kinds below. Every object gets the base's
 id, name and pose, is scenario-scoped (teardown removes it), and carries a
 type name the `type_name` filters match:
 
@@ -13,6 +13,7 @@ type name the `type_name` filters match:
 | [`Asteroid`](#asteroid) | `"asteroid"` | dynamic | destructible rock, always mobile and gravity-affected |
 | [`Planet`](#planet) | `"planet"` | static | a seeded WORLD: biomes, terrain, always a gravity well |
 | [`Spaceship`](#spaceship) | `"spaceship"` | dynamic | a multi-section ship, player- or AI-flown |
+| [`Station`](#station) | `"station"` | dynamic | a parked [station](../stations/) hull nobody flies, spawned by id |
 | [`Beacon`](#beacon) | `"beacon"` | static | lockable nav marker with a HUD chip |
 | [`Light`](#light) | `"light"` | static | the scene's own lighting |
 
@@ -562,6 +563,38 @@ Ship structure is linted from authoritative link-point mates. A multi-section
 ship must form one graph. Collider AABB overlap is an Error unless the two
 sections directly mate, which permits intentional interlocking parts while
 still catching accidental embedding.
+
+## Station
+
+A spawn of a STATION: a hull that never flies, parked where the scenario put
+it. What it IS - its hull, what it offers, what it holds - is a
+[station](../stations/), named here by id. The spawn builds the same root a
+ship gets (a dock, a trade and a sever all find it), with no pilot and every
+capability off but docking.
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `design` | string | required | the [station design](../stations/) id. An id no loaded content declares fails at lint and at load |
+| `allegiance` | `Option` side | required | which side the station is on, strict RON `Some(Neutral)`; `None` keeps no side |
+| `derelict` | bool | required | `true` spawns a dead station: its systems inactive, its hold open to Take |
+| `initial_velocity` | 3-tuple | required | explicit initial motion in meters per second; `(0.0, 0.0, 0.0)` is an authored stationary start, not immunity to gravity |
+
+The hold opens with the design's `stock` and the design's `credits`; the
+storage opens empty. A station takes no `controller`, `capabilities`,
+`inventory`, `lootable` or `credits` of its own: those are the design's, or
+fixed by what a station is.
+
+```ron
+SpawnScenarioObject((
+    base: (id: "waystation", name: "WAYSTATION", position: (0.0, 0.0, -1500.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+    kind: Station((
+        design: "block_waystation",
+        allegiance: Some(Neutral),
+        derelict: false,
+        initial_velocity: (0.0, 0.0, 0.0),
+    )),
+)),
+```
 
 ## Beacon
 

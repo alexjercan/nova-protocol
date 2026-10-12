@@ -65,6 +65,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
   item ids the game uses, each in a fixed category.
 - **(breaking)** An asteroid `lock_signature` override must be finite and above
   zero. Any other value fails at lint and at load.
+- **(breaking)** Stations are content: `Station` entries a scenario spawns by
+  id as `kind: Station`, frozen as their own body type. World save format 5;
+  older saves are refused.
 
 ### Interface & HUD
 

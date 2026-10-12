@@ -18,9 +18,10 @@ use nova_mod_format::{
 };
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::{
-    lint_campaign, lint_scenario, lint_ship_design_config, CampaignConfig, EventActionConfig,
-    GeneratedWorldConfig, KnownSections, KnownShipDesigns, LintIssue, LintSeverity, ScenarioConfig,
-    ScenarioObjectKind, ScenarioWorldType, ShipDesignPrototype, SpaceshipController,
+    lint_campaign, lint_scenario, lint_ship_design_config, lint_station_design, CampaignConfig,
+    EventActionConfig, GeneratedWorldConfig, KnownSections, KnownShipDesigns, KnownStationDesigns,
+    LintIssue, LintSeverity, ScenarioConfig, ScenarioObjectKind, ScenarioWorldType,
+    ShipDesignPrototype, SpaceshipController, StationDesign,
 };
 use nova_ship::prelude::{flight_rig_reserved_sources, SectionConfig};
 use nova_training::prelude::{
@@ -56,6 +57,7 @@ struct WalkedBundle {
     items: Vec<ItemDesign>,
     sections: Vec<SectionConfig>,
     ships: Vec<ShipDesignPrototype>,
+    stations: Vec<StationDesign>,
     scenarios: Vec<ScenarioConfig>,
     campaigns: Vec<CampaignConfig>,
     lessons: Vec<Lesson>,
@@ -120,6 +122,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
     let mut items = Vec::new();
     let mut sections = Vec::new();
     let mut ships = Vec::new();
+    let mut stations = Vec::new();
     let mut scenarios = Vec::new();
     let mut campaigns = Vec::new();
     let mut lessons = Vec::new();
@@ -129,6 +132,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
             Content::Item(design) => items.push(design.clone()),
             Content::Section(section) => sections.push(section.as_ref().clone()),
             Content::Ship(ship) => ships.push(ship.clone()),
+            Content::Station(station) => stations.push(station.clone()),
             Content::Scenario(scenario) => scenarios.push(scenario.clone()),
             Content::Campaign(campaign) => campaigns.push(campaign.clone()),
             Content::Lesson(lesson) => lessons.push(lesson.clone()),
@@ -145,6 +149,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
         items,
         sections,
         ships,
+        stations,
         scenarios,
         campaigns,
         lessons,
@@ -279,6 +284,23 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
     visible_ships.extend(bundle.ships.iter());
     let known_ships = KnownShipDesigns::from_configs(visible_ships);
 
+    // Visible stations, the same overlay again.
+    let stations_by_bundle: HashMap<&str, &[StationDesign]> = all
+        .iter()
+        .map(|b| (b.id.as_str(), b.stations.as_slice()))
+        .collect();
+    let mut visible_stations: Vec<&StationDesign> = stations_by_bundle
+        .get(BASE_MOD_ID)
+        .map(|s| s.iter().collect())
+        .unwrap_or_default();
+    for dep in &bundle.manifest.meta.dependencies {
+        if let Some(dep_stations) = stations_by_bundle.get(dep.as_str()) {
+            visible_stations.extend(dep_stations.iter());
+        }
+    }
+    visible_stations.extend(bundle.stations.iter());
+    let known_stations = KnownStationDesigns::from_configs(visible_stations);
+
     // Visible items: the catalog the merge builds when this bundle loads with
     // what it depends on, a dependent's replacement winning.
     let known_items = GameItems::new(
@@ -293,6 +315,7 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
             scenario,
             &known_sections,
             &known_ships,
+            &known_stations,
             &known_scenarios,
             &known_items,
         ) {
@@ -305,6 +328,15 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
     // it. Same rule the section catalog follows below.
     for ship in &bundle.ships {
         for issue in lint_ship_design_config(ship, &known_sections, ship.id.as_str()) {
+            issues.push((bundle.id.clone(), issue));
+        }
+    }
+    // Station well-formedness, the same rule: every station THIS bundle
+    // ships, whether or not a scenario spawns it.
+    for station in &bundle.stations {
+        for issue in
+            lint_station_design(station, &known_sections, &known_items, station.id.as_str())
+        {
             issues.push((bundle.id.clone(), issue));
         }
     }
@@ -1186,6 +1218,7 @@ mod tests {
             items,
             sections,
             ships,
+            stations: Vec::new(),
             scenarios,
             campaigns,
             lessons,
