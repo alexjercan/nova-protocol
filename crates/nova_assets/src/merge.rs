@@ -20,7 +20,8 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::{Fnv64, GameItems, GameStates, ItemDesign};
 use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog, BASE_MOD_ID};
 use nova_scenario::prelude::{
-    GameCampaigns, GameScenarios, GameShipDesigns, NewGameStart, ScenarioRole, ShipDesignPrototype,
+    GameCampaigns, GameScenarios, GameShipDesigns, NewGameStart, ScenarioConfig,
+    ShipDesignPrototype,
 };
 use nova_ship::prelude::*;
 use nova_training::prelude::{Lesson, LessonSeverity, TrainingCatalog};
@@ -521,24 +522,24 @@ pub fn register_bundles(
     let merged_ships = nova_scenario::prelude::KnownShipDesigns::from_configs(outcome.ships.iter());
     let merged_scenarios: std::collections::HashSet<String> =
         outcome.scenarios.keys().cloned().collect();
-    // What each merged scenario declares itself to be, so campaign lint can
-    // refuse a member that is scenery or a lesson's range rather than a
+    // Every merged scenario by id, so campaign lint can refuse a member that
+    // is scenery, a lesson's range or a session-seeded world rather than a
     // launchable chapter - and so lesson lint can check the other direction.
-    let merged_roles: HashMap<String, ScenarioRole> = outcome
+    let merged_by_id: HashMap<String, &ScenarioConfig> = outcome
         .scenarios
         .values()
-        .map(|scenario| (scenario.id.clone(), scenario.role))
+        .map(|scenario| (scenario.id.clone(), scenario))
         .collect();
-    let merged_practice_ranges: std::collections::HashSet<String> = merged_roles
+    let merged_practice_ranges: std::collections::HashSet<String> = merged_by_id
         .iter()
-        .filter(|(_, role)| role.is_lesson())
+        .filter(|(_, scenario)| scenario.role.is_lesson())
         .map(|(id, _)| id.clone())
         .collect();
     // Everything a player can be sent into, which is what may PROVE a lesson:
     // a chapter or a range, never scenery.
-    let merged_launchable: std::collections::HashSet<String> = merged_roles
+    let merged_launchable: std::collections::HashSet<String> = merged_by_id
         .iter()
-        .filter(|(_, role)| !role.is_backdrop())
+        .filter(|(_, scenario)| !scenario.role.is_backdrop())
         .map(|(id, _)| id.clone())
         .collect();
     let merged_items = GameItems::new(outcome.items);
@@ -588,8 +589,7 @@ pub fn register_bundles(
     // merged scenario, or the picker renders a header row that launches nothing.
     // Findings are keyed by the campaign id in the shared ContentIssues channel.
     for campaign in outcome.campaigns.values() {
-        let found =
-            nova_scenario::prelude::lint_campaign(campaign, &merged_scenarios, &merged_roles);
+        let found = nova_scenario::prelude::lint_campaign(campaign, &merged_by_id);
         for issue in &found {
             warn!(
                 "register_bundles: content lint [{:?}] campaign '{}': {}",

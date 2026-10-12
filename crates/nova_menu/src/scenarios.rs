@@ -99,17 +99,6 @@ pub(crate) struct ScenarioPlay {
     pub(crate) id: ScenarioId,
 }
 
-/// Whether the picker offers `scenario` as a row at all.
-///
-/// Only a CHAPTER is a row. The other two roles are scenery and furniture: a
-/// `Backdrop` is what the menu loads behind its own buttons, posing its own
-/// camera rather than handing the player a ship, and a `Lesson` range is
-/// reached from the handbook's Practice button and nowhere else. Everything
-/// else installed is a row, campaign member or not.
-pub(crate) fn picker_lists(scenario: &ScenarioConfig) -> bool {
-    scenario.role.picker_lists()
-}
-
 /// The scenarios the picker lists, in a stable order by display name then id
 /// over the HashMap-backed registry.
 ///
@@ -118,7 +107,7 @@ pub(crate) fn picker_lists(scenario: &ScenarioConfig) -> bool {
 pub(crate) fn listed_scenarios(scenarios: &GameScenarios) -> Vec<ScenarioConfig> {
     let mut out: Vec<ScenarioConfig> = scenarios
         .values()
-        .filter(|s| picker_lists(s))
+        .filter(|s| s.picker_lists())
         .cloned()
         .collect();
     out.sort_by(|a, b| (&a.name, &a.id).cmp(&(&b.name, &b.id)));
@@ -195,7 +184,7 @@ pub(crate) fn selectable_scenario_ids(
 ) -> std::collections::HashSet<ScenarioId> {
     scenarios
         .values()
-        .filter(|s| picker_lists(s))
+        .filter(|s| s.picker_lists())
         .map(|s| s.id.clone())
         .collect()
 }
@@ -267,11 +256,12 @@ pub(crate) fn refresh_scenarios_list(
                 continue;
             }
             for member_id in &campaign.scenarios {
-                let Some(member) = scenarios.get(member_id).filter(|m| picker_lists(m)) else {
-                    // A dangling member id, or one naming a menu backdrop - the
-                    // content lint flags both - simply does not render. The
-                    // header still lists its launchable chapters, and
-                    // membership never overrides the backdrop exclusion.
+                let Some(member) = scenarios.get(member_id).filter(|m| m.picker_lists()) else {
+                    // A dangling member id, or one naming a menu backdrop or a
+                    // session-seeded world - the content lint flags all three -
+                    // simply does not render. The header still lists its
+                    // launchable chapters, and membership never overrides the
+                    // exclusion.
                     continue;
                 };
                 let is_selected = selected.0.as_deref() == Some(member.id.as_str());

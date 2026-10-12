@@ -38,7 +38,7 @@ use bevy::prelude::*;
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_events::prelude::Meters;
 use nova_gameplay::prelude::{GameItems, PlayerSpaceshipMarker};
-use nova_scenario::prelude::{CurrentScenario, ScenarioRole};
+use nova_scenario::prelude::{CurrentScenario, ScenarioWorldType};
 use nova_ship::prelude::GameStyles;
 use nova_world::prelude::*;
 
@@ -107,7 +107,8 @@ pub mod prelude {
         ShipLayoutFailure, ShipLayoutRequest, ShipPart, ShipPartExclusionType, ShipPartFamilyType,
         ShipPartFault, ShipPartPack, ShipPartSnapshot, ARMOURED_STYLE_ID,
         BLOCK_LINE_WARSHIP_SHIP_ID, CIVILIAN_STYLE_ID, CLEARANCE_MARGIN, INDUSTRIAL_STYLE_ID,
-        OPEN_WORLD_SCENARIO_ID, SALVAGE_STYLE_ID, SHIP_ADVANCEMENT_CURVE,
+        OPEN_WORLD_BOUNDS_RADIUS_MAX, OPEN_WORLD_SCENARIO_ID, SALVAGE_STYLE_ID,
+        SHIP_ADVANCEMENT_CURVE,
     };
 }
 
@@ -144,11 +145,17 @@ const OPEN_WORLD_SECTOR_EDGE: Meters = Meters(32_000.0);
 /// world stands ahead of the player on every axis.
 const OPEN_WORLD_ACTIVE_RADIUS: i32 = 2;
 
+/// The largest `bounds` radius a generated scenario may author: the active
+/// window's half edge, so the whole bounded sphere stands in streamed cells
+/// while the player is at its centre. The content lint refuses a larger one.
+pub const OPEN_WORLD_BOUNDS_RADIUS_MAX: Meters =
+    Meters(OPEN_WORLD_SECTOR_EDGE.0 * (2 * OPEN_WORLD_ACTIVE_RADIUS + 1) as f32 / 2.0);
+
 /// The world the player asked for on the New Game screen.
 ///
-/// Inserted by the menu's Create, before the open-world bootstrap loads. It
-/// stays for the whole run, so a Retry streams the same world again. A new
-/// New Game replaces it.
+/// Inserted by the menu's Create and by Load, for a scenario whose world is
+/// `Generated((seed: None))`. It stays for the whole run, so a Retry streams
+/// the same world again. A new New Game replaces it.
 #[derive(Resource, Clone, Copy, Debug, Eq, PartialEq)]
 pub struct OpenWorldSession {
     /// The world seed every sector is generated from.
@@ -162,9 +169,10 @@ pub struct OpenWorldSession {
 /// `NovaScenarioPlugin`. An app with its own game plugins does not get it, so
 /// an example can install a generator of its own.
 ///
-/// The world streams only while an [`ScenarioRole::OpenWorld`] scenario is live
-/// and exactly one player ship stands in it. Every other frame has no
-/// [`WorldConfig`], and with no config the streaming stages do not run.
+/// The world streams only while a scenario whose world is
+/// [`ScenarioWorldType::Generated`] is live and exactly one player ship stands
+/// in it. Every other frame has no [`WorldConfig`], and with no config the
+/// streaming stages do not run.
 pub struct NovaWorldBasePlugin;
 
 impl Plugin for NovaWorldBasePlugin {
@@ -177,14 +185,16 @@ impl Plugin for NovaWorldBasePlugin {
         // world. Both land after `PreUpdate`, and the streaming stages would
         // then read a config nobody re-checked. Exclusive, so its writes are
         // in the world before `Cleanup` decides what to clear. Skipped until
-        // New Game or a Load inserts the session, or a config is armed: a
-        // campaign that never opened a world pays nothing for it.
+        // New Game or a Load inserts the session, a generated scenario is
+        // live, or a config is armed: a campaign that never opened a world
+        // pays nothing for it.
         app.add_systems(
             Update,
             sync_open_world
                 .run_if(
                     resource_exists::<OpenWorldSession>
-                        .or_else(resource_exists::<WorldConfig<NovaLayeredWorld>>),
+                        .or_else(resource_exists::<WorldConfig<NovaLayeredWorld>>)
+                        .or_else(generated_scenario_is_live),
                 )
                 .before(NovaWorldSystems::Cleanup),
         );
@@ -216,27 +226,41 @@ impl Plugin for NovaWorldBasePlugin {
     }
 }
 
-/// Arm the world over a live open-world scenario and its one player ship, and
-/// disarm it everywhere else.
+/// Whether the live scenario declares a generated world, so the arming system
+/// runs for a fixed-seed scenario that never inserted a session.
+fn generated_scenario_is_live(current: Option<Res<CurrentScenario>>) -> bool {
+    current.is_some_and(|current| {
+        current
+            .0
+            .as_ref()
+            .is_some_and(|scenario| scenario.world.is_generated())
+    })
+}
+
+/// Arm the world over a live generated-world scenario and its one player
+/// ship, and disarm it everywhere else.
 ///
-/// - No live scenario, or a scenario of any other role: remove the config.
-/// - An open-world scenario and no player ship (still spawning, or gone):
+/// - No live scenario, or a scenario whose world is `Void`: remove the config.
+/// - A generated scenario and no player ship (still spawning, or gone):
 ///   remove the config, so `nova_world` never looks for an observer that is
 ///   not there. Its roots retire with it.
 /// - Exactly one player ship: put the [`WorldObserver`] on it, and insert the
-///   config from [`OpenWorldSession`] unless the same config is already armed.
-///   An armed world keeps the generator it armed with; an unarmed one builds
-///   its ship-part snapshot from [`LoadedSectionPacks`], once, and checks
-///   [`GameStyles`] for every role's style.
+///   config unless the same config is already armed. The seed is the
+///   scenario's own fixed seed, or the [`OpenWorldSession`]'s for a scenario
+///   that declares none. An armed world keeps the generator it armed with; an
+///   unarmed one builds its ship-part snapshot from [`LoadedSectionPacks`],
+///   once, and checks [`GameStyles`] for every role's style.
 ///
 /// The plugin runs it only while an [`OpenWorldSession`] or an armed
-/// [`WorldConfig`] exists; an app that never opened a world skips it.
+/// [`WorldConfig`] exists or a generated scenario is live; an app that never
+/// opened a world skips it.
 ///
 /// # Panics
 ///
-/// An open-world scenario with no [`OpenWorldSession`] has no seed. Two or
-/// more player ships give the world no one place to stream around. Both are
-/// assembly faults, not runtime conditions, and there is no world to guess.
+/// A generated scenario with no fixed seed and no [`OpenWorldSession`] has no
+/// seed. Two or more player ships give the world no one place to stream
+/// around. Both are assembly faults, not runtime conditions, and there is no
+/// world to guess.
 ///
 /// With exactly one player ship, it also panics when there are no
 /// [`LoadedSectionPacks`] or no [`GameStyles`] (the merge logged why), when
@@ -246,20 +270,30 @@ impl Plugin for NovaWorldBasePlugin {
 /// retire every sector and regenerate the world from content it was not
 /// armed over.
 fn sync_open_world(world: &mut World) {
-    let open = world
-        .resource::<CurrentScenario>()
-        .as_ref()
-        .is_some_and(|scenario| scenario.role == ScenarioRole::OpenWorld);
-    if !open {
-        disarm(world);
-        return;
-    }
+    let fixed_seed = match world.resource::<CurrentScenario>().0.as_ref() {
+        Some(scenario) => match &scenario.world {
+            ScenarioWorldType::Generated(config) => config.seed,
+            ScenarioWorldType::Void => {
+                disarm(world);
+                return;
+            }
+        },
+        None => {
+            disarm(world);
+            return;
+        }
+    };
 
-    let Some(session) = world.get_resource::<OpenWorldSession>().copied() else {
-        panic!(
-            "nova_world_base: an OpenWorld scenario is live with no OpenWorldSession; the world \
-             has no seed. Start it through New Game, which inserts the session."
-        );
+    let seed = match fixed_seed {
+        Some(seed) => seed,
+        None => match world.get_resource::<OpenWorldSession>() {
+            Some(session) => session.seed,
+            None => panic!(
+                "nova_world_base: a generated-world scenario with no fixed seed is live with no \
+                 OpenWorldSession; the world has no seed. Start it through New Game, which \
+                 inserts the session."
+            ),
+        },
     };
 
     let players: Vec<Entity> = world
@@ -273,8 +307,8 @@ fn sync_open_world(world: &mut World) {
         }
         [player] => *player,
         many => panic!(
-            "nova_world_base: an OpenWorld scenario holds {} player ships {many:?}; the world \
-             streams around exactly one",
+            "nova_world_base: a generated-world scenario holds {} player ships {many:?}; the \
+             world streams around exactly one",
             many.len()
         ),
     };
@@ -294,20 +328,20 @@ fn sync_open_world(world: &mut World) {
     }
     let Some(loaded) = world.get_resource::<LoadedSectionPacks>() else {
         panic!(
-            "nova_world_base: an OpenWorld scenario is live with no LoadedSectionPacks; the \
-             content merge refused the catalog and logged why"
+            "nova_world_base: a generated-world scenario is live with no LoadedSectionPacks; \
+             the content merge refused the catalog and logged why"
         );
     };
     let Some(styles) = world.get_resource::<GameStyles>() else {
         panic!(
-            "nova_world_base: an OpenWorld scenario is live with no GameStyles; the content \
-             merge refused the catalog and logged why"
+            "nova_world_base: a generated-world scenario is live with no GameStyles; the \
+             content merge refused the catalog and logged why"
         );
     };
     let Some(items) = world.get_resource::<GameItems>() else {
         panic!(
-            "nova_world_base: an OpenWorld scenario is live with no GameItems; the content \
-             merge refused the catalog and logged why"
+            "nova_world_base: a generated-world scenario is live with no GameItems; the \
+             content merge refused the catalog and logged why"
         );
     };
     let armed = world.get_resource::<WorldConfig<NovaLayeredWorld>>();
@@ -331,7 +365,7 @@ fn sync_open_world(world: &mut World) {
         }),
     };
     let config = WorldConfig {
-        seed: session.seed,
+        seed,
         sector_edge: OPEN_WORLD_SECTOR_EDGE,
         active_radius: OPEN_WORLD_ACTIVE_RADIUS,
         generator,

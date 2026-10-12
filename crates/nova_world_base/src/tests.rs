@@ -5,8 +5,8 @@ use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack};
 use nova_events::prelude::{Meters, Meters3};
 use nova_gameplay::prelude::{Allegiance, Fnv64, ItemDesignId, ItemRoleType};
 use nova_scenario::prelude::{
-    resolve_ship_design, GameShipDesigns, ScenarioConfig, SectionSource, ShipDesign,
-    SpaceshipController, SpaceshipSectionConfig,
+    resolve_ship_design, GameShipDesigns, GeneratedWorldConfig, ScenarioConfig, ScenarioRole,
+    SectionSource, ShipDesign, SpaceshipController, SpaceshipSectionConfig,
 };
 use nova_ship::prelude::{GameSections, ShipStyleConfig};
 
@@ -58,17 +58,35 @@ pub(crate) fn fixture_world() -> NovaLayeredWorld {
     .expect("the fixture packs build a snapshot and every role has a style")
 }
 
-fn scenario(role: ScenarioRole) -> CurrentScenario {
+/// A generated world that takes its seed from the session.
+fn session_world() -> ScenarioWorldType {
+    ScenarioWorldType::Generated(GeneratedWorldConfig {
+        seed: None,
+        bounds: None,
+    })
+}
+
+/// A generated world with its own seed, one no session carries.
+const FIXED_SEED: u32 = 7;
+
+fn fixed_world() -> ScenarioWorldType {
+    ScenarioWorldType::Generated(GeneratedWorldConfig {
+        seed: Some(FIXED_SEED),
+        bounds: None,
+    })
+}
+
+fn scenario(world: ScenarioWorldType) -> CurrentScenario {
     CurrentScenario(Some(ScenarioConfig {
-        role,
+        world,
         ..ScenarioConfig::new("under_test", "Under Test", "sky.png".into())
     }))
 }
 
-/// A world holding a live scenario of `role` and the New Game session.
-fn world(role: ScenarioRole) -> World {
+/// A world holding a live scenario on `on` and the New Game session.
+fn world(on: ScenarioWorldType) -> World {
     let mut world = World::new();
-    world.insert_resource(scenario(role));
+    world.insert_resource(scenario(on));
     world.insert_resource(OpenWorldSession { seed: SEED });
     world.insert_resource(loaded());
     world.insert_resource(styles());
@@ -345,7 +363,7 @@ fn a_pinned_window_generates_the_recorded_bodies() {
 
 #[test]
 fn an_open_world_scenario_with_one_player_arms_the_world_around_it() {
-    let mut world = world(ScenarioRole::OpenWorld);
+    let mut world = world(session_world());
     let player = world.spawn(PlayerSpaceshipMarker).id();
 
     sync(&mut world);
@@ -358,7 +376,7 @@ fn an_open_world_scenario_with_one_player_arms_the_world_around_it() {
 /// re-inserted an identical config would tear the world down every frame.
 #[test]
 fn an_armed_world_is_not_rewritten_by_the_next_sync() {
-    let mut world = world(ScenarioRole::OpenWorld);
+    let mut world = world(session_world());
     world.spawn(PlayerSpaceshipMarker);
     sync(&mut world);
     world.clear_trackers();
@@ -372,7 +390,7 @@ fn an_armed_world_is_not_rewritten_by_the_next_sync() {
 /// same effective catalog merged again is the same world.
 #[test]
 fn a_remerged_identical_catalog_does_not_rewrite_the_armed_world() {
-    let mut world = world(ScenarioRole::OpenWorld);
+    let mut world = world(session_world());
     world.spawn(PlayerSpaceshipMarker);
     sync(&mut world);
     world.clear_trackers();
@@ -387,7 +405,7 @@ fn a_remerged_identical_catalog_does_not_rewrite_the_armed_world() {
 /// content it was not armed over, so the refusal comes before any write.
 #[test]
 fn a_changed_catalog_under_an_armed_world_is_refused() {
-    let mut world = world(ScenarioRole::OpenWorld);
+    let mut world = world(session_world());
     world.spawn(PlayerSpaceshipMarker);
     sync(&mut world);
     world.clear_trackers();
@@ -410,7 +428,7 @@ fn a_changed_catalog_under_an_armed_world_is_refused() {
 #[test]
 #[should_panic(expected = "no LoadedSectionPacks")]
 fn an_open_world_with_no_loaded_catalog_is_refused() {
-    let mut world = world(ScenarioRole::OpenWorld);
+    let mut world = world(session_world());
     world.remove_resource::<LoadedSectionPacks>();
     world.spawn(PlayerSpaceshipMarker);
 
@@ -420,7 +438,7 @@ fn an_open_world_with_no_loaded_catalog_is_refused() {
 #[test]
 #[should_panic(expected = "does not arm the open world")]
 fn an_open_world_whose_ship_parts_do_not_build_is_refused() {
-    let mut world = world(ScenarioRole::OpenWorld);
+    let mut world = world(session_world());
     world.insert_resource(LoadedSectionPacks {
         packs: Vec::new(),
         digest: ContentCatalogDigest(1),
@@ -433,7 +451,7 @@ fn an_open_world_whose_ship_parts_do_not_build_is_refused() {
 #[test]
 #[should_panic(expected = "scavenger ships wear style 'salvage', and no loaded content authors it")]
 fn an_open_world_missing_a_role_style_is_refused() {
-    let mut world = world(ScenarioRole::OpenWorld);
+    let mut world = world(session_world());
     world
         .resource_mut::<GameStyles>()
         .retain(|style| style.id != SALVAGE_STYLE_ID);
@@ -442,14 +460,38 @@ fn an_open_world_missing_a_role_style_is_refused() {
     sync(&mut world);
 }
 
+/// A fixed-seed scenario is its own seed source: the picker may launch it
+/// with no New Game session, and it streams the world it names, not the
+/// session's.
 #[test]
-fn a_scenario_of_another_role_or_none_disarms_the_world() {
+fn a_fixed_seed_scenario_arms_with_its_own_seed_and_no_session() {
+    let mut world = world(fixed_world());
+    world.remove_resource::<OpenWorldSession>();
+    world.spawn(PlayerSpaceshipMarker);
+
+    sync(&mut world);
+
+    assert_eq!(
+        armed(&world),
+        Some(&WorldConfig {
+            seed: FIXED_SEED,
+            ..session_config()
+        })
+    );
+}
+
+#[test]
+fn a_void_scenario_or_none_disarms_the_world() {
+    let void_backdrop = CurrentScenario(Some(ScenarioConfig {
+        role: ScenarioRole::Backdrop,
+        ..ScenarioConfig::new("under_test", "Under Test", "sky.png".into())
+    }));
     for current in [
-        scenario(ScenarioRole::Backdrop),
-        scenario(ScenarioRole::Chapter),
+        void_backdrop,
+        scenario(ScenarioWorldType::Void),
         CurrentScenario(None),
     ] {
-        let mut world = world(ScenarioRole::OpenWorld);
+        let mut world = world(session_world());
         world.spawn(PlayerSpaceshipMarker);
         sync(&mut world);
         world.insert_resource(current.clone());
@@ -459,7 +501,7 @@ fn a_scenario_of_another_role_or_none_disarms_the_world() {
         assert!(
             armed(&world).is_none(),
             "{:?} left the world armed",
-            current.0.map(|s| s.role)
+            current.0.map(|s| (s.role, s.world))
         );
     }
 }
@@ -469,7 +511,7 @@ fn a_scenario_of_another_role_or_none_disarms_the_world() {
 /// one-observer rule.
 #[test]
 fn an_open_world_with_no_player_ship_disarms_the_world() {
-    let mut world = world(ScenarioRole::OpenWorld);
+    let mut world = world(session_world());
     let player = world.spawn(PlayerSpaceshipMarker).id();
     sync(&mut world);
     world.despawn(player);
@@ -481,9 +523,9 @@ fn an_open_world_with_no_player_ship_disarms_the_world() {
 
 #[test]
 #[should_panic(expected = "no OpenWorldSession")]
-fn an_open_world_scenario_with_no_session_is_refused() {
+fn a_session_seeded_scenario_with_no_session_is_refused() {
     let mut world = World::new();
-    world.insert_resource(scenario(ScenarioRole::OpenWorld));
+    world.insert_resource(scenario(session_world()));
     world.spawn(PlayerSpaceshipMarker);
 
     sync(&mut world);
@@ -492,7 +534,7 @@ fn an_open_world_scenario_with_no_session_is_refused() {
 #[test]
 #[should_panic(expected = "holds 2 player ships")]
 fn an_open_world_with_two_player_ships_is_refused() {
-    let mut world = world(ScenarioRole::OpenWorld);
+    let mut world = world(session_world());
     world.spawn(PlayerSpaceshipMarker);
     world.spawn(PlayerSpaceshipMarker);
 

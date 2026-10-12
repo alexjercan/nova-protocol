@@ -31,6 +31,12 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A cargo intake's door now stays shut for a canister the hold has no room
   for. A canister that fits still opens it.
 
+### Scenarios & Objectives
+
+- **(breaking)** `role: OpenWorld` is gone. A scenario declares `world:
+  Generated((seed: None))` for the New Game seed or a fixed seed the picker
+  lists; no line is a void. It spawns one player ship.
+
 ### Modding & Mod Portal
 
 - **(breaking)** A scenario object id or a ship section id may not contain

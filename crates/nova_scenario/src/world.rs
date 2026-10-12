@@ -1295,6 +1295,7 @@ mod tests {
                 cubemap: "self://sky.png".into(),
                 thumbnail: None,
                 role: ScenarioRole::Chapter,
+                world: crate::loader::ScenarioWorldType::Void,
                 skybox_brightness: nova_ship::prelude::DEFAULT_SKYBOX_BRIGHTNESS,
                 watches: vec![],
                 events: vec![],

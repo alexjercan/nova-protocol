@@ -16,10 +16,38 @@ pub(crate) fn known(ids: &[&str]) -> HashSet<String> {
     ids.iter().map(|s| s.to_string()).collect()
 }
 
-/// A role map for `lint_campaign`: every listed id declares `role`, and
-/// anything else is a plain chapter (the absent-key case).
-pub(crate) fn roles(ids: &[&str], role: ScenarioRole) -> HashMap<String, ScenarioRole> {
-    ids.iter().map(|s| ((*s).to_string(), role)).collect()
+/// A plain chapter in a void, by id.
+pub(crate) fn chapter(id: &str) -> ScenarioConfig {
+    ScenarioConfig::new(id.to_string(), id.to_string(), AssetRef::default())
+}
+
+/// A chapter that declares `role`.
+pub(crate) fn with_role(id: &str, role: ScenarioRole) -> ScenarioConfig {
+    ScenarioConfig {
+        role,
+        ..chapter(id)
+    }
+}
+
+/// A chapter that runs on `world`.
+pub(crate) fn with_world(id: &str, world: ScenarioWorldType) -> ScenarioConfig {
+    ScenarioConfig {
+        world,
+        ..chapter(id)
+    }
+}
+
+/// A generated, unbounded world with `seed`, or the session's seed on `None`.
+pub(crate) fn generated(seed: Option<u32>) -> ScenarioWorldType {
+    ScenarioWorldType::Generated(GeneratedWorldConfig { seed, bounds: None })
+}
+
+/// The registry `lint_campaign` resolves members against: `scenarios` by id.
+pub(crate) fn registry(scenarios: &[ScenarioConfig]) -> HashMap<String, &ScenarioConfig> {
+    scenarios
+        .iter()
+        .map(|scenario| (scenario.id.clone(), scenario))
+        .collect()
 }
 
 pub(crate) fn campaign(id: &str, members: &[&str]) -> CampaignConfig {

@@ -39,8 +39,9 @@
         "scenarios/drill_stop.content.ron",
         "scenarios/drill_autopilot.content.ron",
         "scenarios/drill_gunnery.content.ron",
-        // The open world's bootstrap, and New Game's start below. Not a
-        // chapter: it is `role: OpenWorld`, so the picker renders no row.
+        // The New Game start, declared below. Its world is
+        // `Generated((seed: None))`, so it takes the typed seed and the
+        // picker renders no row.
         "scenarios/open_world.content.ron",
         // The training handbook itself: one item per lesson.
         "training/base.content.ron",

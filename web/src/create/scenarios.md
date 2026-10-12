@@ -47,6 +47,7 @@ folder and bundle shape.
 | `cubemap` | asset ref | required | Skybox image, such as `dep://base/textures/cubemap.png` or `self://textures/sky.png`. |
 | `thumbnail` | `Option` asset ref | `None` | Plain 2D menu image, written as `Some("self://thumbnails/x.png")`. Do not use a cubemap. |
 | `role` | role | `Chapter` | What the scenario IS - see [Roles](#roles). `Chapter` is a level and the only role the Scenarios list shows. |
+| `world` | world | `Void` | Which world the scenario runs on - see [World](#world). Omit it for a scene of authored objects only. |
 | `watches` | list | `[]` | Read-only queries sampled into auto-updating variables, entries of `(variable: "...", query: ...)`. See [Queries and watched variables](../expressions/#queries-and-watched-variables). |
 | `events` | list of handlers | `[]` | Scenario script. Empty is valid but does nothing. |
 
@@ -70,7 +71,6 @@ practise in a `Lesson`.
 | `Chapter` | A level. The default, and what you want unless you are writing menu scenery or a training range. | The Scenarios list, and campaigns. |
 | `Backdrop` | Menu scenery: it poses its own camera, hands the player no ship, and reports when its act is done. | The main-menu backdrop rotation, and nowhere else. |
 | `Lesson` | A focused practice range for one handbook [lesson](../lessons/). | That lesson's Practice button, and nowhere else. |
-| `OpenWorld` | The base New Game start: it spawns the one player ship the generated world streams around. | New Game's Create, and nowhere else. |
 
 Omit `role` and the scenario is a `Chapter`.
 
@@ -105,6 +105,22 @@ ranges in the handbook show:
   with nothing queued, so the overlay sends the player back to the handbook,
   and a Defeat that [`NextScenario`](../actions/#nextscenario)s the range
   itself, so the overlay offers Retry.
+
+## World
+
+`world` says which world the scenario runs on. It is independent of `role`.
+
+| world | what it is | who starts it |
+|---|---|---|
+| `Void` | No streamed world: the objects your handlers spawn are the whole scene. The default. | Whatever the role says. |
+| `Generated((seed: None))` | The generated open world, streamed around the one player ship your `OnStart` spawns, from the seed the player typed on New Game. | New Game and Load only: the Scenarios list hides it, a campaign may not list it, and `--scenario` refuses it. The base `open_world` start. |
+| `Generated((seed: Some(42)))` | The same generator on a fixed seed: a bounded world that always comes up the same. | The Scenarios list and campaigns, like any chapter. |
+
+A generated world must spawn EXACTLY ONE player ship in `OnStart`; zero or
+two is a content Error. `Generated` also takes an optional
+`bounds: Some((position: (0, 0, 0), radius: 20000))`, a sphere in meters the
+player is meant to stay in; its radius may not exceed 80,000 m, the half edge
+of the streamed window.
 
 ## Handler shape
 

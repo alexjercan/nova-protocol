@@ -65,12 +65,12 @@ pub mod prelude {
     pub use super::{
         gate::prelude::*, lifecycle::scenario_bindings, preload::prelude::*, scenario_is_live,
         CameraEasing, CameraOffsetFrame, CampaignConfig, CampaignId, ContentIssues,
-        CurrentScenario, GameCampaigns, GameScenarios, LoadScenario, NewGameStart,
-        RuntimeScenarioSystems, ScenarioCameraMarker, ScenarioConfig, ScenarioEventConfig,
-        ScenarioId, ScenarioLoaded, ScenarioLoaderPlugin, ScenarioRole, ScenarioScopedMarker,
-        ScenarioStartFailure, ScenarioStartFailureReport, ScriptedCameraAnchor,
-        ScriptedCameraBlend, ScriptedCameraLookAt, ScriptedCameraPose, ScriptedCameraTransform,
-        UnloadScenario, ORBIT_LAP_GRACE_SECS,
+        CurrentScenario, GameCampaigns, GameScenarios, GeneratedWorldConfig, LoadScenario,
+        NewGameStart, RuntimeScenarioSystems, ScenarioBoundsConfig, ScenarioCameraMarker,
+        ScenarioConfig, ScenarioEventConfig, ScenarioId, ScenarioLoaded, ScenarioLoaderPlugin,
+        ScenarioRole, ScenarioScopedMarker, ScenarioStartFailure, ScenarioStartFailureReport,
+        ScenarioWorldType, ScriptedCameraAnchor, ScriptedCameraBlend, ScriptedCameraLookAt,
+        ScriptedCameraPose, ScriptedCameraTransform, UnloadScenario, ORBIT_LAP_GRACE_SECS,
     };
 }
 
@@ -221,25 +221,9 @@ pub enum ScenarioRole {
     /// whole enforcement of "a practice range is purpose-built": without it a
     /// lesson could hand the player the campaign start and call it practice.
     Lesson,
-    /// The bootstrap of a streamed open world: the player's ship, the lights
-    /// and the sky, with every sector generated around them while it runs.
-    /// Reached from New Game, which the base bundle points at it, so the
-    /// picker renders no row for one.
-    ///
-    /// The world needs a seed, so it is only started through New Game, and it
-    /// streams around its ONE player ship. The base game's open world fails
-    /// loudly on either missing.
-    OpenWorld,
 }
 
 impl ScenarioRole {
-    /// Whether the Scenarios picker offers this scenario as a row. Only a
-    /// [`Chapter`](ScenarioRole::Chapter) is browsed for; the others are
-    /// reached from the surface that owns them.
-    pub fn picker_lists(self) -> bool {
-        matches!(self, ScenarioRole::Chapter)
-    }
-
     /// Whether this scenario is menu scenery.
     pub fn is_backdrop(self) -> bool {
         matches!(self, ScenarioRole::Backdrop)
@@ -249,6 +233,78 @@ impl ScenarioRole {
     pub fn is_lesson(self) -> bool {
         matches!(self, ScenarioRole::Lesson)
     }
+}
+
+/// Which world a scenario runs on. ONE field, independent of `role`: a
+/// chapter, a backdrop or a lesson may sit on a generated world or on none.
+#[derive(Clone, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum ScenarioWorldType {
+    /// No streamed world: the scenario's authored objects are the whole scene.
+    /// Every shipped chapter, backdrop and lesson today.
+    #[default]
+    Void,
+    /// The base generator streams sectors around the one player ship the
+    /// scenario spawns in `OnStart`.
+    Generated(GeneratedWorldConfig),
+}
+
+impl ScenarioWorldType {
+    /// Whether the scenario runs in a void. The `skip_serializing_if` predicate
+    /// for [`ScenarioConfig::world`]: a void writes no `world:` line.
+    pub fn is_void(&self) -> bool {
+        matches!(self, ScenarioWorldType::Void)
+    }
+
+    /// Whether the scenario runs on a streamed world.
+    pub fn is_generated(&self) -> bool {
+        matches!(self, ScenarioWorldType::Generated(_))
+    }
+
+    /// Whether the scenario takes its seed from the New Game session: a
+    /// generated world with no fixed seed. Only New Game and Load may start
+    /// one, so the picker renders no row for it and a campaign may not list it.
+    pub fn needs_session(&self) -> bool {
+        matches!(
+            self,
+            ScenarioWorldType::Generated(GeneratedWorldConfig { seed: None, .. })
+        )
+    }
+
+    /// The seed the scenario carries itself, if it is a generated world with
+    /// one.
+    pub fn fixed_seed(&self) -> Option<u32> {
+        match self {
+            ScenarioWorldType::Generated(config) => config.seed,
+            ScenarioWorldType::Void => None,
+        }
+    }
+}
+
+/// A generated world's shape, as the scenario declares it.
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct GeneratedWorldConfig {
+    /// `None`: the seed the player typed on New Game, carried by the world
+    /// session; only New Game and Load may start such a scenario. `Some`: a
+    /// fixed seed, so the scenario is a bounded world the picker may launch
+    /// with no session.
+    pub seed: Option<u32>,
+    /// A sphere the player is meant to stay in. `None` is an unbounded world.
+    pub bounds: Option<ScenarioBoundsConfig>,
+}
+
+/// The sphere a bounded generated world keeps the player in.
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct ScenarioBoundsConfig {
+    /// Sphere centre in metres, world space, like `ScenarioAreaConfig`.
+    pub position: Meters3,
+    /// Sphere radius in metres. Lint refuses one past the active window's half
+    /// edge (`nova_world_base::OPEN_WORLD_BOUNDS_RADIUS_MAX`).
+    pub radius: Meters,
 }
 
 /// Configuration for a game scenario.
@@ -305,16 +361,22 @@ pub struct ScenarioConfig {
     )]
     pub thumbnail: Option<AssetRef<Image>>,
     /// What this scenario is, and therefore where it is offered: a picker
-    /// chapter, menu scenery, a lesson's practice range, or the open world's
-    /// bootstrap. See [`ScenarioRole`]. A non-chapter stays loadable by id -
-    /// by the ambience system, by a lesson's Practice action, by a test and by
-    /// a tool.
+    /// chapter, menu scenery or a lesson's practice range. See
+    /// [`ScenarioRole`]. A non-chapter stays loadable by id - by the ambience
+    /// system, by a lesson's Practice action, by a test and by a tool.
     ///
     /// Serde-defaulted to [`ScenarioRole::Chapter`], so an unflagged scenario
-    /// writes no field; author the others as `role: Backdrop`, `role: Lesson` or
-    /// `role: OpenWorld`.
+    /// writes no field; author the others as `role: Backdrop` or `role: Lesson`.
     #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_chapter"))]
     pub role: ScenarioRole,
+    /// Which world the scenario runs on. See [`ScenarioWorldType`]. Default
+    /// `Void`, and a void scenario writes no `world:` line, as `role` does for
+    /// a chapter; the open world authors `world: Generated((seed: None))`.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "ScenarioWorldType::is_void")
+    )]
+    pub world: ScenarioWorldType,
     /// Read-only queries sampled into auto-updating scenario variables.
     #[cfg_attr(
         feature = "serde",
@@ -331,7 +393,7 @@ pub struct ScenarioConfig {
 
 impl ScenarioConfig {
     /// A scenario with only its three REQUIRED fields set: everything else
-    /// (`description`, `thumbnail`, `role`, `events`) takes
+    /// (`description`, `thumbnail`, `role`, `world`, `events`) takes
     /// its empty value, to be overridden through struct-update syntax.
     ///
     /// # Panics
@@ -366,9 +428,19 @@ impl ScenarioConfig {
             skybox_brightness: DEFAULT_SKYBOX_BRIGHTNESS,
             thumbnail: None,
             role: ScenarioRole::Chapter,
+            world: ScenarioWorldType::Void,
             watches: Vec::new(),
             events: Vec::new(),
         }
+    }
+
+    /// Whether the Scenarios picker offers this scenario as a row: a
+    /// [`Chapter`](ScenarioRole::Chapter) that can start with no New Game
+    /// session. A backdrop and a lesson range are reached from the surface
+    /// that owns them, and a generated world with no fixed seed only from New
+    /// Game, which supplies the seed.
+    pub fn picker_lists(&self) -> bool {
+        self.role == ScenarioRole::Chapter && !self.world.needs_session()
     }
 
     /// Every typed query the scenario's HANDLERS read as an inline expression
@@ -984,6 +1056,11 @@ mod tests {
             "absent role defaults to a picker chapter"
         );
         assert_eq!(
+            parsed.world,
+            ScenarioWorldType::Void,
+            "absent world defaults to a void"
+        );
+        assert_eq!(
             parsed.skybox_brightness, DEFAULT_SKYBOX_BRIGHTNESS,
             "absent skybox_brightness comes up at the shipped default"
         );
@@ -997,6 +1074,10 @@ mod tests {
             cubemap: AssetRef::from("sky.png"),
             thumbnail: Some(AssetRef::from("thumb.png")),
             role: ScenarioRole::Backdrop,
+            world: ScenarioWorldType::Generated(GeneratedWorldConfig {
+                seed: Some(7),
+                bounds: None,
+            }),
             skybox_brightness: 250.0,
             watches: vec![],
             events: vec![],
@@ -1005,6 +1086,10 @@ mod tests {
         let ron = ron::to_string(&configured).expect("configured scenario serializes");
         assert!(ron.contains("thumbnail:Some(\"thumb.png\")"), "ron: {ron}");
         assert!(ron.contains("role:Backdrop"), "ron: {ron}");
+        assert!(
+            ron.contains("world:Generated((seed:Some(7),bounds:None))"),
+            "ron: {ron}"
+        );
         assert!(ron.contains("skybox_brightness:250"), "ron: {ron}");
         let back: ScenarioConfig = ron::from_str(&ron).expect("configured scenario parses");
         assert_eq!(
@@ -1014,12 +1099,14 @@ mod tests {
             Some("thumb.png")
         );
         assert_eq!(back.role, ScenarioRole::Backdrop);
+        assert_eq!(back.world, configured.world);
         assert_eq!(back.skybox_brightness, 250.0);
 
         // The defaulted form omits the keys.
         let bare = ron::to_string(&parsed).expect("bare scenario re-serializes");
         assert!(!bare.contains("thumbnail"), "ron: {bare}");
         assert!(!bare.contains("role"), "ron: {bare}");
+        assert!(!bare.contains("world"), "ron: {bare}");
         assert!(!bare.contains("skybox_brightness"), "ron: {bare}");
     }
 

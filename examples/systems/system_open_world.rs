@@ -190,7 +190,7 @@ fn watch_world(
     let open = current
         .0
         .as_ref()
-        .is_some_and(|scenario| scenario.role == ScenarioRole::OpenWorld);
+        .is_some_and(|scenario| scenario.world.is_generated());
     if config.is_some() {
         assert!(
             open,

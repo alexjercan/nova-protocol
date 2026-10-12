@@ -1,12 +1,13 @@
-//! The open world's bootstrap: what New Game loads before the world streams.
+//! The New Game harness: the scenario New Game loads onto the generated world.
 //!
 //! The scenario spawns the player's line warship and the lights. It declares
-//! [`ScenarioRole::OpenWorld`], so the Scenarios picker renders no row for it.
-//! `nova_world_base` sees the role and the one player ship and streams the
-//! seeded sectors in around it. There is no objective: the world is the
-//! scenario, and its generated wrecks are the loot a docked player may Take.
-//! The one outcome is the player's death, a Defeat with nothing queued: the
-//! menu offers Load last save in a saved world and Main Menu everywhere.
+//! `world: Generated((seed: None))`, so it takes the seed the player typed and
+//! the Scenarios picker renders no row for it. `nova_world_base` sees the
+//! world block and the one player ship and streams the seeded sectors in
+//! around it. There is no objective: the generated wrecks are the loot a
+//! docked player may Take. The one outcome is the player's death, a Defeat
+//! with nothing queued: the menu offers Load last save in a saved world and
+//! Main Menu everywhere.
 
 use std::collections::BTreeMap;
 
@@ -44,7 +45,10 @@ pub(crate) fn open_world(assets: &BaseContentAssets) -> ScenarioConfig {
         description: "An open world generated from your seed: sparse asteroid clusters, \
                       planetoids and generated ships, streamed in around your line warship as you fly."
             .to_string(),
-        role: ScenarioRole::OpenWorld,
+        world: ScenarioWorldType::Generated(GeneratedWorldConfig {
+            seed: None,
+            bounds: None,
+        }),
         events: vec![
             ScenarioEventConfig {
                 label: None,

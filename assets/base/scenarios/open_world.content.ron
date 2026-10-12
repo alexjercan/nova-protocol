@@ -4,7 +4,10 @@
         name: "Open World",
         description: "An open world generated from your seed: sparse asteroid clusters, planetoids and generated ships, streamed in around your line warship as you fly.",
         cubemap: "self://textures/cubemap.png",
-        role: OpenWorld,
+        world: Generated((
+            seed: None,
+            bounds: None,
+        )),
         events: [
             (
                 name: OnStart,

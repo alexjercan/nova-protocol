@@ -62,7 +62,7 @@ fn the_shipped_campaign_resolves_its_chapters() {
         // Either is a lint Error in a campaign, and the picker would render no
         // row for one.
         assert!(
-            scenario.role.picker_lists(),
+            scenario.picker_lists(),
             "'{member}' is a launchable chapter, not a backdrop or a practice range"
         );
     }

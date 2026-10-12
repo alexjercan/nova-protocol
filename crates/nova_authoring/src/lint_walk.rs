@@ -19,15 +19,17 @@ use nova_mod_format::{
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::{
     lint_campaign, lint_scenario, lint_ship_design_config, CampaignConfig, EventActionConfig,
-    KnownSections, KnownShipDesigns, LintIssue, LintSeverity, ScenarioConfig, ScenarioObjectKind,
-    ScenarioRole, ShipDesignPrototype, SpaceshipController,
+    GeneratedWorldConfig, KnownSections, KnownShipDesigns, LintIssue, LintSeverity, ScenarioConfig,
+    ScenarioObjectKind, ScenarioWorldType, ShipDesignPrototype, SpaceshipController,
 };
 use nova_ship::prelude::{flight_rig_reserved_sources, SectionConfig};
 use nova_training::prelude::{
     lint_lessons, unused_practice_ranges, Lesson, LessonIssue, LessonSeverity,
 };
 use nova_ui::theme::{lint_theme, UiThemeConfig};
-use nova_world_base::prelude::{ShipPartFault, ShipPartPack, ShipPartSnapshot};
+use nova_world_base::prelude::{
+    ShipPartFault, ShipPartPack, ShipPartSnapshot, OPEN_WORLD_BOUNDS_RADIUS_MAX,
+};
 
 use crate::{
     balance::{BalanceAck, BALANCE_ACKS_FILE},
@@ -223,24 +225,25 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
         .flat_map(|b| b.scenarios.iter().map(|s| s.id.clone()))
         .collect();
     known_scenarios.extend(bundle.scenarios.iter().map(|s| s.id.clone()));
-    // The same set keyed by declared role: a campaign member must be a
-    // launchable chapter, and a lesson's practice target must be a range built
-    // for practising. Both checks read this one map.
-    let roles: HashMap<String, ScenarioRole> = all
+    // The same set with its configs: a campaign member must be a launchable
+    // chapter, a lesson's practice target must be a range built for
+    // practising, and the New Game start must take the session's seed. All
+    // three checks read this one map.
+    let scenarios_by_id: HashMap<String, &ScenarioConfig> = all
         .iter()
         .flat_map(|b| b.scenarios.iter())
         .chain(bundle.scenarios.iter())
-        .map(|s| (s.id.clone(), s.role))
+        .map(|s| (s.id.clone(), s))
         .collect();
-    let practice_ranges: HashSet<String> = roles
+    let practice_ranges: HashSet<String> = scenarios_by_id
         .iter()
-        .filter(|(_, role)| role.is_lesson())
+        .filter(|(_, scenario)| scenario.role.is_lesson())
         .map(|(id, _)| id.clone())
         .collect();
     // What may PROVE a lesson: a chapter or a range, never a menu backdrop.
-    let launchable: HashSet<String> = roles
+    let launchable: HashSet<String> = scenarios_by_id
         .iter()
-        .filter(|(_, role)| !role.is_backdrop())
+        .filter(|(_, scenario)| !scenario.role.is_backdrop())
         .map(|(id, _)| id.clone())
         .collect();
     // Visible prototypes: base + this bundle's own + its declared
@@ -306,11 +309,68 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
         }
     }
 
+    // A bounded generated world must fit the streamed window: a sphere past
+    // the active window's half edge would reach cells the generator never
+    // streams, so the player could be "inside" the bounds and in empty space.
+    for scenario in &bundle.scenarios {
+        let ScenarioWorldType::Generated(GeneratedWorldConfig {
+            bounds: Some(bounds),
+            ..
+        }) = &scenario.world
+        else {
+            continue;
+        };
+        if !(bounds.radius.0 > 0.0 && bounds.radius.0 <= OPEN_WORLD_BOUNDS_RADIUS_MAX.0) {
+            issues.push((
+                bundle.id.clone(),
+                LintIssue {
+                    severity: LintSeverity::Error,
+                    scenario: scenario.id.clone(),
+                    message: format!(
+                        "generated world bounds radius {} m is outside (0, {}] m, the active \
+                         window's half edge",
+                        bounds.radius.0, OPEN_WORLD_BOUNDS_RADIUS_MAX.0
+                    ),
+                },
+            ));
+        }
+    }
+
+    // The New Game start is the one scenario that takes the seed the player
+    // typed, so the base bundle must name a generated world with no fixed
+    // seed. A void or fixed-seed start would leave the typed seed unused.
+    if bundle.id == BASE_MOD_ID {
+        if let Some(start) = &bundle.manifest.new_game_scenario {
+            let message = match scenarios_by_id.get(start) {
+                None => Some(format!(
+                    "base declares new_game_scenario '{start}', which no bundle provides"
+                )),
+                Some(scenario) if !scenario.world.needs_session() => Some(format!(
+                    "base declares new_game_scenario '{start}', whose world is {:?}; New Game \
+                     supplies the seed, so the start must declare `world: Generated((seed: \
+                     None))`",
+                    scenario.world
+                )),
+                Some(_) => None,
+            };
+            if let Some(message) = message {
+                issues.push((
+                    bundle.id.clone(),
+                    LintIssue {
+                        severity: LintSeverity::Error,
+                        scenario: start.clone(),
+                        message,
+                    },
+                ));
+            }
+        }
+    }
+
     // Campaign membership: every scenario a campaign lists must resolve to a
     // known scenario (base + all bundles + this bundle's own), or the picker
     // renders a header row launching nothing.
     for campaign in &bundle.campaigns {
-        for issue in lint_campaign(campaign, &known_scenarios, &roles) {
+        for issue in lint_campaign(campaign, &scenarios_by_id) {
             issues.push((bundle.id.clone(), issue));
         }
     }
@@ -1026,11 +1086,16 @@ pub fn collect_target(dir: &Path) -> ContentReport {
 
 #[cfg(test)]
 mod tests {
+    use nova_events::prelude::{Meters, Meters3};
     use nova_gameplay::prelude::{AssetRef, ItemCategoryType, ItemDesign, ItemDesignId};
     use nova_mod_format::{BundleManifest, ModMeta};
     use nova_modding::prelude::Content;
-    use nova_scenario::prelude::ScenarioConfig;
-    use nova_world_base::prelude::{ShipPartFamilyType, ShipPartFault};
+    use nova_scenario::prelude::{
+        GeneratedWorldConfig, ScenarioBoundsConfig, ScenarioConfig, ScenarioWorldType,
+    };
+    use nova_world_base::prelude::{
+        ShipPartFamilyType, ShipPartFault, OPEN_WORLD_BOUNDS_RADIUS_MAX,
+    };
 
     use super::{build_report, lint_bundle, scenario_input_overlaps, ReportSeverity, WalkedBundle};
     use crate::base_content::items::item_catalog;
@@ -1549,6 +1614,91 @@ mod tests {
                 .any(|m| m.contains("undeclared resource 'dep://base/textures/missing.png'")),
             "an undeclared base resource is flagged"
         );
+    }
+
+    /// A generated scenario on `world`, with no handlers: the world checks
+    /// below read the block, not the script.
+    fn generated_scenario(id: &str, world: ScenarioWorldType) -> Content {
+        Content::Scenario(ScenarioConfig {
+            world,
+            ..ScenarioConfig::new(
+                id.to_string(),
+                id.to_string(),
+                AssetRef::from("dep://base/textures/cubemap.png".to_string()),
+            )
+        })
+    }
+
+    /// A bounded world must fit the streamed window: a radius past
+    /// `OPEN_WORLD_BOUNDS_RADIUS_MAX` is an Error, one at the limit is clean.
+    #[test]
+    fn a_bounds_radius_past_the_streamed_window_is_a_lint_error() {
+        let bounded = |radius: f32| {
+            ScenarioWorldType::Generated(GeneratedWorldConfig {
+                seed: Some(1),
+                bounds: Some(ScenarioBoundsConfig {
+                    position: Meters3::ZERO,
+                    radius: Meters(radius),
+                }),
+            })
+        };
+        let all = vec![
+            walked("base", &[], &["textures/cubemap.png"], vec![]),
+            walked(
+                "mod",
+                &[],
+                &[],
+                vec![
+                    generated_scenario("wide", bounded(OPEN_WORLD_BOUNDS_RADIUS_MAX.0 + 1.0)),
+                    generated_scenario("fits", bounded(OPEN_WORLD_BOUNDS_RADIUS_MAX.0)),
+                ],
+            ),
+        ];
+        let msgs = messages(&all[1], &all);
+        let radius: Vec<&String> = msgs
+            .iter()
+            .filter(|m| m.contains("bounds radius"))
+            .collect();
+        assert_eq!(
+            radius.len(),
+            1,
+            "exactly the wide scenario errors: {msgs:?}"
+        );
+        assert!(radius[0].contains("80001"), "{}", radius[0]);
+    }
+
+    /// The base `new_game_scenario` is the one start that takes the typed
+    /// seed, so it must declare `world: Generated((seed: None))`; a void or a
+    /// fixed-seed start is an Error.
+    #[test]
+    fn a_new_game_start_that_takes_no_session_seed_is_a_lint_error() {
+        let session = ScenarioWorldType::Generated(GeneratedWorldConfig {
+            seed: None,
+            bounds: None,
+        });
+        let fixed = ScenarioWorldType::Generated(GeneratedWorldConfig {
+            seed: Some(3),
+            bounds: None,
+        });
+        for (start, world, clean) in [
+            ("open_world", session, true),
+            ("bounded", fixed, false),
+            ("void", ScenarioWorldType::Void, false),
+        ] {
+            let mut base = walked(
+                "base",
+                &[],
+                &["textures/cubemap.png"],
+                vec![generated_scenario(start, world)],
+            );
+            base.manifest.new_game_scenario = Some(start.to_string());
+            let msgs = messages(&base, std::slice::from_ref(&base));
+            assert_eq!(
+                count_containing(&msgs, "new_game_scenario") == 0,
+                clean,
+                "start '{start}': {msgs:?}"
+            );
+        }
     }
 
     #[test]

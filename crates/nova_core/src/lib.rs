@@ -580,6 +580,11 @@ fn boot_into_the_game(
                 exit.write(AppExit::error());
                 return;
             }
+            Ok(id) if scenarios[&id].world.needs_session() => {
+                report_session_startup_scenario(&id);
+                exit.write(AppExit::error());
+                return;
+            }
             Ok(id) => {
                 if let Some(mut pick) = pick {
                     pick.0 = Some(id);
@@ -642,6 +647,17 @@ fn report_unknown_startup_scenario(id: &str, scenarios: &GameScenarios) {
     for available in ids {
         eprintln!("  {available}");
     }
+}
+
+/// Refuse a `--scenario <id>` whose world takes its seed from New Game. The
+/// flag lands on the loader with no session, so the world would have no seed;
+/// the refusal names the way in instead of the arming panic.
+fn report_session_startup_scenario(id: &str) {
+    eprintln!(
+        "error: --scenario '{id}' declares `world: Generated((seed: None))`, which takes its \
+         seed from New Game; start it from the menu's New Game, or give the scenario a fixed \
+         seed."
+    );
 }
 
 /// Environment variable that makes [`AppBuilder::new`] assemble a headless app.

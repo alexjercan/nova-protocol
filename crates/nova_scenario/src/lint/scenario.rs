@@ -47,55 +47,59 @@ struct SpawnedShip {
 }
 
 /// Lint one campaign against the scenarios the caller knows about
-/// (`known_scenarios`, normally base + all installed bundles; `roles` is what
-/// each of those ids declares itself to be). A campaign owns an ordered
-/// `scenarios` list; each member must resolve to a real scenario, or the
-/// picker would render a header row that launches nothing. Findings are keyed
-/// (via [`LintIssue::scenario`]) by the CAMPAIGN id, since a campaign is the
-/// element the finding is about.
+/// (`scenarios`, by id, normally base + all installed bundles). A campaign
+/// owns an ordered `scenarios` list; each member must resolve to a real
+/// scenario, or the picker would render a header row that launches nothing.
+/// Findings are keyed (via [`LintIssue::scenario`]) by the CAMPAIGN id, since
+/// a campaign is the element the finding is about.
 ///
 /// Checks:
-/// - a member id absent from `known_scenarios` is a DANGLING reference (Error) -
+/// - a member id absent from `scenarios` is a DANGLING reference (Error) -
 ///   the same class as a `NextScenario` targeting a missing scenario;
-/// - a member that is not a [`ScenarioRole::Chapter`] is an Error: a campaign
-///   member is a player-launchable chapter, while a backdrop is scenery that
-///   poses its own camera, a lesson range belongs to one lesson's Practice
-///   action and an open-world bootstrap belongs to New Game. The picker renders
-///   no row for any of them, so a header listing one would be a chapter nobody
-///   can reach;
+/// - a member the picker lists no row for ([`ScenarioConfig::picker_lists`])
+///   is an Error: a campaign member is a player-launchable chapter, while a
+///   backdrop is scenery that poses its own camera, a lesson range belongs to
+///   one lesson's Practice action, and a generated world with no fixed seed
+///   takes its seed from New Game, which a campaign cannot supply;
 /// - a member id listed more than once in the campaign is a duplicate (Warn) -
 ///   almost certainly an authoring slip, but the campaign still lists.
 pub fn lint_campaign(
     campaign: &CampaignConfig,
-    known_scenarios: &HashSet<String>,
-    roles: &HashMap<String, ScenarioRole>,
+    scenarios: &HashMap<String, &ScenarioConfig>,
 ) -> Vec<LintIssue> {
     let id = campaign.id.as_str();
     let mut issues = Vec::new();
     let mut seen: HashSet<&str> = HashSet::new();
     for member in &campaign.scenarios {
-        if !known_scenarios.contains(member) {
-            issues.push(LintIssue::error(
-                id,
-                format!(
-                    "campaign '{id}' lists member scenario '{member}', which no bundle provides"
-                ),
-            ));
-        } else if let Some(role) = roles.get(member).filter(|role| !role.picker_lists()) {
-            let what = match role {
-                ScenarioRole::Backdrop => "a menu backdrop (`role: Backdrop`)",
-                ScenarioRole::Lesson => "a lesson practice range (`role: Lesson`)",
-                ScenarioRole::OpenWorld => "an open-world bootstrap (`role: OpenWorld`)",
-                ScenarioRole::Chapter => unreachable!("filtered to non-chapters above"),
-            };
-            issues.push(LintIssue::error(
-                id,
-                format!(
-                    "campaign '{id}' lists member scenario '{member}', which is {what}; a \
-                     campaign member is a launchable chapter, and the Scenarios picker renders \
-                     no row for it"
-                ),
-            ));
+        match scenarios.get(member) {
+            None => {
+                issues.push(LintIssue::error(
+                    id,
+                    format!(
+                        "campaign '{id}' lists member scenario '{member}', which no bundle \
+                         provides"
+                    ),
+                ));
+            }
+            Some(scenario) if !scenario.picker_lists() => {
+                let what = match scenario.role {
+                    ScenarioRole::Backdrop => "a menu backdrop (`role: Backdrop`)",
+                    ScenarioRole::Lesson => "a lesson practice range (`role: Lesson`)",
+                    ScenarioRole::Chapter => {
+                        "a generated world seeded by New Game (`world: Generated((seed: \
+                         None))`), which a campaign cannot seed"
+                    }
+                };
+                issues.push(LintIssue::error(
+                    id,
+                    format!(
+                        "campaign '{id}' lists member scenario '{member}', which is {what}; a \
+                         campaign member is a launchable chapter, and the Scenarios picker \
+                         renders no row for it"
+                    ),
+                ));
+            }
+            Some(_) => {}
         }
         if !seen.insert(member.as_str()) {
             issues.push(LintIssue::warn(
@@ -183,6 +187,39 @@ pub fn lint_scenario(
             id,
             "BackdropDone outside a menu backdrop (`role: Backdrop`); nothing reads it".to_string(),
         ));
+    }
+
+    // A generated world streams around the ONE player ship the scenario spawns
+    // at start. With none the generator would never arm and the scenario
+    // would play as a void; with two `nova_world_base` refuses to arm at all.
+    // An Error at author time rather than a silent void or a runtime panic.
+    if scenario.world.is_generated() {
+        let mut players = 0;
+        for action in scenario
+            .events
+            .iter()
+            .filter(|event| matches!(event.name, EventConfig::OnStart))
+            .flat_map(|event| &event.actions)
+        {
+            action.walk(&mut |action| {
+                if let EventActionConfig::SpawnScenarioObject(config) = action {
+                    if let ScenarioObjectKind::Spaceship(ship) = &config.kind {
+                        if matches!(ship.controller, SpaceshipController::Player(_)) {
+                            players += 1;
+                        }
+                    }
+                }
+            });
+        }
+        if players != 1 {
+            issues.push(LintIssue::error(
+                id,
+                format!(
+                    "generated world (`world: Generated`) spawns {players} player ships in \
+                     OnStart; the world streams around exactly one"
+                ),
+            ));
+        }
     }
 
     let mut watch_names = HashSet::new();
@@ -1972,11 +2009,12 @@ mod tests {
             "nova_protocol",
             &["shakedown_run", "broadside", "final_tally"],
         );
-        let issues = lint_campaign(
-            &c,
-            &known(&["shakedown_run", "broadside", "final_tally"]),
-            &roles(&[], ScenarioRole::Backdrop),
-        );
+        let members = [
+            chapter("shakedown_run"),
+            chapter("broadside"),
+            chapter("final_tally"),
+        ];
+        let issues = lint_campaign(&c, &registry(&members));
         assert!(
             issues.is_empty(),
             "a campaign naming only real scenarios is clean, got {issues:?}"
@@ -1989,11 +2027,8 @@ mod tests {
     #[test]
     fn campaign_flags_dangling_member() {
         let c = campaign("nova_protocol", &["shakedown_run", "ghost_chapter"]);
-        let issues = lint_campaign(
-            &c,
-            &known(&["shakedown_run"]),
-            &roles(&[], ScenarioRole::Backdrop),
-        );
+        let members = [chapter("shakedown_run")];
+        let issues = lint_campaign(&c, &registry(&members));
         let errors: Vec<_> = issues
             .iter()
             .filter(|i| i.severity == LintSeverity::Error)
@@ -2013,11 +2048,11 @@ mod tests {
     #[test]
     fn campaign_flags_a_member_that_is_a_menu_backdrop() {
         let c = campaign("nova_protocol", &["shakedown_run", "menu_weave"]);
-        let issues = lint_campaign(
-            &c,
-            &known(&["shakedown_run", "menu_weave"]),
-            &roles(&["menu_weave"], ScenarioRole::Backdrop),
-        );
+        let members = [
+            chapter("shakedown_run"),
+            with_role("menu_weave", ScenarioRole::Backdrop),
+        ];
+        let issues = lint_campaign(&c, &registry(&members));
         let errors: Vec<_> = issues
             .iter()
             .filter(|i| i.severity == LintSeverity::Error)
@@ -2036,11 +2071,11 @@ mod tests {
     #[test]
     fn campaign_flags_a_member_that_is_a_lesson_range() {
         let c = campaign("nova_protocol", &["shakedown_run", "drill_stop"]);
-        let issues = lint_campaign(
-            &c,
-            &known(&["shakedown_run", "drill_stop"]),
-            &roles(&["drill_stop"], ScenarioRole::Lesson),
-        );
+        let members = [
+            chapter("shakedown_run"),
+            with_role("drill_stop", ScenarioRole::Lesson),
+        ];
+        let issues = lint_campaign(&c, &registry(&members));
         let errors: Vec<_> = issues
             .iter()
             .filter(|i| i.severity == LintSeverity::Error)
@@ -2054,16 +2089,36 @@ mod tests {
         );
     }
 
+    /// A generated world with no fixed seed takes its seed from New Game. A
+    /// campaign cannot supply one, so listing it is an Error; a fixed-seed
+    /// generated chapter is a picker row and a legal member.
+    #[test]
+    fn campaign_flags_a_member_that_needs_the_new_game_session() {
+        let c = campaign("nova_protocol", &["open_world", "bounded_run"]);
+        let members = [
+            with_world("open_world", generated(None)),
+            with_world("bounded_run", generated(Some(42))),
+        ];
+        let issues = lint_campaign(&c, &registry(&members));
+        let errors: Vec<_> = issues
+            .iter()
+            .filter(|i| i.severity == LintSeverity::Error)
+            .collect();
+        assert_eq!(errors.len(), 1, "exactly the session-seeded member errors");
+        assert!(
+            errors[0].message.contains("open_world") && errors[0].message.contains("New Game"),
+            "the finding names the member and why: {}",
+            errors[0].message
+        );
+    }
+
     /// A member listed twice is a Warn (authoring slip), not an Error - the
     /// campaign still lists.
     #[test]
     fn campaign_warns_on_duplicate_member() {
         let c = campaign("nova_protocol", &["shakedown_run", "shakedown_run"]);
-        let issues = lint_campaign(
-            &c,
-            &known(&["shakedown_run"]),
-            &roles(&[], ScenarioRole::Backdrop),
-        );
+        let members = [chapter("shakedown_run")];
+        let issues = lint_campaign(&c, &registry(&members));
         assert!(
             issues
                 .iter()
@@ -2281,6 +2336,54 @@ mod tests {
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(errs[0].message.contains("ghost"));
         assert!(errs[0].message.contains("SetAllegiance"));
+    }
+
+    /// A generated world streams around the one player ship its `OnStart`
+    /// spawns: none would play as a void, two would refuse to arm. An Error
+    /// either way; a void owes no player.
+    #[test]
+    fn a_generated_world_must_spawn_exactly_one_player_at_start() {
+        let player = || {
+            spawn_armed_ship(
+                "player",
+                SpaceshipController::Player(PlayerControllerConfig::default()),
+            )
+        };
+        let lint = |scenario: &ScenarioConfig| {
+            lint_scenario(
+                scenario,
+                &sections(&["hull"]),
+                &ships(&[]),
+                &known(&["test_scenario"]),
+                &GameItems::default(),
+            )
+        };
+
+        let mut none = scenario(vec![spawn_ship("escort", "hull")], vec![]);
+        none.world = generated(Some(1));
+        let issues = lint(&none);
+        let errs = errors(&issues);
+        assert_eq!(errs.len(), 1, "{issues:?}");
+        assert!(errs[0].message.contains("spawns 0 player ships in OnStart"));
+
+        let mut two = scenario(vec![player(), player()], vec![]);
+        two.world = generated(None);
+        let issues = lint(&two);
+        assert!(
+            errors(&issues)
+                .iter()
+                .any(|issue| issue.message.contains("spawns 2 player ships in OnStart")),
+            "{issues:?}"
+        );
+
+        let mut one = scenario(vec![player()], vec![]);
+        one.world = generated(None);
+        let issues = lint(&one);
+        assert!(errors(&issues).is_empty(), "{issues:?}");
+
+        let void = scenario(vec![spawn_ship("escort", "hull")], vec![]);
+        let issues = lint(&void);
+        assert!(errors(&issues).is_empty(), "{issues:?}");
     }
 
     /// The backdrop camera contract: a menu backdrop must pose its own

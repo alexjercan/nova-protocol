@@ -24,7 +24,8 @@ the panel says about it, through `bevy/reflect_documentation`.
 ## Scenario structure
 
 - `ScenarioConfig` - `id`, `name`, `description`, `cubemap` (skybox),
-  `skybox_brightness` (lux, defaults to `DEFAULT_SKYBOX_BRIGHTNESS`), `events`.
+  `skybox_brightness` (lux, defaults to `DEFAULT_SKYBOX_BRIGHTNESS`), `role`,
+  `world` (which world the scenario runs on, see below), `events`.
 - `ScenarioEventConfig` - one handler: `label` (optional, what the handler is
   for in the author's words - the editor's tree reads it beside the trigger),
   `name: EventConfig`, `once`, `filters`, `actions`. `once` retires the handler the first time its filters PASS (not
@@ -41,6 +42,28 @@ the panel says about it, through `bevy/reflect_documentation`.
   populated by `nova_assets` alongside `GameScenarios`.
 - `CurrentScenario(Option<ScenarioConfig>)` - the loaded scenario, if any. The
   `scenario_is_live` run condition gates the ship input/section sets on it.
+
+### Which world a scenario runs on
+
+`ScenarioConfig::world` is a `ScenarioWorldType`, one field independent of
+`role`:
+
+- `Void` (the default, written as no `world:` line): the authored objects are
+  the whole scene. Every shipped chapter, backdrop and lesson.
+- `Generated((seed: Option<u32>, bounds: Option<(position, radius)>))`: the
+  base generator streams sectors around the ONE player ship the scenario spawns
+  in `OnStart` (lint refuses zero or two). `seed: None` takes the seed the
+  player typed on New Game, carried by `nova_world_base::OpenWorldSession`;
+  only New Game and Load may start such a scenario, so the picker renders no
+  row for it, a campaign may not list it, and `--scenario <id>` refuses it at
+  boot. `seed: Some(n)` is a fixed seed: the scenario is a bounded world the
+  picker lists and launches with no session. `bounds` is a sphere in metres,
+  radius at most `nova_world_base::OPEN_WORLD_BOUNDS_RADIUS_MAX` (lint).
+
+`nova_world_base::sync_open_world` arms `WorldConfig` from this block and the
+player ship, and disarms it under a `Void` scenario or none. The base bundle's
+`new_game_scenario` must name a scenario whose world is
+`Generated((seed: None))`; the content lint checks it.
 
 ## Loading / unloading (`loader/`)
 
@@ -831,10 +854,11 @@ body with a new origin, and it reads the grain from a different place.
 ## Built-in scenarios
 
 The builders live under `crates/nova_authoring/src/base_content/scenarios/`.
-`main_menu/` gives each menu backdrop its own file, `tutorial/` builds the New
-Game starter, Basic Training, across `mod.rs` (the chain), `range.rs` (the
-props) and `script.rs` (every line), and `pacing.rs` holds the cue and outro
-spacing. Basic Training is the beat-chain reference: one `beat` counter gates
+`main_menu/` gives each menu backdrop its own file, `open_world.rs` builds the
+New Game start (the player's warship and lights on a
+`world: Generated((seed: None))`), `tutorial/` builds Basic Training across
+`mod.rs` (the chain), `range.rs` (the props) and `script.rs` (every line), and
+`pacing.rs` holds the cue and outro spacing. Basic Training is the beat-chain reference: one `beat` counter gates
 every handler, and count milestones run on `OnUpdate` handlers keyed on the
 counter (handler order within one event is not load-bearing). The builders are
 an OFFLINE inventory, not the runtime path: `content -- gen` serializes them to

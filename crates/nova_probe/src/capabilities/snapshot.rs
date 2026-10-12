@@ -148,7 +148,7 @@ use nova_interface::{
 };
 use nova_scenario::{
     prelude::{
-        AsteroidMarker, CurrentOutcome, CurrentScenario, PlanetMarker, ScenarioRole,
+        AsteroidMarker, CurrentOutcome, CurrentScenario, PlanetMarker, ScenarioWorldType,
         SpaceshipController,
     },
     world::NovaEventWorld,
@@ -431,17 +431,21 @@ pub fn capture_snapshot(world: &mut World, reason: &str) -> serde_json::Value {
     let playing = world
         .get_resource::<State<GameStates>>()
         .is_some_and(|state| state.get() == &GameStates::Playing);
-    let open_world = world
+    // The seed a generated world streams from: the scenario's own fixed seed,
+    // or the New Game session's for a scenario that declares none. Null in a
+    // void and in the menu, where a retained session is not a live world.
+    let world_seed = world
         .get_resource::<CurrentScenario>()
         .and_then(|current| current.0.as_ref())
-        .is_some_and(|scenario| scenario.role == ScenarioRole::OpenWorld);
-    let world_seed = if playing && open_world {
-        world
-            .get_resource::<OpenWorldSession>()
-            .map(|session| session.seed)
-    } else {
-        None
-    };
+        .filter(|_| playing)
+        .and_then(|scenario| match &scenario.world {
+            ScenarioWorldType::Generated(config) => config.seed.or_else(|| {
+                world
+                    .get_resource::<OpenWorldSession>()
+                    .map(|session| session.seed)
+            }),
+            ScenarioWorldType::Void => None,
+        });
 
     let mut q_ships = world.query_filtered::<Entity, With<SpaceshipRootMarker>>();
     let ship_entities: Vec<Entity> = q_ships.iter(world).collect();
@@ -2199,7 +2203,10 @@ mod tests {
 
         app.insert_resource(State::new(GameStates::Playing));
         let open_world = ScenarioConfig {
-            role: ScenarioRole::OpenWorld,
+            world: ScenarioWorldType::Generated(nova_scenario::prelude::GeneratedWorldConfig {
+                seed: None,
+                bounds: None,
+            }),
             ..ScenarioConfig::new("open_world".to_string(), "Open World", AssetRef::default())
         };
         app.insert_resource(CurrentScenario(Some(open_world)));
