@@ -1,0 +1,1023 @@
+<title>Open-World Progression Directions</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f1f2ee;
+  --paper: #fafaf7;
+  --ink: #17191b;
+  --muted: #5b6167;
+  --rule: #d5d8d2;
+  --code-bg: #e8eae5;
+  --accent: #b84a1c;
+  --accent-soft: #f5e2d8;
+  --exists: #1f6b66;
+  --exists-soft: #dbeeeb;
+  --proposal: #8a5a00;
+  --proposal-soft: #faf0d8;
+  --open: #7b2e63;
+  --open-soft: #f5e2ee;
+  --refuse: #a33129;
+  --refuse-soft: #f8e3e1;
+  --meter-off: #d9dcd6;
+  --display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #121416;
+    --paper: #191c1f;
+    --ink: #e4e6e1;
+    --muted: #a0a6ac;
+    --rule: #30353a;
+    --code-bg: #24282c;
+    --accent: #ef8d56;
+    --accent-soft: #3a2217;
+    --exists: #62c2ba;
+    --exists-soft: #15302e;
+    --proposal: #e7b556;
+    --proposal-soft: #382c12;
+    --open: #e48ebf;
+    --open-soft: #3a1e30;
+    --refuse: #f08b82;
+    --refuse-soft: #3d1f1d;
+    --meter-off: #33383d;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121416;
+  --paper: #191c1f;
+  --ink: #e4e6e1;
+  --muted: #a0a6ac;
+  --rule: #30353a;
+  --code-bg: #24282c;
+  --accent: #ef8d56;
+  --accent-soft: #3a2217;
+  --exists: #62c2ba;
+  --exists-soft: #15302e;
+  --proposal: #e7b556;
+  --proposal-soft: #382c12;
+  --open: #e48ebf;
+  --open-soft: #3a1e30;
+  --refuse: #f08b82;
+  --refuse-soft: #3d1f1d;
+  --meter-off: #33383d;
+}
+* { box-sizing: border-box; }
+html { font-size: 16px; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 1rem/1.55 var(--body);
+  padding-inline: 16px;
+  padding-block: 1.25rem 4rem;
+}
+.wrap { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 2.25rem; max-width: 86rem; margin: 0 auto; }
+@media (max-width: 1040px) { .wrap { grid-template-columns: minmax(0, 1fr); } nav.toc { position: static; max-height: none; } }
+nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; font-size: 0.86rem; max-height: calc(100vh - 1rem); overflow: auto; padding-top: 0.5rem; }
+nav.toc h2 { font: 600 0.78rem/1.2 var(--display); text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin: 0 0 0.6rem; border: 0; padding: 0; }
+nav.toc ol { margin: 0; padding-left: 1.6rem; }
+nav.toc li { margin: 0.25rem 0; }
+nav.toc a { color: var(--ink); text-decoration: none; }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--accent); text-decoration: underline; }
+main { min-width: 0; }
+h1, h2, h3, h4 { font-family: var(--display); text-wrap: balance; line-height: 1.1; margin: 0; }
+h1 { font-size: 3rem; font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 1.9rem; font-weight: 600; margin-bottom: 0.75rem; }
+h3 { font-size: 1.35rem; font-weight: 600; margin: 1.5rem 0 0.5rem; }
+h4 { font-size: 1.05rem; font-weight: 600; margin: 1rem 0 0.35rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.eyebrow { font: 600 0.8rem/1 var(--display); text-transform: uppercase; letter-spacing: 0.14em; color: var(--accent); margin-bottom: 0.4rem; }
+section { padding: 2rem 0; border-top: 1px solid var(--rule); }
+header.hero { padding-bottom: 1.75rem; }
+p, li { max-width: 70ch; }
+a { color: var(--accent); }
+code { font-family: var(--mono); font-size: 0.84em; background: var(--code-bg); padding: 0.05em 0.3em; border-radius: 3px; }
+pre { font-family: var(--mono); font-size: 0.82rem; background: var(--code-bg); padding: 0.8rem 1rem; border-radius: 6px; overflow-x: auto; max-width: 100%; }
+.meta { color: var(--muted); font-size: 0.9rem; margin: 0.35rem 0; }
+.lede { font-size: 1.12rem; max-width: 70ch; margin: 1rem 0; }
+.answer { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 0.9rem 1.1rem; border-radius: 4px; margin: 1rem 0; max-width: 78ch; }
+.answer p { margin: 0.3rem 0; }
+.tag { display: inline-block; font: 600 0.7rem/1.5 var(--display); letter-spacing: 0.08em; text-transform: uppercase; padding: 0.05rem 0.45rem; border-radius: 3px; border: 1px solid; white-space: nowrap; vertical-align: 0.15em; }
+.t-exists { color: var(--exists); background: var(--exists-soft); border-color: var(--exists); }
+.t-decided { color: var(--exists); background: transparent; border-color: var(--exists); border-style: dashed; }
+.t-proposal { color: var(--proposal); background: var(--proposal-soft); border-color: var(--proposal); }
+.t-open { color: var(--open); background: var(--open-soft); border-color: var(--open); }
+.t-refuse { color: var(--refuse); background: var(--refuse-soft); border-color: var(--refuse); }
+.t-rec { color: var(--accent); background: var(--accent-soft); border-color: var(--accent); }
+.legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.6rem; margin: 0.75rem 0 0; padding: 0; list-style: none; }
+.legend li { border: 1px solid var(--rule); border-radius: 6px; padding: 0.5rem 0.65rem; font-size: 0.88rem; max-width: none; }
+.constraints { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 0.5rem 1.25rem; margin: 0.6rem 0 0; padding: 0; list-style: none; font-size: 0.92rem; }
+.constraints li { max-width: none; padding-left: 1.1rem; position: relative; }
+.constraints li::before { content: ""; position: absolute; left: 0; top: 0.6em; width: 0.5rem; height: 0.5rem; background: var(--accent); border-radius: 1px; }
+.table-scroll { overflow-x: auto; margin: 0.6rem 0 1rem; max-width: 100%; }
+table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+caption { text-align: left; font: 600 0.8rem/1.3 var(--display); text-transform: uppercase; letter-spacing: 0.08em; padding: 0 0 0.4rem; color: var(--muted); }
+th, td { border: 1px solid var(--rule); padding: 0.45rem 0.6rem; text-align: left; vertical-align: top; }
+thead th { background: var(--code-bg); font-family: var(--display); font-weight: 600; letter-spacing: 0.03em; font-size: 0.9rem; }
+tbody th { font-weight: 600; background: color-mix(in srgb, var(--code-bg) 45%, transparent); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+figure { margin: 1rem 0 1.25rem; max-width: 100%; }
+figure svg { width: 100%; height: auto; display: block; background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; }
+figcaption { font-size: 0.85rem; color: var(--muted); margin-top: 0.4rem; max-width: 78ch; }
+svg text { fill: var(--ink); font-family: var(--body); font-size: 13px; }
+svg .small { font-size: 11px; fill: var(--muted); }
+svg .title { font-family: var(--display); font-weight: 600; font-size: 15px; letter-spacing: 0.03em; }
+svg .edge { stroke: var(--muted); stroke-width: 1.6; fill: none; }
+svg .edge-rec { stroke: var(--accent); stroke-width: 2.2; fill: none; }
+svg .edge-refuse { stroke: var(--refuse); stroke-width: 1.6; fill: none; stroke-dasharray: 6 4; }
+svg .n-exists { fill: var(--exists-soft); stroke: var(--exists); stroke-width: 1.6; }
+svg .n-proposal { fill: var(--proposal-soft); stroke: var(--proposal); stroke-width: 1.6; }
+svg .n-rec { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
+svg .n-refuse { fill: var(--refuse-soft); stroke: var(--refuse); stroke-width: 1.6; }
+svg .n-plain { fill: var(--paper); stroke: var(--rule); stroke-width: 1.4; }
+svg .arrow { fill: var(--muted); }
+svg .arrow-rec { fill: var(--accent); }
+svg .arrow-refuse { fill: var(--refuse); }
+.axes { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 0.9rem; margin-top: 0.75rem; }
+.axis { border-top: 3px solid var(--exists); padding: 0.6rem 0.2rem 0; }
+.axis h3 { margin: 0 0 0.3rem; font-size: 1.2rem; }
+.axis p { font-size: 0.92rem; margin: 0.25rem 0; }
+.axis .today { color: var(--muted); font-size: 0.85rem; }
+.filters { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.75rem 0 1rem; }
+.filters button { font: 600 0.8rem/1.4 var(--display); letter-spacing: 0.06em; text-transform: uppercase; padding: 0.35rem 0.7rem; border: 1px solid var(--rule); border-radius: 999px; background: var(--paper); color: var(--ink); cursor: pointer; }
+.filters button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.filters button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dossier { border: 1px solid var(--rule); border-radius: 8px; background: var(--paper); margin: 1.1rem 0; overflow: hidden; }
+.dossier.rec { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.dossier > header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.6rem 1rem; align-items: start; padding: 0.9rem 1.1rem 0.6rem; border-bottom: 1px solid var(--rule); }
+.dossier > header h3 { margin: 0; font-size: 1.45rem; }
+.dossier > header .pitch { margin: 0.25rem 0 0; font-style: italic; color: var(--muted); max-width: 70ch; }
+.facts { display: grid; grid-template-columns: auto auto; gap: 0.25rem 0.6rem; font-size: 0.8rem; align-content: start; white-space: nowrap; }
+.facts dt { font: 600 0.72rem/1.6 var(--display); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0; }
+.facts dd { margin: 0; }
+.meter { display: inline-flex; gap: 2px; vertical-align: middle; }
+.meter i { display: inline-block; width: 0.7rem; height: 0.7rem; background: var(--meter-off); border-radius: 1px; }
+.meter i.on { background: var(--exists); }
+@media (max-width: 640px) { .dossier > header { grid-template-columns: minmax(0, 1fr); } .facts { white-space: normal; } }
+.dossier .body { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: 0 1.5rem; padding: 0.4rem 1.1rem 0.9rem; }
+.dossier .body > div { min-width: 0; }
+.dossier ol, .dossier ul { padding-left: 1.2rem; margin: 0.3rem 0 0.6rem; }
+.dossier li { margin: 0.2rem 0; font-size: 0.94rem; }
+.dossier details { margin: 0.4rem 0 0.6rem; font-size: 0.9rem; }
+.dossier summary { cursor: pointer; font: 600 0.78rem/1.6 var(--display); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.dossier summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dossier .foot { border-top: 1px solid var(--rule); padding: 0.6rem 1.1rem; font-size: 0.86rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; }
+.dossier .foot span { max-width: none; }
+.decision { border: 1px solid var(--rule); border-left: 5px solid var(--open); border-radius: 6px; padding: 0.7rem 1rem; margin: 0.8rem 0; background: var(--paper); }
+.decision h3 { margin: 0 0 0.3rem; font-size: 1.2rem; }
+.decision ol { margin: 0.3rem 0; padding-left: 1.3rem; }
+.decision li { font-size: 0.93rem; }
+.rec { font-weight: 600; }
+.note { font-size: 0.88rem; color: var(--muted); }
+.stage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 0.8rem; margin-top: 0.75rem; }
+.stage { border: 1px solid var(--rule); border-radius: 6px; padding: 0.7rem 0.9rem; background: var(--paper); }
+.stage.first { border-color: var(--accent); }
+.stage h3 { margin: 0 0 0.3rem; font-size: 1.15rem; }
+.stage p, .stage li { font-size: 0.9rem; }
+.stage ul { padding-left: 1.1rem; margin: 0.3rem 0; }
+.check { list-style: none; padding: 0; margin: 0.5rem 0; }
+.check li { max-width: none; display: grid; grid-template-columns: 1.4rem minmax(0, 1fr); gap: 0.4rem; margin: 0.45rem 0; font-size: 0.93rem; }
+.check li::before { content: "!"; font: 700 0.8rem/1.4rem var(--display); text-align: center; width: 1.4rem; height: 1.4rem; border-radius: 50%; background: var(--refuse-soft); color: var(--refuse); }
+.sources li { font-size: 0.88rem; margin: 0.2rem 0; max-width: none; word-break: break-word; }
+@media (prefers-reduced-motion: no-preference) { nav.toc a, .filters button { transition: color 0.15s, background 0.15s; } }
+</style>
+
+<div class="wrap">
+<nav class="toc" aria-label="Contents">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#diagnosis">Why it has no progression</a></li>
+    <li><a href="#axes">Four axes, no levels</a></li>
+    <li><a href="#directions">Ten directions</a></li>
+    <li><a href="#matrix">Comparison</a></li>
+    <li><a href="#spine">Recommended spine</a></li>
+    <li><a href="#station">What a station is</a></li>
+    <li><a href="#pitfalls">Pitfalls from other games</a></li>
+    <li><a href="#decisions">Owner decisions</a></li>
+    <li><a href="#world-first">World first, scenarios as the harness</a></li>
+    <li><a href="#sources">Sources</a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="hero">
+  <div class="eyebrow">Nova Protocol / open world / design investigation</div>
+  <h1>Open-World Progression Directions</h1>
+  <p class="meta">2026-10-11, revised 2026-10-12 after owner feedback on stations. Research only, nothing approved, no code written. Codebase read at HEAD <code>6a8b90829</code>; online survey of 40+ games (about 120 searches, 150 pages). The three papers in <code>tasks/20260930-100831/</code> (2026-10-10) are the nearest prior work and are folded in, corrected where HEAD moved on.</p>
+  <p class="lede">The open world lets you mine, carry, throw, trade, fight and dock, and since 2026-10-09 it remembers everything you did. What it lacks is a reason to come back: nothing you earn changes the ship, credits buy only ammunition and plates, a lost section is gone for good, and no place is different from any other place.</p>
+  <div class="answer">
+    <p><strong>Short answer.</strong> Make loss the currency and the station the place it is redeemed. Stations are generated like planets and ships: every living civilization has at least one, and an extinct one leaves a dead station you can only loot. A station is a dockable structure with services no ship offers: rebuild destroyed sections, refit a section for a better one from its stock, buy a whole ship, recycle a derelict you towed in, store parts, sell what you brought back, and post objectives. Its content enriches the existing TAB panes (Map, Ship, Inventory) and adds one pane for what has no home there. Pair that with a New World wizard where you pick a start role (industrial, scavenger, transport, bounty hunter, military, pirate) that resolves to a small hull sized for the inner ring, so the Line Warship becomes a goal instead of the start. Everything else here (tiers by distance, jobs on the Map, salvage, regional shortages, a chart) hangs off that anchor and needs no reputation number. A hired fleet and an owned station land right after Stage 2 so the industrial, scavenger and pirate goals are reachable (decision 13); the civilization stance graph (D13) waits for its research note (decision 12).</p>
+  </div>
+  <h4>Constraints this page accepts as given</h4>
+  <ul class="constraints">
+    <li>Relations are Player / Enemy / Neutral today. Decided 2026-10-12: a civilization stance graph (D13) goes to a research note before any code and is built after Stage 2; never a reputation score.</li>
+    <li>No crew simulation, no skill trees, no character levels. The ship is the character sheet.</li>
+    <li>No fuel and no thrust that stops for lack of it. No crafting tree; the only assembly is a station service that turns parts into a section, and trading raw for processed goods fills the rest.</li>
+    <li>Seeded procedural world; closed scripting vocabulary; explicit authoring that fails at lint, then at load.</li>
+    <li>Themed click-based TAB panes; the <code>:</code> command modal stays for commands and cheats.</li>
+    <li>Mods must be able to add stations, items, sections and services through content kinds.</li>
+    <li>Story mode is fine as it is. This page is about New Game only.</li>
+  </ul>
+  <ul class="legend" aria-label="Status labels">
+    <li><span class="tag t-exists">Exists</span> Verified at HEAD with a <code>path:line</code>.</li>
+    <li><span class="tag t-decided">Decided</span> An owner decision recorded in a task file.</li>
+    <li><span class="tag t-proposal">Proposal</span> A design idea from this page or the prior papers.</li>
+    <li><span class="tag t-open">Open</span> A choice the owner has to make.</li>
+    <li><span class="tag t-rec">Recommended</span> This page's pick among the options.</li>
+  </ul>
+</header>
+
+<section id="diagnosis">
+  <div class="eyebrow">Part 1</div>
+  <h2>Why it has no progression</h2>
+  <p>Every verb works. The loop closes on itself because nothing the player gains feeds back into capability, place, or direction. The table lists each dead end with where it lives in the code.</p>
+  <div class="table-scroll">
+  <table>
+    <caption>Seven dead ends in the current loop</caption>
+    <thead><tr><th>Dead end</th><th>What the player sees</th><th>Evidence at HEAD</th></tr></thead>
+    <tbody>
+      <tr><th>You start at the top</th><td>The Line Warship has six PDC, a spinal railgun, two torpedo bays, an intake and a mining beam. No base hull is better.</td><td><code>crates/nova_authoring/src/base_content/ships/block.rs:392-409</code>; the cast is nine <code>block_*</code> hulls and the warship is the strongest (<code>ships/mod.rs:58-111</code>).</td></tr>
+      <tr><th>Credits have no destination</th><td>Buy and Sell at fixed prices. The only purchases are plates and ammunition. Torpedoes at 400 cr are the largest.</td><td><code>crates/nova_gameplay/src/inventory.rs:171-192</code> (fixed <code>ask_cr</code>/<code>bid_cr</code>); the ten-item catalogue in <code>base_content/items.rs:20-127</code>.</td></tr>
+      <tr><th>A lost section is gone for good</th><td>Plate repair heals a surviving section 20 HP per plate, anywhere. A destroyed section is pruned; a saved ship never regrows it.</td><td><code>inventory.rs:885-948</code> (<code>plan_plate_repair</code> refuses <code>Destroyed</code>); thaw contract <code>crates/nova_ship/src/sections/frozen.rs:294-299</code>.</td></tr>
+      <tr><th>The ship cannot change</th><td>No runtime add, remove or swap of a section. The editor is Sandbox-only and writes a mod bundle, never a live ship.</td><td><code>crates/nova_scenario/src/objects/spaceship.rs:418-440</code> (patches move and tune, never re-type); <code>crates/nova_editor/src/lib.rs:272-273</code>; refit task deleted (<code>tasks/20261007-085535/TASK.md:12</code>).</td></tr>
+      <tr><th>No place is different</th><td>Docking is ship to ship and "there is no station service here". Every generated ship trades the same catalogue at the same prices.</td><td><code>crates/nova_ship/src/sections/docking_section/mod.rs:12-16</code>; no <code>Station</code> object kind (<code>crates/nova_scenario/src/actions/spawn.rs:127-143</code>).</td></tr>
+      <tr><th>Traders run dry and stay dry</th><td>Generated stock and credits are planned once per ship. No restock, no clock, nothing frozen simulates.</td><td><code>crates/nova_world_base/src/sector_ships.rs:28-29</code>; <code>crates/nova_world/src/lib.rs:116-117</code>.</td></tr>
+      <tr><th>Nothing points anywhere</th><td>The bootstrap has one handler: death is Defeat. No objectives, no chart of visited space, no events for mining, pickup, trade or sector crossing.</td><td><code>base_content/scenarios/open_world.rs:38-100</code>; event list <code>crates/nova_scenario/src/events.rs:76-160</code>; Map pane shows rings and a hub only (<code>crates/nova_interface/src/map/mod.rs:1-25</code>).</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <figure>
+    <svg viewBox="0 0 960 330" role="img" aria-labelledby="fig1t">
+      <title id="fig1t">The loop today and where it dead-ends</title>
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="arrow"/></marker>
+        <marker id="ahr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="arrow-refuse"/></marker>
+        <marker id="aha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="arrow-rec"/></marker>
+      </defs>
+      <text x="20" y="30" class="title">TODAY: a ring with four exits that lead nowhere</text>
+      <g>
+        <rect x="30" y="120" width="120" height="48" rx="6" class="n-exists"/><text x="90" y="140" text-anchor="middle">Mine a rock</text><text x="90" y="157" text-anchor="middle" class="small">beam, 20-ore canisters</text>
+        <rect x="190" y="120" width="120" height="48" rx="6" class="n-exists"/><text x="250" y="140" text-anchor="middle">Pick up</text><text x="250" y="157" text-anchor="middle" class="small">intake, 100 kg / hull cube</text>
+        <rect x="350" y="120" width="120" height="48" rx="6" class="n-exists"/><text x="410" y="140" text-anchor="middle">Dock + sell</text><text x="410" y="157" text-anchor="middle" class="small">fixed bid, finite trader</text>
+        <rect x="510" y="120" width="120" height="48" rx="6" class="n-exists"/><text x="570" y="140" text-anchor="middle">Credits</text><text x="570" y="157" text-anchor="middle" class="small">buy plates, ammo</text>
+        <rect x="670" y="120" width="120" height="48" rx="6" class="n-exists"/><text x="730" y="140" text-anchor="middle">Fight</text><text x="730" y="157" text-anchor="middle" class="small">sections lost, loot wrecks</text>
+        <rect x="830" y="120" width="110" height="48" rx="6" class="n-exists"/><text x="885" y="140" text-anchor="middle">Plate repair</text><text x="885" y="157" text-anchor="middle" class="small">surviving sections only</text>
+        <path d="M150 144 H190" class="edge" marker-end="url(#ah)"/>
+        <path d="M310 144 H350" class="edge" marker-end="url(#ah)"/>
+        <path d="M470 144 H510" class="edge" marker-end="url(#ah)"/>
+        <path d="M630 144 H670" class="edge" marker-end="url(#ah)"/>
+        <path d="M790 144 H830" class="edge" marker-end="url(#ah)"/>
+        <path d="M885 168 V200 H90 V168" class="edge" marker-end="url(#ah)"/>
+        <text x="487" y="195" text-anchor="middle" class="small">back to the start, same ship, same prices, same world</text>
+      </g>
+      <g>
+        <path d="M410 120 V80" class="edge-refuse" marker-end="url(#ahr)"/>
+        <rect x="320" y="42" width="180" height="38" rx="6" class="n-refuse"/><text x="410" y="58" text-anchor="middle" class="small">Trader never restocks</text><text x="410" y="72" text-anchor="middle" class="small">sector_ships.rs:28-29</text>
+        <path d="M570 120 V80" class="edge-refuse" marker-end="url(#ahr)"/>
+        <rect x="505" y="42" width="130" height="38" rx="6" class="n-refuse"/><text x="570" y="58" text-anchor="middle" class="small">Nothing else to buy</text><text x="570" y="72" text-anchor="middle" class="small">items.rs:20-127</text>
+        <path d="M730 168 V236" class="edge-refuse" marker-end="url(#ahr)"/>
+        <rect x="650" y="236" width="160" height="38" rx="6" class="n-refuse"/><text x="730" y="252" text-anchor="middle" class="small">Destroyed section: gone</text><text x="730" y="266" text-anchor="middle" class="small">frozen.rs:294-299</text>
+        <path d="M250 168 V236" class="edge-refuse" marker-end="url(#ahr)"/>
+        <rect x="160" y="236" width="180" height="38" rx="6" class="n-refuse"/><text x="250" y="252" text-anchor="middle" class="small">No goal, no chart, no events</text><text x="250" y="266" text-anchor="middle" class="small">open_world.rs:38-100</text>
+      </g>
+      <text x="20" y="310" class="small">Teal: exists and works. Red dashed: where a progression system has to attach. The world already persists all of this (FrozenSector::Visited, native saves), so the ring is remembered; it just never changes.</text>
+    </svg>
+    <figcaption>Figure 1. Persistence landed in #110 and #111, so the ring is remembered between sessions. The missing piece is that no exit from the ring changes capability, place or direction.</figcaption>
+  </figure>
+  <p class="note">Correction to older notes: the September research said "no persistence, no Load, closed item enum". At HEAD, retired sectors freeze as left (<code>crates/nova_world/src/frozen.rs:270-279</code>), desktop saves write on every sector crossing and on leave (<code>crates/nova_world_base/src/save/session.rs:47-52</code>, format 3), death keeps the last save, and items are an open content kind (<code>Content::Item</code>, <code>crates/nova_modding/src/lib.rs:125-133</code>). Web still has no saved worlds.</p>
+</section>
+
+<section id="axes">
+  <div class="eyebrow">Part 2</div>
+  <h2>Four axes of progression that need no levels</h2>
+  <p>Across the surveyed games, every progression system that survives the "no factions, no levels" constraints falls on one of four axes. Nova already has state on each axis; what is missing is a way for the state to improve.</p>
+  <div class="axes">
+    <div class="axis"><h3>Ship</h3><p>Capability of the hull: sections, their condition, plating, hold, mounts. The character sheet.</p><p class="today">Today: can only get worse. Health, ammo, hold and credits persist (<code>FrozenShipState</code>, <code>spaceship.rs:583-615</code>); nothing adds a section.</p></div>
+    <div class="axis"><h3>Place</h3><p>Somewhere that is yours or that knows you: a station with your parts, a depot, a sector you cleared.</p><p class="today">Today: every visited cell is remembered as left (<code>frozen.rs:270-279</code>), but no place offers anything another does not.</p></div>
+    <div class="axis"><h3>Chart</h3><p>What you know: surveyed clusters, found wrecks, prices seen. Knowledge as the upgrade (Outer Wilds, Starsector found objects).</p><p class="today">Today: the Map shows rings and a hub around the ship; no visited record, no catalogue, no blueprint set.</p></div>
+    <div class="axis"><h3>Unfinished business</h3><p>Threads the world owes you: a job you accepted, a shortage you heard about, a wreck you marked.</p><p class="today">Today: retaliation and targets drop at retirement (<code>ai/frozen.rs:19-42</code>); the world holds no grudges and no promises.</p></div>
+  </div>
+  <p>The directions in Part 3 are grouped by the axis they move. The recommended spine moves Ship and Place first, because the research is clear that a service you can only get at a dock is the strongest "come back" driver, and because the owner's station idea sits exactly there.</p>
+</section>
+
+<section id="directions">
+  <div class="eyebrow">Part 3</div>
+  <h2>Ten directions</h2>
+  <p>Each dossier gives the player loop, what already exists, what has to be built, the mod seam, and the pitfalls other games hit. Fit is this page's judgement of how well the direction suits a Newtonian modular-ship game under the constraints. Cost is relative, not an estimate in days. Use the filter to narrow by dependency. Numbering keeps gaps: D6 (job board) was folded into D1 on 2026-10-12 because jobs belong on the Map with the station content, and D7 (nemesis hull) was dropped by the owner the same day. D11 (ternary dynamics) was folded into D1's jobs the same day: distress calls, convoy escorts and hostile-space hunts are scripted job types, not a system of their own; its hired fleet moved to D13. D13 was added the same day when the owner reopened civilization relations.</p>
+  <div class="filters" role="group" aria-label="Filter directions">
+    <button type="button" data-filter="all" aria-pressed="true">All ten</button>
+    <button type="button" data-filter="nostation" aria-pressed="false">Works without a station</button>
+    <button type="button" data-filter="station" aria-pressed="false">Needs a station</button>
+    <button type="button" data-filter="noclock" aria-pressed="false">Needs no world clock (D8 prices count)</button>
+    <button type="button" data-filter="rec" aria-pressed="false">Recommended spine</button>
+  </div>
+
+  <article class="dossier rec" data-station="yes" data-clock="no" data-rec="yes" id="d1">
+    <header>
+      <div><div class="eyebrow">D1 / Place</div><h3>Stations as service hubs</h3><p class="pitch">"I fly back to Harrow Yard because that is where my missing torpedo bay gets rebuilt and my spare railgun waits."</p></div>
+      <dl class="facts"><dt>Fit</dt><dd><span class="meter"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span></dd><dt>Cost</dt><dd>Medium to high</dd><dt>Station</dt><dd>Is the station</dd><dt>Clock</dt><dd>Not for v1</dd></dl>
+    </header>
+    <div class="body">
+      <div>
+        <h4>Player loop</h4>
+        <ol>
+          <li>Every living civilization has at least one station, more where it is larger or more advanced, planned per cell like ships and planets. An extinct civilization leaves a dead station: lootable, strippable, no services, no admission.</li>
+          <li>The Map shows stations as contacts; a visited station keeps its last-seen service list and open objectives on the Map, read-only, so you can plan a return without docking.</li>
+          <li>Dock. TAB panes gain station content: Map lists the station's objectives and marks them; Ship gains the shop (upgrade a section, rebuild a missing one); Inventory gains station stock and storage. A Station pane holds what has no home elsewhere: the civilization's ship roster, a news or town page.</li>
+          <li>Each service shows its bill and any refusal reason before Confirm: Rebuild, Refit, Store or withdraw, Sell, Buy station stock, accept an objective.</li>
+          <li>Undock. The station remembers its stock, your stored parts and the objectives you hold. A rebuilt section regrows its plating on its own, so the paintjob is never a separate purchase (<code>shell_skin.rs:1-33</code>).</li>
+        </ol>
+        <h4>What makes it different from docking with a ship</h4>
+        <ul>
+          <li>Scope of work: only a station does structural work (Starsector Restore, Avorion repair dock, Highfleet Shipworks are all dock-only).</li>
+          <li>Storage: your parts and goods live there, so you return. Sections are never items; the station assembles them from parts.</li>
+          <li>Stock that differs by station, so one yard is the only source of a part.</li>
+          <li>More jobs, and the roster and news pane. Ships post jobs too (below); a station posts more of them.</li>
+        </ul>
+        <h4>Jobs on the Map (folded from D6, 2026-10-12)</h4>
+        <ul>
+          <li>Stations and ships both post jobs. A frozen ship already keeps stock and credits and never leaves its cell, so an open job rides the same ledger and the poster is where you left it.</li>
+          <li>Jobs you accept sit on the Map with markers, not in a board screen. Objectives on the HUD come from the same stack.</li>
+          <li>Stage 1 job types need no located body: bring N of an item (procurement), buy my surplus, deliver this to a civilization role, priced by mass and value. Payout needs item and credit grant actions, which none exist today.</li>
+          <li>Later job types name a generated body and wait for the naming bridge (streamed entities are scoped but not addressable, <code>streaming.rs:176-182</code>): recover a marked item from that wreck; escort that hauler to the next cluster, pirates scaling with its cargo value (Endless Sky); answer a distress call, some of them fake (Elite); neutralize a named hull in hostile space. Folded from D11 on 2026-10-12: these are scripted jobs, never ambient systems.</li>
+          <li>Some offers expire so "come back now" exists; keep the generator small and physical so jobs are never the only thing to do (Freelancer's chore boards).</li>
+        </ul>
+      </div>
+      <div>
+        <h4>What exists <span class="tag t-exists">Exists</span></h4>
+        <ul>
+          <li>Docking as a mechanic and an event: one <code>FixedJoint</code> per hull, admission rules, <code>OnDocked</code>/<code>OnUndocked</code> (<code>docking_section/connection.rs:176-250</code>; <code>nova_events/src/lib.rs:435-461</code>).</li>
+          <li>Thrusterless hulls already spawn and survive: the gauntlet Battery, <code>block_wreck_plate</code> (<code>main_menu/gauntlet.rs:100-107</code>; <code>ships/mod.rs:47-48</code>).</li>
+          <li>Civilizations with centroids, status, advancement and a drawn side give a station a natural owner and tier (<code>civilizations.rs:25-47</code>).</li>
+          <li>Frozen ships persist stock, credits and lootable flags; a station would ride the same ledger (<code>FrozenShip</code>, <code>spaceship.rs:583-615</code>).</li>
+          <li>Themed TAB panes with the plan-then-confirm pattern (<code>crates/nova_interface/src/inventory/mod.rs:1-33</code>).</li>
+        </ul>
+        <h4>What has to be built <span class="tag t-proposal">Proposal</span></h4>
+        <ul>
+          <li>A station identity: a <code>Station</code> content kind and object kind, a dynamic thrusterless body with controllers, a frozen body type. See Part 6.</li>
+          <li>Generator placement: at least one station per living civilization at the cluster nearest the centroid, extra stations by size and advancement, a dead station per extinct civilization, all with the cell-plan id scheme (<code>generation.rs:509-511</code>).</li>
+          <li>Services as content with item costs, each assigned to a pane (Map, Ship, Inventory, Station); docked-only gating with rollback on undock (the lesson kept in <code>tasks/20260824-125943/TASK.md</code>).</li>
+          <li>Stations and ships as a source of jobs from day one: open-world events (sector entered, mined, taken, traded, credits changed; none exist in <code>events.rs:76-160</code>), item and credit grant actions, jobs saved with the world (scenario variables and objectives are not in <code>WorldSaveState</code>, <code>save/mod.rs:103-117</code>), objectives rebuilt on resume.</li>
+          <li>Station storage: a second inventory on the station body, capped.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot"><span>Mod seam: <code>Content::Station</code> (design id, services, stock, storage cap); mods add stations and services that name their items and sections; unknown ids fail at lint.</span><span>Pitfall to avoid: a base that only refuels or restocks goes dormant (Everspace 2 home base); a home station that duplicates a public one is a "vanity piece" (Elite carrier).</span></div>
+  </article>
+
+  <article class="dossier rec" data-station="optional" data-clock="no" data-rec="yes" id="d2">
+    <header>
+      <div><div class="eyebrow">D2 / Ship</div><h3>Loss is the currency: rebuild, scars and salvage</h3><p class="pitch">"That fight cost me the port torpedo bay. I limped to the station with what parts I could grab and paid the rest in credits to get it rebuilt."</p></div>
+      <dl class="facts"><dt>Fit</dt><dd><span class="meter"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span></dd><dt>Cost</dt><dd>Medium</dd><dt>Station</dt><dd>Rebuild wants one</dd><dt>Clock</dt><dd>No</dd></dl>
+    </header>
+    <div class="body">
+      <div>
+        <h4>Player loop</h4>
+        <ol>
+          <li>A section is destroyed. A share of its recipe parts drops beside the hold canisters and can be picked up like one.</li>
+          <li>The ship flies on. The Ship pane marks the placement as "missing" with a rebuild bill.</li>
+          <li>At a station: Rebuild assembles the design section at full health from its parts recipe plus credits; parts you brought back count against the recipe.</li>
+          <li>Enemy sections are worth more intact than shot off; the Ship pane shows the salvage value of a lock before you fire.</li>
+        </ol>
+        <h4>Why this is the cheapest "sense of progress"</h4>
+        <p>The game already tracks the whole physical ledger of the ship across saves. Giving loss a remedy turns every fight into a before/after the player can see on the Ship pane, which is the Starsector d-mod and Cosmoteer 85% lesson: loss re-enters the economy instead of being subtraction.</p>
+      </div>
+      <div>
+        <h4>What exists <span class="tag t-exists">Exists</span></h4>
+        <ul>
+          <li>Section health graph, prune and cascade, detached pieces that despawn after 30 s with no gameplay state (<code>integrity/mod.rs:1-27</code>; <code>frozen_piece.rs:1-9</code>; <code>explode.rs:79-86</code>).</li>
+          <li>Plating is already handled: plates are fixtures shed by damage and regrown as a pure function of structure, so plate repair "re-attaches" them for free (<code>fixture.rs:1-56</code>; <code>shell_skin.rs:1-33</code>). The owner's "repair the plating that fell off" is the existing M0; the gap is the section underneath.</li>
+          <li>Plate repair rule: 20 HP per plate, anywhere, atomic (<code>inventory.rs:885-948</code>) <span class="tag t-decided">Decided</span>.</li>
+          <li>Saved destroyed state: a missing <code>FrozenShipState.sections</code> entry means destroyed (<code>frozen.rs:294-299</code>).</li>
+        </ul>
+        <h4>What has to be built <span class="tag t-proposal">Proposal</span></h4>
+        <ul>
+          <li>The rebuild transaction belongs to the Stage 1 station card (D1): respawn one design section into the live graph and add its entry back to the frozen state; a refused plan changes nothing (same shape as <code>plan_item_trade</code>).</li>
+          <li>The one standalone task in D2: on <code>OnDestroyed</code>, spawn canisters for the remaining hold (and a share of the destroyed section's recipe parts in the same drop). Decided 2026-09-28, reaffirmed 2026-10-12, NOT implemented; a destroyed ship's hold vanishes today (grep in <code>nova_gameplay/src/integrity/*.rs</code> finds nothing). Needed so salvage exists at all.</li>
+          <li>A per-section parts recipe ("build cost") owned by the section config: named part items such as turret barrel, turret body and section panels, plus credits. Sections themselves are never items.</li>
+          <li>No player Neutralized state <span class="tag t-decided">Decided</span> 2026-10-12: <code>OnDestroyed</code> is the only run-ending event in free play; a no-weapons run is a run. Neutralization stays a scenario-mode tool for AI hulls. A player with no controller cannot steer to a station; Load last save is the exit (decision 9).</li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot"><span>Mod seam: a <code>build</code> block on a section (credits, part items, strip yield fraction); lint refuses a strip yield worth more at bid than the recipe at ask.</span><span>Pitfall to avoid: rebuild dearer than replacement for common sections (Starsector restore formula); an opaque bill (Highfleet, Avorion, MW5); a clean kill paying less than a messy one (MW5).</span></div>
+  </article>
+
+  <article class="dossier rec" data-station="yes" data-clock="no" data-rec="yes" id="d3">
+    <header>
+      <div><div class="eyebrow">D3 / Ship</div><h3>Refit and the hull ladder: earn the warship</h3><p class="pitch">"I picked 'small industrial' in the New World wizard and started with one gun. Thirty hours later the Line Warship I bought at the rim yard still has the railgun I pulled off a dead Armored hull."</p></div>
+      <dl class="facts"><dt>Fit</dt><dd><span class="meter"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span></dd><dt>Cost</dt><dd>High</dd><dt>Station</dt><dd>Refit at a yard</dd><dt>Clock</dt><dd>No</dd></dl>
+    </header>
+    <div class="body">
+      <div>
+        <h4>Player loop</h4>
+        <ol>
+          <li>New World is a wizard, not one button: seed, then a start role. Industrial, scavenger, transport, bounty hunter, military, pirate (reconciled to six on 2026-10-12, decision 13). Each role resolves to a base hull plus a kit (credits, plates, ammo, ore) sized to the inner ring's advancement, so the first ship sits at the bottom of the same linear scale the generator uses for everything else.</li>
+          <li>At a station, Refit (Ship pane): pick a placement, pick a section the station stocks of the same family and footprint. The panel shows cost, thrust floor, controller count, hold delta.</li>
+          <li>Add a section: pick a free attachment point on the hull, pick a section the station stocks; the same post-build checks validate the result. This is the step that reopens more of the deleted editor, so it follows swap, never precedes it.</li>
+          <li>Buy an entire ship: the station's catalogue, tiered by its civilization's advancement, so a rim yard sells what an inner one cannot. Hold, credits and bindings move; refused if the hold does not fit.</li>
+        </ol>
+        <h4>Slots without slots</h4>
+        <p>Mass, thrust floor, controller count and hull-cube hold already act as a budget (<code>ship_layout.rs:15-33</code> validates generated layouts this way). Showing that budget in the refit panel is the EV Nova / Star Valor lesson: trade-offs instead of stat inflation, and small hulls keep a role.</p>
+      </div>
+      <div>
+        <h4>What exists <span class="tag t-exists">Exists</span></h4>
+        <ul>
+          <li>Nine base hulls from Cutter to Line Warship, several unarmed (<code>ships/mod.rs:58-111</code>).</li>
+          <li><code>ShipDesignSource::{Inline, Prototype{patches}}</code> and a bounded per-kind patch vocabulary: thruster magnitude, controller torque, turret fire rate, and so on (<code>ship_design.rs:303-321</code>; <code>patch.rs:155-176</code>).</li>
+          <li>Per-family capability scores the generator already uses to tier sections by advancement (<code>ship_parts.rs:57-73</code>, provisional).</li>
+          <li>Post-build validation of thrust floor, controller count, lanes and connectivity (<code>ship_layout.rs:15-33</code>).</li>
+        </ul>
+        <h4>What has to be built <span class="tag t-proposal">Proposal</span></h4>
+        <ul>
+          <li>A New World wizard in the main menu: a <code>Content::StartRole</code> catalogue (hull design, kit, starting side, lore line) that mods can extend; lint refuses unknown hulls and items. Today New Game takes only a seed (<code>OpenWorldSession { seed }</code>).</li>
+          <li>The player ship saved as an owned <code>Inline</code> design, not a catalogue reference, so a swap or an added section is a design edit the save keeps.</li>
+          <li>A live section-replace seam plus a frozen-state rebase; the thaw reapplies old health and ammo, so a swapped section needs a fresh entry.</li>
+          <li>A binding rule: a swap keeps the section id so weapon keys survive (<code>open_world.rs:107</code>); an added section gets a new id and an unbound key until the player binds it.</li>
+          <li>Attachment points as section data: which faces of a hull section accept which footprints. The generator already knows lanes and connectivity (<code>ship_layout.rs:15-33</code>); the player-facing rule has to be the same one.</li>
+          <li>Station ship catalogues tiered by advancement, drawn from base and mod ship designs; the pirate role needs a side rule (decision 5b).</li>
+          <li>The in-game ship editor task was deleted for v0.16.0 (<code>tasks/20261007-085535/TASK.md:12</code>). The owner reopened station-side upgrades on 2026-10-12: swap, add, buy, at a station only, never free placement <span class="tag t-decided">Decided</span>.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot"><span>Mod seam: sections (exists), ship designs (exists), a build cost per section (new). Generated hulls draw on section facts, so a mod section already appears on wrecks.</span><span>Pitfall to avoid: upgrades that favour big hulls (Elite engineering), class upgrades that make lower classes pointless (NMS), free placement before the save contract (Avorion-scale scope).</span></div>
+  </article>
+
+  <article class="dossier" data-station="no" data-clock="no" data-rec="no" id="d4">
+    <header>
+      <div><div class="eyebrow">D4 / Chart + Ship</div><h3>Tiered space by distance, with gates you can read</h3><p class="pitch">"Past the second ring the debris fields shred thin plating and the Armored patrols carry railguns. I need the heavy hull cubes first."</p></div>
+      <dl class="facts"><dt>Fit</dt><dd><span class="meter"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span></dd><dt>Cost</dt><dd>Medium</dd><dt>Station</dt><dd>No</dd><dt>Clock</dt><dd>No</dd></dl>
+    </header>
+    <div class="body">
+      <div>
+        <h4>Player loop</h4>
+        <ol>
+          <li>Advancement rises with distance from the origin. Outer rings have richer traders, heavier patrols, better sections on wrecks and rarer ore.</li>
+          <li>A physical gate marks each ring: dense debris that damages thin hulls, a sensor-noise band that blinds short radar, heavier Armored traffic. The gate is readable on approach, not a wall.</li>
+          <li>The key to each gate comes from behind the previous one: heavy hull cubes from rim wrecks, a long-range sensor section from an advanced yard.</li>
+          <li>When the frontier moves out, old rings refresh: extinct-civilization drones escalate, a shortage appears (Terraria hardmode, Starsector derelict drones).</li>
+        </ol>
+      </div>
+      <div>
+        <h4>What exists <span class="tag t-exists">Exists</span></h4>
+        <ul>
+          <li>Advancement in [0,1] rising with centroid distance, saturating at 1000 km; stock, credits and ship parts scale with it (<code>civilizations.rs:115-132</code>; <code>sector_ships.rs:92-108</code>; <code>ship_parts.rs:57-73</code>).</li>
+          <li>Three environment fields (material density, volatiles, human activity) per position (<code>environment.rs:19-30</code>).</li>
+          <li>Four ore kinds mapped to four items; asteroid kinds are a Rust constant (<code>mining.rs:151-158</code>).</li>
+          <li>The curve is Linear or Smoothstep to a 1000 km saturation plus a seeded offset in [-0.1, 0.1) (<code>civilizations.rs:41-44</code>, <code>:206-214</code>); the pick is still open (<code>TODO(20260923-110307)</code>, <code>civilizations.rs:103-104</code>).</li>
+          <li>Why large ships sit near spawn: civilizations stand 240 km apart (<code>civilizations.rs:25</code>), so the first ring already reads 0.24 and the offset can lift it to 0.34; hull clearance and spine length then interpolate linearly with advancement (<code>ship_layout.rs:89-95</code>, <code>:797-799</code>, <code>:1054-1068</code>), so a 0.34 civilization fields hulls a third of the way to the maximum. The size ceiling is not the problem; the curve and the saturation radius are.</li>
+        </ul>
+        <h4>What has to be built <span class="tag t-proposal">Proposal</span></h4>
+        <ul>
+          <li>A slower curve with a far radius picked by play, and an offset that no longer swamps the inner rings. The owner's "many small, then medium, large, very large" is a convex ramp (slow early, fast late), which is what Smoothstep already does; a logarithmic curve is the opposite shape. Table in decision 4b.</li>
+          <li>Hazard bands as sector properties (debris density, sensor noise), applied to hulls by plating or section stats. No fuel, so the gate cannot be range; it must be damage, sensing or firepower.</li>
+          <li>Ore tiers by ring and asteroid kinds as content so mods can add ores.</li>
+          <li>A refresh rule for visited rings, designed with streaming: a frozen cell is replayed as left, so a refresh is a delta applied at thaw, not a regeneration.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot"><span>Mod seam: asteroid kinds and ores as content; hazard tables keyed to advancement bands.</span><span>Pitfall to avoid: "no more challenge after 0,0" (Avorion); gates that are needle-in-haystack hunts (Subnautica fragments); enemy scaling to the player instead of the place (Everspace 2).</span></div>
+  </article>
+
+  <article class="dossier rec" data-station="optional" data-clock="no" data-rec="yes" id="d5">
+    <header>
+      <div><div class="eyebrow">D5 / Ship</div><h3>Salvage: strip derelicts, tow and recycle whole hulls</h3><p class="pitch">"The extinct hull in the derelict field still had two intact thrusters. I pulled one, docked the rest and towed it to Harrow Yard, which paid me for the scrap."</p></div>
+      <dl class="facts"><dt>Fit</dt><dd><span class="meter"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span></dd><dt>Cost</dt><dd>Medium</dd><dt>Station</dt><dd>Yard to use them</dd><dt>Clock</dt><dd>No</dd></dl>
+    </header>
+    <div class="body">
+      <div>
+        <h4>Player loop</h4>
+        <ol>
+          <li>Lock a derelict. The readout names each section's family, score, condition and scrap value.</li>
+          <li>Dock. Strip one section: a timed action; it detaches as a piece and breaks down into its recipe parts in your hold, more of them the healthier it was.</li>
+          <li>Or tow the whole thing: the docked pair flies as one assembly today. Fly it into a station's service radius and Sell derelict: the station takes it off your joint and pays scrap value for every remaining section.</li>
+          <li>Stripped wrecks stay stripped; a sold hull is gone from the cell. New salvage needs new cells, which is exploration, not farming.</li>
+        </ol>
+        <p>No blueprints, no known-design set, no teaching a station <span class="tag t-decided">Decided</span> 2026-10-12: the owner wants few, good features. Salvage pays in parts and credits that the station services (D1, D3) spend. This is the "trade raw for processed" loop: wreckage in, a rebuilt or better section out.</p>
+      </div>
+      <div>
+        <h4>What exists <span class="tag t-exists">Exists</span></h4>
+        <ul>
+          <li>Extinct civilizations leave derelicts: the intact design with seeded breaches, half stock, lootable, no controller (<code>ship_layout.rs:473-486</code>; <code>sector_ships.rs:299</code>).</li>
+          <li>Docked Take from a lootable partner; a repeat claim is refused by frozen state (<code>inventory.rs:519-550</code>; <code>frozen.rs:270-279</code>).</li>
+          <li>The generator already refuses one section id from two unrelated packs (<code>ship_parts.rs:5-10</code>).</li>
+        </ul>
+        <h4>What has to be built <span class="tag t-proposal">Proposal</span></h4>
+        <ul>
+          <li>A Strip action on a docked lootable partner that uses the existing detach path, yields the section's recipe parts scaled by health, and refuses on a non-lootable hull.</li>
+          <li>Sell derelict as a delivery, not a dock: completes when the docked pair enters a station's service radius; the station removes the derelict body and credits scrap value. One new gate, no new docking rule.</li>
+          <li>Why not dock the pair to the station: one connection per hull (<code>docking_section/connection.rs:100-108</code>), so your hull's port is busy and the derelict has no free one. Many-to-many docking is its own seam (decision 6b), not a dependency of salvage.</li>
+          <li>Strip yield fraction per section as content beside the recipe; lint refuses a yield worth more at bid than the recipe at ask.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot"><span>Mod seam: mod sections appear on wrecks through <code>ShipPartSnapshot</code> today; a strip yield names recipe parts, so it lives beside the recipe.</span><span>Pitfall to avoid: a whole hull worth less than its parts (nobody tows); locked verbs that block salvage (Space Engineers tree); scrap that beats mining per hour everywhere.</span></div>
+  </article>
+
+  
+  
+  <article class="dossier" data-station="optional" data-clock="partial" data-rec="no" id="d8">
+    <header>
+      <div><div class="eyebrow">D8 / Place + Chart</div><h3>Regional economy with shortages</h3><p class="pitch">"Ice sells for nothing here and triple that in the volatile-poor cluster two rings in. And the yard there is short of plates this month."</p></div>
+      <dl class="facts"><dt>Fit</dt><dd><span class="meter"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span></dd><dt>Cost</dt><dd>Medium</dd><dt>Station</dt><dd>Stations as markets</dd><dt>Clock</dt><dd>Restock only</dd></dl>
+    </header>
+    <div class="body">
+      <div>
+        <h4>Model <span class="tag t-decided">Decided</span> 2026-10-12 in outline</h4>
+        <ul>
+          <li>The authored <code>ask_cr</code> and <code>bid_cr</code> on an item are its reference price: the normal, expected, fair number. Nothing else is authored per item.</li>
+          <li>A trader's actual price is computed at the moment of docking: reference times a scarcity factor times a demand factor. Scarcity reads the trader's stock over its target stock (low stock, high ask; glut, low bid). Demand reads the civilization's environment fields: material-poor space pays more for ore, volatile-poor for ice, advanced space sells processed goods cheaper.</li>
+          <li>The factors are content rules keyed by item category and environment field, not per-item overrides, so a mod item with a category and a reference price prices itself.</li>
+          <li>A flat station fee so generic arbitrage loses; money comes from shortages, events and jobs (Starsector's 30% tariff).</li>
+          <li>Two halves with different costs. Variable prices need only stock and environment, both present at dock time, so they can land before the clock. Restock is the drift of stock back toward target over play-time, and it is the first consumer of the world clock (decision 8).</li>
+          <li>Shortage events: "plates short at Harrow for N play-hours", the Rebel Galaxy famine and Starsector disruption that players actually chase. Needs the clock.</li>
+          <li>Cargo mass already caps hauling physically, and more hold means more hull cubes and more thrust, so the trade ladder is a refit ladder.</li>
+        </ul>
+      </div>
+      <div>
+        <h4>What exists <span class="tag t-exists">Exists</span></h4>
+        <ul>
+          <li>Fixed per-item ask and bid, deliberately no market (<code>inventory.rs:186-191</code>; <code>tasks/20260926-174806/TASK.md:45</code>) <span class="tag t-decided">Decided</span> for the first slice only.</li>
+          <li>Finite trader credits and stock that freeze with the sector (<code>sector_ships.rs:104-107</code>).</li>
+          <li>Environment fields per position (<code>environment.rs:19-30</code>).</li>
+        </ul>
+        <h4>What has to be built <span class="tag t-proposal">Proposal</span></h4>
+        <ul>
+          <li>Prices first: a pricing function that takes the reference, the trader's stock and target, and the civilization's environment, and returns ask and bid; <code>plan_item_trade</code> reads it instead of the fixed fields (<code>inventory.rs:573-657</code>). Target stock per trader comes from the generator's stock plan (<code>sector_ships.rs:92-108</code>).</li>
+          <li>Pricing rules as content keyed by <code>ItemCategory</code> (Raw, Repair, Ammo, Food, Parts exist today) and environment field; lint refuses a rule that names an unknown category or a factor outside its bounds.</li>
+          <li>Restock second: a play-time world clock in the save and a catch-up rule at thaw for stock recovery. Nothing frozen simulates today (<code>nova_world/src/lib.rs:116-117</code>).</li>
+          <li>Map knowledge: a trader's last-seen prices show on the Map after you traded there, so the chart carries price knowledge.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot"><span>Mod seam: reference prices and categories on items (exist); pricing rules per category and environment field as content.</span><span>Pitfall to avoid: all fountains and no sinks (X4, Elite billions); a trade loop that stops mattering once credits pile up (Rebel Galaxy); robbing traders: a station of the robbed civilization refuses service for a play-time window (decision 10).</span></div>
+  </article>
+
+  <article class="dossier" data-station="no" data-clock="no" data-rec="no" id="d9">
+    <header>
+      <div><div class="eyebrow">D9 / Chart</div><h3>Chart, log and charters: a map of intent</h3><p class="pitch">"The chart shows the eleven clusters I have surveyed, three derelict fields marked 'more to find', and a charter that says: reach the 0.4 band and sell there."</p></div>
+      <dl class="facts"><dt>Fit</dt><dd><span class="meter"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span></dd><dt>Cost</dt><dd>Medium</dd><dt>Station</dt><dd>No</dd><dt>Clock</dt><dd>No</dd></dl>
+    </header>
+    <div class="body">
+      <div>
+        <h4>Player loop</h4>
+        <ol>
+          <li>The Map gains a chart layer: the sector grid drawn cleanly, visited cells, cluster types per cell, found stations and wrecks that stay found (Starsector). Owner interest 2026-10-12: the Map today is basic and should carry more. Everything else on this page already lands there (station contacts and services, jobs, last-seen prices), so the chart layer is the floor under them.</li>
+          <li>A discovery log with "more to explore" markers per cluster (Outer Wilds ship log).</li>
+          <li>Charters: short goal lists over this seed, checked against saved facts, never prose: Reach a band, Survey a cluster type, Recover from an extinct hull, Deliver to a role, Neutralize in hostile space, Mine a kind. Charter 0 is a shakedown of every verb.</li>
+          <li>Mod expeditions: a charter with a fixed seed (No Man's Sky expeditions, single-player).</li>
+        </ol>
+        <p>This is the prior paper's recommended spine. It answers "why go there" better than any shop, but it gives no capability by itself, which is why this page pairs it with D1 to D3 rather than leading with it. The grid and visited layer need no content kind, only a progress record in the save, so they can move into Stage 1 beside the station contacts (decision 9b); charters and the discovery log can still come later.</p>
+      </div>
+      <div>
+        <h4>What exists <span class="tag t-exists">Exists</span></h4>
+        <ul>
+          <li>Every retired cell is a Visited record, so "visited" already exists in the ledger (<code>frozen.rs:270-279</code>); deterministic cluster types per cell (<code>clusters.rs:247-276</code>).</li>
+          <li>Objective stack, marker chips, HUD readouts (<code>objectives.rs:1-50</code>).</li>
+          <li>Catalogue digest pins content to a world, so charter content cannot drift under a save (<code>save/mod.rs:84-87</code>).</li>
+        </ul>
+        <h4>What has to be built <span class="tag t-proposal">Proposal</span></h4>
+        <ul>
+          <li>A progress record in the save (charters, surveyed keys, log entries) with a format bump; objectives rebuilt on resume.</li>
+          <li>A chart layer on the Map pane; a Charter pane or a tab on Map.</li>
+          <li>Reach predicates over seed and pose; survey as lock plus dwell on N bodies, so autopilot crossing cannot farm it.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot"><span>Mod seam: <code>Content::Charter</code> with item-free goal types first, item-naming goals after; Plan D collision rule from day one.</span><span>Pitfall to avoid: a long march to an empty place (NMS galaxy centre); counts that only grow; goals voided by a frozen target with no defined result.</span></div>
+  </article>
+
+  <article class="dossier" data-station="no" data-clock="no" data-rec="no" id="d10">
+    <header>
+      <div><div class="eyebrow">D10 / Place</div><h3>A station of your own: depot, waystation, bought yard</h3><p class="pitch">"Three rings out there is no yard, so I anchored a depot. Two rings later I bought the Harrow civilization's second station outright, and now my spares live there."</p></div>
+      <dl class="facts"><dt>Fit</dt><dd><span class="meter"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span></dd><dt>Cost</dt><dd>High</dd><dt>Station</dt><dd>Is a player station</dd><dt>Clock</dt><dd>Production would</dd></dl>
+    </header>
+    <div class="body">
+      <div>
+        <h4>Ladder, each step useful alone</h4>
+        <ol>
+          <li>Depot: an anchored, named stack of your canisters with a cap and a map entry.</li>
+          <li>Relay beacon: a deployable that charts a cell and lets jobs appear there.</li>
+          <li>Waystation: a thrusterless docking hull with controllers you placed that stores and refits. Production and traffic never; both need a clock and an economy that does not exist.</li>
+          <li>Buy a station (owner interest 2026-10-12): a generated station changes owner to the player; its services stay, its stock becomes yours, jobs it posted stop. With D13, only an Ally civilization sells, which gives the stance graph a reward.</li>
+          <li>Several of your own: each is a <code>FrozenBodyType::Station</code> with an owner field; the Map lists them. No income, no raids, no upkeep.</li>
+        </ol>
+        <p>The Elite fleet carrier lesson: an owned base that duplicates a public station is a vanity piece. It earns its place only where public stations are absent, so it belongs after D1 and D4 define where stations are.</p>
+      </div>
+      <div>
+        <h4>What exists <span class="tag t-exists">Exists</span></h4>
+        <ul>
+          <li>Canisters freeze and save with minted ids and a watermark (<code>frozen.rs:419-438</code>; <code>save/mod.rs:110-112</code>).</li>
+          <li><code>Beacon</code> objects exist in scenario content.</li>
+        </ul>
+        <h4>What has to be built <span class="tag t-proposal">Proposal</span></h4>
+        <ul>
+          <li>Id minting for player-placed bodies (only canisters have an allocator).</li>
+          <li>An anchor rule (no drift), overlap refusal against the cell plan, a storage cap.</li>
+          <li>A docked-retire policy for a static partner.</li>
+          <li>An owner field on the station body and a purchase service; a sold station keeps its id and cell, so nothing in the ledger moves.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot"><span>Mod seam: depot and station designs as ship designs with a static flag or a structure kind.</span><span>Pitfall to avoid: income and raids, which drag factions back in; real-time upkeep (Elite carrier); an unbounded hold.</span></div>
+  </article>
+
+  
+  <article class="dossier" data-station="optional" data-clock="no" data-rec="no" id="d12">
+    <header>
+      <div><div class="eyebrow">D12 / all four</div><h3>One finite goal per start role, then a long tail</h3><p class="pitch">"I never bought a warship. I started industrial, and the goal was a mining empire: three owned stations, a hauler fleet, and the Harrow civilization calling mine a civilization."</p></div>
+      <dl class="facts"><dt>Fit</dt><dd><span class="meter"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span></dd><dt>Cost</dt><dd>Content, not systems</dd><dt>Station</dt><dd>Built at one</dd><dt>Clock</dt><dd>No</dd></dl>
+    </header>
+    <div class="body">
+      <div>
+        <h4>Shape</h4>
+        <ul>
+          <li>Minecraft's dragon, Valheim's bosses, Terraria's Wall of Flesh and Subnautica's rocket all give a sandbox one visible, finite, world-changing goal and let play continue after it.</li>
+          <li>The NMS galaxy centre is the failure case: a long trip to an unchanged place.</li>
+          <li>Owner direction 2026-10-12: the goal follows the start role, not one hull. The Line Warship is the military goal only; a mining route never needs a warship. Each role's goal is a finite, visible state the save can check, and reaching it flips the world: old rings refresh (D4), jobs change, extinct drones wake.</li>
+          <li>"Becoming a civilization" is the shared top: once you own a station, you become a node in the stance graph (D13) with a centroid at that station, and other civilizations hold a stance toward you as a bloc. Civilizations already carry status and advancement, so the status is real, not a title.</li>
+          <li>Keep "goals are your own" as the tail, not the whole: Elite and Starsector veterans say it, newcomers quit on it.</li>
+        </ul>
+        <div class="table-scroll"><table>
+          <caption>One goal per start role (proposal, decision 13)</caption>
+          <thead><tr><th>Role</th><th>Start</th><th>Finite goal</th><th>Needs</th></tr></thead>
+          <tbody>
+            <tr><th>Industrial</th><td>Small miner with intake and beam</td><td>A mining empire: N owned stations with stock targets met and a hauler fleet</td><td>D10 bought stations, D13 fleet, D8 prices</td></tr>
+            <tr><th>Scavenger</th><td>Rough hull, big hold, one gun</td><td>A yard of your own built from towed derelicts, every base section family stocked</td><td>D5 tow and sell, D10 waystation</td></tr>
+            <tr><th>Transport</th><td>Fast civilian hull, no guns</td><td>A station network: a delivery job completed between every pair of rings</td><td>D1 jobs, D4 tiers</td></tr>
+            <tr><th>Bounty hunter</th><td>Light gunship</td><td>A named kill list cleared across the rings</td><td>D1 located jobs (naming bridge)</td></tr>
+            <tr><th>Military</th><td>Picket-class warship</td><td>The Line Warship or a design above it, sections from every ring</td><td>D3 hull exchange, D4</td></tr>
+            <tr><th>Pirate</th><td>Scavenger-class hull, hostile kit</td><td>Turn a civilization Enemy and outlive it: its last station dead or yours</td><td>D13 stance graph, D10</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <div>
+        <h4>What exists <span class="tag t-exists">Exists</span></h4>
+        <ul>
+          <li>Outcome actions and the Defeat overlay (<code>outcome.rs:72-194</code>); only Defeat is wired in the open world.</li>
+          <li>A catalogue of base hulls that could be the ladder (<code>ships/mod.rs:58-111</code>).</li>
+        </ul>
+        <h4>What has to be built <span class="tag t-proposal">Proposal</span></h4>
+        <ul>
+          <li>A goal per <code>StartRole</code> as content: a predicate over saved facts (owned stations, fleet size, jobs completed by ring, design built, stance table) and a world-flip action. Lint refuses a goal that names a fact the save does not record.</li>
+          <li>Honest dependency: four of the six goals need an owned station or a fleet, so this direction pulls the buy half of D10 and the fleet half of D13 forward from Stage 7, or the goals wait. Decision 13.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot"><span>Mod seam: a mod start role brings its own goal; a mod capstone is a goal predicate plus a ship design.</span><span>Pitfall to avoid: a numeric goal that changes nothing when reached (Hardspace debt, Cosmoteer fame).</span></div>
+  </article>
+
+  <article class="dossier" data-station="optional" data-clock="partial" data-rec="no" id="d13">
+    <header>
+      <div><div class="eyebrow">D13 / Unfinished business / exploration</div><h3>Civilization relations: a stance graph, not a score</h3><p class="pitch">"I looted three Harrow haulers and Harrow turned on me. So did Vell, their partner. But Kessel hates Harrow, and Kessel's yard now sells me escorts."</p></div>
+      <dl class="facts"><dt>Fit</dt><dd><span class="meter"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span></dd><dt>Cost</dt><dd>High</dd><dt>Station</dt><dd>Admission reads it</dd><dt>Clock</dt><dd>Redemption by time</dd></dl>
+    </header>
+    <div class="body">
+      <div>
+        <h4>Shape the owner described, 2026-10-12 <span class="tag t-decided">Research note first</span></h4>
+        <ul>
+          <li>Each civilization is its own team. It holds a coarse stance toward the player and toward every other civilization: Ally, Neutral, Enemy. No float, no fame.</li>
+          <li>Your actions move one civilization's stance: destroy or loot its ships and it turns Enemy; its allied neighbours follow; its rival neighbours warm. One hop only, then it stops. Thresholds and a grace count, so one stray shot is not a war.</li>
+          <li>Proximity (owner direction 2026-10-12): edges exist only between neighbouring civilizations, so an event in one cluster never reaches a civilization a hundred sectors away. Civilizations already carry centroids 240 km apart (<code>civilizations.rs:25</code>), so a neighbour is a centroid within a cluster radius, the one parameter to pick. A bloc is then by construction a patch of adjacent civilizations, and the far side of the map stays Neutral to you until you fly there.</li>
+          <li>The seeded local edges carry real variety: blocs, rivals, loners. That is what prevents "enemy with everyone": every enemy you make has a rival next door, so a yard always exists that takes you, and single-hop propagation cannot chain across the map.</li>
+          <li>Rewards hang on Ally: cheaper refit, the roster and escorts for sale, the right to buy a station in their space (D10). Enemy: refused docking, patrols engage on sight. Neutral: today.</li>
+          <li>The hired fleet (owner interest 2026-10-12): several escorts bought from an Ally roster that follow you across sectors, hold, and engage your target. They are the first non-player bodies that move between cells, so they live in the player save as a fleet list, not in a cell's ledger. Dead escorts drop out; no crew, no wages.</li>
+          <li>One way back: pay a fine at an Ally of theirs, or time (which pulls the clock into this direction). Without it the graph only gets worse.</li>
+        </ul>
+        <p>This reopens the page's first constraint. What makes it not a reputation system is that the state is a small graph of coarse stances the generator seeds and events flip, not a number the player grinds.</p>
+      </div>
+      <div>
+        <h4>What exists <span class="tag t-exists">Exists</span></h4>
+        <ul>
+          <li>Civilizations with id, centroid, status, advancement and one drawn side (<code>civilizations.rs:115-132</code>); the side is a single value per civilization today.</li>
+          <li>Three-valued <code>Allegiance</code>, <code>relation()</code>, per-pair retaliation, admission by relation, AI targeting by relation (<code>relations.rs:37-110</code>; <code>admission.rs:36-70</code>).</li>
+          <li>Events for destruction and neutralization with the victim's identity (<code>events.rs:76-160</code>).</li>
+        </ul>
+        <h4>What has to be built <span class="tag t-proposal">Proposal</span></h4>
+        <ul>
+          <li>A stance table in the save: player stance per civilization and the seeded civilization-to-civilization edges, with thresholds; a format bump.</li>
+          <li>A ship's <code>Allegiance</code> derived from its civilization's stance toward the player at materialize time and updated live when a stance flips in the active sectors.</li>
+          <li>Stance events (ship of civilization X destroyed by player, looted, job completed for X) and the propagation rule to allies and enemies.</li>
+          <li>Admission, pricing (D8 demand), the roster and the escort shop reading the stance.</li>
+          <li>Seeding rule over neighbour pairs only: for each civilization, draw a stance toward each centroid within the cluster radius; no edge beyond it. The rule must guarantee at least one rival within every civilization's neighbourhood so no local patch is one bloc.</li>
+          <li>Propagation rule: a flip toward the player moves its direct neighbours by one step according to their edge and stops; no transitive spread.</li>
+          <li>Escort AI: follow, hold, engage my target; <code>Retreat</code> is a stub today (<code>behavior.rs:29-57</code>). Formation keeping under Newtonian flight is the hard part; a leash to the player and a station-keep at arrival is the cheap version. A fleet list in <code>SavedPlayer</code>, each escort a <code>FrozenShip</code> materialized beside the player on load and on every crossing.</li>
+        </ul>
+        <h4>Risks</h4>
+        <ul>
+          <li>Drift into diplomacy: a treaties screen, faction quests and lore are a different game. Keep the stance a Map colour and a refusal reason.</li>
+          <li>Cost in AI targeting and admission: today they read one enum per ship. N-way stance is one lookup more, but every consumer of <code>Allegiance</code> changes meaning (<code>allegiance_markers.rs</code>, <code>map/contacts.rs</code>, the gauntlet and story scenarios that author sides directly).</li>
+          <li>Story mode authors allegiance per ship. The graph must be an open-world-only owner of the same enum, or scenarios break.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot"><span>Mod seam: bloc templates and stance thresholds as content; a mod civilization gets edges from the same seeding rule.</span><span>Pitfall to avoid: Elite's notoriety that punishes newcomers for an hour per level; Starsector's reputation grind to unlock commissions; any UI that turns stance into a bar.</span></div>
+  </article>
+</section>
+
+<section id="matrix">
+  <div class="eyebrow">Part 4</div>
+  <h2>Comparison</h2>
+  <p>What each direction answers, what it depends on, and what it costs. "Save" means a new field in <code>WorldSaveState</code> with a format bump; the format is unshipped, so a bump is cheap by policy (no migration, refuse old saves). The filter above also applies here.</p>
+  <div class="table-scroll">
+  <table id="matrix-table">
+    <caption>Ten directions side by side</caption>
+    <thead><tr><th>Direction</th><th>Why go there</th><th>What to spend on</th><th>Ship improves</th><th>Reason to return</th><th>Needs station</th><th>Needs clock</th><th>Needs save field</th><th>New content kind</th><th>Cost</th><th>Worst risk</th></tr></thead>
+    <tbody>
+      <tr data-station="yes" data-clock="no" data-rec="yes"><th>D1 Stations</th><td>Yes</td><td>Yes</td><td>Via D2, D3</td><td>Strongest</td><td>Is one</td><td>v1 no</td><td>Yes (body, storage, jobs)</td><td>Station, Job</td><td>Med-High</td><td>Self-levelling under gravity and hits untested; drift in wells; jobs as chores if they are the only content</td></tr>
+      <tr data-station="optional" data-clock="no" data-rec="yes"><th>D2 Loss currency</th><td>No</td><td>Yes, main sink</td><td>Restores</td><td>Yes</td><td>Rebuild only</td><td>No</td><td>No (reuses FrozenShip)</td><td>Build cost on sections</td><td>Med</td><td>Rebuild dearer than replacement; opaque bill</td></tr>
+      <tr data-station="yes" data-clock="no" data-rec="yes"><th>D3 Refit ladder</th><td>Indirect</td><td>Yes</td><td>Yes, directly</td><td>Yes</td><td>Yard</td><td>No</td><td>Yes (inline design, role)</td><td>StartRole</td><td>High</td><td>Attachment-point rules; live replace seam; pirate start semantics</td></tr>
+      <tr data-station="no" data-clock="no" data-rec="no"><th>D4 Tiers and gates</th><td>Yes</td><td>No</td><td>Gates it</td><td>Refresh</td><td>No</td><td>No</td><td>Refresh state</td><td>Ores, hazards</td><td>Med</td><td>Curve and offset keep large hulls near spawn; centre is the end; gates as walls</td></tr>
+      <tr data-station="optional" data-clock="no" data-rec="yes"><th>D5 Salvage</th><td>Yes</td><td>Earns</td><td>Indirect</td><td>Yes</td><td>Sell at one</td><td>No</td><td>No</td><td>Scrap value on sections</td><td>Low-Med</td><td>Towing blocked by one-port docking; scrap beats mining</td></tr>
+                  <tr data-station="optional" data-clock="partial" data-rec="no"><th>D8 Regional economy</th><td>Yes, by margin</td><td>Indirect</td><td>No</td><td>Shortages</td><td>Markets</td><td>Restock only</td><td>Clock (restock)</td><td>Pricing rules</td><td>Med</td><td>Arbitrage; trader robbery</td></tr>
+      <tr data-station="no" data-clock="no" data-rec="no"><th>D9 Chart and charters</th><td>Yes, directly</td><td>No</td><td>No</td><td>Yes</td><td>No</td><td>No</td><td>Yes (progress)</td><td>Charter</td><td>Med</td><td>Travel chore; void goals</td></tr>
+      <tr data-station="no" data-clock="no" data-rec="no"><th>D10 Own station</th><td>Late</td><td>Yes</td><td>No</td><td>Yes</td><td>Player-built or bought</td><td>Production only</td><td>Yes (minted ids, owner)</td><td>Structure</td><td>High</td><td>Vanity piece; infinite hold</td></tr>
+      <tr data-station="optional" data-clock="no" data-rec="no"><th>D12 End goal</th><td>Yes</td><td>Yes</td><td>Capstone</td><td>Refresh</td><td>Built at one</td><td>No</td><td>Flag</td><td>No</td><td>Content</td><td>Lands flat without a world change</td></tr>
+      <tr data-station="optional" data-clock="partial" data-rec="no"><th>D13 Stance graph + fleet</th><td>Yes, by refusal</td><td>Fines, escorts</td><td>Unlocks shops</td><td>Yes</td><td>Admission reads it</td><td>Redemption by time</td><td>Yes (stances, fleet list)</td><td>Bloc templates</td><td>High</td><td>Enemy with everyone; diplomacy drift; story scenarios author sides</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="spine">
+  <div class="eyebrow">Part 5</div>
+  <h2>Recommended spine and sequence</h2>
+  <p>The order follows dependencies, not preference. Stage 1 delivers the owner's station idea in its smallest honest form and the loss-currency loop it exists to serve. Stage 2 makes the ship a career. Nothing before Stage 5 needs a world clock, which is the single largest blast radius in the list (every frozen body type).</p>
+  <figure>
+    <svg viewBox="0 0 960 300" role="img" aria-labelledby="fig2t">
+      <title id="fig2t">The station-centred loop this page recommends</title>
+      <text x="20" y="30" class="title">PROPOSED: the station closes the ring and the ring climbs</text>
+      <rect x="30" y="110" width="150" height="56" rx="6" class="n-proposal"/><text x="105" y="133" text-anchor="middle">Frontier ring</text><text x="105" y="150" text-anchor="middle" class="small">tiers by distance, gates</text>
+      <rect x="225" y="110" width="150" height="56" rx="6" class="n-exists"/><text x="300" y="133" text-anchor="middle">Fight, mine, strip</text><text x="300" y="150" text-anchor="middle" class="small">exists; strip is new</text>
+      <rect x="420" y="110" width="150" height="56" rx="6" class="n-proposal"/><text x="495" y="133" text-anchor="middle">Loss and haul</text><text x="495" y="150" text-anchor="middle" class="small">sections lost, wreckage, ore</text>
+      <rect x="615" y="90" width="170" height="96" rx="8" class="n-rec"/><text x="700" y="113" text-anchor="middle" class="title">STATION</text><text x="700" y="132" text-anchor="middle" class="small">rebuild, refit, store</text><text x="700" y="148" text-anchor="middle" class="small">sell, stock, board</text><text x="700" y="164" text-anchor="middle" class="small">buys scrap and whole derelicts</text>
+      <rect x="830" y="110" width="110" height="56" rx="6" class="n-proposal"/><text x="885" y="133" text-anchor="middle">Capability</text><text x="885" y="150" text-anchor="middle" class="small">next ring opens</text>
+      <path d="M180 138 H225" class="edge" marker-end="url(#ah)"/>
+      <path d="M375 138 H420" class="edge" marker-end="url(#ah)"/>
+      <path d="M570 138 H615" class="edge-rec" marker-end="url(#aha)"/>
+      <path d="M785 138 H830" class="edge-rec" marker-end="url(#aha)"/>
+      <path d="M885 166 V215 H105 V166" class="edge-rec" marker-end="url(#aha)"/>
+      <text x="495" y="210" text-anchor="middle" class="small">a better ship enters a harder ring: the ring climbs instead of repeating</text>
+      <path d="M300 110 V60 H700 V90" class="edge" marker-end="url(#ah)"/>
+      <text x="500" y="54" text-anchor="middle" class="small">ships and stations post jobs on the Map (D1); shortages post here (D8)</text>
+      <text x="20" y="262" class="small">Orange: the station and the edges it owns. Teal: shipped today. Amber: proposed. The old ring (figure 1) is unchanged inside this one; the station is the only new node that touches every exit.</text>
+    </svg>
+    <figcaption>Figure 2. The station is the one new node that converts every dead end in figure 1: credits buy rebuilds and refits, lost sections come back, traders become stocked markets, and the board points somewhere.</figcaption>
+  </figure>
+  <div class="stage-grid">
+    <div class="stage first"><h3>Stage 1. Station body + rebuild</h3><p>D1 (smallest form) + D2.</p><ul><li>A <code>Station</code> kind: dynamic, thrusterless, controllers for attitude, docking sections; at least one per living civilization and a dead one per extinct civilization.</li><li>Services in the existing panes: Rebuild destroyed section (Ship), Buy stock and Store parts (Inventory), station objectives (Map), roster and news (Station pane). Bill shown before Confirm.</li><li>Jobs that need no located body (procurement, surplus, delivery) posted by stations and ships; open-world events, item and credit grant actions, jobs saved and rebuilt on resume.</li><li>Separate task, same stage: canister drop on destruction; a share of the destroyed section's parts in the same drop.</li><li>Map chart layer (sector grid, visited cells, cluster types, found stations and wrecks); a visited and found record in the save from the first format bump (decision 9b).</li></ul><p class="note">Proof: a thrusterless hull with controllers stays level under a gravity well and a torpedo hit; an orbiting station survives three orbits and a torpedo hit without tumbling or decaying. Then: dock, rebuild a destroyed bay, accept an objective, undock, cross a sector, resume from disk: the bay is there with fresh state and plating, the objective is still on the Map. A refused rebuild changes nothing.</p></div>
+    <div class="stage"><h3>Stage 2. New World wizard + station upgrades</h3><p>D3.</p><ul><li>New World wizard: seed, then a start role that resolves to a small hull and kit at inner-ring advancement.</li><li>Player ship saved inline; same-family, same-footprint swap at a station; generator post-build checks on the result.</li><li>Add a section at a free attachment point, then buy an entire ship from a tiered station catalogue.</li></ul><p class="note">Proof: each role start spawns, passes post-build checks and survives a save round trip. Swap one turret, freeze and thaw, assert prototype id, fresh health, old binding on that id. Add a section at an occupied point: refused, nothing changes.</p></div><div class="stage"><h3>Stage 2b. Fleet and bought stations</h3><p>The fleet half of D13 and the buy half of D10, pulled forward by decision 13 so the industrial, scavenger and pirate goals are reachable before the stance graph exists.</p><ul><li>Escorts for sale at any living station until the graph lands, then at Ally rosters; fleet list in the player save.</li><li>Buy a station from a living civilization; its stock and price rules become yours.</li></ul><p class="note">Proof: an escort bought at a station is beside you after a crossing and a reload. A bought station keeps your stock targets after a reload and refuses nobody.</p></div>
+    <div class="stage"><h3>Stage 3. Salvage</h3><p>D5 + the D4 curve and tier tables.</p><ul><li>Strip on a docked lootable hull, parts scaled by health.</li><li>Sell derelict by delivery into a station's service radius.</li><li>Section parts recipes and strip yields as content; lint refuses a profitable strip loop.</li></ul><p class="note">Proof: strip once, retire and return, the wreck stays stripped; a second strip refuses. Tow a derelict into the radius, sell, cross a sector, resume: the body is gone and the credits stayed.</p></div>
+    <div class="stage"><h3>Stage 4. Located jobs</h3><p>D1's later job types.</p><ul><li>A naming bridge for generated bodies.</li><li>Jobs that name a wreck or a hull: recover a marked item, escort a hauler, answer a distress call (some fake), neutralize a hull in hostile space.</li></ul><p class="note">Proof: a located job completes from a real pickup on the named wreck; it survives a freeze and thaw of that cell.</p></div>
+    <div class="stage"><h3>Stage 5. Prices, then clock and restock</h3><p>D8.</p><ul><li>Computed prices from reference x scarcity x demand at dock time; flat fee. Can land any time after Stage 1.</li><li>Play-time clock in the save, catch-up at thaw, restock curves; one shortage event type.</li></ul><p class="note">Proof: the same item prices differently at a glutted and a starved trader, and identically on reload. Sell out a station, cross N sectors, return, stock has recovered by the curve and not by reload.</p></div>
+    <div class="stage"><h3>Stage 6. Charters, end goal</h3><p>D9's discovery log + D12 goals; D10 landed in Stage 2b.</p><ul><li>Discovery log and charters (the chart layer landed in Stage 1); charter 0 shakedown.</li><li>Capstone build that flips the rings (D4 refresh).</li><li>Depot only where no station is.</li></ul><p class="note">Proof: charter completion is a saved fact; the refresh applies at thaw, never by regeneration.</p></div>
+    <div class="stage"><h3>Stage 7. Stance graph</h3><p>D13's stance graph, after its research note is accepted (decision 12). Fleet and bought stations already landed in Stage 2b; this stage gives them sides.</p><ul><li>Stance table seeded by proximity; events flip stances with thresholds; allied neighbours follow, rivals warm, one hop only.</li><li>Escort sales and station purchase move to Ally rosters; decision 10's refusal window becomes an edge flip.</li></ul><p class="note">Proof: loot three ships of one civilization, its station refuses you and its rival's station sells you an escort. A flip in one civilization moves only its neighbours within the cluster radius and never a civilization beyond it. No neighbourhood is one bloc.</p></div>
+  </div>
+  <h3>Why not charter-first, as the 2026-10-10 paper recommended</h3>
+  <p>That paper is right that a shop answers the wrong question when the world has no "why go there". But the owner's complaint is specific: the ship never gets better and nothing pulls them back to a saved world. A charter gives direction without capability; a station with rebuild and refit gives both, and the research is unanimous that dock-only structural work is the strongest return driver. Charters remain the best way to point the player at the first station, which is why charter 0 sits in Stage 6 as content rather than Stage 1 as a system, and why D9's chart layer can land any time after Stage 1 if the owner wants direction sooner.</p>
+</section>
+
+<section id="station">
+  <div class="eyebrow">Part 6</div>
+  <h2>What a station is</h2>
+  <p>"A ship without thrusters" is the right physics and the wrong identity. Decided 2026-10-12: a station is a dynamic body like any hull, affected by gravity and hits, with controller sections that keep it level so it never tumbles. What a thrusterless Spaceship lacks today is everything else: an identity distinct from a wreck, services (the docked-partner logic knows only trade and loot), a place in the generator and a frozen body of its own. The table lists what has to differ.</p>
+  <div class="table-scroll">
+  <table>
+    <caption>Station versus ship, field by field (Decided rows follow decisions 1 and 2, 2026-10-12)</caption>
+    <thead><tr><th>Aspect</th><th>Ship today</th><th>Station <span class="tag t-proposal">Proposal</span></th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><th>Content kind <span class="tag t-decided">Decided</span></th><td><code>Content::Ship</code> design; generated hulls from section facts</td><td>New <code>Content::Station { id: StationDesignId, design: ShipDesignId, services, stock, storage_cap }</code></td><td>Services and stock are content; a flag on Ship would hide them in the wrong owner. Naming follows the authored-catalogue rule (<code>&lt;Name&gt;DesignId</code>).</td></tr>
+      <tr><th>Object kind <span class="tag t-decided">Decided</span></th><td><code>ScenarioObjectKind::Spaceship</code></td><td><code>ScenarioObjectKind::Station</code>, also spawnable by authored scenarios</td><td>Lint and spawn paths need to know it; story mode could reuse it later.</td></tr>
+      <tr><th>Body</th><td><code>RigidBody::Dynamic</code> (<code>spaceship.rs:560</code>)</td><td><code>RigidBody::Dynamic</code>, thrusterless, with controller sections <span class="tag t-decided">Decided</span></td><td>Owner direction: gravity and hits act on it, controllers damp any spin so it self-levels; needs a test (first proof). <code>FixedJoint</code> and <code>DockedAssembly</code> already assume two dynamic roots, so docking needs no new physics. Controllers fix attitude, not position: drift in a well is open (decision 3).</td></tr>
+      <tr><th>Docking <span class="tag t-decided">Decided</span></th><td>One connection per hull; helm Neutral then Held</td><td>Several docking sections, one player connection; a living station owns the helm while docked and the player cannot take it; a dead station is a derelict and hands the helm to the docked player</td><td>The one-connection rule is per hull, so a station with three ports still admits one player. The pair flies as one assembly today, so without the helm rule the player's thrust would move the station.</td></tr>
+      <tr><th>Identity <span class="tag t-decided">Decided</span></th><td>Generated <code>{cell}_{name}_{index}</code> (<code>generation.rs:509-511</code>)</td><td>Same scheme from the cell plan, <code>{cell}_station_{index}</code>; authored stations use their content id</td><td>No minting needed for generated stations; stable across visits and saves.</td></tr>
+      <tr><th>Placement <span class="tag t-decided">Decided</span></th><td>In orbit of the cluster's planet when it has one, else beside a rock with clearance</td><td>At least one per living civilization at the cluster nearest the centroid, more by size and advancement, with clearance; the civilization's side decides admission (Enemy stations refuse). Every extinct civilization leaves one dead station: lootable, strippable, no services, no admission</td><td>Owner and tier come free from civilizations. Many stations, like planets and ships, so the world is dotted with places that differ.</td></tr>
+      <tr><th>Integrity</th><td>Neutralize rules by weapons and thrusters</td><td>Hits push it (it is dynamic); sections invulnerable in v1</td><td>A destroyable station needs a service-loss and rebuild policy that is not needed to prove the loop.</td></tr>
+      <tr><th>Frozen body <span class="tag t-decided">Decided</span></th><td><code>FrozenBodyType::Ship</code></td><td><code>FrozenBodyType::Station</code> with stock, storage inventory, catalogue, board state</td><td>Save checks item ids and capacity already; the same checks apply.</td></tr>
+      <tr><th>Partner logic</th><td>Trader, or lootable, or refused</td><td>A fourth partner state: Service, which also trades</td><td><code>offered_action</code> in the Inventory pane branches on partner state (<code>inventory/app.rs:1092-1104</code>); the Station pane does the same.</td></tr>
+      <tr><th>UI</th><td>Inventory pane while docked</td><td>Station content enriches the existing panes while docked: Map gains the station's objectives and markers; Ship gains the shop (upgrade, rebuild); Inventory gains station stock and storage. One Station pane for the rest: civilization ship roster, news or town page. Bills and refusal reasons visible, Confirm disabled on refusal</td><td>Same plan-then-confirm shape the owner accepted for Inventory and Ship; no parallel UI for things the panes already show.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h3>Service ladder</h3>
+  <div class="table-scroll">
+  <table>
+    <caption>Services, smallest first; each needs its own gate and lives in one pane</caption>
+    <thead><tr><th>Service</th><th>Pane</th><th>Gate</th><th>Consumes</th><th>Changes</th><th>Persists in</th><th>Stage</th></tr></thead>
+    <tbody>
+      <tr><th>Rebuild section (plating regrows with it)</th><td>Ship</td><td>Docked, placement destroyed in the design</td><td>Credits + recipe parts; parts you bring count</td><td>Live graph and <code>FrozenShipState.sections</code></td><td>Player save</td><td>1</td></tr>
+      <tr><th>Buy station stock</th><td>Inventory</td><td>Docked</td><td>Credits</td><td>Station stock, player hold</td><td>Station frozen body</td><td>1</td></tr>
+      <tr><th>Store / withdraw</th><td>Inventory</td><td>Docked</td><td>Hold mass</td><td>Station storage inventory (parts and goods, capped; never sections)</td><td>Station frozen body</td><td>1</td></tr>
+      <tr><th>Jobs and objectives (ships post too)</th><td>Map</td><td>Docked to accept; visited to view</td><td>Optional stake</td><td>Held jobs, markers; the Map keeps them after undock</td><td>Player save + poster's frozen body</td><td>1</td></tr>
+      <tr><th>Ship roster, news or town page</th><td>Station</td><td>Docked</td><td>Nothing</td><td>Nothing; reads civilization state</td><td>Generated + station frozen body</td><td>1</td></tr>
+      <tr><th>Refit (same family, same footprint)</th><td>Ship</td><td>Docked; the station stocks the section</td><td>Credits + parts; old section refunds a fraction</td><td>Inline player design</td><td>Player save</td><td>2</td></tr>
+      <tr><th>Hull exchange</th><td>Ship</td><td>Docked; hold fits; credits</td><td>Credits + the old hull</td><td>Player design source, bindings</td><td>Player save</td><td>2</td></tr>
+      <tr><th>Sell derelict (delivery)</th><td>Ship</td><td>Docked pair inside the service radius</td><td>The towed hull</td><td>Removes the body, credits scrap</td><td>Station frozen body + cell ledger</td><td>3</td></tr>
+      <tr><th>Located jobs (a named wreck or hull)</th><td>Map</td><td>Docked; target addressable</td><td>Optional stake</td><td>Held jobs with a body id</td><td>Player save + poster's frozen body</td><td>4</td></tr>
+      <tr><th>Restock over play-time</th><td>none</td><td>Clock delta at thaw</td><td>Nothing</td><td>Stock toward target</td><td>Clock in save</td><td>5</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h3>Failure policy, in the project's terms</h3>
+  <ul>
+    <li>A service is offered only while docked to a station with a surviving port; undock mid-transaction refuses or rolls back, never half-applies (the lesson kept from the 2026-09-25 pages).</li>
+    <li>A station that names an unknown item, section or design fails at lint, then at load. No default services, no default stock.</li>
+    <li>A rebuild or refit plan that fails thrust floor, controller count or hold-below-cargo refuses and changes nothing.</li>
+    <li>Lint refuses a strip yield or refund worth more than the build cost at ask, so no money loop.</li>
+    <li>A saved world whose station catalogue changed is refused by the existing digest, never regenerated under the player.</li>
+    <li>Web stays session-only, stated in the modal as today, until browser storage is a separate decision.</li>
+  </ul>
+  <figure>
+    <svg viewBox="0 0 960 250" role="img" aria-labelledby="fig3t">
+      <title id="fig3t">Call-graph delta for a station visit</title>
+      <text x="20" y="28" class="title">BEFORE</text>
+      <rect x="20" y="42" width="900" height="56" rx="6" class="n-exists"/>
+      <text x="40" y="66" class="small">DOCK -> on_docking_connection_request -> DockingConnection -> Inventory pane: offered_action(partner) -> plan_item_trade | plan_item_transfer | plan_credit_take -> apply</text>
+      <text x="40" y="86" class="small">streaming: generate_sector -> materialize (asteroids, planets, ships) -> freeze on retire -> save on crossing</text>
+      <text x="20" y="132" class="title">AFTER STAGE 1</text>
+      <rect x="20" y="146" width="900" height="84" rx="6" class="n-rec"/>
+      <text x="40" y="170" class="small">merge_bundles -> Content::Station -> GameStations (digest) ; plan_ship | plan_station per civilization -> SectorManifest.stations</text>
+      <text x="40" y="190" class="small">materialize -> dynamic station root + controllers + ports ; DOCK -> partner Service -> Ship: plan_rebuild ; Inventory: plan_store | plan_station_trade ; Map: objectives ; Station: roster</text>
+      <text x="40" y="210" class="small">OnDestroyed(ship) -> drop hold + parts ; OnSectorEntered | OnItemTaken | OnTraded -> objectives ; freeze -> FrozenBodyType::Station { stock, storage, board } -> save</text>
+    </svg>
+    <figcaption>Figure 3. The delta touches the merge (one kind), the generator (one planner), materialization (one body type), the docking partner state (one variant), the interface (one pane) and the frozen ledger (one body type). It adds open-world events to the scenario vocabulary so a station can post objectives. It does not touch the clock or AI.</figcaption>
+  </figure>
+</section>
+
+<section id="pitfalls">
+  <div class="eyebrow">Part 7</div>
+  <h2>Pitfalls from other games, mapped to Nova</h2>
+  <p>Each line is a documented failure in a shipped game and the rule that avoids it here. Sources are in Part 9.</p>
+  <ul class="check">
+    <li><span><strong>Restore dearer than replace.</strong> Starsector's restore formula (hull x 1.2 x 1.2^n) made players buy new ships. Rule: rebuilding a common section costs less than buying it; only rare taught designs cost more.</span></li>
+    <li><span><strong>Opaque bills.</strong> Highfleet's hypothetical full price, Avorion's one-block shock, MW5's share pricing. Rule: the Station pane shows the exact bill and the refusal reason before Confirm, like the Inventory preflight today.</span></li>
+    <li><span><strong>Clean kills pay less.</strong> MW5 charged more shares for a headshot mech. Rule: salvage value scales with remaining section health, and the Ship pane shows it on a lock.</span></li>
+    <li><span><strong>Loss as pure subtraction.</strong> Elite permanent ship loss drove players away; Kenshi limbs and Starsector d-mods were accepted because loss re-entered the economy. Rule: a lost section leaves parts behind, a scarred hull still flies, Load last save stays.</span></li>
+    <li><span><strong>Centre is the end.</strong> Avorion: "no more challenge after 0,0, the galaxy is not evolving". Rule: design the ring refresh with streaming before the first tier table ships.</span></li>
+    <li><span><strong>Gates as walls.</strong> Subnautica's ten-hour fragment hunt. Rule: a gate is readable on approach and the key is behind the previous gate; the chart shows counts.</span></li>
+    <li><span><strong>Bigger is the only upgrade.</strong> Elite engineering favours big hulls; NMS class upgrades make C and B pointless. Rule: the refit panel shows the mass and thrust budget; small hulls keep speed and signature.</span></li>
+    <li><span><strong>All fountains, no sinks.</strong> X4 and Elite end with useless billions. Rule: rebuild and refit are the sinks and scale with the ring; a flat station fee kills generic arbitrage.</span></li>
+    <li><span><strong>Boards as chores.</strong> Freelancer's filler missions. Rule: four physical job types, some expiring, never the only thing to do.</span></li>
+    <li><span><strong>Numeric goals that change nothing.</strong> Hardspace's debt, Cosmoteer's fame. Rule: the capstone build flips the rings.</span></li>
+    <li><span><strong>Real-time upkeep.</strong> Elite carrier's weekly bill is a "ball and chain". Rule: the clock counts play-time only; nothing charges while the game is closed.</span></li>
+    <li><span><strong>Locked verbs.</strong> Space Engineers blocks you cannot repair until unlocked. Rule: strip, loot and repair are never gated; only building a design is.</span></li>
+    <li><span><strong>Fuel as a tax.</strong> Sunless Sea's poverty loop, Highfleet's landed burn. Already avoided: no fuel by decision; gates are damage and sensing, not range.</span></li>
+    <li><span><strong>Enemies scale to you.</strong> Everspace 2: "obsoletes progression". Already right: advancement is by place, not by player.</span></li>
+    <li><span><strong>Enemy with everyone.</strong> A single standing that only falls strands the player (Elite notoriety, Starsector's hostile-to-all pirate play). Rule for D13: stances are per civilization, civilizations have rivals, and there is always one way back.</span></li>
+    <li><span><strong>Stance becomes diplomacy.</strong> Treaties screens and faction quest lines are a different game. Rule: a stance is a Map colour and a refusal reason, nothing more.</span></li>
+  </ul>
+</section>
+
+<section id="decisions">
+  <div class="eyebrow">Part 8</div>
+  <h2>Owner decisions</h2>
+  <p>Each is a fork that changes what gets built. Options carry one consequence each. The recommendation is this page's, not a decision.</p>
+
+  <div class="decision"><h3>1. What a station is in content <span class="tag t-decided">Decided</span></h3><p class="note">Owner picked option 1 on 2026-10-12.</p><ol><li><span class="rec">New <code>Content::Station</code> kind with its own object kind and frozen body type.</span> Consequence: one more variant through merge, lint, spawn and freeze; services have a real owner. <span class="tag t-decided">Decided</span></li><li>A flagged <code>Content::Ship</code> with a static flag and a services block. Consequence: cheaper to add, but every ship consumer has to learn the flag and a wreck and a station share a type.</li></ol></div>
+
+  <div class="decision"><h3>2. Who places stations <span class="tag t-decided">Decided</span></h3><p class="note">Owner picked option 1 on 2026-10-12: generator placement, no authored stations in the base world.</p><ol><li><span class="rec">The generator: at least one per living civilization, more by size and advancement, a dead one per extinct civilization.</span> Consequence: many stations in every seed with no authoring; identity comes from the cell plan; the Map fills with places that differ. <span class="tag t-decided">Decided</span></li><li>Authored hubs in the bootstrap scenario. Consequence: the same stations in every world; residency across streaming needs a rule.</li><li>Both. Consequence: two identity schemes to keep straight in the save.</li></ol></div>
+
+  <div class="decision"><h3>2b. Where station panes are reachable <span class="tag t-decided">Decided</span></h3><p class="note">Owner picked option 1 on 2026-10-12: what a station provides happens only while docked; what you hold or have seen stays visible undocked.</p><ol><li><span class="rec">Transactions (rebuild, refit, buy, store, accept a job) only while docked. Held jobs and their markers stay on the Map from the moment you accept them. A visited station keeps its last-seen service list and open objectives on the Map, read-only. The roster and news pane only while docked.</span> Consequence: the Map becomes a planning tool, the dock stays the place where things happen. <span class="tag t-decided">Decided</span></li><li>Everything only while docked. Consequence: nothing to plan from; every check is a trip.</li><li>Roster and news readable from the Map once visited. Consequence: stale information unless the station simulates while frozen, which needs the clock.</li></ol></div>
+
+  <div class="decision"><h3>3. Station body <span class="tag t-decided">Decided</span></h3><p class="note">Owner direction 2026-10-12: stations are dynamic bodies affected by gravity and hits; their controllers damp spin so they self-level. Needs a test. Two sub-points fall out; both decided below.</p><ol><li><span class="rec">Dynamic, thrusterless, with controller sections; sections invulnerable in v1; first proof is the self-levelling test.</span> Consequence: no new physics for docking; the planner must respect drift. <span class="tag t-decided">Decided</span></li></ol><h4>3a. Drift <span class="tag t-decided">Decided</span></h4><p>Option 1 plus an orbit variant. A cluster with a planet gets its station in orbit: placement sets a circular orbital velocity at materialize, and the frozen body keeps pose plus velocity so the orbit resumes on return. A cluster without a planet gets a standing station beside a rock with clearance. Hits nudge either kind; no station-keeping logic; the frozen pose is whatever it was when you left.</p><p class="note">Rejected: station-keeping controllers (hidden thrust) and snapping back to the authored pose on load (undoes a hit the player saw).</p><h4>3b. Docked pair <span class="tag t-decided">Decided</span></h4><p>Docked to a living station, the station owns the helm and the player cannot take it; the station's controllers hold the pair. A dead station (extinct civilization, no services) is a derelict: helm passes to the docked player like any lootable hull. Neutralizing a living station into a derelict waits for station integrity, which v1 rules out (sections invulnerable).</p><p class="note">Rejected: letting the player fly the pair (a station that can be towed away by its own customers).</p></div>
+
+  <div class="decision"><h3>4. Where rebuild happens <span class="tag t-decided">Decided</span></h3><p>Rebuild and refit happen only while docked at a station, paid in credits and parts; plate repair stays anywhere. Sections are never items. A section's cost is a parts recipe owned by the section config (for example a turret barrel, a turret body and section panels); the station assembles the recipe into the section. Strip on a neutralized or derelict hull yields that section's recipe parts scaled by health. Lint refuses a recipe whose parts at bid are worth more than the recipe at ask, so a strip-and-rebuild loop never profits.</p><p class="note">Rejected: rebuild anywhere with parts (no return driver, the station is a shop); rebuild at any docked Industrial ship (every trader becomes a yard, the place axis stays empty).</p></div>
+
+  <div class="decision"><h3>4b. Advancement curve, far radius and size bands <span class="tag t-decided">Decided</span></h3>
+    <p class="note">Advancement read at each civilization lattice ring, offset excluded. Smoothstep is the existing second variant of the curve enum; only the saturation constant changes.</p>
+    <div class="table-scroll"><table>
+      <thead><tr><th>Ring distance</th><th class="num">Linear to 1000 km (today)</th><th class="num">Linear to 4000 km</th><th class="num">Smoothstep to 4000 km</th></tr></thead>
+      <tbody>
+        <tr><th>240 km (ring 1)</th><td class="num">0.24</td><td class="num">0.06</td><td class="num">0.01</td></tr>
+        <tr><th>480 km (ring 2)</th><td class="num">0.48</td><td class="num">0.12</td><td class="num">0.04</td></tr>
+        <tr><th>720 km (ring 3)</th><td class="num">0.72</td><td class="num">0.18</td><td class="num">0.09</td></tr>
+        <tr><th>960 km (ring 4)</th><td class="num">0.96</td><td class="num">0.24</td><td class="num">0.15</td></tr>
+        <tr><th>2000 km</th><td class="num">1.00</td><td class="num">0.50</td><td class="num">0.50</td></tr>
+        <tr><th>3000 km</th><td class="num">1.00</td><td class="num">0.75</td><td class="num">0.84</td></tr>
+        <tr><th>4000 km</th><td class="num">1.00</td><td class="num">1.00</td><td class="num">1.00</td></tr>
+      </tbody>
+    </table></div>
+    <p>Smoothstep with the saturation raised to about 4000 km, and the offset scaled by the curve value (so an inner civilization varies by a few hundredths, an outer one by a tenth). Tune the far radius together with the start-role kit in one task, by how many rings a start hull should cross before the first Armored patrol. Consequence: the first four rings are small-hull space, medium hulls appear around 2000 km, the largest past 3000 km; two constants and one offset rule change, no new tables.</p><p class="note">Rejected: Keep Linear and raise the saturation to 4000 km. Consequence: slower but still even; ring 1 at 0.06 plus the offset can still read 0.16, so medium hulls leak in early. Explicit size bands per lattice ring (ring 1 small only, ring 2 adds medium, and so on) on top of any curve. Consequence: readable and hard-capped, but a second table to keep consistent with the curve and with the section tiers in <code>ship_parts.rs</code>. A logarithmic curve. Consequence: fast early, slow late, the reverse of the stated feel; listed only because the comment named it.</p>
+  </div>
+
+  <div class="decision"><h3>5. Starting ship <span class="tag t-decided">Decided</span></h3><p>A New World wizard with start roles (industrial, scavenger, transport, bounty hunter, military, pirate), each a small hull and kit at inner-ring advancement; roles are content. Consequence: the main menu grows a wizard, the bootstrap takes a role, bindings come from the role's hull; the Line Warship becomes a ladder goal.</p><p class="note">Rejected: One weaker hull for everyone. Consequence: cheaper, no wizard, no replay variety. Keep the Line Warship. Consequence: progression can only be sideways or restorative; nothing to earn.</p></div>
+
+  <div class="decision"><h3>5b. What a pirate start means with three-valued relations <span class="tag t-decided">Decided</span></h3><p>The role sets a scavenger-class hull, a kit and a lore line; relations start as for any other role (civilizations draw Enemy, Player, Neutral at 1/3 each). Consequence: no rule change; a pirate is a playstyle, not a side.</p><p class="note">Rejected: The role biases the civilization draw: more Enemy civilizations near the start. Consequence: touches the draw in <code>sector_ships.rs</code> and the station admission rule; harder start, still no standing. The role starts with every civilization Enemy except pirate havens. Consequence: needs a civilization tag and a haven station type; drifts toward factions.</p></div>
+
+  <div class="decision"><h3>6. Upgrade scope at a station <span class="tag t-decided">Decided</span></h3><p>A ladder: same-family swap first, then adding a section at a free attachment point, then buying an entire ship; all at a station, all validated by the generator's post-build checks, never free placement. Consequence: three seams land in order, each with its own proof; the deleted editor stays deleted.</p><p class="note">Rejected: Swap and buy only, no adding. Consequence: no attachment-point data needed; a hull's shape is fixed for life, so growth means buying. Authored patch offers only (thruster +10%, fire rate +15%). Consequence: fits the existing patch vocabulary and save, no section replace seam, but no salvage identity.</p></div>
+
+  <div class="decision"><h3>6b. Many-to-many docking <span class="tag t-decided">Decided</span></h3><p>Keep one connection per hull for now; stations expose several ports but admit one player connection; selling a derelict is a delivery into a radius. Consequence: salvage, stations and refit all land without touching <code>DockedAssembly</code>.</p><p class="note">Rejected: N connections per hull with assemblies as a graph. Consequence: chained hulls and multi-ship docks become possible, but helm ownership, retire-while-docked and the save pair rule all reopen; its own task, after Stage 3.</p></div>
+
+  <div class="decision"><h3>7. Cargo drop and section parts on destruction <span class="tag t-decided">Decided</span></h3><p>Implement the 2026-09-28 rule: a destroyed ship drops its remaining hold as canisters; a destroyed section drops a share of its recipe parts. Consequence: salvage exists; a fight has a before and after.</p><p class="note">Rejected: Neutralized-only loot as today. Consequence: no salvage from kills, so D2 and D5 lose their currency.</p></div>
+
+  <div class="decision"><h3>8. World clock <span class="tag t-decided">Decided</span></h3><p>Add a play-time clock to the save when the first consumer (restock) lands, with a catch-up rule per frozen body type. Consequence: stage 5 cost; nothing earlier needs it.</p><p class="note">Rejected: Never; stock is finite forever. Consequence: every station runs dry; the world is a finite mine. An activity clock (sector crossings since last visit). Consequence: cheaper, no catch-up rule, but farmable by pacing.</p></div>
+
+  <div class="decision"><h3>9. Death and neutralization <span class="tag t-decided">Decided</span></h3><p>Keep Load last save; <code>OnDestroyed</code> stays the only run-ending event; no player Neutralized state, no rebuy, no tow in v1. Consequence: a no-weapons run is a run; a no-controller ship drifts until the player loads the last save, which a station visit also writes.</p><p class="note">Rejected: Also end the run when the player's last controller section is destroyed, as a bootstrap handler on the open-world scenario, not a new state. Consequence: no drifting dead end, one more handler, but a ship that could have been docked by momentum is written off. A tow to the nearest station for a fee. Consequence: softer loss, one more service, and a stranded-player rescue.</p></div>
+
+  <div class="decision"><h3>9b. When the Map chart layer lands <span class="tag t-decided">Decided</span></h3><p>Stage 1, beside the station contacts: sector grid, visited cells, cluster types, found stations and wrecks. Charters and the discovery log stay in Stage 6. Consequence: the Map gets richer at the same time it gets station content, jobs and prices, one pane rework instead of three; needs a visited and found record in the save from the first format bump.</p><p class="note">Rejected: Stage 6 with charters, as the spine first had it. Consequence: the Map grows piecemeal through Stages 1 to 5 and is restyled once at the end.</p></div>
+
+  <div class="decision"><h3>10. Trader robbery without reputation <span class="tag t-decided">Decided</span></h3><p class="note">Subsumed by decision 12 if the stance graph is built: robbery flips that civilization's stance.</p><p>A station of that civilization refuses service to a ship that neutralized one of its hulls, for a play-time window. Consequence: a local, ternary-compatible cost with no standing number. The window needs the play-time clock from decision 8, so the refusal lands with Stage 5; once the stance graph exists (decision 12) the same event flips that civilization's edge instead.</p><p class="note">Rejected: Accept it as a free strategy. Consequence: neutralize-and-take beats trading once the player outguns the ring.</p></div>
+
+  <div class="decision"><h3>11. Web <span class="tag t-decided">Decided</span></h3><p>Session-only, stated in the modal as today. Consequence: the return loop is desktop-only.</p><p class="note">Rejected: Browser storage for saves. Consequence: a separate capacity and failure contract.</p></div>
+
+  <div class="decision"><h3>12. Civilization relations (reopened 2026-10-12) <span class="tag t-decided">Decided</span></h3><p>Explore the stance graph as D13 describes, in a research note before any code: the cluster radius and neighbour-only seeding, the event and threshold table, the single-hop propagation rule, the redemption path, and a sweep over seeds proving every neighbourhood holds a rival and no flip ever reaches a non-neighbour. Build only after that note is accepted, and after Stage 2. Consequence: the first two stages are not blocked; the fleet and owned station get their real reward later.</p><p class="note">Rejected: Keep three-valued relations for the whole v0.16 line; fleet and bought stations sell at any living station. Consequence: cheapest; a pirate start stays a playstyle; decision 10 stays the only cost of robbery. A per-civilization float reputation with thresholds. Consequence: the grind the owner does not want; every number becomes a bar in the UI.</p></div>
+
+  <div class="decision"><h3>13. Start roles and their goals <span class="tag t-decided">Decided</span></h3><p>Six roles (industrial, scavenger, transport, bounty hunter, military, pirate), each with one finite goal as in the D12 table; the owned station and the fleet move up to sit right after Stage 2 so industrial, scavenger and pirate goals are reachable; the stance graph still waits for its research note. Consequence: Stage 7 splits: fleet and bought stations early, stance graph later; a pirate goal is provisional until the graph exists.</p><p class="note">Rejected: Five roles as first listed (no scavenger) and goals that avoid owned stations and fleets. Consequence: cheaper, but industrial ends at "a lot of credits", which is the numeric goal the pitfalls list warns against. One shared goal (the Line Warship) for every role. Consequence: contradicts the mining route; dropped by owner direction.</p></div>
+<div class="decision"><h3>14. World first, scenarios as the harness</h3><ol><li><span class="rec">A <code>world</code> block on the scenario (<code>Generated { seed }</code> or <code>Void</code>) with an optional bounds area; the role stops gating the generator and the open world becomes the New Game harness.</span> Consequence: one new field, arming moves from role to the block, chapters say <code>Void</code> and keep working, the wizard and the open world share one path. <span class="tag t-rec">Recommended</span></li><li>Keep <code>role: OpenWorld</code> as the gate and make every bounded scenario an OpenWorld scenario with a fixed seed. Consequence: no new field, but backdrops and the tutorial would stream sectors they do not want, and the void needs a generator that generates nothing.</li><li>A separate harness content kind beside <code>Content::Scenario</code>. Consequence: the cleanest split on paper, but a second vocabulary for the same handlers, with its own loader and lint.</li></ol></div></section>
+
+<section id="world-first">
+  <div class="eyebrow">Part 9</div>
+  <h2>World first, scenarios as the harness <span class="tag t-open">Open</span></h2>
+  <p class="lede">Owner direction 2026-10-12, for discussion: the open world is the main mode and the first citizen. Scenarios and <code>nova_events</code> are a harness put on top of it to make the world work in a bounded form. Today the dependency points the other way.</p>
+  <h3>How it stands at HEAD <span class="tag t-exists">Exists</span></h3>
+  <ul>
+    <li>New Game inserts <code>OpenWorldSession { seed }</code> and then loads the <code>open_world</code> scenario named by the base bundle (<code>world_setup.rs:362-365</code>, <code>base.bundle.ron:304</code>). That scenario spawns the player hull and three lights and says of itself "the world is the scenario" (<code>open_world.rs:5-7</code>).</li>
+    <li>The generator arms only while a scenario with <code>role: OpenWorld</code> is live, a session exists and exactly one player ship stands (<code>nova_world_base/src/lib.rs:165-167</code>, <code>:248-252</code>). Any other scenario disarms it. The scenario is the root; the world is a plugin that watches the scenario's role.</li>
+    <li>Chapters, backdrops and the tutorial run in a void: authored objects only, no <code>WorldConfig</code>, nothing streams. Scenario state (variables, objectives, timers) is not in the save (<code>save/mod.rs:103-117</code>), and generated bodies are scoped but not addressable by a handler (<code>streaming.rs:176-182</code>).</li>
+    <li>The role is read in four places: the arming system, scenario lint (<code>lint/scenario.rs:88</code>), probe snapshots (<code>snapshot.rs:437</code>, <code>:2202</code>) and the world-base tests (<code>nova_world_base/src/tests.rs:348-495</code>).</li>
+  </ul>
+  <h3>What the inversion means <span class="tag t-proposal">Proposal</span></h3>
+  <div class="table-scroll"><table>
+    <thead><tr><th>Seam</th><th>Today</th><th>Inverted</th></tr></thead>
+    <tbody>
+      <tr><th>Root</th><td>The scenario; the world watches its role</td><td>The world; a scenario declares which world it runs on</td></tr>
+      <tr><th>Arming key</th><td><code>ScenarioRole::OpenWorld</code></td><td>A <code>world</code> block on the scenario: <code>Generated { seed: Option }</code> (None takes the wizard seed) or <code>Void</code> (today's empty scene)</td></tr>
+      <tr><th>Open world</th><td>A scenario with no objective</td><td>The New Game harness: the wizard's role kit as its only authored content, no bounds, no outcome but <code>OnDestroyed</code></td></tr>
+      <tr><th>Chapters, backdrops, tutorial</th><td>Void by construction</td><td>Declare <code>Void</code> and keep working unchanged; a chapter may later declare a fixed seed and a bounded area instead</td></tr>
+      <tr><th>Bounds</th><td>None; a chapter is as big as its authored objects</td><td>An optional area on the harness; leaving it raises <code>OnExit</code> like any area, so the outcome is authored, not hard-coded</td></tr>
+      <tr><th>Generated bodies</th><td>Scoped, not addressable</td><td>Need the addressing seam the located jobs (D1, Stage 4) already need; one seam pays twice</td></tr>
+      <tr><th>Events</th><td>No sector, mine, pickup, trade or credits event</td><td>The same open-world events Stage 4 adds; a harness on a generated world is authored with them</td></tr>
+      <tr><th>Save</th><td>Only the open world saves; scenario state dies with the run</td><td>A harnessed world saves like any world only once scenario state (variables, objectives) enters the save; until then harnessed scenarios stay session-only, as chapters are today</td></tr>
+    </tbody>
+  </table></div>
+  <p><strong>What dies.</strong> <code>ScenarioRole::OpenWorld</code> as the arming key, the "world is the scenario" framing, and the void as the implicit default. <strong>What may break.</strong> The four role readers above, the picker's assumption that a chosen scenario starts without a world, and any probe that snapshots a world-less run. <strong>What must fail loudly.</strong> A generated-world harness with no player spawn; a bounded area larger than the active window (160 km cube, <code>nova_world_base/src/lib.rs:139-145</code>); a handler that names a generated id at lint.</p>
+  <p class="note">The story constraint stands: story mode stays as it is, so every shipped chapter declares <code>Void</code> on day one and nothing in a campaign changes. This is a runtime inversion, not a content rewrite. Decision 14 below lists the shapes.</p>
+</section>
+
+<section id="sources">
+  <div class="eyebrow">Part 10</div>
+  <h2>Sources</h2>
+  <h3>In the repository</h3>
+  <ul class="sources">
+    <li><code>tasks/20260930-100831/PROGRESSION-SYNTHESIS.md</code>, <code>PROGRESSION-BUILDER.md</code>, <code>PROGRESSION-WORLD.md</code>, <code>RESEARCH.md</code> (2026-10-10): the three competing spines, the refit and depot analysis, the charter model. This page agrees with their evidence and reorders their priority.</li>
+    <li><code>tasks/20260926-174806/TASK.md</code>: item loop M0-M5 decisions, the deleted refit milestone, cargo-drop rule, no fuel, no crafting.</li>
+    <li><code>tasks/20260925-190131/TASK.md</code>: encounter decisions, no flee AI, no inter-cluster travel, retaliation rule.</li>
+    <li><code>tasks/20260925-190156/TASK.md</code>: the persistence contract that landed as #110 and #111.</li>
+    <li><code>tasks/20260824-125943/TASK.md</code>: themed UI direction, behavioural lessons kept from the rejected concept pages.</li>
+    <li><code>tasks/20261007-085535/TASK.md</code>: v0.16.0 planning facts (deleted ship-tuning and reputation tasks, moddable identities).</li>
+    <li>Codebase survey notes and the full online research report sit in the session scratchpad (<code>codebase-map.md</code>, <code>design-research.md</code>) and can be copied into a task folder on request.</li>
+  </ul>
+  <h3>Online, most load-bearing</h3>
+  <ul class="sources">
+    <li>Starsector d-mods and restore formula: https://starsector.wiki.gg/wiki/Damage_hullmod ; refit screen (dock-only restore): https://starsector.wiki.gg/wiki/Refit_Screen ; generic missions: https://starsector.wiki.gg/wiki/Generic_missions ; bounties: https://starsector.wiki.gg/wiki/Bounty ; trade (30% tariff, 120-day fill): https://starsector.wiki.gg/wiki/Trade ; exploration: https://starsector.wiki.gg/wiki/Exploration</li>
+    <li>Cosmoteer 85% material return and salvage UX: https://cosmoteer.wiki.gg/wiki/0.28.0 ; career design preview: https://blog.cosmoteer.net/2022/08/cosmoteer-feature-preview-career-mode.html ; blueprints "too easy": https://cosmoteer.wiki.gg/wiki/Blueprints</li>
+    <li>Highfleet Shipworks mechanics: https://www.magicgameworld.com/highfleet-shipworks/ ; city services guide: https://steamcommunity.com/sharedfiles/filedetails/?id=2580804883 ; repair cost display thread: https://steamcommunity.com/app/1434950/discussions/0/3051737007088540886/</li>
+    <li>Avorion repair pricing: https://steamcommunity.com/app/445220/discussions/0/2143092024472431574/ and https://steamcommunity.com/app/445220/discussions/0/135510669606528475/ ; "no challenge after 0,0": https://steamcommunity.com/app/445220/discussions/0/1319962514593203785/</li>
+    <li>Space Engineers Economy 2 contracts and services: https://support.keenswh.com/spaceengineers/pc/announcement/update-1-209-economy-2 ; progression tree critique: https://spaceengineers.wiki.gg/wiki/Progression ; SE2 "smallest version of every block": https://support.keenswh.com/spaceengineers2/pc/topic/53661-balanced-progression-how-we-unlock-blocks</li>
+    <li>Elite fleet carrier as vanity piece: https://steamcommunity.com/app/359320/discussions/0/4353365620733038584/ ; endgame "nothing to spend on": https://forums.frontier.co.uk/threads/endgame-what.539852/ ; sell-penalty 25% rule: https://elitepve.com/viewtopic.php?t=10275 ; distress calls incl. fakes: https://elite-dangerous.fandom.com/wiki/Distress_Call</li>
+    <li>MechWarrior 5 clean kills cost more salvage: https://steamcommunity.com/app/784080/discussions/0/4411920671413611943/ ; Battletech repair prerequisite: https://battletech.com/forums/index.php?topic=77274.0</li>
+    <li>Subnautica design (GDC 2019): https://gdcvault.com/play/1025745/The-Design-of-Subnautica ; fragment hunt as wall: https://steamcommunity.com/app/264710/discussions/0/1473095331495255292/ ; no-weapons rationale: https://gamerant.com/subnautica-2-no-weapons-why/</li>
+    <li>Factorio trigger technologies: https://www.factorio.com/blog/post/fff-376 ; sub-steps: https://www.factorio.com/blog/post/fff-381</li>
+    <li>Outer Wilds ship log model: https://nh.outerwildsmods.com/guides/ship-log/ ; analysis: https://www.gamedeveloper.com/design/outer-wilds-critical-analysis</li>
+    <li>Valheim loop: https://bottomfeeder.substack.com/p/design-deep-dive-valheim ; Terraria progression: https://terraria.wiki.gg/wiki/Guide:Game_progression ; NMS galaxy centre: https://mein-mmo.de/en/no-mans-sky-the-center-of-the-galaxy-the-biggest-disappointment-in-the-game,107435/</li>
+    <li>Everspace 2 scaling: https://steamcommunity.com/app/1128920/discussions/5/5879990700813147728/ ; dormant home base: https://steamcommunity.com/app/1128920/discussions/5/5440953210431353182/</li>
+    <li>Rebel Galaxy mercenaries: https://rebelgalaxy.fandom.com/wiki/Mercenary_(Hireable) ; price movement: https://steamcommunity.com/app/290300/discussions/0/3377008022038789440/</li>
+    <li>Endless Sky escorts scaled to cargo: https://steamcommunity.com/app/404410/discussions/0/3374780959386760311/ ; route flattening: https://steamcommunity.com/app/404410/discussions/0/143388408894599823</li>
+    <li>Dredge pursuits and expiring offers: https://indiegameculture.com/guides/dredge-side-quests-guide/ ; Hardspace work-order grind: https://steamcommunity.com/app/1161580/discussions/0/2527030866866302664/</li>
+    <li>Sandbox theory: https://www.gamedeveloper.com/design/the-history-and-theory-of-sandbox-gameplay ; aimless design: https://game-wisdom.com/critical/problems-aimless-game-design</li>
+    <li>Starsector reputation and commissions (what D13 must not become): https://starsector.wiki.gg/wiki/Reputation ; Elite notoriety: https://elite-dangerous.fandom.com/wiki/Notoriety</li>
+    <li>X4 "all fountains, no sinks": https://steamcommunity.com/app/392160/discussions/0/571540929904725056/ ; station building manual: https://wiki.egosoft.com/X4%20Foundations%20Wiki/Manual%20and%20Guides/X4:%20Foundations%20Manual/Station%20Building%20And%20Management/</li>
+  </ul>
+  <p class="note">Snippet-only claims (fandom wikis, fractalsoftworks blog and forum, barotraumagame wiki) refused fetches and are not used for any rule on this page; where a number from one appears in the full report it is marked for re-verification.</p>
+</section>
+</main>
+</div>
+
+<script>
+(function () {
+  var buttons = document.querySelectorAll('.filters button');
+  var dossiers = document.querySelectorAll('.dossier');
+  var rows = document.querySelectorAll('#matrix-table tbody tr');
+  function matches(el, f) {
+    if (f === 'all') return true;
+    if (f === 'nostation') return el.dataset.station !== 'yes';
+    if (f === 'station') return el.dataset.station === 'yes' || el.dataset.station === 'optional';
+    if (f === 'noclock') return el.dataset.clock !== 'yes';
+    if (f === 'rec') return el.dataset.rec === 'yes';
+    return true;
+  }
+  function apply(f) {
+    buttons.forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.filter === f ? 'true' : 'false'); });
+    dossiers.forEach(function (d) { d.hidden = !matches(d, f); });
+    rows.forEach(function (r) { r.hidden = !matches(r, f); });
+    try { localStorage.setItem('owpd-filter', f); } catch (e) {}
+  }
+  buttons.forEach(function (b) { b.addEventListener('click', function () { apply(b.dataset.filter); }); });
+  var saved = null;
+  try { saved = localStorage.getItem('owpd-filter'); } catch (e) {}
+  if (saved && saved !== 'all') apply(saved);
+})();
+</script>
