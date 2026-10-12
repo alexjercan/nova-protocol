@@ -26,19 +26,22 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use bevy::prelude::*;
+use nova_events::prelude::{CreditChangeCauseType, ItemTradeType};
 
 use crate::integrity::prelude::Health;
 
 /// The whole module.
 pub mod prelude {
+    pub use nova_events::prelude::{CreditChangeCauseType, ItemTradeType};
+
     pub use super::{
         kg_text, plan_credit_take, plan_item_jettison, plan_item_trade, plan_item_transfer,
         plan_plate_repair, CargoCanister, CargoCanisterIdAllocator, CargoCanisterRuntimeId,
         CreditTakeRefusalType, GameItems, ItemCategoryType, ItemDesign, ItemDesignId, ItemJettison,
-        ItemJettisonRefusalType, ItemRoleType, ItemTrade, ItemTradeRefusalType, ItemTradeType,
+        ItemJettisonRefusalType, ItemRoleType, ItemTrade, ItemTradeRefusalType,
         ItemTransferRefusalType, ItemTransferType, LootableShipMarker, PlateRepair,
-        PlateRepairRefusalType, ShipCredits, ShipInventory, ShipInventoryStock,
-        CARGO_CANISTER_MAX_MASS_G, HULL_PLATE_HEALTH,
+        PlateRepairRefusalType, ShipCredits, ShipInventory, ShipInventoryReport,
+        ShipInventoryReports, ShipInventoryStock, CARGO_CANISTER_MAX_MASS_G, HULL_PLATE_HEALTH,
     };
 }
 
@@ -473,6 +476,98 @@ impl ShipInventory {
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct ShipCredits(pub u32);
 
+/// One hold or balance change a ship's owning system made, queued for the
+/// scenario layer to translate into a scenario event.
+///
+/// The ship and gameplay crates sit below `nova_scenario`, so they cannot
+/// fire a scenario event themselves; they push here instead, the way a helm
+/// order pushes its `ShipOrderReport`, and a scenario tracker drains the
+/// queue once per fixed tick. Every variant names what moved in typed ids so
+/// the tracker only resolves scenario ids.
+#[derive(Clone, Debug, PartialEq, Eq, Reflect)]
+pub enum ShipInventoryReport {
+    /// An intake took one stack of a canister into the hold.
+    PickedUp {
+        /// Runtime id of the taken canister.
+        canister: CargoCanisterRuntimeId,
+        /// The stack's item.
+        item: ItemDesignId,
+        /// Units in the stack.
+        count: u32,
+    },
+    /// An intake dropped one stack of a canister out of the hold.
+    Jettisoned {
+        /// Runtime id of the dropped canister.
+        canister: CargoCanisterRuntimeId,
+        /// The stack's item.
+        item: ItemDesignId,
+        /// Units in the stack.
+        count: u32,
+    },
+    /// A Buy or Sell with a docked trader went through; queued on the ship
+    /// that traded, naming the trader.
+    Traded {
+        /// Root of the trader.
+        partner: Entity,
+        /// Which way the items moved, seen from this ship.
+        trade: ItemTradeType,
+        /// The item that moved.
+        item: ItemDesignId,
+        /// Units that moved.
+        count: u32,
+        /// Credits the buyer paid the seller.
+        price_cr: u32,
+    },
+    /// This ship's credits balance moved.
+    CreditsChanged {
+        /// Balance before the change.
+        previous_cr: u32,
+        /// Balance after the change.
+        current_cr: u32,
+        /// Why it moved.
+        cause: CreditChangeCauseType,
+    },
+    /// A Ship pane repair spent hull plates on one section.
+    Repaired {
+        /// Pane code of the repaired section (`HULL-3`).
+        section: String,
+        /// The plate item spent.
+        item: ItemDesignId,
+        /// Plates spent.
+        count: u32,
+    },
+}
+
+/// The [`ShipInventoryReport`]s a ship's owning systems queued since the
+/// scenario layer last drained them. Required by every
+/// [`SpaceshipRootMarker`](crate::markers::SpaceshipRootMarker), so a
+/// pushing system never has to check for it.
+#[derive(Component, Clone, Debug, Default, Reflect)]
+pub struct ShipInventoryReports(pub Vec<ShipInventoryReport>);
+
+impl ShipInventoryReports {
+    /// Set a ship's balance and queue the change: the one writer every
+    /// balance move after spawn goes through, so `OnCreditsChanged` fires
+    /// exactly once per change and never for a write that changed nothing.
+    pub fn change_credits(
+        &mut self,
+        credits: &mut ShipCredits,
+        current_cr: u32,
+        cause: CreditChangeCauseType,
+    ) {
+        let previous_cr = credits.0;
+        if previous_cr == current_cr {
+            return;
+        }
+        credits.0 = current_cr;
+        self.0.push(ShipInventoryReport::CreditsChanged {
+            previous_cr,
+            current_cr,
+            cause,
+        });
+    }
+}
+
 /// Marks a ship root that a docked ship may Take from although it was never
 /// neutralized: a derelict. Authored through `SpaceshipConfig::lootable`.
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
@@ -547,15 +642,6 @@ pub fn plan_item_transfer(
         return Err(ItemTransferRefusalType::NoRoom { free_g });
     }
     Ok(quantity)
-}
-
-/// Which way a trade with a docked trader moves items and credits.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
-pub enum ItemTradeType {
-    /// Items from the trader into the player ship, paid at the item's ask.
-    Buy,
-    /// Items from the player ship into the trader, paid at the item's bid.
-    Sell,
 }
 
 /// A planned trade: the count to move from seller to buyer and the credits to
@@ -750,7 +836,7 @@ impl CargoCanister {
 /// `Entity` (recycled) or `Name` (every canister shares `"Cargo Canister"`).
 ///
 /// [`SavedTargetRef::Canister`]: crate::saved_refs::SavedTargetRef::Canister
-#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CargoCanisterRuntimeId(pub u64);
@@ -991,6 +1077,38 @@ impl<'de> serde::Deserialize<'de> for ShipInventoryStock {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The credits choke point reports every real move once and a no-op move
+    /// never: a trade at price zero or a Take from an empty strongbox must
+    /// not wake an `OnCreditsChanged` handler.
+    #[test]
+    fn change_credits_reports_each_real_move_once_and_skips_a_no_op() {
+        let mut reports = ShipInventoryReports::default();
+        let mut credits = ShipCredits(50);
+
+        reports.change_credits(&mut credits, 50, CreditChangeCauseType::Trade);
+        assert_eq!(credits, ShipCredits(50));
+        assert!(reports.0.is_empty(), "an unchanged balance reports nothing");
+
+        reports.change_credits(&mut credits, 80, CreditChangeCauseType::Trade);
+        reports.change_credits(&mut credits, 0, CreditChangeCauseType::Take);
+        assert_eq!(credits, ShipCredits(0));
+        assert_eq!(
+            reports.0,
+            vec![
+                ShipInventoryReport::CreditsChanged {
+                    previous_cr: 50,
+                    current_cr: 80,
+                    cause: CreditChangeCauseType::Trade,
+                },
+                ShipInventoryReport::CreditsChanged {
+                    previous_cr: 80,
+                    current_cr: 0,
+                    cause: CreditChangeCauseType::Take,
+                },
+            ]
+        );
+    }
 
     #[test]
     fn kg_text_shows_grams_as_kilograms_without_trailing_zeros() {

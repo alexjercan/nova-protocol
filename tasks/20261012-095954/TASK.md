@@ -12,10 +12,10 @@
 - No such events exist (`crates/nova_scenario/src/events.rs:76-160`; grep for `SectorCrossed|OnSectorEnter|SectorEntered` finds nothing). `CurrentSector` changes drive saves (`crates/nova_world_base/src/save/session.rs:165-172`); mining, pickup and trade have owning systems in `crates/nova_scenario/src/mining.rs`, `crates/nova_ship/src/sections/cargo_intake_section.rs` and `crates/nova_gameplay/src/inventory.rs`.
 
 ## Delivery gate
-- Add `OnSectorEntered`, `OnMined`, `OnPickedUp`, `OnTraded`, `OnCreditsChanged` with explicit payload fields; each fires from its owning system, never from a poll. Lint: a handler for these on a `Void` scenario is an error. State the plugin ordering for each emitter.
+- Owner rescope 2026-10-12: `OnSectorEntered` is DROPPED (a sector is a streaming cell, not an author verb; areas with `OnEnter`/`OnExit` cover "went somewhere"). The six events are `OnMined`, `OnPickedUp`, `OnJettisoned`, `OnTraded`, `OnCreditsChanged`, `OnRepaired`. All six are valid on ANY world (mining, intake, trade and repair are ship/gameplay systems that run in a Void chapter today), so there is NO void lint rule. Explicit payload fields; each fires from its owning system, never from a poll. State the plugin ordering for each emitter.
 
 ## Verification
 - One asserted example per event; a probe harness that counts them over a short flown walk.
 
 ## Done when
-- The five events are in the closed vocabulary, documented in `docs/scenario-system.md`, and a harness objective can complete on each.
+- The six events are in the closed vocabulary, documented in `docs/scenario-system.md`, and a harness objective can complete on each.

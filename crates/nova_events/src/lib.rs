@@ -40,24 +40,29 @@ pub mod prelude {
         },
         scale::LOAD_LIMIT,
         units::prelude::*,
-        CinematicEventInfo, DockingEventInfo, EntityId, EntityTypeName, LockEventInfo,
+        CargoEventInfo, CinematicEventInfo, CreditChangeCauseType, CreditsChangedEventInfo,
+        DockingEventInfo, EntityId, EntityTypeName, ItemTradeType, LockEventInfo, MinedEventInfo,
         OnCinematicFinishedEvent, OnCinematicSkippedEvent, OnCombatLockEndEvent,
-        OnCombatLockStartEvent, OnDefeatedEvent, OnDefeatedEventInfo, OnDestroyedEvent,
-        OnDestroyedEventInfo, OnDockedEvent, OnEnterEvent, OnEnterEventInfo, OnExitEvent,
-        OnExitEventInfo, OnGotoCompleteEvent, OnGotoCompleteEventInfo, OnNeutralizedEvent,
-        OnNeutralizedEventInfo, OnOrbitEndEvent, OnOrbitLapEvent, OnOrbitStableEvent,
-        OnOrbitStartEvent, OnOrbitUnstableEvent, OnShipOrderCanceledEvent,
+        OnCombatLockStartEvent, OnCreditsChangedEvent, OnDefeatedEvent, OnDefeatedEventInfo,
+        OnDestroyedEvent, OnDestroyedEventInfo, OnDockedEvent, OnEnterEvent, OnEnterEventInfo,
+        OnExitEvent, OnExitEventInfo, OnGotoCompleteEvent, OnGotoCompleteEventInfo,
+        OnJettisonedEvent, OnMinedEvent, OnNeutralizedEvent, OnNeutralizedEventInfo,
+        OnOrbitEndEvent, OnOrbitLapEvent, OnOrbitStableEvent, OnOrbitStartEvent,
+        OnOrbitUnstableEvent, OnPickedUpEvent, OnRepairedEvent, OnShipOrderCanceledEvent,
         OnShipOrderCanceledEventInfo, OnShipOrderCompleteEvent, OnShipOrderCompleteEventInfo,
         OnShipOrderFailedEvent, OnShipOrderFailedEventInfo, OnShipOrderInterruptedEvent,
         OnShipOrderInterruptedEventInfo, OnShipOrderResumedEvent, OnShipOrderResumedEventInfo,
         OnStartEvent, OnStartEventInfo, OnStopCompleteEvent, OnStopCompleteEventInfo,
-        OnTimerEndEvent, OnTimerEndEventInfo, OnTravelLockEndEvent, OnTravelLockStartEvent,
-        OnUndockedEvent, OnUpdateEvent, OnUpdateEventInfo, OrbitEventInfo,
-        ScenarioAddressableMarker, ShipOrderKind, ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME,
-        BEACON_TYPE_NAME, CINEMATIC_KEY_FIELD_NAME, ENTITY_ID_COMPONENT_NAME,
-        ENTITY_OTHER_ID_COMPONENT_NAME, ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME,
-        ENTITY_TYPE_NAME_COMPONENT_NAME, LIGHT_TYPE_NAME, PLANET_TYPE_NAME, SHIP_ORDER_FIELD_NAME,
-        SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME, TIMER_KEY_FIELD_NAME,
+        OnTimerEndEvent, OnTimerEndEventInfo, OnTradedEvent, OnTravelLockEndEvent,
+        OnTravelLockStartEvent, OnUndockedEvent, OnUpdateEvent, OnUpdateEventInfo, OrbitEventInfo,
+        RepairedEventInfo, ScenarioAddressableMarker, ShipOrderKind, TradedEventInfo,
+        ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME, BEACON_TYPE_NAME, CANISTER_FIELD_NAME,
+        CINEMATIC_KEY_FIELD_NAME, CREDIT_CAUSE_FIELD_NAME, CURRENT_CREDITS_FIELD_NAME,
+        DELTA_CREDITS_FIELD_NAME, ENTITY_ID_COMPONENT_NAME, ENTITY_OTHER_ID_COMPONENT_NAME,
+        ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME, ENTITY_TYPE_NAME_COMPONENT_NAME,
+        ITEM_COUNT_FIELD_NAME, ITEM_FIELD_NAME, LIGHT_TYPE_NAME, PLANET_TYPE_NAME,
+        PREVIOUS_CREDITS_FIELD_NAME, PRICE_FIELD_NAME, SECTION_FIELD_NAME, SHIP_ORDER_FIELD_NAME,
+        SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME, TIMER_KEY_FIELD_NAME, TRADE_FIELD_NAME,
     };
 }
 
@@ -825,6 +830,372 @@ mod ship_order_tests {
         assert!(
             value.get(TIMER_KEY_FIELD_NAME).is_none(),
             "the order key does not masquerade as a timer key"
+        );
+    }
+}
+
+/// Field name for the item design id an inventory event moved.
+pub const ITEM_FIELD_NAME: &str = "item";
+/// Field name for the unit count an inventory event moved.
+pub const ITEM_COUNT_FIELD_NAME: &str = "count";
+/// Field name for the canister runtime id a pickup or jettison names.
+pub const CANISTER_FIELD_NAME: &str = "canister";
+/// Field name for the [`ItemTradeType`] of a completed trade.
+pub const TRADE_FIELD_NAME: &str = "trade";
+/// Field name for the credits a trade moved.
+pub const PRICE_FIELD_NAME: &str = "price_cr";
+/// Field name for a ship's balance before a credits change.
+pub const PREVIOUS_CREDITS_FIELD_NAME: &str = "previous_cr";
+/// Field name for a ship's balance after a credits change.
+pub const CURRENT_CREDITS_FIELD_NAME: &str = "current_cr";
+/// Field name for the signed credits change.
+pub const DELTA_CREDITS_FIELD_NAME: &str = "delta_cr";
+/// Field name for the [`CreditChangeCauseType`] of a credits change.
+pub const CREDIT_CAUSE_FIELD_NAME: &str = "cause";
+/// Field name for the pane section code a repair named.
+pub const SECTION_FIELD_NAME: &str = "section";
+
+/// Which way a trade with a docked trader moves items and credits.
+///
+/// Authored in an `OnTraded` handler's expression and carried in the trade
+/// payload, so it lives here beside the payload rather than in the gameplay
+/// rule that plans the trade or the pane that applies it.
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, Reflect,
+)]
+pub enum ItemTradeType {
+    /// Items from the trader into the player ship, paid at the item's ask.
+    Buy,
+    /// Items from the player ship into the trader, paid at the item's bid.
+    Sell,
+}
+
+impl ItemTradeType {
+    /// The name this direction carries in a serialized event payload; held to
+    /// what serde writes by a test, for the same reason as
+    /// [`ShipOrderKind::as_str`].
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ItemTradeType::Buy => "Buy",
+            ItemTradeType::Sell => "Sell",
+        }
+    }
+}
+
+/// Why a ship's credits balance moved.
+///
+/// Every writer of a balance after spawn names its cause here, so a handler
+/// can tell a sale from a looted strongbox without reading the sign.
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, Reflect,
+)]
+pub enum CreditChangeCauseType {
+    /// A Buy or Sell with a docked trader moved the credits.
+    Trade,
+    /// A Take emptied a docked derelict's strongbox.
+    Take,
+}
+
+impl CreditChangeCauseType {
+    /// The name this cause carries in a serialized event payload.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            CreditChangeCauseType::Trade => "Trade",
+            CreditChangeCauseType::Take => "Take",
+        }
+    }
+}
+
+/// A mining beam pulse carved ore off an asteroid (`onmined`).
+///
+/// One event per pulse that flips at least one corner: the pulse is the
+/// irrevocable mutation, and the canister it later ejects is a drop that
+/// `onpickedup` already reports. A pulse that only warms the beam or hits a
+/// barren rock fires nothing.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onmined")]
+#[event_info(MinedEventInfo)]
+pub struct OnMinedEvent;
+
+/// Payload for [`OnMinedEvent`]: the asteroid that lost ore (`id`) and the
+/// ship whose beam took it (`other_id` / `other_type_name`), with the ore
+/// item id and the units carved.
+///
+/// Passive subject first, the way the docking payload names the ship docked
+/// WITH first: a handler that watches one rock filters on `id`, one that
+/// watches the miner filters on `other_id`.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
+pub struct MinedEventInfo {
+    /// Scenario id of the asteroid that lost ore.
+    #[serde(rename = "id")]
+    pub id: String,
+    /// Scenario id of the mining ship.
+    #[serde(rename = "other_id")]
+    pub other_id: String,
+    /// Type name of the mining ship.
+    #[serde(rename = "other_type_name")]
+    pub other_type_name: String,
+    /// Item design id of the ore the pulse carved.
+    #[serde(rename = "item")]
+    pub item: String,
+    /// Ore units the pulse carved: one per flipped corner.
+    #[serde(rename = "count")]
+    pub count: u32,
+}
+
+/// A cargo intake took a canister into a ship's hold (`onpickedup`).
+///
+/// One event per item stack the canister carried, in the tick the intake
+/// despawns it; a canister of two stacks reports twice with the same
+/// `canister` id.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onpickedup")]
+#[event_info(CargoEventInfo)]
+pub struct OnPickedUpEvent;
+
+/// A ship dropped a canister out of its hold (`onjettisoned`).
+///
+/// Fires from the intake that ejects the canister, not from the pane that
+/// asked for it, so a queued jettison that never leaves the hull (the intake
+/// is disabled or destroyed) reports nothing. One event per stack, like
+/// [`OnPickedUpEvent`].
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onjettisoned")]
+#[event_info(CargoEventInfo)]
+pub struct OnJettisonedEvent;
+
+/// Shared payload for pickup and jettison: the ship whose hold changed (`id`
+/// / `type_name`), the canister's runtime id, and one item stack.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
+pub struct CargoEventInfo {
+    /// Scenario id of the ship whose hold changed.
+    #[serde(rename = "id")]
+    pub id: String,
+    /// Type name of that ship.
+    #[serde(rename = "type_name")]
+    pub type_name: String,
+    /// Runtime id of the canister that was taken or dropped.
+    #[serde(rename = "canister")]
+    pub canister: u64,
+    /// Item design id of the stack.
+    #[serde(rename = "item")]
+    pub item: String,
+    /// Units in the stack.
+    #[serde(rename = "count")]
+    pub count: u32,
+}
+
+/// A Buy or Sell with a docked trader moved items and credits (`ontraded`).
+///
+/// One event per confirmed trade. The two balance moves it causes each raise
+/// their own [`OnCreditsChangedEvent`].
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("ontraded")]
+#[event_info(TradedEventInfo)]
+pub struct OnTradedEvent;
+
+/// Payload for [`OnTradedEvent`]: the trader (`id`) and the ship that traded
+/// with it (`other_id` / `other_type_name`), the direction, the item, the
+/// count and the credits that changed hands.
+///
+/// The trader is the passive subject, as the docked-with ship is in
+/// [`DockingEventInfo`]: a trade is a player verb against the hull it docked
+/// to, so a handler that watches one shop filters on `id`.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+pub struct TradedEventInfo {
+    /// Scenario id of the trader.
+    #[serde(rename = "id")]
+    pub id: String,
+    /// Scenario id of the ship that traded.
+    #[serde(rename = "other_id")]
+    pub other_id: String,
+    /// Type name of the ship that traded.
+    #[serde(rename = "other_type_name")]
+    pub other_type_name: String,
+    /// Which way the items moved, seen from the trading ship.
+    #[serde(rename = "trade")]
+    pub trade: ItemTradeType,
+    /// Item design id that moved.
+    #[serde(rename = "item")]
+    pub item: String,
+    /// Units that moved.
+    #[serde(rename = "count")]
+    pub count: u32,
+    /// Credits the buyer paid the seller.
+    #[serde(rename = "price_cr")]
+    pub price_cr: u32,
+}
+
+impl Default for TradedEventInfo {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            other_id: String::new(),
+            other_type_name: String::new(),
+            trade: ItemTradeType::Buy,
+            item: String::new(),
+            count: 0,
+            price_cr: 0,
+        }
+    }
+}
+
+/// A ship's credits balance moved (`oncreditschanged`).
+///
+/// One event per ship whose balance changed, from the one writer every
+/// balance change goes through; a trade therefore raises two, one per party,
+/// and a handler picks its side with an `Entity` filter on `id`. A write that
+/// leaves the balance where it was raises nothing.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("oncreditschanged")]
+#[event_info(CreditsChangedEventInfo)]
+pub struct OnCreditsChangedEvent;
+
+/// Payload for [`OnCreditsChangedEvent`]: the ship (`id` / `type_name`), its
+/// balance before and after, the signed difference, and the cause.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+pub struct CreditsChangedEventInfo {
+    /// Scenario id of the ship whose balance moved.
+    #[serde(rename = "id")]
+    pub id: String,
+    /// Type name of that ship.
+    #[serde(rename = "type_name")]
+    pub type_name: String,
+    /// Balance before the change.
+    #[serde(rename = "previous_cr")]
+    pub previous_cr: u32,
+    /// Balance after the change.
+    #[serde(rename = "current_cr")]
+    pub current_cr: u32,
+    /// `current_cr - previous_cr`, negative when the ship paid.
+    #[serde(rename = "delta_cr")]
+    pub delta_cr: i64,
+    /// Why the balance moved.
+    #[serde(rename = "cause")]
+    pub cause: CreditChangeCauseType,
+}
+
+impl CreditsChangedEventInfo {
+    /// The signed difference a balance move carries; widened so a full-range
+    /// drop from `u32::MAX` to zero still fits.
+    pub fn delta(previous_cr: u32, current_cr: u32) -> i64 {
+        i64::from(current_cr) - i64::from(previous_cr)
+    }
+}
+
+impl Default for CreditsChangedEventInfo {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            type_name: String::new(),
+            previous_cr: 0,
+            current_cr: 0,
+            delta_cr: 0,
+            cause: CreditChangeCauseType::Trade,
+        }
+    }
+}
+
+/// A Ship pane repair spent hull plates on a section (`onrepaired`).
+///
+/// One event per confirmed repair that spends at least one plate; a repair
+/// the rule refuses (no plates, a full section) fires nothing.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onrepaired")]
+#[event_info(RepairedEventInfo)]
+pub struct OnRepairedEvent;
+
+/// Payload for [`OnRepairedEvent`]: the ship (`id` / `type_name`), the pane
+/// code of the repaired section, the plate item and the plates spent.
+///
+/// The section is named by its pane code (`HULL-3`) rather than its design
+/// id: the code is what the player read when they ordered the repair, and a
+/// hull carries the same design id on several sections.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
+pub struct RepairedEventInfo {
+    /// Scenario id of the repaired ship.
+    #[serde(rename = "id")]
+    pub id: String,
+    /// Type name of that ship.
+    #[serde(rename = "type_name")]
+    pub type_name: String,
+    /// Pane section code of the repaired section.
+    #[serde(rename = "section")]
+    pub section: String,
+    /// Item design id of the plate the repair spent.
+    #[serde(rename = "item")]
+    pub item: String,
+    /// Plates the repair spent.
+    #[serde(rename = "count")]
+    pub count: u32,
+}
+
+#[cfg(test)]
+mod inventory_event_tests {
+    use super::*;
+
+    /// A filter compares against the serialized payload, so the two `as_str`
+    /// names must be exactly what serde writes.
+    #[test]
+    fn the_trade_and_cause_names_are_the_ones_serde_writes() {
+        for trade in [ItemTradeType::Buy, ItemTradeType::Sell] {
+            let serialized = serde_json::to_value(trade).expect("a unit variant serializes");
+            assert_eq!(serialized.as_str(), Some(trade.as_str()));
+        }
+        for cause in [CreditChangeCauseType::Trade, CreditChangeCauseType::Take] {
+            let serialized = serde_json::to_value(cause).expect("a unit variant serializes");
+            assert_eq!(serialized.as_str(), Some(cause.as_str()));
+        }
+    }
+
+    /// The delta is signed and wide enough for the whole balance range: a
+    /// looted strongbox and a full-price purchase both report exactly.
+    #[test]
+    fn the_credits_delta_is_signed_over_the_whole_range() {
+        assert_eq!(CreditsChangedEventInfo::delta(50, 80), 30);
+        assert_eq!(CreditsChangedEventInfo::delta(80, 50), -30);
+        assert_eq!(
+            CreditsChangedEventInfo::delta(u32::MAX, 0),
+            -i64::from(u32::MAX)
+        );
+        assert_eq!(
+            CreditsChangedEventInfo::delta(0, u32::MAX),
+            i64::from(u32::MAX)
+        );
+    }
+
+    /// The trade payload keeps the trader under the passive `id` slot and the
+    /// trading ship under `other_id`, so one `Entity` filter shape serves
+    /// docking and trading alike.
+    #[test]
+    fn the_trade_payload_names_the_trader_as_the_passive_subject() {
+        let info = TradedEventInfo {
+            id: "trader".to_string(),
+            other_id: "miner".to_string(),
+            other_type_name: SPACESHIP_TYPE_NAME.to_string(),
+            trade: ItemTradeType::Sell,
+            item: "StoneOre".to_string(),
+            count: 4,
+            price_cr: 12,
+        };
+        let value = serde_json::to_value(&info).expect("the payload serializes");
+        assert_eq!(
+            value.get(ENTITY_ID_COMPONENT_NAME).and_then(|v| v.as_str()),
+            Some("trader")
+        );
+        assert_eq!(
+            value
+                .get(ENTITY_OTHER_ID_COMPONENT_NAME)
+                .and_then(|v| v.as_str()),
+            Some("miner")
+        );
+        assert_eq!(
+            value.get(TRADE_FIELD_NAME).and_then(|v| v.as_str()),
+            Some("Sell")
+        );
+        assert_eq!(
+            value.get(PRICE_FIELD_NAME).and_then(|v| v.as_u64()),
+            Some(12)
         );
     }
 }

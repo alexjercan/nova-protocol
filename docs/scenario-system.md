@@ -912,6 +912,20 @@ hull is destroyed still reports through the survivor, and the two echoes are
 deduplicated into one release. Only a pair that dies whole falls silent, the
 way orbit end and area exit do for a despawned body.
 
+The hold events cross the crate line the same way ship orders do: a queue
+component. `ShipInventoryReports` (`nova_gameplay`) is required by every
+spaceship root, and the owning system pushes one report per occurrence - the
+cargo intake for a taken or dropped stack, the inventory pane for a confirmed
+trade and each purse it moved, the ship pane for a repair. Credits have one
+choke point, `ShipInventoryReports::change_credits`, which is the only
+post-spawn writer and reports nothing for a no-op. `track_ship_inventory_reports`
+drains the queue in `FixedUpdate` after `SpaceshipSectionSystems` and fires
+`OnPickedUp`, `OnJettisoned`, `OnTraded`, `OnCreditsChanged` and `OnRepaired`;
+pane reports pushed under the interface pause arrive on the first fixed tick
+after it closes. `OnMined` has no queue: `pulse_mining_beams` (`mining.rs`)
+fires it per pulse that flips at least one corner, with the rock as `id` and
+the miner as `other_id`, because the pulse is already a scenario-crate system.
+
 ## Adding new pieces
 
 - Event: event + info structs in `nova_events/src/lib.rs`, an `EventConfig`
@@ -919,8 +933,11 @@ way orbit end and area exit do for a despawned body.
   live in `loader/` - `OnStart` in `lifecycle.rs`, `OnUpdate` in `clock.rs`,
   the orbit/lock/docking trackers in `trackers.rs`; area events in
   `objects/area.rs`;
-  `OnNeutralized` fires from `nova_gameplay`'s integrity stack, and a rock's
-  `OnDestroyed` from `objects/asteroid_carve.rs` when its field is exhausted).
+  `OnNeutralized` fires from `nova_gameplay`'s integrity stack, a rock's
+  `OnDestroyed` from `objects/asteroid_carve.rs` when its field is exhausted,
+  the hold events from `track_ship_inventory_reports` in `trackers.rs`, and
+  `OnMined` from `mining.rs`). A new occurrence below `nova_scenario` pushes a
+  `ShipInventoryReport` variant; it does not get a second queue.
 - Action: config struct + `EventAction<NovaEventWorld>` impl in the right
   `actions/` submodule (`audio`/`cinematic`/`flow`/`mission`/`sequence`/`ship`/
   `spawn`/`timer`/`view`), plus a row in the `registry::scenario_actions!`

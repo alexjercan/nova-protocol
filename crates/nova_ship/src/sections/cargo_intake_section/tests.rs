@@ -122,12 +122,19 @@ fn drifting_canister(
     velocity: Vec3,
 ) -> Entity {
     let items = app.world().resource::<GameItems>().clone();
+    let id = app
+        .world_mut()
+        .resource_mut::<CargoCanisterIdAllocator>()
+        .mint();
     app.world_mut()
-        .spawn(cargo_canister(
-            CargoCanister::new(&items, &ItemRoleType::HullPlate.into(), count),
-            Transform::from_translation(at).with_rotation(rotation),
-            velocity,
-            AssetRef::from("canister.glb#Scene0"),
+        .spawn((
+            cargo_canister(
+                CargoCanister::new(&items, &ItemRoleType::HullPlate.into(), count),
+                Transform::from_translation(at).with_rotation(rotation),
+                velocity,
+                AssetRef::from("canister.glb#Scene0"),
+            ),
+            id,
         ))
         .id()
 }
@@ -757,13 +764,20 @@ fn a_canister_of_a_catalog_only_item_is_taken_into_the_hold() {
         test_items().iter().cloned().chain([fixture]),
     ));
     let catalog = app.world().resource::<GameItems>().clone();
+    let id = app
+        .world_mut()
+        .resource_mut::<CargoCanisterIdAllocator>()
+        .mint();
     let canister = app
         .world_mut()
-        .spawn(cargo_canister(
-            CargoCanister::new(&catalog, &fixture_id, 3),
-            Transform::from_xyz(0.0, 0.0, in_front(CAPTURE_GAP.to_engine() * 0.5)),
-            Vec3::ZERO,
-            AssetRef::from("canister.glb#Scene0"),
+        .spawn((
+            cargo_canister(
+                CargoCanister::new(&catalog, &fixture_id, 3),
+                Transform::from_xyz(0.0, 0.0, in_front(CAPTURE_GAP.to_engine() * 0.5)),
+                Vec3::ZERO,
+                AssetRef::from("canister.glb#Scene0"),
+            ),
+            id,
         ))
         .id();
 

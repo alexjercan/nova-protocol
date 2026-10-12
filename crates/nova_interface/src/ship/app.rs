@@ -241,13 +241,17 @@ pub(crate) fn apply_ship_section_commands(
     mut messages: MessageReader<SectionRepairCommand>,
     mut runtime: ResMut<ShipRuntime>,
     mut q_player: Query<
-        (Entity, Option<&mut ShipInventory>),
+        (
+            Entity,
+            Option<&mut ShipInventory>,
+            &mut ShipInventoryReports,
+        ),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
     q_view: Query<(&ChildOf, &SectionCode, Has<IntegrityDisabledMarker>), With<SectionMarker>>,
     mut q_health: Query<&mut Health>,
 ) {
-    let Ok((player, inventory)) = q_player.single_mut() else {
+    let Ok((player, inventory, mut reports)) = q_player.single_mut() else {
         messages.clear();
         return;
     };
@@ -265,6 +269,7 @@ pub(crate) fn apply_ship_section_commands(
             disabled,
             command.requested_plates,
             &mut inventory,
+            &mut reports,
         );
         runtime.note = Some((row.text, 2.5));
     }

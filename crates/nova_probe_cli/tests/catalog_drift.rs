@@ -937,10 +937,23 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "the world stays armed and streamed past the edge",
         ],
     ),
+    (
+        "system_hold_events",
+        &[
+            "the berth lists one objective per hold event and none fires at load",
+            "a Buy fires OnTraded once with the trader as subject",
+            "a trade fires OnCreditsChanged once per party with the signed delta",
+            "a Ship pane repair fires OnRepaired once naming the section code and the plates",
+            "a jettison fires OnJettisoned once per stack when the intake drops the canister",
+            "a canister the intake takes fires OnPickedUp once per stack",
+            "a paying mining pulse fires OnMined once naming the rock and the miner",
+            "each hold event completes its authored objective and the tour ends in Victory",
+        ],
+    ),
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 461;
+const SYSTEMS_INVARIANTS: usize = 469;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

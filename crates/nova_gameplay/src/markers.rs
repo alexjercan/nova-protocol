@@ -18,7 +18,7 @@ use bevy::prelude::*;
 
 use crate::{
     integrity::prelude::{DamageMarks, IntegrityRoot},
-    inventory::prelude::{ShipCredits, ShipInventory},
+    inventory::prelude::{ShipCredits, ShipInventory, ShipInventoryReports},
     relations::prelude::Allegiance,
 };
 
@@ -43,9 +43,16 @@ pub mod prelude {
 /// hull sections could not carve.
 ///
 /// Every ship carries a [`ShipInventory`], empty until something fills it,
-/// and [`ShipCredits`], zero until something pays it.
+/// and [`ShipCredits`], zero until something pays it, and the
+/// [`ShipInventoryReports`] queue those two report their changes through.
 #[derive(Component, Clone, Debug, Default, Reflect)]
-#[require(IntegrityRoot, DamageMarks, ShipInventory, ShipCredits)]
+#[require(
+    IntegrityRoot,
+    DamageMarks,
+    ShipInventory,
+    ShipCredits,
+    ShipInventoryReports
+)]
 pub struct SpaceshipRootMarker;
 
 /// Marks the player's spaceship root.

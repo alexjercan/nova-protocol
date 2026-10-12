@@ -60,6 +60,9 @@ use bevy::{
     shader::ShaderRef,
 };
 use bevy_hanabi::prelude::*;
+use nova_events::prelude::{
+    CommandsGameEventExt, EntityId, EntityTypeName, MinedEventInfo, OnMinedEvent,
+};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 
@@ -389,6 +392,8 @@ type RockNodeQuery<'w, 's> = Query<
 
 /// Where a beam meets an ore rock.
 struct BeamAim {
+    /// The rock's root, which carries its scenario id.
+    rock: Entity,
     /// The rock's field node.
     node: Entity,
     /// The ore the rock yields.
@@ -432,6 +437,7 @@ fn pulse_mining_beams(
     q_locks: Query<&TravelLock>,
     q_rocks: RockQuery,
     mut q_nodes: RockNodeQuery,
+    q_ids: Query<(&EntityId, &EntityTypeName)>,
     items: Res<GameItems>,
 ) {
     for section in &q_inactive {
@@ -491,9 +497,9 @@ fn pulse_mining_beams(
         if !due {
             continue;
         }
-        let outcome = aim.map(|aim| {
+        let outcome = aim.as_ref().map_err(|&refusal| refusal).map(|aim| {
             carve(
-                &aim,
+                aim,
                 direction,
                 config.carve_radius_cells,
                 &items,
@@ -502,9 +508,14 @@ fn pulse_mining_beams(
                 &mut owed,
             )
         });
-        match outcome {
+        match &outcome {
             Ok(corners) => debug!("pulse_mining_beams: {section:?} flipped {corners} corner(s)"),
             Err(refusal) => info!("pulse_mining_beams: {section:?} refused: {refusal:?}"),
+        }
+        if let (Ok(aim), Ok(corners)) = (&aim, &outcome) {
+            if *corners > 0 {
+                fire_on_mined(&mut commands, &q_ids, aim, ship, *corners);
+            }
         }
         commands.trigger(MiningPulse {
             entity: section,
@@ -549,11 +560,43 @@ fn aim_beam(
     // collider reports no normal: the beam's own back-direction stands in.
     let normal = normal.try_normalize().unwrap_or(-direction);
     Ok(BeamAim {
+        rock,
         node,
         item,
         at: origin + direction * distance,
         normal,
     })
+}
+
+/// Fire `OnMined` for one pulse that flipped `corners`: the rock is the
+/// passive subject, the ship whose beam cut it the other party.
+///
+/// A rock or ship without a scenario id (a code-built fixture) is skipped
+/// with a debug line, not a payload with empty keys: the entity filter fails
+/// closed on an empty id, so such an event could never match a handler and
+/// would only mislead a log reader.
+fn fire_on_mined(
+    commands: &mut Commands,
+    q_ids: &Query<(&EntityId, &EntityTypeName)>,
+    aim: &BeamAim,
+    ship: Entity,
+    corners: u32,
+) {
+    let (Ok((rock_id, _)), Ok((ship_id, ship_type_name))) = (q_ids.get(aim.rock), q_ids.get(ship))
+    else {
+        debug!(
+            "pulse_mining_beams: rock {:?} or ship {ship:?} has no scenario id; OnMined skipped",
+            aim.rock
+        );
+        return;
+    };
+    commands.fire::<OnMinedEvent>(MinedEventInfo {
+        id: rock_id.0.clone(),
+        other_id: ship_id.0.clone(),
+        other_type_name: ship_type_name.0.clone(),
+        item: aim.item.id().to_string(),
+        count: corners,
+    });
 }
 
 /// Carve one pulse into the rock `aim` meets: ask for a field if it has none,

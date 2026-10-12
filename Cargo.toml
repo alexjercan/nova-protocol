@@ -582,6 +582,14 @@ name = "system_world_bounds"
 path = "examples/systems/system_world_bounds.rs"
 required-features = ["debug"]
 
+# The six hold events on their production paths in the example mod's berth:
+# a Buy, its two balance moves, a Ship pane repair, a jettison, a pickup and a
+# paying mining pulse each fire once and complete their authored objective.
+[[example]]
+name = "system_hold_events"
+path = "examples/systems/system_hold_events.rs"
+required-features = ["debug"]
+
 # What a generated ship tells the player: on a pinned seed, one intact ship and
 # one derelict read in the HUD target inset and the Map pane, with no ship name
 # on any map blip.

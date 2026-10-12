@@ -42,6 +42,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A generated world's `bounds` spawns the scenario area `bounds` at load.
   Leaving it raises `OnExit` for the authored outcome; the world streams on
   past the edge. Lint warns when no `OnExit` reads it.
+- Hold events `OnMined`, `OnPickedUp`, `OnJettisoned`, `OnTraded`,
+  `OnCreditsChanged` and `OnRepaired` fire once per occurrence; the example
+  mod's `example_prospect` berth runs all six.
 
 ### Modding & Mod Portal
 

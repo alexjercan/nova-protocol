@@ -154,6 +154,29 @@ scenario_events! {
     /// runs on. Terminal. An order REFUSED at issue time never reaches this -
     /// that is a lint error, not a scenario event.
     OnShipOrderFailed => OnShipOrderFailedEvent { label: "On Ship Order Failed" },
+    /// A mining pulse carved ore off an asteroid (`id` = the asteroid, other
+    /// = the mining ship; `item`, `count` = the ore and the units). One event
+    /// per pulse that flips at least one corner; a barren rock fires nothing.
+    OnMined => OnMinedEvent { label: "On Mined" },
+    /// A cargo intake took a canister into a hold (`id` = the ship; `canister`,
+    /// `item`, `count`). One event per stack the canister carried.
+    OnPickedUp => OnPickedUpEvent { label: "On Picked Up" },
+    /// An intake dropped a canister out of a hold (`id` = the ship; `canister`,
+    /// `item`, `count`). Fires when the canister leaves the hull, not when the
+    /// pane queued it. One event per stack.
+    OnJettisoned => OnJettisonedEvent { label: "On Jettisoned" },
+    /// A Buy or Sell with a docked trader went through (`id` = the trader,
+    /// other = the ship that traded; `trade`, `item`, `count`, `price_cr`).
+    /// Once per confirmed trade.
+    OnTraded => OnTradedEvent { label: "On Traded" },
+    /// A ship's credits balance moved (`id` = the ship; `previous_cr`,
+    /// `current_cr`, `delta_cr`, `cause` = `Trade` or `Take`). Once per ship
+    /// per change, so a trade raises one for each party.
+    OnCreditsChanged => OnCreditsChangedEvent { label: "On Credits Changed" },
+    /// A Ship pane repair spent hull plates (`id` = the ship; `section` = the
+    /// pane code such as `HULL-3`, `item`, `count` = plates spent). Once per
+    /// repair that spends at least one plate.
+    OnRepaired => OnRepairedEvent { label: "On Repaired" },
 }
 
 #[cfg(all(test, feature = "serde"))]

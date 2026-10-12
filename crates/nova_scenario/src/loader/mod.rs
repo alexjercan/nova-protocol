@@ -50,7 +50,8 @@ use preload::register_scenario_preload;
 pub use trackers::ORBIT_LAP_GRACE_SECS;
 use trackers::{
     track_docking_transitions, track_orbit_transitions, track_player_autopilot_completions,
-    track_player_locks, track_ship_order_reports, DockEcho, LockEcho, OrbitEcho,
+    track_player_locks, track_ship_inventory_reports, track_ship_order_reports, DockEcho, LockEcho,
+    OrbitEcho,
 };
 pub(crate) use wake::{configure_scenario_shape, WakeProfile};
 
@@ -796,6 +797,16 @@ impl Plugin for ScenarioLoaderPlugin {
             FixedUpdate,
             track_ship_order_reports
                 .after(NovaFlightSystems)
+                .run_if(scenario_is_live),
+        );
+
+        // Hold events. After the section set, so an intake's pickup or drop
+        // in this tick is translated in this tick; a pane's trade, take or
+        // repair pushes in `Update` and is drained on the next fixed tick.
+        app.add_systems(
+            FixedUpdate,
+            track_ship_inventory_reports
+                .after(SpaceshipSectionSystems)
                 .run_if(scenario_is_live),
         );
 

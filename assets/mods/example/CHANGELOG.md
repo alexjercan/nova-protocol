@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.6.0
+
+- Add `example_prospect`, a berth with a trader alongside and an ore rock
+  ahead. One objective completes on each hold event: `OnTraded`,
+  `OnCreditsChanged`, `OnRepaired`, `OnJettisoned`, `OnPickedUp` and
+  `OnMined`. Needs a base game whose vocabulary carries the six.
+
 ## 1.5.0
 
 - Add `example_bounds`, a chapter on the base world generator with a fixed

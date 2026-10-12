@@ -1,7 +1,7 @@
 # Events
 
 Everything that can fire a handler. A handler's `name:` field names one of
-the TWENTY-EIGHT event kinds below, written bare (they are unit variants):
+the THIRTY-FOUR event kinds below, written bare (they are unit variants):
 `name: OnStart`, `name: OnEnter`, and so on. When the event fires, the
 handler's [filters](../filters/) gate it and its [actions](../actions/) run.
 
@@ -46,6 +46,12 @@ The whole vocabulary at a glance:
 | [`OnShipOrderResumed`](#onshiporderresumed) | `order`, `kind`, `id`, `type_name` | that ship picks the same order back up |
 | [`OnShipOrderCanceled`](#onshipordercanceled) | `order`, `kind`, `id`, `type_name` | an unfinished order is cleared or replaced |
 | [`OnShipOrderFailed`](#onshiporderfailed) | `order`, `kind`, `id`, `type_name` | an order can no longer be flown |
+| [`OnMined`](#hold-events) | `id`, `other_id`, `other_type_name`, `item`, `count` | a mining pulse frees ore from a rock |
+| [`OnPickedUp`](#hold-events) | `id`, `type_name`, `canister`, `item`, `count` | a cargo intake takes a canister stack into the hold |
+| [`OnJettisoned`](#hold-events) | `id`, `type_name`, `canister`, `item`, `count` | a cargo intake drops a stack out as a canister |
+| [`OnTraded`](#hold-events) | `id`, `other_id`, `other_type_name`, `trade`, `item`, `count`, `price_cr` | the player buys or sells a stack across a dock |
+| [`OnCreditsChanged`](#hold-events) | `id`, `type_name`, `previous_cr`, `current_cr`, `delta_cr`, `cause` | a ship's credits move |
+| [`OnRepaired`](#hold-events) | `id`, `type_name`, `section`, `item`, `count` | the Ship pane spends plates on a section |
 
 Entity payload fields are what an `Entity` filter can match: `id` /
 `type_name` name the event's SUBJECT, `other_id` / `other_type_name` its other
@@ -741,6 +747,71 @@ To react to a dock with anything, omit `id` and keep `other_id`.
 
 </details>
 
+## Hold events
+
+Six edges report what a ship's hold and purse do. Each fires ONCE per
+occurrence from the system that did the work, never from a poll of the
+inventory, so a handler counts occurrences, not frames.
+
+| event | `id` is | `other_id` is | extra fields |
+|---|---|---|---|
+| `OnMined` | the rock | the mining ship | `item`, `count` (corners the pulse freed) |
+| `OnPickedUp` | the ship whose intake took the stack | none | `canister`, `item`, `count` |
+| `OnJettisoned` | the ship whose intake dropped the stack | none | `canister`, `item`, `count` |
+| `OnTraded` | the ship traded WITH | the player's ship | `trade` (`Buy` or `Sell`, from the player's side), `item`, `count`, `price_cr` |
+| `OnCreditsChanged` | the ship whose purse moved | none | `previous_cr`, `current_cr`, `delta_cr` (signed), `cause` (`Trade` or `Take`) |
+| `OnRepaired` | the repaired ship | none | `section` (the Ship pane code, `CTL-1`), `item`, `count` (plates spent) |
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+The pair events follow the docking rule: the PASSIVE party is `id` and the
+ship that acted is `other_id`. A rock is mined, a tender is traded with. The
+single-ship events name the ship the hold or purse belongs to.
+
+`OnMined` fires per paying pulse: a pulse that flips no corner is silent, and
+`count` is the corners it did flip, which is the ore that lands in the hold
+only if the intake catches the chips. `OnPickedUp` and `OnJettisoned` fire
+once per STACK: a canister holding two item kinds raises two events with the
+same `canister`.
+
+`OnTraded` fires once per confirmed trade on the player's queue, so a buy of
+four rations is one event with `count: 4`. The credits move it causes raises
+one `OnCreditsChanged` per party, `cause: Trade`, in the same frame; the
+loot-take of a dead ship's purse raises one with `cause: Take`. A move that
+leaves the purse unchanged raises nothing.
+
+Trades and repairs come from the interface panes, which run while the world
+is paused: their events arrive on the first simulation tick after the pane
+closes. Intake and mining events arrive the frame the hold changes.
+
+A prospecting berth that wants one of each:
+
+```ron
+(
+    name: OnTraded,
+    once: true,
+    filters: [Entity((id: Some("example_tender"), other_id: Some("player_spaceship")))],
+    actions: [ObjectiveComplete((id: "prospect_trade"))],
+),
+(
+    name: OnMined,
+    once: true,
+    filters: [Entity((id: Some("example_ore_rock"), other_id: Some("player_spaceship")))],
+    actions: [ObjectiveComplete((id: "prospect_mine"))],
+),
+(
+    name: OnRepaired,
+    once: true,
+    filters: [Entity((id: Some("player_spaceship")))],
+    actions: [ObjectiveComplete((id: "prospect_repair"))],
+),
+```
+
+The example mod's `example_prospect` scenario runs all six.
+
+</details>
+
 ## Dispatch order (what you can rely on)
 
 - Events queue and drain FIFO within a frame; for each event, handlers run
@@ -751,3 +822,5 @@ To react to a dock with anything, omit `id` and keep `other_id`.
   `ObjectiveMarkerAttach` ordered after a `SpawnScenarioObject` in the same
   handler does see the fresh object.
 - Never depend on handler order across DIFFERENT events; gate on variables.
+- `OnTraded` and its two `OnCreditsChanged` land on the same tick, trade
+  first; which party's credits event runs first is not promised.

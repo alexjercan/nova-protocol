@@ -472,13 +472,15 @@ fn repair_refusal_text(code: &str, refusal: PlateRepairRefusalType) -> String {
 /// Repair a section from the player ship's hull plates by the
 /// [`plan_plate_repair`] rule: spend the plates and set Health together, or
 /// change nothing. `disabled` is true when the section carries
-/// `IntegrityDisabledMarker`.
+/// `IntegrityDisabledMarker`. A repair that spends plates queues one
+/// `Repaired` report for the scenario's `OnRepaired`.
 pub(crate) fn repair_section(
     code: &str,
     health: Option<&mut Health>,
     disabled: bool,
     requested_plates: u32,
     inventory: &mut ShipInventory,
+    reports: &mut ShipInventoryReports,
 ) -> TerminalRow {
     let refused = |refusal| TerminalRow {
         kind: TerminalRowKind::Error,
@@ -494,8 +496,14 @@ pub(crate) fn repair_section(
         inventory.count(&ItemDesignId::from(ItemRoleType::HullPlate)),
     ) {
         Ok(repair) => {
-            inventory.remove(&ItemDesignId::from(ItemRoleType::HullPlate), repair.plates);
+            let plate = ItemDesignId::from(ItemRoleType::HullPlate);
+            inventory.remove(&plate, repair.plates);
             health.current = repair.current;
+            reports.0.push(ShipInventoryReport::Repaired {
+                section: code.to_string(),
+                item: plate,
+                count: repair.plates,
+            });
             let noun = if repair.plates == 1 {
                 "plate"
             } else {

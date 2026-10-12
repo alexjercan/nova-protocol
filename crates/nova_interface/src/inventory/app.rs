@@ -1176,6 +1176,7 @@ pub(crate) struct InventoryShips<'w, 's> {
             Has<NeutralizedMarker>,
             Has<LootableShipMarker>,
             &'static mut ShipCredits,
+            &'static mut ShipInventoryReports,
         ),
         With<SpaceshipRootMarker>,
     >,
@@ -1277,7 +1278,7 @@ impl InventoryShips<'_, '_> {
     /// it (it is neutralized or carries [`LootableShipMarker`]; otherwise it
     /// trades), and its credits.
     fn ship(&self, ship: Entity) -> (Option<&Name>, &ShipInventory, bool, u32) {
-        let (name, inventory, neutralized, lootable, credits) = self
+        let (name, inventory, neutralized, lootable, credits, _) = self
             .ships
             .get(ship)
             .expect("InventoryShips::pair checked every ship it names");
@@ -1584,14 +1585,13 @@ pub(crate) fn apply_credit_take_commands(
             .map_err(|refusal| credit_take_refusal_text(refusal, &partner_title));
         let (note, cue, volume) = match result {
             Ok(amount) => {
-                let [(_, _, _, _, mut own_cr), (_, _, _, _, mut partner_cr)] = ships
-                    .ships
-                    .get_many_mut([pair.own, partner])
-                    .expect(
+                let [(_, _, _, _, mut own_cr, mut own_reports), (_, _, _, _, mut partner_cr, mut partner_reports)] =
+                    ships.ships.get_many_mut([pair.own, partner]).expect(
                         "InventoryShips::pair checked both ships, and a ship does not dock with itself",
                     );
-                own_cr.0 += amount;
-                partner_cr.0 = 0;
+                let taken_cr = own_cr.0 + amount;
+                own_reports.change_credits(&mut own_cr, taken_cr, CreditChangeCauseType::Take);
+                partner_reports.change_credits(&mut partner_cr, 0, CreditChangeCauseType::Take);
                 (
                     format!("Took {} from {partner_title}", cr_text(amount)),
                     UiSfx::MenuSelect,
@@ -1699,14 +1699,30 @@ fn trade_items(
             &partner_title,
         )
     })?;
-    let [(_, mut from, _, _, mut from_cr), (_, mut to, _, _, mut to_cr)] = ships
-        .ships
-        .get_many_mut([seller, buyer])
-        .expect("InventoryShips::pair checked both ships, and a ship does not dock with itself");
+    let [(_, mut from, _, _, mut from_cr, mut from_reports), (_, mut to, _, _, mut to_cr, mut to_reports)] =
+        ships
+            .ships
+            .get_many_mut([seller, buyer])
+            .expect("InventoryShips::pair checked both ships, and a ship does not dock with itself");
     from.remove(&item, planned.count);
     to.add(items, &item, planned.count);
-    to_cr.0 -= planned.price_cr;
-    from_cr.0 += planned.price_cr;
+    let paid_cr = to_cr.0 - planned.price_cr;
+    let earned_cr = from_cr.0 + planned.price_cr;
+    to_reports.change_credits(&mut to_cr, paid_cr, CreditChangeCauseType::Trade);
+    from_reports.change_credits(&mut from_cr, earned_cr, CreditChangeCauseType::Trade);
+    // The trade is reported on the ship that traded, whichever side it sold
+    // from, so the tracker always finds the player under `other_id`.
+    let own_reports = match trade {
+        ItemTradeType::Buy => &mut to_reports,
+        ItemTradeType::Sell => &mut from_reports,
+    };
+    own_reports.0.push(ShipInventoryReport::Traded {
+        partner,
+        trade,
+        item: item.clone(),
+        count: planned.count,
+        price_cr: planned.price_cr,
+    });
     let price = cr_text(planned.price_cr);
     Ok(match trade {
         ItemTradeType::Buy => {

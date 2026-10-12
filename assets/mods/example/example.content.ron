@@ -18,6 +18,11 @@
 //   6. ADD a bounded world      - `example_bounds` (the base generator on a
 //                                  fixed seed, with a `bounds` sphere whose
 //                                  `OnExit` ends the run)
+//   7. ADD a hold tour          - `example_prospect` (a berthed trader and an
+//                                  ore rock; one objective per hold event:
+//                                  `OnTraded`, `OnCreditsChanged`,
+//                                  `OnRepaired`, `OnJettisoned`, `OnPickedUp`
+//                                  and `OnMined`)
 //
 // Everything here is pure data - no engine changes. For the field-by-field
 // syntax behind it see the wiki: "Author a section", "Author a scenario",
@@ -1040,6 +1045,329 @@
                     Outcome((
                         outcome: Defeat,
                         message: Some("Your ship broke apart on the range."),
+                    )),
+                ],
+            ),
+        ],
+    )),
+    // -- 7. HOLD TOUR -------------------------------------------------------
+    // Six events report what a ship's hold and balance do, each from the
+    // system that owns the change and each exactly once per occurrence:
+    //   OnTraded         - a Buy or Sell went through (`id` = the trader,
+    //                      `other_id` = the ship that traded; `trade`, `item`,
+    //                      `count`, `price_cr`)
+    //   OnCreditsChanged - one ship's balance moved (`id` = that ship;
+    //                      `previous_cr`, `current_cr`, `delta_cr`, `cause`).
+    //                      A trade raises one per party, so filter on `id`.
+    //   OnRepaired       - a Ship pane repair spent plates (`id` = the ship;
+    //                      `section` = the pane code, `item`, `count`)
+    //   OnJettisoned     - the intake dropped a canister (`id` = the ship;
+    //                      `canister`, `item`, `count`), one per stack
+    //   OnPickedUp       - the intake took a canister (same payload)
+    //   OnMined          - a beam pulse carved ore (`id` = the rock,
+    //                      `other_id` = the miner; `item`, `count`)
+    // The player starts berthed beside a trader with its starboard collar 5 m
+    // off the trader's port collar, so DOCK takes at once, and an ore rock
+    // stands dead ahead of the bow emitter. Each handler completes one
+    // objective and counts toward the Victory.
+    Scenario((
+        id: "example_prospect",
+        name: "Example Prospect Berth",
+        description: "Trade, repair, jettison, pick up and mine from a berth: one objective per hold event.",
+        cubemap: "self://textures/nebula.png",
+        events: [
+            (
+                name: OnStart,
+                filters: [],
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "example_prospect_key",
+                            name: "Key Light",
+                            position: (-600.0, 500.0, 600.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 11000.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.96,
+                                blue: 0.9,
+                                alpha: 1.0,
+                            )),
+                            shadows: true,
+                            aim: Some((0.0, 0.0, 0.0)),
+                        )),
+                    )),
+                    DebugMessage((
+                        message: "Example prospect berth loaded: a trader alongside, an ore rock ahead.",
+                    )),
+                    NarrativeCue((
+                        speaker: "Berth Control",
+                        text: "Dock with the tender, trade and patch up. Then jettison, take the canister back and cut some ore.",
+                    )),
+                    // Seeded so the handlers' counter has a number to add to.
+                    VariableSet((
+                        key: "prospect_done",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    Objective((
+                        id: "prospect_trade",
+                        message: "Buy rations from the tender.",
+                    )),
+                    Objective((
+                        id: "prospect_credits",
+                        message: "Spend or earn credits.",
+                    )),
+                    Objective((
+                        id: "prospect_repair",
+                        message: "Repair a section with hull plates.",
+                    )),
+                    Objective((
+                        id: "prospect_jettison",
+                        message: "Jettison cargo through the intake.",
+                    )),
+                    Objective((
+                        id: "prospect_pickup",
+                        message: "Take a canister aboard.",
+                    )),
+                    Objective((
+                        id: "prospect_mine",
+                        message: "Cut ore from the rock ahead. [V] fires the beam.",
+                    )),
+                    // The shipped line warship: bow mining emitter, dorsal
+                    // intake and a starboard collar. Two hull plates to repair
+                    // with, and credits to buy with.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "player_spaceship",
+                            name: "Player Spaceship",
+                            position: (0.0, 0.0, 0.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            design: Prototype(
+                                id: "block_line_warship",
+                            ),
+                            controller: Player((
+                                input_mapping: {
+                                    "mining_beam": [
+                                        Keyboard(KeyV),
+                                    ],
+                                },
+                            )),
+                            initial_velocity: (0.0, 0.0, 0.0),
+                            inventory: {"HullPlate": 2},
+                            lootable: false,
+                            credits: 500,
+                        )),
+                    )),
+                    // The tender alongside: its port collar faces the
+                    // warship's starboard collar across a 5 m gap, inside the
+                    // 10 m capture distance. Not lootable and holding
+                    // credits, so the pane offers Buy and Sell, not Take.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "example_tender",
+                            name: "Supply Tender",
+                            position: (55.0, 0.0, 30.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            design: Prototype(
+                                id: "block_frame_tender",
+                            ),
+                            controller: None,
+                            initial_velocity: (0.0, 0.0, 0.0),
+                            allegiance: Some(Neutral),
+                            inventory: {"Rations": 4},
+                            lootable: false,
+                            credits: 1000,
+                        )),
+                    )),
+                    // An ore rock dead ahead of the bow emitter, pinned to
+                    // one silhouette so its near face stays in reach.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "example_ore_rock",
+                            name: "Ore Rock",
+                            position: (10.0, 10.0, -235.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 25.0,
+                            initial_velocity: (0.0, 0.0, 0.0),
+                            texture: "self://textures/rock.png",
+                            kind: "rock",
+                            lock_signature: None,
+                            seed: Some(7),
+                        )),
+                    )),
+                ],
+            ),
+            // One handler per hold event. Each is `once`, so each adds one to
+            // the counter however many times its event fires after that.
+            (
+                name: OnTraded,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("example_tender"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: "prospect_trade",
+                    )),
+                    VariableSet((
+                        key: "prospect_done",
+                        expression: Add(
+                            Factor(Name("prospect_done")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            // The trade moves the tender's balance too; `id` keeps this to
+            // the player's.
+            (
+                name: OnCreditsChanged,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: "prospect_credits",
+                    )),
+                    VariableSet((
+                        key: "prospect_done",
+                        expression: Add(
+                            Factor(Name("prospect_done")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            (
+                name: OnRepaired,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: "prospect_repair",
+                    )),
+                    VariableSet((
+                        key: "prospect_done",
+                        expression: Add(
+                            Factor(Name("prospect_done")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            (
+                name: OnJettisoned,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: "prospect_jettison",
+                    )),
+                    VariableSet((
+                        key: "prospect_done",
+                        expression: Add(
+                            Factor(Name("prospect_done")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            (
+                name: OnPickedUp,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: "prospect_pickup",
+                    )),
+                    VariableSet((
+                        key: "prospect_done",
+                        expression: Add(
+                            Factor(Name("prospect_done")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            // The rock is the subject and the miner the other party, so a
+            // second miner on the same rock would not complete this.
+            (
+                name: OnMined,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("example_ore_rock"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: "prospect_mine",
+                    )),
+                    VariableSet((
+                        key: "prospect_done",
+                        expression: Add(
+                            Factor(Name("prospect_done")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            // All six done: the tour is over.
+            (
+                name: OnUpdate,
+                once: true,
+                filters: [
+                    Expression((GreaterThan(
+                        Term(Factor(Name("prospect_done"))),
+                        Term(Factor(Literal(Number(5.0)))),
+                    ))),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Victory,
+                        message: Some("Hold tour complete: traded, patched, dropped, taken and mined."),
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("Your ship broke apart at the berth."),
                     )),
                 ],
             ),

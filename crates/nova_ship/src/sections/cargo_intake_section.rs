@@ -478,6 +478,7 @@ fn sync_cargo_intake_triggers(
 /// One canister as the intake pass reads it.
 struct CanisterRead {
     entity: Entity,
+    id: CargoCanisterRuntimeId,
     canister: CargoCanister,
     position: Vec3,
     taken: bool,
@@ -501,6 +502,7 @@ fn run_cargo_intakes(
             &AngularVelocity,
             &ComputedCenterOfMass,
             &mut ShipInventory,
+            &mut ShipInventoryReports,
         ),
         With<SpaceshipRootMarker>,
     >,
@@ -519,7 +521,16 @@ fn run_cargo_intakes(
             Without<SectionInactiveMarker>,
         ),
     >,
-    q_canisters: Query<(Entity, &CargoCanister, &Position, &Health), Without<HealthZeroMarker>>,
+    q_canisters: Query<
+        (
+            Entity,
+            &CargoCanisterRuntimeId,
+            &CargoCanister,
+            &Position,
+            &Health,
+        ),
+        Without<HealthZeroMarker>,
+    >,
     q_chain: Query<(&Transform, &ChildOf)>,
     collisions: Collisions,
     mut readiness: ResMut<CargoPickupReadiness>,
@@ -530,8 +541,9 @@ fn run_cargo_intakes(
     let mut canisters: Vec<CanisterRead> = q_canisters
         .iter()
         .filter(|(.., health)| health.current > 0.0)
-        .map(|(entity, canister, position, _)| CanisterRead {
+        .map(|(entity, &id, canister, position, _)| CanisterRead {
             entity,
+            id,
             canister: canister.clone(),
             position: position.0,
             taken: false,
@@ -547,7 +559,7 @@ fn run_cargo_intakes(
         else {
             continue;
         };
-        let Ok((position, rotation, lin_vel, ang_vel, center, mut inventory)) =
+        let Ok((position, rotation, lin_vel, ang_vel, center, mut inventory, mut reports)) =
             q_ships.get_mut(ship)
         else {
             continue;
@@ -606,6 +618,11 @@ fn run_cargo_intakes(
             }
             for (item, count) in read.canister.stacks() {
                 inventory.add(&items, item, count);
+                reports.0.push(ShipInventoryReport::PickedUp {
+                    canister: read.id,
+                    item: item.clone(),
+                    count,
+                });
             }
             commands.entity(read.entity).despawn();
             commands.trigger(CargoCanisterTaken { entity: intake });
@@ -630,6 +647,14 @@ fn run_cargo_intakes(
                 commands.entity(intake).remove::<CargoIntakeEjectionQueue>();
             }
             let velocity = point_velocity(birth) + normal * config.eject_speed.to_engine();
+            let id = canister_ids.mint();
+            for (item, count) in canister.stacks() {
+                reports.0.push(ShipInventoryReport::Jettisoned {
+                    canister: id,
+                    item: item.clone(),
+                    count,
+                });
+            }
             commands.spawn((
                 cargo_canister(
                     canister,
@@ -637,7 +662,7 @@ fn run_cargo_intakes(
                     velocity,
                     config.canister_mesh.clone(),
                 ),
-                canister_ids.mint(),
+                id,
             ));
             commands.trigger(CargoCanisterEjected { entity: intake });
         }
