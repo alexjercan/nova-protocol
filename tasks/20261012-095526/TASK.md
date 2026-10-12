@@ -1,8 +1,8 @@
 # Epic: world first, scenarios as the harness
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 99
-- TAGS: v0.16.0,epic,world-first
+- TAGS: v0.16.0, epic, world-first
 
 ## User facts
 - Owner direction 2026-10-12: the open world is the main mode and the first citizen. Scenarios and `nova_events` are a harness put on top of it so the world works in bounded form. Story mode stays as it is; every shipped chapter keeps running in a void.
@@ -24,6 +24,8 @@ Children carry the `World first:` title prefix and the `world-first` tag. Order 
 5. Open-world events in `nova_events`.
 6. Addressable generated bodies.
 7. Scenario state in the world save.
+
+- Closed 2026-10-12 by the owner with all seven children landed (bd1838e75, abd14d8f7, 105c84214, d2fe17cd8, f7ddf649c, 9a9f15068). The bounded generated-world proof is the autopilot asserted example `system_world_bounds`, accepted in place of a nova-probe fixture. Open debt: handler-spawned persistent ships make the world save refuse (`crates/nova_world/src/frozen.rs:815-832`).
 
 ## Done when
 - Every child is CLOSED, the open world starts through the same loader as a chosen scenario, no code reads `ScenarioRole::OpenWorld`, and a bounded scenario on a generated world runs end to end under `nova-probe`.
