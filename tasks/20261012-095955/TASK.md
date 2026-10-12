@@ -1,8 +1,8 @@
 # World first: addressable generated bodies
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 93
-- TAGS: v0.16.0,world-first
+- TAGS: v0.16.0, world-first
 
 ## User facts
 - Epic `20261012-095526`. A harness and a job must be able to name a generated body (a derelict, a hull, a rock) so handlers, objective markers and filters reach it.
@@ -13,6 +13,8 @@
 
 - Survey 2026-10-12: `ScenarioAddressableMarker` is withheld from streamed bodies on purpose; nova_world uses its ABSENCE as the ownership rule (an addressable body is never adopted or frozen, `crates/nova_world/src/frozen.rs:648`, and the save refuses it as `UnownedBody`, `:811-825`). Addressing needs its own lookup seam, not the marker. Generated ids are `<cell slug>_<stem>_<index>` built only by `sector_id` (`generation.rs:619-621`, private `SectorObjectId`), fixed at generation, kept across drift (`frozen.rs:156-167`). Filters already match plain strings at runtime; only lint and the action lookups refuse generated bodies. `ObjectiveMarkerTarget` has no serde and is dropped on freeze.
 - Owner decision 2026-10-12: shape 1. Make `SectorObjectId` the public typed `GeneratedBodyId { origin sector, stem, index }` whose `Display` is today's string (no save change). Lint refuses any authored literal that parses as a generated id. A new typed lookup (`generated_entities(&GeneratedBodyId)` or similar) serves actions instead of the marker. The scenario keeps a marks map keyed by `GeneratedBodyId` that re-applies the objective marker on spawn or thaw within a session; marks across save/load wait for task `20261012-095956`.
+
+- Landed 2026-10-12 in commit f7ddf649c: `GeneratedBodyId` in `crates/nova_events/src/generated.rs` (Display = today's string, FromStr round trip, `SectorCoord` moved to nova_events), worn beside `EntityId` at spawn and thaw; `generated_entity` seam and `$id`/`$other_id` payload binding on `ObjectiveMarkerAttach`/`Detach` only (`crates/nova_scenario/src/actions/mod.rs`); `GeneratedMarks` session resource re-applied on `Added<GeneratedBodyId>` (`crates/nova_scenario/src/marks.rs`, `TODO(20261012-095956)` for the save); lint refuses a written generated id in Object, NewObject and filter ids; example mod 1.7.0 `example_survey` + `system_generated_marks` proved the mark on the same id after retire and thaw. Not extended: despawn, camera and ship lookups still refuse generated bodies.
 
 ## Delivery gate
 - Propose the naming bridge: a stable generated id (sector coord plus manifest index) that a handler may reference by a typed id, and the lint rule that refuses an authored reference to a generated id (they exist only at runtime). Stop for the owner on the id shape before code.
