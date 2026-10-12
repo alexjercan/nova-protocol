@@ -1,8 +1,8 @@
 # World first: research note and decision 14 shape
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 98
-- TAGS: v0.16.0,world-first
+- TAGS: v0.16.0, world-first
 
 ## User facts
 - Epic `20261012-095526`. Owner direction 2026-10-12: the open world is the main mode; scenarios and `nova_events` are a harness that bounds it. Decision 14 on the design page is OPEN; this task closes it with a code-backed note the owner accepts before any code in the strand.
@@ -13,7 +13,7 @@
 - The page recommends option 1: a `world` block on the scenario (`Generated { seed: Option<u32> }` or `Void`) with an optional bounds area. Options 2 (role stays the gate, fixed seeds) and 3 (a separate harness content kind) are listed with one consequence each.
 
 ## Research note (2026-10-12)
-- [RESEARCH.md](RESEARCH.md): shape 1 detailed with types (`ScenarioWorldType::{Void, Generated(GeneratedWorldConfig)}`, `ScenarioBoundsConfig`), the readers that move, what every shipped scenario declares (only `open_world` changes), before/after call graphs, six lint rules, and three owner decisions. Waiting on the owner's pick.
+- [RESEARCH.md](RESEARCH.md): shape 1 detailed with types (`ScenarioWorldType::{Void, Generated(GeneratedWorldConfig)}`, `ScenarioBoundsConfig`), the readers that move, what every shipped scenario declares (only `open_world` changes), before/after call graphs, six lint rules, and three owner decisions. Owner pick 2026-10-12: shape 1, `world` defaults to `Void`, fixed-seed chapters listed in the picker. The next three strand tasks name the picked types.
 
 ## Delivery gate
 - Write `RESEARCH.md` in this folder: exact types and fields for the `world` block, where the loader reads it, how `sync_open_world` arms from it, what the New Game wizard writes, what every shipped chapter and backdrop declares, the bounds semantics, and the lint rules (a generated-world harness with no player spawn; bounds larger than the active window, `crates/nova_world_base/src/lib.rs:139-145`). Compact before/after call graph for New Game, Play scenario and Retry.

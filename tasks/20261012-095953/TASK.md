@@ -9,6 +9,7 @@
 - Design: `tasks/20261012-095526/DESIGN.html` (owner-reviewed page, version 19); codebase facts in `tasks/20261012-095526/RESEARCH-CODEBASE.md`.
 
 ## Agent findings
+- Owner pick 2026-10-12 (research note `tasks/20261012-095949/RESEARCH.md`): shape 1. Types: `ScenarioConfig.world: ScenarioWorldType` with `serde(default, skip_serializing_if = is_void)`; `ScenarioWorldType::{Void, Generated(GeneratedWorldConfig)}`; `GeneratedWorldConfig { seed: Option<u32>, bounds: Option<ScenarioBoundsConfig> }`; `ScenarioBoundsConfig { position: Meters3, radius: Meters }`. `ScenarioRole::OpenWorld` is deleted. `ScenarioConfig::picker_lists()` = `role == Chapter && !world.needs_session()`, so fixed-seed chapters are picker rows. `OpenWorldSession` keeps its name.
 - Areas and `OnEnter`/`OnExit` exist (`crates/nova_scenario/src/events.rs:76-160`; `CreateScenarioArea` in `crates/nova_scenario/src/actions/mod.rs:124-481`). The active window is a 160 km cube (`crates/nova_world_base/src/lib.rs:139-145`).
 
 ## Delivery gate

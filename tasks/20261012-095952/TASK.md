@@ -9,6 +9,7 @@
 - Design: `tasks/20261012-095526/DESIGN.html` (owner-reviewed page, version 19); codebase facts in `tasks/20261012-095526/RESEARCH-CODEBASE.md`.
 
 ## Agent findings
+- Owner pick 2026-10-12 (research note `tasks/20261012-095949/RESEARCH.md`): shape 1. Types: `ScenarioConfig.world: ScenarioWorldType` with `serde(default, skip_serializing_if = is_void)`; `ScenarioWorldType::{Void, Generated(GeneratedWorldConfig)}`; `GeneratedWorldConfig { seed: Option<u32>, bounds: Option<ScenarioBoundsConfig> }`; `ScenarioBoundsConfig { position: Meters3, radius: Meters }`. `ScenarioRole::OpenWorld` is deleted. `ScenarioConfig::picker_lists()` = `role == Chapter && !world.needs_session()`, so fixed-seed chapters are picker rows. `OpenWorldSession` keeps its name.
 - New Game inserts `OpenWorldSession { seed }` then enters Playing (`crates/nova_menu/src/world_setup.rs:324-370`); `start_new_game_scenario` picks the base-declared start or a picker override (`crates/nova_menu/src/menu_ui.rs:581-624`).
 - `resume_world` re-inserts the session from the save header (`crates/nova_world_base/src/save/session.rs:234-268`); Retry streams the same world again (`crates/nova_world_base/src/lib.rs:150-156`).
 

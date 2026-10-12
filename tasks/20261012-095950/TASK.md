@@ -5,10 +5,11 @@
 - TAGS: v0.16.0,world-first
 
 ## User facts
-- Epic `20261012-095526`. Implements the shape picked in the research note (previous strand task). Default assumption: a `world` block on the scenario, `Generated { seed: Option<u32> }` or `Void`; `ScenarioRole::OpenWorld` is deleted, not kept as an alias.
+- Epic `20261012-095526`. Implements the shape picked in the research note (previous strand task). The research note (previous strand task) fixed the shape; see the pick below.
 - Design: `tasks/20261012-095526/DESIGN.html` (owner-reviewed page, version 19); codebase facts in `tasks/20261012-095526/RESEARCH-CODEBASE.md`.
 
 ## Agent findings
+- Owner pick 2026-10-12 (research note `tasks/20261012-095949/RESEARCH.md`): shape 1. Types: `ScenarioConfig.world: ScenarioWorldType` with `serde(default, skip_serializing_if = is_void)`; `ScenarioWorldType::{Void, Generated(GeneratedWorldConfig)}`; `GeneratedWorldConfig { seed: Option<u32>, bounds: Option<ScenarioBoundsConfig> }`; `ScenarioBoundsConfig { position: Meters3, radius: Meters }`. `ScenarioRole::OpenWorld` is deleted. `ScenarioConfig::picker_lists()` = `role == Chapter && !world.needs_session()`, so fixed-seed chapters are picker rows. `OpenWorldSession` keeps its name.
 - `ScenarioRole` lives at `crates/nova_scenario/src/loader/mod.rs:198-210`; `sync_open_world` at `crates/nova_world_base/src/lib.rs:248-352` arms on the role, panics when an OpenWorld scenario has no `OpenWorldSession`, and disarms otherwise.
 - Readers to migrate: `crates/nova_scenario/src/lint/scenario.rs:88`, `crates/nova_probe/src/capabilities/snapshot.rs:437`, `:2202`, `crates/nova_world_base/src/tests.rs:348-495`, the base builder `crates/nova_authoring/src/base_content/scenarios/open_world.rs:47` and the generated `assets/base/scenarios/open_world.content.ron:7`.
 

@@ -303,6 +303,8 @@ state in the world save (`WorldSaveState` holds none,
 
 ## 11. Decisions for the owner
 
+Decided by the owner 2026-10-12: shape 1; `world` defaults to `Void` with no line; fixed-seed generated chapters are picker rows. The assumptions below stand.
+
 1. Shape: 1 (world block, recommended), 2 (role stays the gate) or 3
    (harness content kind).
 2. `world` default: `Void` with no line, mirroring `role: Chapter`
