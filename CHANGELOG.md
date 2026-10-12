@@ -54,6 +54,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Modding & Mod Portal
 
+- Generated worlds place stations: a living civilization keeps one to three
+  `block_waystation`s at its nearest clusters; an extinct one leaves one dead,
+  lootable station.
 - **(breaking)** A scenario object id or a ship section id may not contain
   '/', and two sections of one ship may not share an id. Both fail at lint and
   at load.

@@ -951,6 +951,15 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_generated_stations",
+        &[
+            "the nearest generated station is found from the New Game spawn",
+            "the reached station is a station body wearing its generated id and no address",
+            "the station's sector retires behind the player and holds it as a station",
+            "the thawed station wears the same generated id at the same pose",
+        ],
+    ),
+    (
         "system_hold_events",
         &[
             "the berth lists one objective per hold event and none fires at load",
@@ -985,7 +994,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 486;
+const SYSTEMS_INVARIANTS: usize = 490;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

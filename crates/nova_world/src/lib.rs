@@ -42,11 +42,12 @@
 //! before the cell's entities exist, but at materialization and not at
 //! arming.
 //!
-//! A ship whose clearance sphere the observer's body overlaps when its cell
-//! materializes is held as a [`PendingSectorShip`] under the cell's root and
-//! spawned by [`materialize_pending_ships`] once the observer is clear. Its
-//! manifest entry never changes, and retiring the cell freezes the held ship
-//! with the rest of it.
+//! A ship or station whose clearance sphere the observer's body overlaps when
+//! its cell materializes is held as a [`PendingSectorShip`] or
+//! [`PendingSectorStation`] under the cell's root and spawned by
+//! [`materialize_pending_bodies`] once the observer is clear. Its manifest
+//! entry never changes, and retiring the cell freezes the held body with the
+//! rest of it.
 //!
 //! # The job lifetime
 //!
@@ -193,13 +194,14 @@ pub use crate::{
     generation::{
         bodies_clear, generate_sector, prepare_sector, sector_id, validate_manifest,
         CivilizationId, PreparedSector, SectorAsteroid, SectorDescription, SectorManifest,
-        SectorPlanet, SectorShip, SectorShipConditionType, ShipRoleType, SECTOR_SHIP_CLEARANCE_MAX,
+        SectorPlanet, SectorShip, SectorShipConditionType, SectorStation, ShipRoleType,
+        SECTOR_SHIP_CLEARANCE_MAX,
     },
     streaming::{
         clear_sector_work, collect_sector_jobs, desired_sectors, live_sectors,
-        materialize_pending_ships, materialize_ready_sector, materialize_sector, request_sectors,
+        materialize_pending_bodies, materialize_ready_sector, materialize_sector, request_sectors,
         retire_sectors, track_current_sector, CurrentSector, ObserverBody, PendingSectorShip,
-        ReadySectors, SectorJob, SectorJobStats, SectorRoot, WorldObserver,
+        PendingSectorStation, ReadySectors, SectorJob, SectorJobStats, SectorRoot, WorldObserver,
     },
 };
 
@@ -212,7 +214,7 @@ pub mod prelude {
         CivilizationId, GeneratedBodyId, NovaWorldPlugin, NovaWorldSystems, PreparedSector,
         SectorAsteroid, SectorCoord, SectorDescription, SectorFault, SectorGenerationInput,
         SectorGenerator, SectorManifest, SectorPlanet, SectorShip, SectorShipConditionType,
-        ShipRoleType, WorldConfig, WorldGeometry, ACTIVE_WINDOW_SECTORS_MAX,
+        SectorStation, ShipRoleType, WorldConfig, WorldGeometry, ACTIVE_WINDOW_SECTORS_MAX,
         SECTOR_SHIP_CLEARANCE_MAX,
     };
     pub use crate::{
@@ -221,8 +223,8 @@ pub mod prelude {
             FrozenSector, FrozenSectors, PreparedFrozenBody, SectorSnapshotError,
         },
         streaming::{
-            desired_sectors, live_sectors, CurrentSector, PendingSectorShip, ReadySectors,
-            SectorJob, SectorJobStats, SectorRoot, WorldObserver,
+            desired_sectors, live_sectors, CurrentSector, PendingSectorShip, PendingSectorStation,
+            ReadySectors, SectorJob, SectorJobStats, SectorRoot, WorldObserver,
         },
     };
 }
@@ -787,7 +789,7 @@ impl<G: SectorGenerator> Plugin for NovaWorldPlugin<G> {
                 track_current_sector::<G>.in_set(NovaWorldSystems::Observe),
                 request_sectors::<G>.in_set(NovaWorldSystems::Request),
                 collect_sector_jobs::<G>.in_set(NovaWorldSystems::Collect),
-                (materialize_ready_sector::<G>, materialize_pending_ships)
+                (materialize_ready_sector::<G>, materialize_pending_bodies)
                     .chain()
                     .in_set(NovaWorldSystems::Materialize),
                 adopt_moving_bodies::<G>.in_set(NovaWorldSystems::Adopt),

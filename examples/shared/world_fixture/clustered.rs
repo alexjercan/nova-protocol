@@ -443,6 +443,7 @@ impl CellPlan {
             asteroids: Vec::new(),
             planets: Vec::new(),
             ships: Vec::new(),
+            stations: Vec::new(),
         };
         for planned in &self.bodies {
             if planned.outcome != Outcome::Placed {
@@ -1086,6 +1087,7 @@ mod tests {
             },
             &GameStyles(nova_authoring::generation::build_styles()),
             &GameItems::new(nova_authoring::generation::build_items()),
+            &GameStationDesigns(nova_authoring::generation::build_stations()),
         )
     }
 

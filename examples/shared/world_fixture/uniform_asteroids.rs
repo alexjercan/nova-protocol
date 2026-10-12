@@ -154,6 +154,7 @@ impl SectorGenerator for UniformAsteroids {
             asteroids,
             planets: Vec::new(),
             ships: Vec::new(),
+            stations: Vec::new(),
         })
     }
 }

@@ -29,7 +29,8 @@ use nova_training::prelude::{
 };
 use nova_ui::theme::{lint_theme, UiThemeConfig};
 use nova_world_base::prelude::{
-    ShipPartFault, ShipPartPack, ShipPartSnapshot, OPEN_WORLD_BOUNDS_RADIUS_MAX,
+    ShipPartFault, ShipPartPack, ShipPartSnapshot, GENERATED_STATION_DESIGN_IDS,
+    OPEN_WORLD_BOUNDS_RADIUS_MAX,
 };
 
 use crate::{
@@ -365,6 +366,31 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
                     ),
                 },
             ));
+        }
+    }
+
+    // The generator pins every station design it places from the catalog when
+    // the open world arms, and a missing one panics the New Game start. Base
+    // authors those designs, so a base bundle that drops one fails here.
+    if bundle.id == BASE_MOD_ID {
+        for id in GENERATED_STATION_DESIGN_IDS {
+            if !bundle
+                .stations
+                .iter()
+                .any(|station| station.id == (*id).into())
+            {
+                issues.push((
+                    bundle.id.clone(),
+                    LintIssue {
+                        severity: LintSeverity::Error,
+                        scenario: (*id).to_string(),
+                        message: format!(
+                            "base authors no station design '{id}', which the open world \
+                             generator places at civilization clusters"
+                        ),
+                    },
+                ));
+            }
         }
     }
 
@@ -868,8 +894,14 @@ fn build_report(
                     (&base_id, "ship parts")
                 }
                 ShipPartFault::MissingFamily(_) => (&bundle.id, "ship parts"),
-                ShipPartFault::MissingRoleStyle { .. } => {
-                    unreachable!("only arming the open world checks role styles, not a snapshot")
+                ShipPartFault::MissingRoleStyle { .. }
+                | ShipPartFault::MissingStationDesign { .. }
+                | ShipPartFault::UnresolvedStationSection { .. }
+                | ShipPartFault::StationTooWide { .. } => {
+                    unreachable!(
+                        "only arming the open world checks role styles and station pins, not a \
+                         snapshot"
+                    )
                 }
             };
             ship_part_faults.insert((owner.clone(), element.to_string(), fault.to_string()));

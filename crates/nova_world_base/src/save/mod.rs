@@ -424,8 +424,8 @@ fn check_saved_items(state: &WorldSaveState, items: &GameItems) -> Result<(), St
                 FrozenBodyType::Asteroid(rock) => unknown(&mut rock.item_ids()),
                 FrozenBodyType::Ship(ship) => unknown(&mut ship.item_ids()),
                 FrozenBodyType::Station(station) => unknown(&mut station.item_ids()),
-                // A held ship is an id; its stock is regenerated.
-                FrozenBodyType::PendingShip { .. } => None,
+                // A held ship or station is an id; its stock is regenerated.
+                FrozenBodyType::PendingShip { .. } | FrozenBodyType::PendingStation { .. } => None,
                 FrozenBodyType::Canister(canister) => unknown(&mut canister.item_ids()),
                 FrozenBodyType::WreckFragment(fragment) => unknown(&mut fragment.item_ids()),
                 FrozenBodyType::OreDrop(drop) => unknown(&mut drop.item_ids()),
@@ -515,6 +515,7 @@ fn check_saved_stock(state: &WorldSaveState, items: &GameItems) -> Result<(), St
                 }
                 FrozenBodyType::Asteroid(_)
                 | FrozenBodyType::PendingShip { .. }
+                | FrozenBodyType::PendingStation { .. }
                 | FrozenBodyType::WreckFragment(_)
                 | FrozenBodyType::OreDrop(_) => {}
             }

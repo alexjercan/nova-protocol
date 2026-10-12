@@ -276,13 +276,14 @@ fn boot_clusters(
     loaded: Res<LoadedSectionPacks>,
     styles: Res<GameStyles>,
     items: Res<GameItems>,
+    stations: Res<GameStationDesigns>,
 ) {
     commands.trigger(LoadScenario(free_play_scenario(
         &game_assets,
         SCENARIO_ID,
         "World Clusters Observer",
     )));
-    commands.insert_resource(clustered_world_config(&loaded, &styles, &items));
+    commands.insert_resource(clustered_world_config(&loaded, &styles, &items, &stations));
 
     commands.spawn((
         Name::new("Observer Key Light"),

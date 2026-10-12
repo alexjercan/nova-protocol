@@ -1652,6 +1652,7 @@ mod generated_wreck {
                 asteroids: Vec::new(),
                 planets: Vec::new(),
                 ships: vec![self.0.clone()],
+                stations: Vec::new(),
             })
         }
     }

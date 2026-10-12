@@ -7,16 +7,19 @@
 
 use std::sync::Arc;
 
+use bevy::math::Vec3;
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPacks};
 use nova_events::prelude::Meters;
 use nova_gameplay::prelude::GameItems;
-use nova_ship::prelude::GameStyles;
+use nova_scenario::prelude::{GameStationDesigns, SectionSource, StationDesign};
+use nova_ship::prelude::{GameStyles, SectionCollider};
 use nova_world::prelude::*;
 
 use crate::{
     clusters::{plan_sector, validate_cluster_geometry},
     environment::EnvironmentFields,
     role_style_id,
+    sector_stations::GENERATED_STATION_DESIGN_IDS,
     ship_parts::{ShipPartFault, ShipPartPack, ShipPartSnapshot},
 };
 
@@ -53,12 +56,104 @@ const SECTOR_EDGE_MAX: Meters = Meters(128_000.0);
 /// an id the game does not ship. The ship parts it pins are the snapshot of
 /// the loaded catalog it was built from, with that catalog's digest; every
 /// ship it plans is laid out from them. Generated stock reads masses from
-/// the pinned item catalog.
+/// the pinned item catalog. The station designs it places are pinned from
+/// the loaded catalog too, each with the clearance measured from its hull.
 #[derive(Clone, Debug)]
 pub struct NovaLayeredWorld {
     parts: Arc<ShipPartSnapshot>,
     catalog: ContentCatalogDigest,
     items: Arc<GameItems>,
+    stations: Arc<Vec<PinnedStation>>,
+}
+
+/// One station design the generator places, as it was loaded, with the
+/// clearance its hull measures to.
+#[derive(Clone, Debug)]
+pub struct PinnedStation {
+    /// The design, whole: every station the generator places carries a copy
+    /// in its manifest entry.
+    pub design: StationDesign,
+    /// The radius around the root that holds the hull in any orientation.
+    pub clearance: Meters,
+}
+
+/// Every id in [`GENERATED_STATION_DESIGN_IDS`] as `stations` loaded it,
+/// each measured against the sections of `loaded`.
+fn pin_stations(
+    loaded: &LoadedSectionPacks,
+    stations: &GameStationDesigns,
+) -> Result<Vec<PinnedStation>, Vec<ShipPartFault>> {
+    let mut pinned = Vec::new();
+    let mut faults = Vec::new();
+    for id in GENERATED_STATION_DESIGN_IDS {
+        let Some(design) = stations.get_design(&(*id).into()) else {
+            faults.push(ShipPartFault::MissingStationDesign { id });
+            continue;
+        };
+        match station_clearance(design, loaded) {
+            Ok(clearance) if clearance <= SECTOR_SHIP_CLEARANCE_MAX => pinned.push(PinnedStation {
+                design: design.clone(),
+                clearance,
+            }),
+            Ok(clearance) => faults.push(ShipPartFault::StationTooWide {
+                design: design.id.to_string(),
+                clearance: clearance.get(),
+                limit: SECTOR_SHIP_CLEARANCE_MAX.get(),
+            }),
+            Err(fault) => faults.push(fault),
+        }
+    }
+    if faults.is_empty() {
+        Ok(pinned)
+    } else {
+        Err(faults)
+    }
+}
+
+/// The radius around `design`'s root that holds its whole hull in any
+/// orientation: the farthest any section's collider corner reaches, each
+/// prototype resolved against `loaded`, the last pack to declare an id
+/// winning as the merge overlays it. A section with no authored collider is
+/// one cell.
+///
+/// # Errors
+///
+/// [`ShipPartFault::UnresolvedStationSection`] for a section whose prototype
+/// no pack declares.
+fn station_clearance(
+    design: &StationDesign,
+    loaded: &LoadedSectionPacks,
+) -> Result<Meters, ShipPartFault> {
+    let mut reach: f32 = 0.0;
+    for section in &design.hull.sections {
+        let collider = match &section.source {
+            SectionSource::Inline(config) => config.base.collider,
+            SectionSource::Prototype { id, .. } => {
+                loaded
+                    .packs
+                    .iter()
+                    .flat_map(|pack| pack.sections.iter())
+                    .filter(|config| config.base.id == *id)
+                    .next_back()
+                    .ok_or_else(|| ShipPartFault::UnresolvedStationSection {
+                        design: design.id.to_string(),
+                        section: section.id.to_string(),
+                        prototype: id.to_string(),
+                    })?
+                    .base
+                    .collider
+            }
+        };
+        let half_diagonal = match collider {
+            None => Vec3::ONE.length() * 0.5,
+            Some(SectionCollider::Cuboid { size }) => size.length() * 0.5,
+            Some(SectionCollider::Sphere { radius }) => radius,
+            Some(SectionCollider::Capsule { radius, length }) => radius + length * 0.5,
+            Some(SectionCollider::Cylinder { radius, height }) => radius.hypot(height * 0.5),
+        };
+        reach = reach.max(section.position.length() + half_diagonal);
+    }
+    Ok(Meters::from_engine(reach))
 }
 
 /// Equal when both pin one catalog and one ship-part snapshot. Compares two
@@ -76,16 +171,24 @@ impl NovaLayeredWorld {
     ///
     /// `styles` is only checked: the digest already covers them, so the
     /// arming check refuses a style change like any other content change.
+    /// The station designs the generator places are pinned from `stations`
+    /// with the clearance each hull measures to against `loaded`.
     ///
     /// # Errors
     ///
     /// Every fault [`ShipPartSnapshot::build`] finds in the loaded sections,
-    /// and [`ShipPartFault::MissingRoleStyle`] for each role whose
-    /// [`role_style_id`] `styles` does not hold.
+    /// [`ShipPartFault::MissingRoleStyle`] for each role whose
+    /// [`role_style_id`] `styles` does not hold, and
+    /// [`ShipPartFault::MissingStationDesign`],
+    /// [`ShipPartFault::UnresolvedStationSection`] or
+    /// [`ShipPartFault::StationTooWide`] for each generated station design
+    /// `stations` does not hold whole and within
+    /// [`SECTOR_SHIP_CLEARANCE_MAX`].
     pub fn from_loaded(
         loaded: &LoadedSectionPacks,
         styles: &GameStyles,
         items: &GameItems,
+        stations: &GameStationDesigns,
     ) -> Result<Self, Vec<ShipPartFault>> {
         let packs: Vec<ShipPartPack> = loaded
             .packs
@@ -96,7 +199,7 @@ impl NovaLayeredWorld {
                 sections: pack.sections.clone(),
             })
             .collect();
-        let unstyled: Vec<ShipPartFault> = ShipRoleType::ALL
+        let mut faults: Vec<ShipPartFault> = ShipRoleType::ALL
             .into_iter()
             .filter(|role| styles.get_style(role_style_id(*role)).is_none())
             .map(|role| ShipPartFault::MissingRoleStyle {
@@ -104,18 +207,28 @@ impl NovaLayeredWorld {
                 style: role_style_id(role),
             })
             .collect();
+        let pinned = pin_stations(loaded, stations).unwrap_or_else(|station_faults| {
+            faults.extend(station_faults);
+            Vec::new()
+        });
         match ShipPartSnapshot::build(&packs) {
-            Ok(parts) if unstyled.is_empty() => Ok(Self {
+            Ok(parts) if faults.is_empty() => Ok(Self {
                 parts: Arc::new(parts),
                 catalog: loaded.digest,
                 items: Arc::new(items.clone()),
+                stations: Arc::new(pinned),
             }),
-            Ok(_) => Err(unstyled),
-            Err(mut faults) => {
-                faults.extend(unstyled);
-                Err(faults)
+            Ok(_) => Err(faults),
+            Err(mut part_faults) => {
+                part_faults.extend(faults);
+                Err(part_faults)
             }
         }
+    }
+
+    /// The station designs this world places, with their clearances.
+    pub fn stations(&self) -> &[PinnedStation] {
+        &self.stations
     }
 
     /// The ship parts this world was armed with.
@@ -157,6 +270,7 @@ impl SectorGenerator for NovaLayeredWorld {
             &EnvironmentFields::new(input.seed),
             &self.parts,
             &self.items,
+            &self.stations,
             input,
         )?
         .manifest()

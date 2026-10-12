@@ -195,8 +195,9 @@ fn inspector_plugin(app: &mut App, seed: Option<u32>) {
               game_assets: Res<GameAssets>,
               loaded: Res<LoadedSectionPacks>,
               styles: Res<GameStyles>,
-              items: Res<GameItems>| {
-            boot_inspector(commands, game_assets, loaded, styles, items, seed);
+              items: Res<GameItems>,
+              stations: Res<GameStationDesigns>| {
+            boot_inspector(commands, game_assets, loaded, styles, items, stations, seed);
         },
     );
     app.add_systems(
@@ -232,6 +233,7 @@ fn boot_inspector(
     loaded: Res<LoadedSectionPacks>,
     styles: Res<GameStyles>,
     items: Res<GameItems>,
+    stations: Res<GameStationDesigns>,
     seed: Option<u32>,
 ) {
     let seed = match seed {
@@ -252,7 +254,7 @@ fn boot_inspector(
 
     let config = WorldConfig {
         seed,
-        ..featured_world_config(&loaded, &styles, &items)
+        ..featured_world_config(&loaded, &styles, &items, &stations)
     };
     config
         .validate()
@@ -562,11 +564,12 @@ fn outside_observer(coord: SectorCoord, edge: Meters, ships: &[SectorShip]) -> O
 }
 
 /// Refuse more than one live root, a root that is not the materialized cell,
-/// and a held ship, which `outside_observer` rules out.
+/// and a held ship or station, which `outside_observer` rules out.
 fn check_live_sector(
     inspector: Res<Inspector>,
     roots: Query<(Entity, &SectorRoot)>,
     pending: Query<&PendingSectorShip>,
+    pending_stations: Query<&PendingSectorStation>,
 ) {
     let live: Vec<(Entity, SectorCoord)> =
         roots.iter().map(|(root, cell)| (root, cell.0)).collect();
@@ -588,6 +591,14 @@ fn check_live_sector(
              observer stood in its {:.0} m clearance when its cell spawned",
             held.ship().id,
             held.ship().clearance.get()
+        );
+    }
+    if let Some(held) = pending_stations.iter().next() {
+        panic!(
+            "world_sector_inspector: station '{}' is held back as a PendingSectorStation: the \
+             observer stood in its {:.0} m clearance when its cell spawned",
+            held.station().id,
+            held.station().clearance.get()
         );
     }
 }

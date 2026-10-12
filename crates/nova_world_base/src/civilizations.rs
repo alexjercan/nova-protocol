@@ -31,7 +31,7 @@ const CIVILIZATION_JITTER: Meters = Meters(40_000.0);
 const INFLUENCE_CORE: Meters = Meters(160_000.0);
 
 /// The distance at and past which influence is zero.
-const INFLUENCE_REACH: Meters = Meters(320_000.0);
+pub(crate) const INFLUENCE_REACH: Meters = Meters(320_000.0);
 
 /// The power the outer taper is raised to: `2 (R - C) / C`, the one exponent
 /// that matches the inner parabola's slope at the core edge.

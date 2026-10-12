@@ -454,6 +454,7 @@ fn streaming_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
                 world.resource::<LoadedSectionPacks>(),
                 world.resource::<GameStyles>(),
                 world.resource::<GameItems>(),
+                world.resource::<GameStationDesigns>(),
             );
             world.insert_resource(config);
         })
@@ -522,6 +523,7 @@ fn streaming_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
                 world.resource::<LoadedSectionPacks>(),
                 world.resource::<GameStyles>(),
                 world.resource::<GameItems>(),
+                world.resource::<GameStationDesigns>(),
             );
             world.insert_resource(WorldConfig {
                 seed: REPLACEMENT_SEED,
@@ -581,6 +583,8 @@ fn held_objects(world: &mut World) -> BTreeMap<String, (SectorCoord, Entity)> {
                 id.0.clone()
             } else if let Some(pending) = world.get::<PendingSectorShip>(*child) {
                 pending.ship().id.to_string()
+            } else if let Some(pending) = world.get::<PendingSectorStation>(*child) {
+                pending.station().id.to_string()
             } else {
                 continue;
             };
@@ -744,6 +748,7 @@ fn report_visit_order(world: &mut World) {
                 world.resource::<LoadedSectionPacks>(),
                 world.resource::<GameStyles>(),
                 world.resource::<GameItems>(),
+                world.resource::<GameStationDesigns>(),
             ),
             FEATURE_HOME,
         );
@@ -847,6 +852,7 @@ fn report_cluster_plan(world: &mut World) {
         world.resource::<LoadedSectionPacks>(),
         world.resource::<GameStyles>(),
         world.resource::<GameItems>(),
+        world.resource::<GameStationDesigns>(),
     );
 
     // One cluster, however many cells own its bodies. Built as id -> every
@@ -1028,6 +1034,7 @@ fn report_clearance(world: &mut World) {
         world.resource::<LoadedSectionPacks>(),
         world.resource::<GameStyles>(),
         world.resource::<GameItems>(),
+        world.resource::<GameStationDesigns>(),
     );
     let half_edge = config.sector_edge.get() * 0.5;
     let described = describe_window(FEATURE_HOME, &config);
@@ -1607,6 +1614,7 @@ fn report_world_replacement(world: &mut World) {
         world.resource::<LoadedSectionPacks>(),
         world.resource::<GameStyles>(),
         world.resource::<GameItems>(),
+        world.resource::<GameStationDesigns>(),
     );
     let new_config = world.resource::<WorldConfig<NovaLayeredWorld>>().clone();
     assert_eq!(

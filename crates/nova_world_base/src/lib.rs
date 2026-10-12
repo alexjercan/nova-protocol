@@ -38,7 +38,7 @@ use bevy::prelude::*;
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_events::prelude::Meters;
 use nova_gameplay::prelude::{GameItems, PlayerSpaceshipMarker};
-use nova_scenario::prelude::{CurrentScenario, ScenarioWorldType};
+use nova_scenario::prelude::{CurrentScenario, GameStationDesigns, ScenarioWorldType};
 use nova_ship::prelude::GameStyles;
 use nova_world::prelude::*;
 
@@ -49,6 +49,7 @@ mod layered;
 #[cfg(not(target_arch = "wasm32"))]
 mod save;
 mod sector_ships;
+mod sector_stations;
 mod ship_layout;
 mod ship_parts;
 
@@ -72,8 +73,9 @@ pub use crate::{
     },
     clusters::{sector_clusters, ClusterSummary, ClusterType, SectorClusters},
     environment::{Environment, EnvironmentFieldType, EnvironmentFields},
-    layered::{NovaLayeredWorld, CLEARANCE_MARGIN},
+    layered::{NovaLayeredWorld, PinnedStation, CLEARANCE_MARGIN},
     sector_ships::{plan_ship, ship_stock, HullSlot, PlannedShip, SHIP_ADVANCEMENT_CURVE},
+    sector_stations::GENERATED_STATION_DESIGN_IDS,
     ship_layout::{
         generate_ship, generate_wreck, ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType,
         ShipLayoutFailure, ShipLayoutRequest,
@@ -103,12 +105,13 @@ pub mod prelude {
         AdvancementCurveType, Civilization, CivilizationField, CivilizationReach,
         CivilizationStatusType, ClusterSummary, ClusterType, Environment, EnvironmentFieldType,
         EnvironmentFields, HullSlot, NovaLayeredWorld, NovaWorldBasePlugin, OpenWorldSession,
-        PlannedShip, SectorClusters, ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType,
-        ShipLayoutFailure, ShipLayoutRequest, ShipPart, ShipPartExclusionType, ShipPartFamilyType,
-        ShipPartFault, ShipPartPack, ShipPartSnapshot, ARMOURED_STYLE_ID,
-        BLOCK_LINE_WARSHIP_SHIP_ID, BLOCK_WAYSTATION_STATION_ID, CIVILIAN_STYLE_ID,
-        CLEARANCE_MARGIN, INDUSTRIAL_STYLE_ID, OPEN_WORLD_BOUNDS_RADIUS_MAX,
-        OPEN_WORLD_SCENARIO_ID, SALVAGE_STYLE_ID, SHIP_ADVANCEMENT_CURVE,
+        PinnedStation, PlannedShip, SectorClusters, ShipDriveLayoutType, ShipLayout,
+        ShipLayoutConstraintType, ShipLayoutFailure, ShipLayoutRequest, ShipPart,
+        ShipPartExclusionType, ShipPartFamilyType, ShipPartFault, ShipPartPack, ShipPartSnapshot,
+        ARMOURED_STYLE_ID, BLOCK_LINE_WARSHIP_SHIP_ID, BLOCK_WAYSTATION_STATION_ID,
+        CIVILIAN_STYLE_ID, CLEARANCE_MARGIN, GENERATED_STATION_DESIGN_IDS, INDUSTRIAL_STYLE_ID,
+        OPEN_WORLD_BOUNDS_RADIUS_MAX, OPEN_WORLD_SCENARIO_ID, SALVAGE_STYLE_ID,
+        SHIP_ADVANCEMENT_CURVE,
     };
 }
 
@@ -349,6 +352,12 @@ fn sync_open_world(world: &mut World) {
              content merge refused the catalog and logged why"
         );
     };
+    let Some(stations) = world.get_resource::<GameStationDesigns>() else {
+        panic!(
+            "nova_world_base: a generated-world scenario is live with no GameStationDesigns; \
+             the content merge refused the catalog and logged why"
+        );
+    };
     let armed = world.get_resource::<WorldConfig<NovaLayeredWorld>>();
     let generator = match armed {
         Some(armed) if armed.generator.catalog() != loaded.digest => panic!(
@@ -358,16 +367,18 @@ fn sync_open_world(world: &mut World) {
             loaded.digest.0
         ),
         Some(armed) => armed.generator.clone(),
-        None => NovaLayeredWorld::from_loaded(loaded, styles, items).unwrap_or_else(|faults| {
-            panic!(
-                "nova_world_base: the loaded content does not arm the open world:\n  {}",
-                faults
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join("\n  ")
-            )
-        }),
+        None => NovaLayeredWorld::from_loaded(loaded, styles, items, stations).unwrap_or_else(
+            |faults| {
+                panic!(
+                    "nova_world_base: the loaded content does not arm the open world:\n  {}",
+                    faults
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join("\n  ")
+                )
+            },
+        ),
     };
     let config = WorldConfig {
         seed,

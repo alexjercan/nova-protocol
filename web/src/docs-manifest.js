@@ -666,6 +666,8 @@ const CREATE_PAGES = [
             "The Station item",
             "Spawning one",
             "Overlay and lint",
+            "Generated-world stations",
+            "Dead stations",
             "Base stations",
         ],
     },

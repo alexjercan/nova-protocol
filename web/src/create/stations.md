@@ -133,6 +133,44 @@ The static lint and the load gate both refuse a station that:
 A service listed twice is a warning. A spawn naming a station id no loaded
 content declares is an error, like an unknown ship design.
 
+## Generated-world stations
+
+The open world places stations itself. Every civilization keeps its stations
+at the clusters nearest its centroid: a living one keeps one, plus one per
+half of its advancement (one to three), and an extinct one left exactly one.
+A cluster holds at most one station; when two civilizations want one, the
+nearer centroid keeps it. The choice is a function of the world seed and the
+civilization alone, so a cluster holds the same station from every cell and
+in any visit order.
+
+Where it stands follows the cluster. In a cluster with a planetoid the
+station rides a circular orbit around one world, at that world's radius plus
+the 500 m clearance margin plus the station's own clearance, with the orbit
+velocity the [behaviour table](#how-a-station-behaves) names. In a cluster
+without one it stands at rest beside one of the cluster's rocks, 500 m
+clear of it, on the anchor-facing side when that side is free. A station is
+never placed inside another body, never across a cell face, and never
+where its cluster placed no rock or planetoid in its cell.
+
+Every civilization builds `block_waystation` today. The generator pins each
+design it places from the loaded catalog when the open world arms; a base
+bundle that authors none of those ids fails `content -- lint`, and a mod that
+redefines `block_waystation` rebuilds every generated station with it.
+
+A generated station spawns with a typed generated id and no scenario
+address, freezes as a station record when its cell retires, and thaws from
+that record: what a docked ship bought or stored is kept for the session,
+and across a save on the desktop build.
+
+## Dead stations
+
+An extinct civilization's station is the SAME design spawned dead: its
+`Station` spawn carries `derelict: true`, so its hull spawns inactive and
+lootable, with `DerelictShipMarker` and `LootableShipMarker`, and no service
+is offered on it. There is no second catalogue entry for a dead station; the
+strip is the spawn flag, the same one a scenario's own `Station` object
+sets. A dead station keeps the Neutral side.
+
 ## Base stations
 
 | id | what it is |

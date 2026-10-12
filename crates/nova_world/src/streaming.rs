@@ -4,7 +4,8 @@
 //! Routine sector traffic never touches `LoadScenario` and never runs a
 //! scenario event action. It calls the same object factories the loader calls
 //! (`base_scenario_object`, `asteroid_scenario_object_prepared`,
-//! `planet_scenario_object_prepared`, `spaceship_scenario_object`), which is
+//! `planet_scenario_object_prepared`, `spaceship_scenario_object`,
+//! `station_scenario_object`), which is
 //! what makes a streamed rock the same rock a scenario spawns - with one
 //! deliberate difference: a streamed entity is scenario-SCOPED, so unloading
 //! takes it, but never scenario-ADDRESSABLE, because its id came from a
@@ -20,12 +21,12 @@ use bevy::{
     prelude::*,
     tasks::{block_on, poll_once, AsyncComputeTaskPool, Task},
 };
-use nova_events::prelude::{Meters, Meters3, ScenarioAddressableMarker};
+use nova_events::prelude::{GeneratedBodyId, Meters, Meters3, ScenarioAddressableMarker};
 use nova_gameplay::prelude::{DerelictShipMarker, IntegrityEnvelope, TempEntity, UnsettledBody};
 use nova_scenario::prelude::{
     asteroid_scenario_object_prepared, base_scenario_object, planet_scenario_object_prepared,
-    resolve_ship_design, spaceship_scenario_object, BaseScenarioObjectConfig, GameShipDesigns,
-    PlanetMarker,
+    resolve_ship_design, spaceship_scenario_object, station_scenario_object,
+    BaseScenarioObjectConfig, GameShipDesigns, PlanetMarker, ShipDesignSource,
 };
 use nova_ship::prelude::GameSections;
 
@@ -37,7 +38,7 @@ use crate::{
     },
     generation::{prepare_cell, PreparedBodies, PreparedSectorAsteroid, PreparedSectorPlanet},
     PreparedSector, SectorCoord, SectorFault, SectorGenerator, SectorShip, SectorShipConditionType,
-    WorldConfig,
+    SectorStation, WorldConfig,
 };
 
 /// Marks the entity the desired set is centred on.
@@ -64,7 +65,7 @@ pub struct SectorRoot(pub SectorCoord);
 ///
 /// A child of the cell's [`SectorRoot`], so retiring the cell takes it with
 /// the root, and it carries the manifest entry unchanged:
-/// [`materialize_pending_ships`] spawns exactly that ship where the manifest
+/// [`materialize_pending_bodies`] spawns exactly that ship where the manifest
 /// put it once the observer is clear. It has no body of its own.
 #[derive(Component, Debug)]
 pub struct PendingSectorShip(pub(crate) SectorShip);
@@ -72,6 +73,20 @@ pub struct PendingSectorShip(pub(crate) SectorShip);
 impl PendingSectorShip {
     /// The manifest entry it holds.
     pub fn ship(&self) -> &SectorShip {
+        &self.0
+    }
+}
+
+/// A generated station held back the way a [`PendingSectorShip`] is: the
+/// observer's body overlapped its clearance sphere when its cell
+/// materialized, and [`materialize_pending_bodies`] spawns its entry
+/// unchanged once the observer is clear.
+#[derive(Component, Debug)]
+pub struct PendingSectorStation(pub(crate) SectorStation);
+
+impl PendingSectorStation {
+    /// The manifest entry it holds.
+    pub fn station(&self) -> &SectorStation {
         &self.0
     }
 }
@@ -97,15 +112,10 @@ impl ObserverBody {
         }
     }
 
-    /// Whether the body reaches into `ship`'s clearance sphere.
-    fn overlaps(self, ship: &SectorShip) -> bool {
-        !bodies_clear(
-            self.position,
-            self.reach,
-            ship.position,
-            ship.clearance,
-            Meters::ZERO,
-        )
+    /// Whether the body reaches into the clearance sphere of `clearance`
+    /// around `position`.
+    fn overlaps(self, position: Meters3, clearance: Meters) -> bool {
+        !bodies_clear(self.position, self.reach, position, clearance, Meters::ZERO)
     }
 }
 
@@ -214,19 +224,27 @@ pub fn materialize_sector(
         planets,
         bodies,
     } = prepared;
-    let (rocks, ships, frozen) = match bodies {
+    let (rocks, ships, stations, frozen) = match bodies {
         PreparedBodies::Fresh {
             rocks,
             ships,
+            stations,
             arrivals,
-        } => (rocks, ships, arrivals),
-        PreparedBodies::Thawed(frozen) => (Vec::new(), Vec::new(), frozen),
+        } => (rocks, ships, stations, arrivals),
+        PreparedBodies::Thawed(frozen) => (Vec::new(), Vec::new(), Vec::new(), frozen),
     };
     for ship in &ships {
-        require_resolved(ship, sections);
+        require_resolved(&ship.id, &ship.spawn.design, sections);
+    }
+    for station in &stations {
+        require_resolved(
+            &station.id,
+            &ShipDesignSource::Inline(station.design.hull.clone()),
+            sections,
+        );
     }
 
-    let objects = planets.len() + rocks.len() + ships.len() + frozen.len();
+    let objects = planets.len() + rocks.len() + ships.len() + stations.len() + frozen.len();
     let root = commands
         .spawn((
             base_scenario_object(&BaseScenarioObjectConfig {
@@ -269,7 +287,7 @@ pub fn materialize_sector(
     }
 
     for ship in ships {
-        if observer.overlaps(&ship) {
+        if observer.overlaps(ship.position, ship.clearance) {
             debug!(
                 "nova_world: holding ship '{}' in {coord}: the observer overlaps its {:.0} m \
                  clearance",
@@ -279,6 +297,20 @@ pub fn materialize_sector(
             commands.spawn((PendingSectorShip(ship), ChildOf(root)));
         } else {
             spawn_sector_ship(commands, root, ship);
+        }
+    }
+
+    for station in stations {
+        if observer.overlaps(station.position, station.clearance) {
+            debug!(
+                "nova_world: holding station '{}' in {coord}: the observer overlaps its {:.0} m \
+                 clearance",
+                station.id,
+                station.clearance.get()
+            );
+            commands.spawn((PendingSectorStation(station), ChildOf(root)));
+        } else {
+            spawn_sector_station(commands, root, station);
         }
     }
 
@@ -294,24 +326,56 @@ pub fn materialize_sector(
     root
 }
 
-/// Refuse a ship whose inline design does not resolve whole against
-/// `sections`.
+/// Refuse a body `id` whose inline design does not resolve whole against
+/// `sections`: a ship's design, or a station's hull.
 ///
 /// # Panics
 ///
 /// On [`SectorFault::InvalidShipDesign`] with every resolver error.
-fn require_resolved(ship: &SectorShip, sections: &GameSections) {
-    let (_, errors) =
-        resolve_ship_design(&ship.spawn.design, &GameShipDesigns::default(), sections);
+fn require_resolved(id: &GeneratedBodyId, design: &ShipDesignSource, sections: &GameSections) {
+    let (_, errors) = resolve_ship_design(design, &GameShipDesigns::default(), sections);
     if !errors.is_empty() {
         panic!(
             "nova_world: {}",
             SectorFault::InvalidShipDesign {
-                id: ship.id.to_string(),
+                id: id.to_string(),
                 errors,
             }
         );
     }
+}
+
+/// Spawn one generated station under `root`, where and as its manifest
+/// entry says: the entry's `design` and `spawn` are the whole station, and
+/// this adds only the pose and the identity. A dead station is the same
+/// design spawned `derelict`: the factory marks it, so its hull spawns
+/// inactive and lootable, and no service is offered on it.
+fn spawn_sector_station(commands: &mut Commands, root: Entity, station: SectorStation) {
+    let SectorStation {
+        id,
+        position,
+        rotation,
+        clearance: _,
+        civilization,
+        design,
+        spawn,
+    } = station;
+    let name = if spawn.derelict {
+        format!("{} dead station", civilization.name())
+    } else {
+        format!("{} station", civilization.name())
+    };
+    let mut entity = commands.spawn((
+        base_scenario_object(&BaseScenarioObjectConfig {
+            id: id.to_string(),
+            name,
+            position,
+            rotation,
+        }),
+        id,
+        ChildOf(root),
+    ));
+    station_scenario_object(&mut entity, &design, &spawn);
 }
 
 /// Spawn one generated ship under `root`, where and as its manifest entry
@@ -778,32 +842,33 @@ pub fn materialize_ready_sector<G: SectorGenerator>(
     }
 }
 
-/// Spawn every held ship whose clearance sphere the observer has left, each
-/// on its own, where its manifest entry puts it, under the root that holds
-/// it.
+/// Spawn every held ship and station whose clearance sphere the observer
+/// has left, each on its own, where its manifest entry puts it, under the
+/// root that holds it.
 ///
-/// A held ship the observer still overlaps waits another frame. Nothing moves
-/// or drops it: the manifest decided the ship, and the observer only decides
-/// when it appears.
+/// A held body the observer still overlaps waits another frame. Nothing
+/// moves or drops it: the manifest decided the body, and the observer only
+/// decides when it appears.
 ///
 /// # Panics
 ///
 /// On [`SectorFault::AbsentObserver`] unless there is exactly one
 /// [`WorldObserver`].
-pub fn materialize_pending_ships(
+pub fn materialize_pending_bodies(
     mut commands: Commands,
-    pending: Query<(Entity, &PendingSectorShip, &ChildOf)>,
+    ships: Query<(Entity, &PendingSectorShip, &ChildOf)>,
+    stations: Query<(Entity, &PendingSectorStation, &ChildOf)>,
     observer: Query<(&GlobalTransform, Option<&IntegrityEnvelope>), With<WorldObserver>>,
 ) {
-    if pending.is_empty() {
+    if ships.is_empty() && stations.is_empty() {
         return;
     }
     let Ok((transform, envelope)) = observer.single() else {
         panic!("nova_world: {}", SectorFault::AbsentObserver);
     };
     let observer = ObserverBody::read(transform, envelope);
-    for (entity, held, child_of) in &pending {
-        if observer.overlaps(&held.0) {
+    for (entity, held, child_of) in &ships {
+        if observer.overlaps(held.0.position, held.0.clearance) {
             continue;
         }
         debug!(
@@ -812,6 +877,17 @@ pub fn materialize_pending_ships(
         );
         commands.entity(entity).despawn();
         spawn_sector_ship(&mut commands, child_of.parent(), held.0.clone());
+    }
+    for (entity, held, child_of) in &stations {
+        if observer.overlaps(held.0.position, held.0.clearance) {
+            continue;
+        }
+        debug!(
+            "nova_world: the observer cleared held station '{}'; spawning it",
+            held.0.id
+        );
+        commands.entity(entity).despawn();
+        spawn_sector_station(&mut commands, child_of.parent(), held.0.clone());
     }
 }
 

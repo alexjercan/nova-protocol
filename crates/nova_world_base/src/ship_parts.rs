@@ -243,6 +243,32 @@ pub enum ShipPartFault {
         /// Its [`role_style_id`].
         style: &'static str,
     },
+    /// No loaded station design has an id the generator places.
+    MissingStationDesign {
+        /// The design id, one of `GENERATED_STATION_DESIGN_IDS`.
+        id: &'static str,
+    },
+    /// A hull section of a station design the generator places names a
+    /// section prototype no loaded pack declares, so its clearance cannot be
+    /// measured.
+    UnresolvedStationSection {
+        /// The station design id.
+        design: String,
+        /// The hull section id.
+        section: String,
+        /// The prototype it names.
+        prototype: String,
+    },
+    /// A station design the generator places is wider than the clearance a
+    /// generated body may declare.
+    StationTooWide {
+        /// The station design id.
+        design: String,
+        /// Its measured clearance, in meters.
+        clearance: f32,
+        /// The limit, in meters.
+        limit: f32,
+    },
 }
 
 impl fmt::Display for ShipPartFault {
@@ -283,6 +309,28 @@ impl fmt::Display for ShipPartFault {
                 f,
                 "{} ships wear style '{style}', and no loaded content authors it",
                 role.label()
+            ),
+            Self::MissingStationDesign { id } => write!(
+                f,
+                "the generator places station design '{id}', and no loaded content authors it"
+            ),
+            Self::UnresolvedStationSection {
+                design,
+                section,
+                prototype,
+            } => write!(
+                f,
+                "station design '{design}' section '{section}' names the prototype \
+                 '{prototype}', which no loaded pack declares"
+            ),
+            Self::StationTooWide {
+                design,
+                clearance,
+                limit,
+            } => write!(
+                f,
+                "station design '{design}' reaches {clearance} m from its root, past the {limit} \
+                 m a generated body may declare"
             ),
         }
     }

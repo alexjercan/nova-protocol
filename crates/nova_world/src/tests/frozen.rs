@@ -12,16 +12,17 @@ use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{EntityId, Meters, Meters3, ScenarioAddressableMarker};
 use nova_gameplay::{
     prelude::{
-        AssetRef, CargoCanister, CargoCanisterRuntimeId, DamageMark, DamageMarks, Health,
-        IntegrityDestroyMarker, ItemRoleType, PlayerSpaceshipMarker, SectionMarker, ShipCredits,
-        ShipInventory, ShipInventoryStock, SpaceshipRootMarker, TempEntity,
+        AssetRef, CargoCanister, CargoCanisterRuntimeId, DamageMark, DamageMarks,
+        DerelictShipMarker, Health, IntegrityDestroyMarker, ItemRoleType, PlayerSpaceshipMarker,
+        SectionMarker, ShipCredits, ShipInventory, ShipInventoryStock, SpaceshipRootMarker,
+        TempEntity,
     },
     test_support::{settle, test_items, unfinished_integrity_physics_app},
 };
 use nova_scenario::prelude::{
     freeze_ship, AsteroidCarvePlugin, AsteroidField, AsteroidMarker, AsteroidPlugin, SectionSource,
     ShipDesign, ShipDesignSource, SpaceshipController, SpaceshipDesign, SpaceshipPlugin,
-    SpaceshipSectionConfig,
+    SpaceshipSectionConfig, StationMarker, StationStorage,
 };
 use nova_ship::prelude::{
     cargo_canister, docking_section, thruster_section, AINonCombatant, BaseSectionConfig,
@@ -32,15 +33,15 @@ use nova_ship::prelude::{
 };
 
 use super::{
-    answering, design_mut, empty, rock_config, rocks, ship, test_sections, Answers, Rocks,
+    answering, design_mut, empty, rock_config, rocks, ship, station, test_sections, Answers, Rocks,
     TEST_HULL_SECTION_ID,
 };
 use crate::{
     adopt_moving_bodies, clear_sector_work, frozen::SettlingBodies, generation::prepare_cell,
     materialize_sector, retire_sectors, sector_id, streaming::ClearedConfig, CurrentSector,
     FrozenBodyType, FrozenSector, FrozenSectors, GeneratedBodyId, ObserverBody, PendingSectorShip,
-    ReadySectors, SectorAsteroid, SectorCoord, SectorGenerationInput, SectorGenerator,
-    SectorJobStats, SectorManifest, SectorRoot, WorldConfig, WorldObserver,
+    PendingSectorStation, ReadySectors, SectorAsteroid, SectorCoord, SectorGenerationInput,
+    SectorGenerator, SectorJobStats, SectorManifest, SectorRoot, WorldConfig, WorldObserver,
 };
 
 /// Arm `config` around `centre` with nothing live yet, so the arming frame's
@@ -899,6 +900,176 @@ fn a_mined_fought_and_looted_cell_returns_as_it_was_left() {
             .count(),
         1,
         "the generator's rock does not spawn again beside the frozen one"
+    );
+}
+
+/// A cell's one generated station, at rest beside a rock, and one the
+/// observer is standing on at cell quarter.
+fn station_home(input: SectorGenerationInput) -> SectorManifest {
+    let centre = input.coord.centre(input.geometry.sector_edge);
+    let quarter = input.geometry.sector_edge.get() * 0.25;
+    let rock = SectorAsteroid {
+        id: sector_id(input.coord, "body", 0),
+        position: centre,
+        config: rock_config(Meters(40.0), 7),
+    };
+    let standing = station(
+        sector_id(input.coord, "cluster_a_station", 0),
+        centre + Meters3::new(quarter, 0.0, 0.0),
+        TEST_HULL_SECTION_ID,
+    );
+    let held = station(
+        sector_id(input.coord, "cluster_b_station", 0),
+        centre + Meters3::new(0.0, 0.0, quarter),
+        TEST_HULL_SECTION_ID,
+    );
+    let mut manifest = empty(input.coord, vec![rock]);
+    manifest.stations = vec![standing, held];
+    manifest
+}
+
+/// A generated station leaves and returns with its cell like a generated
+/// ship: it spawns from the manifest with its typed id and no address, it
+/// freezes as a station record under that id when its cell retires, and it
+/// thaws from the record with the same id, pose, design and storage, with
+/// the generator's copy not spawned beside it. A station the observer stands
+/// on freezes as a held station and comes back held.
+#[test]
+fn a_generated_station_retires_and_thaws_with_its_cell() {
+    let mut app = ship_app();
+    let home = SectorCoord::ORIGIN;
+    let config = answering(station_home);
+    let edge = config.sector_edge;
+    let world = app.world_mut();
+    arm(world, config, home);
+    let observer = ObserverBody {
+        position: home.centre(edge) + Meters3::new(0.0, 0.0, edge.get() * 0.25),
+        reach: Meters(100.0),
+    };
+    materialize::<Answers>(world, home, observer);
+    settle(&mut app);
+
+    let world = app.world_mut();
+    let standing_id = sector_id(home, "cluster_a_station", 0);
+    let [standing] = body_with_id(world, &standing_id)[..] else {
+        panic!("the standing station spawns once");
+    };
+    let root = world.entity(standing);
+    assert!(root.contains::<StationMarker>(), "spawned as a station");
+    assert!(
+        root.contains::<SpaceshipRootMarker>(),
+        "a station root is a hull root"
+    );
+    assert!(
+        !root.contains::<ScenarioAddressableMarker>(),
+        "a generated station is not addressable by scenario scripts"
+    );
+    assert!(
+        !root.contains::<DerelictShipMarker>(),
+        "a living station spawns intact"
+    );
+    let transform = *root.get::<Transform>().expect("a station has a pose");
+    let design = root.get::<StationMarker>().unwrap().0.clone();
+    let storage = root.get::<StationStorage>().cloned().expect("storage");
+    let held: Vec<String> = world
+        .query::<&PendingSectorStation>()
+        .iter(world)
+        .map(|held| held.station().id.to_string())
+        .collect();
+    assert_eq!(
+        held,
+        vec![sector_id(home, "cluster_b_station", 0).to_string()],
+        "the station under the observer is held"
+    );
+
+    walk_to::<Answers>(world, home.offset(5, 0, 0));
+    assert!(
+        world.get_entity(standing).is_err(),
+        "the cell took the station"
+    );
+    let record = world
+        .resource::<FrozenSectors>()
+        .get(home)
+        .expect("home froze");
+    assert!(record.is_visited());
+    let kinds: Vec<&str> = record
+        .bodies()
+        .iter()
+        .map(|body| match body.body() {
+            FrozenBodyType::Station(_) => "station",
+            FrozenBodyType::PendingStation { .. } => "pending station",
+            FrozenBodyType::Asteroid(_) => "rock",
+            _ => "other",
+        })
+        .collect();
+    assert_eq!(
+        kinds.iter().filter(|kind| **kind == "station").count(),
+        1,
+        "the standing station froze as a station: {kinds:?}"
+    );
+    assert_eq!(
+        kinds
+            .iter()
+            .filter(|kind| **kind == "pending station")
+            .count(),
+        1,
+        "the held station froze held: {kinds:?}"
+    );
+    assert!(
+        frozen_ids(world, home).contains(&standing_id.to_string()),
+        "the record keeps the generated id"
+    );
+
+    walk_to::<Answers>(world, home);
+    let root = materialize::<Answers>(world, home, observer);
+    settle(&mut app);
+
+    let world = app.world_mut();
+    let [thawed] = body_with_id(world, &standing_id)[..] else {
+        panic!("the standing station comes back once");
+    };
+    assert_eq!(
+        world.get::<ChildOf>(thawed).map(ChildOf::parent),
+        Some(root)
+    );
+    let thawed_root = world.entity(thawed);
+    assert!(
+        thawed_root.contains::<StationMarker>(),
+        "thawed as a station"
+    );
+    assert!(
+        !thawed_root.contains::<ScenarioAddressableMarker>(),
+        "a thawed generated station stays unaddressable"
+    );
+    assert_eq!(thawed_root.get::<StationMarker>().unwrap().0, design);
+    assert_eq!(thawed_root.get::<StationStorage>().cloned(), Some(storage));
+    let thawed_transform = *thawed_root.get::<Transform>().unwrap();
+    assert!(
+        thawed_transform
+            .translation
+            .abs_diff_eq(transform.translation, 1.0e-3)
+            && thawed_transform
+                .rotation
+                .abs_diff_eq(transform.rotation, 1.0e-4),
+        "the pose is kept: {thawed_transform:?} vs {transform:?}"
+    );
+    assert_eq!(
+        world
+            .query_filtered::<(), With<StationMarker>>()
+            .iter(world)
+            .count(),
+        1,
+        "the generator's station does not spawn again beside the frozen one"
+    );
+    let held: Vec<String> = world
+        .query::<&PendingSectorStation>()
+        .iter(world)
+        .map(|held| held.station().id.to_string())
+        .collect();
+    assert_eq!(
+        held,
+        vec![sector_id(home, "cluster_b_station", 0).to_string()],
+        "the held station comes back held"
     );
 }
 

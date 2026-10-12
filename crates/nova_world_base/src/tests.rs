@@ -5,8 +5,8 @@ use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack};
 use nova_events::prelude::{Meters, Meters3};
 use nova_gameplay::prelude::{Allegiance, Fnv64, ItemDesignId, ItemRoleType};
 use nova_scenario::prelude::{
-    resolve_ship_design, GameShipDesigns, GeneratedWorldConfig, ScenarioConfig, ScenarioRole,
-    SectionSource, ShipDesign, SpaceshipController, SpaceshipSectionConfig,
+    resolve_ship_design, GameShipDesigns, GameStationDesigns, GeneratedWorldConfig, ScenarioConfig,
+    ScenarioRole, SectionSource, ShipDesign, SpaceshipController, SpaceshipSectionConfig,
 };
 use nova_ship::prelude::{GameSections, ShipStyleConfig};
 
@@ -48,14 +48,21 @@ fn styles() -> GameStyles {
     )
 }
 
-/// A generator pinned to [`loaded`] and checked against [`styles`].
+/// The one station design the generator places.
+pub(crate) fn stations() -> GameStationDesigns {
+    crate::test_support::fixture_stations()
+}
+
+/// A generator pinned to [`loaded`] and [`stations`] and checked against
+/// [`styles`].
 pub(crate) fn fixture_world() -> NovaLayeredWorld {
     NovaLayeredWorld::from_loaded(
         &loaded(),
         &styles(),
         &nova_gameplay::test_support::test_items(),
+        &stations(),
     )
-    .expect("the fixture packs build a snapshot and every role has a style")
+    .expect("the fixture packs build a snapshot, every role has a style and the station pins")
 }
 
 /// A generated world that takes its seed from the session.
@@ -91,6 +98,7 @@ fn world(on: ScenarioWorldType) -> World {
     world.insert_resource(loaded());
     world.insert_resource(styles());
     world.insert_resource(nova_gameplay::test_support::test_items());
+    world.insert_resource(stations());
     world
 }
 
@@ -356,7 +364,7 @@ fn a_pinned_window_generates_the_recorded_bodies() {
         .collect();
     assert_eq!(
         Fnv64::new().write(canonical.as_bytes()).finish(),
-        0x67a2_6108_0bd0_8a05,
+        0xa6db_236e_b6a9_2a22,
         "the pinned window's bodies changed"
     );
 }

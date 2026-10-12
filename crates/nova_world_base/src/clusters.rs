@@ -68,20 +68,22 @@ use bevy::prelude::{Quat, Vec3};
 use nova_assets::prelude::ASTEROID_TEXTURE_PATH;
 use nova_events::prelude::{Meters, Meters3, MetersPerSecond3, MetersPerSecondSquared};
 use nova_gameplay::prelude::{
-    circular_orbit_speed, unit_sphere_point, AssetRef, Fnv32, GameItems, GravitySettings,
-    GravityWell, SeedStream,
+    circular_orbit_speed, unit_sphere_point, Allegiance, AssetRef, Fnv32, GameItems,
+    GravitySettings, GravityWell, SeedStream,
 };
 use nova_scenario::prelude::{
-    asteroid_seed_from_id, AsteroidConfig, PlanetConfig, PlanetType, SpaceshipConfig,
-    SpaceshipController, ASTEROID_GEOMETRIC_FACTOR_MAX, KIND_CARBON, KIND_ICE, KIND_METAL,
-    KIND_ROCK,
+    asteroid_seed_from_id, station_orbit_velocity, AsteroidConfig, PlanetConfig, PlanetType,
+    SpaceshipConfig, SpaceshipController, StationConfig, StationDesign,
+    ASTEROID_GEOMETRIC_FACTOR_MAX, KIND_CARBON, KIND_ICE, KIND_METAL, KIND_ROCK,
 };
 use nova_world::prelude::*;
 
 use crate::{
-    civilizations::CivilizationField,
+    civilizations::{Civilization, CivilizationField, CivilizationStatusType},
     environment::{Environment, EnvironmentFields},
+    layered::PinnedStation,
     sector_ships::{plan_patrol, plan_ship, HullSlot, PlannedShip, SHIP_ADVANCEMENT_CURVE},
+    sector_stations::{station_design_id, StationClaims},
     ship_parts::ShipPartSnapshot,
     NovaLayeredWorld, CLEARANCE_MARGIN,
 };
@@ -90,7 +92,15 @@ use crate::{
 ///
 /// About one interesting place per 50 km of travel on each axis, so a 160 km
 /// window holds a few clusters and long runs of open space between them.
-const CLUSTER_LATTICE: Meters = Meters(50_000.0);
+pub(crate) const CLUSTER_LATTICE: Meters = Meters(50_000.0);
+
+/// How many seeded phases around a world a station tries for an orbit that
+/// clears every member of its cluster before the world is given up.
+const STATION_ORBIT_PHASES: usize = 8;
+
+/// How many seeded sides of a rock a station tries to stand on after the
+/// side facing the anchor, before the next rock is tried.
+const STATION_STAND_SIDES: usize = 4;
 
 /// How far a cluster's anchor may move off its node, as a fraction of the half
 /// spacing: +/-10 km on each axis. Jitter is what keeps clusters off a
@@ -370,6 +380,7 @@ pub fn sector_clusters(
         &EnvironmentFields::new(input.seed),
         world.parts(),
         world.items(),
+        world.stations(),
         input,
     )?
     .summary())
@@ -457,6 +468,8 @@ enum ClusterBody {
     },
     /// A hull the cell owns, laid out. Only a cell's own bodies carry one.
     Ship(Box<PlannedShip>),
+    /// A civilization's station, posed in its cluster.
+    Station(Box<PlannedStation>),
 }
 
 impl ClusterBody {
@@ -469,12 +482,44 @@ impl ClusterBody {
             Self::Planetoid(config) => config.body_radius(),
             Self::Hull { .. } => SECTOR_SHIP_CLEARANCE_MAX,
             Self::Ship(ship) => ship.clearance,
+            Self::Station(station) => station.clearance,
         }
     }
 
-    fn is_hull(&self) -> bool {
-        matches!(self, Self::Hull { .. } | Self::Ship(_))
+    /// Whether a hull or a station of the same cluster may stand in a cell
+    /// because this body stands there: a rock or a planetoid keeps it
+    /// company, another hull or station does not.
+    fn can_accompany(&self) -> bool {
+        matches!(self, Self::Rock { .. } | Self::Planetoid(_))
     }
+}
+
+/// One station a cluster hosts, posed before any cell checks where it fits.
+#[derive(Clone, Debug)]
+struct PlannedStation {
+    /// The radius around its root that holds the hull.
+    clearance: Meters,
+    /// Its full orientation.
+    rotation: Quat,
+    /// The well it orbits, as the centre and `mu` in engine units, or `None`
+    /// for a station at rest beside a rock.
+    orbit: Option<(Vec3, f32)>,
+    /// The civilization that keeps it, or kept it.
+    civilization: CivilizationId,
+    /// Whether it is dead: an extinct civilization's, spawned `derelict`.
+    dead: bool,
+    /// Its side: the civilization's, or Neutral when dead.
+    allegiance: Allegiance,
+    /// The pinned design it is built from, copied into its manifest entry.
+    design: StationDesign,
+}
+
+/// Where a station stands in a cluster, as [`station_pose`] decides it.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct StationPose {
+    pub(crate) position: Meters3,
+    rotation: Quat,
+    orbit: Option<(Vec3, f32)>,
 }
 
 /// One body of a cluster, where it stands, and the cell that owns it.
@@ -496,12 +541,12 @@ struct ClusterHull {
 
 /// One cluster, decided at its lattice node. The same value from every cell.
 #[derive(Clone, Debug)]
-struct Cluster {
+pub(crate) struct Cluster {
     node: [i32; 3],
     cluster_type: ClusterType,
     /// The fields at its drawn anchor, which decided it.
     environment: Environment,
-    anchor: Meters3,
+    pub(crate) anchor: Meters3,
     home: SectorCoord,
     /// Its planetoids, none to four. Each one must be placed.
     parents: Vec<ClusterMember>,
@@ -512,7 +557,7 @@ struct Cluster {
 }
 
 impl Cluster {
-    fn slug(node: [i32; 3]) -> String {
+    pub(crate) fn slug(node: [i32; 3]) -> String {
         let [x, y, z] = node.map(|index| {
             if index < 0 {
                 format!("n{}", index.unsigned_abs())
@@ -524,7 +569,6 @@ impl Cluster {
     }
 
     /// Every body it plans, every escort included.
-    #[cfg(test)]
     fn bodies(&self) -> impl Iterator<Item = &ClusterMember> {
         self.parents.iter().chain(&self.rocks).chain(
             self.hulls
@@ -551,6 +595,8 @@ enum BodySource {
     Hull([i32; 3], usize),
     /// An escort of the hull at that index, and its own index.
     Escort([i32; 3], usize, usize),
+    /// The cluster's one station.
+    Station([i32; 3]),
     Background,
 }
 
@@ -560,7 +606,8 @@ impl BodySource {
             Self::Parent(node, _)
             | Self::Rock(node, _)
             | Self::Hull(node, _)
-            | Self::Escort(node, ..) => Some(node),
+            | Self::Escort(node, ..)
+            | Self::Station(node) => Some(node),
             Self::Background => None,
         }
     }
@@ -574,7 +621,8 @@ enum SkipType {
     /// It comes within [`CLEARANCE_MARGIN`] of a body placed before it.
     Clearance,
     /// It is a hull, its cluster placed no rock or planetoid in its cell, and
-    /// none of its escorts fits there.
+    /// none of its escorts fits there; or it is a station and its cluster
+    /// placed no rock or planetoid in its cell, which refuses the cell.
     Companion,
 }
 
@@ -953,6 +1001,7 @@ impl SectorPlan {
             asteroids: Vec::new(),
             planets: Vec::new(),
             ships: Vec::new(),
+            stations: Vec::new(),
         };
         for planned in self.bodies.iter().filter(|body| body.skipped.is_none()) {
             let id = planned.id.clone();
@@ -1005,6 +1054,34 @@ impl SectorPlan {
                         ..ship.spawn.clone()
                     },
                 }),
+                ClusterBody::Station(station) => {
+                    let initial_velocity = match station.orbit {
+                        Some((centre, mu)) => {
+                            station_orbit_velocity(mu, centre, position.to_engine()).ok_or_else(
+                                || SectorFault::Generation {
+                                    id: planned.id.to_string(),
+                                    field: "initial_velocity",
+                                    value: "no finite orbit around its world".to_string(),
+                                },
+                            )?
+                        }
+                        None => MetersPerSecond3::ZERO,
+                    };
+                    manifest.stations.push(SectorStation {
+                        id,
+                        position,
+                        rotation: station.rotation,
+                        clearance: station.clearance,
+                        civilization: station.civilization,
+                        design: station.design.clone(),
+                        spawn: StationConfig {
+                            design: station.design.id.clone(),
+                            allegiance: Some(station.allegiance),
+                            derelict: station.dead,
+                            initial_velocity,
+                        },
+                    });
+                }
                 ClusterBody::Hull { .. } => {
                     unreachable!("a cell lays out every hull it owns before it resolves them")
                 }
@@ -1210,7 +1287,7 @@ fn hull(stream: &mut SeedStream) -> ClusterBody {
 ///
 /// Whatever the environment refuses, and [`SectorFault::InvalidGeometry`] for
 /// a body with no finite position.
-fn cluster_at(
+pub(crate) fn cluster_at(
     fields: &EnvironmentFields,
     seed: u32,
     edge: Meters,
@@ -1389,6 +1466,151 @@ fn cluster_at(
     }))
 }
 
+/// Where a station of `clearance` stands in `cluster`, or `None` when the
+/// cluster cannot host one. The same answer from every cell: every draw is
+/// keyed by the seed and the node.
+///
+/// A cluster with worlds puts the station in a circular orbit of the first
+/// world that can take one, `body_radius + CLEARANCE_MARGIN + clearance`
+/// from the centre, so the hull keeps the margin off the surface. The orbit
+/// is held to the band the rocks' seeded orbits use: inside the unfaded part
+/// of the well, the whole circle in the world's own cell and in no other
+/// world's well. A seeded phase is kept when it clears every member of the
+/// cluster by the margin and stays within the type's member reach; the
+/// station stands level on its outward radial, turned by a seeded yaw. A
+/// cluster with no world stands the station beside the first rock it fits
+/// by, the margin off the rock's clearance, on the side facing the anchor
+/// first and then on seeded sides, level on +Y and at rest. A world cluster
+/// with no orbit that fits hosts no station: a station at rest in a well
+/// would fall.
+pub(crate) fn station_pose(
+    cluster: &Cluster,
+    edge: Meters,
+    clearance: Meters,
+    seed: u32,
+) -> Option<StationPose> {
+    let [x, y, z] = cluster.node;
+    let mut stream = SeedStream::new(
+        Fnv32::new()
+            .write(&seed.to_le_bytes())
+            .write(b"cluster_station")
+            .write(&x.to_le_bytes())
+            .write(&y.to_le_bytes())
+            .write(&z.to_le_bytes())
+            .finish(),
+    );
+    let yaw = stream.unit() * std::f32::consts::TAU;
+    let members: Vec<(Meters3, Meters)> = cluster
+        .bodies()
+        .map(|member| (member.position, member.body.clearance()))
+        .collect();
+    let reach = member_reach(cluster.cluster_type);
+    // The whole clearance sphere inside the cell its centre is in: the plan
+    // skips a body across a face, and a station is never skipped.
+    let inside = |position: Meters3, clearance: Meters| {
+        let centre = SectorCoord::containing(position, edge).centre(edge);
+        (position.get() - centre.get()).abs().max_element() + clearance.get() <= edge.get() * 0.5
+    };
+    let clear = |position: Meters3| {
+        position.get().is_finite()
+            && position.distance(cluster.anchor) <= reach
+            && inside(position, clearance)
+            && members.iter().all(|&(other, other_clearance)| {
+                bodies_clear(
+                    other,
+                    other_clearance,
+                    position,
+                    clearance,
+                    CLEARANCE_MARGIN,
+                )
+            })
+    };
+
+    if !cluster.parents.is_empty() {
+        let settings = GravitySettings::default();
+        let wells: Vec<(Vec3, GravityWell)> = cluster
+            .parents
+            .iter()
+            .map(|parent| {
+                let ClusterBody::Planetoid(config) = &parent.body else {
+                    unreachable!("a cluster plans its parents as planetoids");
+                };
+                (
+                    parent.position.to_engine(),
+                    GravityWell::from_mass(
+                        config.mass,
+                        config.body_radius().to_engine(),
+                        &settings,
+                    ),
+                )
+            })
+            .collect();
+        let half_edge = edge.to_engine() * 0.5;
+        let c = clearance.to_engine();
+        for (parent, (centre, well)) in cluster.parents.iter().zip(&wells) {
+            let ClusterBody::Planetoid(config) = &parent.body else {
+                unreachable!("a cluster plans its parents as planetoids");
+            };
+            let radius =
+                (config.body_radius() + CLEARANCE_MARGIN + clearance + ROUNDING_SLACK).to_engine();
+            let cell_offset = (*centre - parent.owner.centre(edge).to_engine())
+                .abs()
+                .max_element();
+            let lone = wells.iter().all(|(other, other_well)| {
+                other == centre || centre.distance(*other) > radius + c + other_well.soi_radius
+            });
+            if !lone
+                || radius <= well.body_radius + c * 2.0
+                || radius + c >= well.soi_radius * (1.0 - settings.fade_fraction)
+                || cell_offset + radius + c >= half_edge
+            {
+                continue;
+            }
+            for _ in 0..STATION_ORBIT_PHASES {
+                let direction = unit_sphere_point(stream.next_u32());
+                let position = Meters3::from_engine(*centre + direction * radius);
+                if clear(position) {
+                    return Some(StationPose {
+                        position,
+                        rotation: Quat::from_rotation_arc(Vec3::Y, direction)
+                            * Quat::from_rotation_y(yaw),
+                        orbit: Some((*centre, well.mu)),
+                    });
+                }
+            }
+        }
+        return None;
+    }
+
+    // Beside a rock that stands whole in its own cell, in that cell: the
+    // plan places a station only after a rock of its cluster in its cell.
+    for rock in cluster
+        .rocks
+        .iter()
+        .filter(|rock| inside(rock.position, rock.body.clearance()))
+    {
+        let distance = rock.body.clearance() + CLEARANCE_MARGIN + clearance + ROUNDING_SLACK;
+        let toward = (cluster.anchor.get() - rock.position.get()).normalize_or_zero();
+        let seeded: Vec<Vec3> = (0..STATION_STAND_SIDES)
+            .map(|_| unit_sphere_point(stream.next_u32()))
+            .collect();
+        for side in std::iter::once(toward)
+            .filter(|toward| *toward != Vec3::ZERO)
+            .chain(seeded)
+        {
+            let position = Meters3(rock.position.get() + side * distance.get());
+            if clear(position) && rock.owner == SectorCoord::containing(position, edge) {
+                return Some(StationPose {
+                    position,
+                    rotation: Quat::from_rotation_y(yaw),
+                    orbit: None,
+                });
+            }
+        }
+    }
+    None
+}
+
 /// The mass that gives a planetoid of this outer radius a sphere of influence
 /// of [`PLANETOID_SOI_REACH`] radii: `mu = soi_cutoff_accel * soi^2`.
 fn planetoid_mass(body_radius: Meters) -> f32 {
@@ -1529,35 +1751,56 @@ fn halo_nodes(coord: SectorCoord, edge: Meters) -> Vec<[i32; 3]> {
 }
 
 /// Plan one cell: replay every cluster in its halo, keep the bodies it owns,
-/// lay out the hulls it owns from `parts`, draw a background scatter if it
+/// lay out the hulls it owns from `parts`, pose the station a civilization
+/// keeps at each cluster from `stations`, draw a background scatter if it
 /// owns none, and resolve them all.
 ///
 /// Every owned hull is laid out BEFORE the cell checks where it fits: the
 /// check needs the hull's own clearance, and a hull whose layout fails fails
 /// the cell even where it would have been skipped.
 ///
-/// PURE: the same fields, parts and input give the same plan, on any call,
-/// in any order.
+/// PURE: the same fields, parts, stations and input give the same plan, on
+/// any call, in any order.
 ///
 /// # Errors
 ///
 /// Whatever the environment refuses, [`SectorFault::InvalidGeometry`] for a
 /// body with no finite position, [`SectorFault::Generation`] for a parent
-/// that could not be placed, and whatever [`plan_ship`] refuses for an owned
-/// hull.
+/// that could not be placed, for a civilization whose station design is not
+/// pinned or whose stations have no cluster to stand in, and whatever
+/// [`plan_ship`] refuses for an owned hull.
 pub(crate) fn plan_sector(
     fields: &EnvironmentFields,
     parts: &ShipPartSnapshot,
     items: &GameItems,
+    stations: &[PinnedStation],
     input: SectorGenerationInput,
 ) -> Result<SectorPlan, SectorFault> {
     let coord = input.coord;
     let edge = input.geometry.sector_edge;
     let civilizations = CivilizationField::new(input.seed, SHIP_ADVANCEMENT_CURVE);
+    let pinned = |civilization: &Civilization| {
+        let id = station_design_id(civilization);
+        stations
+            .iter()
+            .find(|station| station.design.id == id.into())
+            .ok_or_else(|| SectorFault::Generation {
+                id: civilization.id.to_string(),
+                field: "station_design",
+                value: format!("'{id}' is not pinned; arming pins every generated design"),
+            })
+    };
+    let mut claims = StationClaims::new();
+    let mut hosts = |civilization: &Civilization, node: [i32; 3]| {
+        let clearance = pinned(civilization)?.clearance;
+        Ok(cluster_at(fields, input.seed, edge, node)?
+            .is_some_and(|cluster| station_pose(&cluster, edge, clearance, input.seed).is_some()))
+    };
     let mut clusters = Vec::new();
     let mut parents = Vec::new();
     let mut rocks = Vec::new();
     let mut hulls = Vec::new();
+    let mut stations_owned = Vec::new();
     for node in halo_nodes(coord, edge) {
         let Some(cluster) = cluster_at(fields, input.seed, edge, node)? else {
             continue;
@@ -1571,7 +1814,7 @@ pub(crate) fn plan_sector(
                 position: member.position,
                 escorts: Vec::new(),
             };
-        let before = parents.len() + rocks.len() + hulls.len();
+        let before = parents.len() + rocks.len() + hulls.len() + stations_owned.len();
         parents.extend(
             cluster
                 .parents
@@ -1639,7 +1882,36 @@ pub(crate) fn plan_sector(
                 .collect();
             hulls.push(planned);
         }
-        if parents.len() + rocks.len() + hulls.len() > before {
+        if let Some(civilization) =
+            claims.claim(&civilizations, cluster.anchor, node, &mut hosts)?
+        {
+            let station = pinned(&civilization)?;
+            let Some(pose) = station_pose(&cluster, edge, station.clearance, input.seed) else {
+                unreachable!("a claimed node hosts a station: the claim checked its pose")
+            };
+            if SectorCoord::containing(pose.position, edge) == coord {
+                let (dead, allegiance) = match civilization.status {
+                    CivilizationStatusType::Living => (false, civilization.allegiance),
+                    CivilizationStatusType::Extinct => (true, Allegiance::Neutral),
+                };
+                stations_owned.push(Candidate {
+                    id: sector_id(coord, &format!("{stem}_station"), 0),
+                    source: BodySource::Station(node),
+                    body: ClusterBody::Station(Box::new(PlannedStation {
+                        clearance: station.clearance,
+                        rotation: pose.rotation,
+                        orbit: pose.orbit,
+                        civilization: civilization.id,
+                        dead,
+                        allegiance,
+                        design: station.design.clone(),
+                    })),
+                    position: pose.position,
+                    escorts: Vec::new(),
+                });
+            }
+        }
+        if parents.len() + rocks.len() + hulls.len() + stations_owned.len() > before {
             clusters.push(cluster);
         }
     }
@@ -1679,6 +1951,7 @@ pub(crate) fn plan_sector(
         .into_iter()
         .chain(rocks)
         .chain(hulls)
+        .chain(stations_owned)
         .chain(background);
     let mut plan = SectorPlan {
         coord,
@@ -1778,7 +2051,9 @@ fn fits(
 /// skip instead of a refused manifest. A hull that fits is placed only when a
 /// rock or planetoid of its own cluster was placed before it, or when one of
 /// its escorts fits beside it and is placed first; every escort tried before
-/// that one is skipped and counted.
+/// that one is skipped and counted. A station is placed only when it fits and
+/// a rock or planetoid of its own cluster was placed before it; it has no
+/// escorts, and a station that would be skipped refuses the cell instead.
 ///
 /// # Errors
 ///
@@ -1810,13 +2085,30 @@ fn resolve(
                 value: format!("skipped for {}", reason.label()),
             });
         }
-        if let (BodySource::Hull(node, _), None) = (source, skipped) {
-            let accompanied = planned.iter().any(|other| {
+        let accompanied = |node: [i32; 3], planned: &[PlannedBody]| {
+            planned.iter().any(|other| {
                 other.skipped.is_none()
                     && other.source.node() == Some(node)
-                    && !other.body.is_hull()
+                    && other.body.can_accompany()
+            })
+        };
+        if let (BodySource::Station(node), None) = (source, skipped) {
+            if !accompanied(node, &planned) {
+                skipped = Some(SkipType::Companion);
+            }
+        }
+        // A station's pose was chosen inside its cell, clear of its cluster
+        // and beside a rock that stands there, so a skip here is a planning
+        // bug: a civilization would quietly lose a station it was promised.
+        if let (BodySource::Station(..), Some(reason)) = (source, skipped) {
+            return Err(SectorFault::Generation {
+                id: id.to_string(),
+                field: "station",
+                value: format!("skipped for {}", reason.label()),
             });
-            if !accompanied {
+        }
+        if let (BodySource::Hull(node, _), None) = (source, skipped) {
+            if !accompanied(node, &planned) {
                 skipped = Some(SkipType::Companion);
                 for escort in escorts {
                     if !escort.position.get().is_finite() {
@@ -1889,6 +2181,7 @@ mod tests {
                     &fields,
                     config.generator.parts(),
                     config.generator.items(),
+                    config.generator.stations(),
                     config.input(coord),
                 )
                 .unwrap_or_else(|fault| panic!("{coord}: {fault}"));
@@ -1949,6 +2242,7 @@ mod tests {
             &EnvironmentFields::new(SEED),
             &unbuildable,
             config().generator.items(),
+            config().generator.stations(),
             config().input(owner),
         )
         .expect_err("a hull no layout fits must fail its cell");
@@ -2273,6 +2567,7 @@ mod tests {
                     &fields,
                     config.generator.parts(),
                     config.generator.items(),
+                    config.generator.stations(),
                     config.input(coord),
                 )
                 .unwrap_or_else(|fault| panic!("{seed} {coord}: {fault}"));
@@ -2285,7 +2580,9 @@ mod tests {
                         continue;
                     };
                     let companions: Vec<BodySource> = placed()
-                        .filter(|other| other.source.node() == Some(node) && !other.body.is_hull())
+                        .filter(|other| {
+                            other.source.node() == Some(node) && other.body.can_accompany()
+                        })
                         .map(|other| other.source)
                         .collect();
                     assert!(
@@ -2520,6 +2817,7 @@ mod tests {
                     &fields,
                     config.generator.parts(),
                     config.generator.items(),
+                    config.generator.stations(),
                     config.input(SectorCoord::new(x, 0, z)),
                 )
                 .unwrap_or_else(|fault| panic!("[{x}, 0, {z}]: {fault}"));
@@ -2605,6 +2903,7 @@ mod tests {
             &fields,
             world.generator.parts(),
             world.generator.items(),
+            world.generator.stations(),
             world.input(coord),
         )
         .unwrap();
@@ -2686,6 +2985,7 @@ mod tests {
             &fields,
             world.generator.parts(),
             world.generator.items(),
+            world.generator.stations(),
             world.input(coord),
         )
         .unwrap();
@@ -2693,6 +2993,7 @@ mod tests {
             &fields,
             world.generator.parts(),
             world.generator.items(),
+            world.generator.stations(),
             world.input(coord),
         )
         .unwrap();
@@ -2810,6 +3111,7 @@ mod tests {
                     &fields,
                     world.generator.parts(),
                     world.generator.items(),
+                    world.generator.stations(),
                     world.input(coord),
                 )
                 .unwrap();
@@ -2837,6 +3139,7 @@ mod tests {
                             radius.to_engine() * ASTEROID_GEOMETRIC_FACTOR_MAX
                         }
                         ClusterBody::Ship(ship) => ship.clearance.to_engine(),
+                        ClusterBody::Station(station) => station.clearance.to_engine(),
                         ClusterBody::Planetoid(_) | ClusterBody::Hull { .. } => continue,
                     };
                     let velocity = manifest
@@ -2850,6 +3153,13 @@ mod tests {
                                 .iter()
                                 .find(|ship| ship.id == body.id)
                                 .map(|ship| ship.spawn.initial_velocity)
+                        })
+                        .or_else(|| {
+                            manifest
+                                .stations
+                                .iter()
+                                .find(|station| station.id == body.id)
+                                .map(|station| station.spawn.initial_velocity)
                         })
                         .expect("every placed mobile body is in the manifest");
                     assert!(velocity.is_finite(), "{} velocity", body.id);

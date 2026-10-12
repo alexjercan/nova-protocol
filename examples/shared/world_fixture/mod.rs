@@ -98,7 +98,8 @@ pub fn uniform_world_config() -> WorldConfig<UniformAsteroids> {
 }
 
 /// The same seed, window and edge, filled by the base game's generator,
-/// pinned to the ship parts of `loaded` and checked against `styles`.
+/// pinned to the ship parts of `loaded` and the station designs of
+/// `stations`, checked against `styles`.
 ///
 /// Sharing the streaming dials with [`uniform_world_config`] is the point:
 /// what changes between two examples is what a cell CONTAINS, so a difference
@@ -107,21 +108,24 @@ pub fn featured_world_config(
     loaded: &LoadedSectionPacks,
     styles: &GameStyles,
     items: &GameItems,
+    stations: &GameStationDesigns,
 ) -> WorldConfig<NovaLayeredWorld> {
     WorldConfig {
         seed: EXAMPLE_SEED,
         sector_edge: EXAMPLE_SECTOR_EDGE,
         active_radius: EXAMPLE_ACTIVE_RADIUS,
-        generator: NovaLayeredWorld::from_loaded(loaded, styles, items).unwrap_or_else(|faults| {
-            panic!(
-                "world fixture: the loaded catalog does not arm:\n  {}",
-                faults
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join("\n  ")
-            )
-        }),
+        generator: NovaLayeredWorld::from_loaded(loaded, styles, items, stations).unwrap_or_else(
+            |faults| {
+                panic!(
+                    "world fixture: the loaded catalog does not arm:\n  {}",
+                    faults
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join("\n  ")
+                )
+            },
+        ),
     }
 }
 
@@ -143,17 +147,19 @@ pub fn clustered_world_config(
     loaded: &LoadedSectionPacks,
     styles: &GameStyles,
     items: &GameItems,
+    stations: &GameStationDesigns,
 ) -> WorldConfig<ClusteredWorld> {
-    let world = NovaLayeredWorld::from_loaded(loaded, styles, items).unwrap_or_else(|faults| {
-        panic!(
-            "world fixture: the loaded catalog does not arm:\n  {}",
-            faults
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n  ")
-        )
-    });
+    let world =
+        NovaLayeredWorld::from_loaded(loaded, styles, items, stations).unwrap_or_else(|faults| {
+            panic!(
+                "world fixture: the loaded catalog does not arm:\n  {}",
+                faults
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n  ")
+            )
+        });
     WorldConfig {
         seed: EXAMPLE_SEED,
         sector_edge: EXAMPLE_SECTOR_EDGE,

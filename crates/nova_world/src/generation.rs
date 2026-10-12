@@ -11,12 +11,13 @@
 //! RECORD RULE. Each generated record is its [`GeneratedBodyId`], its
 //! placement and the whole scenario spawn config the object is built from:
 //! [`SectorAsteroid`] carries an [`AsteroidConfig`], [`SectorPlanet`] a
-//! [`PlanetConfig`], [`SectorShip`] a [`SpaceshipConfig`]. Facts only the
+//! [`PlanetConfig`], [`SectorShip`] a [`SpaceshipConfig`], [`SectorStation`]
+//! a [`StationConfig`] beside the [`StationDesign`] it names. Facts only the
 //! generator knows (a ship's rotation, clearance, condition, civilization and
-//! role) sit beside the config, never inside a hidden default.
-//! Materialization adds only the pose, the id, the derived name and the
-//! derelict marker; rocks and planetoids spawn at identity rotation, named by
-//! their id.
+//! role; a station's rotation, clearance and civilization) sit beside the
+//! config, never inside a hidden default. Materialization adds only the pose,
+//! the id, the derived name and the derelict marker; rocks and planetoids
+//! spawn at identity rotation, named by their id.
 //!
 //! OWNERSHIP. A worker reads the configs and never resolves an asset or a
 //! catalog. Every asset ref in a record must be a path, so the record saves
@@ -42,7 +43,7 @@ use nova_scenario::prelude::{
     is_asteroid_kind, patrol_stops_fault, prepare_asteroid_geometry, prepare_planet,
     AIControllerConfig, AsteroidConfig, PlanetConfig, PreparedAsteroid, PreparedPlanet,
     SectionSource, ShipDesign, ShipDesignSource, ShipPresentationConfig, SpaceshipConfig,
-    SpaceshipController, ASTEROID_GEOMETRIC_FACTOR_MAX,
+    SpaceshipController, StationConfig, StationDesign, ASTEROID_GEOMETRIC_FACTOR_MAX,
 };
 
 use crate::{
@@ -286,6 +287,49 @@ impl SectorShip {
     }
 }
 
+/// One generated station: a parked hull a civilization keeps, or the dead
+/// one an extinct civilization left.
+#[derive(Clone, Debug)]
+pub struct SectorStation {
+    /// The station's scenario id.
+    pub id: GeneratedBodyId,
+    /// Where its root stands, in meters from the world origin.
+    pub position: Meters3,
+    /// Its full orientation: a finite unit quaternion.
+    pub rotation: Quat,
+    /// The radius around the root that holds the whole hull in any
+    /// orientation. At most [`SECTOR_SHIP_CLEARANCE_MAX`].
+    pub clearance: Meters,
+    /// The civilization that keeps it, or kept it as a dead station.
+    pub civilization: CivilizationId,
+    /// The design the spawn builds, whole: the generator pins the catalog
+    /// design it names, so the record carries it and a worker resolves
+    /// nothing. Its hull is checked like a ship's inline design.
+    pub design: StationDesign,
+    /// The spawn: `design` names `design.id`, `allegiance` is `Some`, and
+    /// `derelict` marks a dead station, whose hull spawns inactive and
+    /// lootable with no service. [`validate_manifest`] refuses a mismatch
+    /// and a `None` side.
+    pub spawn: StationConfig,
+}
+
+impl SectorStation {
+    /// Whether the station is dead: the spawn-time strip of a living
+    /// design, never a second design.
+    pub fn is_dead(&self) -> bool {
+        self.spawn.derelict
+    }
+
+    /// What the canonical description calls the condition.
+    pub fn condition_label(&self) -> &'static str {
+        if self.is_dead() {
+            "dead"
+        } else {
+            "living"
+        }
+    }
+}
+
 /// What a [`SectorGenerator`] says one cell holds. UNTRUSTED.
 ///
 /// Public fields, because a generator outside this crate builds it. Nothing
@@ -302,6 +346,8 @@ pub struct SectorManifest {
     pub planets: Vec<SectorPlanet>,
     /// The ships, in generation order.
     pub ships: Vec<SectorShip>,
+    /// The stations, in generation order.
+    pub stations: Vec<SectorStation>,
 }
 
 /// One sector's contents after [`validate_manifest`] accepted them: what
@@ -316,6 +362,7 @@ pub struct SectorDescription {
     pub(crate) asteroids: Vec<SectorAsteroid>,
     pub(crate) planets: Vec<SectorPlanet>,
     pub(crate) ships: Vec<SectorShip>,
+    pub(crate) stations: Vec<SectorStation>,
 }
 
 impl SectorDescription {
@@ -339,20 +386,26 @@ impl SectorDescription {
         &self.ships
     }
 
+    /// The stations, in generation order.
+    pub fn stations(&self) -> &[SectorStation] {
+        &self.stations
+    }
+
     /// Every object id this cell spawns, in spawn order: rocks, then
-    /// planetoids, then ships.
+    /// planetoids, then ships, then stations.
     pub fn object_ids(&self) -> Vec<GeneratedBodyId> {
         self.asteroids
             .iter()
             .map(|body| body.id.clone())
             .chain(self.planets.iter().map(|planet| planet.id.clone()))
             .chain(self.ships.iter().map(|ship| ship.id.clone()))
+            .chain(self.stations.iter().map(|station| station.id.clone()))
             .collect()
     }
 
     /// How many entities the cell's root will own.
     pub fn object_count(&self) -> usize {
-        self.asteroids.len() + self.planets.len() + self.ships.len()
+        self.asteroids.len() + self.planets.len() + self.ships.len() + self.stations.len()
     }
 
     /// The description as one comparable block of text.
@@ -453,21 +506,50 @@ impl SectorDescription {
                     }
                 }
             }
-            for section in &design.sections {
-                let p = section.position;
-                out.push_str(&format!(
-                    "  section {} {} {:.3} {:.3} {:.3} {} patch {:?}\n",
-                    section.id,
-                    section.source.prototype_id(),
-                    p.x,
-                    p.y,
-                    p.z,
-                    canonical_rotation(section.rotation),
-                    section.source.patch(),
-                ));
-            }
+            canonical_sections(&mut out, design);
+        }
+        for station in &self.stations {
+            let spawn = &station.spawn;
+            let design = &station.design;
+            out.push_str(&format!(
+                "station {} {} {} velocity {:?} c{:.2} {} {} design {} side {:?} services {:?} \
+                 storage_cap_g {} stock {:?} credits {} integrity {:?} presentation {:?}\n",
+                station.id,
+                point(station.position),
+                canonical_rotation(station.rotation),
+                spawn.initial_velocity.get(),
+                station.clearance.get(),
+                station.condition_label(),
+                station.civilization,
+                design.id,
+                spawn.allegiance,
+                design.services,
+                design.storage_cap_g,
+                design.stock.stacks().collect::<Vec<_>>(),
+                design.credits,
+                design.hull.integrity,
+                design.hull.presentation,
+            ));
+            canonical_sections(&mut out, &design.hull);
         }
         out
+    }
+}
+
+/// Each section of `design` as the canonical description prints it.
+fn canonical_sections(out: &mut String, design: &ShipDesign) {
+    for section in &design.sections {
+        let p = section.position;
+        out.push_str(&format!(
+            "  section {} {} {:.3} {:.3} {:.3} {} patch {:?}\n",
+            section.id,
+            section.source.prototype_id(),
+            p.x,
+            p.y,
+            p.z,
+            canonical_rotation(section.rotation),
+            section.source.patch(),
+        ));
     }
 }
 
@@ -516,16 +598,17 @@ impl PreparedSector {
 /// from the cell's frozen record.
 #[derive(Debug)]
 pub(crate) enum PreparedBodies {
-    /// A cell never visited: its generated rocks and ships, plus the bodies
-    /// that arrived into it while nobody held it live. A generated body an
-    /// arrival overlaps is not removed.
+    /// A cell never visited: its generated rocks, ships and stations, plus
+    /// the bodies that arrived into it while nobody held it live. A
+    /// generated body an arrival overlaps is not removed.
     Fresh {
         rocks: Vec<PreparedSectorAsteroid>,
         ships: Vec<SectorShip>,
+        stations: Vec<SectorStation>,
         arrivals: Vec<PreparedFrozenBody>,
     },
     /// A visited cell: its record is the whole truth of it, and the
-    /// generated rocks and ships are not spawned.
+    /// generated rocks, ships and stations are not spawned.
     Thawed(Vec<PreparedFrozenBody>),
 }
 
@@ -623,7 +706,10 @@ pub fn sector_id(coord: SectorCoord, name: &str, index: usize) -> GeneratedBodyI
 /// [`SECTOR_SHIP_CLEARANCE_MAX`], and its clearance sphere is the one that
 /// must stand inside the cell. Its inline design is checked for what needs no
 /// catalog; the strict resolve against the loaded sections is main-thread
-/// work in `materialize_sector`.
+/// work in `materialize_sector`. A station is held to the ship's pose,
+/// clearance, side and hull rules, its spawn must name the design it
+/// carries, and two stations may not share one id stem: a stem is a
+/// cluster, and a cluster holds at most one station.
 ///
 /// # Errors
 ///
@@ -811,17 +897,90 @@ pub fn validate_manifest(
             ship.clearance,
         )?;
     }
+    let mut station_stems = BTreeSet::new();
+    for station in &manifest.stations {
+        own(&station.id)?;
+        if !station_stems.insert(station.id.stem.as_str()) {
+            return Err(refuse(
+                &station.id,
+                "id",
+                format!(
+                    "a second station of '{}'; a cluster holds at most one",
+                    station.id.stem
+                ),
+            ));
+        }
+        let spawn = &station.spawn;
+        if !spawn.initial_velocity.is_finite() {
+            return Err(refuse(
+                &station.id,
+                "initial_velocity",
+                format!("{:?}", spawn.initial_velocity.get()),
+            ));
+        }
+        if !station.rotation.is_finite()
+            || (station.rotation.length() - 1.0).abs() > ROTATION_LENGTH_TOLERANCE
+        {
+            return Err(SectorFault::InvalidGeometry {
+                id: station.id.to_string(),
+            });
+        }
+        let clearance = station.clearance.get();
+        if !clearance.is_finite() || clearance <= 0.0 {
+            return Err(SectorFault::InvalidGeometry {
+                id: station.id.to_string(),
+            });
+        }
+        if station.clearance > SECTOR_SHIP_CLEARANCE_MAX {
+            return Err(refuse(
+                &station.id,
+                "clearance",
+                format!(
+                    "{clearance} m, above the {} m maximum",
+                    SECTOR_SHIP_CLEARANCE_MAX.get()
+                ),
+            ));
+        }
+        if spawn.design != station.design.id {
+            return Err(refuse(
+                &station.id,
+                "design",
+                format!(
+                    "the spawn names '{}' and the record carries '{}'",
+                    spawn.design, station.design.id
+                ),
+            ));
+        }
+        check_ship_design(&station.design.hull)
+            .map_err(|value| refuse(&station.id, "design", value))?;
+        if spawn.allegiance.is_none() {
+            return Err(refuse(
+                &station.id,
+                "allegiance",
+                "none; a generated station states its side".to_string(),
+            ));
+        }
+        stand_inside(
+            input,
+            &mut standing,
+            &station.id,
+            station.position,
+            station.clearance,
+        )?;
+    }
     let SectorManifest {
         coord,
         asteroids,
         planets,
         ships,
+        stations,
     } = manifest;
     Ok(SectorDescription {
         coord,
         asteroids,
         planets,
         ships,
+        stations,
     })
 }
 
@@ -1038,10 +1197,11 @@ pub fn prepare_sector<G: SectorGenerator>(
 /// [`prepare_sector`] for a cell that may hold a frozen record.
 ///
 /// The one place the record rule is decided: a visited cell's record
-/// replaces its generated rocks and ships, so they are neither meshed nor
-/// returned; a never-visited cell's arrivals join its generated bodies. The
-/// description is drawn either way, because planetoids never freeze and a
-/// held ship's record names only its id. Each frozen rock is prepared from
+/// replaces its generated rocks, ships and stations, so they are neither
+/// meshed nor returned; a never-visited cell's arrivals join its generated
+/// bodies. The description is drawn either way, because planetoids never
+/// freeze and a held ship's or station's record names only its id. Each
+/// frozen rock is prepared from
 /// its record: its pristine geometry, and for a carved one the surface its
 /// field meshes to.
 pub(crate) fn prepare_cell<G: SectorGenerator>(
@@ -1056,6 +1216,7 @@ pub(crate) fn prepare_cell<G: SectorGenerator>(
         asteroids,
         planets,
         ships,
+        stations,
     } = description;
     let planets = info_span!("nova_world::prepare_planets").in_scope(|| {
         planets
@@ -1066,11 +1227,11 @@ pub(crate) fn prepare_cell<G: SectorGenerator>(
             })
             .collect()
     });
-    let thaw = |bodies: Vec<_>, ships: &[SectorShip]| {
+    let thaw = |bodies: Vec<_>, ships: &[SectorShip], stations: &[SectorStation]| {
         info_span!("nova_world::prepare_frozen_bodies").in_scope(|| {
             bodies
                 .into_iter()
-                .map(|body| PreparedFrozenBody::prepare(coord, body, ships))
+                .map(|body| PreparedFrozenBody::prepare(coord, body, ships, stations))
                 .collect::<Vec<_>>()
         })
     };
@@ -1080,9 +1241,9 @@ pub(crate) fn prepare_cell<G: SectorGenerator>(
         Some(FrozenSector::Arrivals(bodies)) => (None, bodies),
     };
     let bodies = match visited {
-        Some(bodies) => PreparedBodies::Thawed(thaw(bodies, &ships)),
+        Some(bodies) => PreparedBodies::Thawed(thaw(bodies, &ships, &stations)),
         None => {
-            let arrivals = thaw(arrivals, &ships);
+            let arrivals = thaw(arrivals, &ships, &stations);
             let rocks = info_span!("nova_world::prepare_asteroids").in_scope(|| {
                 asteroids
                     .into_iter()
@@ -1095,6 +1256,7 @@ pub(crate) fn prepare_cell<G: SectorGenerator>(
             PreparedBodies::Fresh {
                 rocks,
                 ships,
+                stations,
                 arrivals,
             }
         }

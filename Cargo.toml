@@ -591,6 +591,15 @@ name = "system_generated_marks"
 path = "examples/systems/system_generated_marks.rs"
 required-features = ["debug"]
 
+# A GENERATED station outlives its sector: New Game on a pinned seed, the
+# nearest station of the window is found and reached, a jump along its axis
+# retires its cell with it held as a station record, and the jump back thaws
+# a new entity under the same id at the same pose.
+[[example]]
+name = "system_generated_stations"
+path = "examples/systems/system_generated_stations.rs"
+required-features = ["debug"]
+
 # The six hold events on their production paths in the example mod's berth:
 # a Buy, its two balance moves, a Ship pane repair, a jettison, a pickup and a
 # paying mining pulse each fire once and complete their authored objective.

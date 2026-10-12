@@ -30,8 +30,8 @@ use nova_gameplay::{
 use nova_scenario::prelude::{
     AIControllerConfig, AsteroidConfig, AsteroidMarker, AsteroidPlugin, PlanetConfig, PlanetType,
     PlayerControllerConfig, SectionSource, ShipDesign, ShipDesignSource, SpaceshipConfig,
-    SpaceshipController, SpaceshipPlugin, SpaceshipSectionConfig, ASTEROID_GEOMETRIC_FACTOR_MAX,
-    KIND_ROCK,
+    SpaceshipController, SpaceshipPlugin, SpaceshipSectionConfig, StationConfig, StationDesign,
+    StationServiceType, ASTEROID_GEOMETRIC_FACTOR_MAX, KIND_ROCK,
 };
 use nova_ship::prelude::{
     BaseSectionConfig, GameSections, HullSectionConfig, SectionConfig, SectionKind,
@@ -41,12 +41,12 @@ use nova_ship::prelude::{
 mod frozen;
 
 use crate::{
-    generate_sector, materialize_pending_ships, materialize_sector, prepare_sector, sector_id,
+    generate_sector, materialize_pending_bodies, materialize_sector, prepare_sector, sector_id,
     validate_manifest, CivilizationId, GeneratedBodyId, NovaWorldPlugin, ObserverBody,
     PendingSectorShip, SectorAsteroid, SectorCoord, SectorFault, SectorGenerationInput,
     SectorGenerator, SectorManifest, SectorPlanet, SectorShip, SectorShipConditionType,
-    ShipRoleType, WorldConfig, WorldGeometry, WorldObserver, ACTIVE_WINDOW_SECTORS_MAX,
-    SECTOR_SHIP_CLEARANCE_MAX,
+    SectorStation, ShipRoleType, WorldConfig, WorldGeometry, WorldObserver,
+    ACTIVE_WINDOW_SECTORS_MAX, SECTOR_SHIP_CLEARANCE_MAX,
 };
 
 /// The texture path every test rock names. Never loaded: no test here renders.
@@ -144,6 +144,7 @@ fn empty(coord: SectorCoord, asteroids: Vec<SectorAsteroid>) -> SectorManifest {
         asteroids,
         planets: Vec::new(),
         ships: Vec::new(),
+        stations: Vec::new(),
     }
 }
 
@@ -184,6 +185,59 @@ fn ship(id: GeneratedBodyId, position: Meters3, prototype: &str) -> SectorShip {
             credits: 120,
         },
     }
+}
+
+/// A one-section living station at `position`, built from the section
+/// prototype `prototype`, with a 20 m clearance, a trade counter, no stock
+/// and no credits, kept by a Neutral civilization. `stem` names its cluster.
+fn station(id: GeneratedBodyId, position: Meters3, prototype: &str) -> SectorStation {
+    let design = StationDesign {
+        id: "waystation".into(),
+        name: "Waystation".to_string(),
+        about: String::new(),
+        hull: ShipDesign {
+            sections: vec![SpaceshipSectionConfig {
+                id: "hull".into(),
+                position: Vec3::ZERO,
+                rotation: Quat::IDENTITY,
+                source: SectionSource::prototype(prototype),
+            }],
+            ..default()
+        },
+        services: vec![StationServiceType::Trade],
+        storage_cap_g: 0,
+        stock: ShipInventoryStock::default(),
+        credits: 0,
+    };
+    SectorStation {
+        id,
+        position,
+        rotation: Quat::IDENTITY,
+        clearance: Meters(20.0),
+        civilization: CivilizationId {
+            world_seed: 0,
+            node: [0, 0, 0],
+        },
+        spawn: StationConfig {
+            design: design.id.clone(),
+            allegiance: Some(Allegiance::Neutral),
+            derelict: false,
+            initial_velocity: MetersPerSecond3::ZERO,
+        },
+        design,
+    }
+}
+
+/// A manifest of `input`'s cell holding one [`station`] of cluster `a` at
+/// its centre.
+fn one_station(input: SectorGenerationInput) -> SectorManifest {
+    let mut manifest = empty(input.coord, Vec::new());
+    manifest.stations.push(station(
+        sector_id(input.coord, "cluster_a_station", 0),
+        input.coord.centre(input.geometry.sector_edge),
+        TEST_HULL_SECTION_ID,
+    ));
+    manifest
 }
 
 /// A manifest of `input`'s cell holding one [`ship`] at its centre.
@@ -266,7 +320,7 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
         &str,
         fn(SectorGenerationInput) -> SectorManifest,
         fn(&SectorFault) -> bool,
-    ); 26] = [
+    ); 28] = [
         (
             "the wrong cell",
             |input| empty(input.coord.offset(1, 0, 0), Vec::new()),
@@ -561,6 +615,37 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
                     }
                 )
             },
+        ),
+        (
+            "a station standing inside a rock",
+            |input| {
+                let mut manifest = one_station(input);
+                manifest.asteroids.push(rock(input, 0, 30.0));
+                manifest
+            },
+            |fault| {
+                matches!(
+                    fault,
+                    SectorFault::Manifest {
+                        field: "position",
+                        ..
+                    }
+                )
+            },
+        ),
+        (
+            "two stations of one cluster",
+            |input| {
+                let mut manifest = one_station(input);
+                let second = station(
+                    sector_id(input.coord, "cluster_a_station", 1),
+                    manifest.stations[0].position + Meters3::new(2_000.0, 0.0, 0.0),
+                    TEST_HULL_SECTION_ID,
+                );
+                manifest.stations.push(second);
+                manifest
+            },
+            |fault| matches!(fault, SectorFault::Manifest { field: "id", .. }),
         ),
         (
             "a ship flown by a player",
@@ -1059,8 +1144,8 @@ fn a_ship_the_observer_overlaps_is_held_until_the_observer_is_clear() {
         ))
         .id();
     world
-        .run_system_once(materialize_pending_ships)
-        .expect("materialize_pending_ships runs");
+        .run_system_once(materialize_pending_bodies)
+        .expect("materialize_pending_bodies runs");
     world.flush();
     assert_eq!(
         ships_under(&mut world, root),
@@ -1075,8 +1160,8 @@ fn a_ship_the_observer_overlaps_is_held_until_the_observer_is_clear() {
             observer_at(input, 40.0).position.to_engine(),
         ));
     world
-        .run_system_once(materialize_pending_ships)
-        .expect("materialize_pending_ships runs");
+        .run_system_once(materialize_pending_bodies)
+        .expect("materialize_pending_bodies runs");
     world.flush();
     assert_eq!(
         ships_under(&mut world, root),

@@ -44,8 +44,8 @@ use nova_ship::prelude::{
 use crate::{
     desired_sectors, live_sectors,
     streaming::{assert_world_was_cleared, freeze_sector_bodies, ClearedConfig},
-    CurrentSector, PendingSectorShip, SectorCoord, SectorGenerator, SectorRoot, SectorShip,
-    WorldConfig, WorldObserver,
+    CurrentSector, PendingSectorShip, PendingSectorStation, SectorCoord, SectorGenerator,
+    SectorRoot, SectorShip, SectorStation, WorldConfig, WorldObserver,
 };
 
 /// The frozen cells of this world, keyed by cell.
@@ -295,10 +295,10 @@ impl FrozenSector {
 
 /// One frozen body with what a worker prepared for it: a rock's geometry,
 /// pristine and, for a carved one, the surface its field meshes to; a held
-/// ship's manifest entry, regenerated.
+/// ship's or station's manifest entry, regenerated.
 ///
 /// Built only by [`PreparedFrozenBody::prepare`], so a rock always travels
-/// with its geometry, a held ship always with its entry, and nothing else
+/// with its geometry, a held body always with its entry, and nothing else
 /// carries either.
 #[derive(Debug)]
 pub enum PreparedFrozenBody {
@@ -306,18 +306,27 @@ pub enum PreparedFrozenBody {
     Body(Box<(FrozenBody, Option<PreparedAsteroid>)>),
     /// A ship still held back, to spawn once the observer is clear of it.
     HeldShip(Box<SectorShip>),
+    /// A station still held back, to spawn once the observer is clear of it.
+    HeldStation(Box<SectorStation>),
 }
 
 impl PreparedFrozenBody {
-    /// Prepare `body` of `coord` for its thaw, `ships` being the cell's
-    /// regenerated ships. PURE, for the cell's worker.
+    /// Prepare `body` of `coord` for its thaw, `ships` and `stations` being
+    /// the cell's regenerated ships and stations. PURE, for the cell's
+    /// worker.
     ///
     /// # Panics
     ///
-    /// When a held ship's id names none of `ships`. The generator is pinned
-    /// by the catalog digest the save carries, so the cell cannot regenerate
-    /// without it: an assembly fault, not a runtime condition.
-    pub fn prepare(coord: SectorCoord, body: FrozenBody, ships: &[SectorShip]) -> Self {
+    /// When a held ship's or station's id names none of `ships` or
+    /// `stations`. The generator is pinned by the catalog digest the save
+    /// carries, so the cell cannot regenerate without it: an assembly fault,
+    /// not a runtime condition.
+    pub fn prepare(
+        coord: SectorCoord,
+        body: FrozenBody,
+        ships: &[SectorShip],
+        stations: &[SectorStation],
+    ) -> Self {
         match &body.body {
             FrozenBodyType::PendingShip { id } => {
                 let Some(ship) = ships.iter().find(|ship| ship.id.to_string() == *id) else {
@@ -327,6 +336,18 @@ impl PreparedFrozenBody {
                     );
                 };
                 Self::HeldShip(Box::new(ship.clone()))
+            }
+            FrozenBodyType::PendingStation { id } => {
+                let Some(station) = stations
+                    .iter()
+                    .find(|station| station.id.to_string() == *id)
+                else {
+                    panic!(
+                        "nova_world: {coord} froze the held station '{id}' but regenerates no \
+                         station of that id"
+                    );
+                };
+                Self::HeldStation(Box::new(station.clone()))
             }
             FrozenBodyType::Asteroid(rock) => {
                 let geometry = prepare_frozen_asteroid(rock);
@@ -438,6 +459,12 @@ pub enum FrozenBodyType {
         /// The held ship's generated id.
         id: String,
     },
+    /// A station held back because the observer overlapped it, by the id of
+    /// its manifest entry, regenerated like a held ship's.
+    PendingStation {
+        /// The held station's generated id.
+        id: String,
+    },
     /// A loose cargo canister with its own runtime id.
     Canister(FrozenCanister),
     /// Structure severed from a ship.
@@ -485,6 +512,17 @@ pub fn freeze_body(
             visibility: None,
             motion: None,
             body: FrozenBodyType::PendingShip { id },
+        });
+    }
+    if let Some(held) = body.get::<PendingSectorStation>() {
+        let id = held.station().id.to_string();
+        return Ok(FrozenBody {
+            id: Some(EntityId::new(id.clone())),
+            name: None,
+            transform: Transform::IDENTITY,
+            visibility: None,
+            motion: None,
+            body: FrozenBodyType::PendingStation { id },
         });
     }
     let name = body.get::<Name>().map(ToString::to_string);
@@ -557,6 +595,10 @@ pub fn thaw_record(commands: &mut Commands, root: Entity, bodies: Vec<PreparedFr
                 commands.spawn((PendingSectorShip(*ship), ChildOf(root)));
                 continue;
             }
+            PreparedFrozenBody::HeldStation(station) => {
+                commands.spawn((PendingSectorStation(*station), ChildOf(root)));
+                continue;
+            }
             PreparedFrozenBody::Body(prepared) => *prepared,
         };
         let mut entity = commands.spawn((
@@ -593,8 +635,8 @@ pub fn thaw_record(commands: &mut Commands, root: Entity, bodies: Vec<PreparedFr
             FrozenBodyType::OreDrop(drop) => {
                 entity.insert(thaw_ore_drop(drop));
             }
-            FrozenBodyType::PendingShip { .. } => {
-                unreachable!("PreparedFrozenBody::prepare resolves a held ship to HeldShip")
+            FrozenBodyType::PendingShip { .. } | FrozenBodyType::PendingStation { .. } => {
+                unreachable!("PreparedFrozenBody::prepare resolves a held body to its entry")
             }
         }
         // After the owner's thaw: a spawn bundle seeds the velocity and the
