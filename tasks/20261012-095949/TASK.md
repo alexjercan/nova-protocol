@@ -12,6 +12,9 @@
 - Arming is keyed on `ScenarioRole::OpenWorld` (`crates/nova_world_base/src/lib.rs:248-252`); the role has four readers (arming, `crates/nova_scenario/src/lint/scenario.rs:88`, `crates/nova_probe/src/capabilities/snapshot.rs:437`, `:2202`, `crates/nova_world_base/src/tests.rs:348-495`).
 - The page recommends option 1: a `world` block on the scenario (`Generated { seed: Option<u32> }` or `Void`) with an optional bounds area. Options 2 (role stays the gate, fixed seeds) and 3 (a separate harness content kind) are listed with one consequence each.
 
+## Research note (2026-10-12)
+- [RESEARCH.md](RESEARCH.md): shape 1 detailed with types (`ScenarioWorldType::{Void, Generated(GeneratedWorldConfig)}`, `ScenarioBoundsConfig`), the readers that move, what every shipped scenario declares (only `open_world` changes), before/after call graphs, six lint rules, and three owner decisions. Waiting on the owner's pick.
+
 ## Delivery gate
 - Write `RESEARCH.md` in this folder: exact types and fields for the `world` block, where the loader reads it, how `sync_open_world` arms from it, what the New Game wizard writes, what every shipped chapter and backdrop declares, the bounds semantics, and the lint rules (a generated-world harness with no player spawn; bounds larger than the active window, `crates/nova_world_base/src/lib.rs:139-145`). Compact before/after call graph for New Game, Play scenario and Retry.
 - Name what dies (`ScenarioRole::OpenWorld`, the "world is the scenario" framing, the void as implicit default), what may break (the four readers, the picker's no-world assumption) and what must fail loudly.
