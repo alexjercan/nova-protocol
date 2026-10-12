@@ -1247,3 +1247,188 @@ fn a_pair_grades_against_the_stricter_of_its_two_ports() {
         1.0_f32.to_radians()
     );
 }
+
+/// The station branch of admission, pure: a living Enemy station refuses, a
+/// living station on any other side admits, a derelict admits whatever its
+/// side, and a station already holding its one connection refuses the next
+/// hull before its side is read.
+#[test]
+fn a_station_admits_by_its_side_unless_it_is_dead_or_occupied() {
+    assert_eq!(
+        station_admission(Some(Allegiance::Enemy), false, false),
+        Err(DockRefusalType::EnemyStation)
+    );
+    for side in [Some(Allegiance::Neutral), Some(Allegiance::Player), None] {
+        assert_eq!(
+            station_admission(side, false, false),
+            Ok(()),
+            "a living {side:?} station admits"
+        );
+    }
+    assert_eq!(
+        station_admission(Some(Allegiance::Enemy), true, false),
+        Ok(()),
+        "a derelict Enemy station is a hull to loot"
+    );
+    assert_eq!(
+        station_admission(Some(Allegiance::Neutral), false, true),
+        Err(DockRefusalType::StationOccupied)
+    );
+    assert_eq!(
+        station_admission(Some(Allegiance::Enemy), true, true),
+        Err(DockRefusalType::StationOccupied),
+        "a derelict's one connection is still one"
+    );
+}
+
+/// The helm a capture opens with, pure: a living station holds its pair, a
+/// dead one hands it to the docked player, and two ships start neutral.
+#[test]
+fn a_living_station_holds_the_helm_and_a_dead_one_hands_it_to_the_player() {
+    let station = Entity::from_raw_u32(7).unwrap();
+    let player = Entity::from_raw_u32(8).unwrap();
+    assert_eq!(
+        helm_on_capture(DockPartnerType::LivingStation, station, Some(player)),
+        DockedHelmType::Station(station)
+    );
+    assert_eq!(
+        helm_on_capture(DockPartnerType::DeadStation, station, Some(player)),
+        DockedHelmType::Held(player)
+    );
+    assert_eq!(
+        helm_on_capture(DockPartnerType::DeadStation, station, None),
+        DockedHelmType::Neutral,
+        "a dead station with no player in the pair is flown by no one in particular"
+    );
+    assert_eq!(
+        helm_on_capture(DockPartnerType::Ship, Entity::PLACEHOLDER, Some(player)),
+        DockedHelmType::Neutral
+    );
+    assert!(!helm_request_admitted(DockedHelmType::Station(station)));
+    assert!(helm_request_admitted(DockedHelmType::Neutral));
+    assert!(helm_request_admitted(DockedHelmType::Held(player)));
+}
+
+/// The station facts reach the one admission point: a facing pair with a
+/// station root on the far end docks or not by the station rule, and a
+/// station with a hull docked refuses the next one.
+#[test]
+fn a_station_root_is_admitted_through_the_station_rule() {
+    let station_marker = || StationMarker("waystation".into());
+    for (case, side, derelict, admitted) in [
+        ("living enemy", Allegiance::Enemy, false, false),
+        ("living neutral", Allegiance::Neutral, false, true),
+        ("dead enemy", Allegiance::Enemy, true, true),
+    ] {
+        let mut app = docking_app();
+        let (first, _, second, _) = facing_pair(&mut app, NOMINAL_GAP);
+        app.world_mut()
+            .entity_mut(first)
+            .insert((PlayerSpaceshipMarker, Allegiance::Player));
+        let mut station = app.world_mut().entity_mut(second);
+        station.insert((station_marker(), side));
+        if derelict {
+            station.insert(DerelictShipMarker);
+        }
+
+        request_dock(&mut app, first, second);
+
+        assert_eq!(
+            connections(&mut app).len(),
+            usize::from(admitted),
+            "{case}: admitted {admitted}"
+        );
+    }
+
+    // One connection per hull: a second hull meets an occupied station.
+    let mut app = docking_app();
+    let (first, _, station, _) = facing_pair(&mut app, NOMINAL_GAP);
+    app.world_mut()
+        .entity_mut(station)
+        .insert((station_marker(), Allegiance::Neutral));
+    let second = spawn_hull(
+        &mut app,
+        Vec3::new(0.0, 3.0, -(1.0 + NOMINAL_GAP)),
+        Quat::from_rotation_y(std::f32::consts::PI),
+    );
+    spawn_port(&mut app, second, "fore", Vec3::ZERO, Quat::IDENTITY);
+    spawn_port(&mut app, station, "top", Vec3::Y, Quat::IDENTITY);
+    request_dock(&mut app, first, station);
+    assert_eq!(connections(&mut app).len(), 1);
+    let refusal = app
+        .world_mut()
+        .run_system_once(move |admission: DockAdmission| admission.refusal(second, station))
+        .expect("the admission runs");
+    assert_eq!(refusal, Some(DockRefusalType::StationOccupied));
+    request_dock(&mut app, second, station);
+    assert_eq!(
+        connections(&mut app).len(),
+        1,
+        "a station holding its one connection admits no second hull"
+    );
+}
+
+/// Docked to a living station the station holds the helm and `HELM` is
+/// refused; docked to a dead station the player holds it from the capture.
+#[test]
+fn a_station_dock_opens_on_the_station_helm_rule() {
+    let drives = |app: &App, ship: Entity| {
+        app.world()
+            .get::<DockedShip>(ship)
+            .expect("the hull is docked")
+            .drives
+    };
+
+    let mut app = docking_app();
+    let (player, _, station, _) = facing_pair(&mut app, NOMINAL_GAP);
+    app.world_mut()
+        .entity_mut(player)
+        .insert(PlayerSpaceshipMarker);
+    app.world_mut()
+        .entity_mut(station)
+        .insert((StationMarker("waystation".into()), Allegiance::Neutral));
+    request_dock(&mut app, player, station);
+    assert_eq!(
+        connections(&mut app)[0].helm,
+        DockedHelmType::Station(station)
+    );
+    assert!(
+        drives(&app, station) && !drives(&app, player),
+        "the living station drives its pair"
+    );
+    app.world_mut()
+        .trigger(DockingHelmRequest { entity: player });
+    app.update();
+    assert_eq!(
+        connections(&mut app)[0].helm,
+        DockedHelmType::Station(station),
+        "HELM is refused at a living station"
+    );
+    assert!(drives(&app, station) && !drives(&app, player));
+    assert_eq!(joints(&mut app), 1);
+
+    let mut app = docking_app();
+    let (player, _, station, _) = facing_pair(&mut app, NOMINAL_GAP);
+    app.world_mut()
+        .entity_mut(player)
+        .insert(PlayerSpaceshipMarker);
+    app.world_mut().entity_mut(station).insert((
+        StationMarker("waystation".into()),
+        Allegiance::Enemy,
+        DerelictShipMarker,
+    ));
+    request_dock(&mut app, player, station);
+    assert_eq!(connections(&mut app)[0].helm, DockedHelmType::Held(player));
+    assert!(
+        drives(&app, player) && !drives(&app, station),
+        "the player drives the pair from the capture at a dead station"
+    );
+    app.world_mut()
+        .trigger(DockingHelmRequest { entity: player });
+    app.update();
+    assert_eq!(
+        connections(&mut app)[0].helm,
+        DockedHelmType::Neutral,
+        "a dead station's helm is an ordinary held helm: HELM hands it back"
+    );
+}

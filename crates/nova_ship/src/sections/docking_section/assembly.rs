@@ -127,11 +127,11 @@ pub(crate) fn docked_helm_wrench(
 /// Measure every docked pair, publish its [`DockedAssembly`] on both roots,
 /// and decide its one driver.
 ///
-/// The driver is the helm holder while [`DockedHelmType::Held`], and the
-/// endpoint that is not the player while neutral - `second_ship` if neither
-/// is, which only happens once the player has moved to another hull. A
-/// holder that is no longer the player, or no longer in the pair, hands the
-/// helm back to neutral here.
+/// The driver is the helm holder while [`DockedHelmType::Held`], the station
+/// while [`DockedHelmType::Station`], and the endpoint that is not the player
+/// while neutral - `second_ship` if neither is, which only happens once the
+/// player has moved to another hull. A holder that is no longer the player,
+/// or no longer in the pair, hands the helm back to neutral here.
 ///
 /// A pair that cannot be measured drives neither root and sets
 /// [`DockingConnection::measurement_fault`]; the first pass that measures it
@@ -178,7 +178,7 @@ pub(super) fn measure_docked_assemblies(
             }
         }
         let driver = match connection.helm {
-            DockedHelmType::Held(holder) => holder,
+            DockedHelmType::Held(holder) | DockedHelmType::Station(holder) => holder,
             DockedHelmType::Neutral if is_player(ships[1]) && !is_player(ships[0]) => ships[0],
             DockedHelmType::Neutral => ships[1],
         };

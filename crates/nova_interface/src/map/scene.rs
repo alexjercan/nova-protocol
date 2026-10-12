@@ -395,6 +395,10 @@ pub(crate) fn map_input(
                     let note = if connection.is_some_and(|connection| connection.measurement_fault)
                     {
                         "GOTO REFUSED: HELM FAULT".to_string()
+                    } else if connection.is_some_and(|connection| {
+                        matches!(connection.helm, DockedHelmType::Station(_))
+                    }) {
+                        "GOTO REFUSED: STATION HELM".to_string()
                     } else if docked.is_some_and(|docked| !docked.drives) {
                         "GOTO REFUSED: TAKE THE HELM".to_string()
                     } else if connection.is_some_and(|connection| connection.joins(sel)) {

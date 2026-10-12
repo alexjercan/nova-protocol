@@ -310,12 +310,32 @@ ships together. The track is a plain `Translate` on `dock_tube*` nodes: art
 only, with no collider growth, which is why two mated sleeves may overlap
 without the hulls touching.
 
+**Who lets a dock in.** `DockAdmission::refusal` is the one admission point,
+read by the DOCK chip and by the request. A ship target refuses with
+`DockRefusalType::Combat` while Hostile, Enemy, answering fire or fighting
+(a neutralized target admits). A station target (`StationMarker`) answers by
+`station_admission(allegiance, derelict, occupied)`: `StationOccupied` while
+a `DockedShip` is on its root (the one-connection-per-hull rule the port
+search already enforces, named so the HUD can say it), `EnemyStation` for a
+living station on the Enemy side, and admitted otherwise, a derelict on any
+side. `FlightVerbHints::dock_refusal` carries a station's line (`<NAME>
+REFUSES DOCKING`, `<NAME> DOCK OCCUPIED`) while the travel lock is on it; the
+mode chip shows it and the DOCK chip reads `DOCK REFUSED`. A ship's refusal
+stays the dark chip.
+
 **One hull drives the pair.** `DockingConnection.helm` is `DockedHelmType`:
-`Neutral` (the dock's start, and the state after a lost holder) or
+`Neutral` (a ship dock's start, and the state after a lost holder),
 `Held(player)`, toggled by `DockingHelmRequest` from the `dock_helm` binding
-(H). A request to take the helm of a pair with `measurement_fault` is refused;
-handing it back is not. The driver is the holder while `Held`, else the
-non-player endpoint, else `second_ship`. `measure_docked_assemblies` (`DockingSystems::Assembly`) writes
+(H), or `Station(station)`, set at capture when the partner is a living
+station and never toggled: `helm_on_capture` gives a living station its own
+helm, a dead station `Held(player)`, and two ships `Neutral`. A request to
+take the helm of a pair with `measurement_fault` is refused, and
+`helm_request_admitted` refuses every request on a station-held pair;
+handing a held helm back is not refused. The driver is the holder while
+`Held`, the station while `Station`, else the non-player endpoint, else
+`second_ship`. A station drives with torque alone (its bridge's attitude
+loop as the helm wrench) and no thrust, so a station-held pair stays where
+it is. `measure_docked_assemblies` (`DockingSystems::Assembly`) writes
 `DockedShip.drives` on both roots and a `DockedAssembly` (combined mass,
 world centre of mass, velocity, root-frame inertia, reach) measured every tick.
 An unmeasurable pair logs an error once, drives neither root and sets
@@ -329,10 +349,11 @@ RCS writer, the autopilot, the scripted orders (paused, never judged) and the
 AI brains all skip it. The HUD mode chip and the blocked dock chips read it
 too, so a pair that is not driven never shows a live maneuver. The mode chip
 reads `measurement_fault` first and shows `HELM FAULT`, because `drives` alone
-cannot tell a fault from a hull off the helm. The HELM chip reads it through
-`FlightVerbHints::helm_fault`, and no verb is `helm_blocked` while it is set,
-because HELM cannot take the helm. The interface's Map GOTO refuses on it before it
-asks for the helm. On the driver, the autopilot, the
+cannot tell a fault from a hull off the helm, and `STATION HELM` on a
+station-held pair. The HELM chip reads them through
+`FlightVerbHints::helm_fault` and `helm_station`, and no verb is
+`helm_blocked` while either is set, because HELM cannot take the helm. The
+interface's Map GOTO refuses on both before it asks for the helm. On the driver, the autopilot, the
 flight authority, the manual balancer and the RCS budget read the assembly,
 never the root alone. An AI driver does not patrol, orbit or fight while
 docked: `update_passive_flight` holds the pair on a `Stop` maneuver instead,

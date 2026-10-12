@@ -8,17 +8,38 @@
 //!
 //! # One helm per pair
 //!
-//! The connection owns the pair's helm ([`DockedHelmType`]). A dock starts
-//! NEUTRAL: the player's hull is held and the partner flies the pair - its
-//! autopilot, its AI and its scripted order keep working. `HELM` takes the
-//! pair ([`DockedHelmType::Held`]): the player flies it and the partner is
-//! held instead, its maneuver and its order frozen rather than retired.
-//! `HELM` again hands it back. Neither touches the joint; `DOCK` pressed again
-//! is still what ends a dock, from either side.
+//! The connection owns the pair's helm ([`DockedHelmType`]). A dock between
+//! two ships starts NEUTRAL: the player's hull is held and the partner flies
+//! the pair - its autopilot, its AI and its scripted order keep working.
+//! `HELM` takes the pair ([`DockedHelmType::Held`]): the player flies it and
+//! the partner is held instead, its maneuver and its order frozen rather than
+//! retired. `HELM` again hands it back. Neither touches the joint; `DOCK`
+//! pressed again is still what ends a dock, from either side.
+//!
+//! A station partner decides the helm at capture ([`helm_on_capture`]) and the
+//! joint is the same one. A LIVING station owns the pair
+//! ([`DockedHelmType::Station`]): `HELM` is refused, the player's hull is
+//! held, and the station's own flight computer is the driver. A station has no
+//! thruster, so the pair never translates; the computer's attitude torque,
+//! spread over both roots as the helm wrench, is all that acts, and it holds
+//! the pair level on the station's parked attitude. A DEAD station (a
+//! derelict) hands the helm to the docked player the instant the dock is made,
+//! as `HELM` would on a ship, because its computer is inactive and nothing
+//! else could fly the pair.
 //!
 //! Exactly one root drives a pair ([`DockedShip::drives`]) and every actuator
 //! skips the other. The driver flies the ASSEMBLY rather than its own hull:
 //! see [`DockedAssembly`](super::DockedAssembly).
+//!
+//! # A docked pair and the active window
+//!
+//! The player is always inside the active window, so the player's own pair
+//! never meets a retiring cell. A pair of NPC hulls at retirement is a fault
+//! (`nova_world::freeze_body` under `DockPolicy::Refuse`), and that holds for
+//! a station with an NPC docked: nothing on master docks an NPC at a station -
+//! `DOCK` is a player verb and no AI or scripted order issues a
+//! [`DockingConnectionRequest`] - so the fault stays the fault and no
+//! speculative split is written for it.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -45,11 +66,48 @@ pub enum DockingSystems {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
 pub enum DockedHelmType {
     /// The player's hull is held; the partner flies the pair. Every dock
-    /// starts here.
+    /// between two ships starts here.
     #[default]
     Neutral,
     /// The player ship named here flies the pair; the partner is held.
     Held(Entity),
+    /// The living station named here owns the pair: its flight computer is
+    /// the driver, and `HELM` is refused. Set at capture and never toggled.
+    Station(Entity),
+}
+
+/// What the hull on the other end of a dock is, for the helm rule.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DockPartnerType {
+    /// Another ship: the helm starts neutral and `HELM` toggles it.
+    Ship,
+    /// A station that is not a derelict: it owns the helm.
+    LivingStation,
+    /// A derelict station: the docked player takes the helm at capture.
+    DeadStation,
+}
+
+/// The helm a new connection opens with.
+///
+/// `player` is the player ship in the pair, if either endpoint is one. A
+/// living station holds its own pair; a dead station hands it to the player,
+/// or leaves it neutral when no player is in the pair; two ships start
+/// neutral.
+pub fn helm_on_capture(
+    partner: DockPartnerType,
+    station: Entity,
+    player: Option<Entity>,
+) -> DockedHelmType {
+    match (partner, player) {
+        (DockPartnerType::LivingStation, _) => DockedHelmType::Station(station),
+        (DockPartnerType::DeadStation, Some(player)) => DockedHelmType::Held(player),
+        (DockPartnerType::DeadStation | DockPartnerType::Ship, _) => DockedHelmType::Neutral,
+    }
+}
+
+/// Whether `HELM` may change `helm`: never while a living station holds it.
+pub fn helm_request_admitted(helm: DockedHelmType) -> bool {
+    !matches!(helm, DockedHelmType::Station(_))
 }
 
 /// A live docking connection, on its own entity beside the [`FixedJoint`].
@@ -139,7 +197,8 @@ pub struct DockingConnectionRequest {
 /// any other ship is refused. Taking is never negotiated with the partner,
 /// and is refused while the pair has a
 /// [`measurement_fault`](DockingConnection::measurement_fault), because the
-/// player could not fly it. Handing the helm back is never refused.
+/// player could not fly it, and while a living station holds the pair
+/// ([`DockedHelmType::Station`]). Handing the helm back is never refused.
 #[derive(EntityEvent, Clone, Copy, Debug)]
 pub struct DockingHelmRequest {
     /// The player ship asking.
@@ -178,6 +237,11 @@ pub(super) fn on_docking_connection_request(
     mut commands: Commands,
     ports: DockingPorts,
     admission: DockAdmission,
+    q_roots: Query<(
+        Has<StationMarker>,
+        Has<DerelictShipMarker>,
+        Has<PlayerSpaceshipMarker>,
+    )>,
     mut q_states: Query<&mut DockingSectionState>,
     q_controllers: Query<
         (&ChildOf, &ControllerSectionRotationInput),
@@ -190,8 +254,8 @@ pub(super) fn on_docking_connection_request(
     let (first_ship, second_ship) = (request.entity, request.target);
     trace!("on_docking_connection_request: {first_ship:?} -> {second_ship:?}");
 
-    if !admission.admits(first_ship, second_ship) {
-        debug!("on_docking_connection_request: {second_ship:?} refuses a dock now");
+    if let Some(refusal) = admission.refusal(first_ship, second_ship) {
+        debug!("on_docking_connection_request: {second_ship:?} refuses a dock now ({refusal:?})");
         return;
     }
     let Some(candidate) = ports.best_candidate(first_ship, second_ship) else {
@@ -211,12 +275,13 @@ pub(super) fn on_docking_connection_request(
     };
     let anchor = first_pose.face.midpoint(second_pose.face);
 
+    let helm = pair_helm_on_capture([first_ship, second_ship], &q_roots);
     let record = DockingConnection {
         first_ship,
         first_section: candidate.first_section,
         second_ship,
         second_section: candidate.second_section,
-        helm: DockedHelmType::Neutral,
+        helm,
         measurement_fault: false,
     };
     let connection = commands
@@ -343,6 +408,13 @@ pub(super) fn on_docking_helm_request(
     let Ok(mut connection) = q_connections.get_mut(docked.connection) else {
         return;
     };
+    if !helm_request_admitted(connection.helm) {
+        debug!(
+            "on_docking_helm_request: {:?} is held by its station ({:?}), refused",
+            docked.connection, connection.helm
+        );
+        return;
+    }
     connection.helm = match connection.helm {
         DockedHelmType::Held(holder) if holder == ship => DockedHelmType::Neutral,
         _ if connection.measurement_fault => {
@@ -388,6 +460,36 @@ pub(super) fn park_suppressed_docked_helms(
             }
         }
         docked.helm = rotation.0;
+    }
+}
+
+/// The helm a pair of `ships` opens with: the station endpoint, if there is
+/// one, decides through [`helm_on_capture`]; two ships start neutral.
+fn pair_helm_on_capture(
+    ships: [Entity; 2],
+    q_roots: &Query<(
+        Has<StationMarker>,
+        Has<DerelictShipMarker>,
+        Has<PlayerSpaceshipMarker>,
+    )>,
+) -> DockedHelmType {
+    let player = ships
+        .into_iter()
+        .find(|ship| q_roots.get(*ship).is_ok_and(|(.., player)| player));
+    let station = ships.into_iter().find_map(|ship| {
+        let (station, derelict, _) = q_roots.get(ship).ok()?;
+        station.then_some((
+            ship,
+            if derelict {
+                DockPartnerType::DeadStation
+            } else {
+                DockPartnerType::LivingStation
+            },
+        ))
+    });
+    match station {
+        Some((station, partner)) => helm_on_capture(partner, station, player),
+        None => helm_on_capture(DockPartnerType::Ship, Entity::PLACEHOLDER, player),
     }
 }
 

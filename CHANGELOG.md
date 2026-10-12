@@ -74,6 +74,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A station is a dynamic body: gravity and rams move it, its bridge levels
   it and its sections take no damage. In a planet's well it spawns on a
   circular orbit and holds it.
+- Docking at a station: an Enemy station refuses with `<NAME> REFUSES
+  DOCKING` on the HUD; a living station holds the pair's helm and refuses
+  `HELM`; a dead station hands the helm to the docked player.
 
 ### Interface & HUD
 

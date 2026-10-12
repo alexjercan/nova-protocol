@@ -783,6 +783,7 @@ fn docking_record(world: &World, entity: Entity, pair: Option<&DockingPair>) -> 
             let (helm, holder) = match connection.helm {
                 DockedHelmType::Neutral => ("neutral", None),
                 DockedHelmType::Held(holder) => ("held", Some(label(world, holder))),
+                DockedHelmType::Station(station) => ("station", Some(label(world, station))),
             };
             serde_json::json!({
                 "ship": label(world, ship),

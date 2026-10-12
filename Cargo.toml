@@ -633,6 +633,14 @@ name = "system_station_orbit"
 path = "examples/systems/system_station_orbit.rs"
 required-features = ["debug"]
 
+# Who flies a pair docked at a station, and which stations let one in: a
+# living waystation holds the helm and refuses HELM, a dead one hands it to the
+# docked player, an Enemy one refuses the dock with its own line on the HUD.
+[[example]]
+name = "system_station_docking"
+path = "examples/systems/system_station_docking.rs"
+required-features = ["debug"]
+
 # Then the one range that grades SHIPPED content rather than a fixture built
 # beside it: the campaign's first chapter, booted by scenario id and walked
 # from the opening scene to the banner. Every other range above owns its world,

@@ -1,9 +1,11 @@
 //! Diegetic flight readouts: the old bottom-left status text rehomed onto
 //! the ship - a speed chip parked beside the velocity sphere, a mode chip
 //! (verb + phase) shown only while the autopilot is engaged, `HELM FAULT` on a
-//! docked hull whose pair cannot be measured, or `NEUTRAL` on a docked hull
-//! that does not drive its pair, and an RCS magazine chip shown only while RCS
-//! is commanded, pushing, or short of full; manual flight keeps a quiet HUD.
+//! docked hull whose pair cannot be measured, `STATION HELM` on a hull docked
+//! to a living station, `NEUTRAL` on a docked hull that does not drive its
+//! pair, a station's refusal line while the travel lock is on a station that
+//! refuses a dock, and an RCS magazine chip shown only while RCS is commanded,
+//! pushing, or short of full; manual flight keeps a quiet HUD.
 //! Plus the projected marker on the GOTO destination.
 //!
 //! Anything measured here is an ENGINE figure - a world unit is 10 m, a speed
@@ -15,9 +17,11 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
+use nova_gameplay::prelude::PlayerSpaceshipMarker;
 use nova_ship::{
     flight::prelude::*,
-    prelude::{CameraAuthoritySystems, DockedShip, DockingConnection},
+    input::prelude::FlightVerbHints,
+    prelude::{CameraAuthoritySystems, DockedHelmType, DockedShip, DockingConnection},
 };
 use nova_ui::hud::{chip_node, chip_paint, ChipText, ChipTone};
 
@@ -543,33 +547,59 @@ fn emphasize_speed_on_burn(
 /// left frozen off the helm, which would otherwise read as live. A pair that
 /// cannot be measured reads `HELM FAULT` over both, from
 /// [`DockingConnection::measurement_fault`]: neither root drives then, and
-/// `drives` alone would show that as an ordinary `NEUTRAL`.
+/// `drives` alone would show that as an ordinary `NEUTRAL`. A pair a living
+/// station holds reads `STATION HELM` ([`DockedHelmType::Station`]), because
+/// `NEUTRAL` would promise a helm the player can take. An undocked player
+/// hull whose travel lock is on a station that refuses a dock reads the
+/// station's own line ([`FlightVerbHints::dock_refusal`]), ahead of a
+/// maneuver: the lock is the question and the refusal is the answer.
 fn drive_mode_chip(
     q_hud: Query<&FlightStatusHudTargetEntity, With<FlightStatusHudMarker>>,
     mut q_ui: Query<(&mut ScreenIndicatorAnchor, &mut Text, &ChildOf), With<ModeChipUIMarker>>,
-    q_ship: Query<(Option<&Autopilot>, Option<&DockedShip>)>,
+    q_ship: Query<(
+        Option<&Autopilot>,
+        Option<&DockedShip>,
+        Has<PlayerSpaceshipMarker>,
+    )>,
     q_connections: Query<&DockingConnection>,
+    hints: Option<Res<FlightVerbHints>>,
 ) {
     for (mut anchor, mut text, &ChildOf(parent)) in &mut q_ui {
         let Ok(ship) = q_hud.get(parent) else {
             continue;
         };
 
-        let faulted = |docked: &DockedShip| {
-            q_connections
-                .get(docked.connection)
-                .is_ok_and(|connection| connection.measurement_fault)
+        let connection = |docked: &DockedShip| q_connections.get(docked.connection).ok();
+        let faulted = |docked: &DockedShip| connection(docked).is_some_and(|c| c.measurement_fault);
+        let station_held = |docked: &DockedShip| {
+            connection(docked).is_some_and(|c| matches!(c.helm, DockedHelmType::Station(_)))
+        };
+        // The hints are the player's, so the refusal line is drawn on the
+        // player's hull only.
+        let refusal = |player: bool| {
+            hints
+                .as_deref()
+                .filter(|_| player)
+                .and_then(|hints| hints.dock_refusal.clone())
         };
         match q_ship.get(**ship) {
-            Ok((_, Some(docked))) if faulted(docked) => {
+            Ok((_, Some(docked), _)) if faulted(docked) => {
                 **anchor = Some(ScreenIndicatorAnchorKind::Entity(**ship));
                 **text = "HELM FAULT".to_string();
             }
-            Ok((_, Some(docked))) if !docked.drives => {
+            Ok((_, Some(docked), _)) if station_held(docked) => {
+                **anchor = Some(ScreenIndicatorAnchorKind::Entity(**ship));
+                **text = "STATION HELM".to_string();
+            }
+            Ok((_, Some(docked), _)) if !docked.drives => {
                 **anchor = Some(ScreenIndicatorAnchorKind::Entity(**ship));
                 **text = "NEUTRAL".to_string();
             }
-            Ok((Some(autopilot), _)) => {
+            Ok((_, None, player)) if refusal(player).is_some() => {
+                **anchor = Some(ScreenIndicatorAnchorKind::Entity(**ship));
+                **text = refusal(player).unwrap_or_default();
+            }
+            Ok((Some(autopilot), ..)) => {
                 **anchor = Some(ScreenIndicatorAnchorKind::Entity(**ship));
                 **text = mode_chip_label(autopilot);
             }
@@ -616,7 +646,6 @@ mod tests {
         camera::{ComputedCameraValues, RenderTargetInfo},
         ecs::system::RunSystemOnce,
     };
-    use nova_ship::prelude::DockedHelmType;
 
     use super::*;
     use crate::prelude::ManeuverChip;

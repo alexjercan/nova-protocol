@@ -526,8 +526,12 @@ fn chip_state(hints: &FlightVerbHints, situations: &HudSituations, index: usize)
 /// - a verb whose hint is [`VerbHint::helm_blocked`], so the player sees the
 ///   verbs the docked helm blocks rather than a dock that looks as if the ship
 ///   lost them. A verb the ship withholds stays off the dock;
-/// - HELM on a pair with a [`FlightVerbHints::helm_fault`], so the chip says
-///   why the helm cannot be taken rather than leaving the dock.
+/// - HELM on a pair with a [`FlightVerbHints::helm_fault`] or a
+///   [`FlightVerbHints::helm_station`], so the chip says why the helm cannot
+///   be taken rather than leaving the dock;
+/// - DOCK while the lock is on a station that refuses
+///   ([`FlightVerbHints::dock_refusal`]), so the chip reads `DOCK REFUSED`
+///   under the station's own line on the mode chip.
 fn chip_visible(
     state: DockChipState,
     hints: &FlightVerbHints,
@@ -542,7 +546,8 @@ fn chip_visible(
     let verb = dock_verb(index);
     state != DockChipState::Dim
         || hint.helm_blocked
-        || (verb == "HELM" && hints.helm_fault)
+        || (verb == "HELM" && (hints.helm_fault || hints.helm_station))
+        || (verb == "DOCK" && hints.dock_refusal.is_some())
         || emphasis.contains(verb)
 }
 
@@ -702,9 +707,11 @@ fn update_dock(
         // HELM says which way the key goes: take the pair, or hand it back,
         // or why it cannot be taken.
         let label = match dock_verb(**chip) {
+            "HELM" if hints.helm_station => "STATION HELM",
             "HELM" if hints.helm_held => "RELEASE HELM",
             "HELM" if hints.helm_fault => "HELM FAULT",
             "HELM" => "TAKE HELM",
+            "DOCK" if hints.dock_refusal.is_some() => "DOCK REFUSED",
             verb => verb,
         };
         for &child in children {
@@ -969,6 +976,8 @@ mod tests {
             },
             helm_held: false,
             helm_fault: false,
+            helm_station: false,
+            dock_refusal: None,
             engaged,
         }
     }

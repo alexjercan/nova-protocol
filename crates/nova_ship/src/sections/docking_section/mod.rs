@@ -15,11 +15,13 @@
 //! either ship takes the joint away ([`connection`]). There is no station
 //! service here: two ships are held in the pose they met in.
 //!
-//! A pair has one helm. It starts neutral, with the partner flying the pair,
-//! and the player takes and hands it back with `HELM` ([`connection`]). The
-//! root that drives flies the pair as one body ([`assembly`]); the other is
-//! held, the same shape the flight layer uses for an engaged autopilot: the
-//! loop that is not in charge does not get to apply torque.
+//! A pair has one helm. Between two ships it starts neutral, with the partner
+//! flying the pair, and the player takes and hands it back with `HELM`
+//! ([`connection`]). A living station owns the helm of its pair and refuses
+//! `HELM`; a dead station hands it to the docked player at capture. The root
+//! that drives flies the pair as one body ([`assembly`]); the other is held,
+//! the same shape the flight layer uses for an engaged autopilot: the loop
+//! that is not in charge does not get to apply torque.
 
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
@@ -33,16 +35,17 @@ mod connection;
 mod port;
 mod render;
 
-pub use admission::DockAdmission;
+pub use admission::{station_admission, DockAdmission, DockRefusalType};
 pub use assembly::DockedAssembly;
 use assembly::{apply_docked_helm_wrench, measure_docked_assemblies};
+pub use connection::{
+    helm_on_capture, helm_request_admitted, DockPartnerType, DockedHelmType, DockedPort,
+    DockedShip, DockingConnection, DockingConnectionRequest, DockingHelmRequest,
+    DockingReleaseRequest, DockingSystems,
+};
 use connection::{
     on_docking_connection_request, on_docking_helm_request, on_docking_port_removed_release,
     on_docking_release_request, park_suppressed_docked_helms, release_broken_docking_connections,
-};
-pub use connection::{
-    DockedHelmType, DockedPort, DockedShip, DockingConnection, DockingConnectionRequest,
-    DockingHelmRequest, DockingReleaseRequest, DockingSystems,
 };
 pub use port::{DockingPair, DockingPorts, PortPose};
 use render::insert_docking_section_render;
@@ -51,11 +54,12 @@ use render::insert_docking_section_render;
 /// helm, assembly, candidate search and `DockingSectionPlugin`.
 pub mod prelude {
     pub use super::{
-        docking_section, preview_docking_section, DockAdmission, DockedAssembly, DockedHelmType,
-        DockedPort, DockedShip, DockingConnection, DockingConnectionRequest, DockingEnvelope,
-        DockingHelmRequest, DockingPair, DockingPorts, DockingReleaseRequest, DockingSectionConfig,
-        DockingSectionConfigHelper, DockingSectionMarker, DockingSectionPlugin,
-        DockingSectionState, DockingSystems, PortPose,
+        docking_section, helm_on_capture, helm_request_admitted, preview_docking_section,
+        station_admission, DockAdmission, DockPartnerType, DockRefusalType, DockedAssembly,
+        DockedHelmType, DockedPort, DockedShip, DockingConnection, DockingConnectionRequest,
+        DockingEnvelope, DockingHelmRequest, DockingPair, DockingPorts, DockingReleaseRequest,
+        DockingSectionConfig, DockingSectionConfigHelper, DockingSectionMarker,
+        DockingSectionPlugin, DockingSectionState, DockingSystems, PortPose,
     };
 }
 

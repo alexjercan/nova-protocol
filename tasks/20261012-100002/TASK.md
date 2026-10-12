@@ -19,3 +19,10 @@
 
 ## Done when
 - The three cases are permanent proofs and the Part 6 Docking row of the design page matches the code.
+
+## Landed
+- `DockAdmission::refusal` is the one admission point; a station answers by `station_admission(allegiance, derelict, occupied)`: `StationOccupied` (the `DockedShip` on its root, the one-connection-per-hull rule the port search already enforces), `EnemyStation` for a living Enemy station, admitted otherwise and for every derelict. `FlightVerbHints::dock_refusal` carries `<NAME> REFUSES DOCKING` / `<NAME> DOCK OCCUPIED`; the mode chip shows it, the DOCK chip reads `DOCK REFUSED`.
+- `DockedHelmType::Station(station)` is set at capture by `helm_on_capture` for a living station (no joint change); `HELM` is refused (`helm_request_admitted`), the HUD reads `STATION HELM`, the Map GOTO note reads `STATION HELM`. A dead station opens on `Held(player)`. A station drives with its bridge's torque as the helm wrench and no thrust, so a station-held pair stays put.
+- Retire: the player is always inside the active window, so the player's pair never retires. A docked NPC pair at retirement stays the `freeze_body` fault; nothing on master docks an NPC at a station (`DOCK` is a player verb, no AI or scripted order issues a `DockingConnectionRequest`), so no handling was added.
+- Proofs: unit tests in `docking_section/tests.rs` (admission by side, dead and occupied; helm on capture; the station rule through the real admission and request); `system_station_docking` (living station holds the helm under a held burn, dead station hands it over, Enemy station refuses on the HUD).
+

@@ -85,10 +85,33 @@ pub struct FlightVerbHints {
     /// it. The HELM chip stays on the dock and reads `HELM FAULT` unless the
     /// player holds the helm and can still hand it back.
     pub helm_fault: bool,
+    /// Whether a living station holds the docked pair's helm
+    /// ([`DockedHelmType::Station`]), so HELM is refused outright. The HELM
+    /// chip stays on the dock and reads `STATION HELM`; no verb is
+    /// `helm_blocked`, because nothing the player presses frees them.
+    pub helm_station: bool,
+    /// The line the HUD shows while the travel lock is on a station that
+    /// refuses a dock ([`DockRefusalType`]), naming the station: `<NAME>
+    /// REFUSES DOCKING` for a living Enemy station, `<NAME> DOCK OCCUPIED`
+    /// for one already holding its connection. `None` while the lock is
+    /// clear, on a ship, or on a station that admits; a ship's refusal keeps
+    /// the dark chip it always had.
+    pub dock_refusal: Option<String>,
     /// Whether any maneuver is engaged right now - explicit, so consumers
     /// (the GOTO cue hides mid-maneuver) do not have to proxy it through
     /// another verb's availability.
     pub engaged: bool,
+}
+
+/// The HUD line for a station's refusal, or `None` for a ship's, which stays
+/// a dark chip: a ship under fire is a situation the player can read off the
+/// world, a station's side is not.
+pub fn dock_refusal_line(name: &str, refusal: DockRefusalType) -> Option<String> {
+    match refusal {
+        DockRefusalType::Combat => None,
+        DockRefusalType::EnemyStation => Some(format!("{name} REFUSES DOCKING")),
+        DockRefusalType::StationOccupied => Some(format!("{name} DOCK OCCUPIED")),
+    }
 }
 
 /// The fixed label of the wheel-gesture hint, empty while the flight rig is
@@ -129,6 +152,7 @@ pub(super) fn update_flight_verb_hints(
     q_capabilities: ShipCapabilityQuery,
     q_thruster: Query<&ChildOf, (With<ThrusterSectionMarker>, Without<SectionInactiveMarker>)>,
     q_rig: Query<(), With<Action<AutopilotStopInput>>>,
+    q_names: Query<&Name>,
     ports: DockingPorts,
     admission: DockAdmission,
     bindings: Option<Res<InputBindings>>,
@@ -173,6 +197,8 @@ pub(super) fn update_flight_verb_hints(
         connection.is_some_and(|connection| connection.helm == DockedHelmType::Held(ship))
     });
     let helm_fault = connection.is_some_and(|connection| connection.measurement_fault);
+    let helm_station =
+        connection.is_some_and(|connection| matches!(connection.helm, DockedHelmType::Station(_)));
     // Read off `drives`, the flag every flight writer gates on, not off the
     // helm: the helm changes at once, `drives` at the next fixed tick, and a
     // held pair that cannot be measured never drives at all.
@@ -212,8 +238,19 @@ pub(super) fn update_flight_verb_hints(
     // not all that is missing and the verb leaves the dock.
     let helm_gate = |ready: bool| VerbHint {
         available: ready && !docked_without_helm,
-        helm_blocked: ready && docked_without_helm && !helm_fault,
+        helm_blocked: ready && docked_without_helm && !helm_fault && !helm_station,
         ..default()
+    };
+    // The station's answer, read off the same admission the chip and the
+    // request read, so the line and the dark chip can never disagree.
+    let dock_refusal = match (ship, travel) {
+        (Some(ship), Some(target)) if docked.is_none() => {
+            admission.refusal(ship, target).and_then(|refusal| {
+                let name = q_names.get(target).map_or("", |name| name.as_str());
+                dock_refusal_line(name, refusal)
+            })
+        }
+        _ => None,
     };
 
     let next = FlightVerbHints {
@@ -289,12 +326,15 @@ pub(super) fn update_flight_verb_hints(
         },
         helm: VerbHint {
             key: label("dock_helm"),
-            // A fault refuses taking the helm, never handing it back.
-            available: docked.is_some() && (helm_held || !helm_fault),
+            // A fault refuses taking the helm, never handing it back; a
+            // living station refuses both.
+            available: docked.is_some() && !helm_station && (helm_held || !helm_fault),
             ..default()
         },
         helm_held,
         helm_fault,
+        helm_station,
+        dock_refusal,
         engaged,
     };
     // set_if_neq semantics by hand: only dirty the resource on real change.

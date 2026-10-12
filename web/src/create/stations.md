@@ -93,6 +93,25 @@ The proofs are `system_station_body` (a nudged station in a void) and
 `system_station_orbit` (a torpedo, a shove and three orbits of a small
 planet).
 
+## Docking at a station
+
+A ship docks with a station through its `Docking` section as it docks with a
+ship: a free port on each hull, inside the capture envelope, and `DOCK`. What
+differs is who the station lets in and who flies the pair.
+
+| rule | what happens |
+|---|---|
+| admission | a living station reads its `allegiance`: `Some(Enemy)` refuses every dock, any other side (or `None`) admits. A derelict admits whatever its side; it is a hull to loot |
+| the refusal | while the travel lock is on a station that refuses, the HUD mode chip reads `<NAME> REFUSES DOCKING` with the station object's `name`, the DOCK chip reads `DOCK REFUSED`, and `DOCK` builds nothing |
+| one connection | a hull holds one connection. A station with several ports still admits one ship; a second ship meets `<NAME> DOCK OCCUPIED` until the first lets go |
+| a living station's helm | the station owns the pair's helm. `HELM` is refused, the HUD reads `STATION HELM`, and the docked ship's drive, RCS and maneuvers are held. The station has no thruster, so the pair never moves; its bridge holds the pair level on the station's parked attitude |
+| a dead station's helm | the docked player holds the helm from the capture, as after `HELM` on a ship, because the derelict's bridge is inactive. The player's burn tows the pair |
+| leaving | `DOCK` again, from the ship, as always |
+
+The proof is `system_station_docking`: a living station holds the helm under
+a held burn, a dead station hands it over, an Enemy station refuses with the
+line on the HUD.
+
 ## Spawning one
 
 A scenario parks a station with a [Station](../objects/#station) object,
@@ -169,7 +188,8 @@ An extinct civilization's station is the SAME design spawned dead: its
 lootable, with `DerelictShipMarker` and `LootableShipMarker`, and no service
 is offered on it. There is no second catalogue entry for a dead station; the
 strip is the spawn flag, the same one a scenario's own `Station` object
-sets. A dead station keeps the Neutral side.
+sets. A dead station keeps the Neutral side, and admits a dock on any side:
+see [Docking at a station](#docking-at-a-station).
 
 ## Base stations
 

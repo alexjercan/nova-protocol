@@ -983,6 +983,14 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_station_docking",
+        &[
+            "a living station holds the helm",
+            "a dead station hands the helm to the player",
+            "an enemy station refuses docking on the HUD",
+        ],
+    ),
+    (
         "system_station_orbit",
         &[
             "station rides its orbit",
@@ -994,7 +1002,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 490;
+const SYSTEMS_INVARIANTS: usize = 493;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///
