@@ -11,6 +11,17 @@
 ## Agent findings
 - No visited-cell record exists apart from the frozen ledger; every retired cell is a `Visited` record (`crates/nova_world/src/frozen.rs:270-279`). `WorldSaveState` fields at `crates/nova_world_base/src/save/mod.rs:103-117`.
 
+- Owner decision 2026-10-13 (survey by orchestrator, all eight items approved as proposed):
+  1. Visited cells stored: the set of `SectorCoord` the player entered, fed by `CurrentSector` changes (the frozen ledger holds every streamed cell, about 125 per save, so it cannot be the source). Save format 6 -> 7.
+  2. A station is found on sensor contact; its last-seen summary is written on dock and refreshed on undock. Seen but never docked shows no stock.
+  3. Summary: name, living or dead, services, trade stock, the player's stored items there. Item ids pass the saved-item load check.
+  4. Wrecks: derelict hulls only, keyed by `GeneratedBodyId`, found on sensor contact. Wreck fragments and destroyed roots are out.
+  5. Cluster type stored per visited cell at entry; `ClusterType` moves down to `nova_gameplay` so the Map reads it.
+  6. `Chart` is a session resource in `nova_gameplay`, saved as a `WorldSaveState` field; web keeps it per session only.
+  7. No jobs slot: task 20261012-100023 adds its own save field (overrides the gate's typed-slot line).
+  8. The Map gets a chart view toggle: grid, visited cells, stations and wrecks as meshes on map layer 21, labels as UI; the local contact view stays.
+  Changelog: edit the existing **(breaking)** world-save entry to format 7.
+
 ## Delivery gate
 - A `Chart` save field (visited coords, found station ids with last-seen stock summary, found wreck ids); the Map pane renders it as a layer. Jobs are a later strand; leave a typed slot, no placeholder data.
 
