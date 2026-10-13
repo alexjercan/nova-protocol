@@ -316,6 +316,7 @@ mod tests {
             id: "base".to_string(),
             position: Vec3::NEG_Y * 0.5,
             normal: Vec3::NEG_Y,
+            skin: LinkPointSkinType::Clad,
         }]
     }
 
@@ -383,6 +384,7 @@ mod tests {
             id: "base_1_1".to_string(),
             position: Vec3::new(0.0, 0.0, -1.0),
             normal: Vec3::NEG_Z,
+            skin: LinkPointSkinType::Clad,
         }];
         for x in [-1.0, 0.0, 1.0] {
             for y in [-1.0, 0.0, 1.0] {
@@ -393,6 +395,7 @@ mod tests {
                     id: format!("base_{x}_{y}"),
                     position: Vec3::new(x, y, -1.0),
                     normal: Vec3::NEG_Z,
+                    skin: LinkPointSkinType::Clad,
                 });
             }
         }
@@ -424,6 +427,7 @@ mod tests {
             id: "base".to_string(),
             position: Vec3::NEG_Z * 1.5,
             normal: Vec3::NEG_Z,
+            skin: LinkPointSkinType::Clad,
         }];
         let ship = [
             cube(Vec3::ZERO),
@@ -545,11 +549,13 @@ mod tests {
                 id: "a".to_string(),
                 position: Vec3::NEG_X * 0.5,
                 normal: Vec3::NEG_X,
+                skin: LinkPointSkinType::Clad,
             },
             LinkPoint {
                 id: "b".to_string(),
                 position: Vec3::NEG_X * 0.5,
                 normal: Vec3::NEG_X,
+                skin: LinkPointSkinType::Clad,
             },
         ];
         let ship = [cube(Vec3::ZERO)];
@@ -579,6 +585,7 @@ mod tests {
             id: "in".to_string(),
             position: Vec3::NEG_X * 2.0,
             normal: Vec3::NEG_X,
+            skin: LinkPointSkinType::Clad,
         }];
         let ship = [cube(Vec3::ZERO), cube(Vec3::X * 3.0)];
         let placement = solve(
@@ -734,6 +741,7 @@ mod tests {
                 id: "mate".to_string(),
                 position: normal * 0.25,
                 normal,
+                skin: LinkPointSkinType::Clad,
             }]
         };
         let prototype = |id: &str, normal: Vec3| SectionConfig {

@@ -283,13 +283,14 @@ fn signature(root: Entity, placed: &[PlacedPart]) -> u64 {
         part.footprint.x.hash(&mut hasher);
         part.footprint.y.hash(&mut hasher);
         part.footprint.z.hash(&mut hasher);
-        // The sockets and the exit, not the part: two parts with the same
-        // footprint, the same sockets and the same muzzle are the same thing to
-        // the skin.
+        // The sockets, their skin modes and the exit, not the part: two parts
+        // with the same footprint, the same sockets and the same muzzle are the
+        // same thing to the skin.
         for point in part.link_points {
             point.normal.x.to_bits().hash(&mut hasher);
             point.normal.y.to_bits().hash(&mut hasher);
             point.normal.z.to_bits().hash(&mut hasher);
+            point.skin.hash(&mut hasher);
         }
         if let Some(exit) = part.exit {
             exit.x.to_bits().hash(&mut hasher);

@@ -419,6 +419,7 @@ fn pdc_turret_prototype(
                 id: "base".to_string(),
                 position: Vec3::NEG_Y * (PDC_TURRET_SIZE * 0.5),
                 normal: Vec3::NEG_Y,
+                skin: LinkPointSkinType::Clad,
             }],
             hide_in_editor: false,
             animations: pdc_stow_tracks(),

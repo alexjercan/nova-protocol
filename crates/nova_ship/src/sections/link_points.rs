@@ -12,7 +12,7 @@ pub mod prelude {
     pub use super::{
         box_link_points, candidate_link_point_mates, cardinal_axis, derive_link_point_graph,
         link_point_up, snap_placement, unit_cube_link_points, LinkPoint, LinkPointGraphError,
-        LinkPointMate, LinkPointRef, PlacedSectionLinkPoints, SectionLinkPoints,
+        LinkPointMate, LinkPointRef, LinkPointSkinType, PlacedSectionLinkPoints, SectionLinkPoints,
         LINK_POINT_NORMAL_MIN_DOT, LINK_POINT_POSITION_EPSILON,
     };
 }
@@ -35,6 +35,35 @@ pub struct LinkPoint {
     pub position: Vec3,
     /// Unit outward direction relative to the section frame.
     pub normal: Vec3,
+    /// Whether the derived skin clads this socket's face while it is open.
+    /// Omitted means [`LinkPointSkinType::Clad`].
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "LinkPointSkinType::is_clad")
+    )]
+    pub skin: LinkPointSkinType,
+}
+
+/// What the derived skin does with a socket's face while nothing mates it.
+///
+/// Read by the skin only. A `Bare` socket mates, places and joins the
+/// integrity graph exactly like a `Clad` one.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum LinkPointSkinType {
+    /// An open socket gets a plate, and the plate can carry decoration.
+    #[default]
+    Clad,
+    /// A DEAD END: an open socket gets no plate and so no decoration. For the
+    /// end of a run that should stop clean, such as a solar wing tip.
+    Bare,
+}
+
+impl LinkPointSkinType {
+    /// Whether the skin clads the socket, the value authored files omit.
+    pub fn is_clad(&self) -> bool {
+        *self == Self::Clad
+    }
 }
 
 /// The link points snapshotted onto one live section.
@@ -474,6 +503,7 @@ pub fn box_link_points(size: Vec3) -> Vec<LinkPoint> {
         id: id.to_string(),
         position,
         normal,
+        skin: LinkPointSkinType::Clad,
     })
     .collect()
 }
@@ -492,6 +522,7 @@ mod tests {
             id: id.to_string(),
             position,
             normal,
+            skin: LinkPointSkinType::Clad,
         }
     }
 

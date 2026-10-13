@@ -2413,8 +2413,8 @@ pub(crate) mod fixture {
     use nova_events::prelude::MetersPerSecond;
     use nova_ship::prelude::{
         BaseSectionConfig, CargoIntakeSectionConfig, ControllerSectionConfig, DockingSectionConfig,
-        HullSectionConfig, LinkPoint, MiningSectionConfig, MuzzleConfig, SectionCollider,
-        ThrusterSectionConfig, TurretSectionConfig, CELL_FACES,
+        HullSectionConfig, LinkPoint, LinkPointSkinType, MiningSectionConfig, MuzzleConfig,
+        SectionCollider, ThrusterSectionConfig, TurretSectionConfig, CELL_FACES,
     };
 
     use super::*;
@@ -2442,6 +2442,7 @@ pub(crate) mod fixture {
                                 id: format!("link_{}", link_points.len()),
                                 position: centre + *face * 0.5,
                                 normal: *face,
+                                skin: LinkPointSkinType::Clad,
                             });
                         }
                     }

@@ -177,6 +177,7 @@ fn bay_link_points() -> Vec<LinkPoint> {
         id: "positive_z".to_string(),
         position: Vec3::Z * (BAY_CELLS.z * 0.5),
         normal: Vec3::Z,
+        skin: LinkPointSkinType::Clad,
     }];
     for (face, normal) in [
         ("positive_x", Vec3::X),
@@ -189,6 +190,7 @@ fn bay_link_points() -> Vec<LinkPoint> {
                 id: format!("{face}_{cell}"),
                 position: normal * 0.5 + Vec3::Z * z,
                 normal,
+                skin: LinkPointSkinType::Clad,
             });
         }
     }

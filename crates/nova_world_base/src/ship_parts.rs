@@ -772,8 +772,8 @@ mod tests {
     use nova_events::prelude::{Meters, MetersPerSecond};
     use nova_ship::prelude::{
         BaseSectionConfig, CargoIntakeSectionConfig, ControllerSectionConfig, DockingSectionConfig,
-        HullSectionConfig, LinkPoint, MuzzleConfig, ThrusterSectionConfig, TorpedoSectionConfig,
-        TurretSectionConfig,
+        HullSectionConfig, LinkPoint, LinkPointSkinType, MuzzleConfig, ThrusterSectionConfig,
+        TorpedoSectionConfig, TurretSectionConfig,
     };
 
     use super::*;
@@ -791,6 +791,7 @@ mod tests {
                         id: format!("link_{index}"),
                         position: *face * 0.5,
                         normal: *face,
+                        skin: LinkPointSkinType::Clad,
                     })
                     .collect(),
                 ..default()

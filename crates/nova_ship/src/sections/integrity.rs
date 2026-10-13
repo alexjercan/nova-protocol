@@ -2684,6 +2684,7 @@ mod physics_tests {
                 id: "out".to_string(),
                 position: Vec3::X,
                 normal: Vec3::X,
+                skin: LinkPointSkinType::Clad,
             }],
         );
         let right = spawn_section_with_points(
@@ -2694,6 +2695,7 @@ mod physics_tests {
                 id: "in".to_string(),
                 position: Vec3::NEG_X,
                 normal: Vec3::NEG_X,
+                skin: LinkPointSkinType::Clad,
             }],
         );
 

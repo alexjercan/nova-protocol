@@ -8,8 +8,8 @@ use bevy::prelude::{default, Quat, UVec3, Vec3};
 use nova_gameplay::prelude::GameItems;
 use nova_scenario::prelude::{SectionSource, ShipDesign, SpaceshipSectionConfig};
 use nova_ship::prelude::{
-    BaseSectionConfig, GameSections, HullSectionConfig, LinkPoint, SectionCollider, SectionConfig,
-    SectionKind, GRID_EPSILON,
+    BaseSectionConfig, GameSections, HullSectionConfig, LinkPoint, LinkPointSkinType,
+    SectionCollider, SectionConfig, SectionKind, GRID_EPSILON,
 };
 
 use crate::{
@@ -181,6 +181,7 @@ fn a_plan_drawing_a_bay_that_fires_off_axis_is_refused_with_the_id_in_the_line()
         id: "aft".to_string(),
         position: Vec3::Z * 0.5,
         normal: Vec3::Z,
+        skin: LinkPointSkinType::Clad,
     }];
     catalog.push(oblique(bay, "oblique_two_cell_bay"));
     catalog.push(one_cell);
@@ -801,6 +802,7 @@ fn the_exemption_callback_always_sees_the_lower_section_index_first() {
         id: id.to_string(),
         position,
         normal,
+        skin: LinkPointSkinType::Clad,
     };
     let section = |id: &str, points: Vec<LinkPoint>| SectionConfig {
         base: BaseSectionConfig {

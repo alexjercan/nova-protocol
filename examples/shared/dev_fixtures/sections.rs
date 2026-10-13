@@ -219,6 +219,7 @@ fn axial_link_points(length: f32, cells: &[(&str, f32)]) -> Vec<LinkPoint> {
         id: "positive_z".to_string(),
         position: Vec3::Z * (length * 0.5),
         normal: Vec3::Z,
+        skin: LinkPointSkinType::Clad,
     }];
     for (face, normal) in [
         ("positive_x", Vec3::X),
@@ -231,6 +232,7 @@ fn axial_link_points(length: f32, cells: &[(&str, f32)]) -> Vec<LinkPoint> {
                 id: format!("{face}_{cell}"),
                 position: normal * 0.5 + Vec3::Z * *z,
                 normal,
+                skin: LinkPointSkinType::Clad,
             });
         }
     }

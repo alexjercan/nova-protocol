@@ -36,6 +36,7 @@ fn drive_mount_points(cells: UVec3) -> Vec<LinkPoint> {
                 -(cells.z as f32) * 0.5,
             ),
             normal: Vec3::NEG_Z,
+            skin: LinkPointSkinType::Clad,
         })
         .collect();
     points.sort_by_key(|point| {
@@ -136,6 +137,7 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                     id: "base".to_string(),
                     position: Vec3::NEG_Z * 0.5,
                     normal: Vec3::NEG_Z,
+                    skin: LinkPointSkinType::Clad,
                 }],
                 hide_in_editor: false,
                 animations: Vec::new(),

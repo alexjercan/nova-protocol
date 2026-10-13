@@ -1,7 +1,7 @@
 //! Which of the callout's two lines a solve calls for, and what they say.
 
 use nova_ship::prelude::{
-    BaseSectionConfig, HullSectionConfig, LinkPoint, SectionConfig, SectionKind,
+    BaseSectionConfig, HullSectionConfig, LinkPoint, LinkPointSkinType, SectionConfig, SectionKind,
 };
 
 use super::*;
@@ -18,6 +18,7 @@ fn part(id: &str, sockets: &[&str]) -> SectionConfig {
                     id: (*socket).to_string(),
                     position: Vec3::ZERO,
                     normal: Vec3::X,
+                    skin: LinkPointSkinType::Clad,
                 })
                 .collect(),
             ..default()

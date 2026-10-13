@@ -49,6 +49,7 @@ fn intake_link_points() -> Vec<LinkPoint> {
                     id: format!("{side}_{face}_{cell}"),
                     position: normal * sign * half.dot(normal) + along * offset,
                     normal: normal * sign,
+                    skin: LinkPointSkinType::Clad,
                 });
             }
         }
@@ -59,6 +60,7 @@ fn intake_link_points() -> Vec<LinkPoint> {
                 id: format!("positive_z_{x_cell}_{y_cell}"),
                 position: Vec3::new(x, y, half.z),
                 normal: Vec3::Z,
+                skin: LinkPointSkinType::Clad,
             });
         }
     }

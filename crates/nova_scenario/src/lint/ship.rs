@@ -1360,7 +1360,9 @@ mod tests {
 
     #[test]
     fn malformed_link_points_and_disconnected_ships_are_errors() {
-        use nova_ship::prelude::{BaseSectionConfig, HullSectionConfig, LinkPoint};
+        use nova_ship::prelude::{
+            BaseSectionConfig, HullSectionConfig, LinkPoint, LinkPointSkinType,
+        };
 
         let malformed = SectionConfig {
             base: BaseSectionConfig {
@@ -1370,11 +1372,13 @@ mod tests {
                         id: "dup".to_string(),
                         position: Vec3::ZERO,
                         normal: Vec3::X,
+                        skin: LinkPointSkinType::Clad,
                     },
                     LinkPoint {
                         id: "dup".to_string(),
                         position: Vec3::X,
                         normal: Vec3::ZERO,
+                        skin: LinkPointSkinType::Clad,
                     },
                 ],
                 ..default()
@@ -1723,7 +1727,9 @@ mod tests {
     /// A two-section fixture used to prove that a direct mate authorizes an
     /// intentional collider overlap.
     fn ship_with_mated_overlap() -> (EventActionConfig, KnownSections) {
-        use nova_ship::prelude::{BaseSectionConfig, HullSectionConfig, LinkPoint};
+        use nova_ship::prelude::{
+            BaseSectionConfig, HullSectionConfig, LinkPoint, LinkPointSkinType,
+        };
 
         let section = |id: &str, normal: Vec3| SectionConfig {
             base: BaseSectionConfig {
@@ -1735,6 +1741,7 @@ mod tests {
                     id: "mate".to_string(),
                     position: normal * 0.25,
                     normal,
+                    skin: LinkPointSkinType::Clad,
                 }],
                 ..default()
             },
@@ -1798,7 +1805,9 @@ mod tests {
     /// is still reported.
     #[test]
     fn a_hull_that_fails_the_graph_still_exempts_its_authored_mates() {
-        use nova_ship::prelude::{BaseSectionConfig, HullSectionConfig, LinkPoint};
+        use nova_ship::prelude::{
+            BaseSectionConfig, HullSectionConfig, LinkPoint, LinkPointSkinType,
+        };
 
         let box_collider = Some(SectionCollider::Cuboid {
             size: Vec3::splat(2.0),
@@ -1811,6 +1820,7 @@ mod tests {
                     id: "mate".to_string(),
                     position: normal * 0.25,
                     normal,
+                    skin: LinkPointSkinType::Clad,
                 }],
                 ..default()
             },

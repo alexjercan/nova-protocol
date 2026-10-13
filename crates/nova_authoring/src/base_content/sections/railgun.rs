@@ -33,6 +33,7 @@ fn lance_link_points() -> Vec<LinkPoint> {
         id: "positive_z".to_string(),
         position: Vec3::Z * (LANCE_CELLS.z * 0.5),
         normal: Vec3::Z,
+        skin: LinkPointSkinType::Clad,
     }];
     let flanks = [
         ("positive_x", Vec3::X),
@@ -46,6 +47,7 @@ fn lance_link_points() -> Vec<LinkPoint> {
                 id: format!("{face}_{cell}"),
                 position: normal * 0.5 + Vec3::Z * z,
                 normal,
+                skin: LinkPointSkinType::Clad,
             });
         }
     }

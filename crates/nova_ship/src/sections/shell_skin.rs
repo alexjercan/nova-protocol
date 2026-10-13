@@ -1093,10 +1093,14 @@ pub(crate) fn read_cells(placed: &[PlacedPart], phase: Vec3) -> (SkinStructure, 
                 .is_some_and(|(face, edge)| cell.dot(FACES[face]) == edge)
                 .then_some(exit)
                 .flatten();
+            // A `Bare` socket is a dead end: it still mates, but the skin
+            // reads its face as offering nothing, so no plate stands on it
+            // and no plate climbs it.
             structure.insert_section(
                 cell,
                 part.link_points
                     .iter()
+                    .filter(|point| point.skin.is_clad())
                     .map(|point| part.rotation * point.normal),
                 fires,
             );
@@ -2214,6 +2218,21 @@ mod tests {
         style: Option<&str>,
         sections: &[(Vec3, Quat)],
     ) -> Entity {
+        let parts: Vec<(Vec3, Quat, Vec<LinkPoint>)> = sections
+            .iter()
+            .map(|(position, rotation)| (*position, *rotation, unit_cube_link_points()))
+            .collect();
+        spawn_styled_parts(app, clad, style, &parts).0
+    }
+
+    /// A ship root of sections carrying their own sockets, and the sections in
+    /// the order given.
+    fn spawn_styled_parts(
+        app: &mut App,
+        clad: bool,
+        style: Option<&str>,
+        parts: &[(Vec3, Quat, Vec<LinkPoint>)],
+    ) -> (Entity, Vec<Entity>) {
         let root = app
             .world_mut()
             .spawn((
@@ -2222,15 +2241,20 @@ mod tests {
                 ShipStyle(style.map(str::to_string)),
             ))
             .id();
-        for (position, rotation) in sections {
-            app.world_mut().spawn((
-                SectionMarker,
-                SectionLinkPoints(unit_cube_link_points()),
-                Transform::from_translation(*position).with_rotation(*rotation),
-                ChildOf(root),
-            ));
-        }
-        root
+        let sections = parts
+            .iter()
+            .map(|(position, rotation, link_points)| {
+                app.world_mut()
+                    .spawn((
+                        SectionMarker,
+                        SectionLinkPoints(link_points.clone()),
+                        Transform::from_translation(*position).with_rotation(*rotation),
+                        ChildOf(root),
+                    ))
+                    .id()
+            })
+            .collect();
+        (root, sections)
     }
 
     /// Every plate on `root`, paired with the section it hangs off.
@@ -2433,6 +2457,108 @@ mod tests {
                 .count(),
             5,
             "a greeble outlived the plate it was bolted to",
+        );
+    }
+
+    /// A DEAD-END socket mates like any other, but the skin leaves it bare
+    /// while it is open.
+    ///
+    /// A hull cube with a solar-panel-like part off its +X face, whose two
+    /// sockets face +-X. With `Clad` sockets the panel's open end wears a plate
+    /// and the plate a greeble; with `Bare` sockets it wears neither, and the
+    /// cube's own cladding is the same either way. A second panel mated through
+    /// that bare end still joins one connected graph.
+    #[test]
+    fn an_open_dead_end_socket_gets_no_plate_and_no_greeble_but_still_links() {
+        use crate::sections::link_points::{
+            prelude::{derive_link_point_graph, LinkPointSkinType},
+            PlacedSectionLinkPoints,
+        };
+
+        let panel = |skin: LinkPointSkinType| -> Vec<LinkPoint> {
+            unit_cube_link_points()
+                .into_iter()
+                .filter(|point| point.normal.x != 0.0)
+                .map(|point| LinkPoint { skin, ..point })
+                .collect()
+        };
+        let cladding = |skin: LinkPointSkinType| {
+            let mut app = skin_app();
+            app.insert_resource(GameStyles(vec![test_style()]));
+            let (ship, sections) = spawn_styled_parts(
+                &mut app,
+                true,
+                Some("test"),
+                &[
+                    (Vec3::ZERO, Quat::IDENTITY, unit_cube_link_points()),
+                    (Vec3::X, Quat::IDENTITY, panel(skin)),
+                ],
+            );
+            app.update();
+            let world = app.world();
+            let plates = plates_of(&app, ship);
+            let on = |section: Entity| -> (usize, usize) {
+                let mine: Vec<Entity> = plates
+                    .iter()
+                    .filter(|(_, owner)| *owner == section)
+                    .map(|(plate, _)| *plate)
+                    .collect();
+                let decor = mine
+                    .iter()
+                    .flat_map(|plate| {
+                        world
+                            .get::<Children>(*plate)
+                            .map(|children| children.iter().collect::<Vec<_>>())
+                            .unwrap_or_default()
+                    })
+                    .filter(|child| world.get::<ShipDecorMarker>(*child).is_some())
+                    .count();
+                (mine.len(), decor)
+            };
+            (on(sections[0]), on(sections[1]))
+        };
+
+        let (cube, end) = cladding(LinkPointSkinType::Clad);
+        assert_eq!(
+            cube.0, 5,
+            "the cube is clad on every face but the mated one"
+        );
+        assert_eq!(
+            end,
+            (1, 1),
+            "a clad open end wears one plate and its greeble"
+        );
+
+        let (bare_cube, bare_end) = cladding(LinkPointSkinType::Bare);
+        assert_eq!(
+            bare_cube, cube,
+            "a dead end changed the cladding of its neighbour"
+        );
+        assert_eq!(bare_end, (0, 0), "a dead-end socket was clad or decorated");
+
+        let first = panel(LinkPointSkinType::Bare);
+        let second = panel(LinkPointSkinType::Bare);
+        let cube_points = unit_cube_link_points();
+        let placed: Vec<PlacedSectionLinkPoints> = [
+            (Vec3::ZERO, cube_points.as_slice()),
+            (Vec3::X, first.as_slice()),
+            (Vec3::X * 2.0, second.as_slice()),
+        ]
+        .into_iter()
+        .map(|(position, link_points)| PlacedSectionLinkPoints {
+            position,
+            rotation: Quat::IDENTITY,
+            link_points,
+        })
+        .collect();
+        let mates = derive_link_point_graph(&placed)
+            .expect("a part attached through a dead end joins the graph");
+        assert!(
+            mates.iter().any(|mate| {
+                (mate.a.section_index, mate.b.section_index) == (1, 2)
+                    && first[mate.a.link_point_index].skin == LinkPointSkinType::Bare
+            }),
+            "the second panel did not mate through the bare end: {mates:?}",
         );
     }
 

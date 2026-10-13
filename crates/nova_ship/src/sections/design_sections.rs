@@ -114,6 +114,7 @@ mod tests {
             id: id.to_string(),
             position: normal * 0.5,
             normal,
+            skin: LinkPointSkinType::Clad,
         })
         .collect()
     }

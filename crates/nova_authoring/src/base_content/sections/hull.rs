@@ -6,9 +6,11 @@
 //! a third of it.
 //!
 //! Two are station structure with sockets on two opposite faces only, so the
-//! derived skin, which clads only socketed faces, leaves them bare: the truss
-//! (sockets on +-Z) runs a spoke or a ring, and the solar panel (sockets on
-//! +-X, a tenth of a cell thick) chains into a wing.
+//! derived skin, which clads only socketed faces, leaves their flanks bare:
+//! the truss (sockets on +-Z) runs a spoke or a ring, and the solar panel
+//! (sockets on +-X, a tenth of a cell thick) chains into a wing. Both sockets
+//! are `Bare` dead ends, so the open end of a spoke or a wing stops clean
+//! instead of wearing a cap plate.
 
 use bevy::prelude::*;
 use nova_ship::prelude::*;
@@ -26,11 +28,16 @@ pub(crate) const SOLAR_PANEL_SECTION_ID: &str = "solar_panel_section";
 const SOLAR_PANEL_THICKNESS: f32 = 0.1;
 
 /// The cube's sockets whose normals lie on `axis`, the only two a station
-/// structure part offers.
+/// structure part offers. Both are dead ends: they mate, but the skin never
+/// clads them.
 fn axis_link_points(size: Vec3, axis: Vec3) -> Vec<LinkPoint> {
     box_link_points(size)
         .into_iter()
         .filter(|point| point.normal.dot(axis).abs() > 0.5)
+        .map(|point| LinkPoint {
+            skin: LinkPointSkinType::Bare,
+            ..point
+        })
         .collect()
 }
 
@@ -179,9 +186,10 @@ mod tests {
     use super::*;
 
     /// The station structure parts offer exactly two sockets on one axis, so
-    /// the skin leaves their other faces bare.
+    /// the skin leaves their other faces bare, and both are dead ends, so the
+    /// skin leaves an open end bare too.
     #[test]
-    fn station_structure_mates_only_along_its_axis() {
+    fn station_structure_mates_only_along_its_axis_through_dead_ends() {
         let catalog = prototypes(&BaseContentAssets::from_paths());
         for (id, axis) in [
             (TRUSS_HULL_SECTION_ID, Vec3::Z),
@@ -198,6 +206,13 @@ mod tests {
                 .map(|point| point.normal)
                 .collect();
             assert_eq!(normals, vec![axis, -axis], "{id}");
+            assert!(
+                part.base
+                    .link_points
+                    .iter()
+                    .all(|point| point.skin == LinkPointSkinType::Bare),
+                "{id} clads an open end",
+            );
         }
     }
 }

@@ -38,6 +38,7 @@ fn mining_beam_link_points() -> Vec<LinkPoint> {
         id: id.to_string(),
         position: normal * 0.5,
         normal,
+        skin: LinkPointSkinType::Clad,
     })
     .collect()
 }

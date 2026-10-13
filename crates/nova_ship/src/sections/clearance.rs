@@ -269,7 +269,10 @@ pub fn placement_blocks_an_exit(ship: &[PlacedPart], part: &PlacedPart) -> bool 
 mod tests {
     use super::*;
     use crate::sections::{
-        link_points::{prelude::LinkPoint, unit_cube_link_points},
+        link_points::{
+            prelude::{LinkPoint, LinkPointSkinType},
+            unit_cube_link_points,
+        },
         shell_skin::derive_skin,
     };
 
@@ -297,6 +300,7 @@ mod tests {
                     id: "base".to_string(),
                     position: Vec3::NEG_Y * 0.5,
                     normal: Vec3::NEG_Y,
+                    skin: LinkPointSkinType::Clad,
                 }]
             }),
             footprint: UVec3::ONE,
