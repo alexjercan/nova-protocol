@@ -737,6 +737,7 @@ impl<G: SectorGenerator> Plugin for NovaWorldPlugin<G> {
         app.init_resource::<FrozenSectors>();
         app.init_resource::<crate::frozen::SettlingBodies>();
         app.init_resource::<crate::streaming::ClearedConfig>();
+        app.add_observer(crate::streaming::rename_dead_generated_station);
         // `ClearedConfig` holds a `Tick` in a plain field, which bevy's
         // periodic tick sweep cannot reach on its own. Without this the
         // recorded tick and the config's own would drift apart on a long

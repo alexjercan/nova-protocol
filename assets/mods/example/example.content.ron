@@ -1567,9 +1567,11 @@
     // Trade, Storage, Jobs, Roster; at least one, each once. `storage_cap_g`
     // is above zero exactly when Storage is listed. `stock` seeds the hull's
     // own hold (four plates here = 400 kg) and `credits` is what it trades
-    // with. The hull takes the same fields a `Ship` design does; this one is
-    // four of this mod's plates, a bridge on top and a collar off the -X
-    // flank, built from base prototypes.
+    // with. The hull takes the same fields a `Ship` design does, and on a
+    // station `integrity: (collapse_threshold: ..)` is required: the share of
+    // the hull pool below which it takes no more damage. This one is four of
+    // this mod's plates, a bridge on top and a collar off the -X flank, built
+    // from base prototypes.
     Station((
         id: "example_outpost",
         name: "Outpost (Example Mod)",
@@ -1613,6 +1615,7 @@
                     source: Prototype(id: "docking_port_section"),
                 ),
             ],
+            integrity: (collapse_threshold: Some(0.5)),
         ),
         services: [Trade, Storage],
         storage_cap_g: 50000,

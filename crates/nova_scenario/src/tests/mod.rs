@@ -2,4 +2,5 @@
 
 mod docked_helm;
 mod names;
+mod station_derelict;
 mod syntax;

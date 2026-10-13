@@ -45,7 +45,8 @@ pub use connection::{
 };
 use connection::{
     on_docking_connection_request, on_docking_helm_request, on_docking_port_removed_release,
-    on_docking_release_request, park_suppressed_docked_helms, release_broken_docking_connections,
+    on_docking_release_request, on_station_derelict_release_helm, park_suppressed_docked_helms,
+    release_broken_docking_connections,
 };
 pub use port::{DockingPair, DockingPorts, PortPose};
 use render::insert_docking_section_render;
@@ -307,6 +308,7 @@ impl Plugin for DockingSectionPlugin {
         app.add_observer(on_docking_release_request);
         app.add_observer(on_docking_helm_request);
         app.add_observer(on_docking_port_removed_release);
+        app.add_observer(on_station_derelict_release_helm);
 
         app.add_systems(
             FixedUpdate,

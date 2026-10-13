@@ -29,9 +29,9 @@ use nova_gameplay::{
 };
 use nova_scenario::prelude::{
     AIControllerConfig, AsteroidConfig, AsteroidMarker, AsteroidPlugin, PlanetConfig, PlanetType,
-    PlayerControllerConfig, SectionSource, ShipDesign, ShipDesignSource, SpaceshipConfig,
-    SpaceshipController, SpaceshipPlugin, SpaceshipSectionConfig, StationConfig, StationDesign,
-    StationServiceType, ASTEROID_GEOMETRIC_FACTOR_MAX, KIND_ROCK,
+    PlayerControllerConfig, SectionSource, ShipDesign, ShipDesignSource, ShipIntegrityConfig,
+    SpaceshipConfig, SpaceshipController, SpaceshipPlugin, SpaceshipSectionConfig, StationConfig,
+    StationDesign, StationServiceType, ASTEROID_GEOMETRIC_FACTOR_MAX, KIND_ROCK,
 };
 use nova_ship::prelude::{
     BaseSectionConfig, GameSections, HullSectionConfig, SectionConfig, SectionKind,
@@ -203,6 +203,9 @@ fn station(id: GeneratedBodyId, position: Meters3, prototype: &str) -> SectorSta
                 rotation: Quat::IDENTITY,
                 source: SectionSource::prototype(prototype),
             }],
+            integrity: ShipIntegrityConfig {
+                collapse_threshold: Some(0.5),
+            },
             ..default()
         },
         services: vec![StationServiceType::Trade],
@@ -221,7 +224,7 @@ fn station(id: GeneratedBodyId, position: Meters3, prototype: &str) -> SectorSta
         },
         spawn: StationConfig {
             design: design.id.clone(),
-            allegiance: Some(Allegiance::Neutral),
+            allegiance: Allegiance::Neutral,
             derelict: false,
             initial_velocity: MetersPerSecond3::ZERO,
         },

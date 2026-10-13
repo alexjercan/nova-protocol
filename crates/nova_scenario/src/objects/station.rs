@@ -6,8 +6,9 @@
 //! [`StationConfig`]. The spawn builds the same root a spaceship gets - the
 //! dock, the trade, the sever and the freeze all query `SpaceshipRootMarker` -
 //! and adds [`StationMarker`] and [`StationStorage`] over it; the marker
-//! brings the design's [`StationServices`] with it. Nothing here inserts a
-//! player or AI marker: a station has no driver.
+//! brings the design's [`StationServices`] with it. A living station is
+//! AI-driven: its turrets aim, defend and answer fire, and with no thruster
+//! the AI never flies it. A dead station has no driver.
 //!
 //! The body is a dynamic thrusterless hull, never `RigidBody::Static`:
 //! gravity pulls it and a ram shoves it. Its Controller section is the whole
@@ -18,9 +19,15 @@
 //! back onto the parked attitude within [`STATION_LEVEL_TOLERANCE_RAD`], and
 //! nothing ever pushes the body back to where it was placed. Thrust stays
 //! zero because only a Thruster section writes thrust and the station lint
-//! refuses one (`lint::station`). Station sections take no damage: the health
-//! store refuses every hit under a [`StationMarker`] root
-//! (`nova_gameplay::integrity::health::on_damage`).
+//! refuses one (`lint::station`).
+//!
+//! Station sections take damage as a ship's do, but a station is never
+//! collapsed or destroyed: the hull's authored `collapse_threshold` is the
+//! floor its structure stops at (`nova_ship`'s `aggregate_ship_health`
+//! floors the root's pool with `HealthFloor`), so it keeps its place and its
+//! hold. A living station that is neutralized - its last turret or its last
+//! flight computer lost - turns into a dead station
+//! ([`on_station_neutralized_turn_derelict`]).
 //!
 //! Where a cluster has a planet its station orbits it: the generator spawns
 //! it with [`station_orbit_velocity`], the circular speed the gravity layer
@@ -30,19 +37,23 @@
 use bevy::prelude::*;
 use nova_events::prelude::MetersPerSecond3;
 use nova_gameplay::prelude::{
-    circular_orbit_speed, Allegiance, DerelictShipMarker, ItemDesignId, ShipInventoryStock,
+    circular_orbit_speed, Allegiance, DerelictShipMarker, ItemDesignId, LootableShipMarker,
+    NeutralizedMarker, RetaliationTarget, SectionInactiveMarker, SectionMarker, ShipInventoryStock,
     UnsettledBody,
 };
 pub use nova_gameplay::prelude::{
     StationDesignId, StationMarker, StationServiceType, StationServices, StationStorage,
 };
-use nova_ship::prelude::ShipCapabilities;
+use nova_ship::prelude::{AISpaceshipMarker, SectionBuildConfig, ShipCapabilities};
 
 use crate::objects::{
     ship_design::prelude::{ShipDesign, ShipDesignSource},
-    spaceship::prelude::{
-        freeze_ship, spaceship_scenario_object, thaw_ship, FrozenShip, SpaceshipConfig,
-        SpaceshipController,
+    spaceship::{
+        derelict_keeps_live,
+        prelude::{
+            freeze_ship, spaceship_scenario_object, thaw_ship, AIControllerConfig, FrozenShip,
+            SpaceshipConfig, SpaceshipController,
+        },
     },
 };
 
@@ -162,10 +173,10 @@ impl GameStationDesigns {
 pub struct StationConfig {
     /// The catalog design, by id.
     pub design: StationDesignId,
-    /// Which side the station belongs to. `None` keeps no side: a station
-    /// is hostile to no one. In strict RON the `Option` keeps its variant:
-    /// `allegiance: Some(Neutral)`.
-    pub allegiance: Option<Allegiance>,
+    /// Which side the station belongs to. An Enemy or Player station fires
+    /// on the sides hostile to it; a Neutral one only answers fire. A dead
+    /// station is Neutral whatever this says.
+    pub allegiance: Allegiance,
     /// A dead station: its systems spawn inactive and a docked ship may Take
     /// from its hold.
     pub derelict: bool,
@@ -175,26 +186,47 @@ pub struct StationConfig {
 }
 
 /// Build the station `design` on `entity` as `config` spawns it: the ship
-/// root with no driver, docking as its one capability, the design's stock
-/// and credits, plus [`StationMarker`] and an empty [`StationStorage`].
+/// root with the design's stock and credits, plus [`StationMarker`] and an
+/// empty [`StationStorage`]. A living station is AI-driven and defends
+/// itself; a dead one has no driver, takes its loot marker and is Neutral.
 ///
 /// A derelict's marker lands before the root marker, so the section spawn
 /// reads it and builds the station's systems inactive.
+///
+/// # Panics
+///
+/// On a design whose hull authors no `integrity.collapse_threshold`: it is
+/// the station's damage floor, and the lint refuses the design first.
 pub fn station_scenario_object(
     entity: &mut EntityCommands,
     design: &StationDesign,
     config: &StationConfig,
 ) {
+    assert!(
+        design.hull.integrity.collapse_threshold.is_some(),
+        "station_scenario_object: station design '{}' authors no hull \
+         integrity.collapse_threshold, its damage floor",
+        design.id
+    );
     if config.derelict {
         entity.insert(DerelictShipMarker);
     }
+    let living = !config.derelict;
     entity.insert((
         spaceship_scenario_object(SpaceshipConfig {
             design: ShipDesignSource::Inline(design.hull.clone()),
-            controller: SpaceshipController::None,
+            controller: if living {
+                station_ai()
+            } else {
+                SpaceshipController::None
+            },
             initial_velocity: config.initial_velocity,
-            allegiance: config.allegiance,
-            capabilities: station_capabilities(),
+            allegiance: Some(if living {
+                config.allegiance
+            } else {
+                Allegiance::Neutral
+            }),
+            capabilities: station_capabilities(living),
             inventory: design.stock.clone(),
             lootable: config.derelict,
             credits: design.credits,
@@ -202,6 +234,59 @@ pub fn station_scenario_object(
         StationMarker(design.id.clone()),
         StationStorage::new(design.storage_cap_g),
     ));
+}
+
+/// The AI a living station is driven by. No leash: the leash measures how far
+/// the hull has moved from its spawn, and an orbiting station moves all the
+/// time without leaving its post.
+fn station_ai() -> SpaceshipController {
+    SpaceshipController::AI(AIControllerConfig {
+        leash: None,
+        ..default()
+    })
+}
+
+/// Turn a living station that has just been neutralized into a dead station:
+/// derelict, lootable, Neutral, with no driver and every section but its
+/// structure and docking ports switched off, as a station spawned dead is.
+/// It keeps its place, its hold and its storage; nothing despawns.
+///
+/// Neutralization is the generic rule (`nova_gameplay::integrity::neutralize`):
+/// an armed station loses its last weapon or its last flight computer, an
+/// unarmed one its last flight computer. A station thawed already dead
+/// carries [`DerelictShipMarker`] before its neutralized marker and is left
+/// alone.
+pub(crate) fn on_station_neutralized_turn_derelict(
+    add: On<Add, NeutralizedMarker>,
+    mut commands: Commands,
+    q_station: Query<(Option<&Children>, &StationMarker), Without<DerelictShipMarker>>,
+    q_section: Query<&SectionBuildConfig, (With<SectionMarker>, Without<SectionInactiveMarker>)>,
+) {
+    let station = add.entity;
+    let Ok((children, marker)) = q_station.get(station) else {
+        return;
+    };
+    info!(
+        "on_station_neutralized_turn_derelict: station {station:?} ({}) is dead",
+        marker.0
+    );
+    for child in children.into_iter().flatten() {
+        if let Ok(config) = q_section.get(*child) {
+            if !derelict_keeps_live(&config.0.kind) {
+                commands.entity(*child).insert(SectionInactiveMarker);
+            }
+        }
+    }
+    commands
+        .entity(station)
+        .remove::<(AISpaceshipMarker, RetaliationTarget)>()
+        .insert((
+            DerelictShipMarker,
+            LootableShipMarker,
+            Allegiance::Neutral,
+            SpaceshipController::None,
+            station_capabilities(false),
+        ));
 }
 
 /// Insert a station root's [`StationServices`] from its design whenever a
@@ -232,16 +317,16 @@ pub(crate) fn insert_station_services(
         .insert(StationServices(design.services.clone()));
 }
 
-/// What a station is permitted to do: receive a dock, and nothing a hull
-/// under way does.
-fn station_capabilities() -> ShipCapabilities {
+/// What a station is permitted to do: receive a dock, defend itself while
+/// it is `living`, and nothing a hull under way does.
+fn station_capabilities(living: bool) -> ShipCapabilities {
     ShipCapabilities {
         stop_enabled: false,
         goto_enabled: false,
         orbit_enabled: false,
         lock_enabled: false,
         rcs_enabled: false,
-        point_defense_enabled: false,
+        point_defense_enabled: living,
         dock_enabled: true,
     }
 }

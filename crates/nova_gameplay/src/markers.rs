@@ -65,13 +65,14 @@ pub struct SpaceshipRootMarker;
 #[require(SpaceshipRootMarker, Allegiance = Allegiance::Player)]
 pub struct PlayerSpaceshipMarker;
 
-/// Marks a ship root that was spawned as a derelict: every section but its
-/// hull and docking ports spawns carrying [`SectionInactiveMarker`].
+/// Marks a derelict ship root: every section but its hull and docking ports
+/// carries [`SectionInactiveMarker`].
 ///
-/// Inserted in the root's spawn bundle, so the section spawn sees it. A
-/// derelict was never in a fight, so neutralization never reads its inactive
-/// weapons or flight computers as a defeat: it keeps its allegiance's marker
-/// and fires no defeat event.
+/// Inserted in the root's spawn bundle, so the section spawn sees it, or on
+/// a living station the instant it is neutralized, which then switches its
+/// live sections off the same way. A spawned derelict was never in a fight,
+/// so neutralization never reads its inactive weapons or flight computers as
+/// a defeat: it keeps its allegiance's marker and fires no defeat event.
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 pub struct DerelictShipMarker;
 
@@ -111,11 +112,11 @@ impl std::fmt::Display for StationDesignId {
 ///
 /// Sits beside [`SpaceshipRootMarker`] on the same root: a station is built
 /// as a ship (sections, dock, hold, freeze) and this is what tells the two
-/// apart. The health store reads it to refuse every hit under it, see
-/// `integrity::health::on_damage`: a station's sections never lose health,
-/// so it is never neutralized and never destroyed. That holds for a living
-/// and a dead (derelict) station alike. Station integrity - a living station
-/// that can be fought into a derelict - is a later rule, not a gap here.
+/// apart. A station takes damage as a ship does, with two differences the
+/// integrity layer keys on this marker: it is never collapsed and destroyed,
+/// it stops taking damage at its floor instead (`HealthFloor`), and a
+/// living one that is neutralized turns into a dead (derelict) station
+/// rather than a drifting wreck.
 #[derive(Component, Clone, Debug, PartialEq, Eq, Reflect)]
 pub struct StationMarker(pub StationDesignId);
 

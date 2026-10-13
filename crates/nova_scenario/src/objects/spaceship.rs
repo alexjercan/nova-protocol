@@ -25,7 +25,10 @@ use crate::{
     names::prelude::Names,
     objects::{
         ship_design::prelude::{resolve_ship_design, GameShipDesigns, ShipDesignSource},
-        station::{insert_station_services, prelude::GameStationDesigns},
+        station::{
+            insert_station_services, on_station_neutralized_turn_derelict,
+            prelude::GameStationDesigns,
+        },
     },
 };
 
@@ -930,7 +933,16 @@ impl Plugin for SpaceshipPlugin {
         app.add_observer(rebuild_design_section);
         app.add_observer(remember_lost_section_binding);
         app.add_observer(insert_station_services);
+        app.add_observer(on_station_neutralized_turn_derelict);
     }
+}
+
+/// Whether a section of `kind` stays live on a derelict: its structure, so it
+/// can be hit and carved, and its docking ports, so it can be docked with.
+/// Every system it could run is inactive. The spawn of a derelict and the
+/// turn of a living station into a dead one both read this.
+pub(crate) fn derelict_keeps_live(kind: &SectionKind) -> bool {
+    matches!(kind, SectionKind::Hull(_) | SectionKind::Docking(_))
 }
 
 /// Spawn one design section under `parent`: its identity and pose, its body
@@ -960,11 +972,12 @@ fn spawn_design_section(
         Transform::from_translation(section.position).with_rotation(section.rotation),
     ));
 
-    // A derelict keeps its structure and its docking ports live, so
-    // it can be hit, carved and docked with; every system it could
-    // run spawns inactive, before any tick can fire or thrust it.
-    let passive = matches!(config.kind, SectionKind::Hull(_) | SectionKind::Docking(_));
-    section_body(&mut section_entity, config, derelict && !passive);
+    // Inactive before any tick can fire or thrust it.
+    section_body(
+        &mut section_entity,
+        config,
+        derelict && !derelict_keeps_live(&config.kind),
+    );
 
     match &config.kind {
         SectionKind::Hull(_)

@@ -20,6 +20,8 @@ use crate::prelude::*;
 /// - the hull has no Docking section (nothing could dock), any Thruster
 ///   section (a station never flies) or no Controller section (nothing holds
 ///   its attitude);
+/// - the hull authors no `integrity.collapse_threshold` in `0..=1`: on a
+///   station it is the floor its structure stops taking damage at;
 /// - `services` is empty;
 /// - `stock` names an item `items` does not hold, or weighs more than the
 ///   hull's hold;
@@ -78,6 +80,21 @@ pub fn lint_station_design(
             source,
             format!("station '{id}': no Controller section; nothing would hold its attitude"),
         ));
+    }
+
+    match design.hull.integrity.collapse_threshold {
+        Some(floor) if (0.0..=1.0).contains(&floor) => {}
+        Some(floor) => issues.push(LintIssue::error(
+            source,
+            format!("station '{id}': integrity collapse_threshold {floor} is outside 0..=1"),
+        )),
+        None => issues.push(LintIssue::error(
+            source,
+            format!(
+                "station '{id}': the hull authors no integrity collapse_threshold; on a \
+                 station it is the damage floor"
+            ),
+        )),
     }
 
     if design.services.is_empty() {
@@ -145,7 +162,7 @@ pub fn lint_station_design(
 mod tests {
     use bevy::prelude::*;
     use nova_gameplay::prelude::{
-        GameItems, ItemCategoryType, ItemDesign, ItemDesignId, ShipInventoryStock,
+        Allegiance, GameItems, ItemCategoryType, ItemDesign, ItemDesignId, ShipInventoryStock,
     };
     use nova_ship::prelude::{
         BaseSectionConfig, ControllerSectionConfig, DockingSectionConfig, HullSectionConfig,
@@ -220,6 +237,9 @@ mod tests {
                     placed("plate_0", PLATE, 2.0),
                     placed("plate_1", PLATE, 3.0),
                 ],
+                integrity: ShipIntegrityConfig {
+                    collapse_threshold: Some(0.5),
+                },
                 ..default()
             },
             services: vec![StationServiceType::Trade, StationServiceType::Storage],
@@ -307,6 +327,27 @@ mod tests {
     }
 
     #[test]
+    fn a_station_with_no_damage_floor_is_refused() {
+        let mut design = sound();
+        design.hull.integrity.collapse_threshold = None;
+        let found = errors(&design);
+        assert!(
+            found
+                .iter()
+                .any(|message| message.contains("no integrity collapse_threshold")),
+            "{found:?}"
+        );
+        design.hull.integrity.collapse_threshold = Some(1.5);
+        let found = errors(&design);
+        assert!(
+            found
+                .iter()
+                .any(|message| message.contains("outside 0..=1")),
+            "{found:?}"
+        );
+    }
+
+    #[test]
     fn a_storage_cap_disagreeing_with_the_storage_service_is_refused() {
         let mut capped = sound();
         capped.services = vec![StationServiceType::Trade];
@@ -354,7 +395,7 @@ mod tests {
                 },
                 kind: ScenarioObjectKind::Station(StationConfig {
                     design: design.into(),
-                    allegiance: None,
+                    allegiance: Allegiance::Neutral,
                     derelict: false,
                     initial_velocity: nova_events::prelude::MetersPerSecond3::ZERO,
                 }),

@@ -965,13 +965,6 @@ pub fn validate_manifest(
         }
         check_ship_design(&station.design.hull)
             .map_err(|value| refuse(&station.id, "design", value))?;
-        if spawn.allegiance.is_none() {
-            return Err(refuse(
-                &station.id,
-                "allegiance",
-                "none; a generated station states its side".to_string(),
-            ));
-        }
         stand_inside(
             input,
             &mut standing,

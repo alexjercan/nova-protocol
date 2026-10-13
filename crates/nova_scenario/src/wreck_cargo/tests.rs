@@ -273,3 +273,42 @@ fn a_section_shot_off_a_standing_ship_drops_its_parts_share_alone() {
     );
     assert_eq!(app.world().resource::<Drops>().0.len(), 1, "no second drop");
 }
+
+/// A section shot off a moving ship leaves canisters that move with the
+/// ship: left at rest, they sit in its path and it rams its own salvage on
+/// the next frame.
+#[test]
+fn a_section_shot_off_a_moving_ship_drops_canisters_that_keep_its_speed() {
+    let mut app = wreck_app();
+    let (_, root, sections) = spawn_ship(&mut app, 4, &[]);
+    let velocity = Vec3::new(0.0, 0.0, 5.0);
+    app.world_mut()
+        .get_mut::<LinearVelocity>(root)
+        .expect("a dynamic root has a velocity")
+        .0 = velocity;
+
+    hit(&mut app, sections[3], 100.0);
+    for _ in 0..10 {
+        app.update();
+    }
+    let drops = &app.world().resource::<Drops>().0;
+    let [(drop, ..)] = &drops[..] else {
+        panic!("one lost section leaves one drop: {drops:?}");
+    };
+    let drop = *drop;
+    drain(&mut app, drop);
+
+    let world = app.world_mut();
+    let velocities: Vec<Vec3> = world
+        .query_filtered::<&LinearVelocity, With<CargoCanister>>()
+        .iter(world)
+        .map(|linear| linear.0)
+        .collect();
+    assert!(!velocities.is_empty(), "the drop let its canisters out");
+    for canister in velocities {
+        assert!(
+            (canister.z - velocity.z).abs() < 0.1,
+            "a canister left at {canister} beside a ship moving at {velocity}"
+        );
+    }
+}

@@ -432,6 +432,38 @@ pub(super) fn on_docking_helm_request(
     );
 }
 
+/// Hand a docked player the helm of a station that has just died.
+///
+/// A living station owns its pair ([`DockedHelmType::Station`]); its flight
+/// computer goes inactive when it turns derelict, so the pair would be held
+/// by nobody. The connection takes the helm a dead station opens with
+/// ([`helm_on_capture`]), as if the player had docked at it dead.
+pub(super) fn on_station_derelict_release_helm(
+    added: On<Add, DerelictShipMarker>,
+    q_station: Query<&DockedShip, With<StationMarker>>,
+    q_player: Query<(), With<PlayerSpaceshipMarker>>,
+    mut q_connections: Query<&mut DockingConnection>,
+) {
+    let station = added.entity;
+    let Ok(docked) = q_station.get(station) else {
+        return;
+    };
+    let Ok(mut connection) = q_connections.get_mut(docked.connection) else {
+        return;
+    };
+    if connection.helm != DockedHelmType::Station(station) {
+        return;
+    }
+    let player = [connection.first_ship, connection.second_ship]
+        .into_iter()
+        .find(|ship| q_player.contains(*ship));
+    connection.helm = helm_on_capture(DockPartnerType::DeadStation, station, player);
+    debug!(
+        "on_station_derelict_release_helm: station {station:?} died, {:?} is now {:?}",
+        docked.connection, connection.helm
+    );
+}
+
 /// Hold every HELD docked root's command on the attitude it actually has.
 ///
 /// A held root's attitude loop is not applied, so a command left where it

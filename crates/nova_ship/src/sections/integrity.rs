@@ -743,6 +743,12 @@ fn recompute_pending_sever_mass(
 /// Restore each new body's rigid point velocity after Avian computes its new
 /// centre of mass, then add a momentum-neutral fracture kick.
 ///
+/// A station in the set is an anchor: it takes the sever as if its mass were
+/// infinite, so it keeps its point velocity and every other piece leaves at
+/// its own kick less the station's. A station is parked and holds its orbit,
+/// and a recoil would put it on a new orbit that its severed pieces cross
+/// again every revolution.
+///
 /// # When a batch does not land
 ///
 /// A batch is DROPPED the moment any body it names is gone. That is not a
@@ -777,6 +783,7 @@ fn apply_pending_sever_motion(
     // `Option` collapsed them into an unbounded wait.
     q_alive: Query<()>,
     q_section: Query<(&Transform, Option<&SectionCollider>, &ChildOf), With<SectionMarker>>,
+    q_station: Query<(), With<StationMarker>>,
 ) {
     let mut waiting = Vec::new();
     for batch in pending.0.drain(..) {
@@ -817,11 +824,17 @@ fn apply_pending_sever_motion(
         // Momentum-neutral: each fragment leaves at the speed its OWN size asks
         // for, and the mass-weighted mean of those kicks comes back off all of
         // them, so a sever moves the halves apart without moving the wreck.
-        let mean_kick = samples
+        let anchor = samples
             .iter()
-            .map(|(_, _, mass, direction, speed)| *direction * (*mass * *speed))
-            .sum::<Vec3>()
-            / total_mass;
+            .find(|(body, ..)| q_station.contains(*body))
+            .map(|(_, _, _, direction, speed)| *direction * *speed);
+        let mean_kick = anchor.unwrap_or_else(|| {
+            samples
+                .iter()
+                .map(|(_, _, mass, direction, speed)| *direction * (*mass * *speed))
+                .sum::<Vec3>()
+                / total_mass
+        });
 
         let mut q_motion = bodies.p1();
         for (body, com_world, _, direction, speed) in samples {
@@ -1028,12 +1041,24 @@ fn aggregate_ship_health(
             Has<HealthZeroMarker>,
             Has<StructuralCollapseMarker>,
             Option<&StructuralCollapseThreshold>,
+            Has<StationMarker>,
+            Option<&HealthFloor>,
         ),
         (With<IntegrityRoot>, With<SpaceshipRootMarker>),
     >,
     q_section_health: Query<&Health, (With<SectionMarker>, Without<IntegrityRoot>)>,
 ) {
-    for (root, root_health, children, already_zero, already_collapsing, threshold) in &q_root {
+    for (
+        root,
+        root_health,
+        children,
+        already_zero,
+        already_collapsing,
+        threshold,
+        station,
+        floor,
+    ) in &q_root
+    {
         let mut current = 0.0;
         let mut living_max = 0.0;
         let mut standing = 0usize;
@@ -1073,7 +1098,21 @@ fn aggregate_ship_health(
         // reads the PREVIOUS frame's write on purpose - a mid-spawn root whose
         // sections have not landed yet is not executed at birth.
         let fraction = threshold.copied().unwrap_or_default().0;
-        if pinned_max > 0.0 && current <= max * fraction {
+        let below = pinned_max > 0.0 && current <= max * fraction;
+        // A station is never collapsed or destroyed: its threshold is the
+        // floor of its pool, which `on_damage` caps every hit against, so it
+        // stays where it is with its hold. Sections it loses above the floor
+        // are ordinary losses.
+        if station {
+            let wanted = HealthFloor(max * fraction);
+            if max > 0.0 && floor != Some(&wanted) {
+                debug!(
+                    "aggregate_ship_health: station {root:?} floors its pool at {} of {max}",
+                    wanted.0
+                );
+                commands.entity(root).try_insert(wanted);
+            }
+        } else if below {
             if standing == 0 {
                 if !already_zero {
                     debug!(
@@ -1325,6 +1364,41 @@ mod tests {
             "the root waits for its sections to go first"
         );
         assert_eq!(root_health(&app, root), (100.0, 1000.0));
+    }
+
+    /// A station's threshold is its floor: the root carries it in hit
+    /// points, and a station under it never collapses and is never marked
+    /// destroyed.
+    #[test]
+    fn a_station_floors_its_pool_and_never_collapses() {
+        let mut app = aggregate_app();
+        let (root, sections) = spawn_ship(&mut app, Some(0.5), &[(400.0, 400.0), (600.0, 600.0)]);
+        app.world_mut()
+            .entity_mut(root)
+            .insert(StationMarker("rig_station".into()));
+        app.update();
+        app.update();
+        assert_eq!(
+            app.world().get::<HealthFloor>(root),
+            Some(&HealthFloor(500.0)),
+            "half of a 1000-point hull"
+        );
+
+        app.world_mut().entity_mut(sections[1]).despawn();
+        app.update();
+        app.update();
+
+        assert!(!collapsing(&app, root), "a station never collapses");
+        assert!(!disabled(&app, sections[0]), "nothing is peeled");
+        assert!(
+            !root_marked_dead(&app, root),
+            "a station is never destroyed"
+        );
+        assert_eq!(
+            app.world().get::<HealthFloor>(root),
+            Some(&HealthFloor(500.0)),
+            "the floor is measured against the hull the station was built with"
+        );
     }
 
     /// ...and a ship still carrying 30 percent of its hull keeps fighting.
@@ -1841,6 +1915,72 @@ mod physics_tests {
         for section in sections.into_iter().skip(1) {
             assert_eq!(app.world().get::<ColliderOf>(section).unwrap().body, root);
         }
+    }
+
+    /// A station anchors a sever: the station keeps the velocity it had and
+    /// the severed piece takes the whole separation, so a cut never puts a
+    /// station on a new orbit.
+    #[test]
+    fn a_station_keeps_its_velocity_when_a_piece_is_severed_off_it() {
+        let mut app = unfinished_integrity_physics_app();
+        app.add_plugins(ShipIntegrityPlugin);
+        app.init_asset::<StandardMaterial>();
+        app.add_plugins(EntropyPlugin::<WyRand>::default());
+        app.finish();
+
+        let old_linear = Vec3::new(5.0, 0.0, 0.0);
+        let root = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                SpaceshipRootMarker,
+                StationMarker("rig_station".into()),
+                LinearVelocity(old_linear),
+                AngularVelocity(Vec3::ZERO),
+            ))
+            .id();
+        let left = spawn_section(&mut app, root, Vec3::ZERO);
+        app.world_mut()
+            .entity_mut(left)
+            .insert(ControllerSectionMarker);
+        let bridge = spawn_section(&mut app, root, Vec3::X);
+        spawn_section(&mut app, root, Vec3::X * 2.0);
+        spawn_section(&mut app, root, Vec3::X * 3.0);
+        settle(&mut app);
+
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: bridge,
+            source: None,
+            amount: 100.0,
+        });
+        app.update();
+        let debris: Vec<_> = app
+            .world_mut()
+            .query_filtered::<Entity, With<DetachedPieceMarker>>()
+            .iter(app.world())
+            .collect();
+        for entity in debris {
+            app.world_mut().entity_mut(entity).despawn();
+        }
+        app.update();
+
+        let fragment = app
+            .world_mut()
+            .query_filtered::<Entity, With<ShipWreckFragmentMarker>>()
+            .single(app.world())
+            .expect("the cut makes one wreck");
+        let station_velocity = **app.world().get::<LinearVelocity>(root).unwrap();
+        let fragment_velocity = **app.world().get::<LinearVelocity>(fragment).unwrap();
+        assert!(
+            (station_velocity - old_linear).length() < 1e-3,
+            "the station recoiled from the sever: {station_velocity:?}, was {old_linear:?}"
+        );
+        let floor = SEVER_MIN_SEPARATION_SPEED.to_engine();
+        assert!(
+            ((fragment_velocity - old_linear).length() - 2.0 * floor).abs() < 0.2,
+            "the piece takes both floor kicks: {fragment_velocity:?}"
+        );
     }
 
     #[test]

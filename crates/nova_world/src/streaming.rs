@@ -28,7 +28,7 @@ use nova_gameplay::prelude::{
 use nova_scenario::prelude::{
     asteroid_scenario_object_prepared, base_scenario_object, planet_scenario_object_prepared,
     resolve_ship_design, spaceship_scenario_object, station_scenario_object,
-    BaseScenarioObjectConfig, GameShipDesigns, PlanetMarker, ShipDesignSource,
+    BaseScenarioObjectConfig, GameShipDesigns, PlanetMarker, ShipDesignSource, StationMarker,
 };
 use nova_ship::prelude::GameSections;
 
@@ -371,11 +371,7 @@ fn spawn_sector_station(commands: &mut Commands, root: Entity, station: SectorSt
         design,
         spawn,
     } = station;
-    let name = if spawn.derelict {
-        format!("{} dead station", civilization.name())
-    } else {
-        format!("{} station", civilization.name())
-    };
+    let name = generated_station_name(&civilization.name(), spawn.derelict);
     let mut entity = commands.spawn((
         base_scenario_object(&BaseScenarioObjectConfig {
             id: id.to_string(),
@@ -387,6 +383,52 @@ fn spawn_sector_station(commands: &mut Commands, root: Entity, station: SectorSt
         ChildOf(root),
     ));
     station_scenario_object(&mut entity, &design, &spawn);
+}
+
+/// The name a generated station of the civilization named `civilization`
+/// carries, living or `dead`.
+fn generated_station_name(civilization: &str, dead: bool) -> String {
+    if dead {
+        format!("{civilization} {DEAD_STATION_SUFFIX}")
+    } else {
+        format!("{civilization} {LIVING_STATION_SUFFIX}")
+    }
+}
+
+const LIVING_STATION_SUFFIX: &str = "station";
+const DEAD_STATION_SUFFIX: &str = "dead station";
+
+/// The name a generated station named `name` carries once it is dead: `None`
+/// when it already carries a dead station's name.
+///
+/// # Panics
+///
+/// On a name [`generated_station_name`] did not write: a generated station is
+/// named only there, so another name is a station this module did not spawn.
+fn dead_station_name(name: &str) -> Option<String> {
+    if name.ends_with(&format!(" {DEAD_STATION_SUFFIX}")) {
+        return None;
+    }
+    let Some(civilization) = name.strip_suffix(&format!(" {LIVING_STATION_SUFFIX}")) else {
+        panic!("nova_world: generated station '{name}' does not carry a generated station name");
+    };
+    Some(generated_station_name(civilization, true))
+}
+
+/// Rename a generated station that has just died, as one generated dead is
+/// named, so the chart and the target readout name what it is now. A
+/// station spawned or thawed dead already carries that name. An authored
+/// scenario station has no [`GeneratedBodyId`] and keeps its author's name.
+pub(crate) fn rename_dead_generated_station(
+    add: On<Add, DerelictShipMarker>,
+    mut q_station: Query<&mut Name, (With<StationMarker>, With<GeneratedBodyId>)>,
+) {
+    let Ok(mut name) = q_station.get_mut(add.entity) else {
+        return;
+    };
+    if let Some(dead) = dead_station_name(name.as_str()) {
+        name.set(dead);
+    }
 }
 
 /// Spawn one generated ship under `root`, where and as its manifest entry
@@ -1140,5 +1182,27 @@ pub fn clear_sector_work<G: SectorGenerator>(
         for entity in &loose {
             commands.entity(entity).try_despawn();
         }
+    }
+}
+
+#[cfg(test)]
+mod station_name_tests {
+    use super::*;
+
+    /// A generated living station's name turns into the dead one's, a dead
+    /// name stays, and a name the generator never writes is refused.
+    #[test]
+    fn a_dead_generated_station_takes_the_dead_station_name() {
+        let living = generated_station_name("Vessa", false);
+        assert_eq!(living, "Vessa station");
+        assert_eq!(
+            dead_station_name(&living).as_deref(),
+            Some("Vessa dead station")
+        );
+        assert_eq!(
+            dead_station_name(&generated_station_name("Vessa", true)),
+            None
+        );
+        assert!(std::panic::catch_unwind(|| dead_station_name("Outpost 9")).is_err());
     }
 }

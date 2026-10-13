@@ -1432,3 +1432,82 @@ fn a_station_dock_opens_on_the_station_helm_rule() {
         "a dead station's helm is an ordinary held helm: HELM hands it back"
     );
 }
+
+/// A living station that dies with the player docked hands the player the
+/// helm, as a dock made at a dead station would.
+#[test]
+fn a_station_that_dies_while_docked_hands_the_player_the_helm() {
+    let mut app = docking_app();
+    let (player, _, station, _) = facing_pair(&mut app, NOMINAL_GAP);
+    app.world_mut()
+        .entity_mut(player)
+        .insert(PlayerSpaceshipMarker);
+    app.world_mut()
+        .entity_mut(station)
+        .insert((StationMarker("waystation".into()), Allegiance::Neutral));
+    request_dock(&mut app, player, station);
+    assert_eq!(
+        connections(&mut app)[0].helm,
+        DockedHelmType::Station(station)
+    );
+
+    app.world_mut()
+        .entity_mut(station)
+        .insert(DerelictShipMarker);
+    app.update();
+
+    assert_eq!(
+        connections(&mut app)[0].helm,
+        DockedHelmType::Held(player),
+        "the dead station's pair is the player's to fly"
+    );
+    assert!(
+        app.world().get::<DockedShip>(player).unwrap().drives,
+        "the player drives the pair"
+    );
+    assert_eq!(joints(&mut app), 1, "the dock holds");
+}
+
+/// The station's port destroyed, or switched off, under a docked player
+/// releases the dock and frees the player's port.
+#[test]
+fn losing_the_station_port_while_docked_releases_the_dock() {
+    for destroyed in [true, false] {
+        let mut app = docking_app();
+        let (player, player_port, station, station_port) = facing_pair(&mut app, NOMINAL_GAP);
+        app.world_mut()
+            .entity_mut(player)
+            .insert(PlayerSpaceshipMarker);
+        app.world_mut()
+            .entity_mut(station)
+            .insert((StationMarker("waystation".into()), Allegiance::Neutral));
+        request_dock(&mut app, player, station);
+        assert_eq!(connections(&mut app).len(), 1);
+
+        if destroyed {
+            app.world_mut().entity_mut(station_port).despawn();
+        } else {
+            app.world_mut()
+                .entity_mut(station_port)
+                .insert(SectionInactiveMarker);
+            app.world_mut()
+                .run_system_once(release_broken_docking_connections)
+                .expect("the liveness pass runs");
+        }
+        app.update();
+
+        assert!(
+            connections(&mut app).is_empty(),
+            "destroyed {destroyed}: the connection is gone"
+        );
+        assert_eq!(joints(&mut app), 0, "and the joint with it");
+        assert!(
+            app.world().get::<DockedShip>(player).is_none(),
+            "the player flies free"
+        );
+        assert!(
+            app.world().get::<DockedPort>(player_port).is_none(),
+            "the player's port is free"
+        );
+    }
+}

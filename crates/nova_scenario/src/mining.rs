@@ -291,6 +291,17 @@ struct MiningPulseClock(f32);
 #[derive(Component, Clone, Copy, Debug)]
 pub struct MinedOreDrop;
 
+/// The velocity the body a drop came from had at the drop's point when it
+/// died, which every canister born off the drop inherits.
+///
+/// A drop stays where the body died, under its sector, but a wreck-cargo drop
+/// from a section of a moving hull that lives on must not leave its canisters
+/// at rest in that hull's path: the hull would ram them on the next frame.
+/// Runtime only: a frozen drop thaws far from the hull and lets its canisters
+/// out at rest.
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+pub(crate) struct MinedDropDrift(pub(crate) Vec3);
+
 /// A drop holding `queue`: its name, marker, scope and queue. The caller adds
 /// its pose and the `ChildOf` of the sector it belongs to.
 pub(crate) fn ore_drop(queue: MinedCanisterQueue) -> impl Bundle {
@@ -1021,6 +1032,7 @@ fn eject_mined_canisters(
         &GlobalTransform,
         Has<MinedOreDrop>,
         Option<&ChildOf>,
+        Option<&MinedDropDrift>,
     )>,
     q_motion: Query<(&GlobalTransform, &LinearVelocity, &AngularVelocity)>,
     q_canisters: Query<&GlobalTransform, With<CargoCanister>>,
@@ -1029,7 +1041,7 @@ fn eject_mined_canisters(
     let size = CARGO_CANISTER_SIZE;
     let shape = Collider::cuboid(size.x, size.y, size.z);
     let mut born: Vec<Vec3> = Vec::new();
-    for (owner, mut queue, frame, drop, child_of) in &mut q_queues {
+    for (owner, mut queue, frame, drop, child_of, drift) in &mut q_queues {
         let front = queue
             .waiting
             .front()
@@ -1058,7 +1070,7 @@ fn eject_mined_canisters(
                         rigid_body_point_velocity(linear.0, angular.0, pose.translation(), birth)
                     })
             }
-            _ => Vec3::ZERO,
+            _ => drift.map_or(Vec3::ZERO, |drift| drift.0),
         };
         let MinedCanister { canister, .. } =
             queue.waiting.pop_front().expect("the front was read above");

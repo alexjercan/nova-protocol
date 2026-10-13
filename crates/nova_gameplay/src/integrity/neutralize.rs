@@ -6,7 +6,9 @@
 //! the armed rule (a disarmed ship that can still run is beaten, not
 //! fighting). An UNARMED ship (of any allegiance) is instead neutralized when
 //! it loses the last working thruster it ever had - a hull that never had a
-//! thruster is never neutralized by this rule, only destroyed. Unlike
+//! thruster is never neutralized by this rule, only destroyed. An unarmed
+//! STATION is the exception: it never had a thruster, and losing the last
+//! flight computer it had neutralizes it, as it does an armed hull. Unlike
 //! destruction (see [`explode`] and [`glue`]), a neutralized ship is NOT
 //! despawned - it lingers as a powerless drifting wreck. This module inserts
 //! [`NeutralizedMarker`], switches an AI [`NeutralizedMarker`] and fires the
@@ -31,7 +33,8 @@ use nova_events::prelude::{CommandsGameEventExt, *};
 use super::core::prelude::*;
 use crate::prelude::{
     ControllerSectionMarker, DerelictShipMarker, RailgunSectionMarker, SectionInactiveMarker,
-    SpaceshipRootMarker, ThrusterSectionMarker, TorpedoSectionMarker, TurretSectionMarker,
+    SpaceshipRootMarker, StationMarker, ThrusterSectionMarker, TorpedoSectionMarker,
+    TurretSectionMarker,
 };
 
 /// Defeat and neutralization state markers.
@@ -112,7 +115,8 @@ impl Plugin for NeutralizePlugin {
 /// computer the ship once had - neutralizes it; thrusters play no part here.
 /// An unarmed ship root (one that never carried a weapon): losing the last
 /// working thruster it once had (`HadThruster`) neutralizes it instead; a
-/// hull that never had a thruster is never neutralized by this rule. A
+/// hull that never had a thruster is never neutralized by this rule, unless
+/// it is a station, which the lost computer it once had neutralizes. A
 /// [`DerelictShipMarker`] root is skipped: its sections spawned inactive, and
 /// a wreck was never in the fight.
 fn detect_neutralized(
@@ -126,6 +130,7 @@ fn detect_neutralized(
             Has<WasArmedCombatant>,
             Has<HadFlightComputer>,
             Has<HadThruster>,
+            Has<StationMarker>,
         ),
         (
             With<SpaceshipRootMarker>,
@@ -149,7 +154,7 @@ fn detect_neutralized(
     q_controller: Query<Has<SectionInactiveMarker>, With<ControllerSectionMarker>>,
     q_thruster: Query<Has<SectionInactiveMarker>, With<ThrusterSectionMarker>>,
 ) {
-    for (root, children, id, type_name, was_armed, had_computer, had_thruster) in &q_root {
+    for (root, children, id, type_name, was_armed, had_computer, had_thruster, station) in &q_root {
         let mut has_weapon_section = false;
         let mut working_weapon = false;
         let mut has_controller_section = false;
@@ -197,7 +202,12 @@ fn detect_neutralized(
             // a thruster seen inactive for the first time this frame does not
             // neutralize until the next frame - the same same-frame spawn
             // guard the computer stamp gives the armed rule.
-            if had_thruster && !working_thruster {
+            // A station has no thruster to lose, and its flight computer is
+            // what keeps it a living station, so the lost computer stands in
+            // for the lost drive.
+            let stranded = had_thruster && !working_thruster;
+            let station_brain_dead = station && had_computer && !working_controller;
+            if stranded || station_brain_dead {
                 neutralize(&mut commands, root, id, type_name);
             }
             continue;
@@ -557,6 +567,41 @@ mod tests {
         assert!(
             fired(&app).is_empty(),
             "no defeat event for an unarmed ship"
+        );
+    }
+
+    /// An unarmed station never had a thruster, so the brain-death half
+    /// neutralizes it: losing the last flight computer it had takes it out,
+    /// while an unarmed hull that is not a station keeps going.
+    #[test]
+    fn an_unarmed_station_losing_its_last_computer_is_neutralized() {
+        let mut app = neutralize_app();
+        let (station, _weapons, _thrusters, station_controllers, _hull) =
+            spawn_ship(&mut app, 0, 0, 2);
+        app.world_mut()
+            .entity_mut(station)
+            .insert(StationMarker("rig_station".into()));
+        let (hull, _weapons, _thrusters, hull_controllers, _plate) = spawn_ship(&mut app, 0, 0, 1);
+        app.update();
+
+        disable(&mut app, station_controllers[0]);
+        app.update();
+        assert!(
+            !is_neutralized(&app, station),
+            "a spare computer keeps the station running"
+        );
+
+        disable(&mut app, station_controllers[1]);
+        disable(&mut app, hull_controllers[0]);
+        app.update();
+        app.update();
+        assert!(
+            is_neutralized(&app, station),
+            "the station lost its last computer"
+        );
+        assert!(
+            !is_neutralized(&app, hull),
+            "an unarmed hull with no thruster is not a station"
         );
     }
 

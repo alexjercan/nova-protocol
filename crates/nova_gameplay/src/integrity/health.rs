@@ -14,17 +14,19 @@
 //!
 //! [`HealthIsolated`] opts a node out of that bubbling entirely, for pools that
 //! stand IN FRONT of the thing they hang off rather than being part of it.
+//!
+//! [`HealthFloor`] on a root caps every hit under it at what the root's pool
+//! holds above the floor: a hull that has lost all the structure it may lose
+//! takes no more, however many hits land in one frame.
 
 use bevy::prelude::*;
 
-use crate::markers::prelude::StationMarker;
-
-/// `Health` with its damage message and zero marker, the `destructible_body` bundle and
-/// `NovaHealthPlugin`.
+/// `Health` with its damage message, zero and floor markers, the
+/// `destructible_body` bundle and `NovaHealthPlugin`.
 pub mod prelude {
     pub use super::{
-        destructible_body, Health, HealthApplyDamage, HealthIsolated, HealthZeroMarker,
-        NovaHealthPlugin,
+        destructible_body, Health, HealthApplyDamage, HealthFloor, HealthIsolated,
+        HealthZeroMarker, NovaHealthPlugin,
     };
 }
 
@@ -70,6 +72,20 @@ pub struct HealthZeroMarker;
 #[reflect(Component)]
 pub struct HealthIsolated;
 
+/// The hit points a root's pool never goes under: a hit on the root or on
+/// anything under it spends at most what the root holds above this floor.
+///
+/// The integrity layer inserts it on a hull that must never be taken apart
+/// whole - a station, at its authored share of its pool - so the hull keeps
+/// what it has left and is never destroyed. Every weapon, a blast, a ram and a
+/// scripted hit meet the one check in `on_damage`, and the check reads the
+/// root's live pool, so a blast that strikes every section in one frame is
+/// capped as surely as a single round. The floor is derived from the hull
+/// each frame and never saved.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Reflect)]
+#[reflect(Component)]
+pub struct HealthFloor(pub f32);
+
 /// Spend `amount` hit points on `entity`.
 ///
 /// `amount` is the FINAL number: the weapon decided it (see
@@ -101,6 +117,7 @@ impl Plugin for NovaHealthPlugin {
         app.register_type::<Health>();
         app.register_type::<HealthZeroMarker>();
         app.register_type::<HealthIsolated>();
+        app.register_type::<HealthFloor>();
         app.add_observer(on_damage);
     }
 }
@@ -120,13 +137,13 @@ impl Plugin for NovaHealthPlugin {
 /// had anything left to give - a spent plate is still a plate in the way, and
 /// the round behind it is what carries damage inward, not the event.
 ///
-/// A node under a [`StationMarker`] root spends nothing and stops the walk:
-/// station sections are invulnerable. This is the one gate, so every weapon,
-/// a blast, a ram, a scripted `destroy` and a test rig all meet it, and it
-/// sits before the pool lookup so a chunk or plate with no pool of its own
-/// cannot bubble a hit up to a section that has one. Every destruction path
-/// starts at the [`HealthZeroMarker`] this observer inserts, so a station
-/// that never reaches zero is never disabled, neutralized or destroyed.
+/// A hit on a node under a [`HealthFloor`] root is capped at what the root's
+/// pool holds above the floor, and a root at its floor spends nothing and
+/// stops the walk. The check sits before the pool lookup so a chunk or plate
+/// with no pool of its own cannot bubble a hit up to a section that has one.
+/// The root's pool is charged as the hit bubbles up, so every later hit in
+/// the same frame reads what is left. A floored root with no pool of its own
+/// has nothing to measure the floor against, so it refuses every hit.
 fn on_damage(
     mut damage: On<HealthApplyDamage>,
     mut commands: Commands,
@@ -137,19 +154,25 @@ fn on_damage(
         Has<HealthIsolated>,
     )>,
     q_parent: Query<&ChildOf>,
-    q_station: Query<(), With<StationMarker>>,
+    q_floor: Query<&HealthFloor>,
 ) {
     let target = damage.entity;
     trace!("on_damage: target {:?}, damage {:?}", target, damage.amount);
 
-    if under_station(target, &q_parent, &q_station) {
-        trace!(
-            "on_damage: entity {:?} is part of a station, spending nothing",
-            target
-        );
-        damage.propagate(false);
-        damage.amount = 0.0;
-        return;
+    if let Some((root, floor)) = floored_root(target, &q_parent, &q_floor) {
+        let above = q_health
+            .get(root)
+            .map_or(0.0, |(_, health, _, _)| health.current - floor.0);
+        if above <= 0.0 {
+            trace!(
+                "on_damage: entity {:?} is under a root at its floor, spending nothing",
+                target
+            );
+            damage.propagate(false);
+            damage.amount = 0.0;
+            return;
+        }
+        damage.amount = damage.amount.min(above);
     }
 
     let Ok((entity, mut health, destroyed, isolated)) = q_health.get_mut(target) else {
@@ -176,25 +199,25 @@ fn on_damage(
     }
 }
 
-/// Whether `entity` is a station root or hangs under one: the gate
-/// [`on_damage`] refuses a hit on.
+/// The [`HealthFloor`] root `entity` is or hangs under, with its floor: the
+/// pool [`on_damage`] caps a hit against.
 ///
 /// Walks `ChildOf` to the top because a hit lands on whatever collider was
-/// struck - a section, a plate under it, a carved chunk - and the marker sits
+/// struck - a section, a plate under it, a carved chunk - and the floor sits
 /// on the root alone.
-fn under_station(
+fn floored_root(
     entity: Entity,
     q_parent: &Query<&ChildOf>,
-    q_station: &Query<(), With<StationMarker>>,
-) -> bool {
+    q_floor: &Query<&HealthFloor>,
+) -> Option<(Entity, HealthFloor)> {
     let mut node = entity;
     loop {
-        if q_station.contains(node) {
-            return true;
+        if let Ok(floor) = q_floor.get(node) {
+            return Some((node, *floor));
         }
         match q_parent.get(node) {
             Ok(ChildOf(parent)) => node = *parent,
-            Err(_) => return false,
+            Err(_) => return None,
         }
     }
 }
@@ -253,32 +276,29 @@ mod tests {
         );
     }
 
-    /// Station sections are invulnerable: a hit anywhere under a station root
-    /// spends nothing, at the struck node or above it, and marks nothing at
-    /// zero. The plate case is the one that matters: a plate has no station
-    /// marker of its own, so the gate has to find the root through two links.
+    /// A floor caps every hit at what the root holds above it, then refuses
+    /// the rest: the first hit lands only down to the floor, and later hits in
+    /// the same frame - on the plate, the section or the root - spend nothing
+    /// and mark nothing at zero. The plate case is the one that matters: a
+    /// plate carries no floor of its own, so the check has to find the root
+    /// through two links.
     #[test]
-    fn a_hit_under_a_station_root_leaves_every_pool_whole() {
-        use crate::markers::prelude::StationDesignId;
-
+    fn a_floor_caps_hits_in_one_frame_at_the_root_pool_above_it() {
         let mut app = health_app();
-        let station = app
+        let root = app
             .world_mut()
-            .spawn((
-                StationMarker(StationDesignId::from("test_station")),
-                Health::new(200.0),
-            ))
+            .spawn((Health::new(200.0), HealthFloor(150.0)))
             .id();
         let section = app
             .world_mut()
-            .spawn((Health::new(100.0), ChildOf(station)))
+            .spawn((Health::new(100.0), ChildOf(root)))
             .id();
         let plate = app
             .world_mut()
-            .spawn((Health::new(50.0), ChildOf(section)))
+            .spawn((Health::new(80.0), ChildOf(section)))
             .id();
 
-        for target in [plate, section, station] {
+        for target in [plate, plate, section, root] {
             app.world_mut().trigger(HealthApplyDamage {
                 entity: target,
                 source: None,
@@ -287,15 +307,15 @@ mod tests {
         }
         app.world_mut().flush();
 
-        for (node, full) in [(plate, 50.0), (section, 100.0), (station, 200.0)] {
+        for (node, left) in [(plate, 30.0), (section, 50.0), (root, 150.0)] {
             assert_eq!(
                 app.world().get::<Health>(node).unwrap().current,
-                full,
-                "a station node lost health to a hit"
+                left,
+                "the hits took the root past its floor"
             );
             assert!(
                 app.world().get::<HealthZeroMarker>(node).is_none(),
-                "a station node was marked at zero"
+                "a node under a floored root was marked at zero"
             );
         }
     }

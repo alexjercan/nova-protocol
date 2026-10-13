@@ -103,6 +103,9 @@ pub struct ShipIntegrityConfig {
     /// takes more killing than a fighter; `Some(0.0)` is "strip every last
     /// section". In strict RON the `Option` keeps its variant:
     /// `collapse_threshold: Some(0.1)`.
+    ///
+    /// On a station hull it is required, and it is the floor instead: below
+    /// it the station takes no more damage, and it is never destroyed.
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub collapse_threshold: Option<f32>,
 }

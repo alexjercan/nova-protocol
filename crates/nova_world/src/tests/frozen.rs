@@ -21,9 +21,9 @@ use nova_gameplay::{
 };
 use nova_scenario::prelude::{
     freeze_ship, AsteroidCarvePlugin, AsteroidField, AsteroidMarker, AsteroidPlugin,
-    MinedCanisterQueue, MinedOreDrop, MiningPlugin, SectionSource, ShipDesign, ShipDesignSource,
-    SpaceshipController, SpaceshipDesign, SpaceshipPlugin, SpaceshipSectionConfig, StationMarker,
-    StationStorage, WreckCargoPlugin,
+    GameStationDesigns, MinedCanisterQueue, MinedOreDrop, MiningPlugin, SectionSource, ShipDesign,
+    ShipDesignSource, SpaceshipController, SpaceshipDesign, SpaceshipPlugin,
+    SpaceshipSectionConfig, StationMarker, StationStorage, WreckCargoPlugin,
 };
 use nova_ship::prelude::{
     cargo_canister, docking_section, thruster_section, AINonCombatant, BaseSectionConfig,
@@ -944,6 +944,13 @@ fn station_home(input: SectorGenerationInput) -> SectorManifest {
 #[test]
 fn a_generated_station_retires_and_thaws_with_its_cell() {
     let mut app = ship_app();
+    let design = station(
+        sector_id(SectorCoord::ORIGIN, "cluster_a_station", 0),
+        Meters3::ZERO,
+        TEST_HULL_SECTION_ID,
+    )
+    .design;
+    app.insert_resource(GameStationDesigns(vec![design]));
     let home = SectorCoord::ORIGIN;
     let config = answering(station_home);
     let edge = config.sector_edge;

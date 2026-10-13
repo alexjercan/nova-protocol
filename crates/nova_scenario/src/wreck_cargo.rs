@@ -23,17 +23,21 @@
 //! at a time, each born off the drop while the birth point is clear and
 //! drifting away from it. A section's canisters leave along the line from its
 //! ship's centre through the section; a ship root's leave along the root's up.
-//! A drop does not move with the ship it came from. Each canister takes its id
+//! A drop does not move with the ship it came from, but a section's drop off
+//! a hull that lives on carries the hull's velocity at that point
+//! ([`MinedDropDrift`]) and hands it to every canister, so a moving hull does
+//! not ram its own salvage. Each canister takes its id
 //! from `CargoCanisterIdAllocator` at birth, so a waiting drop and a born
 //! canister both freeze, thaw and save like mined ore.
 
 use std::collections::{BTreeMap, HashMap};
 
+use avian3d::prelude::{AngularVelocity, LinearVelocity};
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 
-use crate::mining::{ore_drop, MinedCanisterQueue};
+use crate::mining::{ore_drop, MinedCanisterQueue, MinedDropDrift};
 
 /// `WreckCargoPlugin`.
 pub mod prelude {
@@ -66,6 +70,7 @@ fn drop_wreck_cargo(
         Option<&ChildOf>,
         Has<StructuralCollapseMarker>,
     )>,
+    q_motion: Query<(&LinearVelocity, &AngularVelocity)>,
     items: Option<Res<GameItems>>,
 ) {
     let entity = add.entity;
@@ -74,12 +79,12 @@ fn drop_wreck_cargo(
     };
     let parent = child_of.map(ChildOf::parent);
     let up = frame.rotation() * Vec3::Y;
-    let (stacks, owner, normal) = if let Some(hold) = hold {
+    let (stacks, owner, normal, drift) = if let Some(hold) = hold {
         let mut stacks = salvage.0.remove(&entity).unwrap_or_default();
         for (item, count) in hold.stacks() {
             *stacks.entry(item.clone()).or_default() += count;
         }
-        (stacks, parent, up)
+        (stacks, parent, up, None)
     } else if let Some(SectionBuildConfig(config)) = build {
         let parts = config
             .base
@@ -94,12 +99,25 @@ fn drop_wreck_cargo(
                 }
                 return;
             }
-            Some((_, (root_frame, root_parent, false))) => {
+            Some((root, (root_frame, root_parent, false))) => {
                 let outward = Dir3::new(frame.translation() - root_frame.translation())
                     .map_or(root_frame.rotation() * Vec3::Y, Vec3::from);
-                (parts.collect(), root_parent.map(ChildOf::parent), outward)
+                let drift = q_motion.get(root).ok().map(|(linear, angular)| {
+                    MinedDropDrift(rigid_body_point_velocity(
+                        linear.0,
+                        angular.0,
+                        root_frame.translation(),
+                        frame.translation(),
+                    ))
+                });
+                (
+                    parts.collect(),
+                    root_parent.map(ChildOf::parent),
+                    outward,
+                    drift,
+                )
             }
-            None => (parts.collect(), parent, up),
+            None => (parts.collect(), parent, up, None),
         }
     } else {
         return;
@@ -124,10 +142,13 @@ fn drop_wreck_cargo(
         stacks.len(),
         frame.translation()
     );
-    match owner {
+    let mut drop = match owner {
         Some(owner) => commands.spawn((ore_drop(queue), local, pose, ChildOf(owner))),
         None => commands.spawn((ore_drop(queue), local, pose)),
     };
+    if let Some(drift) = drift {
+        drop.insert(drift);
+    }
 }
 
 /// Forget the salvage of a root that is gone without being destroyed.
