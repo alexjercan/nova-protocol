@@ -658,6 +658,15 @@ name = "system_station_storage"
 path = "examples/systems/system_station_storage.rs"
 required-features = ["debug"]
 
+# The stations epic end to end on a generated New Game: a section lost and
+# rebuilt at a living generated station from the Ship pane, the station's cell
+# retired and thawed, and the station and the rebuilt section read back from
+# the leave save and from a Load.
+[[example]]
+name = "system_station_round_trip"
+path = "examples/systems/system_station_round_trip.rs"
+required-features = ["debug"]
+
 # The player's chart of a streamed world: three entered cells and a docked
 # station's summary recorded, the station read by its code in the Map's chart
 # view, and the chart read back from the leave save and from a Load.
