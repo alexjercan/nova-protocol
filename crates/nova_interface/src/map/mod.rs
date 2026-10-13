@@ -17,15 +17,22 @@
 //! [`FlightPrediction`](nova_ship::prelude::FlightPrediction) path from the
 //! player blip while one exists, and the panel names the destination.
 //!
+//! `map_chart` or the Chart button swaps the local scene for the chart view
+//! while a streamed world runs: the player's [`Chart`] of visited cells,
+//! found stations and found wrecks at cell scale. Selecting a station there
+//! shows what the player saw on the last dock, or no stock if never docked.
+//!
 //! # Module layout
 //!
 //! | Module | Concern |
 //! | --- | --- |
 //! | `contacts` | The shared contact model. |
 //! | `app` | The pane's components and runtime state. |
+//! | `chart` | The chart view of the player's visited cells and finds. |
 //! | `scene` | The schematic 3D scene, its camera and the projected blips. |
 
 mod app;
+mod chart;
 mod contacts;
 mod scene;
 
@@ -34,9 +41,10 @@ mod tests;
 
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
+use nova_gameplay::prelude::Chart;
 
 pub use self::contacts::{MapContactCode, MapContactKind, MapContacts};
-pub(crate) use self::{app::*, contacts::*, scene::*};
+pub(crate) use self::{app::*, chart::*, contacts::*, scene::*};
 
 /// Glob-import surface: `use nova_interface::map::prelude::*`.
 pub mod prelude {
@@ -137,6 +145,8 @@ pub(crate) struct MapPanePlugin;
 impl Plugin for MapPanePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MapRuntime>();
+        // The open world feeds the chart; a scene without one reads it empty.
+        app.init_resource::<Chart>();
         // Scene lifecycle runs unconditionally so it can tear down when the
         // interface closes; the interactive systems gate on the Map pane owning
         // the interface.
@@ -146,10 +156,13 @@ impl Plugin for MapPanePlugin {
                 assign_map_contact_codes,
                 manage_map_scene,
                 reconcile_map_target,
+                toggle_map_chart,
                 map_input,
                 map_focus_follow,
+                manage_map_chart,
                 drive_map_camera,
                 project_map_blips,
+                project_map_chart_labels,
                 project_map_route,
                 refresh_map_legend,
                 update_map_panel,

@@ -64,7 +64,9 @@ The interface and the command shell share one freeze. Opening `:` over a pane, a
      tag: scene.rs `project_map_route`. Footer and its live key hints:
      crates/nova_interface/src/pane.rs (`pane_footer`,
      `refresh_pane_input_hints`). Icons: crates/nova_interface/src/icons.rs.
-     Keys: crates/nova_interface/src/bindings.rs. -->
+     Keys: crates/nova_interface/src/bindings.rs. Chart view:
+     crates/nova_interface/src/map/chart.rs; what feeds the chart:
+     crates/nova_world_base/src/chart.rs (`Chart` in nova_gameplay). -->
 
 The Map pane is a schematic 3D chart of local space: distance rings, a hub, and every contact as an icon - a chevron for a ship, a lump for an asteroid, a ringed disc for a planet, a diamond for an objective - tinted by what it is to you. Click one, or step through them with <kbd>[</kbd> / <kbd>]</kbd>, and the contact panel beside the chart gives its code, name and kind, then its range and bearing. Under them, the panel names your live GOTO destination over a **GOTO** button. An unselected contact has a faint frame; the selected one has a bright frame and always shows its label. The footer under the chart holds the legend of the icons on the chart now and **Reframe** with the keys the pane answers to. The key hints follow your bindings.
 
@@ -85,6 +87,9 @@ The Map pane is a schematic 3D chart of local space: distance rings, a hub, and 
 | <kbd>[</kbd> / <kbd>]</kbd> | bumpers | Select the previous or next contact. |
 | <kbd>G</kbd>, or click **GOTO** | <kbd>A</kbd> | **GOTO**: engage the autopilot toward the selected contact and travel-lock it. |
 | <kbd>T</kbd>, or click **Reframe** | left stick click | Reset the view. |
+| <kbd>C</kbd>, or click **Chart** | - | Switch between the local view and the chart view. |
+
+In a generated world, the chart view draws your chart at sector scale: a grid of sectors around yours, each sector you entered filled in the colour of its cluster type, and the stations and wrecks your sensors found. A label shows only a code: `STN-1` for a station, `WRK-1` for a wreck, numbered in the order you found them. Click a station to read what you saw at your last dock there: its name, services, trade stock and what you stored. A station you never docked at shows `Not docked: no stock seen.` A scene with no generated world has no chart.
 
 <details class="explain">
 <summary>Show explanation</summary>

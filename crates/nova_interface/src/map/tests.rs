@@ -224,6 +224,7 @@ fn map_scene_lives_while_the_map_pane_is_shown() {
     app.insert_state(PauseStates::Interface);
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<MapRuntime>();
+    app.init_resource::<Chart>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Ship);
@@ -271,6 +272,7 @@ fn map_scene_builds_and_drives_with_render_assets() {
     app.insert_state(PauseStates::Interface);
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<MapRuntime>();
+    app.init_resource::<Chart>();
     app.init_resource::<ActiveUiTheme>();
     app.insert_resource(InterfaceIcons::blank());
     app.init_resource::<NovaOsCloseTransition>();
@@ -330,6 +332,7 @@ fn map_focus_follow_recenters_on_a_new_selection() {
     app.insert_state(PauseStates::Interface);
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<MapRuntime>();
+    app.init_resource::<Chart>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Map);
@@ -392,6 +395,7 @@ fn a_rebound_goto_key_is_the_key_the_map_answers() {
     app.insert_state(PauseStates::Interface);
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<MapRuntime>();
+    app.init_resource::<Chart>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Map);
 
@@ -455,6 +459,7 @@ fn map_goto_sets_autopilot_on_the_player_ship() {
     app.insert_state(PauseStates::Interface);
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<MapRuntime>();
+    app.init_resource::<Chart>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Map);
 
@@ -607,6 +612,7 @@ fn the_goto_button_sets_the_goto_the_key_sets() {
     app.register_input_actions(crate::bindings::interface_bindings());
     app.insert_resource(InterfaceIcons::blank());
     app.init_resource::<MapRuntime>();
+    app.init_resource::<Chart>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Map);
     app.add_systems(
@@ -1154,6 +1160,7 @@ fn map_input_app() -> App {
     app.insert_state(PauseStates::Interface);
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<MapRuntime>();
+    app.init_resource::<Chart>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Map);
@@ -1380,6 +1387,7 @@ fn rig_label_of(rig: &PanePointerRig, blip: Entity) -> Entity {
 fn map_contact_label_and_dot_are_one_unbroken_target() {
     let mut rig = pane_pointer_rig();
     rig.app.init_resource::<MapRuntime>();
+    rig.app.init_resource::<Chart>();
     let viewport = rig_map_viewport(&mut rig);
 
     let target_id = rig.app.world_mut().spawn_empty().id();
@@ -1492,6 +1500,7 @@ fn map_contacts_straddling_the_viewport_edge_are_pickable_over_their_visible_hal
     let inset = Rect::new(120.0, 90.0, 900.0, 600.0);
     let mut rig = pane_pointer_rig();
     rig.app.init_resource::<MapRuntime>();
+    rig.app.init_resource::<Chart>();
     let viewport = rig_inset_map_viewport(&mut rig, inset);
 
     let target_id = rig.app.world_mut().spawn_empty().id();
@@ -1543,6 +1552,7 @@ fn map_contacts_straddling_the_viewport_edge_are_pickable_over_their_visible_hal
 fn overlapping_map_contacts_select_the_topmost() {
     let mut rig = pane_pointer_rig();
     rig.app.init_resource::<MapRuntime>();
+    rig.app.init_resource::<Chart>();
     hear_ui_cues(&mut rig.app);
     let viewport = rig_map_viewport(&mut rig);
 
@@ -1621,6 +1631,7 @@ fn the_focus_hub_is_the_size_of_what_it_marks() {
     app.add_plugins((MinimalPlugins, StatesPlugin));
     app.insert_state(PauseStates::Interface);
     app.init_resource::<MapRuntime>();
+    app.init_resource::<Chart>();
     app.world_mut().resource_mut::<MapRuntime>().active = true;
 
     app.world_mut().spawn((
@@ -1683,6 +1694,7 @@ fn a_selected_contact_fills_the_panel_in_place() {
     let app = &mut rig.app;
     app.insert_resource(InterfaceIcons::blank());
     app.init_resource::<MapRuntime>();
+    app.init_resource::<Chart>();
     app.add_systems(Update, (assign_map_contact_codes, update_map_panel).chain());
     track_node_churn(app);
     let content = rig.content_root;

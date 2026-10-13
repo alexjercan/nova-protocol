@@ -198,4 +198,15 @@ pub(crate) struct MapRuntime {
     /// The GOTO button was activated. [`map_input`](super::map_input) takes it
     /// on its next run and validates it with the `map_goto` key.
     pub(crate) goto_requested: bool,
+    /// The chart view shows instead of the local scene.
+    pub(crate) chart: bool,
+    /// The Chart button was activated.
+    /// [`toggle_map_chart`](super::toggle_map_chart) takes it on its next run.
+    pub(crate) chart_requested: bool,
+    /// The station or wreck selected in the chart view.
+    pub(crate) chart_selected: Option<super::MapChartMarkType>,
+    /// The chart view's scene root, while it stands.
+    pub(crate) chart_root: Option<Entity>,
+    /// The chart view's labels over the viewport.
+    pub(crate) chart_labels: Vec<Entity>,
 }

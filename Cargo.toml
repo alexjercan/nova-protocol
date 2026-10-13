@@ -658,6 +658,14 @@ name = "system_station_storage"
 path = "examples/systems/system_station_storage.rs"
 required-features = ["debug"]
 
+# The player's chart of a streamed world: three entered cells and a docked
+# station's summary recorded, the station read by its code in the Map's chart
+# view, and the chart read back from the leave save and from a Load.
+[[example]]
+name = "system_world_chart"
+path = "examples/systems/system_world_chart.rs"
+required-features = ["debug"]
+
 # Then the one range that grades SHIPPED content rather than a fixture built
 # beside it: the campaign's first chapter, booted by scenario id and walked
 # from the opening scene to the banner. Every other range above owns its world,

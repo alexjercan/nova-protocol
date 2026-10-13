@@ -72,8 +72,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** An asteroid `lock_signature` override must be finite and above
   zero. Any other value fails at lint and at load.
 - **(breaking)** Stations are content: `Station` entries a scenario spawns by
-  id as `kind: Station`, frozen as their own body type. World save format 6;
-  older saves are refused.
+  id as `kind: Station`, frozen as their own body type. World save format 7
+  adds the chart; older saves are refused.
 - A station is a dynamic body: gravity and rams move it, its bridge levels
   it and its sections take no damage. In a planet's well it spawns on a
   circular orbit and holds it.
@@ -94,6 +94,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Create names worlds; New World is the default. Load checks saves, reports
   refusals, and deletes on confirm. Save notices show progress, success or
   failure; `~` hides them. Leaving offers a retry.
+- The Map's chart view (`C`) draws the cells you entered by cluster type and
+  the stations and wrecks you found by code. A station shows the services and
+  stock seen on your last dock.
 
 ### Web & Platform
 

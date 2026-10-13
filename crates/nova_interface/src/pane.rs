@@ -33,7 +33,10 @@ use nova_ui::{
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
     inventory::inventory_body,
-    map::{on_map_reframe_button, spawn_map_panel, MapLegendMarker, MapViewportMarker},
+    map::{
+        map_chart_button, on_map_chart_button, on_map_reframe_button, spawn_map_panel,
+        MapLegendMarker, MapViewportMarker,
+    },
     ship::{
         on_ship_fit_button, on_ship_reset_button, spawn_ship_panel, ShipRuntime, ShipViewportMarker,
     },
@@ -538,6 +541,7 @@ const MAP_KEY_HINTS: &[(&str, &[&str])] = &[
     ("Reframe", &["viewer_reframe"]),
     ("Select", &["viewer_prev", "viewer_next"]),
     ("GOTO", &["map_goto"]),
+    ("Chart", &["map_chart"]),
 ];
 
 /// The keys the Ship pane answers to. Every name must be registered.
@@ -675,7 +679,8 @@ pub(crate) fn refresh_pane_input_hints(
     }
 }
 
-/// The map: the scene and contact panel beside it, then legend, hints and Reframe.
+/// The map: the scene and contact panel beside it, then legend, hints, Reframe
+/// and Chart.
 fn map_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     body.spawn(view_split()).with_children(|split| {
         split.spawn((MapViewportMarker, viewport_node(), ImageNode::default()));
@@ -703,6 +708,9 @@ fn map_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                     Name::new("MapReframe"),
                 ))
                 .observe(on_map_reframe_button);
+            controls
+                .spawn(map_chart_button())
+                .observe(on_map_chart_button);
         },
         MAP_KEY_HINTS,
     );

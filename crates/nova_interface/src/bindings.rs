@@ -39,7 +39,7 @@ use nova_input::prelude::*;
 ///
 /// A pad runs out before the pane verbs do. `InterfacePane` overlaps `Viewer`, so
 /// only the two face buttons the camera does not use are left: Y switches the
-/// pane, and A goes to what each pane does MOST. `ship_repair`,
+/// pane, and A goes to what each pane does MOST. `map_chart`, `ship_repair`,
 /// `ship_rebind` and `inventory_details` stay keyboard-only rather than take a
 /// camera verb's button away.
 pub fn interface_bindings() -> Vec<ActionBinding> {
@@ -106,6 +106,11 @@ pub fn interface_bindings() -> Vec<ActionBinding> {
             .context(ActionContext::InterfacePane("map"))
             .keyboard([Keyboard(KeyCode::KeyG)])
             .gamepad([Gamepad(GamepadButton::South)]),
+        // Keyboard only: the pad's two free face buttons are pane switch and
+        // GOTO, and the Chart button sits in the footer.
+        ActionBinding::new("map_chart", "MAP", "Chart View")
+            .context(ActionContext::InterfacePane("map"))
+            .keyboard([Keyboard(KeyCode::KeyC)]),
         ActionBinding::new("ship_mates", "SHIP", "Mates Overlay")
             .context(ActionContext::InterfacePane("ship"))
             .keyboard([Keyboard(KeyCode::KeyG)])

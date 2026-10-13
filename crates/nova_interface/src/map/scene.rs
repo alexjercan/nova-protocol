@@ -66,6 +66,11 @@ pub(crate) fn manage_map_scene(
         runtime.focused_on = None;
         runtime.goto_note = None;
         runtime.goto_requested = false;
+        // The chart root went with the scene; its labels sit on the viewport.
+        drop_map_chart(&mut commands, &mut runtime);
+        runtime.chart = false;
+        runtime.chart_requested = false;
+        runtime.chart_selected = None;
         return;
     }
 
@@ -332,7 +337,11 @@ pub(crate) fn map_input(
         // Wheel zooms the focus distance, out to what the live scene needs:
         // a fixed ceiling left a contact 20 km out permanently off the map.
         if wheel_delta != 0.0 {
-            let reach = map_radius_max(map_spread(&contacts, orbit.center));
+            let reach = if runtime.chart {
+                MAP_CHART_RADIUS_MAX
+            } else {
+                map_radius_max(map_spread(&contacts, orbit.center))
+            };
             orbit.radius = zoom_radius(orbit.radius, wheel_delta, MAP_RADIUS_MIN, reach);
         }
         // The pan actions move the focus RELATIVE TO THE MAP VIEW (the camera's
@@ -360,8 +369,17 @@ pub(crate) fn map_input(
         }
         // Re-frame on the selected object (or the player if nothing is picked).
         if input.just_pressed("viewer_reframe") {
-            reframe_map(&mut orbit, &contacts, &mut runtime);
+            if runtime.chart {
+                frame_chart(&mut orbit);
+            } else {
+                reframe_map(&mut orbit, &contacts, &mut runtime);
+            }
         }
+    }
+
+    // The chart view selects by its own labels and has nothing to fly to.
+    if runtime.chart {
+        return;
     }
 
     // Cycle selection.
@@ -477,7 +495,9 @@ pub(crate) fn project_map_blips(
         else {
             continue;
         };
-        if !stale_camera {
+        if runtime.chart {
+            vis.set_if_neq(Visibility::Hidden);
+        } else if !stale_camera {
             let projected = camera
                 .world_to_viewport(cam_gt, contact.world_pos)
                 .ok()
@@ -610,7 +630,9 @@ pub(crate) fn project_map_route(
         spawn_map_route(&mut commands, viewport);
         return;
     };
-    let goto = contacts.player_frame().and_then(|(player, from, _)| {
+    // The chart view draws in its own frame, where the route has no place.
+    let player = contacts.player_frame().filter(|_| !runtime.chart);
+    let goto = player.and_then(|(player, from, _)| {
         let Ok((
             Autopilot {
                 action: AutopilotAction::Goto { target },
@@ -997,6 +1019,7 @@ pub(crate) fn update_map_panel(
     runtime: Res<MapRuntime>,
     icons: Res<InterfaceIcons>,
     contacts: MapContacts,
+    chart: Res<Chart>,
     q_autopilot: Query<&Autopilot>,
     mut q_field: Query<(&MapPanelField, &mut Text, &mut ThemedText)>,
     mut q_icon: Query<(&mut ImageNode, &mut ThemedImageTint, &mut Visibility), With<MapPanelIcon>>,
@@ -1034,8 +1057,12 @@ pub(crate) fn update_map_panel(
 
     for (field, mut text, mut themed) in &mut q_field {
         let (value, color) = match (&selected, field) {
-            (_, MapPanelField::Note) => note.clone(),
+            (_, MapPanelField::Note) if runtime.goto_note.is_some() => note.clone(),
             (_, MapPanelField::Destination) => destination.clone(),
+            _ if runtime.chart => {
+                chart_panel_field(&chart, runtime.chart_selected.as_ref(), *field)
+            }
+            (_, MapPanelField::Note) => note.clone(),
             (Some(contact), MapPanelField::Code) => (contact.code.clone(), UiColor::Primary),
             (Some(contact), MapPanelField::Name) => (contact.name.clone(), UiColor::Body),
             (Some(contact), MapPanelField::Kind) => {
@@ -1062,7 +1089,8 @@ pub(crate) fn update_map_panel(
         }
     }
 
-    let goto_ready = selected.is_some_and(|contact| contact.kind != MapContactKind::OwnShip);
+    let goto_ready =
+        !runtime.chart && selected.is_some_and(|contact| contact.kind != MapContactKind::OwnShip);
     for (button, disabled) in &q_goto_button {
         if goto_ready && disabled {
             commands.entity(button).remove::<InteractionDisabled>();
@@ -1072,7 +1100,8 @@ pub(crate) fn update_map_panel(
     }
 
     for (mut image, mut tint, mut visibility) in &mut q_icon {
-        let Some(contact) = selected else {
+        // The chart's marks are no live contact, so the head icon stays empty.
+        let Some(contact) = selected.filter(|_| !runtime.chart) else {
             visibility.set_if_neq(Visibility::Hidden);
             continue;
         };
@@ -1110,9 +1139,10 @@ fn legend_label((body, kind): (BodyIconType, MapContactKind)) -> &'static str {
 pub(crate) fn refresh_map_legend(
     mut commands: Commands,
     icons: Res<InterfaceIcons>,
+    runtime: Res<MapRuntime>,
     q_blip: Query<&MapBlip>,
     q_legend: Query<(Entity, Ref<MapLegendMarker>)>,
-    mut shown: Local<Vec<(BodyIconType, MapContactKind)>>,
+    mut shown: Local<(bool, Vec<(BodyIconType, MapContactKind)>)>,
 ) {
     let Ok((legend, slot)) = q_legend.single() else {
         return;
@@ -1121,13 +1151,17 @@ pub(crate) fn refresh_map_legend(
         q_blip.iter().map(|blip| (blip.body, blip.kind)).collect();
     marks.sort_by_key(|mark| legend_rank(*mark));
     marks.dedup();
-    if !slot.is_added() && *shown == marks {
+    if !slot.is_added() && shown.0 == runtime.chart && shown.1 == marks {
         return;
     }
     commands
         .entity(legend)
         .despawn_related::<Children>()
         .with_children(|legend| {
+            if runtime.chart {
+                spawn_chart_legend(legend);
+                return;
+            }
             for mark in &marks {
                 legend.spawn(legend_entry()).with_children(|entry| {
                     entry.spawn(icon_node(icons.body(mark.0), mark.1.color(), 16.0));
@@ -1135,12 +1169,12 @@ pub(crate) fn refresh_map_legend(
                 });
             }
         });
-    *shown = marks;
+    *shown = (runtime.chart, marks);
 }
 
 /// Put the map back on its opening framing around the selected contact, or
 /// the player with nothing picked. Shared by `viewer_reframe` and Reframe.
-fn reframe_map(orbit: &mut MapOrbit, contacts: &MapContacts, runtime: &mut MapRuntime) {
+pub(crate) fn reframe_map(orbit: &mut MapOrbit, contacts: &MapContacts, runtime: &mut MapRuntime) {
     orbit.center = focus_point(contacts, runtime.selected);
     orbit.radius = map_radius_default(map_spread(contacts, orbit.center));
     orbit.theta = MAP_THETA_DEFAULT;
@@ -1148,7 +1182,8 @@ fn reframe_map(orbit: &mut MapOrbit, contacts: &MapContacts, runtime: &mut MapRu
     runtime.focused_on = runtime.selected;
 }
 
-/// Reframe the map when its Reframe button is activated, with one click.
+/// Reframe the map, or the chart while it shows, when the Reframe button is
+/// activated, with one click.
 pub(crate) fn on_map_reframe_button(
     _activate: On<Activate>,
     contacts: MapContacts,
@@ -1158,7 +1193,11 @@ pub(crate) fn on_map_reframe_button(
     mut commands: Commands,
 ) {
     if let Ok(mut orbit) = q_camera.single_mut() {
-        reframe_map(&mut orbit, &contacts, &mut runtime);
+        if runtime.chart {
+            frame_chart(&mut orbit);
+        } else {
+            reframe_map(&mut orbit, &contacts, &mut runtime);
+        }
         play_menu_select(&mut commands, bank.as_deref());
     }
 }
