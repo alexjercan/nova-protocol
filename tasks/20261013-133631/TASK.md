@@ -19,6 +19,8 @@
 
 - Round 4 prototype 2026-10-13 (`prototype-hybrid3.diff`, reverted; stacks `compare6-*` in the scratchpad `133631/`): owner asked for neighbour averaging over the 8 in-plane cells plus the cubes beside them, and the bevel as a softener for spikes and tall plates. Each corner averages its 4 meeting cells at 1/4 each, rounded half up and capped at the plate level; FULL plates get a flat bevel cap at slope 2 where the average is lower; a flanked end cap drops its wall cover. Result: diagonal stair is a continuous bevelled ramp with no lips or pocket; cutter pocket closed; ring pods are clean bevelled modules; hauler wedge smaller but visible; the 2x2 step block keeps a top notch; decoration partly restored (most hazard stripes and the line warship mast lost).
 
+- Owner decision 2026-10-13: implement round four (hybrid3) as the real fix. Production code replaces the old rules outright, with no env switch. Fix the leftovers (hauler wedge, cutter crease, 2x2 step notch), restore decoration, and add a permanent diagonal screenshot example. Owner acceptance of the final frames is still required before close.
+
 ## Delivery gate
 - Survey which skin rule makes the spikes (with screenshots of named hulls), show before/after frames and the proposed rule change to the owner before landing. This feature needs owner review rounds, not one pass.
 
