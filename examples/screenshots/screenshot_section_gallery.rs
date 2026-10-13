@@ -1,6 +1,7 @@
 //! screenshot_section_gallery: a named grid of SECTION model candidates for
 //! the section remodel - the torpedo bay, the PDC
-//! mount, and the hull/controller cores, each row led by what ships TODAY.
+//! mount, the hull/controller cores and the station structure parts, each
+//! row led by what ships TODAY where something did.
 //!
 //! Everything here is VISUAL ONLY - nothing is a section prototype, carries a
 //! socket or spawns a ship. Two kinds of subject:
@@ -328,6 +329,27 @@ fn gallery_rows() -> Vec<Row> {
                 },
                 note: "PICKED - 1x1x3 spinal lance, diameter 0.60",
             }],
+        },
+        // The station structure parts: open girder and solar panel cells the
+        // generated stations build spokes, rings, masts and wings from.
+        Row {
+            slug: "station",
+            items: vec![
+                Item {
+                    id: "hull_truss",
+                    look: Look::Candidate {
+                        file: "hull_truss.glb",
+                    },
+                    note: "NEW - station truss, sockets on +-Z only",
+                },
+                Item {
+                    id: "hull_solar_panel",
+                    look: Look::Candidate {
+                        file: "hull_solar_panel.glb",
+                    },
+                    note: "NEW - station solar panel, sockets on +-X only",
+                },
+            ],
         },
         // The one row that shows a part TWICE. A docking port is the same
         // file in two poses, and the pose is the whole point of the part -

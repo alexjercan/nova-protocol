@@ -43,6 +43,16 @@ pub(crate) fn light_hull() -> BuildRecipe {
     recipe(80, &[(SECTION_PANEL, 2)], STRIP_YIELD)
 }
 
+/// Station truss: two spars and a panel.
+pub(crate) fn truss_hull() -> BuildRecipe {
+    recipe(60, &[(FRAME_SPAR, 2), (SECTION_PANEL, 1)], STRIP_YIELD)
+}
+
+/// Station solar panel.
+pub(crate) fn solar_panel() -> BuildRecipe {
+    recipe(40, &[(SECTION_PANEL, 2)], STRIP_YIELD)
+}
+
 /// Basic thruster.
 pub(crate) fn basic_thruster() -> BuildRecipe {
     recipe(60, &[(DRIVE_BELL, 1), (SECTION_PANEL, 2)], STRIP_YIELD)

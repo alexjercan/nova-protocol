@@ -17,8 +17,8 @@ use nova_gameplay::prelude::{
 };
 use nova_scenario::prelude::{
     spaceship_scenario_object, CurrentScenario, GameStationDesigns, GeneratedMarks, NovaEventWorld,
-    ScenarioConfig, SectionSource, ShipDesign, SpaceshipConfig, SpaceshipSectionConfig,
-    SpentHandlers, StationDesign, StationServiceType,
+    ScenarioConfig, SectionSource, ShipDesign, ShipIntegrityConfig, SpaceshipConfig,
+    SpaceshipSectionConfig, SpentHandlers, StationDesign, StationServiceType,
 };
 use nova_ship::prelude::{
     ChaseCameraPlugin, ChaseZoom, ShipStyleConfig, SpaceshipCameraController,
@@ -27,40 +27,58 @@ use nova_ship::prelude::{
 use nova_world::prelude::{CurrentSector, FrozenSectors, SectorCoord, WorldConfig, WorldObserver};
 
 use crate::{
-    role_style_id, save, GameStyles, NovaLayeredWorld, ShipRoleType, BLOCK_WAYSTATION_STATION_ID,
+    role_style_id, save, GameStyles, NovaLayeredWorld, ShipRoleType, GENERATED_STATION_DESIGN_IDS,
     OPEN_WORLD_ACTIVE_RADIUS, OPEN_WORLD_SECTOR_EDGE,
 };
 
 /// The scenario id the fixture's save names.
 pub const FIXTURE_SCENARIO_ID: &str = "session";
 
-/// The one station design the generator places, built from the fixture
-/// packs' `dock`, `controller` and `cube` prototypes: a docking collar, a
-/// flight computer and a plate, no drive.
+/// The station designs the generator places, built from the fixture packs'
+/// `dock`, `controller` and `cube` prototypes: a docking collar, a flight
+/// computer and plates, no drive. Each design is one plate longer than the
+/// one before, so the three measure to different clearances.
 pub fn fixture_stations() -> GameStationDesigns {
-    let section = |id: &str, position: Vec3, prototype: &str| SpaceshipSectionConfig {
-        id: id.into(),
+    let section = |id: String, position: Vec3, prototype: &str| SpaceshipSectionConfig {
+        id,
         position,
         rotation: Quat::IDENTITY,
         source: SectionSource::prototype(prototype),
     };
-    GameStationDesigns(vec![StationDesign {
-        id: BLOCK_WAYSTATION_STATION_ID.into(),
-        name: "Fixture Waystation".to_string(),
-        about: "A collar, a bridge and a plate.".to_string(),
-        hull: ShipDesign {
-            sections: vec![
-                section("collar", Vec3::NEG_X, "dock"),
-                section("bridge", Vec3::Y, "controller"),
-                section("plate", Vec3::ZERO, "cube"),
-            ],
-            ..default()
-        },
-        services: vec![StationServiceType::Trade],
-        storage_cap_g: 0,
-        stock: ShipInventoryStock::default(),
-        credits: 100,
-    }])
+    GameStationDesigns(
+        GENERATED_STATION_DESIGN_IDS
+            .iter()
+            .enumerate()
+            .map(|(length, id)| {
+                let mut sections = vec![
+                    section("collar".into(), Vec3::NEG_X, "dock"),
+                    section("bridge".into(), Vec3::Y, "controller"),
+                    section("plate".into(), Vec3::ZERO, "cube"),
+                ];
+                sections.extend(
+                    (1..=length).map(|step| {
+                        section(format!("plate_{step}"), Vec3::X * step as f32, "cube")
+                    }),
+                );
+                StationDesign {
+                    id: (*id).into(),
+                    name: "Fixture Waystation".to_string(),
+                    about: "A collar, a bridge and plates.".to_string(),
+                    hull: ShipDesign {
+                        sections,
+                        integrity: ShipIntegrityConfig {
+                            collapse_threshold: Some(0.5),
+                        },
+                        ..default()
+                    },
+                    services: vec![StationServiceType::Trade],
+                    storage_cap_g: 0,
+                    stock: ShipInventoryStock::default(),
+                    credits: 100,
+                }
+            })
+            .collect(),
+    )
 }
 
 /// The production save systems and the transient restore before them, in

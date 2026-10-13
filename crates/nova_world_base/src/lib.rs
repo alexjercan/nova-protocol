@@ -117,8 +117,9 @@ pub mod prelude {
         ShipPartExclusionType, ShipPartFamilyType, ShipPartFault, ShipPartPack, ShipPartSnapshot,
         ARMOURED_STYLE_ID, BLOCK_LINE_WARSHIP_SHIP_ID, BLOCK_WAYSTATION_STATION_ID,
         CIVILIAN_STYLE_ID, CLEARANCE_MARGIN, GENERATED_STATION_DESIGN_IDS, INDUSTRIAL_STYLE_ID,
-        OPEN_WORLD_BOUNDS_RADIUS_MAX, OPEN_WORLD_SCENARIO_ID, SALVAGE_STYLE_ID,
-        SHIP_ADVANCEMENT_CURVE,
+        OPEN_WORLD_BOUNDS_RADIUS_MAX, OPEN_WORLD_SCENARIO_ID, RING_STATION_STATION_ID,
+        SALVAGE_STYLE_ID, SHIP_ADVANCEMENT_CURVE, SPIRE_STATION_STATION_ID, STATION_STYLE_ID,
+        YARD_STATION_STATION_ID,
     };
 }
 
@@ -131,10 +132,25 @@ pub const OPEN_WORLD_SCENARIO_ID: &str = "open_world";
 /// bays.
 pub const BLOCK_LINE_WARSHIP_SHIP_ID: &str = "block_line_warship";
 
-/// The id the block-built waystation is spawned by: the base game's one
-/// station, a plated block with a bridge on top and a docking collar off its
-/// port flank, no drive.
+/// The id the block-built waystation is spawned by: an unarmed plated block
+/// with a bridge on top and a docking collar off its port flank, no drive.
+/// Scenarios place it; generated worlds place the ring station.
 pub const BLOCK_WAYSTATION_STATION_ID: &str = "block_waystation";
+
+/// The id the ring station is spawned by: a hub on four truss spokes inside a
+/// plated ring, armed with point-defense mounts, with a docking collar at the
+/// end of every spoke. One of the designs generated worlds place.
+pub const RING_STATION_STATION_ID: &str = "ring_station";
+
+/// The id the spire station is spawned by: three armoured decks stacked on
+/// truss columns, armed, with solar wings. One of the designs generated
+/// worlds place.
+pub const SPIRE_STATION_STATION_ID: &str = "spire_station";
+
+/// The id the yard station is spawned by: an industrial spine between two
+/// end blocks with rows of solar panels, armed. One of the designs generated
+/// worlds place.
+pub const YARD_STATION_STATION_ID: &str = "yard_station";
 
 /// The id the industrial look is named by. Industrial world ships wear it.
 pub const INDUSTRIAL_STYLE_ID: &str = "industrial";
@@ -147,6 +163,9 @@ pub const CIVILIAN_STYLE_ID: &str = "civilian";
 
 /// The id the salvage look is named by. Scavenger world ships wear it.
 pub const SALVAGE_STYLE_ID: &str = "salvage";
+
+/// The id the station look is named by. The ring station wears it.
+pub const STATION_STYLE_ID: &str = "station";
 
 /// The open world's cell edge.
 ///

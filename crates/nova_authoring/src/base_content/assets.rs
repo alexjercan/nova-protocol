@@ -22,6 +22,10 @@ pub struct BaseContentAssets {
     pub hull_cargo: AssetRef<WorldAsset>,
     /// Tank hull variant: a pressure vessel in open frame rails.
     pub hull_tank: AssetRef<WorldAsset>,
+    /// Station truss: an open girder cell, long axis Z.
+    pub hull_truss: AssetRef<WorldAsset>,
+    /// Station solar panel: a thin cell-wide panel on a spine along X.
+    pub hull_solar_panel: AssetRef<WorldAsset>,
     /// Controller core: the cable-wrapped computer cell.
     pub controller_core: AssetRef<WorldAsset>,
     /// Exposed bell body used by the basic thruster section.
@@ -214,6 +218,8 @@ impl BaseContentAssets {
             hull: AssetRef::from("self://gltf/hull_personnel.glb#Scene0".to_string()),
             hull_cargo: AssetRef::from("self://gltf/hull_cargo.glb#Scene0".to_string()),
             hull_tank: AssetRef::from("self://gltf/hull_tank.glb#Scene0".to_string()),
+            hull_truss: AssetRef::from("self://gltf/hull_truss.glb#Scene0".to_string()),
+            hull_solar_panel: AssetRef::from("self://gltf/hull_solar_panel.glb#Scene0".to_string()),
             controller_core: AssetRef::from("self://gltf/core_wires.glb#Scene0".to_string()),
             thruster_bell: AssetRef::from("self://gltf/shell_bell.glb#Scene0".to_string()),
             thruster_vector: AssetRef::from("self://gltf/shell_vector.glb#Scene0".to_string()),

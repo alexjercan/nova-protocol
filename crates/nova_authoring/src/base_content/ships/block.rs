@@ -39,6 +39,12 @@ const TURRET_SEAT: Vec3 = Vec3::new(0.0, -0.25, 0.0);
 /// can harden or disable one bridge without knowing which hull it is on.
 pub const BLOCK_BRIDGE_SECTION_ID: &str = "bridge";
 
+/// The waystation's second flight computer, in the far corner of its lower
+/// deck: a warhead from above or off the collar flank spends the station's
+/// pool down to its floor before it reaches this one, so one torpedo cannot
+/// take both computers and turn the station derelict.
+const WAYSTATION_LOWER_BRIDGE_SECTION_ID: &str = "lower_bridge";
+
 /// The gunship's point-defense mounts, in the order they are placed. Content
 /// that sets a magazine per turret walks this rather than naming six strings
 /// it would have to keep in step with the hull.
@@ -606,9 +612,9 @@ fn salvage_craft(cells: Vec<IVec3>, specials: Vec<Special>) -> BlockShip {
 }
 
 /// The waystation: a two-deck plated block with the bridge set into the top
-/// deck and a docking collar standing off the port flank. No drive: a
-/// station is parked, and its computer only holds the attitude it was
-/// placed at.
+/// deck, a second flight computer in the far corner of the lower deck and a
+/// docking collar standing off the port flank. No drive: a station is
+/// parked, and its computers only hold the attitude it was placed at.
 pub(super) fn waystation() -> BlockShip {
     BlockShip {
         cells: block(IVec3::new(-1, 0, -1), IVec3::new(3, 2, 3)),
@@ -617,6 +623,11 @@ pub(super) fn waystation() -> BlockShip {
                 BLOCK_BRIDGE_SECTION_ID,
                 BASIC_CONTROLLER_SECTION_ID,
                 IVec3::new(0, 1, 0),
+            ),
+            cell_part(
+                WAYSTATION_LOWER_BRIDGE_SECTION_ID,
+                BASIC_CONTROLLER_SECTION_ID,
+                IVec3::new(1, 0, 1),
             ),
             flank_collar(
                 BLOCK_PORT_COLLAR_SECTION_ID,

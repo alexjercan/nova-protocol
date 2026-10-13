@@ -1,15 +1,38 @@
 //! The plate families: the structural cubes a hull is built out of.
 //!
-//! All four are the same unit cube with sockets on every face. What separates
+//! Four are the same unit cube with sockets on every face. What separates
 //! them is the health pool and the art. Reinforced plate is the structural
 //! baseline every other section's durability is quoted against; light plate is
 //! a third of it.
+//!
+//! Two are station structure with sockets on two opposite faces only, so the
+//! derived skin, which clads only socketed faces, leaves them bare: the truss
+//! (sockets on +-Z) runs a spoke or a ring, and the solar panel (sockets on
+//! +-X, a tenth of a cell thick) chains into a wing.
 
 use bevy::prelude::*;
 use nova_ship::prelude::*;
 
 use super::recipes;
 use crate::base_content::assets::BaseContentAssets;
+
+/// The open station truss: a girder cell whose two sockets face +-Z.
+pub(crate) const TRUSS_HULL_SECTION_ID: &str = "truss_hull_section";
+
+/// The station solar panel: a thin cell whose two sockets face +-X.
+pub(crate) const SOLAR_PANEL_SECTION_ID: &str = "solar_panel_section";
+
+/// How thick the solar panel's collider is, as a share of a cell.
+const SOLAR_PANEL_THICKNESS: f32 = 0.1;
+
+/// The cube's sockets whose normals lie on `axis`, the only two a station
+/// structure part offers.
+fn axis_link_points(size: Vec3, axis: Vec3) -> Vec<LinkPoint> {
+    box_link_points(size)
+        .into_iter()
+        .filter(|point| point.normal.dot(axis).abs() > 0.5)
+        .collect()
+}
 
 /// The plate prototypes, in catalog order.
 pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
@@ -102,5 +125,79 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                 render_mesh_transform: None,
             }),
         },
+        SectionConfig {
+            base: BaseSectionConfig {
+                id: TRUSS_HULL_SECTION_ID.to_string(),
+                damage_effects: DamageEffects::default(),
+                name: "Truss Section".to_string(),
+                description: "An open girder cell for station spokes and rings; it \
+                              mates only at its two ends."
+                    .to_string(),
+                // Between light and reinforced plate: a spoke takes a burst
+                // to cut, and cutting one is how a ring comes away.
+                health: 120.0,
+                build: recipes::truss_hull(),
+                destroy_sound: Some(meshes.section_destroy_sound.clone()),
+                collider: None,
+                link_points: axis_link_points(Vec3::ONE, Vec3::Z),
+                hide_in_editor: false,
+                animations: Vec::new(),
+            },
+            kind: SectionKind::Hull(HullSectionConfig {
+                render_mesh: Some(meshes.hull_truss.clone()),
+                render_mesh_transform: None,
+            }),
+        },
+        SectionConfig {
+            base: BaseSectionConfig {
+                id: SOLAR_PANEL_SECTION_ID.to_string(),
+                damage_effects: DamageEffects::default(),
+                name: "Solar Panel Section".to_string(),
+                description: "A thin solar panel one cell wide; panels chain side \
+                              to side into a wing."
+                    .to_string(),
+                health: 40.0,
+                build: recipes::solar_panel(),
+                destroy_sound: Some(meshes.section_destroy_sound.clone()),
+                collider: Some(SectionCollider::Cuboid {
+                    size: Vec3::new(1.0, SOLAR_PANEL_THICKNESS, 1.0),
+                }),
+                link_points: axis_link_points(Vec3::new(1.0, SOLAR_PANEL_THICKNESS, 1.0), Vec3::X),
+                hide_in_editor: false,
+                animations: Vec::new(),
+            },
+            kind: SectionKind::Hull(HullSectionConfig {
+                render_mesh: Some(meshes.hull_solar_panel.clone()),
+                render_mesh_transform: None,
+            }),
+        },
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The station structure parts offer exactly two sockets on one axis, so
+    /// the skin leaves their other faces bare.
+    #[test]
+    fn station_structure_mates_only_along_its_axis() {
+        let catalog = prototypes(&BaseContentAssets::from_paths());
+        for (id, axis) in [
+            (TRUSS_HULL_SECTION_ID, Vec3::Z),
+            (SOLAR_PANEL_SECTION_ID, Vec3::X),
+        ] {
+            let part = catalog
+                .iter()
+                .find(|config| config.base.id == id)
+                .expect("the part is in the catalog");
+            let normals: Vec<Vec3> = part
+                .base
+                .link_points
+                .iter()
+                .map(|point| point.normal)
+                .collect();
+            assert_eq!(normals, vec![axis, -axis], "{id}");
+        }
+    }
 }

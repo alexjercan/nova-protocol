@@ -69,6 +69,8 @@ PROMOTED_STEMS = (
     "hull_personnel",
     "hull_cargo",
     "hull_tank",
+    "hull_truss",
+    "hull_solar_panel",
     "core_wires",
     "railgun_lance",
     "dock_flush",

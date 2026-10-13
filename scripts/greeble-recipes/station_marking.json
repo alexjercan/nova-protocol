@@ -1,0 +1,40 @@
+{
+  "_comment": "STATION kit: a docking-approach chevron painted on pale primer. Flat decal geometry, the kit's carrier for a hull with no seated plate. Long axis is +Z so the chevrons point down the run.",
+  "materials": {
+    "station_enamel": { "color": [0.55, 0.56, 0.58], "metallic": 0.1, "roughness": 0.45 },
+    "station_lamp": { "color": [0.9, 0.05, 0.03], "metallic": 0.0, "roughness": 0.3 }
+  },
+  "material": "station_lamp",
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.22, 0.01, 0.32],
+      "at": [0.0, 0.005, 0.0],
+      "material": "station_enamel"
+    },
+    {
+      "primitive": "box",
+      "size": [0.14, 0.008, 0.04],
+      "rotate": [0.0, 35.0, 0.0],
+      "at": [-0.05, 0.014, -0.08]
+    },
+    {
+      "primitive": "box",
+      "size": [0.14, 0.008, 0.04],
+      "rotate": [0.0, -35.0, 0.0],
+      "at": [0.05, 0.014, -0.08]
+    },
+    {
+      "primitive": "box",
+      "size": [0.14, 0.008, 0.04],
+      "rotate": [0.0, 35.0, 0.0],
+      "at": [-0.05, 0.014, 0.06]
+    },
+    {
+      "primitive": "box",
+      "size": [0.14, 0.008, 0.04],
+      "rotate": [0.0, -35.0, 0.0],
+      "at": [0.05, 0.014, 0.06]
+    }
+  ]
+}

@@ -1047,7 +1047,7 @@ impl SectorPlan {
                         design: station.design.clone(),
                         spawn: StationConfig {
                             design: station.design.id.clone(),
-                            allegiance: Some(station.allegiance),
+                            allegiance: station.allegiance,
                             derelict: station.dead,
                             initial_velocity,
                         },

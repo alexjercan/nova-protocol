@@ -1,0 +1,42 @@
+{
+  "_comment": "STATION kit: a row of lit cabin windows in a dark band. Lit in cool white rather than amber, so a station's flanks read as habitation and never as a civilian ship's livery. Long axis is +Z so the row runs down the flank.",
+  "materials": {
+    "station_enamel": { "color": [0.55, 0.56, 0.58], "metallic": 0.1, "roughness": 0.45 },
+    "station_shadow": { "color": [0.015, 0.016, 0.02], "metallic": 0.1, "roughness": 0.8 },
+    "station_glow": { "color": [0.75, 0.85, 0.95], "metallic": 0.0, "roughness": 0.2 }
+  },
+  "material": "station_enamel",
+  "budget": { "footprint": 0.75, "height": 0.2 },
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.14, 0.02, 0.62],
+      "at": [0.0, 0.01, 0.0],
+      "material": "station_shadow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.08, 0.012, 0.1],
+      "at": [0.0, 0.026, -0.21],
+      "material": "station_glow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.08, 0.012, 0.1],
+      "at": [0.0, 0.026, -0.07],
+      "material": "station_glow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.08, 0.012, 0.1],
+      "at": [0.0, 0.026, 0.07],
+      "material": "station_glow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.08, 0.012, 0.1],
+      "at": [0.0, 0.026, 0.21],
+      "material": "station_glow"
+    }
+  ]
+}

@@ -400,6 +400,108 @@
     )),
     Section((
         base: (
+            id: "truss_hull_section",
+            name: "Truss Section",
+            description: "An open girder cell for station spokes and rings; it mates only at its two ends.",
+            health: 120.0,
+            build: (
+                credits: 60,
+                parts: {
+                    "FrameSpar": 2,
+                    "SectionPanel": 1,
+                },
+                strip_yield: 0.5,
+            ),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            link_points: [
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "negative_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/hull_truss.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "solar_panel_section",
+            name: "Solar Panel Section",
+            description: "A thin solar panel one cell wide; panels chain side to side into a wing.",
+            health: 40.0,
+            build: (
+                credits: 40,
+                parts: {
+                    "SectionPanel": 2,
+                },
+                strip_yield: 0.5,
+            ),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    1.0,
+                    0.1,
+                    1.0,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "positive_x",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+            ],
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/hull_solar_panel.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
             id: "basic_thruster_section",
             name: "Basic Thruster Section",
             description: "A basic thruster section for spaceships.",

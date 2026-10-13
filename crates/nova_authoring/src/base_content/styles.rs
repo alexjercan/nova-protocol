@@ -4,8 +4,8 @@
 //! not a table of constants - `content gen` serializes it into
 //! `assets/base/styles/base.content.ron` and a mod overlays it by id.
 //!
-//! Four looks ship: `industrial`, `armoured`, `civilian` and `salvage`. They
-//! share one plate vocabulary and one greeble generator, so moving a rule from
+//! Five looks ship: `industrial`, `armoured`, `civilian` and `salvage` for
+//! ships, and `station` for the ring station. They share one plate vocabulary and one greeble generator, so moving a rule from
 //! one onto another is a content edit rather than a rewrite.
 //!
 //! # The SEAT, and which pieces are free of it
@@ -43,7 +43,7 @@ use nova_ship::prelude::{
     StyleFixtureConfig, StylePalette, SurfaceFinish,
 };
 use nova_world_base::prelude::{
-    ARMOURED_STYLE_ID, CIVILIAN_STYLE_ID, INDUSTRIAL_STYLE_ID, SALVAGE_STYLE_ID,
+    ARMOURED_STYLE_ID, CIVILIAN_STYLE_ID, INDUSTRIAL_STYLE_ID, SALVAGE_STYLE_ID, STATION_STYLE_ID,
 };
 
 use super::assets::BaseContentAssets;
@@ -63,6 +63,7 @@ pub(crate) fn style_catalog(assets: &BaseContentAssets) -> Vec<ShipStyleConfig> 
         armoured_style(assets),
         civilian_style(assets),
         salvage_style(assets),
+        station_style(),
     ]
 }
 
@@ -1482,6 +1483,102 @@ fn salvage_style(assets: &BaseContentAssets) -> ShipStyleConfig {
     }
 }
 
+/// STATION: a pale enamelled habitat with one accent, navigation red.
+///
+/// A station is mostly one-cell plating and open truss, so the kit is built
+/// for that: one tall piece on the high ground (the antenna), and five flat
+/// trim pieces that lie on the creases a one-cell hull derives. Reading down:
+/// the antennas on the spar tips and mast heads, lit windows down the flanks,
+/// radiators on the decks, red lamps beside the gun mounts and collars, and
+/// last the hatches and approach chevrons that take what is left.
+fn station_style() -> ShipStyleConfig {
+    let greeble = |id: &str| {
+        nova_gameplay::prelude::AssetRef::from(format!("self://gltf/greebles/{id}.glb#Scene0"))
+    };
+    let fixture = |id: &str,
+                   health: f32,
+                   collider: Vec3,
+                   region: FixtureRegion,
+                   density: FixtureDensity,
+                   orientation: FixtureOrientation| StyleFixtureConfig {
+        id: id.to_string(),
+        model: greeble(id),
+        health,
+        collider,
+        placement: FixturePlacement {
+            region,
+            density,
+            orientation,
+        },
+    };
+    ShipStyleConfig {
+        id: STATION_STYLE_ID.to_string(),
+        name: "Station".to_string(),
+        palette: StylePalette {
+            top: SurfaceFinish {
+                color: Color::linear_rgb(0.42, 0.43, 0.45),
+                roughness: 0.5,
+                metallic: 0.1,
+            },
+            wall: SurfaceFinish {
+                color: Color::linear_rgb(0.06, 0.062, 0.07),
+                roughness: 0.8,
+                metallic: 0.1,
+            },
+        },
+        fixtures: vec![
+            fixture(
+                "station_antenna",
+                8.0,
+                Vec3::new(0.16, 0.38, 0.16),
+                FixtureRegion::HighGround,
+                FixtureDensity::Sparse,
+                FixtureOrientation::Free,
+            ),
+            fixture(
+                "station_windows",
+                6.0,
+                Vec3::new(0.14, 0.03, 0.62),
+                FixtureRegion::Flank,
+                FixtureDensity::Regular,
+                FixtureOrientation::Along,
+            ),
+            fixture(
+                "station_radiator",
+                10.0,
+                Vec3::new(0.4, 0.065, 0.3),
+                FixtureRegion::Deck,
+                FixtureDensity::Regular,
+                FixtureOrientation::Along,
+            ),
+            fixture(
+                "station_beacon",
+                4.0,
+                Vec3::new(0.12, 0.085, 0.12),
+                FixtureRegion::NearFitting,
+                FixtureDensity::Sparse,
+                FixtureOrientation::Free,
+            ),
+            fixture(
+                "station_hatch",
+                6.0,
+                Vec3::new(0.26, 0.04, 0.26),
+                FixtureRegion::Anywhere,
+                FixtureDensity::Sparse,
+                FixtureOrientation::Free,
+            ),
+            fixture(
+                "station_marking",
+                4.0,
+                Vec3::new(0.24, 0.02, 0.32),
+                FixtureRegion::Anywhere,
+                FixtureDensity::Regular,
+                FixtureOrientation::Along,
+            ),
+        ],
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1661,6 +1758,31 @@ mod tests {
                 fixture.id,
             );
         }
+    }
+
+    /// The station kit is namespaced like every authored kit, each piece
+    /// names its own greeble, and only the antenna stands proud.
+    #[test]
+    fn the_station_kit_is_namespaced_and_almost_all_trim() {
+        let style = station_style();
+        let prefix = format!("{STATION_STYLE_ID}_");
+        for fixture in &style.fixtures {
+            assert!(fixture.id.starts_with(&prefix), "'{}'", fixture.id);
+            let path = fixture.model.path().unwrap_or_default().to_string();
+            assert_eq!(
+                path,
+                format!("self://gltf/greebles/{}.glb#Scene0", fixture.id),
+                "'{}' names another greeble",
+                fixture.id,
+            );
+        }
+        let proud: Vec<&str> = style
+            .fixtures
+            .iter()
+            .filter(|fixture| FixturePlacement::needs_seat(fixture.collider))
+            .map(|fixture| fixture.id.as_str())
+            .collect();
+        assert_eq!(proud, ["station_antenna"]);
     }
 
     /// The hazard band is a LINE, and the two ways to break a line are both

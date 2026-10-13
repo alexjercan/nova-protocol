@@ -1,0 +1,28 @@
+{
+  "_comment": "STATION kit: a square maintenance hatch with a red-striped pull. Flush trim, so it lies on any plate a one-cell hull derives.",
+  "materials": {
+    "station_enamel": { "color": [0.55, 0.56, 0.58], "metallic": 0.1, "roughness": 0.45 },
+    "station_shadow": { "color": [0.015, 0.016, 0.02], "metallic": 0.1, "roughness": 0.8 },
+    "station_lamp": { "color": [0.9, 0.05, 0.03], "metallic": 0.0, "roughness": 0.3 }
+  },
+  "material": "station_enamel",
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.26, 0.016, 0.26],
+      "at": [0.0, 0.008, 0.0],
+      "material": "station_shadow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.22, 0.012, 0.22],
+      "at": [0.0, 0.022, 0.0]
+    },
+    {
+      "primitive": "box",
+      "size": [0.12, 0.012, 0.03],
+      "at": [0.0, 0.034, 0.0],
+      "material": "station_lamp"
+    }
+  ]
+}

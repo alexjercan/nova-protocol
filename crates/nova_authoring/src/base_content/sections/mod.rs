@@ -30,6 +30,7 @@ mod turret;
 
 /// The authoring-owned prototype ids a block hull mounts by name.
 pub(crate) use cargo_intake::CARGO_INTAKE_SECTION_ID;
+pub(crate) use hull::{SOLAR_PANEL_SECTION_ID, TRUSS_HULL_SECTION_ID};
 pub(crate) use mining_beam::MINING_BEAM_SECTION_ID;
 pub(crate) use thruster::VECTOR_THRUSTER_SECTION_ID;
 

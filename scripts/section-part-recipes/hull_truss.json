@@ -1,0 +1,307 @@
+{
+  "_comment": "SHIPPED: the station truss, 1x1x1, long axis Z. Four box longerons, yellow end frames on both open ends, one diagonal brace per side face and a service conduit down the middle. Sockets only on +-Z, so the derived skin never clads it: a spoke or a ring run reads as open lattice.",
+  "frame": "core",
+  "cells": [
+    1,
+    1,
+    1
+  ],
+  "materials": {
+    "part_steel": {
+      "color": [
+        0.42,
+        0.44,
+        0.47
+      ],
+      "metallic": 0.7,
+      "roughness": 0.45
+    },
+    "part_gunmetal": {
+      "color": [
+        0.18,
+        0.19,
+        0.22
+      ],
+      "metallic": 0.55,
+      "roughness": 0.6
+    },
+    "part_yellow": {
+      "color": [
+        0.62,
+        0.48,
+        0.08
+      ],
+      "metallic": 0.3,
+      "roughness": 0.6
+    },
+    "part_cable": {
+      "color": [
+        0.07,
+        0.07,
+        0.08
+      ],
+      "metallic": 0.0,
+      "roughness": 0.95
+    }
+  },
+  "material": "part_steel",
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [
+        0.09,
+        0.09,
+        1.0
+      ],
+      "at": [
+        0.38,
+        0.38,
+        0.0
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.09,
+        0.09,
+        1.0
+      ],
+      "at": [
+        0.38,
+        -0.38,
+        0.0
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.09,
+        0.09,
+        1.0
+      ],
+      "at": [
+        -0.38,
+        0.38,
+        0.0
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.09,
+        0.09,
+        1.0
+      ],
+      "at": [
+        -0.38,
+        -0.38,
+        0.0
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.76,
+        0.07,
+        0.07
+      ],
+      "at": [
+        0.0,
+        0.38,
+        0.46
+      ],
+      "material": "part_yellow"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.76,
+        0.07,
+        0.07
+      ],
+      "at": [
+        0.0,
+        -0.38,
+        0.46
+      ],
+      "material": "part_yellow"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.07,
+        0.76,
+        0.07
+      ],
+      "at": [
+        0.38,
+        0.0,
+        0.46
+      ],
+      "material": "part_yellow"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.07,
+        0.76,
+        0.07
+      ],
+      "at": [
+        -0.38,
+        0.0,
+        0.46
+      ],
+      "material": "part_yellow"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.76,
+        0.07,
+        0.07
+      ],
+      "at": [
+        0.0,
+        0.38,
+        -0.46
+      ],
+      "material": "part_yellow"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.76,
+        0.07,
+        0.07
+      ],
+      "at": [
+        0.0,
+        -0.38,
+        -0.46
+      ],
+      "material": "part_yellow"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.07,
+        0.76,
+        0.07
+      ],
+      "at": [
+        0.38,
+        0.0,
+        -0.46
+      ],
+      "material": "part_yellow"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.07,
+        0.76,
+        0.07
+      ],
+      "at": [
+        -0.38,
+        0.0,
+        -0.46
+      ],
+      "material": "part_yellow"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.05,
+        0.05,
+        1.18
+      ],
+      "rotate": [
+        37.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        0.38,
+        0.0,
+        0.0
+      ],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.05,
+        0.05,
+        1.18
+      ],
+      "rotate": [
+        -37.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        -0.38,
+        0.0,
+        0.0
+      ],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.05,
+        0.05,
+        1.18
+      ],
+      "rotate": [
+        0.0,
+        37.0,
+        0.0
+      ],
+      "at": [
+        0.0,
+        0.38,
+        0.0
+      ],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.05,
+        0.05,
+        1.18
+      ],
+      "rotate": [
+        0.0,
+        -37.0,
+        0.0
+      ],
+      "at": [
+        0.0,
+        -0.38,
+        0.0
+      ],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.07,
+      "height": 1.0,
+      "sides": 8,
+      "rotate": [
+        90.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "material": "part_cable"
+    }
+  ]
+}

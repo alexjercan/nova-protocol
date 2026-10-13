@@ -36,13 +36,17 @@ use nova_world::prelude::*;
 use crate::{
     civilizations::{Civilization, CivilizationField, CivilizationStatusType},
     clusters::CLUSTER_LATTICE,
-    BLOCK_WAYSTATION_STATION_ID,
+    RING_STATION_STATION_ID, SPIRE_STATION_STATION_ID, YARD_STATION_STATION_ID,
 };
 
-/// Every station design id the generator places. Arming pins each from the
-/// loaded catalog, and the base lint refuses a base bundle that authors none
-/// of them.
-pub const GENERATED_STATION_DESIGN_IDS: &[&str] = &[BLOCK_WAYSTATION_STATION_ID];
+/// Every station design id the generator places, the list a civilization
+/// draws its design from. Arming pins each from the loaded catalog, and the
+/// base lint refuses a base bundle that lacks one of them.
+pub const GENERATED_STATION_DESIGN_IDS: &[&str] = &[
+    RING_STATION_STATION_ID,
+    SPIRE_STATION_STATION_ID,
+    YARD_STATION_STATION_ID,
+];
 
 /// How many stations a living civilization keeps past its first at full
 /// advancement: one per tier, a tier being an equal share of `[0, 1]`
@@ -56,14 +60,13 @@ const STATION_ADVANCEMENT_TIERS: f32 = 2.0;
 /// within 125 km of the centroid, inside the 320 km influence reach.
 const STATION_NODE_SEARCH: i32 = 2;
 
-/// The station design `civilization` builds.
-///
-/// TODO: every civilization builds the base waystation because base content
-/// authors one station design. When a second design exists, replace this
-/// with a seeded draw from the civilization's own designs and delete
-/// [`GENERATED_STATION_DESIGN_IDS`].
-pub fn station_design_id(_civilization: &Civilization) -> &'static str {
-    GENERATED_STATION_DESIGN_IDS[0]
+/// The station design `civilization` builds: one even draw over
+/// [`GENERATED_STATION_DESIGN_IDS`] off the civilization's own stream, so
+/// every station of one civilization shares a look and neighbours differ.
+pub fn station_design_id(civilization: &Civilization) -> &'static str {
+    let count = GENERATED_STATION_DESIGN_IDS.len();
+    let draw = civilization.id.stream(b"station_design").unit();
+    GENERATED_STATION_DESIGN_IDS[((draw * count as f32) as usize).min(count - 1)]
 }
 
 /// The share of its design's stock and credits a living station is generated
@@ -332,11 +335,13 @@ mod tests {
     /// hosting cluster; every one of them is in the manifest of the cell it
     /// stands in, once per cluster, keeping the civilization that claimed it,
     /// standing clear of every other body of its cell; and the sweep sees
-    /// both a living and a dead station, so it is not vacuous.
+    /// both a living and a dead station and more than one design, so it is
+    /// not vacuous and the per-civilization draw varies.
     #[test]
     fn every_civilization_keeps_its_stations_at_distinct_clear_clusters() {
         let (mut living, mut dead) = (0, 0);
-        for seed in [20_260_922, 12_345, 4_000_000_000] {
+        let mut designs = BTreeSet::new();
+        for seed in [20_260_922, 12_345, 4_000_000_000, 6, 10] {
             let config = config(seed);
             let edge = config.sector_edge;
             let fields = EnvironmentFields::new(seed);
@@ -391,8 +396,13 @@ mod tests {
                                 stems.insert(stem.clone()),
                                 "{seed}: cluster {stem} is claimed by two civilizations"
                             );
-                            let clearance = pinned[0].clearance;
-                            let pose = station_pose(&cluster, edge, clearance, seed)
+                            let design = pinned
+                                .iter()
+                                .find(|station| {
+                                    station.design.id == station_design_id(&civilization).into()
+                                })
+                                .expect("the fixture pins the design");
+                            let pose = station_pose(&cluster, edge, design.clearance, seed)
                                 .expect("a claimed node hosts a station");
                             let coord = SectorCoord::containing(pose.position, edge);
                             let manifest = manifests.entry(coord).or_insert_with(|| {
@@ -426,11 +436,12 @@ mod tests {
                                 }
                                 CivilizationStatusType::Extinct => {
                                     assert!(station.is_dead(), "{seed} {stem} is living");
-                                    assert_eq!(station.spawn.allegiance, Some(Allegiance::Neutral));
+                                    assert_eq!(station.spawn.allegiance, Allegiance::Neutral);
                                     dead += 1;
                                 }
                             }
                             assert_eq!(station.spawn.design, station.design.id);
+                            designs.insert(station.design.id.clone());
                             let clear = |other: Meters3, reach: f32, what: &str| {
                                 let gap = station.position.distance(other).get();
                                 assert!(
@@ -470,6 +481,10 @@ mod tests {
         assert!(
             living > 0 && dead > 0,
             "{living} living and {dead} dead stations seen"
+        );
+        assert!(
+            designs.len() > 1,
+            "every station drew one design: {designs:?}"
         );
     }
 }

@@ -1,0 +1,25 @@
+{
+  "_comment": "STATION kit: a low heat-rejection panel - a dark tray under fine pale fins. Flat enough to be trim, so it lies on the decks of a one-cell ring and dresses the plating a station mostly is. Long axis is +Z so the fins run down the deck.",
+  "materials": {
+    "station_enamel": { "color": [0.55, 0.56, 0.58], "metallic": 0.1, "roughness": 0.45 },
+    "station_shadow": { "color": [0.015, 0.016, 0.02], "metallic": 0.1, "roughness": 0.8 }
+  },
+  "material": "station_enamel",
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.4, 0.02, 0.3],
+      "at": [0.0, 0.01, 0.0],
+      "material": "station_shadow"
+    },
+    {
+      "primitive": "ribs",
+      "size": [0.36, 0.01, 0.28],
+      "count": 7,
+      "rib_height": 0.035,
+      "rib_width": 0.02,
+      "across": "x",
+      "at": [0.0, 0.025, 0.0]
+    }
+  ]
+}

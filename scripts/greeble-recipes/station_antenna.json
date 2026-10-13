@@ -1,0 +1,40 @@
+{
+  "_comment": "STATION kit: the comms antenna - a ribbed plinth, a thin whip and a red lamp at the tip. The one tall piece of the kit, on the high ground, so a station's spars and masts read as an aerial farm from across a sector. Pale enamel and one red lamp: the station accent is navigation red, the colour a pilot looks for on a dock.",
+  "materials": {
+    "station_enamel": { "color": [0.55, 0.56, 0.58], "metallic": 0.1, "roughness": 0.45 },
+    "station_shadow": { "color": [0.015, 0.016, 0.02], "metallic": 0.1, "roughness": 0.8 },
+    "station_lamp": { "color": [0.9, 0.05, 0.03], "metallic": 0.0, "roughness": 0.3 }
+  },
+  "material": "station_enamel",
+  "budget": { "footprint": 0.5, "height": 0.4 },
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.16, 0.04, 0.16],
+      "at": [0.0, 0.02, 0.0],
+      "material": "station_shadow"
+    },
+    {
+      "primitive": "taper",
+      "radius_bottom": 0.035,
+      "radius_top": 0.012,
+      "height": 0.3,
+      "sides": 6,
+      "at": [0.0, 0.19, 0.0]
+    },
+    {
+      "primitive": "box",
+      "size": [0.14, 0.012, 0.012],
+      "at": [0.0, 0.22, 0.0]
+    },
+    {
+      "primitive": "taper",
+      "radius_bottom": 0.022,
+      "radius_top": 0.012,
+      "height": 0.04,
+      "sides": 6,
+      "at": [0.0, 0.36, 0.0],
+      "material": "station_lamp"
+    }
+  ]
+}

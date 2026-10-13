@@ -861,4 +861,122 @@
             ),
         ],
     )),
+    Style((
+        id: "station",
+        name: "Station",
+        palette: (
+            top: (
+                color: LinearRgba((
+                    red: 0.42,
+                    green: 0.43,
+                    blue: 0.45,
+                    alpha: 1.0,
+                )),
+                roughness: 0.5,
+                metallic: 0.1,
+            ),
+            wall: (
+                color: LinearRgba((
+                    red: 0.06,
+                    green: 0.062,
+                    blue: 0.07,
+                    alpha: 1.0,
+                )),
+                roughness: 0.8,
+                metallic: 0.1,
+            ),
+        ),
+        fixtures: [
+            (
+                id: "station_antenna",
+                model: "self://gltf/greebles/station_antenna.glb#Scene0",
+                health: 8.0,
+                collider: (
+                    0.16,
+                    0.38,
+                    0.16,
+                ),
+                placement: (
+                    region: HighGround,
+                    density: Sparse,
+                    orientation: Free,
+                ),
+            ),
+            (
+                id: "station_windows",
+                model: "self://gltf/greebles/station_windows.glb#Scene0",
+                health: 6.0,
+                collider: (
+                    0.14,
+                    0.03,
+                    0.62,
+                ),
+                placement: (
+                    region: Flank,
+                    density: Regular,
+                    orientation: Along,
+                ),
+            ),
+            (
+                id: "station_radiator",
+                model: "self://gltf/greebles/station_radiator.glb#Scene0",
+                health: 10.0,
+                collider: (
+                    0.4,
+                    0.065,
+                    0.3,
+                ),
+                placement: (
+                    region: Deck,
+                    density: Regular,
+                    orientation: Along,
+                ),
+            ),
+            (
+                id: "station_beacon",
+                model: "self://gltf/greebles/station_beacon.glb#Scene0",
+                health: 4.0,
+                collider: (
+                    0.12,
+                    0.085,
+                    0.12,
+                ),
+                placement: (
+                    region: NearFitting,
+                    density: Sparse,
+                    orientation: Free,
+                ),
+            ),
+            (
+                id: "station_hatch",
+                model: "self://gltf/greebles/station_hatch.glb#Scene0",
+                health: 6.0,
+                collider: (
+                    0.26,
+                    0.04,
+                    0.26,
+                ),
+                placement: (
+                    region: Anywhere,
+                    density: Sparse,
+                    orientation: Free,
+                ),
+            ),
+            (
+                id: "station_marking",
+                model: "self://gltf/greebles/station_marking.glb#Scene0",
+                health: 4.0,
+                collider: (
+                    0.24,
+                    0.02,
+                    0.32,
+                ),
+                placement: (
+                    region: Anywhere,
+                    density: Regular,
+                    orientation: Along,
+                ),
+            ),
+        ],
+    )),
 ]
