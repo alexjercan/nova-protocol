@@ -1,8 +1,8 @@
 # Skin: plating forms no spikes; iterate with owner review
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 97
-- TAGS: v0.16.0,skin
+- TAGS: v0.16.0, skin
 
 ## User facts
 - Owner feedback 2026-10-13: "we will need to improve a bit the skin plating right now I don't like that it forms "spikes" would like to not have that happen anymore need more iteration and review on this feature".
@@ -20,6 +20,8 @@
 - Round 4 prototype 2026-10-13 (`prototype-hybrid3.diff`, reverted; stacks `compare6-*` in the scratchpad `133631/`): owner asked for neighbour averaging over the 8 in-plane cells plus the cubes beside them, and the bevel as a softener for spikes and tall plates. Each corner averages its 4 meeting cells at 1/4 each, rounded half up and capped at the plate level; FULL plates get a flat bevel cap at slope 2 where the average is lower; a flanked end cap drops its wall cover. Result: diagonal stair is a continuous bevelled ramp with no lips or pocket; cutter pocket closed; ring pods are clean bevelled modules; hauler wedge smaller but visible; the 2x2 step block keeps a top notch; decoration partly restored (most hazard stripes and the line warship mast lost).
 
 - Owner decision 2026-10-13: implement round four (hybrid3) as the real fix. Production code replaces the old rules outright, with no env switch. Fix the leftovers (hauler wedge, cutter crease, 2x2 step notch), restore decoration, and add a permanent diagonal screenshot example. Owner acceptance of the final frames is still required before close.
+
+- Orchestrator close 2026-10-14: round four landed in 18a4f9ae8 (flat plates with chamfered rims, `ShellShape { level, feet, edges: [ShellEdgeType; 4], soft_corners }`, save format 8), 950d072db (`screenshot_diagonal_skin`) and 180ec6dd7 (docs). The orchestrator reviewed the hauler close, the diagonal stair front and the warship side stacks: no spikes, the stair reads as one ramp. `content lint` re-run: 0 errors. Hole finder: 0 leaks on five ships and the waystation. Open for the owner: the gunship armoured intake no longer places (0 of 1), because Panel takes Flat plates only; the agent recommends leaving it. Remaining: a thin dark chamfer sliver at the waystation lower-left corner, and an unclad turret housing side on the gunship (also present before). Frames: scratchpad `133631/final/final-<hull>-<shot>.png`.
 
 ## Delivery gate
 - Survey which skin rule makes the spikes (with screenshots of named hulls), show before/after frames and the proposed rule change to the owner before landing. This feature needs owner review rounds, not one pass.
