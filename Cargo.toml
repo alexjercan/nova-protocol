@@ -1057,6 +1057,11 @@ path = "examples/screenshots/screenshot_generated_ships.rs"
 name = "screenshot_station_showcase"
 path = "examples/screenshots/screenshot_station_showcase.rs"
 
+# The derived skin over a staircase and a step block of hull cubes.
+[[example]]
+name = "screenshot_diagonal_skin"
+path = "examples/screenshots/screenshot_diagonal_skin.rs"
+
 [[example]]
 name = "loop_docked_helm"
 path = "examples/screenshots/loop_docked_helm.rs"
