@@ -1062,6 +1062,11 @@ path = "examples/screenshots/screenshot_station_showcase.rs"
 name = "screenshot_diagonal_skin"
 path = "examples/screenshots/screenshot_diagonal_skin.rs"
 
+# The derived skin at the open end of a solar wing and a truss spur.
+[[example]]
+name = "screenshot_solar_wing"
+path = "examples/screenshots/screenshot_solar_wing.rs"
+
 [[example]]
 name = "loop_docked_helm"
 path = "examples/screenshots/loop_docked_helm.rs"
