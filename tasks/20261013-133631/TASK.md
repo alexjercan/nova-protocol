@@ -15,6 +15,8 @@
 
 - Owner direction 2026-10-13: a hybrid of slab and edge-chamfer ("if we have a step we need to use a slab, if we don't we use a chamfer ... slabs and adding chamfers to smooth them out"; bevel kept straight). Hybrid prototype (reverted, diff `prototype-hybrid.diff` in the scratchpad `133631/`): flat plates at the plate level, one straight chamfer per lowered edge, no midpoint spikes, centre lift or point climbs; fits the 8-digit ShellShape with new digit meaning (frozen wreck plates need a re-derive or a breaking entry). All pyramids gone, decoration kept. Open problems: chamfers on two faces of a convex corner do not meet (teeth on box edges), a raised slab beside a lower plate leaves triangular gaps, and a slab chamfered on both sides reads as a gable without a minimum flat top.
 
+- Owner review 2026-10-13: the hybrid "looks really good"; diagonal neighbours (cells at (0,0,0) and (1,1,0)) look wrong on the (1,0,0) face; for that case the before rules work, "maybe a mix between bevel and before". Round 3 prototype (`prototype-hybrid2.diff`, reverted): ramp envelope makes convex corner chamfers meet, full plates keep a flat top, 45-degree skirts close most gaps; the diagonal stair still has lips over pockets, a pocket remains on the cutter and a hole on the hauler, ring and spire modules stay lumpy. Round 4 uses the before edge heights on diagonal neighbours plus a straight bevel.
+
 ## Delivery gate
 - Survey which skin rule makes the spikes (with screenshots of named hulls), show before/after frames and the proposed rule change to the owner before landing. This feature needs owner review rounds, not one pass.
 
