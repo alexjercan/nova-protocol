@@ -17,6 +17,8 @@
 
 - Owner review 2026-10-13: the hybrid "looks really good"; diagonal neighbours (cells at (0,0,0) and (1,1,0)) look wrong on the (1,0,0) face; for that case the before rules work, "maybe a mix between bevel and before". Round 3 prototype (`prototype-hybrid2.diff`, reverted): ramp envelope makes convex corner chamfers meet, full plates keep a flat top, 45-degree skirts close most gaps; the diagonal stair still has lips over pockets, a pocket remains on the cutter and a hole on the hauler, ring and spire modules stay lumpy. Round 4 uses the before edge heights on diagonal neighbours plus a straight bevel.
 
+- Round 4 prototype 2026-10-13 (`prototype-hybrid3.diff`, reverted; stacks `compare6-*` in the scratchpad `133631/`): owner asked for neighbour averaging over the 8 in-plane cells plus the cubes beside them, and the bevel as a softener for spikes and tall plates. Each corner averages its 4 meeting cells at 1/4 each, rounded half up and capped at the plate level; FULL plates get a flat bevel cap at slope 2 where the average is lower; a flanked end cap drops its wall cover. Result: diagonal stair is a continuous bevelled ramp with no lips or pocket; cutter pocket closed; ring pods are clean bevelled modules; hauler wedge smaller but visible; the 2x2 step block keeps a top notch; decoration partly restored (most hazard stripes and the line warship mast lost).
+
 ## Delivery gate
 - Survey which skin rule makes the spikes (with screenshots of named hulls), show before/after frames and the proposed rule change to the owner before landing. This feature needs owner review rounds, not one pass.
 
