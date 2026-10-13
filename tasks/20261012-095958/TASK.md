@@ -1,8 +1,8 @@
 # Epic: stations as the place loss is redeemed
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 89
-- TAGS: v0.16.0,epic,stations
+- TAGS: v0.16.0, epic, stations
 
 ## User facts
 - Stage 1 of the game expansion (design page Part 5). Owner decisions 2026-10-12: stations are a new `Content::Station` kind with their own object kind and frozen body type (decision 1); the generator places at least one per living civilization and a dead one per extinct civilization (2); services only while docked, held jobs stay on the Map (2b); stations are dynamic thrusterless bodies with self-levelling controllers, in orbit of the cluster's planet when it has one (3, 3a); a living station owns the helm while docked (3b); rebuild and refit only docked, sections are never items, each section config owns a parts recipe (4); one connection per hull (6b); a destroyed ship drops hold canisters and a share of section parts (7); the chart layer lands with the station contacts (9b).
@@ -29,6 +29,8 @@ Children carry the `Stations:` title prefix and the `stations` tag.
   6. Proofs: the station torpedo proof becomes damaged-but-level-and-in-orbit; new proofs for derelict on last turret lost and docking port destroyed while docked releases; a screenshot of the new look.
 
 - Landed 2026-10-13: ad4e89637 (damage floor at the design's collapse threshold, 0.5 for stations; dead on last weapon or last flight computer), e87d2729e (station AI aims by side, holds guns on a docked ship, point defense masked behind it), 86e971480 (truss_hull_section, solar_panel_section, `station` style with six greebles; ring_station 177 sections 230 m, spire_station 217 sections 205 m, yard_station 190 sections 270 m, each civilization draws one; waystation gained a second bridge), 073d48450 (orbit torpedo proof now damaged-but-level, screenshot_station_showcase example, docs). Owner additions: parts in the section gallery and greeble catalog, several station styles, showcase example. `content lint` re-run by orchestrator: 0 errors; screenshots reviewed. Agent-chosen values for owner review: damage floor 0.5, armed station stock 1000 PdcRound and 20000 credits, no AI leash, sever keeps station velocity (no momentum conservation), wreck canisters now inherit ship velocity. Gaps: turrets small in close shots, no turret-firing screenshot, wiki hull page image placeholders for the two parts, gallery labels say "NEW".
+
+- Epic close 2026-10-13: Done when proven in one run, `examples/systems/system_station_round_trip.rs` (3626b51f6): New Game modal on seed 10, a PDC section zeroed as fixture, dock at a living generated station, Ship pane Rebuild (recipe parts and credits asserted, OnRebuilt once), undock, retire (frozen 0.00 m from where left), thaw (same state), Leave, Load through the Load screen, station as left and the section whole. Passed twice under lavapipe. Not covered: `seed: None`, combat loss, flown approach (system_station_docking), an orbiting station's pose, station credits inside the frozen record.
 
 ## Done when
 - A New Game player loses a section, docks at a generated station, rebuilds it from parts and credits, undocks, leaves the sector, returns, and the station is where and as they left it after a reload.
