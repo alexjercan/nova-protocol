@@ -11,6 +11,9 @@
 ## Agent findings
 - Unverified hypothesis: the sever removes sections from the pool, the pool reaches the 0.5 floor, and every later hit is clamped to zero. If so the floor works as written but reads as a bug in play. Other candidates: the kept half loses `StationMarker`/AI or the hit routing after a sever (`crates/nova_ship/src/sections/integrity.rs` sever path, `crates/nova_gameplay/src/integrity/health.rs` `on_damage`).
 
+- Reproduced 2026-10-13 (uncommitted test `a_severed_station_still_takes_damage_on_both_halves`, `crates/nova_ship/src/sections/integrity.rs:1991`): after a sever the kept half refuses every hit (pool 200 of pinned max 500, floor 250); the severed wreck takes damage normally. Cause: the floor rule itself. The station pool max is pinned (`integrity.rs:1075-1076`), the sever drops the wreck's sections from the current pool (`:703`, `:1068`), the floor stays `max * 0.5` (`:1107`), and `on_damage` refuses hits below it (`crates/nova_gameplay/src/integrity/health.rs:166`). Same cause, read not run: a floored station with turrets standing can never reach the dead state.
+- Options put to the owner: A floor re-measured after a sever; B weapons and flight computers ignore the floor; A+B (recommended); C no hit cap, keep only never-collapse (needs a zero-section rule). No changelog entry: introduced and fixed since the last release.
+
 ## Delivery gate
 - Reproduce first (asserted example or unit test that severs a station and then hits it), keep the before artifact, name the cause, then fix. If the cause is the floor, stop for the owner on the floor rule before changing it.
 
