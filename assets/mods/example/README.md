@@ -51,9 +51,11 @@ binary assets it ships).
   from the event payload, and the mark follows the body through its sector's
   retire and thaw.
 - **A station** - `example_outpost` is a `Station`: a hull that never flies
-  (a collar, a bridge, four of this mod's plates, no thruster), the services
-  it offers (`Trade`, `Storage`), its storage cap, the stock its hold opens
-  with and the credits it trades with. A scenario spawns it with
+  (a collar, a bridge, four of this mod's plates, no thruster), the share of
+  its hull pool below which it takes no more damage
+  (`integrity: (collapse_threshold: Some(0.5))`, required on a station), the
+  services it offers (`Trade`, `Storage`), its storage cap, the stock its hold
+  opens with and the credits it trades with. A scenario spawns it with
   `kind: Station((design: "example_outpost", ..))`.
 
 ## Layout

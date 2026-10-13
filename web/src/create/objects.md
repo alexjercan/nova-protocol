@@ -586,13 +586,14 @@ still catching accidental embedding.
 A spawn of a STATION: a hull that never flies, parked where the scenario put
 it. What it IS - its hull, what it offers, what it holds - is a
 [station](../stations/), named here by id. The spawn builds the same root a
-ship gets (a dock, a trade and a sever all find it), with no pilot and every
-capability off but docking.
+ship gets (a dock, a trade and a sever all find it), with an AI that aims its
+turrets but never maneuvers, and every capability off but docking and, while
+it lives, point defense.
 
 | field | type | default | meaning |
 |---|---|---|---|
 | `design` | string | required | the [station design](../stations/) id. An id no loaded content declares fails at lint and at load |
-| `allegiance` | `Option` side | required | which side the station is on, strict RON `Some(Neutral)`; `None` keeps no side |
+| `allegiance` | side | required | which side the station is on: `Player`, `Enemy` or `Neutral`. Player and Enemy stations fire on hostile sides; a Neutral station fires only back at a side that hit it |
 | `derelict` | bool | required | `true` spawns a dead station: its systems inactive, its hold open to Take |
 | `initial_velocity` | 3-tuple | required | explicit initial motion in meters per second; `(0.0, 0.0, 0.0)` is an authored stationary start, not immunity to gravity |
 
@@ -606,7 +607,7 @@ SpawnScenarioObject((
     base: (id: "waystation", name: "WAYSTATION", position: (0.0, 0.0, -1500.0), rotation: (0.0, 0.0, 0.0, 1.0)),
     kind: Station((
         design: "block_waystation",
-        allegiance: Some(Neutral),
+        allegiance: Neutral,
         derelict: false,
         initial_velocity: (0.0, 0.0, 0.0),
     )),

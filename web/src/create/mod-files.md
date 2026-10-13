@@ -197,7 +197,7 @@ nine item kinds:
         id: "my_outpost",
         name: "My Outpost",
         about: "A collar, a bridge and a plate.",
-        hull: (sections: []),
+        hull: (sections: [], integrity: (collapse_threshold: Some(0.5))),
         services: [Trade],
         storage_cap_g: 0,
         stock: {},

@@ -41,7 +41,7 @@ A hull cell keeps the shape it was built in. What it does instead is **crack**: 
 
 ## Variants
 
-Four unit-cell hulls ship. The cargo and tank cells match the reinforced cell stat for stat today; what they buy is a hull that reads as what it carries, and the light cell is the scavenger grade at a third of the health. A hull weighs the space it fills, exactly: a section's mass is the volume of the box it is hit on, and no section is denser than another. Health is authored; the mass carrying it is not.
+Six hulls ship. The cargo and tank cells match the reinforced cell stat for stat today; what they buy is a hull that reads as what it carries, and the light cell is the scavenger grade at a third of the health. The truss and the solar panel are station parts: an open girder cell that joins only at its two ends, and a panel a tenth of a cell thick that joins only side to side. A hull weighs the space it fills, exactly: a section's mass is the volume of the box it is hit on, and no section is denser than another. Health is authored; the mass carrying it is not.
 
 That is why the health column below is not the order you want when you are choosing what to bolt on - and it is not only a hull question, because everything else you bolt on is weighed the same way.
 
@@ -52,7 +52,7 @@ That is why the health column below is not the order you want when you are choos
 </div>
 
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/hull.rs (reinforced 200, light 60, cargo 200, tank 200). -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/hull.rs (reinforced 200, light 60, cargo 200, tank 200, truss 120, solar panel 40). -->
 <div class="catalog__head"><span class="catalog__kindicon"><span class="figure__placeholder"><span class="figure__placeholder-name">assets/icon-hull.png</span></span></span><span class="catalog__title">Hull - shipped prototypes</span></div>
 <table>
 <thead>
@@ -63,6 +63,8 @@ That is why the health column below is not the order you want when you are choos
 <tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-light-hull-section.png</span></span></span></td><td><span class="catalog__name">Light Hull Section</span><span class="catalog__id">light_hull_section</span></td><td class="catalog__num">60</td></tr>
 <tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-cargo-hull-section.png</span></span></span></td><td><span class="catalog__name">Cargo Hull Section</span><span class="catalog__id">cargo_hull_section</span></td><td class="catalog__num">200</td></tr>
 <tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-tank-hull-section.png</span></span></span></td><td><span class="catalog__name">Tank Hull Section</span><span class="catalog__id">tank_hull_section</span></td><td class="catalog__num">200</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-truss-hull-section.png</span></span></span></td><td><span class="catalog__name">Truss Section</span><span class="catalog__id">truss_hull_section</span></td><td class="catalog__num">120</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-solar-panel-section.png</span></span></span></td><td><span class="catalog__name">Solar Panel Section</span><span class="catalog__id">solar_panel_section</span></td><td class="catalog__num">40</td></tr>
 </tbody>
 </table>
 </div>

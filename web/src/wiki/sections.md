@@ -43,7 +43,7 @@ Every page runs the same course: what the part does and the numbers that decide 
 The whole shipped catalog at a glance; every child page carries the full per-kind stats. A section weighs the space it fills, so the unit cells all weigh the same and health and the kind stat are what separate them. What breaks the pattern is the mounts that are not unit cells: a PDC turret is a half-cell cube at an eighth of the mass, a torpedo bay a two-cell tube, a railgun a three-cell spine, and the two large drives are 18 and 75 cells of block.
 
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/, one module per family: hull.rs (reinforced, cargo and tank 200, light 60), thruster.rs (basic 70 at 1.0, vector 480 at 9.0 over 3x3x2, capital 1250 at 25.0 over 5x5x3), controller.rs (100, max_torque 9760), turret.rs (pdc_turret_prototype, health 130, gatling at 100/s and twin at half per muzzle), torpedo_bay.rs (torpedo_bay_prototype and its two call sites), railgun.rs (railgun_lance_prototype), docking_port.rs, cargo_intake.rs and mining_beam.rs. -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/, one module per family: hull.rs (reinforced, cargo and tank 200, truss 120, light 60, solar panel 40), thruster.rs (basic 70 at 1.0, vector 480 at 9.0 over 3x3x2, capital 1250 at 25.0 over 5x5x3), controller.rs (100, max_torque 9760), turret.rs (pdc_turret_prototype, health 130, gatling at 100/s and twin at half per muzzle), torpedo_bay.rs (torpedo_bay_prototype and its two call sites), railgun.rs (railgun_lance_prototype), docking_port.rs, cargo_intake.rs and mining_beam.rs. -->
 <table>
 <thead>
 <tr><th>Kind</th><th>Variant</th><th>Health</th><th>Signature stat</th></tr>
@@ -53,6 +53,8 @@ The whole shipped catalog at a glance; every child page carries the full per-kin
 <tr><td>Hull</td><td><span class="catalog__name">Light Hull Section</span><span class="catalog__id">light_hull_section</span></td><td class="catalog__num">60</td><td>structure only</td></tr>
 <tr><td>Hull</td><td><span class="catalog__name">Cargo Hull Section</span><span class="catalog__id">cargo_hull_section</span></td><td class="catalog__num">200</td><td>structure only</td></tr>
 <tr><td>Hull</td><td><span class="catalog__name">Tank Hull Section</span><span class="catalog__id">tank_hull_section</span></td><td class="catalog__num">200</td><td>structure only</td></tr>
+<tr><td>Hull</td><td><span class="catalog__name">Truss Section</span><span class="catalog__id">truss_hull_section</span></td><td class="catalog__num">120</td><td>open frame, mates at two ends</td></tr>
+<tr><td>Hull</td><td><span class="catalog__name">Solar Panel Section</span><span class="catalog__id">solar_panel_section</span></td><td class="catalog__num">40</td><td>thin panel, mates side to side</td></tr>
 <tr><td>Controller</td><td><span class="catalog__name">Basic Controller Section</span><span class="catalog__id">basic_controller_section</span></td><td class="catalog__num">100</td><td class="catalog__num">9760 torque</td></tr>
 <tr><td>Thruster</td><td><span class="catalog__name">Basic Thruster Section</span><span class="catalog__id">basic_thruster_section</span></td><td class="catalog__num">70</td><td class="catalog__num">1.0 thrust</td></tr>
 <tr><td>Thruster</td><td><span class="catalog__name">Vector Thruster Section</span><span class="catalog__id">vector_thruster_section</span></td><td class="catalog__num">480</td><td class="catalog__num">9.0 thrust, 3x3x2</td></tr>

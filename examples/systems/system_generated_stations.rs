@@ -12,7 +12,7 @@
 //! and that the thaw puts a NEW entity at the same pose under the same id.
 //!
 //! ONE SUBJECT: a GENERATED station across stream, retire and thaw. What a
-//! station IS (its sections, attitude, invulnerability, orbit) is
+//! station IS (its sections, attitude, damage floor, orbit) is
 //! `system_station_body`'s and `system_station_orbit`'s range; which cluster
 //! gets a station and how many a civilization keeps is the seed sweep in
 //! `nova_world_base::sector_stations`.

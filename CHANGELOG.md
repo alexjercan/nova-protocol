@@ -26,6 +26,12 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Dying in New Game shows DEFEAT with Main Menu. On desktop it also offers
   Load last save, which reopens the world from its last save.
 
+### Combat & Weapons
+
+- A living station aims its turrets: Enemy and Player stations fire on hostile
+  sides, a Neutral one only fires back. Guns hold on a docked ship and point
+  defense never fires through it.
+
 ### Ships & Sections
 
 - A cargo intake's door now stays shut for a canister the hold has no room
@@ -33,6 +39,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A destroyed ship drops its hold as cargo canisters, and a destroyed section
   drops its `strip_yield` share of each recipe part, rounded down. Both freeze
   and save.
+- Station parts: `truss_hull_section` and `solar_panel_section` hulls, a
+  `station` style with six `station_*` greebles, and the armed `ring_station`,
+  `spire_station` and `yard_station` designs.
 
 ### Scenarios & Objectives
 
@@ -57,9 +66,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Modding & Mod Portal
 
-- Generated worlds place stations: a living civilization keeps one to three
-  `block_waystation`s at its nearest clusters; an extinct one leaves one dead,
-  lootable station.
+- Generated worlds place stations: a living civilization keeps one to three of
+  its station look (ring, spire or yard) at its nearest clusters; an extinct
+  one leaves one dead, lootable station.
 - **(breaking)** A scenario object id or a ship section id may not contain
   '/', and two sections of one ship may not share an id. Both fail at lint and
   at load.
@@ -71,12 +80,15 @@ does NOT get an entry. Another page that states a different rule is wrong.
   item ids the game uses, each in a fixed category.
 - **(breaking)** An asteroid `lock_signature` override must be finite and above
   zero. Any other value fails at lint and at load.
-- **(breaking)** Stations are content: `Station` entries a scenario spawns by
-  id as `kind: Station`, frozen as their own body type. World save format 7
-  adds the chart; older saves are refused.
-- A station is a dynamic body: gravity and rams move it, its bridge levels
-  it and its sections take no damage. In a planet's well it spawns on a
-  circular orbit and holds it.
+- **(breaking)** Stations are content: `Station` entries spawned by id as
+  `kind: Station` with a required side and hull `collapse_threshold`. World
+  save format 7 adds the chart; older saves are refused.
+- A station is a dynamic body: gravity and rams move it and its bridge levels
+  it. Damage stops at its `collapse_threshold` share of hull, so it never
+  breaks up; in a well it holds a circular orbit.
+- A living station that loses its last turret or flight computer turns dead:
+  services stop, its hold opens to Take and a docked player gets the helm. Its
+  stock stays and it never despawns.
 - Docking at a station: an Enemy station refuses with `<NAME> REFUSES
   DOCKING` on HUD; a living station holds the pair's helm and refuses
   `HELM`; a dead station hands the helm to the docked player.
@@ -113,6 +125,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Internals & Tooling
 
+- `screenshot_station_showcase` parks every loaded station design in a row and
+  shoots the row and each design, framed by its own hull.
 - `wfc_arena` fighters lose infinite ammo. Holds carry up to two spare
   magazines per mounted ammo, PDC/torpedo/slug at 50/40/10% of hold. Old
   infinite-ammo perf baselines are not directly comparable.

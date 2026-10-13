@@ -625,8 +625,8 @@ path = "examples/systems/system_station_body.rs"
 required-features = ["debug"]
 
 # A station is a body in a planet's well: the base waystation rides a circular
-# orbit at the speed `station_orbit_velocity` gives it, keeps every hit point
-# through a torpedo, levels itself after a ram's worth of spin and shove, and
+# orbit at the speed `station_orbit_velocity` gives it, is damaged but not
+# killed by a torpedo, levels itself after a ram's worth of spin and shove, and
 # holds its radius over three orbits.
 [[example]]
 name = "system_station_orbit"
@@ -1042,6 +1042,11 @@ path = "examples/screenshots/loop_world_start.rs"
 [[example]]
 name = "screenshot_generated_ships"
 path = "examples/screenshots/screenshot_generated_ships.rs"
+
+# Every station design parked side by side, each shot framed by its own hull.
+[[example]]
+name = "screenshot_station_showcase"
+path = "examples/screenshots/screenshot_station_showcase.rs"
 
 [[example]]
 name = "loop_docked_helm"

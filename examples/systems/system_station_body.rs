@@ -139,7 +139,7 @@ fn station_void(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
         },
         kind: ScenarioObjectKind::Station(StationConfig {
             design: BLOCK_WAYSTATION_STATION_ID.into(),
-            allegiance: Some(Allegiance::Neutral),
+            allegiance: Allegiance::Neutral,
             derelict: false,
             initial_velocity: MetersPerSecond3::ZERO,
         }),

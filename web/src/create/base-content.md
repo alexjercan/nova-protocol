@@ -49,6 +49,8 @@ part serves every hull. Section kinds are `Hull`, `Thruster`, `Controller`,
 | `light_hull_section` | Hull | Light Hull Section | 60 | scavenger-grade hull |
 | `cargo_hull_section` | Hull | Cargo Hull Section | 200 | the reinforced cell's stats under caged freight; a visual choice until real hull types arrive |
 | `tank_hull_section` | Hull | Tank Hull Section | 200 | the reinforced cell's stats around a pressure vessel in open frame rails |
+| `truss_hull_section` | Hull | Truss Section | 120 | an open girder cell for station spokes and rings; it mates only at its two Z ends |
+| `solar_panel_section` | Hull | Solar Panel Section | 40 | a 1 x 0.1 x 1 panel that mates only side to side along X, so panels chain into a wing |
 | `pdc_kinetic_turret_section` | Turret | PDC Turret (Kinetic) | 130 | the gatling every craft mounts, on a 0.5 mount box; fits any hull face. Kinetic 4.0/hit at 100 rps, ammo 500, +200 after 3 s idle |
 | `pdc_pierce_turret_section` | Turret | PDC Turret (Pierce) | 130 | the same 500-round, +200 after 3 s idle gatling loading penetrators: Pierce 2.0/hit, dealt to every section it rakes through |
 | `pdc_twin_kinetic_turret_section` | Turret | Twin PDC Turret (Kinetic) | 130 | the same slugs from the two-barrel mount: each tube at half the gatling's cadence, so two offset streams at the same total rate and magazine drain |
@@ -91,6 +93,7 @@ have an id.
 | `armoured` | flat plate, a belt down every straight edge, sensor blisters |
 | `civilian` | a private yacht's: pale satin paint, a cobalt livery rail, lit cabin windows |
 | `salvage` | mismatched patches, weld beads, a lashed drum, a whip antenna |
+| `station` | a pale enamelled habitat with navigation red: antennas, lit windows, radiators, beacons by the guns and collars, hatches and approach chevrons. The ring station wears it |
 
 A ship names one with `style: Some("<id>")` beside `skin: true` on its
 [hull](../ships/#the-hull). A mod declaring
@@ -198,7 +201,7 @@ from memory.
 
 The declared list, complete:
 
-### Meshes (25 glb)
+### Meshes (27 glb)
 
 Named meshes (all use label `#Scene0`). First the thruster bells:
 
@@ -210,6 +213,8 @@ Then the generated section parts the catalog renders
 
 - `gltf/hull_personnel.glb`, `gltf/hull_cargo.glb`, `gltf/hull_tank.glb` -
   the three hull cell looks (reinforced, cargo, tank)
+- `gltf/hull_truss.glb`, `gltf/hull_solar_panel.glb` - the open truss frame
+  and the solar panel the armed stations are built from
 - `gltf/core_wires.glb` - the controller core
 - `gltf/pdc_gatling_yaw.glb`, `gltf/pdc_gatling_pitch.glb`,
   `gltf/pdc_gatling_barrel.glb` - the gatling PDC joint meshes
@@ -241,12 +246,12 @@ them itself, under its own `gltf/parts/`.
 Cladding ships no meshes and never will: a ship's skin is derived from its
 structure and built at run time - see [Cladding](#cladding-not-a-prototype).
 
-### Greebles (54 glb)
+### Greebles (60 glb)
 
 The decoration models the base [styles](../styles/) scatter, under
-`dep://base/gltf/greebles/`, named `<kit>_<piece>.glb`: the four authored
+`dep://base/gltf/greebles/`, named `<kit>_<piece>.glb`: the five authored
 kits - `armoured_*` (10), `civilian_*` (12), `industrial_*` (14),
-`salvage_*` (14) - plus four magenta `placeholder_*` pieces no base style uses.
+`salvage_*` (14), `station_*` (6) - plus four magenta `placeholder_*` pieces no base style uses.
 All are generated from committed JSON recipes (`scripts/gen-greebles.py`,
 `scripts/greeble-recipes/`), and a mod can ship its own `.glb` the same way.
 

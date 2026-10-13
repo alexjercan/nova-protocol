@@ -237,7 +237,7 @@ fn station(
         },
         kind: ScenarioObjectKind::Station(StationConfig {
             design: BLOCK_WAYSTATION_STATION_ID.into(),
-            allegiance: Some(allegiance),
+            allegiance,
             derelict,
             initial_velocity: MetersPerSecond3::ZERO,
         }),

@@ -46,6 +46,7 @@ capability set) off it.
                 ),
                 // ... hull plates ...
             ],
+            integrity: (collapse_threshold: Some(0.5)),
         ),
         services: [Trade, Storage],
         storage_cap_g: 50000,
@@ -62,7 +63,7 @@ Every field is required.
 | `id` | string | what a spawn names this design by. A mod reusing a base id REPLACES that station everywhere |
 | `name` | string | the name a picker shows. A parked station is named by the scenario object that placed it |
 | `about` | string | what this station is, for a reader |
-| `hull` | design | the same fields a [ship design](../ships/#the-design) takes: `sections`, `integrity`, `presentation`. It must hold a `Docking` section and a `Controller` section and no `Thruster` section |
+| `hull` | design | the same fields a [ship design](../ships/#the-design) takes: `sections`, `integrity`, `presentation`. It must hold a `Docking` section and a `Controller` section and no `Thruster` section, and author `integrity.collapse_threshold`: on a station it is the damage floor, see below |
 | `services` | list | what a docked ship may do here, from the closed set `Rebuild`, `Refit`, `Trade`, `Storage`, `Jobs`, `Roster`. At least one |
 | `storage_cap_g` | whole number | how many grams the station's storage takes. Above zero exactly when `services` lists `Storage` |
 | `stock` | stock | what the hull's own hold opens with, in the [stock format](../objects/#inventory). It must fit the hull's hold (100 kg per hull section) |
@@ -86,13 +87,16 @@ where it stays, and a world save keeps that pose and motion.
 | behaviour | rule |
 |---|---|
 | self-levelling | the `Controller` section parks its target attitude on the spawn rotation and drives the hull with torque alone. Spun by a hit, the hull comes to rest within `STATION_LEVEL_TOLERANCE_RAD` (0.03 rad, about 1.7 degrees) of that attitude. No thrust is ever applied: only a `Thruster` section writes thrust, and the lint refuses one |
-| invulnerable sections | a hit anywhere under a station root spends no health, so a station is never disabled, neutralized or destroyed. The rule is the station body's, living or dead alike: a derelict station is lootable, not breakable. A living station that can be fought into a derelict is a later rule |
+| damage and floor | station sections take damage and are lost as a ship's are, but a station never collapses and is never destroyed. Its hull pool stops at `collapse_threshold` of the pool it was built with (0.5 on every base station): every hit, a whole torpedo blast included, lands only down to that floor, nearest sections first, and then spends nothing. Nothing despawns |
+| turning dead | a living station whose last turret or last `Controller` section is lost (an unarmed station: its last `Controller`) turns into a dead station on the spot: services stop, it goes Neutral and lootable, its sections other than structure and docking ports switch off, and a docked player gets the helm. Hold and storage stay. See [Dead stations](#dead-stations) |
+| the guns | a living station is AI-driven. Its turrets aim, its point defense covers it, and it answers fire; with no thruster the AI never moves it. An `Enemy` or `Player` station fires on hostile sides; a `Neutral` one only answers whoever fires on it. Primary fire holds while a ship is docked, and point defense never fires through the docked hull |
+| severed pieces | a piece cut off a station leaves at the separation speed while the station keeps its own velocity, so a cut never puts a station on a new orbit |
 | orbit | a station spawned in a planet's well rides a circular orbit: its `initial_velocity` is `sqrt(mass / r)` on the tangent of its radial with +Y (with +X when the radial is near +Y), in engine units, the speed the gravity pull integrates. The generator sets it; a scenario that parks a station in a well authors the same number or watches it fall |
 | orbit tolerance | over three orbits, with a hit, the radius stays within `STATION_ORBIT_TOLERANCE` (15 percent) of where it started. The pull is held constant over each physics step, so every orbit widens a little (about 1.5 percent of its energy per orbit on the proof's fast 30 s orbit, less on a real planetoid's), and a kick of one percent of orbital speed swings the radius about four percent; past the tolerance the orbit is walking out of the well or down onto the planet |
 
 The proofs are `system_station_body` (a nudged station in a void) and
-`system_station_orbit` (a torpedo, a shove and three orbits of a small
-planet).
+`system_station_orbit` (a torpedo that takes the waystation down to its
+floor without killing it, a shove and three orbits of a small planet).
 
 ## Docking at a station
 
@@ -102,11 +106,12 @@ differs is who the station lets in and who flies the pair.
 
 | rule | what happens |
 |---|---|
-| admission | a living station reads its `allegiance`: `Some(Enemy)` refuses every dock, any other side (or `None`) admits. A derelict admits whatever its side; it is a hull to loot |
+| admission | a living station reads its `allegiance`: `Enemy` refuses every dock, any other side admits. A derelict admits whatever its side; it is a hull to loot |
 | the refusal | while the travel lock is on a station that refuses, the HUD mode chip reads `<NAME> REFUSES DOCKING` with the station object's `name`, the DOCK chip reads `DOCK REFUSED`, and `DOCK` builds nothing |
 | one connection | a hull holds one connection. A station with several ports still admits one ship; a second ship meets `<NAME> DOCK OCCUPIED` until the first lets go |
 | a living station's helm | the station owns the pair's helm. `HELM` is refused, the HUD reads `STATION HELM`, and the docked ship's drive, RCS and maneuvers are held. The station has no thruster, so the pair never moves; its bridge holds the pair level on the station's parked attitude |
-| a dead station's helm | the docked player holds the helm from the capture, as after `HELM` on a ship, because the derelict's bridge is inactive. The player's burn tows the pair |
+| a dead station's helm | the docked player holds the helm from the capture, as after `HELM` on a ship, because the derelict's bridge is inactive, and gets it the moment a living station it is docked to turns dead. The player's burn tows the pair |
+| losing the port | a docking port destroyed while a ship is docked to it releases the dock |
 | leaving | `DOCK` again, from the ship, as always |
 
 The proof is `system_station_docking`: a living station holds the helm under
@@ -169,7 +174,7 @@ SpawnScenarioObject((
     base: (id: "outpost", name: "OUTPOST", position: (0.0, 0.0, -1500.0), rotation: (0.0, 0.0, 0.0, 1.0)),
     kind: Station((
         design: "my_outpost",
-        allegiance: Some(Neutral),
+        allegiance: Neutral,
         derelict: false,
         initial_velocity: (0.0, 0.0, 0.0),
     )),
@@ -191,6 +196,8 @@ The static lint and the load gate both refuse a station that:
 - has no `Docking` section (nothing could dock with it);
 - has any `Thruster` section (a station never flies);
 - has no `Controller` section (nothing would hold its attitude);
+- authors no `integrity.collapse_threshold`, or one outside `0..=1` (a
+  station needs its damage floor);
 - lists no service;
 - lists `Storage` with `storage_cap_g: 0`, or sets `storage_cap_g` above zero
   without `Storage`;
@@ -226,10 +233,14 @@ credits round. The share never passes 1, so the stock always fits the hold
 the lint checked. A dead station keeps the design's stock and credits as
 loot.
 
-Every civilization builds `block_waystation` today. The generator pins each
-design it places from the loaded catalog when the open world arms; a base
-bundle that authors none of those ids fails `content -- lint`, and a mod that
-redefines `block_waystation` rebuilds every generated station with it.
+Each civilization builds one of `ring_station`, `spire_station` and
+`yard_station`, drawn from the world seed and the civilization alone, so all
+of its stations share a look and a cluster shows the same station from every
+cell. The generator pins those designs from the loaded catalog when the open
+world arms; a base bundle that authors none of those ids fails
+`content -- lint`, and a mod that redefines one rebuilds every generated
+station drawn as it. `block_waystation` is for scenarios; the generator never
+places it.
 
 A generated station spawns with a typed generated id and no scenario
 address, freezes as a station record when its cell retires, and thaws from
@@ -246,8 +257,20 @@ strip is the spawn flag, the same one a scenario's own `Station` object
 sets. A dead station keeps the Neutral side, and admits a dock on any side:
 see [Docking at a station](#docking-at-a-station).
 
+A living station fought down to its last turret or last flight computer
+turns into the same dead station in place (see the
+[behaviour table](#how-a-station-behaves)), and freezes, thaws and saves as
+one.
+
 ## Base stations
 
 | id | what it is |
 |---|---|
-| `block_waystation` | Waystation - a plated two-deck block, a bridge set into the top deck, a docking collar off the port flank (`port_collar`). Offers Rebuild, Refit, Trade and Storage; its hold opens with hull plates, rations, salvaged parts and a few of each hull, drive, controller and PDC part |
+| `block_waystation` | Waystation - a plated two-deck block about 40 m across, unarmed, with a bridge set into the top deck, a second flight computer (`lower_bridge`) in the far corner of the lower deck and a docking collar off the port flank (`port_collar`). Offers Rebuild, Refit, Trade and Storage; its hold opens with hull plates, rations, salvaged parts and a few of each hull, drive, controller and PDC part |
+| `ring_station` | Ring Station - a plated hub on four truss spokes inside a ring, about 230 m across, in the `station` style: 12 PDC turrets, 5 flight computers, 4 docking collars, solar masts |
+| `spire_station` | Spire Station - three armoured decks on truss columns, about 205 m tall, in the `armoured` style: 8 PDC turrets, 3 flight computers, 4 collars round the middle deck, solar wings |
+| `yard_station` | Yard Station - a truss spine between two end blocks, about 270 m long, rows of solar panels either side, in the `industrial` style: 8 PDC turrets, 3 flight computers, 4 collars |
+
+The three armed stations offer the waystation's services with about four
+times its stock, plus 1000 PDC rounds for their own guns, and 20000 credits.
+Every base station stops taking damage at half its hull pool.

@@ -3,16 +3,16 @@
 //! The base waystation is spawned in a circular orbit of a small planet with
 //! the velocity `station_orbit_velocity` gives it, and a player ship parked
 //! outside the well fires one torpedo at it. The warhead goes off on the
-//! station and its sections keep every hit point; a kick the size of a ram
-//! spins the hull and its own flight computer levels it under gravity; then
-//! the station rides three full orbits without its radius drifting.
+//! station and takes hit points off it without killing it; a kick the size of
+//! a ram spins the hull and its own flight computer levels it under gravity;
+//! then the station rides three full orbits without its radius drifting.
 //!
 //! | # | marker | claim |
 //! | - | - | - |
 //! | 1 | `outcome: station rides its orbit` | the station moves at the circular speed of the planet's well, on the radius it was placed at |
-//! | 2 | `outcome: station shrugs off a torpedo` | a warhead detonates on the station and no section, plate or chunk under it loses health or is marked at zero; the root is neither disabled nor neutralized |
+//! | 2 | `outcome: station takes a torpedo` | a warhead detonates on the station and its hull pool drops below the hull it was built with; the root is not collapsed, marked at zero, disabled, neutralized or derelict |
 //! | 3 | `outcome: station levels after a hit under gravity` | spun and shoved, the hull comes to rest within `STATION_LEVEL_TOLERANCE_RAD` of its parked attitude while the well pulls on it |
-//! | 4 | `outcome: station holds its orbit` | after three orbits and the hit the radius never left `STATION_ORBIT_TOLERANCE` of where it started and the hull is still level |
+//! | 4 | `outcome: station holds its orbit` | after three orbits and the hit the radius never left `STATION_ORBIT_TOLERANCE` of where it started, the hull is still level and no pool changed since the torpedo |
 //!
 //! The planet is scaled for the walk, not for the world. A generated
 //! planetoid is 500-1600 m with the mass that reaches 3.5 radii of influence
@@ -38,7 +38,7 @@
 //! NOVA_AUTOPILOT=1 NOVA_AUTOPILOT_DEADLINE=1800 \
 //!   cargo run --example system_station_orbit --features debug
 //! # look for: `station probe: the waystation rides its orbit`,
-//! #           `station probe: the waystation shrugs off the torpedo`,
+//! #           `station probe: the waystation takes the torpedo`,
 //! #           `station probe: the waystation levels under gravity`,
 //! #           `station probe: the waystation holds its orbit`,
 //! #           `autopilot: cycle complete, no panic`
@@ -148,8 +148,8 @@ fn orbit_script() -> Script {
         .step("let the pressure land")
         .until(frames(20))
         .add()
-        .step("assert the station shrugs off the torpedo")
-        .on_enter(assert_station_unhurt)
+        .step("assert the station takes the torpedo")
+        .on_enter(assert_station_damaged)
         .add()
         .step("kick the station as a ram would")
         .on_enter(kick_station)
@@ -227,7 +227,7 @@ fn orbit_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
         },
         kind: ScenarioObjectKind::Station(StationConfig {
             design: BLOCK_WAYSTATION_STATION_ID.into(),
-            allegiance: Some(Allegiance::Neutral),
+            allegiance: Allegiance::Neutral,
             derelict: false,
             initial_velocity,
         }),
@@ -395,7 +395,8 @@ struct OrbitEpoch {
     radius: f32,
     /// The orbit plane's normal: radial crossed with velocity at the start.
     normal: Vec3,
-    /// Every pool under the station root, as it stood before the torpedo.
+    /// Every pool under the station root: as it stood at spawn, then as the
+    /// torpedo left it.
     health: BTreeMap<Entity, f32>,
     /// The radial direction at the last tracked frame.
     last_radial: Option<Vec3>,
@@ -640,10 +641,13 @@ fn blast_seen() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
     })
 }
 
-/// Invariant 2: the warhead went off on the station and nothing under it
-/// spent a hit point, was marked at zero, disabled or neutralized.
+/// Invariant 2: the warhead went off on the station and took hit points off
+/// it - the root's pool stands below the hull it was built with - but the
+/// station is neither collapsed nor marked at zero, and it is still a living
+/// station with a flight computer to level it. The pools as they stand now
+/// are what the orbit beat later checks against.
 #[cfg(feature = "debug")]
-fn assert_station_unhurt(world: &mut World) {
+fn assert_station_damaged(world: &mut World) {
     let station = live_station(world).expect("station probe: the station must still be up");
     let blasts = world.resource::<BlastLog>().blasts.clone();
     let nearest = blasts.iter().copied().fold(f32::INFINITY, f32::min);
@@ -653,24 +657,29 @@ fn assert_station_unhurt(world: &mut World) {
          away of {:?}",
         blasts
     );
-    let before = world.resource::<OrbitEpoch>().health.clone();
-    let after = health_under(world, station);
-    for (node, full) in &before {
-        let now = after.get(node);
-        assert_eq!(
-            now,
-            Some(full),
-            "station probe: pool {node} under the station went from {full} to {now:?}"
-        );
-        assert!(
-            !world.entity(*node).contains::<HealthZeroMarker>(),
-            "station probe: pool {node} under the station is marked at zero"
-        );
-    }
+    let pool = world
+        .get::<Health>(station)
+        .map(|health| Health {
+            current: health.current,
+            max: health.max,
+        })
+        .expect("station probe: the station root carries the hull pool");
+    assert!(
+        pool.current < pool.max,
+        "station probe: the torpedo took nothing off the station ({} of {})",
+        pool.current,
+        pool.max
+    );
     let root = world.entity(station);
     assert!(
-        !root.contains::<IntegrityDisabledMarker>() && !root.contains::<NeutralizedMarker>(),
-        "station probe: the station root was disabled or neutralized by the torpedo"
+        !root.contains::<HealthZeroMarker>() && !root.contains::<StructuralCollapseMarker>(),
+        "station probe: the station root was collapsed or marked at zero by the torpedo"
+    );
+    assert!(
+        !root.contains::<IntegrityDisabledMarker>()
+            && !root.contains::<NeutralizedMarker>()
+            && !root.contains::<DerelictShipMarker>(),
+        "station probe: the torpedo killed the station rather than damaging it"
     );
     assert!(
         world
@@ -680,21 +689,34 @@ fn assert_station_unhurt(world: &mut World) {
             .is_some(),
         "station probe: the player ship is gone"
     );
+    let after = health_under(world, station);
+    let lost = world
+        .resource::<OrbitEpoch>()
+        .health
+        .keys()
+        .filter(|node| !after.contains_key(node))
+        .count();
+    world.resource_mut::<OrbitEpoch>().health = after;
     let elapsed = world.resource::<Time>().elapsed_secs();
+    let share = pool.current / pool.max;
     info!(
-        "station probe: the waystation shrugs off the torpedo ({} blast(s), nearest {nearest:.2} u, \
-         {} pools whole)",
+        "station probe: the waystation takes the torpedo ({} blast(s), nearest {nearest:.2} u, \
+         pool {:.1} of {:.1} = {share:.3}, {lost} pool(s) gone)",
         blasts.len(),
-        before.len()
+        pool.current,
+        pool.max
     );
     nova_probe::probe_marker(
         world,
-        "outcome: station shrugs off a torpedo",
+        "outcome: station takes a torpedo",
         serde_json::json!({
             "t": elapsed,
             "blasts": blasts.len(),
             "nearest": nearest,
-            "pools": before.len(),
+            "pool": pool.current,
+            "pool_max": pool.max,
+            "share": share,
+            "pools_lost": lost,
         }),
     );
 }
@@ -780,7 +802,7 @@ fn three_orbits_swept() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
 
 /// Invariant 4: over three orbits and the hit the radius stayed within
 /// [`STATION_ORBIT_TOLERANCE`] of where it started, the hull is still level
-/// and still whole.
+/// and no pool under it changed since the torpedo.
 #[cfg(feature = "debug")]
 fn assert_station_holds_orbit(world: &mut World) {
     let station = live_station(world).expect("station probe: the station must still be up");
@@ -808,7 +830,7 @@ fn assert_station_holds_orbit(world: &mut World) {
     assert_eq!(
         health_under(world, station),
         before,
-        "station probe: a pool under the station changed over the orbits"
+        "station probe: a pool under the station changed over the orbits after the torpedo"
     );
     let elapsed = world.resource::<Time>().elapsed_secs();
     info!(
