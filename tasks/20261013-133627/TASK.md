@@ -15,6 +15,7 @@
 - Options put to the owner: A floor re-measured after a sever; B weapons and flight computers ignore the floor; A+B (recommended); C no hit cap, keep only never-collapse (needs a zero-section rule). No changelog entry: introduced and fixed since the last release.
 
 - Owner decision 2026-10-13: stations work exactly like ships. Delete the station floor and hit cap (`HealthFloor`, the station branch in `aggregate_ship_health`, the cap in `on_damage`). A station below its `collapse_threshold` collapses, peels and is destroyed like a ship ("a station can be blown to pieces which is fine"). The higher station threshold (0.5) stays on purpose so stations collapse sooner. A sever that leaves the kept hull below its threshold collapses it, for ships and stations alike; prove ships have no variant of this bug. The dead state on last weapon or flight computer stays.
+- Owner decision 2026-10-13: a destroyed station drops the player's stored items (`StationStorage`) as canisters with its stock.
 
 ## Delivery gate
 - Reproduce first (asserted example or unit test that severs a station and then hits it), keep the before artifact, name the cause, then fix. If the cause is the floor, stop for the owner on the floor rule before changing it.
