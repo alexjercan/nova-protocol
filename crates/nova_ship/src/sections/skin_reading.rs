@@ -2,9 +2,9 @@
 //!
 //! [`derive_skin`](super::shell_skin::derive_skin) already works out everything
 //! below on its way to a shape - which cells are clad, which way each plate
-//! faces, how deep the structure under it runs, whether its corners die to the
-//! floor or climb a wall - and then throws all of it away except the eight
-//! boundary samples. This module reads it back out, so a scatter rule can ask
+//! faces, how deep the structure under it runs, which edges fall away and which
+//! climb a wall - and then throws all of it away except the plate's shape. This
+//! module reads it back out, so a scatter rule can ask
 //! "is this a long flat panel, or the rim of a spine, or the plate beside a
 //! nozzle" without recomputing anything and without knowing how a shape is
 //! derived.
@@ -26,19 +26,19 @@
 //!
 //! # What a real hull is made of
 //!
-//! Measured, and it is the number a style author has to start from: the
-//! generator's own hulls come out four fifths FALLING PLATE and a seventh
-//! [`Step`], with [`Flat`] under a seventh and [`Peak`] absent. A rule written
-//! for flat panels alone lands on almost nothing.
+//! Most of a generated hull is FALLING PLATE and [`Step`], with [`Flat`] the
+//! minority and [`Peak`] rare. A rule written for flat panels alone lands on
+//! almost nothing.
 //!
-//! That is why the falling plate is THREE classes and not one. A hull's
-//! straight edge ([`Brink`]), its corner-cut panels ([`Bevel`]) and its tips and
-//! saddles ([`Spur`]) are different places to stand something, and the split
-//! costs nothing: the derivation already put a corner on the floor for exactly
-//! one reason, and counting those corners is the whole of it.
+//! That is why the falling plate is split by how many ways it falls. A hull's
+//! straight edge ([`Brink`]), a one-cell run ([`Ridge`]) and its corners and
+//! tips ([`Spur`]) are different places to stand something, and the split costs
+//! nothing: the derivation already lowered an edge, or folded it round a convex
+//! hull edge, for exactly one reason, and counting those edges is the whole of
+//! it.
 //!
-//! [`Bevel`]: PlateRelief::Bevel
 //! [`Brink`]: PlateRelief::Brink
+//! [`Ridge`]: PlateRelief::Ridge
 //! [`Flat`]: PlateRelief::Flat
 //! [`Peak`]: PlateRelief::Peak
 //! [`Spur`]: PlateRelief::Spur
@@ -50,7 +50,7 @@ use bevy::{
 };
 
 use crate::sections::{
-    shell_shape::{ShellShape, FULL},
+    shell_shape::{ShellEdgeType, ShellShape, FULL},
     shell_skin::{
         ends_against, face_plane, step, support_depth, SkinPlate, SkinStructure, FACES,
         FACE_CORNERS,
@@ -58,12 +58,11 @@ use crate::sections::{
 };
 
 /// The prelude: `PlateReading`, `PlateRelief`, `PlateFacing`, `read_plates`,
-/// `relief_tally`, `relief_of`, `fallen_corners`, `is_diagonal_saddle` and
-/// `RELIEFS`.
+/// `relief_tally`, `relief_of`, `fallen_corners` and `RELIEFS`.
 pub mod prelude {
     pub use super::{
-        fallen_corners, is_diagonal_saddle, read_plates, relief_of, relief_tally, PlateFacing,
-        PlateReading, PlateRelief, RELIEFS,
+        fallen_corners, read_plates, relief_of, relief_tally, PlateFacing, PlateReading,
+        PlateRelief, RELIEFS,
     };
 }
 
@@ -83,32 +82,23 @@ pub const FITTING_REACH: u8 = 3;
 
 /// What the top of a plate is shaped like, in the terms a scatter rule asks in.
 ///
-/// Read off the eight boundary samples and nothing else, so it is exactly as
+/// Read off the plate's [`ShellShape`] and nothing else, so it is exactly as
 /// stable as the skin is: the same structure gives the same reading.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum PlateRelief {
-    /// Every sample at the same height: a flat panel. The one place a big piece
-    /// of decoration fits, and MEASURED RARE - see the module note.
+    /// A plate that falls on no side and has no capped corner: a flat panel,
+    /// at half a cell or a whole one. The one place a big piece of decoration
+    /// fits, and the minority - see the module note.
     Flat,
-    /// Some sample at the WHOLE cell: the plate climbs structure standing proud
-    /// beside it. A hard edge, and the inside corner of a step.
+    /// Any other whole-cell plate: it climbs structure standing proud beside
+    /// it. A hard edge, and the inside corner of a step.
     Step,
-    /// Corners on the floor with a crest across the middle: the tent a run of
-    /// skin one cell wide comes out as. Its long axis is
-    /// [`PlateReading::along`].
+    /// Falls on two OPPOSITE sides: the flat-topped strip a run of skin one
+    /// cell wide comes out as. Its long axis is [`PlateReading::along`].
     Ridge,
-    /// Every sample on the floor, so the middle of the plate rides at half a
-    /// cell: the stud a LONE clad cell comes out as.
+    /// Falls on every side: the plate a LONE clad cell comes out as.
     Peak,
-    /// The skin falls away at ONE CORNER and stands at the running height
-    /// everywhere else: a panel with a corner taken off.
-    ///
-    /// The gentlest of the three falling plates, and the one that reads as
-    /// panel rather than as edge - a piece sized for [`Flat`] very nearly fits.
-    ///
-    /// [`Flat`]: PlateRelief::Flat
-    Bevel,
     /// The skin falls away along ONE WHOLE SIDE: the straight edge of a hull,
     /// and the plate a rim strip or a fairing belongs on.
     ///
@@ -116,19 +106,18 @@ pub enum PlateRelief {
     /// [`PlateReading::fall`] - so this is the one a piece can be turned
     /// OUTBOARD on.
     Brink,
-    /// The skin falls away on TWO SIDES OR MORE: an outer corner, the tip of a
-    /// spar, a saddle between two runs. The pointy end of a ship.
+    /// Falls on two NEIGHBOURING sides, or on three: an outer corner, or the
+    /// tip of a spar. The pointy end of a ship.
     Spur,
 }
 
 /// Every relief class, in the order a tally reads them. The one list, so a
 /// histogram and a dump cannot disagree about the roster.
-pub const RELIEFS: [PlateRelief; 7] = [
+pub const RELIEFS: [PlateRelief; 6] = [
     PlateRelief::Flat,
     PlateRelief::Step,
     PlateRelief::Ridge,
     PlateRelief::Peak,
-    PlateRelief::Bevel,
     PlateRelief::Brink,
     PlateRelief::Spur,
 ];
@@ -143,7 +132,6 @@ impl PlateRelief {
             Self::Step => "step",
             Self::Ridge => "ridge",
             Self::Peak => "peak",
-            Self::Bevel => "bevel",
             Self::Brink => "brink",
             Self::Spur => "spur",
         }
@@ -209,8 +197,8 @@ pub struct PlateReading {
     /// The in-plane direction the surface falls away toward, in the ship's
     /// cells, or [`IVec3::ZERO`] where it does not fall one way.
     ///
-    /// OUTBOARD, always: a corner only dies to the floor where open space
-    /// stands at it, so this points off the ship rather than across it. It is
+    /// OUTBOARD, always: an edge only falls where open space stands across
+    /// it, so this points off the ship rather than across it. It is
     /// the second alignment axis, and the one [`along`] cannot give - a fairing
     /// or a rim strip turned to this leans out over the edge it stands on
     /// instead of lying down the edge.
@@ -224,38 +212,30 @@ pub struct PlateReading {
     pub fall: IVec3,
     /// What the top of the plate is shaped like.
     pub relief: PlateRelief,
-    /// Whether the top is ONE SURFACE rather than a cone -
-    /// [`ShellShape::is_coplanar`], read here so a scatter rule asks the
+    /// Whether a piece stood on the middle of the plate has one plane under
+    /// it - [`ShellShape::has_seat`], read here so a scatter rule asks the
     /// vocabulary for it like everything else.
     ///
-    /// The seat a flat-bottomed piece needs, and NOT what [`relief`] says.
-    /// Measured on 526 generated plates: `Flat` and `Brink` are surfaces every
-    /// time, `Bevel`, `Ridge`, `Peak` and `Spur` are cones every time, and
-    /// `Step` splits about in half - square-on to a raise it is a clean ramp,
-    /// on the diagonal it is a cone. A rule that named reliefs to mean "has a
-    /// top to lie on" was therefore wrong about a fifth of a hull, in both
-    /// directions.
+    /// The seat a flat-bottomed piece needs, and NOT what [`relief`] says. A
+    /// plateau chamfered at its rim keeps a seat in the middle whatever its
+    /// relief; a crease or a cap running under the middle takes it away.
     ///
     /// TILTED counts, and has to: a ramp is one flat surface with as much
     /// material under a piece as a level panel has, and
     /// [`decor_pose`](super::skin_decor::decor_pose) beds the piece onto it.
     ///
-    /// [`ShellShape::is_coplanar`]: super::shell_shape::ShellShape::is_coplanar
+    /// [`ShellShape::has_seat`]: super::shell_shape::ShellShape::has_seat
     /// [`relief`]: PlateReading::relief
-    pub coplanar: bool,
+    pub seat: bool,
     /// How many of the eight cells around this one IN THE PLANE the surface
     /// carries on into, rather than ending against vacuum: 8 is the middle of a
     /// field of plate, 0 is a lone stud.
     ///
-    /// The same predicate the CORNERS are read off, which is why a [`Flat`]
-    /// plate always reads 8 - a corner can only sit at the running height when
-    /// all four of its cells continue. It earns its place on the falling
-    /// plates, as the FINE reading of what the relief classes count coarsely:
-    /// a [`Brink`] one cell from the end of a spar and one along the flank of a
+    /// The FINE reading of what the relief classes count coarsely: a
+    /// [`Brink`] one cell from the end of a spar and one along the flank of a
     /// wide hull are the same relief and read 3 against 5.
     ///
     /// [`Brink`]: PlateRelief::Brink
-    /// [`Flat`]: PlateRelief::Flat
     pub enclosure: u8,
     /// How many cells the run of LIKE plate through this one is long, itself
     /// included, measured [`along`] and capped at [`RUN_REACH`].
@@ -277,7 +257,7 @@ pub struct PlateReading {
     /// says that is where a greeble wants to be.
     pub border: u8,
     /// How much of its cell the plate fills, in QUARTER cells - the same five
-    /// heights its boundary samples are drawn from.
+    /// heights its feet are drawn from.
     ///
     /// Free: it is the plate's own volume, which its collider and its health are
     /// already cut from. It is the cheapest way to tell a rim that is nearly a
@@ -363,7 +343,7 @@ pub fn read_plates(structure: &SkinStructure, plates: &[SkinPlate]) -> Vec<Plate
                 along,
                 fall: fall_of(plate),
                 relief,
-                coplanar: plate.shape.is_coplanar(),
+                seat: plate.shape.has_seat(),
                 enclosure: enclosure(structure, &clad, plate.cell, u, v),
                 run: (reach + 1).min(RUN_REACH),
                 border: *alike.iter().min().unwrap_or(&0),
@@ -501,90 +481,80 @@ fn face_of(out: IVec3) -> usize {
 
 /// What the top of a plate wearing `shape` is shaped like.
 ///
-/// The order is load-bearing. A plate with every sample on the floor is the
-/// STUD, whose middle falls back to half a cell - it would read as flat, and it
-/// is the pointiest thing on a hull.
+/// A plate whose top neither falls at an edge nor is capped at a corner is
+/// [`Flat`], at either level. Any other whole-cell plate climbs structure
+/// beside it and is a [`Step`] whatever its edges do. A half-cell plate is
+/// classed by which of its edges FALL - see [`fallen_corners`] - and the count
+/// is the number of directions it has vacuum in.
+///
+/// [`Flat`]: PlateRelief::Flat
+/// [`Step`]: PlateRelief::Step
 pub fn relief_of(shape: &ShellShape) -> PlateRelief {
-    let samples = [shape.corners, shape.midpoints].concat();
-    if samples.iter().all(|sample| *sample == 0) {
-        return PlateRelief::Peak;
-    }
-    if samples.iter().all(|sample| *sample == samples[0]) {
+    let falls: [bool; 4] = std::array::from_fn(|edge| falls(shape, edge));
+    let count = falls.iter().filter(|falls| **falls).count();
+    let capped = shape
+        .soft_corners
+        .iter()
+        .any(|corner| *corner < shape.level);
+    if count == 0 && !capped {
         return PlateRelief::Flat;
     }
-    if samples.contains(&FULL) {
+    if shape.level == FULL {
         return PlateRelief::Step;
     }
-    let crest = |a: usize, b: usize, c: usize, d: usize| {
-        shape.midpoints[a] > 0
-            && shape.midpoints[b] > 0
-            && shape.midpoints[c] == 0
-            && shape.midpoints[d] == 0
-    };
-    if shape.corners.iter().all(|corner| *corner == 0) && (crest(0, 2, 1, 3) || crest(1, 3, 0, 2)) {
-        return PlateRelief::Ridge;
-    }
-    // Everything left FALLS, and the three classes are how many ways. Read off
-    // the corners on the FLOOR, which the derivation puts there for exactly one
-    // reason: open space stands at that corner. Structure holds a corner up,
-    // and so does the mouth of a fitting, so the count is the number of
-    // directions this plate has vacuum in.
-    let fallen = fallen_corners(shape);
-    match (fallen.count_ones(), fallen) {
-        (1, _) => PlateRelief::Bevel,
-        // The four masks whose two corners sit on one side of the face. The
-        // other two, the diagonals, are saddles and fall two ways.
-        (2, 0b0011 | 0b0110 | 0b1100 | 0b1001) => PlateRelief::Brink,
+    match count {
+        1 => PlateRelief::Brink,
+        2 if falls[0] == falls[2] => PlateRelief::Ridge,
+        4 => PlateRelief::Peak,
         _ => PlateRelief::Spur,
     }
 }
 
-/// The two [`Spur`](PlateRelief::Spur) masks whose fallen corners sit across a
-/// DIAGONAL: the saddle, which falls two ways at once and has no side to lean a
-/// piece off.
-pub const SADDLE_MASKS: [u8; 2] = [0b0101, 0b1010];
-
-/// Whether a plate is the diagonal SADDLE - the shape the owner called ugly,
-/// and the one place on a hull with no outward direction to turn a piece to.
-///
-/// Inside [`Spur`](PlateRelief::Spur) rather than beside it: the class is
-/// "falls two ways or more", and this is the pair of ways that cancel. Split
-/// out here so a rule, a dump or a style can refuse it without the relief
-/// roster having to grow a variant that every authored style would then have to
-/// name.
-pub fn is_diagonal_saddle(shape: &ShellShape) -> bool {
-    relief_of(shape) == PlateRelief::Spur && SADDLE_MASKS.contains(&fallen_corners(shape))
+/// Whether the hull falls away across edge `edge`: the top comes down below
+/// the plate's level there, or folds round a convex hull edge onto the next
+/// face. The derivation does either for one reason only, which is open space
+/// across the edge.
+fn falls(shape: &ShellShape, edge: usize) -> bool {
+    shape.feet[edge] < shape.level
+        || matches!(
+            shape.edges[edge],
+            ShellEdgeType::Fold | ShellEdgeType::Skirt
+        )
 }
 
-/// Which of a shape's four corner slots die to the cell floor, as a bit per
-/// slot in the order the digits are read.
+/// Which of a shape's four corner slots stand beside a falling edge, as a bit
+/// per slot in the order the corners are read. Corner `i` is where edge
+/// `i - 1` ends and edge `i` starts.
 pub fn fallen_corners(shape: &ShellShape) -> u8 {
-    (0..4).fold(0u8, |mask, slot| match shape.corners[slot] {
-        0 => mask | 1 << slot,
-        _ => mask,
+    (0..4).fold(0u8, |mask, slot| {
+        match falls(shape, slot) || falls(shape, (slot + 3) % 4) {
+            true => mask | 1 << slot,
+            false => mask,
+        }
     })
 }
 
 /// The in-plane direction a plate's surface falls away toward, in the SHIP's
 /// cells, or [`IVec3::ZERO`] where it does not fall one way.
 ///
-/// The sum of the directions of the corners on the floor, taken in the shape's
+/// The sum of the directions of the [`fallen_corners`], taken in the shape's
 /// own frame and then turned by the plate's own rotation - which is the same
-/// path [`plate_for`](super::shell_skin::plate_for) read the samples along, so
+/// path [`plate_for`](super::shell_skin::plate_for) read the shape along, so
 /// nothing here re-derives a face or an axis.
 ///
 /// The sum is the whole trick, and it is why the answer is worth having:
-/// [`Brink`]'s two adjacent corners add to the CARDINAL between them, a saddle's
-/// two opposite corners cancel to zero, and a [`Peak`] or a [`Ridge`], which
-/// fall every way and two ways, cancel as well.
+/// [`Brink`]'s two corners add to the CARDINAL between them, an outer corner's
+/// three add to the diagonal off the ship, and a [`Peak`] or a [`Ridge`], which
+/// fall every way and two ways, cancel.
 ///
 /// [`Brink`]: PlateRelief::Brink
 /// [`Peak`]: PlateRelief::Peak
 /// [`Ridge`]: PlateRelief::Ridge
 fn fall_of(plate: &SkinPlate) -> IVec3 {
+    let fallen = fallen_corners(&plate.shape);
     let mut local = Vec3::ZERO;
     for (slot, &(x, z)) in FACE_CORNERS.iter().enumerate() {
-        if plate.shape.corners[slot] == 0 {
+        if fallen & 1 << slot != 0 {
             local += Vec3::new(x as f32, 0.0, z as f32);
         }
     }
@@ -733,22 +703,17 @@ mod tests {
         );
     }
 
-    /// The falling plate splits three ways on the ONE hull that shows all
-    /// three, and each class carries the fall the scatter turns a piece to.
+    /// The falling plate splits by how many ways it falls, and each class
+    /// carries the fall the scatter turns a piece to.
     ///
-    /// This is the whole of the widening: before it, every plate below was one
-    /// bucket covering four fifths of a ship, and a rule could not tell the
-    /// straight edge of a hull from the tip of a spar.
+    /// Without the split every falling plate is one bucket covering most of a
+    /// ship, and a rule cannot tell the straight edge of a hull from its
+    /// corner.
     #[test]
-    fn the_falling_plate_splits_into_edge_corner_and_bevel() {
-        // A 4x4 deck with one corner cell missing: its roof carries a straight
-        // edge down each side, an outer corner at three of the four corners,
-        // and - at the notch - the corner-cut panel a bevel is.
-        let mut cells: Vec<IVec3> = (0..4)
-            .flat_map(|x| (0..4).map(move |z| IVec3::new(x, 0, z)))
-            .collect();
-        cells.retain(|cell| *cell != IVec3::new(3, 0, 3));
-        let read = read(&hull(&cells));
+    fn the_falling_plate_splits_into_edge_and_corner() {
+        // A 4x4 deck: its roof carries a straight edge down each side and an
+        // outer corner at each of its corners.
+        let read = read(&slab(4));
         let roof = |cell: IVec3| at(&read, cell);
 
         // The middle of a side: the deck falls away on one whole side, and the
@@ -766,16 +731,6 @@ mod tests {
         let corner = roof(IVec3::new(0, 1, 0));
         assert_eq!(corner.relief, PlateRelief::Spur);
         assert_eq!(corner.fall, IVec3::new(-1, 0, -1));
-
-        // The plate across the notch: the deck carries on down both of its own
-        // sides and only the one corner dies.
-        let bevel = roof(IVec3::new(2, 1, 2));
-        assert_eq!(
-            bevel.relief,
-            PlateRelief::Bevel,
-            "a panel with one corner taken off is not the edge of a ship",
-        );
-        assert_eq!(bevel.fall, IVec3::new(1, 0, 1), "it falls into the notch");
     }
 
     /// A plate that falls EVERY way, or two ways at once, has no outward
@@ -918,69 +873,46 @@ mod tests {
         assert_eq!(a, b, "the reading depends on insertion order");
     }
 
-    /// A flat plate always reads fully enclosed, which is what says the
-    /// vocabulary and the boundary samples are reading the SAME predicate.
-    #[test]
-    fn a_flat_plate_is_always_fully_enclosed() {
-        let structure = slab(6);
-        for (plate, reading) in read(&structure) {
-            if reading.relief == PlateRelief::Flat {
-                assert_eq!(
-                    reading.enclosure,
-                    8,
-                    "`{}` is flat but reads {} of 8 enclosed",
-                    plate.shape.id(),
-                    reading.enclosure,
-                );
-            }
-        }
-    }
-
-    /// The relief classes are read off the samples alone, so they can be pinned
+    /// The relief classes are read off the shape alone, so they can be pinned
     /// on the shapes themselves rather than on a hull that happens to make one.
     #[test]
-    fn the_relief_classes_are_read_off_the_eight_samples() {
-        let shape = |corners: [u8; 4], midpoints: [u8; 4]| {
-            ShellShape::new(corners, midpoints).expect("a legal shape")
+    fn the_relief_classes_are_read_off_the_falling_edges() {
+        use ShellEdgeType::{Fold, Plain, Skirt, Wall};
+        let half = |feet: [u8; 4], edges: [ShellEdgeType; 4]| {
+            ShellShape::new(HALF, feet, edges, [HALF; 4]).expect("a legal shape")
         };
         assert_eq!(
-            relief_of(&shape([HALF; 4], [HALF; 4])),
+            relief_of(&half([HALF; 4], [Plain; 4])),
             PlateRelief::Flat,
             "the plate a run of skin travels at",
         );
         assert_eq!(
-            relief_of(&shape([0; 4], [0; 4])),
-            PlateRelief::Peak,
-            "every sample on the floor is the STUD, not a flat plate",
+            relief_of(&half([HALF, HALF, HALF, 0], [Fold, Plain, Plain, Plain])),
+            PlateRelief::Spur,
+            "a fold and an open rim side by side is an outer corner",
         );
         assert_eq!(
-            relief_of(&shape([0; 4], [HALF, 0, HALF, 0])),
+            relief_of(&half([HALF; 4], [Skirt, Plain, Plain, Plain])),
+            PlateRelief::Brink,
+            "a fold round a convex hull edge is the straight edge of a hull",
+        );
+        assert_eq!(
+            relief_of(&half([0, HALF, 0, HALF], [Plain; 4])),
             PlateRelief::Ridge,
         );
+        assert_eq!(relief_of(&half([0; 4], [Plain; 4])), PlateRelief::Peak);
         assert_eq!(
-            relief_of(&shape([FULL, 0, 0, 0], [HALF, 0, 0, HALF])),
-            PlateRelief::Step,
-        );
-        // The three falling classes, told apart by how many corners die.
-        assert_eq!(
-            relief_of(&shape([HALF, HALF, 0, 0], [HALF, 1, 0, 1])),
-            PlateRelief::Brink,
-            "two corners on one side is the straight edge of a hull",
-        );
-        assert_eq!(
-            relief_of(&shape([HALF, HALF, HALF, 0], [HALF, HALF, 1, 1])),
-            PlateRelief::Bevel,
-            "one corner down is a panel with a corner taken off",
-        );
-        assert_eq!(
-            relief_of(&shape([HALF, 0, 0, 0], [1, 0, 0, 1])),
+            relief_of(&half([0, 0, 0, HALF], [Plain; 4])),
             PlateRelief::Spur,
-            "three corners down is the tip of a spar",
+            "three sides down is the tip of a spar",
         );
-        assert_eq!(
-            relief_of(&shape([HALF, 0, HALF, 0], [1, 1, 1, 1])),
-            PlateRelief::Spur,
-            "two corners across the diagonal is a saddle, and falls two ways",
-        );
+        let block = ShellShape::new(
+            FULL,
+            [FULL, HALF, HALF, HALF],
+            [Wall, Plain, Plain, Plain],
+            [FULL; 4],
+        )
+        .expect("a legal shape");
+        assert_eq!(relief_of(&block), PlateRelief::Step);
     }
 }

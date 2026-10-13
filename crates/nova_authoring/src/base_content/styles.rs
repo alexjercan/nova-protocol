@@ -10,32 +10,26 @@
 //!
 //! # The SEAT, and which pieces are free of it
 //!
-//! Every region but the high ground asks for a plate whose top is ONE SURFACE.
-//! Measurements over 526 generated plates show that flat panels and straight
-//! edges are surfaces
-//! every time, the corner-cut panel, the crest, the stud and the outer corner
-//! are cones every time, and the shoulder splits about in half. So a region
+//! Every region but the high ground asks for a plate with a SEAT: one plane
+//! under the middle of its top. The derived skin gives nearly every plate one,
+//! because each top is a flat plateau inside chamfered rims; the exception is
+//! a diagonal stair, whose ramp plates tilt and fold under a piece. So a region
 //! names a ZONE of the hull, and the seat gate decides per plate whether a
 //! piece can actually lie on it.
 //!
 //! A piece escapes that gate in one of two ways, and neither is authored here.
-//! [`FixtureRegion::HighGround`] drops it outright, because a crest and a spar
-//! tip are cones by definition and a blanket "surfaces only" would take a
-//! ship's silhouette off to fix a bedding defect - the stack, the whip, the
-//! fin, the two masts and the corner boss all ride that. Everything else
-//! escapes by being TRIM: a collider shorter than
-//! [`TRIM_HEIGHT`](nova_ship::prelude::TRIM_HEIGHT) stands a hand's breadth off
-//! the plate, so a crease under it is a fold in a decal rather than a gap you
-//! can see.
+//! [`FixtureRegion::HighGround`] drops it outright, because the stack, the
+//! whip, the fin, the two masts and the corner boss stand up off their plate
+//! rather than lie on it. Everything else escapes by being TRIM: a collider
+//! shorter than [`TRIM_HEIGHT`](nova_ship::prelude::TRIM_HEIGHT) stands a
+//! hand's breadth off the plate, so a crease under it is a fold in a decal
+//! rather than a gap you can see.
 //!
-//! The trim route is what keeps a HAND-BUILT hull dressed. Such a hull is one
-//! cell thick nearly everywhere and derives as cones from end to end - zero
-//! coplanar plates on half the bench roster - so a kit whose every filler
-//! stands proud places NOTHING on the shapes players actually build. Each style
-//! therefore carries at least one region that asks nothing about relief and at
-//! least one piece flat enough to lie on a crease: the industrial stencil,
-//! hatch and ribbing, the armoured applique, the civilian registry, and the
-//! salvage scab, tally, grille, cog and doubler plate.
+//! Each style carries at least one region that asks nothing about relief and
+//! at least one piece flat enough to lie on a crease, so a stair is dressed as
+//! well: the industrial stencil, hatch and ribbing, the armoured applique, the
+//! civilian registry, and the salvage scab, tally, grille, cog and doubler
+//! plate.
 
 use bevy::prelude::{Color, Vec3};
 use nova_ship::prelude::{
@@ -120,19 +114,11 @@ fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 health: 10.0,
                 collider: Vec3::new(0.18, 0.28, 0.18),
                 // THE HIGH GROUND, and the only rule allowed to break the
-                // silhouette. A crest and a spar tip are CONES, and the high
-                // ground is the one region that drops the seat gate for exactly
-                // that reason: a stack standing up the tip of a spar is the
+                // silhouette: a stack standing up the tip of a spar is the
                 // picture, and a stack banished to the flat deck is not this
-                // rule.
-                //
-                // It is also half of the kit's reach onto a HAND-BUILT hull.
-                // Such a hull is one cell thick nearly everywhere, so it derives
-                // as cones end to end and every seated region reaches nothing;
-                // the high ground and the flat trim below are what is left. The
-                // rung's patch floor makes that a guarantee rather than a coin
-                // toss: one stack per block of high ground, whatever the share
-                // does.
+                // rule. The rung's patch floor makes that a guarantee rather
+                // than a coin toss: one stack per block of high ground,
+                // whatever the share does.
                 placement: FixturePlacement {
                     region: FixtureRegion::HighGround,
                     density: FixtureDensity::Regular,
@@ -381,10 +367,9 @@ fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 // THE MARKINGS, and the kit's flat-detail carrier.
                 // `Anywhere` asks nothing about relief, and two centimetres
                 // of stand-off make the
-                // piece TRIM, which drops the seat gate as well: a hand-built
-                // hull one cell thick derives as cones end to end, and a
-                // placard is the one piece that genuinely lies on any of them
-                // - which is why the marking class carries the carrier duty.
+                // piece TRIM, which drops the seat gate as well: a placard
+                // lies on a stair's ramp as readily as on a deck - which is
+                // why the marking class carries the carrier duty.
                 // This far down the list every zone rule has picked first, so
                 // on a
                 // thick hull it numbers the gaps; on a thin frame it is most
@@ -474,9 +459,8 @@ fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
 /// 7. the hatch is the flush filler, giving a bare panel a scale without giving
 ///    a gunner a target;
 /// 8. the ammo stripes read the gun pockets, pinned below every zone rule
-///    because `NearFitting` is the documented carpet, and TRIM because the
-///    plates beside a boom-mounted gun are cones (bench-proven on
-///    `asym_gunship`);
+///    because `NearFitting` is the documented carpet, and TRIM so no seat gate
+///    stands between the stripe and the gun it marks;
 /// 9. the magazine is the chunky rarity, and it stands ANYWHERE, so it waits
 ///    until the zone rules have taken the plates they can name;
 /// 10. the applique tile grid is the trim filler, LAST - the kit's reach onto a
@@ -543,7 +527,7 @@ fn armoured_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 //
                 // `Rare` carries the piece onto a small hull. A separate broad-
                 // field filter reaches zero plates on the hand-built bench, so
-                // the region and seat gate alone keep it on coplanar panels.
+                // the region and seat gate alone keep it on flat panels.
                 placement: FixturePlacement {
                     region: FixtureRegion::Panel,
                     density: FixtureDensity::Rare,
@@ -687,13 +671,12 @@ fn armoured_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 //
                 // `NearFitting` and `Every` are both HARD CONSTRAINTS the
                 // blocks bench measured, and the collider is the third: the
-                // plates beside a boom-mounted gun
-                // are CONES, so the tally has to be TRIM - two centimetres of
-                // paint, which is free of the seat gate - or it never fires on
-                // `asym_gunship` at all. `NearFitting` asks nothing of depth
-                // (a boom is one cell thin) or of how much of its cell the
-                // plate fills (the cone beside a gun is a spur, and a spur
-                // measures 0). `Every` is the rung with NO lattice, because the
+                // tally is TRIM - two centimetres of paint, which is free of
+                // the seat gate - so no plate beside a gun refuses it.
+                // `NearFitting` asks nothing of depth (a boom is one cell thin)
+                // or of how much of its cell the plate fills (the plate beside
+                // a gun is often a small spur). `Every` is the rung with NO
+                // lattice, because the
                 // carrier deck's tucked drive proved lattice parity can zero a
                 // strided pocket rule outright - and with no share either, so
                 // nothing can hash its way out of a tally.
@@ -733,9 +716,8 @@ fn armoured_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 // relief, and reactive tiles are
                 // 0.04 cells proud, which puts them under the trim height and
                 // drops the seat gate with it. That pair is what reaches a
-                // hand-built hull - one cell thick, cones end to end - where a
-                // kit whose every filler is seated leaves exactly the shapes
-                // players build bare. AFTER the hatch: on thick hulls the panel
+                // plate with no seat - a stair's ramp - where a kit whose every
+                // filler is seated leaves it bare. AFTER the hatch: on thick hulls the panel
                 // filler keeps first refusal and the grid takes the leavings
                 // plus the whole thin regime the hatch cannot touch.
                 placement: FixturePlacement {
@@ -826,13 +808,9 @@ fn civilian_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 // keeps the rule off the deck edges the stripe owns end to end.
                 //
                 // Six hundredths of a cell proud, so the row is TRIM and the
-                // seat gate lets it lie on a flank that creases. That matters
-                // more here than anywhere: measured, a hand-built flank never
-                // grows a coplanar interior - a two-cell-tall side is edge row
-                // on edge row - so a seated window row was eligible NOWHERE on
-                // the whole bench and the style's most characterful piece never
-                // shipped. The piece's own length asks for two cells of like
-                // flank, which is what keeps a row a row.
+                // seat gate lets it lie on a flank that creases. The piece's
+                // own length asks for two cells of like flank, which is what
+                // keeps a row a row.
                 placement: FixturePlacement {
                     region: FixtureRegion::Flank,
                     density: FixtureDensity::Dense,
@@ -1428,8 +1406,8 @@ fn salvage_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 // sits under every rule that can name a zone and above only the
                 // tally and the filler. Four hundredths of a cell proud, which
                 // makes a doubler plate TRIM: it lies on a crease the way sheet
-                // steel bent over one does, and a hull with no coplanar plate
-                // anywhere still gets plated. The tips and crests are still the
+                // steel bent over one does, so a stair's ramp still gets
+                // plated. The tips and crests are still the
                 // whip's, because that rule samples first.
                 placement: FixturePlacement {
                     region: FixtureRegion::Anywhere,
@@ -1469,10 +1447,8 @@ fn salvage_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 // and still puts something on a small one.
                 //
                 // Three hundredths of a cell proud, so the seat gate is off:
-                // this is the kit's trim carrier, and a one-cell-thick build has
-                // no coplanar plate anywhere - seated, the filler that exists
-                // for "a hull nothing else fits" was refusing exactly that hull,
-                // and the thin half of the bench photographed as bare rock.
+                // this is the kit's trim carrier, and it lies on a stair's ramp
+                // where nothing seated fits.
                 placement: FixturePlacement {
                     region: FixtureRegion::Anywhere,
                     density: FixtureDensity::Sparse,
@@ -1603,20 +1579,19 @@ mod tests {
         }
     }
 
-    /// Every style ships something a ONE-CELL-THICK hull can wear.
+    /// Every style ships something a plate WITHOUT A SEAT can wear.
     ///
-    /// Such a hull is all cones and has no coplanar plate anywhere on it, so a
-    /// style made entirely of pieces that need a seat lands NOTHING on a
-    /// hand-built hull while looking perfectly well authored - the placement
-    /// defect this pins shut.
+    /// A stair's ramp plates have no seat, so a style made entirely of pieces
+    /// that need one leaves every stair bare while looking perfectly well
+    /// authored - the placement defect this pins shut.
     ///
-    /// Two things reach a cone, and a style needs at least one: the
-    /// [`FixtureRegion::HighGround`], which is cones by definition, and TRIM -
-    /// a decal thin enough that a crease under it is a fold rather than a gap.
+    /// Two things reach such a plate, and a style needs at least one: the
+    /// [`FixtureRegion::HighGround`], which drops the seat gate, and TRIM - a
+    /// decal thin enough that a crease under it is a fold rather than a gap.
     /// Which pieces those are is no longer authored, so this pins the PROPERTY
     /// rather than a list of ids.
     #[test]
-    fn every_style_ships_a_piece_a_one_cell_hull_can_wear() {
+    fn every_style_ships_a_piece_a_plate_without_a_seat_can_wear() {
         for style in style_catalog(&BaseContentAssets::from_paths()) {
             let carriers: Vec<&str> = style
                 .fixtures
@@ -1629,8 +1604,8 @@ mod tests {
                 .collect();
             assert!(
                 !carriers.is_empty(),
-                "{} has nothing a one-cell-thick hull can wear, so the owner's \
-                 own builds come out bare",
+                "{} has nothing a plate without a seat can wear, so its \
+                 stairs come out bare",
                 style.id,
             );
         }
@@ -1966,12 +1941,10 @@ mod tests {
     }
 
     /// The ammo stripes are the armoured pocket rule, and every clause here is
-    /// a HARD CONSTRAINT the blocks bench measured: the plates beside a
-    /// boom-mounted gun are CONES, so a seat
-    /// gate, a depth floor, a height floor or a stride each silently zero the
-    /// rule on exactly the gun it exists to mark - `asym_gunship` measured 0
-    /// for every seat-gated pocket rule, and the carrier deck's tucked
-    /// drive zeroed the strided ones via lattice parity.
+    /// a HARD CONSTRAINT the blocks bench measured: a seat gate, a depth
+    /// floor, a height floor or a stride can each silently zero the rule on
+    /// exactly the gun it exists to mark - the carrier deck's tucked drive
+    /// zeroed the strided ones via lattice parity.
     #[test]
     fn the_armoured_ammo_stripes_read_the_gun_pocket_off_any_seat() {
         let style = armoured_style(&BaseContentAssets::from_paths());
@@ -1997,8 +1970,8 @@ mod tests {
         assert_eq!(stripes.id, "armoured_ammo_stripes");
         assert!(
             !FixturePlacement::needs_seat(stripes.collider),
-            "a tally that stands proud never fires beside a boom-mounted gun, \
-             where every plate is a cone",
+            "a tally that stands proud lets the seat gate refuse a plate \
+             beside the gun it marks",
         );
         assert_eq!(
             stripes.placement.density,

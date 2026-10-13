@@ -18,14 +18,15 @@
 //! 1. [`cladding_cells`] decides WHERE skin may go: the empty cells that touch
 //!    the hull, less the ones a blind face forbids and the ones with nowhere to
 //!    stand.
-//! 2. [`boundary_heights`] reads the eight samples a cell's outward face
-//!    carries, off that cell's neighbourhood.
-//! 3. [`plate_for`] turns those samples into a [`ShellShape`] and the rotation
-//!    that draws them.
+//! 2. [`boundary_heights`] reads the [`ShellShape`] a cell's outward face
+//!    calls for - its level, what each edge does, and how low the
+//!    neighbourhood holds each corner - off that cell's neighbourhood.
+//! 3. [`plate_for`] turns that shape into the plate's own frame and finds the
+//!    rotation that draws it.
 //!
-//! Every sample is SHARED with the cells around it, so neighbours read the same
-//! numbers and their surfaces meet exactly. That is why nothing has to generate
-//! a seam between two plates in the same plane: there is no gap to fill.
+//! Two plates read the same foot and the same slope on the edge they share, so
+//! their surfaces meet exactly. That is why nothing has to generate a seam
+//! between two plates in the same plane: there is no gap to fill.
 //!
 //! [`spawn_ship_skin`] is where that meets a live ship: a hull marked
 //! [`ShipSkin`] is read back into a [`SkinStructure`] at spawn, and every plate
@@ -52,7 +53,7 @@ use crate::sections::{
     },
     integrity::build_ship_integrity_graph,
     link_points::prelude::{LinkPoint, SectionLinkPoints},
-    shell_shape::{ShellShape, ShellSurface, FULL, HALF, REACH},
+    shell_shape::{ShellEdgeType, ShellShape, ShellSurface, FULL, HALF, REACH},
     skin_decor::{
         decor_body, decor_pose, decor_reach, decor_tally, dress_skin_decor, scatter_decor,
         ShipDecorMarker,
@@ -332,7 +333,7 @@ pub(super) fn exit_pocket(structure: &SkinStructure, cell: IVec3) -> bool {
 ///
 /// It BOLTS DOWN to structure through the face opposite its out face, and shows
 /// an EMPTY cell through the out face itself. Without the first, cladding hangs
-/// off other cladding with nothing solid to carry it - and worse, it samples its
+/// off other cladding with nothing solid to carry it - and worse, it reads its
 /// boundary in a plane none of its neighbours agreed to, so the surface it draws
 /// need not meet theirs. Without the second the plate is buried in the ship.
 ///
@@ -361,38 +362,29 @@ pub(super) fn step(axis: usize, sign: i32) -> IVec3 {
     IVec3::AXES[axis] * sign
 }
 
-/// The eight boundary samples a cell's `out` face carries.
+/// The shape a cell's `out` face calls for, in the cell's own frame: corners
+/// and edges indexed as [`FACE_CORNERS`] over the face's two axes.
 ///
-/// Every one is SHARED, and every one is a function of the cells that share it:
+/// Every part is read off the cells around this one, and what two plates
+/// share they read the same way, so their surfaces meet:
 ///
-/// - a CORNER belongs to the four cells that meet at it, and reads the coarse
-///   heights only. A WALL in any of those four means the plating has to reach
-///   the top of the cell to close against it - see [`walls`], which is choosier
-///   than "there is something there". Otherwise the corner stands at the half
-///   cell a skin runs at if every one of the four is something the surface ENDS
-///   AGAINST, and dies to the floor if any of them is open space.
+/// - the LEVEL is the whole cell beside structure the skin climbs in this
+///   plane ([`walls`]), and half a cell everywhere else. See [`plate_level`].
+/// - each EDGE reads the cell across it. Structure the skin climbs is a
+///   [`Wall`](ShellEdgeType::Wall). More skin joins at the lower of the two
+///   levels, so a raised block steps down to the deck at half a cell. A
+///   structure or a POCKET the skin ends against holds the level: a gun well
+///   or the mouth of a drive bay is a hole in the skin, not the end of it.
+///   Open space is the rim, read by [`open_edge`].
+/// - each SOFT CORNER averages what the four cells meeting there say the
+///   corner's height should be ([`corner_weight`]), so a raised block is
+///   capped with a bevel where the hull around it is lower.
 ///
-///   That last distinction is the whole of the rim. A skin that ends because it
-///   ran out of hull TAPERS away, which is what leaves a ridge along a spine and
-///   a stud on a lone cell. A skin that ends against a POCKET a blind face keeps
-///   it out of - a gun well, the mouth of a drive bay - stops dead at the cell
-///   boundary and its own wall drops vertically there, which is the ridge round
-///   the well. Tapering into those was what filled a bank of drives with
-///   pyramids: the cells between the nozzles are surrounded by pockets, so every
-///   sample they carried was on the floor and each came out a cone.
-///
-///   Holding a rim corner up IN PROPORTION to how many of its cells are clad
-///   was tried and reverted: it makes every edge LIVE, so the dead-edge vote
-///   below never fires, and a one-cell run flattens from a ridge into a low
-///   strip.
-/// - a MIDPOINT belongs to the two cells across the edge, and on a LIVE edge is
-///   simply the mean of its two corners - the height the straight line between
-///   them passes the middle at. Quarter cells are in the alphabet so that mean
-///   always lands on a real sample. Only a DEAD edge, with both corners on the
-///   floor, reads the neighbourhood itself.
-///
-/// Because each sample is a function of its own set and nothing else, every
-/// cell around it arrives at the same number, and two plates meet exactly.
+/// A DIAGONAL plate - a whole-cell plate whose wall touches its own structure
+/// along an edge only, which is a staircase rather than a step - ramps at
+/// slope one away from that wall instead of standing a full block, and its
+/// open end falls into the same plane, so a diagonal stair is one continuous
+/// ramp.
 pub fn boundary_heights(
     structure: &SkinStructure,
     skin: &HashSet<IVec3>,
@@ -400,33 +392,202 @@ pub fn boundary_heights(
     out: usize,
 ) -> ShellShape {
     let (u, v) = face_plane(out);
-    let height = |set: &[IVec3]| -> u8 {
-        if set.iter().any(|next| walls(structure, *next, u, v)) {
-            FULL
-        } else if set.iter().all(|next| ends_against(structure, skin, *next)) {
-            HALF
-        } else {
-            0
-        }
+    let level = plate_level(structure, cell, out);
+    let diagonal = match level {
+        FULL => diagonal_wall(structure, skin, cell, out),
+        _ => None,
     };
-
-    let corners = std::array::from_fn(|slot| {
+    let mut feet = [level; 4];
+    let mut edges = [ShellEdgeType::Plain; 4];
+    for slot in 0..4 {
+        let across = edge_direction(u, v, slot);
+        let next = cell + across;
+        let ramp = diagonal == Some(-across);
+        (feet[slot], edges[slot]) = if walls(structure, next, u, v) {
+            (level, ShellEdgeType::Wall)
+        } else if skin.contains(&next) {
+            let edge = match ramp {
+                true => ShellEdgeType::Ramp,
+                false => ShellEdgeType::Plain,
+            };
+            (level.min(plate_level(structure, next, out)), edge)
+        } else if ends_against(structure, skin, next) {
+            (level, ShellEdgeType::Plain)
+        } else {
+            open_edge(structure, skin, cell, out, across, ramp, diagonal.is_some())
+        };
+    }
+    let soft_corners = std::array::from_fn(|slot| {
         let (su, sv) = FACE_CORNERS[slot];
-        let (step_u, step_v) = (step(u, su), step(v, sv));
-        height(&[cell, cell + step_u, cell + step_v, cell + step_u + step_v])
-    });
-    let midpoints = std::array::from_fn(|slot| {
-        let (near, far) = (corners[slot], corners[(slot + 1) % 4]);
-        if near > 0 || far > 0 {
-            return (near + far) / 2;
+        let (du, dv) = (step(u, su), step(v, sv));
+        let sum: u8 = [cell, cell + du, cell + dv, cell + du + dv]
+            .iter()
+            .map(|at| corner_weight(structure, skin, *at, out))
+            .sum();
+        // A corner on a wall holds the level: the plate closes against the
+        // whole face of the structure there, and a cap would bare its corner.
+        let on_wall = [slot, (slot + 3) % 4]
+            .iter()
+            .any(|edge| edges[*edge] == ShellEdgeType::Wall);
+        match on_wall {
+            true => level,
+            // The rounded mean of the four. Only a whole-cell plate is capped
+            // by it, and never below half a cell.
+            false => ((sum + 2) / 4).clamp(HALF, level),
         }
-        let (au, av) = FACE_CORNERS[slot];
-        let (bu, bv) = FACE_CORNERS[(slot + 1) % 4];
-        let across = step(u, (au + bu) / 2) + step(v, (av + bv) / 2);
-        height(&[cell, cell + across])
     });
+    ShellShape::new(level, feet, edges, soft_corners).expect("the derivation builds legal shapes")
+}
 
-    ShellShape { corners, midpoints }
+/// The foot and type of an edge a plate meets OPEN SPACE across.
+///
+/// Three cases, in the order they win:
+///
+/// - the low side of a diagonal plate, or the edge beside a diagonal plate's
+///   ramp into the open: a [`Ramp`](ShellEdgeType::Ramp) to the floor, in the
+///   ramp's own plane.
+/// - any other open edge of a diagonal plate is its
+///   [`RampEnd`](ShellEdgeType::RampEnd).
+/// - a CONVEX hull edge, where the plate round the corner faces this way: both
+///   plates come down to half a cell and the one with the lower face index owns
+///   the skirt that closes the corner. Round a diagonal plate, which ramps and
+///   owns no skirt, this plate folds to a ledge at half a cell.
+///
+/// Anything else is a rim, chamfered to half a cell off a whole-cell plate and
+/// to the floor off a half-cell one.
+fn open_edge(
+    structure: &SkinStructure,
+    skin: &HashSet<IVec3>,
+    cell: IVec3,
+    out: usize,
+    across: IVec3,
+    ramp: bool,
+    diagonal: bool,
+) -> (u8, ShellEdgeType) {
+    let level = plate_level(structure, cell, out);
+    let side = cell - FACES[out] + across;
+    let across_face = face_of(across);
+    let side_out = match skin.contains(&side) {
+        true => facing(structure, side),
+        false => None,
+    };
+    let meets_ramp = side_out.is_some_and(|side_out| {
+        open_ramp(structure, skin, side, side_out).is_some_and(|toward| {
+            let pair = [FACES[side_out], toward];
+            pair.contains(&FACES[out]) && pair.contains(&across)
+        })
+    });
+    let side_diagonal = side_out.is_some_and(|side_out| {
+        plate_level(structure, side, side_out) == FULL
+            && diagonal_wall(structure, skin, side, side_out).is_some()
+    });
+    if ramp || meets_ramp {
+        (0, ShellEdgeType::Ramp)
+    } else if diagonal {
+        (0, ShellEdgeType::RampEnd)
+    } else if side_out == Some(across_face) {
+        // A diagonal plate round the corner ramps, it owns no skirt; this
+        // plate folds to a ledge at half a cell against its ramp end.
+        let edge = match out < across_face && !side_diagonal {
+            true => ShellEdgeType::Skirt,
+            false => ShellEdgeType::Fold,
+        };
+        (HALF, edge)
+    } else if level == FULL {
+        (HALF, ShellEdgeType::Plain)
+    } else {
+        (0, ShellEdgeType::Plain)
+    }
+}
+
+/// The level of a plate facing `out` from `cell`: a whole cell beside
+/// structure the skin climbs in the plate's own plane, half a cell otherwise.
+fn plate_level(structure: &SkinStructure, cell: IVec3, out: usize) -> u8 {
+    let (u, v) = face_plane(out);
+    let beside = [step(u, 1), step(u, -1), step(v, 1), step(v, -1)];
+    match beside.iter().any(|d| walls(structure, cell + *d, u, v)) {
+        true => FULL,
+        false => HALF,
+    }
+}
+
+/// The in-plane direction of a wall a plate meets DIAGONALLY: the wall stands
+/// beside the plate, but the plate's own structure has nothing under it - the
+/// two touch along an edge, which is a staircase rather than a step on a deck.
+///
+/// Only where the plate has somewhere to ramp to, away from the wall: more
+/// skin or open space. Against structure there it is a block.
+fn diagonal_wall(
+    structure: &SkinStructure,
+    skin: &HashSet<IVec3>,
+    cell: IVec3,
+    out: usize,
+) -> Option<IVec3> {
+    let (u, v) = face_plane(out);
+    let bolt = cell - FACES[out];
+    [step(u, 1), step(u, -1), step(v, 1), step(v, -1)]
+        .into_iter()
+        .find(|d| walls(structure, cell + *d, u, v) && !structure.filled(bolt + *d))
+        .filter(|wall| {
+            let low = cell - *wall;
+            skin.contains(&low) || !ends_against(structure, skin, low)
+        })
+}
+
+/// The direction a diagonal plate's ramp falls toward, when that side is open
+/// space rather than more skin or something the skin ends against.
+fn open_ramp(
+    structure: &SkinStructure,
+    skin: &HashSet<IVec3>,
+    cell: IVec3,
+    out: usize,
+) -> Option<IVec3> {
+    if plate_level(structure, cell, out) != FULL {
+        return None;
+    }
+    let toward = -diagonal_wall(structure, skin, cell, out)?;
+    (!ends_against(structure, skin, cell + toward)).then_some(toward)
+}
+
+/// What one of the four cells round a corner says that corner's height
+/// should be, in quarter cells. [`boundary_heights`] averages the four.
+///
+/// - a whole cell for structure the skin climbs in this plane, or structure in
+///   the cube above this cell: an overhang or a higher layer.
+/// - the cell's own level for skin lying in this plane, which is skin with
+///   structure under it.
+/// - a quarter cell for skin turned onto another face: a convex corner.
+/// - half a cell for a pocket, or a part the skin ends against.
+/// - the floor for open space.
+fn corner_weight(structure: &SkinStructure, skin: &HashSet<IVec3>, at: IVec3, out: usize) -> u8 {
+    let (u, v) = face_plane(out);
+    let n = FACES[out];
+    if walls(structure, at, u, v) || structure.filled(at + n) {
+        FULL
+    } else if skin.contains(&at) && structure.filled(at - n) {
+        plate_level(structure, at, out)
+    } else if skin.contains(&at) {
+        1
+    } else if ends_against(structure, skin, at) {
+        HALF
+    } else {
+        0
+    }
+}
+
+/// The in-plane step across edge `slot` of a face lying in axes `u` and `v`.
+fn edge_direction(u: usize, v: usize, slot: usize) -> IVec3 {
+    let (au, av) = FACE_CORNERS[slot];
+    let (bu, bv) = FACE_CORNERS[(slot + 1) % 4];
+    step(u, (au + bu) / 2) + step(v, (av + bv) / 2)
+}
+
+/// The [`FACES`] index of a cardinal step.
+fn face_of(direction: IVec3) -> usize {
+    FACES
+        .iter()
+        .position(|face| *face == direction)
+        .expect("an edge steps along a cardinal")
 }
 
 /// Whether the skin has something to END AGAINST at `cell`, rather than the
@@ -462,41 +623,37 @@ fn walls(structure: &SkinStructure, cell: IVec3, u: usize, v: usize) -> bool {
 /// The plate a clad cell calls for.
 ///
 /// The one genuine choice is WHICH WAY it faces, where more than one direction
-/// stands. That goes to the deepest structure the plate can reach: a plate on
-/// the roof finds the whole ship below it and one turned on its side finds a
-/// single cell, so the flat answer wins by a wide margin and a wall does not
-/// come out as a field of pyramids.
+/// stands. That goes to the deepest structure the plate can reach ([`facing`]):
+/// a plate on the roof finds the whole ship below it and one turned on its side
+/// finds a single cell, so the flat answer wins by a wide margin and a wall
+/// does not come out as a field of pyramids.
 ///
 /// The rotation is FOUND rather than derived: for each turn that puts the out
-/// face the right way, the samples the cell wants are read back into the
-/// shape's own frame, and the turn that leaves that reading canonical is the
-/// one that places the canonical shape correctly.
+/// face the right way, the shape the cell wants is read back into the shape's
+/// own frame, and the turn that leaves that reading canonical is the one that
+/// places the canonical shape correctly.
 pub fn plate_for(
     structure: &SkinStructure,
     skin: &HashSet<IVec3>,
     cell: IVec3,
 ) -> Option<SkinPlate> {
-    let out = (0..FACES.len())
-        .filter(|out| stands(structure, cell, *out))
-        .max_by_key(|out| support_depth(structure, cell, *out))?;
+    let out = facing(structure, cell)?;
     let wanted = boundary_heights(structure, skin, cell, out);
 
     for rotation in turns() {
         if face_index(rotation * Vec3::Y) != Some(out) {
             continue;
         }
-        let mut local = ShellShape {
-            corners: [0; 4],
-            midpoints: [0; 4],
-        };
+        let mut local = wanted;
         let mut legible = true;
         for (slot, &(x, z)) in FACE_CORNERS.iter().enumerate() {
             let corner = corner_slot(out, rotation * Vec3::new(x as f32, 0.0, z as f32));
             let edge = edge_slot(out, rotation * local_edge(slot));
             match (corner, edge) {
                 (Some(corner), Some(edge)) => {
-                    local.corners[slot] = wanted.corners[corner];
-                    local.midpoints[slot] = wanted.midpoints[edge];
+                    local.feet[slot] = wanted.feet[edge];
+                    local.edges[slot] = wanted.edges[edge];
+                    local.soft_corners[slot] = wanted.soft_corners[corner];
                 }
                 _ => legible = false,
             }
@@ -511,6 +668,33 @@ pub fn plate_for(
         }
     }
     None
+}
+
+/// The face a clad cell's plate shows to space: of the faces it may stand
+/// on, the one with the deepest structure under it, and on a tie the one whose
+/// bolt layer - the cells round the one it bolts to - is widest, so a cell
+/// beside a raised part faces the deck it stands on rather than turning on its
+/// side.
+fn facing(structure: &SkinStructure, cell: IVec3) -> Option<usize> {
+    (0..FACES.len())
+        .filter(|out| stands(structure, cell, *out))
+        .max_by_key(|out| {
+            (
+                support_depth(structure, cell, *out),
+                bolt_layer(structure, cell, *out),
+            )
+        })
+}
+
+/// How many of the nine cells round and including the one a plate facing
+/// `out` bolts to are filled.
+fn bolt_layer(structure: &SkinStructure, cell: IVec3, out: usize) -> usize {
+    let (u, v) = face_plane(out);
+    let bolt = cell - FACES[out];
+    (-1..=1)
+        .flat_map(|a| (-1..=1).map(move |b| bolt + step(u, a) + step(v, b)))
+        .filter(|at| structure.filled(*at))
+        .count()
 }
 
 /// How deep the structure under a plate runs, looking straight down from its
@@ -1288,8 +1472,18 @@ mod tests {
             .mass(SKIN_DENSITY)
     }
 
-    fn shape(corners: [u8; 4], midpoints: [u8; 4]) -> ShellShape {
-        ShellShape::new(corners, midpoints).expect("a legal shape")
+    /// A level plate standing `level` across its whole cell.
+    fn flat(level: u8) -> ShellShape {
+        ShellShape::new(level, [level; 4], [ShellEdgeType::Plain; 4], [level; 4])
+            .expect("a legal shape")
+    }
+
+    /// The edge slot of a plate facing `out` that looks across `towards`.
+    fn edge_towards(out: usize, towards: IVec3) -> usize {
+        let (u, v) = face_plane(out);
+        (0..4)
+            .find(|slot| edge_direction(u, v, *slot) == towards)
+            .expect("an edge faces every neighbour in the plane")
     }
 
     /// A plate is a destructible FIXTURE and never a section.
@@ -1301,7 +1495,7 @@ mod tests {
     fn a_plate_spawns_as_a_destructible_fixture_and_not_a_section() {
         let mut app = skin_app();
         let section = app.world_mut().spawn(SectionMarker).id();
-        let clad = shape([HALF; 4], [HALF; 4]);
+        let clad = flat(HALF);
         let plate = spawn_plate_under(&mut app, section, clad);
 
         let world = app.world();
@@ -1353,26 +1547,22 @@ mod tests {
     /// constant plus a collider cut to the shape gives the whole family its
     /// weights.
     #[test]
-    fn a_full_plate_outweighs_and_outlasts_a_quarter_one() {
+    fn a_full_plate_outweighs_and_outlasts_a_half_one() {
         let mut app = skin_app();
         let section = app.world_mut().spawn(SectionMarker).id();
-        let block = shape([FULL; 4], [FULL; 4]);
-        let quarter = shape([1; 4], [1; 4]);
+        let block = flat(FULL);
+        let half = flat(HALF);
         assert_eq!(block.volume(), 1.0, "a full block fills its cell");
-        assert_eq!(
-            quarter.volume(),
-            0.25,
-            "a quarter-cell plate fills a quarter"
-        );
+        assert_eq!(half.volume(), 0.5, "a half-cell plate fills half");
 
         let solid = spawn_plate_under(&mut app, section, block);
-        let thin = spawn_plate_under(&mut app, section, quarter);
+        let thin = spawn_plate_under(&mut app, section, half);
 
         let health_of = |plate: Entity| app.world().get::<Health>(plate).unwrap().max;
         assert_eq!(health_of(solid), SKIN_HEALTH_PER_CELL);
         assert!(
-            (health_of(solid) / health_of(thin) - 4.0).abs() < EPSILON,
-            "a full plate should outlast a quarter one four to one",
+            (health_of(solid) / health_of(thin) - 2.0).abs() < EPSILON,
+            "a full plate should outlast a half one two to one",
         );
 
         assert!(
@@ -1380,8 +1570,8 @@ mod tests {
             "a full cell of plate weighs one cell of skin",
         );
         assert!(
-            (plate_mass(&app, solid) / plate_mass(&app, thin) - 4.0).abs() < 1e-3,
-            "a full plate should outweigh a quarter one four to one",
+            (plate_mass(&app, solid) / plate_mass(&app, thin) - 2.0).abs() < 1e-3,
+            "a full plate should outweigh a half one two to one",
         );
     }
 
@@ -1400,7 +1590,7 @@ mod tests {
             .world_mut()
             .spawn((SectionMarker, Health::new(500.0)))
             .id();
-        let plate = spawn_plate_under(&mut app, section, shape([HALF; 4], [HALF; 4]));
+        let plate = spawn_plate_under(&mut app, section, flat(HALF));
 
         let health = app.world().get::<Health>(plate).unwrap().max;
         app.world_mut().trigger(HealthApplyDamage {
@@ -1435,7 +1625,7 @@ mod tests {
     fn destroying_a_section_takes_the_plates_clad_to_it() {
         let mut app = skin_app();
         let section = app.world_mut().spawn(SectionMarker).id();
-        let plate = spawn_plate_under(&mut app, section, shape([FULL; 4], [FULL; 4]));
+        let plate = spawn_plate_under(&mut app, section, flat(FULL));
         assert!(app.world().get_entity(plate).is_ok(), "the plate is on");
 
         app.world_mut().entity_mut(section).despawn();
@@ -1504,20 +1694,21 @@ mod tests {
         }
     }
 
-    /// Two plates across a seam read the same samples.
+    /// Two plates across a seam stand the same height there.
     ///
     /// This is the property the whole scheme rests on, so it is checked over
     /// real neighbours rather than argued: every pair of clad cells that share
-    /// a face and face the same way must agree about the two corners and the
-    /// midpoint they hold in common.
+    /// a face and face the same way must put the same foot on the edge they
+    /// hold in common, or the seam between them is a step.
     #[test]
-    fn neighbouring_plates_agree_about_the_samples_they_share() {
+    fn neighbouring_plates_agree_about_the_edge_they_share() {
         let structure = hull(&[
             IVec3::ZERO,
             IVec3::X,
             IVec3::X * 2,
             IVec3::Z,
             IVec3::X + IVec3::Z,
+            IVec3::X * 2 + IVec3::Y,
         ]);
         let skin = cladding_cells(&structure);
         assert!(!skin.is_empty(), "this hull has an outside");
@@ -1529,28 +1720,16 @@ mod tests {
                 }
                 let mine = boundary_heights(&structure, &skin, cell, out);
                 let (u, v) = face_plane(out);
-                for (axis, sign) in [(u, 1), (u, -1), (v, 1), (v, -1)] {
-                    let next = cell + step(axis, sign);
+                for towards in [step(u, 1), step(u, -1), step(v, 1), step(v, -1)] {
+                    let next = cell + towards;
                     if !skin.contains(&next) || !stands(&structure, next, out) {
                         continue;
                     }
                     let theirs = boundary_heights(&structure, &skin, next, out);
-                    // The shared edge: my slot facing them, their slot facing
-                    // me. The midpoint is one sample, so the two must match.
-                    let mid_of = |shape: &ShellShape, towards: IVec3| -> u8 {
-                        let slot = (0..4)
-                            .find(|slot| {
-                                let (au, av) = FACE_CORNERS[*slot];
-                                let (bu, bv) = FACE_CORNERS[(slot + 1) % 4];
-                                step(u, (au + bu) / 2) + step(v, (av + bv) / 2) == towards
-                            })
-                            .expect("an edge faces every neighbour in the plane");
-                        shape.midpoints[slot]
-                    };
                     assert_eq!(
-                        mid_of(&mine, step(axis, sign)),
-                        mid_of(&theirs, step(axis, -sign)),
-                        "{cell:?} and {next:?} disagree about the midpoint between them",
+                        mine.feet[edge_towards(out, towards)],
+                        theirs.feet[edge_towards(out, -towards)],
+                        "{cell:?} and {next:?} disagree about the seam between them",
                     );
                 }
             }
@@ -1611,14 +1790,13 @@ mod tests {
         assert_eq!(forwards, derive_skin(&hull(&cells)), "not reproducible");
     }
 
-    /// A one-cell notch fills in; a two-cell notch reads as a valley.
+    /// A one-cell notch fills in to the whole cell.
     ///
-    /// The resolution limit of a corner-sampled height field, pinned so it is a
-    /// known property rather than a surprise. All four corners of a one-cell
-    /// gap touch structure, so the only shape that fits is the full block and
-    /// the notch closes over. Widen it and the middle samples drop to half.
+    /// Both sides of the gap are structure the skin climbs, so the plate in it
+    /// stands the whole cell and closes against both walls: the notch closes
+    /// over rather than showing a slot one cell wide.
     #[test]
-    fn a_notch_needs_two_cells_before_it_reads_as_concave() {
+    fn a_one_cell_notch_fills_in() {
         // A U: floor of three, walls at each end, gap of one in the middle.
         let narrow = hull(&[
             IVec3::new(0, 0, 0),
@@ -1630,24 +1808,26 @@ mod tests {
         let skin = cladding_cells(&narrow);
         let gap = IVec3::new(1, 1, 0);
         assert!(skin.contains(&gap), "the notch is clad");
-        let plate = plate_for(&narrow, &skin, gap).expect("a plate fits the notch");
-        assert_eq!(
-            plate.shape.corners, [FULL; 4],
-            "a one-cell notch has structure at every corner, so it fills in",
-        );
+        let shape = boundary_heights(&narrow, &skin, gap, 2);
+        assert_eq!(shape.level, FULL, "`{}` leaves the notch open", shape.id());
+        for towards in [IVec3::X, IVec3::NEG_X] {
+            assert_eq!(
+                shape.edges[edge_towards(2, towards)],
+                ShellEdgeType::Wall,
+                "`{}` does not close against the wall at {towards}",
+                shape.id(),
+            );
+        }
     }
 
-    /// A one-cell run of skin is a RIDGE, not a low strip.
+    /// A one-cell run of skin is a flat slab, folded down both sides.
     ///
-    /// A rim that faces OPEN SPACE tapers away, and this is what that buys: a
-    /// run one cell wide has two of the four cells clad at every corner, so
-    /// every corner dies to the floor, every edge is DEAD, and the midpoint vote
-    /// is free to run the crest along the run. A tent, and the owner wants the
-    /// tents - it is only where the skin ends against something that it has to
-    /// stop dead instead.
+    /// The roof of a spine one cell wide meets the plates on its flanks at
+    /// half a cell on both long edges. It used to come out as a tent with a
+    /// crest down the middle; now its whole top is one level surface, and the
+    /// fall happens at the edges where the hull turns.
     #[test]
-    fn a_one_cell_run_of_skin_reads_as_a_ridge() {
-        // A spine three cells long: the skin over its roof is one cell wide.
+    fn a_one_cell_run_of_skin_is_a_flat_slab() {
         let structure = hull(&[IVec3::ZERO, IVec3::Z, IVec3::Z * 2]);
         let skin = cladding_cells(&structure);
         let crest = IVec3::Y + IVec3::Z;
@@ -1655,33 +1835,29 @@ mod tests {
 
         // Face 2 is +Y, the only way this plate can stand.
         let shape = boundary_heights(&structure, &skin, crest, 2);
+        assert_eq!(shape.level, HALF);
         assert_eq!(
-            shape.corners, [0; 4],
-            "a corner of a one-cell run faces open space on two sides, so it \
-             tapers away rather than standing up",
+            shape.feet,
+            [HALF; 4],
+            "`{}` falls inside its cell",
+            shape.id()
         );
-        let along = [shape.midpoints[0], shape.midpoints[2]];
-        let across = [shape.midpoints[1], shape.midpoints[3]];
-        let (crest_line, eaves) = match along {
-            [HALF, HALF] => (along, across),
-            _ => (across, along),
-        };
-        assert_eq!(
-            crest_line, [HALF; 2],
-            "the run should carry a crest at half a cell down its length",
-        );
-        assert_eq!(
-            eaves, [0; 2],
-            "the sides of the run should fall to the floor, or it is a slab",
-        );
+        for towards in [IVec3::X, IVec3::NEG_X] {
+            let edge = shape.edges[edge_towards(2, towards)];
+            assert!(
+                matches!(edge, ShellEdgeType::Fold | ShellEdgeType::Skirt),
+                "the flank at {towards} should fold round the hull edge, not {edge:?}",
+            );
+        }
+        assert!(shape.is_coplanar(), "`{}` is not one flat top", shape.id());
     }
 
     /// A drive standing proud of the hull is not a wall for the skin to climb.
     ///
-    /// A corner reads the whole cell only where structure OFFERS a mating face
-    /// in the skin's own plane. A hull cube does; a drive, which carries one
-    /// socket on the end it bolts down through, does not - and reading "filled"
-    /// instead put a full-cell fin on the plate diagonally off every nozzle.
+    /// A cell reads as a wall only where structure OFFERS a mating face in the
+    /// skin's own plane. A hull cube does; a drive, which carries one socket
+    /// on the end it bolts down through, does not - and reading "filled"
+    /// instead put a full-cell fin beside every nozzle.
     #[test]
     fn a_blind_part_standing_proud_is_not_a_wall_the_skin_climbs() {
         // A deck of hull with something standing on the middle of it.
@@ -1689,29 +1865,33 @@ mod tests {
             .flat_map(|x| (-1..=1).map(move |z| IVec3::new(x, 0, z)))
             .collect();
         let deck = hull(&cells);
-        let corner = IVec3::new(1, 1, 1);
+        let beside = IVec3::new(0, 1, 1);
 
-        // With a hull cube on the deck, the plate diagonally off it climbs.
+        // With a hull cube on the deck, the plate beside it climbs.
         let mut walled = deck.clone();
         walled.insert(IVec3::Y, OPEN);
         let skin = cladding_cells(&walled);
-        let shape = boundary_heights(&walled, &skin, corner, 2);
+        let shape = boundary_heights(&walled, &skin, beside, 2);
         assert!(
-            skin.contains(&corner) && shape.corners.contains(&FULL),
+            skin.contains(&beside)
+                && shape.level == FULL
+                && shape.edges[edge_towards(2, IVec3::NEG_Z)] == ShellEdgeType::Wall,
             "the plate beside a hull block has to close against it: `{}`",
             shape.id(),
         );
 
-        // With a drive there instead, nothing on that corner is climbable.
+        // With a drive there instead, nothing beside it is climbable.
         let mut proud = deck;
         let mut drive = [false; 6];
         drive[3] = true;
         proud.insert(IVec3::Y, drive);
         proud.insert_exit(IVec3::Y, 2);
         let skin = cladding_cells(&proud);
-        let shape = boundary_heights(&proud, &skin, corner, 2);
+        let shape = boundary_heights(&proud, &skin, beside, 2);
         assert!(
-            skin.contains(&corner) && !shape.corners.contains(&FULL),
+            skin.contains(&beside)
+                && shape.level == HALF
+                && !shape.edges.contains(&ShellEdgeType::Wall),
             "`{}` grew a fin beside a nozzle there is nothing to close against",
             shape.id(),
         );
@@ -1726,10 +1906,10 @@ mod tests {
     ///
     /// Two shapes must not appear anywhere on this hull, and both did:
     ///
-    /// - a corner at the WHOLE CELL, which is a plate climbing a drive there is
+    /// - a WHOLE-CELL plate, which is a plate climbing a drive there is
     ///   nothing to close against. A fin, standing beside a nozzle.
-    /// - a boundary entirely on the floor, whose middle rides at half a cell.
-    ///   A CONE, one per gap in the bank.
+    /// - a plate whose four feet all stand on the floor. A pyramid, one per
+    ///   gap in the bank.
     #[test]
     fn the_skin_between_a_bank_of_drives_is_flat_plate() {
         let mut structure = SkinStructure::default();
@@ -1757,10 +1937,9 @@ mod tests {
         }
 
         let plates = derive_skin(&structure);
-        let cone = ShellShape::new([0; 4], [0; 4]).expect("a legal shape");
         let bad: Vec<String> = plates
             .iter()
-            .filter(|plate| plate.shape.corners.contains(&FULL) || plate.shape == cone)
+            .filter(|plate| plate.shape.level == FULL || plate.shape.feet == [0; 4])
             .map(|plate| format!("{:?} wears `{}`", plate.cell, plate.shape.id()))
             .collect();
         assert!(
@@ -1770,18 +1949,125 @@ mod tests {
         );
 
         // The cell in the gap of the bank: plate beside it and drives across
-        // its corners. It carries the running height right out to the boundary
-        // and drops vertically there, which is the ridge.
+        // its corners. It is plain deck at half a cell.
         let walled_in = plates
             .iter()
             .find(|plate| plate.cell == IVec3::new(2, 1, 3))
             .expect("the gap in the middle of the bank is clad");
         assert_eq!(
             walled_in.shape,
-            ShellShape::new([HALF; 4], [HALF; 4]).expect("a legal shape"),
+            flat(HALF),
             "`{}` stands in a hole in the skin, not at the edge of one",
             walled_in.shape.id(),
         );
+    }
+
+    /// The corners of every triangle of a plate's `role` surfaces, in the
+    /// ship's cells.
+    fn world_points(plate: &SkinPlate, role: ShellSurface) -> Vec<Vec3> {
+        plate
+            .shape
+            .surfaces()
+            .into_iter()
+            .filter(|(surface, _)| *surface == role)
+            .flat_map(|(_, mesh)| {
+                let Some(bevy::mesh::VertexAttributeValues::Float32x3(positions)) =
+                    mesh.attribute(Mesh::ATTRIBUTE_POSITION).cloned()
+                else {
+                    panic!("a generated shell carries float positions");
+                };
+                positions
+            })
+            .map(|p| plate.cell.as_vec3() + plate.rotation * Vec3::from_array(p))
+            .collect()
+    }
+
+    /// The plate a derived skin lays in `cell`.
+    fn plate_in(plates: &[SkinPlate], cell: IVec3) -> &SkinPlate {
+        plates
+            .iter()
+            .find(|plate| plate.cell == cell)
+            .unwrap_or_else(|| panic!("{cell:?} is clad"))
+    }
+
+    /// A staircase of cubes that touch along an edge only is clad as one
+    /// continuous 45 degree ramp on each side.
+    ///
+    /// Each plate in the stair is a whole-cell plate against the step above
+    /// it, and it ramps away from that step rather than standing as a block,
+    /// so the treads read as one slope and not as a row of teeth.
+    #[test]
+    fn a_diagonal_stair_gives_a_continuous_ramp() {
+        let cells: Vec<IVec3> = (0..4)
+            .flat_map(|z| [(0, 0), (1, 1), (2, 2)].map(|(x, y)| IVec3::new(x, y, z)))
+            .collect();
+        let plates = derive_skin(&hull(&cells));
+        // The cells above the stair and the cells under it, and the plane
+        // each side's ramp lies in. Away from the ends of the run, so neither
+        // plate meets open space along the stair.
+        for (treads, offset) in [([(0, 1), (1, 2)], 1.0), ([(1, 0), (2, 1)], -1.0)] {
+            for z in 1..3 {
+                for (x, y) in treads {
+                    let plate = plate_in(&plates, IVec3::new(x, y, z));
+                    for point in world_points(plate, ShellSurface::Top) {
+                        assert!(
+                            (point.y - (point.x + offset)).abs() < EPSILON,
+                            "`{}` at {:?} leaves the ramp y = x + {offset} at {point}",
+                            plate.shape.id(),
+                            plate.cell,
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// Where the hull turns a convex edge, the plates on the two faces meet.
+    ///
+    /// The roof plate folds down to half a cell at the edge, and the plate on
+    /// the side carries a skirt out past its cell that lands on that same line,
+    /// so the corner is closed with no slot along it.
+    #[test]
+    fn the_two_faces_at_a_convex_corner_meet() {
+        let cells: Vec<IVec3> = (0..3)
+            .flat_map(|x| (0..3).flat_map(move |y| (0..3).map(move |z| IVec3::new(x, y, z))))
+            .collect();
+        let plates = derive_skin(&hull(&cells));
+        let roof = plate_in(&plates, IVec3::new(2, 3, 1));
+        let side = plate_in(&plates, IVec3::new(3, 2, 1));
+        assert_eq!(roof.rotation * Vec3::Y, Vec3::Y, "the roof plate faces up");
+
+        // The line the two must share: the roof plate's edge over the side of
+        // the hull, half a cell above the hull's top.
+        let edge_x = 2.5;
+        let edge_y = 3.0;
+        let on_line = |points: Vec<Vec3>| -> Vec<Vec3> {
+            points
+                .into_iter()
+                .filter(|p| (p.x - edge_x).abs() < EPSILON && p.y > 2.5 + EPSILON)
+                .collect()
+        };
+        for (name, plate) in [("roof", roof), ("side", side)] {
+            let landing = on_line(world_points(plate, ShellSurface::Top));
+            assert!(
+                !landing.is_empty(),
+                "the {name} plate never reaches the corner"
+            );
+            for point in &landing {
+                assert!(
+                    (point.y - edge_y).abs() < EPSILON,
+                    "the {name} plate `{}` reaches the corner at {point}, not on the shared line",
+                    plate.shape.id(),
+                );
+            }
+            let (low, high) = landing.iter().fold((f32::MAX, f32::MIN), |(low, high), p| {
+                (low.min(p.z), high.max(p.z))
+            });
+            assert!(
+                (low - 0.5).abs() < EPSILON && (high - 1.5).abs() < EPSILON,
+                "the {name} plate meets the corner over z {low}..{high}, not the whole cell",
+            );
+        }
     }
 
     /// THE OWNER'S L: three cubes in a run, two more up off one end.
@@ -1790,8 +2076,8 @@ mod tests {
     /// show are themselves clad. That used to drop it, and left the two hull
     /// faces looking into the angle bare. It stands: the plate on the roof and
     /// the plate on the upright hug different walls of the same concave corner,
-    /// and this one fills the corner between them - full height where it closes
-    /// against the upright, dying to the floor away from it.
+    /// and this one fills the corner between them - a whole cell that closes
+    /// against the upright and steps down to the deck away from it.
     #[test]
     fn the_inside_angle_of_an_l_is_clad_and_closes_against_the_upright() {
         let structure = hull(&[
@@ -1812,18 +2098,19 @@ mod tests {
             "the corner plate should bolt to the deepest structure under it",
         );
         let shape = boundary_heights(&structure, &skin, angle, 2);
-        // The out face is +Y, whose plane is read as (x, z); the upright stands
-        // at +x of the angle.
-        let (against, away): (Vec<usize>, Vec<usize>) =
-            (0..4).partition(|slot| FACE_CORNERS[*slot].0 > 0);
-        assert!(
-            against.iter().all(|slot| shape.corners[*slot] == FULL),
+        // The out face is +Y; the upright stands at +x of the angle.
+        let against = edge_towards(2, IVec3::X);
+        let away = edge_towards(2, IVec3::NEG_X);
+        assert_eq!(
+            (shape.level, shape.edges[against]),
+            (FULL, ShellEdgeType::Wall),
             "`{}` leaves a gap where it meets the upright",
             shape.id(),
         );
-        assert!(
-            away.iter().all(|slot| shape.corners[*slot] == 0),
-            "`{}` stands up where the L faces open space",
+        assert_eq!(
+            (shape.feet[away], shape.edges[away]),
+            (HALF, ShellEdgeType::Plain),
+            "`{}` should step down to the deck away from the upright",
             shape.id(),
         );
 
@@ -2187,9 +2474,8 @@ mod tests {
                 ),
                 health: 10.0,
                 // TRIM, five hundredths of a cell proud, which is what drops
-                // the seat gate: the subject is a LONE CUBE and every one of
-                // its six plates is a cone, so a seated piece would leave a
-                // test about parenting with nothing to parent.
+                // the seat gate, so a test about parenting does not hang on
+                // whether the plates of a LONE CUBE can seat a piece.
                 collider: Vec3::new(0.2, 0.05, 0.2),
                 // `Anywhere` and `Every`: nothing filtered and nothing thinned,
                 // so the rule takes all six faces. `HighGround` would take one
@@ -2213,7 +2499,7 @@ mod tests {
         app.init_resource::<SkinAssets>();
         app.add_observer(dress_skin_plate);
         let section = app.world_mut().spawn(SectionMarker).id();
-        let clad = shape([HALF; 4], [HALF; 4]);
+        let clad = flat(HALF);
         let plate = spawn_plate_under(&mut app, section, clad);
         app.update();
 

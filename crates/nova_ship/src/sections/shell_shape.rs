@@ -1,45 +1,45 @@
-//! The SHAPE of a hull shell tile: eight boundary samples, and the mesh they
-//! define.
+//! The SHAPE of a hull shell tile: a plateau, what each edge does, and the
+//! mesh that follows from them.
 //!
-//! A shell is one cell of a ship's outer skin. Its top is a height field
-//! sampled on the BOUNDARY of the cell's outward face at eight points - the
-//! four corners and the four edge midpoints - each standing on one of the five
-//! quarter cells between the floor and the ceiling. Those eight digits are the
-//! whole shape, and they are what a shell's id spells:
+//! A shell is one cell of a ship's outer skin. Its top is a flat PLATEAU at
+//! the plate's level - half a cell for a run of skin, a whole cell beside
+//! structure the skin climbs - and each of its four edges says how the top
+//! leaves the cell on that side:
 //!
 //! ```text
-//!            m0
-//!        c0------c1
-//!        |        |
-//!     m3 |        | m1        shell_<c0 c1 c2 c3>_<m0 m1 m2 m3>
-//!        |        |
-//!        c3------c2
-//!            m2
+//!              e0 / f0
+//!         s1 +---------+ s0
+//!            |         |
+//!    e1 / f1 | plateau | e3 / f3     shell_<level>_<feet>_<edges>_<soft>
+//!            |         |
+//!         s2 +---------+ s3
+//!              e2 / f2
 //! ```
 //!
-//! Every sample is SHARED with the cells around it - a corner with the four
-//! that meet at it, a midpoint with the two that meet across it - so every
-//! neighbour builds the same boundary points out of its own state and two
-//! surfaces meet exactly. That is what makes a run of tiles one continuous hull
-//! rather than a heap of plates, and it is why nothing has to generate a seam
-//! between two tiles in the same plane: there is no gap to fill.
+//! - the FOOT `f` is the height the top comes down to at that edge. A foot at
+//!   the level is a flush join; a lower one is a chamfer from the plateau.
+//! - the EDGE TYPE `e` is the slope of that chamfer and whatever the edge adds
+//!   beyond it: a skirt round a convex hull corner, a wall the plate holds its
+//!   level against, or the ramp of a diagonal stair. See [`ShellEdgeType`].
+//! - the SOFT CORNER `s` is the height the four cells meeting at that corner
+//!   average to. A whole-cell plate is capped by a straight bevel through any
+//!   corner the neighbourhood holds lower, so a raised block reads as one
+//!   piece rather than as a tower with square shoulders.
 //!
-//! The MIDDLE of the top is shared with nobody, so it is free. It rides at the
-//! mean of the eight boundary samples, which is the one choice that leaves a
-//! ramp flat: corners at floor, floor, full, full with the midpoints their
-//! straight line asks for average to exactly the height the plane passes the
-//! middle at. The minimum would crater it and the maximum would tent it.
+//! The top is the lower envelope of straight planes, one for the plateau and
+//! one per chamfer, so it is never a point. Two neighbours read the same foot
+//! and the same slope on their shared side, which is why their surfaces meet
+//! without a seam between them. That replaced a height field sampled at eight
+//! boundary points and fanned off a free middle: the fan put a spike wherever a
+//! midpoint stood above the two corners beside it.
 //!
 //! A quarter turn about the out axis is free to whatever places the tile, so
 //! two settings that differ by one are ONE shape - see
-//! [`ShellShape::canonical`]. Neither reflection nor height is a symmetry: a
-//! section is placed with a rotation and nothing else, so a shape and its
-//! mirror are two shapes, and a bump is not a dent.
+//! [`ShellShape::canonical`]. Reflection is not a symmetry: a section is placed
+//! with a rotation and nothing else, so a shape and its mirror are two shapes.
 //!
-//! Meshes are BUILT, not shipped, and built on demand. Nothing enumerates the
-//! shapes: a whole ship touches a couple of dozen of them, so a tile costs less
-//! to generate than to load and the size of the space it is drawn from does not
-//! matter.
+//! Meshes are BUILT, not shipped, and built on demand. A whole ship touches a
+//! few dozen shapes, so a tile costs less to generate than to load.
 
 use bevy::{
     asset::RenderAssetUsages,
@@ -47,29 +47,15 @@ use bevy::{
     render::mesh::{Indices, PrimitiveTopology},
 };
 
-use crate::sections::link_points::{unit_cube_link_points, LinkPoint};
-
-/// The heights a boundary sample can stand at, indexed by the digit that names
-/// it: quarter cells, from the floor to a whole cell.
-///
-/// QUARTERS and not the three the corners themselves use, because the corners
-/// are not the only samples. The midpoint of an edge climbing from the floor to
-/// the half cell belongs at the mean of its two corners, and that mean is a
-/// quarter. With three heights it had to round back down to the floor, which
-/// sagged the middle of every rim edge and grew a facet on every tile at the
-/// edge of a skin.
+/// The heights a foot or a soft corner can stand at, indexed by the digit that
+/// names it: quarter cells, from the floor to a whole cell.
 pub const SAMPLE_HEIGHTS: [f32; 5] = [0.0, 0.25, 0.5, 0.75, 1.0];
 
-/// The gap between two neighbouring [`SAMPLE_HEIGHTS`], which is the quantum a
-/// carved height is rounded back onto.
-pub const SAMPLE_STEP: f32 = 0.25;
-
-/// The digit of a sample standing a full cell high, which is what it takes to
-/// close against structure a whole cell tall.
+/// The digit of a whole cell: the level of a plate beside structure it climbs.
 pub const FULL: u8 = 4;
 
-/// The digit of a sample standing half a cell high - where a face-centre socket
-/// sits, and the height a run of skin travels at.
+/// The digit of half a cell: the level a run of skin travels at, and the foot
+/// of a chamfer off a whole-cell plate.
 pub const HALF: u8 = 2;
 
 /// Half the cell, which is the tile's reach from its own centre on every axis.
@@ -81,31 +67,37 @@ pub(crate) const REACH: f32 = 0.5;
 /// Every shell id opens with this.
 pub const SHELL_ID_PREFIX: &str = "shell_";
 
-/// How much of the cell footprint ONE facet of the fanned top covers. The fan
-/// cuts the face into eight equal wedges, so this is the quantum
-/// [`ShellShape::flat_area`] is measured in.
-pub const TOP_FACET_FOOTPRINT: f32 = 0.125;
+/// How far apart two heights or plane terms may be and still count as one.
+/// The inputs are quarter cells and slopes of one to eight, so nothing honest
+/// lands anywhere near this.
+const EPSILON: f32 = 1e-5;
 
-/// How far apart two facet normals may be and still count as one surface.
-/// Generous: the digits are exact, so the only spread here is the last bits of
-/// a normalized cross product.
-const FACET_EPSILON: f32 = 1e-4;
+/// The smallest piece of top worth a facet, in square cells. Smaller pieces
+/// are slivers left by two cut lines that cross on the square's own boundary.
+const MIN_PIECE_AREA: f32 = 1e-7;
 
-/// Separates the corner round from the midpoint round in an id.
-const ROUND_SEPARATOR: char = '_';
+/// The slope of an ordinary chamfer: two cells of height per cell of run, so
+/// half a cell of drop takes a quarter of the plate.
+const CHAMFER_SLOPE: f32 = 2.0;
+
+/// How far from the middle of a plate, each way along both axes, a
+/// decoration needs one plane under it: a generated piece is at most half a
+/// cell across.
+const SEAT_REACH: f32 = REACH / 2.0;
+
+/// The slope of a diagonal stair's ramp: one cell of height per cell of run,
+/// so a whole-cell plate falls to the floor across its full width.
+const RAMP_SLOPE: f32 = 1.0;
+
+/// The slope of a wall cover: steep, so where a plate's rims fall away at a
+/// wall corner the cover closes the wall's face with a thin web against it
+/// instead of a tooth across the plate.
+const WALL_SLOPE: f32 = 8.0;
 
 /// The four corners of the outward face, as signs on x and z, in the order an
 /// id reads them. A quarter turn about the out axis is one step along this
-/// list.
+/// list, and edge `i` runs from corner `i` to corner `i + 1`.
 const FACE_CORNERS: [(f32, f32); 4] = [(1.0, 1.0), (-1.0, 1.0), (-1.0, -1.0), (1.0, -1.0)];
-
-/// The face a shell bolts down through. It keeps the whole cell floor whatever
-/// its top is doing, so this socket is on every tile.
-const BOLT_NORMAL: Vec3 = Vec3::NEG_Y;
-
-/// Enough to tell the six cardinal directions apart. The normals compared
-/// against it are authored constants, so nothing here is close to the limit.
-const SOCKET_EPSILON: f32 = 1e-4;
 
 /// The surface roles a generated tile is cut into, one mesh each.
 ///
@@ -143,56 +135,141 @@ impl ShellSurface {
     }
 }
 
-/// One shell tile's shape: the eight heights on the boundary of its outward
-/// face.
+/// What one edge of a plate does where the top leaves the cell.
 ///
-/// `corners[i]` is the corner at [`FACE_CORNERS`]`[i]`, and `midpoints[i]` is
-/// the sample halfway along the edge that runs from corner `i` to corner
-/// `i + 1`. Every digit is an index into [`SAMPLE_HEIGHTS`].
+/// Read off the cell across the edge by
+/// [`boundary_heights`](super::shell_skin::boundary_heights). Every type but
+/// [`Wall`](Self::Wall) and [`RampEnd`](Self::RampEnd) chamfers the plateau
+/// down to the edge's foot, and does nothing where the foot is the level.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum ShellEdgeType {
+    /// More skin, structure the skin stops at, the mouth of a fitting, or open
+    /// space with no plate round the corner. A chamfer at slope two.
+    Plain,
+    /// A convex hull edge whose skirt the plate on the side face owns. Shaped
+    /// as [`Plain`](Self::Plain); kept apart because the hull falls away
+    /// here, which is where a rim piece belongs.
+    Fold,
+    /// A convex hull edge whose skirt THIS plate owns: a 45 degree face from
+    /// the top of the edge down past the cell, to where the plate on the side
+    /// face carries on. One plate of the two owns it, so the corner is closed
+    /// once.
+    Skirt,
+    /// The low side of a diagonal stair, or the edge beside such a ramp: a
+    /// chamfer at slope one down to the floor.
+    Ramp,
+    /// The open end of a diagonal stair plate. The top falls into the same
+    /// plane as the ramp's end, so the stair's end profile matches the plates
+    /// beside it.
+    RampEnd,
+    /// Structure the plate climbs. The top holds its level along the whole
+    /// edge, so a chamfer on a neighbouring edge never bares the structure.
+    Wall,
+}
+
+impl ShellEdgeType {
+    /// The letter an id spells this type with.
+    fn letter(self) -> char {
+        match self {
+            Self::Plain => 'p',
+            Self::Fold => 'f',
+            Self::Skirt => 's',
+            Self::Ramp => 'r',
+            Self::RampEnd => 'e',
+            Self::Wall => 'w',
+        }
+    }
+}
+
+/// One shell tile's shape: its level, and what each edge and corner does.
+///
+/// Indexed round the face: `feet[i]` and `edges[i]` are the edge that runs
+/// from corner `i` to corner `i + 1`, and `soft_corners[i]` is corner `i`.
+/// Every height is a digit of [`SAMPLE_HEIGHTS`]. [`ShellShape::new`] is the
+/// one way to build one, and it refuses a combination the mesh has no meaning
+/// for.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ShellShape {
-    /// The four corner heights, read round the face.
-    pub corners: [u8; 4],
-    /// The four edge-midpoint heights, one per edge in the same order.
-    pub midpoints: [u8; 4],
+    /// The plateau height: [`HALF`] for a run of skin, [`FULL`] beside
+    /// structure the plate climbs.
+    pub level: u8,
+    /// The height the top comes down to at each edge.
+    pub feet: [u8; 4],
+    /// What each edge does.
+    pub edges: [ShellEdgeType; 4],
+    /// The height the neighbourhood averages to at each corner, clamped to
+    /// between [`HALF`] and the level. A corner below the level caps a
+    /// whole-cell plate with a bevel; a half-cell plate always reads `HALF`.
+    pub soft_corners: [u8; 4],
 }
 
 impl ShellShape {
-    /// A shape from its eight digits, or `None` if any of them names no height.
-    pub fn new(corners: [u8; 4], midpoints: [u8; 4]) -> Option<Self> {
-        let sane = |round: [u8; 4]| round.iter().all(|h| (*h as usize) < SAMPLE_HEIGHTS.len());
-        (sane(corners) && sane(midpoints)).then_some(Self { corners, midpoints })
+    /// A shape from its parts, or `None` where they disagree.
+    ///
+    /// The level is [`HALF`] or [`FULL`]. A foot stands no higher than the
+    /// level, and the edge type fixes it where the type has one meaning: a
+    /// [`Plain`](ShellEdgeType::Plain) edge falls at most half a cell, a
+    /// [`Wall`](ShellEdgeType::Wall) holds the level, a
+    /// [`Fold`](ShellEdgeType::Fold) or [`Skirt`](ShellEdgeType::Skirt) meets
+    /// the plate round the corner at [`HALF`], a
+    /// [`Ramp`](ShellEdgeType::Ramp) lands wherever the plate below it
+    /// stands, and a [`RampEnd`](ShellEdgeType::RampEnd) closes the side of a
+    /// ramp that climbs to a wall on a whole-cell plate, down to the floor. A
+    /// soft corner sits
+    /// between [`HALF`] and the level.
+    pub fn new(
+        level: u8,
+        feet: [u8; 4],
+        edges: [ShellEdgeType; 4],
+        soft_corners: [u8; 4],
+    ) -> Option<Self> {
+        let legal_level = level == HALF || level == FULL;
+        let legal_edge = |edge: usize| {
+            let foot = feet[edge];
+            match edges[edge] {
+                ShellEdgeType::Plain => foot <= level && foot + HALF >= level,
+                ShellEdgeType::Fold | ShellEdgeType::Skirt => foot == HALF,
+                ShellEdgeType::Ramp => foot <= level,
+                ShellEdgeType::RampEnd => {
+                    foot == 0 && level == FULL && ramp_beside(&edges, edge).is_some()
+                }
+                ShellEdgeType::Wall => foot == level,
+            }
+        };
+        let legal_corner = |corner: usize| (HALF..=level).contains(&soft_corners[corner]);
+        (legal_level && (0..4).all(legal_edge) && (0..4).all(legal_corner)).then_some(Self {
+            level,
+            feet,
+            edges,
+            soft_corners,
+        })
     }
 
-    /// The shape a shell id spells, or `None` if the id is not one.
-    pub fn from_id(id: &str) -> Option<Self> {
-        let (corners, midpoints) = id
-            .strip_prefix(SHELL_ID_PREFIX)?
-            .split_once(ROUND_SEPARATOR)?;
-        Self::new(round_digits(corners)?, round_digits(midpoints)?)
-    }
-
-    /// The id that spells this shape. The prototype id and the mesh key are
-    /// this one string, so a shape and what it loads cannot drift apart.
+    /// The id that spells this shape: the level, the four feet, the four edge
+    /// letters and the four soft corners. Names a plate in a dump and a probe
+    /// snapshot; nothing keys on it.
     pub fn id(&self) -> String {
-        let spell =
-            |round: [u8; 4]| -> String { round.iter().map(|h| char::from(b'0' + h)).collect() };
+        let digits =
+            |round: [u8; 4]| -> String { round.map(|h| char::from(b'0' + h)).iter().collect() };
+        let letters: String = self.edges.map(ShellEdgeType::letter).iter().collect();
         format!(
-            "{SHELL_ID_PREFIX}{}{ROUND_SEPARATOR}{}",
-            spell(self.corners),
-            spell(self.midpoints),
+            "{SHELL_ID_PREFIX}{}_{}_{letters}_{}",
+            self.level,
+            digits(self.feet),
+            digits(self.soft_corners),
         )
     }
 
-    /// This shape turned `steps` quarter turns about the out axis.
-    ///
-    /// Both rounds turn TOGETHER: a corner and the midpoint of the edge leaving
-    /// it are one thing, and shuffling them apart would be a different shape.
+    /// This shape turned `steps` quarter turns about the out axis. Edges and
+    /// corners turn TOGETHER: edge `i` starts at corner `i`.
     pub fn turned(&self, steps: usize) -> Self {
         Self {
-            corners: std::array::from_fn(|i| self.corners[(i + steps) % 4]),
-            midpoints: std::array::from_fn(|i| self.midpoints[(i + steps) % 4]),
+            level: self.level,
+            feet: std::array::from_fn(|i| self.feet[(i + steps) % 4]),
+            edges: std::array::from_fn(|i| self.edges[(i + steps) % 4]),
+            soft_corners: std::array::from_fn(|i| self.soft_corners[(i + steps) % 4]),
         }
     }
 
@@ -200,14 +277,9 @@ impl ShellShape {
     ///
     /// A quarter turn about the out axis is free to whatever places a tile, so
     /// two shapes sharing this ARE one shape at two orientations and only one
-    /// of them is ever built.
-    ///
-    /// REFLECTION is deliberately not a symmetry here, though the square has
-    /// it. A section is placed with a rotation and nothing else, and no
-    /// rotation turns a shape into its mirror image - folding the two together
-    /// would halve the roster and leave one of every chiral pair impossible to
-    /// place. Height is not a symmetry either: a bump is not a dent, so nothing
-    /// here touches the digits themselves.
+    /// of them is ever built. Reflection is deliberately not folded in: no
+    /// rotation turns a shape into its mirror image, so folding the two would
+    /// leave one of every chiral pair impossible to place.
     pub fn canonical(&self) -> Self {
         (0..4)
             .map(|steps| self.turned(steps))
@@ -215,321 +287,562 @@ impl ShellShape {
             .expect("four quarter turns")
     }
 
-    /// Whether the tile's surface reaches the MIDDLE of the side that edge
-    /// `edge` stands on - which is exactly where that side's socket sits: the
-    /// face centre, half a cell up.
-    ///
-    /// The wall on that side rises from the whole base edge to the boundary
-    /// above it, and at the middle of the face the boundary IS the midpoint
-    /// sample. So there is material at the socket precisely when the midpoint
-    /// stands at half a cell or higher.
-    ///
-    /// Because the midpoint is shared with the tile across that edge, the two
-    /// can never disagree about whether there is a socket between them.
-    pub fn side_is_clad(&self, edge: usize) -> bool {
-        self.midpoints[edge] >= HALF
-    }
-
-    /// The sockets this shape's own surface can back: the floor, and the sides
-    /// its walls actually reach the middle of.
-    ///
-    /// Filtered out of the unit cube's six rather than written out, so the
-    /// surviving ids, positions and normals stay the exact ones every other
-    /// cube-shaped section mates through. Nothing sockets the out face: a skin
-    /// is the outermost thing on a ship, so a section mated there would be
-    /// built on the far side of the hull it clads.
-    pub fn link_points(&self) -> Vec<LinkPoint> {
-        let offered: Vec<Vec3> = std::iter::once(BOLT_NORMAL)
-            .chain(
-                (0..4)
-                    .filter(|edge| self.side_is_clad(*edge))
-                    .map(edge_normal),
-            )
-            .collect();
-        unit_cube_link_points()
-            .into_iter()
-            .filter(|point| {
-                offered
-                    .iter()
-                    .any(|normal| point.normal.abs_diff_eq(*normal, SOCKET_EPSILON))
-            })
-            .collect()
-    }
-
-    /// How much of its cell the tile fills, from a bare stud to a solid block.
-    ///
-    /// The mean of the eight boundary samples. A tile is a height field over
-    /// the whole cell floor, so the mean height its surface stands at IS the
-    /// share of the cell underneath it - which is why this and
-    /// [`centre_height`](Self::centre_height) are one number and one function.
-    ///
-    /// The shape whose whole boundary is on the floor is the exception, and has
-    /// to be: its mean is zero and its solid is not. It reads as half a cell,
-    /// so an isolated clad cell comes out a stud rather than an invisible
-    /// section - and so a caller scaling health or a collider by this never
-    /// gets a plate born dead inside a box of no volume.
+    /// How much of its cell the tile fills: the mean height of the top over
+    /// the cell's footprint, in cells. A skirt reaching past the cell is not
+    /// counted; the collider this sizes is the cell's own box.
     pub fn volume(&self) -> f32 {
-        if self.is_stud() {
-            return SAMPLE_HEIGHTS[HALF as usize];
-        }
-        let total: f32 = self
-            .corners
+        let top = self.top_planes();
+        self.pieces()
             .iter()
-            .chain(self.midpoints.iter())
-            .map(|h| SAMPLE_HEIGHTS[*h as usize])
-            .sum();
-        total / 8.0
+            .map(|piece| polygon_area(&piece.footprint) * top.height(centroid(&piece.footprint)))
+            .sum()
     }
 
-    /// Where the middle of the top sits, as a height in cells: the mean of the
-    /// eight boundary samples, which is exactly [`volume`](Self::volume). See
-    /// the module note for why the mean and not something else.
+    /// Where the middle of the top stands, as a height in cells above the
+    /// floor - where a decoration is stood.
     pub fn centre_height(&self) -> f32 {
-        self.volume()
+        self.top_planes().height(Vec2::ZERO)
     }
 
-    /// Whether the whole boundary is on the cell floor, which is the ONE shape
-    /// whose middle is not read off its own samples.
+    /// Whether the whole top inside the cell is ONE PLANE, level or raked.
     ///
-    /// It rides at half a cell instead, so an isolated clad cell comes out a
-    /// stud rather than an invisible section - see
-    /// [`volume`](Self::volume). Named rather than spelled twice, because it is
-    /// also the reason the stud is the pointiest thing on a hull and the one
-    /// coplanar boundary that still draws a cone.
-    pub fn is_stud(&self) -> bool {
-        self.corners == [0; 4] && self.midpoints == [0; 4]
-    }
-
-    /// Whether all nine points of the top - the eight boundary samples and the
-    /// middle - lie in ONE PLANE, which is exactly when the fan draws a flat
-    /// surface rather than a cone.
-    ///
-    /// An EXACT integer test on the digits, never a residual against a fitted
-    /// plane: the two diagonals of a planar quad share a midpoint
-    /// (`c0 + c2 == c1 + c3`), and a boundary sample on that plane is the mean
-    /// of the two corners it stands between (`2 * m_i == c_i + c_(i+1)`). The
-    /// middle then falls out for free, because the mean of the eight IS the
-    /// plane's height at the centre - which is what
-    /// [`centre_height`](Self::centre_height) rides at.
-    ///
-    /// TILTED counts. A ramp is one flat surface, and a piece laid on it has as
-    /// much material under it as one on a level panel; what a decoration cannot
-    /// stand on is a CREASE, and this is the test for the absence of one.
-    ///
-    /// The STUD is the exception and is refused here: its boundary is coplanar
-    /// (all of it on the floor) and its middle is not on that plane, because
-    /// [`is_stud`](Self::is_stud) lifts it. It draws a pyramid.
+    /// A ramp counts: a piece laid on it has as much material under it as one
+    /// on a level panel. What a decoration cannot stand on is a crease, and
+    /// this is the test for the absence of one. A skirt is outside the cell and
+    /// is not part of the seat.
     pub fn is_coplanar(&self) -> bool {
-        if self.is_stud() {
-            return false;
-        }
-        let corner = |slot: usize| i32::from(self.corners[slot]);
-        let midpoint = |slot: usize| i32::from(self.midpoints[slot]);
-        corner(0) + corner(2) == corner(1) + corner(3)
-            && (0..4).all(|edge| 2 * midpoint(edge) == corner(edge) + corner((edge + 1) % 4))
+        self.flat_area() >= 1.0 - EPSILON
     }
 
-    /// How much of the cell footprint the LARGEST unbroken flat piece of the
-    /// top covers, in square cells: 1.0 for a plate the fan draws as one
-    /// surface, and as little as [`TOP_FACET_FOOTPRINT`] for a cone.
+    /// Whether a piece stood on the middle of the plate has ONE PLANE under
+    /// it, level or raked: the top is a single plane over the middle half of
+    /// the cell, [`SEAT_REACH`] each way along both axes.
     ///
-    /// Measured on the FOOTPRINT rather than on the surface, so it answers the
-    /// question a decoration asks - how much room is there under a piece
-    /// standing here - and so a steep facet does not read as more material than
-    /// a level one of the same width.
+    /// The seat a flat-bottomed decoration needs. A plateau chamfered at its
+    /// rim still has one, since a chamfer never reaches past a quarter cell
+    /// into the plate; a ridge or a cap running under the middle does not.
+    pub fn has_seat(&self) -> bool {
+        let top = self.top_planes();
+        let points = [
+            Vec2::ZERO,
+            Vec2::splat(SEAT_REACH),
+            Vec2::new(SEAT_REACH, -SEAT_REACH),
+            Vec2::splat(-SEAT_REACH),
+            Vec2::new(-SEAT_REACH, SEAT_REACH),
+        ];
+        let seated = top.all().any(|plane| {
+            points
+                .iter()
+                .all(|p| (plane.at(*p) - top.height(*p)).abs() < EPSILON)
+        });
+        seated
+    }
+
+    /// How much of the cell footprint the LARGEST flat piece of the top covers,
+    /// in square cells: 1.0 for a plate that is one surface, and a quarter for
+    /// the plateau of a plate chamfered on every side.
     ///
-    /// The fan cuts the top into eight facets over eight equal eighths of the
-    /// cell, so the whole measurement is: group the facets by the plane they
-    /// lie in, and count the biggest group.
+    /// Measured on the FOOTPRINT rather than on the surface, so it answers how
+    /// much room there is under a piece standing here, and a steep facet does
+    /// not read as more room than a level one of the same width.
     pub fn flat_area(&self) -> f32 {
-        let normals = self.top_normals();
-        let largest = (0..normals.len())
-            .map(|facet| {
-                normals
-                    .iter()
-                    .filter(|other| other.abs_diff_eq(normals[facet], FACET_EPSILON))
-                    .count()
-            })
-            .max()
-            .unwrap_or_default();
-        largest as f32 * TOP_FACET_FOOTPRINT
+        self.largest_flat().1
     }
 
     /// The unit normal of the LARGEST flat piece of the top, in the tile's own
-    /// frame - the plane a piece standing on this plate lies on.
-    ///
-    /// The same piece of top [`flat_area`](Self::flat_area) measures, so a
-    /// plate that reads as one surface answers that surface's normal exactly
-    /// and a cone answers the facet pair a piece has the most room on. On a
-    /// coplanar top every facet agrees, so the choice only matters where there
-    /// is a crease to choose across.
-    ///
-    /// It always points OUT of the cell: the `y` of the fan's cross product is
-    /// the wedge's own footprint area, which is the same positive number for
-    /// every shape, so this never has to be guarded against pointing inward.
+    /// frame. It always points out of the cell: every plane of the top is a
+    /// height over the footprint.
     pub fn top_normal(&self) -> Vec3 {
-        let normals = self.top_normals();
-        (0..normals.len())
-            .max_by_key(|facet| {
-                normals
-                    .iter()
-                    .filter(|other| other.abs_diff_eq(normals[*facet], FACET_EPSILON))
-                    .count()
-            })
-            .map(|facet| normals[facet])
-            .unwrap_or(Vec3::Y)
+        self.largest_flat().0.normal()
     }
 
-    /// The normal a DECORATION is stood up on: the top's own plane where the
-    /// top is one plane, and the cell's out axis where it is a cone.
+    /// The normal a DECORATION is stood up on: the plane under the middle of
+    /// the plate, which is where [`decor_pose`] stands the piece.
     ///
-    /// The split is the whole of what a flat-bottomed model can be told about a
-    /// plate. On a surface - level or raked - bedding the piece onto it is
-    /// exact, and it is what [`decor_pose`] does with this. On a CONE there is
-    /// no surface to bed onto: the middle of the plate is the apex, every facet
-    /// falls away from it, and leaning the piece onto the widest facet pair
-    /// would read as a mast blown over rather than as a mast. A cone is
-    /// symmetric about the out axis, so standing up it is the one answer that
-    /// does not pick a side.
-    ///
-    /// Nothing here decides WHETHER a piece may stand on a cone; that is the
-    /// fixture's [`FixtureRegion`], and only the high ground allows it.
+    /// Where two planes meet under the middle, the flatter one wins, so a piece
+    /// on the crest of a chamfer stands up rather than leaning off it.
     ///
     /// [`decor_pose`]: super::skin_decor::decor_pose
-    /// [`FixtureRegion`]: super::skin_style::FixtureRegion
     pub fn seat_normal(&self) -> Vec3 {
-        match self.is_coplanar() {
-            true => self.top_normal(),
-            false => Vec3::Y,
-        }
+        let top = self.top_planes();
+        let centre = top.height(Vec2::ZERO);
+        top.all()
+            .filter(|plane| (plane.at(Vec2::ZERO) - centre).abs() < EPSILON)
+            .min_by(|a, b| a.slope.length().total_cmp(&b.slope.length()))
+            .map_or(Vec3::Y, Plane::normal)
     }
 
     /// How far the largest flat piece of the top LEANS off the cell's own out
-    /// face, in radians.
-    ///
-    /// Zero on a level panel and about 0.46 on a plate ramping a whole cell
-    /// across its own width. It is what a piece standing here is stood up
-    /// AGAINST: [`decor_pose`](super::skin_decor::decor_pose) turns a
-    /// decoration onto [`top_normal`](Self::top_normal), so this is the angle
-    /// it turns through rather than the angle it leans by.
+    /// face, in radians: zero on a level panel, about 0.79 on a stair ramp.
     pub fn tilt(&self) -> f32 {
         self.top_normal().dot(Vec3::Y).clamp(-1.0, 1.0).acos()
-    }
-
-    /// The unit normal of each of the eight top facets, in the fan's own order.
-    fn top_normals(&self) -> [Vec3; 8] {
-        let boundary = self.boundary();
-        let middle = Vec3::new(0.0, -REACH + self.centre_height(), 0.0);
-        // Wound the way the fan is DRAWN, so a level top answers `+Y` rather
-        // than the inward normal of the same triangle.
-        std::array::from_fn(|step| {
-            (boundary[(step + 1) % 8] - middle)
-                .cross(boundary[step] - middle)
-                .normalize_or_zero()
-        })
-    }
-
-    /// The top boundary as a closed polyline: corner, midpoint, corner,
-    /// midpoint, round the face. This is the whole contract with the
-    /// neighbours - they build the same points out of their own digits and have
-    /// to arrive at the same places.
-    pub fn boundary(&self) -> [Vec3; 8] {
-        std::array::from_fn(|step| {
-            let edge = step / 2;
-            if step % 2 == 0 {
-                let (x, z) = FACE_CORNERS[edge];
-                Vec3::new(x * REACH, self.height(self.corners[edge]), z * REACH)
-            } else {
-                let (ax, az) = FACE_CORNERS[edge];
-                let (bx, bz) = FACE_CORNERS[(edge + 1) % 4];
-                Vec3::new(
-                    (ax + bx) * REACH * 0.5,
-                    self.height(self.midpoints[edge]),
-                    (az + bz) * REACH * 0.5,
-                )
-            }
-        })
-    }
-
-    /// A sample's height in the tile's own frame, where the cell floor is at
-    /// `-REACH` and the cell ceiling at `+REACH`.
-    fn height(&self, sample: u8) -> f32 {
-        -REACH + SAMPLE_HEIGHTS[sample as usize]
     }
 
     /// The tile as flat-shaded meshes in the section's local frame: the cell,
     /// out along `+Y`, floor at `-Y`. One mesh per [`ShellSurface`] that has
     /// any area, so each can carry its own material and be graded by damage.
     ///
-    /// A surface with nothing to draw is left out rather than returned empty -
-    /// a tile whose sides all die to the floor has no wall at all.
+    /// The top is cut into flat pieces, the walls stand from the floor to the
+    /// top along each edge through every point a piece meets it at, and the
+    /// floor is fanned over the same points - so no facet meets another at a
+    /// point the other has no vertex at, and the tile is a closed solid. A
+    /// [`Skirt`](ShellEdgeType::Skirt) edge carries a 45 degree face in place
+    /// of its wall, out past the cell to the floor.
     pub fn surfaces(&self) -> Vec<(ShellSurface, Mesh)> {
-        let boundary = self.boundary();
+        let top = self.top_planes();
+        let pieces = self.pieces();
         let floor = -REACH;
-        let footprint = |point: Vec3| Vec3::new(point.x, floor, point.z);
+        let lift = |p: Vec2, height: f32| Vec3::new(p.x, floor + height, p.y);
+        let height = |p: Vec2| top.height(p);
+        let skirt = self.edges.map(|edge| edge == ShellEdgeType::Skirt);
+        // Where a skirt's own height stops at `p` on the end of `edge`: its
+        // foot, or the top where that is lower.
+        let web_foot = |p: Vec2, edge: usize| match skirt[edge] {
+            true => height(p).min(SAMPLE_HEIGHTS[self.feet[edge] as usize]),
+            false => height(p),
+        };
         let mut faces = MeshFaces::default();
 
-        // The bolt face. The whole cell floor, always: it is flush against
-        // whatever it mates and it is the one part of the shape that never
-        // moves. Fanned off its own centre over the SAME eight footprint points
-        // the walls stand on, so no wall ever meets a floor edge that has no
-        // vertex where the wall has one - a T-junction like that cracks along
-        // the seam as soon as the two surfaces are interpolated apart.
-        for step in 0..8 {
+        for piece in &pieces {
+            let loop_: Vec<Vec3> = piece
+                .footprint
+                .iter()
+                .map(|p| lift(*p, height(*p)))
+                .collect();
+            faces.add(ShellSurface::Top, &loop_, Vec3::Y);
+        }
+
+        let mut ring: Vec<Vec2> = Vec::new();
+        for edge in 0..4 {
+            let points = edge_points(edge, &pieces);
+            let normal = edge_normal(edge);
+            let out = Vec2::new(normal.x, normal.z);
+            ring.extend_from_slice(&points[..points.len() - 1]);
+            if !skirt[edge] {
+                // A wall that ends at a skirt's web is split at the skirt's
+                // foot, so the two meet vertex to vertex up the corner.
+                let last = points.len() - 2;
+                for (step, pair) in points.windows(2).enumerate() {
+                    let (a, b) = (pair[0], pair[1]);
+                    let wa = match step == 0 {
+                        true => web_foot(a, (edge + 3) % 4),
+                        false => height(a),
+                    };
+                    let wb = match step == last {
+                        true => web_foot(b, (edge + 1) % 4),
+                        false => height(b),
+                    };
+                    faces.add(
+                        ShellSurface::Wall,
+                        &[lift(a, 0.0), lift(b, 0.0), lift(b, wb), lift(a, wa)],
+                        normal,
+                    );
+                    faces.add(
+                        ShellSurface::Wall,
+                        &[
+                            lift(a, wa),
+                            lift(b, wb),
+                            lift(b, height(b)),
+                            lift(a, height(a)),
+                        ],
+                        normal,
+                    );
+                }
+                continue;
+            }
+            // The skirt: from the edge straight out and down at 45 degrees, so
+            // it lands as far past the cell as the edge is high. It starts no
+            // higher than its foot: where a wall cover lifts the edge above
+            // that, a web stands in the edge's plane against the wall instead,
+            // or the skirt end would stand a whole cell out as a tooth.
+            let skirt_height = |p: Vec2| web_foot(p, edge);
+            for pair in points.windows(2) {
+                let (a, b) = (pair[0], pair[1]);
+                let (ha, hb) = (skirt_height(a), skirt_height(b));
+                faces.add(
+                    ShellSurface::Wall,
+                    &[
+                        lift(a, ha),
+                        lift(b, hb),
+                        lift(b, height(b)),
+                        lift(a, height(a)),
+                    ],
+                    normal,
+                );
+                let (a_out, b_out) = (a + out * ha, b + out * hb);
+                faces.add(
+                    ShellSurface::Top,
+                    &[lift(a, ha), lift(a_out, 0.0), lift(b_out, 0.0), lift(b, hb)],
+                    normal + Vec3::Y,
+                );
+                faces.add(
+                    ShellSurface::Floor,
+                    &[
+                        lift(a, 0.0),
+                        lift(b, 0.0),
+                        lift(b_out, 0.0),
+                        lift(a_out, 0.0),
+                    ],
+                    Vec3::NEG_Y,
+                );
+            }
+            // Each end is closed by a triangle, unless the next edge round is a
+            // skirt too - the bevel below closes that corner instead.
+            let tangent = (points[points.len() - 1] - points[0]).normalize();
+            for (corner, along, beside) in [
+                (points[0], -tangent, (edge + 3) % 4),
+                (points[points.len() - 1], tangent, (edge + 1) % 4),
+            ] {
+                if skirt[beside] {
+                    continue;
+                }
+                let hc = skirt_height(corner);
+                faces.add(
+                    ShellSurface::Wall,
+                    &[
+                        lift(corner, 0.0),
+                        lift(corner, hc),
+                        lift(corner + out * hc, 0.0),
+                    ],
+                    Vec3::new(along.x, 0.0, along.y),
+                );
+            }
+        }
+        for step in 0..ring.len() {
             faces.add(
                 ShellSurface::Floor,
                 &[
-                    Vec3::new(0.0, floor, 0.0),
-                    footprint(boundary[step]),
-                    footprint(boundary[(step + 1) % 8]),
+                    lift(Vec2::ZERO, 0.0),
+                    lift(ring[step], 0.0),
+                    lift(ring[(step + 1) % ring.len()], 0.0),
                 ],
                 Vec3::NEG_Y,
             );
         }
-
-        // The walls, one per HALF edge: corner to midpoint, then midpoint to
-        // corner. Splitting at the midpoint is what keeps each piece convex -
-        // a midpoint below the line between its corners makes the whole side a
-        // V, and a fan over that would paper straight across the notch. Where
-        // half a side is entirely on the floor its piece has no area and drops
-        // out, which is the tile ending at nothing rather than at a step.
-        for step in 0..8 {
-            let (here, there) = (boundary[step], boundary[(step + 1) % 8]);
-            faces.add(
-                ShellSurface::Wall,
-                &[footprint(here), footprint(there), there, here],
-                edge_normal(step / 2),
+        // A corner between two skirts closes with one bevel facet over one
+        // floor triangle.
+        for corner in 0..4 {
+            let (from, to) = ((corner + 3) % 4, corner);
+            if !(skirt[from] && skirt[to]) {
+                continue;
+            }
+            let c = corner_point(corner);
+            let hc = web_foot(c, from);
+            let (first, second) = (edge_normal(from), edge_normal(to));
+            let (first_out, second_out) = (
+                c + Vec2::new(first.x, first.z) * hc,
+                c + Vec2::new(second.x, second.z) * hc,
             );
-        }
-
-        // The top, fanned off its own middle. A fan only ever adds a vertex
-        // INSIDE the face, so the boundary stays exactly where the neighbours'
-        // is.
-        let middle = Vec3::new(0.0, floor + self.centre_height(), 0.0);
-        for step in 0..8 {
             faces.add(
                 ShellSurface::Top,
-                &[middle, boundary[step], boundary[(step + 1) % 8]],
-                Vec3::Y,
+                &[lift(c, hc), lift(first_out, 0.0), lift(second_out, 0.0)],
+                first + second + Vec3::Y,
+            );
+            faces.add(
+                ShellSurface::Floor,
+                &[lift(c, 0.0), lift(first_out, 0.0), lift(second_out, 0.0)],
+                Vec3::NEG_Y,
             );
         }
 
         faces.build()
     }
+
+    /// The planes the top is made of. See [`TopPlanes`].
+    fn top_planes(&self) -> TopPlanes {
+        let level = SAMPLE_HEIGHTS[self.level as usize];
+        let mut top = TopPlanes {
+            envelope: vec![Plane {
+                offset: level,
+                slope: Vec2::ZERO,
+            }],
+            walls: Vec::new(),
+            caps: Vec::new(),
+        };
+        for edge in 0..4 {
+            let out = edge_out(edge);
+            let foot = SAMPLE_HEIGHTS[self.feet[edge] as usize];
+            let slope = match self.edges[edge] {
+                // The cover keeps the level along the wall, so the plate
+                // closes against the whole face of the structure there.
+                ShellEdgeType::Wall => {
+                    top.walls.push(Plane {
+                        offset: level - WALL_SLOPE * REACH,
+                        slope: out * WALL_SLOPE,
+                    });
+                    continue;
+                }
+                ShellEdgeType::RampEnd => continue,
+                ShellEdgeType::Ramp => RAMP_SLOPE,
+                ShellEdgeType::Plain | ShellEdgeType::Fold | ShellEdgeType::Skirt => CHAMFER_SLOPE,
+            };
+            if foot < level - EPSILON {
+                top.envelope.push(Plane {
+                    offset: foot + slope * REACH,
+                    slope: -out * slope,
+                });
+            }
+        }
+        // The open end of a stair plate falls along its end edge into the
+        // plane the ramp's end profile lies in: the level at the wall corner,
+        // the floor at the ramp corner, rising into the plate at slope two.
+        for edge in (0..4).filter(|edge| self.edges[*edge] == ShellEdgeType::RampEnd) {
+            if let Some(ramp) = ramp_beside(&self.edges, edge) {
+                top.envelope.push(Plane {
+                    offset: level + REACH,
+                    slope: -(edge_out(ramp) + edge_out(edge) * CHAMFER_SLOPE),
+                });
+            }
+        }
+        // A whole-cell plate is capped through any corner the neighbourhood
+        // holds lower: a straight bevel, never a point, and never into the
+        // plateau. Nothing is RAISED to a corner held higher - that stood
+        // shards off the ramp corners.
+        for corner in 0..4 {
+            let at = corner_point(corner);
+            let soft = SAMPLE_HEIGHTS[self.soft_corners[corner] as usize];
+            if soft < top.height(at) - EPSILON {
+                let (x, z) = FACE_CORNERS[corner];
+                top.caps.push(Plane {
+                    offset: soft + 4.0 * REACH,
+                    slope: Vec2::new(x, z) * -CHAMFER_SLOPE,
+                });
+            }
+        }
+        top
+    }
+
+    /// The top cut into flat pieces: the square, split along every line where
+    /// two planes of the top cross while both of them ARE the top. Inside a
+    /// piece the top is one plane.
+    fn pieces(&self) -> Vec<TopPiece> {
+        let top = self.top_planes();
+        let planes: Vec<Plane> = top.all().copied().collect();
+        let square: Vec<Vec2> = (0..4).map(corner_point).collect();
+        let mut pieces: Vec<Vec<Vec2>> = vec![square];
+        for (i, first) in planes.iter().enumerate() {
+            for second in &planes[i + 1..] {
+                let (c, k) = (first.offset - second.offset, first.slope - second.slope);
+                if k.length() < EPSILON || !top.creases_along(first, c, k) {
+                    continue;
+                }
+                pieces = pieces
+                    .into_iter()
+                    .flat_map(|piece| [clip(&piece, c, k), clip(&piece, -c, -k)])
+                    .filter(|part| part.len() >= 3 && polygon_area(part) > MIN_PIECE_AREA)
+                    .collect();
+            }
+        }
+        pieces
+            .into_iter()
+            .map(|footprint| {
+                let middle = centroid(&footprint);
+                let height = top.height(middle);
+                let plane = planes
+                    .iter()
+                    .copied()
+                    .find(|plane| (plane.at(middle) - height).abs() < EPSILON)
+                    .expect("the top is one of its own planes");
+                TopPiece { footprint, plane }
+            })
+            .collect()
+    }
+
+    /// The plane of the largest flat piece of the top, and its area.
+    fn largest_flat(&self) -> (Plane, f32) {
+        let mut flats: Vec<(Plane, f32)> = Vec::new();
+        for piece in self.pieces() {
+            let area = polygon_area(&piece.footprint);
+            match flats.iter_mut().find(|(plane, _)| plane.same(&piece.plane)) {
+                Some((_, total)) => *total += area,
+                None => flats.push((piece.plane, area)),
+            }
+        }
+        flats
+            .into_iter()
+            .max_by(|a, b| a.1.total_cmp(&b.1))
+            .expect("the top covers the cell")
+    }
 }
 
-/// Four heights spelled by one round of an id.
-///
-/// The alphabet IS the radix, so anything naming no height is no round at
-/// all - a digit above [`FULL`] included, since there is nothing above a whole
-/// cell for it to mean.
-fn round_digits(round: &str) -> Option<[u8; 4]> {
-    let radix = SAMPLE_HEIGHTS.len() as u32;
-    let digits: Option<Vec<u8>> = round
-        .chars()
-        .map(|digit| digit.to_digit(radix).map(|height| height as u8))
-        .collect();
-    digits?.try_into().ok()
+/// One plane of the top, as a height above the cell floor over the footprint
+/// point `p = (x, z)`: `offset + slope . p`.
+#[derive(Clone, Copy, Debug)]
+struct Plane {
+    offset: f32,
+    slope: Vec2,
+}
+
+impl Plane {
+    fn at(&self, p: Vec2) -> f32 {
+        self.offset + self.slope.dot(p)
+    }
+
+    fn same(&self, other: &Plane) -> bool {
+        (self.offset - other.offset).abs() < EPSILON && self.slope.abs_diff_eq(other.slope, EPSILON)
+    }
+
+    /// The unit normal of the surface this plane draws, pointing out.
+    fn normal(&self) -> Vec3 {
+        Vec3::new(-self.slope.x, 1.0, -self.slope.y).normalize()
+    }
+}
+
+/// The top of a shape as three sets of planes: the lower ENVELOPE of the
+/// plateau and its chamfers, raised to any WALL cover, and then lowered to any
+/// corner CAP.
+struct TopPlanes {
+    envelope: Vec<Plane>,
+    walls: Vec<Plane>,
+    caps: Vec<Plane>,
+}
+
+impl TopPlanes {
+    /// The height of the top above the cell floor at `p`.
+    fn height(&self, p: Vec2) -> f32 {
+        let envelope = self
+            .envelope
+            .iter()
+            .fold(f32::MAX, |low, plane| low.min(plane.at(p)));
+        let walled = self
+            .walls
+            .iter()
+            .fold(envelope, |high, plane| high.max(plane.at(p)));
+        self.caps
+            .iter()
+            .fold(walled, |low, plane| low.min(plane.at(p)))
+    }
+
+    fn all(&self) -> impl Iterator<Item = &Plane> {
+        self.envelope.iter().chain(&self.walls).chain(&self.caps)
+    }
+
+    /// Whether the top lies on `plane` somewhere along the line `c + k . p =
+    /// 0` inside the cell, where `plane` meets another. Only such a line is a
+    /// crease; every other crossing of two planes is hidden under the top.
+    ///
+    /// The top along the line is straight between the points where a third
+    /// plane crosses it, so testing the middle of each stretch is exact.
+    fn creases_along(&self, plane: &Plane, c: f32, k: Vec2) -> bool {
+        let base = -k * c / k.length_squared();
+        let along = k.perp().normalize();
+        let Some((enter, leave)) = span_in_square(base, along) else {
+            return false;
+        };
+        let mut stops = vec![enter, leave];
+        for other in self.all() {
+            // `other` meets `plane` on the line where (other - plane) is zero.
+            let rate = (other.slope - plane.slope).dot(along);
+            if rate.abs() > EPSILON {
+                let t = -(other.at(base) - plane.at(base)) / rate;
+                if t > enter && t < leave {
+                    stops.push(t);
+                }
+            }
+        }
+        stops.sort_by(f32::total_cmp);
+        stops.windows(2).any(|pair| {
+            let p = base + along * (pair[0] + pair[1]) * 0.5;
+            pair[1] - pair[0] > EPSILON && (self.height(p) - plane.at(p)).abs() < EPSILON
+        })
+    }
+}
+
+/// One flat piece of the top: where it stands on the footprint and the plane
+/// it lies in.
+struct TopPiece {
+    footprint: Vec<Vec2>,
+    plane: Plane,
+}
+
+/// Where the line `base + t * along` runs inside the cell's footprint, as the
+/// range of `t`, or `None` if it misses.
+fn span_in_square(base: Vec2, along: Vec2) -> Option<(f32, f32)> {
+    let (mut enter, mut leave) = (f32::MIN, f32::MAX);
+    for axis in 0..2 {
+        if along[axis].abs() < EPSILON {
+            if base[axis].abs() > REACH {
+                return None;
+            }
+            continue;
+        }
+        let (a, b) = (
+            (-REACH - base[axis]) / along[axis],
+            (REACH - base[axis]) / along[axis],
+        );
+        enter = enter.max(a.min(b));
+        leave = leave.min(a.max(b));
+    }
+    (leave - enter > EPSILON).then_some((enter, leave))
+}
+
+/// The part of a convex loop where `c + k . p <= 0`.
+fn clip(poly: &[Vec2], c: f32, k: Vec2) -> Vec<Vec2> {
+    let side = |p: Vec2| c + k.dot(p);
+    let mut kept = Vec::new();
+    for index in 0..poly.len() {
+        let (a, b) = (poly[index], poly[(index + 1) % poly.len()]);
+        let (sa, sb) = (side(a), side(b));
+        if sa <= EPSILON {
+            kept.push(a);
+        }
+        if (sa < -EPSILON && sb > EPSILON) || (sa > EPSILON && sb < -EPSILON) {
+            kept.push(a + (b - a) * (sa / (sa - sb)));
+        }
+    }
+    kept
+}
+
+/// The area of a convex loop.
+fn polygon_area(poly: &[Vec2]) -> f32 {
+    let twice: f32 = (0..poly.len())
+        .map(|index| poly[index].perp_dot(poly[(index + 1) % poly.len()]))
+        .sum();
+    (twice * 0.5).abs()
+}
+
+/// The mean of a convex loop's corners, which is inside it.
+fn centroid(poly: &[Vec2]) -> Vec2 {
+    poly.iter().copied().sum::<Vec2>() / poly.len() as f32
+}
+
+/// The ramp a ramp end at `end` closes the side of: the edge beside it that
+/// is a [`Ramp`](ShellEdgeType::Ramp) climbing to a
+/// [`Wall`](ShellEdgeType::Wall) across the plate.
+fn ramp_beside(edges: &[ShellEdgeType; 4], end: usize) -> Option<usize> {
+    [(end + 1) % 4, (end + 3) % 4].into_iter().find(|ramp| {
+        edges[*ramp] == ShellEdgeType::Ramp && edges[(ramp + 2) % 4] == ShellEdgeType::Wall
+    })
+}
+
+/// Every point where a piece of the top meets edge `edge`, its two corners
+/// included, in order from corner `edge` to corner `edge + 1`.
+fn edge_points(edge: usize, pieces: &[TopPiece]) -> Vec<Vec2> {
+    let (from, to) = (corner_point(edge), corner_point((edge + 1) % 4));
+    let out = edge_out(edge);
+    let mut points = vec![from, to];
+    for piece in pieces {
+        points.extend(
+            piece
+                .footprint
+                .iter()
+                .filter(|p| (out.dot(**p) - REACH).abs() < EPSILON),
+        );
+    }
+    let direction = to - from;
+    points.sort_by(|p, q| {
+        direction
+            .dot(*p - from)
+            .total_cmp(&direction.dot(*q - from))
+    });
+    points.dedup_by(|p, q| p.abs_diff_eq(*q, EPSILON));
+    points
+}
+
+/// Corner `corner` of the footprint, as `(x, z)`.
+fn corner_point(corner: usize) -> Vec2 {
+    let (x, z) = FACE_CORNERS[corner];
+    Vec2::new(x, z) * REACH
 }
 
 /// The outward direction of the SIDE that edge `edge` stands on.
@@ -540,6 +853,12 @@ fn edge_normal(edge: usize) -> Vec3 {
     let (ax, az) = FACE_CORNERS[edge];
     let (bx, bz) = FACE_CORNERS[(edge + 1) % 4];
     Vec3::new(ax + bx, 0.0, az + bz) * 0.5
+}
+
+/// [`edge_normal`] on the footprint, as `(x, z)`.
+fn edge_out(edge: usize) -> Vec2 {
+    let normal = edge_normal(edge);
+    Vec2::new(normal.x, normal.z)
 }
 
 /// Flat-shaded triangles under construction, kept apart by surface role: one
@@ -624,11 +943,11 @@ impl MeshFaces {
     }
 }
 
-/// `ShellShape`, `ShellSurface`, `SAMPLE_HEIGHTS`, `SHELL_ID_PREFIX`, `FULL`,
-/// `HALF` and `TOP_FACET_FOOTPRINT`.
+/// `ShellShape`, `ShellEdgeType`, `ShellSurface`, `SAMPLE_HEIGHTS`,
+/// `SHELL_ID_PREFIX`, `FULL` and `HALF`.
 pub mod prelude {
     pub use super::{
-        ShellShape, ShellSurface, FULL, HALF, SAMPLE_HEIGHTS, SHELL_ID_PREFIX, TOP_FACET_FOOTPRINT,
+        ShellEdgeType, ShellShape, ShellSurface, FULL, HALF, SAMPLE_HEIGHTS, SHELL_ID_PREFIX,
     };
 }
 
@@ -636,35 +955,18 @@ pub mod prelude {
 mod tests {
     use std::collections::{HashMap, HashSet};
 
+    use ShellEdgeType::{Fold, Plain, Ramp, RampEnd, Skirt, Wall};
+
     use super::*;
 
-    /// How far off a plane or an edge a reading may be and still count.
+    /// How far off a height or a plane a reading may be and still count.
     const MESH_EPSILON: f32 = 1e-4;
 
-    fn shape(corners: [u8; 4], midpoints: [u8; 4]) -> ShellShape {
-        ShellShape::new(corners, midpoints).expect("a legal shape")
+    fn shape(level: u8, feet: [u8; 4], edges: [ShellEdgeType; 4], soft: [u8; 4]) -> ShellShape {
+        ShellShape::new(level, feet, edges, soft).expect("a legal shape")
     }
 
-    /// The vocabulary's floor case is a STUD rather than nothing: an all-floor
-    /// boundary still reads as a stub of surviving material, which is what
-    /// `volume`'s exception is there for. Only the derivation ever reaches it,
-    /// so a reader who expects to meet it as battle damage should find out here
-    /// that they will not.
-    #[test]
-    fn the_all_floor_shape_is_the_vocabularys_stud() {
-        let flat = shape([0; 4], [0; 4]);
-
-        assert!(flat.is_stud(), "the all-floor shape is the stud");
-        assert_eq!(
-            flat.volume(),
-            SAMPLE_HEIGHTS[HALF as usize],
-            "and a stud is half a cell of solid, not none"
-        );
-    }
-
-    /// Every facet of a shape, across all of its surface meshes. The tile is
-    /// one solid cut into meshes by material, so anything asking whether it is
-    /// closed, or where it has material, has to see all of them at once.
+    /// Every facet of a shape, across all of its surface meshes.
     fn facets(shape: &ShellShape) -> Vec<[Vec3; 3]> {
         shape
             .surfaces()
@@ -687,34 +989,62 @@ mod tests {
             .collect()
     }
 
-    /// The samples a CORNER may take: the floor, the height a skin runs at, and
-    /// the whole cell. A corner reads structure, and structure is either there
-    /// or it is not, so the quarters between are a midpoint's business.
-    const COARSE: [u8; 3] = [0, HALF, FULL];
+    /// What one edge may be on a plate at `level`, each type with the foot it
+    /// allows. A plain edge or a ramp comes down to the floor, to half a cell,
+    /// or not at all; the shapes [`ShellShape::new`] refuses drop out of the
+    /// sweep.
+    fn edge_options(level: u8) -> Vec<(u8, ShellEdgeType)> {
+        let mut options: Vec<(u8, ShellEdgeType)> = [0, HALF, level]
+            .into_iter()
+            .collect::<HashSet<u8>>()
+            .into_iter()
+            .flat_map(|foot| [(foot, Plain), (foot, Ramp)])
+            .collect();
+        options.extend([(HALF, Fold), (HALF, Skirt), (0, RampEnd), (level, Wall)]);
+        options.sort_unstable();
+        options
+    }
 
-    /// The shapes the geometry tests sweep: every corner setting over
-    /// [`COARSE`], against every setting of the four midpoints over the whole
-    /// alphabet. A midpoint is a mean, so it can land anywhere.
-    ///
-    /// A spread rather than the whole space, and deliberately so. Nothing
-    /// enumerates the shapes in production - meshes are built on demand and a
-    /// whole ship touches a couple of dozen - so the space is far larger than
-    /// it is worth building a mesh for. What breaks a mesh builder is which
-    /// samples sit above which, and this reaches every one of those.
+    /// The shapes the geometry tests sweep: every combination of edge options
+    /// at both levels, with at most one ramp that is not a stair's own (one
+    /// that climbs to a wall across the plate) - two would take two stairs
+    /// coming down onto one plate, which no hull in the catalogue builds - and a
+    /// whole-cell plate once with no caps and once with a spread of soft
+    /// corners, chosen per combination so the sweep reaches every corner
+    /// setting without multiplying out.
     fn sample_shapes() -> Vec<ShellShape> {
-        let (coarse, alphabet) = (COARSE.len() as u32, SAMPLE_HEIGHTS.len() as u32);
-        let mut shapes: Vec<ShellShape> = Vec::new();
         let mut seen = HashSet::new();
-        for corner_raw in 0..coarse.pow(4) {
-            let corners = std::array::from_fn(|i| {
-                COARSE[((corner_raw / coarse.pow(i as u32)) % coarse) as usize]
-            });
-            for mid_raw in 0..alphabet.pow(4) {
-                let midpoints =
-                    std::array::from_fn(|i| ((mid_raw / alphabet.pow(i as u32)) % alphabet) as u8);
-                let canonical = ShellShape { corners, midpoints }.canonical();
-                if seen.insert(canonical) {
-                    shapes.push(canonical);
+        let mut shapes = Vec::new();
+        for level in [HALF, FULL] {
+            let options = edge_options(level);
+            let count = options.len();
+            for raw in 0..count.pow(4) {
+                let pick: [(u8, ShellEdgeType); 4] =
+                    std::array::from_fn(|i| options[(raw / count.pow(i as u32)) % count]);
+                let free_ramps = (0..4)
+                    .filter(|edge| pick[*edge].1 == Ramp && pick[(edge + 2) % 4].1 != Wall)
+                    .count();
+                if free_ramps > 1 {
+                    continue;
+                }
+                let feet = pick.map(|(foot, _)| foot);
+                let edges = pick.map(|(_, edge)| edge);
+                let mut softs = vec![[level; 4]];
+                if level == FULL {
+                    softs.push(std::array::from_fn(|i| {
+                        HALF + ((raw * 7 + i * 5) % 3) as u8
+                    }));
+                }
+                for soft in softs {
+                    // Some combinations are not a shape: a plain edge that
+                    // falls a whole cell, or a ramp end with no ramp beside it.
+                    let Some(built) = ShellShape::new(level, feet, edges, soft) else {
+                        continue;
+                    };
+                    let canonical = built.canonical();
+                    if seen.insert(canonical) {
+                        shapes.push(canonical);
+                    }
                 }
             }
         }
@@ -722,46 +1052,16 @@ mod tests {
         shapes
     }
 
-    /// An id and the shape it spells each other.
-    #[test]
-    fn every_id_parses_back_into_the_shape_it_was_built_from() {
-        for shape in sample_shapes() {
-            let id = shape.id();
-            assert_eq!(
-                ShellShape::from_id(&id),
-                Some(shape),
-                "`{id}` parses back into a different shape",
-            );
-        }
-        assert_eq!(
-            ShellShape::from_id("shell_0000"),
-            None,
-            "one round is no id"
-        );
-        assert_eq!(
-            ShellShape::from_id("shell_0005_0000"),
-            None,
-            "nothing stands above a whole cell"
-        );
-        assert_eq!(ShellShape::from_id("hull_cube"), None, "not a shell at all");
-    }
-
-    /// Every generated tile is a CLOSED SOLID.
-    ///
-    /// Every edge shared by exactly two triangles. A hole would show as a
-    /// see-through facet the moment the tile is lit, and it is the failure a
-    /// generated mesh is most likely to have: the walls collapse to nothing
-    /// wherever a side dies to the floor, and the top fan has to close over
-    /// exactly what is left. Checked over the whole spread rather than a few
-    /// tidy shapes, because the ones that break are the lopsided ones nobody
-    /// would pick by hand.
+    /// Every generated tile is a CLOSED SOLID: every edge shared by exactly
+    /// two triangles. A hole shows as a see-through facet the moment the tile
+    /// is lit, and a skirt or a capped corner is where one would hide.
     #[test]
     fn every_generated_tile_is_a_closed_solid() {
+        let key = |point: Vec3| -> [i64; 3] {
+            std::array::from_fn(|axis| (point[axis] * 1e4).round() as i64)
+        };
         for shape in sample_shapes() {
             let mut edges: HashMap<([i64; 3], [i64; 3]), usize> = HashMap::new();
-            let key = |point: Vec3| -> [i64; 3] {
-                std::array::from_fn(|axis| (point[axis] * 1e6).round() as i64)
-            };
             for triangle in facets(&shape) {
                 for step in 0..3 {
                     let (a, b) = (key(triangle[step]), key(triangle[(step + 1) % 3]));
@@ -770,131 +1070,42 @@ mod tests {
                         .or_default() += 1;
                 }
             }
-            let unpaired: Vec<_> = edges.iter().filter(|(_, n)| **n != 2).collect();
-            assert!(
-                unpaired.is_empty(),
-                "`{}` has {} unpaired edge(s) - not a closed solid",
-                shape.id(),
-                unpaired.len(),
-            );
+            let unpaired = edges.values().filter(|n| **n != 2).count();
+            assert_eq!(unpaired, 0, "`{}` is not a closed solid", shape.id());
         }
     }
 
-    /// No tile leaves its own cell.
-    ///
-    /// One tile per cell is what keeps a skin free of interpenetration, and it
-    /// only holds if the geometry stays inside the box the collider claims.
+    /// A tile stays inside its own cell, but for a skirt: one plate of the two
+    /// at a convex corner owns the 45 degree face that closes it, and that face
+    /// reaches past the cell over the open side by no more than the edge is
+    /// high.
     #[test]
-    fn no_generated_tile_leaves_its_cell() {
+    fn only_a_skirt_reaches_past_the_cell() {
         for shape in sample_shapes() {
-            for triangle in facets(&shape) {
-                for point in triangle {
-                    assert!(
-                        point.abs().max_element() <= REACH + MESH_EPSILON,
-                        "`{}` reaches {point:?}, outside its own cell",
+            let level = SAMPLE_HEIGHTS[shape.level as usize];
+            for point in facets(&shape).into_iter().flatten() {
+                for edge in 0..4 {
+                    let past = edge_out(edge).dot(Vec2::new(point.x, point.z)) - REACH;
+                    if past <= MESH_EPSILON {
+                        continue;
+                    }
+                    assert_eq!(
+                        shape.edges[edge],
+                        Skirt,
+                        "`{}` reaches {point:?} past edge {edge}, which owns no skirt",
                         shape.id(),
                     );
-                }
-            }
-        }
-    }
-
-    /// A tile sockets a side exactly where its own mesh reaches it.
-    ///
-    /// The socket set is derived from the digits; this reads the answer back
-    /// off the TRIANGLES instead, so the declaration cannot drift from the
-    /// model. A socket the mesh cannot back invites a builder to mate a section
-    /// against thin air; a missing one hides a seam the tile really could have
-    /// closed.
-    #[test]
-    fn a_shell_sockets_a_side_exactly_where_its_own_mesh_reaches_it() {
-        for shape in sample_shapes() {
-            let facets = facets(&shape);
-            let sockets: Vec<String> = shape
-                .link_points()
-                .into_iter()
-                .map(|point| point.id)
-                .collect();
-            for point in unit_cube_link_points() {
-                if point.normal.dot(Vec3::Y) > 0.5 {
-                    continue; // Nothing ever sockets the face shown to space.
-                }
-                let declared = sockets.contains(&point.id);
-                let modelled = mesh_covers(&facets, point.position, point.normal);
-                assert_eq!(
-                    declared,
-                    modelled,
-                    "`{}` {} `{}`, and its mesh {} material there",
-                    shape.id(),
-                    if declared {
-                        "sockets"
-                    } else {
-                        "does not socket"
-                    },
-                    point.id,
-                    if modelled { "has" } else { "has no" },
-                );
-            }
-        }
-    }
-
-    /// Whether any facet lying in the plane of `normal`'s face covers `point`.
-    fn mesh_covers(facets: &[[Vec3; 3]], point: Vec3, normal: Vec3) -> bool {
-        let axis = (0..3)
-            .max_by(|a, b| normal[*a].abs().total_cmp(&normal[*b].abs()))
-            .expect("three axes");
-        let (u, v) = match axis {
-            0 => (1, 2),
-            1 => (0, 2),
-            _ => (0, 1),
-        };
-        let flat = |p: Vec3| Vec2::new(p[u], p[v]);
-        facets.iter().any(|facet| {
-            facet
-                .iter()
-                .all(|corner| (corner[axis] - point[axis]).abs() <= MESH_EPSILON)
-                && encloses(facet.map(flat), flat(point))
-        })
-    }
-
-    /// Point in triangle, edges INCLUDED: a socket often sits exactly on the
-    /// crest of the wall it stands on, and that is contact rather than a miss.
-    /// Degenerate facets are refused - every sign is zero on one, which would
-    /// otherwise read as covering the whole plane.
-    fn encloses(triangle: [Vec2; 3], point: Vec2) -> bool {
-        let signs: [f32; 3] = std::array::from_fn(|corner| {
-            let (from, to) = (triangle[corner], triangle[(corner + 1) % 3]);
-            (to - from).perp_dot(point - from)
-        });
-        if signs.iter().all(|area| area.abs() <= MESH_EPSILON) {
-            return false;
-        }
-        signs.iter().all(|area| *area >= -MESH_EPSILON)
-            || signs.iter().all(|area| *area <= MESH_EPSILON)
-    }
-
-    /// Two tiles across a seam agree about the socket between them.
-    ///
-    /// The rule reads only the midpoint, which is the sample the two SHARE, so
-    /// the answer cannot depend on which side is asking. Without that a skin
-    /// could butt two tiles together where only one was willing to mate.
-    #[test]
-    fn two_tiles_across_a_seam_agree_about_the_socket_between_them() {
-        let alphabet = SAMPLE_HEIGHTS.len() as u8;
-        for near in 0..alphabet {
-            for far in 0..alphabet {
-                for mid in 0..alphabet {
-                    // One tile's edge 0, and the same seam as the neighbour
-                    // reads it: same midpoint, corners the other way round.
-                    let mine = shape([near, far, 0, 0], [mid, 0, 0, 0]);
-                    let theirs = shape([far, near, 0, 0], [mid, 0, 0, 0]);
-                    assert_eq!(
-                        mine.side_is_clad(0),
-                        theirs.side_is_clad(0),
-                        "corners {near} and {far} over a {mid} midpoint read \
-                         differently from the two sides of the seam",
+                    assert!(
+                        past <= level + MESH_EPSILON,
+                        "`{}` reaches {point:?}",
+                        shape.id()
                     );
                 }
+                assert!(
+                    (-REACH - MESH_EPSILON..=REACH + MESH_EPSILON).contains(&point.y),
+                    "`{}` leaves its cell at {point:?}",
+                    shape.id(),
+                );
             }
         }
     }
@@ -910,21 +1121,21 @@ mod tests {
             shape.surfaces().into_iter().map(|(role, _)| role).collect()
         };
 
-        // A stud's boundary is all on the floor, so its walls have no height.
-        let stud = shape([0; 4], [0; 4]);
-        assert_eq!(roles(&stud), vec![ShellSurface::Floor, ShellSurface::Top]);
+        // A lone cell's plate falls to the floor on every side, so its walls
+        // have no height.
+        let lone = shape(HALF, [0; 4], [Plain; 4], [HALF; 4]);
+        assert_eq!(roles(&lone), vec![ShellSurface::Top, ShellSurface::Floor]);
 
         // A full block closes every side, so it carries all three.
-        let block = shape([FULL; 4], [FULL; 4]);
+        let block = shape(FULL, [FULL; 4], [Plain; 4], [FULL; 4]);
         assert_eq!(
             roles(&block),
-            vec![ShellSurface::Floor, ShellSurface::Wall, ShellSurface::Top],
+            vec![ShellSurface::Top, ShellSurface::Wall, ShellSurface::Floor],
         );
 
         for shape in sample_shapes() {
-            let surfaces = shape.surfaces();
             let mut seen = HashSet::new();
-            for (role, mesh) in &surfaces {
+            for (role, mesh) in &shape.surfaces() {
                 assert!(
                     seen.insert(*role),
                     "`{}` splits {role:?} in two",
@@ -936,143 +1147,79 @@ mod tests {
                     shape.id(),
                 );
             }
-            // The floor is the whole cell floor on every tile, and the top
-            // always closes over it, so those two are never missing.
             assert!(seen.contains(&ShellSurface::Floor), "`{}`", shape.id());
             assert!(seen.contains(&ShellSurface::Top), "`{}`", shape.id());
         }
     }
 
-    /// A ramp comes out FLAT.
+    /// No plate has a POINT SPIKE: the highest ground of every top is a flat
+    /// or a crest at least a quarter cell across, never a lone point.
     ///
-    /// This is what pins the centre to the mean of the eight. A run of skin
-    /// climbing a step is the commonest thing the family does, and a centre
-    /// anywhere else would put a crease down the middle of every one of them.
+    /// The two spikes the eight-sample skin drew, and what this catches them
+    /// as: a midpoint raised between two floor corners peaked at that midpoint,
+    /// and a single corner climbing the whole cell over a floor-level rest of
+    /// the plate peaked at that corner.
     #[test]
-    fn a_ramp_is_flat_through_the_middle() {
-        // Floor along one edge, full along the opposite one, midpoints where
-        // the straight line between each pair of corners puts them.
-        let ramp = shape([0, 0, FULL, FULL], [0, HALF, FULL, HALF]);
-        assert!(
-            (ramp.centre_height() - SAMPLE_HEIGHTS[HALF as usize]).abs() < MESH_EPSILON,
-            "a ramp's middle sits at {} rather than half a cell",
-            ramp.centre_height(),
-        );
-    }
-
-    /// The shape with nothing on its boundary is still something to look at.
-    ///
-    /// The mean would be zero, which is a tile of no volume - an invisible
-    /// section holding a cell. It rides at half a cell instead, so an isolated
-    /// clad cell comes out a stud.
-    #[test]
-    fn a_boundary_entirely_on_the_floor_still_has_a_shape() {
-        let stud = shape([0; 4], [0; 4]);
-        assert_eq!(stud.centre_height(), SAMPLE_HEIGHTS[HALF as usize]);
-        let peak = facets(&stud)
-            .iter()
-            .flatten()
-            .map(|point| point.y)
-            .fold(f32::MIN, f32::max);
-        assert!(
-            (peak - (-REACH + SAMPLE_HEIGHTS[HALF as usize])).abs() < MESH_EPSILON,
-            "the stud peaks at {peak} rather than half a cell up",
-        );
-        assert_eq!(
-            stud.link_points().len(),
-            1,
-            "a stud touches nothing but the floor it stands on",
-        );
-    }
-
-    /// A plate has a WHOLE flat top exactly when its boundary is coplanar, and
-    /// a cone otherwise.
-    ///
-    /// The pin the interior work needs before it starts: it says the exact
-    /// integer test and the measured area agree over the whole spread, so a
-    /// case table can be written against the digits instead of against a
-    /// residual. It also fixes what "broken" means - a crease, not a slope.
-    #[test]
-    fn a_plate_has_a_whole_flat_top_exactly_when_its_boundary_is_coplanar() {
+    fn no_plate_has_a_point_spike() {
+        const SAMPLES: usize = 41;
+        let grid: Vec<Vec2> = (0..SAMPLES * SAMPLES)
+            .map(|index| {
+                let at = |i: usize| -REACH + 2.0 * REACH * i as f32 / (SAMPLES - 1) as f32;
+                Vec2::new(at(index % SAMPLES), at(index / SAMPLES))
+            })
+            .collect();
         for shape in sample_shapes() {
-            let area = shape.flat_area();
-            assert_eq!(
-                shape.is_coplanar(),
-                (area - 1.0).abs() < MESH_EPSILON,
-                "`{}` reads coplanar {} and a flat area of {area}",
-                shape.id(),
-                shape.is_coplanar(),
-            );
+            let top = shape.top_planes();
+            let heights: Vec<f32> = grid.iter().map(|p| top.height(*p)).collect();
+            let peak = heights.iter().copied().fold(f32::MIN, f32::max);
+            let highest: Vec<Vec2> = grid
+                .iter()
+                .zip(&heights)
+                .filter(|(_, height)| **height > peak - MESH_EPSILON)
+                .map(|(p, _)| *p)
+                .collect();
+            let across = highest
+                .iter()
+                .flat_map(|a| highest.iter().map(move |b| a.distance(*b)))
+                .fold(0.0, f32::max);
             assert!(
-                area >= TOP_FACET_FOOTPRINT - MESH_EPSILON,
-                "`{}` has no flat facet at all",
+                across >= 0.25 - MESH_EPSILON,
+                "`{}` peaks in a point {across} cells across",
                 shape.id(),
             );
         }
-
-        // A ramp is ONE flat surface that happens to lean, which is the whole
-        // reason the measurement is not "is it level".
-        let ramp = shape([0, 0, FULL, FULL], [0, HALF, FULL, HALF]);
-        assert_eq!(ramp.flat_area(), 1.0);
-        assert!(ramp.tilt() > 0.4, "a whole-cell ramp leans {}", ramp.tilt());
-        // And the normal a piece is stood up on IS that ramp's own plane: it
-        // climbs a whole cell over a whole cell along -z, so the surface
-        // normal is 45 degrees off the out face, toward +z.
-        assert!(
-            ramp.top_normal()
-                .abs_diff_eq(Vec3::new(0.0, 1.0, 1.0).normalize(), MESH_EPSILON),
-            "a ramp's seat normal reads {}",
-            ramp.top_normal(),
-        );
-        let flat = shape([HALF; 4], [HALF; 4]);
-        assert_eq!(flat.flat_area(), 1.0);
-        assert!(flat.tilt() < MESH_EPSILON, "a flat panel is level");
-        assert!(flat.top_normal().abs_diff_eq(Vec3::Y, MESH_EPSILON));
-
-        // Every top normal points OUT of the cell, whatever the shape does -
-        // what `decor_pose` rests on when it turns a piece onto one.
-        for shape in sample_shapes() {
-            assert!(
-                shape.top_normal().y > 0.0,
-                "`{}` seats a piece on {}",
-                shape.id(),
-                shape.top_normal(),
-            );
-        }
-
-        // The saddle the owner objected to: four facets fall to the middle from
-        // one pair of corners and four rise to it from the other, so the
-        // biggest flat piece of it is a quarter of the cell.
-        let saddle = shape([HALF, 0, HALF, 0], [1, 1, 1, 1]);
-        assert!(!saddle.is_coplanar());
-        assert_eq!(saddle.flat_area(), 0.25);
     }
 
-    /// The shapes the old dead-edge scheme could not express are real now.
-    ///
-    /// These are the ones that motivated freeing the midpoints. Each was
-    /// previously either unreachable or drawn as something else entirely.
+    /// A slab chamfered on both sides keeps a FLAT TOP: the band between the
+    /// two chamfers stays at the plate's level the whole width of the cell, so
+    /// a run of skin one cell wide is a flat-topped strip and not a tent.
     #[test]
-    fn the_shapes_a_free_midpoint_unlocks_are_distinct() {
-        // A corner at half with both its edges on the floor is a TRIANGLE
-        // rising out of one corner, not a square with a gradient over it.
-        let spike = shape([0, 0, 0, HALF], [0; 4]);
-        assert!(spike.centre_height() < SAMPLE_HEIGHTS[HALF as usize] * 0.5);
-
-        // Corners full with every edge midpoint on the floor: the block with a
-        // valley cut across it, which is what a one-cell concave notch wants.
-        let notch = shape([FULL; 4], [0; 4]);
-        assert_eq!(notch.link_points().len(), 1, "its sides die at the middle");
-        assert!(notch.centre_height() < SAMPLE_HEIGHTS[FULL as usize]);
-
-        // And it is a different shape from the full block, which the old
-        // scheme conflated it with.
-        let block = shape([FULL; 4], [FULL; 4]);
-        assert_ne!(notch.canonical(), block.canonical());
-        assert_eq!(
-            block.link_points().len(),
-            5,
-            "a full block closes every side"
-        );
+    fn a_slab_chamfered_on_both_sides_keeps_a_flat_top() {
+        for (level, soft) in [(HALF, HALF), (FULL, FULL), (FULL, HALF)] {
+            let foot = level - HALF;
+            let slab = shape(level, [foot, level, foot, level], [Plain; 4], [soft; 4]);
+            let top = slab.top_planes();
+            let height = SAMPLE_HEIGHTS[level as usize];
+            for step in 0..=20 {
+                let x = -REACH + step as f32 * 0.05;
+                for z in [-0.25, 0.0, 0.25] {
+                    assert!(
+                        (top.height(Vec2::new(x, z)) - height).abs() < MESH_EPSILON,
+                        "`{}` dips off its level at ({x}, {z})",
+                        slab.id(),
+                    );
+                }
+            }
+            assert!(
+                (slab.flat_area() - 0.5).abs() < MESH_EPSILON,
+                "`{}`",
+                slab.id()
+            );
+            assert!(
+                slab.top_normal().abs_diff_eq(Vec3::Y, MESH_EPSILON),
+                "`{}`",
+                slab.id()
+            );
+        }
     }
 }

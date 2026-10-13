@@ -14,8 +14,7 @@
 //!
 //! Three things a reader wants and the derivation throws away:
 //!
-//! - per CLAD cell: the eight boundary samples, the shape they spell, what the
-//!   top is shaped like, the zone facts the scatter reads, and which pieces
+//! - per CLAD cell: the shape it wears, what the top is shaped like, the zone facts the scatter reads, and which pieces
 //!   landed on it and by which of the two paths;
 //! - per BARE cell a reader would expect to be clad: why it is not, in one
 //!   word ([`BareReason`]);
@@ -34,7 +33,7 @@ use crate::sections::{
     shell_shape::ShellShape,
     shell_skin::{cladding_cells, exit_pocket, SkinPlate, SkinStructure, FACES},
     skin_decor::{decor_reach, scatter_decor, DecorReason},
-    skin_reading::{fallen_corners, is_diagonal_saddle, PlateReading, PlateRelief, RELIEFS},
+    skin_reading::{fallen_corners, PlateReading, PlateRelief, RELIEFS},
     skin_style::ShipStyleConfig,
 };
 
@@ -73,10 +72,6 @@ pub struct SkinReport {
     pub shapes: usize,
     /// How many plates wear each relief, in [`RELIEFS`] order.
     pub relief: Vec<ReliefCount>,
-    /// How many plates are the diagonal SADDLE, which lives inside
-    /// [`Spur`](PlateRelief::Spur). See
-    /// [`is_diagonal_saddle`](super::skin_reading::is_diagonal_saddle).
-    pub saddles: usize,
     /// How many plates have a WHOLE flat top - a surface rather than a cone.
     pub coplanar: usize,
     /// The mean of every plate's [`flat_area`](ShellShape::flat_area), in
@@ -92,7 +87,8 @@ pub struct SkinReport {
     /// How many of those stand on a plate that is NOT
     /// [`Flat`](PlateRelief::Flat) - the placement complaint, counted.
     pub decor_off_flat: usize,
-    /// How many stand on a plate whose top is creased rather than one surface.
+    /// How many stand on a plate with no seat: a crease or a cap under the
+    /// middle, where the piece stands.
     pub decor_on_creased: usize,
     /// The mean [`tilt`](ShellShape::tilt) of the plates carrying a piece, in
     /// radians - how raked the ground under the decoration is.
@@ -141,10 +137,9 @@ pub struct PlateReport {
     pub shape: ShellShape,
     /// The neighbourhood the scatter reads.
     pub reading: PlateReading,
-    /// Which corner slots die to the cell floor, a bit per slot.
+    /// Which corner slots stand beside a falling edge, a bit per slot - see
+    /// [`fallen_corners`].
     pub fallen: u8,
-    /// Whether it is the diagonal saddle.
-    pub saddle: bool,
     /// Whether its top is ONE surface rather than a cone.
     pub coplanar: bool,
     /// The largest unbroken flat piece of its top, in square cells.
@@ -238,7 +233,6 @@ pub fn skin_report(
             shape: plate.shape,
             reading: *reading,
             fallen: fallen_corners(&plate.shape),
-            saddle: is_diagonal_saddle(&plate.shape),
             coplanar: plate.shape.is_coplanar(),
             flat_area: plate.shape.flat_area(),
             tilt: plate.shape.tilt(),
@@ -292,7 +286,6 @@ pub fn skin_report(
                 .filter(|row| row.reading.relief == relief)
                 .count()
         }),
-        saddles: rows.iter().filter(|row| row.saddle).count(),
         coplanar: rows.iter().filter(|row| row.coplanar).count(),
         flat_area: match rows.is_empty() {
             true => 0.0,
@@ -305,7 +298,7 @@ pub fn skin_report(
             .map(|row| row.decor.len())
             .sum(),
         decor_on_creased: decorated()
-            .filter(|row| !row.coplanar)
+            .filter(|row| !row.reading.seat)
             .map(|row| row.decor.len())
             .sum(),
         decor_tilt: match decorated().map(|row| row.decor.len()).sum::<usize>() {
@@ -389,23 +382,21 @@ fn bare_cells(structure: &SkinStructure, clad: &HashSet<IVec3>) -> Vec<BareCell>
 ///
 /// Deliberately not the relief histogram again - [`relief_tally`] prints that.
 /// What is here is what nobody could answer before: how much of a hull is
-/// creased, how much of it is the saddle, how much room the average plate
-/// offers, and how much of the decoration ended up somewhere flat.
+/// creased, how much room the average plate offers, and how much of the
+/// decoration ended up somewhere flat.
 ///
 /// [`relief_tally`]: super::skin_reading::relief_tally
 pub fn skin_summary(report: &SkinReport) -> String {
     let plates = report.plates.len().max(1) as f32;
     let decor = report.decor.max(1) as f32;
     format!(
-        "{} plate(s): {} flat-topped ({:.0}%), {} saddle(s) ({:.0}%), {} leaning; \
+        "{} plate(s): {} flat-topped ({:.0}%), {} leaning; \
          mean flat area {:.3} cell^2; {} bare hull face(s) over {} bare cell(s); \
          {} piece(s), {} off flat ({:.0}%), {} on a creased top, mean tilt under \
          a piece {:.3} rad",
         report.plates.len(),
         report.coplanar,
         100.0 * report.coplanar as f32 / plates,
-        report.saddles,
-        100.0 * report.saddles as f32 / plates,
         report.leaning,
         report.flat_area,
         report.bare_faces,
@@ -424,7 +415,7 @@ mod tests {
 
     use super::*;
     use crate::sections::{
-        shell_shape::{FULL, HALF, TOP_FACET_FOOTPRINT},
+        shell_shape::{ShellEdgeType, FULL},
         shell_skin::derive_skin,
         skin_reading::read_plates,
         skin_style::{FixtureDensity, FixturePlacement, FixtureRegion, StyleFixtureConfig},
@@ -519,26 +510,14 @@ mod tests {
         )
     }
 
-    /// THE OWNER'S L, and the two things he saw on it: a bare section at the
-    /// inside angle, and a hull that reads as a field of spikes.
+    /// THE OWNER'S L: the inside angle is CLAD, at every thickness.
     ///
-    /// The inside angle is CLAD, at every thickness. Dropping it for having no
-    /// direction left to show is a refusal [`cladding_cells`] does not make: the
-    /// plate on the roof and the plate up the wall hug different walls of the
-    /// same corner and neither is in the other's way.
-    ///
-    /// The spikes are the OTHER reading, and they survive the corner being
-    /// filled, which is the owner's hypothesis refuted in both directions:
-    ///
-    /// - an elbow with arms of TWO is just as spiky and never had a bare cell;
-    /// - the same L three cells thick is much less spiky and had THREE, one per
-    ///   slice.
-    ///
-    /// They are two independent readings of one property: the L has no interior.
-    /// [`cladding_cells`] never looks at a height - it runs before any sample is
-    /// read - so a shape cannot decide which cells are clad.
+    /// Dropping it for having no direction left to show is a refusal
+    /// [`cladding_cells`] does not make: the plate on the roof and the plate up
+    /// the wall hug different walls of the same corner and neither is in the
+    /// other's way.
     #[test]
-    fn the_inside_angle_of_an_l_is_clad_and_the_spikes_are_a_separate_reading() {
+    fn the_inside_angle_of_an_l_is_clad_at_every_thickness() {
         let report = report(&elbow(3, 1), None);
 
         assert_eq!(
@@ -547,49 +526,32 @@ mod tests {
             "the owner's bare section is bare again"
         );
         assert_eq!(report.bare_faces, 0, "an L has hull looking at vacuum");
-        // The corner plate itself: bolted to the run below it, standing full
-        // height where it closes against the upright.
+        // The corner plate itself: bolted to the run below it, at the whole
+        // cell and holding it along the edge it closes against the upright.
         let angle = at(&report, IVec3::new(1, 1, 0));
         assert_eq!(angle.anchor, IVec3::new(1, 0, 0));
-        assert_eq!(
-            angle.shape.corners.iter().filter(|h| **h == FULL).count(),
-            2,
+        assert_eq!(angle.shape.level, FULL, "`{}`", angle.shape.id());
+        assert!(
+            angle.shape.edges.contains(&ShellEdgeType::Wall),
             "`{}` does not close against the upright",
             angle.shape.id(),
         );
 
-        // ...and the spikes, which are the whole hull rather than the corner: an
-        // L is one cell thick everywhere, so almost no corner of any plate has
-        // four cells around it that carry the surface on.
-        assert_eq!(report.plates.len(), 21);
-        assert_eq!(report.coplanar, 0, "not one plate on the L is a surface");
-        assert_eq!(report.saddles, 0, "and not one of them is the saddle");
-        assert!(report.flat_area < 0.3);
-
-        // The hypothesis, both ways round. Arms of two: as spiky, nothing bare.
-        let short = self::report(&elbow(2, 1), None);
-        assert_eq!(short.bare, vec![], "an elbow of twos is clad all over");
-        assert!(
-            short.coplanar <= 1 && short.flat_area < 0.35,
-            "and it is no less spiky for it: {} flat-topped, mean {}",
-            short.coplanar,
-            short.flat_area,
-        );
-
-        // Three cells thick: less spiky, and the three cells at the angle are
-        // the three that carry its fillet.
-        let deep = self::report(&elbow(3, 3), None);
-        assert!(
-            deep.coplanar > 0 && deep.flat_area > report.flat_area,
-            "thickening the L should take spikes off it",
-        );
-        assert_eq!(
-            deep.bare,
-            vec![],
-            "a thick L still drops cells at the angle"
-        );
-        for z in 0..3 {
-            assert_eq!(at(&deep, IVec3::new(1, 1, z)).anchor, IVec3::new(1, 0, z));
+        for arm in [2, 3] {
+            for depth in [1, 3] {
+                let thick = self::report(&elbow(arm, depth), None);
+                assert_eq!(
+                    thick.bare,
+                    vec![],
+                    "an elbow of {arm} by {depth} drops a cell"
+                );
+                for z in 0..depth {
+                    assert_eq!(
+                        at(&thick, IVec3::new(arm - 2, 1, z)).anchor,
+                        IVec3::new(arm - 2, 0, z)
+                    );
+                }
+            }
         }
     }
 
@@ -638,20 +600,14 @@ mod tests {
         assert_eq!(bare[0].reason, BareReason::NoSocket);
     }
 
-    /// The RAISE next to a fitting is not where reasoning puts it.
+    /// A fitting leaves the deck beside it LEVEL.
     ///
-    /// The owner's complaint is "raises next to turrets", and this pins where
-    /// the raise actually comes from. A fitting stands PROUD of the plating and
-    /// offers nothing to mate on its flanks, so the skin runs past it at its own
-    /// height and the deck beside a nozzle stays flat and level. What raises the
-    /// deck is structure the plating has to CLIMB - a hull block standing proud -
-    /// and even then only its four DIAGONAL neighbours come out creased, because
-    /// an edge neighbour climbs it as one clean ramp.
-    ///
-    /// Both halves were guessed the other way round before the dump could
-    /// answer, which is the whole reason it exists.
+    /// The owner's complaint was "raises next to turrets". A fitting stands
+    /// PROUD of the plating and offers nothing to mate on its flanks, so the
+    /// skin runs past it at its own height. What raises the deck is structure
+    /// the plating has to CLIMB - a hull block standing proud.
     #[test]
-    fn a_fitting_leaves_the_deck_level_and_a_proud_block_creases_its_diagonals() {
+    fn a_fitting_leaves_the_deck_beside_it_level() {
         let mut structure = slab(7);
         let mut drive = [false; 6];
         drive[3] = true;
@@ -673,66 +629,8 @@ mod tests {
             assert!(row.coplanar && row.tilt == 0.0, "and stays level doing it");
         }
 
-        // The block, though, is climbed. Square-on that is one clean ramp...
-        let ramp = roof(IVec3::new(1, 1, 2));
-        assert_eq!(ramp.reading.relief, PlateRelief::Step);
-        assert!(ramp.coplanar, "an edge neighbour climbs a block as a ramp");
-        assert_eq!(ramp.flat_area, 1.0);
-
-        // ...and on the DIAGONAL it is a cone, with three quarters of the plate
-        // creased away. This is the shape a greeble beside a raise stands on.
-        let corner = roof(IVec3::new(1, 1, 1));
-        assert_eq!(corner.reading.relief, PlateRelief::Step);
-        assert!(!corner.coplanar, "the diagonal of a raise is a crease");
-        assert_eq!(corner.flat_area, 0.25);
-    }
-
-    /// The diagonal SADDLE is counted apart from the rest of `Spur`.
-    ///
-    /// The next lane wants to refuse to decorate it, and the falsifier for that
-    /// is "the saddle is common enough that refusing it starves a style" - which
-    /// is a number, and this is where it comes from.
-    #[test]
-    fn the_diagonal_saddle_is_counted_apart_from_the_rest_of_spur() {
-        let shape = |corners: [u8; 4], midpoints: [u8; 4]| {
-            ShellShape::new(corners, midpoints).expect("a legal shape")
-        };
-        // Two corners across the diagonal on the floor: falls two ways, and the
-        // two ways cancel, so nothing can be leaned off it.
-        assert!(is_diagonal_saddle(&shape([HALF, 0, HALF, 0], [1, 1, 1, 1])));
-        // Three corners down is a spar tip, not a saddle.
-        assert!(!is_diagonal_saddle(&shape([HALF, 0, 0, 0], [1, 0, 0, 1])));
-        // The same diagonal pattern with a sample at the whole cell is a STEP -
-        // it climbs something, and the mask is not read at all.
-        assert!(!is_diagonal_saddle(&shape(
-            [FULL, 0, HALF, 0],
-            [2, 1, 1, 2]
-        )));
-
-        // On a real hull the saddles are a subset of the spurs, always.
-        let mut structure = slab(6);
-        structure.insert(IVec3::new(2, 1, 2), OPEN);
-        structure.insert(IVec3::new(4, 1, 4), OPEN);
-        let report = report(&structure, None);
-        let spurs = report
-            .relief
-            .iter()
-            .find(|count| count.relief == PlateRelief::Spur)
-            .map(|count| count.count)
-            .unwrap_or_default();
-        assert!(
-            report.saddles <= spurs,
-            "{} saddle(s) against {spurs} spur(s)",
-            report.saddles,
-        );
-        for row in &report.plates {
-            assert!(
-                !row.saddle || row.reading.fall == IVec3::ZERO,
-                "the saddle at {:?} claims to fall {}",
-                row.cell,
-                row.reading.fall,
-            );
-        }
+        // The block, though, is climbed.
+        assert_eq!(roof(IVec3::new(1, 1, 2)).reading.relief, PlateRelief::Step);
     }
 
     /// The decoration half says WHICH pass put each piece down.
@@ -774,17 +672,16 @@ mod tests {
     /// the steepest ground, and it costs coverage to do it.
     ///
     /// Both halves are the point. A default rule lands nothing on a creased
-    /// top - which is what the owner was looking at - and the same rule seated
-    /// anywhere covers a third more of the hull. The trade is what the
-    /// exception path exists to buy back.
+    /// top, and the same rule seated anywhere covers more of the hull. The
+    /// trade is what the exception path exists to buy back.
     #[test]
     fn the_seat_gate_takes_the_decoration_off_the_creases() {
-        // A deck with a block on it: flat middle, ramps up to the block, cones
-        // on its diagonals and on the deck's own outer corners.
-        let mut cells: Vec<IVec3> = (0..6)
-            .flat_map(|x| (0..6).map(move |z| IVec3::new(x, 0, z)))
+        // A deck and a raised deck stepped off it along an edge: the plates in
+        // the step ramp half a cell down to the lower deck and crease through
+        // their middles.
+        let cells: Vec<IVec3> = (0..8)
+            .flat_map(|x| (0..6).map(move |z| IVec3::new(x, (x >= 4) as i32, z)))
             .collect();
-        cells.push(IVec3::new(2, 1, 2));
         let structure = hull(&cells);
         let cover = |piece: StyleFixtureConfig| report(&structure, Some(&style(vec![piece])));
 
@@ -808,59 +705,11 @@ mod tests {
             ungated.decor_on_creased > 0,
             "the subject has no creased plate to gate",
         );
-        assert!(
-            gated.decor_tilt < ungated.decor_tilt,
-            "the gate left the pieces on ground as raked as before: {} against {}",
-            gated.decor_tilt,
-            ungated.decor_tilt,
-        );
-        // The cost, stated: the gate refuses two fifths of this hull to anything
-        // that stands proud on it.
+        // The cost, stated: the gate refuses the creased ground in the step to
+        // anything that stands proud on it.
         assert!(
             gated.decor < ungated.decor,
             "the gate refused nothing at all",
-        );
-    }
-
-    /// A HAND-BUILT hull is the worst case for the seat gate, and this is how
-    /// bad: not one plate on the owner's L is a surface, so a rule that wants
-    /// one lands NOTHING and the whole ship is carried by the exception.
-    ///
-    /// The measurement the exception path was kept for. A blanket "surfaces
-    /// only" is not a stricter version of the old behaviour on a small build -
-    /// it is no decoration at all, and a bare hull is the complaint this work
-    /// started from.
-    #[test]
-    fn the_seat_gate_strips_a_hand_built_l_and_the_high_ground_carries_it() {
-        let worn = style(vec![
-            sized(
-                "stack",
-                FixtureRegion::Anywhere,
-                FixtureDensity::Every,
-                PROUD,
-            ),
-            sized(
-                "livery",
-                FixtureRegion::Anywhere,
-                FixtureDensity::Every,
-                TRIM,
-            ),
-        ]);
-        let report = report(&elbow(3, 1), Some(&worn));
-
-        assert_eq!(report.coplanar, 0, "the L has no seat anywhere on it");
-        assert_eq!(
-            report.rules[0].reach, 0,
-            "a piece standing proud reaches nothing on a hand-built hull",
-        );
-        assert_eq!(
-            report.rules[1].taken,
-            report.plates.len(),
-            "trim is what carries a hand-built hull, so it has to reach all of it",
-        );
-        assert_eq!(
-            report.decor_on_creased, report.decor,
-            "every piece on an L stands on a cone, and there is nowhere else",
         );
     }
 
@@ -888,102 +737,27 @@ mod tests {
         );
     }
 
-    /// A wide deck's middle is one flat surface and a lone cube's plates are
-    /// cones, which is what the flat area is FOR: it separates the two without
-    /// a render.
+    /// A wide deck's middle is one flat surface, and a plate climbing a block
+    /// is a plateau with chamfers, which is what the flat area is FOR: it
+    /// separates the two without a render.
     #[test]
-    fn the_flat_area_separates_a_deck_from_a_stud() {
-        let deck = report(&slab(5), None);
-        let middle = at(&deck, IVec3::new(2, 1, 2));
+    fn the_flat_area_separates_a_deck_from_a_chamfered_plate() {
+        let mut structure = slab(5);
+        structure.insert(IVec3::new(2, 1, 2), OPEN);
+        let deck = report(&structure, None);
+        let middle = at(&deck, IVec3::new(1, 1, 3));
         assert_eq!(middle.flat_area, 1.0, "the middle of a deck is one surface");
         assert!(middle.coplanar);
         assert_eq!(middle.tilt, 0.0);
 
-        let cube = report(&hull(&[IVec3::ZERO]), None);
-        assert_eq!(cube.plates.len(), 6);
-        assert_eq!(cube.coplanar, 0, "every face of a lone cube is a stud");
-        // A stud is a four-sided pyramid: each side is two facets of the fan,
-        // so the widest flat piece of it is a quarter of the cell.
+        let climb = at(&deck, IVec3::new(1, 1, 2));
+        assert!(!climb.coplanar, "`{}` is chamfered", climb.shape.id());
         assert!(
-            (cube.flat_area - 2.0 * TOP_FACET_FOOTPRINT).abs() < 1e-5,
-            "a stud offers a pyramid side, read {}",
-            cube.flat_area,
+            climb.flat_area < 1.0 && climb.flat_area >= 0.25,
+            "`{}` offers {}",
+            climb.shape.id(),
+            climb.flat_area,
         );
-        assert_eq!(cube.bare_faces, 0, "a lone cube is wrapped");
-    }
-
-    /// WHICH relief classes are actually creased, which is the measurement the
-    /// interior work is sized against.
-    ///
-    /// Measured on three generated hulls (526 plates) at the same time as this
-    /// was written, and the split is the same one: `Flat` and `Brink` are whole
-    /// flat surfaces, `Bevel`, `Ridge` and `Spur` are cones every time, and
-    /// `Step` goes both ways - square-on to a raise it is a ramp, on the
-    /// diagonal it is a cone. So the relief class alone does NOT say whether a
-    /// plate has a surface to stand a piece on, and a rule that assumed it
-    /// would be wrong about a fifth of a hull.
-    ///
-    /// Every flat area is 1.0 or 0.25 and nothing between, on those hulls and
-    /// on this one: a plate is one whole surface or a cone with one facet pair
-    /// usable. There is no middle to tune a seat size against.
-    #[test]
-    fn the_creased_classes_are_bevel_ridge_and_spur_and_half_the_steps() {
-        // A deck with a raise on it and a corner bitten out: enough to make
-        // every class but the stud.
-        let mut cells: Vec<IVec3> = (0..6)
-            .flat_map(|x| (0..6).map(move |z| IVec3::new(x, 0, z)))
-            .collect();
-        cells.retain(|cell| *cell != IVec3::new(5, 0, 5));
-        cells.push(IVec3::new(2, 1, 2));
-        let report = report(&hull(&cells), None);
-
-        let mut split: Vec<(PlateRelief, usize, usize)> = Vec::new();
-        for relief in RELIEFS {
-            let of: Vec<&PlateReport> = report
-                .plates
-                .iter()
-                .filter(|row| row.reading.relief == relief)
-                .collect();
-            split.push((
-                relief,
-                of.iter().filter(|row| row.coplanar).count(),
-                of.iter().filter(|row| !row.coplanar).count(),
-            ));
-        }
-        let count = |wanted: PlateRelief| {
-            split
-                .iter()
-                .find(|(relief, _, _)| *relief == wanted)
-                .map(|(_, flat, creased)| (*flat, *creased))
-                .expect("every class is listed")
-        };
-
-        assert_eq!(count(PlateRelief::Flat).1, 0, "a flat panel is a surface");
-        assert_eq!(count(PlateRelief::Brink).1, 0, "so is a hull edge - a ramp");
-        assert!(count(PlateRelief::Brink).0 > 8, "the deck has four edges");
-        assert_eq!(count(PlateRelief::Bevel).0, 0, "a bevel is always a cone");
-        assert_eq!(count(PlateRelief::Spur).0, 0, "and so is a spar tip");
-        assert!(count(PlateRelief::Spur).1 > 0, "the deck has outer corners");
-        let (ramps, cones) = count(PlateRelief::Step);
-        assert!(
-            ramps > 0 && cones > 0,
-            "a step is a ramp square-on to a raise and a cone on its diagonal: \
-             {ramps} against {cones}",
-        );
-
-        for row in &report.plates {
-            assert!(
-                row.flat_area == 1.0 || row.flat_area == 2.0 * TOP_FACET_FOOTPRINT,
-                "`{}` offers {} - there is supposed to be no middle",
-                row.shape.id(),
-                row.flat_area,
-            );
-            assert_eq!(
-                row.coplanar,
-                row.flat_area == 1.0,
-                "`{}` disagrees with itself about its own top",
-                row.shape.id(),
-            );
-        }
+        assert_eq!(climb.tilt, 0.0, "its widest piece is the level plateau");
     }
 }

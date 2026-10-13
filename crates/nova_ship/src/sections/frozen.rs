@@ -542,7 +542,7 @@ mod tests {
         use avian3d::prelude::{Collider, SimpleCollider};
 
         use crate::sections::{
-            shell_shape::prelude::FULL,
+            shell_shape::prelude::{ShellEdgeType, FULL},
             shell_skin::{plate_body, SkinPlate},
             skin_decor::decor_body,
             skin_style::{FixturePlacement, StyleFixtureConfig},
@@ -551,7 +551,8 @@ mod tests {
         let mut world = World::new();
         let section = world.spawn(Name::new("section")).id();
 
-        let shape = ShellShape::new([FULL; 4], [FULL; 4]).expect("a legal shape");
+        let shape = ShellShape::new(FULL, [FULL; 4], [ShellEdgeType::Plain; 4], [FULL; 4])
+            .expect("a legal shape");
         let plate = SkinPlate {
             cell: IVec3::ZERO,
             anchor: IVec3::NEG_Y,
@@ -650,7 +651,7 @@ mod tests {
         };
 
         use crate::sections::{
-            shell_shape::prelude::FULL,
+            shell_shape::prelude::{ShellEdgeType, FULL},
             shell_skin::{plate_body, ShipSkinPlugin, SkinPlate},
             skin_decor::decor_body,
             skin_style::{
@@ -697,7 +698,8 @@ mod tests {
             .id();
         let section = app.world_mut().spawn(ChildOf(ship)).id();
 
-        let shape = ShellShape::new([FULL; 4], [FULL; 4]).expect("a legal shape");
+        let shape = ShellShape::new(FULL, [FULL; 4], [ShellEdgeType::Plain; 4], [FULL; 4])
+            .expect("a legal shape");
         let plate = SkinPlate {
             cell: IVec3::ZERO,
             anchor: IVec3::NEG_Y,

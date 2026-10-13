@@ -778,7 +778,7 @@ mod tests {
         mining_section::MiningSectionConfig,
         prelude::SpaceshipSectionPlugin,
         railgun_section::{RailgunCharge, RailgunSectionConfig},
-        shell_shape::prelude::FULL,
+        shell_shape::prelude::{ShellEdgeType, FULL},
         shell_skin::{plate_body, SkinPlate},
         skin_decor::decor_body,
         skin_style::{FixturePlacement, StyleFixtureConfig, StylePalette, SurfaceFinish},
@@ -1177,7 +1177,8 @@ mod tests {
             );
         }
 
-        let shape = ShellShape::new([FULL; 4], [FULL; 4]).expect("a legal shape");
+        let shape = ShellShape::new(FULL, [FULL; 4], [ShellEdgeType::Plain; 4], [FULL; 4])
+            .expect("a legal shape");
         let plate = SkinPlate {
             cell: IVec3::ZERO,
             anchor: IVec3::NEG_Y,

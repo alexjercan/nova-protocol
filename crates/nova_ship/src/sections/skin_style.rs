@@ -294,8 +294,8 @@ impl StyleFixtureConfig {
         ScatterRule {
             min_run: FixturePlacement::min_run(self.collider),
             // Two ways to be free of the seat gate, and a piece needs only one:
-            // the region says the high ground is all cones, or the piece is
-            // trim and does not care.
+            // the region is the high ground, or the piece is trim and does not
+            // care.
             whole_seat: region.whole_seat && FixturePlacement::needs_seat(self.collider),
             stride,
             chance,
@@ -332,10 +332,8 @@ impl FixturePlacement {
     /// piece's own size already answers this, and a second authored word saying
     /// it is a word that can disagree.
     ///
-    /// This is also what keeps a HAND-BUILT hull dressed. Such a hull is one
-    /// cell thick nearly everywhere, so no plate on it is coplanar at all and
-    /// every seated region reaches exactly nothing; its decoration is the trim
-    /// and the high ground, and this is half of that.
+    /// This is also what keeps a creased plate dressed: a plate with a crease
+    /// or a cap under its middle is no seat, and trim still lands on it.
     pub fn needs_seat(collider: Vec3) -> bool {
         collider.y >= TRIM_HEIGHT
     }
@@ -372,11 +370,8 @@ impl FixtureRegion {
     fn rule(self) -> ScatterRule {
         let base = ScatterRule::ANY;
         match self {
-            // Bevel rides along with Flat: it is a panel with one corner taken
-            // off, a piece sized for Flat very nearly fits, and the seat gate
-            // below refuses the ones that actually crease.
             Self::Panel => ScatterRule {
-                relief: &[PlateRelief::Flat, PlateRelief::Bevel],
+                relief: &[PlateRelief::Flat],
                 min_height: 1,
                 ..base
             },
@@ -399,12 +394,11 @@ impl FixtureRegion {
                 relief: &[PlateRelief::Brink],
                 ..base
             },
-            // The one region that drops the seat gate, and it has to: a crest,
-            // a spar tip and a stud are CONES every time, so a whole-seat gate
-            // would refuse every plate this region is for. `min_height` stays 0
-            // for the same reason - a spur fills so little of its cell that it
-            // measures height 0 - and `min_depth` 1 is what keeps a mast off
-            // skin with nothing behind it.
+            // The one region that drops the seat gate: a mast or a stack
+            // stands up off its plate rather than lying on it. `min_height`
+            // stays 0 so the smallest plate on the high ground still counts,
+            // and `min_depth` 1 is what keeps a mast off skin with nothing
+            // behind it.
             Self::HighGround => ScatterRule {
                 relief: &[
                     PlateRelief::Ridge,
@@ -531,7 +525,7 @@ impl ScatterRule {
     /// The neighbourhood half only. The lattice and the share are decided by the
     /// scatter, which is the only thing that knows the cell.
     pub(crate) fn accepts(&self, reading: &PlateReading) -> bool {
-        if self.whole_seat && !reading.coplanar {
+        if self.whole_seat && !reading.seat {
             return false;
         }
         if !self.relief.is_empty() && !self.relief.contains(&reading.relief) {
@@ -615,7 +609,7 @@ mod tests {
             along: IVec3::X,
             fall: IVec3::Z,
             relief,
-            coplanar: true,
+            seat: true,
             enclosure: 8,
             run: 4,
             border: 2,
@@ -648,7 +642,6 @@ mod tests {
             |region: FixtureRegion, relief: PlateRelief| region.rule().accepts(&reading(relief));
 
         assert!(admits(FixtureRegion::Panel, PlateRelief::Flat));
-        assert!(admits(FixtureRegion::Panel, PlateRelief::Bevel));
         assert!(!admits(FixtureRegion::Panel, PlateRelief::Brink));
 
         assert!(admits(FixtureRegion::Deck, PlateRelief::Step));
@@ -670,17 +663,15 @@ mod tests {
         }
     }
 
-    /// The high ground is the ONE region that drops the seat gate, and it has
-    /// to: a crest, a spar tip and a stud are cones every time, so a whole-seat
-    /// gate would refuse every plate the region exists for.
+    /// The high ground is the ONE region that drops the seat gate: a mast
+    /// stands up off its plate, so a creased top does not refuse it.
     ///
-    /// It must also ask nothing of the plate's HEIGHT for the same reason - a
-    /// spur fills so little of its cell that it measures 0 - and a regression
-    /// here empties the silhouette of a ship without emptying any other region.
+    /// It also asks nothing of the plate's HEIGHT, and a regression here
+    /// empties the silhouette of a ship without emptying any other region.
     #[test]
     fn only_the_high_ground_takes_a_creased_top_and_it_measures_no_height() {
         let creased = PlateReading {
-            coplanar: false,
+            seat: false,
             height: 0,
             ..reading(PlateRelief::Spur)
         };
@@ -696,38 +687,6 @@ mod tests {
             assert!(
                 !region.rule().accepts(&creased),
                 "{region:?} seated a flat-bottomed piece on a crease",
-            );
-        }
-    }
-
-    /// No seat-gated region is made ENTIRELY of cones.
-    ///
-    /// The relief list says which ZONE of a hull a piece belongs in; the seat
-    /// says whether there is a surface to lie on. `Bevel`, `Ridge`, `Peak` and
-    /// `Spur` are creased every time, so a seat-gated region naming only those
-    /// would refuse every plate it admits - a piece that lands NOWHERE while
-    /// looking perfectly well authored, which is how these lists were written
-    /// before the seat existed.
-    ///
-    /// `Panel` naming `Bevel` is the deliberate case and not an exception: the
-    /// seat gate is read off the PIECE, so a decal reaches a bevelled panel and
-    /// a stack does not, which is exactly the split that field is for.
-    #[test]
-    fn no_seat_gated_region_is_made_entirely_of_creased_plate() {
-        let seats = |relief: &PlateRelief| {
-            matches!(
-                relief,
-                PlateRelief::Flat | PlateRelief::Brink | PlateRelief::Step
-            )
-        };
-        for region in REGIONS {
-            let rule = region.rule();
-            if !rule.whole_seat || rule.relief.is_empty() {
-                continue;
-            }
-            assert!(
-                rule.relief.iter().any(seats),
-                "{region:?} gates the seat and names only cones, so it can never                  fire for a piece that stands proud",
             );
         }
     }
@@ -759,7 +718,7 @@ mod tests {
         // ...and the high ground is the opposite claim: the roof, never a flank.
         let peak = PlateReading {
             out: IVec3::X,
-            coplanar: false,
+            seat: false,
             ..reading(PlateRelief::Peak)
         };
         assert!(!FixtureRegion::HighGround.rule().accepts(&peak));
@@ -809,18 +768,13 @@ mod tests {
         }
     }
 
-    /// TRIM is free of the seat gate whatever region it is in, and that is what
-    /// keeps a HAND-BUILT hull dressed: such a hull is one cell thick nearly
-    /// everywhere, so nothing on it is coplanar and every seated region reaches
-    /// exactly nothing.
-    ///
-    /// The measured case this exists for: on the owner's own L, no plate at all
-    /// has a seat, so a decal that needed one would land on a ship NOWHERE while
-    /// looking perfectly well authored.
+    /// TRIM is free of the seat gate whatever region it is in, so a plate with
+    /// a crease or a cap under its middle still takes a decal while a piece
+    /// standing proud would float on it.
     #[test]
     fn trim_lies_on_a_crease_and_anything_standing_proud_does_not() {
         let creased = PlateReading {
-            coplanar: false,
+            seat: false,
             ..reading(PlateRelief::Flat)
         };
 

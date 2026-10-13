@@ -32,8 +32,8 @@
 //!   lock, measured the way the docking sight draws it and graded against the
 //!   envelope the verb applies (`eligible`), whether or not it passes.
 //! - `ships[].skin` - the DERIVED SKIN as a whole, for a clad ship: the relief
-//!   histogram, how many plates have a flat top rather than a cone, how many
-//!   are the diagonal saddle, the mean flat area, the per-rule decoration
+//!   histogram, how many plates have a flat top rather than a chamfered one,
+//!   the mean flat area, the per-rule decoration
 //!   tally, and every cell the derivation refused to clad with the reason. Null
 //!   for a ship wearing none.
 //! - `ships[].sections` - every [`SectionMarker`] child: id, prototype, class,
@@ -41,7 +41,8 @@
 //!   one, and its `fixtures`.
 //! - `ships[].sections[].fixtures` - every [`SectionFixture`] hanging off that
 //!   section (skin plates, decor), with health and alive. A skin plate also
-//!   carries `plate`: the eight boundary samples, the relief they read as, and
+//!   carries `plate`: the shape's level, feet, edges and soft corners, the
+//!   relief they read as, and
 //!   every zone fact the decoration scatter filtered on. A decoration carries
 //!   `stands_on`, which is the plate under it.
 //! - `ordnance` - every torpedo and turret round in flight: owner, position,
@@ -1244,10 +1245,9 @@ fn skin_record(report: &SkinReport) -> serde_json::Value {
         "shapes": report.shapes,
         "relief": histogram(&report.relief),
         // The measurements the shell-shape work is sized against: how many
-        // plates have a whole flat top rather than a cone, how many are the
-        // diagonal saddle, and how much room the average plate offers a piece.
+        // plates have a whole flat top rather than a chamfered one, and how
+        // much room the average plate offers a piece.
         "coplanar": report.coplanar,
-        "saddles": report.saddles,
         "leaning": report.leaning,
         "flat_area": num(report.flat_area),
         // STRUCTURE FACING VACUUM. The coverage rule's claim is that this is
@@ -1277,26 +1277,26 @@ fn skin_record(report: &SkinReport) -> serde_json::Value {
     })
 }
 
-/// One clad cell: the eight samples, what they spell, and every fact the
-/// scatter read on its way to dressing it.
+/// One clad cell: the shape it wears, and every fact the scatter read on its
+/// way to dressing it.
 fn plate_record(row: &PlateReport) -> serde_json::Value {
     let reading = &row.reading;
     serde_json::json!({
         "cell": ivec3(row.cell),
         "anchor": ivec3(row.anchor),
         "out": ivec3(row.out),
-        // The eight boundary samples, in the order the shape's id spells them.
-        // These ARE the shape: given them, the tile is reproducible offline.
-        "corners": row.shape.corners,
-        "midpoints": row.shape.midpoints,
+        // The shape, in the order its id spells it. These ARE the shape:
+        // given them, the tile is reproducible offline.
+        "level": row.shape.level,
+        "feet": row.shape.feet,
+        "edges": row.shape.edges.map(|edge| format!("{edge:?}")),
+        "soft_corners": row.shape.soft_corners,
         "relief": reading.relief.name(),
-        // Which corner slots die to the cell floor. The derivation puts one
-        // there for exactly one reason - open space stands at it - so this is
-        // the number of directions the plate has vacuum in, and the two
-        // diagonal masks are the saddle.
+        // Which corner slots stand beside an edge the hull falls away
+        // across. The derivation falls an edge for exactly one reason - open
+        // space stands across it.
         "fallen": row.fallen,
-        "saddle": row.saddle,
-        // Whether the fanned top is ONE surface or a cone, and how much of the
+        // Whether the top inside the cell is ONE surface, and how much of the
         // cell the widest flat piece of it covers.
         "coplanar": row.coplanar,
         "flat_area": num(row.flat_area),
@@ -1524,9 +1524,9 @@ fn collect_fixtures(
 /// frame, and whether it is still there.
 ///
 /// `shape` is a skin plate's [`ShellShape`](nova_ship::prelude::ShellShape) id,
-/// and it is the ANCHOR the skin dump extends from: `plate` carries the eight
-/// samples that spell that shape, the relief they read as, and every zone fact
-/// the scatter used. One serializer, not two.
+/// and it is the ANCHOR the skin dump extends from: `plate` carries the parts
+/// that spell that shape, the relief they read as, and every zone fact the
+/// scatter used. One serializer, not two.
 ///
 /// `plate` is null on a plate whose cell the CURRENT structure no longer derives
 /// one for - a section died and took the neighbourhood with it, while the plate
@@ -1772,13 +1772,19 @@ mod tests {
             IVec3::Z,
             IVec3::NEG_Z,
         ] {
-            // Every face of a lone cube comes out a STUD, whatever way it
-            // faces, so one shape covers the six.
-            let stud = nova_ship::prelude::ShellShape::new([0; 4], [0; 4]).expect("a legal shape");
+            // Every face of a lone cube folds round all four of its edges, so
+            // one flat shape stands in for the six.
+            let folded = nova_ship::prelude::ShellShape::new(
+                nova_ship::prelude::HALF,
+                [nova_ship::prelude::HALF; 4],
+                [nova_ship::prelude::ShellEdgeType::Fold; 4],
+                [nova_ship::prelude::HALF; 4],
+            )
+            .expect("a legal shape");
             app.world_mut().spawn((
                 SectionFixture,
-                ShipSkinMarker(stud),
-                Name::new(format!("Skin Plate {}", stud.id())),
+                ShipSkinMarker(folded),
+                Name::new(format!("Skin Plate {}", folded.id())),
                 Transform::from_translation(cell.as_vec3()),
                 ChildOf(section),
             ));
@@ -1786,13 +1792,13 @@ mod tests {
         root
     }
 
-    /// The skin half of the dump: a plate carries the eight samples that spell
-    /// its shape, the relief they read as, and the zone facts the scatter used,
+    /// The skin half of the dump: a plate carries the parts that spell its
+    /// shape, the relief they read as, and the zone facts the scatter used,
     /// and the ship carries the histogram and the cells the derivation refused.
     ///
-    /// The samples are the load-bearing part. The skin is a pure function of
+    /// The shape is the part a repro needs. The skin is a pure function of
     /// the structure, so a dumped shape is a COMPLETE repro - the tile can be
-    /// rebuilt offline from these eight digits and pinned in a test.
+    /// rebuilt offline from it and pinned in a test.
     #[test]
     fn a_clad_ship_carries_its_derivation_per_plate_and_a_summary_per_ship() {
         let mut app = rig();
@@ -1803,9 +1809,14 @@ mod tests {
         let ship = &snapshot["ships"][0];
         let skin = &ship["skin"];
         assert_eq!(skin["plates"], 6, "a lone cube is clad on all six faces");
-        assert_eq!(skin["shapes"], 1, "and every face of it is the same stud");
+        // Each face folds round its four edges; which plate owns the skirt at
+        // each edge goes by face, so the six come out as three shapes.
+        assert_eq!(skin["shapes"], 3, "a lone cube wears three shapes");
         assert_eq!(skin["relief"]["peak"], 6);
-        assert_eq!(skin["coplanar"], 0, "a stud is a pyramid, not a surface");
+        assert_eq!(
+            skin["coplanar"], 6,
+            "a folded plate is flat inside its cell"
+        );
         assert_eq!(skin["bare_faces"], 0, "nothing on a lone cube is bare");
         assert_eq!(skin["decor"]["placed"], 0, "it wears no style");
         assert!(skin["summary"]
@@ -1819,18 +1830,17 @@ mod tests {
             .find(|fixture| fixture["plate"]["cell"] == serde_json::json!([0, 1, 0]))
             .expect("a plate stands on the roof of the cube");
         assert_eq!(plate["kind"], "skin_plate");
-        assert_eq!(plate["shape"], "shell_0000_0000");
-        assert_eq!(plate["plate"]["corners"], serde_json::json!([0, 0, 0, 0]));
-        assert_eq!(plate["plate"]["midpoints"], serde_json::json!([0, 0, 0, 0]));
+        assert_eq!(plate["shape"], "shell_2_2222_ffff_2222");
+        assert_eq!(plate["plate"]["level"], 2);
+        assert_eq!(plate["plate"]["feet"], serde_json::json!([2, 2, 2, 2]));
         assert_eq!(plate["plate"]["relief"], "peak");
         assert_eq!(plate["plate"]["out"], serde_json::json!([0, 1, 0]));
         assert_eq!(plate["plate"]["anchor"], serde_json::json!([0, 0, 0]));
         assert_eq!(
             plate["plate"]["fallen"], 15,
-            "every corner dies to the floor"
+            "the hull falls away across every edge"
         );
-        assert_eq!(plate["plate"]["saddle"], false);
-        assert_eq!(plate["plate"]["coplanar"], false);
+        assert_eq!(plate["plate"]["coplanar"], true);
         assert_eq!(plate["plate"]["enclosure"], 0, "nothing stands beside it");
         assert_eq!(plate["plate"]["depth"], 1, "one cell of hull under it");
         assert_eq!(plate["plate"]["decor"], serde_json::json!([]));
