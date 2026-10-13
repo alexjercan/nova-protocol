@@ -36,9 +36,10 @@ const WAYSTATION_STORAGE_CAP_G: u32 = 100_000;
 /// waystation's cap, so a docked ship reads the same store at every station.
 const ARMED_STATION_STORAGE_CAP_G: u32 = WAYSTATION_STORAGE_CAP_G;
 
-/// The share of its hull pool below which a station takes no more damage.
-/// Both shipped stations stand at half.
-const STATION_DAMAGE_FLOOR: f32 = 0.5;
+/// The share of its hull pool at which a station collapses: half, above the
+/// ship default, so a station comes apart sooner, a sever that cuts away
+/// half of it included.
+const STATION_COLLAPSE_THRESHOLD: f32 = 0.5;
 
 /// Every shipped station, in stable generated-content order.
 pub(crate) fn station_catalog(assets: &BaseContentAssets) -> Vec<StationDesign> {
@@ -88,7 +89,7 @@ fn waystation(assets: &BaseContentAssets) -> StationDesign {
             .to_string(),
         hull: ShipDesign {
             integrity: ShipIntegrityConfig {
-                collapse_threshold: Some(STATION_DAMAGE_FLOOR),
+                collapse_threshold: Some(STATION_COLLAPSE_THRESHOLD),
             },
             ..ships::waystation_hull(assets)
         },
@@ -120,8 +121,8 @@ fn waystation(assets: &BaseContentAssets) -> StationDesign {
 }
 
 /// One of the armed stations generated worlds place: `sections` clad in
-/// `style`, with the four dock services, the shared stock and the damage
-/// floor.
+/// `style`, with the four dock services, the shared stock and the station
+/// collapse threshold.
 fn armed_station(
     assets: &BaseContentAssets,
     id: &str,
@@ -140,7 +141,7 @@ fn armed_station(
         hull: ShipDesign {
             sections,
             integrity: ShipIntegrityConfig {
-                collapse_threshold: Some(STATION_DAMAGE_FLOOR),
+                collapse_threshold: Some(STATION_COLLAPSE_THRESHOLD),
             },
             presentation,
         },

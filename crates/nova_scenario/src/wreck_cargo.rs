@@ -6,7 +6,9 @@
 //! - a destroyed section drops [`BuildRecipe::strip_parts`] of its recipe:
 //!   `floor(strip_yield * count)` of each part, so a part whose share rounds
 //!   down to zero drops nothing;
-//! - a destroyed ship root drops every stack still in its hold.
+//! - a destroyed ship root drops every stack still in its hold, and a
+//!   destroyed station root also drops the player's [`StationStorage`] with
+//!   it, so the stored items outlive the station.
 //!
 //! A section dies before its ship root does: a structural collapse peels every
 //! section first, and the root dies only with no section standing. A section
@@ -50,10 +52,11 @@ pub mod prelude {
 #[derive(Resource, Default, Debug)]
 struct CollapseSalvage(HashMap<Entity, BTreeMap<ItemDesignId, u32>>);
 
-/// Drop a destroyed section's parts share or a destroyed ship's hold.
+/// Drop a destroyed section's parts share or a destroyed ship's hold, with
+/// a station's player storage.
 #[expect(
     clippy::type_complexity,
-    reason = "the dying body's pose, owner, recipe and hold"
+    reason = "the dying body's pose, owner, recipe, hold and storage"
 )]
 fn drop_wreck_cargo(
     add: On<Add, IntegrityDestroyMarker>,
@@ -64,6 +67,7 @@ fn drop_wreck_cargo(
         Option<&ChildOf>,
         Option<&SectionBuildConfig>,
         Option<&ShipInventory>,
+        Option<&StationStorage>,
     )>,
     q_frames: Query<(
         &GlobalTransform,
@@ -74,14 +78,17 @@ fn drop_wreck_cargo(
     items: Option<Res<GameItems>>,
 ) {
     let entity = add.entity;
-    let Ok((frame, child_of, build, hold)) = q_dying.get(entity) else {
+    let Ok((frame, child_of, build, hold, storage)) = q_dying.get(entity) else {
         return;
     };
     let parent = child_of.map(ChildOf::parent);
     let up = frame.rotation() * Vec3::Y;
     let (stacks, owner, normal, drift) = if let Some(hold) = hold {
         let mut stacks = salvage.0.remove(&entity).unwrap_or_default();
-        for (item, count) in hold.stacks() {
+        for (item, count) in hold
+            .stacks()
+            .chain(storage.into_iter().flat_map(StationStorage::stacks))
+        {
             *stacks.entry(item.clone()).or_default() += count;
         }
         (stacks, parent, up, None)

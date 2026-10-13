@@ -1041,24 +1041,12 @@ fn aggregate_ship_health(
             Has<HealthZeroMarker>,
             Has<StructuralCollapseMarker>,
             Option<&StructuralCollapseThreshold>,
-            Has<StationMarker>,
-            Option<&HealthFloor>,
         ),
         (With<IntegrityRoot>, With<SpaceshipRootMarker>),
     >,
     q_section_health: Query<&Health, (With<SectionMarker>, Without<IntegrityRoot>)>,
 ) {
-    for (
-        root,
-        root_health,
-        children,
-        already_zero,
-        already_collapsing,
-        threshold,
-        station,
-        floor,
-    ) in &q_root
-    {
+    for (root, root_health, children, already_zero, already_collapsing, threshold) in &q_root {
         let mut current = 0.0;
         let mut living_max = 0.0;
         let mut standing = 0usize;
@@ -1098,21 +1086,7 @@ fn aggregate_ship_health(
         // reads the PREVIOUS frame's write on purpose - a mid-spawn root whose
         // sections have not landed yet is not executed at birth.
         let fraction = threshold.copied().unwrap_or_default().0;
-        let below = pinned_max > 0.0 && current <= max * fraction;
-        // A station is never collapsed or destroyed: its threshold is the
-        // floor of its pool, which `on_damage` caps every hit against, so it
-        // stays where it is with its hold. Sections it loses above the floor
-        // are ordinary losses.
-        if station {
-            let wanted = HealthFloor(max * fraction);
-            if max > 0.0 && floor != Some(&wanted) {
-                debug!(
-                    "aggregate_ship_health: station {root:?} floors its pool at {} of {max}",
-                    wanted.0
-                );
-                commands.entity(root).try_insert(wanted);
-            }
-        } else if below {
+        if pinned_max > 0.0 && current <= max * fraction {
             if standing == 0 {
                 if !already_zero {
                     debug!(
@@ -1364,41 +1338,6 @@ mod tests {
             "the root waits for its sections to go first"
         );
         assert_eq!(root_health(&app, root), (100.0, 1000.0));
-    }
-
-    /// A station's threshold is its floor: the root carries it in hit
-    /// points, and a station under it never collapses and is never marked
-    /// destroyed.
-    #[test]
-    fn a_station_floors_its_pool_and_never_collapses() {
-        let mut app = aggregate_app();
-        let (root, sections) = spawn_ship(&mut app, Some(0.5), &[(400.0, 400.0), (600.0, 600.0)]);
-        app.world_mut()
-            .entity_mut(root)
-            .insert(StationMarker("rig_station".into()));
-        app.update();
-        app.update();
-        assert_eq!(
-            app.world().get::<HealthFloor>(root),
-            Some(&HealthFloor(500.0)),
-            "half of a 1000-point hull"
-        );
-
-        app.world_mut().entity_mut(sections[1]).despawn();
-        app.update();
-        app.update();
-
-        assert!(!collapsing(&app, root), "a station never collapses");
-        assert!(!disabled(&app, sections[0]), "nothing is peeled");
-        assert!(
-            !root_marked_dead(&app, root),
-            "a station is never destroyed"
-        );
-        assert_eq!(
-            app.world().get::<HealthFloor>(root),
-            Some(&HealthFloor(500.0)),
-            "the floor is measured against the hull the station was built with"
-        );
     }
 
     /// ...and a ship still carrying 30 percent of its hull keeps fighting.
@@ -1981,6 +1920,177 @@ mod physics_tests {
             ((fragment_velocity - old_linear).length() - 2.0 * floor).abs() < 0.2,
             "the piece takes both floor kicks: {fragment_velocity:?}"
         );
+    }
+
+    /// Every root that reached [`StructuralCollapseMarker`], recorded at the
+    /// insert: a collapse can peel and destroy a small hull inside one
+    /// `settle`, leaving no root to inspect afterwards.
+    #[derive(Resource, Default)]
+    struct CollapsedRoots(Vec<Entity>);
+
+    /// A line hull severed at its bridge: a helm and `kept` more sections on
+    /// one side, `severed` sections on the other, 100 hp each, and a 0.5
+    /// collapse threshold - the share every station design authors. The helm
+    /// side stays on the root (the ranking counts live controllers first).
+    /// `markers` go on the root: none for a ship, the station marker for a
+    /// station. Returns the app after the cut, the root, one kept non-helm
+    /// section and one severed section.
+    fn sever_line_hull(
+        markers: impl Bundle,
+        kept: usize,
+        severed: usize,
+    ) -> (App, Entity, Entity, Entity) {
+        let mut app = unfinished_integrity_physics_app();
+        app.add_plugins(ShipIntegrityPlugin);
+        app.init_asset::<StandardMaterial>();
+        app.add_plugins(EntropyPlugin::<WyRand>::default());
+        app.init_resource::<CollapsedRoots>();
+        app.add_observer(
+            |add: On<Add, StructuralCollapseMarker>, mut collapsed: ResMut<CollapsedRoots>| {
+                collapsed.0.push(add.entity);
+            },
+        );
+        app.finish();
+
+        let root = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                SpaceshipRootMarker,
+                StructuralCollapseThreshold::new(0.5),
+                LinearVelocity(Vec3::ZERO),
+                AngularVelocity(Vec3::ZERO),
+            ))
+            .id();
+        app.world_mut().entity_mut(root).insert(markers);
+        let helm = spawn_section(&mut app, root, Vec3::ZERO);
+        app.world_mut()
+            .entity_mut(helm)
+            .insert(ControllerSectionMarker);
+        let kept_sections: Vec<_> = (1..=kept)
+            .map(|i| spawn_section(&mut app, root, Vec3::X * i as f32))
+            .collect();
+        let bridge = spawn_section(&mut app, root, Vec3::X * (kept + 1) as f32);
+        let severed_sections: Vec<_> = (0..severed)
+            .map(|i| spawn_section(&mut app, root, Vec3::X * (kept + 2 + i) as f32))
+            .collect();
+        settle(&mut app);
+
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: bridge,
+            source: None,
+            amount: 100.0,
+        });
+        settle(&mut app);
+
+        let wreck = app
+            .world()
+            .get::<ChildOf>(severed_sections[0])
+            .map(|parent| parent.0);
+        assert!(
+            wreck.is_some_and(|wreck| wreck != root
+                && app.world().get::<ShipWreckFragmentMarker>(wreck).is_some()),
+            "the far side leaves as a wreck"
+        );
+        (app, root, kept_sections[0], severed_sections[0])
+    }
+
+    /// A hull whose kept half still holds more than its threshold keeps
+    /// fighting after a sever: a hit on the kept half and a hit on the wreck
+    /// each spend health, and nothing collapses.
+    fn a_hull_severed_above_its_threshold_takes_damage_on_both_halves(markers: impl Bundle) {
+        // Six sections: the bridge and one more leave, 400 of 600 stays.
+        let (mut app, root, kept, severed) = sever_line_hull(markers, 3, 1);
+        assert_eq!(
+            app.world().get::<ChildOf>(kept).map(|parent| parent.0),
+            Some(root)
+        );
+        assert!(
+            app.world().get::<StructuralCollapseMarker>(root).is_none(),
+            "400 of 600 is above half; the kept hull must not collapse"
+        );
+
+        for target in [kept, severed] {
+            app.world_mut().trigger(HealthApplyDamage {
+                entity: target,
+                source: None,
+                amount: 10.0,
+            });
+        }
+        app.world_mut().flush();
+
+        let left = [kept, severed].map(|target| app.world().get::<Health>(target).unwrap().current);
+        assert_eq!(
+            left,
+            [90.0, 90.0],
+            "a hit on the [kept, severed] half of the cut hull spent nothing \
+             (root pool {:?})",
+            app.world().get::<Health>(root)
+        );
+    }
+
+    /// A hull whose kept half falls to its threshold or under it in a sever
+    /// collapses: the sections it kept are peeled and the root is destroyed.
+    fn a_hull_severed_below_its_threshold_collapses_and_is_destroyed(markers: impl Bundle) {
+        // Six sections: the bridge and three more leave, 200 of 600 stays.
+        let (mut app, root, kept, _) = sever_line_hull(markers, 1, 3);
+        for _ in 0..30 {
+            if !app.world().entities().contains(root) {
+                break;
+            }
+            app.update();
+        }
+        assert!(
+            app.world().resource::<CollapsedRoots>().0.contains(&root),
+            "200 of 600 is under half; the kept hull must collapse"
+        );
+        assert!(
+            !app.world().entities().contains(kept),
+            "the collapse peels the sections the hull kept"
+        );
+        assert!(
+            !app.world().entities().contains(root),
+            "the collapsed hull's root is destroyed"
+        );
+    }
+
+    #[test]
+    fn a_ship_severed_above_its_threshold_takes_damage_on_both_halves() {
+        a_hull_severed_above_its_threshold_takes_damage_on_both_halves(());
+    }
+
+    /// The owner's report: a severed station stopped taking damage, because
+    /// it floored hits at half the hull it was built with. A station follows
+    /// the ship rule now.
+    #[test]
+    fn a_station_severed_above_its_threshold_takes_damage_on_both_halves() {
+        a_hull_severed_above_its_threshold_takes_damage_on_both_halves(StationMarker(
+            "rig_station".into(),
+        ));
+    }
+
+    #[test]
+    fn a_ship_severed_below_its_threshold_collapses_and_is_destroyed() {
+        a_hull_severed_below_its_threshold_collapses_and_is_destroyed(());
+    }
+
+    #[test]
+    fn a_station_severed_below_its_threshold_collapses_and_is_destroyed() {
+        a_hull_severed_below_its_threshold_collapses_and_is_destroyed(StationMarker(
+            "rig_station".into(),
+        ));
+    }
+
+    /// A dead station is still shot apart: neither the dead marker nor the
+    /// neutralized one keeps it from collapsing.
+    #[test]
+    fn a_dead_station_severed_below_its_threshold_collapses_and_is_destroyed() {
+        a_hull_severed_below_its_threshold_collapses_and_is_destroyed((
+            StationMarker("rig_station".into()),
+            DerelictShipMarker,
+            NeutralizedMarker,
+        ));
     }
 
     #[test]

@@ -20,8 +20,8 @@ use crate::prelude::*;
 /// - the hull has no Docking section (nothing could dock), any Thruster
 ///   section (a station never flies) or no Controller section (nothing holds
 ///   its attitude);
-/// - the hull authors no `integrity.collapse_threshold` in `0..=1`: on a
-///   station it is the floor its structure stops taking damage at;
+/// - the hull authors no `integrity.collapse_threshold` in `0..=1`: a
+///   station states the share of its hull it collapses at;
 /// - `services` is empty;
 /// - `stock` names an item `items` does not hold, or weighs more than the
 ///   hull's hold;
@@ -83,16 +83,16 @@ pub fn lint_station_design(
     }
 
     match design.hull.integrity.collapse_threshold {
-        Some(floor) if (0.0..=1.0).contains(&floor) => {}
-        Some(floor) => issues.push(LintIssue::error(
+        Some(threshold) if (0.0..=1.0).contains(&threshold) => {}
+        Some(threshold) => issues.push(LintIssue::error(
             source,
-            format!("station '{id}': integrity collapse_threshold {floor} is outside 0..=1"),
+            format!("station '{id}': integrity collapse_threshold {threshold} is outside 0..=1"),
         )),
         None => issues.push(LintIssue::error(
             source,
             format!(
-                "station '{id}': the hull authors no integrity collapse_threshold; on a \
-                 station it is the damage floor"
+                "station '{id}': the hull authors no integrity collapse_threshold; a \
+                 station states the share it collapses at"
             ),
         )),
     }
@@ -327,7 +327,7 @@ mod tests {
     }
 
     #[test]
-    fn a_station_with_no_damage_floor_is_refused() {
+    fn a_station_with_no_collapse_threshold_is_refused() {
         let mut design = sound();
         design.hull.integrity.collapse_threshold = None;
         let found = errors(&design);

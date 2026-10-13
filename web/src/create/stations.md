@@ -63,7 +63,7 @@ Every field is required.
 | `id` | string | what a spawn names this design by. A mod reusing a base id REPLACES that station everywhere |
 | `name` | string | the name a picker shows. A parked station is named by the scenario object that placed it |
 | `about` | string | what this station is, for a reader |
-| `hull` | design | the same fields a [ship design](../ships/#the-design) takes: `sections`, `integrity`, `presentation`. It must hold a `Docking` section and a `Controller` section and no `Thruster` section, and author `integrity.collapse_threshold`: on a station it is the damage floor, see below |
+| `hull` | design | the same fields a [ship design](../ships/#the-design) takes: `sections`, `integrity`, `presentation`. It must hold a `Docking` section and a `Controller` section and no `Thruster` section, and author `integrity.collapse_threshold`: the share of its hull a station collapses at, see below |
 | `services` | list | what a docked ship may do here, from the closed set `Rebuild`, `Refit`, `Trade`, `Storage`, `Jobs`, `Roster`. At least one |
 | `storage_cap_g` | whole number | how many grams the station's storage takes. Above zero exactly when `services` lists `Storage` |
 | `stock` | stock | what the hull's own hold opens with, in the [stock format](../objects/#inventory). It must fit the hull's hold (100 kg per hull section) |
@@ -87,7 +87,7 @@ where it stays, and a world save keeps that pose and motion.
 | behaviour | rule |
 |---|---|
 | self-levelling | the `Controller` section parks its target attitude on the spawn rotation and drives the hull with torque alone. Spun by a hit, the hull comes to rest within `STATION_LEVEL_TOLERANCE_RAD` (0.03 rad, about 1.7 degrees) of that attitude. No thrust is ever applied: only a `Thruster` section writes thrust, and the lint refuses one |
-| damage and floor | station sections take damage and are lost as a ship's are, but a station never collapses and is never destroyed. Its hull pool stops at `collapse_threshold` of the pool it was built with (0.5 on every base station): every hit, a whole torpedo blast included, lands only down to that floor, nearest sections first, and then spends nothing. Nothing despawns |
+| damage and collapse | a station takes damage, collapses and is destroyed as a ship is. At or below `collapse_threshold` of the pool it was built with (0.5 on every base station) it is peeled apart section by section and its root is destroyed, a dead station included. A sever counts: the pieces cut away leave its pool, so a cut that leaves the kept half at or below the threshold collapses it. A destroyed station drops its hold and the player's storage as cargo canisters, releases a docked ship and is gone for good: its cell's record no longer holds it |
 | turning dead | a living station whose last turret or last `Controller` section is lost (an unarmed station: its last `Controller`) turns into a dead station on the spot: services stop, it goes Neutral and lootable, its sections other than structure and docking ports switch off, and a docked player gets the helm. Hold and storage stay. See [Dead stations](#dead-stations) |
 | the guns | a living station is AI-driven. Its turrets aim, its point defense covers it, and it answers fire; with no thruster the AI never moves it. An `Enemy` or `Player` station fires on hostile sides; a `Neutral` one only answers whoever fires on it. Primary fire holds while a ship is docked, and point defense never fires through the docked hull |
 | severed pieces | a piece cut off a station leaves at the separation speed while the station keeps its own velocity, so a cut never puts a station on a new orbit |
@@ -95,8 +95,8 @@ where it stays, and a world save keeps that pose and motion.
 | orbit tolerance | over three orbits, with a hit, the radius stays within `STATION_ORBIT_TOLERANCE` (15 percent) of where it started. The pull is held constant over each physics step, so every orbit widens a little (about 1.5 percent of its energy per orbit on the proof's fast 30 s orbit, less on a real planetoid's), and a kick of one percent of orbital speed swings the radius about four percent; past the tolerance the orbit is walking out of the well or down onto the planet |
 
 The proofs are `system_station_body` (a nudged station in a void) and
-`system_station_orbit` (a torpedo that takes the waystation down to its
-floor without killing it, a shove and three orbits of a small planet).
+`system_station_orbit` (a hit that damages the waystation without
+collapsing it, a shove and three orbits of a small planet).
 
 ## Docking at a station
 
@@ -130,7 +130,7 @@ not a derelict, and its `services` list the service.
 | storage | with `Storage`, a third column lists the station's storage and its used mass against `storage_cap_g`. The player's row opens Store, the storage row Withdraw. No credits move |
 | one store | a station keeps one storage, for the player alone. Nothing else stores or takes from it |
 | refusals | Store and Withdraw refuse in this order, on the form with Confirm disabled, and on the note line: not docked, no `Storage` service, unknown item, no quantity, quantity zero, fewer items than the quantity, then `storage full, <N> kg free` for a Store or `<SHIP> has room for <N> more` for a Withdraw |
-| persistence | the storage freezes with the station when its cell retires, thaws with it, and is in the world save; a save checks it against `storage_cap_g` |
+| persistence | the storage freezes with the station when its cell retires, thaws with it, and is in the world save; a save checks it against `storage_cap_g`. A destroyed station drops it as cargo canisters with its hold |
 | events | `OnTraded` for a trade; `OnStored` and `OnWithdrawn` for a store or withdraw, the station as `id` and the player as `other_id`, see [Hold events](../events/#hold-events) |
 | a derelict | a dead station offers no service. Its hold is loot: Take and Give, as for a derelict ship |
 
@@ -197,7 +197,7 @@ The static lint and the load gate both refuse a station that:
 - has any `Thruster` section (a station never flies);
 - has no `Controller` section (nothing would hold its attitude);
 - authors no `integrity.collapse_threshold`, or one outside `0..=1` (a
-  station needs its damage floor);
+  station states the share it collapses at);
 - lists no service;
 - lists `Storage` with `storage_cap_g: 0`, or sets `storage_cap_g` above zero
   without `Storage`;
@@ -273,4 +273,4 @@ one.
 
 The three armed stations offer the waystation's services with about four
 times its stock, plus 1000 PDC rounds for their own guns, and 20000 credits.
-Every base station stops taking damage at half its hull pool.
+Every base station collapses at half its hull pool.

@@ -29,7 +29,7 @@ in `crates/nova_authoring/src/base_content/sections/recipes.rs`.
 
 A destroyed section drops `BuildRecipe::strip_parts`, `floor(strip_yield *
 count)` of each part, as cargo canisters; a destroyed ship root drops its
-hold. A section destroyed in its root's structural collapse adds its parts to
+hold, and a destroyed station root its `StationStorage` with it. A section destroyed in its root's structural collapse adds its parts to
 the root's drop, so a ship destroyed whole leaves one drop. The drop is a
 `MinedOreDrop` that the mining ejector drains, so it freezes, thaws and saves
 like mined ore (`nova_scenario/src/wreck_cargo.rs`).

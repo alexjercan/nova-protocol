@@ -83,12 +83,12 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** Stations are content: `Station` entries spawned by id as
   `kind: Station` with a required side and hull `collapse_threshold`. World
   save format 7 adds the chart; older saves are refused.
-- A station is a dynamic body: gravity and rams move it and its bridge levels
-  it. Damage stops at its `collapse_threshold` share of hull, so it never
-  breaks up; in a well it holds a circular orbit.
+- A station is a dynamic body: gravity and rams move it, its bridge levels it
+  and it orbits in a well. At its `collapse_threshold` share of hull it
+  collapses like a ship and drops its hold and storage.
 - A living station that loses its last turret or flight computer turns dead:
   services stop, its hold opens to Take and a docked player gets the helm. Its
-  stock stays and it never despawns.
+  stock stays.
 - Docking at a station: an Enemy station refuses with `<NAME> REFUSES
   DOCKING` on HUD; a living station holds the pair's helm and refuses
   `HELM`; a dead station hands the helm to the docked player.

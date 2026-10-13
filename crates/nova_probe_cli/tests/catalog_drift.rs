@@ -998,6 +998,16 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_station_round_trip",
+        &[
+            "the lost section is rebuilt from its recipe at a generated station",
+            "the retired cell's record holds the station as left",
+            "the thawed station is the station as left",
+            "the leave save holds the station as left",
+            "a loaded world gives back the station and the rebuilt section",
+        ],
+    ),
+    (
         "system_station_storage",
         &[
             "the docked player buys and sells at a living station",
@@ -1023,7 +1033,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         "system_station_orbit",
         &[
             "station rides its orbit",
-            "station shrugs off a torpedo",
+            "station takes a hit",
             "station levels after a hit under gravity",
             "station holds its orbit",
         ],
@@ -1031,7 +1041,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 507;
+const SYSTEMS_INVARIANTS: usize = 512;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

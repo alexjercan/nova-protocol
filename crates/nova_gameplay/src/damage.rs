@@ -766,19 +766,7 @@ fn resolve_nova_blast_hits(
         }
     }
 
-    for mut group in groups {
-        // Strongest pressure first, so the side of a hull facing the warhead
-        // spends its pool before the far side does. Order decides nothing on
-        // an ordinary hull, where every hit lands; on a floored one
-        // (`HealthFloor`) the hits that land are the first ones up to the
-        // floor, and those must be the near side's. Entity bits break ties so
-        // a replay spends the same sections.
-        group.hits.sort_by(|left, right| {
-            right
-                .1
-                .total_cmp(&left.1)
-                .then_with(|| left.0.to_bits().cmp(&right.0.to_bits()))
-        });
+    for group in groups {
         // Carved at the BLAST's own centre rather than at each target: a blast
         // is a sphere of material removed, and every body caught in one is
         // carved by that same sphere, so the bite a warhead takes out of a hull

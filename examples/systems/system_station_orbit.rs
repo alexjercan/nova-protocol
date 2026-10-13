@@ -1,18 +1,18 @@
 //! system_station_orbit: a station is a body in a planet's well.
 //!
 //! The base waystation is spawned in a circular orbit of a small planet with
-//! the velocity `station_orbit_velocity` gives it, and a player ship parked
-//! outside the well fires one torpedo at it. The warhead goes off on the
-//! station and takes hit points off it without killing it; a kick the size of
-//! a ram spins the hull and its own flight computer levels it under gravity;
-//! then the station rides three full orbits without its radius drifting.
+//! the velocity `station_orbit_velocity` gives it, with a player ship parked
+//! outside the well. A scripted hit takes hit points off one of its sections
+//! without collapsing it; a kick the size of a ram spins the hull and its own
+//! flight computer levels it under gravity; then the damaged station rides
+//! three full orbits without its radius drifting.
 //!
 //! | # | marker | claim |
 //! | - | - | - |
 //! | 1 | `outcome: station rides its orbit` | the station moves at the circular speed of the planet's well, on the radius it was placed at |
-//! | 2 | `outcome: station takes a torpedo` | a warhead detonates on the station and its hull pool drops below the hull it was built with; the root is not collapsed, marked at zero, disabled, neutralized or derelict |
+//! | 2 | `outcome: station takes a hit` | a hit on one of its sections drops the hull pool below the hull it was built with; the root is not collapsed, marked at zero, disabled, neutralized or derelict |
 //! | 3 | `outcome: station levels after a hit under gravity` | spun and shoved, the hull comes to rest within `STATION_LEVEL_TOLERANCE_RAD` of its parked attitude while the well pulls on it |
-//! | 4 | `outcome: station holds its orbit` | after three orbits and the hit the radius never left `STATION_ORBIT_TOLERANCE` of where it started, the hull is still level and no pool changed since the torpedo |
+//! | 4 | `outcome: station holds its orbit` | after three orbits and the hit the radius never left `STATION_ORBIT_TOLERANCE` of where it started, the hull is still level and no pool changed since the hit |
 //!
 //! The planet is scaled for the walk, not for the world. A generated
 //! planetoid is 500-1600 m with the mass that reaches 3.5 radii of influence
@@ -20,10 +20,13 @@
 //! cap, which puts a 450 m orbit at a 30 s period so three orbits fit a
 //! software-rendered run. The tolerances are the shipped constants, unscaled.
 //!
-//! A torpedo blast deals pressure and no impulse (`apply_blast_damage`), so
-//! the hit that has to be levelled out is authored: the same 0.5 rad turn and
-//! 0.3 rad/s spin `system_station_body` uses, plus a tangential delta-v of one
-//! percent of orbital speed, which is what a ram leaves behind.
+//! The hit is scripted, half of one section's pool, because a station
+//! collapses as a ship does: one Serpent torpedo takes the waystation under
+//! its collapse threshold and apart, which ends the orbit this range is
+//! about. The hit deals no impulse, so the shove that has to be levelled out
+//! is authored too: the same 0.5 rad turn and 0.3 rad/s spin
+//! `system_station_body` uses, plus a tangential delta-v of one percent of
+//! orbital speed, which is what a ram leaves behind.
 //!
 //! The orbit the proof measures is not the kick alone. The pull is a force
 //! held constant over each fixed step, so an orbit gains energy every step:
@@ -38,7 +41,7 @@
 //! NOVA_AUTOPILOT=1 NOVA_AUTOPILOT_DEADLINE=1800 \
 //!   cargo run --example system_station_orbit --features debug
 //! # look for: `station probe: the waystation rides its orbit`,
-//! #           `station probe: the waystation takes the torpedo`,
+//! #           `station probe: the waystation takes a hit`,
 //! #           `station probe: the waystation levels under gravity`,
 //! #           `station probe: the waystation holds its orbit`,
 //! #           `autopilot: cycle complete, no panic`
@@ -58,7 +61,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "system_station_orbit")]
 #[command(version = "1.0.0")]
-#[command(about = "A station orbits a planet, takes a torpedo and a shove, levels and holds its orbit. Autopilot-only correctness range", long_about = None)]
+#[command(about = "A station orbits a planet, takes a hit and a shove, levels and holds its orbit. Autopilot-only correctness range", long_about = None)]
 struct Cli;
 
 /// The scenario id the range loads under.
@@ -84,8 +87,7 @@ const PLANET_SEED: u32 = 7;
 const ORBIT_RADIUS: Meters = Meters(450.0);
 
 /// Where the player ship is parked: above the orbit plane, outside the
-/// sphere of influence so it neither falls nor orbits, aimed down at the
-/// planet so the bay's muzzle faces the station's whole orbit.
+/// sphere of influence so it neither falls nor orbits.
 const PLAYER_POSITION: Meters3 = Meters3::new(0.0, 1500.0, 0.0);
 
 /// The script type, named once so the step list and its helpers agree.
@@ -106,16 +108,12 @@ fn main() -> bevy::app::AppExit {
 }
 
 /// The scripted run. Every beat waits on a world value - the station moving,
-/// the safety going hot, the warhead going off, the spin dying, the sweep
-/// closing - so a slow frame delays the walk instead of truncating it. The
+/// the spin dying, the sweep closing - so a slow frame delays the walk
+/// instead of truncating it. The
 /// deadlines are real seconds on a software rasterizer and sized for it.
 #[cfg(feature = "debug")]
 fn orbit_script() -> Script {
     Script::new()
-        // Every step re-presses whatever the script is holding down: the
-        // safety reads a HELD button, and a press applied once on a step's
-        // entry would be a press, not a hold.
-        .input(hold_inputs)
         .step("load the planet, the station and the player")
         .enter(GameStates::Loading)
         .until(and(station_present(), planet_present()))
@@ -128,27 +126,11 @@ fn orbit_script() -> Script {
         .step("assert the station rides its orbit")
         .on_enter(assert_station_orbits)
         .add()
-        .step("raise the weapons")
-        .on_enter(|world: &mut World| world.resource_mut::<HeldInput>().combat = true)
-        .until(weapons_are_hot())
-        .deadline(60.0)
+        .step("hit one section of the station")
+        .on_enter(hit_the_station)
+        .until(frames(2))
         .add()
-        .step("fire one torpedo at the station")
-        .on_enter(|world: &mut World| world.resource_mut::<HeldInput>().fire = true)
-        .until(torpedo_present())
-        .deadline(60.0)
-        .add()
-        .step("release the trigger and wait for the warhead")
-        .on_enter(release_the_trigger)
-        .until(blast_seen())
-        .deadline(600.0)
-        .add()
-        // The blast's pressure is queued and spent on later frames; give the
-        // health store time to hear every hit before reading it.
-        .step("let the pressure land")
-        .until(frames(20))
-        .add()
-        .step("assert the station takes the torpedo")
+        .step("assert the station takes the hit")
         .on_enter(assert_station_damaged)
         .add()
         .step("kick the station as a ram would")
@@ -179,11 +161,8 @@ fn custom_plugin(app: &mut App) {
     #[cfg(feature = "debug")]
     {
         app.init_resource::<OrbitEpoch>();
-        app.init_resource::<HeldInput>();
-        app.init_resource::<BlastLog>();
         app.add_systems(First, hold_the_walk_clock.before(bevy::time::TimeSystems));
-        app.add_systems(Update, (aim_torpedoes_at_the_station, track_orbit));
-        app.add_observer(note_the_blast);
+        app.add_systems(Update, track_orbit);
     }
 }
 
@@ -240,10 +219,10 @@ fn orbit_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
             // The hull's forward is -Z; this turns it onto -Y, at the planet.
             rotation: Quat::from_rotation_x(-FRAC_PI_2),
         },
-        kind: ScenarioObjectKind::Spaceship(torpedo_ship(sections)),
+        kind: ScenarioObjectKind::Spaceship(player_ship(sections)),
     };
     ScenarioConfig {
-        description: "The waystation in orbit of a small planet, under the player's bay."
+        description: "The waystation in orbit of a small planet, under the player's ship."
             .to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
@@ -268,24 +247,17 @@ fn orbit_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
     }
 }
 
-/// The player's hull: a controller, a piece of armor and one Serpent bay out
-/// of the base catalog, firing on Space. The bay carries no magazine: the
-/// subject is the station, not the ammunition.
-fn torpedo_ship(sections: &GameSections) -> SpaceshipConfig {
+/// The player's hull: a controller and a piece of armor out of the base
+/// catalog. It only watches; the subject is the station.
+fn player_ship(sections: &GameSections) -> SpaceshipConfig {
     fixtures::ship(
         sections,
         SpaceshipController::Player(PlayerControllerConfig {
-            input_mapping: BTreeMap::from([(
-                "torpedo".to_string(),
-                vec![KeyCode::Space.into(), GamepadButton::RightTrigger.into()],
-            )]),
+            input_mapping: BTreeMap::new(),
         }),
         &[
             SectionSpec::new("controller", "basic_controller_section", Vec3::ZERO),
             SectionSpec::new("hull", "reinforced_hull_section", Vec3::new(0.0, 0.0, 1.0)),
-            // 1x1x2, centred at -1.5 so its two cells sit on the grid and its
-            // aft socket mates the controller.
-            SectionSpec::new("torpedo", "torpedo_section", Vec3::new(0.0, 0.0, -1.5)).unlimited(),
         ],
     )
 }
@@ -321,11 +293,6 @@ const REST_RAD_PER_SEC: f32 = 0.01;
 #[cfg(feature = "debug")]
 const START_TOLERANCE: f32 = 0.02;
 
-/// The Serpent's authored blast radius, engine units (300 m): how far from
-/// the station's centre the warhead may go off and still be a hit on it.
-#[cfg(feature = "debug")]
-const BLAST_RADIUS: f32 = 30.0;
-
 /// How much world time one frame may carry, seconds. A software rasterizer
 /// takes seconds per frame; Bevy's quarter-second clamp would stretch three
 /// 30 s orbits into a quarter-hour of frames. One second is 64 fixed steps,
@@ -340,43 +307,6 @@ fn hold_the_walk_clock(mut time: ResMut<Time<Virtual>>) {
     if time.max_delta() != cell {
         time.set_max_delta(cell);
     }
-}
-
-/// The inputs the script is holding down.
-#[cfg(feature = "debug")]
-#[derive(Resource, Default)]
-struct HeldInput {
-    /// The combat stance the safety gates firing on.
-    combat: bool,
-    /// The trigger.
-    fire: bool,
-}
-
-/// Re-press the held inputs for the frame.
-#[cfg(feature = "debug")]
-fn hold_inputs(world: &mut World, _elapsed: f32, _frame: u32) {
-    let held = world.resource::<HeldInput>();
-    let (combat, fire) = (held.combat, held.fire);
-    if combat {
-        drive_action(world, "combat_stance", InputPhase::Press);
-    }
-    if fire {
-        world
-            .resource_mut::<ButtonInput<KeyCode>>()
-            .press(KeyCode::Space);
-    }
-}
-
-/// Let go of the trigger: both halves, because `hold_inputs` re-presses the
-/// key every frame and `ButtonInput` keeps a pressed key down until it is
-/// released, so clearing the hold alone left the bay firing at its rate for
-/// the rest of the walk.
-#[cfg(feature = "debug")]
-fn release_the_trigger(world: &mut World) {
-    world.resource_mut::<HeldInput>().fire = false;
-    world
-        .resource_mut::<ButtonInput<KeyCode>>()
-        .release(KeyCode::Space);
 }
 
 /// What the walk remembers between beats: the station, the orbit it was
@@ -396,22 +326,17 @@ struct OrbitEpoch {
     /// The orbit plane's normal: radial crossed with velocity at the start.
     normal: Vec3,
     /// Every pool under the station root: as it stood at spawn, then as the
-    /// torpedo left it.
+    /// hit left it.
     health: BTreeMap<Entity, f32>,
     /// The radial direction at the last tracked frame.
     last_radial: Option<Vec3>,
     /// The angle swept about the well since the start, radians.
     swept: f32,
+    /// The section the scripted hit struck, and what it was dealt.
+    struck: Option<(Entity, f32)>,
     /// The widest and the narrowest radius seen since the start.
     radius_min: f32,
     radius_max: f32,
-}
-
-/// Every warhead that went off, by how far from the station's centre it did.
-#[cfg(feature = "debug")]
-#[derive(Resource, Default)]
-struct BlastLog {
-    blasts: Vec<f32>,
 }
 
 /// A station root exists.
@@ -577,86 +502,49 @@ fn track_orbit(mut epoch: ResMut<OrbitEpoch>, q_station: Query<&Position, With<S
     epoch.radius_max = epoch.radius_max.max(radius);
 }
 
-/// The player ship's weapons safety has gone hot.
+/// The share of one section's pool the scripted hit takes: half, so the
+/// section stands and the hull pool falls by a known amount.
 #[cfg(feature = "debug")]
-fn weapons_are_hot() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
-    Arc::new(|world: &World| {
-        world
-            .try_query_filtered::<&WeaponsHot, With<PlayerSpaceshipMarker>>()
-            .is_some_and(|mut query| query.iter(world).any(|hot| hot.0))
-    })
+const HIT_SHARE: f32 = 0.5;
+
+/// Hit one section of the station for [`HIT_SHARE`] of its pool: the
+/// section with the lowest entity bits that is neither a flight computer nor
+/// a docking port, so the hit takes nothing the station needs to level.
+#[cfg(feature = "debug")]
+fn hit_the_station(world: &mut World) {
+    let station = live_station(world).expect("station probe: the station must be up");
+    let (section, amount) = world
+        .query_filtered::<(Entity, &ChildOf, &Health), (
+            With<SectionMarker>,
+            Without<ControllerSectionMarker>,
+            Without<DockingSectionMarker>,
+        )>()
+        .iter(world)
+        .filter(|(_, child_of, _)| child_of.parent() == station)
+        .min_by_key(|(section, ..)| section.to_bits())
+        .map(|(section, _, health)| (section, health.current * HIT_SHARE))
+        .expect("station probe: the station has a section to hit");
+    world.resource_mut::<OrbitEpoch>().struck = Some((section, amount));
+    world.trigger(HealthApplyDamage {
+        entity: section,
+        source: None,
+        amount,
+    });
 }
 
-/// A torpedo is in flight.
-#[cfg(feature = "debug")]
-fn torpedo_present() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
-    any_entity::<With<TorpedoProjectileMarker>>()
-}
-
-/// Hand every fresh torpedo the station as its target. The player's own
-/// targeting would mark a shot with no lock as dumb-fire, and a dumb-fire
-/// torpedo never fuzes; the station is the one thing on this range to hit.
-#[cfg(feature = "debug")]
-fn aim_torpedoes_at_the_station(
-    mut commands: Commands,
-    q_torpedo: Query<Entity, (With<TorpedoProjectileMarker>, Without<TorpedoTargetChosen>)>,
-    q_station: Query<Entity, With<StationMarker>>,
-) {
-    let Some(station) = q_station.iter().next() else {
-        return;
-    };
-    for torpedo in &q_torpedo {
-        commands
-            .entity(torpedo)
-            .insert((TorpedoTargetEntity(station), TorpedoTargetChosen));
-    }
-}
-
-/// Record every warhead that goes off, and how far from the station it did.
-#[cfg(feature = "debug")]
-fn note_the_blast(
-    add: On<Add, NovaBlast>,
-    q_transform: Query<&Transform>,
-    q_station: Query<&Position, With<StationMarker>>,
-    mut log: ResMut<BlastLog>,
-) {
-    let at = q_transform
-        .get(add.entity)
-        .map_or(Vec3::NAN, |transform| transform.translation);
-    let from_station = q_station
-        .iter()
-        .next()
-        .map_or(f32::INFINITY, |position| position.0.distance(at));
-    info!("station probe: a warhead went off at {at:?}, {from_station:.2} u from the station");
-    log.blasts.push(from_station);
-}
-
-/// A warhead has gone off.
-#[cfg(feature = "debug")]
-fn blast_seen() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
-    Arc::new(|world: &World| {
-        world
-            .get_resource::<BlastLog>()
-            .is_some_and(|log| !log.blasts.is_empty())
-    })
-}
-
-/// Invariant 2: the warhead went off on the station and took hit points off
-/// it - the root's pool stands below the hull it was built with - but the
-/// station is neither collapsed nor marked at zero, and it is still a living
-/// station with a flight computer to level it. The pools as they stand now
-/// are what the orbit beat later checks against.
+/// Invariant 2: the hit took hit points off the station - the struck
+/// section lost exactly what it was dealt and the root's pool stands below
+/// the hull it was built with - but the station is neither collapsed nor
+/// marked at zero, lost no pool, and it is still a living station with a
+/// flight computer to level it. The pools as they stand now are what the
+/// orbit beat later checks against.
 #[cfg(feature = "debug")]
 fn assert_station_damaged(world: &mut World) {
     let station = live_station(world).expect("station probe: the station must still be up");
-    let blasts = world.resource::<BlastLog>().blasts.clone();
-    let nearest = blasts.iter().copied().fold(f32::INFINITY, f32::min);
-    assert!(
-        nearest < BLAST_RADIUS,
-        "station probe: no warhead went off on the station; the nearest was {nearest:.2} u \
-         away of {:?}",
-        blasts
-    );
+    let (section, amount) = world
+        .resource::<OrbitEpoch>()
+        .struck
+        .expect("station probe: the hit was recorded");
     let pool = world
         .get::<Health>(station)
         .map(|health| Health {
@@ -666,57 +554,50 @@ fn assert_station_damaged(world: &mut World) {
         .expect("station probe: the station root carries the hull pool");
     assert!(
         pool.current < pool.max,
-        "station probe: the torpedo took nothing off the station ({} of {})",
+        "station probe: the hit took nothing off the station ({} of {})",
         pool.current,
         pool.max
     );
     let root = world.entity(station);
     assert!(
         !root.contains::<HealthZeroMarker>() && !root.contains::<StructuralCollapseMarker>(),
-        "station probe: the station root was collapsed or marked at zero by the torpedo"
+        "station probe: the station root was collapsed or marked at zero by the hit"
     );
     assert!(
         !root.contains::<IntegrityDisabledMarker>()
             && !root.contains::<NeutralizedMarker>()
             && !root.contains::<DerelictShipMarker>(),
-        "station probe: the torpedo killed the station rather than damaging it"
-    );
-    assert!(
-        world
-            .query_filtered::<Entity, With<PlayerSpaceshipMarker>>()
-            .iter(world)
-            .next()
-            .is_some(),
-        "station probe: the player ship is gone"
+        "station probe: the hit killed the station rather than damaging it"
     );
     let after = health_under(world, station);
-    let lost = world
-        .resource::<OrbitEpoch>()
-        .health
+    let before = world.resource::<OrbitEpoch>().health.clone();
+    let lost = before
         .keys()
         .filter(|node| !after.contains_key(node))
         .count();
+    assert_eq!(lost, 0, "station probe: the hit took {lost} pool(s) away");
+    let spent = before[&section] - after[&section];
+    assert!(
+        (spent - amount).abs() < 1e-3,
+        "station probe: the struck section lost {spent} of the {amount} it was dealt"
+    );
     world.resource_mut::<OrbitEpoch>().health = after;
     let elapsed = world.resource::<Time>().elapsed_secs();
     let share = pool.current / pool.max;
     info!(
-        "station probe: the waystation takes the torpedo ({} blast(s), nearest {nearest:.2} u, \
-         pool {:.1} of {:.1} = {share:.3}, {lost} pool(s) gone)",
-        blasts.len(),
-        pool.current,
-        pool.max
+        "station probe: the waystation takes a hit ({amount:.1} on {section:?}, \
+         pool {:.1} of {:.1} = {share:.3})",
+        pool.current, pool.max
     );
     nova_probe::probe_marker(
         world,
-        "outcome: station takes a torpedo",
+        "outcome: station takes a hit",
         serde_json::json!({
             "t": elapsed,
-            "blasts": blasts.len(),
-            "nearest": nearest,
+            "hit": amount,
             "pool": pool.current,
             "pool_max": pool.max,
             "share": share,
-            "pools_lost": lost,
         }),
     );
 }
@@ -802,7 +683,7 @@ fn three_orbits_swept() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
 
 /// Invariant 4: over three orbits and the hit the radius stayed within
 /// [`STATION_ORBIT_TOLERANCE`] of where it started, the hull is still level
-/// and no pool under it changed since the torpedo.
+/// and no pool under it changed since the hit.
 #[cfg(feature = "debug")]
 fn assert_station_holds_orbit(world: &mut World) {
     let station = live_station(world).expect("station probe: the station must still be up");
@@ -830,7 +711,7 @@ fn assert_station_holds_orbit(world: &mut World) {
     assert_eq!(
         health_under(world, station),
         before,
-        "station probe: a pool under the station changed over the orbits after the torpedo"
+        "station probe: a pool under the station changed over the orbits after the hit"
     );
     let elapsed = world.resource::<Time>().elapsed_secs();
     info!(

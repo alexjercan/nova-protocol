@@ -21,13 +21,14 @@
 //! zero because only a Thruster section writes thrust and the station lint
 //! refuses one (`lint::station`).
 //!
-//! Station sections take damage as a ship's do, but a station is never
-//! collapsed or destroyed: the hull's authored `collapse_threshold` is the
-//! floor its structure stops at (`nova_ship`'s `aggregate_ship_health`
-//! floors the root's pool with `HealthFloor`), so it keeps its place and its
-//! hold. A living station that is neutralized - its last turret or its last
-//! flight computer lost - turns into a dead station
-//! ([`on_station_neutralized_turn_derelict`]).
+//! A station takes damage, collapses and is destroyed as a ship is: below
+//! the hull's authored `collapse_threshold` share of its pool (a sever that
+//! leaves the kept half there included) it is peeled apart and its root
+//! destroyed, and its hold and the player's storage drop as canisters
+//! (`wreck_cargo`). A living station that is neutralized - its last turret
+//! or its last flight computer lost - turns into a dead station
+//! ([`on_station_neutralized_turn_derelict`]) first, and a dead station can
+//! still be shot apart.
 //!
 //! Where a cluster has a planet its station orbits it: the generator spawns
 //! it with [`station_orbit_velocity`], the circular speed the gravity layer
@@ -195,8 +196,9 @@ pub struct StationConfig {
 ///
 /// # Panics
 ///
-/// On a design whose hull authors no `integrity.collapse_threshold`: it is
-/// the station's damage floor, and the lint refuses the design first.
+/// On a design whose hull authors no `integrity.collapse_threshold`: a
+/// station states the share of its hull it collapses at, and the lint
+/// refuses the design first.
 pub fn station_scenario_object(
     entity: &mut EntityCommands,
     design: &StationDesign,
@@ -205,7 +207,7 @@ pub fn station_scenario_object(
     assert!(
         design.hull.integrity.collapse_threshold.is_some(),
         "station_scenario_object: station design '{}' authors no hull \
-         integrity.collapse_threshold, its damage floor",
+         integrity.collapse_threshold, the share it collapses at",
         design.id
     );
     if config.derelict {

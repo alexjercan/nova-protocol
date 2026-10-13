@@ -235,6 +235,53 @@ fn a_ship_destroyed_whole_drops_its_hold_and_its_sections_parts_in_one_drop() {
     assert_eq!(app.world().resource::<Drops>().0.len(), 1, "no second drop");
 }
 
+/// A destroyed station drops the player's storage with its stock: the
+/// stored stacks join the hold in the one drop, so a station blown apart
+/// loses the player nothing that a canister can carry.
+#[test]
+fn a_destroyed_station_drops_the_players_storage_with_its_stock() {
+    let mut app = wreck_app();
+    let items = test_items();
+    let hold = [(ItemDesignId::from(ItemRoleType::IronOre), 5)];
+    let (_, root, sections) = spawn_ship(&mut app, 2, &hold);
+    let mut storage = StationStorage::new(10_000_000);
+    storage.add(&items, &ItemDesignId::from(ItemRoleType::HullPlate), 2);
+    storage.add(&items, &ItemDesignId::from(ItemRoleType::IronOre), 3);
+    app.world_mut()
+        .entity_mut(root)
+        .insert((StationMarker("rig_station".into()), storage));
+
+    for section in &sections {
+        hit(&mut app, *section, 100.0);
+    }
+    for _ in 0..60 {
+        if app.world().get_entity(root).is_err() {
+            break;
+        }
+        app.update();
+    }
+    assert!(
+        app.world().get_entity(root).is_err(),
+        "the station never died"
+    );
+
+    let drops = &app.world().resource::<Drops>().0;
+    let root_drop: Vec<Stacks> = drops
+        .iter()
+        .flat_map(|(.., canisters)| canisters.iter().cloned())
+        .filter(|stacks| {
+            stacks
+                .iter()
+                .any(|(item, _)| item == "HullPlate" || item == "IronOre")
+        })
+        .collect();
+    assert_eq!(
+        root_drop,
+        vec![one("HullPlate", 2), one("IronOre", 8)],
+        "the stored plates and ore leave with the stock: {drops:?}"
+    );
+}
+
 /// One section shot off a ship that keeps flying drops only its own share,
 /// `floor(0.3 * count)` of each part, where it died and under the ship's
 /// sector: no panel, two spars, one bell. The hold stays aboard. The

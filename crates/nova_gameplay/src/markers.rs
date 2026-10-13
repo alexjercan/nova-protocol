@@ -112,11 +112,10 @@ impl std::fmt::Display for StationDesignId {
 ///
 /// Sits beside [`SpaceshipRootMarker`] on the same root: a station is built
 /// as a ship (sections, dock, hold, freeze) and this is what tells the two
-/// apart. A station takes damage as a ship does, with two differences the
-/// integrity layer keys on this marker: it is never collapsed and destroyed,
-/// it stops taking damage at its floor instead (`HealthFloor`), and a
-/// living one that is neutralized turns into a dead (derelict) station
-/// rather than a drifting wreck.
+/// apart. A station takes damage, collapses and is destroyed as a ship is.
+/// What the marker changes: a living station that is neutralized turns into
+/// a dead (derelict) station rather than a drifting wreck, and a sever
+/// anchors on it so a cut never moves it off its orbit.
 #[derive(Component, Clone, Debug, PartialEq, Eq, Reflect)]
 pub struct StationMarker(pub StationDesignId);
 
