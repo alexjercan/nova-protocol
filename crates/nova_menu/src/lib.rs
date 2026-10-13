@@ -40,8 +40,9 @@ pub mod prelude {
         ambience::MENU_BACKDROP_ENV,
         pause::FocusPause,
         settings::{
-            FieldNoteSetting, TrainingPromptSetting, WindowModeSetting, SETTINGS_PANEL_H,
-            SETTINGS_PANEL_MAX_H_PCT, SETTINGS_PANEL_MAX_W, SETTINGS_PANEL_WIDTH_PCT,
+            FieldNoteSetting, FocusPauseSetting, TrainingPromptSetting, WindowModeSetting,
+            SETTINGS_PANEL_H, SETTINGS_PANEL_MAX_H_PCT, SETTINGS_PANEL_MAX_W,
+            SETTINGS_PANEL_WIDTH_PCT,
         },
         settings_store::{
             load_settings, save_settings, PersistedSettings, SettingsStoreAccess,
@@ -104,10 +105,10 @@ use outcome::{
     sync_start_failure_overlay,
 };
 use pause::{
-    force_unpause, hold_clocks_for_interface, hold_clocks_for_pause_menu,
-    keep_frozen_cursor_released, open_command_shell, pause_on_focus_loss, reconcile_pause_overlay,
-    release_clocks_for_interface, release_clocks_for_pause_menu, release_cursor, restore_cursor,
-    toggle_pause, FocusPause,
+    apply_focus_pause_setting, force_unpause, hold_clocks_for_interface,
+    hold_clocks_for_pause_menu, keep_frozen_cursor_released, open_command_shell,
+    pause_on_focus_loss, reconcile_pause_overlay, release_clocks_for_interface,
+    release_clocks_for_pause_menu, release_cursor, restore_cursor, toggle_pause, FocusPause,
 };
 use portal::{drive_update_choreography, UpdateRequested};
 #[cfg(not(target_arch = "wasm32"))]
@@ -121,7 +122,7 @@ use scenarios::{
 use settings::{
     apply_settings_rebind, on_sensitivity_slider_change, on_volume_slider_change,
     refresh_settings_tab, settings_tab_dirty, sync_sensitivity_slider, sync_volume_slider,
-    FieldNoteSetting, PendingRebind, SettingsActiveTab, SettingsControlsGroup,
+    FieldNoteSetting, FocusPauseSetting, PendingRebind, SettingsActiveTab, SettingsControlsGroup,
     TrainingPromptSetting, WindowModeSetting,
 };
 use settings_store::SettingsStorePlugin;
@@ -227,6 +228,7 @@ impl Plugin for NovaMenuPlugin {
         app.add_observer(button_on_setting::<WindowModeSetting>);
         app.add_observer(button_on_setting::<TrainingPromptSetting>);
         app.add_observer(button_on_setting::<FieldNoteSetting>);
+        app.add_observer(button_on_setting::<FocusPauseSetting>);
         app.add_systems(Update, (sync_volume_slider, sync_sensitivity_slider));
         // Ungated by menu state: the SAME body is the pause overlay's, which
         // only exists while playing.
@@ -377,9 +379,17 @@ impl Plugin for NovaMenuPlugin {
                 .chain()
                 .run_if(in_state(GameStates::Playing)),
         );
-        // The focus policy this process runs under. Inserted rather than
-        // init'd so a range (or the editor) can state its own.
+        // The focus policy this process runs under, derived from the player's
+        // setting. A range can still insert its own: the derivation only runs
+        // when the setting moves.
         app.init_resource::<FocusPause>();
+        // Ungated: the row also lives in the main menu's settings, and a choice
+        // made there must be the policy the next run starts on. Before the
+        // focus check, so a toggle and a focus loss on one frame agree.
+        app.add_systems(
+            Update,
+            apply_focus_pause_setting.before(pause_on_focus_loss),
+        );
         // The command shell opens over every surface, so its key is NOT gated
         // on Playing the way the pause overlay's is. It IS gated on the CRT
         // existing: a menu-only rig has no monitor to open. And on Normal input

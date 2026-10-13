@@ -36,8 +36,9 @@ use crate::{
 };
 use crate::{
     settings::{
-        build_settings_tabs, PauseSettingsPanel, SettingsActiveTab, SettingsTabBody,
-        SETTINGS_PANEL_H, SETTINGS_PANEL_MAX_H_PCT, SETTINGS_PANEL_MAX_W, SETTINGS_PANEL_WIDTH_PCT,
+        build_settings_tabs, FocusPauseSetting, PauseSettingsPanel, SettingsActiveTab,
+        SettingsTabBody, SETTINGS_PANEL_H, SETTINGS_PANEL_MAX_H_PCT, SETTINGS_PANEL_MAX_W,
+        SETTINGS_PANEL_WIDTH_PCT,
     },
     widgets::{back_button, button, button_variant},
 };
@@ -171,19 +172,46 @@ pub(crate) fn open_command_shell(
 
 /// Whether losing the window pauses interactive play in this process.
 ///
-/// Off for a scripted run. A probe drives an X display nobody is looking at and
-/// a `--norender` run has no window at all, so a focus pause would freeze every
-/// harnessed walk on its first frame and every one of them would stall. Read
-/// once at build (`harness_env_active`) rather than per frame, and a resource
-/// rather than a constant so a range can state which side of the policy it is
-/// proving.
+/// The player opts in with [`FocusPauseSetting`]; off by default, so alt-tab
+/// leaves the run going. [`apply_focus_pause_setting`] derives this from the
+/// setting at startup and on every change.
+///
+/// Always off for a scripted run, whatever the setting says. A probe drives an
+/// X display nobody is looking at and a `--norender` run has no window at all,
+/// so a focus pause would freeze every harnessed walk on its first frame and
+/// every one of them would stall. A resource rather than a function of the
+/// setting so a range can state which side of the policy it is proving: the
+/// derivation only overwrites it when the setting moves.
 #[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FocusPause(pub bool);
 
+impl FocusPause {
+    /// The policy `setting` yields in this process: the player's choice, and
+    /// never under a harness ([`harness_env_active`]).
+    pub fn from_setting(setting: FocusPauseSetting) -> Self {
+        Self(setting.pauses() && !harness_env_active())
+    }
+}
+
 impl Default for FocusPause {
     fn default() -> Self {
-        Self(!nova_gameplay::prelude::harness_env_active())
+        Self::from_setting(FocusPauseSetting::default())
     }
+}
+
+/// Put the player's [`FocusPauseSetting`] on the live [`FocusPause`].
+///
+/// Runs on the setting's first frame (the startup load has already written
+/// it) and whenever the settings row moves it, and at no other time, so a
+/// policy a range inserted holds for the rest of its run.
+pub(crate) fn apply_focus_pause_setting(
+    setting: Res<FocusPauseSetting>,
+    mut policy: ResMut<FocusPause>,
+) {
+    if !setting.is_changed() {
+        return;
+    }
+    policy.set_if_neq(FocusPause::from_setting(*setting));
 }
 
 /// Whether an interactive run should be holding a focus pause right now.

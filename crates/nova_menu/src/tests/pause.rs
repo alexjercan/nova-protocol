@@ -18,7 +18,10 @@ use super::support::{
     TEST_BACKDROP_ID,
 };
 use crate::{
-    mods::ModsPanel, pause::toggle_pause, scenarios::ScenariosPanel, settings::SettingsPanel,
+    mods::ModsPanel,
+    pause::{toggle_pause, FocusPause},
+    scenarios::ScenariosPanel,
+    settings::{FocusPauseSetting, SettingsPanel},
 };
 
 #[test]
@@ -394,8 +397,9 @@ fn overlay_roots_carry_an_explicit_z_index() {
     }
 }
 
-/// A playing rig with a window of its own, so focus can be taken from it.
-fn windowed_scenario_app() -> (App, Entity) {
+/// A playing rig with a window of its own, so focus can be taken from it, on
+/// the player's default: Pause when unfocused OFF.
+fn windowed_scenario_app_keeping_the_default() -> (App, Entity) {
     let mut app = app();
     app.insert_resource(dummy_scenarios());
     app.insert_resource(CurrentScenario(Some(dummy_scenario("live_run").1)));
@@ -404,6 +408,24 @@ fn windowed_scenario_app() -> (App, Entity) {
         .spawn((Window::default(), PrimaryWindow))
         .id();
     enter_playing(&mut app);
+    (app, window)
+}
+
+/// Switch Pause when unfocused ON, as the settings row does. After the
+/// startup load, so a saved store cannot overwrite it. Takes effect on the
+/// next frame; fewer than `SETTINGS_SAVE_DEBOUNCE_FRAMES` follow in every
+/// caller, so the shared fixture store is never written.
+fn opt_in_to_the_focus_pause(app: &mut App) {
+    *app.world_mut().resource_mut::<FocusPauseSetting>() = FocusPauseSetting::Pause;
+}
+
+/// [`windowed_scenario_app_keeping_the_default`] with the focus pause opted in
+/// and applied, so a policy a test inserts afterwards is not overwritten.
+fn windowed_scenario_app() -> (App, Entity) {
+    let (mut app, window) = windowed_scenario_app_keeping_the_default();
+    opt_in_to_the_focus_pause(&mut app);
+    app.update();
+    assert_eq!(*app.world().resource::<FocusPause>(), FocusPause(true));
     (app, window)
 }
 
@@ -416,7 +438,36 @@ fn set_focus(app: &mut App, window: Entity, focused: bool) {
     app.update();
 }
 
-/// Alt-tabbing out of a fight pauses it, and alt-tabbing back does not resume:
+/// Alt-tab keeps the run going unless the player asked otherwise: the focus
+/// pause is opt-in, and switching the row on mid-run is the policy from the
+/// next frame.
+#[test]
+fn with_pause_when_unfocused_off_losing_the_window_keeps_play_running() {
+    let (mut app, window) = windowed_scenario_app_keeping_the_default();
+    assert_eq!(
+        *app.world().resource::<FocusPauseSetting>(),
+        FocusPauseSetting::KeepRunning,
+        "a fresh install keeps running on alt-tab"
+    );
+
+    set_focus(&mut app, window, false);
+
+    assert_eq!(
+        pause_state(&app),
+        PauseStates::Unpaused,
+        "the default keeps flying while unfocused"
+    );
+    assert_eq!(clocks_paused(&app), (false, false));
+
+    // Delivery guard: the identical focus loss pauses once the row is on.
+    opt_in_to_the_focus_pause(&mut app);
+    app.update();
+    app.update();
+    assert_eq!(pause_state(&app), PauseStates::Paused);
+}
+
+/// With the focus pause opted in, alt-tabbing out of a fight pauses it, and
+/// alt-tabbing back does not resume:
 /// the player left, and what they come back to is the pause menu they would
 /// have opened themselves, with Resume under the pointer.
 #[test]
@@ -462,6 +513,8 @@ fn entering_play_while_already_unfocused_still_pauses() {
     ));
 
     enter_playing(&mut app);
+    opt_in_to_the_focus_pause(&mut app);
+    app.update();
     app.update();
 
     assert_eq!(pause_state(&app), PauseStates::Paused);
@@ -474,7 +527,7 @@ fn entering_play_while_already_unfocused_still_pauses() {
 #[test]
 fn a_scripted_run_ignores_focus() {
     let (mut app, window) = windowed_scenario_app();
-    app.insert_resource(crate::pause::FocusPause(false));
+    app.insert_resource(FocusPause(false));
 
     set_focus(&mut app, window, false);
 
@@ -485,7 +538,7 @@ fn a_scripted_run_ignores_focus() {
     );
 
     // Delivery guard: the identical focus loss pauses under the shipped policy.
-    app.insert_resource(crate::pause::FocusPause(true));
+    app.insert_resource(FocusPause(true));
     app.update();
     app.update();
     assert_eq!(pause_state(&app), PauseStates::Paused);
@@ -504,6 +557,7 @@ fn the_build_mode_workbench_does_not_pause_on_focus_loss() {
         .spawn((Window::default(), PrimaryWindow))
         .id();
     enter_playing(&mut app);
+    opt_in_to_the_focus_pause(&mut app);
 
     set_focus(&mut app, window, false);
 

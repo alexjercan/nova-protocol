@@ -15,7 +15,10 @@ use super::support::{
     all_text, app, app_with_outcome, clocks_paused, dummy_scenario, dummy_scenarios, enter_playing,
     find_named, pause_state, press_escape,
 };
-use crate::outcome::{StartFailureCamera, StartFailureOverlay};
+use crate::{
+    outcome::{StartFailureCamera, StartFailureOverlay},
+    settings::FocusPauseSetting,
+};
 
 /// Defeat with a queued lingering retry (the shakedown death shape):
 /// DEFEAT banner, message, a Retry button that releases the lingering
@@ -762,6 +765,9 @@ fn a_timed_outcome_that_advances_unfocused_hands_its_pause_to_the_menu() {
         ))
         .id();
     enter_playing(&mut app);
+    // The player who opted in to the focus pause. Eleven frames follow, under
+    // the save debounce, so the shared fixture store is never written.
+    *app.world_mut().resource_mut::<FocusPauseSetting>() = FocusPauseSetting::Pause;
     app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig {
         outcome: ScenarioOutcomeKind::Victory,
         message: None,

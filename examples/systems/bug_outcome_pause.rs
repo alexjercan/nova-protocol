@@ -3,10 +3,11 @@
 //! Three things that all come down to the same question - who owns the screen,
 //! and is the world running behind them - walked over the shipped app:
 //!
-//! 1. ALT-TAB. Losing the window pauses interactive play, with the ordinary
-//!    pause menu and its ordinary Resume. Coming back does not resume: the
-//!    player left, and being dropped back into a fight they are not looking at
-//!    is how a run is lost to a notification.
+//! 1. ALT-TAB. With Pause when unfocused on, losing the window pauses
+//!    interactive play, with the ordinary pause menu and its ordinary Resume.
+//!    Coming back does not resume: the player left, and being dropped back
+//!    into a fight they are not looking at is how a run is lost to a
+//!    notification.
 //! 2. THE RACE. ESC and a scenario's `Outcome` action can land on the same
 //!    frame. The pause menu opens first, the outcome arrives behind it, and ESC
 //!    is then inert over an outcome - so the panel could neither be closed nor
@@ -24,7 +25,7 @@
 //! The focus policy is OFF under a harness (`FocusPause`): a probe drives an X
 //! display nobody is looking at, and a range that paused on its own first frame
 //! would stall rather than walk. This one asserts that exemption is live and
-//! then switches the player's policy on, which is what makes every pause below
+//! then switches the opted-in player's policy on, which is what makes every pause below
 //! the policy's doing rather than the harness's.
 //!
 //! The fixtures are two `ScenarioConfig` values built in Rust, registered in
@@ -360,7 +361,8 @@ fn outcome_pause_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin
                 "outcome: a scripted run is exempt from the focus pause",
                 serde_json::json!({}),
             );
-            // ...and from here the run walks the policy a player gets.
+            // ...and from here the run walks the policy a player who switched
+            // Pause when unfocused on gets.
             world.insert_resource(FocusPause(true));
         })
         .add()

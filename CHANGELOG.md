@@ -97,6 +97,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The Map's chart view (`C`) draws the cells you entered by cluster type and
   the stations and wrecks you found by code. A station shows the services and
   stock seen on your last dock.
+- Alt-tab no longer pauses play by default. Settings > Graphics > Pause when
+  unfocused turns the focus pause back on.
 
 ### Web & Platform
 

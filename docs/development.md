@@ -297,7 +297,8 @@ What is on disk today, in reading order:
   (die -> the Defeat overlay -> Retry -> a clean reload -> kill -> the
   objective and the CHECKPOINT -> Continue -> the chained scenario),
   `bug_outcome_pause` (who owns the screen and whether the world is running
-  behind them: alt-tab pauses a fight and coming back does not resume, an
+  behind them: with the focus pause opted in, alt-tab pauses a fight and
+  coming back does not resume, an
   outcome landing over the pause menu takes the screen, and a timed advance
   taken while the player is away hands its pause to the pause menu without one
   unpaused frame),

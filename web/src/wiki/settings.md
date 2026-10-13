@@ -71,6 +71,13 @@ The web build has no such row: the game fits the canvas the page gives it. The
 panels themselves are sized as a share of the window, so a narrow browser column
 still gets a readable Settings modal with its Back button on screen.
 
+## Pause when unfocused
+
+Alt-tab, or clicking away from the game, leaves the run **going**: the fight
+does not wait. Switch **Pause when unfocused** to **On** on the Graphics tab
+and losing the window opens the ordinary pause menu instead. Coming back never
+resumes by itself; **Resume** is yours. It works the same in a browser tab.
+
 ## Controls
 
 <figure class="figure">

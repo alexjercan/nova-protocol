@@ -368,13 +368,16 @@ plugin test pins the count at one.
   pause MENU's, so an outcome landing behind it takes the screen, and an outcome
   clearing into a pause the player still owns hands it back. Exactly one modal,
   whichever arrived last.
-- Losing the window pauses interactive play (`pause_on_focus_loss`): an unpaused
+- Losing the window pauses interactive play when the player opts in
+  (`pause_on_focus_loss`, Settings > Graphics > Pause when unfocused,
+  `FocusPauseSetting`, default off so alt-tab keeps the run going): an unpaused
   run over a live scenario takes the ordinary pause the moment the window is not
   focused, and regaining focus never resumes - Resume is the player's. A run
   already paused stays as it is, so an open interface, an open command modal or a shown outcome remains
   the active modal, and the editor's build mode (no live scenario) never pauses
-  at all. `FocusPause` carries the policy and boots OFF under a harness
-  (`harness_env_active`): a probe drives an X display nobody is looking at, and
+  at all. `FocusPause` carries the policy, derived from the setting by
+  `apply_focus_pause_setting` when the setting moves, and stays OFF under a
+  harness (`harness_env_active`) whatever the setting says: a probe drives an X display nobody is looking at, and
   a `--norender` run has no window to lose. An authored `auto_advance_secs`
   keeps running on the wall clock while unfocused, and the chapter it advances
   into gets no unpaused frame - the outcome's pause is TRANSFERRED to the pause

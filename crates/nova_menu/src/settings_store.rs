@@ -21,7 +21,9 @@ use nova_interface::prelude::NovaOsMonitorSettings;
 use nova_ui::theme::{SelectedUiTheme, PHOSPHOR_THEME_ID};
 use serde::{Deserialize, Serialize};
 
-use crate::settings::{FieldNoteSetting, TrainingPromptSetting, WindowModeSetting};
+use crate::settings::{
+    FieldNoteSetting, FocusPauseSetting, TrainingPromptSetting, WindowModeSetting,
+};
 
 /// The persisted form of the settings: plain, versionable data decoupled from
 /// the live resources. Missing/extra fields are tolerated by serde defaults so
@@ -74,6 +76,10 @@ pub struct PersistedSettings {
     /// native build has a row that moves it.
     #[serde(default)]
     pub window_mode: WindowModeSetting,
+    /// Whether losing the window pauses play. An older store with no field
+    /// takes the default, which keeps the run going.
+    #[serde(default)]
+    pub focus_pause: FocusPauseSetting,
     /// Whether the main menu shows its corner prompt. This is the ONE place
     /// the first-launch training offer is remembered: an older store with no
     /// field at all takes the default and shows the prompt once.
@@ -144,6 +150,7 @@ impl Default for PersistedSettings {
             nova_os_scan_detent: default_scan_detent(),
             nova_os_sound_enabled: default_sound_enabled(),
             window_mode: WindowModeSetting::default(),
+            focus_pause: FocusPauseSetting::default(),
             training_prompt: TrainingPromptSetting::default(),
             field_note: FieldNoteSetting::default(),
             keybinds: BTreeMap::new(),
@@ -163,6 +170,7 @@ impl PersistedSettings {
         theme: SelectedUiTheme,
         monitor: NovaOsMonitorSettings,
         window_mode: WindowModeSetting,
+        focus_pause: FocusPauseSetting,
         training_prompt: TrainingPromptSetting,
         field_note: FieldNoteSetting,
         bindings: &InputBindings,
@@ -181,6 +189,7 @@ impl PersistedSettings {
             nova_os_scan_detent: monitor.scan_detent,
             nova_os_sound_enabled: monitor.sound_enabled,
             window_mode,
+            focus_pause,
             training_prompt,
             field_note,
             keybinds: bindings.overrides(),
@@ -394,6 +403,7 @@ impl Plugin for SettingsStorePlugin {
         app.init_resource::<SelectedUiTheme>();
         app.init_resource::<NovaOsMonitorSettings>();
         app.init_resource::<WindowModeSetting>();
+        app.init_resource::<FocusPauseSetting>();
         app.init_resource::<TrainingPromptSetting>();
         app.init_resource::<FieldNoteSetting>();
         // The keybind overrides land on the same table every rig is built
@@ -454,6 +464,7 @@ pub(crate) fn load_persisted_settings(
     mut theme: ResMut<SelectedUiTheme>,
     mut monitor: ResMut<NovaOsMonitorSettings>,
     mut window_mode: ResMut<WindowModeSetting>,
+    mut focus_pause: ResMut<FocusPauseSetting>,
     mut training_prompt: ResMut<TrainingPromptSetting>,
     mut field_note: ResMut<FieldNoteSetting>,
     mut bindings: ResMut<InputBindings>,
@@ -471,6 +482,7 @@ pub(crate) fn load_persisted_settings(
     *theme = SelectedUiTheme(saved.ui_theme.clone());
     *monitor = saved.nova_os_monitor();
     *window_mode = saved.window_mode;
+    *focus_pause = saved.focus_pause;
     *training_prompt = saved.training_prompt;
     *field_note = saved.field_note;
     // Before the first rig is built: the flight rig spawns with the player
@@ -564,6 +576,7 @@ pub(crate) struct LiveSettings<'w> {
     theme: Res<'w, SelectedUiTheme>,
     monitor: Res<'w, NovaOsMonitorSettings>,
     window_mode: Res<'w, WindowModeSetting>,
+    focus_pause: Res<'w, FocusPauseSetting>,
     training_prompt: Res<'w, TrainingPromptSetting>,
     field_note: Res<'w, FieldNoteSetting>,
     bindings: Res<'w, InputBindings>,
@@ -587,6 +600,7 @@ impl LiveSettings<'_> {
             || moved(self.theme.is_changed(), self.theme.is_added())
             || moved(self.monitor.is_changed(), self.monitor.is_added())
             || moved(self.window_mode.is_changed(), self.window_mode.is_added())
+            || moved(self.focus_pause.is_changed(), self.focus_pause.is_added())
             || moved(
                 self.training_prompt.is_changed(),
                 self.training_prompt.is_added(),
@@ -607,6 +621,7 @@ impl LiveSettings<'_> {
             self.theme.clone(),
             *self.monitor,
             *self.window_mode,
+            *self.focus_pause,
             *self.training_prompt,
             *self.field_note,
             &self.bindings,
@@ -660,7 +675,9 @@ mod tests {
     use nova_ui::theme::{HARDWARE_THEME_ID, PHOSPHOR_THEME_ID};
 
     use super::{PersistedSettings, KEY};
-    use crate::settings::{FieldNoteSetting, TrainingPromptSetting, WindowModeSetting};
+    use crate::settings::{
+        FieldNoteSetting, FocusPauseSetting, TrainingPromptSetting, WindowModeSetting,
+    };
 
     fn temp_store(name: &str) -> NativeStorage {
         NativeStorage::at(std::env::temp_dir().join(format!("nova_settings_{name}")))
@@ -698,6 +715,7 @@ mod tests {
             nova_os_scan_detent: 0,
             nova_os_sound_enabled: false,
             window_mode: WindowModeSetting::Borderless,
+            focus_pause: FocusPauseSetting::Pause,
             training_prompt: TrainingPromptSetting::Hidden,
             field_note: FieldNoteSetting::Hidden,
             keybinds: BTreeMap::new(),
@@ -775,6 +793,7 @@ mod tests {
                 nova_os_scan_detent: NovaOsMonitorSettings::default().scan_detent,
                 nova_os_sound_enabled: NovaOsMonitorSettings::default().sound_enabled,
                 window_mode: WindowModeSetting::default(),
+                focus_pause: FocusPauseSetting::default(),
                 training_prompt: TrainingPromptSetting::default(),
                 field_note: FieldNoteSetting::default(),
                 keybinds: BTreeMap::new(),

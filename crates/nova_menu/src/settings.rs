@@ -177,7 +177,7 @@ pub(crate) enum SettingsTabKind {
     /// Master volume.
     #[default]
     Audio,
-    /// The quality preset and the window mode.
+    /// The quality preset, the window mode and the focus pause.
     Graphics,
     /// Every rebindable action, plus the fixed system chords.
     Controls,
@@ -452,6 +452,48 @@ impl WindowModeSetting {
     }
 }
 
+/// Whether losing the window pauses interactive play.
+///
+/// `KeepRunning` is the default: a player who alt-tabs to a guide, a chat or
+/// a second monitor comes back to the game they left running, and a player
+/// who wants the pause opts in here. The live policy is [`FocusPause`], which
+/// this setting drives and a scripted run never turns on.
+///
+/// An older store with no field takes the default, so a player upgrading from
+/// a build that always paused now keeps running until they switch this on.
+///
+/// `Resource`-only on purpose, like its neighbours: on Bevy 0.19 a
+/// `#[derive(Resource)]` type is component-backed, so this doubles as the
+/// `Component` that `button_on_setting::<FocusPauseSetting>` needs.
+///
+/// [`FocusPause`]: crate::pause::FocusPause
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FocusPauseSetting {
+    /// Losing the window opens the ordinary pause menu.
+    Pause,
+    /// Losing the window leaves the run going.
+    #[default]
+    KeepRunning,
+}
+
+impl FocusPauseSetting {
+    /// The options, in row order.
+    const ALL: [Self; 2] = [Self::Pause, Self::KeepRunning];
+
+    /// What the option reads.
+    fn label(self) -> &'static str {
+        match self {
+            Self::Pause => "On",
+            Self::KeepRunning => "Off",
+        }
+    }
+
+    /// Whether the player asked for a focus pause.
+    pub(crate) fn pauses(self) -> bool {
+        matches!(self, Self::Pause)
+    }
+}
+
 /// The tab bar: one segmented row above the scrolling body. Spawned by each
 /// entry point beside its own [`SettingsTabBody`], so a tab press reaches both.
 pub(crate) fn build_settings_tabs(parent: &mut ChildSpawnerCommands, active: SettingsTabKind) {
@@ -579,6 +621,7 @@ pub(crate) struct SettingsValues<'w> {
     theme_selection: Res<'w, SelectedUiTheme>,
     theme_diagnostic: Res<'w, UiThemeDiagnostic>,
     window_mode: Res<'w, WindowModeSetting>,
+    focus_pause: Res<'w, FocusPauseSetting>,
     prompt: Res<'w, TrainingPromptSetting>,
     field_note: Res<'w, FieldNoteSetting>,
 }
@@ -619,7 +662,12 @@ pub(crate) fn refresh_settings_tab(
         commands.entity(body).with_children(|list| match active.0 {
             SettingsTabKind::Audio => build_audio_tab(list, levels),
             SettingsTabKind::Graphics => {
-                build_graphics_tab(list, *values.quality, *values.window_mode);
+                build_graphics_tab(
+                    list,
+                    *values.quality,
+                    *values.window_mode,
+                    *values.focus_pause,
+                );
             }
             SettingsTabKind::Controls => {
                 build_controls_tab(
@@ -779,11 +827,13 @@ fn build_slider_row(
 }
 
 /// GRAPHICS - the quality preset (each tier drives the combat juice; the
-/// low-end mode extends what Low/Medium skip) and, on native, the window mode.
+/// low-end mode extends what Low/Medium skip), on native the window mode, and
+/// whether losing the window pauses play.
 fn build_graphics_tab(
     list: &mut ChildSpawnerCommands,
     quality: GraphicsQuality,
     window_mode: WindowModeSetting,
+    focus_pause: FocusPauseSetting,
 ) {
     list.spawn(panel_header("Quality"));
     list.spawn((Name::new("Graphics Row"), segmented_container()))
@@ -823,6 +873,24 @@ fn build_graphics_tab(
     }
     #[cfg(target_arch = "wasm32")]
     let _ = window_mode;
+
+    // Beside the window row because it answers what alt-tab does to the
+    // window. Not native-only: a browser tab losing focus is the same gesture.
+    list.spawn(separator());
+    list.spawn(panel_header("Pause when unfocused"));
+    list.spawn((Name::new("Focus Pause Row"), segmented_container()))
+        .with_children(|row| {
+            for option in FocusPauseSetting::ALL {
+                let mut button = row.spawn((
+                    Name::new(format!("Focus Pause {}", option.label())),
+                    segmented_option(option.label()),
+                    ButtonValue(option),
+                ));
+                if option == focus_pause {
+                    button.insert(Selected);
+                }
+            }
+        });
 }
 
 /// INTERFACE - the UI theme choice and the two cards the menu's corner can
