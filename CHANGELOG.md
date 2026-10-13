@@ -45,6 +45,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The hull skin is rebuilt: flat plates at half or a whole cell with chamfered
   rims, folds and skirts that close each hull corner, and stairs clad as one
   ramp. No spikes, tents or saddles.
+- A link point can set `skin: Bare`: it still mates, but left open it gets no
+  skin plate or greeble. Truss and solar panel ends are `Bare`, so spokes and
+  wing tips stop clean.
 
 ### Scenarios & Objectives
 

@@ -63,7 +63,7 @@ shared `base` block and one kind-specific block:
 | `base.build` | build recipe | required | What a station charges to rebuild this section. See [Build recipe](#build-recipe). |
 | `base.destroy_sound` | `Option` asset ref | `None` | Sound played when this section is destroyed. Omitted means silent. |
 | `base.collider` | `Option` collider | `None` | Physics shape. Omitted means a 1 x 1 x 1 cube. |
-| `base.link_points` | link-point list | `[]` | Structural sockets. Multi-section ships must derive one connected graph from their mates. |
+| `base.link_points` | link-point list | `[]` | Structural sockets. Multi-section ships must derive one connected graph from their mates. Each point may set `skin: Bare` to stay unclad while open. |
 | `base.hide_in_editor` | bool | `false` | `true` hides the prototype from the editor palette. Ships can still reference it. |
 | `base.damage_effects` | effect list | `([Cracks])` | The damage looks this section wears. Omitted means its surface cracks, which is what every section does unless it says otherwise. |
 | `base.animations` | track list | `[]` | Art the section moves when a gameplay cue calls for it - a bay's iris, a turret's stow. Omitted means the section has no moving parts. |
@@ -244,6 +244,13 @@ Rules:
 - Normals must be finite, nonzero, and unit length.
 - One point cannot mate with multiple points.
 - Unused exterior points are valid.
+- `skin` is optional and is `Clad` or `Bare`. Omitted means `Clad`: while the
+  point is open, the derived skin puts a plate (and maybe a greeble) on its
+  face. `Bare` makes the point a dead end: it still mates and still places
+  parts, but left open it gets no plate and no greeble. Use it for the end of
+  a run that should stop clean, such as a solar wing tip:
+  `(id: "positive_x", position: (0.5, 0.0, 0.0), normal: (1.0, 0.0, 0.0), skin: Bare)`.
+  The shipped truss and solar panel sections are `Bare` on both ends.
 - A multi-section ship must form one connected mate graph.
 - Omitted `link_points` means no sockets. Collider contact and one-unit spacing
   do not provide compatibility behavior.

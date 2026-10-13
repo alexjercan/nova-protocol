@@ -10,6 +10,19 @@
 ## Agent findings
 - `solar_panel_section` (86e971480) joins side to side on +-X; an open end socket currently gets skin and greebles. Sockets live on the section prototype (`base_section.rs`); skin clads socket faces (`shell_skin.rs`).
 
+## Agent decision
+- Owner asked to work the list without stopping, so the agent chose the shape below; review it here.
+- Options considered:
+  - A. Per-socket `skin: LinkPointSkinType` (`Clad`, `Bare`), required in RON. Consequence: every socket in base RON, the example mod, the-ledger webmod, the web docs and any saved inline section must add `skin: Clad`; a **(breaking)** change for no new behaviour.
+  - B. Per-socket `skin: LinkPointSkinType`, omitted means `Clad`, serialised only when `Bare` (the `hide_in_editor` / `damage_effects` precedent in `base_section.rs`). Consequence: no migration; an author writes only the dead end. CHOSEN.
+  - C. Per-section `bare_sockets: [id]`. Consequence: a second list names sockets by id, needs an unknown-id lint, and drifts from the sockets it names.
+  - D. Per-section `skin: false`. Consequence: cannot mark one link point; the owner asked per link point.
+- Shape: `LinkPoint.skin: LinkPointSkinType` in `crates/nova_ship/src/sections/link_points.rs`. Default `Clad`. Absence has defined behaviour (the socket clads, as every socket did before), so the default hides no invalid authoring.
+- Rule: `read_cells` (`shell_skin.rs`) drops `Bare` sockets from the `SkinStructure`. An open `Bare` face gets no plate, so no greeble; the skin beside it does not climb it as a wall; clearance does not count it as a cladding blocker. The link graph, placement and integrity graph read every socket unchanged.
+- Lint: no semantic lint. Every combination of `Clad`/`Bare` is valid; a misspelt variant fails to parse at `content lint` and at load.
+- Content: `truss_hull_section` and `solar_panel_section` are `Bare` on both sockets, so spoke ends and wing tips stop clean.
+- Not changed: `nova_wfc`'s lattice reads tile faces from every socket, so its clearance check still counts a `Bare` face as clad. WFC draws no truss or solar part today.
+
 ## Delivery gate
 - Propose the authoring shape (a per-socket flag or a per-section rule), its name, default and lint before code. Other sections can still attach to such a socket; only skin plating and greebles skip it. Regenerate base content; migrate the example mod if the format changes.
 

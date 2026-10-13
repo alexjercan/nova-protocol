@@ -519,6 +519,13 @@ in a point: its top is a level plateau cut down by straight chamfers, and a
 staircase of cubes is clad as one ramp. The same structure always gives the
 same skin.
 
+- The skin clads only a face that carries an open socket. A socket authored
+  `skin: Bare` (`LinkPointSkinType`, `sections/link_points.rs`) is a DEAD END:
+  it mates, places and joins the integrity graph like any socket, but
+  `read_cells` drops it from the `SkinStructure`, so its open face gets no
+  plate and no greeble, and the skin beside it does not climb it. The truss
+  and the solar panel author both of their sockets `Bare`, so a spoke end and
+  a wing tip stop clean. Omitted means `Clad`.
 - A plate is a `SectionFixture` (`sections/fixture.rs`): `Collider`, `Health`,
   density and `HealthIsolated`, but no `SectionMarker`. So it never joins the
   integrity graph, never counts toward the ship's health, never wears a
@@ -737,7 +744,8 @@ nine generic pieces, and the ship adds its own `ShipIntegrityPlugin` on top:
   being a threat.
 
 Graph build: every section prototype authors local `link_points` with an id,
-position, and outward unit normal. When avian links a collider to its body
+position, and outward unit normal (and a `skin` mode the graph ignores; see
+[The derived skin](#the-derived-skin)). When avian links a collider to its body
 (`ColliderOf`), `ShipIntegrityPlugin` transforms those points into ship-root
 space. Coincident points with opposed normals become symmetric `ConnectedTo`
 neighbor edges. IDs are for diagnostics and UI, not compatibility. A malformed,
