@@ -19,6 +19,15 @@ Children carry the `Stations:` title prefix and the `stations` tag.
 7. Hold canisters and section parts on destruction.
 8. Map: station contacts, held jobs, chart layer, visited record.
 
+## Owner decisions
+- 2026-10-13 (reverses the invulnerability from 20261012-100000): stations take damage. Approved proposal:
+  1. A living station that loses all turrets or all controllers becomes a dead station (services stop, hold lootable, docked player gets the helm); a high collapse floor keeps it from being peeled to nothing; stored items stay with it. No despawn.
+  2. The station damage gate in `on_damage` (`crates/nova_gameplay/src/integrity/health.rs`) is removed; targeting by side as for ships.
+  3. Living stations spawn with an AI controller (turret aim, point defense, retaliation); thrusterless AI gets no maneuver.
+  4. Enemy and Player stations fire on hostile sides; Neutral stations only retaliate. Primary fire holds while docked; point defense must not fire through the docked ship.
+  5. New station design about 150-250 m: hub, four spokes and a ring on the grid, PDC turrets around hub and ring, several controllers, several docking ports; new Hull-kind truss and solar panel prototypes with simple generated meshes plus greeble kits; the design stocks PdcRound for its turrets.
+  6. Proofs: the station torpedo proof becomes damaged-but-level-and-in-orbit; new proofs for derelict on last turret lost and docking port destroyed while docked releases; a screenshot of the new look.
+
 ## Done when
 - A New Game player loses a section, docks at a generated station, rebuilds it from parts and credits, undocks, leaves the sector, returns, and the station is where and as they left it after a reload.
 
