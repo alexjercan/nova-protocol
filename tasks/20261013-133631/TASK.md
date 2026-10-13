@@ -11,6 +11,8 @@
 ## Agent findings
 - Skin is built in the shell skin code (`shell_skin.rs`; faces without sockets are not clad). Not yet surveyed.
 
+- Survey 2026-10-13 (no code landed; frames in the session scratchpad `133631/`): the style never shapes plates; four rules make the spikes. (1) rim drop: a corner touching any open cell drops to the floor (`crates/nova_ship/src/sections/shell_skin.rs:403-411`); (2) a raised edge midpoint between two floor corners, the main spike cause, about 45% of ring plates (`shell_skin.rs:418-427`); (3) the plate centre is the mean of its edge heights and an all-floor plate gets a stud lift to half a cell (`shell_shape.rs:271-273`, `:508`); (4) a socket in the plate plane lifts a corner to a full cell, one-corner climbs make 10 m points (`shell_skin.rs:456-459`). Candidates prototyped and reverted: slab (no rim drop), softrim (quarter drop, rejected), bevel (pillow tops, rejected), edge-chamfer (flat plate at half height, chamfer only on open edges, no climbs). Saved wrecks store plate shapes (`frozen.rs:68`).
+
 ## Delivery gate
 - Survey which skin rule makes the spikes (with screenshots of named hulls), show before/after frames and the proposed rule change to the owner before landing. This feature needs owner review rounds, not one pass.
 
