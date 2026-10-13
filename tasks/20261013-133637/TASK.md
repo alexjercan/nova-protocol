@@ -1,8 +1,8 @@
 # Skin: dead-end sockets link sections but get no skin or greebles
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 96
-- TAGS: v0.16.0,skin
+- TAGS: v0.16.0, skin
 
 ## User facts
 - Owner feedback 2026-10-13: "some sections (for example the solar panels) to not have skin plating/greebles on them, for example if I create a "wing" of solar panels they will leave out a single link point on the X axis, would be cool to be able to say that that link point doesn't get a skin, like it's a "dead end" but it can have other sections attached to it, just not skin plating".
@@ -22,6 +22,8 @@
 - Lint: no semantic lint. Every combination of `Clad`/`Bare` is valid; a misspelt variant fails to parse at `content lint` and at load.
 - Content: `truss_hull_section` and `solar_panel_section` are `Bare` on both sockets, so spoke ends and wing tips stop clean.
 - Not changed: `nova_wfc`'s lattice reads tile faces from every socket, so its clearance check still counts a `Bare` face as clad. WFC draws no truss or solar part today.
+
+- Orchestrator close 2026-10-14: landed in 53c5a186a (`LinkPoint.skin: LinkPointSkinType { Clad, Bare }`, truss and solar sockets `Bare`), dcc5aaaee (`screenshot_solar_wing`) and ef8e44fbe (docs). The orchestrator reviewed the wide and wing-tip before/after stacks: the end caps and their greebles are gone, and the panels and the open girder end show clean. `content lint` re-run: 0 errors. For the owner: the field defaults to `Clad` and may be left out of RON. This differs from the explicit-fields rule; the agent's reason is that absence has a defined meaning and a required field would break every mod for no new behaviour. Debt: the ship generator clearance check still treats a `Bare` face as clad (the generator does not use truss or solar parts today).
 
 ## Delivery gate
 - Propose the authoring shape (a per-socket flag or a per-section rule), its name, default and lint before code. Other sections can still attach to such a socket; only skin plating and greebles skip it. Regenerate base content; migrate the example mod if the format changes.
