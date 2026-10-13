@@ -1,8 +1,8 @@
 # Stations: Map shows station contacts, held jobs and the chart layer
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 81
-- TAGS: v0.16.0,stations
+- TAGS: v0.16.0, stations
 
 ## User facts
 - Epic `20261012-095958`. Decisions 2b and 9b (2026-10-12): held jobs and last-seen station info stay on the Map when undocked; the chart layer (sector grid, visited cells, cluster types, found stations and wrecks) lands here, with a visited-and-found record in the save from the first format bump.
@@ -21,6 +21,8 @@
   7. No jobs slot: task 20261012-100023 adds its own save field (overrides the gate's typed-slot line).
   8. The Map gets a chart view toggle: grid, visited cells, stations and wrecks as meshes on map layer 21, labels as UI; the local contact view stays.
   Changelog: edit the existing **(breaking)** world-save entry to format 7.
+
+- Orchestrator close 2026-10-13: landed in eb5126382 (Chart resource in `crates/nova_gameplay/src/chart.rs`, `ClusterType` moved there, feeding systems in `crates/nova_world_base/src/chart.rs`, save format 7 with chart item check) and 00744cb53 (Map chart view on `C` plus a footer Chart button, `examples/systems/system_world_chart.rs`). Per-cell rule: a visited cell keeps every cluster type with a body in it. Live lavapipe run passed (3 entered cells, station summary kept across save and load). `content lint` re-run: 0 errors. Screenshot reviewed: grid, visited cells, STN-1 and its last-seen panel render. Gaps: no wreck found on the proof walk (wreck marks unproven live), no permanent proof for the Retry clear, panel summary text is low contrast and lists raw item ids.
 
 ## Delivery gate
 - A `Chart` save field (visited coords, found station ids with last-seen stock summary, found wreck ids); the Map pane renders it as a layer. Jobs are a later strand; leave a typed slot, no placeholder data.
