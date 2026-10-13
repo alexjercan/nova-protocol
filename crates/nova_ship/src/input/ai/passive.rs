@@ -147,7 +147,24 @@ pub(super) fn update_passive_flight(
         (&Transform, &BodyRadius),
         (Without<AISpaceshipMarker>, Without<BeaconMarker>),
     >,
+    // A hull built of sections flies its routine only while one of them is a
+    // live thruster, as `update_combat_flight` asks. A station never had one
+    // and a hulk lost them: the autopilot would disengage on both and this
+    // driver re-engage the next frame, and on a station the maneuver's turn
+    // would fight the controller that holds it level.
+    q_section: Query<
+        (&ChildOf, Has<ThrusterSectionMarker>),
+        (With<SectionMarker>, Without<SectionInactiveMarker>),
+    >,
 ) {
+    let mut built = bevy::platform::collections::HashSet::new();
+    let mut driven = bevy::platform::collections::HashSet::new();
+    for (&ChildOf(parent), thruster) in &q_section {
+        built.insert(parent);
+        if thruster {
+            driven.insert(parent);
+        }
+    }
     // Sized SOLID bodies (asteroids, planetoids) are what patrol legs steer
     // around. Collected once; the field does not change per ship.
     let obstacles: Vec<(Vec3, f32)> = q_obstacles
@@ -178,6 +195,9 @@ pub(super) fn update_passive_flight(
         // it on. With no assembly it plans nothing: the flight writers log
         // that state once they are asked to move it.
         if docked.is_some_and(|docked| !docked.drives || assembly.is_none()) {
+            continue;
+        }
+        if built.contains(&ship) && !driven.contains(&ship) {
             continue;
         }
         let has_autopilot = autopilot.is_some();
@@ -1219,6 +1239,47 @@ mod patrol_idle_tests {
         assert!(
             world.entity(ship).get::<Autopilot>().is_none(),
             "sub-threshold drift is accepted, not chased"
+        );
+    }
+
+    /// A hull built of sections drifts without a maneuver once none of them
+    /// is a live thruster - a station that never had one, or a hulk that lost
+    /// them - and burns to rest again while one works.
+    #[test]
+    fn an_idle_drifter_with_no_live_thruster_section_flies_no_maneuver() {
+        let mut world = crate::input::ai::ai_test_world();
+        world.init_resource::<FlightSettings>();
+        world.init_resource::<Time>();
+        let ship = world
+            .spawn((
+                AISpaceshipMarker,
+                RigidBody::Dynamic,
+                Transform::default(),
+                LinearVelocity(Vec3::new(5.0, 0.0, 0.0)),
+            ))
+            .id();
+        world.spawn((ChildOf(ship), SectionMarker, ControllerSectionMarker));
+        let thruster = world
+            .spawn((
+                ChildOf(ship),
+                SectionMarker,
+                ThrusterSectionMarker,
+                SectionInactiveMarker,
+            ))
+            .id();
+
+        run_pipeline(&mut world);
+        assert!(
+            world.entity(ship).get::<Autopilot>().is_none(),
+            "no live thruster: nothing to burn with"
+        );
+
+        world.entity_mut(thruster).remove::<SectionInactiveMarker>();
+        run_pipeline(&mut world);
+        assert_eq!(
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
+            Some(AutopilotAction::Stop),
+            "a live thruster flies the station keeping again"
         );
     }
 

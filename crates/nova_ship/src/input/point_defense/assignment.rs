@@ -127,6 +127,42 @@ fn bears_on(
     arc.bears_on(rotation, position - mount, margin)
 }
 
+/// Whether the line from a mount at `origin` to a torpedo at `target` runs
+/// through the hull docked to its ship, `partner`. Point defense is exempt
+/// from the line-of-fire gate, so this is what keeps a mount from shooting
+/// the ship it holds. Sensor colliders are transparent, as they are to rounds.
+fn masked_by_partner(
+    spatial: &SpatialQuery,
+    q_sensor: &Query<(), With<Sensor>>,
+    q_collider_of: &Query<&ColliderOf>,
+    partner: Option<Entity>,
+    origin: Vec3,
+    target: Vec3,
+) -> bool {
+    let Some(partner) = partner else {
+        return false;
+    };
+    let to_target = target - origin;
+    let Ok(direction) = Dir3::new(to_target) else {
+        return false;
+    };
+    spatial
+        .cast_ray_predicate(
+            origin,
+            direction,
+            to_target.length(),
+            true,
+            &SpatialQueryFilter::default(),
+            &|collider| {
+                !q_sensor.contains(collider)
+                    && q_collider_of
+                        .get(collider)
+                        .is_ok_and(|of| of.body == partner)
+            },
+        )
+        .is_some()
+}
+
 /// Whether the computer may put a target on this mount.
 ///
 /// A mount with NO ownership slot is an AI ship's, and the AI holds its whole
@@ -149,6 +185,9 @@ fn computer_may_assign(mount: Option<&PointDefenseMount>) -> bool {
 /// both passes: a mount the player holds is cleared and left alone, so taking a
 /// mount back also takes back its claim on the torpedo, freeing it for a mount
 /// that is still the computer's.
+///
+/// A mount on a docked ship is never given a torpedo whose line runs through
+/// the hull it is docked to ([`masked_by_partner`]), at either pass.
 #[expect(
     clippy::type_complexity,
     reason = "one query term per assignment input"
@@ -191,7 +230,30 @@ pub(crate) fn update_turret_point_defense(
         ),
         With<TurretSectionMarker>,
     >,
+    q_docked: Query<&DockedShip>,
+    q_connection: Query<&DockingConnection>,
+    spatial: SpatialQuery,
+    q_sensor: Query<(), With<Sensor>>,
+    q_collider_of: Query<&ColliderOf>,
 ) {
+    let partner_of = |ship: Entity| {
+        let connection = q_connection.get(q_docked.get(ship).ok()?.connection).ok()?;
+        Some(if connection.first_ship == ship {
+            connection.second_ship
+        } else {
+            connection.first_ship
+        })
+    };
+    let masked = |ship: Entity, origin: Vec3, target: Vec3| {
+        masked_by_partner(
+            &spatial,
+            &q_sensor,
+            &q_collider_of,
+            partner_of(ship),
+            origin,
+            target,
+        )
+    };
     // Threats are per-HULL, not global: the same torpedo is seconds from one
     // ship and merely nearby to another, and imminence is what the assignment
     // sorts on.
@@ -266,7 +328,10 @@ pub(crate) fn update_turret_point_defense(
             .get(ship)
             .and_then(|threats| threats.iter().find(|threat| threat.entity == current))
             // Dead, out of range or no longer hostile: the pick is not a threat.
-            .filter(|threat| bears_on(transform, arc, threat.position, 0.0))
+            .filter(|threat| {
+                bears_on(transform, arc, threat.position, 0.0)
+                    && !masked(*ship, transform.translation(), threat.position)
+            })
             .is_some_and(|held| {
                 // ...unless something far more urgent has turned up that this
                 // mount can also reach.
@@ -274,6 +339,7 @@ pub(crate) fn update_turret_point_defense(
                     rival.entity != current
                         && rival.time_to_impact < held.time_to_impact * AI_PD_URGENCY_FACTOR
                         && bears_on(transform, arc, rival.position, AI_PD_ARC_MARGIN)
+                        && !masked(*ship, transform.translation(), rival.position)
                 })
             });
         if hold {
@@ -292,7 +358,10 @@ pub(crate) fn update_turret_point_defense(
         let pick = threats.get(ship).and_then(|threats| {
             threats
                 .iter()
-                .filter(|threat| bears_on(transform, arc, threat.position, AI_PD_ARC_MARGIN))
+                .filter(|threat| {
+                    bears_on(transform, arc, threat.position, AI_PD_ARC_MARGIN)
+                        && !masked(*ship, transform.translation(), threat.position)
+                })
                 // `threats` is already sorted by imminence, so the first
                 // unclaimed one wins outright and `min_by_key` only has to
                 // break the claimed/unclaimed tier.
@@ -362,6 +431,14 @@ mod tests {
             .id()
     }
 
+    /// A bare world with the empty collider trees the docked-partner mask
+    /// raycasts against.
+    fn pd_world() -> World {
+        let mut world = World::new();
+        world.init_resource::<avian3d::collider_tree::ColliderTrees>();
+        world
+    }
+
     fn assignment(world: &World, turret: Entity) -> Option<Entity> {
         **world.get::<TurretDefenseTarget>(turret).unwrap()
     }
@@ -371,7 +448,7 @@ mod tests {
         // The Sins-of-a-Solar-Empire-II bug, and the reason the assignment is
         // per-turret at all: a ship-wide pick puts every mount on the nearest
         // threat and the second torpedo flies in unopposed.
-        let mut world = World::new();
+        let mut world = pd_world();
         let (ship, turrets) = defended_ship(&mut world, 2);
         let near = inbound(&mut world, ship, Vec3::new(0.0, 10.0, -60.0));
         let far = inbound(&mut world, ship, Vec3::new(0.0, 10.0, -120.0));
@@ -386,7 +463,7 @@ mod tests {
 
         // A Neutral answering the player engages the player's torpedo; a
         // bystander Neutral beside it does not.
-        let mut world = World::new();
+        let mut world = pd_world();
         let player = world.spawn(SpaceshipRootMarker).id();
         let (answering, answering_turrets) = defended_ship(&mut world, 1);
         let (bystander, bystander_turrets) = defended_ship(&mut world, 1);
@@ -407,7 +484,7 @@ mod tests {
     fn a_third_turret_doubles_up_once_every_threat_is_covered() {
         // Splitting is a consequence of reachability, not a rule of its own: a
         // spare mount is not left idle for the sake of spreading fire.
-        let mut world = World::new();
+        let mut world = pd_world();
         let (ship, turrets) = defended_ship(&mut world, 3);
         inbound(&mut world, ship, Vec3::new(0.0, 10.0, -60.0));
         inbound(&mut world, ship, Vec3::new(0.0, 10.0, -120.0));
@@ -428,7 +505,7 @@ mod tests {
         // all the time, so its bad, but it can reach other targets, so it can
         // split". The nearest torpedo is UNDER the hull, past the depression
         // floor of an upright mount; the second is above it.
-        let mut world = World::new();
+        let mut world = pd_world();
         let (ship, turrets) = defended_ship(&mut world, 1);
         let under = inbound(&mut world, ship, Vec3::new(0.0, -60.0, -30.0));
         let above = inbound(&mut world, ship, Vec3::new(0.0, 40.0, -100.0));
@@ -448,7 +525,7 @@ mod tests {
     fn a_turret_with_nothing_in_its_arc_is_assigned_nothing() {
         // And says so, rather than leaving a stale pick behind: a `None`
         // assignment is what sends the mount back to the ship's primary target.
-        let mut world = World::new();
+        let mut world = pd_world();
         let (ship, turrets) = defended_ship(&mut world, 1);
         inbound(&mut world, ship, Vec3::new(0.0, -60.0, -30.0));
 
@@ -461,7 +538,7 @@ mod tests {
     fn a_mount_holds_its_target_against_a_comparable_rival() {
         // DWELL. Slew time is real, so a rival that is merely a bit closer must
         // not take the mount off the shot it is already lined up on.
-        let mut world = World::new();
+        let mut world = pd_world();
         let (ship, turrets) = defended_ship(&mut world, 1);
         let held = inbound(&mut world, ship, Vec3::new(0.0, 10.0, -100.0));
         world
@@ -483,7 +560,7 @@ mod tests {
     fn a_far_more_urgent_threat_does_take_the_mount() {
         // The other half of dwell: holding forever is its own failure. A
         // torpedo arriving in a third of the time is worth the slew.
-        let mut world = World::new();
+        let mut world = pd_world();
         let (ship, turrets) = defended_ship(&mut world, 1);
         let held = inbound(&mut world, ship, Vec3::new(0.0, 10.0, -120.0));
         world
@@ -501,7 +578,7 @@ mod tests {
         // Dwell holds a target until it dies, leaves the arc, or is outranked.
         // This is the middle case: the ship rolls, and the tracked torpedo ends
         // up under the hull.
-        let mut world = World::new();
+        let mut world = pd_world();
         let (ship, turrets) = defended_ship(&mut world, 1);
         let tracked = inbound(&mut world, ship, Vec3::new(0.0, -60.0, -30.0));
         let reachable = inbound(&mut world, ship, Vec3::new(0.0, 40.0, -100.0));
@@ -521,7 +598,7 @@ mod tests {
 
     #[test]
     fn a_dead_or_out_of_range_target_clears() {
-        let mut world = World::new();
+        let mut world = pd_world();
         let (ship, turrets) = defended_ship(&mut world, 1);
         let torpedo = inbound(&mut world, ship, Vec3::new(0.0, 10.0, -60.0));
         world
@@ -549,7 +626,7 @@ mod tests {
         // The failure dwell exists to prevent, watched over TIME rather than
         // argued about: two comparable torpedoes closing together must not make
         // a mount alternate between them.
-        let mut world = World::new();
+        let mut world = pd_world();
         let (ship, turrets) = defended_ship(&mut world, 1);
         let a = inbound(&mut world, ship, Vec3::new(0.0, 10.0, -100.0));
         let b = inbound(&mut world, ship, Vec3::new(0.0, 10.0, -98.0));
@@ -581,7 +658,7 @@ mod tests {
     fn an_unrecognised_mount_still_defends_its_ship() {
         // Fail-open, end to end: a turret carrying no arc (a mod tree the
         // solver does not cover) is assigned the threat anyway.
-        let mut world = World::new();
+        let mut world = pd_world();
         let ship = world
             .spawn((
                 AISpaceshipMarker,
@@ -612,7 +689,7 @@ mod tests {
         // A neutralized wreck is the live case (the stand-down observer
         // inserts the flag), and an unarmed hauler is the other. Clearing,
         // not skipping: a mount left on a stale assignment keeps firing.
-        let mut world = World::new();
+        let mut world = pd_world();
         let (ship, turrets) = defended_ship(&mut world, 2);
         let held = inbound(&mut world, ship, Vec3::new(0.0, 10.0, -60.0));
         for &turret in &turrets {
@@ -637,7 +714,7 @@ mod tests {
         // The player half matters: an AI-only slot makes point defence a
         // behaviour of the AI CONTROLLER rather than a capability of a flight
         // computer.
-        let mut world = World::new();
+        let mut world = pd_world();
         let ai = world
             .spawn((AISpaceshipMarker, SpaceshipRootMarker, Transform::default()))
             .id();
@@ -674,7 +751,7 @@ mod tests {
         // is the ONE thing that keeps the computer off a mount, and taking a
         // mount back must also take back its claim - not leave a stale pick
         // that the mount would resume the instant the grace expired.
-        let mut world = World::new();
+        let mut world = pd_world();
         let (ship, turrets) = defended_ship(&mut world, 1);
         world
             .entity_mut(ship)
@@ -706,5 +783,59 @@ mod tests {
         });
         world.run_system_once(update_turret_point_defense).unwrap();
         assert_eq!(assignment(&world, turrets[0]), None);
+    }
+
+    /// A mount on a docked ship never takes a torpedo whose line runs through
+    /// the hull it holds: it takes the next one it can see past it, and the
+    /// same geometry undocked takes the nearer one.
+    #[test]
+    fn a_docked_mount_never_shoots_through_its_partner() {
+        use nova_gameplay::test_support::{integrity_physics_app, settle};
+
+        for docked in [false, true] {
+            let mut app = integrity_physics_app();
+            let (ship, turrets) = defended_ship(app.world_mut(), 1);
+            let partner = app
+                .world_mut()
+                .spawn((
+                    SpaceshipRootMarker,
+                    RigidBody::Dynamic,
+                    Collider::sphere(4.0),
+                    Transform::from_xyz(0.0, 5.0, -30.0),
+                ))
+                .id();
+            if docked {
+                let connection = app
+                    .world_mut()
+                    .spawn(DockingConnection {
+                        first_ship: partner,
+                        first_section: partner,
+                        second_ship: ship,
+                        second_section: ship,
+                        helm: DockedHelmType::Neutral,
+                        measurement_fault: false,
+                    })
+                    .id();
+                app.world_mut().entity_mut(ship).insert(DockedShip {
+                    connection,
+                    helm: Quat::IDENTITY,
+                    drives: false,
+                });
+            }
+            let behind = inbound(app.world_mut(), ship, Vec3::new(0.0, 10.0, -60.0));
+            let clear = inbound(app.world_mut(), ship, Vec3::new(0.0, 40.0, -100.0));
+            settle(&mut app);
+
+            app.world_mut()
+                .run_system_once(update_turret_point_defense)
+                .unwrap();
+
+            let expected = if docked { clear } else { behind };
+            assert_eq!(
+                assignment(app.world(), turrets[0]),
+                Some(expected),
+                "docked {docked}: the nearer torpedo sits behind the partner hull"
+            );
+        }
     }
 }
