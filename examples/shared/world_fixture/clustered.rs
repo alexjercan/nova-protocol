@@ -440,6 +440,7 @@ impl CellPlan {
     pub fn manifest(&self) -> SectorManifest {
         let mut manifest = SectorManifest {
             coord: self.coord,
+            cluster_types: Vec::new(),
             asteroids: Vec::new(),
             planets: Vec::new(),
             ships: Vec::new(),

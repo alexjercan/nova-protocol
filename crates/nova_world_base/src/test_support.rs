@@ -12,8 +12,8 @@ use bevy::prelude::*;
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack, LoadedSectionPacks};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
-    CargoCanisterIdAllocator, ClockFreeze, DamageMarks, PlayerSpaceshipMarker, PointRotationOutput,
-    ShipInventory, ShipInventoryStock,
+    CargoCanisterIdAllocator, Chart, ClockFreeze, DamageMarks, PlayerSpaceshipMarker,
+    PointRotationOutput, ShipInventory, ShipInventoryStock,
 };
 use nova_scenario::prelude::{
     spaceship_scenario_object, CurrentScenario, GameStationDesigns, GeneratedMarks, NovaEventWorld,
@@ -147,6 +147,7 @@ pub fn arm_save_fixture(world: &mut World) -> Entity {
     world.init_resource::<NovaEventWorld>();
     world.init_resource::<SpentHandlers>();
     world.init_resource::<GeneratedMarks>();
+    world.init_resource::<Chart>();
     world.insert_resource(CurrentSector(SectorCoord::ORIGIN));
     let player = world
         .spawn((

@@ -38,7 +38,7 @@ use std::{collections::BTreeSet, fmt, sync::Arc};
 
 use bevy::{log::info_span, math::Quat};
 use nova_events::prelude::{GeneratedBodyId, Meters, Meters3};
-use nova_gameplay::prelude::{AssetRef, Fnv32, SeedStream};
+use nova_gameplay::prelude::{AssetRef, ClusterType, Fnv32, SeedStream};
 use nova_scenario::prelude::{
     is_asteroid_kind, patrol_stops_fault, prepare_asteroid_geometry, prepare_planet,
     AIControllerConfig, AsteroidConfig, PlanetConfig, PreparedAsteroid, PreparedPlanet,
@@ -340,6 +340,10 @@ impl SectorStation {
 pub struct SectorManifest {
     /// The cell described.
     pub coord: SectorCoord,
+    /// The type of every cluster with at least one body in the cell, in the
+    /// generator's order. The player's chart records it when the player
+    /// enters the cell. A generator with no clusters leaves it empty.
+    pub cluster_types: Vec<ClusterType>,
     /// The rocks, in generation order.
     pub asteroids: Vec<SectorAsteroid>,
     /// The planetoids, in generation order.
@@ -359,6 +363,7 @@ pub struct SectorManifest {
 #[derive(Clone, Debug)]
 pub struct SectorDescription {
     pub(crate) coord: SectorCoord,
+    pub(crate) cluster_types: Vec<ClusterType>,
     pub(crate) asteroids: Vec<SectorAsteroid>,
     pub(crate) planets: Vec<SectorPlanet>,
     pub(crate) ships: Vec<SectorShip>,
@@ -369,6 +374,11 @@ impl SectorDescription {
     /// The cell described.
     pub fn coord(&self) -> SectorCoord {
         self.coord
+    }
+
+    /// The type of every cluster with at least one body in the cell.
+    pub fn cluster_types(&self) -> &[ClusterType] {
+        &self.cluster_types
     }
 
     /// The rocks, in generation order.
@@ -581,6 +591,8 @@ fn canonical_rotation(rotation: Quat) -> String {
 #[derive(Debug)]
 pub struct PreparedSector {
     pub(crate) coord: SectorCoord,
+    /// The description's cluster types, for the cell's root.
+    pub(crate) cluster_types: Vec<ClusterType>,
     /// The description's planetoids. They never freeze, so a visited cell
     /// spawns them again beside its record.
     pub(crate) planets: Vec<PreparedSectorPlanet>,
@@ -970,6 +982,7 @@ pub fn validate_manifest(
     }
     let SectorManifest {
         coord,
+        cluster_types,
         asteroids,
         planets,
         ships,
@@ -977,6 +990,7 @@ pub fn validate_manifest(
     } = manifest;
     Ok(SectorDescription {
         coord,
+        cluster_types,
         asteroids,
         planets,
         ships,
@@ -1213,6 +1227,7 @@ pub(crate) fn prepare_cell<G: SectorGenerator>(
     let description = generate_sector(&config, coord)?;
     let SectorDescription {
         coord,
+        cluster_types,
         asteroids,
         planets,
         ships,
@@ -1263,6 +1278,7 @@ pub(crate) fn prepare_cell<G: SectorGenerator>(
     };
     Ok(PreparedSector {
         coord,
+        cluster_types,
         planets,
         bodies,
     })

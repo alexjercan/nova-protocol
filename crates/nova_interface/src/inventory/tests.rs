@@ -1805,6 +1805,7 @@ mod generated_wreck {
         fn generate(&self, input: SectorGenerationInput) -> Result<SectorManifest, SectorFault> {
             Ok(SectorManifest {
                 coord: input.coord,
+                cluster_types: Vec::new(),
                 asteroids: Vec::new(),
                 planets: Vec::new(),
                 ships: vec![self.0.clone()],

@@ -27,6 +27,10 @@
 //! handler spawned after the opening is not a sector's and makes the
 //! snapshot refuse (`nova_world::snapshot_sectors`, `UnownedBody`); a
 //! scenario that saves spawns only the player.
+//!
+//! It also carries the player's [`Chart`]: the cells the player entered, the
+//! stations and wrecks found, and each station's last-seen summary, whose
+//! item ids pass the same check as every saved hold.
 
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
@@ -39,7 +43,7 @@ use bevy::prelude::*;
 use nova_assets::{prelude::LoadedSectionPacks, storage::write_atomic};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
-    kg_text, CargoCanisterRuntimeId, GameItems, ItemDesignId, SavedBodyRef, SavedOwner,
+    kg_text, CargoCanisterRuntimeId, Chart, GameItems, ItemDesignId, SavedBodyRef, SavedOwner,
     SavedSectionRef, SavedTargetRef, CARGO_CANISTER_MAX_MASS_G,
 };
 use nova_scenario::prelude::{FrozenShip, GameScenarios, SavedScenario, ScenarioId};
@@ -68,7 +72,7 @@ pub use transients::{
 /// nobody held live is recorded as an arrival there. Every cell the player
 /// never visited regenerates from the seed on Load, so another generator
 /// would change it silently.
-pub const WORLD_SAVE_FORMAT: u32 = 6;
+pub const WORLD_SAVE_FORMAT: u32 = 7;
 
 /// The most characters a world name has, after trimming.
 const WORLD_NAME_MAX: usize = 32;
@@ -124,6 +128,8 @@ pub struct WorldSaveState {
     pub transients: Vec<FrozenTransient>,
     /// The scenario that was running and what it had done.
     pub scenario: SavedScenario,
+    /// The player's chart of the world.
+    pub chart: Chart,
 }
 
 /// The player ship as it was saved.
@@ -346,8 +352,8 @@ pub fn open_world(
 ///
 /// Refuses a header of another format or catalog, and a state file that is
 /// missing, corrupt, of another generation, holding a camera view or a
-/// transient that cannot open, an id [`check_saved_ids`] refuses, or an item
-/// `items` does not hold. Reads the whole state, so run it off the main
+/// transient that cannot open, an id [`check_saved_ids`] refuses, a chart
+/// [`Chart::validate`] refuses, or an item `items` does not hold. Reads the whole state, so run it off the main
 /// thread; the Load list does, before the player can pick the world.
 pub fn check_world(
     root: &Path,
@@ -392,6 +398,10 @@ fn read_state(
     }
     check_saved_ids(&state)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
+    state
+        .chart
+        .validate()
+        .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     check_saved_items(&state, items)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     check_saved_stock(&state, items)
@@ -404,8 +414,8 @@ fn read_state(
     Ok(state)
 }
 
-/// Every item id the saved state holds is in `items`: the player's and every
-/// ledger body's. A save checks before it
+/// Every item id the saved state holds is in `items`: the player's, every
+/// ledger body's and every chart summary's. A save checks before it
 /// writes; Load checks after the header's catalog digest has matched. A
 /// changed or missing mod normally fails at that earlier digest check.
 fn check_saved_items(state: &WorldSaveState, items: &GameItems) -> Result<(), String> {
@@ -417,6 +427,9 @@ fn check_saved_items(state: &WorldSaveState, items: &GameItems) -> Result<(), St
             "unknown item '{item}' held by the player ship '{}'",
             state.player.id.0
         ));
+    }
+    if let Some(item) = unknown(&mut state.chart.item_ids()) {
+        return Err(format!("unknown item '{item}' named by the chart"));
     }
     for (coord, record) in state.sectors.iter() {
         for body in record.bodies() {

@@ -12,8 +12,9 @@
 //! The policy is diagnosable from outside: [`EnvironmentFields`] reads the
 //! three fields anywhere, and [`sector_clusters`] answers which clusters a
 //! sector owns bodies of and what it placed and skipped, with the same numbers
-//! the generator used. Nothing puts them on a streamed entity; a debug view
-//! asks for them. [`CivilizationField`] answers which seeded civilizations
+//! the generator used. Only the types of those clusters ride on a streamed
+//! cell's root, for the player's chart; a debug view asks for the rest.
+//! [`CivilizationField`] answers which seeded civilizations
 //! reach a place. [`ShipPartSnapshot`] validates and scores the section
 //! prototypes generated ships may use. The open world pins one to its
 //! generator when it arms, built from the loaded catalog, and refuses a
@@ -32,16 +33,22 @@
 //! [`WorldSaveSession`] saves the player, the frozen ledger and every live
 //! sector on each sector crossing and on leaving, and [`open_world`] with
 //! [`resume_world`] brings it back. The web build has no saved worlds.
+//!
+//! While a world streams, this crate also feeds the player's
+//! [`Chart`]: the cells the player enters, the stations and derelict hulls
+//! the player's sensors find, and what the player sees at a docked station.
+//! A world save carries it; on the web it lasts one session.
 #![warn(missing_docs)]
 
 use bevy::prelude::*;
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_events::prelude::Meters;
-use nova_gameplay::prelude::{GameItems, PlayerSpaceshipMarker};
+use nova_gameplay::prelude::{Chart, GameItems, PlayerSpaceshipMarker};
 use nova_scenario::prelude::{CurrentScenario, GameStationDesigns, ScenarioWorldType};
 use nova_ship::prelude::GameStyles;
 use nova_world::prelude::*;
 
+mod chart;
 mod civilizations;
 mod clusters;
 mod environment;
@@ -71,7 +78,7 @@ pub use crate::{
         role_style_id, AdvancementCurveType, Civilization, CivilizationField, CivilizationReach,
         CivilizationStatusType,
     },
-    clusters::{sector_clusters, ClusterSummary, ClusterType, SectorClusters},
+    clusters::{sector_clusters, ClusterSummary, SectorClusters},
     environment::{Environment, EnvironmentFieldType, EnvironmentFields},
     layered::{NovaLayeredWorld, PinnedStation, CLEARANCE_MARGIN},
     sector_ships::{plan_ship, ship_stock, HullSlot, PlannedShip, SHIP_ADVANCEMENT_CURVE},
@@ -103,7 +110,7 @@ pub mod prelude {
     pub use super::{
         generate_ship, generate_wreck, plan_ship, role_style_id, sector_clusters, ship_stock,
         AdvancementCurveType, Civilization, CivilizationField, CivilizationReach,
-        CivilizationStatusType, ClusterSummary, ClusterType, Environment, EnvironmentFieldType,
+        CivilizationStatusType, ClusterSummary, Environment, EnvironmentFieldType,
         EnvironmentFields, HullSlot, NovaLayeredWorld, NovaWorldBasePlugin, OpenWorldSession,
         PinnedStation, PlannedShip, SectorClusters, ShipDriveLayoutType, ShipLayout,
         ShipLayoutConstraintType, ShipLayoutFailure, ShipLayoutRequest, ShipPart,
@@ -188,6 +195,7 @@ impl Plugin for NovaWorldBasePlugin {
         trace!("NovaWorldBasePlugin: build");
 
         app.add_plugins(NovaWorldPlugin::<NovaLayeredWorld>::default());
+        app.init_resource::<Chart>();
         // In `Update`, not `PreUpdate`: a menu entry swaps the scenario in
         // `StateTransition`, and a ship destroyed in `FixedUpdate` leaves the
         // world. Both land after `PreUpdate`, and the streaming stages would
@@ -205,6 +213,23 @@ impl Plugin for NovaWorldBasePlugin {
                         .or_else(generated_scenario_is_live),
                 )
                 .before(NovaWorldSystems::Cleanup),
+        );
+        // The chart clears with the frozen ledger. It is fed after `Retire`,
+        // so a cell materialized this frame is on hand, and before the save,
+        // so the snapshot holds this frame's chart.
+        app.add_systems(
+            Update,
+            (
+                chart::clear_chart.in_set(NovaWorldSystems::Cleanup),
+                (
+                    chart::chart_visited_cell.run_if(resource_exists::<CurrentSector>),
+                    chart::chart_sensor_finds,
+                    chart::chart_docked_station,
+                )
+                    .chain()
+                    .after(NovaWorldSystems::Retire)
+                    .run_if(resource_exists::<WorldConfig<NovaLayeredWorld>>),
+            ),
         );
         // The saved world, native only. Restore runs on the arming frame,
         // after `Cleanup` cleared the ledger and before `Observe` asks the
@@ -228,7 +253,8 @@ impl Plugin for NovaWorldBasePlugin {
                     save::save_systems(),
                 )
                     .chain()
-                    .after(NovaWorldSystems::Retire),
+                    .after(NovaWorldSystems::Retire)
+                    .after(chart::chart_docked_station),
             ),
         );
     }

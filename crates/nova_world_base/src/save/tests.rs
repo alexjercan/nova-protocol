@@ -5,16 +5,17 @@ use std::{collections::BTreeSet, path::Path, time::Duration};
 use avian3d::prelude::{LinearVelocity, RigidBody, Rotation};
 use bevy::prelude::*;
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack, LoadedSectionPacks};
-use nova_events::prelude::EntityId;
+use nova_events::prelude::{EntityId, GeneratedBodyId};
 use nova_gameplay::prelude::{
     nova_blast, resumed_lifetime, AssetRef, CargoCanister, CargoCanisterIdAllocator,
-    CargoCanisterRuntimeId, ClockFreeze, DamageLevel, DamageMarks, DamageType, FreezeOwner,
+    CargoCanisterRuntimeId, Chart, ClockFreeze, DamageLevel, DamageMarks, DamageType, FreezeOwner,
     FrozenRoundFlight, GameItems, Health, ImpactSparkMarker, ImpactSparkPlugin, ImpactSparks,
     IntegrityDestroyMarker, ItemCategoryType, ItemDesign, ItemDesignId, ItemRoleType,
     PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage, ProjectileOwner,
     RailgunSlugProjectileMarker, RoundRake, SavedBodyRef, SavedLifetime, SavedOwner,
     SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory,
-    SpaceshipRootMarker, TempEntity, TorpedoProjectileMarker, TurretBulletProjectileMarker,
+    SpaceshipRootMarker, StationServiceType, StationSummary, TempEntity, TorpedoProjectileMarker,
+    TurretBulletProjectileMarker,
 };
 use nova_scenario::prelude::{
     freeze_asteroid, freeze_ore_drop, freeze_ship, freeze_station, spaceship_scenario_object,
@@ -130,6 +131,7 @@ fn state(generation: u64, credits: u32) -> WorldSaveState {
         canister_ids_next: 12,
         transients: Vec::new(),
         scenario: saved_scenario(),
+        chart: Chart::default(),
     }
 }
 
@@ -2389,8 +2391,8 @@ fn frozen_item_holders(item: &ItemDesignId) -> Vec<(Option<&'static str>, Frozen
 
 /// A saved world that holds an item the loaded catalog lacks is refused by
 /// the Load list's check and by open, with the item and its holder, in every
-/// holder class; the check takes no lock. The same world opens once the
-/// catalog holds the item.
+/// holder class and in a chart summary; the check takes no lock. The same
+/// world opens once the catalog holds the item.
 #[test]
 fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
     let root = tempfile::tempdir().unwrap();
@@ -2439,7 +2441,8 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
             .into_iter()
             .map(|(id, body, owner)| (ledger_holding(east, id, &body), owner)),
     );
-    let last = 1 + cases.len() as u64;
+    let chart_generation = 2 + cases.len() as u64;
+    let last = chart_generation;
     for (generation, (sectors, owner)) in (2..).zip(cases) {
         let saved_state = WorldSaveState {
             sectors,
@@ -2457,6 +2460,35 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
             "open_world at generation {generation}"
         );
     }
+
+    // A station summary on the chart names its stock and storage by id.
+    let mut chart = Chart::default();
+    chart.record_station(
+        &GeneratedBodyId::new(east, "cluster_1_0_0_station", 0),
+        false,
+        StationSummary {
+            name: "Test station".to_string(),
+            services: vec![StationServiceType::Trade],
+            stock: vec![(item.clone(), 2)],
+            stored: Vec::new(),
+        },
+    );
+    let saved_state = WorldSaveState {
+        chart,
+        ..state(chart_generation, 750)
+    };
+    write_world(&folder, &header("Items", chart_generation), &saved_state).unwrap();
+    let chart_refused = Err(WorldRefusal::Unreadable(format!(
+        "state.{chart_generation}.ron: unknown item 'lost_core' named by the chart"
+    )));
+    assert_eq!(
+        check_world(root.path(), "items", &catalog(7), &items(), &scenarios()),
+        chart_refused
+    );
+    assert_eq!(
+        open_world(root.path(), "items", &catalog(7), &items(), &scenarios()).map(|_| ()),
+        chart_refused
+    );
 
     let (_, _lock, _, saved) =
         open_world(root.path(), "items", &catalog(7), &extended, &scenarios()).unwrap();

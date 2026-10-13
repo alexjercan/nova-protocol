@@ -16,7 +16,8 @@
 //! `render_target` (the WebGL2-safe offscreen render-to-texture recipe every
 //! viewer above this crate is born through), `bounds` (how big a body
 //! looks: the solid-collider subtree walk the HUD and the editor both size
-//! from) and `hash` (the reproducible FNV-1a derivation every seeded look is
+//! from), `chart` (the player's chart of a streamed world, which the Map
+//! reads and a world save carries) and `hash` (the reproducible FNV-1a derivation every seeded look is
 //! drawn from). Nova owns all of it, engine layers included: health, damage and
 //! destruction (`integrity`), the transform rigs, the mesh toolkit and SFX
 //! playback were vendored in from the shared-helpers crate and are nova's to
@@ -32,6 +33,7 @@ pub mod asset_ref;
 pub mod audio;
 pub mod beacon;
 pub mod bounds;
+pub mod chart;
 pub mod cheats;
 pub mod cooldown;
 pub mod damage;
@@ -111,15 +113,15 @@ pub mod prelude {
     // lesson outlives it: adding a name below is a decision.
     pub use super::{
         asset_ref::prelude::*, audio::prelude::*, beacon::prelude::*, bounds::prelude::*,
-        cheats::prelude::*, cooldown::prelude::*, damage::prelude::*, freeze::prelude::*,
-        gravity::prelude::*, hash::prelude::*, impact_sound::prelude::*, impact_spark::prelude::*,
-        integrity::prelude::*, inventory::prelude::*, juice::prelude::*, lifetime::prelude::*,
-        markers::prelude::*, math::prelude::*, mesh::prelude::*, narrative_accent::prelude::*,
-        objectives::prelude::*, plugin::prelude::*, projectile_hooks::prelude::*,
-        relations::prelude::*, render_target::prelude::*, rounds::prelude::*,
-        saved_refs::prelude::*, settings::prelude::*, shake::prelude::*, soft_dot::prelude::*,
-        transform::prelude::*, transient_light::prelude::*, EscapeOwner, GameMode, GameStates,
-        PauseStates,
+        chart::prelude::*, cheats::prelude::*, cooldown::prelude::*, damage::prelude::*,
+        freeze::prelude::*, gravity::prelude::*, hash::prelude::*, impact_sound::prelude::*,
+        impact_spark::prelude::*, integrity::prelude::*, inventory::prelude::*, juice::prelude::*,
+        lifetime::prelude::*, markers::prelude::*, math::prelude::*, mesh::prelude::*,
+        narrative_accent::prelude::*, objectives::prelude::*, plugin::prelude::*,
+        projectile_hooks::prelude::*, relations::prelude::*, render_target::prelude::*,
+        rounds::prelude::*, saved_refs::prelude::*, settings::prelude::*, shake::prelude::*,
+        soft_dot::prelude::*, transform::prelude::*, transient_light::prelude::*, EscapeOwner,
+        GameMode, GameStates, PauseStates,
     };
 }
 

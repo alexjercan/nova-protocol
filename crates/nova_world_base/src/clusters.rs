@@ -68,7 +68,7 @@ use bevy::prelude::{Quat, Vec3};
 use nova_assets::prelude::ASTEROID_TEXTURE_PATH;
 use nova_events::prelude::{Meters, Meters3, MetersPerSecond3, MetersPerSecondSquared};
 use nova_gameplay::prelude::{
-    circular_orbit_speed, unit_sphere_point, Allegiance, AssetRef, Fnv32, GameItems,
+    circular_orbit_speed, unit_sphere_point, Allegiance, AssetRef, ClusterType, Fnv32, GameItems,
     GravitySettings, GravityWell, SeedStream,
 };
 use nova_scenario::prelude::{
@@ -252,55 +252,21 @@ const ROUNDING_SLACK: Meters = Meters(1.0);
 /// world would contain.
 const ROCK_KINDS: [&str; 4] = [KIND_ROCK, KIND_METAL, KIND_ICE, KIND_CARBON];
 
-/// What a cluster is.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ClusterType {
-    /// Many rocks, and in quiet material one or two planetoids, and with
-    /// traffic one derelict hull.
-    AsteroidRich,
-    /// Rocks and nothing else.
-    RockOnly,
-    /// Two to four planetoids with a few rocks around them.
-    PlanetHeavy,
-    /// Derelict hulls in a thin rock field.
-    DerelictField,
+/// The fewest and most worlds a cluster of `cluster_type` draws.
+const fn world_band(cluster_type: ClusterType) -> (usize, usize) {
+    match cluster_type {
+        ClusterType::AsteroidRich => (0, 2),
+        ClusterType::RockOnly | ClusterType::DerelictField => (0, 0),
+        ClusterType::PlanetHeavy => PLANET_HEAVY_WORLDS,
+    }
 }
 
-impl ClusterType {
-    /// The fewest and most worlds a cluster of this type draws.
-    const fn world_band(self) -> (usize, usize) {
-        match self {
-            Self::AsteroidRich => (0, 2),
-            Self::RockOnly | Self::DerelictField => (0, 0),
-            Self::PlanetHeavy => PLANET_HEAVY_WORLDS,
-        }
-    }
-
-    /// The fewest and most hulls a cluster of this type draws.
-    const fn hull_band(self) -> (usize, usize) {
-        match self {
-            Self::AsteroidRich => (0, 1),
-            Self::RockOnly | Self::PlanetHeavy => (0, 0),
-            Self::DerelictField => DERELICT_FIELD_HULLS,
-        }
-    }
-
-    /// Every type, in the order a readout and a legend list them.
-    pub const ALL: [Self; 4] = [
-        Self::AsteroidRich,
-        Self::RockOnly,
-        Self::PlanetHeavy,
-        Self::DerelictField,
-    ];
-
-    /// What a readout calls the type.
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::AsteroidRich => "asteroid-rich",
-            Self::RockOnly => "rock-only",
-            Self::PlanetHeavy => "planet-heavy",
-            Self::DerelictField => "derelict-field",
-        }
+/// The fewest and most hulls a cluster of `cluster_type` draws.
+const fn hull_band(cluster_type: ClusterType) -> (usize, usize) {
+    match cluster_type {
+        ClusterType::AsteroidRich => (0, 1),
+        ClusterType::RockOnly | ClusterType::PlanetHeavy => (0, 0),
+        ClusterType::DerelictField => DERELICT_FIELD_HULLS,
     }
 }
 
@@ -998,6 +964,11 @@ impl SectorPlan {
             .collect();
         let mut manifest = SectorManifest {
             coord: self.coord,
+            cluster_types: self
+                .clusters
+                .iter()
+                .map(|cluster| cluster.cluster_type)
+                .collect(),
             asteroids: Vec::new(),
             planets: Vec::new(),
             ships: Vec::new(),
@@ -1642,7 +1613,7 @@ fn widest_planetoid() -> Meters {
 /// widest clearance. Also the most its anchor is moved on each axis, less
 /// [`ROUNDING_SLACK`]. Zero for a type with no worlds.
 fn core_reach(cluster_type: ClusterType) -> Meters {
-    let (_, most) = cluster_type.world_band();
+    let (_, most) = world_band(cluster_type);
     if most == 0 {
         return Meters::ZERO;
     }
@@ -1665,7 +1636,7 @@ fn core_reach_max() -> Meters {
 /// open spread when it may draw no worlds, the shell past its widest core
 /// when it may draw one.
 fn shell_reach(cluster_type: ClusterType) -> Meters {
-    let (fewest, most) = cluster_type.world_band();
+    let (fewest, most) = world_band(cluster_type);
     let open = if fewest == 0 {
         OPEN_SPREAD.1
     } else {
@@ -1684,7 +1655,7 @@ fn shell_reach(cluster_type: ClusterType) -> Meters {
 /// hypotenuse of the shell and [`ESCORT_DISTANCE`] away.
 fn member_reach(cluster_type: ClusterType) -> Meters {
     let shell = shell_reach(cluster_type);
-    if cluster_type.hull_band().1 == 0 {
+    if hull_band(cluster_type).1 == 0 {
         shell
     } else {
         Meters(shell.get().hypot(ESCORT_DISTANCE.1.get())) + ROUNDING_SLACK

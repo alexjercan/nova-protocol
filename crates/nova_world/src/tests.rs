@@ -141,6 +141,7 @@ impl SectorGenerator for Answers {
 fn empty(coord: SectorCoord, asteroids: Vec<SectorAsteroid>) -> SectorManifest {
     SectorManifest {
         coord,
+        cluster_types: Vec::new(),
         asteroids,
         planets: Vec::new(),
         ships: Vec::new(),

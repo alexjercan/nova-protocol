@@ -4,8 +4,8 @@
 //! every sector crossing, and when the player leaves. One write runs at a
 //! time, off the main thread; the newest request waits behind it and is
 //! snapshotted on the first frame the writer is idle. The snapshot is the
-//! whole world in one frame: the ledger, every live sector, the player and
-//! the canister counter.
+//! whole world in one frame: the ledger, every live sector, the player, the
+//! canister counter and the chart.
 
 use std::{
     sync::Arc,
@@ -20,7 +20,7 @@ use bevy::{
 };
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_gameplay::prelude::{
-    CargoCanisterIdAllocator, CargoCanisterRuntimeId, PlayerSpaceshipMarker, ShipCredits,
+    CargoCanisterIdAllocator, CargoCanisterRuntimeId, Chart, PlayerSpaceshipMarker, ShipCredits,
     UnsettledBody,
 };
 use nova_scenario::prelude::{
@@ -218,16 +218,18 @@ impl WorldSaveSession {
     }
 }
 
-/// The saved ledger a Load seeds the world with, taken on the frame the
-/// world arms.
+/// The saved ledger and chart a Load seeds the world with, taken on the
+/// frame the world arms.
 #[derive(Resource, Debug)]
 pub struct ResumedWorld {
     /// The ledger the save holds.
     pub sectors: FrozenSectors,
+    /// The player's chart the save holds.
+    pub chart: Chart,
 }
 
 /// Seed `world` with everything a Load resumes: the session, the saved
-/// ledger, the player ship the scenario's player spawn thaws, the camera view
+/// ledger and chart, the player ship the scenario's player spawn thaws, the camera view
 /// its controller opens at, the seed, the canister counter past every saved
 /// id, and the saved transients, with the clocks held until they are back.
 ///
@@ -248,10 +250,11 @@ pub fn resume_world(
         canister_ids_next,
         transients,
         scenario,
+        chart,
         ..
     } = state;
     world.insert_resource(WorldSaveSession::opened(folder, lock, header));
-    world.insert_resource(ResumedWorld { sectors });
+    world.insert_resource(ResumedWorld { sectors, chart });
     world.insert_resource(ResumedScenario(scenario));
     world.insert_resource(ResumedCameraView {
         view: player.view,
@@ -279,8 +282,8 @@ pub(crate) fn save_systems() -> ScheduleConfigs<ScheduleSystem> {
         .run_if(resource_exists::<WorldSaveSession>)
 }
 
-/// Seed the ledger `Cleanup` just cleared with the save's, on the frame the
-/// world arms.
+/// Seed the ledger and the chart `Cleanup` just cleared with the save's, on
+/// the frame the world arms.
 ///
 /// # Panics
 ///
@@ -295,10 +298,11 @@ pub(crate) fn restore_resumed_world(world: &mut World) {
         "nova_world_base: a ResumedWorld was inserted after the open world armed; a Load must \
          insert it before the scenario loads"
     );
-    let ResumedWorld { sectors } = world
+    let ResumedWorld { sectors, chart } = world
         .remove_resource::<ResumedWorld>()
         .expect("run only with a ResumedWorld");
     world.resource_mut::<FrozenSectors>().restore(sectors);
+    *world.resource_mut::<Chart>() = chart;
 }
 
 /// Want a save when the world first arms and when the player crosses into
@@ -471,6 +475,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
         .next_unminted()
         .0;
     let player_sector = world.resource::<CurrentSector>().0;
+    let chart = world.resource::<Chart>().clone();
     let saved_at_unix = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |since| since.as_secs());
@@ -503,6 +508,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
         canister_ids_next,
         transients,
         scenario,
+        chart,
     };
     let checked = check_saved_ids(&state)
         .map_err(|fault| match fault {
@@ -512,7 +518,10 @@ pub(crate) fn snapshot_world(world: &mut World) {
             },
         })
         .and_then(|()| {
-            check_saved_items(&state, &items)
+            state
+                .chart
+                .validate()
+                .and_then(|()| check_saved_items(&state, &items))
                 .and_then(|()| check_saved_stock(&state, &items))
                 .map_err(|reason| SectorSnapshotError::InvalidSavedState { reason })
         });

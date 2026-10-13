@@ -151,6 +151,7 @@ impl SectorGenerator for UniformAsteroids {
         }
         Ok(SectorManifest {
             coord: input.coord,
+            cluster_types: Vec::new(),
             asteroids,
             planets: Vec::new(),
             ships: Vec::new(),

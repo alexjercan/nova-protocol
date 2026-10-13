@@ -1,0 +1,183 @@
+//! What feeds the player's [`Chart`] while the open world streams: the cells
+//! the player enters, the stations and derelict hulls the player's sensors
+//! find, and what the player sees at a station while docked there.
+//!
+//! The chart is cleared with the frozen ledger, in `NovaWorldSystems::Cleanup`,
+//! so a Retry, an unload or a replaced scenario starts a new one. A Load puts
+//! the saved chart back after that clear, on the frame the world arms.
+
+use bevy::prelude::*;
+use nova_events::prelude::GeneratedBodyId;
+use nova_gameplay::prelude::{
+    Chart, ChartSectorEdge, DerelictShipMarker, PlayerSpaceshipMarker, ShipInventory,
+    StationMarker, StationServices, StationStorage, StationSummary,
+};
+use nova_ship::prelude::{DockedShip, DockingConnection, SensorContacts};
+use nova_world::prelude::{CurrentSector, SectorClusterTypes, SectorRoot, WorldConfig};
+
+use crate::NovaLayeredWorld;
+
+/// Forget the chart on every frame `Cleanup` drops the frozen ledger, and
+/// keep [`ChartSectorEdge`] on the armed world's edge.
+pub(crate) fn clear_chart(
+    mut commands: Commands,
+    config: Option<Res<WorldConfig<NovaLayeredWorld>>>,
+    edge: Option<Res<ChartSectorEdge>>,
+    mut chart: ResMut<Chart>,
+) {
+    if !chart.is_empty() {
+        chart.clear();
+    }
+    let armed = config.map(|config| config.sector_edge);
+    let shown = edge.map(|edge| edge.0);
+    if armed != shown {
+        match armed {
+            Some(edge) => commands.insert_resource(ChartSectorEdge(edge)),
+            None => commands.remove_resource::<ChartSectorEdge>(),
+        }
+    }
+}
+
+/// Record the cell the player stands in, with its cluster types, once
+/// its root is live. A cell the player crosses before its root spawns is
+/// recorded on the first frame the root stands while the player is still in
+/// it.
+pub(crate) fn chart_visited_cell(
+    current: Res<CurrentSector>,
+    roots: Query<(&SectorRoot, &SectorClusterTypes)>,
+    mut chart: ResMut<Chart>,
+) {
+    let coord = current.0;
+    if chart.has_visited(coord) {
+        return;
+    }
+    let Some((_, clusters)) = roots.iter().find(|(root, _)| root.0 == coord) else {
+        return;
+    };
+    info!(
+        "nova_world_base: the chart records {coord} with clusters {:?}",
+        clusters.0
+    );
+    chart.visit(coord, clusters.0.clone());
+}
+
+/// Record every generated station and derelict hull the player's sensors
+/// see this frame. A wreck fragment and a destroyed root wear no generated
+/// id, so they are never found.
+pub(crate) fn chart_sensor_finds(
+    player: Query<&SensorContacts, With<PlayerSpaceshipMarker>>,
+    bodies: Query<
+        (
+            &GeneratedBodyId,
+            Has<StationMarker>,
+            Has<DerelictShipMarker>,
+        ),
+        Or<(With<StationMarker>, With<DerelictShipMarker>)>,
+    >,
+    mut chart: ResMut<Chart>,
+) {
+    let Ok(contacts) = player.single() else {
+        return;
+    };
+    for contact in contacts.iter() {
+        let Ok((id, station, derelict)) = bodies.get(contact.entity) else {
+            continue;
+        };
+        if station {
+            if chart.station(id).is_none() {
+                info!("nova_world_base: the chart finds the station '{id}'");
+                chart.find_station(id, derelict);
+            }
+        } else if !chart.has_wreck(id) {
+            info!("nova_world_base: the chart finds the wreck '{id}'");
+            chart.find_wreck(id);
+        }
+    }
+}
+
+/// The station the player was docked to on the last frame.
+#[derive(Default)]
+pub(crate) struct LastDockedStation(Option<Entity>);
+
+/// Write the summary of the station the player is docked to: on the dock,
+/// whenever its hold or storage changes while docked, and once more on the
+/// undock from the station as it was left.
+#[expect(
+    clippy::type_complexity,
+    reason = "a station's identity, services, hold and storage in one query"
+)]
+pub(crate) fn chart_docked_station(
+    player: Query<Option<&DockedShip>, With<PlayerSpaceshipMarker>>,
+    connections: Query<&DockingConnection>,
+    stations: Query<
+        (
+            &GeneratedBodyId,
+            Option<&Name>,
+            Option<&StationServices>,
+            Has<DerelictShipMarker>,
+            Ref<ShipInventory>,
+            Ref<StationStorage>,
+        ),
+        With<StationMarker>,
+    >,
+    mut last: Local<LastDockedStation>,
+    mut chart: ResMut<Chart>,
+) {
+    let Ok(docked) = player.single() else {
+        last.0 = None;
+        return;
+    };
+    let partner = docked
+        .and_then(|docked| connections.get(docked.connection).ok())
+        .map(|connection| {
+            if player.contains(connection.first_ship) {
+                connection.second_ship
+            } else {
+                connection.first_ship
+            }
+        })
+        .filter(|partner| stations.contains(*partner));
+    let (station, changed) = match (partner, last.0) {
+        (Some(partner), Some(previous)) if partner == previous => (Some(partner), false),
+        (Some(partner), _) => (Some(partner), true),
+        (None, Some(previous)) => (Some(previous), true),
+        (None, None) => (None, false),
+    };
+    last.0 = partner;
+    let Some(Ok((id, name, services, derelict, hold, storage))) =
+        station.map(|station| stations.get(station))
+    else {
+        return;
+    };
+    if !changed && !hold.is_changed() && !storage.is_changed() {
+        return;
+    }
+    let summary = StationSummary {
+        name: name.map_or_else(|| id.to_string(), |name| name.as_str().to_string()),
+        services: services
+            .filter(|_| !derelict)
+            .map(|services| services.0.clone())
+            .unwrap_or_default(),
+        stock: hold
+            .stacks()
+            .map(|(item, count)| (item.clone(), count))
+            .collect(),
+        stored: storage
+            .stacks()
+            .map(|(item, count)| (item.clone(), count))
+            .collect(),
+    };
+    if chart
+        .station(id)
+        .is_some_and(|known| known.summary.as_ref() == Some(&summary) && known.derelict == derelict)
+    {
+        return;
+    }
+    info!(
+        "nova_world_base: the chart records the station '{id}' as last seen: {} stock stack(s), \
+         {} stored stack(s)",
+        summary.stock.len(),
+        summary.stored.len()
+    );
+    chart.record_station(id, derelict, summary);
+}

@@ -22,7 +22,9 @@ use bevy::{
     tasks::{block_on, poll_once, AsyncComputeTaskPool, Task},
 };
 use nova_events::prelude::{GeneratedBodyId, Meters, Meters3, ScenarioAddressableMarker};
-use nova_gameplay::prelude::{DerelictShipMarker, IntegrityEnvelope, TempEntity, UnsettledBody};
+use nova_gameplay::prelude::{
+    ClusterType, DerelictShipMarker, IntegrityEnvelope, TempEntity, UnsettledBody,
+};
 use nova_scenario::prelude::{
     asteroid_scenario_object_prepared, base_scenario_object, planet_scenario_object_prepared,
     resolve_ship_design, spaceship_scenario_object, station_scenario_object,
@@ -59,6 +61,13 @@ pub struct WorldObserver;
 /// also carries keeps the session sweep able to take it.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct SectorRoot(pub SectorCoord);
+
+/// The type of every cluster with a body in a live cell, as its
+/// generator described it. On the cell's [`SectorRoot`], so the player's
+/// chart reads it when the player enters the cell without planning the cell
+/// again.
+#[derive(Component, Clone, Debug, PartialEq, Eq)]
+pub struct SectorClusterTypes(pub Vec<ClusterType>);
 
 /// A generated ship held back because the observer's body overlapped its
 /// clearance sphere when its cell materialized.
@@ -221,6 +230,7 @@ pub fn materialize_sector(
 ) -> Entity {
     let PreparedSector {
         coord,
+        cluster_types,
         planets,
         bodies,
     } = prepared;
@@ -254,6 +264,7 @@ pub fn materialize_sector(
                 rotation: Quat::IDENTITY,
             }),
             SectorRoot(coord),
+            SectorClusterTypes(cluster_types),
         ))
         .id();
 

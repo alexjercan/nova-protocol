@@ -201,7 +201,8 @@ pub use crate::{
         clear_sector_work, collect_sector_jobs, desired_sectors, live_sectors,
         materialize_pending_bodies, materialize_ready_sector, materialize_sector, request_sectors,
         retire_sectors, track_current_sector, CurrentSector, ObserverBody, PendingSectorShip,
-        PendingSectorStation, ReadySectors, SectorJob, SectorJobStats, SectorRoot, WorldObserver,
+        PendingSectorStation, ReadySectors, SectorClusterTypes, SectorJob, SectorJobStats,
+        SectorRoot, WorldObserver,
     },
 };
 
@@ -224,7 +225,7 @@ pub mod prelude {
         },
         streaming::{
             desired_sectors, live_sectors, CurrentSector, PendingSectorShip, PendingSectorStation,
-            ReadySectors, SectorJob, SectorJobStats, SectorRoot, WorldObserver,
+            ReadySectors, SectorClusterTypes, SectorJob, SectorJobStats, SectorRoot, WorldObserver,
         },
     };
 }
