@@ -508,8 +508,16 @@ editor never keeps a second list of which fields the patch reaches.
 the same `Added<SectionLinkPoints>` edge the integrity graph is built off,
 buckets the sections into cells (the lattice is read off the sections, so a hull
 mirrored about its centreline is not cut in two), and derives one plate per cell
-of outer surface from the eight boundary samples that cell shares with its
-neighbours. The same structure always gives the same skin.
+of outer surface. The cells around it give each plate a `ShellShape`
+(`sections/shell_shape.rs`): a LEVEL (half a cell, or a whole cell beside
+structure the skin climbs), a foot and a `ShellEdgeType` per edge (a chamfered
+rim, a fold or a skirt round a convex hull edge, a stair ramp and its end, or a
+wall), and four soft corners averaged over the cells that share them and held
+at the level against a wall. Two plates
+read what they share the same way, so their surfaces meet. A plate never peaks
+in a point: its top is a level plateau cut down by straight chamfers, and a
+staircase of cubes is clad as one ramp. The same structure always gives the
+same skin.
 
 - A plate is a `SectionFixture` (`sections/fixture.rs`): `Collider`, `Health`,
   density and `HealthIsolated`, but no `SectionMarker`. So it never joins the
@@ -585,7 +593,7 @@ scenario spawns, so what you see in the editor is what you fly.
 The derivation works out far more than it keeps. `read_plates`
 (`sections/skin_reading.rs`) is a SECOND PASS over the finished plates that reads
 it back out as a `PlateReading` each: which way the plate faces, what its top is
-shaped like (`Flat` / `Step` / `Ridge` / `Peak` / `Bevel` / `Brink` / `Spur`),
+shaped like (`Flat` / `Step` / `Ridge` / `Peak` / `Brink` / `Spur`),
 which way it falls away, how enclosed its cell is, how long the run of like plate
 through it is and which way that run points, how far it is from the end of that
 run, how much of its cell it fills, how deep the structure under it goes, and how
@@ -594,13 +602,15 @@ the clad set, `cell - anchor` is the face each shows - so a reading cannot drift
 from the skin it describes. It costs about 0.6 ms on a 384-plate ship, against
 1.6 ms to derive the skin itself.
 
-The FALLING PLATE is three reliefs and not one, which matters because it is four
-fifths of every ship. A corner sample dies to the cell floor for exactly one
-reason - open space stands at it - so counting the dead corners says how many
-ways a plate falls: one corner is a `Bevel` (a panel with a corner taken off),
-two on one side is a `Brink` (the straight edge of a hull), and anything more is
-a `Spur` (a tip, an outer corner, a saddle). Summing those corner directions and
-turning them by the plate's own rotation gives `PlateReading::fall`, the
+The FALLING PLATE is several reliefs and not one, which matters because it is
+most of every ship. An edge falls for exactly one reason - open space stands
+across it, so the top chamfers down or folds round the hull edge - so counting
+the falling edges of a half-cell plate says how many ways it falls: none is
+`Flat`, one is a `Brink` (the straight edge of a hull), two opposite is a
+`Ridge` (a run one cell wide), four is a `Peak` (a lone cell), and any other
+count is a `Spur` (a tip or an outer corner). A whole-cell plate is a `Step`
+whatever its edges do. Summing the directions of the corners beside a falling
+edge and turning them by the plate's own rotation gives `PlateReading::fall`, the
 OUTBOARD direction - a cardinal on a `Brink`, a diagonal on a corner, and zero
 where a plate falls two ways and cancels. It is the second alignment axis: a
 piece turned to `along` lies down an edge, and one turned to `fall` leans out
@@ -671,20 +681,26 @@ whichever of the two it started under. The base game generates its greeble model
 (`scripts/gen-greebles.py`), and the mod-facing format is documented in
 [Ship skin styles](https://alexjercan.github.io/nova-protocol/create/styles/).
 
-What a hull actually OFFERS is worth knowing before writing a rule, and a
-GENERATED hull and a HAND-BUILT one offer almost opposite things. Measured, per
-ship:
+What a hull actually OFFERS is worth knowing before writing a rule. Measured on
+the eight catalogue hulls, per ship:
 
-| subject | plates | flat | step | ridge | peak | bevel | brink | spur |
-|---|---|---|---|---|---|---|---|---|
-| `wfc_ships` row | 132-162 | 6-22 | 18-22 | 0-4 | 0 | 10-14 | 48-66 | 34-42 |
-| editor build | 19-27 | 0 | 2-3 | 3-8 | 1-3 | 0 | 0 | 9-17 |
+| subject | plates | flat | step | ridge | peak | brink | spur |
+|---|---|---|---|---|---|---|---|
+| `block_waystation` | 42 | 3 | 3 | 0 | 0 | 13 | 23 |
+| `block_cutter` | 64 | 11 | 8 | 5 | 2 | 14 | 24 |
+| `block_gunship` | 61 | 2 | 24 | 2 | 1 | 7 | 25 |
+| `block_hauler` | 93 | 16 | 20 | 4 | 1 | 15 | 37 |
+| `block_line_warship` | 171 | 23 | 54 | 21 | 0 | 44 | 29 |
+| `ring_station` | 210 | 0 | 36 | 0 | 18 | 24 | 132 |
+| `spire_station` | 134 | 10 | 16 | 4 | 0 | 48 | 56 |
+| `yard_station` | 134 | 10 | 12 | 0 | 22 | 24 | 66 |
 
-A hand-built ship has NO flat plate, no bevel and no brink at all: it is spurs,
-ridges and studs, because almost every cell of it is one cell wide. So a rule
-written for flat panels lands nowhere on the thing the owner actually builds, and
-no density normalisation can rescue it - a floor over an empty eligible set is
-still empty.
+Nearly three quarters of the plate falls, a fifth is step and under a tenth is
+flat. A plate on a run one cell wide falls on both sides, so a hand-built frame
+is ridges, peaks and spurs with almost no flat plate, and a rule written for flat
+panels lands nowhere on it - a floor over an empty eligible set is still empty.
+Almost every plate still has a SEAT, because every top is a plateau inside its
+rims; the ramp plates of a diagonal stair are the exception.
 
 Both `spawn_ship_skin` and the editor's `sync_editor_skin` log that histogram plus
 a per-rule `taken of reach` tally at debug, where REACH is everything the rule's

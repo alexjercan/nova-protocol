@@ -171,7 +171,7 @@ measures on this hull.
 
 | region | what it is |
 |---|---|
-| `Panel` | unbroken panel: the flat face of a hull, and the panel with one corner taken off that still reads as one. Where a sign, a hatch or a decal goes |
+| `Panel` | unbroken panel: the flat face of a hull, where the plate falls on no side. Where a sign, a hatch or a decal goes |
 | `Deck` | working deck: flat plate with real ship under it. The laydown area - a crate, a rack, a tank, anything that would need a floor to stand on |
 | `Flank` | the ship's SIDES: deck plate that faces out rather than up. Windows, doors and anything read from another ship |
 | `Edge` | the straight edge of a hull, where the skin falls away along one whole side. Rim strips, hazard paint, fairings - the pieces that draw a silhouette |
@@ -184,31 +184,29 @@ bays, something is beside a fitting nearly everywhere: measured, a pocket rule
 placed first took 45% of a ship and starved every rule below it. Every base kit
 puts its pocket rule last.
 
-**`HighGround` is the one region that accepts a creased plate.** A crest, a
-spar tip and a stud are cones every time, so a region that demanded an unbroken
-surface would refuse every plate the high ground is for - and would strip a
-ship of its silhouette to fix a bedding defect. Everywhere else, a piece is
-bedded onto one flat surface, and the plates that crease are refused unless the
-piece is trim (see below).
+**`HighGround` is the one region that accepts a creased plate.** A mast or a
+stack stands up off its plate rather than lying on it, so it needs no surface
+under its whole footprint. Everywhere else, a piece is bedded onto one flat
+surface, and a plate without one - the ramp of a diagonal stair - is refused
+unless the piece is trim (see below).
 
 ### Start from what a hull offers
 
-A GENERATED hull and a HAND-BUILT one offer almost opposite things. The engine
-reads every plate into one of seven shapes and logs the tally beside the
-decoration tally (see [Priority](#priority-one-piece-per-plate)). Measured per
-ship, on the three fixed seeds of the `wfc_ships` row and on a 7-9 part editor
-build:
+The engine reads every plate into one of six shapes and logs the tally beside
+the decoration tally (see [Priority](#priority-one-piece-per-plate)). Measured
+per hull, on the four catalogue ships and the four catalogue stations:
 
-| subject | plates | flat | step | ridge | peak | bevel | brink | spur |
-|---|---|---|---|---|---|---|---|---|
-| generated (the `wfc_ships` row) | 158-204 | 18-38 | 12-52 | 0-4 | 0 | 4-8 | 48-76 | 32-76 |
-| hand-built (a 7-9 part editor ship) | 22-27 | 0 | 2-3 | 0-5 | 1-4 | 0 | 0 | 14-20 |
+| subject | plates | flat | step | ridge | peak | brink | spur |
+|---|---|---|---|---|---|---|---|
+| catalogue ships | 61-171 | 2-23 | 8-54 | 2-21 | 0-2 | 7-44 | 24-37 |
+| catalogue stations | 42-210 | 0-10 | 3-36 | 0-4 | 0-22 | 13-48 | 23-132 |
 
-Only `flat` and `step` are unbroken surfaces; `brink` is an outer rim, and
-`ridge`, `peak` and `spur` are the creases and studs of a skinny hull. A small
-build is one cell wide nearly everywhere, so it has no flat plate, no bevel and
-no brink at all. **`Panel`, `Deck`, `Flank` and `Edge` therefore land on
-NOTHING on a hand-built hull.** A kit that uses only those decorates a
+`flat` falls on no side and `step` climbs a wall; `brink` is an outer rim, and
+`ridge`, `peak` and `spur` fall on two or more sides. Every plate top is a flat
+plateau inside its rims, so nearly every plate has a seat whatever its shape.
+A small build is one cell wide nearly everywhere, so it is ridges, peaks and
+spurs with almost no flat plate and no brink. **`Panel`, `Deck`, `Flank` and
+`Edge` therefore land on almost NOTHING on a hand-built hull.** A kit that uses only those decorates a
 generated ship and leaves an editor build bare. Give a style at least one
 `HighGround` piece and at least one `Anywhere` piece flat enough to count as
 trim; every base kit does.
@@ -277,9 +275,8 @@ size already answers them and a second authored word could disagree with it:
   gap you can see. Anything that stands proud needs the seat, because on a
   crease it touches along one line and floats at both ends.
 
-Trim is also what reaches a hand-built hull, which has no unbroken plate on it
-anywhere. A kit whose every filler stands proud leaves exactly the shapes
-players build bare.
+Trim is also what reaches the ramp plates of a diagonal stair, which have no
+seat. A kit whose every filler stands proud leaves every stair bare.
 
 ### Priority: one piece per plate
 

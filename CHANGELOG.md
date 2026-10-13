@@ -42,6 +42,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Station parts: `truss_hull_section` and `solar_panel_section` hulls, a
   `station` style with six `station_*` greebles, and the armed `ring_station`,
   `spire_station` and `yard_station` designs.
+- The hull skin is rebuilt: flat plates at half or a whole cell with chamfered
+  rims, folds and skirts that close each hull corner, and stairs clad as one
+  ramp. No spikes, tents or saddles.
 
 ### Scenarios & Objectives
 
@@ -81,8 +84,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** An asteroid `lock_signature` override must be finite and above
   zero. Any other value fails at lint and at load.
 - **(breaking)** Stations are content: `Station` entries spawned by id as
-  `kind: Station` with a required side and hull `collapse_threshold`. World
-  save format 7 adds the chart; older saves are refused.
+  `kind: Station` with a required side and hull `collapse_threshold`. Save
+  format 8 (chart, plates) refuses older saves.
 - A station is a dynamic body: gravity and rams move it, its bridge levels it
   and it orbits in a well. At its `collapse_threshold` share of hull it
   collapses like a ship and drops its hold and storage.

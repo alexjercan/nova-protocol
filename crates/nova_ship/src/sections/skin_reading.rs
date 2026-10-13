@@ -243,9 +243,9 @@ pub struct PlateReading {
     /// Like means same-facing and same [`relief`]: a flat panel's run is its
     /// flat neighbours, and the run of a [`Brink`] is the straight edge of the
     /// ship it lies on. Measuring it per relief rather than only on flat plate
-    /// is what makes it useful on a real hull - the derived skin comes out four
-    /// fifths falling plate, so a reading that only spoke about flat panels
-    /// would be silent about most of every ship.
+    /// is what makes it useful on a real hull - the derived skin comes out
+    /// nearly three quarters falling plate, so a reading that only spoke about
+    /// flat panels would be silent about most of every ship.
     ///
     /// [`Brink`]: PlateRelief::Brink
     ///

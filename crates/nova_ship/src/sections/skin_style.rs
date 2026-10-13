@@ -362,10 +362,10 @@ impl FixtureRegion {
     /// The neighbourhood half of this region's rule.
     ///
     /// ENGINE POLICY, and tuned against measured hulls rather than derived:
-    /// generated ships come out four fifths falling plate and a seventh
-    /// [`Step`](PlateRelief::Step), with [`Flat`](PlateRelief::Flat) under a
-    /// seventh, so a region written for flat panels alone lands on almost
-    /// nothing. The relief lists below are what make each word mean a real part
+    /// the catalogue hulls come out nearly three quarters falling plate and a
+    /// fifth [`Step`](PlateRelief::Step), with [`Flat`](PlateRelief::Flat)
+    /// under a tenth, so a region written for flat panels alone lands on
+    /// almost nothing. The relief lists below are what make each word mean a real part
     /// of a real hull.
     fn rule(self) -> ScatterRule {
         let base = ScatterRule::ANY;
