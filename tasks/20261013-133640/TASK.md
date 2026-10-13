@@ -14,6 +14,7 @@
 
 ## Agent findings
 - Research only. No code until the owner accepts a note.
+- Note landed 2026-10-14 in 0a46d2f95 (`RESEARCH.md`, `RESEARCH.html`). Three candidates: A (`on` a plate kind plus `pattern: Line | Every(n) | Ends | Middle | Once`; no density or orientation), B (a weighted table per plate kind with a bare weight), C (panels first). The agent recommends A. Awaiting the owner's pick.
 
 ## Delivery gate
 - A research note in this task folder: how placement works today (region, density, orientation, with real style content), what modders find unclear, prior art (procedural greebling in other games/tools), and two or three candidate languages with real RON examples for the existing styles. Stop for the owner.
