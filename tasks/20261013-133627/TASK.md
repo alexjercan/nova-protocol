@@ -1,8 +1,8 @@
 # Stations: a severed station stops taking damage
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 98
-- TAGS: v0.16.0,stations,bug
+- TAGS: v0.16.0, stations, bug
 
 ## User facts
 - Owner report 2026-10-13: "when shooting a station after it got severed it stopped taking damage".
@@ -16,6 +16,8 @@
 
 - Owner decision 2026-10-13: stations work exactly like ships. Delete the station floor and hit cap (`HealthFloor`, the station branch in `aggregate_ship_health`, the cap in `on_damage`). A station below its `collapse_threshold` collapses, peels and is destroyed like a ship ("a station can be blown to pieces which is fine"). The higher station threshold (0.5) stays on purpose so stations collapse sooner. A sever that leaves the kept hull below its threshold collapses it, for ships and stations alike; prove ships have no variant of this bug. The dead state on last weapon or flight computer stays.
 - Owner decision 2026-10-13: a destroyed station drops the player's stored items (`StationStorage`) as canisters with its stock.
+
+- Orchestrator close 2026-10-13: landed in 1b60d4724. `HealthFloor` and the hit cap are deleted; stations run the ship collapse rule at `STATION_COLLAPSE_THRESHOLD` 0.5; a destroyed station drops its stock and the player's storage as canisters. Proofs in `crates/nova_ship/src/sections/integrity.rs` physics_tests (ship, station and dead station severed above threshold take hits on both halves; severed below threshold collapse and are destroyed; ships had no variant) and `a_destroyed_station_drops_the_players_storage_with_its_stock`. system_station_orbit and system_station_round_trip pass under lavapipe; `content lint` re-run: 0 errors. Balance for owner: one Serpent torpedo now destroys the waystation (3490 to 61 hp), so the orbit range uses a scripted hit. Unreproduced gap: a severed dock plus despawned root may leave `DockedShip` for one FixedUpdate and trip `InventoryShips::pair()` (`crates/nova_interface/src/inventory/app.rs:1312`); ships share it.
 
 ## Delivery gate
 - Reproduce first (asserted example or unit test that severs a station and then hits it), keep the before artifact, name the cause, then fix. If the cause is the floor, stop for the owner on the floor rule before changing it.
