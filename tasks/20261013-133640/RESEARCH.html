@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Greeble Placement Language</title>
+<style>
+:root {
+  --bg: #f6f5f1; --panel: #ffffff; --ink: #1d1f24; --muted: #5d6270; --line: #c9ccd3;
+  --flat: #6a9fd8; --step: #9a8fcf; --brink: #e0a43a; --spur: #d0675a; --ridge: #5fae7c;
+  --peak: #b85fa8; --mouth: #3d4452; --piece: #1d1f24; --accent: #b3471f;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15171b; --panel: #1e2127; --ink: #e7e8eb; --muted: #a0a6b3; --line: #3a3f49;
+    --mouth: #c8cdd8; --piece: #f2f3f5; --accent: #ff8a5c;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15171b; --panel: #1e2127; --ink: #e7e8eb; --muted: #a0a6b3; --line: #3a3f49;
+  --mouth: #c8cdd8; --piece: #f2f3f5; --accent: #ff8a5c;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 920px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 1.6rem; margin: 0 0 4px; }
+h2 { font-size: 1.15rem; margin: 32px 0 8px; }
+p, li { color: var(--ink); }
+.muted { color: var(--muted); }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin: 12px 0; }
+svg { width: 100%; height: auto; display: block; }
+svg text { fill: var(--ink); font: 12px system-ui, sans-serif; }
+svg .muted { fill: var(--muted); }
+code, pre { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
+pre { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+.wrap { overflow-x: auto; }
+.legend span { display: inline-block; margin: 0 12px 4px 0; font-size: 13px; }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
+.rec { border-left: 4px solid var(--accent); }
+</style>
+</head>
+<body>
+<main>
+<h1>Greeble placement language</h1>
+<p class="muted">Task 20261013-133640. Diagrams for RESEARCH.md. Research only; nothing here is implemented.</p>
+
+<h2>1. Today: the plate is final before the greeble is chosen</h2>
+<div class="card">
+<svg viewBox="0 0 880 160" role="img" aria-label="Pipeline today and proposed">
+  <g font-size="12">
+    <text x="0" y="18" font-weight="600">Today</text>
+    <rect x="70" y="4" width="120" height="28" rx="4" fill="none" stroke="var(--line)"/><text x="80" y="22">derive_skin</text>
+    <rect x="215" y="4" width="120" height="28" rx="4" fill="none" stroke="var(--line)"/><text x="225" y="22">read_plates</text>
+    <rect x="360" y="4" width="260" height="28" rx="4" fill="none" stroke="var(--accent)"/><text x="370" y="22">scatter: region x density x priority</text>
+    <rect x="645" y="4" width="120" height="28" rx="4" fill="none" stroke="var(--line)"/><text x="655" y="22">pose + spawn</text>
+    <path d="M190 18h23" stroke="var(--muted)" marker-end="url(#a)"/><path d="M335 18h23" stroke="var(--muted)" marker-end="url(#a)"/><path d="M620 18h23" stroke="var(--muted)" marker-end="url(#a)"/>
+    <text x="0" y="98" font-weight="600">Proposed</text>
+    <rect x="70" y="84" width="120" height="28" rx="4" fill="none" stroke="var(--line)"/><text x="80" y="102">derive_skin</text>
+    <rect x="215" y="84" width="120" height="28" rx="4" fill="none" stroke="var(--line)"/><text x="225" y="102">read: kinds, runs</text>
+    <rect x="360" y="84" width="150" height="28" rx="4" fill="none" stroke="var(--accent)"/><text x="370" y="102">place: on + pattern</text>
+    <rect x="535" y="84" width="140" height="28" rx="4" fill="none" stroke="var(--accent)"/><text x="545" y="102">reshape (133643)</text>
+    <rect x="700" y="84" width="120" height="28" rx="4" fill="none" stroke="var(--line)"/><text x="710" y="102">pose + spawn</text>
+    <path d="M190 98h23" stroke="var(--muted)" marker-end="url(#a)"/><path d="M335 98h23" stroke="var(--muted)" marker-end="url(#a)"/><path d="M510 98h23" stroke="var(--muted)" marker-end="url(#a)"/><path d="M675 98h23" stroke="var(--muted)" marker-end="url(#a)"/>
+    <text x="360" y="132" class="muted">piece, footprint, frame and run go to the plate,</text><text x="360" y="148" class="muted">which flattens a pad under the footprint</text>
+  </g>
+  <defs><marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--muted)"/></marker></defs>
+</svg>
+</div>
+
+<h2>2. Kinds a reader can see: one face of a hull, plate by plate</h2>
+<p>Candidate kinds are the relief classes the debug log already prints, plus <code>Mouth</code> (a plate beside a fitting exit). Below is a schematic face, not a measured hull.</p>
+<div class="card">
+<div class="legend">
+  <span><i class="sw" style="background:var(--flat)"></i>Flat</span>
+  <span><i class="sw" style="background:var(--step)"></i>Step</span>
+  <span><i class="sw" style="background:var(--brink)"></i>Brink</span>
+  <span><i class="sw" style="background:var(--spur)"></i>Spur</span>
+  <span><i class="sw" style="background:var(--ridge)"></i>Ridge</span>
+  <span><i class="sw" style="background:var(--mouth)"></i>Mouth</span>
+</div>
+<svg viewBox="0 0 880 250" role="img" aria-label="Schematic hull face coloured by plate kind">
+  <g stroke="var(--panel)" stroke-width="2">
+    <!-- row 0: spur, brink..., spur -->
+    <rect x="40" y="10" width="40" height="40" fill="var(--spur)"/>
+    <rect x="80" y="10" width="40" height="40" fill="var(--brink)"/><rect x="120" y="10" width="40" height="40" fill="var(--brink)"/>
+    <rect x="160" y="10" width="40" height="40" fill="var(--brink)"/><rect x="200" y="10" width="40" height="40" fill="var(--brink)"/>
+    <rect x="240" y="10" width="40" height="40" fill="var(--brink)"/><rect x="280" y="10" width="40" height="40" fill="var(--brink)"/>
+    <rect x="320" y="10" width="40" height="40" fill="var(--spur)"/>
+    <!-- rows 1-3 -->
+    <rect x="40" y="50" width="40" height="40" fill="var(--brink)"/><rect x="40" y="90" width="40" height="40" fill="var(--brink)"/><rect x="40" y="130" width="40" height="40" fill="var(--brink)"/>
+    <rect x="320" y="50" width="40" height="40" fill="var(--brink)"/><rect x="320" y="90" width="40" height="40" fill="var(--mouth)"/><rect x="320" y="130" width="40" height="40" fill="var(--brink)"/>
+    <rect x="80" y="50" width="40" height="40" fill="var(--flat)"/><rect x="120" y="50" width="40" height="40" fill="var(--flat)"/><rect x="160" y="50" width="40" height="40" fill="var(--flat)"/>
+    <rect x="200" y="50" width="40" height="40" fill="var(--step)"/><rect x="240" y="50" width="40" height="40" fill="var(--step)"/><rect x="280" y="50" width="40" height="40" fill="var(--mouth)"/>
+    <rect x="80" y="90" width="40" height="40" fill="var(--flat)"/><rect x="120" y="90" width="40" height="40" fill="var(--flat)"/><rect x="160" y="90" width="40" height="40" fill="var(--flat)"/>
+    <rect x="200" y="90" width="40" height="40" fill="var(--step)"/><rect x="240" y="90" width="40" height="40" fill="var(--step)"/><rect x="280" y="90" width="40" height="40" fill="var(--mouth)"/>
+    <rect x="80" y="130" width="40" height="40" fill="var(--flat)"/><rect x="120" y="130" width="40" height="40" fill="var(--flat)"/><rect x="160" y="130" width="40" height="40" fill="var(--flat)"/>
+    <rect x="200" y="130" width="40" height="40" fill="var(--flat)"/><rect x="240" y="130" width="40" height="40" fill="var(--flat)"/><rect x="280" y="130" width="40" height="40" fill="var(--mouth)"/>
+    <rect x="40" y="170" width="40" height="40" fill="var(--spur)"/>
+    <rect x="80" y="170" width="40" height="40" fill="var(--brink)"/><rect x="120" y="170" width="40" height="40" fill="var(--brink)"/>
+    <rect x="160" y="170" width="40" height="40" fill="var(--brink)"/><rect x="200" y="170" width="40" height="40" fill="var(--brink)"/>
+    <rect x="240" y="170" width="40" height="40" fill="var(--brink)"/><rect x="280" y="170" width="40" height="40" fill="var(--brink)"/>
+    <rect x="320" y="170" width="40" height="40" fill="var(--spur)"/>
+    <!-- a one-cell spar: ridge run with spur tip -->
+    <rect x="360" y="90" width="40" height="40" fill="var(--ridge)"/><rect x="400" y="90" width="40" height="40" fill="var(--ridge)"/>
+    <rect x="440" y="90" width="40" height="40" fill="var(--ridge)"/><rect x="480" y="90" width="40" height="40" fill="var(--spur)"/>
+  </g>
+  <rect x="520" y="92" width="18" height="36" fill="none" stroke="var(--muted)" stroke-dasharray="3 3"/>
+  <text x="560" y="222" class="muted" font-size="11">Purple Step plates: the foot of a raised block.</text>
+  <g font-size="12">
+    <text x="560" y="24">Today the words hide this map:</text>
+    <text x="560" y="46" class="muted">Panel = Flat only</text>
+    <text x="560" y="66" class="muted">Deck = Flat + Step, any facing</text>
+    <text x="560" y="86" class="muted">HighGround = Ridge + Peak + Spur + Step</text>
+    <text x="560" y="106" class="muted">Edge = Brink (stops at every Spur)</text>
+    <text x="560" y="126" class="muted">NearFitting = any kind near a mouth</text>
+    <text x="560" y="156">Candidate A writes the kind itself:</text>
+    <text x="560" y="178" class="muted">on: [Brink]   on: [Ridge, Peak, Spur]</text>
+    <text x="560" y="198" class="muted">on: [Flat]    on: [Mouth]</text>
+  </g>
+  <text x="40" y="236" class="muted" font-size="11">Schematic. Measured per-hull counts are in RESEARCH.md section 1.</text>
+</svg>
+</div>
+
+<h2>3. Candidate A patterns on one Brink run of 9 plates</h2>
+<p><code>Every(n)</code> is anchored to the ship lattice, so a new cell does not move the other pieces. <code>Ends</code>, <code>Middle</code> and <code>Once</code> are run-relative.</p>
+<div class="card">
+<svg viewBox="0 0 880 306" role="img" aria-label="Five patterns on a run of nine plates">
+  <defs>
+    <g id="run">
+      <rect x="0" y="0" width="40" height="30" fill="var(--brink)" stroke="var(--panel)" stroke-width="2"/>
+      <rect x="40" y="0" width="40" height="30" fill="var(--brink)" stroke="var(--panel)" stroke-width="2"/>
+      <rect x="80" y="0" width="40" height="30" fill="var(--brink)" stroke="var(--panel)" stroke-width="2"/>
+      <rect x="120" y="0" width="40" height="30" fill="var(--brink)" stroke="var(--panel)" stroke-width="2"/>
+      <rect x="160" y="0" width="40" height="30" fill="var(--brink)" stroke="var(--panel)" stroke-width="2"/>
+      <rect x="200" y="0" width="40" height="30" fill="var(--brink)" stroke="var(--panel)" stroke-width="2"/>
+      <rect x="240" y="0" width="40" height="30" fill="var(--brink)" stroke="var(--panel)" stroke-width="2"/>
+      <rect x="280" y="0" width="40" height="30" fill="var(--brink)" stroke="var(--panel)" stroke-width="2"/>
+      <rect x="320" y="0" width="40" height="30" fill="var(--brink)" stroke="var(--panel)" stroke-width="2"/>
+    </g>
+    <rect id="pc" x="-12" y="-8" width="24" height="16" rx="2" fill="var(--piece)"/>
+  </defs>
+  <g font-size="13">
+    <text x="0" y="30" font-weight="600">Line</text><use href="#run" x="120" y="10"/>
+    <rect x="124" y="21" width="352" height="8" fill="var(--piece)"/>
+    <text x="500" y="30" class="muted">every plate; hazard band, belt, livery stripe</text>
+
+    <text x="0" y="85" font-weight="600">Every(2)</text><use href="#run" x="120" y="65"/>
+    <use href="#pc" x="140" y="80"/><use href="#pc" x="220" y="80"/><use href="#pc" x="300" y="80"/><use href="#pc" x="380" y="80"/><use href="#pc" x="460" y="80"/>
+    <text x="500" y="85" class="muted">cells with x mod 2 = 0; replaces stride + share</text>
+
+    <text x="0" y="140" font-weight="600">Ends</text><use href="#run" x="120" y="120"/>
+    <use href="#pc" x="140" y="135"/><use href="#pc" x="460" y="135"/>
+    <text x="500" y="140" class="muted">caps a run; not possible today</text>
+
+    <text x="0" y="195" font-weight="600">Middle</text><use href="#run" x="120" y="175"/>
+    <use href="#pc" x="300" y="190"/>
+    <text x="500" y="195" class="muted">one per run or patch</text>
+
+    <text x="0" y="250" font-weight="600">Once</text><use href="#run" x="120" y="230"/>
+    <use href="#pc" x="300" y="245"/>
+    <text x="500" y="250" class="muted">one per ship, on the longest feature</text>
+  </g>
+  <text x="0" y="284" class="muted" font-size="11">List order breaks ties only: Ends before Line on [Brink] gives caps plus a line.</text><text x="0" y="298" class="muted" font-size="11">A rule after a Line on the same kinds can never land, and lint can reject it.</text>
+</svg>
+</div>
+
+<h2>4. Orientation becomes the feature frame</h2>
+<div class="card">
+<svg viewBox="0 0 880 200" role="img" aria-label="Feature frame on a rim plate">
+  <rect x="40" y="40" width="360" height="60" fill="var(--flat)" opacity="0.5"/>
+  <rect x="40" y="100" width="360" height="40" fill="var(--brink)"/>
+  <text x="50" y="70">hull body</text>
+  <text x="200" y="160" class="muted">open space (the plate falls this way)</text>
+  <g stroke="var(--accent)" stroke-width="2.5" fill="none" marker-end="url(#b)">
+    <path d="M220 120h120"/>
+    <path d="M120 120v45"/>
+  </g>
+  <text x="250" y="34" font-weight="600">+Z along the run</text>
+  <text x="128" y="182" font-weight="600">+X outboard</text>
+  <defs><marker id="b" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--accent)"/></marker></defs>
+  <g font-size="12">
+    <text x="450" y="50">+Y out of the plate, bedded on its tilt (as today).</text>
+    <text x="450" y="74">+Z along the run or the patch's long axis (today's Along).</text>
+    <text x="450" y="98">+X outboard where the plate falls; the engine picks</text>
+    <text x="450" y="116">the sign of +Z that makes this true.</text>
+    <text x="450" y="140">At a run end, +Z points into the run.</text>
+    <text x="450" y="164" class="muted">So Outward becomes a model convention: author a jib</text>
+    <text x="450" y="182" class="muted">along +X once. No orientation word.</text>
+  </g>
+</svg>
+</div>
+
+<h2>5. The three candidates</h2>
+<div class="card wrap">
+<table>
+<tr><th></th><th>A. feature + pattern</th><th>B. weighted table per kind</th><th>C. panels first</th></tr>
+<tr><td>where</td><td><code>on: [Brink]</code></td><td><code>on: [Brink]</code></td><td><code>on: [Brink]</code></td></tr>
+<tr><td>how many</td><td><code>pattern: Line | Every(n) | Ends | Middle | Once</code></td><td><code>weight</code> against the style's <code>bare</code> per kind</td><td>panel sizes; one piece per panel</td></tr>
+<tr><td>priority</td><td>tie rule inside a feature; starvation is a lint error</td><td>none</td><td>none</td></tr>
+<tr><td>look</td><td>rhythm along runs</td><td>white noise, exact proportions</td><td>panelled, multi-plate pieces</td></tr>
+<tr><td>133643 gets</td><td>piece, footprint, frame, run neighbours</td><td>piece, footprint, frame</td><td>a whole panel to reshape as one pad</td></tr>
+<tr><td>main risk</td><td>reads machined; salvage may need <code>Scatter(n)</code></td><td>still "pretty random"</td><td>re-packs on every edit; a piece with several parent plates</td></tr>
+<tr><td>migration</td><td>56 base fixtures, engine scatter, docs; mods 0</td><td>same files, smaller engine change</td><td>highest: packer, multi-parent decor, new models</td></tr>
+</table>
+</div>
+
+<div class="card rec">
+<strong>Recommendation: A.</strong> The place word is the plate kind the reader sees. The count follows from the words. Orientation moves into a frame that also gives every falling plate a real outboard axis. A also gives task 133643 a run and a footprint per piece, so the pads of a line can meet across plate seams.
+</div>
+</main>
+</body>
+</html>
