@@ -250,7 +250,7 @@ structure and built at run time - see [Cladding](#cladding-not-a-prototype).
 
 ### Greebles (60 glb)
 
-The decoration models the base [styles](../styles/) scatter, under
+The decoration models the base [styles](../styles/) place, under
 `dep://base/gltf/greebles/`, named `<kit>_<piece>.glb`: the five authored
 kits - `armoured_*` (10), `civilian_*` (12), `industrial_*` (14),
 `salvage_*` (14), `station_*` (6) - plus four magenta `placeholder_*` pieces no base style uses.

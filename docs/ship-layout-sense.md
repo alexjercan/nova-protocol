@@ -221,8 +221,7 @@ standing proud.
   hull cells at `y = HEIGHT - 1` around `z = LENGTH / 3`, with the controller on
   top of them.
 - **Effect:** a ship gains a recognisable island, which with the derived skin
-  becomes a plated superstructure rather than a lump. It also gives the decoration
-  scatter's `PlateFacing::Up` rules somewhere meaningful to fire.
+  becomes a plated superstructure rather than a lump.
 - **Risk, and it was real:** a seeded tower is a stud, and `erode_studs` exists
   to take those off. `run` now marks every cell the seed passes write, widens the
   mark over a part's joints, and `erode_studs` skips it - so a tower seeded the

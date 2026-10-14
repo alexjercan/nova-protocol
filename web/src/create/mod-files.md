@@ -283,7 +283,7 @@ Large mods can use one scenario per file and list all of them in `content`.
 - A [start role](../start-roles/) defines one New Game start: a catalog hull
   and a kit of credits and items.
 - A [style](../styles/) defines the look a ship's derived cladding wears: the
-  two plate surfaces, and the destructible decoration scattered over them.
+  two plate surfaces, and the destructible decoration placed on them.
 - A [lesson](../lessons/) is one screen of the in-game training handbook: a
   demonstration, a few lines, the actions it names, and sometimes a focused
   range to fly.

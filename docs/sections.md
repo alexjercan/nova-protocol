@@ -917,67 +917,60 @@ count is a `Spur` (a tip or an outer corner). A whole-cell plate is a `Step`
 whatever its edges do. Summing the directions of the corners beside a falling
 edge and turning them by the plate's own rotation gives `PlateReading::fall`, the
 OUTBOARD direction - a cardinal on a `Brink`, a diagonal on a corner, and zero
-where a plate falls two ways and cancels. It is the second alignment axis: a
-piece turned to `along` lies down an edge, and one turned to `fall` leans out
-over it.
+where a plate falls two ways and cancels.
 
 A `ShipStyleConfig` (`sections/skin_style.rs`) is CONTENT resolved by id out of
 `GameStyles`, exactly as a section prototype resolves out of `GameSections`. It
 carries a `StylePalette` - a `SurfaceFinish` for the plate `top` and one for its
-`wall`, the hidden floor keeping an engine finish - and a list of decoration
-fixtures, each with a model `AssetRef`, a health, a collider and a
-`FixturePlacement`. The mod merge routes `Content::Style` into `GameStyles` with
-the same last-wins overlay every other kind gets, so a mod restyles a base look
-by declaring its id.
+`wall`, the hidden floor keeping an engine finish - a list of decoration
+fixtures, each with a model `AssetRef`, a health and a collider, and the
+`greeble_rules` that place them. The mod merge routes `Content::Style` into
+`GameStyles` with the same last-wins overlay every other kind gets, so a mod
+restyles a base look by declaring its id. Physics density is not authored:
+every piece stands at `DECOR_DENSITY`, the same as the cladding it sits on.
 
-A `FixturePlacement` is three authored words - a `FixtureRegion`, a
-`FixtureDensity` and a `FixtureOrientation` - and `skin_style` expands it
-PRIVATELY into the `ScatterRule` written in the vocabulary above. That expansion
-is engine policy: it is tuned against real hulls and it moves when the plate
-derivation moves, which a style that had spelled out fourteen interacting
-filters could not survive. Two facts are derived from the fixture's own collider
-rather than authored beside it, because the size already answers them:
-`min_run` (one cell of run per half cell the piece spans in plane, capped at
-`MAX_DERIVED_RUN`) and whether the piece needs a whole seat at all (a collider
-under `TRIM_HEIGHT` is trim, and trim beds onto a crease). Physics density is
-not authored either - every piece stands at `DECOR_DENSITY`, the same as the
-cladding it sits on.
+`greeble_rules` is a `GreebleRules` (`sections/greeble_solver.rs`): LINK TYPES,
+each with the link types it `connects` to, and GREEBLES, each with a `fixture`
+(or `None` for empty space), a `weight`, a `rotate` set of quarter turns, a link
+type on each of its four link points (`up`, `right`, `down`, `left`), `near`
+terms and a `max_count`. `ShipStyleConfig::compile_greebles` checks the rules
+and resolves each fixture id once. A rule set that does not compile is an Error
+at `content lint`, and the merge drops the style with an `error!`, so a ship
+naming it flies clad and bare. A style with no greebles places no decoration.
 
-`scatter_decor` (`sections/skin_decor.rs`) turns plates plus readings plus a
-style into placements. It takes the READINGS, not the structure, so the scatter
-cannot reach past the vocabulary into the derivation. Two properties are
-load-bearing:
+The solve has three parts, each in its own module:
 
-- DETERMINISM. There is no RNG. A plate's claim is a hand-written FNV-1a hash of
-  its cell, its out face and the fixture's id - hand-written because
-  `DefaultHasher` is not promised to be stable across releases of the standard
-  library, and a ship that comes back wearing different antennae after a
-  toolchain bump would break the same promise the derived skin exists to keep.
-  The editor re-derives and re-scatters on every structure change, so anything
-  less would flicker while a hull is dragged.
-- GRID CLAIMING, not blue noise. A rule claims cells on its own `stride` and a
-  piece is yawed to `PlateReading::along` or to `PlateReading::fall`. Poisson
-  sampling deliberately destroys alignment, and alignment is the difference
-  between decoration that reads as bolted on and decoration that reads as
-  confetti.
+- `skin_surface` (`sections/skin_surface.rs`) reads the finished plates as a
+  QUAD GRAPH: one cell per plate, four edge slots per cell, and across each slot
+  the plate that continues the surface and the slot of it that faces back. It
+  finds the neighbour by the same branches `boundary_heights` reads to shape the
+  plate, so the graph cannot disagree with the skin. The slot frame turns the
+  same way on every face: `up` is `link_point_up` of the out face and the slots
+  run clockwise seen from outside.
+- `solve_greebles` places one greeble variant on every cell: bitset domains,
+  arc consistency over the slot links (a slot with no neighbour accepts any link
+  type), the cell with the fewest variants next, and a weighted draw scaled by
+  the `near` terms already in range. A `near` factor of 0 is a hard ban in both
+  directions; `max_count` bans a greeble everywhere once it is reached. A
+  contradiction restarts with a derived hash up to `GREEBLE_RESTARTS` times; then
+  one solve runs without the greebles that carry a FORCING link type (one that
+  cannot face empty space) and logs a warning. A player-built hull is a valid
+  runtime condition, so that solve is a fallback, not a hidden authoring error.
+- `solve_decor` (`sections/skin_decor.rs`) turns the answer into a
+  `DecorPlacement` per dressed plate: the fixture, and the quarter turn about
+  the plate's own out axis that points the model's `+Z` at the slot holding the
+  greeble's `up` link point.
 
-One thing is decided by a BLOCK of hull rather than by a cell, and it is the
-DENSITY NORMALISATION. Every other knob is per plate and they multiply, so a rule
-tuned on a 150-plate generated hull put one visible piece on a 20-plate editor
-build. `ScatterRule::patch` is a floor: within each block of `patch` cubed cells,
-keyed by the out face, a rule that the share left with nothing claims its lowest
-hashing eligible plate. A block is a fixed division of the ship's own cells, so a
-hull that grows by one cell keeps every piece outside the block it grew into.
-
-The floor takes UNCLAIMED plate first. Where a thin rule's whole region was
-swept by broader rules below it - `Rare` on a `Panel` two `Dense` rules also
-want - there is no unclaimed plate to floor onto, and the rule logs `x0 of 78`
-on a hull it was eligible all over. So the floor may BORROW one claimed plate,
-under three conditions that bound the damage: the holder is on a THICKER rung
-than the borrower, the holder has a floor of its own (`Every` never lends, and
-a line with a hole in it is not a line), and the holder still keeps a piece
-somewhere on the ship. Priority therefore decides who picks, and the floor
-decides only that nobody is picked down to nothing.
+DETERMINISM. The seed is `greeble_seed(style id)`, an FNV-1a hash of the id
+alone, and every draw also hashes the plate's own key (its cell and out face).
+FNV-1a is hand-written because `DefaultHasher` is not promised to be stable
+across releases of the standard library, and a ship that came back wearing
+different antennae after a toolchain bump would break the promise the derived
+skin exists to keep. The structure is NOT in the seed, so an edit changes the
+draws only where it changes the plates and their links; the editor re-solves on
+every structure change without the whole hull flickering. A re-clad keeps the
+pieces on the plates it keeps and solves only the plates it lays, so a link
+across the edit boundary is not checked against the kept piece.
 
 A decoration is a `SectionFixture` like a plate, and a child of the PLATE, one
 level further out - so a plate shot off takes its greebles, and
@@ -986,37 +979,34 @@ whichever of the two it started under. The base game generates its greeble model
 (`scripts/gen-greebles.py`), and the mod-facing format is documented in
 [Ship skin styles](https://alexjercan.github.io/nova-protocol/create/styles/).
 
-What a hull actually OFFERS is worth knowing before writing a rule. Measured on
-the catalogue hulls and stations, per ship:
+The readings above are DIAGNOSTICS only: the solve reads the surface graph and
+never a `PlateReading`. They still say what a hull is made of. Measured on the
+catalogue hulls and stations, per ship:
 
 | subject | plates | flat | step | ridge | peak | brink | spur |
 |---|---|---|---|---|---|---|---|
 | `block_waystation` | 42 | 3 | 3 | 0 | 0 | 13 | 23 |
 | `mining_tug` | 56 | 6 | 9 | 3 | 4 | 12 | 22 |
 | `salvage_hauler` | 90 | 18 | 15 | 0 | 0 | 32 | 25 |
-| `light_freighter` | 74 | 11 | 14 | 4 | 0 | 20 | 25 |
+| `light_freighter` | 75 | 10 | 17 | 3 | 0 | 17 | 28 |
 | `freighter_derelict` | 67 | 9 | 13 | 1 | 1 | 16 | 27 |
-| `interceptor` | 64 | 5 | 14 | 2 | 1 | 15 | 27 |
-| `raider` | 67 | 9 | 12 | 9 | 0 | 11 | 26 |
+| `interceptor` | 65 | 6 | 13 | 2 | 0 | 15 | 29 |
+| `raider` | 67 | 11 | 10 | 9 | 0 | 11 | 26 |
+| `patrol_picket` | 47 | 7 | 12 | 3 | 0 | 7 | 18 |
 | `training_picket` | 40 | 5 | 12 | 4 | 0 | 3 | 16 |
 | `line_warship` | 178 | 22 | 72 | 25 | 0 | 32 | 27 |
 | `debris_plate` | 33 | 3 | 5 | 2 | 2 | 6 | 15 |
-| `ring_station` | 210 | 0 | 36 | 0 | 18 | 24 | 132 |
-| `spire_station` | 134 | 10 | 16 | 4 | 0 | 48 | 56 |
-| `yard_station` | 134 | 10 | 12 | 0 | 22 | 24 | 66 |
+| `ring_station` | 206 | 0 | 36 | 0 | 14 | 24 | 132 |
+| `spire_station` | 122 | 10 | 16 | 0 | 0 | 48 | 48 |
+| `yard_station` | 122 | 10 | 12 | 0 | 10 | 24 | 66 |
 
 Nearly three quarters of the plate falls, a fifth is step and under a tenth is
 flat. A plate on a run one cell wide falls on both sides, so a hand-built frame
-is ridges, peaks and spurs with almost no flat plate, and a rule written for flat
-panels lands nowhere on it - a floor over an empty eligible set is still empty.
-Almost every plate still has a SEAT, because every top is a plateau inside its
-rims; the ramp plates of a diagonal stair are the exception.
+is ridges, peaks and spurs with almost no flat plate. The surface graph does not
+care: every plate is a cell, and a greeble's link points decide where it goes.
 
 Both `spawn_ship_skin` and the editor's `sync_editor_skin` log that histogram plus
-a per-rule `taken of reach` tally at debug, where REACH is everything the rule's
-filter and lattice admit before the share and before priority. The two zeroes
-mean opposite things: `x0 of 78` is a rule starved by one above it or thinned away
-by its own share, and `x0 of 0` is a filter that matches nothing this hull has.
+a per-fixture tally of the plates each fixture took (`decor_tally`) at debug.
 
 ## Integrity: damage -> disable -> destroy
 

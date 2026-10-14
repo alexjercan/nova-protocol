@@ -1,7 +1,7 @@
 # Ship skin styles for mods
 
 A `Style` is the LOOK a ship's derived cladding wears: what its plates are made
-of, and the decoration scattered over them. A [ship](../ships/) names one by id
+of, and the decoration placed on them. A [ship](../ships/) names one by id
 (`style: Some("raider")` on its hull) and wears it.
 
 Styles are content like sections and scenarios. Create a new id to add a look,
@@ -46,7 +46,7 @@ decoration.
         >
     </div>
     <figcaption class="figure__caption">
-        Every fixture the base styles scatter, one row per
+        Every fixture the base styles place, one row per
         style. A mod's own pieces sit in the same catalog
         once the style declares them.
     </figcaption>
@@ -77,13 +77,33 @@ decoration.
                 model: "self://gltf/greebles/antenna.glb#Scene0",
                 health: 8.0,
                 collider: (0.12, 0.38, 0.12),
-                placement: (
-                    region: HighGround,
-                    density: Sparse,
-                    orientation: Outward,
-                ),
             ),
         ],
+        greeble_rules: (
+            link_types: [
+                (id: "any", connects: ["any", "empty"]),
+                (id: "empty", connects: ["any", "empty", "spaced"]),
+                (id: "spaced", connects: ["empty"]),
+            ],
+            greebles: [
+                (
+                    id: "empty",
+                    fixture: None,
+                    weight: 6.0,
+                    rotate: r#None,
+                    link_points: (up: "empty", right: "empty", down: "empty", left: "empty"),
+                ),
+                (
+                    id: "antenna",
+                    fixture: Some("antenna"),
+                    weight: 0.3,
+                    rotate: r#None,
+                    link_points: (up: "spaced", right: "spaced", down: "spaced", left: "spaced"),
+                    near: [(greebles: ["antenna"], radius: 4, factor: 0.0)],
+                    max_count: Some(2),
+                ),
+            ],
+        ),
     )),
 ]
 ```
@@ -93,7 +113,8 @@ decoration.
 | `id` | string | required | what a ship names this style by. A base id REPLACES that look |
 | `name` | string | required | display name |
 | `palette` | palette | required | what the plates are made of |
-| `fixtures` | list | `[]` | the decoration, in PRIORITY order - see [Priority](#priority-one-piece-per-plate) |
+| `fixtures` | list | `[]` | the decoration pieces: model, health and collider |
+| `greeble_rules` | rules | required | where the pieces go - see [Greeble rules](#greeble-rules) |
 
 ### `palette`
 
@@ -132,11 +153,10 @@ whichever default it happened to keep.
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `id` | string | required | names the piece within its style, and SALTS its scatter - two pieces sharing one placement do not claim the same plates |
+| `id` | string | required | names the piece within its style. A greeble places it by this id |
 | `model` | asset ref | required | the `.glb` scene, schemed. See [The frame a greeble is authored in](#the-frame-a-greeble-is-authored-in) |
 | `health` | float | required | what the piece takes before it comes off |
 | `collider` | `(x, y, z)` | required | the box a round stops on, in cells, standing on the mounting face. Not the model: a hull of one would cost more than it is worth |
-| `placement` | placement | `(region: Anywhere, density: Regular, orientation: Free)` | where the piece belongs |
 
 There is no authored physics density. Every decoration stands at the engine's
 `DECOR_DENSITY` of 0.25, the same as the skin's own cladding, and avian derives
@@ -146,179 +166,105 @@ its look can make one ship heavier than another.
 `health` and `collider` stay authored, and for different reasons. `health`
 decides when a piece is shot OFF, and two greebles of a size are not equally
 worth shooting off. `collider` is authored because a headless simulation never
-loads the model its bounds could otherwise be read from - and it is
-load-bearing for the LOOK as well, see [What the collider
-decides](#what-the-collider-decides).
+loads the model its bounds could otherwise be read from.
 
-## The placement
+## Greeble rules
 
-Three words. They say what a piece is FOR, not how the skin is derived:
+The engine reads a ship's skin as a grid of CELLS: one cell per plate, each with
+four edges, and across each edge the plate that continues the surface. The
+solve puts exactly one GREEBLE on every cell. A greeble is either a fixture or
+empty space, and it shows a LINK TYPE on each of its four edges. Two cells that
+share an edge must show link types that connect. The solve does not read the
+shape of a plate: every plate is one cell.
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `region` | region | `Anywhere` | the part of the hull the piece belongs on |
-| `density` | density | `Regular` | how much of that region it covers |
-| `orientation` | orientation | `Free` | which way it is turned on the plate it lands on |
+| `link_types` | list | required | every link type the greebles use, at most 64 |
+| `greebles` | list | required | every greeble, with at least one `fixture: None`. An empty list places no decoration |
 
-Each expands internally into the neighbourhood filter, the lattice, the share
-and the patch floor the scatter actually runs. That expansion is engine policy:
-it is tuned against real hulls and it changes when the plate derivation
-changes. A style that had spelled it out would go quietly wrong the next time
-it did. You pick the high ground; the engine decides what the high ground
-measures on this hull.
+### `link_types`
 
-### The seven regions
+| field | type | meaning |
+|---|---|---|
+| `id` | string | the name greebles use for it |
+| `connects` | list of ids | the link types it may share an edge with. Must be symmetric: if `a` lists `b`, `b` lists `a` |
 
-| region | what it is |
-|---|---|
-| `Panel` | unbroken panel: the flat face of a hull, where the plate falls on no side. Where a sign, a hatch or a decal goes |
-| `Deck` | working deck: flat plate with real ship under it. The laydown area - a crate, a rack, a tank, anything that would need a floor to stand on |
-| `Flank` | the ship's SIDES: deck plate that faces out rather than up. Windows, doors and anything read from another ship |
-| `Edge` | the straight edge of a hull, where the skin falls away along one whole side. Rim strips, hazard paint, fairings - the pieces that draw a silhouette |
-| `HighGround` | the pointiest thing on the hull: crests, spar tips and studs. Masts, stacks and aerials |
-| `NearFitting` | right beside the mouth of a fitting - a nozzle, a gun well, a bay. The service kit: grilles, lighting, machinery |
-| `Anywhere` | anything with a seat on it. The FILLER, and the default: a style's last rule, which takes whatever the rules above it left |
+A link type that does not connect to any link type of an empty greeble FORCES
+its neighbour: the cell across it cannot stay empty. A line link type that
+connects only to itself is the usual case.
 
-**`NearFitting` reads as narrow and is not.** On a hull dense with drives and
-bays, something is beside a fitting nearly everywhere: measured, a pocket rule
-placed first took 45% of a ship and starved every rule below it. Every base kit
-puts its pocket rule last.
+### `greebles`
 
-**`HighGround` is the one region that accepts a creased plate.** A mast or a
-stack stands up off its plate rather than lying on it, so it needs no surface
-under its whole footprint. Everywhere else, a piece is bedded onto one flat
-surface, and a plate without one - the ramp of a diagonal stair - is refused
-unless the piece is trim (see below).
+| field | type | default | meaning |
+|---|---|---|---|
+| `id` | string | required | names the greeble in `near` terms |
+| `fixture` | `Option` string | required | the fixture it places, by id, or `None` for empty space |
+| `weight` | float | required | relative chance against the other greebles a cell still allows. Above 0. Shared by all the turns |
+| `rotate` | `All`, `Half` or `r#None` | required | the quarter turns the solve may use: all four, none and the half turn, or none. Spell the last `r#None`, because a bare `None` reads as an empty `Option` |
+| `link_points` | `(up, right, down, left)` | required | the link type on each edge |
+| `near` | list | `[]` | range terms, below |
+| `max_count` | `Option` integer | `None` | the most cells this greeble may take on one ship |
 
-### Start from what a hull offers
+### `near`
 
-The engine reads every plate into one of six shapes and logs the tally beside
-the decoration tally (see [Priority](#priority-one-piece-per-plate)). Measured
-per hull, on the four catalogue ships and the four catalogue stations:
+| field | type | meaning |
+|---|---|---|
+| `greebles` | list of ids | the greebles the term looks for |
+| `radius` | integer | how far the term reaches, in cells along the grid. At least 1 |
+| `factor` | float | multiplies this greeble's weight where one of `greebles` is in range. 0 is a hard ban, in both directions |
 
-| subject | plates | flat | step | ridge | peak | brink | spur |
-|---|---|---|---|---|---|---|---|
-| catalogue ships | 61-171 | 2-23 | 8-54 | 2-21 | 0-2 | 7-44 | 24-37 |
-| catalogue stations | 42-210 | 0-10 | 3-36 | 0-4 | 0-22 | 13-48 | 23-132 |
+### What fails
 
-`flat` falls on no side and `step` climbs a wall; `brink` is an outer rim, and
-`ridge`, `peak` and `spur` fall on two or more sides. Every plate top is a flat
-plateau inside its rims, so nearly every plate has a seat whatever its shape.
-A small build is one cell wide nearly everywhere, so it is ridges, peaks and
-spurs with almost no flat plate and no brink. **`Panel`, `Deck`, `Flank` and
-`Edge` therefore land on almost NOTHING on a hand-built hull.** A kit that uses only those decorates a
-generated ship and leaves an editor build bare. Give a style at least one
-`HighGround` piece and at least one `Anywhere` piece flat enough to count as
-trim; every base kit does.
+Every rule set is checked by `content lint` and again at load. A rule set that
+fails is an error, and the style is dropped: every ship that names it flies
+clad and bare. Each of these fails:
 
-**Read the SPREAD, not the middle.** Every bucket above swings by two or three
-times across three seeds of one generator, so a rule sized against one hull is
-not sized against the next. Tune against the logged tally below, on more than
-one subject.
+- a link type or a greeble declared twice, or more than 64 link types;
+- a `connects`, a link point or a `near` term that names an unknown id;
+- `connects` that is not symmetric;
+- a `weight` that is not a finite number above 0, a `factor` that is not a
+  finite number of at least 0, or a `radius` of 0;
+- no greeble with `fixture: None`;
+- a greeble whose `fixture` names no fixture in the style;
+- a `factor: 0` term on a greeble that a forcing link type can force, because
+  the ban could empty a cell that must be filled;
+- a `factor: 0` term or a `max_count` on an empty greeble, because empty space
+  must stay available everywhere.
 
-### The five densities
+### When a hull contradicts the rules
 
-A ladder rather than a number, because the dials underneath it interact and a
-style that set them apart gets a hull carpeted at one size and bare at another.
+A hull is built by a player, so some rule sets cannot be met on every hull: a
+line that must continue has nowhere to end, or a cap runs out. The solve then
+starts again with a different hash, up to eight times. If every attempt fails it
+solves once more WITHOUT the greebles that carry a forcing link type, logs a
+warning, and leaves any cell that still contradicts empty. The ship is never
+refused and never crashes; it is dressed with less.
 
-| density | what it is for |
-|---|---|
-| `Rare` | the thinnest rung there is: a piece or two on a whole ship. The share is nearly off, so what actually places it is the floor below |
-| `Sparse` | scattered thinly, with a floor so a big hull does not clump it |
-| `Regular` | the workhorse rung: a piece every few cells of the region |
-| `Dense` | heavy cover, still on the lattice |
-| `Every` | every plate the region admits, off the lattice entirely. For the pieces that ARE the surface - a rim strip down a whole edge, cladding |
+## The solve is deterministic
 
-Every rung but `Every` carries a patch floor: a guarantee of at least one piece
-per block of hull the rule can stand on at all. That is what keeps a rule
-reading the same on a 150-plate generated hull and a 20-plate hand-built one.
-
-The floor takes free plate first. When there is none left - a thin rule whose
-whole region was swept by the broad rules under it - it may BORROW one, and
-only under three conditions: the lender is thicker than the borrower, it has a
-floor of its own (so `Every` never lends), and it still keeps a piece somewhere
-on the ship. That is why a rare piece on a busy region lands at all, and it is
-bounded enough that the rule underneath never disappears.
-
-### Orientation
-
-Quarter turns about the plate's own outward axis, and nothing finer. There is
-no random jitter and no free yaw, deliberately - alignment is what makes
-decoration read as bolted on rather than as confetti.
-
-| `orientation` | what the piece's own `+Z` points down |
-|---|---|
-| `Free` | nothing. Right for anything with no long axis - a blister, a stud, a hatch |
-| `Along` | the direction the surface RUNS, so a rib strip follows the spine it is on and a row of vents lines up with itself |
-| `Outward` | the direction the surface FALLS, which is off the ship - a fairing leans out over the edge it stands on instead of lying along it |
-
-The piece is turned ACROSS THE SURFACE it lies on, and then bedded onto it, so
-on a raked plate its `+Z` comes out raked too: a fairing on a hull edge noses
-down the slope rather than standing square out of it.
-
-The two are square to each other. `Outward` is a rule for the falling plate,
-and `Edge` above all: a plate that does not fall one way is left unturned.
-
-### What the collider decides
-
-Two things are read off the piece's own size rather than authored, because the
-size already answers them and a second authored word could disagree with it:
-
-- **How long a run of like plate it needs under it.** One cell of run per half
-  cell the piece spans across the plate (the two in-plane axes; `y` stands off
-  the plate and says nothing). So a strip most of a cell long asks for a
-  neighbour either side, and a stud asks for nothing. Shorten a model and its
-  gate relaxes with it.
-- **Whether it needs an unbroken seat at all.** A piece standing less than 0.1
-  cells - one metre - off the plate is TRIM: a stencil, a livery patch or a
-  hazard stripe, where a crease underneath is a fold in a decal rather than a
-  gap you can see. Anything that stands proud needs the seat, because on a
-  crease it touches along one line and floats at both ends.
-
-Trim is also what reaches the ramp plates of a diagonal stair, which have no
-seat. A kit whose every filler stands proud leaves every stair bare.
-
-### Priority: one piece per plate
-
-A plate takes AT MOST ONE piece, and the FIRST fixture in the list whose
-placement accepts it wins. So the order is a priority order: put the rare,
-specific pieces first and the common filler last.
-
-Watch out for a placement that READS AS SPECIFIC AND IS NOT. `NearFitting` is
-the measured example - see above. The general failure is a rare rule sampled
-after a broad one: it is starved out of the leavings and lands nothing, which
-looks identical on screen to a rule that matched nothing at all.
-
-Both are visible rather than guessable. `spawn_ship_skin` and the build view
-log each rule as `taken of reach` at debug, where reach is everything the
-region and the lattice admit before the share and before priority:
-
-```text
-decoration mast x3 of 8, vent x5 of 7, block x6 of 94, blister x12 of 19
-```
-
-`x0 of 78` is a rule that was starved or thinned away; `x0 of 0` is a region
-that matches nothing this hull has. They look identical on screen and have
-opposite fixes.
-
-## The scatter is deterministic
-
-There is no RNG. Whether a plate takes a piece is decided by hashing the CELL it
-would stand in together with the fixture's id, so:
+There is no RNG. The seed is a hash of the style id, and every draw also hashes
+the cell it is for, so:
 
 - the same ship always wears the same decoration, saved or not;
-- the build view can show it live while a hull is dragged, without flicker;
+- the build view can show it live while a hull is dragged, without the whole
+  hull changing;
 - two ships built the same way are decorated the same way.
 
-A density rung therefore does not mean "roll a die"; its share is "the fraction
-of eligible cells whose hash falls below this". Dropping a rung REMOVES pieces
-rather than moving them.
+The structure is not in the seed. An edit changes the draws only where it
+changes the cells and their edges, and nothing far from the edit moves.
 
-The patch floor is the one thing decided by a BLOCK of hull rather than by a
-single cell, and the blocks are a fixed division of the ship's own cells. So
-growing a hull by one cell leaves every piece outside the block that cell lands
-in exactly where it was; inside that block the floor's own pick can move, if the
-new plate hashes lower. Nothing shuffles across the ship.
+When a ship is RE-CLAD after damage, the plates that stayed keep their pieces
+and only the new plates are solved. A link across the edge of the repair is not
+checked against the piece that stayed.
+
+`spawn_ship_skin` and the build view log, at debug, how many plates each fixture
+took:
+
+```text
+decoration mast 2, vent 7, block 11, blister 9
+```
+
+A `0` on a big hull is a fixture its weight, its caps or its link types starve.
 
 ## The frame a greeble is authored in
 
@@ -330,10 +276,11 @@ that same frame:
 - The footprint is centred on the origin and stays inside half a cell, so a piece
   cannot spill across a plate seam onto its neighbour. A tall piece (a mast)
   reaches further up.
-- `+Z` is the piece's own long axis, which `orientation: Along` points down the
-  surface's run and `orientation: Outward` points off the ship.
+- `+Z` points at the edge that holds the greeble's `up` link point. A line
+  greeble with `line` on `up` and `down` therefore lies with `+Z` down the
+  line.
 - Flat-shaded, low-poly, untextured, one primitive per flat colour - and under
-  200 triangles, because decoration is scattered many times over a hull.
+  200 triangles, because decoration is placed many times over a hull.
 
 The base game generates its own from committed JSON recipes
 (`scripts/gen-greebles.py`, `scripts/greeble-recipes/`). A mod can ship `.glb`
@@ -361,14 +308,15 @@ looks and every scenario spawning them gets the right one. A style id nothing au
 clad and BARE rather than falling back to another look - a missing mod is
 visible, not silently substituted.
 
-The base game ships four looks:
+The base game ships five looks:
 
 | id | what it is |
 |---|---|
-| `industrial` | a working hull: exposed services, corrugation, radiators, safety-yellow paint on its edges |
-| `armoured` | flat plate, a belt down every straight edge, sensor blisters |
-| `civilian` | a private yacht's: pale satin paint, a cobalt livery rail, lit cabin windows, smooth fairings |
-| `salvage` | mismatched patches, weld beads, a lashed drum, a whip antenna |
+| `industrial` | a working hull: exposed services, cranes and stacks, radiator clusters, safety-yellow hazard bands and ducts as lines |
+| `armoured` | flat plate, applique clusters, strake lines, sensor blisters and masts |
+| `civilian` | a private yacht's: pale satin paint, cobalt stripe and cabin window lines, dishes, fins and fairings |
+| `salvage` | mismatched patch clusters, weld seam, chain and hose lines, a lashed drum, a whip antenna |
+| `station` | station plate: antennae, beacons, radiator clusters, hatches, markings and window lines |
 
 A ship that names no style flies undressed: built-in plate colours, no
 decoration. The EDITOR's build view instead previews the first style the merged
@@ -377,44 +325,61 @@ its cladding toggle - a mod's look appears there beside the base ones with
 nothing to register - and the `wfc_ships` example cycles the same list with `L`,
 or takes `--style <id>`.
 
-### Drawing a CONTINUOUS line
+## Patterns the base kits use
 
-Decoration cannot span cells: every piece stands on one plate. A band that
-looks continuous is therefore a row of pieces, and it needs three things at
-once - `civilian_stripe` is the worked example.
+Every base kit is built from the same four shapes of greeble. Read them in
+`crates/nova_authoring/src/base_content/styles.rs`.
 
-- The MODEL fills its cell along `+Z` (a raised budget in the recipe), so
-  neighbours butt together instead of leaving a gap. A piece is always centred
-  on its plate, so a full-cell piece still cannot spill onto a neighbour.
-- The RULE takes every eligible plate: `density: Every`, which is the one rung
-  off the lattice. A band with every other cell missing is a dashed line.
-- `region: Edge` is the run worth following - the straight edge of a hull - and
-  `orientation: Along` turns each piece down it.
+- **Empty space.** One `fixture: None` greeble on `empty` link points, with
+  the largest weight in the kit. It sets how bare the hull is: raise its weight
+  and every fixture thins out together.
+- **A filler.** `any` on all four link points and `rotate: r#None`. It can
+  stand next to anything except a spaced piece. Hatches, vents and stencils.
+- **A spaced piece.** `spaced` on all four link points, which connects only to
+  `empty`, so nothing stands beside it. Add a `near` ban on itself and a
+  `max_count` so a ship carries one or two, apart. Masts, dishes, cranes.
+- **A cluster.** A filler with a `near` term on itself at radius 1 and a factor
+  above 1, so one piece makes the next one beside it more likely. Radiators,
+  applique, salvage patches.
+- **A line.** A line link type that connects only to itself, a body greeble
+  with it on `up` and `down` and `any` on the sides, `rotate: Half`, and an END
+  greeble with it on `up` only and `rotate: All`. Both place the same fixture.
+  Because the line link type forces its neighbour, a started line runs until an
+  end greeble closes it, so a line never stops at a gap. Use a second line link
+  type (`line_2`) for a second line fixture, so the two never join.
 
-So a continuous band is `(region: Edge, density: Every, orientation: Along)` and
-a model that fills its cell. Every base kit's rim piece is spelled exactly that
-way; what differs between them is only the model.
+```ron
+link_types: [
+    (id: "any", connects: ["any", "empty"]),
+    (id: "empty", connects: ["any", "empty", "spaced"]),
+    (id: "spaced", connects: ["empty"]),
+    (id: "line", connects: ["line"]),
+],
+greebles: [
+    // ... the empty greeble ...
+    (
+        id: "stripe",
+        fixture: Some("stripe"),
+        weight: 1.2,
+        rotate: Half,
+        link_points: (up: "line", right: "any", down: "line", left: "any"),
+    ),
+    (
+        id: "stripe_end",
+        fixture: Some("stripe"),
+        weight: 0.3,
+        rotate: All,
+        link_points: (up: "line", right: "any", down: "any", left: "any"),
+    ),
+],
+```
 
-**A band cannot be capped with a different piece at its ends.** There is no
-authored way to ask for "the end of a run": ends are not a region. Draw the
-whole edge with one piece and let the silhouette end where the hull does.
+The model of a line piece fills its cell along `+Z`, so neighbours butt
+together. A piece is always centred on its plate, so a full-cell piece still
+cannot spill onto a neighbour.
 
-### Reading as UNPLANNED with no randomness
-
-The scatter has no RNG in it, deliberately. `salvage` is the worked example of
-what that makes hardest: decoration that reads as unplanned. Four devices carry
-it, and none of them is jitter:
-
-- three patch pieces in three materials, spread across regions and rungs
-  (`salvage_patch_strip` on `NearFitting`/`Regular`, `salvage_patch_plate` on
-  `Anywhere`/`Regular`, `salvage_patch_scab` on `Anywhere`/`Sparse` below it),
-  because a hash is spatially incoherent: one rule split three ways gives an
-  even speckle, while a rule gated on the ship's own service gear gives
-  regions;
-- two of those pieces authored long on OPPOSITE in-plane axes with both on
-  `orientation: Along`, so neighbouring repairs cross at right angles while
-  every piece stays square to the grid;
-- every model authored OFF-CENTRE in its own footprint, since the scatter offers
-  no jitter and a centred piece repeated is a tile;
-- a weld bead built from four lumps of different size rather than from the
-  `ribs` primitive, because even ribbing reads as machined.
+**Reading as unplanned with no randomness.** `salvage` is the worked example.
+Its patches are clusters in three materials, so they gather in regions instead
+of an even speckle; its weld seam, chain and hose are three separate lines; and
+every model is authored off-centre in its own footprint, so a piece repeated is
+not a tile.
