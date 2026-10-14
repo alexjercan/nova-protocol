@@ -121,6 +121,14 @@ path = "examples/playable/station_own_sandbox.rs"
 name = "start_role_sandbox"
 path = "examples/playable/start_role_sandbox.rs"
 
+# Two escorts hired at a generated station through the Hire message, then the
+# player and its fleet in open space: fly, turn, stop, and dock with an
+# escort. The overlay draws each slot, the trim zone, the dock-hold radius,
+# the velocities and every RCS push. Nothing ends it.
+[[example]]
+name = "escort_sandbox"
+path = "examples/playable/escort_sandbox.rs"
+
 # The ore loop in one session: the line warship's beam mines a rock, its
 # intake takes one canister, and that ore is sold to a docked demo trader
 # through the Inventory pane. The walk checks the ore and credit ledger at
