@@ -4,7 +4,11 @@
 //! One accepted pair becomes ONE entity carrying a
 //! [`DockingConnection`] and the avian [`FixedJoint`] that does the actual
 //! work. Releasing is therefore a despawn of that one entity and nothing else
-//! - no query sweeps a joint it did not create.
+//! - no query sweeps a joint it did not create. The joint holds the pair
+//! rigid, so the two hulls do not collide while docked
+//! ([`JointCollisionDisabled`]): a skin plate or a greeble that reaches past
+//! a port face would otherwise press on the other hull every step and wear
+//! both down while they sit still.
 //!
 //! # Ships hold one dock, a station is a hub
 //!
@@ -347,6 +351,7 @@ pub(super) fn on_docking_connection_request(
             .with_local_anchor1(first_rotation.inverse() * (anchor - first_position))
             .with_local_anchor2(second_rotation.inverse() * (anchor - second_position))
             .with_local_basis2(second_rotation.inverse() * first_rotation),
+        JointCollisionDisabled,
     ));
     if let Some(station) = hub {
         connection.insert(StationDock(station));

@@ -608,7 +608,8 @@ and the midpoint `m` of the two faces:
 FixedJoint::new(first_ship, second_ship)
     .with_local_anchor1(r1.inverse() * (m - p1))
     .with_local_anchor2(r2.inverse() * (m - p2))
-    .with_local_basis2(r2.inverse() * r1)
+    .with_local_basis2(r2.inverse() * r1),
+JointCollisionDisabled,
 ```
 
 Both anchors land on `m`, and the second body's basis holds the relative
@@ -619,6 +620,11 @@ joint holds the capture pose only when the two hull rotations commute. A
 belly-up hull against a yawed partner does not, and the joint swings the
 partner into the hull. A bare `FixedJoint::new(a, b)` carries
 `JointFrame::IDENTITY` and would yank the two hulls into the same origin.
+`JointCollisionDisabled` stops the two docked hulls from colliding with each
+other: a skin plate or a greeble that reaches past a port face pressed on the
+other hull every step, and the contact damage wore both down while they sat
+still. Two hulls docked at one station are not joined to each other and
+still collide.
 
 Nothing writes a velocity anywhere on this path. The constraint is the physics'
 job, so a pair that met while drifting keeps drifting; a hull that had been

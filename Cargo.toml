@@ -710,10 +710,11 @@ name = "system_station_body"
 path = "examples/systems/system_station_body.rs"
 required-features = ["debug"]
 
-# A station is a body in a planet's well: the base waystation rides a circular
-# orbit at the speed `station_orbit_velocity` gives it, is damaged but not
-# killed by a torpedo, levels itself after a ram's worth of spin and shove, and
-# holds its radius over three orbits.
+# A station is a body in a planet's well: the base yard station, a tender
+# docked at each port but one, rides a circular orbit at the speed
+# `station_orbit_velocity` gives it, is damaged but not killed by a hit, levels
+# itself and its hulls after a ram's worth of spin and shove, and holds its
+# radius over three orbits with every hull still docked.
 [[example]]
 name = "system_station_orbit"
 path = "examples/systems/system_station_orbit.rs"

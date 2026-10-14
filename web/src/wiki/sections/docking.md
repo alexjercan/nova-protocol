@@ -71,7 +71,7 @@ A dock already made is never re-judged this way - a ship under fire from someone
 
 <!-- Behavior verified against crates/nova_ship/src/sections/docking_section/connection.rs (one FixedJoint with an explicit anchor and basis, no velocity written; DockingConnection.helm starts Neutral; park_suppressed_docked_helms) and crates/nova_ship/src/sections/docking_section/assembly.rs (the driver's wrench split over both roots from the combined mass, centre of mass and inertia). -->
 
-The clamp is a single joint between the two hulls, made the instant you press the key, and it holds the **pose you met in** - the gap you crossed at, the angle you came in on, the roll you happened to carry. Nothing is snapped straight and nothing is tidied up.
+The clamp is a single joint between the two hulls, made the instant you press the key, and it holds the **pose you met in** - the gap you crossed at, the angle you came in on, the roll you happened to carry. Nothing is snapped straight and nothing is tidied up. While docked, the two hulls do not bump or scrape each other.
 
 Your drift comes with you. A dock never brings either ship to a halt: two hulls that met while coasting keep coasting, together, and a pair caught in a well falls the way one hull would. The clamp only takes away the motion of one hull relative to the OTHER.
 

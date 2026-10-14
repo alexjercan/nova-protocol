@@ -95,8 +95,9 @@ where it stays, and a world save keeps that pose and motion.
 | orbit tolerance | over three orbits, with a hit, the radius stays within `STATION_ORBIT_TOLERANCE` (15 percent) of where it started. The pull is held constant over each physics step, so every orbit widens a little (about 1.5 percent of its energy per orbit on the proof's fast 30 s orbit, less on a real planetoid's), and a kick of one percent of orbital speed swings the radius about four percent; past the tolerance the orbit is walking out of the well or down onto the planet |
 
 The proofs are `system_station_body` (a nudged station in a void) and
-`system_station_orbit` (a hit that damages the waystation without
-collapsing it, a shove and three orbits of a small planet).
+`system_station_orbit` (the yard station with a tender docked at each port
+but one: a hit that damages it without collapsing it, a shove and three
+orbits of a small planet).
 
 ## Docking at a station
 
