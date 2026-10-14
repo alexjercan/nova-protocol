@@ -59,18 +59,19 @@ pub mod prelude {
         OnShipOrderFailedEvent, OnShipOrderFailedEventInfo, OnShipOrderInterruptedEvent,
         OnShipOrderInterruptedEventInfo, OnShipOrderResumedEvent, OnShipOrderResumedEventInfo,
         OnStartEvent, OnStartEventInfo, OnStationBoughtEvent, OnStopCompleteEvent,
-        OnStopCompleteEventInfo, OnStoredEvent, OnSwappedEvent, OnTimerEndEvent,
+        OnStopCompleteEventInfo, OnStoredEvent, OnStrippedEvent, OnSwappedEvent, OnTimerEndEvent,
         OnTimerEndEventInfo, OnTradedEvent, OnTravelLockEndEvent, OnTravelLockStartEvent,
         OnUndockedEvent, OnUpdateEvent, OnUpdateEventInfo, OnWithdrawnEvent, OrbitEventInfo,
         RebuiltEventInfo, RepairedEventInfo, ScenarioAddressableMarker, ShipBoughtEventInfo,
-        ShipOrderKind, StationBoughtEventInfo, StorageEventInfo, SwappedEventInfo, TradedEventInfo,
-        ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME, BEACON_TYPE_NAME, CANISTER_FIELD_NAME,
-        CINEMATIC_KEY_FIELD_NAME, CREDIT_CAUSE_FIELD_NAME, CURRENT_CREDITS_FIELD_NAME,
-        DELTA_CREDITS_FIELD_NAME, ENTITY_ID_COMPONENT_NAME, ENTITY_OTHER_ID_COMPONENT_NAME,
-        ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME, ENTITY_TYPE_NAME_COMPONENT_NAME,
-        ITEM_COUNT_FIELD_NAME, ITEM_FIELD_NAME, LIGHT_TYPE_NAME, PLANET_TYPE_NAME,
-        PREVIOUS_CREDITS_FIELD_NAME, PRICE_FIELD_NAME, SECTION_FIELD_NAME, SHIP_ORDER_FIELD_NAME,
-        SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME, TIMER_KEY_FIELD_NAME, TRADE_FIELD_NAME,
+        ShipOrderKind, StationBoughtEventInfo, StorageEventInfo, StrippedEventInfo,
+        SwappedEventInfo, TradedEventInfo, ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME, BEACON_TYPE_NAME,
+        CANISTER_FIELD_NAME, CINEMATIC_KEY_FIELD_NAME, CREDIT_CAUSE_FIELD_NAME,
+        CURRENT_CREDITS_FIELD_NAME, DELTA_CREDITS_FIELD_NAME, ENTITY_ID_COMPONENT_NAME,
+        ENTITY_OTHER_ID_COMPONENT_NAME, ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME,
+        ENTITY_TYPE_NAME_COMPONENT_NAME, ITEM_COUNT_FIELD_NAME, ITEM_FIELD_NAME, LIGHT_TYPE_NAME,
+        PLANET_TYPE_NAME, PREVIOUS_CREDITS_FIELD_NAME, PRICE_FIELD_NAME, SECTION_FIELD_NAME,
+        SHIP_ORDER_FIELD_NAME, SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME,
+        TIMER_KEY_FIELD_NAME, TRADE_FIELD_NAME,
     };
 }
 
@@ -1387,6 +1388,38 @@ pub struct StationBoughtEventInfo {
     /// The price: the station's worth at ask times the ownership factor.
     #[serde(rename = "price_cr")]
     pub price_cr: u32,
+}
+
+/// A Ship pane strip took one section off the docked lootable partner and
+/// put its parts in the ship's hold (`onstripped`).
+///
+/// One event per strip that finished; a refused or cancelled strip fires
+/// nothing. No credits move.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onstripped")]
+#[event_info(StrippedEventInfo)]
+pub struct OnStrippedEvent;
+
+/// Payload for [`OnStrippedEvent`]: the ship that stripped (`id` /
+/// `type_name`), the stripped hull's scenario id, the pane code of the
+/// section it lost and every part the strip put in the hold.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
+pub struct StrippedEventInfo {
+    /// Scenario id of the ship that stripped.
+    #[serde(rename = "id")]
+    pub id: String,
+    /// Type name of that ship.
+    #[serde(rename = "type_name")]
+    pub type_name: String,
+    /// Scenario id of the stripped hull.
+    #[serde(rename = "hull")]
+    pub hull: String,
+    /// Pane section code of the stripped section on that hull.
+    #[serde(rename = "section")]
+    pub section: String,
+    /// Every part the strip put in the hold, as a count per item design id.
+    #[serde(rename = "parts")]
+    pub parts: std::collections::BTreeMap<String, u32>,
 }
 
 /// A Store at a docked station moved items from the ship's hold into the

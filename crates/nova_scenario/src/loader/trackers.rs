@@ -1626,7 +1626,7 @@ mod tests {
 }
 
 /// Drain every ship's [`ShipInventoryReports`] into the hold events: pickup,
-/// jettison, trade, credits change, repair, rebuild, swap, store and
+/// jettison, trade, credits change, repair, rebuild, swap, strip, store and
 /// withdraw.
 ///
 /// The intake pushes in the same fixed tick this drains, so a pickup reaches
@@ -1840,6 +1840,22 @@ pub(super) fn track_ship_inventory_reports(
                         escort,
                         hull,
                         price_cr,
+                    });
+                }
+                ShipInventoryReport::Stripped {
+                    hull,
+                    section,
+                    parts,
+                } => {
+                    commands.fire::<OnStrippedEvent>(StrippedEventInfo {
+                        id,
+                        type_name,
+                        hull,
+                        section,
+                        parts: parts
+                            .into_iter()
+                            .map(|(item, count)| (item.to_string(), count))
+                            .collect(),
                     });
                 }
                 ShipInventoryReport::StationBought { station, price_cr } => {

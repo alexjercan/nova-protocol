@@ -213,6 +213,11 @@ scenario_events! {
     /// (`id` = the buying ship; `station` = the station's scenario id,
     /// `price_cr` = the price). Once per buy.
     OnStationBought => OnStationBoughtEvent { label: "On Station Bought" },
+    /// A Ship pane strip took one section off the docked lootable partner
+    /// (`id` = the ship that stripped; `hull` = the stripped hull's scenario
+    /// id, `section` = its pane code such as `PDC-1`, `parts` = every part
+    /// put in the hold). Once per finished strip.
+    OnStripped => OnStrippedEvent { label: "On Stripped" },
     /// A Store at a docked station moved items into its storage (`id` = the
     /// station, other = the ship that stored; `item`, `count`). Once per
     /// confirmed Store.
