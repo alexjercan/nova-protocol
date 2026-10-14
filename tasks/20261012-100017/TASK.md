@@ -56,6 +56,16 @@ Not civilization-bound, kept: the station's hold, balance, storage, services and
 
 Gaps today: the buy only inserts the marker, so a bought station keeps its civilization's side (its guns read the civilization's foes), its "<civilization> station" name, and shows on the chart and Map as any living station.
 
+## Agent result (2026-10-14, reopen)
+Representation: `OwnedStationMarker` stays the one ownership record (`FrozenStation.owned`); generated Player-side civilizations exist, so the side alone cannot mean owned. The buy inserts `owned_station()` (`crates/nova_ship/src/sections/station_buy.rs`): the marker, `Allegiance::Player` and the name `OWNED_STATION_NAME` ("Owned station"). Side and name freeze with the hull (`FrozenShip.allegiance`, `FrozenBody.name`); the chart gains `ChartStation.owned`, and the Map's chart view draws it as OWNED STATION in the ally colour. A dead owned station reads "Owned dead station". Save format stays 9 (unreleased); an old dev chart fails loudly on `deny_unknown_fields`.
+
+Proof:
+- `examples/systems/system_station_own.rs`, seed 10: the station starts its civilization's (Neutral side, "<civilization> station", its guns read an Enemy ship as Neutral); after the buy it is Player-side, named as the player's, reads an Enemy ship as Hostile and the player as Own; the chart holds it owned; it stays so across a retire, a thaw, the leave save and a Load, and admits an Enemy-flagged player; the Map's chart view reads OWNED STATION. Reproduced first: before the fix the station stayed Neutral and "Fenhalka station".
+- Unit: `dead_station_name(OWNED_STATION_NAME)` in `crates/nova_world/src/streaming.rs`; prices rest on `TradePriceType::Owned`'s existing test.
+- Playable: `examples/playable/station_own_sandbox.rs` docks at the same station with the price plus 50,000 cr; its overlay rings the station by side, draws a line to each ship within 10 km by relation, and reads side, civilization, marker, chart entry, admission, price and trade prices. Its smoke buys from the Station tab and shoots the overlay.
+
+Not verified live: the station's guns firing on an Enemy ship, and a Buy at bid from the Inventory pane (the overlay reads the price kind only).
+
 ## Delivery gate
 - Ownership is a field on the frozen station body and in `SavedPlayer`; an owned station's admission skips the civilization rule. Stop for the owner on the price (a multiple of its stock value) and whether income accrues (needs the clock, economy strand).
 
