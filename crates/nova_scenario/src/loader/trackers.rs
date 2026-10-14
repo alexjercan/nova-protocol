@@ -1816,6 +1816,19 @@ pub(super) fn track_ship_inventory_reports(
                         price_cr,
                     });
                 }
+                ShipInventoryReport::ShipBought {
+                    hull,
+                    price_cr,
+                    trade_in_cr,
+                } => {
+                    commands.fire::<OnShipBoughtEvent>(ShipBoughtEventInfo {
+                        id,
+                        type_name,
+                        hull,
+                        price_cr,
+                        trade_in_cr,
+                    });
+                }
             }
         }
     }

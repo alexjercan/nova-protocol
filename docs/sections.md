@@ -110,6 +110,42 @@ grows the root's pinned health by the part's pool, and spawns the section at
 full health. The Ship side panel scrolls under the wheel while hovered
 (`scroll_ship_panel`), and the camera zoom yields to it.
 
+### Buying a hull
+
+A generated living station carries a `StationHullCatalogue`
+(`nova_scenario/src/objects/station_hulls.rs`): three to five whole inline
+designs that `station_hulls` (`nova_world_base/src/station_hulls.rs`) lays
+out for its civilization from the world seed and the station id. Roles cycle
+from a seeded start through the roles the civilization's advancement can
+build, and each hull is `generate_ship` at that advancement, so the size
+ceiling tiers the list: a first-ring station sells small hulls only. The
+catalogue rides `SectorStation.hulls` in the manifest (checked by
+`check_ship_design`, refused on a dead station) and `FrozenStation.hulls`,
+so it keeps across a retire, a thaw and a save. `insert_hull_offers`
+resolves it into `HullOffers` (`nova_ship/src/sections/hull_buy.rs`), which
+the pane reads. Under the add list, the Ship pane's "Ships for sale" list
+(`nova_interface/src/ship/shipyard.rs`) shows each hull's length, section
+count, kind summary, price and trade-in, with a Buy button or the refusal.
+`plan_hull_buy` checks, in order: docked, `Refit`, a mining key per emitter
+(`bought_hull_bindings`), storage room for the whole hold, the player's
+balance plus the trade-in against the price, and the station's balance plus
+the price against the trade-in. The price is `hull_price_cr`, every new
+section's recipe at ask; the trade-in is `hull_trade_in_cr`, each live
+section's strip value at bid times its health share, rounded down per
+section. A confirmed buy moves every hold stack into station storage
+(`Stored` per stack), moves both balances (cause `ShipBuy`), pushes
+`ShipInventoryReport::ShipBought` (`OnShipBought`), and triggers
+`HullBuyRequest`. `buy_station_hull` keeps the ship root, so the HUD, the
+camera and the scenario id keep their owner: it despawns every section,
+makes the design the offer inline, sets the player's `input_mapping` to the
+new bindings (thrusters none, a weapon the first old binding of its kind,
+each emitter its own `ADDED_MINING_KEYS` key), drops the root's pinned
+health, marks and history stamps, opens an empty hold at the new capacity,
+and spawns the new sections posed by `bought_hull_pose` so the first
+docking port's face lies on the old port's face. The old port's despawn
+releases the dock, and `redock_bought_hull` docks the new port with the
+station, giving up with a warning after `REDOCK_FRAMES`.
+
 `SectionKind` variants (one module per kind under `crates/nova_ship/src/sections/`;
 `turret_section/` and `torpedo_section/` are directories, not single files):
 
@@ -1467,6 +1503,14 @@ per contact. A symmetric rule - ram damage - wants both.
   `add_design_section` - `crates/nova_scenario/src/objects/spaceship.rs`; the
   pane: `crates/nova_interface/src/ship/refit.rs`; proof:
   `examples/systems/system_station_add.rs`.
+- Hull buy: `HullOffers`, `hull_price_cr`, `hull_trade_in_cr`,
+  `bought_hull_bindings`, `plan_hull_buy`, `bought_hull_pose`,
+  `HullBuyRequest` - `crates/nova_ship/src/sections/hull_buy.rs`; the
+  catalogue, `buy_station_hull` and `redock_bought_hull` -
+  `crates/nova_scenario/src/objects/station_hulls.rs`; the generator:
+  `crates/nova_world_base/src/station_hulls.rs`; the pane:
+  `crates/nova_interface/src/ship/shipyard.rs`; proof:
+  `examples/systems/system_station_buy.rs`.
 - Integrity core: `NovaIntegrityPlugin` -
   `crates/nova_gameplay/src/integrity/mod.rs`; graph, sever and collapse:
   `ShipIntegrityPlugin` - `crates/nova_ship/src/sections/integrity.rs`.

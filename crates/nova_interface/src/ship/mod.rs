@@ -34,6 +34,9 @@
 //! for, each with a Swap button that raises a `SectionSwapCommand`, and
 //! under them the selected section's free sockets and the parts that fit at
 //! the chosen one, each with an Add button that raises a `SectionAddCommand`.
+//! When that station sells hulls, a "Ships for sale" list under them shows
+//! each hull with its price, the trade-in and a Buy button that raises a
+//! `HullBuyCommand`.
 //! The panel scrolls with the wheel while the pointer is over it.
 //!
 //! # Module layout
@@ -44,6 +47,7 @@
 //! | `app` | The side panel layout and the repair action handler. |
 //! | `rebuild` | The lost-section list and the rebuild action handler. |
 //! | `refit` | The swap and add lists and their action handlers. |
+//! | `shipyard` | The "Ships for sale" list and the buy action handler. |
 //! | `scene` | The schematic 3D scene, its camera, the projected badges, the button observers and the panel refresh. |
 
 mod app;
@@ -52,6 +56,7 @@ mod rebuild;
 mod refit;
 mod scene;
 mod sections;
+mod shipyard;
 
 #[cfg(test)]
 mod tests;
@@ -59,11 +64,14 @@ mod tests;
 use bevy::prelude::*;
 use nova_ui::input_mode::prelude::{in_input_mode, InputMode};
 
-pub(crate) use self::{app::*, rebind::*, rebuild::*, refit::*, scene::*, sections::*};
+pub(crate) use self::{
+    app::*, rebind::*, rebuild::*, refit::*, scene::*, sections::*, shipyard::*,
+};
 pub use self::{
     refit::{SectionAddCommand, SectionSwapCommand},
     scene::{cuboid_edges, ease_orbit_center, ship_framing, ShipRuntime, SHIP_BLOCK_FILL_SCALE},
     sections::{SectionCode, ShipSections},
+    shipyard::HullBuyCommand,
 };
 
 /// Glob-import surface: `use nova_interface::ship::prelude::*`.
@@ -77,6 +85,7 @@ pub mod prelude {
             cuboid_edges, ease_orbit_center, ship_framing, ShipRuntime, SHIP_BLOCK_FILL_SCALE,
         },
         sections::{SectionCode, ShipSections},
+        shipyard::HullBuyCommand,
         SHIP_RADIUS_MAX, SHIP_RADIUS_MIN,
     };
 }
@@ -109,29 +118,39 @@ impl Plugin for ShipPanePlugin {
         app.add_message::<SectionRebuildCommand>();
         app.add_message::<SectionSwapCommand>();
         app.add_message::<SectionAddCommand>();
+        app.add_message::<HullBuyCommand>();
         app.add_systems(
             Update,
             (
-                assign_section_codes,
-                apply_ship_section_commands,
-                apply_ship_rebuild_commands,
-                apply_ship_swap_commands,
-                apply_ship_add_commands,
-                reselect_swapped_section,
-                manage_ship_scene,
-                reconcile_ship_target,
-                apply_ship_rebind,
-                // A focused repair field types P, B and the selection keys.
-                ship_input.run_if(in_input_mode(InputMode::Normal)),
-                scroll_ship_panel,
-                drive_ship_camera,
-                update_ship_blocks,
-                project_ship_blips,
-                label_the_selected_section,
-                update_ship_panel,
-                update_ship_rebuild_list,
-                update_ship_swap_list,
-                update_ship_add_list,
+                // Split in two: one tuple holds at most twenty systems.
+                (
+                    assign_section_codes,
+                    apply_ship_section_commands,
+                    apply_ship_rebuild_commands,
+                    apply_ship_swap_commands,
+                    apply_ship_add_commands,
+                    apply_ship_hull_buy_commands,
+                    reselect_swapped_section,
+                    manage_ship_scene,
+                    reconcile_ship_target,
+                    apply_ship_rebind,
+                )
+                    .chain(),
+                (
+                    // A focused repair field types P, B and the selection keys.
+                    ship_input.run_if(in_input_mode(InputMode::Normal)),
+                    scroll_ship_panel,
+                    drive_ship_camera,
+                    update_ship_blocks,
+                    project_ship_blips,
+                    label_the_selected_section,
+                    update_ship_panel,
+                    update_ship_rebuild_list,
+                    update_ship_swap_list,
+                    update_ship_add_list,
+                    update_ship_hull_list,
+                )
+                    .chain(),
             )
                 .chain()
                 .in_set(ShipPaneSystems),

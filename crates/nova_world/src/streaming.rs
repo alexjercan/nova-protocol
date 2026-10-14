@@ -28,7 +28,8 @@ use nova_gameplay::prelude::{
 use nova_scenario::prelude::{
     asteroid_scenario_object_prepared, base_scenario_object, planet_scenario_object_prepared,
     resolve_ship_design, spaceship_scenario_object, station_scenario_object,
-    BaseScenarioObjectConfig, GameShipDesigns, PlanetMarker, ShipDesignSource, StationMarker,
+    BaseScenarioObjectConfig, GameShipDesigns, PlanetMarker, ShipDesignSource,
+    StationHullCatalogue, StationMarker,
 };
 use nova_ship::prelude::GameSections;
 
@@ -252,6 +253,13 @@ pub fn materialize_sector(
             &ShipDesignSource::Inline(station.design.hull.clone()),
             sections,
         );
+        for hull in &station.hulls {
+            require_resolved(
+                &station.id,
+                &ShipDesignSource::Inline(hull.design.clone()),
+                sections,
+            );
+        }
     }
 
     let objects = planets.len() + rocks.len() + ships.len() + stations.len() + frozen.len();
@@ -357,8 +365,8 @@ fn require_resolved(id: &GeneratedBodyId, design: &ShipDesignSource, sections: &
 }
 
 /// Spawn one generated station under `root`, where and as its manifest
-/// entry says: the entry's `design` and `spawn` are the whole station, and
-/// this adds only the pose and the identity. A dead station is the same
+/// entry says: the entry's `design`, `spawn` and `hulls` are the whole
+/// station, and this adds only the pose and the identity. A dead station is the same
 /// design spawned `derelict`: the factory marks it, so its hull spawns
 /// inactive and lootable, and no service is offered on it.
 fn spawn_sector_station(commands: &mut Commands, root: Entity, station: SectorStation) {
@@ -370,6 +378,7 @@ fn spawn_sector_station(commands: &mut Commands, root: Entity, station: SectorSt
         civilization,
         design,
         spawn,
+        hulls,
     } = station;
     let name = generated_station_name(&civilization.name(), spawn.derelict);
     let mut entity = commands.spawn((
@@ -383,6 +392,9 @@ fn spawn_sector_station(commands: &mut Commands, root: Entity, station: SectorSt
         ChildOf(root),
     ));
     station_scenario_object(&mut entity, &design, &spawn);
+    if !hulls.is_empty() {
+        entity.insert(StationHullCatalogue(hulls));
+    }
 }
 
 /// The name a generated station of the civilization named `civilization`

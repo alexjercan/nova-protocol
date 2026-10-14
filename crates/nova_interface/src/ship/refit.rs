@@ -577,7 +577,7 @@ pub(crate) type SectionBindingRow = (
 
 /// The bindings the live sections of `site` carry, as
 /// [`added_section_binds`] reads them.
-fn live_bindings(
+pub(crate) fn live_bindings(
     site: &ResolvedSite<'_>,
     q_bindings: &Query<SectionBindingRow, With<SectionMarker>>,
 ) -> Vec<(String, SectionClass, Vec<InputSource>)> {

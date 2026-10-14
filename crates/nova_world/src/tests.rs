@@ -229,6 +229,7 @@ fn station(id: GeneratedBodyId, position: Meters3, prototype: &str) -> SectorSta
             initial_velocity: MetersPerSecond3::ZERO,
         },
         design,
+        hulls: Vec::new(),
     }
 }
 

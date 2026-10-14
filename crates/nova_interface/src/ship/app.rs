@@ -26,6 +26,7 @@ use super::{
     refit::{spawn_ship_add_list, spawn_ship_swap_list},
     scene::*,
     sections::*,
+    shipyard::spawn_ship_hull_list,
 };
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
@@ -269,6 +270,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
             spawn_ship_rebuild_list(panel);
             spawn_ship_swap_list(panel);
             spawn_ship_add_list(panel);
+            spawn_ship_hull_list(panel);
             panel.spawn((ShipPanelField::Note, themed_label("", 12.0, UiColor::Label)));
         });
 }

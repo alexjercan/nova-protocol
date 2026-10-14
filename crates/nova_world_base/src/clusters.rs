@@ -73,7 +73,7 @@ use nova_gameplay::prelude::{
 };
 use nova_scenario::prelude::{
     asteroid_seed_from_id, station_orbit_velocity, AsteroidConfig, PlanetConfig, PlanetType,
-    SpaceshipConfig, SpaceshipController, StationConfig, StationDesign,
+    SpaceshipConfig, SpaceshipController, StationConfig, StationDesign, StationHullOffer,
     ASTEROID_GEOMETRIC_FACTOR_MAX, KIND_CARBON, KIND_ICE, KIND_METAL, KIND_ROCK,
 };
 use nova_world::prelude::*;
@@ -85,6 +85,7 @@ use crate::{
     sector_ships::{plan_patrol, plan_ship, HullSlot, PlannedShip},
     sector_stations::{generated_station_design, station_design_id, StationClaims},
     ship_parts::ShipPartSnapshot,
+    station_hulls::station_hulls,
     NovaLayeredWorld, CLEARANCE_MARGIN,
 };
 
@@ -478,6 +479,9 @@ struct PlannedStation {
     allegiance: Allegiance,
     /// The pinned design it is built from, copied into its manifest entry.
     design: StationDesign,
+    /// The hulls it sells: [`station_hulls`] for a living station, none for
+    /// a dead one.
+    hulls: Vec<StationHullOffer>,
 }
 
 /// Where a station stands in a cluster, as [`station_pose`] decides it.
@@ -1051,6 +1055,7 @@ impl SectorPlan {
                             derelict: station.dead,
                             initial_velocity,
                         },
+                        hulls: station.hulls.clone(),
                     });
                 }
                 ClusterBody::Hull { .. } => {
@@ -1865,8 +1870,20 @@ pub(crate) fn plan_sector(
                     CivilizationStatusType::Living => (false, civilization.allegiance),
                     CivilizationStatusType::Extinct => (true, Allegiance::Neutral),
                 };
+                let id = sector_id(coord, &format!("{stem}_station"), 0);
+                let hulls = if dead {
+                    Vec::new()
+                } else {
+                    station_hulls(parts, input.seed, &id.to_string(), &civilization).map_err(
+                        |failure| SectorFault::Generation {
+                            id: id.to_string(),
+                            field: "hulls",
+                            value: failure.to_string(),
+                        },
+                    )?
+                };
                 stations_owned.push(Candidate {
-                    id: sector_id(coord, &format!("{stem}_station"), 0),
+                    id,
                     source: BodySource::Station(node),
                     body: ClusterBody::Station(Box::new(PlannedStation {
                         clearance: station.clearance,
@@ -1876,6 +1893,7 @@ pub(crate) fn plan_sector(
                         dead,
                         allegiance,
                         design: generated_station_design(&station.design, &civilization),
+                        hulls,
                     })),
                     position: pose.position,
                     escorts: Vec::new(),

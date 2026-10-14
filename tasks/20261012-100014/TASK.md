@@ -11,6 +11,26 @@
 ## Agent findings
 - Generated hull sizes follow advancement (`crates/nova_world_base/src/ship_layout.rs:89-95`); `plan_ship` lays out hulls by role (`crates/nova_world_base/src/sector_ships.rs:1-35`).
 
+## Agent decision
+Owner told the orchestrator to work the list without a stop at the gate. The agent chose the marked options and implemented them (2026-10-14).
+
+- Old hull:
+  - (A, chosen) Trade-in. The station pays the old hull's strip value at bid: for each live section, `strip_value_cr` of its recipe times its health share (current/max), rounded down. A lost section pays nothing. The old sections go. Consequence: no new body, so the save and the ledger do not change shape for it.
+  - (B) Leave it as a derelict beside the station. Consequence: a new persistent body that a handler spawns, and handler-spawned persistent ships block the save (`crates/nova_world/src/frozen.rs` ~795-832).
+- Cargo:
+  - (A, chosen) The whole hold moves into the station's storage, and the buy is refused when storage cannot take it. Consequence: the new hold starts empty and the player withdraws what fits; storage is 100 kg on base stations, so a full hold refuses the buy until the player sells or stores.
+  - (B) The hold moves into the new hold, refused when it does not fit (design page line 421). Consequence: a bigger old hold blocks a smaller hull even with free storage.
+  - (C) New hold first, overflow to storage. Consequence: two refusal paths and a split the player did not ask for.
+- Gate: the existing `Refit` service; no content change. A station with no catalogue sells no hull, so authored scenario stations and dead stations show no list.
+- Catalogue: generated in `crates/nova_world_base/src/station_hulls.rs` for each living generated station when its cell is planned. 3 to 5 hulls (seeded), deterministic from the world seed and the station id. Roles cycle from a seeded start through the roles the civilization's advancement can build (`eligible_roles`). Each hull is `generate_ship` at the civilization's advancement, so the size ceiling is the generator's. Name: `<Civilization> <role> Mk <n>`. A layout failure fails the sector, as a hull's does. The list rides `SectorStation.hulls`, is checked by `validate_manifest` (each design as a ship design, none on a dead station), is part of the canonical description (the pinned window digest `0x2632_b928_86d6_9e8f` is unchanged: that window holds no living station), and is frozen with the station (`FrozenStation.hulls`), so a station that drifts across cells keeps it and a save keeps it.
+- Price: the sum of the new hull's section recipes at ask (`value_cr`). Net credits: player `balance - price + trade-in`; station `balance + price - trade-in`. Refused when the player cannot pay, the station cannot pay a net payout, or a balance overflows.
+- Buy: the player root stays (HUD, observer and scenario id keep their owner). The old sections despawn, the inline design becomes the offer, the new sections spawn through the same per-section spawn, and the root is posed so the new hull's first docking port face lies on the old port face with the same axis, at the station's velocity. The old port's despawn releases the dock (`OnUndocked`), and the ship redocks once the new port is live (`OnDocked`).
+- Bindings: thrusters stay unbound (the flight computer drives them). A weapon takes the binding of the first old live section of its class, else an empty binding that Rebind sets. A mining emitter takes the next free key of V, B, N, C among the new emitters; the buy refuses when all four are held.
+- Event: `OnShipBought` (`onshipbought`): `id`, `type_name`, `hull`, `price_cr`, `trade_in_cr`. Credit cause `ShipBuy` on both parties. Each moved stack also fires `OnStored`.
+- UI: the Ship pane's side panel, a "Ships for sale" list under the Add list (the pane that already holds the refit lists; there is no Station pane). Each row: name, length in m and section count, a class summary, price, trade-in, and a Buy button or the refusal.
+
+- Agent result 2026-10-14: implemented as decided. Proof: `examples/systems/system_station_buy.rs` (seed 10, the first hull of the nearest living Refit station, bought by the Buy button; 3 roster invariants) passed under lavapipe; the tier test is `a_first_ring_station_sells_small_hulls_and_the_same_catalogue_for_a_seed` (`crates/nova_world_base/src/station_hulls.rs`); the buy rule has 5 unit tests in `crates/nova_ship/src/sections/hull_buy.rs`. Found on the run: the starting warship trades in for 12,615 cr against a 9,540 cr first hull, so the first buy pays the player; the economy page should judge if the trade-in share or the starter's recipes need a cut. A 100 kg base storage refuses the buy for a hold over that; the player must sell or store first. The kinds line names classes by pane code prefix (`41 HULL, 2 CTL, 6 THR`). No ship preview in the list.
+
 ## Delivery gate
 - The catalogue is generated from the station's civilization and advancement, deterministic from the seed; buying swaps the player's design and respawns the hull docked. Stop for the owner on the old hull (trade-in credit vs. left as a derelict).
 

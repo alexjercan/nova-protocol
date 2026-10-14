@@ -75,7 +75,7 @@ what levels the station, see below.
 A docked ship trades with a living station that offers `Trade` as it trades
 with a ship, and keeps items in the storage of one that offers `Storage` (see
 [Trade and storage](#trade-and-storage)). `Rebuild` and `Refit` are in play
-too (see [Rebuild](#rebuild), [Swap](#swap) and [Add](#add)); `Jobs` and `Roster` are
+too (see [Rebuild](#rebuild), [Swap](#swap), [Add](#add) and [Buy a hull](#buy-a-hull)); `Jobs` and `Roster` are
 checked and carried, and the screens that read them are their own task.
 
 ## How a station behaves
@@ -210,6 +210,36 @@ chosen point with a price or the reason it cannot be added.
 The proof is `system_station_add`: an add at a taken socket is refused, a
 kinetic PDC is added to a base hull through the pane and to a generated hull,
 and each keeps its binding and its health across a freeze and thaw.
+
+## Buy a hull
+
+A living station that a generated world places sells three to five whole
+hulls. The world lays them out for the station's civilization from the world
+seed and the station's id, so a station sells the same list on every visit
+and keeps it across a save. Each hull's roles follow what the civilization
+can build, and its size grows with the civilization's advancement: a station
+near the origin sells small hulls only. A station a scenario places sells
+none.
+
+Docked to a living station that offers `Refit`, the Ship pane lists the hulls
+under **Ships for sale**: each hull's name, length, section count and kinds,
+the price and the trade-in, and a Buy button or the reason it is refused.
+
+| rule | what happens |
+|---|---|
+| the gate | docked to a living station whose `services` list `Refit`, that sells hulls |
+| the price | every new section's [build recipe](../sections/#build-recipe) at ask: its `credits` plus its parts at the item's `ask_cr` |
+| the trade-in | the station buys the old hull: each live section's `strip_yield` share of its recipe parts at the item's `bid_cr`, times its health share, rounded down per section. A lost section pays nothing |
+| the hold | every stack moves into the station's storage. The new hold opens empty |
+| the credits | the ship pays the price less the trade-in. When the trade-in is worth more, the station pays the difference |
+| the binding | a thruster none (the flight computer drives it), a weapon the key of the old hull's first section of its kind, or an empty binding to set with Rebind. Each mining emitter takes its own free key of `V`, `B`, `N`, `C` |
+| refusals | in this order: not docked, no `Refit` service, more mining emitters than keys, no storage room for the hold, too few credits with the trade-in, a station that cannot pay the trade-in |
+| the result | the new hull docks where the old one was, at full health. The ship keeps it across a save |
+| events | `OnShipBought`, one `OnStored` per hold stack and one `OnCreditsChanged` per party with `cause: ShipBuy`, see [Hold events](../events/#hold-events) |
+
+The proof is `system_station_buy`: on a New Game, the player docks at a
+generated station, buys its first hull through the pane, and the hull and the
+station's list come back after a save and a Load.
 
 ## Spawning one
 

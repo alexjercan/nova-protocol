@@ -25,7 +25,7 @@ use crate::{
     names::prelude::Names,
     objects::{
         ship_design::prelude::{
-            resolve_ship_design, GameShipDesigns, ShipDesign, ShipDesignSource,
+            resolve_ship_design, GameShipDesigns, ResolvedShipDesign, ShipDesign, ShipDesignSource,
         },
         station::{
             insert_station_services, on_station_neutralized_turn_derelict,
@@ -962,7 +962,7 @@ pub(crate) fn derelict_keeps_live(kind: &SectionKind) -> bool {
 ///
 /// On a player mining section with no binding, or one whose key another
 /// emitter in `mining_sources` already holds: the lint refuses both first.
-fn spawn_design_section(
+pub(crate) fn spawn_design_section(
     parent: &mut ChildSpawnerCommands,
     section: &DesignSection,
     controller_config: &SpaceshipController,
@@ -1380,6 +1380,35 @@ fn add_design_section(
     });
 }
 
+/// The components a ship root takes from its resolved design: its collapse
+/// share, skin, style, sounds and hull warning. The section spawn and a
+/// station hull buy insert them in the batch that spawns the sections.
+pub(crate) fn hull_components(design: &ResolvedShipDesign) -> impl Bundle {
+    let collapse_threshold = match design.integrity.collapse_threshold {
+        Some(fraction) => StructuralCollapseThreshold::new(fraction),
+        None => StructuralCollapseThreshold::default(),
+    };
+    let presentation = &design.presentation;
+    (
+        collapse_threshold,
+        ShipSkin(presentation.skin),
+        ShipStyle(presentation.style.clone()),
+        ShipCollapseSound(presentation.collapse_sound.clone()),
+        ShipFeedbackSounds {
+            lock_on: presentation.lock_on_sound.clone(),
+            lock_off: presentation.lock_off_sound.clone(),
+            radar_deny: presentation.radar_deny_sound.clone(),
+            radar_retarget: presentation.radar_retarget_sound.clone(),
+            safety_on: presentation.safety_on_sound.clone(),
+            warn_lock: presentation.warn_lock_sound.clone(),
+            ammo_dry: presentation.ammo_dry_sound.clone(),
+            warn_hull: presentation.warn_hull_sound.clone(),
+            rcs_loop: presentation.rcs_loop_sound.clone(),
+        },
+        ShipHullWarning(presentation.warn_hull_fraction.clamp(0.0, 1.0)),
+    )
+}
+
 fn insert_spaceship_sections(
     add: On<Add, SpaceshipRootMarker>,
     mut commands: Commands,
@@ -1438,28 +1467,8 @@ fn insert_spaceship_sections(
     // bundle because a Prototype design is not known until the catalog is
     // read; they land in the same command flush as the sections below, which
     // is the batch the skin derivation and the integrity graph both key off.
-    let collapse_threshold = match design.integrity.collapse_threshold {
-        Some(fraction) => StructuralCollapseThreshold::new(fraction),
-        None => StructuralCollapseThreshold::default(),
-    };
-    let presentation = &design.presentation;
     commands.entity(entity).insert((
-        collapse_threshold,
-        ShipSkin(presentation.skin),
-        ShipStyle(presentation.style.clone()),
-        ShipCollapseSound(presentation.collapse_sound.clone()),
-        ShipFeedbackSounds {
-            lock_on: presentation.lock_on_sound.clone(),
-            lock_off: presentation.lock_off_sound.clone(),
-            radar_deny: presentation.radar_deny_sound.clone(),
-            radar_retarget: presentation.radar_retarget_sound.clone(),
-            safety_on: presentation.safety_on_sound.clone(),
-            warn_lock: presentation.warn_lock_sound.clone(),
-            ammo_dry: presentation.ammo_dry_sound.clone(),
-            warn_hull: presentation.warn_hull_sound.clone(),
-            rcs_loop: presentation.rcs_loop_sound.clone(),
-        },
-        ShipHullWarning(presentation.warn_hull_fraction.clamp(0.0, 1.0)),
+        hull_components(&design),
         ShipInventory::new(
             &items,
             design.cargo_capacity_g(),

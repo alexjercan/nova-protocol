@@ -790,7 +790,7 @@ fn joined(cells: &HashMap<IVec3, (usize, [bool; 6])>) -> bool {
 }
 
 /// The hull clearance ceiling at `advancement`.
-fn ceiling(advancement: f32) -> Meters {
+pub(crate) fn ceiling(advancement: f32) -> Meters {
     let span = MAX_HULL_CLEARANCE.0 - MIN_HULL_CLEARANCE.0;
     Meters(MIN_HULL_CLEARANCE.0 + span * advancement.clamp(0.0, 1.0))
 }

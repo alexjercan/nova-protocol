@@ -57,6 +57,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - At a `Refit` station the Ship pane adds a part at any free socket of a live
   section, paid by recipe; it takes its kind's key and fires `OnAdded`. The
   panel now scrolls.
+- A generated `Refit` station sells three to five hulls on the Ship pane. A
+  buy trades in the old hull by health, stores the hold, docks the new hull
+  and fires `OnShipBought`.
 
 ### Scenarios & Objectives
 
@@ -97,7 +100,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
   zero. Any other value fails at lint and at load.
 - **(breaking)** Stations are content: `Station` entries spawned by id as
   `kind: Station` with a required side and hull `collapse_threshold`. Save
-  format 8 (chart, plates) refuses older saves.
+  format 8 (chart, plates, hulls) refuses older saves.
 - A station is a dynamic body: gravity and rams move it, its bridge levels it
   and it orbits in a well. At its `collapse_threshold` share of hull it
   collapses like a ship and drops its hold and storage.

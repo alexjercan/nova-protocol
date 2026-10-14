@@ -56,6 +56,7 @@ use crate::objects::{
             SpaceshipConfig, SpaceshipController,
         },
     },
+    station_hulls::prelude::{StationHullCatalogue, StationHullOffer},
 };
 
 /// Glob-import surface for the station content kind and object.
@@ -342,6 +343,7 @@ pub struct FrozenStation {
     design: StationDesignId,
     ship: FrozenShip,
     storage: StationStorage,
+    hulls: Vec<StationHullOffer>,
 }
 
 impl FrozenStation {
@@ -360,6 +362,11 @@ impl FrozenStation {
         &self.storage
     }
 
+    /// The hulls the station sells; empty for one that sells none.
+    pub fn hulls(&self) -> &[StationHullOffer] {
+        &self.hulls
+    }
+
     /// Every item id the station holds: its hull's and its storage's.
     pub fn item_ids(&self) -> impl Iterator<Item = &ItemDesignId> {
         self.ship.item_ids().chain(self.storage.item_ids())
@@ -367,7 +374,7 @@ impl FrozenStation {
 }
 
 /// Freeze a station: its hull as [`freeze_ship`] records it, with its design
-/// id and storage.
+/// id, storage and hull catalogue.
 ///
 /// # Errors
 ///
@@ -390,21 +397,30 @@ pub fn freeze_station(world: &World, station: Entity) -> Result<FrozenStation, U
         design: marker.0.clone(),
         ship: freeze_ship(world, station)?,
         storage: storage.clone(),
+        // No catalogue: a station that sells no hull.
+        hulls: root
+            .get::<StationHullCatalogue>()
+            .map(|catalogue| catalogue.0.clone())
+            .unwrap_or_default(),
     })
 }
 
 /// Rebuild a frozen station on `entity`, which the caller spawned with its
 /// pose, identity and parent. The hull thaws through [`thaw_ship`]; the
-/// marker and the storage land beside it. The caller inserts the velocity
-/// after this.
+/// marker, the storage and a non-empty hull catalogue land beside it. The
+/// caller inserts the velocity after this.
 pub fn thaw_station(entity: &mut EntityCommands, frozen: FrozenStation) {
     let FrozenStation {
         design,
         ship,
         storage,
+        hulls,
     } = frozen;
     thaw_ship(entity, ship);
     entity.insert((StationMarker(design), storage));
+    if !hulls.is_empty() {
+        entity.insert(StationHullCatalogue(hulls));
+    }
 }
 
 #[cfg(test)]

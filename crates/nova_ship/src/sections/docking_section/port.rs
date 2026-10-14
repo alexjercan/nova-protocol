@@ -22,7 +22,7 @@ use crate::sections::local_pose_in_root;
 /// with (a thruster's plume, a bay's muzzle, a lance's bore). A docking port
 /// is a one-cell section by contract, so its face IS the cell face, and the
 /// sleeve grows out from here without moving it.
-const PORT_FACE: Vec3 = Vec3::new(0.0, 0.0, -0.5);
+pub(crate) const PORT_FACE: Vec3 = Vec3::new(0.0, 0.0, -0.5);
 
 /// One port's pose in the world: the centre of its retracted face and the
 /// direction it faces.

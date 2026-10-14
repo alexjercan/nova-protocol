@@ -40,6 +40,8 @@ pub mod spaceship;
 /// The STATION content kind and object: a parked hull with a docking port,
 /// authored once and spawned by id.
 pub mod station;
+/// The hulls a station sells and the buy that replaces a ship's hull.
+pub mod station_hulls;
 
 /// Every scenario object submodule's prelude plus `ScenarioObjectsPlugin`.
 pub mod prelude {
@@ -47,7 +49,8 @@ pub mod prelude {
         anchor::prelude::*, area::prelude::*, asteroid::prelude::*, asteroid_carve::prelude::*,
         asteroid_kind::prelude::*, asteroid_surface::prelude::*, beacon::prelude::*,
         light::prelude::*, planet::prelude::*, planet_surface::prelude::*, planet_type::prelude::*,
-        ship_design::prelude::*, spaceship::prelude::*, station::prelude::*, ScenarioObjectsPlugin,
+        ship_design::prelude::*, spaceship::prelude::*, station::prelude::*,
+        station_hulls::prelude::*, ScenarioObjectsPlugin,
     };
 }
 
@@ -80,6 +83,7 @@ impl Plugin for ScenarioObjectsPlugin {
             render: self.render,
         });
         app.add_plugins(spaceship::SpaceshipPlugin);
+        app.add_plugins(station_hulls::StationHullsPlugin);
         app.add_plugins(area::ScenarioAreaPlugin);
         app.add_plugins(beacon::BeaconPlugin {
             render: self.render,

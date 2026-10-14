@@ -708,6 +708,17 @@ pub enum ShipInventoryReport {
         /// Credits the ship paid the station.
         price_cr: u32,
     },
+    /// A Ship pane buy at a docked station replaced the ship's hull with one
+    /// from the station's catalogue. The old hold's stacks report apart, as
+    /// [`ShipInventoryReport::Stored`].
+    ShipBought {
+        /// The catalogue name of the bought hull.
+        hull: String,
+        /// The new hull's price: every section's recipe at ask.
+        price_cr: u32,
+        /// What the station paid for the old hull.
+        trade_in_cr: u32,
+    },
 }
 
 /// The [`ShipInventoryReport`]s a ship's owning systems queued since the

@@ -48,6 +48,7 @@ use connection::{
     on_docking_release_request, on_station_derelict_release_helm, park_suppressed_docked_helms,
     release_broken_docking_connections,
 };
+pub(crate) use port::PORT_FACE;
 pub use port::{DockingPair, DockingPorts, PortPose};
 use render::insert_docking_section_render;
 

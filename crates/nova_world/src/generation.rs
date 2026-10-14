@@ -43,7 +43,8 @@ use nova_scenario::prelude::{
     is_asteroid_kind, patrol_stops_fault, prepare_asteroid_geometry, prepare_planet,
     AIControllerConfig, AsteroidConfig, PlanetConfig, PreparedAsteroid, PreparedPlanet,
     SectionSource, ShipDesign, ShipDesignSource, ShipPresentationConfig, SpaceshipConfig,
-    SpaceshipController, StationConfig, StationDesign, ASTEROID_GEOMETRIC_FACTOR_MAX,
+    SpaceshipController, StationConfig, StationDesign, StationHullOffer,
+    ASTEROID_GEOMETRIC_FACTOR_MAX,
 };
 
 use crate::{
@@ -311,6 +312,10 @@ pub struct SectorStation {
     /// lootable with no service. [`validate_manifest`] refuses a mismatch
     /// and a `None` side.
     pub spawn: StationConfig,
+    /// The hulls a living station sells, each a whole inline design checked
+    /// like a ship's. Empty on a dead station, which sells nothing;
+    /// [`validate_manifest`] refuses hulls on one.
+    pub hulls: Vec<StationHullOffer>,
 }
 
 impl SectorStation {
@@ -541,6 +546,13 @@ impl SectorDescription {
                 design.hull.presentation,
             ));
             canonical_sections(&mut out, &design.hull);
+            for hull in &station.hulls {
+                out.push_str(&format!(
+                    "  hull '{}' integrity {:?} presentation {:?}\n",
+                    hull.name, hull.design.integrity, hull.design.presentation,
+                ));
+                canonical_sections(&mut out, &hull.design);
+            }
         }
         out
     }
@@ -965,6 +977,18 @@ pub fn validate_manifest(
         }
         check_ship_design(&station.design.hull)
             .map_err(|value| refuse(&station.id, "design", value))?;
+        if station.is_dead() && !station.hulls.is_empty() {
+            return Err(refuse(
+                &station.id,
+                "hulls",
+                format!("a dead station sells {} hulls", station.hulls.len()),
+            ));
+        }
+        for hull in &station.hulls {
+            check_ship_design(&hull.design).map_err(|value| {
+                refuse(&station.id, "hulls", format!("'{}': {value}", hull.name))
+            })?;
+        }
         stand_inside(
             input,
             &mut standing,

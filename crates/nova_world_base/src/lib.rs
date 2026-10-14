@@ -59,6 +59,7 @@ mod sector_ships;
 mod sector_stations;
 mod ship_layout;
 mod ship_parts;
+mod station_hulls;
 
 #[cfg(all(not(target_arch = "wasm32"), any(test, feature = "test-support")))]
 pub mod test_support;

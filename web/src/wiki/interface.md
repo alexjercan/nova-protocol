@@ -207,6 +207,13 @@ Docked at a living station that offers refit, select a section on the Ship pane.
 
 Docked at a living station that offers refit, select a section on the Ship pane. Under **Swap**, **Add** shows the section's free sockets as buttons, the first one chosen, and lists every part that fits at the chosen socket, each with its price. Click **Add** to fit it. The new part spawns at full health under the next code of its kind. A gun takes the key of your other guns of its kind, or none until you **Rebind** it; a drive is flown by the computer. A socket another section holds is refused: `add: HULL-2 positive_y is taken`. In a saved Open World the new part stays across a Load. The panel scrolls with the wheel while the pointer is over it.
 
+## Buying a ship
+
+<!-- List and action: crates/nova_interface/src/ship/shipyard.rs. Price,
+     trade-in and binding: crates/nova_ship/src/sections/hull_buy.rs. -->
+
+Docked at a living station in an Open World that offers refit, scroll the Ship pane's panel to **Ships for sale**. Each hull shows its length, its sections by kind, its price and what the station pays for your ship. Click **Buy** to take it. Your old ship is traded in: each section pays for its parts by its health, and a lost section pays nothing. Your hold goes into the station's storage, and the new ship docks where the old one was, at full health, with an empty hold. Your guns' keys carry over to the new guns of the same kind; a drive is flown by the computer. A hold the storage cannot take is refused, as is a price your credits and the trade-in cannot cover. In a saved Open World the new ship stays across a Load.
+
 ## The inventory
 
 <figure class="figure">
