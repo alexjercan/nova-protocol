@@ -142,8 +142,9 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
             Content::Lesson(lesson) => lessons.push(lesson.clone()),
             Content::UiTheme(theme) => ui_themes.push(theme.as_ref().clone()),
             // A style has no cross-content references of its own - it
-            // names asset paths and nothing else - so it is walked for its
-            // resource refs (below) and needs no bucket here.
+            // names asset paths and its own fixtures - so it is walked for
+            // its resource refs and greeble rules (below) and needs no bucket
+            // here.
             Content::Style(_) => {}
         }
     }
@@ -586,6 +587,22 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
                     message: format!("{kind} {message}"),
                 },
             ));
+        }
+        // A style's greeble rules must compile: known ids, symmetric
+        // connects, no hard ban on a forceable greeble, and every fixture a
+        // greeble names listed by the style. The merge drops a style that
+        // fails, so the fault is an error here.
+        if let Content::Style(style) = item {
+            for fault in style.compile_greebles().err().into_iter().flatten() {
+                issues.push((
+                    bundle.id.clone(),
+                    LintIssue {
+                        severity: LintSeverity::Error,
+                        scenario: scenario.clone(),
+                        message: format!("{kind} greeble rules: {fault}"),
+                    },
+                ));
+            }
         }
         // Canonical enforcement: every asset ref must carry a scheme. A bare
         // (scheme-less) asset-path ref no longer resolves (base art lives under

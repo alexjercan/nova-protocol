@@ -729,7 +729,7 @@ pub fn register_bundles(
     commands.insert_resource(GameSections(outcome.sections));
     publish_scenarios(&mut commands, outcome.scenarios);
     commands.insert_resource(outcome.campaigns);
-    commands.insert_resource(GameStyles(outcome.styles));
+    commands.insert_resource(GameStyles(compiled_styles(outcome.styles)));
     commands.insert_resource(GameShipDesigns(outcome.ships));
     commands.insert_resource(GameStationDesigns(outcome.stations));
     commands.insert_resource(GameStartRoles(outcome.start_roles));
@@ -1024,6 +1024,25 @@ where
     }
 
     outcome
+}
+
+/// The merged styles whose greeble rules compile. A style that does not is
+/// logged with every fault and dropped, so a ship naming it wears no style
+/// rather than a style the greeble solve cannot run. Content lint refuses the
+/// same faults first.
+fn compiled_styles(styles: Vec<ShipStyleConfig>) -> Vec<ShipStyleConfig> {
+    styles
+        .into_iter()
+        .filter(|style| match style.compile_greebles() {
+            Ok(_) => true,
+            Err(faults) => {
+                for fault in faults {
+                    error!("register_bundles: style '{}': {fault}", style.id);
+                }
+                false
+            }
+        })
+        .collect()
 }
 
 /// Route one content item into the accumulating registries with last-wins

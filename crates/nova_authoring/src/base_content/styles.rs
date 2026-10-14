@@ -5,36 +5,16 @@
 //! `assets/base/styles/base.content.ron` and a mod overlays it by id.
 //!
 //! Five looks ship: `industrial`, `armoured`, `civilian` and `salvage` for
-//! ships, and `station` for the ring station. They share one plate vocabulary and one greeble generator, so moving a rule from
-//! one onto another is a content edit rather than a rewrite.
-//!
-//! # The SEAT, and which pieces are free of it
-//!
-//! Every region but the high ground asks for a plate with a SEAT: one plane
-//! under the middle of its top. The derived skin gives nearly every plate one,
-//! because each top is a flat plateau inside chamfered rims; the exception is
-//! a diagonal stair, whose ramp plates tilt and fold under a piece. So a region
-//! names a ZONE of the hull, and the seat gate decides per plate whether a
-//! piece can actually lie on it.
-//!
-//! A piece escapes that gate in one of two ways, and neither is authored here.
-//! [`FixtureRegion::HighGround`] drops it outright, because the stack, the
-//! whip, the fin, the two masts and the corner boss stand up off their plate
-//! rather than lie on it. Everything else escapes by being TRIM: a collider
-//! shorter than [`TRIM_HEIGHT`](nova_ship::prelude::TRIM_HEIGHT) stands a
-//! hand's breadth off the plate, so a crease under it is a fold in a decal
-//! rather than a gap you can see.
-//!
-//! Each style carries at least one region that asks nothing about relief and
-//! at least one piece flat enough to lie on a crease, so a stair is dressed as
-//! well: the industrial stencil, hatch and ribbing, the armoured applique, the
-//! civilian registry, and the salvage scab, tally, grille, cog and doubler
-//! plate.
+//! ships, and `station` for the ring station. Each lists its fixtures and the
+//! greeble rules that place them. The rules share one link-type set
+//! ([`link_types`]): `any` pieces may touch each other, `spaced` pieces touch
+//! only empty space, and each line type faces only itself, so a line runs on
+//! until a border or an end greeble.
 
 use bevy::prelude::{Color, Vec3};
 use nova_ship::prelude::{
-    FixtureDensity, FixtureOrientation, FixturePlacement, FixtureRegion, ShipStyleConfig,
-    StyleFixtureConfig, StylePalette, SurfaceFinish,
+    GreebleConfig, GreebleLinkConfig, GreebleLinkPoints, GreebleNearConfig, GreebleRotateType,
+    GreebleRules, ShipStyleConfig, StyleFixtureConfig, StylePalette, SurfaceFinish,
 };
 use nova_world_base::prelude::{
     ARMOURED_STYLE_ID, CIVILIAN_STYLE_ID, INDUSTRIAL_STYLE_ID, SALVAGE_STYLE_ID, STATION_STYLE_ID,
@@ -77,14 +57,8 @@ pub(crate) fn style_catalog(assets: &BaseContentAssets) -> Vec<ShipStyleConfig> 
 ///    points and stencilled part numbers. Fourteen pieces, each a serviceable
 ///    fitting rather than ornament.
 ///
-/// The rules below are a ZONE ALLOCATION rather than a set of overlapping
-/// filters: each piece owns a part of the hull that the vocabulary can name, so
-/// priority mostly resolves ties rather than starving anything. Reading down:
-/// the high ground, the hoist and then the painted line down the long edges,
-/// the flanks, the laydown decks (plate stock, then cells), the flat panel
-/// (radiator, then corrugation), the three pocket fittings (winch,
-/// floodlight, louvre), and last the three that lie on anything - hatches,
-/// stencilled part numbers, and the ribbing that takes whatever is left.
+/// The greebles: stacks and a crane stand alone, the hazard band and the duct
+/// run as lines, radiators and ribbing cluster, and the rest fill between.
 fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
     // Some pieces name their art BY ID rather than through a
     // `BaseContentAssets` field. The namespacing test below pins the
@@ -113,300 +87,87 @@ fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 model: assets.greeble_industrial_stack.clone(),
                 health: 10.0,
                 collider: Vec3::new(0.18, 0.28, 0.18),
-                // THE HIGH GROUND, and the only rule allowed to break the
-                // silhouette: a stack standing up the tip of a spar is the
-                // picture, and a stack banished to the flat deck is not this
-                // rule. The rung's patch floor makes that a guarantee rather
-                // than a coin toss: one stack per block of high ground,
-                // whatever the share does.
-                placement: FixturePlacement {
-                    region: FixtureRegion::HighGround,
-                    density: FixtureDensity::Regular,
-                    orientation: FixtureOrientation::Free,
-                },
             },
             StyleFixtureConfig {
                 id: "industrial_crane".to_string(),
                 model: greeble("industrial_crane"),
                 health: 12.0,
                 collider: Vec3::new(0.16, 0.45, 0.32),
-                // Above the band because its `Every` density claims the whole
-                // edge and would otherwise starve this rule on all bench seeds.
-                // At the thinnest rung, the hoist replaces only two or three
-                // cells of painted line. `Outward` leans the jib away from the
-                // hull.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Edge,
-                    density: FixtureDensity::Rare,
-                    orientation: FixtureOrientation::Outward,
-                },
             },
             StyleFixtureConfig {
                 id: "industrial_hazard_band".to_string(),
                 model: assets.greeble_industrial_hazard_band.clone(),
                 health: 6.0,
                 collider: Vec3::new(0.19, 0.03, 0.9),
-                // THE SIGNATURE. `Edge` is the straight side of a hull, where
-                // the skin falls away along one whole flank - 45-55% of the
-                // falling plate on a generated ship. Painting it draws the
-                // ship's own silhouette in yellow.
-                //
-                // `Every` on purpose, which is the opposite of every other rule
-                // here. A stripe is a LINE: thinned to a share it becomes
-                // dashes, and dashes are the confetti the whole alignment
-                // machinery exists to avoid. What keeps it honest is the piece's
-                // own length - nine tenths of a cell across the plate asks for
-                // two cells of edge under it - so a one-cell corner is not a run
-                // and is not painted.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Edge,
-                    density: FixtureDensity::Every,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "industrial_umbilical".to_string(),
                 model: greeble("industrial_umbilical"),
                 health: 10.0,
                 collider: Vec3::new(0.16, 0.13, 0.44),
-                // THE FLANKS: capped shore connections down the SIDES, the
-                // zone civilian spends on windows, which is the tone split
-                // doing its job. `Flank` is this kit's only
-                // side-facing rule, and `Flank` is a SUBSET of `Deck` - the
-                // same plate, facing out instead of up - so every deck rule
-                // above it eats its cells. Measured: below the rack it took
-                // zero on two of three bench seeds and one on the third, hence
-                // this rule now rides above the deck accents as well as above
-                // the radiator and the duct. The region keeps sockets on hull
-                // body where trunking plausibly runs behind them; `Along` rows
-                // them down the flank; the rung keeps the row punctuation
-                // rather than cladding.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Flank,
-                    density: FixtureDensity::Regular,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "industrial_plate_rack".to_string(),
                 model: greeble("industrial_plate_rack"),
                 health: 20.0,
                 collider: Vec3::new(0.34, 0.1, 0.43),
-                // Above the radiator and duct. Below them, the radiator's half
-                // share plus the conduit's full-share lines leave this rule ZERO
-                // pieces on six of the eight bench blocks - the starved-
-                // signature defect. A sparse
-                // chunky accent samples before the broad claimants, the same
-                // law the hatch already pins against the corrugation. The
-                // cost runs the other way and is cheap: a conduit run loses
-                // at most the odd cell, and a stack of plate parked mid-run
-                // reads as a thing the pipe was routed around, where a hole
-                // in a painted line reads as a mistake. `Deck` already asks
-                // for two cells of ship under the plate, so the fixture never
-                // lies on skin over a spar. The rung limits visual clutter,
-                // while its patch floor guarantees placement on a big deck.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Deck,
-                    density: FixtureDensity::Regular,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "industrial_cells".to_string(),
                 model: greeble("industrial_cells"),
                 health: 16.0,
                 collider: Vec3::new(0.3, 0.21, 0.46),
-                // Above the radiator and duct for the plate rack's measured
-                // reason, and behind the rack because
-                // of the two the rack is the bigger silhouette. `Sparse` is
-                // the thinnest rung any deck piece in the kit takes, and its
-                // patch floor is what turns that into "one rack per block of
-                // hull" instead of a battery farm. Same lattice as the other
-                // deck accents, so racks and hatches read as one bolt grid,
-                // and `Deck` keeps them on real ship. The yellow bus bar across
-                // the terminals is the accent's COLLAR use - the discipline
-                // (edges, collars, handles) is why this piece may carry
-                // paint at all.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Deck,
-                    density: FixtureDensity::Sparse,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "industrial_radiator".to_string(),
                 model: assets.greeble_industrial_radiator.clone(),
                 health: 14.0,
                 collider: Vec3::new(0.38, 0.27, 0.28),
-                // FLAT PANEL, which is where the one piece with real height and
-                // a long axis fits.
-                //
-                // `Dense` rather than a thinner rung, and that was MEASURED on
-                // the hand-built bench: panel plate is 0-8 of a small subject's
-                // plates and mostly reads one cell of run, so a thinner rung
-                // reached two plates on one subject and nothing anywhere else.
-                // On a generated hull's 6-22 panels this is the same 3-11
-                // radiators; on a hand-built deck it is finally not zero.
-                //
-                // `Panel` carries the corner-off plate beside the flat one, and
-                // the seat gate is what sorts them: this piece stands proud, so
-                // the ones that actually crease refuse it.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Panel,
-                    density: FixtureDensity::Dense,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "industrial_duct".to_string(),
                 model: assets.greeble_industrial_duct.clone(),
                 health: 9.0,
                 collider: Vec3::new(0.14, 0.16, 0.9),
-                // THE SERVICES RUN, on the panel face rather than on the edge.
-                // Not `Edge`, though a pipe would lie on one perfectly well:
-                // measured, a rule that took the edge reached 11-14 plates and
-                // TOOK 1-4, because the band above had already painted every
-                // long one. A reach that is mostly another rule's plates is a
-                // number that cannot be tuned against.
-                //
-                // `Every`, unlike almost everything else here. A conduit is a
-                // LINE like the band is, and the piece spans nine tenths of its
-                // cell precisely so that consecutive plates of one run join up;
-                // a lattice would dash it. That same length asks for two cells
-                // of like panel underneath, so a lone flat cell takes no pipe.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Panel,
-                    density: FixtureDensity::Every,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "industrial_winch".to_string(),
                 model: greeble("industrial_winch"),
                 health: 14.0,
                 collider: Vec3::new(0.23, 0.25, 0.38),
-                // DECK MACHINERY AT THE FITTINGS - the wheels-and-cogs class,
-                // which the shared matrix gives ONLY to the working styles;
-                // armoured armours its gearing over and civilian fairs it in,
-                // so an exposed cog separates this kit from both.
-                // AHEAD of the louvre, and measured: the pocket is 2-7
-                // plates on a generated hull, so a `Dense` grille sampled first
-                // left the two machines below it nothing at all. The specific
-                // piece goes above the cladding-weight one, which is the same
-                // law the rack already pins against the conduit. The crank knob
-                // is the accent's HANDLE use, the hatch handle's paint.
-                placement: FixturePlacement {
-                    region: FixtureRegion::NearFitting,
-                    density: FixtureDensity::Regular,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "industrial_floodlight".to_string(),
                 model: greeble("industrial_floodlight"),
                 health: 8.0,
                 collider: Vec3::new(0.17, 0.25, 0.12),
-                // The second of three pocket rules, on a punctuation rung to
-                // prevent three fixtures crowding every fitting. Scatter cannot
-                // aim a piece at its fitting, so the model tilts the lamp heads
-                // down and `Outward` turns the pair off the hull. The region has
-                // no support-depth requirement, so it also fits thin structures.
-                // Above the louvre for the winch's measured reason, and behind
-                // the winch because of the two the winch is the bigger
-                // silhouette.
-                placement: FixturePlacement {
-                    region: FixtureRegion::NearFitting,
-                    density: FixtureDensity::Regular,
-                    orientation: FixtureOrientation::Outward,
-                },
             },
             StyleFixtureConfig {
                 id: "industrial_louvre".to_string(),
                 model: assets.greeble_industrial_louvre.clone(),
                 health: 12.0,
                 collider: Vec3::new(0.32, 0.07, 0.24),
-                // THE FITTINGS. `NearFitting` is the documented trap - it reads
-                // as narrow and admits a third of a hull - so it is LAST of
-                // the pocket rules and eleventh here rather than first, on a
-                // rung that keeps the lattice and a share. What it is worth is
-                // the read: grilles clustered where the drives and the gun
-                // wells are says the machinery is under that panel. Seven
-                // centimetres proud, so it is TRIM and lies on a crease
-                // honestly.
-                placement: FixturePlacement {
-                    region: FixtureRegion::NearFitting,
-                    density: FixtureDensity::Dense,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "industrial_hatch".to_string(),
                 model: assets.greeble_industrial_hatch.clone(),
                 health: 18.0,
                 collider: Vec3::new(0.32, 0.07, 0.32),
-                // Free-turning: a round hatch has no long axis, so there is
-                // nothing for an orientation to point down.
-                //
-                // ABOVE the corrugation, and it has to be. Below it the two
-                // shared one lattice, the corrugation's reach covered nearly all
-                // of it, and the hatch measured `x0 of 12` - a third of the
-                // kit's yellow gone, on a hull where nothing else was competing
-                // for those plates. A sparse accent has to be sampled BEFORE the
-                // filler, never out of the filler's leavings.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Anywhere,
-                    density: FixtureDensity::Regular,
-                    orientation: FixtureOrientation::Free,
-                },
             },
             StyleFixtureConfig {
                 id: "industrial_stencil".to_string(),
                 model: greeble("industrial_stencil"),
                 health: 4.0,
                 collider: Vec3::new(0.22, 0.02, 0.34),
-                // THE MARKINGS, and the kit's flat-detail carrier.
-                // `Anywhere` asks nothing about relief, and two centimetres
-                // of stand-off make the
-                // piece TRIM, which drops the seat gate as well: a placard
-                // lies on a stair's ramp as readily as on a deck - which is
-                // why the marking class carries the carrier duty.
-                // This far down the list every zone rule has picked first, so
-                // on a
-                // thick hull it numbers the gaps; on a thin frame it is most
-                // of what fires, and a bare frame carries the kit on part
-                // numbers alone. A middling rung - a serial
-                // is punctuation - whose patch floor keeps any block of hull
-                // from going entirely unnumbered. Above the ribbing because
-                // even a decal is an accent, and accents are never sampled
-                // from a filler's leavings.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Anywhere,
-                    density: FixtureDensity::Regular,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "industrial_ribbing".to_string(),
                 model: assets.greeble_industrial_ribbing.clone(),
                 health: 15.0,
                 collider: Vec3::new(0.46, 0.07, 0.42),
-                // FILLER, and the piece that decides whether the hull reads as
-                // busy. LAST, because it stands anywhere and would otherwise eat
-                // the plates every rule above it wants.
-                //
-                // `Dense` - the heaviest rung still on the lattice. A rung below
-                // it the filler measured `x3 of 27` on the smallest ship and the
-                // hull photographed as bare grey between the painted lines. A
-                // panel this size does not need a sparser grid to look
-                // deliberate: it very nearly fills its own plate, so a field of
-                // them reads as plating rather than as specks.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Anywhere,
-                    density: FixtureDensity::Dense,
-                    orientation: FixtureOrientation::Along,
-                },
             },
         ],
+        greeble_rules: industrial_rules(),
     }
 }
 
@@ -439,32 +200,9 @@ fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
 /// the built-in blue slate onto a desaturated gunmetal, matte and
 /// metallic-free, so the hull carries no specular highlight.
 ///
-/// The kit, in PRIORITY order, and what each reads. Ten pieces, the smallest
-/// kit of the four: everything sealed, every piece low, flush and bolted, and
-/// a colour budget of gunmetal plus ONE stencil white - nothing lit, nothing
-/// specular:
-///
-/// 1. the sensor blister takes the PANELS on the rarest rung - the thinnest
-///    share there is, with a patch floor under it - so a hull wears a handful
-///    of them wherever it is broad enough to carry one. The rarest piece and
-///    the only one that stands proud;
-/// 2. the mast is the silhouette's one spike, shortest of the four styles' tall
-///    pieces, and it is sampled before the cap sweeps the same high ground;
-/// 3. the corner boss reads the HIGH GROUND - the tips and outer corners - which
-///    is the armour a ship is hit on;
-/// 4. the belt reads the EDGE, the straight side of a hull and its largest
-///    single bucket, turned down the RUN. It is the whole look;
-/// 5. the intake is a vent CLOSED - a shuttered slit down the panel runs;
-/// 6. the chaff tube is the sparse accent, sampled before the fillers;
-/// 7. the hatch is the flush filler, giving a bare panel a scale without giving
-///    a gunner a target;
-/// 8. the ammo stripes read the gun pockets, pinned below every zone rule
-///    because `NearFitting` is the documented carpet, and TRIM so no seat gate
-///    stands between the stripe and the gun it marks;
-/// 9. the magazine is the chunky rarity, and it stands ANYWHERE, so it waits
-///    until the zone rules have taken the plates they can name;
-/// 10. the applique tile grid is the trim filler, LAST - the kit's reach onto a
-///     hull with no seated plate on it at all.
+/// The kit: ten pieces, the smallest of the four, all low and flush but the
+/// sensor and the mast, which stand alone. The belt runs as a line and the
+/// applique tiles cluster.
 fn armoured_style(assets: &BaseContentAssets) -> ShipStyleConfig {
     ShipStyleConfig {
         id: ARMOURED_STYLE_ID.to_string(),
@@ -511,222 +249,63 @@ fn armoured_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 model: assets.greeble_armoured_sensor.clone(),
                 health: 10.0,
                 collider: Vec3::new(0.4, 0.12, 0.4),
-                // The PANELS, on the thinnest rung there is: a tenth share
-                // with a patch floor under it, which comes out as a blister or
-                // two per block of ship that can carry one. Anything heavier
-                // puts four on one flank, and the piece is rare enough that
-                // where it lands is visible.
-                //
-                // FIRST, and it has to be. The two `Dense` panel rules below it
-                // would otherwise take every plate this one is eligible for,
-                // and a rung this thin has almost nothing left to hash against.
-                // Priority alone is still not enough on a small hull - the
-                // floor has to BORROW a plate back off a denser rule for the
-                // rung to land at all - which is the engine rule this kit is
-                // the worked example of.
-                //
-                // `Rare` carries the piece onto a small hull. A separate broad-
-                // field filter reaches zero plates on the hand-built bench, so
-                // the region and seat gate alone keep it on flat panels.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Panel,
-                    density: FixtureDensity::Rare,
-                    orientation: FixtureOrientation::Free,
-                },
             },
             StyleFixtureConfig {
                 id: "armoured_mast".to_string(),
                 model: assets.greeble_armoured_mast.clone(),
                 health: 8.0,
                 collider: Vec3::new(0.16, 0.24, 0.16),
-                // The HIGH GROUND, read the way every mast in this file reads
-                // it. What makes it armoured is the RATION - this look hides
-                // its silhouette, so this is a thinner rung than the
-                // industrial stack's and the piece itself is the shortest tall
-                // piece of the four styles. The rung's patch floor keeps the
-                // ration honest rather than absent: one spike per block of high
-                // ground, avoiding either an empty or bristling silhouette.
-                //
-                // BEFORE the cap, and it has to be: the cap sweeps the same
-                // high ground at full cover, and a sparse accent sampled out of
-                // a carpet's leavings logs `x0` - the measured starvation trap
-                // the industrial hatch documents.
-                placement: FixturePlacement {
-                    region: FixtureRegion::HighGround,
-                    density: FixtureDensity::Sparse,
-                    orientation: FixtureOrientation::Outward,
-                },
             },
             StyleFixtureConfig {
                 id: "armoured_cap".to_string(),
                 model: assets.greeble_armoured_cap.clone(),
                 health: 26.0,
                 collider: Vec3::new(0.3, 0.1, 0.3),
-                // The high ground is a third of a hull, and `Every` puts one
-                // boss on every outer corner, including the flanks.
-                //
-                // A depth floor, height floor, and facing reduce this rule to
-                // `x0 of 0` or `x2 of 2`: a spur is
-                // the TIP of something, so there is rarely two cells of ship
-                // under it and it fills almost none of its own cell. Three
-                // filters that each read as mild, multiplied, made an
-                // impossible rule out of a bucket 42 plates deep. The region
-                // now carries the one depth floor that is safe, and nothing
-                // else.
-                //
-                // The crest of a one-cell-wide run and the top of a lone stud
-                // are the same pointy armour the boss is for, and they are what
-                // a hand-built L is MADE of - which is why the high ground takes
-                // them all. Measured before it did, a hand-built hull wore
-                // zero armoured pieces: no other armoured rule can touch a
-                // creased plate at all.
-                placement: FixturePlacement {
-                    region: FixtureRegion::HighGround,
-                    density: FixtureDensity::Every,
-                    orientation: FixtureOrientation::Free,
-                },
             },
             StyleFixtureConfig {
                 id: "armoured_strake".to_string(),
                 model: assets.greeble_armoured_strake.clone(),
                 health: 30.0,
                 collider: Vec3::new(0.3, 0.085, 0.95),
-                // THE LOOK. Every edge plate in a run of two or more - the
-                // piece is 0.95 cells long, which is what asks for the run -
-                // turned down that run, and the model very nearly fills its
-                // plate, so neighbours meet and a run comes out as ONE unbroken
-                // strake rather than as a dashed line. That is the "decoration
-                // cannot span cells" ceiling paid off with the only currency
-                // available: a piece that fills its own cell.
-                //
-                // `Every`, which for any other rule would be a carpet. Here it
-                // is the point: an armour belt with gaps in it is not an armour
-                // belt, and the pieces are all one line rather than 40 objects.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Edge,
-                    density: FixtureDensity::Every,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "armoured_intake".to_string(),
                 model: assets.greeble_armoured_intake.clone(),
                 health: 16.0,
                 collider: Vec3::new(0.2, 0.06, 0.44),
-                // A shuttered, flush vent aligned with panel runs. `Panel` and
-                // not `Edge`, because the belt
-                // owns every straight edge at full cover and a slit punched into
-                // the belt would hole the one continuous line the look is built
-                // on. Six hundredths of a cell proud, so it is TRIM and the thin
-                // subjects get it too. The rung keeps it a scatter of shutters
-                // rather than a grille field, and its patch floor keeps a small
-                // hull from losing the class entirely.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Panel,
-                    density: FixtureDensity::Dense,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "armoured_chaff".to_string(),
                 model: assets.greeble_armoured_chaff.clone(),
                 health: 12.0,
                 collider: Vec3::new(0.3, 0.13, 0.18),
-                // The one piece that hints at the ship's combat life, so it is
-                // rationed like the mast and sampled BEFORE the fillers for
-                // the same starvation reason. `Outward` turns the tube's long
-                // axis off the ship where the plate falls away - a decoy
-                // launches overboard - and a plate with no fall leaves it
-                // square, which is the rest of the hull.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Panel,
-                    density: FixtureDensity::Sparse,
-                    orientation: FixtureOrientation::Outward,
-                },
             },
             StyleFixtureConfig {
                 id: "armoured_hatch".to_string(),
                 model: assets.greeble_armoured_hatch.clone(),
                 health: 14.0,
                 collider: Vec3::new(0.3, 0.05, 0.3),
-                // The broadest panel rule in the kit, because a flush hatch is
-                // the one piece that cannot spoil a silhouette - five hundredths
-                // of a cell tall, which is also what makes it TRIM and lets it
-                // lie on a panel that creases.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Panel,
-                    density: FixtureDensity::Dense,
-                    orientation: FixtureOrientation::Free,
-                },
             },
             StyleFixtureConfig {
                 id: "armoured_ammo_stripes".to_string(),
                 model: assets.greeble_armoured_ammo_stripes.clone(),
                 health: 6.0,
                 collider: Vec3::new(0.3, 0.02, 0.34),
-                // The MARKING class, and the kit's one job for stencil white:
-                // a rounds-count tally beside every gun well. BELOW every rule
-                // that names a zone - `NearFitting` is the measured carpet, and
-                // no kit lets it pick before a rule that can say where it goes.
-                //
-                // `NearFitting` and `Every` are both HARD CONSTRAINTS the
-                // blocks bench measured, and the collider is the third: the
-                // tally is TRIM - two centimetres of paint, which is free of
-                // the seat gate - so no plate beside a gun refuses it.
-                // `NearFitting` asks nothing of depth (a boom is one cell thin)
-                // or of how much of its cell the plate fills (the plate beside
-                // a gun is often a small spur). `Every` is the rung with NO
-                // lattice, because the
-                // carrier deck's tucked drive proved lattice parity can zero a
-                // strided pocket rule outright - and with no share either, so
-                // nothing can hash its way out of a tally.
-                placement: FixturePlacement {
-                    region: FixtureRegion::NearFitting,
-                    density: FixtureDensity::Every,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "armoured_magazine".to_string(),
                 model: assets.greeble_armoured_magazine.clone(),
                 health: 22.0,
                 collider: Vec3::new(0.34, 0.12, 0.28),
-                // The POWER CELL class. A LOW rung because the drum's measured
-                // lesson (a third of a share gave a hull 13-14 drums) says
-                // external stores at any real share read as a depot, and its
-                // patch floor turns that into one low box per block of hull -
-                // the doctrine statement: this ship carries rounds, and it does
-                // not show you how many. The stripes do the counting.
-                //
-                // `Anywhere` names no zone, so it waits until the rules that
-                // can name one have picked; above the applique because a box is
-                // an accent and the tile grid is a filler.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Anywhere,
-                    density: FixtureDensity::Sparse,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "armoured_applique".to_string(),
                 model: assets.greeble_armoured_applique.clone(),
                 health: 24.0,
                 collider: Vec3::new(0.42, 0.04, 0.42),
-                // The kit's TRIM filler: `Anywhere` asks nothing about
-                // relief, and reactive tiles are
-                // 0.04 cells proud, which puts them under the trim height and
-                // drops the seat gate with it. That pair is what reaches a
-                // plate with no seat - a stair's ramp - where a kit whose every
-                // filler is seated leaves it bare. AFTER the hatch: on thick hulls the panel
-                // filler keeps first refusal and the grid takes the leavings
-                // plus the whole thin regime the hatch cannot touch.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Anywhere,
-                    density: FixtureDensity::Dense,
-                    orientation: FixtureOrientation::Free,
-                },
             },
         ],
+        greeble_rules: armoured_rules(),
     }
 }
 
@@ -747,36 +326,8 @@ fn armoured_style(assets: &BaseContentAssets) -> ShipStyleConfig {
 /// long piece is authored long on Z and aligned to the run, and nothing here
 /// clusters.
 ///
-/// In priority order, and the reason for each place in it:
-///
-/// 1. the WINDOW row is the most specific piece and the one that says what
-///    the ship is FOR, so it gets first refusal on the flanks;
-/// 2. the DISH is the kit's rarest share, and a rare rule sampled after a
-///    broad one is starved into `x0` - so the faired radome looks at the panel
-///    before anything broad does;
-/// 3. the DOOR takes what is left of the flanks: cabins outrank a way in on a
-///    short side, but a hull with no door at all reads as a drone;
-/// 4. the TANK is the other rare share, faired tankage on the thick body;
-/// 5. the FIN is the only piece that breaks the silhouette, on the high
-///    ground and raked outboard - the high ground is a small bucket, so a
-///    heavy rung there still comes out as a few blades;
-/// 6. the STRIPE is the look. See its own note - it is the one rule here that
-///    had to be measured into existence rather than written. It is the kit's
-///    only claim on the EDGE, so the band is never punctured;
-/// 7. the LIVERY panel is the kit's painted marking, and the first of the
-///    four panel rules for the reason its own note records;
-/// 8. the SKYLIGHT is the window row's claim made to a viewer looking DOWN -
-///    the attitude every bench render and chase camera actually holds;
-/// 9. the VENT is the service read, faired flush with the plate;
-/// 10. the FAIRING is the filler on panelling, hull-coloured on purpose, and
-///     last of the panel rules;
-/// 11. the BEACON reads the pocket, below every rule that names a zone -
-///     `NearFitting` is the measured carpeting trap, and high in a list it
-///     starves everything under it;
-/// 12. the REGISTRY mark is the kit's TRIM carrier and mostly a per-block
-///     floor. One placement per neighbourhood avoids a repeated pattern. It is
-///     last because paint lies on anything and would otherwise take a plate a
-///     named rule wanted.
+/// The greebles: window rows and the cobalt stripe run as lines, the dish, the
+/// fin and the beacon stand alone, and the registry mark is capped.
 fn civilian_style(assets: &BaseContentAssets) -> ShipStyleConfig {
     ShipStyleConfig {
         id: CIVILIAN_STYLE_ID.to_string(),
@@ -803,341 +354,85 @@ fn civilian_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 model: assets.greeble_civilian_windows.clone(),
                 health: 6.0,
                 collider: Vec3::new(0.28, 0.06, 0.7),
-                // The FLANKS - deck plate turned out rather than up, which is
-                // where a liner draws its window line, and the one region that
-                // keeps the rule off the deck edges the stripe owns end to end.
-                //
-                // Six hundredths of a cell proud, so the row is TRIM and the
-                // seat gate lets it lie on a flank that creases. The piece's
-                // own length asks for two cells of like flank, which is what
-                // keeps a row a row.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Flank,
-                    density: FixtureDensity::Dense,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "civilian_dish".to_string(),
                 model: assets.greeble_civilian_dish.clone(),
                 health: 5.0,
                 collider: Vec3::new(0.28, 0.14, 0.28),
-                // A faired SATCOM radome, the antenna as a product. The
-                // thinnest rung in the kit, so it is sampled right after the
-                // windows: a sparse rule under a broad one logs `x0` while
-                // looking starved rather than absent. Panel face only - a dome
-                // on a flank reads as a defect - and the rung's patch floor is
-                // what actually places it: one radome per block of panel is an
-                // appliance, a row of them is an array farm.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Panel,
-                    density: FixtureDensity::Sparse,
-                    orientation: FixtureOrientation::Free,
-                },
             },
             StyleFixtureConfig {
                 id: "civilian_door".to_string(),
                 model: assets.greeble_civilian_door.clone(),
                 health: 8.0,
                 collider: Vec3::new(0.26, 0.06, 0.44),
-                // The access class: a flush leaf with a painted outline and a
-                // courtesy light, on the FLANKS a docking approach reaches.
-                // It sits below the window row but above every panel rule.
-                // Among the fillers it reaches no plate on any bench seed
-                // because the window row is `Dense` and a flank is a small
-                // bucket. The rung's
-                // patch floor is the rest of it - a hull with no way in reads
-                // as a drone: every ship gets a door, few get two.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Flank,
-                    density: FixtureDensity::Regular,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "civilian_tank".to_string(),
                 model: assets.greeble_civilian_tank.clone(),
                 health: 12.0,
                 collider: Vec3::new(0.24, 0.15, 0.4),
-                // A chunky fairing. `Deck` keeps it on the thick body, and
-                // the rung is thin because a third of a share put 13-14 drums on
-                // one bench hull, which reads as clutter rather than as a
-                // sponson line. Aligned to
-                // the run so a row of blisters reads as one faired sponson down
-                // the hull.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Deck,
-                    density: FixtureDensity::Sparse,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "civilian_fin".to_string(),
                 model: assets.greeble_civilian_fin.clone(),
                 health: 5.0,
                 collider: Vec3::new(0.1, 0.29, 0.24),
-                // The high ground, turned OUTBOARD so the blade rakes off the
-                // ship. The region asks nothing about how much of its cell the
-                // plate fills and drops the seat gate, and both are the same
-                // argument: a crest fills an eighth of its cell and a spur tip
-                // less, every one of them is a crease, and a fin belongs on
-                // exactly them.
-                placement: FixturePlacement {
-                    region: FixtureRegion::HighGround,
-                    density: FixtureDensity::Dense,
-                    orientation: FixtureOrientation::Outward,
-                },
             },
             StyleFixtureConfig {
                 id: "civilian_stripe".to_string(),
                 model: assets.greeble_civilian_stripe.clone(),
                 health: 8.0,
                 collider: Vec3::new(0.3, 0.09, 0.6),
-                // THE LOOK. A continuous band, and every part of this rule is
-                // there to keep it continuous:
-                //
-                // - `Edge` is the straight side of a hull, and the only region
-                //   whose run is a LINE rather than a patch;
-                // - the piece is 0.6 cells long, which asks for two cells of
-                //   edge under it. A one-cell corner is a stub, not a livery;
-                // - `Every` - the one rung with no lattice and no share. Both
-                //   turn a line back into dashes, and one missing cell in a band
-                //   reads as a mistake rather than as sparsity;
-                // - `Along` lays each piece down the edge, and the model fills
-                //   its whole cell along that axis, so neighbours butt together
-                //   into one unbroken rail.
-                //
-                // A terminal rule cannot key off distance from the end of an
-                // edge run. An edge has open space on one side and unlike plate
-                // on the other, so every cell reads as a run end. Such a rule
-                // claims the whole edge and leaves `civilian_stripe x0 of 0`,
-                // producing a dashed row instead of a continuous band.
-                //
-                // The collider is deliberately SHORTER than the model. Every
-                // other piece here is smaller than its cell, but this one fills
-                // it, and two full-length boxes on adjacent plates would be two
-                // bodies born overlapping.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Edge,
-                    density: FixtureDensity::Every,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "civilian_livery".to_string(),
                 model: assets.greeble_civilian_livery.clone(),
                 health: 6.0,
                 collider: Vec3::new(0.3, 0.03, 0.46),
-                // Three hundredths of a cell proud, so this is TRIM on a
-                // creased panel. It takes PANEL rather than Edge so it cannot
-                // interrupt the stripe. `Along` aligns its long axis with the
-                // hull run.
-                //
-                // FIRST of the four panel rules, and measured: below them it
-                // took nothing on any bench seed, because a `Dense` fairing and
-                // two more mid rules empty the bucket, so of the four this one
-                // picks first.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Panel,
-                    density: FixtureDensity::Regular,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "civilian_skylight".to_string(),
                 model: assets.greeble_civilian_skylight.clone(),
                 health: 6.0,
                 collider: Vec3::new(0.2, 0.05, 0.55),
-                // The passenger read for a viewer looking DOWN, which is the
-                // attitude the bench and the chase camera both hold - the window
-                // row faces sideways, so the strongest civilian tell was
-                // invisible from above. The piece is 0.55 cells long and asks
-                // for two cells of like panel, because a cabin line is a LINE:
-                // one lit strip alone reads as a hatch, two butted down a run
-                // read as a deck of paying passengers. Five hundredths proud, so
-                // it is TRIM and a narrow deck that creases still glazes.
-                //
-                // `Panel` and not `Edge`: the band owns every long edge at full
-                // cover, and the one continuous line the look rests on is never
-                // punctured from above.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Panel,
-                    density: FixtureDensity::Regular,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "civilian_vent".to_string(),
                 model: assets.greeble_civilian_vent.clone(),
                 health: 5.0,
                 collider: Vec3::new(0.18, 0.09, 0.4),
-                // The vent class with the machinery hidden: a faired scoop
-                // whose one dark surface is the mouth itself, amber-lit. NOT
-                // `NearFitting` - the beacon owns the pocket in this kit and
-                // two rules on one halo carpet it (the measured trap). A scoop
-                // rides the open panel runs instead, aligned down them, so
-                // intakes flow along the hull the way the whole kit does.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Panel,
-                    density: FixtureDensity::Regular,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "civilian_fairing".to_string(),
                 model: assets.greeble_civilian_fairing.clone(),
                 health: 14.0,
                 collider: Vec3::new(0.4, 0.16, 0.4),
-                // The filler, and the only rule with no accent on it: a
-                // hull-coloured shell over whatever a working ship would have
-                // left exposed. `Panel` rather than the window row's flank - a
-                // fairing belongs on the roof as much as the side - and a heavy
-                // rung, because on this kit the filler is the paint's own
-                // texture. The rung's patch floor carries it onto a small build,
-                // where the share alone would leave nothing.
-                //
-                // It stands too proud to be trim, so a creased hull refuses it.
-                // The kit's reach onto a one-cell-thick build is the fin and the
-                // registry mark instead.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Panel,
-                    density: FixtureDensity::Dense,
-                    orientation: FixtureOrientation::Free,
-                },
             },
             StyleFixtureConfig {
                 id: "civilian_beacon".to_string(),
                 model: assets.greeble_civilian_beacon.clone(),
                 health: 4.0,
                 collider: Vec3::new(0.2, 0.1, 0.2),
-                // BELOW every rule that names a zone: "near a fitting" reads as
-                // narrow and is not, and high in a priority list it carpeted
-                // 45% of a measured hull. Down here it lights the drive bays
-                // and the gun wells with whatever plate the ten rules above did
-                // not want.
-                placement: FixturePlacement {
-                    region: FixtureRegion::NearFitting,
-                    density: FixtureDensity::Dense,
-                    orientation: FixtureOrientation::Free,
-                },
             },
             StyleFixtureConfig {
                 id: "civilian_registry".to_string(),
                 model: assets.greeble_civilian_registry.clone(),
                 health: 4.0,
                 collider: Vec3::new(0.13, 0.03, 0.6),
-                // The marking class, and the kit's TRIM carrier: `Anywhere`
-                // asks
-                // nothing about relief or depth, and three hundredths of a cell
-                // of stand-off drops the seat gate, because paint lies on any
-                // facet a one-cell-thick build derives - the fairing alone was
-                // one coin toss per thin hull. The share is nearly off and the
-                // patch floor does the placing: a registry mark is PAPERWORK,
-                // one per neighbourhood, and a hull sprayed with them reads as
-                // a pattern rather than as insurance.
-                //
-                // LAST, and that is what a trim carrier on `Anywhere` is for:
-                // paint lies on any facet, so sampled higher it would take
-                // plate a rule that can name its zone wanted.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Anywhere,
-                    density: FixtureDensity::Sparse,
-                    orientation: FixtureOrientation::Along,
-                },
             },
         ],
+        greeble_rules: civilian_rules(),
     }
 }
 
 /// SALVAGE: mismatched plating over repeated repair.
 ///
-/// # Making a deterministic scatter read as haphazard
-///
-/// Everything here is a pure function of the structure, hashed off the cell -
-/// and what is wanted is a hull that reads as if nobody planned it. Those are
-/// not in conflict, because MISMATCH IS A PATTERN TOO. Four devices carry it,
-/// and none of them is jitter:
-///
-/// 1. **Three patches, three materials, one territory each.** A hash is
-///    spatially INCOHERENT, so splitting one rule three ways by share would
-///    give a hull evenly speckled in three colours - confetti. The territories
-///    are structural instead, and structure is coherent: the livery-green strip
-///    takes the fittings so it clusters round the drives and wells a ship gets
-///    shot at, the bare-steel plate takes the open body at a middling rung, and
-///    the rusted scab is thinner still and mostly its own patch floor over
-///    everything else. So a REGION comes out mostly one material with the others
-///    cutting
-///    into it at its edges, which is what a hull repaired twice looks like.
-/// 2. **The long axes CROSS.** `salvage_patch_plate` is authored long on X and
-///    `salvage_patch_strip` long on Z, and both align to the run. So where
-///    their territories meet, two neighbouring repairs lie at right angles to
-///    each other while every piece stays square to the grid. This is the one
-///    place the look breaks the alignment rule the research settled on, and it
-///    breaks it by a quarter turn rather than by a random angle - deliberate,
-///    not noisy.
-/// 3. **Every piece is authored OFF-CENTRE.** The scatter puts a fixture at the
-///    middle of its plate and offers no jitter, deliberately, so the asymmetry
-///    is in the RECIPES: each patch overhangs one side of its cell, the drum's
-///    straps are not symmetric about its own axis, and the cleat's two posts
-///    are different heights. A run of the same piece therefore does not read as
-///    a repeated tile.
-/// 4. **The weld bead is irregular.** `salvage_weld_seam` is four unequal
-///    lumps offset from a line, not the `ribs` primitive. Even ribbing reads as
-///    a machined surface.
-/// 5. **Two pieces are nearly a cell across, and stop being dashes.** The two
-///    patches and the bead raise their own footprint budget to 0.86-0.94, so
-///    consecutive plates of one run JOIN. The default half cell guards against
-///    a piece spilling over a seam when it is scattered off the plate centre,
-///    and the scatter has no such jitter - a fixture always stands at the
-///    middle of its plate.
-/// 6. **The seam is thinned by the RUN, not by a share.** It takes every edge
-///    plate it can reach, and its own length is what asks for a run under it, so
-///    a long hull edge is welded down its whole length and a short one is left
-///    bare. Which edges carry a seam is then a property of the hull, and a share
-///    would only have dotted every edge equally - the confetti failure again.
-///
-/// One thing here is a KNOWN COST kept on purpose. A piece is lifted to its
-/// plate's MEAN height, so a sheet does not sit flush on a plate that falls
-/// away: the surface's height varies ALONG the fall, and a piece with a long
-/// extent in that direction stands proud at one end. `salvage_patch_plate` is
-/// long on X and aligned to the run, which puts its long axis square to the run
-/// and therefore down the fall, so it is the piece this happens to most. On any
-/// other look that is a defect to design out. Here it is kept: a repair that
-/// does not quite lie down is what a repair looks like, and a perfectly bedded
-/// one reads as factory trim. It is a small effect - a fraction of a cell - and
-/// the render is the honest measure of it, not this comment.
-///
-/// # The identity is spread across regions on purpose
-///
-/// No one piece carries the look. The whip reads the high ground, the drum the
-/// broad decks, the seam the straight edges, the two big patches the body and
-/// the fittings, and the scab whatever is left. That is partly what mismatch
-/// means, and partly insurance: a look concentrated on ONE region is hostage to
-/// which way that part of a hull happens to face, and a hull whose edges all
-/// point away from the camera then shows no accent at all. Every piece here
-/// lands on all three subject ships.
-///
-/// # Priority order
-///
-/// Narrow and striking first, broad filler last, as a plate takes one piece.
-/// The sparse accents - whip, drum, cleat - are all sampled BEFORE any filler,
-/// because a rare rule placed after a broad one is starved out of its leavings
-/// and logs `x0` while looking identical on screen to a rule that matched
-/// nothing. The two rules the traps live in are placed accordingly:
-/// `NearFitting` is fifth and eighth rather than first, because it reads as
-/// narrow and is not.
-///
-/// # Half the kit reuses rule shapes the other half already has
-///
-/// Seven of the fourteen pieces add no rule SHAPE: the dish is a second
-/// rationed silhouette breaker (flanks, as the whip is the high ground), the
-/// net shares the drum's decks, the chain rigs a scattering of the edges the
-/// seam would otherwise bead end to end, the hose is the duct class at a share
-/// instead of full cover, the grille and the cog sit on the body ahead of the
-/// broad plate, and the kill tally is a second trim carrier ahead of the scab.
-/// The rungs hold the density budget: the one added silhouette breaker is
-/// rationed under the whip, every other added rule is thinned at least as hard
-/// as the piece beside it, and one added hue rides the dish recipe alone.
+/// Mismatch comes from the pieces, not from noise. Three patch materials
+/// cluster with each other, so a region reads as repaired twice; the weld
+/// seam, the chain and the hose run as lines; the whip and the dish stand
+/// alone. Every piece is authored off-centre in its recipe, so a run of one
+/// piece does not read as a repeated tile.
 fn salvage_style(assets: &BaseContentAssets) -> ShipStyleConfig {
     ShipStyleConfig {
         id: SALVAGE_STYLE_ID.to_string(),
@@ -1184,308 +479,104 @@ fn salvage_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 model: assets.greeble_salvage_whip.clone(),
                 health: 6.0,
                 collider: Vec3::new(0.10, 0.42, 0.16),
-                // The HIGH GROUND. The region asks nothing about how much of
-                // its cell the plate fills and drops the seat gate, which is
-                // what a mast needs: a crest fills an eighth of its cell, a
-                // spur tip less, and every one of them is a crease.
-                //
-                // `Outward` is what leans the aerial: the whip is modelled
-                // down its own `+Z`, so the fall turns it out over the edge it
-                // stands on rather than upright.
-                placement: FixturePlacement {
-                    region: FixtureRegion::HighGround,
-                    density: FixtureDensity::Sparse,
-                    orientation: FixtureOrientation::Outward,
-                },
             },
             StyleFixtureConfig {
                 id: "salvage_dish".to_string(),
                 model: assets.greeble_salvage_dish.clone(),
                 health: 10.0,
                 collider: Vec3::new(0.33, 0.24, 0.31),
-                // A comms dish on a FLANK, where it has a clear view: the
-                // second silhouette breaker in the kit, rationed at the same
-                // thin rung as the whip and for the same reason, because a hull
-                // bristling with breakers loses its outline. The rung keeps its
-                // lattice, so two dishes never stand shoulder to shoulder.
-                //
-                // This piece carries the kit's ONE foreign hue - the faded
-                // cobalt lives in this recipe and nowhere else - so the rule
-                // keeps it rare enough that the accent never reads as a fourth
-                // patch colour.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Flank,
-                    density: FixtureDensity::Sparse,
-                    orientation: FixtureOrientation::Free,
-                },
             },
             StyleFixtureConfig {
                 id: "salvage_drum".to_string(),
                 model: assets.greeble_salvage_drum.clone(),
                 health: 24.0,
                 collider: Vec3::new(0.22, 0.23, 0.34),
-                // External tankage needs somewhere broad and solid to be
-                // strapped to, which is what `Deck` means: flat plate with real
-                // ship under it, plus the shoulder where one deck climbs past
-                // the next - a corner to wedge a drum into, and on a small hull
-                // the only one there is.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Deck,
-                    density: FixtureDensity::Sparse,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "salvage_net".to_string(),
                 model: assets.greeble_salvage_net.clone(),
                 health: 14.0,
                 collider: Vec3::new(0.38, 0.16, 0.57),
-                // Lashed cargo shares the drum's zone, the broad solid decks,
-                // and is sampled right
-                // AFTER it, so the two chunky pieces interleave on the same
-                // ground instead of one carpeting it: the drum takes its share
-                // first and the net takes the same share of what is left. Same
-                // region and the same rung on purpose; a shared zone with a
-                // shared dominant material (green tarp beside green patches) is
-                // accumulation, two zones of one piece each would be
-                // allocation.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Deck,
-                    density: FixtureDensity::Sparse,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "salvage_hook".to_string(),
                 model: assets.greeble_salvage_hook.clone(),
                 health: 14.0,
                 collider: Vec3::new(0.20, 0.11, 0.14),
-                // The tight ring round a fitting: the four cells beside a
-                // nozzle or a gun well. Fifth and not first, and on a rung that
-                // keeps its lattice and a share, because this rule is the
-                // documented carpet - first in the list it took 45% of a ship.
-                placement: FixturePlacement {
-                    region: FixtureRegion::NearFitting,
-                    density: FixtureDensity::Dense,
-                    orientation: FixtureOrientation::Free,
-                },
             },
             StyleFixtureConfig {
                 id: "salvage_chain".to_string(),
                 model: assets.greeble_salvage_chain.clone(),
                 health: 12.0,
                 collider: Vec3::new(0.11, 0.13, 0.88),
-                // Edge rigging sampled before the seam. The seam is `Every`,
-                // so placing this rule below it yields no fixture on any bench
-                // seed. Two rules on one
-                // region cannot split it by priority alone - the thin one has to
-                // pick first or it never picks at all.
-                //
-                // What keeps the seam whole is the chain's own RUNG, not its
-                // place: a small share on a lattice takes a scattering of edge
-                // plates and leaves the rest of every run to the bead. That is
-                // the read wanted either way: every edge wearing chain would
-                // be the uniform machined finish this kit exists to refuse.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Edge,
-                    density: FixtureDensity::Sparse,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "salvage_weld_seam".to_string(),
                 model: assets.greeble_salvage_weld_seam.clone(),
                 health: 18.0,
                 collider: Vec3::new(0.2, 0.06, 0.92),
-                // The STRAIGHT EDGE of a hull and nothing else, which is the
-                // one region with a long line to run a bead down.
-                //
-                // `Every`, and that is the whole point of it: the bead is 0.92
-                // of a cell long, so consecutive plates of one run JOIN into an
-                // unbroken seam. A share here would dot the line instead, and a
-                // dotted line is the confetti failure wearing a different hat.
-                //
-                // The bead's own length is then the only thing thinning it, and
-                // it is what stops the piece reading as machined trim: an edge
-                // with a real length to it is welded down its whole length and a
-                // short one is left bare, so the seams are a property of the
-                // hull rather than a uniform finish on it. A longer gate was
-                // tried and was too tight - the third subject ship has no edge
-                // run that long anywhere and logged `x0 of 0`, and a rule that
-                // lands nothing on one hull in three is not a sparse accent, it
-                // is a broken filter.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Edge,
-                    density: FixtureDensity::Every,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "salvage_patch_strip".to_string(),
                 model: assets.greeble_salvage_patch_strip.clone(),
                 health: 18.0,
                 collider: Vec3::new(0.45, 0.05, 0.84),
-                // The livery-green offcut, round the FITTINGS: a drive bay
-                // comes out with cleats right against the mouth and green
-                // plating over the cells beside it, which is the damage pattern
-                // the look is about - a ship shot where its fittings are and
-                // patched there.
-                //
-                // Measured, and the fitting trap caught this rule too: a halo
-                // two cells out reads as narrow and admitted 80-92 plates of a
-                // 132-162 plate hull, better than half the ship. `NearFitting`
-                // is the four cells beside a mouth and means what it says.
-                placement: FixturePlacement {
-                    region: FixtureRegion::NearFitting,
-                    density: FixtureDensity::Regular,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "salvage_hose".to_string(),
                 model: assets.greeble_salvage_hose.clone(),
                 health: 8.0,
                 collider: Vec3::new(0.13, 0.09, 0.87),
-                // Unlike the industrial duct's full panel cover, this hose uses
-                // a middling rung. It is sampled after fitting rules so cleats
-                // and green plating retain the ring owned by pocket rules.
-                // The piece affords the thinning: a sag between two clamps is
-                // complete on one cell, so a broken run of hose reads as a
-                // bundle picked up and dropped again, where a dashed duct would
-                // read as a broken machine. Its own length still wants a
-                // shoulder with a run in it - a hose needs somewhere to be
-                // going.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Panel,
-                    density: FixtureDensity::Regular,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "salvage_grille".to_string(),
                 model: assets.greeble_salvage_grille.clone(),
                 health: 12.0,
                 collider: Vec3::new(0.38, 0.08, 0.3),
-                // A vent cut wherever there was room to cut one, which is why
-                // it takes `Anywhere`: any surface at all can hide a duct
-                // mouth, and the region's silence about depth is what reaches
-                // the one-cell-thick shapes players build. Eight hundredths of
-                // a cell proud, so it is TRIM and a creased plate still vents.
-                // The rung's lattice and share keep grates from clustering: two
-                // vents side by side read as a designed bank, and nothing on
-                // this ship was designed together.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Anywhere,
-                    density: FixtureDensity::Regular,
-                    orientation: FixtureOrientation::Free,
-                },
             },
             StyleFixtureConfig {
                 id: "salvage_cog_patch".to_string(),
                 model: assets.greeble_salvage_cog_patch.clone(),
                 health: 16.0,
                 collider: Vec3::new(0.38, 0.06, 0.38),
-                // A cog used as armour, on the same ground the steel patch
-                // plates: anywhere at all, thin builds included. Sampled just
-                // BEFORE the broad plate so the gear is not starved into the
-                // plate's leavings, but on a thinner rung - the gear is the
-                // kit's most recognisable single piece, so one per
-                // neighbourhood reads as debris where three read as a set.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Anywhere,
-                    density: FixtureDensity::Sparse,
-                    orientation: FixtureOrientation::Free,
-                },
             },
             StyleFixtureConfig {
                 id: "salvage_patch_plate".to_string(),
                 model: assets.greeble_salvage_patch_plate.clone(),
                 health: 20.0,
                 collider: Vec3::new(0.88, 0.04, 0.68),
-                // The BODY of the ship, and the broadest rule in the kit, so it
-                // sits under every rule that can name a zone and above only the
-                // tally and the filler. Four hundredths of a cell proud, which
-                // makes a doubler plate TRIM: it lies on a crease the way sheet
-                // steel bent over one does, so a stair's ramp still gets
-                // plated. The tips and crests are still the
-                // whip's, because that rule samples first.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Anywhere,
-                    density: FixtureDensity::Regular,
-                    orientation: FixtureOrientation::Along,
-                },
             },
             StyleFixtureConfig {
                 id: "salvage_kills".to_string(),
                 model: assets.greeble_salvage_kills.clone(),
                 health: 6.0,
                 collider: Vec3::new(0.4, 0.03, 0.3),
-                // The second TRIM carrier after the scab. Three hundredths of
-                // a cell of paint lies on anything, so the seat gate is off,
-                // and `Anywhere` asks nothing about depth. Those two filters
-                // would otherwise blank a one-cell-thick build.
-                //
-                // After the plate and before the scab, it takes cells the plate
-                // declined while the scab's patch floor still guarantees the
-                // filler lands last. The lattice prevents identical marks in
-                // adjacent cells.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Anywhere,
-                    density: FixtureDensity::Regular,
-                    orientation: FixtureOrientation::Free,
-                },
             },
             StyleFixtureConfig {
                 id: "salvage_patch_scab".to_string(),
                 model: assets.greeble_salvage_patch_scab.clone(),
                 health: 16.0,
                 collider: Vec3::new(0.52, 0.03, 0.44),
-                // The FILLER, and the piece that has to carry a hull nothing
-                // else fits - a spar, a tip, a hand-built ship with no flat
-                // plate on it at all. A small share on a rung with a patch
-                // floor, so it reads as a scatter of old repairs on a big hull
-                // and still puts something on a small one.
-                //
-                // Three hundredths of a cell proud, so the seat gate is off:
-                // this is the kit's trim carrier, and it lies on a stair's ramp
-                // where nothing seated fits.
-                placement: FixturePlacement {
-                    region: FixtureRegion::Anywhere,
-                    density: FixtureDensity::Sparse,
-                    orientation: FixtureOrientation::Free,
-                },
             },
         ],
+        greeble_rules: salvage_rules(),
     }
 }
 
 /// STATION: a pale enamelled habitat with one accent, navigation red.
 ///
-/// A station is mostly one-cell plating and open truss, so the kit is built
-/// for that: one tall piece on the high ground (the antenna), and five flat
-/// trim pieces that lie on the creases a one-cell hull derives. Reading down:
-/// the antennas on the spar tips and mast heads, lit windows down the flanks,
-/// radiators on the decks, red lamps beside the gun mounts and collars, and
-/// last the hatches and approach chevrons that take what is left.
+/// One tall piece, the antenna, stands alone; the windows run as lines; the
+/// radiators cluster; the red beacons stand alone; hatches and approach
+/// chevrons fill between.
 fn station_style() -> ShipStyleConfig {
     let greeble = |id: &str| {
         nova_gameplay::prelude::AssetRef::from(format!("self://gltf/greebles/{id}.glb#Scene0"))
     };
-    let fixture = |id: &str,
-                   health: f32,
-                   collider: Vec3,
-                   region: FixtureRegion,
-                   density: FixtureDensity,
-                   orientation: FixtureOrientation| StyleFixtureConfig {
+    let fixture = |id: &str, health: f32, collider: Vec3| StyleFixtureConfig {
         id: id.to_string(),
         model: greeble(id),
         health,
         collider,
-        placement: FixturePlacement {
-            region,
-            density,
-            orientation,
-        },
     };
     ShipStyleConfig {
         id: STATION_STYLE_ID.to_string(),
@@ -1503,55 +594,268 @@ fn station_style() -> ShipStyleConfig {
             },
         },
         fixtures: vec![
-            fixture(
-                "station_antenna",
-                8.0,
-                Vec3::new(0.16, 0.38, 0.16),
-                FixtureRegion::HighGround,
-                FixtureDensity::Sparse,
-                FixtureOrientation::Free,
-            ),
-            fixture(
-                "station_windows",
-                6.0,
-                Vec3::new(0.14, 0.03, 0.62),
-                FixtureRegion::Flank,
-                FixtureDensity::Regular,
-                FixtureOrientation::Along,
-            ),
-            fixture(
-                "station_radiator",
-                10.0,
-                Vec3::new(0.4, 0.065, 0.3),
-                FixtureRegion::Deck,
-                FixtureDensity::Regular,
-                FixtureOrientation::Along,
-            ),
-            fixture(
-                "station_beacon",
-                4.0,
-                Vec3::new(0.12, 0.085, 0.12),
-                FixtureRegion::NearFitting,
-                FixtureDensity::Sparse,
-                FixtureOrientation::Free,
-            ),
-            fixture(
-                "station_hatch",
-                6.0,
-                Vec3::new(0.26, 0.04, 0.26),
-                FixtureRegion::Anywhere,
-                FixtureDensity::Sparse,
-                FixtureOrientation::Free,
-            ),
-            fixture(
-                "station_marking",
-                4.0,
-                Vec3::new(0.24, 0.02, 0.32),
-                FixtureRegion::Anywhere,
-                FixtureDensity::Regular,
-                FixtureOrientation::Along,
-            ),
+            fixture("station_antenna", 8.0, Vec3::new(0.16, 0.38, 0.16)),
+            fixture("station_windows", 6.0, Vec3::new(0.14, 0.03, 0.62)),
+            fixture("station_radiator", 10.0, Vec3::new(0.4, 0.065, 0.3)),
+            fixture("station_beacon", 4.0, Vec3::new(0.12, 0.085, 0.12)),
+            fixture("station_hatch", 6.0, Vec3::new(0.26, 0.04, 0.26)),
+            fixture("station_marking", 4.0, Vec3::new(0.24, 0.02, 0.32)),
         ],
+        greeble_rules: station_rules(),
+    }
+}
+
+/// The link types every base kit declares, plus one line type per id in
+/// `lines`.
+///
+/// - `any` faces `any` and `empty`: pieces that may touch each other.
+/// - `empty` faces `any`, `empty` and `spaced`: the empty greeble's sides.
+/// - `spaced` faces only `empty`: a piece that stands alone.
+/// - each line type faces only itself, so it forces a line greeble or an end
+///   greeble across it.
+fn link_types(lines: &[&str]) -> Vec<GreebleLinkConfig> {
+    let link = |id: &str, connects: &[&str]| GreebleLinkConfig {
+        id: id.into(),
+        connects: connects.iter().map(|other| (*other).into()).collect(),
+    };
+    let mut links = vec![
+        link("any", &["any", "empty"]),
+        link("empty", &["any", "empty", "spaced"]),
+        link("spaced", &["empty"]),
+    ];
+    links.extend(lines.iter().map(|line| link(line, &[line])));
+    links
+}
+
+/// A greeble with the link types `[up, right, down, left]`, no range terms and
+/// no cap.
+fn greeble(
+    id: &str,
+    fixture: Option<&str>,
+    weight: f32,
+    rotate: GreebleRotateType,
+    [up, right, down, left]: [&str; 4],
+) -> GreebleConfig {
+    GreebleConfig {
+        id: id.into(),
+        fixture: fixture.map(str::to_string),
+        weight,
+        rotate,
+        link_points: GreebleLinkPoints {
+            up: up.into(),
+            right: right.into(),
+            down: down.into(),
+            left: left.into(),
+        },
+        near: Vec::new(),
+        max_count: None,
+    }
+}
+
+/// The empty greeble: no fixture, `empty` on every side.
+fn empty(weight: f32) -> GreebleConfig {
+    greeble("empty", None, weight, GreebleRotateType::None, ["empty"; 4])
+}
+
+/// A piece that may touch other pieces. Its greeble id is its fixture id.
+fn filler(fixture: &str, weight: f32) -> GreebleConfig {
+    greeble(
+        fixture,
+        Some(fixture),
+        weight,
+        GreebleRotateType::None,
+        ["any"; 4],
+    )
+}
+
+/// A piece that touches only empty space, at most `max_count` times, with no
+/// copy of itself within `radius` cells.
+fn alone(fixture: &str, weight: f32, radius: u32, max_count: u32) -> GreebleConfig {
+    GreebleConfig {
+        near: vec![near(&[fixture], radius, 0.0)],
+        max_count: Some(max_count),
+        ..greeble(
+            fixture,
+            Some(fixture),
+            weight,
+            GreebleRotateType::None,
+            ["spaced"; 4],
+        )
+    }
+}
+
+/// The two greebles of a line: the run piece, `line` on `up` and `down`, and
+/// the end piece `<fixture>_end`, `line` on `up` only. Both place `fixture`,
+/// whose long axis is its `+Z`, so the model lies along the run.
+fn line(fixture: &str, line: &str, weight: f32, end_weight: f32) -> [GreebleConfig; 2] {
+    [
+        greeble(
+            fixture,
+            Some(fixture),
+            weight,
+            GreebleRotateType::Half,
+            [line, "any", line, "any"],
+        ),
+        greeble(
+            &format!("{fixture}_end"),
+            Some(fixture),
+            end_weight,
+            GreebleRotateType::All,
+            [line, "any", "any", "any"],
+        ),
+    ]
+}
+
+/// A range term on `greebles` within `radius` cells.
+fn near(greebles: &[&str], radius: u32, factor: f32) -> GreebleNearConfig {
+    GreebleNearConfig {
+        greebles: greebles.iter().map(|id| (*id).into()).collect(),
+        radius,
+        factor,
+    }
+}
+
+/// `greeble` with its weight scaled by `factor` beside a copy of itself, so
+/// copies cluster.
+fn clustered(mut greeble: GreebleConfig, factor: f32) -> GreebleConfig {
+    greeble.near.push(near(&[greeble.id.as_str()], 1, factor));
+    greeble
+}
+
+/// INDUSTRIAL rules. Two lines: the hazard band (`line`) and the duct
+/// (`line_2`).
+fn industrial_rules() -> GreebleRules {
+    let mut greebles = vec![
+        empty(6.0),
+        alone("industrial_stack", 0.5, 3, 4),
+        alone("industrial_crane", 0.25, 4, 2),
+        filler("industrial_umbilical", 0.4),
+        filler("industrial_plate_rack", 0.4),
+        filler("industrial_cells", 0.3),
+        clustered(filler("industrial_radiator", 0.5), 3.0),
+        alone("industrial_winch", 0.3, 2, 3),
+        alone("industrial_floodlight", 0.3, 2, 4),
+        filler("industrial_louvre", 0.5),
+        filler("industrial_hatch", 0.5),
+        filler("industrial_stencil", 0.4),
+        clustered(filler("industrial_ribbing", 0.8), 2.0),
+    ];
+    greebles.extend(line("industrial_hazard_band", "line", 1.2, 0.4));
+    greebles.extend(line("industrial_duct", "line_2", 0.8, 0.3));
+    GreebleRules {
+        link_types: link_types(&["line", "line_2"]),
+        greebles,
+    }
+}
+
+/// ARMOURED rules. One line: the belt (`line`).
+fn armoured_rules() -> GreebleRules {
+    let mut greebles = vec![
+        empty(6.0),
+        alone("armoured_sensor", 0.3, 4, 2),
+        alone("armoured_mast", 0.3, 4, 2),
+        filler("armoured_cap", 0.4),
+        filler("armoured_intake", 0.5),
+        filler("armoured_chaff", 0.3),
+        filler("armoured_hatch", 0.6),
+        filler("armoured_ammo_stripes", 0.3),
+        GreebleConfig {
+            max_count: Some(4),
+            ..filler("armoured_magazine", 0.3)
+        },
+        clustered(filler("armoured_applique", 1.2), 2.5),
+    ];
+    greebles.extend(line("armoured_strake", "line", 1.5, 0.4));
+    GreebleRules {
+        link_types: link_types(&["line"]),
+        greebles,
+    }
+}
+
+/// CIVILIAN rules. Two lines: the window row (`line`) and the stripe
+/// (`line_2`).
+fn civilian_rules() -> GreebleRules {
+    let mut greebles = vec![
+        empty(6.0),
+        alone("civilian_dish", 0.25, 4, 2),
+        GreebleConfig {
+            max_count: Some(4),
+            ..filler("civilian_door", 0.3)
+        },
+        filler("civilian_tank", 0.3),
+        alone("civilian_fin", 0.3, 3, 3),
+        filler("civilian_livery", 0.4),
+        filler("civilian_skylight", 0.4),
+        filler("civilian_vent", 0.4),
+        filler("civilian_fairing", 0.5),
+        alone("civilian_beacon", 0.3, 2, 6),
+        GreebleConfig {
+            near: vec![near(&["civilian_registry"], 3, 0.0)],
+            max_count: Some(3),
+            ..filler("civilian_registry", 0.2)
+        },
+    ];
+    greebles.extend(line("civilian_windows", "line", 1.0, 0.3));
+    greebles.extend(line("civilian_stripe", "line_2", 1.2, 0.3));
+    GreebleRules {
+        link_types: link_types(&["line", "line_2"]),
+        greebles,
+    }
+}
+
+/// SALVAGE rules. Three lines: the weld seam (`line`), the chain (`line_2`)
+/// and the hose (`line_3`). The three patches weight each other up, so they
+/// meet in clusters of mixed material.
+fn salvage_rules() -> GreebleRules {
+    let patches = [
+        "salvage_patch_strip",
+        "salvage_patch_plate",
+        "salvage_patch_scab",
+    ];
+    let patch = |fixture: &str, weight: f32| GreebleConfig {
+        near: vec![near(&patches, 1, 2.0)],
+        ..filler(fixture, weight)
+    };
+    let mut greebles = vec![
+        empty(5.0),
+        alone("salvage_whip", 0.3, 4, 2),
+        alone("salvage_dish", 0.25, 4, 2),
+        filler("salvage_drum", 0.3),
+        filler("salvage_net", 0.3),
+        filler("salvage_hook", 0.3),
+        patch("salvage_patch_strip", 0.5),
+        filler("salvage_grille", 0.4),
+        filler("salvage_cog_patch", 0.3),
+        patch("salvage_patch_plate", 0.6),
+        GreebleConfig {
+            max_count: Some(2),
+            ..filler("salvage_kills", 0.2)
+        },
+        patch("salvage_patch_scab", 0.4),
+    ];
+    greebles.extend(line("salvage_weld_seam", "line", 1.0, 0.4));
+    greebles.extend(line("salvage_chain", "line_2", 0.4, 0.2));
+    greebles.extend(line("salvage_hose", "line_3", 0.5, 0.2));
+    GreebleRules {
+        link_types: link_types(&["line", "line_2", "line_3"]),
+        greebles,
+    }
+}
+
+/// STATION rules. One line: the window row (`line`).
+fn station_rules() -> GreebleRules {
+    let mut greebles = vec![
+        empty(6.0),
+        alone("station_antenna", 0.3, 3, 4),
+        clustered(filler("station_radiator", 0.6), 3.0),
+        alone("station_beacon", 0.3, 2, 6),
+        filler("station_hatch", 0.4),
+        filler("station_marking", 0.5),
+    ];
+    greebles.extend(line("station_windows", "line", 1.0, 0.3));
+    GreebleRules {
+        link_types: link_types(&["line"]),
+        greebles,
     }
 }
 
@@ -1579,59 +883,6 @@ mod tests {
         }
     }
 
-    /// Every style ships something a plate WITHOUT A SEAT can wear.
-    ///
-    /// A stair's ramp plates have no seat, so a style made entirely of pieces
-    /// that need one leaves every stair bare while looking perfectly well
-    /// authored - the placement defect this pins shut.
-    ///
-    /// Two things reach such a plate, and a style needs at least one: the
-    /// [`FixtureRegion::HighGround`], which drops the seat gate, and TRIM - a
-    /// decal thin enough that a crease under it is a fold rather than a gap.
-    /// Which pieces those are is no longer authored, so this pins the PROPERTY
-    /// rather than a list of ids.
-    #[test]
-    fn every_style_ships_a_piece_a_plate_without_a_seat_can_wear() {
-        for style in style_catalog(&BaseContentAssets::from_paths()) {
-            let carriers: Vec<&str> = style
-                .fixtures
-                .iter()
-                .filter(|fixture| {
-                    fixture.placement.region == FixtureRegion::HighGround
-                        || !FixturePlacement::needs_seat(fixture.collider)
-                })
-                .map(|fixture| fixture.id.as_str())
-                .collect();
-            assert!(
-                !carriers.is_empty(),
-                "{} has nothing a plate without a seat can wear, so its \
-                 stairs come out bare",
-                style.id,
-            );
-        }
-    }
-
-    /// The pieces that stand PROUD are the ones a seat gate can refuse, and a
-    /// style built only of those is the defect above. Stated as a ratio so a
-    /// kit cannot drift into it one piece at a time.
-    #[test]
-    fn no_style_is_made_entirely_of_pieces_that_stand_proud() {
-        for style in style_catalog(&BaseContentAssets::from_paths()) {
-            let trim = style
-                .fixtures
-                .iter()
-                .filter(|fixture| !FixturePlacement::needs_seat(fixture.collider))
-                .count();
-            assert!(
-                trim * 4 >= style.fixtures.len(),
-                "{} is {trim} trim of {} pieces; a kit that thin on decals \
-                 dresses a hand-built hull with almost nothing",
-                style.id,
-                style.fixtures.len(),
-            );
-        }
-    }
-
     /// The kit sizes are an ORDERING: armoured is the smallest because
     /// suppression is its look, salvage the biggest because accumulation is.
     /// Each kit pins its own count; this pins the RELATION between them, so a
@@ -1653,8 +904,8 @@ mod tests {
 
     /// Ids are the whole overlay contract: content is merged LAST WINS BY ID, so
     /// two base styles sharing one id would silently delete a look, and two
-    /// fixtures sharing one id inside a style would share a scatter salt and
-    /// claim the same plates.
+    /// fixtures sharing one id inside a style would make a greeble's `fixture`
+    /// ambiguous.
     #[test]
     fn no_two_styles_and_no_two_fixtures_share_an_id() {
         let mut seen = Vec::new();
@@ -1688,7 +939,7 @@ mod tests {
     fn every_fixture_names_a_shipped_greeble() {
         let assets = BaseContentAssets::from_paths();
         for style in style_catalog(&assets) {
-            assert!(!style.fixtures.is_empty(), "{} scatters nothing", style.id);
+            assert!(!style.fixtures.is_empty(), "{} places nothing", style.id);
             for fixture in &style.fixtures {
                 let path = fixture.model.path().unwrap_or_default().to_string();
                 assert!(
@@ -1706,440 +957,58 @@ mod tests {
         }
     }
 
-    /// Every piece of an authored kit is namespaced by its style, so four
-    /// candidate looks can ship recipes, meshes and fixture ids into the same
-    /// three directories without colliding.
+    /// Every kit's greeble rules compile, and every fixture the kit lists is
+    /// placed by at least one greeble. A listed fixture no greeble names is
+    /// art the ship never wears.
     #[test]
-    fn the_industrial_kit_namespaces_everything_it_ships() {
-        let style = industrial_style(&BaseContentAssets::from_paths());
-        assert_eq!(
-            style.fixtures.len(),
-            14,
-            "the industrial kit is pinned at 14 pieces: one per class and no \
-             variants, because mismatch must come from placement and material \
-             rather than from count"
-        );
-        for fixture in &style.fixtures {
-            let prefix = format!("{INDUSTRIAL_STYLE_ID}_");
-            assert!(
-                fixture.id.starts_with(&prefix),
-                "'{}' is not namespaced by its style",
-                fixture.id,
-            );
-            let path = fixture.model.path().unwrap_or_default().to_string();
-            assert!(
-                path == format!("self://gltf/greebles/{}.glb#Scene0", fixture.id),
-                "'{}' names '{path}' rather than its own greeble",
-                fixture.id,
-            );
+    fn every_kit_compiles_and_places_every_fixture_it_lists() {
+        for style in style_catalog(&BaseContentAssets::from_paths()) {
+            let compiled = style
+                .compile_greebles()
+                .unwrap_or_else(|faults| panic!("{}: {faults:?}", style.id))
+                .unwrap_or_else(|| panic!("{} has no greebles", style.id));
+            for (index, fixture) in style.fixtures.iter().enumerate() {
+                assert!(
+                    (0..compiled.rules.greeble_count())
+                        .any(|greeble| compiled.fixture(greeble) == Some(index)),
+                    "{}: no greeble places {}",
+                    style.id,
+                    fixture.id,
+                );
+            }
         }
     }
 
-    /// The station kit is namespaced like every authored kit, each piece
-    /// names its own greeble, and only the antenna stands proud.
+    /// Every kit is namespaced by its style - fixture ids and the art each one
+    /// names - and its size is pinned. Armoured stays the smallest and salvage
+    /// the largest (see `the_kit_caps_order_the_tone_split`); a kit that grows
+    /// quietly is how this repo once carried forty meshes.
     #[test]
-    fn the_station_kit_is_namespaced_and_almost_all_trim() {
-        let style = station_style();
-        let prefix = format!("{STATION_STYLE_ID}_");
-        for fixture in &style.fixtures {
-            assert!(fixture.id.starts_with(&prefix), "'{}'", fixture.id);
-            let path = fixture.model.path().unwrap_or_default().to_string();
-            assert_eq!(
-                path,
-                format!("self://gltf/greebles/{}.glb#Scene0", fixture.id),
-                "'{}' names another greeble",
-                fixture.id,
-            );
+    fn every_kit_is_namespaced_and_pinned_in_size() {
+        let assets = BaseContentAssets::from_paths();
+        for (style, size) in [
+            (industrial_style(&assets), 14),
+            (armoured_style(&assets), 10),
+            (civilian_style(&assets), 12),
+            (salvage_style(&assets), 14),
+            (station_style(), 6),
+        ] {
+            assert_eq!(style.fixtures.len(), size, "{} kit size", style.id);
+            let prefix = format!("{}_", style.id);
+            for fixture in &style.fixtures {
+                assert!(
+                    fixture.id.starts_with(&prefix),
+                    "'{}' is not namespaced by its style",
+                    fixture.id,
+                );
+                let path = fixture.model.path().unwrap_or_default().to_string();
+                assert_eq!(
+                    path,
+                    format!("self://gltf/greebles/{}.glb#Scene0", fixture.id),
+                    "'{}' names another greeble",
+                    fixture.id,
+                );
+            }
         }
-        let proud: Vec<&str> = style
-            .fixtures
-            .iter()
-            .filter(|fixture| FixturePlacement::needs_seat(fixture.collider))
-            .map(|fixture| fixture.id.as_str())
-            .collect();
-        assert_eq!(proud, ["station_antenna"]);
-    }
-
-    /// The hazard band is a LINE, and the two ways to break a line are both
-    /// mistakes the rest of this file warns about: thinning it with a share
-    /// turns it into dashes, and dropping `min_run` lets every one-cell corner
-    /// of a broken hull count as an edge worth painting.
-    #[test]
-    fn the_hazard_band_paints_runs_rather_than_specks() {
-        let style = industrial_style(&BaseContentAssets::from_paths());
-        let band = style
-            .fixtures
-            .iter()
-            .find(|fixture| fixture.id == "industrial_hazard_band")
-            .expect("the kit ships a hazard band");
-        assert_eq!(
-            band.placement.density,
-            FixtureDensity::Every,
-            "every other rung thins a line into dashes",
-        );
-        assert_eq!(
-            band.placement.region,
-            FixtureRegion::Edge,
-            "the band paints the straight edge of a hull and nothing else",
-        );
-        assert_eq!(
-            band.placement.orientation,
-            FixtureOrientation::Along,
-            "a stripe that does not lie down its own edge is a smear",
-        );
-        // The run gate is READ OFF the band's own length, so a one-cell corner
-        // is not an edge worth painting without anything being authored to say
-        // so - and a band shortened by an artist relaxes its own gate with it.
-        assert!(
-            FixturePlacement::min_run(band.collider) >= 2,
-            "a one-cell corner is not an edge",
-        );
-    }
-
-    /// `NearFitting` reads as narrow and is not, so the one rule that uses it
-    /// must never be able to claim a hull before the rest of the kit has had a
-    /// look. Pinned rather than commented, because the order is the only thing
-    /// holding it.
-    #[test]
-    fn the_broad_rules_of_the_industrial_kit_come_last() {
-        let style = industrial_style(&BaseContentAssets::from_paths());
-        let pocket = style
-            .fixtures
-            .iter()
-            .position(|fixture| fixture.placement.region == FixtureRegion::NearFitting)
-            .expect("the kit dresses the fittings");
-        let shaped = style
-            .fixtures
-            .iter()
-            .position(|fixture| {
-                matches!(
-                    fixture.placement.region,
-                    FixtureRegion::Panel
-                        | FixtureRegion::Deck
-                        | FixtureRegion::Flank
-                        | FixtureRegion::Edge
-                        | FixtureRegion::HighGround
-                )
-            })
-            .expect("the kit names a part of the hull");
-        assert!(
-            shaped < pocket,
-            "a `NearFitting` piece above a shaped one carpets the ship",
-        );
-    }
-
-    /// Every piece of a kit is prefixed with the style that owns it - the ids
-    /// salt the scatter and name the `.glb`, and four looks are authored into
-    /// one pair of folders.
-    #[test]
-    fn the_armoured_kit_is_namespaced() {
-        let style = armoured_style(&BaseContentAssets::from_paths());
-        // Pinned exactly: a kit that grows quietly is how this repo once
-        // carried forty meshes. Armoured stays the SMALLEST of the four; the
-        // cross-style ordering is pinned by
-        // `the_kit_caps_order_the_tone_split`, not here.
-        assert_eq!(
-            style.fixtures.len(),
-            10,
-            "the armoured kit is pinned at 10 pieces",
-        );
-        for fixture in &style.fixtures {
-            assert!(
-                fixture.id.starts_with("armoured_"),
-                "'{}' is not namespaced to its style",
-                fixture.id,
-            );
-            let path = fixture.model.path().unwrap_or_default().to_string();
-            assert!(
-                path.starts_with("self://gltf/greebles/armoured_"),
-                "'{}' names '{path}', which is another kit's art",
-                fixture.id,
-            );
-        }
-    }
-
-    /// The belt is the whole look, so the two things that make it one
-    /// continuous line rather than a row of blocks are pinned: the run it lies
-    /// on, and the alignment that turns it down that run.
-    #[test]
-    fn the_armoured_belt_runs_down_the_straight_edge_of_a_hull() {
-        let style = armoured_style(&BaseContentAssets::from_paths());
-        let belt = style
-            .fixtures
-            .iter()
-            .find(|fixture| fixture.id == "armoured_strake")
-            .expect("the armoured kit has lost its belt");
-        assert_eq!(belt.placement.region, FixtureRegion::Edge);
-        assert_eq!(belt.placement.orientation, FixtureOrientation::Along);
-        assert!(
-            FixturePlacement::min_run(belt.collider) >= 2,
-            "a one-cell run is not a run",
-        );
-        assert_eq!(
-            belt.placement.density,
-            FixtureDensity::Every,
-            "a belt with holes thinned into it is not a belt",
-        );
-    }
-
-    /// The civilian kit is namespaced like the others, and its size is pinned
-    /// at twelve: one piece per CLASS - vent, door, tank, registry, livery,
-    /// skylight and dish among them - and no variants. Mismatch must come from
-    /// placement and material rather than from count, so a thirteenth piece
-    /// needs a class this kit lacks. The cross-style ordering is pinned by
-    /// `the_kit_caps_order_the_tone_split`, not here.
-    #[test]
-    fn the_civilian_kit_is_namespaced_and_capped() {
-        let style = civilian_style(&BaseContentAssets::from_paths());
-        assert_eq!(
-            style.fixtures.len(),
-            12,
-            "the civilian kit is pinned at 12 pieces - one per approved class",
-        );
-        for fixture in &style.fixtures {
-            let prefix = format!("{CIVILIAN_STYLE_ID}_");
-            assert!(
-                fixture.id.starts_with(&prefix),
-                "'{}' is not namespaced by its style",
-                fixture.id,
-            );
-            let path = fixture.model.path().unwrap_or_default().to_string();
-            assert!(
-                path == format!("self://gltf/greebles/{}.glb#Scene0", fixture.id),
-                "'{}' names '{path}' rather than its own greeble",
-                fixture.id,
-            );
-        }
-    }
-
-    /// Every piece below the stripe that lists `Brink` must STAY below it:
-    /// the band is continuous only because nothing above it can claim a cell
-    /// of a straight edge, and the livery panel is the one piece allowed on
-    /// edges at all.
-    #[test]
-    fn nothing_above_the_civilian_stripe_touches_a_brink() {
-        let style = civilian_style(&BaseContentAssets::from_paths());
-        let stripe = style
-            .fixtures
-            .iter()
-            .position(|fixture| fixture.id == "civilian_stripe")
-            .expect("the civilian kit has no band");
-        for fixture in &style.fixtures[..stripe] {
-            // `Edge` is the one region that names the straight edge of a hull,
-            // so keeping it off the pieces above the band is the whole of it -
-            // and `Anywhere` claims any plate at all, edges included.
-            assert!(
-                !matches!(
-                    fixture.placement.region,
-                    FixtureRegion::Edge | FixtureRegion::Anywhere
-                ),
-                "'{}' sits above the stripe and can claim an edge, which \
-                 punctures the band",
-                fixture.id,
-            );
-        }
-    }
-
-    /// The ammo stripes are the armoured pocket rule, and every clause here is
-    /// a HARD CONSTRAINT the blocks bench measured: a seat gate, a depth
-    /// floor, a height floor or a stride can each silently zero the rule on
-    /// exactly the gun it exists to mark - the carrier deck's tucked drive
-    /// zeroed the strided ones via lattice parity.
-    #[test]
-    fn the_armoured_ammo_stripes_read_the_gun_pocket_off_any_seat() {
-        let style = armoured_style(&BaseContentAssets::from_paths());
-        let pocket: Vec<usize> = style
-            .fixtures
-            .iter()
-            .enumerate()
-            .filter(|(_, fixture)| fixture.placement.region == FixtureRegion::NearFitting)
-            .map(|(index, _)| index)
-            .collect();
-        // `NearFitting` is the measured carpet, so it picks only after every
-        // rule that can NAME the part of the hull it wants. Below it there is
-        // nothing left but `Anywhere`, which is broader still.
-        assert_eq!(pocket.len(), 1, "the kit dresses the pocket exactly once");
-        for (index, fixture) in style.fixtures.iter().enumerate() {
-            assert!(
-                (index > pocket[0]) == (fixture.placement.region == FixtureRegion::Anywhere),
-                "'{}' sits on the wrong side of the pocket rule",
-                fixture.id,
-            );
-        }
-        let stripes = &style.fixtures[pocket[0]];
-        assert_eq!(stripes.id, "armoured_ammo_stripes");
-        assert!(
-            !FixturePlacement::needs_seat(stripes.collider),
-            "a tally that stands proud lets the seat gate refuse a plate \
-             beside the gun it marks",
-        );
-        assert_eq!(
-            stripes.placement.density,
-            FixtureDensity::Every,
-            "`Every` is the one rung with no lattice and no share: parity can \
-             zero a strided pocket rule, and a share lets a well hash its way \
-             out of its own tally",
-        );
-    }
-
-    /// The livery band is the civilian look, and it is a LINE: the model fills
-    /// its whole cell so neighbours in a run butt together, and any rule that
-    /// skips a cell turns it back into a dashed row.
-    ///
-    /// The assertions cover independent failure modes: skipped cells, wrong
-    /// orientation, wrong region, and one-cell specks.
-    #[test]
-    fn the_civilian_band_is_continuous() {
-        let style = civilian_style(&BaseContentAssets::from_paths());
-        let stripe = style
-            .fixtures
-            .iter()
-            .find(|fixture| fixture.id == "civilian_stripe")
-            .expect("the civilian kit has no band");
-
-        assert_eq!(
-            stripe.placement.density,
-            FixtureDensity::Every,
-            "a strided or shared band is a dashed line",
-        );
-        assert_eq!(
-            stripe.placement.orientation,
-            FixtureOrientation::Along,
-            "a band not laid down its run cannot join its neighbours",
-        );
-        assert_eq!(
-            stripe.placement.region,
-            FixtureRegion::Edge,
-            "the band follows the straight edge of a hull and nothing else",
-        );
-        assert!(
-            FixturePlacement::min_run(stripe.collider) >= 2,
-            "a band that will stand on a one-cell stub is a speck",
-        );
-    }
-
-    /// `NearFitting` is the measured carpeting trap: it reads as narrow and
-    /// admits most of a hull. The civilian kit uses it exactly once, and that
-    /// rule must sit below every rule that can NAME its part of the hull, or
-    /// it starves them. Only `Anywhere`, which is broader still, goes under it.
-    #[test]
-    fn the_civilian_pocket_rule_picks_after_every_named_zone() {
-        let style = civilian_style(&BaseContentAssets::from_paths());
-        let pocket: Vec<usize> = style
-            .fixtures
-            .iter()
-            .enumerate()
-            .filter(|(_, fixture)| fixture.placement.region == FixtureRegion::NearFitting)
-            .map(|(index, _)| index)
-            .collect();
-        assert_eq!(pocket.len(), 1, "the kit dresses the pocket exactly once");
-        for (index, fixture) in style.fixtures.iter().enumerate() {
-            assert!(
-                (index > pocket[0]) == (fixture.placement.region == FixtureRegion::Anywhere),
-                "'{}' sits on the wrong side of the pocket rule",
-                fixture.id,
-            );
-        }
-    }
-
-    /// The candidate looks are merged into one catalog by hand, so every id a
-    /// kit introduces carries its own prefix - a fixture id is the SALT of its
-    /// own scatter, and two kits sharing one id would silently decorate the
-    /// same plates.
-    ///
-    /// The count is pinned for a different reason: forty generated meshes were
-    /// deleted from this repo once, because a kit that grows is a kit that has
-    /// stopped being a small fixed set of committed assets. Mismatch comes from
-    /// placement and material, not from piece count.
-    #[test]
-    fn the_salvage_kit_is_prefixed_and_stays_small() {
-        let style = salvage_style(&BaseContentAssets::from_paths());
-        // Fourteen CLASSES with one piece each, no variants: mismatch comes
-        // from placement and material. The pin exists because a kit that grows
-        // has stopped being a small fixed set of committed assets.
-        assert_eq!(
-            style.fixtures.len(),
-            14,
-            "the salvage kit is pinned at 14 pieces; a new piece needs a \
-             class the kit lacks",
-        );
-        for fixture in &style.fixtures {
-            assert!(
-                fixture.id.starts_with("salvage_"),
-                "'{}' is not prefixed, so it can collide with another kit",
-                fixture.id,
-            );
-            let path = fixture.model.path().unwrap_or_default().to_string();
-            assert!(
-                path.starts_with("self://gltf/greebles/salvage_"),
-                "'{}' names '{path}', which is not a salvage greeble",
-                fixture.id,
-            );
-        }
-    }
-
-    /// No salvage rule matches every plate.
-    ///
-    /// A `ScatterRule` with nothing set takes the whole hull, and first in a
-    /// priority list it starves every rule under it. That is the documented
-    /// trap, and a look built on SEVEN rules competing for one hull is exactly
-    /// where it would do the most damage - so it is pinned rather than
-    /// remembered.
-    #[test]
-    fn every_salvage_rule_narrows_the_hull_somehow() {
-        for fixture in salvage_style(&BaseContentAssets::from_paths()).fixtures {
-            let placement = fixture.placement;
-            // `Anywhere` names no part of the hull and `Every` thins nothing,
-            // so the two together are the carpet: first in a priority list it
-            // starves every piece under it, and from a screenshot that is
-            // indistinguishable from a piece whose region was simply too tight.
-            assert!(
-                placement.region != FixtureRegion::Anywhere
-                    || placement.density != FixtureDensity::Every,
-                "'{}' names no region and thins nothing, so it claims every \
-                 plate under it",
-                fixture.id,
-            );
-            // A LINE is the one thing allowed to take every plate it is
-            // eligible for: a share would only dot the piece it is joining up.
-            assert!(
-                placement.density != FixtureDensity::Every
-                    || placement.region == FixtureRegion::Edge,
-                "'{}' takes every plate it is eligible for without being a \
-                 seam, which is a carpet",
-                fixture.id,
-            );
-        }
-    }
-
-    /// The two long patches CROSS: both align to the run, and their models are
-    /// authored long on opposite in-plane axes, so where their territories meet
-    /// two neighbouring repairs sit at right angles.
-    ///
-    /// This is the whole trick the look rests on, and it is invisible in the
-    /// rules alone - the crossing lives half in the RECIPES. What can be pinned
-    /// here is the half that lives in the style: if either of these stops
-    /// aligning to the run, both lie whichever way the plate frame happens to
-    /// point and the mismatch becomes noise.
-    #[test]
-    fn the_salvage_patches_align_to_the_run_so_they_can_cross() {
-        let style = salvage_style(&BaseContentAssets::from_paths());
-        let aligned = |id: &str| {
-            style
-                .fixtures
-                .iter()
-                .find(|fixture| fixture.id == id)
-                .unwrap_or_else(|| panic!("the salvage kit lost '{id}'"))
-                .placement
-                .orientation
-        };
-        assert_eq!(aligned("salvage_patch_plate"), FixtureOrientation::Along);
-        assert_eq!(aligned("salvage_patch_strip"), FixtureOrientation::Along);
-        assert_eq!(
-            aligned("salvage_patch_scab"),
-            FixtureOrientation::Free,
-            "the filler has no long axis to turn, and turning it would line the \
-             fillers up with each other",
-        );
     }
 }

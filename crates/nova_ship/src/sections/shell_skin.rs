@@ -55,8 +55,7 @@ use crate::sections::{
     link_points::prelude::{LinkPoint, SectionLinkPoints},
     shell_shape::{ShellEdgeType, ShellShape, ShellSurface, FULL, HALF, REACH},
     skin_decor::{
-        decor_body, decor_pose, decor_reach, decor_tally, dress_skin_decor, scatter_decor,
-        ShipDecorMarker,
+        decor_body, decor_pose, decor_tally, dress_skin_decor, solve_decor, ShipDecorMarker,
     },
     skin_reading::{read_plates, relief_tally},
     skin_report::{skin_report, skin_summary},
@@ -880,11 +879,12 @@ pub(crate) fn frozen_plate_body(shape: ShellShape, pose: Transform, health: Heal
 /// for free, and it is why the pose has to be turned into the section's frame
 /// here: the derivation works in cells of the ship.
 ///
-/// Decoration is scattered in the same pass, from the ship's [`ShipStyle`]. It
+/// Decoration is solved in the same pass, from the ship's [`ShipStyle`]. It
 /// hangs off the PLATE rather than the section, one level further out for the
 /// same reason: a plate shot off takes its greebles with it, which is what makes
-/// stripping a patch of skin read as stripping a patch of skin. A re-clad keeps
-/// the scatter's answers for the plates it lays only.
+/// stripping a patch of skin read as stripping a patch of skin. The solve runs
+/// over the whole skin, and a re-clad spawns its answers on the plates it lays
+/// only.
 ///
 /// A whole batch on a root carrying [`ShipSkinRestored`] is skipped: a thaw
 /// already spawned its exact plates (and their decor) from a frozen record in
@@ -998,7 +998,7 @@ fn spawn_ship_skin(
             .collect();
 
         let mut shapes: HashSet<ShellShape> = HashSet::new();
-        // Index-aligned with `plates`, so the scatter's answers can be looked
+        // Index-aligned with `plates`, so the solve's answers can be looked
         // up by the index it gives them back. `None` where a plate was skipped.
         let mut laid: Vec<Option<Entity>> = Vec::with_capacity(plates.len());
         for (plate, relay) in plates.iter().zip(&relaid) {
@@ -1032,7 +1032,7 @@ fn spawn_ship_skin(
         let readings = read_plates(&structure, &plates);
         let mut taken: Vec<usize> = vec![0; style.map_or(0, |style| style.fixtures.len())];
         if let Some(style) = style {
-            for placement in scatter_decor(&plates, &readings, style) {
+            for placement in solve_decor(&structure, &plates, style) {
                 let Some(plate) = laid[placement.plate] else {
                     continue;
                 };
@@ -1046,14 +1046,8 @@ fn spawn_ship_skin(
         // The shape count is the interesting half of the skin: it is how many
         // meshes the ship costs, and the shape space it is drawn from is
         // unbounded. The RELIEF histogram and the per-fixture tally are the
-        // interesting half of the look - a style author tuning a rule needs to
-        // know what a real hull actually offers, and guessing at it from a
-        // screenshot is how a rule ends up firing everywhere or nowhere.
-        //
-        // Each fixture is logged as TAKEN of REACH: what it actually got, and
-        // what it would have got with nothing above it in the priority list. The
-        // gap between the two is the starvation a screenshot cannot show, and
-        // the reach is only computed when this line would be printed.
+        // interesting half of the look - a style author tuning greeble weights
+        // needs to know what a real hull actually took.
         debug!(
             "spawn_ship_skin: ship {root} {} {} plate(s) over {} shape(s); \
              relief {}; decoration {}; {}",
@@ -1063,7 +1057,7 @@ fn spawn_ship_skin(
             relief_tally(&readings),
             style.map_or_else(
                 || "none (no style)".to_string(),
-                |style| decor_tally(style, &taken, &decor_reach(&plates, &readings, style)),
+                |style| decor_tally(style, &taken),
             ),
             // The SHAPE half of the same picture: how much of this hull is
             // creased, how much of it is the saddle, how many hull faces are
@@ -2732,32 +2726,10 @@ mod tests {
         );
     }
 
-    /// A style whose fixtures cover every plate, for the spawn-path tests.
+    /// A style whose one fixture takes nearly every plate, for the spawn-path
+    /// tests.
     fn test_style() -> ShipStyleConfig {
-        ShipStyleConfig {
-            id: "test".to_string(),
-            name: "Test".to_string(),
-            palette: default(),
-            fixtures: vec![crate::sections::skin_style::StyleFixtureConfig {
-                id: "block".to_string(),
-                model: nova_gameplay::prelude::AssetRef::from(
-                    "self://gltf/greebles/placeholder_block.glb#Scene0".to_string(),
-                ),
-                health: 10.0,
-                // TRIM, five hundredths of a cell proud, which is what drops
-                // the seat gate, so a test about parenting does not hang on
-                // whether the plates of a LONE CUBE can seat a piece.
-                collider: Vec3::new(0.2, 0.05, 0.2),
-                // `Anywhere` and `Every`: nothing filtered and nothing thinned,
-                // so the rule takes all six faces. `HighGround` would take one
-                // - it faces UP - and the claim below is about every plate.
-                placement: crate::sections::skin_style::FixturePlacement {
-                    region: crate::sections::skin_style::FixtureRegion::Anywhere,
-                    density: crate::sections::skin_style::FixtureDensity::Every,
-                    ..default()
-                },
-            }],
-        }
+        crate::sections::skin_style::block_style(Vec3::new(0.2, 0.05, 0.2))
     }
 
     /// The render half dresses a plate the moment it appears.

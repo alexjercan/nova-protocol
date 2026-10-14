@@ -4,10 +4,9 @@
 //! below on its way to a shape - which cells are clad, which way each plate
 //! faces, how deep the structure under it runs, which edges fall away and which
 //! climb a wall - and then throws all of it away except the plate's shape. This
-//! module reads it back out, so a scatter rule can ask
-//! "is this a long flat panel, or the rim of a spine, or the plate beside a
-//! nozzle" without recomputing anything and without knowing how a shape is
-//! derived.
+//! module reads it back out, so a report can say "this is a long flat panel,
+//! or the rim of a spine, or the plate beside a nozzle" without recomputing
+//! anything and without knowing how a shape is derived.
 //!
 //! It is a SECOND PASS over the finished skin, never a second derivation. The
 //! plates are the input: their cells are the clad set, `cell - anchor` is the
@@ -15,14 +14,9 @@
 //! a handful of hash lookups per plate and cannot disagree with the skin it
 //! describes.
 //!
-//! Two things the vocabulary is FOR, both from the decoration research:
-//!
-//! - decoration claims cells on the plate GRID rather than being scattered by
-//!   blue noise, because alignment is what makes a greeble read as bolted on
-//!   rather than as confetti. [`PlateReading::along`] is the axis it aligns to.
-//! - decoration is weighted toward BORDERS and FITTINGS, which is free here:
-//!   [`PlateReading::border`] and [`PlateReading::fitting`] are both distances
-//!   the derivation already had the ingredients for.
+//! The readings are DIAGNOSTICS: the skin report, the probe snapshot and the
+//! relief tally a spawn logs. Greeble placement does not read them; the greeble
+//! solve reads only the surface graph.
 //!
 //! # What a real hull is made of
 //!
@@ -57,19 +51,18 @@ use crate::sections::{
     },
 };
 
-/// The prelude: `PlateReading`, `PlateRelief`, `PlateFacing`, `read_plates`,
+/// The prelude: `PlateReading`, `PlateRelief`, `read_plates`,
 /// `relief_tally`, `relief_of`, `fallen_corners` and `RELIEFS`.
 pub mod prelude {
     pub use super::{
-        fallen_corners, read_plates, relief_of, relief_tally, PlateFacing, PlateReading,
-        PlateRelief, RELIEFS,
+        fallen_corners, read_plates, relief_of, relief_tally, PlateReading, PlateRelief, RELIEFS,
     };
 }
 
 /// How far a run walk looks along one direction before it stops counting.
 ///
 /// A rule that wants "a long flat panel" is answered by 8; past that the extra
-/// cells tell a scatter rule nothing it would act on differently, and the walk
+/// cells tell a reader nothing new, and the walk
 /// is per plate per direction.
 pub const RUN_REACH: u8 = 8;
 
@@ -80,7 +73,7 @@ pub const RUN_REACH: u8 = 8;
 /// spell a magic number.
 pub const FITTING_REACH: u8 = 3;
 
-/// What the top of a plate is shaped like, in the terms a scatter rule asks in.
+/// What the top of a plate is shaped like.
 ///
 /// Read off the plate's [`ShellShape`] and nothing else, so it is exactly as
 /// stable as the skin is: the same structure gives the same reading.
@@ -138,45 +131,6 @@ impl PlateRelief {
     }
 }
 
-/// Which way a plate faces, in the SHIP's own frame.
-///
-/// Coarse on purpose. A rule wants "masts on the roof, not under the belly",
-/// and the six faces collapse to three answers a style author can hold in their
-/// head.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default, Reflect)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum PlateFacing {
-    /// Any face at all - the authored default, so a rule that does not care
-    /// says nothing.
-    #[default]
-    Any,
-    /// The roof: the plate shows `+Y` of the ship to space.
-    Up,
-    /// The belly: `-Y`.
-    Down,
-    /// A flank, a nose or a transom - anything not up or down.
-    Side,
-}
-
-impl PlateFacing {
-    /// Whether this facing filters nothing - the `skip_serializing_if` a style
-    /// keeps the field out of its RON with.
-    pub fn is_any(&self) -> bool {
-        *self == Self::Any
-    }
-
-    /// Whether a plate whose out face points along `normal` (in ship cells)
-    /// answers this facing.
-    pub fn accepts(self, normal: IVec3) -> bool {
-        match self {
-            Self::Any => true,
-            Self::Up => normal == IVec3::Y,
-            Self::Down => normal == IVec3::NEG_Y,
-            Self::Side => normal.y == 0,
-        }
-    }
-}
-
 /// The neighbourhood one plate stands in.
 ///
 /// Everything here is a function of the structure, so two ships built the same
@@ -213,8 +167,8 @@ pub struct PlateReading {
     /// What the top of the plate is shaped like.
     pub relief: PlateRelief,
     /// Whether a piece stood on the middle of the plate has one plane under
-    /// it - [`ShellShape::has_seat`], read here so a scatter rule asks the
-    /// vocabulary for it like everything else.
+    /// it - [`ShellShape::has_seat`], read here so a report reads it from the
+    /// vocabulary like everything else.
     ///
     /// The seat a flat-bottomed piece needs, and NOT what [`relief`] says. A
     /// plateau chamfered at its rim keeps a seat in the middle whatever its
@@ -704,7 +658,7 @@ mod tests {
     }
 
     /// The falling plate splits by how many ways it falls, and each class
-    /// carries the fall the scatter turns a piece to.
+    /// carries the direction it falls.
     ///
     /// Without the split every falling plate is one bucket covering most of a
     /// ship, and a rule cannot tell the straight edge of a hull from its
@@ -856,8 +810,7 @@ mod tests {
 
     /// The reading is a pure function of the structure, exactly as the skin is.
     ///
-    /// The whole scatter rests on this: a decoration hashed off a plate that
-    /// reads differently between two runs would flicker in the editor.
+    /// A report of one structure must not change between two runs.
     #[test]
     fn the_same_structure_always_reads_the_same() {
         let cells: Vec<IVec3> = (0..3)

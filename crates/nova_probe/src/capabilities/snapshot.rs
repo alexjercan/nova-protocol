@@ -43,7 +43,7 @@
 //!   section (skin plates, decor), with health and alive. A skin plate also
 //!   carries `plate`: the shape's level, feet, edges and soft corners, the
 //!   relief they read as, and
-//!   every zone fact the decoration scatter filtered on. A decoration carries
+//!   every zone fact read off it. A decoration carries
 //!   `stands_on`, which is the plate under it.
 //! - `ordnance` - every torpedo and turret round in flight: owner, position,
 //!   velocity, damage, remaining lifetime, target.
@@ -1270,14 +1270,13 @@ fn skin_record(report: &SkinReport) -> serde_json::Value {
             "rules": report.rules.iter().map(|rule| serde_json::json!({
                 "id": rule.id,
                 "taken": rule.taken,
-                "reach": rule.reach,
             })).collect::<Vec<_>>(),
         },
     })
 }
 
-/// One clad cell: the shape it wears, and every fact the scatter read on its
-/// way to dressing it.
+/// One clad cell: the shape it wears, every fact read off it, and the piece
+/// the greeble solve put on it.
 fn plate_record(row: &PlateReport) -> serde_json::Value {
     let reading = &row.reading;
     serde_json::json!({
@@ -1300,7 +1299,7 @@ fn plate_record(row: &PlateReport) -> serde_json::Value {
         "coplanar": row.coplanar,
         "flat_area": num(row.flat_area),
         "tilt": num(row.tilt),
-        // The zone facts a scatter rule filters on.
+        // The zone facts read off the plate.
         "along": ivec3(reading.along),
         "fall": ivec3(reading.fall),
         "run": reading.run,
@@ -1312,7 +1311,6 @@ fn plate_record(row: &PlateReport) -> serde_json::Value {
         // What landed here, and by which of the two paths.
         "decor": row.decor.iter().map(|piece| serde_json::json!({
             "id": piece.id,
-            "reason": piece.reason.name(),
             "turns": piece.turns,
         })).collect::<Vec<_>>(),
     })
@@ -1524,8 +1522,8 @@ fn collect_fixtures(
 ///
 /// `shape` is a skin plate's [`ShellShape`](nova_ship::prelude::ShellShape) id,
 /// and it is the ANCHOR the skin dump extends from: `plate` carries the parts
-/// that spell that shape, the relief they read as, and every zone fact the
-/// scatter used. One serializer, not two.
+/// that spell that shape, the relief they read as, and every zone fact read
+/// off it. One serializer, not two.
 ///
 /// `plate` is null on a plate whose cell the CURRENT structure no longer derives
 /// one for - a section died and took the neighbourhood with it, while the plate
@@ -1792,7 +1790,7 @@ mod tests {
     }
 
     /// The skin half of the dump: a plate carries the parts that spell its
-    /// shape, the relief they read as, and the zone facts the scatter used,
+    /// shape, the relief they read as, and the zone facts read off it,
     /// and the ship carries the histogram and the cells the derivation refused.
     ///
     /// The shape is the part a repro needs. The skin is a pure function of

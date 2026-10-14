@@ -781,7 +781,7 @@ mod tests {
         shell_shape::prelude::{ShellEdgeType, FULL},
         shell_skin::{plate_body, SkinPlate},
         skin_decor::decor_body,
-        skin_style::{FixturePlacement, StyleFixtureConfig, StylePalette, SurfaceFinish},
+        skin_style::{StyleFixtureConfig, StylePalette, SurfaceFinish},
         thruster_section::ThrusterSectionConfig,
         torpedo_section::{TorpedoSectionConfig, TorpedoSectionSpawnerFireState},
         turret_section::{TurretSectionConfig, TurretSectionMuzzleEntity},
@@ -864,6 +864,7 @@ mod tests {
                 wall: dyed_finish(),
             },
             fixtures: Vec::new(),
+            greeble_rules: default(),
         }]));
         app.finish();
         app.cleanup();
@@ -1197,7 +1198,6 @@ mod tests {
             model: AssetRef::from(decor_path.clone()),
             health: 10.0,
             collider: Vec3::new(0.3, 0.2, 0.1),
-            placement: FixturePlacement::default(),
         };
         let decor_pose = Transform::from_translation(Vec3::new(-0.4, 0.1, 0.2));
         app.world_mut()

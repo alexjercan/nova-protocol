@@ -545,7 +545,7 @@ mod tests {
             shell_shape::prelude::{ShellEdgeType, FULL},
             shell_skin::{plate_body, SkinPlate},
             skin_decor::decor_body,
-            skin_style::{FixturePlacement, StyleFixtureConfig},
+            skin_style::StyleFixtureConfig,
         };
 
         let mut world = World::new();
@@ -569,7 +569,6 @@ mod tests {
             model: AssetRef::from("self://gltf/greebles/placeholder_block.glb#Scene0".to_string()),
             health: 10.0,
             collider: collider_size,
-            placement: FixturePlacement::default(),
         };
         let decor_entity = world
             .spawn((
@@ -655,8 +654,7 @@ mod tests {
             shell_skin::{plate_body, ShipSkinPlugin, SkinPlate},
             skin_decor::decor_body,
             skin_style::{
-                FixturePlacement, GameStyles, ShipStyleConfig, StyleFixtureConfig, StylePalette,
-                SurfaceFinish,
+                GameStyles, ShipStyleConfig, StyleFixtureConfig, StylePalette, SurfaceFinish,
             },
         };
 
@@ -690,6 +688,7 @@ mod tests {
                 wall: dyed.clone(),
             },
             fixtures: Vec::new(),
+            greeble_rules: default(),
         }]));
 
         let ship = app
@@ -718,7 +717,6 @@ mod tests {
             model: AssetRef::from("self://gltf/greebles/placeholder_block.glb#Scene0".to_string()),
             health: 10.0,
             collider: decor_collider,
-            placement: FixturePlacement::default(),
         };
         let decor_pose = Transform::from_translation(Vec3::new(4.0, 5.0, 6.0));
         let decor_entity = app

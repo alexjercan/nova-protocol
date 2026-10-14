@@ -1,59 +1,41 @@
 //! A ship's STYLE: the look of its derived skin, authored as content.
 //!
 //! A style is DATA, not constants. It has an id, a palette for the two surfaces
-//! a player ever sees, and a set of decoration fixtures with the placement that
-//! says where each belongs. A ship names one by id and the skin wears it, which
-//! is the same resolution a section gets - so a mod can ship a style, a scenario
-//! can put a raider style on its enemies and a clean one on the civilians, and
-//! none of that is a code change.
+//! a player ever sees, a list of decoration fixtures, and the greeble rules that
+//! place them. A ship names one by id and the skin wears it, which is the same
+//! resolution a section gets - so a mod can ship a style, a scenario can put a
+//! raider style on its enemies and a clean one on the civilians, and none of
+//! that is a code change.
 //!
-//! The three parts, and why each is here:
+//! The parts, and why each is here:
 //!
 //! - [`StylePalette`] dresses the plates themselves. The plate MESH is derived
 //!   and cannot be authored - it is a function of the hull - so a style can only
 //!   change what it is made of, which is exactly the seam that keeps the
 //!   derivation and the look apart.
-//! - [`StyleFixtureConfig`] is one piece of decoration: a model, what it is made
-//!   of as a destructible fixture, and where it belongs. The model is an
-//!   [`AssetRef`] like a section's `render_mesh`, so a mod ships its own `.glb`
-//!   and names it the same way.
-//! - [`FixturePlacement`] is that "where", in three words: a region of the hull,
-//!   how much of it to cover, and which way to turn. Nothing in a placement
-//!   names a cell, a seed or a count.
-//!
-//! # Intent, not plate-reading
-//!
-//! A placement says what a piece is FOR. It expands - privately, in
-//! [`ScatterRule`] below - into the neighbourhood filter, the lattice, the share
-//! and the patch floor that the scatter actually runs. That expansion is engine
-//! policy: it is tuned against real hulls, it changes when the derivation
-//! changes, and a style that had spelled it out would go wrong silently when it
-//! did. An author picks the high ground; the engine decides what the high ground
-//! measures on this hull.
-//!
-//! Two things ARE read off the piece rather than authored, both out of its
-//! collider, because the piece's own size already answers them and a second
-//! authored word saying the same thing is a word that can disagree with it:
-//! how long a run of like plate it needs under it
-//! ([`min_run`](FixturePlacement::min_run)), and whether it needs an unbroken
-//! seat at all ([`needs_seat`](FixturePlacement::needs_seat)) - a decal does
-//! not, a stack does.
+//! - [`StyleFixtureConfig`] is one piece of decoration: a model, and what it is
+//!   made of as a destructible fixture. The model is an [`AssetRef`] like a
+//!   section's `render_mesh`, so a mod ships its own `.glb` and names it the
+//!   same way.
+//! - [`GreebleRules`] say where the pieces go. They are solver configuration:
+//!   link types, greebles with four link points, `near` terms and caps. The
+//!   solve reads no plate geometry. See
+//!   [`greeble_solver`](super::greeble_solver).
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::AssetRef;
 
 use crate::sections::{
+    greeble_solver::{CompiledGreebleRules, GreebleDesignId, GreebleRules, GreebleRulesError},
     shell_shape::ShellSurface,
-    skin_reading::{PlateFacing, PlateReading, PlateRelief},
 };
 
 /// The style content type, its parts, the loaded catalog and the ship-root
 /// component that names one.
 pub mod prelude {
     pub use super::{
-        FixtureDensity, FixtureOrientation, FixturePlacement, FixtureRegion, GameStyles, ShipStyle,
-        ShipStyleConfig, StyleFixtureConfig, StylePalette, SurfaceFinish, DECOR_DENSITY,
-        TRIM_HEIGHT,
+        GameStyles, ShipStyle, ShipStyleConfig, StyleFixtureConfig, StyleGreebleError,
+        StyleGreebles, StylePalette, SurfaceFinish, DECOR_DENSITY,
     };
 }
 
@@ -107,108 +89,6 @@ pub struct StylePalette {
     pub wall: SurfaceFinish,
 }
 
-/// The part of a hull one piece of decoration belongs on.
-///
-/// VISUAL INTENT, in the words a style author thinks in - not the plate reading
-/// it expands to. The expansion is [`FixtureRegion::rule`], and it is engine
-/// policy: measured against real hulls, and free to change when the derivation
-/// does.
-///
-/// Ordered as a style reads: the flat places first, then the edges, then the
-/// high ground, then the two that ignore relief entirely.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default, Reflect)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum FixtureRegion {
-    /// Unbroken panel: the flat face of a hull, and the panel with one corner
-    /// taken off that still reads as one. Where a sign, a hatch or a decal goes.
-    Panel,
-    /// Working deck: flat plate with real ship under it. The laydown area - a
-    /// crate, a rack, a tank, anything that would need a floor to stand on.
-    Deck,
-    /// The ship's SIDES: deck plate that faces out rather than up. Windows,
-    /// doors and anything read from another ship.
-    Flank,
-    /// The straight edge of a hull, where the skin falls away along one whole
-    /// side. Rim strips, hazard paint, fairings - the pieces that draw a
-    /// silhouette.
-    Edge,
-    /// The pointiest thing on the hull: crests, spar tips and studs. Masts,
-    /// stacks and aerials, and the one region that accepts a creased top -
-    /// refusing it would strip a ship of its silhouette to fix a bedding defect.
-    HighGround,
-    /// Right beside the mouth of a fitting - a nozzle, a gun well, a bay. The
-    /// service kit: grilles, lighting, machinery.
-    NearFitting,
-    /// Anywhere with a seat on it. The FILLER, and the default: a style's last
-    /// rule, which takes whatever the rules above it left.
-    #[default]
-    Anywhere,
-}
-
-/// How much of the region it names a fixture actually covers.
-///
-/// A ladder rather than a number, because the three dials underneath it -
-/// lattice, share and patch floor - interact, and an author setting them apart
-/// gets a hull carpeted at one size and bare at another. Each rung is one
-/// tuned (stride, chance, patch) triple; see [`FixtureDensity::rule`].
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default, Reflect)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum FixtureDensity {
-    /// The thinnest rung there is: a piece or two on a whole ship, with the
-    /// floor under it so a big hull does not lose them both. Never a field.
-    Rare,
-    /// Scattered thinly, with a floor so a big hull does not clump it.
-    Sparse,
-    /// The workhorse rung: a piece every few cells of the region.
-    #[default]
-    Regular,
-    /// Heavy cover, still on the lattice.
-    Dense,
-    /// Every plate the region admits, off the lattice entirely. For the pieces
-    /// that ARE the surface - a rim strip down a whole edge, cladding.
-    Every,
-}
-
-/// Which way a piece is turned on the plate it stands on.
-///
-/// Quarter turns about the plate's own outward axis and nothing finer: the plate
-/// lattice is square, both axes below are cardinals, and a piece snapped to the
-/// grid is the whole point. There is no jitter and no free yaw, deliberately.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default, Reflect)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum FixtureOrientation {
-    /// Not turned. Right for anything with no long axis - a blister, a stud, a
-    /// hatch.
-    #[default]
-    Free,
-    /// The piece's own `+Z` lies DOWN THE RUN, along
-    /// [`PlateReading::along`]: a rib strip follows the spine it is on, a row of
-    /// vents lines up with itself.
-    Along,
-    /// The piece's own `+Z` points OFF THE SHIP, down [`PlateReading::fall`]: a
-    /// fairing leans out over the edge it stands on rather than lying along it.
-    ///
-    /// Square to [`Along`](FixtureOrientation::Along). A plate that does not
-    /// fall one way is left unturned, so this is a rule for the falling plate -
-    /// [`Edge`](FixtureRegion::Edge) above all.
-    Outward,
-}
-
-/// Where one piece of decoration belongs, in three authored words.
-#[derive(Clone, Copy, Debug, Default, Reflect)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct FixturePlacement {
-    /// The part of the hull the piece is for.
-    #[cfg_attr(feature = "serde", serde(default))]
-    pub region: FixtureRegion,
-    /// How much of that region it covers.
-    #[cfg_attr(feature = "serde", serde(default))]
-    pub density: FixtureDensity,
-    /// Which way it is turned on the plate it lands on.
-    #[cfg_attr(feature = "serde", serde(default))]
-    pub orientation: FixtureOrientation,
-}
-
 /// One authored look for a derived skin.
 ///
 /// Resolved by [`id`](ShipStyleConfig::id) out of [`GameStyles`], which the mod
@@ -223,20 +103,21 @@ pub struct ShipStyleConfig {
     pub name: String,
     /// What the plates are made of.
     pub palette: StylePalette,
-    /// The decoration this style scatters, in PRIORITY order: a plate takes at
-    /// most one piece, and the first fixture that claims it wins.
-    ///
-    /// That ordering is the whole of the conflict resolution, and it is what
-    /// lets a style put a rare, striking piece first and a common filler last
-    /// without either having to know about the other.
+    /// The decoration pieces this style can place. A greeble names one by id
+    /// in its `fixture` field.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Vec::is_empty")
     )]
     pub fixtures: Vec<StyleFixtureConfig>,
+    /// The rules that place the fixtures. Required: a style with no greebles
+    /// writes `greeble_rules: (link_types: [], greebles: [])` and places no
+    /// decoration.
+    #[reflect(ignore)]
+    pub greeble_rules: GreebleRules,
 }
 
-/// One piece of decoration a style scatters over a skin.
+/// One piece of decoration a style can place on a skin.
 ///
 /// A decoration is a fixture in the full sense - health, a collider, shot off
 /// like a plate - because the alternative is art a round passes through. It is
@@ -245,11 +126,11 @@ pub struct ShipStyleConfig {
 #[derive(Clone, Debug, Default, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct StyleFixtureConfig {
-    /// Names the piece within its style. Also the SALT the scatter hashes with,
-    /// so two pieces sharing one placement do not claim the same plates.
+    /// Names the piece within its style. A greeble's `fixture` names this id.
     pub id: String,
     /// The model, authored in the plate's own frame: `+Y` out of the plate,
-    /// `y = 0` the mounting face. See `assets/base/gltf/greebles/README.md`.
+    /// `y = 0` the mounting face, `+Z` toward the greeble's `up` link point.
+    /// See `assets/base/gltf/greebles/README.md`.
     #[reflect(ignore)]
     pub model: AssetRef<WorldAsset>,
     /// What the piece takes before it comes off. Well under a plate's, since
@@ -264,13 +145,8 @@ pub struct StyleFixtureConfig {
     /// cost more than it is worth.
     ///
     /// Authored because a headless simulation never loads the model these bounds
-    /// could otherwise be read from. It is also what
-    /// [`FixturePlacement::min_run`] reads, so it is load-bearing for the LOOK
-    /// as well as for the physics.
+    /// could otherwise be read from.
     pub collider: Vec3,
-    /// Where the piece belongs.
-    #[cfg_attr(feature = "serde", serde(default))]
-    pub placement: FixturePlacement,
 }
 
 impl ShipStyleConfig {
@@ -283,269 +159,96 @@ impl ShipStyleConfig {
             ShellSurface::Floor => None,
         }
     }
-}
 
-impl StyleFixtureConfig {
-    /// The private rule the scatter runs for this piece: its placement expanded,
-    /// with the run gate read off its own collider.
-    pub(crate) fn scatter(&self) -> ScatterRule {
-        let region = self.placement.region.rule();
-        let (stride, chance, patch) = self.placement.density.rule();
-        ScatterRule {
-            min_run: FixturePlacement::min_run(self.collider),
-            // Two ways to be free of the seat gate, and a piece needs only one:
-            // the region is the high ground, or the piece is trim and does not
-            // care.
-            whole_seat: region.whole_seat && FixturePlacement::needs_seat(self.collider),
-            stride,
-            chance,
-            patch,
-            ..region
+    /// The style's greeble rules compiled, with every greeble's `fixture`
+    /// resolved against [`fixtures`](Self::fixtures).
+    ///
+    /// `Ok(None)` when the rules hold no greebles: the style places no
+    /// decoration. Content lint and the mod merge call this, so an invalid rule
+    /// set fails before a ship wears it. Every fault is returned, not only the
+    /// first.
+    pub fn compile_greebles(&self) -> Result<Option<StyleGreebles>, Vec<StyleGreebleError>> {
+        if self.greeble_rules.greebles.is_empty() {
+            return Ok(None);
+        }
+        let mut faults: Vec<StyleGreebleError> = Vec::new();
+        let mut fixtures: Vec<Option<usize>> = Vec::new();
+        for greeble in &self.greeble_rules.greebles {
+            let Some(id) = greeble.fixture.as_deref() else {
+                fixtures.push(None);
+                continue;
+            };
+            match self.fixtures.iter().position(|fixture| fixture.id == id) {
+                Some(index) => fixtures.push(Some(index)),
+                None => faults.push(StyleGreebleError::UnknownFixture {
+                    greeble: greeble.id.clone(),
+                    fixture: id.to_string(),
+                }),
+            }
+        }
+        let rules = self.greeble_rules.compile().map_err(|errors| {
+            errors
+                .into_iter()
+                .map(StyleGreebleError::Rules)
+                .collect::<Vec<_>>()
+        });
+        match rules {
+            Ok(rules) if faults.is_empty() => Ok(Some(StyleGreebles { rules, fixtures })),
+            Ok(_) => Err(faults),
+            Err(mut errors) => {
+                errors.append(&mut faults);
+                Err(errors)
+            }
         }
     }
 }
 
-impl FixturePlacement {
-    /// The shortest run of like plate a piece of this size will stand on.
-    ///
-    /// One cell of run per half-cell the piece spans across the plate, so a
-    /// strip most of a cell long asks for a neighbour either side and a stud
-    /// asks for nothing. Read off the collider rather than authored: the
-    /// collider is already the piece's size in cells, and a second authored
-    /// number saying the same thing is a number that can disagree with it.
-    ///
-    /// The two IN-PLANE axes only. `y` stands off the plate and says nothing
-    /// about how much surface the piece needs under it.
-    pub fn min_run(collider: Vec3) -> u8 {
-        let span = collider.x.max(collider.z).max(0.0);
-        ((span * RUN_PER_CELL).ceil() as u8).clamp(0, MAX_DERIVED_RUN)
-    }
+/// A style's greeble rules after [`ShipStyleConfig::compile_greebles`]: the
+/// compiled rules and, per greeble, the index of the fixture it places.
+#[derive(Clone, Debug)]
+pub struct StyleGreebles {
+    /// The compiled rules the solve runs.
+    pub rules: CompiledGreebleRules,
+    /// Per greeble, in rule order: the index into
+    /// [`ShipStyleConfig::fixtures`], or `None` for a greeble with no fixture.
+    fixtures: Vec<Option<usize>>,
+}
 
-    /// Whether a piece of this size needs an unbroken seat under it.
-    ///
-    /// TRIM does not: a stencil, a livery patch or a hazard stripe stands a
-    /// hand's breadth off the plate, and a crease under it is a fold in a decal
-    /// rather than a gap you can see. Anything that stands PROUD does - a stack
-    /// or a winch on a crease touches along one line and floats at both ends.
-    ///
-    /// Read off the collider for the reason [`min_run`](Self::min_run) is: the
-    /// piece's own size already answers this, and a second authored word saying
-    /// it is a word that can disagree.
-    ///
-    /// This is also what keeps a creased plate dressed: a plate with a crease
-    /// or a cap under its middle is no seat, and trim still lands on it.
-    pub fn needs_seat(collider: Vec3) -> bool {
-        collider.y >= TRIM_HEIGHT
+impl StyleGreebles {
+    /// The fixture index greeble `greeble` places, or `None` when it places
+    /// nothing.
+    pub fn fixture(&self, greeble: usize) -> Option<usize> {
+        self.fixtures[greeble]
     }
 }
 
-/// Cells of run demanded per cell of piece. See [`FixturePlacement::min_run`].
-const RUN_PER_CELL: f32 = 2.0;
+/// Why a style's greeble rules do not compile.
+#[derive(Clone, Debug, PartialEq)]
+pub enum StyleGreebleError {
+    /// The rules themselves are invalid.
+    Rules(GreebleRulesError),
+    /// A greeble names a fixture the style does not list.
+    UnknownFixture {
+        /// The greeble.
+        greeble: GreebleDesignId,
+        /// The fixture id it names.
+        fixture: String,
+    },
+}
 
-/// How far off the plate a piece may stand and still count as TRIM: one metre,
-/// at ten metres to the cell. See [`FixturePlacement::needs_seat`].
-///
-/// `pub` because it is an AUTHORING fact, not an implementation one: a style
-/// author sizing a decal is deciding which side of this it lands on, and the
-/// base-content tests check their own kits against it.
-pub const TRIM_HEIGHT: f32 = 0.1;
-
-/// The longest run a derived gate will ask for, however big a mod's collider is.
-///
-///
-/// A hull's longest like-plate run saturates at
-/// [`RUN_REACH`](super::skin_reading::RUN_REACH), and a gate above what any hull
-/// can offer is a piece that lands nowhere with nothing on screen to say why.
-const MAX_DERIVED_RUN: u8 = 3;
-
-impl FixtureRegion {
-    /// The neighbourhood half of this region's rule.
-    ///
-    /// ENGINE POLICY, and tuned against measured hulls rather than derived:
-    /// the catalogue hulls come out nearly three quarters falling plate and a
-    /// fifth [`Step`](PlateRelief::Step), with [`Flat`](PlateRelief::Flat)
-    /// under a tenth, so a region written for flat panels alone lands on
-    /// almost nothing. The relief lists below are what make each word mean a real part
-    /// of a real hull.
-    fn rule(self) -> ScatterRule {
-        let base = ScatterRule::ANY;
+impl std::fmt::Display for StyleGreebleError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Panel => ScatterRule {
-                relief: &[PlateRelief::Flat],
-                min_height: 1,
-                ..base
-            },
-            // Depth 2: a laydown deck is plate with ship under it, not skin
-            // stretched over a one-cell spar.
-            Self::Deck => ScatterRule {
-                relief: &[PlateRelief::Flat, PlateRelief::Step],
-                min_height: 1,
-                min_depth: 2,
-                ..base
-            },
-            Self::Flank => ScatterRule {
-                relief: &[PlateRelief::Flat, PlateRelief::Step],
-                facing: PlateFacing::Side,
-                min_height: 1,
-                min_depth: 2,
-                ..base
-            },
-            Self::Edge => ScatterRule {
-                relief: &[PlateRelief::Brink],
-                ..base
-            },
-            // The one region that drops the seat gate: a mast or a stack
-            // stands up off its plate rather than lying on it. `min_height`
-            // stays 0 so the smallest plate on the high ground still counts,
-            // and `min_depth` 1 is what keeps a mast off skin with nothing
-            // behind it.
-            Self::HighGround => ScatterRule {
-                relief: &[
-                    PlateRelief::Ridge,
-                    PlateRelief::Peak,
-                    PlateRelief::Spur,
-                    PlateRelief::Step,
-                ],
-                whole_seat: false,
-                facing: PlateFacing::Up,
-                min_depth: 1,
-                ..base
-            },
-            // Distance 1 is "the plate is touching the mouth", which is the only
-            // reading that puts a grille ON a nozzle rather than near one.
-            Self::NearFitting => ScatterRule {
-                near_fitting: Some(1),
-                ..base
-            },
-            Self::Anywhere => base,
+            Self::Rules(error) => error.fmt(f),
+            Self::UnknownFixture { greeble, fixture } => write!(
+                f,
+                "greeble '{greeble}' names fixture '{fixture}', which the style does not list"
+            ),
         }
     }
 }
 
-impl FixtureDensity {
-    /// This rung as `(stride, chance, patch)`.
-    ///
-    /// The lattice is 2 on every rung but [`Every`](FixtureDensity::Every),
-    /// because the decoration research says alignment - not blue noise - is what
-    /// makes a greeble read as bolted on, and every other cell is the coarsest
-    /// lattice that still reads as one. The share is what separates the rungs,
-    /// and the patch floor rises as the share falls: a thin share on a small
-    /// hull otherwise lands nothing at all.
-    ///
-    /// [`Rare`](FixtureDensity::Rare) keeps a share rather than leaning on the
-    /// floor alone, and that was MEASURED: at share zero it lands nothing at
-    /// all wherever another rule shares its region, because the share pass -
-    /// the one pass that reads priority plate by plate - is the pass it sat
-    /// out. `armoured_sensor` is first in its kit and took NOTHING on any bench
-    /// seed. A tenth of a lattice that is already every other cell is one or
-    /// two pieces on a generated hull, which is what the rung means.
-    fn rule(self) -> (u8, f32, u8) {
-        match self {
-            Self::Rare => (2, 0.1, 6),
-            Self::Sparse => (2, 0.15, 6),
-            Self::Regular => (2, 0.3, 5),
-            Self::Dense => (2, 0.5, 4),
-            Self::Every => (1, 1.0, 0),
-        }
-    }
-}
-
-/// Where one decoration may stand, as a filter over the plate vocabulary.
-///
-/// PRIVATE, and the reason the authored vocabulary above exists: every field
-/// here is a fact about how a skin is derived, so a style that had spelled one
-/// out would be a style that went quietly wrong the next time the derivation
-/// changed. It is built by [`StyleFixtureConfig::scatter`] and never authored.
-///
-/// The order the four halves are applied in is fixed and load-bearing: the
-/// FILTER says what kind of place the piece belongs, the LATTICE says which
-/// cells of it are on the grid, the SHARE thins that out, and the PATCH puts one
-/// back wherever the thinning left a block of hull bare.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct ScatterRule {
-    /// The reliefs the piece may stand on. Empty means any.
-    pub(crate) relief: &'static [PlateRelief],
-    /// Whether the plate's top must be ONE unbroken surface.
-    ///
-    /// On for every region but the high ground. Tilted counts - a ramp is one
-    /// flat surface and a piece is bedded onto it by
-    /// [`decor_pose`](super::skin_decor::decor_pose); what this refuses is the
-    /// CREASE, where a flat-bottomed model can only ever touch along one line.
-    pub(crate) whole_seat: bool,
-    /// Which way the plate must face, in the ship's own frame.
-    pub(crate) facing: PlateFacing,
-    /// The shortest run of LIKE plate the piece will stand on, off its collider.
-    pub(crate) min_run: u8,
-    /// How much of its cell the plate must fill, in quarter cells. Keeps a piece
-    /// off a sliver of plate that is nearly all floor.
-    pub(crate) min_height: u8,
-    /// How much structure must stand under the plate. Keeps a heavy piece off
-    /// the skin over a one-cell spar.
-    pub(crate) min_depth: u8,
-    /// How close the mouth of a fitting must be, across the surface.
-    pub(crate) near_fitting: Option<u8>,
-    /// The LATTICE the piece claims cells on: `1` is every eligible plate, `2`
-    /// is every other cell on both in-plane axes.
-    pub(crate) stride: u8,
-    /// The share of the plates that pass everything above which actually take
-    /// the piece, 0 to 1. Decided by hashing the CELL, never by an RNG.
-    pub(crate) chance: f32,
-    /// The block of hull, in cells, this rule is guaranteed a piece in: `0` is
-    /// off, and any other value says "at least one piece per `patch` cubed cells
-    /// of ship that this rule can stand on at all".
-    ///
-    /// The DENSITY NORMALISATION. Every other knob here is per plate and they
-    /// multiply, which reads as a field of pieces on a 150-plate generated hull
-    /// and as three pieces on a 20-plate hand-built one. A FLOOR and never a
-    /// cap: where the share has already put a piece of this rule in a block,
-    /// nothing happens; where it has not, the block's lowest hashing eligible
-    /// plate takes one. It never displaces another rule's piece, so priority
-    /// still means what it says.
-    pub(crate) patch: u8,
-}
-
-impl ScatterRule {
-    /// Every plate with a whole seat on it, at every plate: what a region starts
-    /// from before it names anything.
-    const ANY: Self = Self {
-        relief: &[],
-        whole_seat: true,
-        facing: PlateFacing::Any,
-        min_run: 0,
-        min_height: 0,
-        min_depth: 0,
-        near_fitting: None,
-        stride: 1,
-        chance: 1.0,
-        patch: 0,
-    };
-
-    /// Whether a plate reading `reading` is the KIND of place this rule wants.
-    ///
-    /// The neighbourhood half only. The lattice and the share are decided by the
-    /// scatter, which is the only thing that knows the cell.
-    pub(crate) fn accepts(&self, reading: &PlateReading) -> bool {
-        if self.whole_seat && !reading.seat {
-            return false;
-        }
-        if !self.relief.is_empty() && !self.relief.contains(&reading.relief) {
-            return false;
-        }
-        if !self.facing.accepts(reading.out) {
-            return false;
-        }
-        if reading.run < self.min_run
-            || reading.height < self.min_height
-            || reading.depth < self.min_depth
-        {
-            return false;
-        }
-        if self.near_fitting.is_some_and(|near| reading.fitting > near) {
-            return false;
-        }
-        true
-    }
-}
+impl std::error::Error for StyleGreebleError {}
 
 /// The loaded catalog of authored styles, filled by the mod merge exactly as the
 /// section catalog is. Look one up by id with [`get_style`](GameStyles::get_style).
@@ -579,298 +282,86 @@ impl ShipStyle {
     }
 }
 
+/// A test style with one fixture, `block`, and rules that place it on nearly
+/// every plate: one link type that faces itself, and an empty greeble at a
+/// thousandth of the block's weight.
+#[cfg(test)]
+pub(crate) fn block_style(collider: Vec3) -> ShipStyleConfig {
+    use crate::sections::greeble_solver::{
+        GreebleConfig, GreebleLinkConfig, GreebleLinkPoints, GreebleRotateType,
+    };
+    let sides = || GreebleLinkPoints {
+        up: "any".into(),
+        right: "any".into(),
+        down: "any".into(),
+        left: "any".into(),
+    };
+    let greeble = |id: &str, fixture: Option<&str>, weight: f32| GreebleConfig {
+        id: id.into(),
+        fixture: fixture.map(str::to_string),
+        weight,
+        rotate: GreebleRotateType::None,
+        link_points: sides(),
+        near: Vec::new(),
+        max_count: None,
+    };
+    ShipStyleConfig {
+        id: "test".to_string(),
+        name: "Test".to_string(),
+        palette: default(),
+        fixtures: vec![StyleFixtureConfig {
+            id: "block".to_string(),
+            model: AssetRef::from("self://gltf/greebles/placeholder_block.glb#Scene0".to_string()),
+            health: 10.0,
+            collider,
+        }],
+        greeble_rules: GreebleRules {
+            link_types: vec![GreebleLinkConfig {
+                id: "any".into(),
+                connects: vec!["any".into()],
+            }],
+            greebles: vec![
+                greeble("empty", None, 0.001),
+                greeble("block", Some("block"), 1.0),
+            ],
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// Every region, in the order the enum declares them.
-    const REGIONS: [FixtureRegion; 7] = [
-        FixtureRegion::Panel,
-        FixtureRegion::Deck,
-        FixtureRegion::Flank,
-        FixtureRegion::Edge,
-        FixtureRegion::HighGround,
-        FixtureRegion::NearFitting,
-        FixtureRegion::Anywhere,
-    ];
-
-    /// Every rung, thinnest first.
-    const DENSITIES: [FixtureDensity; 5] = [
-        FixtureDensity::Rare,
-        FixtureDensity::Sparse,
-        FixtureDensity::Regular,
-        FixtureDensity::Dense,
-        FixtureDensity::Every,
-    ];
-
-    fn reading(relief: PlateRelief) -> PlateReading {
-        PlateReading {
-            out: IVec3::Y,
-            along: IVec3::X,
-            fall: IVec3::Z,
-            relief,
-            seat: true,
-            enclosure: 8,
-            run: 4,
-            border: 2,
-            height: 2,
-            depth: 3,
-            fitting: 3,
-        }
-    }
-
-    fn piece(region: FixtureRegion, collider: Vec3) -> StyleFixtureConfig {
-        StyleFixtureConfig {
-            id: "piece".to_string(),
-            collider,
-            placement: FixturePlacement {
-                region,
-                ..default()
-            },
-            ..default()
-        }
-    }
-
-    /// Each region admits the relief it is NAMED for, and the seat gate is on
-    /// everywhere but the high ground.
-    ///
-    /// The one table worth pinning by hand: a region is a promise about where a
-    /// piece lands, and the expansion is the only thing that keeps it.
+    /// A greeble that names a fixture the style does not list is refused, and
+    /// the refusal names both ids.
     #[test]
-    fn every_region_admits_the_part_of_a_hull_it_names() {
-        let admits =
-            |region: FixtureRegion, relief: PlateRelief| region.rule().accepts(&reading(relief));
-
-        assert!(admits(FixtureRegion::Panel, PlateRelief::Flat));
-        assert!(!admits(FixtureRegion::Panel, PlateRelief::Brink));
-
-        assert!(admits(FixtureRegion::Deck, PlateRelief::Step));
-        assert!(!admits(FixtureRegion::Deck, PlateRelief::Spur));
-
-        assert!(admits(FixtureRegion::Edge, PlateRelief::Brink));
-        assert!(!admits(FixtureRegion::Edge, PlateRelief::Flat));
-
-        assert!(admits(FixtureRegion::HighGround, PlateRelief::Peak));
-        assert!(admits(FixtureRegion::HighGround, PlateRelief::Spur));
-        assert!(!admits(FixtureRegion::HighGround, PlateRelief::Flat));
-
-        // The filler takes any relief at all, which is what makes it the filler.
-        for relief in crate::sections::skin_reading::RELIEFS {
-            assert!(
-                admits(FixtureRegion::Anywhere, relief),
-                "the filler refused {relief:?}",
-            );
-        }
-    }
-
-    /// The high ground is the ONE region that drops the seat gate: a mast
-    /// stands up off its plate, so a creased top does not refuse it.
-    ///
-    /// It also asks nothing of the plate's HEIGHT, and a regression here
-    /// empties the silhouette of a ship without emptying any other region.
-    #[test]
-    fn only_the_high_ground_takes_a_creased_top_and_it_measures_no_height() {
-        let creased = PlateReading {
-            seat: false,
-            height: 0,
-            ..reading(PlateRelief::Spur)
-        };
-
-        assert!(
-            FixtureRegion::HighGround.rule().accepts(&creased),
-            "the high ground refused the pointiest plate on a hull",
-        );
-        for region in REGIONS {
-            if region == FixtureRegion::HighGround {
-                continue;
-            }
-            assert!(
-                !region.rule().accepts(&creased),
-                "{region:?} seated a flat-bottomed piece on a crease",
-            );
-        }
-    }
-
-    /// A region that wants real ship under it says so, and the thin half of a
-    /// hull is what that refuses.
-    #[test]
-    fn the_laydown_regions_refuse_skin_over_a_one_cell_spar() {
-        let thin = PlateReading {
-            depth: 1,
-            ..reading(PlateRelief::Flat)
-        };
-        assert!(!FixtureRegion::Deck.rule().accepts(&thin));
-        assert!(FixtureRegion::Panel.rule().accepts(&thin));
-        assert!(FixtureRegion::Anywhere.rule().accepts(&thin));
-    }
-
-    /// A flank is deck plate turned to face OUT, which is what a window is read
-    /// through and a roof hatch is not.
-    #[test]
-    fn a_flank_is_the_plate_that_faces_out_rather_than_up() {
-        let roof = reading(PlateRelief::Flat);
-        let side = PlateReading {
-            out: IVec3::X,
-            ..roof
-        };
-        assert!(!FixtureRegion::Flank.rule().accepts(&roof));
-        assert!(FixtureRegion::Flank.rule().accepts(&side));
-        // ...and the high ground is the opposite claim: the roof, never a flank.
-        let peak = PlateReading {
-            out: IVec3::X,
-            seat: false,
-            ..reading(PlateRelief::Peak)
-        };
-        assert!(!FixtureRegion::HighGround.rule().accepts(&peak));
-    }
-
-    /// The service region is the one that measures a DISTANCE rather than a
-    /// shape: touching the mouth of a fitting, not merely near one.
-    #[test]
-    fn the_fitting_region_wants_the_plate_against_the_mouth() {
-        let rule = FixtureRegion::NearFitting.rule();
-        let mut beside = reading(PlateRelief::Flat);
-        beside.fitting = 1;
-        assert!(rule.accepts(&beside));
-        assert!(
-            !rule.accepts(&reading(PlateRelief::Flat)),
-            "a plate three cells from any fitting took the service kit",
-        );
-    }
-
-    /// The ladder is ordered on the dial that actually separates the rungs, and
-    /// the floor rises as the share falls - a thin share on a small hull
-    /// otherwise lands nothing at all.
-    #[test]
-    fn the_density_ladder_thins_the_share_and_raises_the_floor() {
-        let rules: Vec<(u8, f32, u8)> = DENSITIES.iter().map(|rung| rung.rule()).collect();
-
-        for pair in rules.windows(2) {
-            assert!(
-                pair[0].1 <= pair[1].1,
-                "the share goes backwards up the ladder: {rules:?}",
-            );
-        }
-        assert!(
-            (0.0..rules[1].1).contains(&rules[0].1),
-            "`Rare` is a real share, and thinner than `Sparse`: {rules:?}",
-        );
-        assert_eq!(rules[4], (1, 1.0, 0), "`Every` is every plate, off lattice");
-
-        // A block smaller than the lattice can hold no cell for the floor to
-        // pick, so a rung whose patch fell under its own stride would silently
-        // stop flooring anything.
-        for (stride, _, patch) in rules {
-            assert!(
-                patch == 0 || patch >= stride,
-                "a patch of {patch} cannot hold a lattice of {stride}",
-            );
-        }
-    }
-
-    /// TRIM is free of the seat gate whatever region it is in, so a plate with
-    /// a crease or a cap under its middle still takes a decal while a piece
-    /// standing proud would float on it.
-    #[test]
-    fn trim_lies_on_a_crease_and_anything_standing_proud_does_not() {
-        let creased = PlateReading {
-            seat: false,
-            ..reading(PlateRelief::Flat)
-        };
-
-        // A livery patch: three centimetres of sticker on the plate.
-        let decal = piece(FixtureRegion::Anywhere, Vec3::new(0.3, 0.03, 0.46));
-        assert!(!decal.scatter().whole_seat);
-        assert!(
-            decal.scatter().accepts(&creased),
-            "a decal was kept off a hand-built hull's only kind of plate",
-        );
-
-        // A stack: it would touch a crease along one line and float at both ends.
-        let stack = piece(FixtureRegion::Anywhere, Vec3::new(0.18, 0.28, 0.18));
-        assert!(stack.scatter().whole_seat);
-        assert!(!stack.scatter().accepts(&creased));
-
-        assert!(!FixturePlacement::needs_seat(Vec3::new(0.3, 0.0, 0.3)));
-        assert!(FixturePlacement::needs_seat(Vec3::new(
-            0.3,
-            TRIM_HEIGHT,
-            0.3
-        )));
-    }
-
-    /// The run gate is read off the piece and nothing else: a strip most of a
-    /// cell long asks for neighbours, a stud asks for nothing.
-    #[test]
-    fn a_long_piece_asks_for_a_long_run_and_a_stud_asks_for_none() {
-        // The two in-plane axes only - `y` stands off the plate.
-        assert_eq!(FixturePlacement::min_run(Vec3::new(0.2, 0.9, 0.2)), 1);
-        assert_eq!(FixturePlacement::min_run(Vec3::new(0.19, 0.03, 0.9)), 2);
-        assert_eq!(FixturePlacement::min_run(Vec3::new(0.9, 0.03, 0.19)), 2);
-        assert_eq!(FixturePlacement::min_run(Vec3::new(0.18, 0.28, 0.18)), 1);
-
-        // However big a mod's collider, the gate stays inside what a hull can
-        // offer: a run saturates at RUN_REACH, and a gate above it is a piece
-        // that lands nowhere with nothing on screen to say why.
+    fn a_greeble_naming_an_unlisted_fixture_does_not_compile() {
+        let mut style = block_style(Vec3::splat(0.2));
+        style.fixtures.clear();
+        let faults = style.compile_greebles().expect_err("an unknown fixture");
         assert_eq!(
-            FixturePlacement::min_run(Vec3::splat(40.0)),
-            MAX_DERIVED_RUN
-        );
-
-        // And it reaches the rule the scatter actually runs.
-        let band = piece(FixtureRegion::Edge, Vec3::new(0.19, 0.03, 0.9));
-        assert_eq!(band.scatter().min_run, 2);
-        let short = PlateReading {
-            run: 1,
-            ..reading(PlateRelief::Brink)
-        };
-        assert!(
-            !band.scatter().accepts(&short),
-            "a strip took a one-cell stub of edge",
+            faults,
+            [StyleGreebleError::UnknownFixture {
+                greeble: "block".into(),
+                fixture: "block".to_string(),
+            }]
         );
     }
 
-    /// A fixture's scatter is its region, its rung and its collider, with
-    /// nothing else reaching in - and the orientation reaches none of it.
-    ///
-    /// The turn is deliberately NOT part of the rule: it decides how a piece is
-    /// posed on the plate it won, never which plate it wins, so a region and a
-    /// rung must expand the same way whichever way the piece is turned. That
-    /// the turn then reaches the pose is `skin_decor`'s two alignment tests.
+    /// A style with no greebles compiles to no rules, so it places nothing; a
+    /// style with greebles resolves each one's fixture by id.
     #[test]
-    fn a_placement_expands_to_its_region_its_rung_and_its_turn() {
-        for region in REGIONS {
-            for density in DENSITIES {
-                for orientation in [
-                    FixtureOrientation::Free,
-                    FixtureOrientation::Along,
-                    FixtureOrientation::Outward,
-                ] {
-                    let fixture = StyleFixtureConfig {
-                        placement: FixturePlacement {
-                            region,
-                            density,
-                            orientation,
-                        },
-                        collider: Vec3::splat(0.2),
-                        ..default()
-                    };
-                    let rule = fixture.scatter();
-                    let (stride, chance, patch) = density.rule();
-                    let placed = region.rule();
-
-                    assert_eq!(
-                        (rule.stride, rule.chance, rule.patch),
-                        (stride, chance, patch)
-                    );
-                    assert_eq!(rule.relief, placed.relief, "{region:?} lost its relief");
-                    assert_eq!(rule.whole_seat, placed.whole_seat);
-                    assert_eq!(rule.facing, placed.facing);
-                    assert_eq!(rule.min_depth, placed.min_depth);
-                    assert_eq!(rule.min_height, placed.min_height);
-                }
-            }
-        }
+    fn greebles_resolve_their_fixture_by_id() {
+        assert!(ShipStyleConfig::default()
+            .compile_greebles()
+            .expect("empty rules compile")
+            .is_none());
+        let compiled = block_style(Vec3::splat(0.2))
+            .compile_greebles()
+            .expect("the block style compiles")
+            .expect("the block style has greebles");
+        assert_eq!(compiled.fixture(0), None);
+        assert_eq!(compiled.fixture(1), Some(0));
     }
 
     /// The floor is the one surface a style cannot dress, because it is the one

@@ -714,10 +714,9 @@ fn place_labels(
 /// skin on screen rather than a parallel derivation. Per subject:
 ///
 /// - the summary line, and the CREASED count by relief class;
-/// - one line per authored style with the decoration count, the `near_fitting`
-///   taken-of-reach and the full per-fixture tally. Every style is reported,
-///   not just the worn one - the scatter is hashed off the cell, so the
-///   numbers hold.
+/// - one line per authored style with the decoration count and the full
+///   per-fixture tally. Every style is reported, not just the worn one - the
+///   greeble solve is seeded from the style id, so the numbers hold.
 fn report_skins(
     mut reported: Local<Vec<Entity>>,
     roots: Query<(Entity, &Name, &Children), With<SpaceshipRootMarker>>,
@@ -783,23 +782,13 @@ fn report_skins(
 
         for style in styles.iter() {
             let report = skin_report(&structure, &plates, &readings, Some(style));
-            let (near_taken, near_reach) = style
-                .fixtures
-                .iter()
-                .zip(&report.rules)
-                .filter(|(fixture, _)| fixture.placement.region == FixtureRegion::NearFitting)
-                .fold((0, 0), |(taken, reach), (_, rule)| {
-                    (taken + rule.taken, reach + rule.reach)
-                });
             let taken: Vec<usize> = report.rules.iter().map(|rule| rule.taken).collect();
-            let reach: Vec<usize> = report.rules.iter().map(|rule| rule.reach).collect();
             info!(
-                "block_bench: subject `{}` style `{}`: {} piece(s); near_fitting \
-                 {near_taken} hit(s) of {near_reach} reach; {}",
+                "block_bench: subject `{}` style `{}`: {} piece(s); {}",
                 name.as_str(),
                 style.id,
                 report.decor,
-                decor_tally(style, &taken, &reach),
+                decor_tally(style, &taken),
             );
         }
     }

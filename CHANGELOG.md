@@ -144,6 +144,10 @@ does NOT get an entry. Another page that states a different rule is wrong.
   credits and items. Lint refuses an unknown hull or item, an overweight kit
   and a hull with no intake or one a docked ship blocks.
 
+- **(breaking)** A style places its greebles by `greeble_rules`: link types,
+  greebles with four link points, `near` terms and caps. Fixture `placement`
+  is gone; bad rules fail lint and load.
+
 ### Interface & HUD
 
 - GOTO's predicted path now curves for a coasting or tumbling target, gravity

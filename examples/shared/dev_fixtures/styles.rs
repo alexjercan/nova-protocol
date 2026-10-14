@@ -1,9 +1,8 @@
-//! The scaffolding skin style: four placeholder greebles on four placement
-//! rules, one per question the plate vocabulary can answer.
+//! The scaffolding skin style: four placeholder greebles under a small greeble
+//! rule set.
 //!
 //! It is not a look anybody would choose, so it is not base content. It exists
-//! to prove the plate pipeline dresses a hull at all, and to stand every rung
-//! of the placement vocabulary next to its neighbour on one wall.
+//! to prove the plate pipeline dresses a hull at all.
 
 use bevy::prelude::*;
 use nova_protocol::prelude::*;
@@ -13,18 +12,8 @@ pub const PLACEHOLDER_STYLE_ID: &str = "placeholder";
 
 /// The scaffolding style.
 ///
-/// The rules are in PRIORITY order because a plate takes at most one piece:
-///
-/// 1. the mast reads the HIGH GROUND - the crests, tips and studs of a ship's
-///    upper surface, the one region that takes a creased plate;
-/// 2. the vent reads the PANEL and aligns down it, on the lattice. Its rung
-///    carries a density FLOOR, so a hand-built hull the share would have
-///    thinned to nothing still wears a row;
-/// 3. the block reads ANYWHERE at the rarest rung - one per block of hull -
-///    turned OUTBOARD, the only reading a region with no relief can express;
-/// 4. the blister reads the POCKET distance, beside the mouth of a fitting. It
-///    goes LAST because "near a fitting" is broad: first in the order it
-///    carpets 45% of every ship and the other three rules never get a plate.
+/// The mast touches only empty space, the vent runs as a line, and the block
+/// and the blister fill between.
 pub fn placeholder_style() -> ShipStyleConfig {
     ShipStyleConfig {
         id: PLACEHOLDER_STYLE_ID.to_string(),
@@ -45,72 +34,96 @@ pub fn placeholder_style() -> ShipStyleConfig {
             },
         },
         fixtures: vec![
-            fixture(
-                "placeholder_mast",
-                8.0,
-                Vec3::new(0.12, 0.38, 0.12),
-                // HIGH GROUND carries every reading a mast needs - the pointy
-                // reliefs, the upper surface, a cell of ship to bolt to, and
-                // no seat gate. Spelled out as height filters it landed on
-                // nothing: a crest fills an eighth of its cell and a spur tip
-                // less.
-                FixtureRegion::HighGround,
-                FixtureDensity::Regular,
-                FixtureOrientation::Free,
-            ),
-            fixture(
-                "placeholder_vent",
-                12.0,
-                Vec3::new(0.32, 0.04, 0.2),
-                // The region takes the corner-cut panel with the flat one, and
-                // the seat gate keeps a vent off the ones that actually
-                // crease.
-                FixtureRegion::Panel,
-                FixtureDensity::Dense,
-                FixtureOrientation::Along,
-            ),
-            fixture(
-                "placeholder_block",
-                20.0,
-                Vec3::new(0.22, 0.1, 0.22),
-                // `Rare` is the pure per-block form: no share at all, one
-                // piece per block of hull, so it reads the same on a 20-plate
-                // ship and a 2,000-plate one.
-                FixtureRegion::Anywhere,
-                FixtureDensity::Rare,
-                FixtureOrientation::Outward,
-            ),
-            fixture(
-                "placeholder_blister",
-                16.0,
-                Vec3::new(0.18, 0.07, 0.18),
-                FixtureRegion::NearFitting,
-                FixtureDensity::Dense,
-                FixtureOrientation::Free,
-            ),
+            fixture("placeholder_mast", 8.0, Vec3::new(0.12, 0.38, 0.12)),
+            fixture("placeholder_vent", 12.0, Vec3::new(0.32, 0.04, 0.2)),
+            fixture("placeholder_block", 20.0, Vec3::new(0.22, 0.1, 0.22)),
+            fixture("placeholder_blister", 16.0, Vec3::new(0.18, 0.07, 0.18)),
         ],
+        greeble_rules: GreebleRules {
+            link_types: vec![
+                link("any", &["any", "empty"]),
+                link("empty", &["any", "empty", "spaced"]),
+                link("spaced", &["empty"]),
+                link("line", &["line"]),
+            ],
+            greebles: vec![
+                greeble("empty", None, 4.0, ["empty"; 4]),
+                greeble(
+                    "placeholder_mast",
+                    Some("placeholder_mast"),
+                    0.5,
+                    ["spaced"; 4],
+                ),
+                greeble(
+                    "placeholder_vent",
+                    Some("placeholder_vent"),
+                    1.0,
+                    ["line", "any", "line", "any"],
+                ),
+                GreebleConfig {
+                    rotate: GreebleRotateType::All,
+                    ..greeble(
+                        "placeholder_vent_end",
+                        Some("placeholder_vent"),
+                        0.4,
+                        ["line", "any", "any", "any"],
+                    )
+                },
+                greeble(
+                    "placeholder_block",
+                    Some("placeholder_block"),
+                    0.6,
+                    ["any"; 4],
+                ),
+                greeble(
+                    "placeholder_blister",
+                    Some("placeholder_blister"),
+                    0.8,
+                    ["any"; 4],
+                ),
+            ],
+        },
     }
 }
 
-/// One fixture rule over the greeble of that id. The models are base bundle
-/// resources, named by the path the merge resolves them to.
-fn fixture(
+/// A link type facing `connects`.
+fn link(id: &str, connects: &[&str]) -> GreebleLinkConfig {
+    GreebleLinkConfig {
+        id: id.into(),
+        connects: connects.iter().map(|other| (*other).into()).collect(),
+    }
+}
+
+/// A greeble with link types `[up, right, down, left]`, placed at one turn.
+fn greeble(
     id: &str,
-    health: f32,
-    collider: Vec3,
-    region: FixtureRegion,
-    density: FixtureDensity,
-    orientation: FixtureOrientation,
-) -> StyleFixtureConfig {
+    fixture: Option<&str>,
+    weight: f32,
+    [up, right, down, left]: [&str; 4],
+) -> GreebleConfig {
+    GreebleConfig {
+        id: id.into(),
+        fixture: fixture.map(str::to_string),
+        weight,
+        rotate: GreebleRotateType::None,
+        link_points: GreebleLinkPoints {
+            up: up.into(),
+            right: right.into(),
+            down: down.into(),
+            left: left.into(),
+        },
+        near: Vec::new(),
+        max_count: None,
+    }
+}
+
+/// One fixture over the greeble model of that id. The models are base bundle
+/// resources, named by the path the merge resolves them to.
+fn fixture(id: &str, health: f32, collider: Vec3) -> StyleFixtureConfig {
     StyleFixtureConfig {
         id: id.to_string(),
         model: AssetRef::from(format!("base/gltf/greebles/{id}.glb#Scene0")),
         health,
         collider,
-        placement: FixturePlacement {
-            region,
-            density,
-            orientation,
-        },
     }
 }

@@ -4625,6 +4625,7 @@ mod tests {
                 wall: default(),
             },
             fixtures: vec![],
+            greeble_rules: default(),
         }
     }
 

@@ -171,15 +171,15 @@ pub(crate) fn sync_editor_skin(
         );
     }
 
-    // Decoration, from the SAME scatter the flown ship runs - it is a pure
-    // function of the structure, so the build view can show it without a
-    // gameplay half. A preview greeble is a marker, a pose and a visibility and
+    // Decoration, from the SAME greeble solve the flown ship runs - it is a
+    // pure function of the structure and the style, so the build view can
+    // show it without a gameplay half. A preview greeble is a marker, a pose and a visibility and
     // nothing else: no collider for the pointer to hit, no health, and no
     // `EditorSkinPlate` of its own, since it goes when its plate does.
     let readings = read_plates(&structure, &plates);
     let mut taken: Vec<usize> = vec![0; style.map_or(0, |style| style.fixtures.len())];
     if let Some(style) = style {
-        for placement in scatter_decor(&plates, &readings, style) {
+        for placement in solve_decor(&structure, &plates, style) {
             commands.spawn((
                 DespawnOnExit(ExampleStates::Editor),
                 Name::new("Editor Skin Decor"),
@@ -197,11 +197,10 @@ pub(crate) fn sync_editor_skin(
         style: style_id.map(str::to_string),
         plates: plates.len(),
     };
-    // The same histogram and the same per-rule tally the spawner logs, because
-    // this is where the owner BUILDS: a hand-built hull is nearly all studs,
-    // ridges and spurs, and a rule tuned on a generated ship lands almost
-    // nothing on it. Guessing at that from the screen is how a style ends up
-    // tuned for a hull nobody builds.
+    // The same histogram and the same per-fixture tally the spawner logs,
+    // because this is where the owner BUILDS: a hand-built hull is nearly all
+    // studs, ridges and spurs, and weights tuned on a generated ship can read
+    // differently on it.
     debug!(
         "sync_editor_skin: {} plate(s) and {} decoration(s) over {} section(s) in {:.2} ms; \
          relief {}; decoration {}",
@@ -212,7 +211,7 @@ pub(crate) fn sync_editor_skin(
         relief_tally(&readings),
         style.map_or_else(
             || "none (no style)".to_string(),
-            |style| decor_tally(style, &taken, &decor_reach(&plates, &readings, style)),
+            |style| decor_tally(style, &taken),
         ),
     );
 }
@@ -633,8 +632,24 @@ mod tests {
             .collect()
     }
 
-    /// A style whose one fixture takes every plate.
+    /// A style whose one fixture takes nearly every plate: the empty greeble
+    /// weighs a thousandth of the block.
     fn test_style() -> ShipStyleConfig {
+        let sides = || GreebleLinkPoints {
+            up: "any".into(),
+            right: "any".into(),
+            down: "any".into(),
+            left: "any".into(),
+        };
+        let greeble = |id: &str, fixture: Option<&str>, weight: f32| GreebleConfig {
+            id: id.into(),
+            fixture: fixture.map(str::to_string),
+            weight,
+            rotate: GreebleRotateType::None,
+            link_points: sides(),
+            near: Vec::new(),
+            max_count: None,
+        };
         ShipStyleConfig {
             id: "test".to_string(),
             name: "Test".to_string(),
@@ -645,16 +660,18 @@ mod tests {
                     "self://gltf/greebles/placeholder_block.glb#Scene0".to_string(),
                 ),
                 health: 10.0,
-                // Under the trim height, so the seat gate lets it lie on a
-                // crease: the lone cell this suite builds is six cone plates,
-                // and a piece that stands proud would land nowhere on it.
                 collider: Vec3::new(0.2, 0.05, 0.2),
-                placement: FixturePlacement {
-                    region: FixtureRegion::Anywhere,
-                    density: FixtureDensity::Every,
-                    orientation: FixtureOrientation::Free,
-                },
             }],
+            greeble_rules: GreebleRules {
+                link_types: vec![GreebleLinkConfig {
+                    id: "any".into(),
+                    connects: vec!["any".into()],
+                }],
+                greebles: vec![
+                    greeble("empty", None, 0.001),
+                    greeble("block", Some("block"), 1.0),
+                ],
+            },
         }
     }
 

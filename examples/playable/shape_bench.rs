@@ -21,10 +21,9 @@
 //!    ...), so a render of the worst subjects - the small hand-built shapes
 //!    where every corner falls - can be judged next to its numbers.
 //! 2. STYLES: for EVERY authored style, the decoration count and the
-//!    `near_fitting` taken-of-reach, read off the fitting-bearing subject and
-//!    the rest of the roster. The scatter is hashed, not rolled, so the
-//!    numbers for a style the row is not wearing are the numbers it would
-//!    wear.
+//!    per-fixture tally. The greeble solve is seeded from the style id, not
+//!    rolled, so the numbers for a style the row is not wearing are the
+//!    numbers it would wear.
 //!
 //! Hand-run (free-fly with WASD, `L` cycles the look in place, `C` strips or
 //! restores the cladding on the same subjects; grave/tilde cycles the game
@@ -684,10 +683,9 @@ fn place_labels(
 ///
 /// - the summary line, and the CREASED count by relief class (inherited
 ///   question 1: do creased plates read as a defect on the worst subjects?);
-/// - one line per authored style with the decoration count, the `near_fitting`
-///   taken-of-reach and the full per-fixture tally (inherited question 2: the
-///   three unjudged style regressions). Every style is reported, not just the
-///   worn one - the scatter is hashed off the cell, so the numbers hold.
+/// - one line per authored style with the decoration count and the full
+///   per-fixture tally. Every style is reported, not just the worn one - the
+///   greeble solve is seeded from the style id, so the numbers hold.
 fn report_skins(
     mut reported: Local<Vec<Entity>>,
     roots: Query<(Entity, &Name, &Children), With<SpaceshipRootMarker>>,
@@ -753,23 +751,13 @@ fn report_skins(
 
         for style in styles.iter() {
             let report = skin_report(&structure, &plates, &readings, Some(style));
-            let (near_taken, near_reach) = style
-                .fixtures
-                .iter()
-                .zip(&report.rules)
-                .filter(|(fixture, _)| fixture.placement.region == FixtureRegion::NearFitting)
-                .fold((0, 0), |(taken, reach), (_, rule)| {
-                    (taken + rule.taken, reach + rule.reach)
-                });
             let taken: Vec<usize> = report.rules.iter().map(|rule| rule.taken).collect();
-            let reach: Vec<usize> = report.rules.iter().map(|rule| rule.reach).collect();
             info!(
-                "shape_bench: subject `{}` style `{}`: {} piece(s); near_fitting \
-                 {near_taken} hit(s) of {near_reach} reach; {}",
+                "shape_bench: subject `{}` style `{}`: {} piece(s); {}",
                 name.as_str(),
                 style.id,
                 report.decor,
-                decor_tally(style, &taken, &reach),
+                decor_tally(style, &taken),
             );
         }
     }

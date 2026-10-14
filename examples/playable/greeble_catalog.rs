@@ -1,6 +1,6 @@
 //! greeble_catalog: every fixture model the merged styles own, stood in named
 //! rows grouped by style - the catalog a greeble is judged on as an OBJECT
-//! before placement rules ever touch it.
+//! before greeble rules ever place it.
 //!
 //! The roster is RESOLVED, never listed: the example reads the merged
 //! `GameStyles` after load and lays out every `StyleFixtureConfig` it finds,
@@ -172,15 +172,17 @@ fn stand_position(row: usize, rows: usize, column: usize, in_row: usize) -> Vec3
     )
 }
 
-/// A one-line reading of where a fixture belongs - the placement half of the
-/// report, so the catalog shows model and intent together. The three authored
-/// words, not the filters they expand into: what the style SAID is what an
-/// author compares against the piece standing in front of them.
-fn placement_summary(placement: &FixturePlacement) -> String {
-    format!(
-        "region {:?}, density {:?}, orientation {:?}",
-        placement.region, placement.density, placement.orientation,
-    )
+/// A one-line reading of which greebles place a fixture and at what weight,
+/// so the catalog shows the model and its rules together.
+fn placement_summary(style: &ShipStyleConfig, fixture: &StyleFixtureConfig) -> String {
+    let greebles: Vec<String> = style
+        .greeble_rules
+        .greebles
+        .iter()
+        .filter(|greeble| greeble.fixture.as_deref() == Some(fixture.id.as_str()))
+        .map(|greeble| format!("{} w {}", greeble.id, greeble.weight))
+        .collect();
+    format!("greebles [{}]", greebles.join(", "))
 }
 
 /// The stage: the game's own sky and the repo's standard three-point rig, with
@@ -258,7 +260,7 @@ fn load_catalog(
                 fixture.collider.y,
                 fixture.collider.z,
                 fixture.health,
-                placement_summary(&fixture.placement),
+                placement_summary(style, fixture),
             );
             spawn_stand(
                 &mut commands,

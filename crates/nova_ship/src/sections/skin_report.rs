@@ -7,18 +7,18 @@
 //! says what the derivation did to it and why, in numbers.
 //!
 //! It is worth building HERE and for this subsystem in particular, because the
-//! skin is a PURE FUNCTION of structure - no RNG, the scatter hashed off the
-//! cell. So a dumped structure is a COMPLETE repro: the derivation can be
+//! skin is a PURE FUNCTION of structure - no random stream, and the greeble
+//! solve hashes a seed from the style id. So a dumped structure is a COMPLETE repro: the derivation can be
 //! re-run offline against it and pinned in a test, which is not true of most of
 //! the game.
 //!
 //! Three things a reader wants and the derivation throws away:
 //!
-//! - per CLAD cell: the shape it wears, what the top is shaped like, the zone facts the scatter reads, and which pieces
-//!   landed on it and by which of the two paths;
+//! - per CLAD cell: the shape it wears, what the top is shaped like, the zone
+//!   facts around it, and which piece the greeble solve put on it;
 //! - per BARE cell a reader would expect to be clad: why it is not, in one
 //!   word ([`BareReason`]);
-//! - the STATISTICS a rule is tuned against, above all how much of a hull the
+//! - the STATISTICS a style is tuned against, above all how much of a hull the
 //!   creased plates make up.
 //!
 //! It is a THIRD pass, after [`derive_skin`](super::shell_skin::derive_skin)
@@ -32,7 +32,7 @@ use bevy::{platform::collections::HashSet, prelude::*};
 use crate::sections::{
     shell_shape::ShellShape,
     shell_skin::{cladding_cells, exit_pocket, SkinPlate, SkinStructure, FACES},
-    skin_decor::{decor_reach, scatter_decor, DecorReason},
+    skin_decor::solve_decor,
     skin_reading::{fallen_corners, PlateReading, PlateRelief, RELIEFS},
     skin_style::ShipStyleConfig,
 };
@@ -79,10 +79,10 @@ pub struct SkinReport {
     pub flat_area: f32,
     /// How many plates lean more than [`UPRIGHT_TILT`] off their own out face.
     pub leaning: usize,
-    /// What each of the style's rules took and what it could have taken, in the
-    /// style's own order. Empty when no style is worn.
+    /// How many pieces each of the style's fixtures took, in the style's own
+    /// order. Empty when no style is worn.
     pub rules: Vec<RuleCount>,
-    /// How many pieces the scatter placed in total.
+    /// How many pieces the greeble solve placed in total.
     pub decor: usize,
     /// How many of those stand on a plate that is NOT
     /// [`Flat`](PlateRelief::Flat) - the placement complaint, counted.
@@ -111,17 +111,13 @@ pub struct ReliefCount {
     pub count: usize,
 }
 
-/// What one of a style's rules did to one hull.
+/// How many pieces of one style fixture landed on one hull.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RuleCount {
     /// The style fixture's id.
     pub id: String,
-    /// How many pieces it actually placed.
+    /// How many pieces the greeble solve placed.
     pub taken: usize,
-    /// How many plates it could have stood on with nothing above it and no
-    /// share thinning it - see
-    /// [`decor_reach`](super::skin_decor::decor_reach).
-    pub reach: usize,
 }
 
 /// One clad cell, and everything the derivation knew about it.
@@ -135,7 +131,7 @@ pub struct PlateReport {
     pub out: IVec3,
     /// The shape it wears, canonical, in its own frame.
     pub shape: ShellShape,
-    /// The neighbourhood the scatter reads.
+    /// The neighbourhood the plate stands in.
     pub reading: PlateReading,
     /// Which corner slots stand beside a falling edge, a bit per slot - see
     /// [`fallen_corners`].
@@ -146,17 +142,15 @@ pub struct PlateReport {
     pub flat_area: f32,
     /// How far that piece leans off the out face, in radians.
     pub tilt: f32,
-    /// The pieces that landed on it, in the style's own order.
+    /// The piece the greeble solve put on it: none or one.
     pub decor: Vec<DecorReport>,
 }
 
-/// One piece of decoration, and why it is where it is.
+/// One piece of decoration on a plate.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DecorReport {
     /// The style fixture's id.
     pub id: String,
-    /// Which pass claimed the plate.
-    pub reason: DecorReason,
     /// Quarter turns about the plate's out axis.
     pub turns: u8,
 }
@@ -242,13 +236,11 @@ pub fn skin_report(
 
     let mut rules: Vec<RuleCount> = Vec::new();
     if let Some(style) = style {
-        let reach = decor_reach(plates, readings, style);
         let mut taken = vec![0usize; style.fixtures.len()];
-        for placement in scatter_decor(plates, readings, style) {
+        for placement in solve_decor(structure, plates, style) {
             let fixture = &style.fixtures[placement.fixture];
             rows[placement.plate].decor.push(DecorReport {
                 id: fixture.id.clone(),
-                reason: placement.reason,
                 turns: placement.turns,
             });
             taken[placement.fixture] += 1;
@@ -260,7 +252,6 @@ pub fn skin_report(
             .map(|(index, fixture)| RuleCount {
                 id: fixture.id.clone(),
                 taken: taken[index],
-                reach: reach.get(index).copied().unwrap_or_default(),
             })
             .collect();
     }
@@ -411,14 +402,12 @@ pub fn skin_summary(report: &SkinReport) -> String {
 
 #[cfg(test)]
 mod tests {
-    use nova_gameplay::prelude::AssetRef;
-
     use super::*;
     use crate::sections::{
         shell_shape::{ShellEdgeType, FULL},
         shell_skin::derive_skin,
         skin_reading::read_plates,
-        skin_style::{FixtureDensity, FixturePlacement, FixtureRegion, StyleFixtureConfig},
+        skin_style::block_style,
     };
 
     /// A section that mates on every face, like a hull cube.
@@ -454,48 +443,6 @@ mod tests {
             .find(|row| row.cell == cell)
             .unwrap_or_else(|| panic!("no plate stands at {cell:?}"))
     }
-
-    fn style(fixtures: Vec<StyleFixtureConfig>) -> ShipStyleConfig {
-        ShipStyleConfig {
-            id: "test".to_string(),
-            name: "Test".to_string(),
-            palette: default(),
-            fixtures,
-        }
-    }
-
-    /// A piece small enough that its derived run gate admits any plate, so a
-    /// test names only the placement words it is actually about.
-    fn fixture(id: &str, region: FixtureRegion, density: FixtureDensity) -> StyleFixtureConfig {
-        sized(id, region, density, Vec3::new(0.2, 0.1, 0.2))
-    }
-
-    /// A fixture of an authored size, because the seat gate and the run gate are
-    /// both read off the collider - a test about either has to say which piece
-    /// it means.
-    fn sized(
-        id: &str,
-        region: FixtureRegion,
-        density: FixtureDensity,
-        collider: Vec3,
-    ) -> StyleFixtureConfig {
-        StyleFixtureConfig {
-            id: id.to_string(),
-            model: AssetRef::from("self://gltf/greebles/placeholder_block.glb#Scene0".to_string()),
-            health: 10.0,
-            collider,
-            placement: FixturePlacement {
-                region,
-                density,
-                ..default()
-            },
-        }
-    }
-
-    /// A stack: it stands proud, so it takes the seat gate.
-    const PROUD: Vec3 = Vec3::new(0.18, 0.28, 0.18);
-    /// A livery patch: trim, so it does not.
-    const TRIM: Vec3 = Vec3::new(0.3, 0.03, 0.46);
 
     /// An L of hull cubes with arms `arm` cells long and `depth` cells thick,
     /// lying in x/y - the owner's own build.
@@ -633,86 +580,6 @@ mod tests {
         assert_eq!(roof(IVec3::new(1, 1, 2)).reading.relief, PlateRelief::Step);
     }
 
-    /// The decoration half says WHICH pass put each piece down.
-    ///
-    /// A rule carried entirely by the per-patch floor looks exactly like a
-    /// well-tuned one from a screenshot, and the two want opposite fixes.
-    #[test]
-    fn a_piece_says_whether_its_own_share_or_the_floor_put_it_there() {
-        let structure = slab(8);
-        // `Rare` has no share at all, so the floor is the only thing that can
-        // have put a piece down.
-        let report = report(
-            &structure,
-            Some(&style(vec![fixture(
-                "panel",
-                FixtureRegion::Panel,
-                FixtureDensity::Rare,
-            )])),
-        );
-
-        let placed: Vec<&DecorReport> = report
-            .plates
-            .iter()
-            .flat_map(|row| row.decor.iter())
-            .collect();
-        assert!(!placed.is_empty(), "the floor should put pieces back");
-        assert!(
-            placed
-                .iter()
-                .any(|piece| piece.reason == DecorReason::Patch),
-            "a share of 0.02 over a 8x8 deck is carried by the floor",
-        );
-        assert_eq!(report.decor, placed.len());
-        assert_eq!(report.rules[0].taken, placed.len());
-        assert!(report.rules[0].reach > placed.len(), "the reach is a bound");
-    }
-
-    /// The SEAT GATE, counted: it takes the decoration off the creases and off
-    /// the steepest ground, and it costs coverage to do it.
-    ///
-    /// Both halves are the point. A default rule lands nothing on a creased
-    /// top, and the same rule seated anywhere covers more of the hull. The
-    /// trade is what the exception path exists to buy back.
-    #[test]
-    fn the_seat_gate_takes_the_decoration_off_the_creases() {
-        // A deck and a raised deck stepped off it along an edge: the plates in
-        // the step ramp half a cell down to the lower deck and crease through
-        // their middles.
-        let cells: Vec<IVec3> = (0..8)
-            .flat_map(|x| (0..6).map(move |z| IVec3::new(x, (x >= 4) as i32, z)))
-            .collect();
-        let structure = hull(&cells);
-        let cover = |piece: StyleFixtureConfig| report(&structure, Some(&style(vec![piece])));
-
-        // The same region and the same rung; the only difference is the PIECE.
-        // A stack stands proud and takes the gate, a decal is trim and does not.
-        let gated = cover(sized(
-            "stack",
-            FixtureRegion::Anywhere,
-            FixtureDensity::Every,
-            PROUD,
-        ));
-        let ungated = cover(sized(
-            "livery",
-            FixtureRegion::Anywhere,
-            FixtureDensity::Every,
-            TRIM,
-        ));
-
-        assert_eq!(gated.decor_on_creased, 0, "the gate let a crease through");
-        assert!(
-            ungated.decor_on_creased > 0,
-            "the subject has no creased plate to gate",
-        );
-        // The cost, stated: the gate refuses the creased ground in the step to
-        // anything that stands proud on it.
-        assert!(
-            gated.decor < ungated.decor,
-            "the gate refused nothing at all",
-        );
-    }
-
     /// The report is a pure function of the structure, exactly as the skin is.
     #[test]
     fn the_same_structure_always_reports_the_same() {
@@ -721,11 +588,7 @@ mod tests {
             .collect();
         let mut reversed = cells.clone();
         reversed.reverse();
-        let worn = style(vec![fixture(
-            "vent",
-            FixtureRegion::Anywhere,
-            FixtureDensity::Dense,
-        )]);
+        let worn = block_style(Vec3::splat(0.2));
 
         let forwards = report(&hull(&cells), Some(&worn));
         let backwards = report(&hull(&reversed), Some(&worn));
