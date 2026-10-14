@@ -539,6 +539,11 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                         13.0,
                         UiColor::Body,
                     ));
+                    hint.spawn(themed_label(
+                        "Docked, double-click an item to move its stack, Shift for one.",
+                        12.0,
+                        UiColor::Label,
+                    ));
                     hint.spawn((
                         InventoryInspectorField::SelectCue,
                         themed_label("", 12.0, UiColor::Label),
@@ -956,27 +961,73 @@ fn on_inventory_filter_chip(
     }
 }
 
-/// Select the clicked row for the inspector.
+/// Select the clicked row for the inspector. The second click of a double
+/// click on the same row also confirms the form it opened, see
+/// [`quick_inventory_action`].
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the row, its ships, the pane state, the click clock and Shift, the cue and the command"
+)]
 fn on_inventory_row(
     activate: On<Activate>,
     q_row: Query<&InventoryRow>,
     ships: InventoryShips,
+    time: Res<Time<Real>>,
+    keys: Res<ButtonInput<KeyCode>>,
     mut runtime: ResMut<InventoryRuntime>,
+    mut actions: MessageWriter<InventoryActionCommand>,
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
 ) {
     let Ok(row) = q_row.get(activate.entity) else {
         return;
     };
+    let double = runtime
+        .click
+        .press((row.side, row.item.clone()), time.elapsed_secs());
     if select_inventory_row(&mut runtime, &ships, row.clone()) {
         play_menu_select(&mut commands, bank.as_deref());
     }
+    if double {
+        let one = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
+        if let Some(command) = quick_inventory_action(&mut runtime, &ships, &row.item, one) {
+            actions.write(command);
+        }
+    }
+}
+
+/// The command a double click on the row of `item` sends: Confirm of the form
+/// the row opened, at the whole source stack, or at one unit with `one` (Shift
+/// held). It is the same [`InventoryActionCommand`] Confirm writes, so it
+/// moves and refuses exactly as Confirm would. The open draft takes the
+/// quantity too, so a refused move shows on the form as well as the note
+/// line. `None` while the row opens no form, and for Jettison: dumping cargo
+/// undocked is not a transaction.
+fn quick_inventory_action(
+    runtime: &mut InventoryRuntime,
+    ships: &InventoryShips,
+    item: &ItemDesignId,
+    one: bool,
+) -> Option<InventoryActionCommand> {
+    let draft = runtime
+        .draft
+        .as_mut()
+        .filter(|draft| draft.item == *item && draft.action != InventoryActionType::Jettison)?;
+    let quantity = if one { 1 } else { ships.draft_stock(draft) };
+    draft.quantity = Some(quantity);
+    Some(InventoryActionCommand {
+        action: draft.action,
+        item: draft.item.clone(),
+        quantity: Some(quantity),
+    })
 }
 
 /// Select `row` for the inspector and open the action it offers at one unit;
-/// returns whether either changed, so the caller clicks once. A different row
-/// closes the full description. The selected row again keeps its open draft,
-/// its quantity and its full description.
+/// returns whether either changed, so the caller clicks once. A player's row
+/// opens the Give, Sell or Store chip last chosen while the partner takes it,
+/// so Store picked once stays picked from row to row. A different row closes
+/// the full description. The selected row again keeps its open draft, its
+/// quantity and its full description.
 fn select_inventory_row(
     runtime: &mut InventoryRuntime,
     ships: &InventoryShips,
@@ -985,8 +1036,12 @@ fn select_inventory_row(
     let picked = Some((row.side, row.item.clone()));
     let pair = ships.pair();
     let terms = pair.and_then(|pair| ships.partner_terms(pair));
-    let offer =
-        pair.and_then(|pair| offered_action(row.side, terms, ships.intake(pair.own).is_some()));
+    let offer = pair
+        .and_then(|pair| offered_action(row.side, terms, ships.intake(pair.own).is_some()))
+        .map(|offer| match runtime.own_action {
+            Some(chosen) if draft_fits(offer, chosen, terms) => chosen,
+            _ => offer,
+        });
     let kept = match (runtime.draft.as_ref(), offer) {
         (Some(draft), Some(action)) => {
             draft.item == row.item && draft_fits(action, draft.action, terms)
@@ -1193,8 +1248,9 @@ fn draft_fits(
 }
 
 /// Switch the open Give, Sell or Store draft to the clicked chip's action,
-/// keeping its quantity, with one click if it changes. A chip the partner does
-/// not take is hidden; this guard also drops an `Activate` triggered directly.
+/// keeping its quantity, with one click if it changes, and keep the choice for
+/// the next player's row. A chip the partner does not take is hidden; this
+/// guard also drops an `Activate` triggered directly.
 fn on_inventory_draft_action_chip(
     activate: On<Activate>,
     q_chip: Query<&InventoryDraftActionChip>,
@@ -1216,6 +1272,7 @@ fn on_inventory_draft_action_chip(
         action: chip.0,
         ..draft
     });
+    runtime.own_action = Some(chip.0);
     play_menu_select(&mut commands, bank.as_deref());
 }
 

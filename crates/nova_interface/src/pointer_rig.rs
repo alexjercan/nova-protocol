@@ -258,21 +258,39 @@ pub(super) fn move_cursor_to(rig: &mut PanePointerRig, window_px: Vec2) {
 pub(super) fn click_at(rig: &mut PanePointerRig, window_px: Vec2) {
     move_cursor_to(rig, window_px);
     for state in [ButtonState::Pressed, ButtonState::Released] {
-        let window = rig
-            .app
-            .world_mut()
-            .query_filtered::<Entity, With<PrimaryWindow>>()
-            .single(rig.app.world())
-            .expect("the rig has a primary window");
-        rig.app
-            .world_mut()
-            .write_message(WindowEvent::MouseButtonInput(MouseButtonInput {
-                button: MouseButton::Left,
-                state,
-                window,
-            }));
+        write_left_button(rig, state);
         settle(&mut rig.app);
     }
+}
+
+/// Click twice at `window_px` with one frame per press and per release, so
+/// the two releases land two frames apart, as the autopilot's
+/// `double_click_named` drives them; then settle.
+pub(super) fn double_click_at(rig: &mut PanePointerRig, window_px: Vec2) {
+    move_cursor_to(rig, window_px);
+    for state in [ButtonState::Pressed, ButtonState::Released].repeat(2) {
+        write_left_button(rig, state);
+        rig.app.update();
+    }
+    settle(&mut rig.app);
+}
+
+/// Write one left-button `WindowEvent` for the mouse pointer; see
+/// [`click_at`] for why only the wrapper.
+fn write_left_button(rig: &mut PanePointerRig, state: ButtonState) {
+    let window = rig
+        .app
+        .world_mut()
+        .query_filtered::<Entity, With<PrimaryWindow>>()
+        .single(rig.app.world())
+        .expect("the rig has a primary window");
+    rig.app
+        .world_mut()
+        .write_message(WindowEvent::MouseButtonInput(MouseButtonInput {
+            button: MouseButton::Left,
+            state,
+            window,
+        }));
 }
 
 /// Every UI cue played since the last clear, in order.

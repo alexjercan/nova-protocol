@@ -32,6 +32,12 @@
 //! [`plan_credit_take`](nova_gameplay::prelude::plan_credit_take) rule, or
 //! refuses with no change.
 //!
+//! A double click on a row selects it and confirms the form it opens, at the
+//! whole stack, or one unit with Shift held: Sell or Store (whichever chip the
+//! form shows) or Give from the hold, Withdraw from storage, Buy or Take from
+//! the partner. It writes the same [`InventoryActionCommand`] Confirm does, so
+//! it refuses exactly as Confirm would. Jettison has no double click.
+//!
 //! The keyboard reaches the same selection: `viewer_next` and `viewer_prev`
 //! step through the shown rows as a click would, and `inventory_details`
 //! opens the full description the inspector clips to four lines.
@@ -51,7 +57,10 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::{
     GameItems, ItemCategoryType, ItemDesignId, ItemStorageType, ItemTradeType, ItemTransferType,
 };
-use nova_ui::input_mode::prelude::{in_input_mode, InputMode};
+use nova_ui::{
+    input_mode::prelude::{in_input_mode, InputMode},
+    widget::DoubleClick,
+};
 
 pub(crate) use self::app::*;
 
@@ -120,6 +129,11 @@ pub(crate) struct InventoryRuntime {
     /// Whether `inventory_details` holds the selected item's full description
     /// open. A new selection closes it.
     pub(crate) details: bool,
+    /// The Give, Sell or Store chip last clicked; a player's row opens it
+    /// while the partner takes it, else the action the row offers.
+    pub(crate) own_action: Option<InventoryActionType>,
+    /// The row the last click landed on, for a double click.
+    pub(crate) click: DoubleClick<(InventorySideType, ItemDesignId)>,
 }
 
 /// What an Inventory pane form does with its items.

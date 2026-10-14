@@ -43,7 +43,7 @@ use bevy::{
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 use nova_ui::prelude::{
-    in_input_mode, in_input_mode_at_most, owns_or_enters, ClaimKeyboard, InputMode,
+    in_input_mode, in_input_mode_at_most, owns_or_enters, ClaimKeyboard, DoubleClick, InputMode,
     InputModeSystems, TextFieldSystems,
 };
 
@@ -77,8 +77,8 @@ mod ui;
 
 use bundle::{apply_file_request, save_key, DocumentSlot, FileRequest, FileWindowRequest};
 use config::{
-    editor_gizmo_config, EditorGizmos, EditorOverlays, EditorStatus, HoveredNode, LastClick,
-    PlacementPose, PlacementPreview, RailTab, SectionChoice, SelectedNode,
+    editor_gizmo_config, EditorGizmos, EditorOverlays, EditorStatus, HoveredNode, PlacementPose,
+    PlacementPreview, RailTab, SectionChoice, SelectedNode,
 };
 use frame::{
     apply_frame_request, frame_key, hold_camera_above_normal, sync_frame_item, CameraFraming,
@@ -374,7 +374,7 @@ fn editor_plugin(app: &mut App) {
     gallery::register(app);
     // One click selects, two enter - shared by the Scene tree and the stage so
     // both count the same double.
-    app.init_resource::<LastClick>();
+    app.init_resource::<DoubleClick<Entity>>();
     app.add_observer(on_click_spaceship_section);
 
     // Dragging a ship or an object across the stage - the scenario node's one

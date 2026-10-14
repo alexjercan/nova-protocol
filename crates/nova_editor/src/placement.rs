@@ -15,13 +15,12 @@ use bevy::{
 };
 use nova_input::prelude::InputSource;
 use nova_ship::prelude::*;
-use nova_ui::theme::UiColor;
+use nova_ui::{prelude::DoubleClick, theme::UiColor};
 
 use crate::{
     config::{
-        EditorGizmos, EditorOverlays, EditorSays, EditorStatus, LastClick, Placement,
-        PlacementPose, PlacementPreview, SectionChoice, SectionGhost, SectionPreviewMarker,
-        SelectedNode,
+        EditorGizmos, EditorOverlays, EditorSays, EditorStatus, Placement, PlacementPose,
+        PlacementPreview, SectionChoice, SectionGhost, SectionPreviewMarker, SelectedNode,
     },
     cues::EditorCues,
     event::{ActionNode, EventNode, FilterNode, GateNode, StepNode},
@@ -961,7 +960,7 @@ pub(crate) fn on_click_spaceship_section(
     mut ordinals: Query<&mut NextChildOrdinal>,
     rebind: Res<EditorRebind>,
     time: Res<Time<Real>>,
-    mut last: ResMut<LastClick>,
+    mut last: ResMut<DoubleClick<Entity>>,
     mut request: ResMut<FrameRequest>,
     mut selected: ResMut<SelectedNode>,
     (q_views, q_objects): (Query<&ChildOf, With<NodeView>>, Query<(), With<ObjectNode>>),
@@ -1940,7 +1939,7 @@ mod tests {
 
         let mut app = document_app(vec![]);
         app.init_resource::<SelectedNode>();
-        app.init_resource::<LastClick>();
+        app.init_resource::<DoubleClick<Entity>>();
         app.init_resource::<FrameRequest>();
         app.init_resource::<EditorRebind>();
         app.init_resource::<SectionChoice>();
@@ -2303,7 +2302,7 @@ mod tests {
 
         let mut app = document_only(vec![hull_config("hull"), mining_section_config("miner")]);
         app.init_resource::<SelectedNode>();
-        app.init_resource::<LastClick>();
+        app.init_resource::<DoubleClick<Entity>>();
         app.init_resource::<FrameRequest>();
         app.init_resource::<EditorRebind>();
         app.insert_resource(SectionChoice::Section("miner".to_string()));

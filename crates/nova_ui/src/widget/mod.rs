@@ -18,7 +18,8 @@
 //! different colours, so it REBUILDS its children where the others repaint.
 //!
 //! One family per module - `button`, `panel`, `list_row`, `slider`,
-//! `segmented`, `chrome` - all re-exported here, so `widget::<item>` paths are
+//! `segmented`, `chrome` - all re-exported here, with the shared
+//! [`DoubleClick`] detector (`double_click`), so `widget::<item>` paths are
 //! unchanged. [`NovaUiPlugin`](crate::NovaUiPlugin) wires every family's
 //! observers and reconcilers.
 
@@ -32,17 +33,18 @@ pub mod prelude {
         segmented, segmented_container, segmented_container_wrapping, segmented_option,
         segmented_option_fit, separator, slider_meter_color, slider_track, swatch, text_field,
         themed_button, toggle, BadgeKind, ButtonLabel, ButtonSpec, ButtonValue, ButtonVariant,
-        KeyChip, KeyChipLabel, ListRow, PanelHeadTag, PanelHeadTitle, SegmentedSkin, Selected,
-        SliderBlock, SliderFill, SliderTrack, TextField, TextFieldError, TextFieldFocused,
-        TextFieldSpec, TextFieldSubmitted, TextFieldSystems, TextFieldValue, ThemedBadge,
-        ThemedBorder, ThemedButton, ThemedCheckbox, ThemedFill, ThemedImageTint, ThemedPanel,
-        ThemedPanelHead, ThemedRadius, ThemedSeparator, ThemedSwatch, ThemedText, ThemedTextShadow,
-        ThemedToggle, UiText,
+        DoubleClick, KeyChip, KeyChipLabel, ListRow, PanelHeadTag, PanelHeadTitle, SegmentedSkin,
+        Selected, SliderBlock, SliderFill, SliderTrack, TextField, TextFieldError,
+        TextFieldFocused, TextFieldSpec, TextFieldSubmitted, TextFieldSystems, TextFieldValue,
+        ThemedBadge, ThemedBorder, ThemedButton, ThemedCheckbox, ThemedFill, ThemedImageTint,
+        ThemedPanel, ThemedPanelHead, ThemedRadius, ThemedSeparator, ThemedSwatch, ThemedText,
+        ThemedTextShadow, ThemedToggle, UiText, DOUBLE_CLICK_SECS,
     };
 }
 
 mod button;
 mod chrome;
+mod double_click;
 mod list_row;
 mod panel;
 mod segmented;
@@ -61,6 +63,7 @@ use bevy::{
 };
 pub use button::*;
 pub use chrome::*;
+pub use double_click::*;
 pub use list_row::*;
 pub use panel::*;
 pub use segmented::*;

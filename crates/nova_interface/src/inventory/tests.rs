@@ -2,11 +2,12 @@
 //! and the docked partner's real inventories, the blank partner slot, and
 //! filter and row selection through window picking.
 
-use std::collections::VecDeque;
+use std::{collections::VecDeque, time::Duration};
 
 use bevy::{
     ecs::system::RunSystemOnce,
     state::app::StatesPlugin,
+    time::TimeUpdateStrategy,
     ui::{ComputedNode, InteractionDisabled, UiGlobalTransform},
     ui_widgets::{Activate, ValueChange},
 };
@@ -23,8 +24,8 @@ use crate::{
     icons::InterfaceIcons,
     pane::InterfacePaneType,
     pointer_rig::{
-        click_at, hear_ui_cues, move_cursor_to, pane_pointer_rig, settle, take_churn, take_cues,
-        track_node_churn, PanePointerRig,
+        click_at, double_click_at, hear_ui_cues, move_cursor_to, pane_pointer_rig, settle,
+        take_churn, take_cues, track_node_churn, PanePointerRig,
     },
 };
 
@@ -262,6 +263,13 @@ fn inventory_rig() -> (PanePointerRig, Entity) {
     rig.app.add_plugins(StatesPlugin);
     rig.app.insert_state(PauseStates::Interface);
     rig.app.insert_resource(InterfacePaneType::Inventory);
+    // Real time in fixed 100 ms frames: a `click_at` is twelve frames, so two
+    // of them are never one double click, while `double_click_at` puts its
+    // two releases 200 ms apart, inside `DOUBLE_CLICK_SECS`.
+    rig.app
+        .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
+            100,
+        )));
     rig.app
         .register_input_actions(crate::bindings::interface_bindings());
     rig.app.insert_resource(InterfaceIcons::blank());
@@ -1007,6 +1015,252 @@ fn a_living_station_stores_and_withdraws_and_a_derelict_one_only_loots() {
         refused("Refused: Waystation offers no storage")
     );
     assert_eq!((plates(app.world(), player), stored(&app)), (9, 3));
+}
+
+/// Dock the rig's player at a living station named Waystation that offers
+/// `services`, with `cap_g` of storage and one hull plate of stock.
+fn dock_station(
+    rig: &mut PanePointerRig,
+    player: Entity,
+    services: Vec<StationServiceType>,
+    cap_g: u32,
+) -> Entity {
+    let world = rig.app.world_mut();
+    let station = dock_partner(world, player, "Waystation", 1);
+    world.entity_mut(player).insert(ShipCredits(100));
+    world.entity_mut(station).insert((
+        ShipCredits(1_000),
+        StationMarker(StationDesignId::from("waystation")),
+        StationServices(services),
+        StationStorage::new(cap_g),
+    ));
+    settle(&mut rig.app);
+    take_cues(&mut rig.app);
+    station
+}
+
+/// The window centre of the row of `item` in `side`'s column.
+fn row_at(rig: &mut PanePointerRig, side: InventorySideType, item: &ItemDesignId) -> Vec2 {
+    centre_of::<InventoryRow>(rig.app.world_mut(), |row| {
+        row.side == side && row.item == *item
+    })
+}
+
+/// What `ship` holds of `item`, and what `station` stores of it.
+fn held_and_stored(
+    world: &World,
+    ship: Entity,
+    station: Entity,
+    item: &ItemDesignId,
+) -> (u32, u32) {
+    (
+        world
+            .get::<ShipInventory>(ship)
+            .expect("a ship root carries a ShipInventory")
+            .count(item),
+        world
+            .get::<StationStorage>(station)
+            .expect("a station root carries StationStorage")
+            .count(item),
+    )
+}
+
+/// A double click on a hold row confirms the form the row opens at the whole
+/// stack: Store once the Store chip is picked, which sticks from row to row
+/// over the Sell a trading station opens with. A double click on a storage
+/// row withdraws the stack, and with Shift held one unit. Each goes through
+/// the pane's own command, so it reports `Stored` and `Withdrawn` like
+/// Confirm, and never touches credits.
+#[test]
+fn a_double_click_stores_a_hold_stack_and_withdraws_a_storage_stack() {
+    use InventorySideType::{Own, Storage};
+
+    let (mut rig, player) = inventory_rig();
+    let plate = ItemDesignId::from(ItemRoleType::HullPlate);
+    let round = ItemDesignId::from(ItemRoleType::PdcRound);
+    rig.app
+        .world_mut()
+        .get_mut::<ShipInventory>(player)
+        .expect("the player has a hold")
+        .add(&test_items(), &round, 50);
+    let station = dock_station(
+        &mut rig,
+        player,
+        vec![StationServiceType::Trade, StationServiceType::Storage],
+        1_000_000,
+    );
+    let draft_action = |rig: &PanePointerRig| {
+        rig.app
+            .world()
+            .resource::<InventoryRuntime>()
+            .draft
+            .as_ref()
+            .map(|draft| draft.action)
+    };
+
+    // A trading station opens Sell; picking Store keeps Store for the next row.
+    let at = row_at(&mut rig, Own, &plate);
+    click_at(&mut rig, at);
+    assert_eq!(draft_action(&rig), Some(InventoryActionType::Sell));
+    let store_chip = centre_of::<InventoryDraftActionChip>(rig.app.world_mut(), |chip| {
+        chip.0 == InventoryActionType::Store
+    });
+    click_at(&mut rig, store_chip);
+    assert_eq!(draft_action(&rig), Some(InventoryActionType::Store));
+    take_cues(&mut rig.app);
+
+    let at = row_at(&mut rig, Own, &round);
+    double_click_at(&mut rig, at);
+    assert_eq!(
+        held_and_stored(rig.app.world(), player, station, &round),
+        (0, 50)
+    );
+    assert_eq!(
+        note(&rig.app).as_deref(),
+        Some("Stored 50 PDC round at Waystation")
+    );
+    assert_eq!(
+        take_cues(&mut rig.app),
+        [UiSfx::MenuSelect, UiSfx::MenuSelect],
+        "one select, one move"
+    );
+
+    let at = row_at(&mut rig, Own, &plate);
+    double_click_at(&mut rig, at);
+    assert_eq!(
+        held_and_stored(rig.app.world(), player, station, &plate),
+        (0, 12)
+    );
+
+    // Shift withdraws one unit; a plain double click the rest of the stack.
+    rig.app
+        .world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::ShiftLeft);
+    let at = row_at(&mut rig, Storage, &plate);
+    double_click_at(&mut rig, at);
+    assert_eq!(
+        held_and_stored(rig.app.world(), player, station, &plate),
+        (1, 11)
+    );
+    assert_eq!(
+        note(&rig.app).as_deref(),
+        Some("Withdrew 1 Hull plate from Waystation")
+    );
+    rig.app
+        .world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .release(KeyCode::ShiftLeft);
+    // Far from the last click, so this one starts a new double.
+    settle(&mut rig.app);
+    let at = row_at(&mut rig, Storage, &plate);
+    double_click_at(&mut rig, at);
+    assert_eq!(
+        held_and_stored(rig.app.world(), player, station, &plate),
+        (12, 0)
+    );
+    assert_eq!(
+        rig.app
+            .world()
+            .get::<ShipInventoryReports>(player)
+            .expect("a ship root carries ShipInventoryReports")
+            .0,
+        vec![
+            ShipInventoryReport::Stored {
+                station,
+                item: round.clone(),
+                count: 50,
+            },
+            ShipInventoryReport::Stored {
+                station,
+                item: plate.clone(),
+                count: 12,
+            },
+            ShipInventoryReport::Withdrawn {
+                station,
+                item: plate.clone(),
+                count: 1,
+            },
+            ShipInventoryReport::Withdrawn {
+                station,
+                item: plate.clone(),
+                count: 11,
+            },
+        ]
+    );
+    let credits = |entity| rig.app.world().get::<ShipCredits>(entity).unwrap().0;
+    assert_eq!((credits(player), credits(station)), (100, 1_000));
+}
+
+/// A double click whose whole stack would overfill the station's storage, or
+/// the player's hold, refuses exactly as Confirm does: the refusal on the
+/// note line and the form, the deny cue, and no item, credit or report moved.
+#[test]
+fn a_double_click_that_would_overfill_refuses_and_changes_nothing() {
+    use InventorySideType::{Own, Storage};
+
+    let (mut rig, player) = inventory_rig();
+    let plate = ItemDesignId::from(ItemRoleType::HullPlate);
+    // 100 kg of storage cannot take the hold's 12 plates of 10 kg.
+    let station = dock_station(&mut rig, player, vec![StationServiceType::Storage], 100_000);
+    let reports = |rig: &PanePointerRig| {
+        rig.app
+            .world()
+            .get::<ShipInventoryReports>(player)
+            .map(|reports| reports.0.len())
+            .unwrap_or_default()
+    };
+    let draft = |rig: &PanePointerRig| rig.app.world().resource::<InventoryRuntime>().draft.clone();
+
+    let at = row_at(&mut rig, Own, &plate);
+    double_click_at(&mut rig, at);
+    assert_eq!(
+        held_and_stored(rig.app.world(), player, station, &plate),
+        (12, 0)
+    );
+    assert_eq!(
+        note(&rig.app).as_deref(),
+        Some("Refused: storage full, 100 kg free")
+    );
+    assert_eq!(
+        take_cues(&mut rig.app),
+        [UiSfx::MenuSelect, UiSfx::EditorDeny]
+    );
+    assert_eq!(
+        draft(&rig),
+        Some(InventoryDraft {
+            action: InventoryActionType::Store,
+            item: plate.clone(),
+            quantity: Some(12),
+        }),
+        "the form keeps the refused stack open"
+    );
+    assert_eq!(reports(&rig), 0);
+
+    // 50 stored plates are 500 kg; the 400 kg hold has 280 kg free.
+    rig.app
+        .world_mut()
+        .entity_mut(station)
+        .insert(StationStorage::new(1_000_000));
+    rig.app
+        .world_mut()
+        .get_mut::<StationStorage>(station)
+        .expect("the station stores")
+        .add(&test_items(), &plate, 50);
+    settle(&mut rig.app);
+    let at = row_at(&mut rig, Storage, &plate);
+    double_click_at(&mut rig, at);
+    assert_eq!(
+        held_and_stored(rig.app.world(), player, station, &plate),
+        (12, 50)
+    );
+    assert_eq!(
+        note(&rig.app).as_deref(),
+        Some("Refused: NOVA has room for 280 kg more")
+    );
+    assert_eq!(reports(&rig), 0);
+    let credits = |entity| rig.app.world().get::<ShipCredits>(entity).unwrap().0;
+    assert_eq!((credits(player), credits(station)), (100, 1_000));
 }
 
 /// A click moves the docked partner's whole credit balance in one

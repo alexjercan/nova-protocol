@@ -35,7 +35,7 @@ use nova_ui::{
     prelude::{
         button, key_chip, panel, panel_header, scroll_bar, scroll_column, scroll_row,
         scroll_viewport, separator, text_field, themed_button, ButtonLabel, ButtonSpec,
-        TextFieldSpec, UiText,
+        DoubleClick, TextFieldSpec, UiText,
     },
     theme,
     theme::{ActiveUiTheme, UiColor},
@@ -50,10 +50,10 @@ use crate::{
     bundle::{ask_to_open, ask_to_save, ask_to_save_as},
     config::{
         ContextBreadcrumb, CrumbSelection, CrumbStep, EditorFoot, EditorKeyLegend, EditorOverlays,
-        EditorRail, EditorStatus, HullPlanLine, InspectorHeader, LastClick, PartChoice, PartList,
-        PartTick, PartZoneChip, PlacementStatus, PlayButton, RailTab, RailTabButton, RebindButton,
-        SceneList, SceneRow, SectionChoice, SelectedNode, ShipReadout, ShipReadoutNote,
-        ShipSettings, SkinToggleCheckbox, StyleChoice, StyleList, StyleSwatch,
+        EditorRail, EditorStatus, HullPlanLine, InspectorHeader, PartChoice, PartList, PartTick,
+        PartZoneChip, PlacementStatus, PlayButton, RailTab, RailTabButton, RebindButton, SceneList,
+        SceneRow, SectionChoice, SelectedNode, ShipReadout, ShipReadoutNote, ShipSettings,
+        SkinToggleCheckbox, StyleChoice, StyleList, StyleSwatch,
     },
     event::{
         action_choice, add_script_node, event_label, filter_choice, handler_text, ActionChoice,
@@ -2239,7 +2239,7 @@ pub(crate) fn on_scene_row(
     scenarios: Query<(), With<ScenarioNode>>,
     placed: Query<(), With<Transform>>,
     time: Res<Time<Real>>,
-    mut last: ResMut<LastClick>,
+    mut last: ResMut<DoubleClick<Entity>>,
     mut selected: ResMut<SelectedNode>,
     mut context: ResMut<EditContext>,
     mut request: ResMut<FrameRequest>,
@@ -3080,7 +3080,7 @@ mod tests {
         app.init_resource::<SelectedNode>();
         app.init_resource::<EditorOverlays>();
         app.init_resource::<RailTab>();
-        app.init_resource::<LastClick>();
+        app.init_resource::<DoubleClick<Entity>>();
         app.init_resource::<FrameRequest>();
         // No `TimePlugin`: the clock is driven by hand below, so a "click" and
         // a "double click" are a choice the test makes rather than a race with
