@@ -39,10 +39,8 @@
 //! The exact count is a debug-only overlay, never a gameplay affordance: the
 //! `rounds/capacity` `Text` child, its resource and its toggle only compile
 //! under the `debug` cargo feature (`--features debug`), so a release build has
-//! no numeric readout at all. Under that feature the number tracks debug mode:
-//! it is shown while debug mode is on (which nova_debug starts on) and hidden
-//! once debug mode is switched off, F11 (the shared debug toggle) flipping both
-//! together via `AmmoReadoutDebug` (only present under the `debug` feature).
+//! no numeric readout at all. Under that feature the number shows while
+//! `AmmoReadoutDebug` is on, which nova_debug's ammo-number overlay writes.
 //!
 //! Like the other combat overlays the layer is `HudTier::Instrument` and is
 //! spawned/despawned with the player ship by the hud/mod.rs observers.
@@ -76,13 +74,6 @@ const RING_PIP_PX: f32 = 6.0;
 const BAR_PIP_W: f32 = 3.0;
 const BAR_PIP_H: f32 = 12.0;
 const BAR_PIP_GAP: f32 = 2.0;
-
-/// Key that toggles the debug ammo number. F11 mirrors the nova_debug toggle
-/// (`DebugEnabled`); nova_gameplay cannot depend on nova_debug (that crate
-/// depends on this one), so the readout owns its own F11-driven flag, kept in
-/// sync by watching the same key. Only exists under the `debug` feature.
-#[cfg(feature = "debug")]
-const DEBUG_TOGGLE_KEY: KeyCode = KeyCode::F11;
 
 /// A spent chunk's initial color at spawn: the Kinetic amber, dimmed.
 /// `drive_ammo_readouts` overwrites this each frame in the loaded round's hue;
@@ -208,22 +199,17 @@ pub struct AmmoReadoutClusterBadge;
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct AmmoReadoutNumber;
 
-/// Whether the debug ammo number is shown (toggled with F11). Off by default so
-/// it starts in phase with nova_debug's `DebugEnabled(false)`: the number then
-/// tracks debug mode (hidden while off, shown once F11 switches debug on)
-/// instead of inverting it. The gauge itself is always on. Debug-only: only
-/// compiled under the `debug` feature, so release builds have no numeric
+/// Whether the debug ammo number is shown. Off by default. nova_debug owns the
+/// switch (its ammo-number overlay) and writes it here, because this crate
+/// cannot depend on nova_debug. The gauge itself is always on. Debug-only:
+/// only compiled under the `debug` feature, so release builds have no numeric
 /// readout at all.
 #[cfg(feature = "debug")]
 #[derive(Resource, Debug, Clone, Copy, Deref, DerefMut, PartialEq, Eq, Reflect)]
 #[reflect(Resource)]
 pub struct AmmoReadoutDebug(pub bool);
 
-/// Starts off to match nova_debug's `DebugEnabled(false)` default: the whole
-/// debug layer boots off and F11 raises it as one.
-/// Both toggle on F11, so matching defaults keeps the ammo number in phase with
-/// debug mode; a mismatch here is what inverts the number relative to the rest
-/// of the debug layer.
+/// Starts off, like every nova_debug overlay.
 #[cfg(feature = "debug")]
 impl Default for AmmoReadoutDebug {
     fn default() -> Self {
@@ -940,22 +926,14 @@ fn drive_ammo_readout_numbers(
     }
 }
 
-/// Toggle the debug ammo number on F11 (gameplay only). Debug-only.
-#[cfg(feature = "debug")]
-fn toggle_ammo_readout_debug(mut debug: ResMut<AmmoReadoutDebug>, keys: Res<ButtonInput<KeyCode>>) {
-    if keys.just_pressed(DEBUG_TOGGLE_KEY) {
-        **debug = !**debug;
-    }
-}
-
 /// Draws the diegetic per-weapon ammo gauges (turret ring, torpedo bar) on
 /// each player weapon section that carries a finite [`SectionAmmo`], with a
 /// incoming-batch pulse and a debug-only numeric readout.
 /// Registers the readout marker/kind/pip/cluster types, runs
 /// `sync_ammo_readouts` then `drive_ammo_readouts` (chained) in PostUpdate
 /// before `ScreenIndicatorSystems` and `cluster_ammo_readouts` after it;
-/// under the `debug` feature also inits `AmmoReadoutDebug` and adds the F11
-/// toggle plus the numeric driver.
+/// under the `debug` feature also inits `AmmoReadoutDebug` and adds the
+/// numeric driver.
 #[derive(Default)]
 pub struct AmmoReadoutPlugin;
 
@@ -996,19 +974,12 @@ impl Plugin for AmmoReadoutPlugin {
         app.add_systems(Update, sync_ammo_gate.in_set(super::NovaHudSystems));
 
         // The numeric readout is debug-only (never compiled into release): its
-        // resource, F11 toggle and driver all live behind the `debug` feature.
+        // resource and driver live behind the `debug` feature.
         #[cfg(feature = "debug")]
         {
             app.init_resource::<AmmoReadoutDebug>();
             app.register_type::<AmmoReadoutDebug>();
             app.register_type::<AmmoReadoutNumber>();
-            // UNGATED on purpose - this mirrors
-            // nova_debug's `toggle_debug_mode`, which is also ungated, so the two
-            // F11 flags stay in phase from their shared `true` default. Gating
-            // this to `Playing` (the old bug) let an F11 press in the menu/editor
-            // flip `DebugEnabled` but not this mirror, leaving the ammo number
-            // visible with debug off. Do not re-add a state gate here.
-            app.add_systems(Update, toggle_ammo_readout_debug);
             app.add_systems(
                 PostUpdate,
                 drive_ammo_readout_numbers
@@ -1604,44 +1575,6 @@ mod tests {
             .single(&world)
             .unwrap();
         assert_eq!(*visibility, Visibility::Inherited);
-    }
-
-    #[cfg(feature = "debug")]
-    #[test]
-    fn f11_flips_the_ammo_debug_flag() {
-        // The toggle must flip on F11 so the number tracks debug mode. (The
-        // desync bug this guards against was in the REGISTRATION - a `Playing`
-        // state gate that let the flag fall out of phase with nova_debug's
-        // ungated toggle; keep this system ungated, see AmmoReadoutPlugin.)
-        let mut world = World::new();
-        world.init_resource::<AmmoReadoutDebug>();
-        // Default OFF, in phase with nova_debug's `DebugEnabled(false)`: the
-        // whole debug layer boots off and F11 raises it as one.
-        assert!(
-            !**world.resource::<AmmoReadoutDebug>(),
-            "the ammo number defaults off, matching the rest of the debug layer"
-        );
-        let mut input = ButtonInput::<KeyCode>::default();
-        input.press(DEBUG_TOGGLE_KEY);
-        world.insert_resource(input);
-
-        world.run_system_once(toggle_ammo_readout_debug).unwrap();
-        assert!(
-            **world.resource::<AmmoReadoutDebug>(),
-            "F11 turns the ammo number on"
-        );
-
-        // A fresh press flips it back. (A new ButtonInput, not clear()+press():
-        // clear() keeps F11 in the `pressed` set, so a re-press would not raise a
-        // new just_pressed edge.)
-        let mut next = ButtonInput::<KeyCode>::default();
-        next.press(DEBUG_TOGGLE_KEY);
-        world.insert_resource(next);
-        world.run_system_once(toggle_ammo_readout_debug).unwrap();
-        assert!(
-            !**world.resource::<AmmoReadoutDebug>(),
-            "a second F11 turns it back off"
-        );
     }
 
     // -- reload batch pulse --

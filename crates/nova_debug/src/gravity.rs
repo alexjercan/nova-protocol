@@ -1,19 +1,24 @@
 //! Debug overlay for the gravity layer (nova_gameplay::gravity): wire
 //! spheres for each well's sphere of influence and a line from every
-//! gravity-affected body to the well that currently owns it. Gated behind
-//! the F11 debug toggle like the section gizmos; the diegetic (non-debug)
-//! readout is the HUD GRAV line and orbit cue, and SOI rings for normal play
-//! belong to the diegetic instruments.
+//! gravity-affected body to the well that currently owns it. Drawn in
+//! [`GravityGizmos`] while
+//! [`DebugOverlays::gravity`](crate::hud::overlays::DebugOverlays::gravity)
+//! is on; the diegetic (non-debug) readout is the HUD GRAV line and orbit
+//! cue, and SOI rings for normal play belong to the diegetic instruments.
 
 use avian3d::prelude::*;
 use bevy::{color::palettes::tailwind, prelude::*};
 use nova_gameplay::prelude::*;
 
+use crate::hud::overlays::{overlay_on, GravityGizmos};
+
 /// Debug overlay plugin for the gravity layer.
 ///
 /// Adds `draw_gravity_wells` and `draw_dominant_well_links` to `PostUpdate`
-/// (after transform propagation) under the [`DebugSystems`](super::DebugSystems)
-/// set, and inits `GravitySettings` so a debug-only app cannot panic.
+/// (after transform propagation) while
+/// [`DebugOverlays::gravity`](crate::hud::overlays::DebugOverlays::gravity)
+/// is on, registers [`GravityGizmos`], and inits `GravitySettings` so a
+/// debug-only app cannot panic.
 pub struct GravityDebugPlugin;
 
 impl Plugin for GravityDebugPlugin {
@@ -21,12 +26,13 @@ impl Plugin for GravityDebugPlugin {
         // Normally initialized by NovaGravityPlugin; init here too so a
         // debug-only app cannot panic on the missing resource.
         app.init_resource::<GravitySettings>();
+        app.init_gizmo_group::<GravityGizmos>();
 
         app.add_systems(
             PostUpdate,
             (draw_gravity_wells, draw_dominant_well_links)
                 .after(TransformSystems::Propagate)
-                .in_set(super::DebugSystems),
+                .run_if(overlay_on(|overlays| overlays.gravity)),
         );
     }
 }
@@ -35,7 +41,7 @@ impl Plugin for GravityDebugPlugin {
 /// the start of the fade band (inside it, the unfaded core where orbits are
 /// trustworthy and the future ORBIT verb will park).
 fn draw_gravity_wells(
-    mut gizmos: Gizmos,
+    mut gizmos: Gizmos<GravityGizmos>,
     settings: Res<GravitySettings>,
     q_wells: Query<(&Position, &GravityWell)>,
 ) {
@@ -51,7 +57,7 @@ fn draw_gravity_wells(
 /// A line from each affected body to its dominant well, so well ownership
 /// (and the hysteresis handoff between overlapping SOIs) is visible.
 fn draw_dominant_well_links(
-    mut gizmos: Gizmos,
+    mut gizmos: Gizmos<GravityGizmos>,
     q_affected: Query<(&Position, &DominantWell)>,
     q_wells: Query<&Position, With<GravityWell>>,
 ) {

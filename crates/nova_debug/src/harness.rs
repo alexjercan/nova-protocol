@@ -692,25 +692,22 @@ pub fn freeze_bodies(mut commands: Commands, bodies: Query<(Entity, &RigidBody)>
     }
 }
 
-/// Disable the dev overlays so a captured frame is clean game render: nova's
-/// gizmos ([`crate::DebugEnabled`], the gravity/section overlays) and the
-/// [`crate::inspector`] diagnostics panel and [`crate::wireframe`] pass (each a
-/// separate `DebugEnabled`). All default on under `DebugPlugin`. This leaves the
-/// HUD alone, so a capture example that wants the HUD in shot (the 3-tier HUD
-/// showcase) can keep it - add [`hide_dev_overlays`] at `Startup` and manage
-/// [`HudVisibility`] per beat.
+/// Disable the dev overlays so a captured frame is clean game render: every
+/// flag of [`DebugOverlays`](crate::hud::overlays::DebugOverlays) (physics,
+/// wireframe, gravity, sections, the ammo number) and the
+/// [`crate::inspector`] window. This leaves the HUD alone, so a capture
+/// example that wants the HUD in shot (the 3-tier HUD showcase) can keep it -
+/// add [`hide_dev_overlays`] at `Startup` and manage [`HudVisibility`] per
+/// beat.
 ///
 /// Exclusive rather than a parameterised system so ONE function satisfies both
 /// the `Startup` registration the screenshot examples use and the drivers'
 /// `Fn(&mut World)` `hide_overlay` hook.
 pub fn hide_dev_overlays(world: &mut World) {
-    if let Some(mut debug) = world.get_resource_mut::<crate::DebugEnabled>() {
-        debug.0 = false;
+    if let Some(mut overlays) = world.get_resource_mut::<crate::hud::overlays::DebugOverlays>() {
+        overlays.set_if_neq(default());
     }
     if let Some(mut debug) = world.get_resource_mut::<crate::inspector::DebugEnabled>() {
-        debug.0 = false;
-    }
-    if let Some(mut debug) = world.get_resource_mut::<crate::wireframe::DebugEnabled>() {
         debug.0 = false;
     }
 }

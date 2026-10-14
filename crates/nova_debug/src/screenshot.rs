@@ -7,10 +7,9 @@
 //! scenario action use), driven straight from a `Commands` system rather than an
 //! exclusive-`World` one.
 //!
-//! The capture is deliberately NOT gated by [`DebugEnabled`](crate::DebugEnabled)
-//! (the F11 overlay toggle): a screenshot should work whether or not the dev
-//! overlays are currently shown, so the system runs every frame in `Update`
-//! outside the [`DebugSystems`](crate::DebugSystems) run condition.
+//! The capture is deliberately NOT gated by any dev overlay: a screenshot
+//! should work whether or not the overlays are currently shown, so the system
+//! runs every frame in `Update`.
 //!
 //! Host targets only - the crate root compiles this module out under
 //! `target_arch = "wasm32"`. Both halves of what it does are host-shaped: the

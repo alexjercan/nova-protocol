@@ -1,7 +1,8 @@
 //! Debug gizmos for ship sections (nova_ship::sections): turret barrel
 //! directions, bullet spawners and projectiles, thruster and torpedo spawner
-//! markers, plus position logging. Gated behind the F11 debug toggle via the
-//! [`DebugSystems`](super::DebugSystems) set.
+//! markers, plus position logging. Drawn in [`SectionGizmos`] while
+//! [`DebugOverlays::sections`](crate::hud::overlays::DebugOverlays::sections)
+//! is on.
 //!
 //! Every line is a measured quantity of the thing it is drawn on: a barrel
 //! reaches as far as the gun shoots, a round and a launch stub run one
@@ -15,15 +16,20 @@ use itertools::Itertools;
 use nova_events::prelude::Meters;
 use nova_gameplay::prelude::*;
 use nova_ship::{prelude::*, sections::turret_section::TurretSectionBarrelFireState};
+
+use crate::hud::overlays::{overlay_on, SectionGizmos};
+
 /// Debug overlay plugin for ship-section gizmos.
 ///
 /// Adds the turret/thruster/torpedo gizmo systems plus `log_position` to
-/// `PostUpdate` (after transform propagation) under the
-/// [`DebugSystems`](super::DebugSystems) set.
+/// `PostUpdate` (after transform propagation) while
+/// [`DebugOverlays::sections`](crate::hud::overlays::DebugOverlays::sections)
+/// is on, and registers [`SectionGizmos`].
 pub struct SectionsDebugPlugin;
 
 impl Plugin for SectionsDebugPlugin {
     fn build(&self, app: &mut App) {
+        app.init_gizmo_group::<SectionGizmos>();
         app.add_systems(
             PostUpdate,
             (
@@ -35,7 +41,7 @@ impl Plugin for SectionsDebugPlugin {
                 log_position,
             )
                 .after(TransformSystems::Propagate)
-                .in_set(super::DebugSystems),
+                .run_if(overlay_on(|overlays| overlays.sections)),
         );
     }
 }
@@ -102,7 +108,7 @@ fn draw_turret_barrel_direction(
     q_muzzle: Query<(Entity, &GlobalTransform), With<TurretSectionBarrelMuzzleMarker>>,
     q_parent: Query<&ChildOf>,
     q_figures: Query<&TurretEngineFigures>,
-    mut gizmos: Gizmos,
+    mut gizmos: Gizmos<SectionGizmos>,
 ) {
     for (muzzle, muzzle_transform) in &q_muzzle {
         let Some(figures) = turret_figures(muzzle, &q_parent, &q_figures) else {
@@ -120,7 +126,7 @@ fn draw_turret_barrel_direction(
 }
 
 fn draw_turret_bullet_spawner(
-    mut gizmos: Gizmos,
+    mut gizmos: Gizmos<SectionGizmos>,
     q_muzzle: Query<
         (Entity, &GlobalTransform, &TurretSectionBarrelFireState),
         With<TurretSectionBarrelMuzzleMarker>,
@@ -148,7 +154,7 @@ fn draw_turret_bullet_spawner(
 }
 
 fn draw_turret_bullet_projectile(
-    mut gizmos: Gizmos,
+    mut gizmos: Gizmos<SectionGizmos>,
     q_bullet: Query<(&Transform, &RoundVelocity), With<TurretBulletProjectileMarker>>,
 ) {
     for (transform, velocity) in &q_bullet {
@@ -167,7 +173,7 @@ fn draw_turret_bullet_projectile(
 
 fn draw_thruster(
     fixed_time: Res<Time<Fixed>>,
-    mut gizmos: Gizmos,
+    mut gizmos: Gizmos<SectionGizmos>,
     q_thruster: Query<
         (
             &GlobalTransform,
@@ -197,7 +203,7 @@ fn draw_thruster(
 }
 
 fn draw_torpedo_spawner(
-    mut gizmos: Gizmos,
+    mut gizmos: Gizmos<SectionGizmos>,
     q_torpedo: Query<
         (
             &GlobalTransform,

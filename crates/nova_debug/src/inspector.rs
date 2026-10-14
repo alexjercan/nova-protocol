@@ -1,11 +1,10 @@
-//! The egui world inspector, the avian physics gizmos and their diagnostics UI,
-//! toggled together as one debug panel.
+//! The egui world inspector, plus the avian physics gizmos and their
+//! diagnostics UI.
 //!
-//! Nova owns this because the inspector is one of the four layers
-//! [`crate::DebugPlugin`] raises together on F11. The F11 key itself is read
-//! ONCE, by `DebugPlugin`, which also overrides this `DebugEnabled` with
-//! `DEBUG_LAYER_STARTS_ON` so the layer boots OFF; `sync_inspector_cursor`
-//! hands the cursor back while the panel is up.
+//! F11 shows the inspector window; [`crate::DebugPlugin`] reads the key and
+//! boots this `DebugEnabled` off, and `sync_inspector_cursor` hands the cursor
+//! back while the window is up. The physics gizmos and panel are the
+//! `physics` flag of [`DebugOverlays`](crate::hud::overlays::DebugOverlays).
 
 use avian3d::prelude::*;
 use bevy::{camera::RenderTarget, prelude::*, winit::WinitPlugin};
@@ -17,9 +16,7 @@ use bevy_inspector_egui::{
     egui, DefaultInspectorConfigPlugin,
 };
 
-/// Resource that stores whether debug mode is enabled.
-///
-/// When true, the inspector UI, physics gizmos, and diagnostics UI are visible.
+/// Whether the inspector window is up.
 #[derive(Resource, Default, Clone, Debug, Deref, DerefMut, PartialEq, Eq, Hash)]
 pub struct DebugEnabled(pub bool);
 
@@ -41,7 +38,7 @@ pub struct InspectorDebugPlugin;
 
 impl Plugin for InspectorDebugPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(DebugEnabled(true));
+        app.init_resource::<DebugEnabled>();
 
         add_egui_inspector(app);
 
@@ -50,8 +47,6 @@ impl Plugin for InspectorDebugPlugin {
             PhysicsDiagnosticsPlugin,
             PhysicsDiagnosticsUiPlugin,
         ));
-
-        app.add_systems(Update, (enable_physics_gizmos, enable_physics_ui));
     }
 }
 
@@ -172,23 +167,6 @@ fn keep_inspector_on_window_camera(
         if let Some(entity) = first_window_camera {
             commands.entity(entity).insert(PrimaryEguiContext);
         }
-    }
-}
-
-/// Enable or disable physics gizmos based on the DebugEnabled resource.
-fn enable_physics_gizmos(mut store: ResMut<GizmoConfigStore>, debug: Res<DebugEnabled>) {
-    if debug.is_changed() {
-        store
-            .config_mut::<avian3d::prelude::PhysicsGizmos>()
-            .0
-            .enabled = **debug;
-    }
-}
-
-/// Enable or disable the physics diagnostics UI.
-fn enable_physics_ui(mut settings: ResMut<PhysicsDiagnosticsUiSettings>, debug: Res<DebugEnabled>) {
-    if debug.is_changed() {
-        settings.enabled = **debug;
     }
 }
 

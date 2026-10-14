@@ -35,5 +35,10 @@ nova_scenario = { path = "../nova_scenario" }
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 dirs = "6"
 
+[features]
+# The ammo number is a `nova_hud` debug-build feature, so the overlay flag can
+# only reach it in a debug build. `nova_core/debug` turns this on.
+debug = ["nova_hud/debug"]
+
 [lints]
 workspace = true

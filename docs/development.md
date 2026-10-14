@@ -98,16 +98,17 @@ iteration cost bites.
 
 `cargo run --features dev` compiles in `nova_debug`'s `DebugPlugin`
 (`crates/nova_debug/src/lib.rs`), which adds the inspector, the wireframe
-toggle, and the section/gravity debug overlays. The overlays are gated on a
-`DebugEnabled` resource toggled at runtime with **F11**
-(`DEBUG_TOGGLE_KEYCODE`), so they can be flipped off without a rebuild. Note the
+pass, and the physics, section and gravity debug overlays. Every overlay boots
+off and has its own flag in the `DebugOverlays` resource
+(`crates/nova_debug/src/hud/overlays.rs`). **F11** (`DEBUG_TOGGLE_KEYCODE`)
+shows the inspector window, where the flags can be edited. Note the
 feature is spelled `debug`, with `dev` as an alias for it (root `Cargo.toml`);
 `--features dev` and `--features debug` are interchangeable.
 
 `DebugPlugin` also binds **F12** (`SCREENSHOT_KEYCODE`,
 `crates/nova_debug/src/screenshot.rs`) to a screenshot: it captures the primary
 window and saves it to your Downloads directory as `<unix-millis>.png`. The
-capture is intentionally not gated on `DebugEnabled`, so it works whether or not
+capture is intentionally not gated on any overlay, so it works whether or not
 the overlays are shown. Native only: the module is compiled out under
 `target_arch = "wasm32"`, which has neither a Downloads directory nor a wall
 clock.

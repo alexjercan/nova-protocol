@@ -21,11 +21,12 @@ use nova_scenario::prelude::CurrentOutcome;
 
 use crate::{
     inspector::{DebugEnabled as InspectorEnabled, InspectorDebugPlugin},
-    wireframe::{DebugEnabled as WireframeEnabled, WireframeDebugPlugin},
+    wireframe::WireframeDebugPlugin,
 };
 
 pub mod gravity;
 pub mod harness;
+pub mod hud;
 pub mod inspector;
 // Host-only: the hotkey stamps the file with the wall clock and writes it
 // through `std::fs`, and wasm32-unknown-unknown has neither - `SystemTime::now`
@@ -90,36 +91,21 @@ pub mod prelude {
             LoopProfile, SheetGrid, BEAT_DEADLINE_SECS, NOVA_AUTOPILOT_STEP, SETTLE_FRAMES,
             SHOT_DEADLINE_SECS, STEP_DEADLINE_SECS,
         },
+        hud::overlays::DebugOverlays,
         DebugPlugin,
     };
 }
 
-/// The keycode to toggle debug mode.
+/// The keycode that shows and hides the inspector window.
 pub const DEBUG_TOGGLE_KEYCODE: KeyCode = KeyCode::F11;
-
-/// Whether the debug layer (nova gizmos, the egui inspector + avian gizmos, the
-/// wireframe pass, and nova_gameplay's ammo number) starts ON. It boots OFF so a
-/// dev build is a clean, cursor-free flight and F11 raises the whole layer as
-/// one. Shared by every `DebugEnabled` insert so they cannot drift out of
-/// phase.
-const DEBUG_LAYER_STARTS_ON: bool = false;
-
-/// Resource with debug toggle state.
-#[derive(Resource, Default, Clone, Debug, Deref, DerefMut, PartialEq, Eq, Hash)]
-pub struct DebugEnabled(pub bool);
-
-/// [`SystemSet`] gating the debug overlays; [`DebugPlugin`] configures it in
-/// `Update` and `PostUpdate` to run only while [`DebugEnabled`] is `true`.
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub struct DebugSystems;
 
 /// A plugin that adds various debugging tools.
 ///
 /// Adds the world inspector and wireframe/section/gravity overlays as
 /// sub-plugins, plus, on host targets, the screenshot hotkey and the loop
-/// capture SFX sidecar. It inserts [`DebugEnabled`] and owns the one
-/// `toggle_debug_mode` that reads F11 for the whole layer; the overlay
-/// sub-plugins run under the [`DebugSystems`] set gated on [`DebugEnabled`].
+/// capture SFX sidecar. Every overlay boots off and has its own flag in
+/// [`DebugOverlays`](hud::overlays::DebugOverlays); F11 shows the inspector
+/// window.
 pub struct DebugPlugin;
 
 impl Plugin for DebugPlugin {
@@ -135,20 +121,7 @@ impl Plugin for DebugPlugin {
         #[cfg(not(target_arch = "wasm32"))]
         app.add_plugins(sfx_sidecar::SfxSidecarPlugin);
 
-        // A dev build boots with the WHOLE debug layer off, and F11
-        // raises it as one. Three of the four F11-toggled `DebugEnabled` states
-        // live here - nova's own (gravity/sections gizmos), the egui inspector
-        // (UI + avian PhysicsGizmos) and the wireframe pass - and share both
-        // this default and the single `toggle_debug_mode` below. The inspector
-        // needs a pointer, so a cursor-free default flight requires it off, and
-        // raising only it would invert F11. While the inspector panel is up
-        // `sync_inspector_cursor` hands the cursor back; F11 down re-locks it.
-        // The fourth state, nova_gameplay's `AmmoReadoutDebug` mirror, lives
-        // across a crate boundary (it cannot see this const) and matches it by
-        // literal, pinned by its own test.
-        app.insert_resource(DebugEnabled(DEBUG_LAYER_STARTS_ON));
-        app.insert_resource(InspectorEnabled(DEBUG_LAYER_STARTS_ON));
-        app.insert_resource(WireframeEnabled(DEBUG_LAYER_STARTS_ON));
+        hud::overlays::build(app);
 
         app.add_systems(Update, toggle_debug_mode);
         app.add_systems(
@@ -165,34 +138,14 @@ impl Plugin for DebugPlugin {
                 info!("{}", crate::harness::REACHED_PLAYING)
             });
         }
-
-        app.configure_sets(
-            Update,
-            DebugSystems.run_if(resource_equals(DebugEnabled(true))),
-        );
-        app.configure_sets(
-            PostUpdate,
-            DebugSystems.run_if(resource_equals(DebugEnabled(true))),
-        );
     }
 }
 
-/// The ONE reader of [`DEBUG_TOGGLE_KEYCODE`]. The three states are separate
-/// resources but one user-visible layer, so a single system flips all of them:
-/// a per-plugin toggle each was in phase only by arithmetic accident (three
-/// flips of a bool is still a flip), and a fourth sub-plugin would have broken
-/// the key silently.
-fn toggle_debug_mode(
-    mut debug: ResMut<DebugEnabled>,
-    mut inspector: ResMut<InspectorEnabled>,
-    mut wireframe: ResMut<WireframeEnabled>,
-    keyboard: Res<ButtonInput<KeyCode>>,
-) {
+/// The one reader of [`DEBUG_TOGGLE_KEYCODE`]: show or hide the inspector
+/// window.
+fn toggle_debug_mode(mut inspector: ResMut<InspectorEnabled>, keyboard: Res<ButtonInput<KeyCode>>) {
     if keyboard.just_pressed(DEBUG_TOGGLE_KEYCODE) {
-        let next = !**debug;
-        **debug = next;
-        **inspector = next;
-        **wireframe = next;
+        **inspector = !**inspector;
     }
 }
 
@@ -255,19 +208,6 @@ mod tests {
     use bevy::state::app::StatesPlugin;
 
     use super::*;
-
-    /// The debug layer boots off so F11 raises it as one: nova's gizmos, the
-    /// egui inspector + avian, the wireframe pass, and the
-    /// ammo number must share a default or F11 inverts them. This pins the
-    /// nova_debug side; nova_gameplay's `AmmoReadoutDebug` default is pinned in
-    /// its own `f11_flips_the_ammo_debug_flag`.
-    #[test]
-    fn the_debug_layer_boots_off() {
-        const _: () = assert!(
-            !DEBUG_LAYER_STARTS_ON,
-            "the debug layer must boot off; keep the ammo mirror in phase"
-        );
-    }
 
     /// Build a minimal app around `sync_inspector_cursor`: a primary window with
     /// a visible cursor, the inspector toggle, the pause state, and (optionally)
