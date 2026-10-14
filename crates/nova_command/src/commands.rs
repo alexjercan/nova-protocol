@@ -488,6 +488,29 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         ],
         examples: &["item give player_spaceship HullPlate 12"],
     },
+    CommandSpec {
+        name: "credits give",
+        usage: "credits give <ship-id> <amount>",
+        summary: "Add a signed amount to one ship's credits",
+        class: CommandClass::Cheat,
+        arity: CommandArity::Between(2, 2),
+        arg_hint: Some("<ship-id> <amount>"),
+        args: &[CommandArg::Live(live::SHIP), CommandArg::Free],
+        examples: &[
+            "credits give player_spaceship 5000",
+            "credits give player_spaceship -500",
+        ],
+    },
+    CommandSpec {
+        name: "credits set",
+        usage: "credits set <ship-id> <amount>",
+        summary: "Set one ship's credits",
+        class: CommandClass::Cheat,
+        arity: CommandArity::Between(2, 2),
+        arg_hint: Some("<ship-id> <amount>"),
+        args: &[CommandArg::Live(live::SHIP), CommandArg::Free],
+        examples: &["credits set player_spaceship 0"],
+    },
 ];
 
 /// The catalog as the shared matcher sees it - one [`TerminalCommandSpec`] per

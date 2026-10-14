@@ -75,7 +75,7 @@ The prompt reads `cmd>`. As you type, a dim ghost continues the line toward the 
 NOVA OS v0.13.0 // COMMANDS
 POST ......... command shell / ok
 CORE ......... local game runtime / attached
-REGISTRY ..... 28 commands / ready
+REGISTRY ..... 30 commands / ready
 WORLD ........ tutorial / paused
 CHEATS ....... disabled / run clean
 Hint: type `help` and press Enter.
@@ -163,6 +163,8 @@ Every one of these is refused until you run `cheats enable`. That command is the
 | `ammo refill <ship-id>` | top up every finite magazine on a ship |
 | `ammo refill section <ship-id> <section-id>` | top up one magazine |
 | `item give <ship-id> <item-id> <quantity>` | add items to one ship's inventory, e.g. `item give player_spaceship HullPlate 12` |
+| `credits give <ship-id> <amount>` | add a signed amount to one ship's credits, e.g. `credits give player_spaceship -500` |
+| `credits set <ship-id> <amount>` | set one ship's credits, e.g. `credits set player_spaceship 5000` |
 
 <details class="explain">
 <summary>Show explanation</summary>
@@ -174,7 +176,9 @@ Every one of these is refused until you run `cheats enable`. That command is the
      loaded `GameItems`); base item masses: crates/nova_authoring/src/
      base_content/items.rs `item_catalog`; Tab
      completion from the loaded catalog: crates/nova_console/src/completion.rs
-     (`GameItems`). -->
+     (`GameItems`). `credits give` / `credits set`: crates/nova_console/src/
+     cheats.rs `credits_write`, through `ShipInventoryReports::change_credits`
+     (crates/nova_gameplay/src/inventory.rs), cause `Cheat`. -->
 
 **Why the mark is one-way.** A run that was ever armed was never clean, whether or not you went on to use a cheat. Marking at the moment you ask, rather than at the moment you benefit, is what makes the mark honest - and it gives the refusal something true to say rather than pretending the command does not exist.
 
@@ -185,6 +189,8 @@ Every one of these is refused until you run `cheats enable`. That command is the
 **The `ammo` cheats do not touch your hold.** The ordinary idle reload spends matching ammunition from the ship's own inventory (see [Magazines](../combat-weapons/#magazines)); both `ammo` cheats bypass that and act on the magazine directly, spending and returning nothing from stock.
 
 **`item give` fills the hold instead.** The item id is any id in the loaded catalog, in the exact case the content authored it, mod items included - Tab completes it for you. An unknown id lists every id the catalog holds. The quantity is a whole number above zero, and each item weighs what the loaded catalog says: in base content a hull plate 10 kg, a PDC round 0.2 kg, a rail slug 20 kg, a torpedo 150 kg, and a mod that replaces an item can change its mass. The whole quantity fits the ship's free hold or none of it is added: with 280 kg free, 29 base hull plates are refused whole. An unknown ship or quantity adds nothing either. The idle reload then loads from the new stock as usual.
+
+**`credits give` and `credits set` change the purse.** The amount is a whole number: `give` adds it, and a negative amount takes credits away; `set` replaces the balance. A write that would leave the balance below zero is refused and changes nothing, so `credits give player_spaceship -500` on a ship that holds 410 cr leaves it at 410 cr. A non-integer amount, an unknown ship or a ship without a purse changes nothing either. Each change raises `OnCreditsChanged` with `cause: Cheat`, so a scenario that watches the purse sees it.
 
 **This is not the scenario language.** A scenario author has a much larger vocabulary (spawning, despawning, allegiance, forced launches, outcomes). None of it is reachable from this prompt. The catalog above is the whole public surface, and a new scenario action does not appear here unless somebody deliberately adds it.
 

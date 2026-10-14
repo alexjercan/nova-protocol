@@ -204,6 +204,77 @@ pub fn item_give(world: &mut World, ship_id: &str, item_id: &str, quantity: &str
     ))]))
 }
 
+/// `credits give <ship-id> <amount>`: add a signed amount to the balance.
+pub fn credits_give(world: &mut World, ship_id: &str, amount: &str) -> Resolved {
+    credits_write(world, "credits give", ship_id, amount, |held, typed| {
+        i128::from(held) + i128::from(typed)
+    })
+}
+
+/// `credits set <ship-id> <amount>`: replace the balance.
+pub fn credits_set(world: &mut World, ship_id: &str, amount: &str) -> Resolved {
+    credits_write(world, "credits set", ship_id, amount, |_, typed| {
+        i128::from(typed)
+    })
+}
+
+/// The shared body of the two `credits` cheats. `balance` turns the held
+/// balance and the typed amount into the requested one.
+///
+/// Every check runs before the balance changes, so a refused write leaves it
+/// as it was. The write goes through [`ShipInventoryReports::change_credits`],
+/// the one balance writer, so `OnCreditsChanged` fires with cause `Cheat`.
+fn credits_write(
+    world: &mut World,
+    name: &str,
+    ship_id: &str,
+    amount: &str,
+    balance: impl FnOnce(u32, i64) -> i128,
+) -> Resolved {
+    let Ok(typed) = amount.parse::<i64>() else {
+        return Err(CommandResult::error(
+            name,
+            Some(CLASS),
+            format!("{name}: '{amount}' is not a whole number"),
+        ));
+    };
+    let ship = lookup::ship(world, ship_id).or_error(name, CLASS)?;
+    // Every ship root requires `ShipCredits` and `ShipInventoryReports`, so a
+    // ship without them is a broken world, not a ship with an empty purse.
+    let mut query = world.query::<(&mut ShipCredits, &mut ShipInventoryReports)>();
+    let Ok((mut credits, mut reports)) = query.get_mut(world, ship) else {
+        return Err(CommandResult::error(
+            name,
+            Some(CLASS),
+            format!("'{ship_id}' holds no credits; the world is inconsistent"),
+        ));
+    };
+    let held = credits.0;
+    let requested = balance(held, typed);
+    let Ok(current_cr) = u32::try_from(requested) else {
+        let limit = if requested < 0 {
+            "below zero".to_string()
+        } else {
+            format!("above the {} cr limit", u32::MAX)
+        };
+        return Err(CommandResult::refused(
+            name,
+            CLASS,
+            format!("{name}: {ship_id} holds {held} cr; {requested} cr is {limit}"),
+        ));
+    };
+    reports.change_credits(&mut credits, current_cr, CreditChangeCauseType::Cheat);
+    let delta = i128::from(current_cr) - i128::from(held);
+    Ok(CommandResult::ok(
+        name,
+        CLASS,
+        format!("{ship_id}: {delta:+} cr, {current_cr} cr held"),
+    )
+    .with_rows(vec![TerminalRow::warn(format!(
+        "{ship_id}: credits {held} cr -> {current_cr} cr."
+    ))]))
+}
+
 /// `scenario load <id>`: abandon the attempt and start a fresh one.
 ///
 /// Utility, not Cheat: it decides nothing about how the abandoned attempt ended.
@@ -411,7 +482,7 @@ mod tests {
             (
                 ["player_spaceship", "hullplate", "1"],
                 CommandStatus::Error,
-                "no item named 'hullplate' (CarbonOre, HullPlate, IronOre, PdcRound, RailSlug, Rations, SalvagedParts, StoneOre, Torpedo, WaterIce)",
+                "no item named 'hullplate' (ActuatorPack, CapacitorBank, CarbonOre, DockingCollar, DriveBell, FlightCore, FrameSpar, HullPlate, IronOre, PdcRound, RailSlug, Rations, SalvagedParts, SectionPanel, StoneOre, Torpedo, TorpedoTube, TurretBarrel, TurretBody, WaterIce)",
             ),
             (
                 ["player_spaceship", "HullPlate", "0"],
@@ -451,5 +522,160 @@ mod tests {
         let result = give(&mut unarmed, ["player_spaceship", "HullPlate", "1"]);
         assert_eq!(result.status, CommandStatus::Refused);
         assert_eq!(unarmed.get::<ShipInventory>(ship), Some(&before));
+    }
+
+    /// Armed or not, a world with one ship that holds 410 cr.
+    fn world_with_purse(armed: bool) -> (World, Entity) {
+        let mut world = World::new();
+        let mut cheats = RunCheats::default();
+        if armed {
+            cheats.arm();
+        }
+        world.insert_resource(cheats);
+        let ship = world
+            .spawn((
+                SpaceshipRootMarker,
+                EntityId("player_spaceship".to_string()),
+                ShipCredits(410),
+            ))
+            .id();
+        (world, ship)
+    }
+
+    fn credits(world: &mut World, name: &'static str, args: [&str; 2]) -> CommandResult {
+        crate::dispatch::execute(
+            world,
+            &CommandInvocation {
+                name,
+                class: CLASS,
+                args: args.map(str::to_string).to_vec(),
+            },
+        )
+    }
+
+    /// `credits give` adds a signed amount, `credits set` replaces the
+    /// balance, and each change is queued once for `OnCreditsChanged` with
+    /// cause `Cheat`.
+    #[test]
+    fn credits_give_and_set_write_the_balance_through_the_one_writer() {
+        let (mut world, ship) = world_with_purse(true);
+
+        let result = credits(&mut world, "credits give", ["player_spaceship", "590"]);
+        assert_eq!(result.status, CommandStatus::Ok, "{}", result.detail);
+        assert_eq!(result.detail, "player_spaceship: +590 cr, 1000 cr held");
+        assert_eq!(
+            result.rows[0].text,
+            "player_spaceship: credits 410 cr -> 1000 cr."
+        );
+        let result = credits(&mut world, "credits give", ["player_spaceship", "-400"]);
+        assert_eq!(result.status, CommandStatus::Ok, "{}", result.detail);
+        assert_eq!(world.get::<ShipCredits>(ship), Some(&ShipCredits(600)));
+
+        let result = credits(&mut world, "credits set", ["player_spaceship", "75"]);
+        assert_eq!(result.status, CommandStatus::Ok, "{}", result.detail);
+        assert_eq!(result.detail, "player_spaceship: -525 cr, 75 cr held");
+        assert_eq!(world.get::<ShipCredits>(ship), Some(&ShipCredits(75)));
+
+        let reports = &world.get::<ShipInventoryReports>(ship).expect("reports").0;
+        let moves: Vec<(u32, u32)> = reports
+            .iter()
+            .map(|report| match report {
+                ShipInventoryReport::CreditsChanged {
+                    previous_cr,
+                    current_cr,
+                    cause: CreditChangeCauseType::Cheat,
+                } => (*previous_cr, *current_cr),
+                other => panic!("unexpected report {other:?}"),
+            })
+            .collect();
+        assert_eq!(moves, [(410, 1000), (1000, 600), (600, 75)]);
+    }
+
+    /// A write that is unarmed, would leave the balance below zero or past
+    /// the `u32` limit, types a non-integer amount, names no single live ship
+    /// or names a ship without a purse changes nothing.
+    #[test]
+    fn a_refused_credits_write_leaves_the_balance() {
+        let (mut world, ship) = world_with_purse(true);
+        world.spawn((SpaceshipRootMarker, EntityId("twin".to_string())));
+        world.spawn((SpaceshipRootMarker, EntityId("twin".to_string())));
+        let broken = world
+            .spawn((SpaceshipRootMarker, EntityId("broken".to_string())))
+            .id();
+        world.entity_mut(broken).remove::<ShipCredits>();
+
+        for (name, args, status, says) in [
+            (
+                "credits give",
+                ["player_spaceship", "-411"],
+                CommandStatus::Refused,
+                "credits give: player_spaceship holds 410 cr; -1 cr is below zero",
+            ),
+            (
+                "credits set",
+                ["player_spaceship", "-1"],
+                CommandStatus::Refused,
+                "credits set: player_spaceship holds 410 cr; -1 cr is below zero",
+            ),
+            (
+                "credits give",
+                ["player_spaceship", "4294967295"],
+                CommandStatus::Refused,
+                "is above the 4294967295 cr limit",
+            ),
+            (
+                "credits set",
+                ["player_spaceship", "1.5"],
+                CommandStatus::Error,
+                "credits set: '1.5' is not a whole number",
+            ),
+            (
+                "credits give",
+                ["player_spaceship", "lots"],
+                CommandStatus::Error,
+                "'lots' is not a whole number",
+            ),
+            (
+                "credits give",
+                ["nobody", "10"],
+                CommandStatus::Error,
+                "no ship named 'nobody'",
+            ),
+            (
+                "credits set",
+                ["twin", "10"],
+                CommandStatus::Error,
+                "names 2 ships",
+            ),
+            (
+                "credits give",
+                ["broken", "10"],
+                CommandStatus::Error,
+                "'broken' holds no credits",
+            ),
+        ] {
+            let result = credits(&mut world, name, args);
+            assert_eq!(result.status, status, "{name} {args:?}: {}", result.detail);
+            assert!(
+                result.detail.contains(says),
+                "{name} {args:?}: {}",
+                result.detail
+            );
+        }
+        assert_eq!(world.get::<ShipCredits>(ship), Some(&ShipCredits(410)));
+        let reports = world.get::<ShipInventoryReports>(ship).expect("reports");
+        assert!(reports.0.is_empty(), "{:?}", reports.0);
+
+        let (mut unarmed, ship) = world_with_purse(false);
+        for name in ["credits give", "credits set"] {
+            let result = credits(&mut unarmed, name, ["player_spaceship", "10"]);
+            assert_eq!(result.status, CommandStatus::Refused, "{name}");
+            assert!(
+                result.detail.contains("cheats are not armed"),
+                "{}",
+                result.detail
+            );
+        }
+        assert_eq!(unarmed.get::<ShipCredits>(ship), Some(&ShipCredits(410)));
     }
 }

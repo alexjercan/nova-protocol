@@ -932,6 +932,8 @@ pub enum CreditChangeCauseType {
     EscortHire,
     /// A station bought from its civilization while docked: its price.
     StationBuy,
+    /// An armed `credits give` or `credits set` command wrote the balance.
+    Cheat,
 }
 
 impl CreditChangeCauseType {
@@ -946,6 +948,7 @@ impl CreditChangeCauseType {
             CreditChangeCauseType::ShipBuy => "ShipBuy",
             CreditChangeCauseType::EscortHire => "EscortHire",
             CreditChangeCauseType::StationBuy => "StationBuy",
+            CreditChangeCauseType::Cheat => "Cheat",
         }
     }
 }
@@ -1489,6 +1492,7 @@ mod inventory_event_tests {
             CreditChangeCauseType::ShipBuy,
             CreditChangeCauseType::EscortHire,
             CreditChangeCauseType::StationBuy,
+            CreditChangeCauseType::Cheat,
         ] {
             let serialized = serde_json::to_value(cause).expect("a unit variant serializes");
             assert_eq!(serialized.as_str(), Some(cause.as_str()));

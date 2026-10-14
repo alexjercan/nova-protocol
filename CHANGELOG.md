@@ -141,6 +141,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A Sandbox ship's Station box spawns it as a station. Station Check names
   the first fault and Play refuses a hull with a thruster, no port or no
   controller. Save writes a `Station` item.
+- New armed cheats `credits give <ship-id> <amount>` (signed) and `credits set
+  <ship-id> <amount>` change a ship's credits, never below zero. Each change
+  fires `OnCreditsChanged` with cause `Cheat`.
 
 ### Web & Platform
 

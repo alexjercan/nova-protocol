@@ -10842,7 +10842,7 @@ function initArrivalStandoff(host: HTMLElement): void {
     update();
 }
 
-// ---- command-catalog: 28 commands in four classes ------------------------
+// ---- command-catalog: 30 commands in four classes ------------------------
 
 // The four classes (nova_command/src/commands.rs, `CommandClass`) and what each may do
 // (`CommandClass::summary`, :64-71). The arming gate is one check in the dispatcher
@@ -11034,16 +11034,29 @@ export const COMMAND_ROWS: CommandRow[] = [
         cls: "Cheat",
         what: "add items to one ship's inventory",
     },
+    {
+        name: "credits give",
+        usage: "credits give <ship-id> <amount>",
+        cls: "Cheat",
+        what: "add a signed amount to one ship's credits",
+    },
+    {
+        name: "credits set",
+        usage: "credits set <ship-id> <amount>",
+        cls: "Cheat",
+        what: "set one ship's credits",
+    },
 ];
 
-// v0.13.0 shipped every row above except `item give`, and `bindings` then
-// listed bare action names.
+// v0.13.0 shipped every row above except `item give`, `credits give` and
+// `credits set`, and `bindings` then listed bare action names.
 const V0130_COMMAND_WHAT: Partial<Record<string, string>> = {
     bindings: "every input action and what it is bound to, or one of them",
     bind: "rebind one action",
 };
+const V0130_ABSENT_COMMANDS = ["item give", "credits give", "credits set"];
 export const V0130_COMMAND_ROWS: CommandRow[] = COMMAND_ROWS.filter(
-    (row) => row.name !== "item give"
+    (row) => !V0130_ABSENT_COMMANDS.includes(row.name)
 ).map((row) => ({ ...row, what: V0130_COMMAND_WHAT[row.name] ?? row.what }));
 
 // Whether the dispatcher runs the command: every class but Cheat always,
