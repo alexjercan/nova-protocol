@@ -27,8 +27,8 @@ use super::prelude::*;
 /// and the swap rules.
 pub mod prelude {
     pub use super::{
-        plan_section_swap, rebuild_anchored, section_swap_family, ship_build_fault,
-        swap_build_fault, DesignSection, RefitBuildFaultType, RefitPlacedSection,
+        intake_in_dock_approach, plan_section_swap, rebuild_anchored, section_swap_family,
+        ship_build_fault, swap_build_fault, DesignSection, RefitBuildFaultType, RefitPlacedSection,
         SectionFamilyFaultType, SectionRebuildRequest, SectionSwapRefusalType, SectionSwapRequest,
         ShipDesignSections,
     };
@@ -357,6 +357,44 @@ pub fn ship_build_fault(sections: &[RefitPlacedSection<'_>]) -> Option<RefitBuil
         })
 }
 
+/// The first cargo intake of `sections` that reaches a docking port's mating
+/// face along that port's outward normal, as the indices `(intake, port)`, or
+/// `None` when every intake stays behind every port.
+///
+/// A berthed ship parks against the port's face, so an intake that reaches
+/// the face plane stands where the berthed hull does: the hulls collide and
+/// push apart, and the dock motion gate refuses the berth. Read on the
+/// section colliders' bounding boxes, in build-grid cells.
+pub fn intake_in_dock_approach(sections: &[RefitPlacedSection<'_>]) -> Option<(usize, usize)> {
+    // Below a hundredth of a cell is the same plane: positions are authored
+    // on the grid, and a rotated box's extent carries float noise.
+    const SAME_PLANE: f32 = 1e-2;
+    let reach = |section: &RefitPlacedSection<'_>, normal: Vec3| {
+        let half = section
+            .config
+            .base
+            .collider
+            .unwrap_or_default()
+            .rotated_aabb_half_extents(section.rotation);
+        section.position.dot(normal) + half.dot(normal.abs())
+    };
+    sections
+        .iter()
+        .enumerate()
+        .filter(|(_, port)| matches!(port.config.kind, SectionKind::Docking(_)))
+        .find_map(|(port_index, port)| {
+            let normal = port.rotation * exit_normal(&port.config.kind)?;
+            let face = reach(port, normal);
+            sections
+                .iter()
+                .position(|intake| {
+                    matches!(intake.config.kind, SectionKind::CargoIntake(_))
+                        && reach(intake, normal) >= face - SAME_PLANE
+                })
+                .map(|intake_index| (intake_index, port_index))
+        })
+}
+
 /// The first post-build check the ship `after` fails and `before` passed, or
 /// `None` when the change adds no fault. `blocks_an_exit` answers whether the
 /// change leaves a section unable to fire that could before; it runs only once
@@ -419,6 +457,8 @@ pub(crate) fn refit_build_fault(
 
 #[cfg(test)]
 mod tests {
+    use nova_events::units::prelude::{Meters, MetersPerSecond};
+
     use super::*;
 
     fn cube_points() -> Vec<LinkPoint> {
@@ -584,5 +624,60 @@ mod tests {
 
         let already_short = [at(0.0, &hull), at(1.0, &gun), at(-1.0, &weak)];
         assert_eq!(swap_build_fault(&already_short, 2, &weak), None);
+    }
+
+    /// The armored wreck a berth failed at: an intake on the starboard flank
+    /// 1.5 cells aft of the starboard port reaches the port's face, so the
+    /// berthed hull hits it. The same intake lying door up on the deck stays
+    /// behind the face.
+    #[test]
+    fn an_intake_on_a_port_flank_stands_in_the_berth_and_one_on_the_deck_does_not() {
+        let port = part(
+            "dock",
+            SectionKind::Docking(DockingSectionConfig::default()),
+            Vec3::ONE,
+            cube_points(),
+        );
+        let intake = part(
+            "intake",
+            SectionKind::CargoIntake(CargoIntakeSectionConfig {
+                render_mesh: "intake.glb#Scene0".into(),
+                render_mesh_transform: None,
+                canister_mesh: "canister.glb#Scene0".into(),
+                door_sound: "door.wav".into(),
+                eject_sound: "eject.wav".into(),
+                take_sound: "take.wav".into(),
+                detection_range: Meters(40.0),
+                capture_gap: Meters(1.0),
+                aperture_width: Meters(8.0),
+                aperture_height: Meters(8.0),
+                eject_speed: MetersPerSecond(3.0),
+            }),
+            Vec3::new(3.0, 2.0, 1.0),
+            cube_points(),
+        );
+        // Each opens through local -Z: a quarter turn about Y aims it to
+        // starboard, a quarter turn about X aims the intake up.
+        let starboard = Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2);
+        let berth = RefitPlacedSection {
+            position: Vec3::new(2.0, 0.0, 1.0),
+            rotation: starboard,
+            config: &port,
+        };
+        let flank = RefitPlacedSection {
+            position: Vec3::new(2.0, 0.0, 2.5),
+            rotation: starboard * Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
+            config: &intake,
+        };
+        let deck = RefitPlacedSection {
+            position: Vec3::new(0.0, 1.0, 1.5),
+            rotation: Quat::from_rotation_x(std::f32::consts::FRAC_PI_2),
+            config: &intake,
+        };
+        assert_eq!(
+            intake_in_dock_approach(&[berth.clone(), flank]),
+            Some((1, 0))
+        );
+        assert_eq!(intake_in_dock_approach(&[berth, deck]), None);
     }
 }

@@ -113,15 +113,16 @@ impl ShipPartFamilyType {
     }
 
     /// Whether every ship of `role` needs a part of this family. Every ship
-    /// flies and docks; an industrial ship takes cargo in; a fighting ship
-    /// fights. A mining beam is an industrial ship's seeded option, never a
-    /// requirement.
+    /// flies, docks, and takes cargo in and jettisons it through an intake; a
+    /// fighting ship fights. A mining beam is an industrial ship's seeded
+    /// option, never a requirement.
     pub(crate) fn required_by(self, role: ShipRoleType) -> bool {
         match self {
-            Self::Hull | Self::Controller | Self::Thruster | Self::Docking => true,
+            Self::Hull | Self::Controller | Self::Thruster | Self::CargoIntake | Self::Docking => {
+                true
+            }
             Self::Mining => false,
             Self::Weapon => matches!(role, ShipRoleType::Scavenger | ShipRoleType::Armored),
-            Self::CargoIntake => role == ShipRoleType::Industrial,
         }
     }
 }

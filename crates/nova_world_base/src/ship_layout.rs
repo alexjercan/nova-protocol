@@ -6,8 +6,8 @@
 //! and varies the cross-section station by station. The spine mixes up to
 //! [`STRUCTURAL_PALETTE`] structural cube types in mirror image. Then it mounts
 //! the drive bank, copies of one drive around a centred single or in mirrored
-//! pairs, the flight computers, the role's weapons or side cargo intakes, the
-//! docking ports, a mirrored pair out of the hull's sides where one fits, else
+//! pairs, the flight computers, the role's weapons, the cargo intakes on the
+//! hull's top or bottom, the docking ports, a mirrored pair out of the hull's sides where one fits, else
 //! one port alone, and an industrial ship's seeded mining beams.
 //! Every part stands on the cell grid through [`oriented_part`], so a mod part
 //! joins by its type, footprint and sockets.
@@ -25,8 +25,9 @@
 //!
 //! Every layout is checked after it is built: unique section ids, usable and
 //! eligible prototypes, the role's families, mated contacts, mirror symmetry
-//! but for a lone docking port, intakes and docking ports that open sideways
-//! with structural cubes across their backs, one connected socket graph, clear
+//! but for a lone docking port, intakes with structural cubes across their
+//! backs, docking ports that open sideways with structural cubes across their
+//! backs, no intake as far out as a port's face, one connected socket graph, clear
 //! exit and docking lanes, the advancement's size ceiling, the thrust floor,
 //! the flight computer count and one off-centre outer cube a wreck could lose
 //! alone, so every intact ship can be ruined. A seeded layout that fails
@@ -73,10 +74,11 @@ use nova_scenario::prelude::{
     SectionSource, ShipDesign, ShipPresentationConfig, SpaceshipSectionConfig,
 };
 use nova_ship::prelude::{
-    blocked_exits, cube_rotations, derive_link_point_graph, exit_normal, mirror_face,
-    mirror_rotation, oriented_part, placement_blocks_an_exit, read_structure, ship_exits,
-    LinkPointGraphError, OrientedPart, PlacedPart, PlacedSectionLinkPoints, SectionConfig,
-    SectionFootprint, SectionKind, ShipMeasure, ShipMeasureShortfallType, GRID_EPSILON,
+    blocked_exits, cube_rotations, derive_link_point_graph, exit_normal, intake_in_dock_approach,
+    mirror_face, mirror_rotation, oriented_part, placement_blocks_an_exit, read_structure,
+    ship_exits, LinkPointGraphError, OrientedPart, PlacedPart, PlacedSectionLinkPoints,
+    RefitPlacedSection, SectionConfig, SectionFootprint, SectionKind, ShipMeasure,
+    ShipMeasureShortfallType, GRID_EPSILON,
 };
 use nova_world::prelude::{CivilizationId, ShipRoleType, SECTOR_SHIP_CLEARANCE_MAX};
 
@@ -251,9 +253,12 @@ pub enum ShipLayoutConstraintType {
     /// Something stands in, or asks for cladding across, a section's exit
     /// lane.
     BlockedExit(String),
-    /// A cargo intake does not open sideways with a structural cube behind
-    /// every cell of its back.
+    /// A cargo intake does not have a structural cube behind every cell of
+    /// its back.
     UnbackedIntake(String),
+    /// A cargo intake reaches as far out as a docking port's face, where a
+    /// berthed hull parks, see [`intake_in_dock_approach`].
+    IntakeInDockApproach(String),
     /// A docking port does not open sideways with a structural cube behind
     /// every cell of its back.
     UnbackedDock(String),
@@ -335,9 +340,12 @@ impl fmt::Display for ShipLayoutConstraintType {
             }
             Self::InvalidSockets => write!(f, "the socket graph is invalid or ambiguous"),
             Self::BlockedExit(id) => write!(f, "section '{id}' cannot fire down a clear lane"),
-            Self::UnbackedIntake(id) => write!(
+            Self::UnbackedIntake(id) => {
+                write!(f, "intake '{id}' has no structural cubes across its back")
+            }
+            Self::IntakeInDockApproach(id) => write!(
                 f,
-                "intake '{id}' does not open sideways with structural cubes across its back"
+                "intake '{id}' reaches as far out as a docking port's face, where a berthed hull parks"
             ),
             Self::UnbackedDock(id) => write!(
                 f,
@@ -1076,9 +1084,20 @@ fn weapon_aim(kind: &SectionKind, aims: Option<usize>) -> Option<u32> {
     }
 }
 
-/// How an intake or a docking port may point: out of the hull's side.
+/// How a docking port may point: out of the hull's side.
 fn flank_aim(_: &SectionKind, aims: Option<usize>) -> Option<u32> {
     matches!(aims?, STARBOARD | PORT).then_some(1)
+}
+
+/// How a cargo intake may point: up best, else down. Never out of a side: the
+/// docking ports open there, and a berthed hull parks across the flank, see
+/// [`intake_in_dock_approach`].
+fn intake_aim(_: &SectionKind, aims: Option<usize>) -> Option<u32> {
+    match aims? {
+        DORSAL => Some(2),
+        VENTRAL => Some(1),
+        _ => None,
+    }
 }
 
 /// How a mining beam may point: forward best, so the ship faces the rock it
@@ -1452,25 +1471,15 @@ impl<'a> Draw<'a> {
         let span = drive.starboard.span.as_ivec3();
         let stern = bank.stern(drive.layout, span);
 
-        let intake = ShipPartFamilyType::CargoIntake.required_by(request.role);
-        let intakes = if intake {
-            self.ranked(
-                ShipPartFamilyType::CargoIntake,
-                Some(source),
-                b"intake",
-                |_| true,
-            )
-        } else {
-            Vec::new()
-        };
+        let intakes = self.ranked(
+            ShipPartFamilyType::CargoIntake,
+            Some(source),
+            b"intake",
+            |_| true,
+        );
         let docks = self.ranked(ShipPartFamilyType::Docking, Some(source), b"dock", |_| true);
-        let flank = if intake {
-            Some(flank_run(&intakes, &docks)?)
-        } else {
-            None
-        };
 
-        let stations = self.plan(stern, span.z, flank)?;
+        let stations = self.plan(stern, span.z)?;
         let length = stations.len() as i32;
         let pattern = PalettePatternType::draw(&mut self.stream(b"palette"));
         let cube_at = |cell: IVec3| palette[pattern.cube(&stations, cell, palette.len())];
@@ -1629,16 +1638,14 @@ impl<'a> Draw<'a> {
                 ));
             }
         }
-        if intake
-            && !self.fit(
-                &mut grid,
-                &intakes,
-                "intake",
-                flank_aim,
-                MountType::BackedMirrored,
-                b"intake_slot",
-            )
-        {
+        if !self.fit(
+            &mut grid,
+            &intakes,
+            "intake",
+            intake_aim,
+            MountType::BackedMirrored,
+            b"intake_slot",
+        ) {
             return Err(ShipLayoutConstraintType::Unplaced(
                 ShipPartFamilyType::CargoIntake,
             ));
@@ -1731,14 +1738,13 @@ impl<'a> Draw<'a> {
 
     /// The spine's stations, bow first, ending in `stern`: a nose that widens
     /// from one cell, a body whose cross-section changes along its length,
-    /// and the stern the drive bank mates to. A `flank` run holds its flat
-    /// stations at every size. Shrunk until the spine and a bank `drive_depth`
-    /// cells deep fit the advancement's size ceiling with room for fittings.
+    /// and the stern the drive bank mates to. Shrunk until the spine and a
+    /// bank `drive_depth` cells deep fit the advancement's size ceiling with
+    /// room for fittings.
     fn plan(
         &self,
         stern: Section,
         drive_depth: i32,
-        flank: Option<FlankRun>,
     ) -> Result<Vec<Section>, ShipLayoutConstraintType> {
         let request = self.request;
         let mut stream = self.stream(b"shape");
@@ -1755,12 +1761,7 @@ impl<'a> Draw<'a> {
         } else {
             (length * scale * 0.85, 1, 1)
         };
-        // The fewest stations whose body, between the nose and the stern,
-        // holds the flank run.
-        let shortest = (MIN_STATIONS..)
-            .find(|length| flank.is_none_or(|run| length - nose_length(*length) > run.length))
-            .expect("a long enough spine holds any run");
-        let mut length = (length.round() as i32).max(shortest);
+        let mut length = (length.round() as i32).max(MIN_STATIONS);
         let mut width = (width.round() as i32).max(1) + widen;
         let mut height = (height.round() as i32).max(0) + heighten;
         // The body's change along its length: a waist or shoulder at the
@@ -1770,10 +1771,7 @@ impl<'a> Draw<'a> {
 
         let ceiling = ceiling(request.advancement);
         loop {
-            let mut stations = stations(length, width, height, stern, middle, aft);
-            if let Some(run) = flank {
-                hold_flank(&mut stations, nose_length(length), run);
-            }
+            let stations = stations(length, width, height, stern, middle, aft);
             let (low, high) = stations.iter().enumerate().fold(
                 (IVec3::MAX, IVec3::MIN),
                 |(low, high), (z, section)| {
@@ -1790,7 +1788,7 @@ impl<'a> Draw<'a> {
             if planned.0 <= ceiling.0 {
                 return Ok(stations);
             }
-            if length > shortest {
+            if length > MIN_STATIONS {
                 length -= 1;
             } else if width > 1 {
                 width -= 1;
@@ -1846,77 +1844,6 @@ fn stations(
             }
         })
         .collect()
-}
-
-/// The flat flank an intake-carrying spine holds so its mirrored intake pair
-/// and one docking port fit side by side along it: `length` body stations of
-/// one cross-section, at least one cell wide and `half_height` cells above and
-/// below the centre.
-#[derive(Clone, Copy, Debug)]
-struct FlankRun {
-    length: i32,
-    half_height: i32,
-}
-
-/// The flank run the first of `intakes` that mounts as a mirrored pair and the
-/// first of `docks` that mounts on the flank need, in the flank rotation of
-/// each with the fewest cells above and below the centre, then the fewest
-/// stations.
-fn flank_run(
-    intakes: &[&ShipPart],
-    docks: &[&ShipPart],
-) -> Result<FlankRun, ShipLayoutConstraintType> {
-    let footprint = |part: &ShipPart, mirrored: bool| {
-        cube_rotations()
-            .into_iter()
-            .filter_map(|rotation| {
-                let oriented = oriented_part(&part.config, rotation).ok()?;
-                let twin = oriented_part(&part.config, mirror_rotation(rotation))
-                    .is_ok_and(|port| reflects(&oriented, &port));
-                (oriented.aims == Some(STARBOARD) && (twin || !mirrored)).then(|| {
-                    let span = oriented.span.as_ivec3();
-                    (span.y / 2, span.z)
-                })
-            })
-            .min()
-    };
-    let (intake_height, intake_length) = intakes
-        .iter()
-        .find_map(|part| footprint(part, true))
-        .ok_or(ShipLayoutConstraintType::Unplaced(
-            ShipPartFamilyType::CargoIntake,
-        ))?;
-    let (dock_height, dock_length) = docks.iter().find_map(|part| footprint(part, false)).ok_or(
-        ShipLayoutConstraintType::Unplaced(ShipPartFamilyType::Docking),
-    )?;
-    Ok(FlankRun {
-        length: intake_length + dock_length,
-        half_height: intake_height.max(dock_height),
-    })
-}
-
-/// Keep `run` on the body of `stations`, whose nose is `nose` stations long:
-/// a body that already holds the run is left as drawn; otherwise the first
-/// body stations are flattened to the first one's cross-section, widened and
-/// raised to the run's.
-fn hold_flank(stations: &mut [Section], nose: i32, run: FlankRun) {
-    let (nose, length) = (nose as usize, run.length as usize);
-    let body = &stations[nose..stations.len() - 1];
-    let held = body.windows(length).any(|window| {
-        window.iter().all(|section| *section == window[0])
-            && window[0].half_width >= 1
-            && window[0].high >= run.half_height
-    });
-    if held {
-        return;
-    }
-    let first = stations[nose];
-    let half_height = first.high.max(run.half_height);
-    stations[nose..nose + length].fill(Section {
-        half_width: first.half_width.max(1),
-        low: -half_height,
-        high: half_height,
-    });
 }
 
 /// Whether a part can be the spine's structural cube: one cell, filled, with
@@ -2084,12 +2011,28 @@ fn check(
 
     let (cells, cubes) = filled_cells(snapshot, design);
     for (section, part) in design.sections.iter().zip(&resolved) {
-        if part.family == ShipPartFamilyType::CargoIntake && !side_backed(&cubes, part, section) {
+        if part.family == ShipPartFamilyType::CargoIntake && !backed(&cubes, part, section) {
             return Err(Constraint::UnbackedIntake(section.id.clone()));
         }
         if part.family == ShipPartFamilyType::Docking && !side_backed(&cubes, part, section) {
             return Err(Constraint::UnbackedDock(section.id.clone()));
         }
+    }
+
+    let placed: Vec<RefitPlacedSection<'_>> = design
+        .sections
+        .iter()
+        .zip(&resolved)
+        .map(|(section, part)| RefitPlacedSection {
+            position: section.position,
+            rotation: section.rotation,
+            config: &part.config,
+        })
+        .collect();
+    if let Some((intake, _)) = intake_in_dock_approach(&placed) {
+        return Err(Constraint::IntakeInDockApproach(
+            design.sections[intake].id.clone(),
+        ));
     }
 
     connected_and_clear(request, design, &resolved, bounds)?;
@@ -2117,26 +2060,40 @@ fn side_backed(
         .is_some_and(|back| back.iter().all(|cell| cubes.contains(&cell.to_array())))
 }
 
+/// Whether `section`, a `part`, opens out of the hull with a structural cube
+/// of `cubes` behind every cell of its back.
+fn backed(cubes: &BTreeSet<[i32; 3]>, part: &ShipPart, section: &SpaceshipSectionConfig) -> bool {
+    back(part, section)
+        .is_some_and(|(_, back)| back.iter().all(|cell| cubes.contains(&cell.to_array())))
+}
+
 /// The cells behind the back of `section`, a `part`, outside its own cells,
 /// or `None` when it does not open out of the hull's side.
 fn side_back(part: &ShipPart, section: &SpaceshipSectionConfig) -> Option<Vec<IVec3>> {
+    back(part, section)
+        .filter(|(exit, _)| matches!(*exit, STARBOARD | PORT))
+        .map(|(_, back)| back)
+}
+
+/// The exit `section`, a `part`, opens through and the cells behind its back,
+/// outside its own cells, or `None` when it opens through no face.
+fn back(part: &ShipPart, section: &SpaceshipSectionConfig) -> Option<(usize, Vec<IVec3>)> {
     let oriented = oriented_part(&part.config, section.rotation)
         .expect("a snapshot part at a generated rotation stands on the grid");
-    let exit @ (STARBOARD | PORT) = oriented.aims? else {
-        return None;
-    };
+    let exit = oriented.aims?;
     let anchor = (section.position - oriented.origin).round().as_ivec3();
     let own: HashSet<IVec3> = oriented
         .cells
         .iter()
         .map(|cell| anchor + cell.cell.as_ivec3())
         .collect();
-    Some(
+    Some((
+        exit,
         own.iter()
             .map(|cell| *cell + STEPS[exit ^ 1])
             .filter(|behind| !own.contains(behind))
             .collect(),
-    )
+    ))
 }
 
 /// Every constraint a wreck of `intact` must hold: an intact ship's, but for
@@ -2375,7 +2332,7 @@ pub(crate) mod fixture {
 
     /// A block of `size` cells with a socket on the centre of every cell
     /// face it shows on each of `faces`.
-    fn block(
+    pub(crate) fn block(
         id: &str,
         health: f32,
         kind: SectionKind,
@@ -2622,8 +2579,8 @@ pub(crate) mod tests {
                     assert!(count(ShipPartFamilyType::Thruster) >= 1, "{context}");
                     let armed = matches!(role, ShipRoleType::Scavenger | ShipRoleType::Armored);
                     assert_eq!(count(ShipPartFamilyType::Weapon) >= 1, armed, "{context}");
+                    assert!(count(ShipPartFamilyType::CargoIntake) >= 1, "{context}");
                     if role == ShipRoleType::Industrial {
-                        assert!(count(ShipPartFamilyType::CargoIntake) >= 1, "{context}");
                         let mining = count(ShipPartFamilyType::Mining);
                         beams.insert((advancement as u32, mining));
                         beam_parts.extend(
@@ -2919,7 +2876,9 @@ pub(crate) mod tests {
         // A drive six cells deep shrinks the hull to its three stations. On
         // this seed one layout docks its ports off the body's flanks, so every
         // cube holds a bound, the drive or a port's back, and its wreck could
-        // not lose even one. The ship is drawn again instead.
+        // not lose even one. The ship is drawn again instead. The intake is
+        // one cell: a full-size one needs a deck three cells wide, which a
+        // three-station hull does not have.
         let short = ShipPartSnapshot::build(&[pack(
             "base",
             &[],
@@ -2927,7 +2886,13 @@ pub(crate) mod tests {
                 cube("cube", 100.0),
                 controller("controller"),
                 drive("deep_drive", 1.0, UVec3::new(1, 1, 6)),
-                intake("intake"),
+                block(
+                    "intake",
+                    100.0,
+                    intake("intake").kind,
+                    UVec3::ONE,
+                    &DOCK_FACES,
+                ),
                 dock("dock", &DOCK_FACES),
             ],
         )])
@@ -2994,64 +2959,56 @@ pub(crate) mod tests {
         );
     }
 
+    /// Every role takes cargo in: each generated ship carries an intake on
+    /// its top or bottom with cubes across its back, and no intake reaches a
+    /// docking port's face, where a berthed hull parks.
     #[test]
-    fn an_industrial_intake_opens_sideways_with_structural_cubes_across_its_back() {
+    fn every_generated_ship_carries_a_backed_intake_clear_of_its_ports() {
         let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
         let parts: HashMap<&str, &ShipPart> = snapshot
             .parts()
             .iter()
             .map(|part| (part.id(), part))
             .collect();
-        let intakes = |design: &ShipDesign| -> Vec<SpaceshipSectionConfig> {
-            design
-                .sections
-                .iter()
-                .filter(|section| {
-                    parts[prototype_of(section).expect("a prototype")].family
-                        == ShipPartFamilyType::CargoIntake
-                })
-                .cloned()
-                .collect()
-        };
         for advancement in [0.0, 1.0] {
             for seed in 0..8 {
-                let request = request(seed, ShipRoleType::Industrial, advancement);
-                let context = format!("seed {seed}, advancement {advancement}");
-                let layout = generate_ship(&snapshot, request).expect("the ship generates");
-                let (_, cubes) = filled_cells(&snapshot, &layout.design);
-                let fitted = intakes(&layout.design);
-                assert_eq!(fitted.len(), 2, "{context}: a mirrored pair");
-                for intake in &fitted {
-                    let part = parts[prototype_of(intake).expect("a prototype")];
-                    assert!(
-                        side_backed(&cubes, part, intake),
-                        "{context}: {}",
-                        intake.id
-                    );
-                }
-
-                // Without the cubes behind them the same intakes are refused.
-                let mut behind = HashSet::new();
-                for intake in &fitted {
-                    let part = parts[prototype_of(intake).expect("a prototype")];
-                    let oriented = oriented_part(&part.config, intake.rotation)
-                        .expect("the intake stands on the grid");
-                    let back = STEPS[oriented.aims.expect("an intake opens") ^ 1];
-                    let anchor = (intake.position - oriented.origin).round().as_ivec3();
-                    for cell in &oriented.cells {
-                        behind.insert(anchor + cell.cell.as_ivec3() + back);
+                for role in ShipRoleType::ALL {
+                    let request = request(seed, role, advancement);
+                    let context = format!("seed {seed}, {role:?}, advancement {advancement}");
+                    let layout = generate_ship(&snapshot, request).expect("the ship generates");
+                    let (_, cubes) = filled_cells(&snapshot, &layout.design);
+                    let resolved: Vec<&ShipPart> = layout
+                        .design
+                        .sections
+                        .iter()
+                        .map(|section| parts[prototype_of(section).expect("a prototype")])
+                        .collect();
+                    let intakes: Vec<(&SpaceshipSectionConfig, &ShipPart)> = layout
+                        .design
+                        .sections
+                        .iter()
+                        .zip(resolved.iter().copied())
+                        .filter(|(_, part)| part.family == ShipPartFamilyType::CargoIntake)
+                        .collect();
+                    assert!(!intakes.is_empty(), "{context}");
+                    for (intake, part) in &intakes {
+                        let (exit, _) = back(part, intake).expect("an intake opens");
+                        assert!(matches!(exit, DORSAL | VENTRAL), "{context}: {}", intake.id);
+                        assert!(backed(&cubes, part, intake), "{context}: {}", intake.id);
                     }
+                    let placed: Vec<RefitPlacedSection<'_>> = layout
+                        .design
+                        .sections
+                        .iter()
+                        .zip(&resolved)
+                        .map(|(section, part)| RefitPlacedSection {
+                            position: section.position,
+                            rotation: section.rotation,
+                            config: &part.config,
+                        })
+                        .collect();
+                    assert_eq!(intake_in_dock_approach(&placed), None, "{context}");
                 }
-                let mut bare = layout.design.clone();
-                bare.sections
-                    .retain(|section| !behind.contains(&section.position.round().as_ivec3()));
-                assert_eq!(
-                    check(&snapshot, request, &bare),
-                    Err(ShipLayoutConstraintType::UnbackedIntake(
-                        fitted[0].id.clone()
-                    )),
-                    "{context}"
-                );
             }
         }
     }
@@ -3156,6 +3113,7 @@ pub(crate) mod tests {
             .iter()
             .map(|part| (part.id(), part))
             .collect();
+        let mut bared = 0;
         for advancement in [0.0, 1.0] {
             for seed in 0..8 {
                 for role in ShipRoleType::ALL {
@@ -3195,7 +3153,8 @@ pub(crate) mod tests {
                     }
 
                     // Without the cubes behind them the same ports are
-                    // refused.
+                    // refused. A cube that also backs an intake would refuse
+                    // the intake first, so such a hull is not read here.
                     let behind: HashSet<IVec3> = docks
                         .iter()
                         .flat_map(|(_, dock)| {
@@ -3203,6 +3162,21 @@ pub(crate) mod tests {
                             side_back(part, dock).expect("a port opens sideways")
                         })
                         .collect();
+                    let intake_backs: HashSet<IVec3> = layout
+                        .design
+                        .sections
+                        .iter()
+                        .filter_map(|section| {
+                            let part = parts[prototype_of(section).expect("a prototype")];
+                            (part.family == ShipPartFamilyType::CargoIntake)
+                                .then(|| back(part, section).expect("an intake opens").1)
+                        })
+                        .flatten()
+                        .collect();
+                    if !behind.is_disjoint(&intake_backs) {
+                        continue;
+                    }
+                    bared += 1;
                     let mut bare = layout.design.clone();
                     bare.sections
                         .retain(|section| !behind.contains(&section.position.round().as_ivec3()));
@@ -3216,64 +3190,7 @@ pub(crate) mod tests {
                 }
             }
         }
-    }
-
-    #[test]
-    fn a_short_industrial_spine_holds_a_flat_flank_for_its_intake_pair_and_a_dock() {
-        // A clusters scan at world seed 17 failed this request with no intake
-        // fitting: no body run was long enough for the pair and a port.
-        let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
-        let parts: HashMap<&str, &ShipPart> = snapshot
-            .parts()
-            .iter()
-            .map(|part| (part.id(), part))
-            .collect();
-        let request = ShipLayoutRequest {
-            seed: 1_049_378_793,
-            civilization: CivilizationId {
-                world_seed: 17,
-                node: [0, 0, 0],
-            },
-            role: ShipRoleType::Industrial,
-            advancement: 0.0,
-        };
-        let layout =
-            generate_ship(&snapshot, request).unwrap_or_else(|failure| panic!("{failure}"));
-
-        // Every intake and port opens out of the hull's side, backed, down a
-        // lane nothing stands in.
-        let (_, cubes) = filled_cells(&snapshot, &layout.design);
-        let placed: Vec<PlacedPart> = layout
-            .design
-            .sections
-            .iter()
-            .map(|section| {
-                let part = parts[prototype_of(section).expect("a prototype")];
-                placed_part(&part.config, section.position, section.rotation)
-            })
-            .collect();
-        let (structure, _, occupied) = read_structure(&placed);
-        let exits = ship_exits(&placed, &occupied);
-        assert!(blocked_exits(&structure, &exits).is_empty());
-        let mut fitted = HashMap::new();
-        for (index, section) in layout.design.sections.iter().enumerate() {
-            let part = parts[prototype_of(section).expect("a prototype")];
-            if matches!(
-                part.family,
-                ShipPartFamilyType::CargoIntake | ShipPartFamilyType::Docking
-            ) {
-                *fitted.entry(part.family).or_insert(0) += 1;
-                assert!(side_backed(&cubes, part, section), "{}", section.id);
-                assert!(
-                    exits.iter().any(|exit| occupied[index].contains(&exit.cell)
-                        && matches!(exit.out, STARBOARD | PORT)),
-                    "{} has no flank lane",
-                    section.id
-                );
-            }
-        }
-        assert_eq!(fitted[&ShipPartFamilyType::CargoIntake], 2);
-        assert!(fitted[&ShipPartFamilyType::Docking] >= 1);
+        assert!(bared > 0, "no hull's port backs stood clear of its intakes");
     }
 
     #[test]
@@ -3318,7 +3235,7 @@ pub(crate) mod tests {
         // leave the rest holding its bounds or its socket graph.
         let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
         let request = ShipLayoutRequest {
-            seed: 245_496_831,
+            seed: 245_497_317,
             civilization: CivilizationId {
                 world_seed: 4,
                 node: [0, 0, 0],
