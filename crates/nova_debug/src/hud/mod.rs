@@ -12,9 +12,11 @@
 //! it in every frozen state, `Debug` included, and gives flight its lock back
 //! on the way out.
 //!
-//! The window's sections: the overlay switches ([`overlays`]) and the raw
-//! world (every entity, resource and asset).
+//! The window's sections: the overlay switches ([`overlays`]), the world's
+//! top-level entities by sector and by type ([`entities`]), and the raw world
+//! (every entity, resource and asset).
 
+mod entities;
 pub mod overlays;
 
 use bevy::{input::InputSystems, prelude::*};
@@ -33,6 +35,7 @@ use crate::DEBUG_TOGGLE_KEYCODE;
 #[derive(Resource, Debug, Default)]
 pub struct DebugHud {
     pub(crate) open: bool,
+    entities_tab: entities::EntitiesTab,
 }
 
 impl DebugHud {
@@ -157,6 +160,11 @@ fn debug_hud_ui(world: &mut World) {
                 egui::CollapsingHeader::new("Overlays")
                     .default_open(true)
                     .show(ui, |ui| overlays::overlays_ui(world, ui));
+                egui::CollapsingHeader::new("Entities").show(ui, |ui| {
+                    let mut tab = world.resource::<DebugHud>().entities_tab;
+                    entities::entities_ui(world, ui, &mut tab);
+                    world.resource_mut::<DebugHud>().entities_tab = tab;
+                });
                 egui::CollapsingHeader::new("Raw").show(ui, |ui| raw_ui(world, ui));
             });
         });

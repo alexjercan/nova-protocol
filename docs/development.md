@@ -104,8 +104,13 @@ enters `PauseStates::Debug`: the clocks stop, flight input is off and the
 cursor is free. Over the pause menu, the TAB interface, the command modal or
 the main menu it opens without changing the state. The window has one
 checkbox per overlay (physics, wireframe, gravity, sections, the ammo number;
-the `DebugOverlays` resource, all off at boot, kept after the window closes)
-and a Raw section with every entity, resource and asset. Note the
+the `DebugOverlays` resource, all off at boot, kept after the window closes),
+an Entities section and a Raw section with every entity, resource and asset.
+Entities lists the top-level entities by sector (the observer's cell first)
+or by type (`crates/nova_debug/src/hud/entities.rs`). An entity under a
+sector root is in that root's cell; a top-level body in a streaming world is
+in the cell its position falls in, tagged top-level; a fixed scene is one
+Scene group. A ship's sections show under the ship's row. Note the
 feature is spelled `debug`, with `dev` as an alias for it (root `Cargo.toml`);
 `--features dev` and `--features debug` are interchangeable.
 

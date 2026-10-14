@@ -191,8 +191,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 ### Internals & Tooling
 
 - Debug builds: F11 opens the Nova Debug window. In flight it freezes the
-  world. It has one checkbox per dev overlay, all off at boot, and the raw
-  world inspector.
+  world. It has dev overlay checkboxes, all off at boot, the entities by sector
+  and by type, and the raw inspector.
 - `screenshot_station_showcase` parks every loaded station design in a row and
   shoots the row and each design, framed by its own hull.
 - `wfc_arena` fighters lose infinite ammo. Holds carry up to two spare

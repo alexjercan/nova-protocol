@@ -28,6 +28,8 @@ nova_input = { path = "../nova_input" }
 nova_ship = { path = "../nova_ship" }
 nova_hud = { path = "../nova_hud" }
 nova_scenario = { path = "../nova_scenario" }
+# The Entities section groups rows by the streamed sector that owns them.
+nova_world = { path = "../nova_world" }
 
 # The screenshot hotkey's Downloads directory, and the only thing that wants it.
 # Both the module and this dependency are compiled out for wasm32, which has no

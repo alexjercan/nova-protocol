@@ -4707,6 +4707,7 @@ dependencies = [
  "nova_menu",
  "nova_scenario",
  "nova_ship",
+ "nova_world",
 ]
 
 [[package]]
