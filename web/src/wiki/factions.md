@@ -21,12 +21,12 @@ Every ship carries an allegiance - **Player**, **Enemy** or **Neutral** - and an
 
 ## Retaliation
 
-One exception rides on top of the side-only model. An **armed** Neutral ship that is hit answers whoever hit it, whatever that ship's side: the two read Hostile to each other, and only to each other - everyone else still reads the shooter's and the Neutral's own sides as usual. A later shot from a different ship replaces who it answers.
+One exception rides on top of the side-only model. An **armed** Neutral ship or station answers a ship that keeps hurting it, whatever that ship's side: once one ship has dealt it 30 hit points in quick succession, the two read Hostile to each other, and only to each other - everyone else still reads the shooter's and the Neutral's own sides as usual. One short PDC burst is enough; a single stray round or a scrape is not. Rams count as well as fire. A later ship that crosses the same mark replaces who it answers.
 
 <details class="explain">
 <summary>Show explanation</summary>
 
-It lets go the moment any of these is true: the ship it was answering is gone or neutralized; the Neutral stops being an armed combatant or is re-aligned to another side by a scripted `SetAllegiance`; or either ship strays beyond the Neutral's leash. A fresh hit can always name a new target. An **unarmed** Neutral never answers this way, and a Player-aligned ship the player hits stays allied - only a Neutral hitting back works like this.
+Each ship's damage is tallied apart and drains at 10 hit points a second, so bumps spread out over time never add up, and two ships never share one tally. It lets go the moment any of these is true: the ship it was answering is gone or neutralized; the Neutral stops being an armed combatant or is re-aligned to another side by a scripted `SetAllegiance`; or either ship strays beyond the Neutral's leash. Fresh fire over the mark can always name a new target. A docked Neutral provoked by you this way lets go of the dock at once. An **unarmed** Neutral never answers this way, and a Player-aligned ship the player hits stays allied - only a Neutral hitting back works like this.
 
 </details>
 

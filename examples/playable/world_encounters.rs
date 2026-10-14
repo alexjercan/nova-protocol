@@ -166,9 +166,10 @@ const MARAUDER_STAGED: Vec3 = Vec3::new(0.0, 0.0, -60_000.0);
 const MARAUDER_ENGAGE: Vec3 = Vec3::new(0.0, 0.0, -29_600.0);
 const FIGHT_STANDOFF_M: f32 = 300.0;
 
-/// Damage a staged hit spends: enough to register, far below any hull's pool.
+/// Damage a staged hit spends: enough to provoke a Neutral in one hit, far
+/// below any hull's pool.
 #[cfg(feature = "debug")]
-const STAGED_HIT: f32 = 10.0;
+const STAGED_HIT: f32 = NEUTRAL_RETALIATION_THRESHOLD;
 
 /// Every `.deadline()` in the script shares this ceiling: a real-seconds
 /// backstop generous enough for a software-rendered frame to cost seconds and

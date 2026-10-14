@@ -61,7 +61,7 @@ pub use self::{
     mission::AIOrderInterruption,
     passive::{AIAvoidMargin, AIAvoidanceDetour, AIWaypointSlack},
     railgun::AIRailgun,
-    threat::{AIEvade, AIThreat},
+    threat::{AIEvade, AIProvocation, AIThreat, NEUTRAL_RETALIATION_THRESHOLD},
     torpedo::AI_TORPEDO_MAX_RANGE,
 };
 
@@ -109,10 +109,10 @@ pub mod prelude {
     pub use super::{
         formation_goal, freeze_ai, thaw_ai, AIAvoidMargin, AIAvoidanceDetour, AIBehaviorState,
         AIEngageGrace, AIEngageRange, AIEvade, AIFollow, AILeash, AINonCombatant, AIOrbitDirective,
-        AIOrderInterruption, AIPatrolRoute, AIPointDefenseRange, AIPointDefenseTarget, AIRailgun,
-        AISpaceshipMarker, AIStandoffClearance, AITarget, AIThreat, AIWaypointSlack, FrozenAI,
-        SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR, AI_FOLLOW_GAP, AI_STANDOFF_OUTER_EDGE,
-        AI_TORPEDO_MAX_RANGE,
+        AIOrderInterruption, AIPatrolRoute, AIPointDefenseRange, AIPointDefenseTarget,
+        AIProvocation, AIRailgun, AISpaceshipMarker, AIStandoffClearance, AITarget, AIThreat,
+        AIWaypointSlack, FrozenAI, SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR, AI_FOLLOW_GAP,
+        AI_STANDOFF_OUTER_EDGE, AI_TORPEDO_MAX_RANGE, NEUTRAL_RETALIATION_THRESHOLD,
     };
 }
 
@@ -166,6 +166,7 @@ impl Plugin for SpaceshipAIInputPlugin {
         app.register_type::<AIPatrolRoute>();
         app.register_type::<AIOrbitDirective>();
         app.register_type::<AIThreat>();
+        app.register_type::<AIProvocation>();
         app.register_type::<AIEvade>();
         app.register_type::<AIEngageGrace>();
         app.register_type::<AIAvoidanceDetour>();
@@ -265,6 +266,7 @@ impl Plugin for SpaceshipAIInputPlugin {
     AITarget,
     AIPointDefenseTarget,
     AIThreat,
+    AIProvocation,
     AIEvade,
     SensorRange = SensorRange(AI_SENSOR_RANGE),
     SensorContacts

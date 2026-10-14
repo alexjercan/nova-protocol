@@ -96,7 +96,7 @@ Short definitions for the terms and units that recur across the wiki, grouped th
 
 ## World
 
-- **Allegiance** - Player, Enemy or Neutral: the one side every ship carries. Any two things resolve to Own, Hostile or Neutral, and that relation drives acquisition, whose rounds hurt whom, and reticle tint. An armed Neutral ship that is hit answers the shooter alone, reading Hostile to just that one ship without changing side. See [Factions](../factions/).
+- **Allegiance** - Player, Enemy or Neutral: the one side every ship carries. Any two things resolve to Own, Hostile or Neutral, and that relation drives acquisition, whose rounds hurt whom, and reticle tint. An armed Neutral ship that one ship keeps hurting answers that ship alone, reading Hostile to just that one ship without changing side. See [Factions](../factions/).
 - **Raider** - an enemy gunship. It flies the same catalog guns as you on scavenger-grade mounts, closes to about a kilometer and fights there. See [Turret](../sections/turret/#variants).
 - **Scenario** - a placed world and the events, filters and actions wired over it: the same machinery for a five-minute tutorial and a combat sandbox. See [Scenarios](../scenarios/).
 - **Objective** - what a scenario asks of you, listed on the comms panel and advanced by the scenario's events.

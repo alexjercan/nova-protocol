@@ -36,6 +36,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A living station aims its turrets: Enemy and Player stations fire on hostile
   sides, a Neutral one only fires back. Guns hold on a docked ship and point
   defense never fires through it.
+- A Neutral ship answers a ship only after it deals 30 hit points in quick
+  succession, fire and rams alike: one PDC burst provokes it, a stray round or
+  scrape does not.
 
 ### Ships & Sections
 

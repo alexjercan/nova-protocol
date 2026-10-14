@@ -103,6 +103,80 @@ impl AIThreat {
     }
 }
 
+/// Hit points one attacker must deal a Neutral ship, net of what has drained,
+/// before the Neutral answers it.
+///
+/// Sized against the shipped weapons and hulls: a PDC round lands 4 and a PDC
+/// fires 100 a second, so one short burst crosses it, while a single round or
+/// a scrape does not. It is half of a light hull plate (60).
+pub const NEUTRAL_RETALIATION_THRESHOLD: f32 = 30.0;
+
+/// Hit points per second that drain from each attacker's tally on a Neutral
+/// ship.
+///
+/// The drain is what separates sustained fire from incidents: a weapon fills
+/// the tally far faster than this, while bumps spread over minutes never add
+/// up to the threshold.
+pub(crate) const NEUTRAL_PROVOCATION_DRAIN: f32 = 10.0;
+
+/// How much each ship has hurt this one lately, toward
+/// [`NEUTRAL_RETALIATION_THRESHOLD`]. Written by `on_damage_track_threat` on
+/// a Neutral ship only; required by [`AISpaceshipMarker`].
+///
+/// Each tally drains at [`NEUTRAL_PROVOCATION_DRAIN`], applied when the next
+/// hit lands rather than every frame, so a ship nobody touches costs nothing.
+/// Not frozen with the rest of the AI state: it names attackers by `Entity`,
+/// which does not survive a freeze, so a thawed ship starts with no grudges.
+#[derive(Component, Debug, Clone, Default, Reflect)]
+#[reflect(Component)]
+pub struct AIProvocation {
+    tallies: Vec<ProvocationTally>,
+}
+
+/// One attacker's undrained damage and the virtual time it was last updated.
+#[derive(Debug, Clone, Copy, Reflect)]
+struct ProvocationTally {
+    attacker: Entity,
+    damage: f32,
+    at: f32,
+}
+
+impl AIProvocation {
+    /// Add `amount` hit points from `attacker` at `now` (virtual seconds) and
+    /// return whether that attacker's tally has reached the threshold.
+    ///
+    /// Every tally drains first, and an empty one is forgotten, so an attacker
+    /// that despawned does not linger in the list.
+    pub(crate) fn provoke(&mut self, attacker: Entity, amount: f32, now: f32) -> bool {
+        for tally in &mut self.tallies {
+            // A hit from the fixed step can read a clock a step behind one
+            // from Update; a negative interval drains nothing.
+            let elapsed = (now - tally.at).max(0.0);
+            tally.damage = (tally.damage - NEUTRAL_PROVOCATION_DRAIN * elapsed).max(0.0);
+            tally.at = tally.at.max(now);
+        }
+        self.tallies.retain(|tally| tally.damage > 0.0);
+        let index = match self
+            .tallies
+            .iter()
+            .position(|tally| tally.attacker == attacker)
+        {
+            Some(index) => index,
+            None => {
+                self.tallies.push(ProvocationTally {
+                    attacker,
+                    damage: 0.0,
+                    at: now,
+                });
+                self.tallies.len() - 1
+            }
+        };
+        let tally = &mut self.tallies[index];
+        tally.damage += amount;
+        tally.damage >= NEUTRAL_RETALIATION_THRESHOLD
+    }
+}
+
 /// The evade cycle's state: how many jink legs are left to fly, the leg being
 /// flown and its liveness deadline, and the refractory period before the next
 /// cycle. Managed by `update_behavior_state`; `update_combat_flight` reads
@@ -194,16 +268,20 @@ fn resolve_damage_attacker(
 /// hostile count: the ship's own torpedo blast catching it (blast damage
 /// deliberately affects the owner) must not spook it into evading itself.
 ///
-/// An armed Neutral ship answers any other ship that damages it, whatever
-/// that ship's side: the most recent shooter replaces the one before, and the
-/// hit then counts as hostile through [`ship_relation`]. An unarmed one stays
+/// A Neutral ship tallies every other ship's damage in its [`AIProvocation`],
+/// whatever that ship's side, and reacts only once one attacker's tally
+/// reaches [`NEUTRAL_RETALIATION_THRESHOLD`]. Rams count as well as fire, so
+/// a scrape is forgiven and a burst of fire is not. An armed one then answers
+/// that ship: the latest ship over the threshold replaces the one before, and
+/// the hit counts as hostile through [`ship_relation`]. An unarmed one stays
 /// out of the fight and answers nobody. Any other side keeps its allegiance
 /// rule: a Player-aligned ship hit by the player does not turn on it.
 ///
-/// A docked Neutral ship hit by a third ship records it and stays docked; its
-/// fire waits for the undock. Hit by the player, armed or not, it lets go of
-/// the dock at once, which ends the trade: the inventory pair is read from
-/// the dock every frame, and a transfer applies whole or not at all.
+/// A docked Neutral ship provoked by a third ship records it and stays
+/// docked; its fire waits for the undock. Provoked by the player, armed or
+/// not, it lets go of the dock at once, which ends the trade: the inventory
+/// pair is read from the dock every frame, and a transfer applies whole or
+/// not at all.
 #[expect(
     clippy::too_many_arguments,
     reason = "one hit resolved to its shooter, its relation and the dock it ends"
@@ -211,10 +289,12 @@ fn resolve_damage_attacker(
 pub(super) fn on_damage_track_threat(
     damage: On<HealthApplyDamage>,
     mut commands: Commands,
+    time: Res<Time<Virtual>>,
     mut q_ship: Query<
         (
             &Allegiance,
             &mut AIThreat,
+            &mut AIProvocation,
             Has<AINonCombatant>,
             Has<DockedShip>,
         ),
@@ -233,7 +313,9 @@ pub(super) fn on_damage_track_threat(
         return;
     }
     let ship = damage.entity;
-    let Ok((own_allegiance, mut threat, non_combatant, docked)) = q_ship.get_mut(ship) else {
+    let Ok((own_allegiance, mut threat, mut provocation, non_combatant, docked)) =
+        q_ship.get_mut(ship)
+    else {
         return;
     };
     let Some(source) = damage.source else {
@@ -242,15 +324,19 @@ pub(super) fn on_damage_track_threat(
     let (attacker, attacker_allegiance) =
         resolve_damage_attacker(source, &q_owner, &q_allegiance, &q_parent, &q_ship_root);
     let shooter = attacker.filter(|attacker| *attacker != ship && q_ship_root.contains(*attacker));
-    if *own_allegiance == Allegiance::Neutral {
+    let provoked = (*own_allegiance == Allegiance::Neutral)
+        .then_some(shooter)
+        .flatten()
+        .filter(|&shooter| provocation.provoke(shooter, damage.amount, time.elapsed_secs()));
+    if let Some(shooter) = provoked {
         if !non_combatant {
-            if let (Some(shooter), Ok(mut answering)) = (shooter, q_retaliation.get_mut(ship)) {
+            if let Ok(mut answering) = q_retaliation.get_mut(ship) {
                 if answering.0 != Some(shooter) {
                     answering.0 = Some(shooter);
                 }
             }
         }
-        if docked && shooter.is_some_and(|shooter| q_player.contains(shooter)) {
+        if docked && q_player.contains(shooter) {
             commands.trigger(DockingReleaseRequest { entity: ship });
         }
     }
@@ -329,6 +415,7 @@ mod threat_tests {
 
     fn threat_world() -> (World, Entity) {
         let mut world = crate::input::ai::ai_test_world();
+        world.init_resource::<Time<Virtual>>();
         world.add_observer(on_damage_track_threat);
         let ship = world
             .spawn((AISpaceshipMarker, RigidBody::Dynamic, Transform::default()))
@@ -337,12 +424,19 @@ mod threat_tests {
     }
 
     fn hit(world: &mut World, ship: Entity, source: Entity) {
+        hit_for(world, ship, source, 10.0);
+    }
+
+    fn hit_for(world: &mut World, ship: Entity, source: Entity, amount: f32) {
         world.trigger(HealthApplyDamage {
             entity: ship,
             source: Some(source),
-            amount: 10.0,
+            amount,
         });
     }
+
+    /// One shipped PDC round's damage.
+    const PDC_ROUND: f32 = 4.0;
 
     fn recent_attacker(world: &World, ship: Entity) -> Option<Entity> {
         world
@@ -470,7 +564,7 @@ mod threat_tests {
         let raider = world.spawn((SpaceshipRootMarker, Allegiance::Enemy)).id();
 
         let bullet = shot(&mut world, player, Allegiance::Player);
-        hit(&mut world, ship, bullet);
+        hit_for(&mut world, ship, bullet, NEUTRAL_RETALIATION_THRESHOLD);
         assert_eq!(answering(&world, ship), Some(player));
         assert_eq!(
             recent_attacker(&world, ship),
@@ -479,7 +573,7 @@ mod threat_tests {
         );
 
         let round = shot(&mut world, raider, Allegiance::Enemy);
-        hit(&mut world, ship, round);
+        hit_for(&mut world, ship, round, NEUTRAL_RETALIATION_THRESHOLD);
         assert_eq!(
             answering(&world, ship),
             Some(raider),
@@ -509,7 +603,7 @@ mod threat_tests {
 
         for ship in [hauler, ally] {
             let bullet = shot(&mut world, player, Allegiance::Player);
-            hit(&mut world, ship, bullet);
+            hit_for(&mut world, ship, bullet, NEUTRAL_RETALIATION_THRESHOLD);
             assert_eq!(answering(&world, ship), None, "{ship:?} answers nobody");
             assert_eq!(
                 recent_attacker(&world, ship),
@@ -517,6 +611,71 @@ mod threat_tests {
                 "{ship:?} reads no hostile hit"
             );
         }
+    }
+
+    /// Sustained fire on a Neutral makes it answer: one short PDC burst
+    /// crosses the threshold, though no single round in it does.
+    #[test]
+    fn sustained_fire_on_a_neutral_makes_it_answer() {
+        let (mut world, ship) = threat_world();
+        world.entity_mut(ship).insert(Allegiance::Neutral);
+        let player = world
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
+            .id();
+
+        // A quarter second of one PDC at 100 rounds a second.
+        let burst = 25;
+        for _ in 0..burst {
+            let round = shot(&mut world, player, Allegiance::Player);
+            hit_for(&mut world, ship, round, PDC_ROUND);
+        }
+        assert_eq!(answering(&world, ship), Some(player));
+        assert_eq!(
+            recent_attacker(&world, ship),
+            Some(player),
+            "and the burst reads as hostile fire"
+        );
+    }
+
+    /// A single small hit leaves a Neutral calm: it neither answers nor reads
+    /// the hit as hostile fire to evade.
+    #[test]
+    fn a_single_hit_under_the_threshold_leaves_a_neutral_calm() {
+        let (mut world, ship) = threat_world();
+        world.entity_mut(ship).insert(Allegiance::Neutral);
+        let player = world
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
+            .id();
+
+        let round = shot(&mut world, player, Allegiance::Player);
+        hit_for(&mut world, ship, round, PDC_ROUND);
+        assert_eq!(answering(&world, ship), None);
+        assert_eq!(recent_attacker(&world, ship), None);
+    }
+
+    /// Each attacker's tally drains, so hits spread far apart never add up,
+    /// and one attacker's damage never counts toward another's.
+    #[test]
+    fn a_provocation_tally_drains_and_is_kept_per_attacker() {
+        let first = Entity::from_raw_u32(7).unwrap();
+        let second = Entity::from_raw_u32(8).unwrap();
+        let half = NEUTRAL_RETALIATION_THRESHOLD * 0.5;
+        let drained = NEUTRAL_RETALIATION_THRESHOLD / NEUTRAL_PROVOCATION_DRAIN;
+
+        let mut provocation = AIProvocation::default();
+        assert!(!provocation.provoke(first, half, 0.0));
+        assert!(
+            !provocation.provoke(second, half, 0.0),
+            "the second attacker starts its own tally"
+        );
+        assert!(
+            !provocation.provoke(first, half, drained),
+            "the first half drained away before the second landed"
+        );
+        assert!(
+            provocation.provoke(first, half, drained),
+            "two halves together reach the threshold"
+        );
     }
 
     #[derive(Resource, Default)]
@@ -547,7 +706,7 @@ mod threat_tests {
         let raider = world.spawn((SpaceshipRootMarker, Allegiance::Enemy)).id();
 
         let round = shot(&mut world, raider, Allegiance::Enemy);
-        hit(&mut world, hauler, round);
+        hit_for(&mut world, hauler, round, NEUTRAL_RETALIATION_THRESHOLD);
         world.flush();
         assert!(
             world.resource::<Released>().0.is_empty(),
@@ -556,7 +715,7 @@ mod threat_tests {
         assert_eq!(answering(&world, hauler), Some(raider), "and is recorded");
 
         let bullet = shot(&mut world, player, Allegiance::Player);
-        hit(&mut world, hauler, bullet);
+        hit_for(&mut world, hauler, bullet, NEUTRAL_RETALIATION_THRESHOLD);
         world.flush();
         assert_eq!(world.resource::<Released>().0, vec![hauler]);
         assert_eq!(answering(&world, hauler), Some(player));
@@ -945,6 +1104,114 @@ mod evade_tests {
         assert!(
             velocity.normalize().dot(Vec3::NEG_Z) < 0.5,
             "and it points well off the line of sight, got {velocity:?}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod contact_retaliation_tests {
+    // A collision against a Neutral AI hull, end to end: avian solves the
+    // contact, the integrity core prices it, and the threat observer decides
+    // whether the Neutral answers the ship that touched it.
+    use nova_events::prelude::MetersPerSecond;
+    use nova_gameplay::test_support::{settle, unfinished_integrity_physics_app};
+
+    use super::*;
+
+    /// A Neutral station-sized hull at the origin and a player hull a tenth
+    /// of a unit off its +Z face. Returns the app, the station root, its hull
+    /// collider and the player root.
+    fn contact_app() -> (App, Entity, Entity, Entity) {
+        let mut app = unfinished_integrity_physics_app();
+        app.finish();
+        app.add_observer(on_damage_track_threat);
+        let station = app
+            .world_mut()
+            .spawn((
+                AISpaceshipMarker,
+                Allegiance::Neutral,
+                RigidBody::Dynamic,
+                Transform::default(),
+            ))
+            .id();
+        let hull = app
+            .world_mut()
+            .spawn((
+                ChildOf(station),
+                Collider::cuboid(8.0, 8.0, 8.0),
+                ColliderDensity(1.0),
+                Health::new(130.0),
+            ))
+            .id();
+        let player = app
+            .world_mut()
+            .spawn((
+                PlayerSpaceshipMarker,
+                RigidBody::Dynamic,
+                Transform::from_xyz(0.0, 0.0, 4.0 + 1.0 + 0.1),
+            ))
+            .id();
+        app.world_mut().spawn((
+            ChildOf(player),
+            Collider::cuboid(2.0, 2.0, 4.0),
+            ColliderDensity(1.0),
+            Health::new(60.0),
+        ));
+        settle(&mut app);
+        (app, station, hull, player)
+    }
+
+    /// Fly the player at `velocity` (engine units per second) for two
+    /// seconds of fixed steps, long enough to touch and part.
+    fn fly(app: &mut App, player: Entity, velocity: Vec3) {
+        app.world_mut().get_mut::<LinearVelocity>(player).unwrap().0 = velocity;
+        for _ in 0..120 {
+            app.update();
+        }
+    }
+
+    fn lost(app: &App, hull: Entity) -> f32 {
+        let health = app.world().get::<Health>(hull).unwrap();
+        health.max - health.current
+    }
+
+    fn answering(app: &App, station: Entity) -> Option<Entity> {
+        app.world().get::<RetaliationTarget>(station).unwrap().0
+    }
+
+    /// A glancing scrape, sliding along the face at 30 m/s and closing on it
+    /// at 8 m/s, costs the Neutral nothing, so it does not answer.
+    #[test]
+    fn a_low_speed_scrape_costs_a_neutral_nothing_and_it_does_not_answer() {
+        let (mut app, station, hull, player) = contact_app();
+        fly(
+            &mut app,
+            player,
+            Vec3::new(
+                MetersPerSecond(30.0).to_engine(),
+                0.0,
+                -MetersPerSecond(8.0).to_engine(),
+            ),
+        );
+        assert_eq!(lost(&app, hull), 0.0, "the scrape cost hit points");
+        assert_eq!(answering(&app, station), None);
+    }
+
+    /// A hard ram, 50 m/s straight into the face, damages the Neutral, and
+    /// the damage provokes it like fire does.
+    #[test]
+    fn a_hard_ram_damages_a_neutral_and_it_answers_the_rammer() {
+        let (mut app, station, hull, player) = contact_app();
+        fly(
+            &mut app,
+            player,
+            Vec3::new(0.0, 0.0, -MetersPerSecond(50.0).to_engine()),
+        );
+        assert!(lost(&app, hull) > 0.0, "a hard ram cost nothing");
+        assert_eq!(
+            answering(&app, station),
+            Some(player),
+            "ram damage counts toward the threshold like fire"
         );
     }
 }
