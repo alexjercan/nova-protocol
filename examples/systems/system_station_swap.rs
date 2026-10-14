@@ -9,7 +9,7 @@
 //! `pdc_a`, takes damage on it and docks at the living station. A swap of
 //! `pdc_a` for a thruster is refused with its reason and changes nothing.
 //! Then the player selects `pdc_a` in the Ship pane and clicks Swap on the
-//! pierce PDC offer. The hold covers the recipe's panels and actuator; the
+//! pierce PDC row of the station catalogue. The hold covers the recipe's panels and actuator; the
 //! turret body and barrel are bought from the station at ask. Then the player
 //! undocks and the hull is frozen and thawed the way a retiring cell does it.
 //!
@@ -108,8 +108,7 @@ fn main() -> bevy::app::AppExit {
                 bevy::ecs::error::panic,
             ));
         }
-        // The fleet's 1920x1080: at a smaller window the section panel clips
-        // the swap list under a damaged section's repair form.
+        // The fleet's 1920x1080, the size the catalogue scroll is walked at.
         app.add_systems(
             Startup,
             nova_protocol::nova_debug::harness::force_capture_resolution,
@@ -571,8 +570,8 @@ mod walk {
         world.resource_mut::<SwapWatch>().station_before = Some(before);
     }
 
-    /// Ask the pane to swap `pdc_a` for a thruster, a part the list never
-    /// offers for a turret.
+    /// Ask the pane to swap `pdc_a` for a thruster, a part the catalogue
+    /// never offers to swap for a turret.
     fn ask_for_a_thruster(world: &mut World) {
         world.write_message(SectionSwapCommand {
             section: SWAPPED_PDC.to_string(),
@@ -637,6 +636,24 @@ mod walk {
             "outcome: a cross-family swap is refused",
             serde_json::json!({ "t": elapsed, "note": note }),
         );
+    }
+
+    /// The Ship pane's side panel, which scrolls under the wheel.
+    const SHIP_PANEL: &str = "ShipPanel";
+
+    /// Whether the pierce PDC's Swap button lies inside the Ship panel's box,
+    /// where a click lands on it.
+    fn offer_in_view(world: &World) -> bool {
+        let button = format!("ShipSwap-{PDC_PIERCE_TURRET_SECTION_ID}");
+        match (
+            ui_node_rect(world, &button),
+            ui_node_rect(world, SHIP_PANEL),
+        ) {
+            (Some(button), Some(panel)) => {
+                button.min.y >= panel.min.y && button.max.y <= panel.max.y
+            }
+            _ => false,
+        }
     }
 
     fn pdc_selected(world: &World) -> bool {
@@ -923,6 +940,22 @@ mod walk {
         .add()
         .step("station swap: let the viewer key up")
         .on_enter(release_action("viewer_next"))
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        // The catalogue stands under the repair form and the lost list, and
+        // its pierce PDC row can sit past the bottom of a 1080p panel: the
+        // wheel over the panel scrolls it into view.
+        .step("station swap: scroll the catalogue to the offer")
+        .each(|world, _, frame| {
+            keep_hovering_named(SHIP_PANEL)(world);
+            if frame % 2 == 1 && !offer_in_view(world) {
+                scroll_lines(-1.0)(world);
+            }
+        })
+        .until(when(offer_in_view))
+        .deadline(SESSION_SECS)
+        .add()
+        .step("station swap: settle the scroll")
         .until(frames(SETTLE_FRAMES))
         .add()
         .step("station swap: shoot the offer")

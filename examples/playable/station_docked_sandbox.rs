@@ -21,7 +21,8 @@
 //!
 //! What to try:
 //!
-//! 1. the Ship tab: rebuild, swap and add sections, and strip one;
+//! 1. the Ship tab: rebuild and swap sections, place a catalogue part with
+//!    the ghost, and strip one;
 //! 2. the Station tab: buy a hull, hire an escort, buy the station;
 //! 3. switch tabs after a change, and check the schematic, the plating and
 //!    the greebles follow it.
@@ -32,11 +33,12 @@
 //!
 //! It runs without `--features debug` too, at the cost of a second build of
 //! the engine. Under `NOVA_AUTOPILOT=1` (debug only) a smoke walk waits for
-//! the docked Ship tab, clicks the first Add button, and switches tabs after
-//! it: a Map tab click, an Inventory tab click and the next-tab key, which
-//! steps on to the Station tab while docked. `NOVA_CAPTURE=1` shoots
-//! `sandbox-ship.png`, `sandbox-placed.png`, `sandbox-map-after.png` and
-//! `sandbox-station.png`. Unset, no walk and no deadline run.
+//! the docked Ship tab, takes the kinetic PDC from the station catalogue,
+//! points at free sockets until the ghost stands valid, clicks the view, and
+//! switches tabs after it: a Map tab click, an Inventory tab click and the
+//! next-tab key, which steps on to the Station tab while docked.
+//! `NOVA_CAPTURE=1` shoots `sandbox-ship.png`, `sandbox-ghost.png`,
+//! `sandbox-placed.png`, `sandbox-map-after.png` and `sandbox-station.png`. Unset, no walk and no deadline run.
 
 use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
 use bevy::prelude::*;
@@ -449,8 +451,9 @@ fn open_the_ship_tab(world: &mut World) {
 mod smoke {
     use std::sync::Arc;
 
-    use nova_protocol::nova_debug::harness::{
-        press_action, release_action, shoot, AutopilotPlugin, Predicate,
+    use nova_protocol::{
+        nova_debug::harness::{press_action, release_action, shoot, AutopilotPlugin, Predicate},
+        nova_interface::ship::{ship_ghost_aim, ship_view_window_px, ShipRuntime},
     };
 
     use super::*;
@@ -465,6 +468,14 @@ mod smoke {
     const WALK_CLOCK_SECS: f32 = 1.0;
     /// The PNG of the docked Ship tab.
     const SHIP_SHOT: &str = "sandbox-ship.png";
+    /// The PNG of the valid ghost before the click.
+    const GHOST_SHOT: &str = "sandbox-ghost.png";
+    /// Frames the pointer rests on one free socket before the walk tries the
+    /// next one.
+    const AIM_FRAMES: u32 = 6;
+    /// How far the aim sits from a socket toward its section's centre, as a
+    /// share of the way.
+    const AIM_INSET: f32 = 0.15;
     /// The PNG of the Ship tab after the add.
     const PLACED_SHOT: &str = "sandbox-placed.png";
     /// The PNG of the Map tab a click opens after the add.
@@ -476,23 +487,89 @@ mod smoke {
     /// The Ship pane's side panel, which scrolls under the wheel.
     const SHIP_PANEL: &str = "ShipPanel";
 
-    /// The Add button the walk clicks, and the player's section count before.
+    /// The Place button the walk clicks, the player's section count before,
+    /// the ship-local points it aims the ghost through, and the one it is on
+    /// (`usize::MAX` before the first).
     #[derive(Resource, Clone, Debug)]
     struct SmokeAdd {
         button: String,
         sections: usize,
+        aims: Vec<Vec3>,
+        aiming: usize,
     }
 
-    /// The first Add button of the add list, in name order.
-    fn first_add_button(world: &mut World) -> Option<String> {
-        let mut names: Vec<String> = world
-            .query::<&Name>()
+    /// The kinetic PDC's Place button, which every refit catalogue the
+    /// fixture's hold stocks lists.
+    fn place_button() -> String {
+        format!("ShipPlace-{PDC_KINETIC_TURRET_SECTION_ID}")
+    }
+
+    /// A point beside each free socket of each live design section, in
+    /// design order, where the pointer aims the ghost at that socket.
+    fn free_socket_aims(world: &mut World) -> Vec<Vec3> {
+        let Some((design, children)) = world
+            .query_filtered::<(&ShipDesignSections, &Children), With<PlayerSpaceshipMarker>>()
             .iter(world)
-            .map(|name| name.as_str().to_string())
-            .filter(|name| name.starts_with("ShipAdd-"))
+            .next()
+        else {
+            return Vec::new();
+        };
+        let live: Vec<&str> = children
+            .iter()
+            .filter_map(|child| world.get::<EntityId>(child))
+            .map(|id| id.0.as_str())
             .collect();
-        names.sort();
-        names.into_iter().next()
+        let placed: Vec<RefitPlacedSection<'_>> = design
+            .0
+            .iter()
+            .map(|section| RefitPlacedSection {
+                position: section.position,
+                rotation: section.rotation,
+                config: &section.config,
+            })
+            .collect();
+        design
+            .0
+            .iter()
+            .enumerate()
+            .filter(|(_, section)| live.contains(&section.id.as_str()))
+            .flat_map(|(index, section)| {
+                free_link_points(&placed, index)
+                    .into_iter()
+                    .map(move |point| {
+                        let (socket, _) = link_point_pose(
+                            section.position,
+                            section.rotation,
+                            &section.config.base.link_points[point],
+                        );
+                        socket.lerp(section.position, AIM_INSET)
+                    })
+            })
+            .collect()
+    }
+
+    /// Point at the free sockets in turn, `AIM_FRAMES` frames each, until the
+    /// ghost stands valid at one.
+    fn aim_the_ghost(world: &mut World, _elapsed: f32, frame: u32) {
+        if ghost_is_valid(world) || frame % AIM_FRAMES != 0 {
+            return;
+        }
+        let Some(add) = world.get_resource::<SmokeAdd>().cloned() else {
+            return;
+        };
+        let aiming = add.aiming.wrapping_add(1);
+        let Some(&aim) = add.aims.get(aiming) else {
+            return;
+        };
+        let Some(pixel) = ship_view_window_px(world, aim) else {
+            return;
+        };
+        move_cursor(pixel)(world);
+        world.resource_mut::<SmokeAdd>().aiming = aiming;
+    }
+
+    fn ghost_is_valid(world: &World) -> bool {
+        ship_ghost_aim(world).is_some_and(|(_, _, valid)| valid)
     }
 
     /// How many live sections the player ship has.
@@ -597,19 +674,25 @@ mod smoke {
             .until(shot_written(SHIP_SHOT))
             .deadline(SHOT_SECS)
             .add()
-            .step("station sandbox: find an Add button")
+            .step("station sandbox: find the Place button")
             .each(|world, _, _| {
-                if world.get_resource::<SmokeAdd>().is_none() {
-                    if let Some(button) = first_add_button(world) {
-                        let sections = player_sections(world);
-                        world.insert_resource(SmokeAdd { button, sections });
-                    }
+                if world.get_resource::<SmokeAdd>().is_none()
+                    && ui_node_rect(world, &place_button()).is_some()
+                {
+                    let sections = player_sections(world);
+                    let aims = free_socket_aims(world);
+                    world.insert_resource(SmokeAdd {
+                        button: place_button(),
+                        sections,
+                        aims,
+                        aiming: usize::MAX,
+                    });
                 }
             })
             .until(Arc::new(|world: &World| smoke_button(world).is_some()))
             .deadline(BEAT_SECS)
             .add()
-            .step("station sandbox: scroll the Add button into view")
+            .step("station sandbox: scroll the Place button into view")
             .each(|world, _, frame| {
                 keep_hovering_named(SHIP_PANEL)(world);
                 if frame % 2 == 1 && !button_in_view(world) {
@@ -619,7 +702,7 @@ mod smoke {
             .until(Arc::new(button_in_view))
             .deadline(BEAT_SECS)
             .add()
-            .step("station sandbox: aim at the Add button")
+            .step("station sandbox: aim at the Place button")
             .each(|world, _, _| {
                 if let Some(button) = smoke_button(world) {
                     keep_hovering_named(button)(world);
@@ -630,12 +713,44 @@ mod smoke {
             }))
             .deadline(BEAT_SECS)
             .add()
-            .step("station sandbox: press the Add button")
+            .step("station sandbox: press the Place button")
             .on_enter(press_mouse(MouseButton::Left))
             .until(pointer_pressed())
             .deadline(BEAT_SECS)
             .add()
-            .step("station sandbox: release the Add button")
+            .step("station sandbox: release the Place button")
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(Arc::new(|world: &World| {
+                world.resource::<ShipRuntime>().held() == Some(PDC_KINETIC_TURRET_SECTION_ID)
+            }))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: aim the ghost at a free socket")
+            .each(aim_the_ghost)
+            .until(Arc::new(ghost_is_valid))
+            .diagnose(|world| {
+                format!(
+                    "{:?}, aim {:?}",
+                    world.get_resource::<SmokeAdd>(),
+                    ship_ghost_aim(world)
+                )
+            })
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: settle the ghost")
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station sandbox: shoot the ghost")
+            .on_enter(|world: &mut World| shoot(world, GHOST_SHOT))
+            .until(shot_written(GHOST_SHOT))
+            .deadline(SHOT_SECS)
+            .add()
+            .step("station sandbox: press on the ghost")
+            .on_enter(press_mouse(MouseButton::Left))
+            .until(pointer_pressed())
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: release on the ghost")
             .on_enter(release_mouse(MouseButton::Left))
             .until(Arc::new(|world: &World| {
                 world

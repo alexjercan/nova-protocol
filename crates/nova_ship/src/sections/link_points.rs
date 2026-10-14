@@ -11,9 +11,9 @@ use bevy::prelude::*;
 pub mod prelude {
     pub use super::{
         box_link_points, candidate_link_point_mates, cardinal_axis, derive_link_point_graph,
-        link_point_up, natural_link_point, snap_placement, unit_cube_link_points, LinkPoint,
-        LinkPointGraphError, LinkPointMate, LinkPointRef, LinkPointSkinType,
-        PlacedSectionLinkPoints, SectionLinkPoints, LINK_POINT_NORMAL_MIN_DOT,
+        link_point_pose, link_point_up, natural_link_point, nearest_link_point, snap_placement,
+        unit_cube_link_points, LinkPoint, LinkPointGraphError, LinkPointMate, LinkPointRef,
+        LinkPointSkinType, PlacedSectionLinkPoints, SectionLinkPoints, LINK_POINT_NORMAL_MIN_DOT,
         LINK_POINT_POSITION_EPSILON,
     };
 }
@@ -481,6 +481,39 @@ pub fn snap_placement(
     let roll = Quat::from_axis_angle(facing, quarter_turns as f32 * std::f32::consts::FRAC_PI_2);
     let rotation = (roll * align).normalize();
     (target_position - rotation * source.position, rotation)
+}
+
+/// Where `point`, a socket of a section posed at `position` and `rotation`,
+/// sits and the way it faces, in the space that pose is given in.
+pub fn link_point_pose(position: Vec3, rotation: Quat, point: &LinkPoint) -> (Vec3, Vec3) {
+    let turn = rotation.normalize();
+    (
+        position + turn * point.position,
+        (turn * point.normal).normalize_or(Vec3::Z),
+    )
+}
+
+/// The socket among `candidates`, indices into `link_points` of a section
+/// posed at `position` and `rotation`, that sits nearest `hit` in the space
+/// that pose is given in. `None` when there is no candidate.
+///
+/// The editor offers every socket of the section under the pointer; a station
+/// add offers only the free ones.
+pub fn nearest_link_point(
+    position: Vec3,
+    rotation: Quat,
+    link_points: &[LinkPoint],
+    candidates: impl IntoIterator<Item = usize>,
+    hit: Vec3,
+) -> Option<usize> {
+    candidates.into_iter().min_by(|&a, &b| {
+        let distance = |index: usize| {
+            link_point_pose(position, rotation, &link_points[index])
+                .0
+                .distance_squared(hit)
+        };
+        distance(a).total_cmp(&distance(b))
+    })
 }
 
 /// The socket a part would naturally mate with on a face pointing

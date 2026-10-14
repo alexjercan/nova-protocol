@@ -186,10 +186,15 @@ pub struct ShipRuntime {
     /// The design section id a swap replaced or an add made, selected once
     /// its new entity is live.
     pub(crate) reselect: Option<String>,
-    /// The section and socket id the add list mounts at, chosen by a point
-    /// button; ignored once the selection or the free sockets change, and
-    /// the first free socket is used instead.
-    pub(crate) add_point: Option<(Entity, String)>,
+    /// The catalogue part in hand, which the placement ghost shows and a
+    /// click on the view adds. Set by a catalogue row's Place button.
+    pub(crate) held: Option<String>,
+    /// The pointer over the view, in logical window pixels, while it is
+    /// there; the ghost is solved under it.
+    pub(crate) pointer: Option<Vec2>,
+    /// The ghost's outline for a valid and for a refused placement.
+    pub(crate) mat_ghost_go: Option<Handle<StandardMaterial>>,
+    pub(crate) mat_ghost_no: Option<Handle<StandardMaterial>>,
 }
 
 impl ShipRuntime {
@@ -203,6 +208,11 @@ impl ShipRuntime {
     /// The selected section, if any.
     pub fn selected(&self) -> Option<Entity> {
         self.selected
+    }
+
+    /// The catalogue part in hand, which a click on the view adds.
+    pub fn held(&self) -> Option<&str> {
+        self.held.as_deref()
     }
 
     /// The transient note the panel shows, such as why an action was
@@ -270,6 +280,8 @@ pub(crate) fn manage_ship_scene(
         runtime.rebinding = None;
         runtime.rebind_awaiting_release = false;
         runtime.show_mates = false;
+        runtime.held = None;
+        runtime.pointer = None;
         return;
     }
 
@@ -295,6 +307,8 @@ pub(crate) fn manage_ship_scene(
     runtime.mat_mates = Some(materials.add(unlit(theme.color(UiColor::Accent))));
     runtime.mat_outline = Some(materials.add(unlit(theme.color_alpha(UiColor::Primary, 0.95))));
     runtime.mat_outline_selected = Some(materials.add(unlit(theme.color(UiColor::Accent))));
+    runtime.mat_ghost_go = Some(materials.add(unlit(theme.color(UiColor::Nominal))));
+    runtime.mat_ghost_no = Some(materials.add(unlit(theme.color(UiColor::Danger))));
 
     let scene_root = commands
         .spawn((
@@ -991,6 +1005,11 @@ pub(crate) fn on_ship_blip_click(
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
 ) {
+    // With a part in hand the click places it (`super::ghost`), so a badge
+    // under the pointer must not also move the selection.
+    if runtime.held.is_some() {
+        return;
+    }
     if let Ok(blip) = q_blip.get(activate.entity) {
         if runtime.selected != Some(blip.section) {
             runtime.selected = Some(blip.section);

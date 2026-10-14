@@ -432,7 +432,7 @@ pub(crate) fn apply_station_hull_buy_commands(
     ship.selected = None;
     ship.rebinding = None;
     ship.repair_target = None;
-    ship.add_point = None;
+    ship.held = None;
     ship.reselect = None;
     runtime.say(format!(
         "bought {} for {} cr, {} cr for the old hull",

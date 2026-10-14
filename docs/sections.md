@@ -59,13 +59,13 @@ full health through the same per-section spawn the ship was built with.
 
 ### Swapping a section
 
-While docked to a station that offers `Refit`, the Ship pane
-(`nova_interface/src/ship/refit.rs`) lists the parts the selected live
-section can be swapped for: `swap_offers` (`design_sections.rs`) yields each
-catalogue part that `section_swap_family` accepts. The family rule is the
-same `SectionKind::class` and the same `SectionFootprint` read from the
-authored collider, and another prototype. Parts with `hide_in_editor` are not
-offered. `plan_section_swap` checks the gate, the family and the payment;
+While docked to a station that offers `Refit`, the Ship pane's station
+catalogue (`nova_interface/src/ship/catalogue.rs`) lists each part the
+selected live section can be swapped for: a catalogue row gets a Swap line
+and button when `section_swap_family` accepts the part. The family rule is
+the same `SectionKind::class` and the same `SectionFootprint` read from the
+authored collider, and another prototype. `plan_section_swap` checks the
+gate, the family and the payment;
 `plan_recipe_payment` (`nova_gameplay::inventory`) is the one payment rule a
 rebuild and a swap share. On a click, `swap_build_fault` runs the generator's
 post-build checks on the ship the swap leaves: one socket graph, clear exit
@@ -82,32 +82,45 @@ and a save keep the inline design, so the swap persists.
 
 ### Adding a section
 
-Under the swap list, the same pane lists the selected live section's free
-sockets: `free_link_points` (`section_add.rs`) is every socket no design
-section mates, live or lost, so a lost section's socket stays reserved for
-its rebuild. No content marks an attachment point; every hull, base,
-generated or modded, has them. The first free socket is chosen until a point
-button picks another. `section_add_fit` places a catalogue part with its
-`natural_link_point` (the socket facing most nearly opposite, the editor's
-default) at roll 0 through `snap_placement`, and refuses an occupied point,
-a part with no socket, a collider overlap with a design section it does not
-mate (`section_colliders_overlap`), and a post-build fault the add makes
-(`add_build_fault`: the swap's checks through `refit_build_fault`, with
-`placement_blocks_an_exit` for the lanes). The list shows only parts that
-fit. `plan_section_add` checks the gate, the fit, the binding and the
-payment (`plan_recipe_payment`, the full recipe). The new section's binding
-is `added_section_binds`: the first live bound section of its class by id
-lends its binding; with none, a weapon takes an empty binding for Rebind, a
-thruster none (the flight computer drives it), and a mining emitter the first
-of `ADDED_MINING_KEYS` no emitter holds, refused when all are held. Its id is
+The catalogue lists each part that is not `hide_in_editor` and whose recipe
+the player's hold and the station's stock together carry
+(`plan_recipe_payment` finds no missing part). Credits do not filter: a part
+the ship cannot pay for shows the credit refusal. Place puts a part in hand
+(`ShipRuntime::held`); Put down or a second Place drops it. While a part is in
+hand, the placement ghost (`nova_interface/src/ship/ghost.rs`) casts the
+pointer's ray into the Ship view, takes the nearest block it enters
+(`pick_ship_block`), and snaps to the free socket of that section nearest the
+hit (`nearest_link_point` over `free_link_points`). `free_link_points`
+(`section_add.rs`) is every socket no design section mates, live or lost, so a
+lost section's socket stays reserved for its rebuild. No content marks an
+attachment point; every hull, base, generated or modded, has them.
+`section_add_pose` places the part with its `natural_link_point` (the socket
+facing most nearly opposite, the editor's default) at roll 0 through
+`snap_placement`, using `link_point_pose`, the socket frame the editor's
+`snap.rs` solver also reads. It refuses an occupied point and a part with no
+socket. `section_add_fit` adds the refusals for a collider overlap with a
+design section it does not mate (`section_colliders_overlap`), and a
+post-build fault the add makes (`add_build_fault`: the swap's checks through
+`refit_build_fault`, with `placement_blocks_an_exit` for the lanes). The ghost
+block shows at the pose with a Nominal outline for a valid add and a Danger
+outline for a refusal, and its callout beside the pointer shows the price or
+the refusal. A click with a valid ghost raises `SectionAddCommand`; a click
+with a refused ghost puts the refusal on the note line. The part stays in hand
+for the next add. With no part in hand, a click on a block selects its
+section. `plan_section_add` checks the gate, the fit, the binding and the
+payment (`plan_recipe_payment`, the full recipe). The new section's binding is
+`added_section_binds`: the first live bound section of its class by id lends
+its binding; with none, a weapon takes an empty binding for Rebind, a thruster
+none (the flight computer drives it), and a mining emitter the first of
+`ADDED_MINING_KEYS` no emitter holds, refused when all are held. Its id is
 `added_section_id`: the greatest id of its class plus `+`, so it sorts last
 and takes the next code without moving another. A confirmed add moves parts
 and credits (cause `Add`), pushes `ShipInventoryReport::Added` (`OnAdded`),
 and triggers `SectionAddRequest`; `add_design_section`
 (`nova_scenario/src/objects/spaceship.rs`) makes the design inline with the
-section appended, writes the binding into the player's `input_mapping`,
-grows the root's pinned health by the part's pool, and spawns the section at
-full health. The Ship side panel scrolls under the wheel while hovered
+section appended, writes the binding into the player's `input_mapping`, grows
+the root's pinned health by the part's pool, and spawns the section at full
+health. The Ship side panel scrolls under the wheel while hovered
 (`scroll_ship_panel`), and the camera zoom yields to it.
 
 ### Stripping a docked wreck
@@ -1594,18 +1607,21 @@ per contact. A symmetric rule - ram damage - wants both.
   `crates/nova_gameplay/src/inventory.rs`; the pane:
   `crates/nova_interface/src/ship/rebuild.rs`; proof:
   `examples/systems/system_station_rebuild.rs`.
-- Section swap: `section_swap_family`, `swap_offers`, `plan_section_swap`,
+- Section swap: `section_swap_family`, `plan_section_swap`,
   `swap_build_fault`, `SectionSwapRequest` -
   `crates/nova_ship/src/sections/design_sections.rs`; `ShipMeasure` -
   `crates/nova_ship/src/sections/ship_measure.rs`; `swap_design_section` -
   `crates/nova_scenario/src/objects/spaceship.rs`; the pane:
-  `crates/nova_interface/src/ship/refit.rs`; proof:
+  `crates/nova_interface/src/ship/catalogue.rs` and `refit.rs`; proof:
   `examples/systems/system_station_swap.rs`.
-- Section add: `free_link_points`, `section_add_fit`, `add_build_fault`,
-  `added_section_binds`, `added_section_id`, `plan_section_add`,
-  `SectionAddRequest` - `crates/nova_ship/src/sections/section_add.rs`;
+- Section add: `free_link_points`, `section_add_pose`, `section_add_fit`,
+  `add_build_fault`, `added_section_binds`, `added_section_id`,
+  `plan_section_add`, `SectionAddRequest` -
+  `crates/nova_ship/src/sections/section_add.rs`; `link_point_pose`,
+  `nearest_link_point` - `crates/nova_ship/src/sections/link_points.rs`;
   `add_design_section` - `crates/nova_scenario/src/objects/spaceship.rs`; the
-  pane: `crates/nova_interface/src/ship/refit.rs`; proof:
+  pane: `crates/nova_interface/src/ship/catalogue.rs`, `ghost.rs` and
+  `refit.rs`; proof:
   `examples/systems/system_station_add.rs`.
 - Hull buy: `HullOffers`, `hull_price_cr`, `hull_trade_in_cr`,
   `bought_hull_bindings`, `plan_hull_buy`, `bought_hull_pose`,

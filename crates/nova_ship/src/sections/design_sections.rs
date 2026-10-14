@@ -28,7 +28,7 @@ use super::prelude::*;
 pub mod prelude {
     pub use super::{
         plan_section_swap, rebuild_anchored, section_swap_family, ship_build_fault,
-        swap_build_fault, swap_offers, DesignSection, RefitBuildFaultType, RefitPlacedSection,
+        swap_build_fault, DesignSection, RefitBuildFaultType, RefitPlacedSection,
         SectionFamilyFaultType, SectionRebuildRequest, SectionSwapRefusalType, SectionSwapRequest,
         ShipDesignSections,
     };
@@ -179,20 +179,6 @@ pub fn section_swap_family(
         return Err(SectionFamilyFaultType::SamePart);
     }
     Ok(())
-}
-
-/// The catalog parts a station offers in place of `current`: every loaded
-/// prototype of its family ([`section_swap_family`]), in catalog order. A
-/// part hidden from the editor palette is a tile of a modelled craft, not a
-/// part a station sells, and is left out.
-pub fn swap_offers<'a>(
-    sections: &'a GameSections,
-    current: &SectionConfig,
-) -> impl Iterator<Item = &'a SectionConfig> {
-    let current = current.clone();
-    sections.iter().filter(move |offered| {
-        !offered.base.hide_in_editor && section_swap_family(&current, offered).is_ok()
-    })
 }
 
 /// Why a swap changes nothing, in check order.
@@ -560,12 +546,6 @@ mod tests {
             section_swap_family(&current, &current.clone()),
             Err(SectionFamilyFaultType::SamePart)
         );
-
-        let catalog = GameSections(vec![current.clone(), sibling.clone(), drive, long]);
-        let offered: Vec<&str> = swap_offers(&catalog, &current)
-            .map(|offer| offer.base.id.as_str())
-            .collect();
-        assert_eq!(offered, ["pdc_pierce"]);
     }
 
     /// A swap is refused only for a fault it adds: a gun with no socket would

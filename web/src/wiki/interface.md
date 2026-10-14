@@ -195,18 +195,19 @@ A reserved flight control is refused on the spot - `Space is already bound to fl
 
 ## Swapping a section
 
-<!-- List and action: crates/nova_interface/src/ship/refit.rs. Family rule
-     and build checks: crates/nova_ship/src/sections/design_sections.rs
+<!-- Catalogue: crates/nova_interface/src/ship/catalogue.rs. Action:
+     crates/nova_interface/src/ship/refit.rs. Family rule and build checks:
+     crates/nova_ship/src/sections/design_sections.rs
      (`section_swap_family`, `swap_build_fault`). -->
 
-Docked at a living station that offers refit, select a section on the Ship pane. Below the panel, **Swap** lists every part of the same kind and size that can take its place, each with its price: the part's build recipe, with parts taken from your hold first and the rest bought from the station. Click **Swap** to fit it. The new part stands where the old one stood, at full health, with the same code and key. The old part is gone; nothing is refunded. A swap that would split the ship, block a gun or drive, or leave it short of thrust or flight computers is refused on the note line, as is a part of another kind: `swap: PDC-1 is a turret, Basic Thruster Section is a thruster`. In a saved Open World the new part stays across a Load.
+Docked at a living station that offers refit, the Ship panel shows the **Station catalogue**: every part the station can build from its stock and your hold, each with its price. The price is the part's build recipe, with parts taken from your hold first and the rest bought from the station. Select a section, and each part of the same kind and size gets a **Swap** line with its price. Click **Swap** to fit it. The new part stands where the old one stood, at full health, with the same code and key. The old part is gone; nothing is refunded. A swap that would split the ship, block a gun or drive, or leave it short of thrust or flight computers is refused on the note line, as is a part of another kind: `swap: PDC-1 is a turret, Basic Thruster Section is a thruster`. In a saved Open World the new part stays across a Load.
 
 ## Adding a section
 
-<!-- List and action: crates/nova_interface/src/ship/refit.rs. Free points,
-     fit and binding: crates/nova_ship/src/sections/section_add.rs. -->
+<!-- Ghost and click: crates/nova_interface/src/ship/ghost.rs. Free points,
+     pose, fit and binding: crates/nova_ship/src/sections/section_add.rs. -->
 
-Docked at a living station that offers refit, select a section on the Ship pane. Under **Swap**, **Add** shows the section's free sockets as buttons, the first one chosen, and lists every part that fits at the chosen socket, each with its price. Click **Add** to fit it. The new part spawns at full health under the next code of its kind. A gun takes the key of your other guns of its kind, or none until you **Rebind** it; a drive is flown by the computer. A socket another section holds is refused: `add: HULL-2 positive_y is taken`. In a saved Open World the new part stays across a Load. The panel scrolls with the wheel while the pointer is over it.
+Click **Place** on a catalogue row to take that part in hand. Move the pointer over the ship: a ghost of the part snaps to the free point nearest the pointer on the section under it. A green outline and its price beside the pointer mean it fits; a red outline and the reason mean it does not, such as `add: that point on HULL-2 is taken` or `add: PDC Turret (Kinetic) on HULL-2 would overlap the hull`. Click to fit it. The new part spawns at full health under the next code of its kind. A gun takes the key of your other guns of its kind, or none until you **Rebind** it; a drive is flown by the computer. The part stays in hand for the next one; click **Put down** to drop it. With nothing in hand, a click on a section selects it. In a saved Open World the new part stays across a Load. The panel scrolls with the wheel while the pointer is over it.
 
 ## The station
 

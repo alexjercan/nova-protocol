@@ -30,8 +30,8 @@ use super::{design_sections::refit_build_fault, prelude::*};
 pub mod prelude {
     pub use super::{
         add_build_fault, added_section_binds, added_section_id, free_link_points, plan_section_add,
-        section_add_fit, SectionAddFaultType, SectionAddPlan, SectionAddRefusalType,
-        SectionAddRequest, ADDED_MINING_KEYS,
+        section_add_fit, section_add_pose, SectionAddFaultType, SectionAddPlan,
+        SectionAddRefusalType, SectionAddRequest, ADDED_MINING_KEYS,
     };
 }
 
@@ -159,13 +159,49 @@ pub enum SectionAddFaultType {
 }
 
 /// Where `offered` stands when added at socket `point` of design section
+/// `section`, as `(position, rotation)` in ship-root space, before the
+/// overlap and post-build checks of [`section_add_fit`]: the point must be
+/// free ([`free_link_points`]) and the part mates it with its
+/// [`natural_link_point`] at roll 0 ([`snap_placement`]).
+///
+/// The Ship pane's ghost stands here, so a refused add still shows where it
+/// would go.
+///
+/// # Panics
+///
+/// When `section` is not in `design` or `point` is not one of its sockets.
+pub fn section_add_pose(
+    design: &[RefitPlacedSection<'_>],
+    section: usize,
+    point: usize,
+    offered: &SectionConfig,
+) -> Result<(Vec3, Quat), SectionAddFaultType> {
+    if !free_link_points(design, section).contains(&point) {
+        return Err(SectionAddFaultType::Occupied);
+    }
+    let target = &design[section];
+    let (target_position, target_normal) = link_point_pose(
+        target.position,
+        target.rotation,
+        &target.config.base.link_points[point],
+    );
+    let source = natural_link_point(&offered.base.link_points, target_normal)
+        .ok_or(SectionAddFaultType::NoSockets)?;
+    Ok(snap_placement(
+        target_position,
+        target_normal,
+        &offered.base.link_points[source],
+        0,
+    ))
+}
+
+/// Where `offered` stands when added at socket `point` of design section
 /// `section`, as `(position, rotation)` in ship-root space, or why it does
 /// not fit.
 ///
 /// `design` is every section of the ship's design, live or lost; `live`
-/// holds the indices of the live ones. The point must be free
-/// ([`free_link_points`]). The part mates it with its [`natural_link_point`]
-/// at roll 0 ([`snap_placement`]). Its collider may overlap only a section it
+/// holds the indices of the live ones. The part stands at
+/// [`section_add_pose`]. Its collider may overlap only a section it
 /// mates ([`section_colliders_overlap`], the rule the ship lint and the
 /// editor share), checked against the whole design so a lost section can
 /// still be rebuilt. Then the generator's post-build checks run on the live
@@ -184,22 +220,7 @@ pub fn section_add_fit(
     point: usize,
     offered: &SectionConfig,
 ) -> Result<(Vec3, Quat), SectionAddFaultType> {
-    if !free_link_points(design, section).contains(&point) {
-        return Err(SectionAddFaultType::Occupied);
-    }
-    let target = &design[section];
-    let socket = &target.config.base.link_points[point];
-    let turn = target.rotation.normalize();
-    let target_position = target.position + turn * socket.position;
-    let target_normal = (turn * socket.normal).normalize_or(Vec3::Z);
-    let source = natural_link_point(&offered.base.link_points, target_normal)
-        .ok_or(SectionAddFaultType::NoSockets)?;
-    let (position, rotation) = snap_placement(
-        target_position,
-        target_normal,
-        &offered.base.link_points[source],
-        0,
-    );
+    let (position, rotation) = section_add_pose(design, section, point, offered)?;
     let added = RefitPlacedSection {
         position,
         rotation,

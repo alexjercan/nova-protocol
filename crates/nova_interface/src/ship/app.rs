@@ -22,10 +22,7 @@ use nova_ui::{
 };
 
 use super::{
-    rebuild::spawn_ship_rebuild_list,
-    refit::{spawn_ship_add_list, spawn_ship_swap_list},
-    scene::*,
-    sections::*,
+    catalogue::spawn_ship_catalogue, rebuild::spawn_ship_rebuild_list, scene::*, sections::*,
     strip::spawn_ship_strip_list,
 };
 use crate::{
@@ -67,8 +64,7 @@ pub(crate) fn scroll_ship_panel(
 /// observers.
 pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     parent
-        // Scrolls: the swap and add lists of a big part catalogue run past a
-        // 1080p panel.
+        // Scrolls: the station catalogue runs past a 1080p panel.
         .spawn((
             ShipPanelMarker,
             Name::new("ShipPanel"),
@@ -269,8 +265,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                 });
             spawn_ship_strip_list(panel);
             spawn_ship_rebuild_list(panel);
-            spawn_ship_swap_list(panel);
-            spawn_ship_add_list(panel);
+            spawn_ship_catalogue(panel);
             panel.spawn((ShipPanelField::Note, themed_label("", 12.0, UiColor::Label)));
         });
 }

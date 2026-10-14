@@ -95,7 +95,13 @@ pub(crate) fn solve(
     roll: u32,
 ) -> Placement {
     let target_section = &ship[hovered];
-    let Some((target, target_position, target_normal)) = nearest_socket(target_section, hit) else {
+    let Some(target) = nearest_link_point(
+        target_section.position,
+        target_section.rotation,
+        &target_section.link_points,
+        0..target_section.link_points.len(),
+        hit,
+    ) else {
         return Placement {
             transform: Transform::from_translation(hit),
             source: 0,
@@ -103,6 +109,11 @@ pub(crate) fn solve(
             refusal: Some(Refusal::NoTargetSockets),
         };
     };
+    let (target_position, target_normal) = link_point_pose(
+        target_section.position,
+        target_section.rotation,
+        &target_section.link_points[target],
+    );
     if part_link_points.is_empty() {
         return Placement {
             transform: Transform::from_translation(target_position),
@@ -141,27 +152,6 @@ pub(crate) fn solve(
             transform,
         ),
     }
-}
-
-/// The socket of `section` nearest `hit`, with its ship-root position and
-/// outward normal.
-fn nearest_socket(section: &PlacedSection, hit: Vec3) -> Option<(usize, Vec3, Vec3)> {
-    section
-        .link_points
-        .iter()
-        .enumerate()
-        .map(|(index, point)| {
-            (
-                index,
-                section.position + section.rotation * point.position,
-                (section.rotation * point.normal).normalize_or(Vec3::Z),
-            )
-        })
-        .min_by(|(_, a, _), (_, b, _)| {
-            a.distance_squared(hit)
-                .partial_cmp(&b.distance_squared(hit))
-                .unwrap_or(std::cmp::Ordering::Equal)
-        })
 }
 
 /// Why this pose cannot be committed, if it cannot.

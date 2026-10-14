@@ -62,9 +62,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Docked at a station with `Refit`, the Ship pane swaps a section for a part
   of the same kind and size, paid by recipe, keeping its code and key, and
   fires `OnSwapped`.
-- At a `Refit` station the Ship pane adds a part at any free socket of a live
-  section, paid by recipe; it takes its kind's key and fires `OnAdded`. The
-  panel now scrolls.
+- At a `Refit` station the Ship pane lists the parts it builds, with prices.
+  Place one, aim its ghost at a free socket and click to add it, paid by
+  recipe; it takes its kind's key and fires `OnAdded`.
 - A generated `Refit` station sells three to five hulls on the Station pane. A
   buy trades in the old hull by health, stores the hold, docks the new hull
   and fires `OnShipBought`.

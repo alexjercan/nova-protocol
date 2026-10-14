@@ -5,11 +5,12 @@
 //! A free attachment point is a socket no section of the design mates; no
 //! content marks it. Two rounds share one run. In the first, the player flies
 //! the base `mining_tug` (unarmed) and docks at a living waystation. The
-//! walk picks the first live section, in design order, with a free socket a
-//! kinetic PDC fits at, by the pane's own rule. An add at one of that
-//! section's mated sockets is refused with its reason and changes nothing.
-//! Then the player selects the section in the Ship pane, clicks the point and
-//! clicks Add on the kinetic PDC. In the second round the scenario is swapped
+//! walk lists every free socket of a live section, in design order, that a
+//! kinetic PDC fits at, by the pane's own rule. An add at a mated socket of
+//! the first one's section is refused with its reason and changes nothing.
+//! Then the player clicks Place on the kinetic PDC in the Ship pane's station
+//! catalogue, points at the free sockets in turn until the ghost stands valid
+//! at one, and clicks the view. In the second round the scenario is swapped
 //! for one where the player flies a generated armored hull whose turrets are
 //! bound to the left mouse button, and the add goes through the pane's add
 //! command. Each round undocks, freezes and thaws the hull the way a retiring
@@ -21,8 +22,8 @@
 //!
 //! | # | marker | claim |
 //! | - | - | - |
-//! | 1 | `outcome: an add at an occupied point is refused` | the note names the taken point; the design, the live sections, the holds and the balances are as they were |
-//! | 2 | `outcome: a section is added to a base hull` | the PDC is live at full health at the pose the chosen point gives, under the next PDC code, with an empty binding Rebind sets; the generator's post-build checks pass on the live ship; the design is inline and names it; the parts and the price moved; `OnAdded` fired once |
+//! | 1 | `outcome: an add at an occupied point is refused` | the note names the section of the taken point; the design, the live sections, the holds and the balances are as they were |
+//! | 2 | `outcome: a section is added to a base hull` | the ghost callout gave the price; the PDC is live at full health at the pose the aimed point gives, under the next PDC code, with an empty binding Rebind sets; the generator's post-build checks pass on the live ship; the design is inline and names it; the parts and the price moved; `OnAdded` fired once |
 //! | 3 | `outcome: a base hull's added section survives a freeze and thaw` | the thawed hull has the PDC whole, with its binding |
 //! | 4 | `outcome: a section is added to a generated hull` | as claim 2 on the generated hull, and the PDC flies on the left mouse button its sibling turrets carry |
 //! | 5 | `outcome: a generated hull's added section survives a freeze and thaw` | the thawed hull has the PDC whole, on the left mouse button |
@@ -35,8 +36,8 @@
 //! #           `station add probe: added to the generated hull`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
-//! Add `NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=<dir>` to shoot the add list as
-//! `station-add-offer.png`.
+//! Add `NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=<dir>` to shoot the catalogue as
+//! `station-add-offer.png` and the ghost as `station-add-ghost.png`.
 
 use bevy::prelude::*;
 use clap::Parser;
@@ -47,7 +48,7 @@ use nova_world::prelude::{CivilizationId, ShipRoleType};
 #[derive(Parser)]
 #[command(name = "system_station_add")]
 #[command(version = "1.0.0")]
-#[command(about = "A PDC is added at a free socket of a base hull from the Ship pane and of a generated hull, an add at a taken socket is refused, and each add survives a freeze and thaw. Autopilot-only correctness range", long_about = None)]
+#[command(about = "A PDC is placed at a free socket of a base hull with the Ship pane's ghost and of a generated hull, an add at a taken socket is refused, and each add survives a freeze and thaw. Autopilot-only correctness range", long_about = None)]
 struct Cli;
 
 /// The waystation's park, down -Z from the player.
@@ -260,7 +261,10 @@ mod walk {
         nova_events::engine::GameEvent,
         nova_interface::{
             pane::InterfacePaneType,
-            ship::{SectionAddCommand, SectionCode, ShipRuntime},
+            ship::{
+                ship_ghost_aim, ship_view_window_px, SectionAddCommand, SectionCode, ShipRuntime,
+                SHIP_GHOST_CALLOUT,
+            },
         },
     };
     use nova_world::prelude::{
@@ -277,6 +281,18 @@ mod walk {
     const TAB_SWITCH_SECS: f32 = 30.0;
     /// The PNG of the Ship pane right after the add.
     const PLACED_SHOT: &str = "station-add-placed.png";
+    /// The PNG of the ghost standing valid at the aimed point.
+    const GHOST_SHOT: &str = "station-add-ghost.png";
+    /// Frames the pointer rests on one free socket before the walk tries the
+    /// next one.
+    const AIM_FRAMES: u32 = 6;
+    /// How far the aim sits from the socket toward its section's centre, as
+    /// a share of the way: on the section's face, beside the socket.
+    const AIM_INSET: f32 = 0.15;
+    /// The catalogue row button that puts the kinetic PDC in hand.
+    fn place_button() -> String {
+        format!("ShipPlace-{PDC_KINETIC_TURRET_SECTION_ID}")
+    }
     /// The PNG of the Map pane the tab click opens after the add.
     const MAP_AFTER_SHOT: &str = "station-add-map-after.png";
 
@@ -322,6 +338,9 @@ mod walk {
         /// The pose the free socket gives the PDC.
         position: Vec3,
         rotation: Quat,
+        /// Where the walk points to aim the ghost at the free socket, in
+        /// ship-local space.
+        aim: Vec3,
         /// The id and pane code the new section takes.
         id: String,
         new_code: String,
@@ -332,8 +351,12 @@ mod walk {
     struct AddWatch {
         /// Every add and balance event, by name, with its payload.
         events: Vec<(String, serde_json::Value)>,
-        /// The round's point.
+        /// The round's point: the free socket the ghost was aimed at.
         target: Option<Target>,
+        /// Every free socket the PDC fits at, in design order, and the one
+        /// the pointer is on (`usize::MAX` before the first).
+        candidates: Vec<Target>,
+        aiming: usize,
         /// The design and live section counts before the add, and the
         /// station's balance.
         before: Option<(usize, usize, u32)>,
@@ -613,9 +636,10 @@ mod walk {
         })
     }
 
-    /// Pick the round's point by the pane's rule: the first live section, in
-    /// design order, with a free socket the kinetic PDC fits at. Record it,
-    /// the counts and balances before the add, and the events so far.
+    /// List the round's points by the pane's rule: every free socket of a
+    /// live section, in design order, the kinetic PDC fits at. The first one
+    /// is the round's point until the ghost is aimed. Record the counts and
+    /// balances before the add, and the events so far.
     fn pick_the_point(world: &mut World) {
         let player = player(world);
         let station = station(world);
@@ -641,48 +665,64 @@ mod walk {
             .filter(|(_, section)| live.contains(&section.id))
             .map(|(index, _)| index)
             .collect();
-        let (index, point, (position, rotation)) = live_indices
-            .iter()
-            .find_map(|&index| {
-                free_link_points(&placed, index)
-                    .into_iter()
-                    .find_map(|point| {
-                        section_add_fit(&placed, &live_indices, index, point, offered)
-                            .ok()
-                            .map(|pose| (index, point, pose))
-                    })
-            })
-            .expect("station add probe: the kinetic PDC fits at a free socket of the hull");
-        let section = &design.0[index];
-        let free = free_link_points(&placed, index);
-        let taken = (0..section.config.base.link_points.len())
-            .find(|socket| !free.contains(socket))
-            .expect("station add probe: a section of a joined hull mates something");
         let section_of_class = design
             .0
             .iter()
             .filter(|other| other.config.kind.class() == SectionClass::Turret)
             .count();
-        let code = section_of(world, player, &section.id)
-            .and_then(|entity| world.get::<SectionCode>(entity))
-            .expect("station add probe: the chosen section is live and coded")
-            .0
-            .clone();
-        let target = Target {
-            section: section.id.clone(),
-            code,
-            point: section.config.base.link_points[point].id.clone(),
-            taken: section.config.base.link_points[taken].id.clone(),
-            position,
-            rotation,
-            id: added_section_id(design, SectionClass::Turret),
-            new_code: format!("PDC-{}", section_of_class + 1),
-        };
+        let mut candidates = Vec::new();
+        for &index in &live_indices {
+            let section = &design.0[index];
+            let free = free_link_points(&placed, index);
+            let Some(taken) =
+                (0..section.config.base.link_points.len()).find(|socket| !free.contains(socket))
+            else {
+                continue;
+            };
+            let code = section_of(world, player, &section.id)
+                .and_then(|entity| world.get::<SectionCode>(entity))
+                .expect("station add probe: a live section is coded")
+                .0
+                .clone();
+            for &point in &free {
+                let Ok((position, rotation)) =
+                    section_add_fit(&placed, &live_indices, index, point, offered)
+                else {
+                    continue;
+                };
+                let (socket, _) = link_point_pose(
+                    section.position,
+                    section.rotation,
+                    &section.config.base.link_points[point],
+                );
+                candidates.push(Target {
+                    section: section.id.clone(),
+                    code: code.clone(),
+                    point: section.config.base.link_points[point].id.clone(),
+                    taken: section.config.base.link_points[taken].id.clone(),
+                    position,
+                    rotation,
+                    aim: socket.lerp(section.position, AIM_INSET),
+                    id: added_section_id(design, SectionClass::Turret),
+                    new_code: format!("PDC-{}", section_of_class + 1),
+                });
+            }
+        }
+        assert!(
+            !candidates.is_empty(),
+            "station add probe: the kinetic PDC fits at a free socket of the hull"
+        );
         let before = (design.0.len(), live.len(), credits(world, station));
-        info!("station add probe: picked {target:?}");
+        info!(
+            "station add probe: {} free sockets fit, first {:?}",
+            candidates.len(),
+            candidates[0]
+        );
         let mut watch = world.resource_mut::<AddWatch>();
         watch.events_before = watch.events.len();
-        watch.target = Some(target);
+        watch.target = Some(candidates[0].clone());
+        watch.candidates = candidates;
+        watch.aiming = usize::MAX;
         watch.before = Some(before);
     }
 
@@ -749,8 +789,8 @@ mod walk {
             .to_string();
         assert_eq!(
             note,
-            format!("add: {} {} is taken", target.code, target.taken),
-            "station add probe: the refusal must name the taken point"
+            format!("add: that point on {} is taken", target.code),
+            "station add probe: the refusal must name the taken point's section"
         );
         assert_nothing_changed(world, "a refused add");
         assert!(
@@ -771,34 +811,11 @@ mod walk {
         );
     }
 
-    fn target_selected(world: &World) -> bool {
-        let Some(player) = player_root(world) else {
-            return false;
-        };
-        let selected = world.resource::<ShipRuntime>().selected();
-        selected.is_some() && selected == section_of(world, player, &target(world).section)
-    }
-
-    /// Step the selection with the viewer key, one press and one release per
-    /// two frames, until the round's section is selected.
-    fn step_to_the_target(world: &mut World, _elapsed: f32, frame: u32) {
-        if target_selected(world) {
-            release_action("viewer_next")(world);
-            return;
-        }
-        if frame % 2 == 0 {
-            press_action("viewer_next")(world);
-        } else {
-            release_action("viewer_next")(world);
-        }
-    }
-
-    /// Whether the kinetic PDC's Add button lies inside the Ship panel's box,
-    /// where a click lands on it.
-    fn add_button_in_view(world: &World) -> bool {
-        let button = format!("ShipAdd-{PDC_KINETIC_TURRET_SECTION_ID}");
+    /// Whether the kinetic PDC's Place button lies inside the Ship panel's
+    /// box, where a click lands on it.
+    fn place_button_in_view(world: &World) -> bool {
         match (
-            ui_node_rect(world, &button),
+            ui_node_rect(world, &place_button()),
             ui_node_rect(world, SHIP_PANEL),
         ) {
             (Some(button), Some(panel)) => {
@@ -808,12 +825,83 @@ mod walk {
         }
     }
 
-    fn named_node(name: String) -> Arc<Predicate> {
-        when(move |world| {
-            world
-                .try_query::<&Name>()
-                .is_some_and(|mut names| names.iter(world).any(|found| found.as_str() == name))
-        })
+    fn pdc_in_hand() -> Arc<Predicate> {
+        when(|world| world.resource::<ShipRuntime>().held() == Some(PDC_KINETIC_TURRET_SECTION_ID))
+    }
+
+    /// Point at the round's free sockets in turn, `AIM_FRAMES` frames each,
+    /// until the ghost stands valid at the one pointed at. The one pointed at
+    /// becomes the round's point.
+    fn aim_the_ghost(world: &mut World, _elapsed: f32, frame: u32) {
+        if ghost_on_target(world) {
+            return;
+        }
+        if frame % AIM_FRAMES != 0 {
+            return;
+        }
+        // `usize::MAX` until the first socket is pointed at, so the first
+        // aim that lands is the first socket.
+        let aiming = world.resource::<AddWatch>().aiming.wrapping_add(1);
+        let candidates = world.resource::<AddWatch>().candidates.clone();
+        let candidate = candidates.get(aiming).cloned().unwrap_or_else(|| {
+            panic!(
+                "station add probe: the ghost stood valid at none of {} free sockets, last aim {:?}",
+                candidates.len(),
+                ship_ghost_aim(world)
+            )
+        });
+        let Some(pixel) = ship_view_window_px(world, candidate.aim) else {
+            return;
+        };
+        info!(
+            "station add probe: aiming at {} {} through {pixel:?}, the last aim stood at {:?}",
+            candidate.code,
+            candidate.point,
+            ship_ghost_aim(world)
+        );
+        move_cursor(pixel)(world);
+        let mut watch = world.resource_mut::<AddWatch>();
+        watch.aiming = aiming;
+        watch.target = Some(candidate);
+    }
+
+    /// The ghost stands valid at the round's point.
+    fn ghost_on_target(world: &World) -> bool {
+        let Some(target) = world.resource::<AddWatch>().target.clone() else {
+            return false;
+        };
+        ship_ghost_aim(world) == Some((target.section, target.point, true))
+    }
+
+    /// The callout beside the valid ghost names the part, the section and
+    /// the recipe's price.
+    fn assert_the_ghost(world: &mut World) {
+        let target = target(world);
+        let name = world
+            .resource::<GameSections>()
+            .get_section(PDC_KINETIC_TURRET_SECTION_ID)
+            .expect("station add probe: the catalogue has the kinetic PDC")
+            .base
+            .name
+            .clone();
+        let mut callouts = world.query::<(&Name, &Children, &InheritedVisibility)>();
+        let (children, visible) = callouts
+            .iter(world)
+            .find(|(found, ..)| found.as_str() == SHIP_GHOST_CALLOUT)
+            .map(|(_, children, visible)| (children.to_vec(), visible.get()))
+            .expect("station add probe: the ghost callout is up");
+        assert!(visible, "station add probe: the ghost callout shows");
+        let text = children
+            .iter()
+            .find_map(|child| world.get::<Text>(*child))
+            .map(|text| text.0.clone())
+            .expect("station add probe: the ghost callout has a line");
+        assert_eq!(
+            text,
+            format!("{name} on {}: {PRICE} cr", target.code),
+            "station add probe: the ghost callout gives the price"
+        );
+        info!("station add probe: ghost callout: {text}");
     }
 
     /// Add through the pane's command, as the Add button raises it.
@@ -1149,57 +1237,64 @@ mod walk {
         .on_enter(assert_the_refusal)
         .until(frames(1))
         .add()
-        .step("station add: select the section")
-        .each(step_to_the_target)
-        .until(when(target_selected))
-        .deadline(SESSION_SECS)
-        .add()
-        .step("station add: let the viewer key up")
-        .on_enter(release_action("viewer_next"))
+        .step("station add: settle the catalogue")
         .until(frames(SETTLE_FRAMES))
         .add();
-        // The point button's name is known only once the point is picked, so
-        // the click is a step of its own rather than `click_named`.
         let script = script
-            .step("station add: click the point")
-            .on_enter(|world: &mut World| {
-                let name = format!("ShipAddPoint-{}", target(world).point);
-                click_named(name)(world);
-            })
-            .until(named_node(format!(
-                "ShipAdd-{PDC_KINETIC_TURRET_SECTION_ID}"
-            )))
-            .deadline(SESSION_SECS)
-            .add()
-            .step("station add: settle the add list")
-            .until(frames(SETTLE_FRAMES))
-            .add()
-            // The add list stands under the swap list, past the bottom of a
-            // 1080p panel: the wheel over the panel scrolls it into view.
-            .step("station add: scroll the add list into view")
+            // The catalogue stands under the lost list, and its kinetic PDC
+            // row can sit past the bottom of a 1080p panel: the wheel over
+            // the panel scrolls it into view.
+            .step("station add: scroll the catalogue into view")
             .each(|world, _, frame| {
                 keep_hovering_named(SHIP_PANEL)(world);
-                if frame % 2 == 1 && !add_button_in_view(world) {
+                if frame % 2 == 1 && !place_button_in_view(world) {
                     scroll_lines(-1.0)(world);
                 }
             })
-            .until(when(add_button_in_view))
+            .until(when(place_button_in_view))
             .deadline(SESSION_SECS)
             .add()
             .step("station add: settle the scroll")
             .until(frames(SETTLE_FRAMES))
             .add()
-            .step("station add: shoot the add list")
+            .step("station add: shoot the catalogue")
             .on_enter(|world: &mut World| shoot(world, OFFER_SHOT))
             .until(shot_written(OFFER_SHOT))
             .deadline(SHOT_DEADLINE_SECS)
             .add()
             .click_named(
-                "station add: add the kinetic PDC",
-                &format!("ShipAdd-{PDC_KINETIC_TURRET_SECTION_ID}"),
-                pdc_added(),
+                "station add: take the kinetic PDC in hand",
+                &place_button(),
+                pdc_in_hand(),
                 SESSION_SECS,
             )
+            .step("station add: aim the ghost at a free socket")
+            .each(aim_the_ghost)
+            .until(when(ghost_on_target))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station add: settle the ghost")
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station add: assert the ghost")
+            .on_enter(assert_the_ghost)
+            .until(frames(1))
+            .add()
+            .step("station add: shoot the ghost")
+            .on_enter(|world: &mut World| shoot(world, GHOST_SHOT))
+            .until(shot_written(GHOST_SHOT))
+            .deadline(SHOT_DEADLINE_SECS)
+            .add()
+            .step("station add: press on the ghost")
+            .on_enter(press_mouse(MouseButton::Left))
+            .until(pointer_pressed())
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station add: release on the ghost")
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(pdc_added())
+            .deadline(SESSION_SECS)
+            .add()
             .step("station add: settle the placed section")
             .until(frames(SETTLE_FRAMES))
             .add()

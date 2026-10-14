@@ -38,7 +38,9 @@ use crate::{
         MapLegendMarker, MapViewportMarker,
     },
     ship::{
-        on_ship_fit_button, on_ship_reset_button, spawn_ship_panel, ShipRuntime, ShipViewportMarker,
+        on_ship_fit_button, on_ship_reset_button, on_ship_viewport_click, on_ship_viewport_enter,
+        on_ship_viewport_leave, on_ship_viewport_move, spawn_ship_panel, ShipRuntime,
+        ShipViewportMarker,
     },
     station::{station_body, StationDock},
     terminal::NovaOsCloseTransition,
@@ -769,7 +771,17 @@ fn map_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
 /// The ship: the scene and section panel beside it, then legend, hints and view controls.
 fn ship_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     body.spawn(view_split()).with_children(|split| {
-        split.spawn((ShipViewportMarker, viewport_node(), ImageNode::default()));
+        split
+            .spawn((
+                ShipViewportMarker,
+                Name::new("ShipViewport"),
+                viewport_node(),
+                ImageNode::default(),
+            ))
+            .observe(on_ship_viewport_enter)
+            .observe(on_ship_viewport_move)
+            .observe(on_ship_viewport_leave)
+            .observe(on_ship_viewport_click);
         spawn_ship_panel(split, icons);
     });
     pane_footer(
