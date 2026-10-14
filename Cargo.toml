@@ -113,6 +113,14 @@ path = "examples/playable/station_docked_sandbox.rs"
 name = "station_own_sandbox"
 path = "examples/playable/station_own_sandbox.rs"
 
+# The open world as any start role: New Game on a pinned seed as `--role`
+# (or NOVA_ROLE), with no save folder, and `--start-km` to fly far out where
+# the advancement curve fields larger hulls. Nothing ends it; under
+# NOVA_AUTOPILOT a smoke walk checks the role's hull and kit and shoots it.
+[[example]]
+name = "start_role_sandbox"
+path = "examples/playable/start_role_sandbox.rs"
+
 # The ore loop in one session: the line warship's beam mines a rock, its
 # intake takes one canister, and that ore is sold to a docked demo trader
 # through the Inventory pane. The walk checks the ore and credit ledger at
