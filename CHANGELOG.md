@@ -32,6 +32,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   largest past 3,000 km.
 - A contact under 10 m/s of closing speed, up from 5 m/s, costs nothing, so a
   glancing scrape or a drift out of STOP no longer damages what it touches.
+- A mouse moving as the pause menu or a pane opens no longer keeps turning
+  the camera behind it while it moves.
 
 ### Combat & Weapons
 

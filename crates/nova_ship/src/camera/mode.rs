@@ -145,9 +145,20 @@ pub(super) fn on_rotation_input(
     // Observers bypass system-set gating; freeze intent changes while the
     // pause overlay is up. Releases stay ungated so held keys
     // clear cleanly during a pause.
-    if pause.get().is_frozen()
-        || crate::input::player::control::player_control_is_suspended(control)
-    {
+    //
+    // Frozen, the rate is ZEROED rather than skipped, for the reason RCS
+    // zeroes it below: the integrator applies the rate every frame, so a rate
+    // left from a mouse moving as a surface opened kept turning the view while
+    // the mouse moved over the pane or the Nova Debug window.
+    if pause.get().is_frozen() {
+        for mut input in &mut q_input {
+            if **input != Vec2::ZERO {
+                **input = Vec2::ZERO;
+            }
+        }
+        return;
+    }
+    if crate::input::player::control::player_control_is_suspended(control) {
         return;
     }
 
@@ -662,6 +673,88 @@ mod tests {
             app.world().get::<PointRotationInput>(rig).unwrap().0,
             Vec2::ZERO,
             "RCS holds the rig rate at zero so the view does not drift"
+        );
+    }
+
+    /// Mouse motion over a frozen surface - the Nova Debug window's egui, a
+    /// pane - must not turn the camera. The integrator applies the rig rate
+    /// every frame, frozen or not, so a rate left from a mouse moving at the
+    /// instant F11 froze the world kept turning the view for as long as the
+    /// mouse kept moving.
+    #[test]
+    fn mouse_motion_while_frozen_does_not_turn_the_camera() {
+        use bevy::input::mouse::MouseMotion;
+        use nova_gameplay::prelude::PointRotationPlugin;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.add_plugins((bevy::state::app::StatesPlugin, PointRotationPlugin));
+        app.init_state::<nova_gameplay::PauseStates>();
+        app.add_input_context::<PlayerInputMarker>();
+        app.add_observer(on_rotation_input);
+        app.add_observer(on_rotation_input_completed);
+
+        let rig = app
+            .world_mut()
+            .spawn((
+                SpaceshipCameraInputMarker,
+                SpaceshipCameraNormalInputMarker,
+                SpaceshipRotationInputActiveMarker,
+                PointRotation::default(),
+            ))
+            .id();
+        app.finish();
+        app.cleanup();
+        app.update();
+        app.world_mut().spawn((
+            PlayerInputMarker,
+            actions!(PlayerInputMarker[
+                (
+                    Action::<CameraInputRotate>::new(),
+                    Bindings::spawn(Spawn((Binding::mouse_motion(), Scale::splat(0.01)))),
+                ),
+            ]),
+        ));
+        app.update();
+
+        // The mouse is moving in flight when F11 freezes the world.
+        app.world_mut().write_message(MouseMotion {
+            delta: Vec2::new(15.0, 8.0),
+        });
+        app.update();
+        assert_ne!(
+            app.world().get::<PointRotationInput>(rig).unwrap().0,
+            Vec2::ZERO,
+            "in flight the mouse turns the camera"
+        );
+        app.world_mut()
+            .resource_mut::<NextState<nova_gameplay::PauseStates>>()
+            .set(nova_gameplay::PauseStates::Debug);
+        // The frame F11 lands: input runs before the state changes.
+        app.world_mut().write_message(MouseMotion {
+            delta: Vec2::new(15.0, 8.0),
+        });
+        app.update();
+        assert_eq!(
+            *app.world()
+                .resource::<State<nova_gameplay::PauseStates>>()
+                .get(),
+            nova_gameplay::PauseStates::Debug
+        );
+
+        // It keeps moving over the window.
+        let before = app.world().get::<PointRotationOutput>(rig).unwrap().0;
+        for _ in 0..3 {
+            app.world_mut().write_message(MouseMotion {
+                delta: Vec2::new(15.0, 8.0),
+            });
+            app.update();
+        }
+        let after = app.world().get::<PointRotationOutput>(rig).unwrap().0;
+        assert!(
+            before.angle_between(after) < 1.0e-6,
+            "the frozen camera turned by {} rad",
+            before.angle_between(after)
         );
     }
 }
