@@ -51,6 +51,8 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
 - A bought ship comes with default bindings on turrets and tools.
 - Every ship for sale is visible, parked (docked) at the station. Buying one undocks it and hands the player control. The traded-in old ship is parked there too, where the player can see it.
 
+- Owner decision 2026-10-14: a station sells as many ships as it has docking ports minus one, keeping one port free for the player. The traded-in old ship takes a port too. Mechanism: (A) real multi-dock. A station becomes a hub holding N docking connections, one per port. Each ship still holds one connection. The docked assembly covers the station plus every docked hull, and the station's helm and self-levelling act on that assembly. Parked offers and the old ship are real docks. A buy hands control to the docked offer, which can then undock normally. Rejected: (B) kinematic berths without a connection.
+
 ## Delivery gate
 - The catalogue is generated from the station's civilization and advancement, deterministic from the seed; buying swaps the player's design and respawns the hull docked. Stop for the owner on the old hull (trade-in credit vs. left as a derelict).
 
