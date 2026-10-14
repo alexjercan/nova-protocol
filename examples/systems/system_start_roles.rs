@@ -1,0 +1,733 @@
+//! system_start_roles: every start role starts, docks, and comes back from
+//! its save, driven the way a player drives New Game.
+//!
+//! Boots the shipped app (via [`editor_app`]) and, for each role in the
+//! loaded catalogue, in catalogue order: clicks New Game, names the world
+//! after the role, enters seed 10, clicks Next, picks the role and clicks
+//! Create. The world's first save lands; the spawned ship must be the role's
+//! hull with the role's kit and every weapon bound to its key, and its design
+//! must pass the post-build checks. The player is then put on a berth at the
+//! nearest living, non-Enemy generated station each frame until the dock
+//! takes; the walk never flies the approach (`system_station_docking` does).
+//! It undocks, waits for the crossing save, and changes its balance by one
+//! credit. THAT CREDIT IS DISCLOSED FIXTURE STATE: a change the save never
+//! saw, so the reload can show it came from disk. Load last save reopens the
+//! world from disk: the session's role, the hull, the kit and the bindings
+//! must be back, and the extra credit gone. Back to Main Menu leaves through
+//! the leave save, and the next role starts.
+//!
+//! Seed 10's window holds a living Neutral waystation in cell (1, 0, 0)
+//! (`system_station_storage` pins it), so every role docks at a generated
+//! station of the same world.
+//!
+//! | # | marker | claim |
+//! | - | - | - |
+//! | 1 | `outcome: create starts the picked start role` | the session Create inserted names the picked role and the first save landed |
+//! | 2 | `outcome: the start role spawns its hull with its kit and its weapons bound` | the player's design sections are the hull's, its credits and hold are the kit's, every turret is on the trigger, every railgun on R, every bay on F, every miner on V |
+//! | 3 | `outcome: the start hull passes the post-build checks` | `ship_build_fault` finds no fault in the live design |
+//! | 4 | `outcome: the start hull docks at a generated station` | the player docks at the station's outward port and undocks |
+//! | 5 | `outcome: the start role survives a save and a load` | after Load last save the session's role, hull, kit and bindings are the role's, and the unsaved credit is gone |
+//! | 6 | `outcome: every start role started` | the walk started every role in the catalogue |
+//!
+//! Each role's hull price and kit value at ask are logged for review, not
+//! asserted.
+//!
+//! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
+//! ```text
+//! NOVA_AUTOPILOT=1 cargo run --example system_start_roles --features debug
+//! # look for: `start roles: <role> starts <hull>: hull <n> cr, kit <n> cr`,
+//! #           `start roles: <role> docked at <station>`,
+//! #           `start roles: <role> came back from its save`,
+//! #           `start roles: PASS every start role started`,
+//! #           `autopilot: cycle complete, no panic`
+//! ```
+
+use bevy::prelude::*;
+use clap::Parser;
+use nova_protocol::prelude::*;
+
+#[derive(Parser)]
+#[command(name = "system_start_roles")]
+#[command(version = "1.0.0")]
+#[command(
+    about = "Every start role through New Game: its hull, kit and bindings, the post-build checks, a dock at a generated station, and Load last save. Autopilot-only correctness range",
+    long_about = None
+)]
+struct Cli;
+
+fn main() -> bevy::app::AppExit {
+    let _ = Cli::parse();
+
+    // This run's own settings and saved worlds, set before the app reads
+    // them: Create makes one world per role, and a player's worlds or an
+    // earlier run's may not be in its way.
+    std::env::set_var(
+        nova_assets::storage::CONFIG_ROOT_ENV,
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+            "target/example-profiles/{}-{}-{}",
+            env!("CARGO_CRATE_NAME"),
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("the clock is after 1970")
+                .as_nanos(),
+        )),
+    );
+
+    let mut app = editor_app(true, None);
+
+    #[cfg(feature = "debug")]
+    {
+        if std::env::var_os("NOVA_AUTOPILOT").is_some() {
+            app.insert_resource(bevy::ecs::error::FallbackErrorHandler(
+                bevy::ecs::error::panic,
+            ));
+        }
+        // No frame-time claim: this range holds spawns and saves, not
+        // milliseconds.
+        app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
+        app.init_resource::<walk::RolesWatch>();
+        app.add_plugins(walk::script());
+    }
+
+    app.run()
+}
+
+#[cfg(feature = "debug")]
+mod walk {
+    use std::{collections::BTreeMap, sync::Arc};
+
+    use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
+    use nova_input::prelude::InputSource;
+    use nova_protocol::nova_debug::harness::{AutopilotPlugin, Predicate};
+    use nova_ui::widget::TextFieldValue;
+    use nova_world::prelude::WorldConfig;
+
+    use super::*;
+
+    /// The roles the walk starts, in the base catalogue's order. The walk
+    /// asserts the loaded catalogue holds exactly these, so a new role needs
+    /// a line here.
+    const ROLES: [&str; 6] = [
+        "industrial",
+        "scavenger",
+        "transport",
+        "bounty_hunter",
+        "military",
+        "pirate",
+    ];
+
+    /// The seed every role's world plays: its window holds a living Neutral
+    /// waystation in cell (1, 0, 0), as `system_station_storage` pins.
+    const STATION_SEED: u32 = 10;
+
+    const NEW_GAME_BUTTON: &str = "New Game Button";
+    const WORLD_NAME_FIELD: &str = "World Name Field";
+    const SEED_FIELD: &str = "World Seed Field";
+    const WORLD_NEXT_BUTTON: &str = "World Next Button";
+    const CREATE_WORLD_BUTTON: &str = "Create World Button";
+    const RETRY_BUTTON: &str = "Pause Retry Button";
+    const BACK_TO_MENU_BUTTON: &str = "Back To Menu Button";
+
+    /// The gap the berth leaves between the two port faces, engine units:
+    /// half a cell, inside the 10 m capture distance.
+    const BERTH_GAP: f32 = 0.5;
+    /// Where a port's face sits in its own frame, as the docking verb reads it.
+    const PORT_FACE: Vec3 = Vec3::new(0.0, 0.0, -0.5);
+
+    /// Seconds a load, a stream, a save or a beat gets on a software-rendered
+    /// GPU.
+    const SESSION_SECS: f32 = 240.0;
+    /// Seconds a click gets.
+    const BEAT_SECS: f32 = 60.0;
+
+    /// What the walk carries between beats.
+    #[derive(Resource, Default, Debug)]
+    pub(super) struct RolesWatch {
+        /// The player ship before Load last save, so the reload's ship can be
+        /// told apart.
+        before: Option<Entity>,
+        /// The station the role docks at.
+        station: Option<Entity>,
+        /// The roles that came back from their save.
+        started: Vec<String>,
+    }
+
+    fn when(check: impl Fn(&World) -> bool + Send + Sync + 'static) -> Arc<Predicate> {
+        Arc::new(check)
+    }
+
+    /// The one player ship, if exactly one stands.
+    fn the_player(world: &World) -> Option<Entity> {
+        let mut players = world.try_query_filtered::<Entity, With<PlayerSpaceshipMarker>>()?;
+        let mut players = players.iter(world);
+        let player = players.next()?;
+        players.next().is_none().then_some(player)
+    }
+
+    fn player(world: &World) -> Entity {
+        the_player(world).expect("start roles: exactly one player ship")
+    }
+
+    fn role_of(world: &World, id: &str) -> StartRole {
+        world
+            .resource::<GameStartRoles>()
+            .get_role(&id.into())
+            .unwrap_or_else(|| panic!("start roles: the catalogue has no role '{id}'"))
+            .clone()
+    }
+
+    fn set_field(world: &mut World, name: &str, text: &str) {
+        let mut fields = world.query::<(&Name, &mut TextFieldValue)>();
+        let (_, mut value) = fields
+            .iter_mut(world)
+            .find(|(found, _)| found.as_str() == name)
+            .unwrap_or_else(|| panic!("start roles: no field named '{name}'"));
+        value.0 = text.to_string();
+    }
+
+    /// Advance once the world is armed around one player ship other than the
+    /// one recorded before Load last save, and its session has a save on
+    /// disk with nothing wanted or writing.
+    fn armed_and_saved() -> Arc<Predicate> {
+        when(|world| {
+            let before = world.resource::<RolesWatch>().before;
+            world.contains_resource::<WorldConfig<NovaLayeredWorld>>()
+                && the_player(world).is_some_and(|player| Some(player) != before)
+                && saved_and_idle(world)
+        })
+    }
+
+    fn saved_and_idle(world: &World) -> bool {
+        world
+            .get_resource::<WorldSaveSession>()
+            .is_some_and(|session| {
+                session.is_idle() && matches!(session.status(), WorldSaveStatus::Saved { .. })
+            })
+    }
+
+    fn player_docked() -> Arc<Predicate> {
+        when(|world| {
+            the_player(world).is_some_and(|player| world.get::<DockedShip>(player).is_some())
+        })
+    }
+
+    fn player_free_and_saved() -> Arc<Predicate> {
+        when(|world| {
+            the_player(world).is_some_and(|player| world.get::<DockedShip>(player).is_none())
+                && saved_and_idle(world)
+        })
+    }
+
+    /// The design section ids of `root`, in design order.
+    fn design_ids(world: &World, root: Entity) -> Vec<String> {
+        world
+            .get::<ShipDesignSections>(root)
+            .expect("start roles: a role's ship carries its design sections")
+            .0
+            .iter()
+            .map(|section| section.id.clone())
+            .collect()
+    }
+
+    /// The live section of `root` that wears design id `id`.
+    fn live_section(world: &mut World, root: Entity, id: &str) -> Entity {
+        let mut sections =
+            world.query_filtered::<(Entity, &ChildOf, &EntityId), With<SectionMarker>>();
+        sections
+            .iter(world)
+            .find(|(_, parent, worn)| parent.parent() == root && worn.0 == id)
+            .map(|(entity, ..)| entity)
+            .unwrap_or_else(|| panic!("start roles: section '{id}' is not live on the player"))
+    }
+
+    /// The player is role `id`'s ship: the hull's design sections, the kit's
+    /// credits and hold, and every weapon on its key. Returns the bound
+    /// weapon count.
+    fn assert_the_ship(world: &mut World, id: &str) -> usize {
+        let role = role_of(world, id);
+        let player = player(world);
+        let hull: Vec<String> = world
+            .resource::<GameShipDesigns>()
+            .get_design(&role.hull)
+            .unwrap_or_else(|| panic!("start roles: '{id}' names a missing hull"))
+            .design
+            .sections
+            .iter()
+            .map(|section| section.id.clone())
+            .collect();
+        assert_eq!(
+            design_ids(world, player),
+            hull,
+            "start roles: '{id}' must spawn the sections of '{}'",
+            role.hull
+        );
+
+        let credits = world
+            .get::<ShipCredits>(player)
+            .expect("start roles: the player carries a balance")
+            .0;
+        assert_eq!(credits, role.kit.credits, "start roles: '{id}' kit credits");
+        let held: BTreeMap<String, u32> = world
+            .get::<ShipInventory>(player)
+            .expect("start roles: the player carries a hold")
+            .stacks()
+            .map(|(item, count)| (item.to_string(), count))
+            .collect();
+        let kit: BTreeMap<String, u32> = role
+            .kit
+            .stock
+            .stacks()
+            .map(|(item, count)| (item.to_string(), count))
+            .collect();
+        assert_eq!(held, kit, "start roles: '{id}' kit stock");
+
+        let trigger = vec![
+            InputSource::Mouse(MouseButton::Left),
+            InputSource::Gamepad(GamepadButton::RightTrigger2),
+        ];
+        let weapons: Vec<(String, SectionKind)> = world
+            .get::<ShipDesignSections>(player)
+            .expect("start roles: the player carries its design sections")
+            .0
+            .iter()
+            .map(|section| (section.id.clone(), section.config.kind.clone()))
+            .collect();
+        let mut bound = 0;
+        for (section_id, kind) in weapons {
+            let section = live_section(world, player, &section_id);
+            let (found, expected) = match kind {
+                SectionKind::Turret(_) => (
+                    world
+                        .get::<SpaceshipTurretInputBinding>(section)
+                        .map(|binding| binding.0.clone()),
+                    trigger.clone(),
+                ),
+                SectionKind::Railgun(_) => (
+                    world
+                        .get::<SpaceshipRailgunInputBinding>(section)
+                        .map(|binding| binding.0.clone()),
+                    vec![InputSource::Keyboard(KeyCode::KeyR)],
+                ),
+                SectionKind::Torpedo(_) => (
+                    world
+                        .get::<SpaceshipTorpedoInputBinding>(section)
+                        .map(|binding| binding.0.clone()),
+                    vec![InputSource::Keyboard(KeyCode::KeyF)],
+                ),
+                SectionKind::Mining(_) => (
+                    world
+                        .get::<SpaceshipMiningInputBinding>(section)
+                        .map(|binding| binding.0.clone()),
+                    vec![InputSource::Keyboard(KeyCode::KeyV)],
+                ),
+                _ => continue,
+            };
+            assert_eq!(
+                found,
+                Some(expected),
+                "start roles: '{id}' section '{section_id}' binding"
+            );
+            bound += 1;
+        }
+        bound
+    }
+
+    /// Create started role `id` and its first save landed; the ship is the
+    /// role's and passes the post-build checks. Logs the hull price and the
+    /// kit value at ask.
+    fn assert_the_start(world: &mut World, id: &str) {
+        let session = world.resource::<OpenWorldSession>().clone();
+        assert_eq!(
+            session.role.as_str(),
+            id,
+            "start roles: Create must start the picked role"
+        );
+        assert_eq!(session.seed, STATION_SEED, "start roles: Create's seed");
+        nova_probe::probe_marker(
+            world,
+            "outcome: create starts the picked start role",
+            serde_json::json!({ "role": id }),
+        );
+
+        let bound = assert_the_ship(world, id);
+        nova_probe::probe_marker(
+            world,
+            "outcome: the start role spawns its hull with its kit and its weapons bound",
+            serde_json::json!({ "role": id, "bound": bound }),
+        );
+
+        let player = player(world);
+        let design = world
+            .get::<ShipDesignSections>(player)
+            .expect("start roles: the player carries its design sections");
+        let placed: Vec<RefitPlacedSection<'_>> = design
+            .0
+            .iter()
+            .map(|section| RefitPlacedSection {
+                position: section.position,
+                rotation: section.rotation,
+                config: &section.config,
+            })
+            .collect();
+        let fault = ship_build_fault(&placed);
+        assert_eq!(fault, None, "start roles: '{id}' fails a post-build check");
+        let items = world.resource::<GameItems>();
+        let hull_cr = hull_price_cr(items, design.0.iter().map(|s| &s.config.base.build));
+        let role = role_of(world, id);
+        let stock_cr: u64 = role
+            .kit
+            .stock
+            .stacks()
+            .map(|(item, count)| u64::from(count) * u64::from(items.design(item).ask_cr))
+            .sum();
+        let kit_cr = u64::from(role.kit.credits) + stock_cr;
+        let sections = design.0.len();
+        nova_probe::probe_marker(
+            world,
+            "outcome: the start hull passes the post-build checks",
+            serde_json::json!({ "role": id, "sections": sections }),
+        );
+        info!(
+            "start roles: {id} starts {}: {sections} sections, {bound} bound weapons, hull \
+             {hull_cr} cr, kit {kit_cr} cr at ask",
+            role.hull
+        );
+    }
+
+    /// The nearest generated station that is living and not on the Enemy
+    /// side, once one has streamed in.
+    fn nearest_station(world: &World) -> Option<(GeneratedBodyId, Entity)> {
+        let at = world.get::<Position>(the_player(world)?)?.0;
+        let mut query = world.try_query_filtered::<(
+            Entity,
+            &GeneratedBodyId,
+            &Position,
+            Option<&StationServices>,
+            Has<DerelictShipMarker>,
+            Option<&Allegiance>,
+        ), With<StationMarker>>()?;
+        let mut stations: Vec<(f32, GeneratedBodyId, Entity)> = query
+            .iter(world)
+            .filter(|(_, _, _, services, derelict, allegiance)| {
+                station_offers(*services, *derelict, StationServiceType::Trade)
+                    && *allegiance != Some(&Allegiance::Enemy)
+            })
+            .map(|(entity, body, position, ..)| (position.0.distance(at), body.clone(), entity))
+            .collect();
+        stations.sort_by(|a, b| a.0.total_cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
+        stations
+            .into_iter()
+            .next()
+            .map(|(_, body, entity)| (body, entity))
+    }
+
+    fn choose_the_station(world: &mut World, id: &str) {
+        let (body, station) = nearest_station(world).expect("start roles: a station stands");
+        info!("start roles: {id} berths at '{body}'");
+        world.resource_mut::<RolesWatch>().station = Some(station);
+    }
+
+    /// `section`'s position and rotation in `root`'s frame, by its mount chain.
+    fn local_pose(world: &World, section: Entity, root: Entity) -> (Vec3, Quat) {
+        let (mut position, mut rotation, mut at) = (Vec3::ZERO, Quat::IDENTITY, section);
+        while at != root {
+            let transform = world
+                .get::<Transform>(at)
+                .expect("start roles: a mounted section has a transform");
+            position = transform.translation + transform.rotation * position;
+            rotation = transform.rotation * rotation;
+            at = world
+                .get::<ChildOf>(at)
+                .expect("start roles: a section's chain reaches its root")
+                .parent();
+        }
+        (position, rotation)
+    }
+
+    /// The free, live docking ports mounted on `root`, lowest first.
+    fn free_ports(world: &mut World, root: Entity) -> Vec<Entity> {
+        let ports: Vec<Entity> = world
+            .query_filtered::<Entity, (
+                With<DockingSectionMarker>,
+                Without<DockedPort>,
+                Without<SectionInactiveMarker>,
+            )>()
+            .iter(world)
+            .collect();
+        let mut ports: Vec<Entity> = ports
+            .into_iter()
+            .filter(|port| {
+                let mut at = *port;
+                while let Some(parent) = world.get::<ChildOf>(at).map(ChildOf::parent) {
+                    if parent == root {
+                        return true;
+                    }
+                    at = parent;
+                }
+                false
+            })
+            .collect();
+        ports.sort();
+        ports
+    }
+
+    /// The free port of `root` that faces most squarely away from it, so a
+    /// berth there sets the other hull outside it.
+    fn outward_port(world: &mut World, root: Entity) -> Entity {
+        free_ports(world, root)
+            .into_iter()
+            .map(|port| {
+                let (at, rotation) = local_pose(world, port, root);
+                let facing = (rotation * Vec3::NEG_Z).dot(at.normalize_or_zero());
+                (port, facing)
+            })
+            .max_by(|a, b| a.1.total_cmp(&b.1).then_with(|| b.0.cmp(&a.0)))
+            .map(|(port, _)| port)
+            .unwrap_or_else(|| panic!("start roles: {root:?} has no free docking port"))
+    }
+
+    /// Put the player on the berth at the station's outward collar, its own
+    /// outward port facing the station's across [`BERTH_GAP`], moving and
+    /// turning with the station, then ask to dock. Every frame until the dock
+    /// takes.
+    fn berth_and_dock(world: &mut World) {
+        let player = player(world);
+        if world.get::<DockedShip>(player).is_some() {
+            return;
+        }
+        let station = world
+            .resource::<RolesWatch>()
+            .station
+            .expect("start roles: the station is chosen");
+        let station_port = outward_port(world, station);
+        let player_port = outward_port(world, player);
+        let position = world.get::<Position>(station).expect("a station stands").0;
+        let rotation = world.get::<Rotation>(station).expect("a station stands").0;
+        let velocity = world
+            .get::<LinearVelocity>(station)
+            .map_or(Vec3::ZERO, |v| v.0);
+        let spin = world
+            .get::<AngularVelocity>(station)
+            .map_or(Vec3::ZERO, |w| w.0);
+        let (port_at, port_rot) = local_pose(world, station_port, station);
+        let face_rot = rotation * port_rot;
+        let face = position + rotation * port_at + face_rot * PORT_FACE;
+        let axis = face_rot * Vec3::NEG_Z;
+        let (own_at, own_rot) = local_pose(world, player_port, player);
+        let turn = Quat::from_rotation_arc((own_rot * Vec3::NEG_Z).normalize(), -axis);
+        let face_offset = turn * own_at + turn * own_rot * PORT_FACE;
+        world.entity_mut(player).insert((
+            Position(face + axis * BERTH_GAP - face_offset),
+            Rotation(turn),
+            LinearVelocity(velocity),
+            AngularVelocity(spin),
+        ));
+        world.trigger(DockingConnectionRequest {
+            entity: player,
+            target: station,
+        });
+    }
+
+    /// The dock took: report it and let go.
+    fn report_the_dock(world: &mut World, id: &str) {
+        let player = player(world);
+        let station = world.resource::<RolesWatch>().station;
+        let connection = world
+            .get::<DockedShip>(player)
+            .map(|docked| docked.connection);
+        info!("start roles: {id} docked at {station:?} through {connection:?}");
+        nova_probe::probe_marker(
+            world,
+            "outcome: the start hull docks at a generated station",
+            serde_json::json!({ "role": id, "station": format!("{station:?}") }),
+        );
+        world.trigger(DockingReleaseRequest { entity: player });
+    }
+
+    /// Disclosed fixture state: one credit the save never saw.
+    fn add_an_unsaved_credit(world: &mut World) {
+        let player = player(world);
+        world
+            .get_mut::<ShipCredits>(player)
+            .expect("start roles: the player carries a balance")
+            .0 += 1;
+        world.resource_mut::<RolesWatch>().before = Some(player);
+    }
+
+    /// Load last save brought role `id` back from disk.
+    fn assert_the_reload(world: &mut World, id: &str) {
+        let role = world.resource::<OpenWorldSession>().role.clone();
+        assert_eq!(
+            role.as_str(),
+            id,
+            "start roles: the save must carry the role"
+        );
+        // The kit's credits, not the extra one: the ship came from disk.
+        let bound = assert_the_ship(world, id);
+        nova_probe::probe_marker(
+            world,
+            "outcome: the start role survives a save and a load",
+            serde_json::json!({ "role": id, "bound": bound }),
+        );
+        info!("start roles: {id} came back from its save");
+        let mut watch = world.resource_mut::<RolesWatch>();
+        watch.before = None;
+        watch.started.push(id.to_string());
+    }
+
+    /// Press a key until `landed`, then let it go.
+    fn tap_key(
+        script: AutopilotPlugin<GameStates>,
+        label: String,
+        key: KeyCode,
+        landed: Arc<Predicate>,
+    ) -> AutopilotPlugin<GameStates> {
+        script
+            .step(format!("{label}: press"))
+            .on_enter(press_key(key))
+            .until(landed)
+            .deadline(BEAT_SECS)
+            .add()
+            .step(format!("{label}: let go"))
+            .on_enter(release_key(key))
+            .add()
+    }
+
+    /// One role's start, dock, save round trip and leave.
+    fn role_walk(
+        script: AutopilotPlugin<GameStates>,
+        id: &'static str,
+    ) -> AutopilotPlugin<GameStates> {
+        let label = |beat: &str| format!("start roles {id}: {beat}");
+        let script = script
+            .step(label("reach the main menu"))
+            .until(ui_node_present(NEW_GAME_BUTTON))
+            .deadline(SESSION_SECS)
+            .add()
+            .click_named(
+                &label("click New Game"),
+                NEW_GAME_BUTTON,
+                ui_node_present(WORLD_NEXT_BUTTON),
+                BEAT_SECS,
+            )
+            .step(label("name the world and enter the seed"))
+            .on_enter(move |world: &mut World| {
+                set_field(world, WORLD_NAME_FIELD, &format!("Role {id}"));
+                set_field(world, SEED_FIELD, &STATION_SEED.to_string());
+            })
+            .until(frames(2))
+            .add()
+            .click_named(
+                &label("click Next"),
+                WORLD_NEXT_BUTTON,
+                ui_node_present(CREATE_WORLD_BUTTON),
+                BEAT_SECS,
+            )
+            .click_named(
+                &label("pick the role"),
+                &format!("Start Role Button: {id}"),
+                pointer_released(),
+                BEAT_SECS,
+            )
+            .click_named(
+                &label("click Create"),
+                CREATE_WORLD_BUTTON,
+                state_is(GameStates::Playing),
+                SESSION_SECS,
+            )
+            .step(label("the world arms and saves"))
+            .until(armed_and_saved())
+            .deadline(SESSION_SECS)
+            .add()
+            .step(label("assert the start"))
+            .on_enter(move |world: &mut World| assert_the_start(world, id))
+            .add()
+            .step(label("a living station streams in"))
+            .until(when(|world| nearest_station(world).is_some()))
+            .deadline(SESSION_SECS)
+            .add()
+            .step(label("choose the station"))
+            .on_enter(move |world: &mut World| choose_the_station(world, id))
+            .add()
+            .step(label("berth and dock"))
+            .each(|world, _, _| berth_and_dock(world))
+            .until(player_docked())
+            .deadline(SESSION_SECS)
+            .add()
+            .step(label("report the dock and undock"))
+            .on_enter(move |world: &mut World| report_the_dock(world, id))
+            .until(player_free_and_saved())
+            .deadline(SESSION_SECS)
+            .add()
+            .step(label("add an unsaved credit"))
+            .on_enter(add_an_unsaved_credit)
+            .until(frames(1))
+            .add();
+        let script = tap_key(
+            script,
+            label("ESC for Load last save"),
+            KeyCode::Escape,
+            ui_node_present(RETRY_BUTTON),
+        )
+        .click_named(
+            &label("click Load last save"),
+            RETRY_BUTTON,
+            pointer_released(),
+            BEAT_SECS,
+        )
+        .step(label("the saved world arms around a new player ship"))
+        .until(armed_and_saved())
+        .deadline(SESSION_SECS)
+        .add()
+        .step(label("assert the reload"))
+        .on_enter(move |world: &mut World| assert_the_reload(world, id))
+        .add();
+        tap_key(
+            script,
+            label("ESC for the menu"),
+            KeyCode::Escape,
+            ui_node_present(BACK_TO_MENU_BUTTON),
+        )
+        .click_named(
+            &label("click Back to Main Menu"),
+            BACK_TO_MENU_BUTTON,
+            ui_node_present(NEW_GAME_BUTTON),
+            SESSION_SECS,
+        )
+    }
+
+    /// The walk: the catalogue check, then every role in turn.
+    pub(super) fn script() -> AutopilotPlugin<GameStates> {
+        let script = AutopilotPlugin::<GameStates>::new()
+            .step("start roles: reach the main menu")
+            .until(ui_node_present(NEW_GAME_BUTTON))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("start roles: the catalogue holds the walked roles")
+            .on_enter(|world: &mut World| {
+                let loaded: Vec<String> = world
+                    .resource::<GameStartRoles>()
+                    .0
+                    .iter()
+                    .map(|role| role.id.as_str().to_string())
+                    .collect();
+                assert_eq!(loaded, ROLES, "start roles: the base role catalogue");
+            })
+            .add();
+        let script = ROLES.into_iter().fold(script, role_walk);
+        script
+            .step("start roles: report")
+            .on_enter(|world: &mut World| {
+                let started = world.resource::<RolesWatch>().started.clone();
+                assert_eq!(started, ROLES, "start roles: every role started");
+                nova_probe::probe_marker(
+                    world,
+                    "outcome: every start role started",
+                    serde_json::json!({ "roles": started }),
+                );
+                info!("start roles: PASS every start role started");
+            })
+            .add()
+    }
+}

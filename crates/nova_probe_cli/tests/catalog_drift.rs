@@ -921,6 +921,17 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_start_roles",
+        &[
+            "create starts the picked start role",
+            "the start role spawns its hull with its kit and its weapons bound",
+            "the start hull passes the post-build checks",
+            "the start hull docks at a generated station",
+            "the start role survives a save and a load",
+            "every start role started",
+        ],
+    ),
+    (
         "system_open_world_identity",
         &[
             "the window streams one intact generated ship and one derelict",
@@ -1112,7 +1123,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 548;
+const SYSTEMS_INVARIANTS: usize = 554;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

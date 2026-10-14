@@ -576,6 +576,12 @@ path = "examples/systems/system_world_sectors.rs"
 name = "system_open_world"
 path = "examples/systems/system_open_world.rs"
 
+# Every start role through New Game: hull, kit, bindings, post-build checks, a
+# dock at a generated station, and Load last save.
+[[example]]
+name = "system_start_roles"
+path = "examples/systems/system_start_roles.rs"
+
 # A real resumable New Game world, across a fresh process: create, carve, cross
 # a sector, leave, then reopen in a second process and check the saved state.
 [[example]]

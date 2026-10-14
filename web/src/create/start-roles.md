@@ -93,3 +93,8 @@ Each base kit is worth 3,000 cr at ask: the credits plus the items at their
 | `pirate` | `raider` | 1,200 cr, 15 `RailSlug`, 200 `PdcRound`, 10 `HullPlate` |
 
 The roles are generated into `assets/base/roles/base.content.ron`.
+
+The proof is `system_start_roles`: for each base role, New Game spawns the
+role's hull with its kit and its weapons bound, the hull passes the post-build
+checks and docks at a generated station, and Load last save brings the role,
+the hull and the kit back from disk.
