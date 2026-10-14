@@ -1794,6 +1794,28 @@ pub(super) fn track_ship_inventory_reports(
                         price_cr,
                     });
                 }
+                ShipInventoryReport::Added {
+                    section,
+                    part,
+                    at,
+                    point,
+                    parts,
+                    price_cr,
+                } => {
+                    commands.fire::<OnAddedEvent>(AddedEventInfo {
+                        id,
+                        type_name,
+                        section,
+                        part,
+                        at,
+                        point,
+                        parts: parts
+                            .into_iter()
+                            .map(|(item, count)| (item.to_string(), count))
+                            .collect(),
+                        price_cr,
+                    });
+                }
             }
         }
     }

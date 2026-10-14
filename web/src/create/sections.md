@@ -116,8 +116,9 @@ build: (
 
 A rebuild takes the parts from the ship's hold first and buys the rest from
 the station's stock at ask. The ship pays the recipe's `credits` plus the
-bought parts; see [Rebuild](../stations/#rebuild). A swap pays the new
-part's recipe the same way; see [Swap](../stations/#swap).
+bought parts; see [Rebuild](../stations/#rebuild). A swap or an add pays
+the new part's recipe the same way; see [Swap](../stations/#swap) and
+[Add](../stations/#add).
 
 Content lint rejects a recipe that names an unknown item or an item outside
 `Parts`, a count of 0, `credits: 0`, or a `strip_yield` outside `(0, 1]`. It

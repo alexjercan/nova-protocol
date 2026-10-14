@@ -657,6 +657,14 @@ name = "system_station_swap"
 path = "examples/systems/system_station_swap.rs"
 required-features = ["debug"]
 
+# A kinetic PDC added at a free socket of a base hull through the Ship pane
+# and of a generated hull: an add at a taken socket refused, the binding
+# taken from the sibling turrets, and each add kept through a freeze and thaw.
+[[example]]
+name = "system_station_add"
+path = "examples/systems/system_station_add.rs"
+required-features = ["debug"]
+
 # A living generated station's trade and storage through the Inventory pane:
 # buy, sell and store by clicks, the storage kept through a retire and a thaw,
 # withdrawn whole, an over-cap store refused on the form, and the storage

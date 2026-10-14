@@ -75,7 +75,7 @@ what levels the station, see below.
 A docked ship trades with a living station that offers `Trade` as it trades
 with a ship, and keeps items in the storage of one that offers `Storage` (see
 [Trade and storage](#trade-and-storage)). `Rebuild` and `Refit` are in play
-too (see [Rebuild](#rebuild) and [Swap](#swap)); `Jobs` and `Roster` are
+too (see [Rebuild](#rebuild), [Swap](#swap) and [Add](#add)); `Jobs` and `Roster` are
 checked and carried, and the screens that read them are their own task.
 
 ## How a station behaves
@@ -185,6 +185,31 @@ cannot be paid.
 The proof is `system_station_swap`: a ship docks, a thruster swap for a PDC is
 refused, a damaged and rebound PDC is swapped for the pierce PDC, and the new
 part keeps its binding and its health across a freeze and thaw.
+
+## Add
+
+A ship docked to a living station that offers `Refit` can add a part at a
+free attachment point. A free point is any socket of a live section that no
+section of the ship's design mates, so every hull has them and no content
+marks them. Select the section in the Ship pane: the panel shows its free
+points as buttons, the first one chosen, and lists each part that fits at the
+chosen point with a price or the reason it cannot be added.
+
+| rule | what happens |
+|---|---|
+| the gate | docked to a living station whose `services` list `Refit` |
+| the point | a socket no design section mates. A lost section's socket stays reserved for its rebuild |
+| the fit | the part mates the point with the socket that keeps it as drawn, and must not overlap a section it does not mate. Parts marked `hide_in_editor` are not offered |
+| the recipe | the part's [build recipe](../sections/#build-recipe), paid as a rebuild pays it |
+| the build checks | the ship the add leaves must still join into one ship, keep every firing and exhaust lane clear, and keep enough thrust and flight computers for its mass. Only a check the add breaks refuses it |
+| the binding | the key of the first live section of its kind that has one. With none, a weapon takes an empty binding to set with Rebind and a thruster none. A mining emitter takes the first free key of `V`, `B`, `N`, `C`, refused when all are held |
+| refusals | in this order: not docked, no `Refit` service, a taken point, a part with no socket, an overlap, a build check, no free mining key, a part neither hold can cover, too few credits |
+| the result | the part spawns at full health under the next code of its kind. The ship keeps it across a save |
+| events | `OnAdded` and one `OnCreditsChanged` per party with `cause: Add`, see [Hold events](../events/#hold-events) |
+
+The proof is `system_station_add`: an add at a taken socket is refused, a
+kinetic PDC is added to a base hull through the pane and to a generated hull,
+and each keeps its binding and its health across a freeze and thaw.
 
 ## Spawning one
 

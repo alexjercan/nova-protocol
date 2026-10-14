@@ -692,6 +692,22 @@ pub enum ShipInventoryReport {
         /// Credits the ship paid the station.
         price_cr: u32,
     },
+    /// A Ship pane add at a docked station spent the offered part's
+    /// [`BuildRecipe`] and mounted it at a free socket of a live section.
+    Added {
+        /// Pane code the new section takes (`PDC-3`).
+        section: String,
+        /// The section prototype id added.
+        part: String,
+        /// Pane code of the section it was mounted on (`HULL-2`).
+        at: String,
+        /// The socket id of that section it mates.
+        point: String,
+        /// Every part the recipe spent, from the hold and bought together.
+        parts: BTreeMap<ItemDesignId, u32>,
+        /// Credits the ship paid the station.
+        price_cr: u32,
+    },
 }
 
 /// The [`ShipInventoryReport`]s a ship's owning systems queued since the

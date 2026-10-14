@@ -11,9 +11,10 @@ use bevy::prelude::*;
 pub mod prelude {
     pub use super::{
         box_link_points, candidate_link_point_mates, cardinal_axis, derive_link_point_graph,
-        link_point_up, snap_placement, unit_cube_link_points, LinkPoint, LinkPointGraphError,
-        LinkPointMate, LinkPointRef, LinkPointSkinType, PlacedSectionLinkPoints, SectionLinkPoints,
-        LINK_POINT_NORMAL_MIN_DOT, LINK_POINT_POSITION_EPSILON,
+        link_point_up, natural_link_point, snap_placement, unit_cube_link_points, LinkPoint,
+        LinkPointGraphError, LinkPointMate, LinkPointRef, LinkPointSkinType,
+        PlacedSectionLinkPoints, SectionLinkPoints, LINK_POINT_NORMAL_MIN_DOT,
+        LINK_POINT_POSITION_EPSILON,
     };
 }
 
@@ -480,6 +481,29 @@ pub fn snap_placement(
     let roll = Quat::from_axis_angle(facing, quarter_turns as f32 * std::f32::consts::FRAC_PI_2);
     let rotation = (roll * align).normalize();
     (target_position - rotation * source.position, rotation)
+}
+
+/// The socket a part would naturally mate with on a face pointing
+/// `target_normal`: the one facing most nearly the opposite way, and of those
+/// the one nearest the part's own axis. `None` for a part with no sockets.
+///
+/// That socket is the one whose mate leaves the part in the orientation it was
+/// AUTHORED in - an engine keeps its nozzle aft, a bay keeps its doors forward
+/// - because opposing two already-opposed normals asks for no rotation at all.
+/// The editor starts its socket cycle here, and a station add mounts a part
+/// with it.
+pub fn natural_link_point(part_link_points: &[LinkPoint], target_normal: Vec3) -> Option<usize> {
+    part_link_points
+        .iter()
+        .enumerate()
+        .max_by(|(_, a), (_, b)| {
+            let facing = |point: &LinkPoint| point.normal.dot(-target_normal);
+            let radial = |point: &LinkPoint| point.position.cross(point.normal).length_squared();
+            facing(a)
+                .total_cmp(&facing(b))
+                .then_with(|| radial(b).total_cmp(&radial(a)))
+        })
+        .map(|(index, _)| index)
 }
 
 /// Six face-centre structural sockets for a box of `size` (FULL side lengths,

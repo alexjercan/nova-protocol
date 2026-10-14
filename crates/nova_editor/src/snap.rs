@@ -117,8 +117,8 @@ pub(crate) fn solve(
     // walks away from that. An absolute index made the default arbitrary - a
     // thruster's first socket is its +X face, so bolting one to a tail turned
     // it broadside until the builder found the right number of presses.
-    let source =
-        (natural_source(part_link_points, target_normal) + source) % part_link_points.len();
+    let natural = natural_link_point(part_link_points, target_normal).unwrap_or_default();
+    let source = (natural + source) % part_link_points.len();
     let (position, rotation) = snap_placement(
         target_position,
         target_normal,
@@ -141,29 +141,6 @@ pub(crate) fn solve(
             transform,
         ),
     }
-}
-
-/// The socket a part would naturally mate with on a face pointing
-/// `target_normal`: the one facing most nearly the opposite way.
-///
-/// That socket is the one whose mate leaves the part in the orientation it was
-/// AUTHORED in - an engine keeps its nozzle aft, a bay keeps its doors forward
-/// - because opposing two already-opposed normals asks for no rotation at all.
-///
-/// It is the answer a builder means nine times in ten, so it is where the
-/// socket cycle starts rather than somewhere the cycle has to reach.
-fn natural_source(part_link_points: &[LinkPoint], target_normal: Vec3) -> usize {
-    part_link_points
-        .iter()
-        .enumerate()
-        .max_by(|(_, a), (_, b)| {
-            let facing = |point: &LinkPoint| point.normal.dot(-target_normal);
-            let radial = |point: &LinkPoint| point.position.cross(point.normal).length_squared();
-            facing(a)
-                .total_cmp(&facing(b))
-                .then_with(|| radial(b).total_cmp(&radial(a)))
-        })
-        .map_or(0, |(index, _)| index)
 }
 
 /// The socket of `section` nearest `hit`, with its ship-root position and

@@ -28,8 +28,8 @@ use super::prelude::*;
 pub mod prelude {
     pub use super::{
         plan_section_swap, rebuild_anchored, section_swap_family, swap_build_fault, swap_offers,
-        DesignSection, SectionFamilyFaultType, SectionRebuildRequest, SectionSwapRefusalType,
-        SectionSwapRequest, ShipDesignSections, SwapBuildFaultType, SwapPlacedSection,
+        DesignSection, RefitBuildFaultType, RefitPlacedSection, SectionFamilyFaultType,
+        SectionRebuildRequest, SectionSwapRefusalType, SectionSwapRequest, ShipDesignSections,
     };
 }
 
@@ -207,7 +207,7 @@ pub enum SectionSwapRefusalType {
     Payment(RecipePaymentRefusalType),
     /// The ship the swap leaves fails a post-build check it passed, see
     /// [`swap_build_fault`].
-    Build(SwapBuildFaultType),
+    Build(RefitBuildFaultType),
 }
 
 /// Plan swapping the live section `current` for the catalog part `offered`
@@ -243,10 +243,10 @@ pub fn plan_section_swap(
     .map_err(SectionSwapRefusalType::Payment)
 }
 
-/// One live section as [`swap_build_fault`] reads it: placed in ship-root
-/// space with its finished config.
+/// One section as the refit build checks read it: placed in ship-root space
+/// with its finished config.
 #[derive(Clone, Copy, Debug)]
-pub struct SwapPlacedSection<'a> {
+pub struct RefitPlacedSection<'a> {
     /// Section origin in ship-root space.
     pub position: Vec3,
     /// Section rotation in ship-root space.
@@ -255,9 +255,34 @@ pub struct SwapPlacedSection<'a> {
     pub config: &'a SectionConfig,
 }
 
-/// A post-build check the ship a swap leaves fails, in check order.
+impl<'a> RefitPlacedSection<'a> {
+    /// The section as the cell readings see it.
+    pub(crate) fn placed_part(&self) -> PlacedPart<'a> {
+        PlacedPart {
+            position: self.position,
+            rotation: self.rotation,
+            link_points: &self.config.base.link_points,
+            footprint: SectionFootprint::from_collider(
+                self.config.base.collider.unwrap_or_default(),
+            )
+            .0,
+            exit: exit_normal(&self.config.kind),
+        }
+    }
+
+    /// The section as the socket graph sees it.
+    pub(crate) fn link_points(&self) -> PlacedSectionLinkPoints<'a> {
+        PlacedSectionLinkPoints {
+            position: self.position,
+            rotation: self.rotation,
+            link_points: &self.config.base.link_points,
+        }
+    }
+}
+
+/// A post-build check the ship a swap or an add leaves fails, in check order.
 #[derive(Clone, Debug, PartialEq)]
-pub enum SwapBuildFaultType {
+pub enum RefitBuildFaultType {
     /// The sockets no longer join the sections into one ship.
     Disconnected,
     /// The sockets are invalid or ambiguous, see [`LinkPointGraphError`].
@@ -266,7 +291,7 @@ pub enum SwapBuildFaultType {
     BlockedExit,
     /// The drives push less than the ship's mass needs.
     Underpowered {
-        /// The drives' summed thrust after the swap.
+        /// The drives' summed thrust after the change.
         thrust: f32,
         /// The thrust the ship's mass needs.
         needed: f32,
@@ -284,77 +309,73 @@ pub enum SwapBuildFaultType {
 /// replaced by `offered` and passed before, or `None` when the swap adds no
 /// fault.
 ///
-/// The checks are the open-world generator's own, on the same readings: one
-/// socket graph ([`derive_link_point_graph`]), clear exit lanes
-/// ([`blocked_exits`]), the thrust floor and the flight computer count
-/// ([`ShipMeasure`]). A generated ship's role, advancement, size ceiling,
-/// mirror symmetry and ruin floor are not checked: a swap answers to no
-/// generation request, and replacing one of a mirrored pair breaks the
-/// symmetry by design. Only a NEW fault refuses, the rule
-/// [`placement_blocks_an_exit`] gives a builder: a ship that already fails a
-/// check is not made worse by a swap that leaves it failing the same way.
+/// The checks are the open-world generator's own, see [`refit_build_fault`].
+/// The swapped part fills the same cells, so the exit lanes are read on one
+/// lattice each and compared cell for cell.
 ///
 /// # Panics
 ///
 /// When `index` is not in `live`.
 pub fn swap_build_fault(
-    live: &[SwapPlacedSection<'_>],
+    live: &[RefitPlacedSection<'_>],
     index: usize,
     offered: &SectionConfig,
-) -> Option<SwapBuildFaultType> {
+) -> Option<RefitBuildFaultType> {
     let mut after = live.to_vec();
     after[index].config = offered;
+    let blocked = |sections: &[RefitPlacedSection<'_>]| {
+        let placed: Vec<PlacedPart<'_>> = sections.iter().map(|s| s.placed_part()).collect();
+        let (structure, _, occupied) = read_structure(&placed);
+        blocked_exits(&structure, &ship_exits(&placed, &occupied)).len()
+    };
+    refit_build_fault(live, &after, || blocked(&after) > blocked(live))
+}
 
-    let sockets = |sections: &[SwapPlacedSection<'_>]| {
+/// The first post-build check the ship `after` fails and `before` passed, or
+/// `None` when the change adds no fault. `blocks_an_exit` answers whether the
+/// change leaves a section unable to fire that could before; it runs only once
+/// the sockets pass.
+///
+/// The checks are the open-world generator's own, on the same readings: one
+/// socket graph ([`derive_link_point_graph`]), clear exit lanes
+/// ([`blocked_exits`]), the thrust floor and the flight computer count
+/// ([`ShipMeasure`]). A generated ship's role, advancement, size ceiling,
+/// mirror symmetry and ruin floor are not checked: a refit answers to no
+/// generation request, and changing one of a mirrored pair breaks the symmetry
+/// by design. Only a NEW fault refuses, the rule
+/// [`placement_blocks_an_exit`] gives a builder: a ship that already fails a
+/// check is not made worse by a change that leaves it failing the same way.
+pub(crate) fn refit_build_fault(
+    before: &[RefitPlacedSection<'_>],
+    after: &[RefitPlacedSection<'_>],
+    blocks_an_exit: impl FnOnce() -> bool,
+) -> Option<RefitBuildFaultType> {
+    let sockets = |sections: &[RefitPlacedSection<'_>]| {
         let links: Vec<PlacedSectionLinkPoints<'_>> = sections
             .iter()
-            .map(|section| PlacedSectionLinkPoints {
-                position: section.position,
-                rotation: section.rotation,
-                link_points: &section.config.base.link_points,
-            })
+            .map(|section| section.link_points())
             .collect();
         derive_link_point_graph(&links)
             .err()
             .map(|errors| match errors.as_slice() {
-                [LinkPointGraphError::Disconnected { .. }] => SwapBuildFaultType::Disconnected,
-                _ => SwapBuildFaultType::InvalidSockets,
+                [LinkPointGraphError::Disconnected { .. }] => RefitBuildFaultType::Disconnected,
+                _ => RefitBuildFaultType::InvalidSockets,
             })
     };
-    if let (None, Some(fault)) = (sockets(live), sockets(&after)) {
+    if let (None, Some(fault)) = (sockets(before), sockets(after)) {
         return Some(fault);
     }
-
-    let blocked = |sections: &[SwapPlacedSection<'_>]| {
-        let placed: Vec<PlacedPart<'_>> = sections
-            .iter()
-            .map(|section| PlacedPart {
-                position: section.position,
-                rotation: section.rotation,
-                link_points: &section.config.base.link_points,
-                footprint: SectionFootprint::from_collider(
-                    section.config.base.collider.unwrap_or_default(),
-                )
-                .0,
-                exit: exit_normal(&section.config.kind),
-            })
-            .collect();
-        let (structure, _, occupied) = read_structure(&placed);
-        blocked_exits(&structure, &ship_exits(&placed, &occupied)).len()
-    };
-    // The swapped part fills the same cells, so both readings take one
-    // lattice and the counts compare cell for cell.
-    if blocked(&after) > blocked(live) {
-        return Some(SwapBuildFaultType::BlockedExit);
+    if blocks_an_exit() {
+        return Some(RefitBuildFaultType::BlockedExit);
     }
 
     // Each floor on its own, so a ship that was short of flight computers
-    // is still refused a swap that also leaves it short of thrust.
+    // is still refused a change that also leaves it short of thrust.
     let measure =
-        |sections: &[SwapPlacedSection<'_>]| ShipMeasure::of(sections.iter().map(|s| s.config));
-    let (before, after) = (measure(live), measure(&after));
+        |sections: &[RefitPlacedSection<'_>]| ShipMeasure::of(sections.iter().map(|s| s.config));
+    let (before, after) = (measure(before), measure(after));
     if before.thrust >= before.needed_thrust() && after.thrust < after.needed_thrust() {
-        return Some(SwapBuildFaultType::Underpowered {
+        return Some(RefitBuildFaultType::Underpowered {
             thrust: after.thrust,
             needed: after.needed_thrust(),
         });
@@ -362,7 +383,7 @@ pub fn swap_build_fault(
     if before.controllers >= before.needed_controllers()
         && after.controllers < after.needed_controllers()
     {
-        return Some(SwapBuildFaultType::Undercontrolled {
+        return Some(RefitBuildFaultType::Undercontrolled {
             controllers: after.controllers,
             needed: after.needed_controllers(),
         });
@@ -523,7 +544,7 @@ mod tests {
         let gun = part("gun", turret(), one, cube_points());
         let strong = part("strong", thruster(10.0), one, cube_points());
         let weak = part("weak", thruster(0.01), one, cube_points());
-        let at = |x: f32, config| SwapPlacedSection {
+        let at = |x: f32, config| RefitPlacedSection {
             position: Vec3::new(x, 0.0, 0.0),
             rotation: Quat::IDENTITY,
             config,
@@ -534,11 +555,11 @@ mod tests {
         assert_eq!(swap_build_fault(&ship, 1, &gun), None);
         assert_eq!(
             swap_build_fault(&ship, 1, &floating),
-            Some(SwapBuildFaultType::Disconnected)
+            Some(RefitBuildFaultType::Disconnected)
         );
         assert!(matches!(
             swap_build_fault(&ship, 2, &weak),
-            Some(SwapBuildFaultType::Underpowered { .. })
+            Some(RefitBuildFaultType::Underpowered { .. })
         ));
 
         let already_short = [at(0.0, &hull), at(1.0, &gun), at(-1.0, &weak)];

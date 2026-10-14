@@ -80,6 +80,36 @@ the two parts' pool difference, and respawns the section at full health with
 the binding the old part flew with. The old part is not refunded. A freeze
 and a save keep the inline design, so the swap persists.
 
+### Adding a section
+
+Under the swap list, the same pane lists the selected live section's free
+sockets: `free_link_points` (`section_add.rs`) is every socket no design
+section mates, live or lost, so a lost section's socket stays reserved for
+its rebuild. No content marks an attachment point; every hull, base,
+generated or modded, has them. The first free socket is chosen until a point
+button picks another. `section_add_fit` places a catalogue part with its
+`natural_link_point` (the socket facing most nearly opposite, the editor's
+default) at roll 0 through `snap_placement`, and refuses an occupied point,
+a part with no socket, a collider overlap with a design section it does not
+mate (`section_colliders_overlap`), and a post-build fault the add makes
+(`add_build_fault`: the swap's checks through `refit_build_fault`, with
+`placement_blocks_an_exit` for the lanes). The list shows only parts that
+fit. `plan_section_add` checks the gate, the fit, the binding and the
+payment (`plan_recipe_payment`, the full recipe). The new section's binding
+is `added_section_binds`: the first live bound section of its class by id
+lends its binding; with none, a weapon takes an empty binding for Rebind, a
+thruster none (the flight computer drives it), and a mining emitter the first
+of `ADDED_MINING_KEYS` no emitter holds, refused when all are held. Its id is
+`added_section_id`: the greatest id of its class plus `+`, so it sorts last
+and takes the next code without moving another. A confirmed add moves parts
+and credits (cause `Add`), pushes `ShipInventoryReport::Added` (`OnAdded`),
+and triggers `SectionAddRequest`; `add_design_section`
+(`nova_scenario/src/objects/spaceship.rs`) makes the design inline with the
+section appended, writes the binding into the player's `input_mapping`,
+grows the root's pinned health by the part's pool, and spawns the section at
+full health. The Ship side panel scrolls under the wheel while hovered
+(`scroll_ship_panel`), and the camera zoom yields to it.
+
 `SectionKind` variants (one module per kind under `crates/nova_ship/src/sections/`;
 `turret_section/` and `torpedo_section/` are directories, not single files):
 
@@ -1431,6 +1461,12 @@ per contact. A symmetric rule - ram damage - wants both.
   `crates/nova_scenario/src/objects/spaceship.rs`; the pane:
   `crates/nova_interface/src/ship/refit.rs`; proof:
   `examples/systems/system_station_swap.rs`.
+- Section add: `free_link_points`, `section_add_fit`, `add_build_fault`,
+  `added_section_binds`, `added_section_id`, `plan_section_add`,
+  `SectionAddRequest` - `crates/nova_ship/src/sections/section_add.rs`;
+  `add_design_section` - `crates/nova_scenario/src/objects/spaceship.rs`; the
+  pane: `crates/nova_interface/src/ship/refit.rs`; proof:
+  `examples/systems/system_station_add.rs`.
 - Integrity core: `NovaIntegrityPlugin` -
   `crates/nova_gameplay/src/integrity/mod.rs`; graph, sever and collapse:
   `ShipIntegrityPlugin` - `crates/nova_ship/src/sections/integrity.rs`.

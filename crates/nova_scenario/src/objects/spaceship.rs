@@ -934,6 +934,7 @@ impl Plugin for SpaceshipPlugin {
         app.add_observer(insert_spaceship_sections);
         app.add_observer(rebuild_design_section);
         app.add_observer(swap_design_section);
+        app.add_observer(add_design_section);
         app.add_observer(remember_lost_section_binding);
         app.add_observer(insert_station_services);
         app.add_observer(on_station_neutralized_turn_derelict);
@@ -1268,6 +1269,105 @@ fn swap_design_section(
         .entity(ship)
         .insert(SpaceshipDesign(ShipDesignSource::Inline(owned)));
     commands.entity(old).despawn();
+    commands.entity(ship).with_children(|parent| {
+        spawn_design_section(
+            parent,
+            &section,
+            &controller,
+            derelict,
+            &mut Vec::new(),
+            None,
+        );
+    });
+}
+
+/// Add a catalog part to a ship as a new design section, as a Ship pane add
+/// asks once the add rule took the part's recipe.
+///
+/// The ship's design becomes inline (see [`owned_ship_design`]) with the new
+/// section appended under its new id, so a freeze and a save keep the add.
+/// The binding the rule chose goes into the player controller's table, and
+/// the section is built by [`spawn_design_section`] at full health. The
+/// root's pinned health grows by the part's pool, so the collapse share
+/// stays a share of the ship as built now.
+///
+/// # Panics
+///
+/// On a root with no authored design, an id its design already holds, or a
+/// prototype the catalog lacks: the pane plans an add only for the player's
+/// ship, under a fresh id, with an offered catalog part.
+#[expect(
+    clippy::type_complexity,
+    reason = "the root's design, controller and pool in one query"
+)]
+fn add_design_section(
+    request: On<SectionAddRequest>,
+    mut commands: Commands,
+    game_sections: Res<GameSections>,
+    game_designs: Res<GameShipDesigns>,
+    mut q_ship: Query<
+        (
+            &SpaceshipDesign,
+            &mut ShipDesignSections,
+            &mut SpaceshipController,
+            Has<DerelictShipMarker>,
+            Option<&mut Health>,
+        ),
+        (With<SpaceshipRootMarker>, Without<SectionMarker>),
+    >,
+) {
+    let ship = request.entity;
+    let Ok((source, mut design, mut controller, derelict, root_health)) = q_ship.get_mut(ship)
+    else {
+        panic!("add_design_section: {ship:?} is not an authored ship root");
+    };
+    assert!(
+        design.get(&request.section).is_none(),
+        "add_design_section: ship {ship:?} already has a design section '{}'",
+        request.section
+    );
+    let offered = game_sections
+        .get_section(&request.prototype)
+        .unwrap_or_else(|| {
+            panic!(
+                "add_design_section: no loaded section prototype '{}'",
+                request.prototype
+            )
+        })
+        .clone();
+    if let (SpaceshipController::Player(config), Some(bindings)) =
+        (controller.as_mut(), &request.bindings)
+    {
+        config
+            .input_mapping
+            .insert(request.section.clone(), bindings.clone());
+    }
+
+    let mut owned = owned_ship_design(&source.0, &game_designs, &design);
+    owned.sections.push(SpaceshipSectionConfig {
+        id: request.section.clone(),
+        position: request.position,
+        rotation: request.rotation,
+        source: SectionSource::prototype(request.prototype.clone()),
+    });
+    let section = DesignSection {
+        id: request.section.clone(),
+        position: request.position,
+        rotation: request.rotation,
+        config: offered,
+    };
+    design.0.push(section.clone());
+    if let Some(mut pool) = root_health {
+        pool.max += section.config.base.health;
+    }
+    debug!(
+        "add_design_section: ship {ship:?} adds '{}' as '{}'",
+        request.prototype, request.section
+    );
+    let controller = controller.clone();
+    commands
+        .entity(ship)
+        .insert(SpaceshipDesign(ShipDesignSource::Inline(owned)));
     commands.entity(ship).with_children(|parent| {
         spawn_design_section(
             parent,

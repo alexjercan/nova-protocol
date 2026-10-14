@@ -54,6 +54,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Docked at a station with `Refit`, the Ship pane swaps a section for a part
   of the same kind and size, paid by recipe, keeping its code and key, and
   fires `OnSwapped`.
+- At a `Refit` station the Ship pane adds a part at any free socket of a live
+  section, paid by recipe; it takes its kind's key and fires `OnAdded`. The
+  panel now scrolls.
 
 ### Scenarios & Objectives
 

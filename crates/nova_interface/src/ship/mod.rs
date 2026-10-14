@@ -31,7 +31,10 @@
 //! code, with a Rebuild button that raises a `SectionRebuildCommand`. While
 //! it is docked at a living station that offers Refit, the panel lists the
 //! parts of the same kind and footprint the selected section can be swapped
-//! for, each with a Swap button that raises a `SectionSwapCommand`.
+//! for, each with a Swap button that raises a `SectionSwapCommand`, and
+//! under them the selected section's free sockets and the parts that fit at
+//! the chosen one, each with an Add button that raises a `SectionAddCommand`.
+//! The panel scrolls with the wheel while the pointer is over it.
 //!
 //! # Module layout
 //!
@@ -40,7 +43,7 @@
 //! | `sections` | Section codes, the live section view and the repair seam. |
 //! | `app` | The side panel layout and the repair action handler. |
 //! | `rebuild` | The lost-section list and the rebuild action handler. |
-//! | `refit` | The swap list and the swap action handler. |
+//! | `refit` | The swap and add lists and their action handlers. |
 //! | `scene` | The schematic 3D scene, its camera, the projected badges, the button observers and the panel refresh. |
 
 mod app;
@@ -58,7 +61,7 @@ use nova_ui::input_mode::prelude::{in_input_mode, InputMode};
 
 pub(crate) use self::{app::*, rebind::*, rebuild::*, refit::*, scene::*, sections::*};
 pub use self::{
-    refit::SectionSwapCommand,
+    refit::{SectionAddCommand, SectionSwapCommand},
     scene::{cuboid_edges, ease_orbit_center, ship_framing, ShipRuntime, SHIP_BLOCK_FILL_SCALE},
     sections::{SectionCode, ShipSections},
 };
@@ -69,7 +72,7 @@ pub mod prelude {
     // `pub(crate)` (the module glob above), which rustc rejects as an
     // ambiguous import visibility through `super::`.
     pub use super::{
-        refit::SectionSwapCommand,
+        refit::{SectionAddCommand, SectionSwapCommand},
         scene::{
             cuboid_edges, ease_orbit_center, ship_framing, ShipRuntime, SHIP_BLOCK_FILL_SCALE,
         },
@@ -105,6 +108,7 @@ impl Plugin for ShipPanePlugin {
         app.add_message::<SectionRepairCommand>();
         app.add_message::<SectionRebuildCommand>();
         app.add_message::<SectionSwapCommand>();
+        app.add_message::<SectionAddCommand>();
         app.add_systems(
             Update,
             (
@@ -112,12 +116,14 @@ impl Plugin for ShipPanePlugin {
                 apply_ship_section_commands,
                 apply_ship_rebuild_commands,
                 apply_ship_swap_commands,
+                apply_ship_add_commands,
                 reselect_swapped_section,
                 manage_ship_scene,
                 reconcile_ship_target,
                 apply_ship_rebind,
                 // A focused repair field types P, B and the selection keys.
                 ship_input.run_if(in_input_mode(InputMode::Normal)),
+                scroll_ship_panel,
                 drive_ship_camera,
                 update_ship_blocks,
                 project_ship_blips,
@@ -125,6 +131,7 @@ impl Plugin for ShipPanePlugin {
                 update_ship_panel,
                 update_ship_rebuild_list,
                 update_ship_swap_list,
+                update_ship_add_list,
             )
                 .chain()
                 .in_set(ShipPaneSystems),

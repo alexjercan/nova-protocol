@@ -130,7 +130,8 @@ pub enum StationServiceType {
     /// Rebuild destroyed sections of the docked ship.
     Rebuild,
     /// Swap a docked ship's section for another part of the same kind and
-    /// footprint, paid in parts and credits by the part's build recipe.
+    /// footprint, or add a part at a free socket, paid in parts and credits
+    /// by the part's build recipe.
     Refit,
     /// Buy from and sell to the station's stock.
     Trade,

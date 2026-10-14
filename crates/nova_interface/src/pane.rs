@@ -435,8 +435,9 @@ const SIDE_PANEL_MIN_PX: f32 = 300.0;
 pub(crate) const PANEL_PREVIEW_PX: f32 = 96.0;
 
 /// A viewer pane's side panel: 20% of the row beside the view, never
-/// narrower than [`SIDE_PANEL_MIN_PX`].
-pub(crate) fn side_panel() -> impl Bundle {
+/// narrower than [`SIDE_PANEL_MIN_PX`], whose content past its height takes
+/// `overflow`.
+pub(crate) fn side_panel(overflow: Overflow) -> impl Bundle {
     (
         Node {
             width: percent(20),
@@ -447,7 +448,7 @@ pub(crate) fn side_panel() -> impl Bundle {
             padding: UiRect::all(px(12)),
             border: UiRect::all(px(1)),
             border_radius: BorderRadius::all(px(4)),
-            overflow: Overflow::clip(),
+            overflow,
             ..default()
         },
         BackgroundColor(Color::NONE),

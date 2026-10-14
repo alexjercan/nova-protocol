@@ -175,8 +175,8 @@ scenario_events! {
     /// Once per confirmed trade.
     OnTraded => OnTradedEvent { label: "On Traded" },
     /// A ship's credits balance moved (`id` = the ship; `previous_cr`,
-    /// `current_cr`, `delta_cr`, `cause` = `Trade`, `Take`, `Rebuild` or
-    /// `Swap`). Once per ship per change, so a trade raises one for each
+    /// `current_cr`, `delta_cr`, `cause` = `Trade`, `Take`, `Rebuild`,
+    /// `Swap` or `Add`). Once per ship per change, so a trade raises one for each
     /// party.
     OnCreditsChanged => OnCreditsChangedEvent { label: "On Credits Changed" },
     /// A Ship pane repair spent hull plates (`id` = the ship; `section` = the
@@ -193,6 +193,12 @@ scenario_events! {
     /// ids, `parts` = every part spent, `price_cr` = credits paid). Once per
     /// swap.
     OnSwapped => OnSwappedEvent { label: "On Swapped" },
+    /// A Ship pane add at a docked station mounted a new section at a free
+    /// socket (`id` = the ship; `section` = the new pane code such as
+    /// `PDC-3`, `part` = the section prototype id, `at` and `point` = the
+    /// pane code and socket id it was mounted on, `parts` = every part
+    /// spent, `price_cr` = credits paid). Once per add.
+    OnAdded => OnAddedEvent { label: "On Added" },
     /// A Store at a docked station moved items into its storage (`id` = the
     /// station, other = the ship that stored; `item`, `count`). Once per
     /// confirmed Store.

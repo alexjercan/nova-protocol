@@ -1006,6 +1006,16 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_station_add",
+        &[
+            "an add at an occupied point is refused",
+            "a section is added to a base hull",
+            "a base hull's added section survives a freeze and thaw",
+            "a section is added to a generated hull",
+            "a generated hull's added section survives a freeze and thaw",
+        ],
+    ),
+    (
         "system_station_round_trip",
         &[
             "the lost section is rebuilt from its recipe at a generated station",
@@ -1049,7 +1059,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 515;
+const SYSTEMS_INVARIANTS: usize = 520;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

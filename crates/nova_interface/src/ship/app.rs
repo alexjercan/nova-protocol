@@ -5,20 +5,28 @@
 //! does.
 
 use bevy::{
+    input::mouse::MouseWheel,
+    picking::hover::Hovered,
     prelude::{
-        default, BackgroundColor, BorderRadius, ChildOf, ChildSpawnerCommands, Color, Display,
-        Entity, FlexDirection, FlexWrap, Has, Justify, JustifyContent, LineBreak, MessageReader,
-        Name, Node, Overflow, Query, ResMut, TextLayout, Val, With,
+        default, BackgroundColor, BorderRadius, ChildOf, ChildSpawnerCommands, Color, ComputedNode,
+        Display, Entity, FlexDirection, FlexWrap, Has, Justify, JustifyContent, LineBreak,
+        MessageReader, Name, Node, Overflow, Query, ResMut, ScrollPosition, TextLayout, Val, With,
     },
     ui_widgets::{Slider, SliderPrecision, SliderRange, SliderStep, SliderValue, TrackClick},
 };
 use nova_gameplay::prelude::*;
 use nova_ui::{
+    screen::drive_wheel_scroll,
     theme::UiColor,
     widget::{button, slider_track, text_field, ButtonSpec, TextFieldSpec, ThemedFill},
 };
 
-use super::{rebuild::spawn_ship_rebuild_list, refit::spawn_ship_swap_list, scene::*, sections::*};
+use super::{
+    rebuild::spawn_ship_rebuild_list,
+    refit::{spawn_ship_add_list, spawn_ship_swap_list},
+    scene::*,
+    sections::*,
+};
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
     pane::{
@@ -26,6 +34,26 @@ use crate::{
         PANEL_PREVIEW_PX, SUMMARY_LINES,
     },
 };
+
+/// Wheel-scroll the section panel while the pointer is over it, through the
+/// shared driver; `ship_input` leaves the camera zoom alone then. A wheel
+/// notch away from the panel is the camera's.
+pub(crate) fn scroll_ship_panel(
+    mut wheel: MessageReader<MouseWheel>,
+    q_panel: Query<
+        (&mut ScrollPosition, Option<&ComputedNode>, Option<&Hovered>),
+        With<ShipPanelMarker>,
+    >,
+) {
+    if !q_panel
+        .iter()
+        .any(|(_, _, hovered)| hovered.is_some_and(Hovered::get))
+    {
+        wheel.clear();
+        return;
+    }
+    drive_wheel_scroll(wheel, q_panel);
+}
 
 /// Build the section panel: the selected section's icon over its code, name,
 /// status and condition bar; its description; its labelled facts; Prev, Next
@@ -38,7 +66,15 @@ use crate::{
 /// observers.
 pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     parent
-        .spawn((ShipPanelMarker, side_panel()))
+        // Scrolls: the swap and add lists of a big part catalogue run past a
+        // 1080p panel.
+        .spawn((
+            ShipPanelMarker,
+            Name::new("ShipPanel"),
+            side_panel(Overflow::scroll_y()),
+            ScrollPosition::default(),
+            Hovered::default(),
+        ))
         .with_children(|panel| {
             panel
                 .spawn(Node {
@@ -232,6 +268,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                 });
             spawn_ship_rebuild_list(panel);
             spawn_ship_swap_list(panel);
+            spawn_ship_add_list(panel);
             panel.spawn((ShipPanelField::Note, themed_label("", 12.0, UiColor::Label)));
         });
 }

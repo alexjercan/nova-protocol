@@ -66,54 +66,56 @@ pub(crate) struct MapGotoMarker;
 /// rule; and the live GOTO destination over the GOTO button.
 /// [`update_map_panel`](super::update_map_panel) fills it.
 pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
-    parent.spawn(side_panel()).with_children(|panel| {
-        panel.spawn(panel_preview_frame()).with_children(|frame| {
-            frame.spawn((
-                MapPanelIcon,
-                icon_node(
-                    icons.body(BodyIconType::Ship),
-                    MapContactKind::OwnShip.color(),
-                    PANEL_PREVIEW_PX * 0.75,
-                ),
-                Visibility::Hidden,
-            ));
-        });
-        panel
-            .spawn(Node {
-                flex_direction: FlexDirection::Column,
-                row_gap: px(4),
-                ..default()
-            })
-            .with_children(|identity| {
-                for (field, size, color) in [
-                    (MapPanelField::Code, 18.0, UiColor::Primary),
-                    (MapPanelField::Name, 13.0, UiColor::Body),
-                    (MapPanelField::Kind, 12.0, UiColor::Body),
-                ] {
-                    identity.spawn((field, themed_label("", size, color)));
-                }
+    parent
+        .spawn(side_panel(Overflow::clip()))
+        .with_children(|panel| {
+            panel.spawn(panel_preview_frame()).with_children(|frame| {
+                frame.spawn((
+                    MapPanelIcon,
+                    icon_node(
+                        icons.body(BodyIconType::Ship),
+                        MapContactKind::OwnShip.color(),
+                        PANEL_PREVIEW_PX * 0.75,
+                    ),
+                    Visibility::Hidden,
+                ));
             });
-        panel.spawn(panel_rule());
-        for field in [MapPanelField::Range, MapPanelField::Bearing] {
-            panel.spawn((field, themed_label("", 13.0, UiColor::Primary)));
-        }
-        panel.spawn(panel_rule());
-        panel.spawn((MapPanelField::Note, themed_label("", 12.0, UiColor::Label)));
-        panel.spawn(panel_rule());
-        panel.spawn((
-            MapPanelField::Destination,
-            themed_label("", 12.0, UiColor::Label),
-        ));
-        // Disabled at spawn: the map opens with nothing selected.
-        panel
-            .spawn((
-                MapGotoButton,
-                button(ButtonSpec::new("GOTO").fit()),
-                InteractionDisabled,
-                Name::new("MapGoto"),
-            ))
-            .observe(on_map_goto_button);
-    });
+            panel
+                .spawn(Node {
+                    flex_direction: FlexDirection::Column,
+                    row_gap: px(4),
+                    ..default()
+                })
+                .with_children(|identity| {
+                    for (field, size, color) in [
+                        (MapPanelField::Code, 18.0, UiColor::Primary),
+                        (MapPanelField::Name, 13.0, UiColor::Body),
+                        (MapPanelField::Kind, 12.0, UiColor::Body),
+                    ] {
+                        identity.spawn((field, themed_label("", size, color)));
+                    }
+                });
+            panel.spawn(panel_rule());
+            for field in [MapPanelField::Range, MapPanelField::Bearing] {
+                panel.spawn((field, themed_label("", 13.0, UiColor::Primary)));
+            }
+            panel.spawn(panel_rule());
+            panel.spawn((MapPanelField::Note, themed_label("", 12.0, UiColor::Label)));
+            panel.spawn(panel_rule());
+            panel.spawn((
+                MapPanelField::Destination,
+                themed_label("", 12.0, UiColor::Label),
+            ));
+            // Disabled at spawn: the map opens with nothing selected.
+            panel
+                .spawn((
+                    MapGotoButton,
+                    button(ButtonSpec::new("GOTO").fit()),
+                    InteractionDisabled,
+                    Name::new("MapGoto"),
+                ))
+                .observe(on_map_goto_button);
+        });
 }
 
 /// A one-pixel rule between groups of the contact panel.

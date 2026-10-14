@@ -3,8 +3,8 @@
 //!
 //! ONE copy, two callers: the open-world generator grows a hull's drive bank
 //! and flight computers until they clear the floors and checks every layout
-//! against them, and a section swap at a station is refused when it would
-//! drop a ship under a floor it cleared (`swap_build_fault`).
+//! against them, and a section swap or add at a station is refused when it
+//! would drop a ship under a floor it cleared (`refit_build_fault`).
 
 use crate::sections::base_section::prelude::{SectionCollider, SectionConfig, SectionKind};
 

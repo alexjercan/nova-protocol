@@ -44,26 +44,26 @@ pub mod prelude {
         generated::{GeneratedBodyId, NotAGeneratedBodyId, SectorCoord},
         scale::LOAD_LIMIT,
         units::prelude::*,
-        CargoEventInfo, CinematicEventInfo, CreditChangeCauseType, CreditsChangedEventInfo,
-        DockingEventInfo, EntityId, EntityTypeName, ItemTradeType, LockEventInfo, MinedEventInfo,
-        OnCinematicFinishedEvent, OnCinematicSkippedEvent, OnCombatLockEndEvent,
-        OnCombatLockStartEvent, OnCreditsChangedEvent, OnDefeatedEvent, OnDefeatedEventInfo,
-        OnDestroyedEvent, OnDestroyedEventInfo, OnDockedEvent, OnEnterEvent, OnEnterEventInfo,
-        OnExitEvent, OnExitEventInfo, OnGotoCompleteEvent, OnGotoCompleteEventInfo,
-        OnJettisonedEvent, OnMinedEvent, OnNeutralizedEvent, OnNeutralizedEventInfo,
-        OnOrbitEndEvent, OnOrbitLapEvent, OnOrbitStableEvent, OnOrbitStartEvent,
-        OnOrbitUnstableEvent, OnPickedUpEvent, OnRebuiltEvent, OnRepairedEvent, OnResumeEvent,
-        OnResumeEventInfo, OnShipOrderCanceledEvent, OnShipOrderCanceledEventInfo,
-        OnShipOrderCompleteEvent, OnShipOrderCompleteEventInfo, OnShipOrderFailedEvent,
-        OnShipOrderFailedEventInfo, OnShipOrderInterruptedEvent, OnShipOrderInterruptedEventInfo,
-        OnShipOrderResumedEvent, OnShipOrderResumedEventInfo, OnStartEvent, OnStartEventInfo,
-        OnStopCompleteEvent, OnStopCompleteEventInfo, OnStoredEvent, OnSwappedEvent,
-        OnTimerEndEvent, OnTimerEndEventInfo, OnTradedEvent, OnTravelLockEndEvent,
-        OnTravelLockStartEvent, OnUndockedEvent, OnUpdateEvent, OnUpdateEventInfo,
-        OnWithdrawnEvent, OrbitEventInfo, RebuiltEventInfo, RepairedEventInfo,
-        ScenarioAddressableMarker, ShipOrderKind, StorageEventInfo, SwappedEventInfo,
-        TradedEventInfo, ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME, BEACON_TYPE_NAME,
-        CANISTER_FIELD_NAME, CINEMATIC_KEY_FIELD_NAME, CREDIT_CAUSE_FIELD_NAME,
+        AddedEventInfo, CargoEventInfo, CinematicEventInfo, CreditChangeCauseType,
+        CreditsChangedEventInfo, DockingEventInfo, EntityId, EntityTypeName, ItemTradeType,
+        LockEventInfo, MinedEventInfo, OnAddedEvent, OnCinematicFinishedEvent,
+        OnCinematicSkippedEvent, OnCombatLockEndEvent, OnCombatLockStartEvent,
+        OnCreditsChangedEvent, OnDefeatedEvent, OnDefeatedEventInfo, OnDestroyedEvent,
+        OnDestroyedEventInfo, OnDockedEvent, OnEnterEvent, OnEnterEventInfo, OnExitEvent,
+        OnExitEventInfo, OnGotoCompleteEvent, OnGotoCompleteEventInfo, OnJettisonedEvent,
+        OnMinedEvent, OnNeutralizedEvent, OnNeutralizedEventInfo, OnOrbitEndEvent, OnOrbitLapEvent,
+        OnOrbitStableEvent, OnOrbitStartEvent, OnOrbitUnstableEvent, OnPickedUpEvent,
+        OnRebuiltEvent, OnRepairedEvent, OnResumeEvent, OnResumeEventInfo,
+        OnShipOrderCanceledEvent, OnShipOrderCanceledEventInfo, OnShipOrderCompleteEvent,
+        OnShipOrderCompleteEventInfo, OnShipOrderFailedEvent, OnShipOrderFailedEventInfo,
+        OnShipOrderInterruptedEvent, OnShipOrderInterruptedEventInfo, OnShipOrderResumedEvent,
+        OnShipOrderResumedEventInfo, OnStartEvent, OnStartEventInfo, OnStopCompleteEvent,
+        OnStopCompleteEventInfo, OnStoredEvent, OnSwappedEvent, OnTimerEndEvent,
+        OnTimerEndEventInfo, OnTradedEvent, OnTravelLockEndEvent, OnTravelLockStartEvent,
+        OnUndockedEvent, OnUpdateEvent, OnUpdateEventInfo, OnWithdrawnEvent, OrbitEventInfo,
+        RebuiltEventInfo, RepairedEventInfo, ScenarioAddressableMarker, ShipOrderKind,
+        StorageEventInfo, SwappedEventInfo, TradedEventInfo, ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME,
+        BEACON_TYPE_NAME, CANISTER_FIELD_NAME, CINEMATIC_KEY_FIELD_NAME, CREDIT_CAUSE_FIELD_NAME,
         CURRENT_CREDITS_FIELD_NAME, DELTA_CREDITS_FIELD_NAME, ENTITY_ID_COMPONENT_NAME,
         ENTITY_OTHER_ID_COMPONENT_NAME, ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME,
         ENTITY_TYPE_NAME_COMPONENT_NAME, ITEM_COUNT_FIELD_NAME, ITEM_FIELD_NAME, LIGHT_TYPE_NAME,
@@ -921,6 +921,8 @@ pub enum CreditChangeCauseType {
     Rebuild,
     /// A swap at a docked station paid for the offered section's recipe.
     Swap,
+    /// An add at a docked station paid for the new section's recipe.
+    Add,
 }
 
 impl CreditChangeCauseType {
@@ -931,6 +933,7 @@ impl CreditChangeCauseType {
             CreditChangeCauseType::Take => "Take",
             CreditChangeCauseType::Rebuild => "Rebuild",
             CreditChangeCauseType::Swap => "Swap",
+            CreditChangeCauseType::Add => "Add",
         }
     }
 }
@@ -1237,6 +1240,49 @@ pub struct SwappedEventInfo {
     pub price_cr: u32,
 }
 
+/// A Ship pane add at a docked station mounted a new section at a free
+/// socket of a live section (`onadded`).
+///
+/// One event per add the rule allows; a refused add fires nothing. The
+/// credits it paid also raise one `OnCreditsChanged` per party.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onadded")]
+#[event_info(AddedEventInfo)]
+pub struct OnAddedEvent;
+
+/// Payload for [`OnAddedEvent`]: the ship (`id` / `type_name`), the pane
+/// code the new section takes, the section prototype added, the pane code
+/// and socket id it was mounted at, every part the recipe spent and the
+/// credits the ship paid the station.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
+pub struct AddedEventInfo {
+    /// Scenario id of the ship.
+    #[serde(rename = "id")]
+    pub id: String,
+    /// Type name of that ship.
+    #[serde(rename = "type_name")]
+    pub type_name: String,
+    /// Pane section code the new section takes.
+    #[serde(rename = "section")]
+    pub section: String,
+    /// The section prototype id added.
+    #[serde(rename = "part")]
+    pub part: String,
+    /// Pane section code of the section the part was mounted on.
+    #[serde(rename = "at")]
+    pub at: String,
+    /// The socket id of that section the part mates.
+    #[serde(rename = "point")]
+    pub point: String,
+    /// Every part the recipe spent, as a count per item design id, from the
+    /// hold and bought together.
+    #[serde(rename = "parts")]
+    pub parts: std::collections::BTreeMap<String, u32>,
+    /// Credits the ship paid: the recipe's work plus the bought parts at ask.
+    #[serde(rename = "price_cr")]
+    pub price_cr: u32,
+}
+
 /// A Store at a docked station moved items from the ship's hold into the
 /// station's storage (`onstored`).
 ///
@@ -1300,6 +1346,7 @@ mod inventory_event_tests {
             CreditChangeCauseType::Take,
             CreditChangeCauseType::Rebuild,
             CreditChangeCauseType::Swap,
+            CreditChangeCauseType::Add,
         ] {
             let serialized = serde_json::to_value(cause).expect("a unit variant serializes");
             assert_eq!(serialized.as_str(), Some(cause.as_str()));

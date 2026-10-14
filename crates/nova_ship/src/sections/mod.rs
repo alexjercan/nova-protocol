@@ -29,6 +29,7 @@ pub mod mining_section;
 pub mod patch;
 pub mod placeholder_art;
 pub mod railgun_section;
+pub mod section_add;
 pub mod section_animation;
 pub mod shell_shape;
 pub mod shell_skin;
@@ -54,12 +55,12 @@ pub mod prelude {
         frozen_piece::prelude::*, frozen_rounds::prelude::*, hull_radius::prelude::*,
         hull_section::prelude::*, integrity::prelude::*, link_points::prelude::*,
         live_structure_anchor, mining_section::prelude::*, patch::prelude::*,
-        placeholder_art::prelude::*, railgun_section::prelude::*, section_animation::prelude::*,
-        shell_shape::prelude::*, shell_skin::prelude::*, ship_measure::prelude::*,
-        signature::prelude::*, skin_decor::prelude::*, skin_reading::prelude::*,
-        skin_report::prelude::*, skin_style::prelude::*, thruster_section::prelude::*,
-        torpedo_section::prelude::*, turret_section::prelude::*, SpaceshipSectionPlugin,
-        SpaceshipSectionSystems,
+        placeholder_art::prelude::*, railgun_section::prelude::*, section_add::prelude::*,
+        section_animation::prelude::*, shell_shape::prelude::*, shell_skin::prelude::*,
+        ship_measure::prelude::*, signature::prelude::*, skin_decor::prelude::*,
+        skin_reading::prelude::*, skin_report::prelude::*, skin_style::prelude::*,
+        thruster_section::prelude::*, torpedo_section::prelude::*, turret_section::prelude::*,
+        SpaceshipSectionPlugin, SpaceshipSectionSystems,
     };
 }
 

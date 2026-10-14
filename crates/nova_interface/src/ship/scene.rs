@@ -173,9 +173,13 @@ pub struct ShipRuntime {
     pub(crate) rebind_awaiting_release: bool,
     /// Whether the structural mate overlay is visible.
     pub(crate) show_mates: bool,
-    /// The design section id a swap replaced, selected again once its new
-    /// entity is live.
+    /// The design section id a swap replaced or an add made, selected once
+    /// its new entity is live.
     pub(crate) reselect: Option<String>,
+    /// The section and socket id the add list mounts at, chosen by a point
+    /// button; ignored once the selection or the free sockets change, and
+    /// the first free socket is used instead.
+    pub(crate) add_point: Option<(Entity, String)>,
 }
 
 impl ShipRuntime {
@@ -474,7 +478,12 @@ pub fn ease_orbit_center(center: Vec3, target: Vec3, dt: f32) -> Vec3 {
 }
 
 /// Read the keyboard/mouse while the Ship pane is showing: orbit, cycle the
-/// selection, and raise repair on the selected section.
+/// selection, and raise repair on the selected section. The wheel zooms
+/// only while the pointer is off the side panel, which scrolls under it.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the pane input beside the camera, the overlay and the panel hover"
+)]
 pub(crate) fn ship_input(
     mut input: NovaOsAppInput,
     mut runtime: ResMut<ShipRuntime>,
@@ -483,6 +492,7 @@ pub(crate) fn ship_input(
     q_inventory: Query<&ShipInventory, With<PlayerSpaceshipMarker>>,
     mut q_camera: Query<&mut ShipOrbit, With<ShipCameraMarker>>,
     mut q_mates: Query<&mut Visibility, With<ShipMateOverlay>>,
+    q_panel: Query<&bevy::picking::hover::Hovered, With<ShipPanelMarker>>,
 ) {
     if !input.app_is_active(InterfacePaneType::Ship) {
         return;
@@ -511,7 +521,8 @@ pub(crate) fn ship_input(
         }
         // The zoom clamp is the ship's own: a hull has a fixed reach, where the
         // map's ceiling tracks the live contact spread.
-        if wheel_delta != 0.0 {
+        let over_panel = q_panel.iter().any(|hovered| hovered.get());
+        if wheel_delta != 0.0 && !over_panel {
             orbit.radius = zoom_radius(orbit.radius, wheel_delta, SHIP_RADIUS_MIN, SHIP_RADIUS_MAX);
         }
     }
