@@ -26,6 +26,36 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
 ## Owner feedback (2026-10-14, reopens the task)
 - A bought station becomes the player's. It moves to the player's side and drops its old civilization, so it no longer counts as that civilization's station for prices, admission, relations or anything else. It saves that way.
 
+## Agent findings (2026-10-14, reopen)
+Survey: every consumer of a station's civilization or side. A live station carries no civilization id. Its civilization shows only through its side (`Allegiance`), its `Name` ("<civilization> station") and the generator's record.
+
+Generator (pure function of the seed; a frozen record replaces the generated body once a cell retires or saves):
+- `SectorStation.civilization` `crates/nova_world/src/generation.rs:305`, printed in `canonical` `:538`.
+- Side and dead-or-living from the civilization: `crates/nova_world_base/src/clusters.rs:1871`; `station_count` per civilization `crates/nova_world_base/src/sector_stations.rs:113`; the hull catalogue from the civilization `clusters.rs:1879`. No runtime list of a civilization's stations exists, so nothing at runtime counts a bought station for its old civilization.
+- Spawn: `spawn_sector_station` names the station from the civilization `crates/nova_world/src/streaming.rs:373-384` (`generated_station_name` `:403`); `dead_station_name` `:421` parses that name back and panics on another; `rename_dead_generated_station` `:435`. A held `PendingSectorStation` `:96` respawns from the manifest (never a docked, bought station).
+
+Side (`Allegiance`), set from the civilization at spawn `crates/nova_scenario/src/objects/station.rs:233-237`:
+- Relations: `relation` / `ship_relation` `crates/nova_gameplay/src/relations.rs:64`, `:100`.
+- Station AI targeting: `crates/nova_ship/src/input/ai/acquisition.rs:313` (`ship_relation`); retaliation only on a Neutral hull `crates/nova_ship/src/input/ai/threat.rs:330`.
+- Admission: `station_admission` `crates/nova_ship/src/sections/docking_section/admission.rs:54` (owned admits before the side rules), `DockAdmission::refusal` `:123`.
+- HUD markers `crates/nova_hud/src/allegiance_markers.rs:98`; Map local contacts `crates/nova_interface/src/map/contacts.rs:113` (Ally, Hostile, Neutral).
+- Neutralized station turns Neutral `crates/nova_scenario/src/objects/station.rs:268`, `:295`.
+- Frozen with the hull: `FrozenShip.allegiance` `crates/nova_scenario/src/objects/spaceship.rs:596`; name in `FrozenBody.name` `crates/nova_world/src/frozen.rs:369`.
+
+Ownership (`OwnedStationMarker`, `crates/nova_gameplay/src/markers.rs:145`):
+- Frozen as `FrozenStation.owned` `crates/nova_scenario/src/objects/station.rs:358`, `:422`, `:449`.
+- Prices: `TradePriceType::Owned` `crates/nova_gameplay/src/inventory.rs:944`, read at `crates/nova_interface/src/inventory/app.rs:1406`.
+- Sale: `crates/nova_interface/src/station/station_buy.rs:86` (sale type), `:304` (the buy inserts the marker, nothing else).
+- Admission: `admission.rs` (above).
+
+Chart and Map:
+- `ChartStation` keeps `derelict` and the last-seen `StationSummary.name` only `crates/nova_gameplay/src/chart.rs:83`; written by `chart_sensor_finds` and `chart_docked_station` `crates/nova_world_base/src/chart.rs:67`, `:109`.
+- Map chart colour and kind by `derelict` only `crates/nova_interface/src/map/chart.rs:111`, `:548-554`, legend `:632`.
+
+Not civilization-bound, kept: the station's hold, balance, storage, services and hull catalogue are the station's own; escort hire and hull buy price at ask (100028 owns the owned-station price rules for services).
+
+Gaps today: the buy only inserts the marker, so a bought station keeps its civilization's side (its guns read the civilization's foes), its "<civilization> station" name, and shows on the chart and Map as any living station.
+
 ## Delivery gate
 - Ownership is a field on the frozen station body and in `SavedPlayer`; an owned station's admission skips the civilization rule. Stop for the owner on the price (a multiple of its stock value) and whether income accrues (needs the clock, economy strand).
 
