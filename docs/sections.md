@@ -176,8 +176,8 @@ resolves it into `HullOffers` (`nova_ship/src/sections/hull_buy.rs`), which
 the pane reads. The Station pane's "Ships for sale" list
 (`nova_interface/src/station/shipyard.rs`) shows each hull's length, section
 count, kind summary, price and trade-in, with a Buy button or the refusal.
-`plan_hull_buy` checks, in order: docked, `Refit`, a mining key per emitter
-(`bought_hull_bindings`), storage room for the whole hold, the player's
+`plan_hull_buy` checks, in order: docked, `Refit`, storage room for the
+whole hold, the player's
 balance plus the trade-in against the price, and the station's balance plus
 the price against the trade-in. The price is `hull_price_cr`, every new
 section's recipe at ask; the trade-in is `hull_trade_in_cr`, each live
@@ -188,8 +188,9 @@ section. A confirmed buy moves every hold stack into station storage
 `HullBuyRequest`. `buy_station_hull` keeps the ship root, so the HUD, the
 camera and the scenario id keep their owner: it despawns every section,
 makes the design the offer inline, sets the player's `input_mapping` to the
-new bindings (thrusters none, a weapon the first old binding of its kind,
-each emitter its own `ADDED_MINING_KEYS` key), drops the root's pinned
+start-role scheme for the new hull (`start_role_bindings`: turrets the
+trigger, railguns R, torpedoes F, the first emitter V and each later one
+the next `ADDED_MINING_KEYS` key; no old binding carries over), drops the root's pinned
 health, marks and history stamps, opens an empty hold at the new capacity,
 and spawns the new sections posed by `bought_hull_pose` so the first
 docking port's face lies on the old port's face. The old port's despawn
@@ -1645,7 +1646,7 @@ per contact. A symmetric rule - ram damage - wants both.
   `refit.rs`; proof:
   `examples/systems/system_station_add.rs`.
 - Hull buy: `HullOffers`, `hull_price_cr`, `hull_trade_in_cr`,
-  `bought_hull_bindings`, `plan_hull_buy`, `bought_hull_pose`,
+  `plan_hull_buy`, `bought_hull_pose`,
   `HullBuyRequest` - `crates/nova_ship/src/sections/hull_buy.rs`; the
   catalogue, `buy_station_hull` and `redock_bought_hull` -
   `crates/nova_scenario/src/objects/station_hulls.rs`; the generator:

@@ -7,28 +7,24 @@
 //! ([`hull_price_cr`]); the station pays for the old hull its strip value at
 //! bid, scaled by each live section's health ([`hull_trade_in_cr`]); the old
 //! hold moves whole into the station's storage. [`plan_hull_buy`] checks the
-//! station, the bindings ([`bought_hull_bindings`]), the storage and both
-//! balances, and a [`HullBuyRequest`] asks the scenario crate to put the
-//! offer in the ship's design, spawn it, and pose it so its first docking
-//! port lies where the old port was ([`bought_hull_pose`]).
-
-use std::collections::BTreeMap;
+//! station, the storage and both balances, and a [`HullBuyRequest`] asks the
+//! scenario crate to put the offer in the ship's design, spawn it with the
+//! start-role bindings, and pose it so its first docking port lies where the
+//! old port was ([`bought_hull_pose`]).
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::{
     BuildRecipe, GameItems, ItemDesignId, SectionClass, ShipInventory, StationStorage,
 };
-use nova_input::prelude::InputSource;
 
 use super::{docking_section::PORT_FACE, prelude::*};
 
-/// The offers, the price and trade-in rules, the bind rule, the plan, the
-/// pose rule and the buy request.
+/// The offers, the price and trade-in rules, the plan, the pose rule and the
+/// buy request.
 pub mod prelude {
     pub use super::{
-        bought_hull_bindings, bought_hull_pose, hull_price_cr, hull_trade_in_cr, plan_hull_buy,
-        HullBuyPartner, HullBuyPlan, HullBuyRefusalType, HullBuyRequest, HullOffer, HullOfferType,
-        HullOffers,
+        bought_hull_pose, hull_price_cr, hull_trade_in_cr, plan_hull_buy, HullBuyPartner,
+        HullBuyPlan, HullBuyRefusalType, HullBuyRequest, HullOffer, HullOfferType, HullOffers,
     };
 }
 
@@ -89,9 +85,6 @@ pub struct HullBuyRequest {
     pub station: Entity,
     /// The offer's index in the station's [`HullOffers`].
     pub offer: usize,
-    /// The player binding each new section takes, by design section id, see
-    /// [`bought_hull_bindings`].
-    pub bindings: BTreeMap<String, Vec<InputSource>>,
 }
 
 /// A hull's price: every section's recipe at ask
@@ -124,51 +117,6 @@ pub fn hull_trade_in_cr<'a>(
         .sum()
 }
 
-/// The player binding each section of a bought hull takes, by design
-/// section id. `bound` lists `(section id, class, sources)` for every live
-/// section of the old hull with a binding component.
-///
-/// A thruster takes none, so the flight computer drives it. A weapon takes
-/// the binding of the first old live section of its class, by id, and with
-/// none an empty binding that Rebind sets ([`added_section_binds`]). A
-/// mining emitter takes the first of [`ADDED_MINING_KEYS`] no earlier
-/// emitter of the new hull holds. A section that takes no input takes none.
-///
-/// # Errors
-///
-/// [`HullBuyRefusalType::NoFreeKey`] when the hull carries more mining
-/// emitters than there are mining keys.
-pub fn bought_hull_bindings<'a>(
-    sections: &[DesignSection],
-    bound: impl IntoIterator<Item = (&'a str, SectionClass, &'a [InputSource])>,
-) -> Result<BTreeMap<String, Vec<InputSource>>, HullBuyRefusalType> {
-    let old: Vec<(&str, SectionClass, &[InputSource])> = bound.into_iter().collect();
-    let mut bindings = BTreeMap::new();
-    let mut emitters: Vec<(String, Vec<InputSource>)> = Vec::new();
-    for section in sections {
-        let class = section.config.kind.class();
-        let binding = match class {
-            SectionClass::Thruster => None,
-            SectionClass::Mining => added_section_binds(
-                class,
-                emitters
-                    .iter()
-                    .map(|(id, sources)| (id.as_str(), class, sources.as_slice())),
-            )
-            .map_err(|_| HullBuyRefusalType::NoFreeKey)?,
-            _ => added_section_binds(class, old.iter().copied())
-                .map_err(|_| HullBuyRefusalType::NoFreeKey)?,
-        };
-        if let Some(binding) = binding {
-            if class == SectionClass::Mining {
-                emitters.push((section.id.clone(), binding.clone()));
-            }
-            bindings.insert(section.id.clone(), binding);
-        }
-    }
-    Ok(bindings)
-}
-
 /// The docked station a buy reads: whether it is a living station that
 /// offers Refit, its storage and its balance.
 #[derive(Clone, Copy, Debug)]
@@ -188,8 +136,6 @@ pub enum HullBuyRefusalType {
     NotDocked,
     /// The partner is not a living station that offers Refit.
     NoRefitService,
-    /// The hull carries more mining emitters than there are mining keys.
-    NoFreeKey,
     /// The station's storage cannot take the old hold.
     StorageFull {
         /// The hold's mass in grams.
@@ -216,8 +162,8 @@ pub enum HullBuyRefusalType {
     CreditOverflow,
 }
 
-/// What an allowed buy does: the price, the trade-in, the balances after,
-/// the stacks the old hold moves into storage and the new bindings.
+/// What an allowed buy does: the price, the trade-in, the balances after and
+/// the stacks the old hold moves into storage.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HullBuyPlan {
     /// The new hull's price, see [`hull_price_cr`].
@@ -232,22 +178,18 @@ pub struct HullBuyPlan {
     pub station_cr: u32,
     /// Every stack of the old hold, in id order, which moves into storage.
     pub stored: Vec<(ItemDesignId, u32)>,
-    /// The binding each new section takes, see [`bought_hull_bindings`].
-    pub bindings: BTreeMap<String, Vec<InputSource>>,
 }
 
 /// Plan buying `offer` while docked with `partner`, trading in a hull worth
 /// `trade_in_cr` ([`hull_trade_in_cr`]).
 ///
-/// `bound` is the old hull's live bindings, as [`bought_hull_bindings`]
-/// reads them. `partner` is `None` while the ship is not docked. The whole
-/// `hold` moves into the partner's storage. Checks run in
-/// [`HullBuyRefusalType`] order. A refusal changes nothing.
-pub fn plan_hull_buy<'a>(
+/// `partner` is `None` while the ship is not docked. The whole `hold` moves
+/// into the partner's storage. Checks run in [`HullBuyRefusalType`] order. A
+/// refusal changes nothing.
+pub fn plan_hull_buy(
     items: &GameItems,
     offer: &HullOffer,
     trade_in_cr: u64,
-    bound: impl IntoIterator<Item = (&'a str, SectionClass, &'a [InputSource])>,
     partner: Option<HullBuyPartner<'_>>,
     hold: &ShipInventory,
     own_cr: u32,
@@ -256,7 +198,6 @@ pub fn plan_hull_buy<'a>(
     if !partner.offers {
         return Err(HullBuyRefusalType::NoRefitService);
     }
-    let bindings = bought_hull_bindings(&offer.sections, bound)?;
     let need_g = hold.used_g(items);
     let free_g = partner.storage.free_g(items);
     if need_g > free_g {
@@ -290,7 +231,6 @@ pub fn plan_hull_buy<'a>(
             .stacks()
             .map(|(item, count)| (item.clone(), count))
             .collect(),
-        bindings,
     })
 }
 
@@ -389,20 +329,6 @@ pub(crate) mod tests {
         }
     }
 
-    fn emitter() -> SectionKind {
-        SectionKind::Mining(MiningSectionConfig {
-            render_mesh: Default::default(),
-            render_mesh_transform: None,
-            pulse_sound: Default::default(),
-            refusal_sound: Default::default(),
-            door_open_sound: Default::default(),
-            door_close_sound: Default::default(),
-            reach: nova_events::prelude::Meters(100.0),
-            pulse_interval_seconds: 1.0,
-            carve_radius_cells: 1.5,
-        })
-    }
-
     fn storage(cap_g: u32) -> StationStorage {
         StationStorage::new(cap_g)
     }
@@ -439,14 +365,13 @@ pub(crate) mod tests {
             storage: &storage,
             credits_cr: 1_000,
         };
-        let plan = plan_hull_buy(&items, &offer(), 40, [], Some(partner), &hold, 500)
+        let plan = plan_hull_buy(&items, &offer(), 40, Some(partner), &hold, 500)
             .expect("the buy is allowed");
         assert_eq!(plan.price_cr, 210);
         assert_eq!(plan.trade_in_cr, 40);
         assert_eq!(plan.own_cr, 500 - 210 + 40);
         assert_eq!(plan.station_cr, 1_000 + 210 - 40);
         assert_eq!(plan.stored, vec![("ore".into(), 3)]);
-        assert_eq!(plan.bindings.get("pdc"), Some(&Vec::new()));
     }
 
     /// A buy is refused, in order, off a station, at one without Refit, with
@@ -463,9 +388,8 @@ pub(crate) mod tests {
                 credits_cr,
             })
         };
-        let plan = |partner, trade_in, own| {
-            plan_hull_buy(&items, &offer(), trade_in, [], partner, &hold, own)
-        };
+        let plan =
+            |partner, trade_in, own| plan_hull_buy(&items, &offer(), trade_in, partner, &hold, own);
         assert_eq!(plan(None, 0, 500), Err(HullBuyRefusalType::NotDocked));
         assert_eq!(
             plan(at(&roomy, false, 0), 0, 500),
@@ -488,43 +412,6 @@ pub(crate) mod tests {
         assert_eq!(
             plan(at(&roomy, true, 5), 300, 0),
             Err(HullBuyRefusalType::StationShortOfCredits { need: 90, have: 5 })
-        );
-    }
-
-    /// Thrusters stay unbound, a weapon joins the old hull's binding of its
-    /// kind, and each emitter takes its own mining key.
-    #[test]
-    fn a_bought_hull_keeps_the_weapon_keys_and_gives_each_emitter_its_own_key() {
-        let lmb = [InputSource::Mouse(MouseButton::Left)];
-        let old = [
-            ("old_pdc", SectionClass::Turret, &lmb[..]),
-            ("old_drive", SectionClass::Thruster, &lmb[..]),
-        ];
-        let empty = BuildRecipe::default;
-        let sections = [
-            section(
-                "drive",
-                SectionKind::Thruster(ThrusterSectionConfig::default()),
-                empty(),
-            ),
-            section(
-                "pdc",
-                SectionKind::Turret(TurretSectionConfig::default()),
-                empty(),
-            ),
-            section("beam_a", emitter(), empty()),
-            section("beam_b", emitter(), empty()),
-        ];
-        let bindings = bought_hull_bindings(&sections, old).expect("two emitters have keys");
-        assert_eq!(bindings.get("drive"), None);
-        assert_eq!(bindings["pdc"], lmb.to_vec());
-        assert_eq!(
-            bindings["beam_a"],
-            vec![InputSource::Keyboard(KeyCode::KeyV)]
-        );
-        assert_eq!(
-            bindings["beam_b"],
-            vec![InputSource::Keyboard(KeyCode::KeyB)]
         );
     }
 

@@ -20,7 +20,7 @@ use nova_ui::{theme::UiColor, widget::ButtonSpec};
 use super::{offer_cell, offer_rows, StationRuntime};
 use crate::{
     pane::{compact_button, play_menu_select, themed_label},
-    ship::{code_prefix, live_bindings, ResolvedSite, SectionBindingRow, ShipRuntime, StationSite},
+    ship::{code_prefix, ResolvedSite, ShipRuntime, StationSite},
 };
 
 /// A request to buy hull `offer` of the docked station's [`HullOffers`],
@@ -104,9 +104,6 @@ fn hull_refusal_text(name: &str, refusal: &HullBuyRefusalType) -> String {
     match refusal {
         HullBuyRefusalType::NotDocked => "buy: dock at a station that refits".to_string(),
         HullBuyRefusalType::NoRefitService => "buy: this dock offers no refit".to_string(),
-        HullBuyRefusalType::NoFreeKey => {
-            format!("buy: {name} carries more mining emitters than there are mining keys")
-        }
         HullBuyRefusalType::StorageFull { need_g, free_g } => format!(
             "buy: the hold's {} does not fit the station's free {}",
             kg_text(u64::from(*need_g)),
@@ -157,7 +154,6 @@ fn plan_offer(
     resolved: &ResolvedSite<'_>,
     offer: &HullOffer,
     trade_in_cr: u64,
-    bound: &[(String, SectionClass, Vec<nova_input::prelude::InputSource>)],
     q_holds: &Query<(&ShipInventory, &ShipCredits, Option<&StationStorage>)>,
 ) -> Result<HullBuyPlan, HullBuyRefusalType> {
     let (hold, own_cr, _) = q_holds
@@ -171,17 +167,7 @@ fn plan_offer(
             credits_cr: credits.0,
         })
     });
-    plan_hull_buy(
-        items,
-        offer,
-        trade_in_cr,
-        bound
-            .iter()
-            .map(|(id, class, sources)| (id.as_str(), *class, sources.as_slice())),
-        partner,
-        hold,
-        own_cr.0,
-    )
+    plan_hull_buy(items, offer, trade_in_cr, partner, hold, own_cr.0)
 }
 
 /// Build the hull list: a header and the rows
@@ -210,7 +196,7 @@ pub(crate) fn spawn_station_hull_list(panel: &mut ChildSpawnerCommands) {
 /// changes.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one system reading the offers, the site, both holds, the bindings and the list"
+    reason = "one system reading the offers, the site, both holds, the health and the list"
 )]
 pub(crate) fn update_station_hull_list(
     mut commands: Commands,
@@ -218,7 +204,6 @@ pub(crate) fn update_station_hull_list(
     site: StationSite,
     q_offers: Query<&HullOffers>,
     q_holds: Query<(&ShipInventory, &ShipCredits, Option<&StationStorage>)>,
-    q_bindings: Query<SectionBindingRow, With<SectionMarker>>,
     q_health: Query<&Health, With<SectionMarker>>,
     mut q_list: Query<&mut Node, With<StationHullList>>,
     mut q_rows: Query<(Entity, &mut StationHullRows)>,
@@ -241,7 +226,6 @@ pub(crate) fn update_station_hull_list(
             .and_then(|(partner, _)| q_offers.get(partner).ok());
         if let Some(offers) = offers.filter(|offers| !offers.0.is_empty()) {
             let trade_in_cr = live_trade_in_cr(&items, &resolved, &q_health);
-            let bound = live_bindings(&resolved, &q_bindings);
             rows = offers
                 .0
                 .iter()
@@ -249,8 +233,7 @@ pub(crate) fn update_station_hull_list(
                 // The escorts for hire have their own list (`escorts`).
                 .filter(|(_, offer)| offer.terms == HullOfferType::Sale)
                 .map(|(index, offer)| {
-                    let planned =
-                        plan_offer(&items, &resolved, offer, trade_in_cr, &bound, &q_holds);
+                    let planned = plan_offer(&items, &resolved, offer, trade_in_cr, &q_holds);
                     let price_cr = hull_price_cr(
                         &items,
                         offer
@@ -330,7 +313,7 @@ fn on_hull_buy_button(
 /// changes nothing and shows its reason on the note line.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one system reading the offers, the site, the bindings, the health and both holds"
+    reason = "one system reading the offers, the site, the health and both holds"
 )]
 #[expect(
     clippy::type_complexity,
@@ -344,7 +327,6 @@ pub(crate) fn apply_station_hull_buy_commands(
     items: Option<Res<GameItems>>,
     site: StationSite,
     q_offers: Query<&HullOffers>,
-    q_bindings: Query<SectionBindingRow, With<SectionMarker>>,
     q_health: Query<&Health, With<SectionMarker>>,
     mut q_holds: ParamSet<(
         Query<(&ShipInventory, &ShipCredits, Option<&StationStorage>)>,
@@ -386,8 +368,7 @@ pub(crate) fn apply_station_hull_buy_commands(
         command.offer
     );
     let trade_in_cr = live_trade_in_cr(&items, &resolved, &q_health);
-    let bound = live_bindings(&resolved, &q_bindings);
-    let planned = plan_offer(&items, &resolved, offer, trade_in_cr, &bound, &q_holds.p0());
+    let planned = plan_offer(&items, &resolved, offer, trade_in_cr, &q_holds.p0());
     let plan = match planned {
         Ok(plan) => plan,
         Err(refusal) => {
@@ -427,7 +408,6 @@ pub(crate) fn apply_station_hull_buy_commands(
         entity: resolved.player,
         station,
         offer: command.offer,
-        bindings: plan.bindings.clone(),
     });
     ship.selected = None;
     ship.rebinding = None;

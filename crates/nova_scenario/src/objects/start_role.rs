@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 use bevy::prelude::*;
 use nova_gameplay::prelude::ShipInventoryStock;
 use nova_input::prelude::InputSource;
-use nova_ship::prelude::SectionKind;
+use nova_ship::prelude::{SectionKind, ADDED_MINING_KEYS};
 
 use crate::objects::{
     ship_design::prelude::{ResolvedShipDesign, ShipDesignId},
@@ -44,13 +44,22 @@ pub struct OpenWorldSession {
     pub role: StartRoleDesignId,
 }
 
-/// The input bindings a start role's hull spawns with.
+/// The input bindings a start role's hull, or a hull bought at a station,
+/// spawns with.
 ///
 /// Every turret takes the primary trigger (left mouse and the right gamepad
-/// trigger), every railgun `R`, every torpedo bay `F` and every mining
-/// emitter `V`. No other section is bound: the flight computer drives the
-/// thrusters.
+/// trigger), every railgun `R` and every torpedo bay `F`. The first mining
+/// emitter takes `V` and each later one the next of [`ADDED_MINING_KEYS`],
+/// since one press must deploy one emitter. No other section is bound: the
+/// flight computer drives the thrusters.
+///
+/// # Panics
+///
+/// On a hull with more mining emitters than [`ADDED_MINING_KEYS`]: the
+/// spawn refuses two emitters on one key, and a generated hull carries at
+/// most two.
 pub fn start_role_bindings(hull: &ResolvedShipDesign) -> BTreeMap<SectionId, Vec<InputSource>> {
+    let mut emitters = 0;
     hull.sections
         .iter()
         .filter_map(|section| {
@@ -61,7 +70,17 @@ pub fn start_role_bindings(hull: &ResolvedShipDesign) -> BTreeMap<SectionId, Vec
                 ],
                 SectionKind::Railgun(_) => vec![InputSource::Keyboard(KeyCode::KeyR)],
                 SectionKind::Torpedo(_) => vec![InputSource::Keyboard(KeyCode::KeyF)],
-                SectionKind::Mining(_) => vec![InputSource::Keyboard(KeyCode::KeyV)],
+                SectionKind::Mining(_) => {
+                    let Some(&key) = ADDED_MINING_KEYS.get(emitters) else {
+                        panic!(
+                            "start_role_bindings: emitter '{}' is past the {} mining keys",
+                            section.id,
+                            ADDED_MINING_KEYS.len()
+                        );
+                    };
+                    emitters += 1;
+                    vec![InputSource::Keyboard(key)]
+                }
                 SectionKind::Hull(_)
                 | SectionKind::Thruster(_)
                 | SectionKind::Controller(_)

@@ -68,8 +68,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   Place one, aim its ghost at a free socket and click to add it, paid by
   recipe; it takes its kind's key and fires `OnAdded`.
 - A generated `Refit` station sells three to five hulls on the Station pane. A
-  buy trades in the old hull by health, stores the hold, docks the new hull
-  and fires `OnShipBought`.
+  buy trades in the old hull by health, stores the hold and docks the new hull
+  with start-role bindings (`OnShipBought`).
 - A generated `Refit` station hires out one to three armed escorts
   (`OnEscortHired`). Each spawns clear, follows on its own drive across
   sectors, holds for a dock and saves; a neutralized one leaves.

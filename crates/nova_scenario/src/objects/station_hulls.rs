@@ -24,12 +24,15 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 
 use crate::objects::{
-    ship_design::prelude::{resolve_ship_design, GameShipDesigns, ShipDesign, ShipDesignSource},
+    ship_design::prelude::{
+        resolve_ship_design, GameShipDesigns, ResolvedShipDesign, ShipDesign, ShipDesignSource,
+    },
     spaceship::{
         hull_components,
         prelude::{SpaceshipController, SpaceshipDesign},
         spawn_design_section,
     },
+    start_role::prelude::start_role_bindings,
 };
 
 /// The station hull catalogue.
@@ -92,10 +95,7 @@ fn resolve_offer(
     design: &ShipDesign,
     designs: &GameShipDesigns,
     sections: &GameSections,
-) -> (
-    crate::objects::ship_design::prelude::ResolvedShipDesign,
-    Vec<DesignSection>,
-) {
+) -> (ResolvedShipDesign, Vec<DesignSection>) {
     let (resolved, errors) =
         resolve_ship_design(&ShipDesignSource::Inline(design.clone()), designs, sections);
     assert!(
@@ -148,7 +148,8 @@ fn insert_hull_offers(
 ///
 /// Every section goes and the root's design becomes the offer, inline, so a
 /// freeze and a save keep it. The player binding table becomes the
-/// request's. The root's pinned health, damage marks, history stamps and
+/// start-role scheme for the new hull ([`bought_hull_controller`]). The
+/// root's pinned health, damage marks, history stamps and
 /// restored-skin mark go with the old hull, and the new hold opens empty at
 /// the new hull's capacity. The root is posed by [`bought_hull_pose`] at the
 /// station's motion, and [`redock_bought_hull`] docks it again.
@@ -245,10 +246,7 @@ fn buy_station_hull(
     }
     // After the despawns: a section leaving writes its binding into the
     // controller table, and the new table replaces what those wrote.
-    let mut controller = controller.clone();
-    if let SpaceshipController::Player(config) = &mut controller {
-        config.input_mapping = request.bindings.clone();
-    }
+    let controller = bought_hull_controller(controller, &resolved);
     info!(
         "buy_station_hull: ship {ship:?} buys '{}' ({} sections) from station {:?}",
         offer.name,
@@ -297,6 +295,26 @@ fn buy_station_hull(
     commands.entity(ship).insert(ShipDesignSections(sections));
 }
 
+/// The driver a bought hull flies with: the buyer's, its binding table
+/// replaced by the start-role scheme for `hull` ([`start_role_bindings`]).
+/// No old binding carries over.
+///
+/// # Panics
+///
+/// On a buyer that is not player-driven: only the player's pane raises a
+/// buy.
+fn bought_hull_controller(
+    buyer: &SpaceshipController,
+    hull: &ResolvedShipDesign,
+) -> SpaceshipController {
+    let SpaceshipController::Player(config) = buyer else {
+        panic!("buy_station_hull: the buyer is not player-driven: {buyer:?}");
+    };
+    let mut config = config.clone();
+    config.input_mapping = start_role_bindings(hull);
+    SpaceshipController::Player(config)
+}
+
 /// Dock a bought hull's new port with the station it was bought at, once
 /// the port is live and the old dock has let go. A pair the capture gates
 /// refuse for [`REDOCK_FRAMES`] is left to fly free, with a warning.
@@ -339,5 +357,101 @@ fn redock_bought_hull(
             entity: ship,
             target: redock.station,
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use nova_events::prelude::Meters;
+    use nova_input::prelude::InputSource;
+
+    use super::*;
+    use crate::objects::{
+        ship_design::prelude::ResolvedSection, spaceship::prelude::PlayerControllerConfig,
+    };
+
+    fn section(id: &str, kind: SectionKind) -> ResolvedSection {
+        ResolvedSection {
+            id: id.to_string(),
+            position: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+            config: SectionConfig {
+                base: BaseSectionConfig {
+                    id: id.to_string(),
+                    ..default()
+                },
+                kind,
+            },
+        }
+    }
+
+    /// A bought hull binds its turrets to the trigger, railguns to R,
+    /// torpedoes to F and its mining emitters to V then B, and keeps none of
+    /// the old hull's bindings, a rebind included.
+    #[test]
+    fn a_bought_hull_takes_the_start_role_bindings_and_drops_the_old_ones() {
+        let beam = SectionKind::Mining(MiningSectionConfig {
+            render_mesh: default(),
+            render_mesh_transform: None,
+            pulse_sound: default(),
+            refusal_sound: default(),
+            door_open_sound: default(),
+            door_close_sound: default(),
+            reach: Meters(100.0),
+            pulse_interval_seconds: 1.0,
+            carve_radius_cells: 1.5,
+        });
+        let hull = ResolvedShipDesign {
+            sections: vec![
+                section("plate", SectionKind::Hull(HullSectionConfig::default())),
+                section(
+                    "drive",
+                    SectionKind::Thruster(ThrusterSectionConfig::default()),
+                ),
+                section("pdc", SectionKind::Turret(TurretSectionConfig::default())),
+                section(
+                    "spinal",
+                    SectionKind::Railgun(RailgunSectionConfig::default()),
+                ),
+                section("bay", SectionKind::Torpedo(TorpedoSectionConfig::default())),
+                section("beam_a", beam.clone()),
+                section("beam_b", beam),
+            ],
+            ..default()
+        };
+        let old = SpaceshipController::Player(PlayerControllerConfig {
+            input_mapping: BTreeMap::from([
+                (
+                    "pdc".to_string(),
+                    vec![InputSource::Keyboard(KeyCode::KeyQ)],
+                ),
+                (
+                    "old_beam".to_string(),
+                    vec![InputSource::Keyboard(KeyCode::KeyB)],
+                ),
+            ]),
+        });
+
+        let SpaceshipController::Player(config) = bought_hull_controller(&old, &hull) else {
+            panic!("a bought hull stays player-driven");
+        };
+
+        let trigger = vec![
+            InputSource::Mouse(MouseButton::Left),
+            InputSource::Gamepad(GamepadButton::RightTrigger2),
+        ];
+        let key = |code| vec![InputSource::Keyboard(code)];
+        assert_eq!(
+            config.input_mapping,
+            BTreeMap::from([
+                ("pdc".to_string(), trigger),
+                ("spinal".to_string(), key(KeyCode::KeyR)),
+                ("bay".to_string(), key(KeyCode::KeyF)),
+                ("beam_a".to_string(), key(KeyCode::KeyV)),
+                ("beam_b".to_string(), key(KeyCode::KeyB)),
+            ])
+        );
     }
 }
