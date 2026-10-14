@@ -47,6 +47,11 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
 
 - Owner feedback 2026-10-14, third round: escorts still seem to gain velocity the moment the player starts moving, "like they get a relative force applied to them". Investigate further under real manual input.
 
+- Owner response 2026-10-14 to the RCS finding (755849592): the RCS push was acceptable behaviour; the owner could not HEAR it. Decisions:
+  - escorts may still use RCS (fine positioning near the slot, dodges), but when the leader flies off they must turn and fly on the main drive, not slide on RCS;
+  - make RCS use more obvious (audio, and visuals if missing) for every ship, not only escorts;
+  - the player must be able to dock with an escort, so an escort must not dodge or clear off from a player who is approaching to dock.
+
 ## Delivery gate
 - A `fleet` field in `SavedPlayer`; an escort is a generated hull with `Allegiance::Player` and a follow order; it crosses sectors with the player (not frozen in the old cell). Stop for the owner on the escort's death rule (gone for good vs. rebuyable).
 
