@@ -1,13 +1,14 @@
 //! The Station pane's "Ships for sale" list and the Buy action.
 //!
-//! While the ship is docked at a living station that offers Refit and sells
-//! hulls ([`HullOffers`]), the pane lists every hull for sale (an escort for
-//! hire is in the escort list instead): its name, its length and section count, how many sections of each kind it
-//! carries, the price and the trade-in, and a Buy button or the reason the
-//! buy is refused. A click raises a [`HullBuyCommand`];
-//! [`apply_station_hull_buy_commands`] plans it with [`plan_hull_buy`], moves the
-//! hold into the station's storage, moves the credits both ways, and raises
-//! the [`HullBuyRequest`] the scenario crate replaces the hull from.
+//! While the ship is docked at a living station that offers Refit and has
+//! hulls parked at its ports ([`ParkedHulls`]), the pane lists every one, a
+//! hull for sale and a hull traded in for rebuy alike: its name, its length
+//! and section count, how many sections of each kind it carries, the price
+//! and the trade-in, and a Buy button or the reason the buy is refused. A
+//! click raises a [`HullBuyCommand`]; [`apply_station_hull_buy_commands`]
+//! plans it with [`plan_hull_buy`], moves the credits both ways, and raises
+//! the [`HullBuyRequest`] the scenario crate swaps the hulls from. The old
+//! hold stays in the old hull.
 //!
 //! Touch this module when changing what the list shows or what Buy moves.
 
@@ -23,12 +24,12 @@ use crate::{
     ship::{code_prefix, ResolvedSite, ShipRuntime, StationSite},
 };
 
-/// A request to buy hull `offer` of the docked station's [`HullOffers`],
-/// raised by a "Ships for sale" Buy button.
+/// A request to buy the hull parked at the docked station, raised by a
+/// "Ships for sale" Buy button.
 #[derive(Message, Clone, Debug)]
 pub struct HullBuyCommand {
-    /// The offer's index in the station's [`HullOffers`].
-    pub offer: usize,
+    /// The parked hull.
+    pub hull: Entity,
 }
 
 /// The hull list container, hidden while the refit gate does not hold or
@@ -41,10 +42,10 @@ pub(crate) struct StationHullList;
 #[derive(Component, Default)]
 pub(crate) struct StationHullRows(Vec<HullRow>);
 
-/// One offered hull as the list shows it.
+/// One parked hull as the list shows it.
 #[derive(Clone, Debug, PartialEq)]
 struct HullRow {
-    offer: usize,
+    hull: Entity,
     name: String,
     size: String,
     kinds: String,
@@ -68,8 +69,8 @@ const SUMMARY_ORDER: [SectionClass; 9] = [
 
 /// The hull's length and section count: the span of its section centres
 /// along its longest axis, plus one cell, in metres.
-pub(crate) fn hull_size_text(offer: &HullOffer) -> String {
-    let (low, high) = offer.sections.iter().fold(
+pub(crate) fn hull_size_text(sections: &[DesignSection]) -> String {
+    let (low, high) = sections.iter().fold(
         (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)),
         |(low, high), section| (low.min(section.position), high.max(section.position)),
     );
@@ -77,18 +78,17 @@ pub(crate) fn hull_size_text(offer: &HullOffer) -> String {
     format!(
         "{:.0} m long, {} sections",
         Meters::from_engine(span).0,
-        offer.sections.len()
+        sections.len()
     )
 }
 
 /// How many sections of each kind the hull carries, by section code prefix:
 /// `4 HULL, 1 CTL, 2 THR, 1 DOCK`.
-pub(crate) fn hull_kinds_text(offer: &HullOffer) -> String {
+pub(crate) fn hull_kinds_text(sections: &[DesignSection]) -> String {
     SUMMARY_ORDER
         .iter()
         .filter_map(|&class| {
-            let count = offer
-                .sections
+            let count = sections
                 .iter()
                 .filter(|section| section.config.kind.class() == class)
                 .count();
@@ -104,11 +104,6 @@ fn hull_refusal_text(name: &str, refusal: &HullBuyRefusalType) -> String {
     match refusal {
         HullBuyRefusalType::NotDocked => "buy: dock at a station that refits".to_string(),
         HullBuyRefusalType::NoRefitService => "buy: this dock offers no refit".to_string(),
-        HullBuyRefusalType::StorageFull { need_g, free_g } => format!(
-            "buy: the hold's {} does not fit the station's free {}",
-            kg_text(u64::from(*need_g)),
-            kg_text(u64::from(*free_g))
-        ),
         HullBuyRefusalType::InsufficientCredits { need, have } => {
             format!("buy: {name} costs {need} cr, the ship and the trade-in make {have} cr")
         }
@@ -148,26 +143,48 @@ fn live_trade_in_cr(
     )
 }
 
-/// Plan buying offer `offer` for the resolved player ship.
+/// The parked hulls the list shows: every hull parked at a station, its
+/// name, how it is listed and its design.
+type ParkedHullQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static Name,
+        &'static ParkedHullType,
+        &'static ShipDesignSections,
+    ),
+    With<ParkedHull>,
+>;
+
+/// A parked hull's price: its recipes at ask for sale, the trade-in it was
+/// paid for rebuy.
+fn parked_price_cr(items: &GameItems, terms: ParkedHullType, design: &ShipDesignSections) -> u64 {
+    match terms {
+        ParkedHullType::Sale => hull_price_cr(
+            items,
+            design.0.iter().map(|section| &section.config.base.build),
+        ),
+        ParkedHullType::Rebuy { price_cr } => u64::from(price_cr),
+    }
+}
+
+/// Plan buying a hull at `price` for the resolved player ship.
 fn plan_offer(
-    items: &GameItems,
     resolved: &ResolvedSite<'_>,
-    offer: &HullOffer,
+    price: u64,
     trade_in_cr: u64,
-    q_holds: &Query<(&ShipInventory, &ShipCredits, Option<&StationStorage>)>,
+    q_credits: &Query<&ShipCredits>,
 ) -> Result<HullBuyPlan, HullBuyRefusalType> {
-    let (hold, own_cr, _) = q_holds
+    let own_cr = q_credits
         .get(resolved.player)
-        .expect("the player ship carries a ShipInventory and ShipCredits");
+        .expect("the player ship carries ShipCredits");
     let partner = resolved.partner.and_then(|(partner, offers)| {
-        let (_, credits, storage) = q_holds.get(partner).ok()?;
         Some(HullBuyPartner {
             offers,
-            storage: storage?,
-            credits_cr: credits.0,
+            credits_cr: q_credits.get(partner).ok()?.0,
         })
     });
-    plan_hull_buy(items, offer, trade_in_cr, partner, hold, own_cr.0)
+    plan_hull_buy(price, trade_in_cr, partner, own_cr.0)
 }
 
 /// Build the hull list: a header and the rows
@@ -192,18 +209,20 @@ pub(crate) fn spawn_station_hull_list(panel: &mut ChildSpawnerCommands) {
 }
 
 /// Show the hull list while the refit gate holds and the docked station
-/// sells hulls, and respawn its rows when an offer, a price or a refusal
+/// has hulls parked, and respawn its rows when a hull, a price or a refusal
 /// changes.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one system reading the offers, the site, both holds, the health and the list"
+    reason = "one system reading the parked hulls, the site, both balances, the health and the \
+              list"
 )]
 pub(crate) fn update_station_hull_list(
     mut commands: Commands,
     items: Option<Res<GameItems>>,
     site: StationSite,
-    q_offers: Query<&HullOffers>,
-    q_holds: Query<(&ShipInventory, &ShipCredits, Option<&StationStorage>)>,
+    q_parked: Query<&ParkedHulls>,
+    q_hulls: ParkedHullQuery,
+    q_credits: Query<&ShipCredits>,
     q_health: Query<&Health, With<SectionMarker>>,
     mut q_list: Query<&mut Node, With<StationHullList>>,
     mut q_rows: Query<(Entity, &mut StationHullRows)>,
@@ -221,36 +240,31 @@ pub(crate) fn update_station_hull_list(
     };
     let mut rows = Vec::new();
     if let (Some(resolved), Some(items)) = (resolved, items) {
-        let offers = resolved
+        let parked = resolved
             .partner
-            .and_then(|(partner, _)| q_offers.get(partner).ok());
-        if let Some(offers) = offers.filter(|offers| !offers.0.is_empty()) {
+            .and_then(|(partner, _)| q_parked.get(partner).ok());
+        if let Some(parked) = parked {
             let trade_in_cr = live_trade_in_cr(&items, &resolved, &q_health);
-            rows = offers
-                .0
+            rows = parked
                 .iter()
-                .enumerate()
-                // The escorts for hire have their own list (`escorts`).
-                .filter(|(_, offer)| offer.terms == HullOfferType::Sale)
-                .map(|(index, offer)| {
-                    let planned = plan_offer(&items, &resolved, offer, trade_in_cr, &q_holds);
-                    let price_cr = hull_price_cr(
-                        &items,
-                        offer
-                            .sections
-                            .iter()
-                            .map(|section| &section.config.base.build),
-                    );
-                    HullRow {
-                        offer: index,
-                        name: offer.name.clone(),
-                        size: hull_size_text(offer),
-                        kinds: hull_kinds_text(offer),
+                .filter_map(|hull| {
+                    let (name, terms, design) = q_hulls.get(hull).ok()?;
+                    let price_cr = parked_price_cr(&items, *terms, design);
+                    let planned = plan_offer(&resolved, price_cr, trade_in_cr, &q_credits);
+                    let listing = match terms {
+                        ParkedHullType::Sale => "",
+                        ParkedHullType::Rebuy { .. } => " (rebuy)",
+                    };
+                    Some(HullRow {
+                        hull,
+                        name: format!("{name}{listing}"),
+                        size: hull_size_text(&design.0),
+                        kinds: hull_kinds_text(&design.0),
                         price: format!("{price_cr} cr, trade-in {trade_in_cr} cr"),
                         refusal: planned
                             .err()
-                            .map(|refusal| hull_refusal_text(&offer.name, &refusal)),
-                    }
+                            .map(|refusal| hull_refusal_text(name.as_str(), &refusal)),
+                    })
                 })
                 .collect();
         }
@@ -268,7 +282,7 @@ pub(crate) fn update_station_hull_list(
     }
     commands.entity(rows_entity).despawn_children();
     commands.entity(rows_entity).with_children(|parent| {
-        for row in &rows {
+        for (index, row) in rows.iter().enumerate() {
             parent.spawn(offer_cell()).with_children(|cell| {
                 cell.spawn(themed_label(&row.name, 13.0, UiColor::Primary));
                 cell.spawn(themed_label(&row.size, 12.0, UiColor::Body));
@@ -280,10 +294,10 @@ pub(crate) fn update_station_hull_list(
                     }
                     None => {
                         cell.spawn((
-                            Name::new(format!("HullBuy-{}", row.offer)),
+                            Name::new(format!("HullBuy-{index}")),
                             compact_button(ButtonSpec::new("Buy").fit().primary()),
                         ))
-                        .observe(on_hull_buy_button(row.offer));
+                        .observe(on_hull_buy_button(row.hull));
                     }
                 }
             });
@@ -292,32 +306,27 @@ pub(crate) fn update_station_hull_list(
     shown.0 = rows;
 }
 
-/// Raise a [`HullBuyCommand`] for offer `offer` when its Buy button is
-/// clicked.
+/// Raise a [`HullBuyCommand`] for the parked hull `hull` when its Buy
+/// button is clicked.
 fn on_hull_buy_button(
-    offer: usize,
+    hull: Entity,
 ) -> impl FnMut(On<Activate>, MessageWriter<HullBuyCommand>, Option<Res<SoundBank<UiSfx>>>, Commands)
 {
     move |_activate, mut buys, bank, mut commands| {
-        buys.write(HullBuyCommand { offer });
+        buys.write(HullBuyCommand { hull });
         play_menu_select(&mut commands, bank.as_deref());
     }
 }
 
-/// Apply [`HullBuyCommand`]s by the [`plan_hull_buy`] rule: move every stack
-/// of the hold into the station's storage with one `Stored` report each,
-/// charge the price and pay the trade-in with `ShipBuy` credit changes on
-/// both sides, queue one `ShipBought` report, and raise the
-/// [`HullBuyRequest`] that replaces the hull. The selection and any pending
-/// rebind or repair target clear, since every section goes. A refusal
-/// changes nothing and shows its reason on the note line.
+/// Apply [`HullBuyCommand`]s by the [`plan_hull_buy`] rule: charge the
+/// price and pay the trade-in with `ShipBuy` credit changes on both sides,
+/// queue one `ShipBought` report, and raise the [`HullBuyRequest`] that
+/// swaps the hulls. The old hold stays in the old hull. The selection and
+/// any pending rebind or repair target clear, since every section goes. A
+/// refusal changes nothing and shows its reason on the note line.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one system reading the offers, the site, the health and both holds"
-)]
-#[expect(
-    clippy::type_complexity,
-    reason = "both holds, balances, report queues and the station storage in one query"
+    reason = "one system reading the parked hulls, the site, the health and both balances"
 )]
 pub(crate) fn apply_station_hull_buy_commands(
     mut messages: MessageReader<HullBuyCommand>,
@@ -326,16 +335,11 @@ pub(crate) fn apply_station_hull_buy_commands(
     mut commands: Commands,
     items: Option<Res<GameItems>>,
     site: StationSite,
-    q_offers: Query<&HullOffers>,
+    q_hulls: Query<(&ParkedHull, &Name, &ParkedHullType, &ShipDesignSections)>,
     q_health: Query<&Health, With<SectionMarker>>,
-    mut q_holds: ParamSet<(
-        Query<(&ShipInventory, &ShipCredits, Option<&StationStorage>)>,
-        Query<(
-            &mut ShipInventory,
-            &mut ShipCredits,
-            &mut ShipInventoryReports,
-            Option<&mut StationStorage>,
-        )>,
+    mut q_credits: ParamSet<(
+        Query<&ShipCredits>,
+        Query<(&mut ShipCredits, &mut ShipInventoryReports)>,
     )>,
 ) {
     if messages.is_empty() {
@@ -354,45 +358,31 @@ pub(crate) fn apply_station_hull_buy_commands(
         runtime.say(hull_refusal_text("", &HullBuyRefusalType::NotDocked));
         return;
     };
-    let offers = q_offers
-        .get(station)
-        .unwrap_or_else(|_| panic!("buy: docked station {station:?} sells no hull"));
-    let offer = offers
-        .0
-        .get(command.offer)
-        .unwrap_or_else(|| panic!("buy: station {station:?} has no offer {}", command.offer));
+    let Ok((parked, name, terms, design)) = q_hulls.get(command.hull) else {
+        panic!("buy: {:?} is no parked hull", command.hull);
+    };
     assert_eq!(
-        offer.terms,
-        HullOfferType::Sale,
-        "buy: offer {} of station {station:?} is for hire, not for sale",
-        command.offer
+        parked.0, station,
+        "buy: hull {:?} is not parked at the docked station {station:?}",
+        command.hull
     );
+    let name = name.to_string();
+    let price_cr = parked_price_cr(&items, *terms, design);
     let trade_in_cr = live_trade_in_cr(&items, &resolved, &q_health);
-    let planned = plan_offer(&items, &resolved, offer, trade_in_cr, &q_holds.p0());
+    let planned = plan_offer(&resolved, price_cr, trade_in_cr, &q_credits.p0());
     let plan = match planned {
         Ok(plan) => plan,
         Err(refusal) => {
-            runtime.say(hull_refusal_text(&offer.name, &refusal));
+            runtime.say(hull_refusal_text(&name, &refusal));
             return;
         }
     };
-    let mut q_holds = q_holds.p1();
-    let Ok(
-        [(mut own, mut own_cr, mut own_reports, _), (_, mut station_cr, mut station_reports, storage)],
-    ) = q_holds.get_many_mut([resolved.player, station])
+    let mut q_credits = q_credits.p1();
+    let Ok([(mut own_cr, mut own_reports), (mut station_cr, mut station_reports)]) =
+        q_credits.get_many_mut([resolved.player, station])
     else {
-        panic!("buy: the player ship and station {station:?} each carry a hold");
+        panic!("buy: the player ship and station {station:?} each carry credits and reports");
     };
-    let mut storage = storage.expect("plan_hull_buy refuses a partner without station storage");
-    for (item, count) in &plan.stored {
-        own.remove(item, *count);
-        storage.add(&items, item, *count);
-        own_reports.0.push(ShipInventoryReport::Stored {
-            station,
-            item: item.clone(),
-            count: *count,
-        });
-    }
     own_reports.change_credits(&mut own_cr, plan.own_cr, CreditChangeCauseType::ShipBuy);
     station_reports.change_credits(
         &mut station_cr,
@@ -400,14 +390,15 @@ pub(crate) fn apply_station_hull_buy_commands(
         CreditChangeCauseType::ShipBuy,
     );
     own_reports.0.push(ShipInventoryReport::ShipBought {
-        hull: offer.name.clone(),
+        hull: name.clone(),
         price_cr: plan.price_cr,
         trade_in_cr: plan.trade_in_cr,
     });
     commands.trigger(HullBuyRequest {
         entity: resolved.player,
         station,
-        offer: command.offer,
+        hull: command.hull,
+        trade_in_cr: plan.trade_in_cr,
     });
     ship.selected = None;
     ship.rebinding = None;
@@ -415,7 +406,7 @@ pub(crate) fn apply_station_hull_buy_commands(
     ship.held = None;
     ship.reselect = None;
     runtime.say(format!(
-        "bought {} for {} cr, {} cr for the old hull",
-        offer.name, plan.price_cr, plan.trade_in_cr
+        "bought {name} for {} cr, {} cr for the old hull",
+        plan.price_cr, plan.trade_in_cr
     ));
 }

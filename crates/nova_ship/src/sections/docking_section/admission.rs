@@ -6,7 +6,8 @@
 //!
 //! A ship target is judged by its combat state. A station target is judged by
 //! [`station_admission`]: a station with every port held refuses the next
-//! hull; a station the player owns ([`OwnedStationMarker`]) refuses nobody
+//! hull; a hull parked at the station ([`ParkedHull`]) is let in whatever
+//! the sides; a station the player owns ([`OwnedStationMarker`]) refuses nobody
 //! else; a derelict admits whoever comes to loot it; a living station refuses
 //! while it is on the Enemy side or hostile to the ship asking (by side, or
 //! answering its fire). A ship holds one connection: the port search names no
@@ -22,7 +23,7 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 use nova_gameplay::prelude::*;
 
 use super::{DockedPort, DockingSectionMarker};
-use crate::input::ai::prelude::AIBehaviorState;
+use crate::{input::ai::prelude::AIBehaviorState, sections::hull_buy::ParkedHull};
 
 /// Why a target refuses a dock.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
@@ -91,6 +92,8 @@ pub struct DockAdmission<'w, 's> {
         ),
         With<SpaceshipRootMarker>,
     >,
+    /// The hulls parked at a station, which berth there whatever its side.
+    parked: Query<'w, 's, &'static ParkedHull>,
     /// The free live ports, by the hull they are mounted on: a station with
     /// none is occupied.
     free_ports: Query<
@@ -114,7 +117,8 @@ impl DockAdmission<'_, '_> {
 
     /// Why `target` refuses `ship`, or `None` when it lets it dock.
     ///
-    /// A station answers by [`station_admission`]. A neutralized ship always
+    /// A station answers by [`station_admission`], and to a hull parked at
+    /// it as an owned station does. A neutralized ship always
     /// admits: the dock is a boarding. Otherwise a ship refuses while it is
     /// hostile to `ship`, while it is on the Enemy side, while it answers any
     /// ship's fire, and while its AI is fighting; a calm Player-aligned or
@@ -146,8 +150,15 @@ impl DockAdmission<'_, '_> {
         ) == Relation::Hostile;
         if station {
             let occupied = !self.free_ports.iter().any(|mount| mount.0 == target);
-            return station_admission(allegiance.copied(), derelict, occupied, owned, hostile)
-                .err();
+            let berth = self.parked.get(ship).is_ok_and(|parked| parked.0 == target);
+            return station_admission(
+                allegiance.copied(),
+                derelict,
+                occupied,
+                owned || berth,
+                hostile,
+            )
+            .err();
         }
         if neutralized {
             return None;

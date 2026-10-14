@@ -22,6 +22,7 @@ use nova_gameplay::prelude::*;
 use nova_input::prelude::InputBindings;
 use nova_ship::prelude::{
     CargoIntakeEjectionQueue, CargoIntakeSectionMarker, DockedShip, DockingConnection,
+    OwnedShipMarker,
 };
 use nova_ui::{
     theme::UiColor,
@@ -1381,7 +1382,12 @@ pub(crate) struct InventoryShips<'w, 's> {
     items: Res<'w, GameItems>,
     players: Query<'w, 's, (Entity, Option<&'static DockedShip>), With<PlayerSpaceshipMarker>>,
     connections: Query<'w, 's, &'static DockingConnection>,
-    fleet: Query<'w, 's, (Entity, Option<&'static DockedShip>), With<PlayerFleetMarker>>,
+    fleet: Query<
+        'w,
+        's,
+        (Entity, Option<&'static DockedShip>),
+        Or<(With<PlayerFleetMarker>, With<OwnedShipMarker>)>,
+    >,
     station_roots: Query<'w, 's, (), With<StationMarker>>,
     ships: Query<
         'w,
@@ -1490,8 +1496,9 @@ impl InventoryShips<'_, '_> {
     /// ship docked at the same station. Empty while undocked or docked with
     /// any other ship.
     ///
-    /// An own ship is a fleet escort ([`PlayerFleetMarker`]). The one place
-    /// that decides it, so a wider own-ship marker replaces only this filter.
+    /// An own ship is a fleet escort ([`PlayerFleetMarker`]) or a hull the
+    /// player traded in, parked for rebuy ([`OwnedShipMarker`]). The one
+    /// place that decides it.
     pub(crate) fn own_holds(&self, pair: InventoryPair) -> Vec<Entity> {
         let Some(partner) = pair.partner else {
             return Vec::new();

@@ -29,10 +29,10 @@ use nova_gameplay::prelude::{
 use nova_scenario::prelude::{
     asteroid_scenario_object_prepared, base_scenario_object, planet_scenario_object_prepared,
     resolve_ship_design, spaceship_scenario_object, station_scenario_object,
-    BaseScenarioObjectConfig, GameShipDesigns, PlanetMarker, ShipDesignSource,
-    StationHullCatalogue, StationMarker,
+    BaseScenarioObjectConfig, GameShipDesigns, PendingParkedHull, PendingParkedHulls, PlanetMarker,
+    ShipDesignSource, StationHullCatalogue, StationMarker,
 };
-use nova_ship::prelude::GameSections;
+use nova_ship::prelude::{GameSections, HullOfferType};
 
 use crate::{
     bodies_clear,
@@ -367,7 +367,9 @@ fn require_resolved(id: &GeneratedBodyId, design: &ShipDesignSource, sections: &
 
 /// Spawn one generated station under `root`, where and as its manifest
 /// entry says: the entry's `design`, `spawn` and `hulls` are the whole
-/// station, and this adds only the pose and the identity. A dead station is the same
+/// station, and this adds only the pose and the identity. The hulls for
+/// sale park at its ports ([`PendingParkedHulls`]) and the escorts for hire
+/// are its catalogue. A dead station is the same
 /// design spawned `derelict`: the factory marks it, so its hull spawns
 /// inactive and lootable, and no service is offered on it.
 fn spawn_sector_station(commands: &mut Commands, root: Entity, station: SectorStation) {
@@ -393,8 +395,16 @@ fn spawn_sector_station(commands: &mut Commands, root: Entity, station: SectorSt
         ChildOf(root),
     ));
     station_scenario_object(&mut entity, &design, &spawn);
-    if !hulls.is_empty() {
-        entity.insert(StationHullCatalogue(hulls));
+    let (sales, hires): (Vec<_>, Vec<_>) = hulls
+        .into_iter()
+        .partition(|offer| offer.terms == HullOfferType::Sale);
+    if !sales.is_empty() {
+        entity.insert(PendingParkedHulls(
+            sales.into_iter().map(PendingParkedHull::Sale).collect(),
+        ));
+    }
+    if !hires.is_empty() {
+        entity.insert(StationHullCatalogue(hires));
     }
 }
 

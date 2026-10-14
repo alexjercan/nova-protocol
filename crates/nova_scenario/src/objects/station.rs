@@ -48,6 +48,9 @@ pub use nova_gameplay::prelude::{
 use nova_ship::prelude::{AISpaceshipMarker, SectionBuildConfig, ShipCapabilities};
 
 use crate::objects::{
+    parked_hulls::prelude::{
+        freeze_parked_hulls, FrozenParkedHull, PendingParkedHull, PendingParkedHulls,
+    },
     ship_design::prelude::{ShipDesign, ShipDesignSource},
     spaceship::{
         derelict_keeps_live,
@@ -341,8 +344,8 @@ fn station_capabilities(living: bool) -> ShipCapabilities {
 }
 
 /// A station frozen with its cell: the design it was built from, the hull
-/// record a ship freezes to, its storage, its hull catalogue and whether the
-/// player owns it.
+/// record a ship freezes to, its storage, its escort catalogue, the hulls
+/// parked at its ports and whether the player owns it.
 ///
 /// `owned` is the one record of ownership: the live [`OwnedStationMarker`]
 /// is frozen into it and thawed out of it, so a bought station stays the
@@ -355,6 +358,7 @@ pub struct FrozenStation {
     ship: FrozenShip,
     storage: StationStorage,
     hulls: Vec<StationHullOffer>,
+    parked: Vec<FrozenParkedHull>,
     owned: bool,
 }
 
@@ -374,9 +378,14 @@ impl FrozenStation {
         &self.storage
     }
 
-    /// The hulls the station sells; empty for one that sells none.
+    /// The escorts the station hires out; empty for one that hires none.
     pub fn hulls(&self) -> &[StationHullOffer] {
         &self.hulls
+    }
+
+    /// The hulls parked at the station's ports, for sale or for rebuy.
+    pub fn parked(&self) -> &[FrozenParkedHull] {
+        &self.parked
     }
 
     /// Whether the player owns the station.
@@ -384,19 +393,24 @@ impl FrozenStation {
         self.owned
     }
 
-    /// Every item id the station holds: its hull's and its storage's.
+    /// Every item id the station holds: its hull's, its storage's and its
+    /// parked hulls'.
     pub fn item_ids(&self) -> impl Iterator<Item = &ItemDesignId> {
-        self.ship.item_ids().chain(self.storage.item_ids())
+        self.ship
+            .item_ids()
+            .chain(self.storage.item_ids())
+            .chain(self.parked.iter().flat_map(|hull| hull.ship().item_ids()))
     }
 }
 
 /// Freeze a station: its hull as [`freeze_ship`] records it, with its design
-/// id, storage, hull catalogue and whether it carries [`OwnedStationMarker`].
+/// id, storage, escort catalogue, parked hulls ([`freeze_parked_hulls`]) and
+/// whether it carries [`OwnedStationMarker`].
 ///
 /// # Errors
 ///
 /// [`UnsettledBody`] while the hull is collapsing, being destroyed or
-/// mid-sever, see [`freeze_ship`].
+/// mid-sever, see [`freeze_ship`], or while a parked hull cannot freeze.
 ///
 /// # Panics
 ///
@@ -419,14 +433,16 @@ pub fn freeze_station(world: &World, station: Entity) -> Result<FrozenStation, U
             .get::<StationHullCatalogue>()
             .map(|catalogue| catalogue.0.clone())
             .unwrap_or_default(),
+        parked: freeze_parked_hulls(world, station)?,
         owned: root.contains::<OwnedStationMarker>(),
     })
 }
 
 /// Rebuild a frozen station on `entity`, which the caller spawned with its
 /// pose, identity and parent. The hull thaws through [`thaw_ship`]; the
-/// marker, the storage, a non-empty hull catalogue and, for an owned
-/// station, [`OwnedStationMarker`] land beside it. The caller inserts the
+/// marker, the storage, a non-empty escort catalogue, the parked hulls to
+/// park again ([`PendingParkedHulls`]) and, for an owned station,
+/// [`OwnedStationMarker`] land beside it. The caller inserts the
 /// velocity after this.
 pub fn thaw_station(entity: &mut EntityCommands, frozen: FrozenStation) {
     let FrozenStation {
@@ -434,12 +450,18 @@ pub fn thaw_station(entity: &mut EntityCommands, frozen: FrozenStation) {
         ship,
         storage,
         hulls,
+        parked,
         owned,
     } = frozen;
     thaw_ship(entity, ship);
     entity.insert((StationMarker(design), storage));
     if !hulls.is_empty() {
         entity.insert(StationHullCatalogue(hulls));
+    }
+    if !parked.is_empty() {
+        entity.insert(PendingParkedHulls(
+            parked.into_iter().map(PendingParkedHull::Frozen).collect(),
+        ));
     }
     if owned {
         // TODO(20261012-100028): an owned station earns nothing yet. Its

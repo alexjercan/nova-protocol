@@ -4,7 +4,8 @@
 //! PURE. Every draw comes from a stream keyed by the world seed and the
 //! station's id, so a station sells the same hulls from every cell, in any
 //! visit order, and a thawed or loaded station keeps the list it froze with.
-//! The catalogue holds [`STATION_HULLS`] hulls, a seeded count. Their roles
+//! The station sells one hull per docking port but one, each parked at its
+//! port, the last port kept free for the player. Their roles
 //! cycle, from a seeded start, through the roles the civilization's
 //! advancement can build, and each is [`generate_ship`] at that advancement,
 //! so the generator's size ceiling tiers the catalogue: a station near the
@@ -29,9 +30,6 @@ use crate::{
     ship_parts::ShipPartSnapshot,
 };
 
-/// The fewest and the most hulls one station sells, both included.
-pub(crate) const STATION_HULLS: (usize, usize) = (3, 5);
-
 /// The fewest and the most escorts one station hires out, both included,
 /// when its civilization builds a fighting role.
 pub(crate) const STATION_ESCORTS: (usize, usize) = (1, 3);
@@ -51,8 +49,9 @@ fn hull_key(seed: u32, station: &str, aspect: &[u8], slot: usize) -> u32 {
 pub(crate) type StationHullLayout = (String, HullOfferType, ShipRoleType, ShipLayout);
 
 /// Lay out the catalogue of the living station `station` (its scenario id)
-/// that `civilization` keeps, in the world of `seed`: each hull's name,
-/// terms and layout, in list order, the hulls for sale first.
+/// that `civilization` keeps, in the world of `seed`, `sales` hulls for
+/// sale: each hull's name, terms and layout, in list order, the hulls for
+/// sale first.
 ///
 /// # Errors
 ///
@@ -62,6 +61,7 @@ pub(crate) fn station_hull_layouts(
     seed: u32,
     station: &str,
     civilization: &Civilization,
+    sales: usize,
 ) -> Result<Vec<StationHullLayout>, ShipLayoutFailure> {
     let civilization_name = civilization.id.name();
     let layout = |aspect: &[u8], slot: usize, role: ShipRoleType| {
@@ -78,7 +78,7 @@ pub(crate) fn station_hull_layouts(
     // Civilian and industrial are always buildable, so the list is never
     // empty.
     let roles = parts.eligible_roles(civilization.advancement);
-    let sales = seeded_roster(hull_key(seed, station, b"plan", 0), STATION_HULLS, &roles).map(
+    let sales = seeded_roster(hull_key(seed, station, b"plan", 0), (sales, sales), &roles).map(
         |(slot, role)| {
             let mark = slot / roles.len() + 1;
             Ok((
@@ -130,7 +130,8 @@ fn seeded_roster(
     (0..count).map(move |slot| (slot, roles[(start + slot) % roles.len()]))
 }
 
-/// The catalogue [`station_hull_layouts`] lays out, as the station carries
+/// The catalogue [`station_hull_layouts`] lays out for a station of `ports`
+/// docking ports, one hull for sale at each but one, as the station carries
 /// it.
 ///
 /// # Errors
@@ -141,15 +142,18 @@ pub(crate) fn station_hulls(
     seed: u32,
     station: &str,
     civilization: &Civilization,
+    ports: usize,
 ) -> Result<Vec<StationHullOffer>, ShipLayoutFailure> {
-    Ok(station_hull_layouts(parts, seed, station, civilization)?
-        .into_iter()
-        .map(|(name, terms, _, layout)| StationHullOffer {
-            name,
-            terms,
-            design: layout.design,
-        })
-        .collect())
+    Ok(
+        station_hull_layouts(parts, seed, station, civilization, ports.saturating_sub(1))?
+            .into_iter()
+            .map(|(name, terms, _, layout)| StationHullOffer {
+                name,
+                terms,
+                design: layout.design,
+            })
+            .collect(),
+    )
 }
 
 #[cfg(test)]
@@ -161,10 +165,14 @@ mod tests {
         CivilizationField,
     };
 
+    /// The ports of a shipped ring station.
+    const PORTS: usize = 4;
+
     /// A station in the first ring around the origin sells only small hulls:
     /// every hull's clearance stays under the medium band's ceiling (the
     /// band `no_medium_hull_spawns_inside_the_second_ring` reads). The same
-    /// seed and station give the same catalogue, of three to five hulls.
+    /// seed and station give the same catalogue, one hull for sale per port
+    /// but one.
     #[test]
     fn a_first_ring_station_sells_small_hulls_and_the_same_catalogue_for_a_seed() {
         let parts = ShipPartSnapshot::build(&packs()).expect("the packs build");
@@ -183,16 +191,14 @@ mod tests {
                         }
                         stations += 1;
                         let station = format!("ring_one_{x}_{y}_{z}_station");
-                        let hulls = station_hull_layouts(&parts, seed, &station, &civilization)
-                            .unwrap_or_else(|failure| panic!("seed {seed}: {failure}"));
+                        let hulls =
+                            station_hull_layouts(&parts, seed, &station, &civilization, PORTS - 1)
+                                .unwrap_or_else(|failure| panic!("seed {seed}: {failure}"));
                         let sales = hulls
                             .iter()
                             .filter(|(_, terms, _, _)| *terms == HullOfferType::Sale)
                             .count();
-                        assert!(
-                            (STATION_HULLS.0..=STATION_HULLS.1).contains(&sales),
-                            "seed {seed}: {sales} hulls for sale"
-                        );
+                        assert_eq!(sales, PORTS - 1, "seed {seed}: {sales} hulls for sale");
                         for (name, _, _, layout) in &hulls {
                             assert!(
                                 layout.clearance < medium,
@@ -202,13 +208,13 @@ mod tests {
                                 layout.clearance
                             );
                         }
-                        let again = station_hulls(&parts, seed, &station, &civilization)
+                        let again = station_hulls(&parts, seed, &station, &civilization, PORTS)
                             .expect("the catalogue lays out again");
                         assert_eq!(
                             format!("{again:?}"),
                             format!(
                                 "{:?}",
-                                station_hulls(&parts, seed, &station, &civilization)
+                                station_hulls(&parts, seed, &station, &civilization, PORTS)
                                     .expect("the catalogue lays out")
                             ),
                             "seed {seed}: the catalogue of '{station}' moved"
@@ -251,8 +257,9 @@ mod tests {
                             continue;
                         }
                         let station = format!("sweep_{x}_{y}_{z}_station");
-                        let hulls = station_hull_layouts(&parts, seed, &station, &civilization)
-                            .unwrap_or_else(|failure| panic!("seed {seed}: {failure}"));
+                        let hulls =
+                            station_hull_layouts(&parts, seed, &station, &civilization, PORTS - 1)
+                                .unwrap_or_else(|failure| panic!("seed {seed}: {failure}"));
                         let first_hire = hulls
                             .iter()
                             .position(|(_, terms, _, _)| *terms != HullOfferType::Sale)
@@ -286,8 +293,14 @@ mod tests {
                             );
                         }
                         assert_eq!(
-                            format!("{:?}", station_hulls(&parts, seed, &station, &civilization)),
-                            format!("{:?}", station_hulls(&parts, seed, &station, &civilization)),
+                            format!(
+                                "{:?}",
+                                station_hulls(&parts, seed, &station, &civilization, PORTS)
+                            ),
+                            format!(
+                                "{:?}",
+                                station_hulls(&parts, seed, &station, &civilization, PORTS)
+                            ),
                             "seed {seed}: the roster of '{station}' moved"
                         );
                     }

@@ -12,7 +12,7 @@ use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPacks};
 use nova_events::prelude::Meters;
 use nova_gameplay::prelude::GameItems;
 use nova_scenario::prelude::{GameStationDesigns, SectionSource, StationDesign};
-use nova_ship::prelude::{GameStyles, SectionCollider};
+use nova_ship::prelude::{GameStyles, SectionCollider, SectionKind};
 use nova_world::prelude::*;
 
 use crate::{
@@ -75,6 +75,9 @@ pub struct PinnedStation {
     pub design: StationDesign,
     /// The radius around the root that holds the hull in any orientation.
     pub clearance: Meters,
+    /// How many docking ports the hull carries: the station parks one hull
+    /// for sale at each but one.
+    pub ports: usize,
 }
 
 /// Every id in [`GENERATED_STATION_DESIGN_IDS`] as `stations` loaded it,
@@ -91,11 +94,14 @@ fn pin_stations(
             continue;
         };
         match station_clearance(design, loaded) {
-            Ok(clearance) if clearance <= SECTOR_SHIP_CLEARANCE_MAX => pinned.push(PinnedStation {
-                design: design.clone(),
-                clearance,
-            }),
-            Ok(clearance) => faults.push(ShipPartFault::StationTooWide {
+            Ok((clearance, ports)) if clearance <= SECTOR_SHIP_CLEARANCE_MAX => {
+                pinned.push(PinnedStation {
+                    design: design.clone(),
+                    clearance,
+                    ports,
+                });
+            }
+            Ok((clearance, _)) => faults.push(ShipPartFault::StationTooWide {
                 design: design.id.to_string(),
                 clearance: clearance.get(),
                 limit: SECTOR_SHIP_CLEARANCE_MAX.get(),
@@ -111,10 +117,10 @@ fn pin_stations(
 }
 
 /// The radius around `design`'s root that holds its whole hull in any
-/// orientation: the farthest any section's collider corner reaches, each
-/// prototype resolved against `loaded`, the last pack to declare an id
-/// winning as the merge overlays it. A section with no authored collider is
-/// one cell.
+/// orientation, and how many docking ports it carries: the farthest any
+/// section's collider corner reaches, each prototype resolved against
+/// `loaded`, the last pack to declare an id winning as the merge overlays
+/// it. A section with no authored collider is one cell.
 ///
 /// # Errors
 ///
@@ -123,27 +129,28 @@ fn pin_stations(
 fn station_clearance(
     design: &StationDesign,
     loaded: &LoadedSectionPacks,
-) -> Result<Meters, ShipPartFault> {
+) -> Result<(Meters, usize), ShipPartFault> {
     let mut reach: f32 = 0.0;
+    let mut ports = 0;
     for section in &design.hull.sections {
-        let collider = match &section.source {
-            SectionSource::Inline(config) => config.base.collider,
-            SectionSource::Prototype { id, .. } => {
-                loaded
-                    .packs
-                    .iter()
-                    .flat_map(|pack| pack.sections.iter())
-                    .filter(|config| config.base.id == *id)
-                    .next_back()
-                    .ok_or_else(|| ShipPartFault::UnresolvedStationSection {
-                        design: design.id.to_string(),
-                        section: section.id.to_string(),
-                        prototype: id.to_string(),
-                    })?
-                    .base
-                    .collider
-            }
+        let config = match &section.source {
+            SectionSource::Inline(config) => config,
+            SectionSource::Prototype { id, .. } => loaded
+                .packs
+                .iter()
+                .flat_map(|pack| pack.sections.iter())
+                .filter(|config| config.base.id == *id)
+                .next_back()
+                .ok_or_else(|| ShipPartFault::UnresolvedStationSection {
+                    design: design.id.to_string(),
+                    section: section.id.to_string(),
+                    prototype: id.to_string(),
+                })?,
         };
+        if matches!(config.kind, SectionKind::Docking(_)) {
+            ports += 1;
+        }
+        let collider = config.base.collider;
         let half_diagonal = match collider {
             None => Vec3::ONE.length() * 0.5,
             Some(SectionCollider::Cuboid { size }) => size.length() * 0.5,
@@ -153,7 +160,7 @@ fn station_clearance(
         };
         reach = reach.max(section.position.length() + half_diagonal);
     }
-    Ok(Meters::from_engine(reach))
+    Ok((Meters::from_engine(reach), ports))
 }
 
 /// Equal when both pin one catalog and one ship-part snapshot. Compares two

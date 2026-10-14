@@ -1,22 +1,22 @@
-//! The hulls a station sells, and the buy that replaces a ship's hull with
-//! one of them.
+//! The escorts a station hires out, and the buy that swaps a ship's hull
+//! with a hull parked at the station.
 //!
-//! A generated living station carries a [`StationHullCatalogue`]: a short
-//! list of whole inline designs the world generator laid out for its
-//! civilization. The catalogue rides the station's frozen record, so a
-//! station keeps it across a retire, a thaw and a save. Whenever it lands,
-//! [`insert_hull_offers`] resolves it into the ship crate's [`HullOffers`],
-//! which the buy rule and the Ship pane read. A station with no catalogue
-//! sells no hull.
+//! A generated living station carries a [`StationHullCatalogue`]: the
+//! escorts for hire the world generator laid out for its civilization, as
+//! whole inline designs. Its hulls for sale are parked at its ports instead
+//! (`crate::objects::parked_hulls`). The catalogue rides the station's
+//! frozen record, so a station keeps it across a retire, a thaw and a save.
+//! Whenever it lands, [`insert_hull_offers`] resolves it into the ship
+//! crate's [`HullOffers`], which the hire rule and the Station pane read. A
+//! station with no catalogue hires none out.
 //!
 //! [`buy_station_hull`] answers a [`HullBuyRequest`] once the buy rule moved
-//! the hold and the credits. The ship root stays, so everything that keys on
-//! it (the HUD, the world observer, the scenario id) keeps its owner. Its
-//! sections go, its design becomes the offer, inline, and the new sections
-//! spawn through the per-section spawn every ship takes, posed so the new
-//! hull's first docking port lies on the old port's face. The old port's
-//! despawn releases the dock, and [`redock_bought_hull`] docks the new port
-//! once it is live.
+//! the credits, by a swap ([`swap_parked_hull`]). The ship root stays, so
+//! everything that keys on it (the HUD, the world observer, the fleet, the
+//! scenario id) keeps its owner: it takes the parked hull's design, state
+//! and place and the start-role bindings for it, and [`redock_bought_hull`]
+//! docks it at the parked hull's port. The old hull is parked where it
+//! stood, its hold whole, for rebuy at the trade-in.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -24,14 +24,11 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 
 use crate::objects::{
+    parked_hulls::spawn_parked_hull,
     ship_design::prelude::{
         resolve_ship_design, GameShipDesigns, ResolvedShipDesign, ShipDesign, ShipDesignSource,
     },
-    spaceship::{
-        hull_components,
-        prelude::{SpaceshipController, SpaceshipDesign},
-        spawn_design_section,
-    },
+    spaceship::{freeze_ship, prelude::SpaceshipController, rehull_ship, thaw_ship},
     start_role::prelude::start_role_bindings,
 };
 
@@ -40,13 +37,15 @@ pub mod prelude {
     pub use super::{StationHullCatalogue, StationHullOffer, StationHullsPlugin};
 }
 
-/// How many frames a bought hull tries to dock its new port before it gives
+/// How many frames a bought hull tries to dock at its port before it gives
 /// up and flies free: a pair the capture gates refuse that long will not
 /// pass them by waiting.
 const REDOCK_FRAMES: u32 = 30;
 
-/// One hull a station sells: the name its list shows and the whole design,
-/// inline, every section a prototype of the loaded catalog.
+/// One hull a generated station offers: the name its list shows, its terms
+/// and the whole design, inline, every section a prototype of the loaded
+/// catalog. A hull for sale is parked at the station's first spawn; an
+/// escort for hire stays in the [`StationHullCatalogue`].
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
@@ -59,12 +58,13 @@ pub struct StationHullOffer {
     pub design: ShipDesign,
 }
 
-/// The hulls a station sells, in list order. Inserted on a station root by
-/// the world's spawn and thaw; a station with none sells no hull.
+/// The escorts a station hires out, in list order, every one
+/// [`HullOfferType::Hire`]. Inserted on a station root by the world's spawn
+/// and thaw; a station with none hires none out.
 #[derive(Component, Clone, Debug, Default, Reflect)]
 pub struct StationHullCatalogue(pub Vec<StationHullOffer>);
 
-/// Marks a ship whose hull was just bought and whose new port has yet to
+/// Marks a ship whose hull was just swapped and whose new port has yet to
 /// dock with `station`. `released` is the connection the old port held,
 /// which the old port's despawn lets go.
 #[derive(Component, Clone, Copy, Debug)]
@@ -74,7 +74,7 @@ struct HullBuyRedock {
     frames: u32,
 }
 
-/// Registers the catalogue observers, the buy and the redock.
+/// Registers the catalogue observer, the buy and the redock.
 pub struct StationHullsPlugin;
 
 impl Plugin for StationHullsPlugin {
@@ -95,14 +95,14 @@ fn resolve_offer(
     design: &ShipDesign,
     designs: &GameShipDesigns,
     sections: &GameSections,
-) -> (ResolvedShipDesign, Vec<DesignSection>) {
+) -> Vec<DesignSection> {
     let (resolved, errors) =
         resolve_ship_design(&ShipDesignSource::Inline(design.clone()), designs, sections);
     assert!(
         errors.is_empty(),
         "station hull catalogue: a hull does not resolve: {errors:?}"
     );
-    let placed = resolved
+    resolved
         .sections
         .iter()
         .map(|section| DesignSection {
@@ -111,16 +111,16 @@ fn resolve_offer(
             rotation: section.rotation,
             config: section.config.clone(),
         })
-        .collect();
-    (resolved, placed)
+        .collect()
 }
 
-/// Resolve a station's catalogue into the [`HullOffers`] the buy rule and
-/// the Ship pane read, whenever the catalogue lands.
+/// Resolve a station's catalogue into the [`HullOffers`] the hire rule and
+/// the Station pane read, whenever the catalogue lands.
 ///
 /// # Panics
 ///
-/// On a hull that does not resolve, see [`resolve_offer`].
+/// On a hull for sale in the catalogue: the world parks those. And on a
+/// hull that does not resolve, see [`resolve_offer`].
 fn insert_hull_offers(
     insert: On<Insert, StationHullCatalogue>,
     mut commands: Commands,
@@ -134,165 +134,141 @@ fn insert_hull_offers(
     let offers = catalogue
         .0
         .iter()
-        .map(|offer| HullOffer {
-            name: offer.name.clone(),
-            terms: offer.terms,
-            sections: resolve_offer(&offer.design, &designs, &sections).1,
+        .map(|offer| {
+            assert!(
+                matches!(offer.terms, HullOfferType::Hire { .. }),
+                "insert_hull_offers: station {:?} lists hull '{}' for sale; hulls for sale are \
+                 parked",
+                insert.entity,
+                offer.name
+            );
+            HullOffer {
+                name: offer.name.clone(),
+                terms: offer.terms,
+                sections: resolve_offer(&offer.design, &designs, &sections),
+            }
         })
         .collect();
     commands.entity(insert.entity).insert(HullOffers(offers));
 }
 
-/// Replace a ship's hull with a station's offer, as a Ship pane buy asks
-/// once the buy rule moved the hold and the credits.
+/// Swap a ship's hull with a parked hull of the station it is docked at, as
+/// a Station pane buy asks once the buy rule moved the credits. The swap
+/// needs the whole world, so it runs as a queued command
+/// ([`swap_parked_hull`]).
+fn buy_station_hull(request: On<HullBuyRequest>, mut commands: Commands) {
+    let request = request.event().clone();
+    commands.queue(move |world: &mut World| swap_parked_hull(world, request));
+}
+
+/// The swap a [`HullBuyRequest`] asks for.
 ///
-/// Every section goes and the root's design becomes the offer, inline, so a
-/// freeze and a save keep it. The player binding table becomes the
-/// start-role scheme for the new hull ([`bought_hull_controller`]). The
-/// root's pinned health, damage marks, history stamps and
-/// restored-skin mark go with the old hull, and the new hold opens empty at
-/// the new hull's capacity. The root is posed by [`bought_hull_pose`] at the
-/// station's motion, and [`redock_bought_hull`] docks it again.
+/// Both hulls freeze. The parked hull despawns, and the ship root is
+/// rebuilt from its record where it lay ([`rehull_ship`]), with the
+/// start-role bindings for its design ([`bought_hull_controller`]), at the
+/// station's motion, to dock at its port ([`redock_bought_hull`]). The old
+/// hull's record thaws as a parked hull of the station where the ship root
+/// stood ([`FrozenShip::parked`](crate::objects::spaceship::prelude::FrozenShip)),
+/// its hold whole, listed for rebuy at `trade_in_cr`, and docks at the port
+/// the ship held.
 ///
 /// # Panics
 ///
-/// On a ship that is not a docked authored root with an empty hold, a
-/// station with no such offer, or an offer with no docking port: the pane
-/// raises a buy only for the docked player, with an offer of the station it
-/// is docked with, after moving the hold, and the manifest check refuses a
-/// hull with no port.
-#[expect(
-    clippy::type_complexity,
-    reason = "the root's controller, pose, hold and sections in one query"
-)]
-fn buy_station_hull(
-    request: On<HullBuyRequest>,
-    mut commands: Commands,
-    game_sections: Res<GameSections>,
-    game_designs: Res<GameShipDesigns>,
-    items: Res<GameItems>,
-    q_station: Query<(&StationHullCatalogue, &LinearVelocity, &AngularVelocity)>,
-    q_ship: Query<
-        (
-            &SpaceshipController,
-            &Position,
-            &Rotation,
-            &ShipInventory,
-            &Children,
-            &DockedShip,
-        ),
-        (With<SpaceshipRootMarker>, Without<SectionMarker>),
-    >,
-    q_sections: Query<
-        (
-            Option<&Transform>,
-            Has<DockingSectionMarker>,
-            Has<DockedPort>,
-        ),
-        With<SectionMarker>,
-    >,
-) {
-    let ship = request.entity;
-    let Ok((controller, position, rotation, hold, children, docked)) = q_ship.get(ship) else {
-        panic!("buy_station_hull: {ship:?} is not a docked authored ship root");
+/// On a ship that is not docked with the station, on a hull that is not
+/// parked there, and on either hull mid-process: the pane raises a buy only
+/// for the docked player, with a hull parked at the station it is docked
+/// with.
+fn swap_parked_hull(world: &mut World, request: HullBuyRequest) {
+    let HullBuyRequest {
+        entity: ship,
+        station,
+        hull,
+        trade_in_cr,
+    } = request;
+    assert_eq!(
+        world.get::<ParkedHull>(hull).map(|parked| parked.0),
+        Some(station),
+        "swap_parked_hull: {hull:?} is not parked at station {station:?}"
+    );
+    let Some(docked) = world.get::<DockedShip>(ship).copied() else {
+        panic!("swap_parked_hull: ship {ship:?} is not docked");
     };
     assert!(
-        hold.is_empty(),
-        "buy_station_hull: ship {ship:?} still holds cargo; the buy rule stores it first"
+        world
+            .get::<DockingConnection>(docked.connection)
+            .is_some_and(|connection| connection.joins(station)),
+        "swap_parked_hull: ship {ship:?} is not docked with station {station:?}"
     );
-    let Ok((catalogue, velocity, spin)) = q_station.get(request.station) else {
-        panic!(
-            "buy_station_hull: {:?} is not a station with a hull catalogue",
-            request.station
-        );
+    let pose = |world: &World, entity: Entity| {
+        (
+            world
+                .get::<Position>(entity)
+                .map_or(Vec3::ZERO, |position| position.0),
+            world
+                .get::<Rotation>(entity)
+                .map_or(Quat::IDENTITY, |rotation| rotation.0),
+        )
     };
-    let Some(offer) = catalogue.0.get(request.offer) else {
-        panic!(
-            "buy_station_hull: station {:?} has no offer {}",
-            request.station, request.offer
-        );
+    let (old_at, old_turn) = pose(world, ship);
+    let (new_at, new_turn) = pose(world, hull);
+    let velocity = world
+        .get::<LinearVelocity>(station)
+        .copied()
+        .unwrap_or_default();
+    let spin = world
+        .get::<AngularVelocity>(station)
+        .copied()
+        .unwrap_or_default();
+    let buyer = world
+        .get::<SpaceshipController>(ship)
+        .cloned()
+        .unwrap_or_else(|| panic!("swap_parked_hull: ship {ship:?} has no controller"));
+    let old_name = world
+        .get::<Name>(ship)
+        .map_or_else(|| "Traded-in hull".to_string(), ToString::to_string);
+    let new_name = world
+        .get::<Name>(hull)
+        .map_or_else(String::new, ToString::to_string);
+    let unsettled = |what: &str, unsettled: UnsettledBody| -> ! {
+        panic!("swap_parked_hull: the {what} cannot freeze: {unsettled}")
     };
-    assert_eq!(
-        offer.terms,
-        HullOfferType::Sale,
-        "buy_station_hull: offer {} of station {:?} is for hire, not for sale",
-        request.offer,
-        request.station
-    );
-    let old_port = children
-        .iter()
-        .find_map(|child| match q_sections.get(child) {
-            Ok((Some(transform), true, true)) => Some((transform.translation, transform.rotation)),
-            _ => None,
-        })
-        .unwrap_or_else(|| panic!("buy_station_hull: ship {ship:?} has no docked port"));
-    let (resolved, sections) = resolve_offer(&offer.design, &game_designs, &game_sections);
-    let new_port = sections
-        .iter()
-        .find(|section| section.config.kind.class() == SectionClass::Docking)
-        .map(|section| (section.position, section.rotation))
-        .unwrap_or_else(|| {
-            panic!(
-                "buy_station_hull: hull '{}' has no docking port",
-                offer.name
-            )
-        });
-    let (at, turn) = bought_hull_pose((position.0, rotation.0), old_port, new_port);
-
-    for child in children.iter() {
-        if q_sections.contains(child) {
-            commands.entity(child).despawn();
-        }
-    }
-    // After the despawns: a section leaving writes its binding into the
-    // controller table, and the new table replaces what those wrote.
-    let controller = bought_hull_controller(controller, &resolved);
+    let bought = freeze_ship(world, hull).unwrap_or_else(|reason| unsettled("parked hull", reason));
+    let old = freeze_ship(world, ship).unwrap_or_else(|reason| unsettled("ship", reason));
     info!(
-        "buy_station_hull: ship {ship:?} buys '{}' ({} sections) from station {:?}",
-        offer.name,
-        sections.len(),
-        request.station
+        "swap_parked_hull: ship {ship:?} takes '{new_name}' at station {station:?}, its old hull \
+         parks for rebuy at {trade_in_cr} cr"
     );
-    commands
-        .entity(ship)
-        .remove::<(
-            Health,
-            WasArmedCombatant,
-            HadFlightComputer,
-            HadThruster,
-            ShipSkinRestored,
-        )>()
-        .insert((
-            SpaceshipDesign(ShipDesignSource::Inline(offer.design.clone())),
-            controller.clone(),
-            DamageMarks::default(),
-            hull_components(&resolved),
-            ShipInventory::new(&items, resolved.cargo_capacity_g(), []),
-            Position(at),
-            Rotation(turn),
-            Transform::from_translation(at).with_rotation(turn),
-            *velocity,
-            *spin,
-            HullBuyRedock {
-                station: request.station,
-                released: docked.connection,
-                frames: 0,
-            },
-        ));
-    let mut mining_sources = Vec::new();
-    commands.entity(ship).with_children(|parent| {
-        for section in &sections {
-            spawn_design_section(
-                parent,
-                section,
-                &controller,
-                false,
-                &mut mining_sources,
-                None,
-            );
-        }
+
+    world.entity_mut(hull).despawn();
+    rehull_ship(world, ship, bought, |resolved| {
+        bought_hull_controller(&buyer, resolved)
     });
-    commands.entity(ship).insert(ShipDesignSections(sections));
+    world.entity_mut(ship).insert((
+        Position(new_at),
+        Rotation(new_turn),
+        Transform::from_translation(new_at).with_rotation(new_turn),
+        velocity,
+        spin,
+        HullBuyRedock {
+            station,
+            released: docked.connection,
+            frames: 0,
+        },
+    ));
+
+    let mut commands = world.commands();
+    let mut parked = spawn_parked_hull(
+        &mut commands,
+        station,
+        &old_name,
+        ParkedHullType::Rebuy {
+            price_cr: trade_in_cr,
+        },
+        Transform::from_translation(old_at).with_rotation(old_turn),
+    );
+    thaw_ship(&mut parked, old.parked());
+    parked.insert((velocity, spin));
+    world.flush();
 }
 
 /// The driver a bought hull flies with: the buyer's, its binding table

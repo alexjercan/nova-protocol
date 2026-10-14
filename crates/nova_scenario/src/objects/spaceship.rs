@@ -647,6 +647,159 @@ impl FrozenShip {
     pub fn inventory(&self) -> &ShipInventory {
         &self.state.inventory
     }
+
+    /// The design the ship froze with.
+    #[must_use]
+    pub fn design(&self) -> &ShipDesignSource {
+        &self.design
+    }
+
+    /// This record as a parked hull keeps it: nobody drives it, it is
+    /// Neutral, every capability is off, it is neither derelict nor
+    /// lootable, and it holds no credits and no AI progress. Its sections,
+    /// hold, damage and outcome markers stay.
+    #[must_use]
+    pub(crate) fn parked(self) -> Self {
+        Self {
+            controller: SpaceshipController::None,
+            capabilities: parked_capabilities(),
+            allegiance: Some(Allegiance::Neutral),
+            derelict: false,
+            lootable: false,
+            credits: 0,
+            state: FrozenShipState {
+                ai: None,
+                ..self.state
+            },
+            ..self
+        }
+    }
+}
+
+/// What a parked hull is permitted to do: nothing.
+pub(crate) fn parked_capabilities() -> ShipCapabilities {
+    ShipCapabilities {
+        stop_enabled: false,
+        goto_enabled: false,
+        orbit_enabled: false,
+        lock_enabled: false,
+        rcs_enabled: false,
+        point_defense_enabled: false,
+        dock_enabled: false,
+    }
+}
+
+/// Rebuild the live ship root `ship` as the hull `frozen` records: its
+/// design, surviving sections with their state, hold, pinned pool, dents
+/// and outcome markers. The root keeps its identity, side, capabilities and
+/// credits; its driver becomes what `controller` makes of the resolved
+/// design. Every old section despawns first.
+///
+/// The station hull swap runs it, so the player keeps the root everything
+/// keys on (the HUD, the world observer, the fleet, the scenario id).
+///
+/// # Panics
+///
+/// On a design that does not resolve, or a frozen section the design does
+/// not name: the record froze from a spawned ship of that design.
+pub(crate) fn rehull_ship(
+    world: &mut World,
+    ship: Entity,
+    frozen: FrozenShip,
+    controller: impl FnOnce(&ResolvedShipDesign) -> SpaceshipController,
+) {
+    let FrozenShip {
+        design, mut state, ..
+    } = frozen;
+    let (resolved, errors) = resolve_ship_design(
+        &design,
+        world.resource::<GameShipDesigns>(),
+        world.resource::<GameSections>(),
+    );
+    assert!(
+        errors.is_empty(),
+        "rehull_ship: ship {ship:?}: the new hull does not resolve: {errors:?}"
+    );
+    let controller = controller(&resolved);
+    let sections: Vec<DesignSection> = resolved
+        .sections
+        .iter()
+        .map(|section| DesignSection {
+            id: section.id.clone(),
+            position: section.position,
+            rotation: section.rotation,
+            config: section.config.clone(),
+        })
+        .collect();
+    let old: Vec<Entity> = world
+        .entity(ship)
+        .get::<Children>()
+        .into_iter()
+        .flatten()
+        .copied()
+        .filter(|child| world.entity(*child).contains::<SectionMarker>())
+        .collect();
+    for section in old {
+        world.entity_mut(section).despawn();
+    }
+    // After the despawns: a section leaving writes its binding into the
+    // controller table, and the new table replaces what those wrote.
+    let mut root = world.entity_mut(ship);
+    root.remove::<(
+        Health,
+        NeutralizedMarker,
+        DefeatedMarker,
+        WasArmedCombatant,
+        HadFlightComputer,
+        HadThruster,
+    )>();
+    root.insert((
+        SpaceshipDesign(design),
+        controller.clone(),
+        hull_components(&resolved),
+        std::mem::take(&mut state.inventory),
+        std::mem::take(&mut state.marks),
+        ShipSkinRestored,
+        ShipDesignSections(sections.clone()),
+    ));
+    if let Some(health) = state.health.take() {
+        root.insert(health);
+    }
+    if state.neutralized {
+        root.insert(NeutralizedMarker);
+    }
+    if state.defeated {
+        root.insert(DefeatedMarker);
+    }
+    if state.was_armed {
+        root.insert(WasArmedCombatant);
+    }
+    if state.had_flight_computer {
+        root.insert(HadFlightComputer);
+    }
+    if state.had_thruster {
+        root.insert(HadThruster);
+    }
+    let mut mining_sources = Vec::new();
+    world.commands().entity(ship).with_children(|parent| {
+        for section in &sections {
+            let Some(frozen) = state.sections.remove(&section.id) else {
+                continue;
+            };
+            spawn_design_section(
+                parent,
+                section,
+                &controller,
+                false,
+                &mut mining_sources,
+                Some(frozen),
+            );
+        }
+    });
+    world.flush();
+    if let Some(id) = state.sections.keys().next() {
+        panic!("rehull_ship: ship {ship:?} took a frozen section '{id}' its design does not name");
+    }
 }
 
 /// The ship a scenario's spawn of [`ResumedSpaceship::id`] thaws instead of

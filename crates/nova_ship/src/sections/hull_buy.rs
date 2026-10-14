@@ -1,30 +1,34 @@
-//! A whole hull bought from a station's catalogue, the old hull traded in.
+//! A whole hull bought from a station, the old hull traded in and parked.
 //!
-//! A living generated station sells a short list of hulls ([`HullOffers`],
-//! derived by the scenario crate from the station's catalogue). A buy at a
-//! docked station that offers Refit replaces the player's sections with the
-//! offer's: the price is every new section's recipe at ask
-//! ([`hull_price_cr`]); the station pays for the old hull its strip value at
-//! bid, scaled by each live section's health ([`hull_trade_in_cr`]); the old
-//! hold moves whole into the station's storage. [`plan_hull_buy`] checks the
-//! station, the storage and both balances, and a [`HullBuyRequest`] asks the
-//! scenario crate to put the offer in the ship's design, spawn it with the
-//! start-role bindings, and pose it so its first docking port lies where the
-//! old port was ([`bought_hull_pose`]).
+//! A living generated station parks every hull it sells at its docking
+//! ports, one hull per port and one port kept free for the player: each is a
+//! [`ParkedHull`] of the station, docked, inert and listed in the station's
+//! [`ParkedHulls`]. A buy at a docked station that offers Refit swaps the
+//! player's hull with a parked one: the price of a hull for sale is every
+//! section's recipe at ask ([`hull_price_cr`]); the station pays for the old
+//! hull its strip value at bid, scaled by each live section's health
+//! ([`hull_trade_in_cr`]). The old hull stays docked where it was as a
+//! parked hull for rebuy ([`ParkedHullType::Rebuy`]) at the trade-in it was
+//! paid, its hold whole: the player's hold while it is parked
+//! ([`OwnedShipMarker`]). [`plan_hull_buy`] checks the station and both
+//! balances, and a [`HullBuyRequest`] asks the scenario crate to do the
+//! swap.
+//!
+//! The station's hire list ([`HullOffers`]) is the escorts it hires out
+//! (`crate::sections::escort_hire`); no hull for sale is on it.
 
 use bevy::prelude::*;
-use nova_gameplay::prelude::{
-    BuildRecipe, GameItems, ItemDesignId, SectionClass, ShipInventory, StationStorage,
-};
+use nova_gameplay::prelude::{BuildRecipe, GameItems};
 
 use super::{docking_section::PORT_FACE, prelude::*};
 
-/// The offers, the price and trade-in rules, the plan, the pose rule and the
-/// buy request.
+/// The parked hulls, the hire list, the price and trade-in rules, the plan,
+/// the pose rules and the buy request.
 pub mod prelude {
     pub use super::{
-        bought_hull_pose, hull_price_cr, hull_trade_in_cr, plan_hull_buy, HullBuyPartner,
-        HullBuyPlan, HullBuyRefusalType, HullBuyRequest, HullOffer, HullOfferType, HullOffers,
+        bought_hull_pose, hull_price_cr, hull_trade_in_cr, parked_hull_pose, plan_hull_buy,
+        HullBuyPartner, HullBuyPlan, HullBuyRefusalType, HullBuyRequest, HullOffer, HullOfferType,
+        HullOffers, OwnedShipMarker, ParkedHull, ParkedHullType, ParkedHulls,
     };
 }
 
@@ -33,8 +37,8 @@ pub mod prelude {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub enum HullOfferType {
-    /// The player buys the hull and it replaces the player's own
-    /// ([`HullBuyRequest`]).
+    /// The player buys the hull: it spawns parked at one of the station's
+    /// ports ([`ParkedHull`]) and a buy swaps it for the player's own.
     Sale,
     /// The player hires the hull, crewed, as an escort that joins the fleet
     /// (`crate::sections::escort_hire`). A hire consumes the offer.
@@ -46,45 +50,77 @@ pub enum HullOfferType {
     },
 }
 
-/// One hull a station sells, as the buy rule and the Ship pane read it.
+/// One escort a station hires out, as the hire rule and the Station pane
+/// read it.
 #[derive(Clone, Debug)]
 pub struct HullOffer {
-    /// The catalogue name the list shows (`Vel civilian Mk 1`).
+    /// The catalogue name the list shows (`Vel scavenger escort 1`).
     pub name: String,
-    /// Whether the player buys or hires it.
+    /// The hire terms, see [`HullOfferType::Hire`].
     pub terms: HullOfferType,
     /// Every section the hull places, resolved, in design order.
     pub sections: Vec<DesignSection>,
 }
 
-impl HullOffer {
-    /// The first docking port in design order: the port a bought hull is
-    /// posed and docked by.
-    pub fn first_port(&self) -> Option<&DesignSection> {
-        self.sections
-            .iter()
-            .find(|section| section.config.kind.class() == SectionClass::Docking)
-    }
-}
-
-/// The hulls a station sells, in catalogue order. Inserted on a station
-/// root by the scenario crate from the station's catalogue; a station with
-/// none sells no hull.
+/// The escorts a station hires out, in catalogue order. Inserted on a
+/// station root by the scenario crate from the station's catalogue; a
+/// station with none hires none out.
 #[derive(Component, Clone, Debug, Default)]
 pub struct HullOffers(pub Vec<HullOffer>);
 
-/// Asks to replace ship `entity`'s hull with offer `offer` of the station
-/// `station` sells, docked where the old hull was. Raised by a Ship pane
-/// buy after the buy rule moved the hold and the credits; the scenario crate
-/// observes it.
+/// How a parked hull is listed: a component of every [`ParkedHull`].
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub enum ParkedHullType {
+    /// A new hull for sale at its recipes' price ([`hull_price_cr`]).
+    Sale,
+    /// A hull the player traded in, for rebuy at the trade-in it was paid.
+    Rebuy {
+        /// The rebuy price: the trade-in the station paid for it.
+        price_cr: u32,
+    },
+}
+
+/// A ship root parked at a docking port of the station it names, listed
+/// for sale or for rebuy by its [`ParkedHullType`].
+///
+/// A parked hull is inert: nobody drives it, it is Neutral, every
+/// capability is off, and it is neither lootable nor a body of any cell. It
+/// is docked with the station, it freezes and thaws inside the station's
+/// record, and it despawns with the station ([`ParkedHulls`]). A buy swaps
+/// it with the player's hull ([`HullBuyRequest`]).
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+#[relationship(relationship_target = ParkedHulls)]
+pub struct ParkedHull(pub Entity);
+
+/// The hulls parked at a station, in park order. Despawning the station
+/// despawns them.
+#[derive(Component, Debug, Default, Reflect)]
+#[relationship_target(relationship = ParkedHull, linked_spawn)]
+pub struct ParkedHulls(Vec<Entity>);
+
+/// A ship whose hold is the player's although the player does not fly it: a
+/// hull the player traded in, parked for rebuy. Its hold lists as the
+/// player's storage while the player is docked at the same station.
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+pub struct OwnedShipMarker;
+
+/// Asks to swap ship `entity`'s hull with the parked hull `hull` of
+/// `station`: the ship root takes the parked hull's design, state and
+/// place, docked at its port, and the old hull stays docked where it was as
+/// a hull for rebuy at `trade_in_cr`. Raised by a Station pane buy after the
+/// buy rule moved the credits; the scenario crate observes it.
 #[derive(EntityEvent, Clone, Debug)]
 pub struct HullBuyRequest {
     /// The ship root.
     pub entity: Entity,
-    /// The station root that sells the hull.
+    /// The station root the hull is parked at.
     pub station: Entity,
-    /// The offer's index in the station's [`HullOffers`].
-    pub offer: usize,
+    /// The parked hull bought.
+    pub hull: Entity,
+    /// What the station paid for the old hull: its rebuy price.
+    pub trade_in_cr: u32,
 }
 
 /// A hull's price: every section's recipe at ask
@@ -118,13 +154,11 @@ pub fn hull_trade_in_cr<'a>(
 }
 
 /// The docked station a buy reads: whether it is a living station that
-/// offers Refit, its storage and its balance.
+/// offers Refit, and its balance.
 #[derive(Clone, Copy, Debug)]
-pub struct HullBuyPartner<'a> {
+pub struct HullBuyPartner {
     /// The partner is a living station whose design offers Refit.
     pub offers: bool,
-    /// The partner's storage, which takes the old hold.
-    pub storage: &'a StationStorage,
     /// The partner's credits.
     pub credits_cr: u32,
 }
@@ -136,13 +170,6 @@ pub enum HullBuyRefusalType {
     NotDocked,
     /// The partner is not a living station that offers Refit.
     NoRefitService,
-    /// The station's storage cannot take the old hold.
-    StorageFull {
-        /// The hold's mass in grams.
-        need_g: u32,
-        /// What the storage has room for.
-        free_g: u32,
-    },
     /// The ship's balance and the trade-in do not cover the price.
     InsufficientCredits {
         /// The price.
@@ -162,8 +189,7 @@ pub enum HullBuyRefusalType {
     CreditOverflow,
 }
 
-/// What an allowed buy does: the price, the trade-in, the balances after and
-/// the stacks the old hold moves into storage.
+/// What an allowed buy does: the price, the trade-in and the balances after.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HullBuyPlan {
     /// The new hull's price, see [`hull_price_cr`].
@@ -176,40 +202,26 @@ pub struct HullBuyPlan {
     /// The station's balance after the buy: before, plus the price, less
     /// the trade-in.
     pub station_cr: u32,
-    /// Every stack of the old hold, in id order, which moves into storage.
-    pub stored: Vec<(ItemDesignId, u32)>,
 }
 
-/// Plan buying `offer` while docked with `partner`, trading in a hull worth
-/// `trade_in_cr` ([`hull_trade_in_cr`]).
+/// Plan buying a parked hull at `price` while docked with `partner`, trading
+/// in a hull worth `trade_in_cr` ([`hull_trade_in_cr`]). The price is
+/// [`hull_price_cr`] for a hull for sale and the rebuy price for a hull
+/// traded in ([`ParkedHullType`]).
 ///
-/// `partner` is `None` while the ship is not docked. The whole `hold` moves
-/// into the partner's storage. Checks run in [`HullBuyRefusalType`] order. A
-/// refusal changes nothing.
+/// `partner` is `None` while the ship is not docked. The old hold stays in
+/// the old hull. Checks run in [`HullBuyRefusalType`] order. A refusal
+/// changes nothing.
 pub fn plan_hull_buy(
-    items: &GameItems,
-    offer: &HullOffer,
+    price: u64,
     trade_in_cr: u64,
-    partner: Option<HullBuyPartner<'_>>,
-    hold: &ShipInventory,
+    partner: Option<HullBuyPartner>,
     own_cr: u32,
 ) -> Result<HullBuyPlan, HullBuyRefusalType> {
     let partner = partner.ok_or(HullBuyRefusalType::NotDocked)?;
     if !partner.offers {
         return Err(HullBuyRefusalType::NoRefitService);
     }
-    let need_g = hold.used_g(items);
-    let free_g = partner.storage.free_g(items);
-    if need_g > free_g {
-        return Err(HullBuyRefusalType::StorageFull { need_g, free_g });
-    }
-    let price = hull_price_cr(
-        items,
-        offer
-            .sections
-            .iter()
-            .map(|section| &section.config.base.build),
-    );
     let have = u64::from(own_cr) + trade_in_cr;
     if price > have {
         return Err(HullBuyRefusalType::InsufficientCredits { need: price, have });
@@ -227,10 +239,6 @@ pub fn plan_hull_buy(
         trade_in_cr: fit(trade_in_cr)?,
         own_cr: fit(have - price)?,
         station_cr: fit(station_have - trade_in_cr)?,
-        stored: hold
-            .stacks()
-            .map(|(item, count)| (item.clone(), count))
-            .collect(),
     })
 }
 
@@ -254,6 +262,29 @@ pub fn bought_hull_pose(
     let arc = Quat::from_rotation_arc((rotation * new_port.1 * Vec3::NEG_Z).normalize(), axis);
     let turned = (arc * rotation).normalize();
     let reach = turned * (new_port.0 + new_port.1 * PORT_FACE);
+    (face - reach, turned)
+}
+
+/// Where a parked hull's root stands so its port lies on a station port:
+/// the hull port's retracted face on the station port's, facing it.
+///
+/// `station` is the station root's world position and rotation.
+/// `station_port` and `hull_port` are each port's position and rotation in
+/// its own root's frame. The rotation is the station's turned by the
+/// shortest arc that points the hull port's outward axis against the
+/// station port's.
+pub fn parked_hull_pose(
+    station: (Vec3, Quat),
+    station_port: (Vec3, Quat),
+    hull_port: (Vec3, Quat),
+) -> (Vec3, Quat) {
+    let (position, rotation) = station;
+    let port_turn = rotation * station_port.1;
+    let face = position + rotation * station_port.0 + port_turn * PORT_FACE;
+    let against = port_turn * Vec3::Z;
+    let arc = Quat::from_rotation_arc((rotation * hull_port.1 * Vec3::NEG_Z).normalize(), against);
+    let turned = (arc * rotation).normalize();
+    let reach = turned * (hull_port.0 + hull_port.1 * PORT_FACE);
     (face - reach, turned)
 }
 
@@ -329,10 +360,6 @@ pub(crate) mod tests {
         }
     }
 
-    fn storage(cap_g: u32) -> StationStorage {
-        StationStorage::new(cap_g)
-    }
-
     /// The price is every recipe at ask, and the trade-in each live
     /// section's strip at bid scaled by its health, rounded down apiece.
     #[test]
@@ -353,65 +380,76 @@ pub(crate) mod tests {
         assert_eq!(hull_trade_in_cr(&items, [(&whole, 0.49)]), 5);
     }
 
-    /// The credits move as balance less price plus trade-in, and the whole
-    /// hold is listed to move into storage.
+    /// The credits move as balance less price plus trade-in, and the
+    /// station's as balance plus price less trade-in.
     #[test]
-    fn a_buy_charges_the_price_less_the_trade_in_and_stores_the_whole_hold() {
-        let items = items();
-        let hold = ShipInventory::new(&items, 10_000, [("ore".into(), 3)]);
-        let storage = storage(10_000);
+    fn a_buy_charges_the_price_less_the_trade_in() {
         let partner = HullBuyPartner {
             offers: true,
-            storage: &storage,
             credits_cr: 1_000,
         };
-        let plan = plan_hull_buy(&items, &offer(), 40, Some(partner), &hold, 500)
-            .expect("the buy is allowed");
+        let plan = plan_hull_buy(210, 40, Some(partner), 500).expect("the buy is allowed");
         assert_eq!(plan.price_cr, 210);
         assert_eq!(plan.trade_in_cr, 40);
         assert_eq!(plan.own_cr, 500 - 210 + 40);
         assert_eq!(plan.station_cr, 1_000 + 210 - 40);
-        assert_eq!(plan.stored, vec![("ore".into(), 3)]);
     }
 
-    /// A buy is refused, in order, off a station, at one without Refit, with
-    /// no room for the hold, and when the credits fall short either way.
+    /// A buy is refused, in order, off a station, at one without Refit, and
+    /// when the credits fall short either way.
     #[test]
-    fn a_buy_is_refused_for_the_station_the_storage_or_the_credits() {
-        let items = items();
-        let hold = ShipInventory::new(&items, 10_000, [("ore".into(), 3)]);
-        let (roomy, tight) = (storage(10_000), storage(5_000));
-        let at = |storage, offers, credits_cr| {
-            Some(HullBuyPartner {
-                offers,
-                storage,
-                credits_cr,
-            })
-        };
-        let plan =
-            |partner, trade_in, own| plan_hull_buy(&items, &offer(), trade_in, partner, &hold, own);
-        assert_eq!(plan(None, 0, 500), Err(HullBuyRefusalType::NotDocked));
+    fn a_buy_is_refused_for_the_station_or_the_credits() {
+        let at = |offers, credits_cr| Some(HullBuyPartner { offers, credits_cr });
         assert_eq!(
-            plan(at(&roomy, false, 0), 0, 500),
+            plan_hull_buy(210, 0, None, 500),
+            Err(HullBuyRefusalType::NotDocked)
+        );
+        assert_eq!(
+            plan_hull_buy(210, 0, at(false, 0), 500),
             Err(HullBuyRefusalType::NoRefitService)
         );
         assert_eq!(
-            plan(at(&tight, true, 0), 0, 500),
-            Err(HullBuyRefusalType::StorageFull {
-                need_g: 6_000,
-                free_g: 5_000
-            })
-        );
-        assert_eq!(
-            plan(at(&roomy, true, 0), 10, 199),
+            plan_hull_buy(210, 10, at(true, 0), 199),
             Err(HullBuyRefusalType::InsufficientCredits {
                 need: 210,
                 have: 209
             })
         );
         assert_eq!(
-            plan(at(&roomy, true, 5), 300, 0),
+            plan_hull_buy(210, 300, at(true, 5), 0),
             Err(HullBuyRefusalType::StationShortOfCredits { need: 90, have: 5 })
+        );
+    }
+
+    /// A parked hull's port face lands on the station port's face and points
+    /// against it, whatever the two ports' places in their hulls.
+    #[test]
+    fn a_parked_hull_is_posed_with_its_port_face_on_the_station_port_facing_it() {
+        let station = (
+            Vec3::new(10.0, -4.0, 2.0),
+            Quat::from_rotation_y(0.7) * Quat::from_rotation_x(0.2),
+        );
+        let station_port = (
+            Vec3::new(3.0, 0.0, 0.0),
+            Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2),
+        );
+        let hull_port = (Vec3::new(0.0, 1.0, -2.0), Quat::IDENTITY);
+        let (position, rotation) = parked_hull_pose(station, station_port, hull_port);
+        let face = |(p, r): (Vec3, Quat), (at, turn): (Vec3, Quat)| {
+            (
+                p + r * at + r * turn * PORT_FACE,
+                (r * turn * Vec3::NEG_Z).normalize(),
+            )
+        };
+        let (station_face, station_axis) = face(station, station_port);
+        let (hull_face, hull_axis) = face((position, rotation), hull_port);
+        assert!(
+            hull_face.abs_diff_eq(station_face, 1e-4),
+            "{hull_face} vs {station_face}"
+        );
+        assert!(
+            hull_axis.abs_diff_eq(-station_axis, 1e-4),
+            "{hull_axis} vs {station_axis}"
         );
     }
 

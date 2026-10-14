@@ -169,8 +169,8 @@ pub(crate) fn update_station_escort_list(
                 .map(|(index, offer)| EscortRow {
                     offer: index,
                     name: offer.name.clone(),
-                    size: hull_size_text(offer),
-                    kinds: hull_kinds_text(offer),
+                    size: hull_size_text(&offer.sections),
+                    kinds: hull_kinds_text(&offer.sections),
                     price: format!("{} cr", escort_price_cr(&items, offer)),
                     refusal: plan_offer(&items, &resolved, offer, &held, &q_credits)
                         .err()

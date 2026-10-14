@@ -1874,13 +1874,18 @@ pub(crate) fn plan_sector(
                 let hulls = if dead {
                     Vec::new()
                 } else {
-                    station_hulls(parts, input.seed, &id.to_string(), &civilization).map_err(
-                        |failure| SectorFault::Generation {
-                            id: id.to_string(),
-                            field: "hulls",
-                            value: failure.to_string(),
-                        },
-                    )?
+                    station_hulls(
+                        parts,
+                        input.seed,
+                        &id.to_string(),
+                        &civilization,
+                        station.ports,
+                    )
+                    .map_err(|failure| SectorFault::Generation {
+                        id: id.to_string(),
+                        field: "hulls",
+                        value: failure.to_string(),
+                    })?
                 };
                 stations_owned.push(Candidate {
                     id,

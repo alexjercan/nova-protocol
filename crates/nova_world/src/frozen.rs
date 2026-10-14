@@ -40,7 +40,8 @@ use nova_scenario::prelude::{
 };
 use nova_ship::prelude::{
     freeze_canister, freeze_wreck_fragment, thaw_canister, thaw_wreck_fragment, DockedShip,
-    FrozenCanister, FrozenWreckFragment, ShipWreckFragmentMarker, StationDocks,
+    DockingConnection, FrozenCanister, FrozenWreckFragment, ParkedHull, ShipWreckFragmentMarker,
+    StationDocks,
 };
 
 use crate::{
@@ -542,7 +543,7 @@ pub fn freeze_body(
     // decides first.
     let frozen = if body.contains::<StationMarker>() {
         assert!(
-            docked == DockPolicy::Undock || !body.contains::<StationDocks>(),
+            docked == DockPolicy::Undock || only_parked_docks(world, entity),
             "nova_world: station '{label}' has a ship docked and its cell is about to freeze \
              it; a docked assembly cannot be split across the active window"
         );
@@ -575,6 +576,27 @@ pub fn freeze_body(
             .map(|linear| linear.0)
             .zip(body.get::<AngularVelocity>().map(|angular| angular.0)),
         body: frozen,
+    })
+}
+
+/// Whether every ship docked at `station` is a hull parked there, which
+/// freezes inside the station's record.
+fn only_parked_docks(world: &World, station: Entity) -> bool {
+    world.get::<StationDocks>(station).is_none_or(|docks| {
+        docks.iter().all(|connection| {
+            world
+                .get::<DockingConnection>(connection)
+                .is_some_and(|connection| {
+                    [connection.first_ship, connection.second_ship]
+                        .into_iter()
+                        .filter(|ship| *ship != station)
+                        .all(|ship| {
+                            world
+                                .get::<ParkedHull>(ship)
+                                .is_some_and(|parked| parked.0 == station)
+                        })
+                })
+        })
     })
 }
 
@@ -654,14 +676,18 @@ pub fn thaw_record(commands: &mut Commands, root: Entity, bodies: Vec<PreparedFr
 }
 
 /// The persistent bodies adoption moves between cells, and a replaced world
-/// takes with its roots when they stand top-level.
-pub(crate) type PersistentBody = Or<(
-    With<SpaceshipRootMarker>,
-    With<AsteroidMarker>,
-    With<CargoCanister>,
-    With<ShipWreckFragmentMarker>,
-    With<MinedOreDrop>,
-)>;
+/// takes with its roots when they stand top-level. A hull parked at a
+/// station is none: it freezes and despawns with the station.
+pub(crate) type PersistentBody = (
+    Or<(
+        With<SpaceshipRootMarker>,
+        With<AsteroidMarker>,
+        With<CargoCanister>,
+        With<ShipWreckFragmentMarker>,
+        With<MinedOreDrop>,
+    )>,
+    Without<ParkedHull>,
+);
 
 /// Give every persistent body to the cell it stands in now.
 ///

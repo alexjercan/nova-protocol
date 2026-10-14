@@ -285,6 +285,10 @@ impl Plugin for SpaceshipSectionPlugin {
         app.add_observer(frozen_piece::stamp_detached_piece_source);
         app.add_observer(frozen_piece::apply_resumed_scene_poses);
         app.register_type::<section_strip::HullStripJob>();
+        app.register_type::<hull_buy::ParkedHull>();
+        app.register_type::<hull_buy::ParkedHulls>();
+        app.register_type::<hull_buy::ParkedHullType>();
+        app.register_type::<hull_buy::OwnedShipMarker>();
         app.add_observer(section_strip::strip_section);
         // The authored-animation rig and driver. Unconditional, not
         // render-gated: the components must exist headless (a server loads

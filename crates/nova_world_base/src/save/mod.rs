@@ -75,7 +75,7 @@ pub use transients::{
 /// nobody held live is recorded as an arrival there. Every cell the player
 /// never visited regenerates from the seed on Load, so another generator
 /// would change it silently.
-pub const WORLD_SAVE_FORMAT: u32 = 9;
+pub const WORLD_SAVE_FORMAT: u32 = 10;
 
 /// The most characters a world name has, after trimming.
 const WORLD_NAME_MAX: usize = 32;
@@ -561,6 +561,12 @@ fn check_saved_stock(state: &WorldSaveState, items: &GameItems) -> Result<(), St
                         .id()
                         .expect("a frozen station is a persistent body with an id");
                     check_hold(station.ship(), &format!("'{id}'"))?;
+                    for parked in station.parked() {
+                        check_hold(
+                            parked.ship(),
+                            &format!("'{}' parked at '{id}'", parked.name()),
+                        )?;
+                    }
                     let storage = station.storage();
                     let held = mass_g(&mut storage.stacks());
                     let cap = u64::from(storage.cap_g());

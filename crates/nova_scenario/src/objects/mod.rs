@@ -25,6 +25,8 @@ pub mod fleet;
 /// Light scenario object: the authored directional and point lights a scene
 /// lights itself with.
 pub mod light;
+/// The hulls a station parks at its docking ports, for sale or for rebuy.
+pub mod parked_hulls;
 /// The authored planet OBJECT: the components a spawned world carries, the
 /// gravity well it becomes, and the plugin that draws it.
 pub mod planet;
@@ -44,7 +46,8 @@ pub mod start_role;
 /// The STATION content kind and object: a parked hull with a docking port,
 /// authored once and spawned by id.
 pub mod station;
-/// The hulls a station sells and the buy that replaces a ship's hull.
+/// The escorts a station hires out and the buy that swaps a ship's hull with
+/// a parked one.
 pub mod station_hulls;
 
 /// Every scenario object submodule's prelude plus `ScenarioObjectsPlugin`.
@@ -52,10 +55,10 @@ pub mod prelude {
     pub use super::{
         anchor::prelude::*, area::prelude::*, asteroid::prelude::*, asteroid_carve::prelude::*,
         asteroid_kind::prelude::*, asteroid_surface::prelude::*, beacon::prelude::*,
-        fleet::prelude::*, light::prelude::*, planet::prelude::*, planet_surface::prelude::*,
-        planet_type::prelude::*, ship_design::prelude::*, spaceship::prelude::*,
-        start_role::prelude::*, station::prelude::*, station_hulls::prelude::*,
-        ScenarioObjectsPlugin,
+        fleet::prelude::*, light::prelude::*, parked_hulls::prelude::*, planet::prelude::*,
+        planet_surface::prelude::*, planet_type::prelude::*, ship_design::prelude::*,
+        spaceship::prelude::*, start_role::prelude::*, station::prelude::*,
+        station_hulls::prelude::*, ScenarioObjectsPlugin,
     };
 }
 
@@ -92,6 +95,7 @@ impl Plugin for ScenarioObjectsPlugin {
         });
         app.add_plugins(spaceship::SpaceshipPlugin);
         app.add_plugins(station_hulls::StationHullsPlugin);
+        app.add_plugins(parked_hulls::ParkedHullsPlugin);
         app.add_plugins(fleet::FleetPlugin);
         app.add_plugins(area::ScenarioAreaPlugin);
         app.add_plugins(beacon::BeaconPlugin {
