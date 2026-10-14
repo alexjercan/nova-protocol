@@ -7,8 +7,9 @@
 //! offered part mates the point with its [`natural_link_point`] at roll 0, so
 //! it keeps the orientation it was drawn in.
 //!
-//! [`section_add_fit`] refuses an occupied point, a part with no socket, an
-//! overlap and a post-build fault the add makes ([`RefitBuildFaultType`]).
+//! [`section_add_clear`] refuses an occupied point, a part with no socket and
+//! an overlap; [`section_add_fit`] adds a post-build fault the add makes
+//! ([`RefitBuildFaultType`]).
 //! [`plan_section_add`] checks the station, the binding the new section takes
 //! ([`added_section_binds`]) and the payment, and a [`SectionAddRequest`] asks
 //! the scenario crate to put the part in the ship's design under
@@ -30,7 +31,7 @@ use super::{design_sections::refit_build_fault, prelude::*};
 pub mod prelude {
     pub use super::{
         add_build_fault, added_section_binds, added_section_id, free_link_points, plan_section_add,
-        section_add_fit, section_add_pose, SectionAddFaultType, SectionAddPlan,
+        section_add_clear, section_add_fit, section_add_pose, SectionAddFaultType, SectionAddPlan,
         SectionAddRefusalType, SectionAddRequest, ADDED_MINING_KEYS,
     };
 }
@@ -160,9 +161,10 @@ pub enum SectionAddFaultType {
 
 /// Where `offered` stands when added at socket `point` of design section
 /// `section`, as `(position, rotation)` in ship-root space, before the
-/// overlap and post-build checks of [`section_add_fit`]: the point must be
-/// free ([`free_link_points`]) and the part mates it with its
-/// [`natural_link_point`] at roll 0 ([`snap_placement`]).
+/// overlap check of [`section_add_clear`] and the post-build checks of
+/// [`section_add_fit`]: the point must be free ([`free_link_points`]) and the
+/// part mates it with its [`natural_link_point`] at roll 0
+/// ([`snap_placement`]).
 ///
 /// The Ship pane's ghost stands here, so a refused add still shows where it
 /// would go.
@@ -196,17 +198,51 @@ pub fn section_add_pose(
 }
 
 /// Where `offered` stands when added at socket `point` of design section
+/// `section`, as `(position, rotation)` in ship-root space, when it stands
+/// clear: [`section_add_pose`], and a collider that overlaps only a section
+/// it mates ([`section_colliders_overlap`], the rule the ship lint and the
+/// editor share). It is checked against the whole design, so a lost section
+/// can still be rebuilt.
+///
+/// The Ship pane's ghost targets only a point where this holds; a point it
+/// refuses is inside the hull or covered by a part.
+///
+/// # Panics
+///
+/// When `section` is not in `design` or `point` is not one of its sockets.
+pub fn section_add_clear(
+    design: &[RefitPlacedSection<'_>],
+    section: usize,
+    point: usize,
+    offered: &SectionConfig,
+) -> Result<(Vec3, Quat), SectionAddFaultType> {
+    let (position, rotation) = section_add_pose(design, section, point, offered)?;
+    let added = RefitPlacedSection {
+        position,
+        rotation,
+        config: offered,
+    };
+    let near = neighbours(design, &added, None);
+    let (mated, _) = subject_mates(design, &added, &near);
+    let overlaps = near.iter().enumerate().any(|(slot, &index)| {
+        !mated.contains(&(slot + 1))
+            && section_colliders_overlap(collider(&design[index]), collider(&added))
+    });
+    if overlaps {
+        return Err(SectionAddFaultType::Overlap);
+    }
+    Ok((position, rotation))
+}
+
+/// Where `offered` stands when added at socket `point` of design section
 /// `section`, as `(position, rotation)` in ship-root space, or why it does
 /// not fit.
 ///
 /// `design` is every section of the ship's design, live or lost; `live`
-/// holds the indices of the live ones. The part stands at
-/// [`section_add_pose`]. Its collider may overlap only a section it
-/// mates ([`section_colliders_overlap`], the rule the ship lint and the
-/// editor share), checked against the whole design so a lost section can
-/// still be rebuilt. Then the generator's post-build checks run on the live
-/// ship with the part and without it, and only a new fault refuses: one
-/// socket graph, which also refuses a socket with two suitors, clear exit
+/// holds the indices of the live ones. The part must stand clear
+/// ([`section_add_clear`]). Then the generator's post-build checks run on
+/// the live ship with the part and without it, and only a new fault refuses:
+/// one socket graph, which also refuses a socket with two suitors, clear exit
 /// lanes ([`placement_blocks_an_exit`]), the thrust floor and the flight
 /// computer count.
 ///
@@ -220,23 +256,12 @@ pub fn section_add_fit(
     point: usize,
     offered: &SectionConfig,
 ) -> Result<(Vec3, Quat), SectionAddFaultType> {
-    let (position, rotation) = section_add_pose(design, section, point, offered)?;
+    let (position, rotation) = section_add_clear(design, section, point, offered)?;
     let added = RefitPlacedSection {
         position,
         rotation,
         config: offered,
     };
-
-    let near = neighbours(design, &added, None);
-    let (mated, _) = subject_mates(design, &added, &near);
-    let overlaps = near.iter().enumerate().any(|(slot, &index)| {
-        !mated.contains(&(slot + 1))
-            && section_colliders_overlap(collider(&design[index]), collider(&added))
-    });
-    if overlaps {
-        return Err(SectionAddFaultType::Overlap);
-    }
-
     let before: Vec<RefitPlacedSection<'_>> = live.iter().map(|&index| design[index]).collect();
     if let Some(fault) = add_build_fault(&before, added) {
         return Err(SectionAddFaultType::Build(fault));

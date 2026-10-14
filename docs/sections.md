@@ -89,39 +89,43 @@ the ship cannot pay for shows the credit refusal. Place puts a part in hand
 (`ShipRuntime::held`); Put down or a second Place drops it. While a part is in
 hand, the placement ghost (`nova_interface/src/ship/ghost.rs`) casts the
 pointer's ray into the Ship view, takes the nearest block it enters
-(`pick_ship_block`), and snaps to the free socket of that section nearest the
-hit (`nearest_link_point` over `free_link_points`). `free_link_points`
-(`section_add.rs`) is every socket no design section mates, live or lost, so a
-lost section's socket stays reserved for its rebuild. No content marks an
-attachment point; every hull, base, generated or modded, has them.
-`section_add_pose` places the part with its `natural_link_point` (the socket
-facing most nearly opposite, the editor's default) at roll 0 through
+(`pick_ship_block`), and snaps to the target of that section nearest the hit
+(`nearest_link_point` over `ghost_targets`). A target is a free socket whose
+outward lane leaves the ship without entering another block and where
+`section_add_clear` finds the part clear, so a section inside the hull or a
+socket a part covers is never a target, and a block with none shows no ghost.
+`free_link_points` (`section_add.rs`) is every socket no design section mates,
+live or lost, so a lost section's socket stays reserved for its rebuild. No
+content marks an attachment point; every hull, base, generated or modded, has
+them. `section_add_pose` places the part with its `natural_link_point` (the
+socket facing most nearly opposite, the editor's default) at roll 0 through
 `snap_placement`, using `link_point_pose`, the socket frame the editor's
 `snap.rs` solver also reads. It refuses an occupied point and a part with no
-socket. `section_add_fit` adds the refusals for a collider overlap with a
-design section it does not mate (`section_colliders_overlap`), and a
-post-build fault the add makes (`add_build_fault`: the swap's checks through
-`refit_build_fault`, with `placement_blocks_an_exit` for the lanes). The ghost
-block shows at the pose with a Nominal outline for a valid add and a Danger
-outline for a refusal, and its callout beside the pointer shows the price or
-the refusal. A click with a valid ghost raises `SectionAddCommand`; a click
-with a refused ghost puts the refusal on the note line. The part stays in hand
-for the next add. With no part in hand, a click on a block selects its
-section. `plan_section_add` checks the gate, the fit, the binding and the
-payment (`plan_recipe_payment`, the full recipe). The new section's binding is
-`added_section_binds`: the first live bound section of its class by id lends
-its binding; with none, a weapon takes an empty binding for Rebind, a thruster
-none (the flight computer drives it), and a mining emitter the first of
-`ADDED_MINING_KEYS` no emitter holds, refused when all are held. Its id is
-`added_section_id`: the greatest id of its class plus `+`, so it sorts last
-and takes the next code without moving another. A confirmed add moves parts
-and credits (cause `Add`), pushes `ShipInventoryReport::Added` (`OnAdded`),
-and triggers `SectionAddRequest`; `add_design_section`
-(`nova_scenario/src/objects/spaceship.rs`) makes the design inline with the
-section appended, writes the binding into the player's `input_mapping`, grows
-the root's pinned health by the part's pool, and spawns the section at full
-health. The Ship side panel scrolls under the wheel while hovered
-(`scroll_ship_panel`), and the camera zoom yields to it.
+socket. `section_add_clear` adds the refusal for a collider overlap with a
+design section it does not mate (`section_colliders_overlap`), and
+`section_add_fit` adds a post-build fault the add makes (`add_build_fault`:
+the swap's checks through `refit_build_fault`, with `placement_blocks_an_exit`
+for the lanes). The ghost block shows at the pose with a Nominal outline for a
+valid add and a Danger outline for a refusal, and its callout beside the
+pointer shows the price or the refusal. A click with a valid ghost raises
+`SectionAddCommand`; a click with a refused ghost puts the refusal on the note
+line. A click on a section badge commits the same way (`commit_placement`),
+since the badge stops the click. The part stays in hand for the next add. With
+no part in hand, a click on a block selects its section. `plan_section_add`
+checks the gate, the fit, the binding and the payment (`plan_recipe_payment`,
+the full recipe). The new section's binding is `added_section_binds`: the
+first live bound section of its class by id lends its binding; with none, a
+weapon takes an empty binding for Rebind, a thruster none (the flight computer
+drives it), and a mining emitter the first of `ADDED_MINING_KEYS` no emitter
+holds, refused when all are held. Its id is `added_section_id`: the greatest
+id of its class plus `+`, so it sorts last and takes the next code without
+moving another. A confirmed add moves parts and credits (cause `Add`), pushes
+`ShipInventoryReport::Added` (`OnAdded`), and triggers `SectionAddRequest`;
+`add_design_section` (`nova_scenario/src/objects/spaceship.rs`) makes the
+design inline with the section appended, writes the binding into the player's
+`input_mapping`, grows the root's pinned health by the part's pool, and spawns
+the section at full health. The Ship side panel scrolls under the wheel while
+hovered (`scroll_ship_panel`), and the camera zoom yields to it.
 
 ### Stripping a docked wreck
 
@@ -1614,9 +1618,9 @@ per contact. A symmetric rule - ram damage - wants both.
   `crates/nova_scenario/src/objects/spaceship.rs`; the pane:
   `crates/nova_interface/src/ship/catalogue.rs` and `refit.rs`; proof:
   `examples/systems/system_station_swap.rs`.
-- Section add: `free_link_points`, `section_add_pose`, `section_add_fit`,
-  `add_build_fault`, `added_section_binds`, `added_section_id`,
-  `plan_section_add`, `SectionAddRequest` -
+- Section add: `free_link_points`, `section_add_pose`, `section_add_clear`,
+  `section_add_fit`, `add_build_fault`, `added_section_binds`,
+  `added_section_id`, `plan_section_add`, `SectionAddRequest` -
   `crates/nova_ship/src/sections/section_add.rs`; `link_point_pose`,
   `nearest_link_point` - `crates/nova_ship/src/sections/link_points.rs`;
   `add_design_section` - `crates/nova_scenario/src/objects/spaceship.rs`; the

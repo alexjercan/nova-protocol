@@ -28,7 +28,12 @@ use nova_ui::{
     },
 };
 
-use super::{sections::*, *};
+use super::{
+    ghost::{commit_placement, ShipPlacementPreview},
+    refit::SectionAddCommand,
+    sections::*,
+    *,
+};
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
     pane::{interface_shown, play_menu_select, themed_label, InterfacePaneType},
@@ -1001,13 +1006,23 @@ pub(crate) fn label_the_selected_section(
 pub(crate) fn on_ship_blip_click(
     activate: On<Activate>,
     q_blip: Query<&ShipBlip>,
+    preview: Res<ShipPlacementPreview>,
     mut runtime: ResMut<ShipRuntime>,
+    mut adds: MessageWriter<SectionAddCommand>,
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
 ) {
-    // With a part in hand the click places it (`super::ghost`), so a badge
-    // under the pointer must not also move the selection.
+    // The badge's button stops the click, so the view's observer never sees
+    // it. With a part in hand the click places it, as on the view, and does
+    // not move the selection.
     if runtime.held.is_some() {
+        commit_placement(
+            &preview,
+            &mut runtime,
+            &mut adds,
+            bank.as_deref(),
+            &mut commands,
+        );
         return;
     }
     if let Ok(blip) = q_blip.get(activate.entity) {

@@ -4,9 +4,11 @@
 //!
 //! One solve a frame ([`update_ship_placement`]) feeds the ghost block, the
 //! callout and the click, so a click adds what is on screen. The pointer's
-//! ray picks the block under it ([`pick_ship_block`]); the nearest free socket
-//! of that section ([`free_link_points`], [`nearest_link_point`]) is the
-//! point; [`section_add_pose`] gives the ghost's pose and [`section_add_fit`]
+//! ray picks the block under it ([`pick_ship_block`]); of that section's
+//! targets ([`ghost_targets`]: free sockets open to space where the part
+//! stands clear) the one nearest the hit ([`nearest_link_point`]) is the
+//! point. A block with no target, such as one inside the hull, shows no
+//! ghost. [`section_add_pose`] gives the ghost's pose and [`section_add_fit`]
 //! with the payment and binding plan gives the verdict. A click on a valid
 //! ghost raises the [`SectionAddCommand`] the add handler applies by the same
 //! rule; a click on a refused one changes nothing and shows the refusal on
@@ -93,13 +95,17 @@ pub const SHIP_GHOST_CALLOUT: &str = "ShipGhostCallout";
 /// with its badge.
 const CALLOUT_OFFSET_PX: Vec2 = Vec2::new(12.0, 14.0);
 
-/// The fit of one part at one point, kept while the ship, the point and the
-/// part stay the same: a fit reads the socket graph and the exit lanes of
-/// the whole ship, too much to redo every frame.
+/// The fit of one part at one point, and the targets of one section for one
+/// part ([`ghost_targets`]), each kept while the ship, the section or point
+/// and the part stay the same: a fit reads the socket graph and the exit
+/// lanes of the whole ship, and the targets read every block, too much to
+/// redo every frame.
 #[derive(Default)]
 pub(crate) struct GhostFitCache {
     key: Option<u64>,
     fit: Option<Result<(Vec3, Quat), SectionAddFaultType>>,
+    targets_key: Option<u64>,
+    targets: Vec<usize>,
 }
 
 /// Keep the pointer's place while it is over the view or a badge on it.
@@ -135,20 +141,13 @@ pub(crate) fn on_ship_viewport_click(
         return;
     }
     if runtime.held.is_some() {
-        let Some(placement) = &preview.placement else {
-            return;
-        };
-        match &placement.verdict {
-            Ok(_) => {
-                adds.write(SectionAddCommand {
-                    section: placement.section.clone(),
-                    point: placement.point.clone(),
-                    prototype: placement.prototype.clone(),
-                });
-                play_menu_select(&mut commands, bank.as_deref());
-            }
-            Err(refusal) => runtime.note = Some((refusal.clone(), 2.5)),
-        }
+        commit_placement(
+            &preview,
+            &mut runtime,
+            &mut adds,
+            bank.as_deref(),
+            &mut commands,
+        );
         return;
     }
     if click.original_event_target() != click.entity {
@@ -159,6 +158,33 @@ pub(crate) fn on_ship_viewport_click(
             runtime.selected = Some(hovered);
             play_menu_select(&mut commands, bank.as_deref());
         }
+    }
+}
+
+/// Commit the solved placement on a click with a part in hand: a valid one
+/// raises its [`SectionAddCommand`], a refused one shows its refusal on the
+/// note line, and no placement changes nothing. A click on the view and a
+/// click on a section badge, which stops the click there, both commit here.
+pub(crate) fn commit_placement(
+    preview: &ShipPlacementPreview,
+    runtime: &mut ShipRuntime,
+    adds: &mut MessageWriter<SectionAddCommand>,
+    bank: Option<&SoundBank<UiSfx>>,
+    commands: &mut Commands,
+) {
+    let Some(placement) = &preview.placement else {
+        return;
+    };
+    match &placement.verdict {
+        Ok(_) => {
+            adds.write(SectionAddCommand {
+                section: placement.section.clone(),
+                point: placement.point.clone(),
+                prototype: placement.prototype.clone(),
+            });
+            play_menu_select(commands, bank);
+        }
+        Err(refusal) => runtime.note = Some((refusal.clone(), 2.5)),
     }
 }
 
@@ -187,24 +213,78 @@ fn view_ray(
     camera.viewport_to_world(camera_pose, local).ok()
 }
 
+/// Where `ray` enters `view`'s block, in the scene's ship-local space. A
+/// block is its section's full collider box at its local pose, the box its
+/// outline draws. A ray that starts inside the box enters it where it starts.
+fn enter_block(ray: Ray3d, view: &ShipSectionView) -> Option<Vec3> {
+    let to_local = view.local.compute_affine().inverse();
+    let origin = to_local.transform_point3(ray.origin);
+    let direction = Dir3::new(to_local.transform_vector3(*ray.direction)).ok()?;
+    let half = view.half_extents.max(Vec3::splat(0.1));
+    let distance = RayCast3d::new(origin, direction, f32::MAX)
+        .aabb_intersection_at(&Aabb3d::new(Vec3::ZERO, half))?;
+    Some(view.local.transform_point(origin + *direction * distance))
+}
+
 /// The block `ray` enters first among `views`, and where it enters it, in
-/// the scene's ship-local space. A block is its section's full collider box
-/// at its local pose, the box its outline draws.
+/// the scene's ship-local space.
 pub(crate) fn pick_ship_block(ray: Ray3d, views: &[ShipSectionView]) -> Option<(Entity, Vec3)> {
     views
         .iter()
         .filter_map(|view| {
-            let to_local = view.local.compute_affine().inverse();
-            let origin = to_local.transform_point3(ray.origin);
-            let direction = Dir3::new(to_local.transform_vector3(*ray.direction)).ok()?;
-            let half = view.half_extents.max(Vec3::splat(0.1));
-            let distance = RayCast3d::new(origin, direction, f32::MAX)
-                .aabb_intersection_at(&Aabb3d::new(Vec3::ZERO, half))?;
-            let hit = view.local.transform_point(origin + *direction * distance);
+            let hit = enter_block(ray, view)?;
             Some((view.entity, hit, ray.origin.distance_squared(hit)))
         })
         .min_by(|a, b| a.2.total_cmp(&b.2))
         .map(|(entity, hit, _)| (entity, hit))
+}
+
+/// How far off its face a socket's outward lane starts, in engine units, so
+/// the lane does not count the face it leaves. A section that touches the
+/// face still blocks it: the lane starts inside that section's box.
+const LANE_START: f32 = 1e-3;
+
+/// The sockets of design section `index`, whose block is `own`, that the
+/// ghost may aim `offered` at; the pointer takes the one nearest its hit
+/// ([`nearest_link_point`]). Empty when the section has none, and the ghost
+/// shows nothing there.
+///
+/// A target is a free socket ([`free_link_points`]) whose outward lane
+/// leaves the ship without entering another block in `views`, where the
+/// part stands clear ([`section_add_clear`]). A section inside the hull has
+/// no open lane, and a socket a part covers fails the clear check, so
+/// neither is ever a target. A part with no socket keeps every open point,
+/// so the ghost still shows its refusal.
+pub(crate) fn ghost_targets(
+    design: &[RefitPlacedSection<'_>],
+    index: usize,
+    own: Entity,
+    views: &[ShipSectionView],
+    offered: &SectionConfig,
+) -> Vec<usize> {
+    let target = &design[index];
+    let sockets = &target.config.base.link_points;
+    free_link_points(design, index)
+        .into_iter()
+        .filter(|&point| {
+            let (anchor, normal) =
+                link_point_pose(target.position, target.rotation, &sockets[point]);
+            let Ok(direction) = Dir3::new(normal) else {
+                return false;
+            };
+            let lane = Ray3d::new(anchor + *direction * LANE_START, direction);
+            views
+                .iter()
+                .filter(|view| view.entity != own)
+                .all(|view| enter_block(lane, view).is_none())
+        })
+        .filter(|&point| {
+            !matches!(
+                section_add_clear(design, index, point, offered),
+                Err(SectionAddFaultType::Occupied | SectionAddFaultType::Overlap)
+            )
+        })
+        .collect()
 }
 
 /// Solve the block under the pointer and, with a part in hand, where a click
@@ -228,10 +308,12 @@ pub(crate) fn update_ship_placement(
 ) {
     let mut hovered = None;
     let mut placement = None;
+    let blocks: Vec<ShipSectionView> = if runtime.active {
+        views.collect()
+    } else {
+        Vec::new()
+    };
     let hit = (|| {
-        if !runtime.active {
-            return None;
-        }
         let pointer = runtime.pointer?;
         let (camera, camera_pose) = q_camera.single().ok()?;
         let (node, transform) = q_viewport.single().ok()?;
@@ -241,9 +323,9 @@ pub(crate) fn update_ship_placement(
             return None;
         }
         let ray = view_ray(pointer, camera, camera_pose, node, transform)?;
-        pick_ship_block(ray, &views.collect())
+        pick_ship_block(ray, &blocks)
     })();
-    if let Some((entity, point)) = hit {
+    if let Some((entity, hit)) = hit {
         hovered = Some(entity);
         let resolved = if site.gate(StationServiceType::Refit) {
             site.resolve(StationServiceType::Refit)
@@ -256,74 +338,71 @@ pub(crate) fn update_ship_placement(
             let offered = sections.get_section(prototype).unwrap_or_else(|| {
                 panic!("place: the section catalogue has no part '{prototype}'")
             });
-            let section = resolved.selected_section(Some(entity));
-            let partner = resolved
-                .partner
-                .and_then(|(partner, _)| q_holds.get(partner).ok())
-                .map(|(stock, credits)| (stock, credits.0));
-            if let Some(section) = section {
-                let code = design_section_code(resolved.design, &section.id)
-                    .expect("a live design section has a code");
+            if let Some(section) = resolved.selected_section(Some(entity)) {
                 let (placed, live) = resolved.refit_design();
                 let index = resolved.design_index(section);
+                // The targets read the whole design and every block, so they
+                // are kept while the section, the design and the part stay.
+                let mut hasher = DefaultHasher::new();
+                resolved.fit_key(section, usize::MAX).hash(&mut hasher);
+                prototype.hash(&mut hasher);
+                let targets_key = hasher.finish();
+                if cache.targets_key != Some(targets_key) {
+                    cache.targets = ghost_targets(&placed, index, entity, &blocks, offered);
+                    cache.targets_key = Some(targets_key);
+                }
                 let target = &placed[index];
                 let sockets = &target.config.base.link_points;
                 let free = nearest_link_point(
                     target.position,
                     target.rotation,
                     sockets,
-                    free_link_points(&placed, index),
-                    point,
+                    cache.targets.iter().copied(),
+                    hit,
                 );
-                placement = Some(match free {
-                    None => ShipPlacement {
-                        section: section.id.clone(),
-                        point: String::new(),
-                        prototype: prototype.clone(),
-                        pose: None,
-                        anchor: point,
-                        verdict: Err(format!("add: {code} has no free point")),
-                    },
-                    Some(free) => {
-                        let (anchor, _) =
-                            link_point_pose(target.position, target.rotation, &sockets[free]);
-                        let pose = section_add_pose(&placed, index, free, offered).ok().map(
-                            |(position, rotation)| {
-                                Transform::from_translation(position).with_rotation(rotation)
-                            },
-                        );
-                        let mut hasher = DefaultHasher::new();
-                        resolved.fit_key(section, free).hash(&mut hasher);
-                        prototype.hash(&mut hasher);
-                        let key = hasher.finish();
-                        if cache.key != Some(key) {
-                            cache.fit = Some(section_add_fit(&placed, &live, index, free, offered));
-                            cache.key = Some(key);
-                        }
-                        let fit = cache.fit.clone().expect("the cache holds the keyed fit");
-                        let (own, own_cr) = q_holds
-                            .get(resolved.player)
-                            .expect("the player ship carries a ShipInventory and ShipCredits");
-                        let bound = live_bindings(&resolved, &q_bindings);
-                        let name = &offered.base.name;
-                        let verdict = match resolved
-                            .plan_add(&items, offered, fit, &bound, own, own_cr.0, partner)
-                        {
-                            Ok(plan) => {
-                                Ok(format!("{name} on {code}: {} cr", plan.payment.price_cr))
-                            }
-                            Err(refusal) => Err(add_refusal_text(&items, &code, name, &refusal)),
-                        };
-                        ShipPlacement {
-                            section: section.id.clone(),
-                            point: sockets[free].id.clone(),
-                            prototype: prototype.clone(),
-                            pose,
-                            anchor,
-                            verdict,
-                        }
+                if let Some(free) = free {
+                    let code = design_section_code(resolved.design, &section.id)
+                        .expect("a live design section has a code");
+                    let partner = resolved
+                        .partner
+                        .and_then(|(partner, _)| q_holds.get(partner).ok())
+                        .map(|(stock, credits)| (stock, credits.0));
+                    let (anchor, _) =
+                        link_point_pose(target.position, target.rotation, &sockets[free]);
+                    let pose = section_add_pose(&placed, index, free, offered).ok().map(
+                        |(position, rotation)| {
+                            Transform::from_translation(position).with_rotation(rotation)
+                        },
+                    );
+                    let mut hasher = DefaultHasher::new();
+                    resolved.fit_key(section, free).hash(&mut hasher);
+                    prototype.hash(&mut hasher);
+                    let key = hasher.finish();
+                    if cache.key != Some(key) {
+                        cache.fit = Some(section_add_fit(&placed, &live, index, free, offered));
+                        cache.key = Some(key);
                     }
-                });
+                    let fit = cache.fit.clone().expect("the cache holds the keyed fit");
+                    let (own, own_cr) = q_holds
+                        .get(resolved.player)
+                        .expect("the player ship carries a ShipInventory and ShipCredits");
+                    let bound = live_bindings(&resolved, &q_bindings);
+                    let name = &offered.base.name;
+                    let verdict = match resolved
+                        .plan_add(&items, offered, fit, &bound, own, own_cr.0, partner)
+                    {
+                        Ok(plan) => Ok(format!("{name} on {code}: {} cr", plan.payment.price_cr)),
+                        Err(refusal) => Err(add_refusal_text(&items, &code, name, &refusal)),
+                    };
+                    placement = Some(ShipPlacement {
+                        section: section.id.clone(),
+                        point: sockets[free].id.clone(),
+                        prototype: prototype.clone(),
+                        pose,
+                        anchor,
+                        verdict,
+                    });
+                }
             }
         }
     }
@@ -454,6 +533,9 @@ pub(crate) fn sync_ship_ghost(
             ThemedFill::alpha(UiColor::Void, 0.85),
             Visibility::Hidden,
             Pickable::IGNORE,
+            // Above the section badges, its siblings, which would cover its
+            // text on a dense hull.
+            ZIndex(1),
             ChildOf(viewport),
             children![(themed_label("", 12.0, UiColor::Body), Pickable::IGNORE)],
         ));
@@ -576,5 +658,84 @@ mod tests {
 
         let wide = Ray3d::new(Vec3::new(-20.0, 0.0, 6.0), Dir3::X);
         assert!(pick_ship_block(wide, &views).is_none());
+    }
+
+    fn cube_view(entity: Entity, at: Vec3, half: Vec3) -> ShipSectionView {
+        ShipSectionView {
+            local: Transform::from_translation(at),
+            ..block(entity, at, half)
+        }
+    }
+
+    fn part(id: &str, size: Vec3, link_points: Vec<LinkPoint>) -> SectionConfig {
+        SectionConfig {
+            base: BaseSectionConfig {
+                id: id.to_string(),
+                collider: Some(SectionCollider::Cuboid { size }),
+                link_points,
+                ..default()
+            },
+            kind: SectionKind::Hull(HullSectionConfig::default()),
+        }
+    }
+
+    /// A cube closed in by five cubes and, on +X, a socketless tank smaller
+    /// than a cell: a ray past the tank enters the inner cube, whose one free
+    /// socket opens into the tank, so the ghost aims nowhere. A ray onto an
+    /// outer cube aims at that cube's open face.
+    #[test]
+    fn a_ray_through_an_interior_section_never_aims_the_ghost_at_it() {
+        let cube = part("cube", Vec3::ONE, unit_cube_link_points());
+        let tank = part("tank", Vec3::splat(0.6), Vec::new());
+        let at = [
+            Vec3::ZERO,
+            Vec3::NEG_X,
+            Vec3::Y,
+            Vec3::NEG_Y,
+            Vec3::Z,
+            Vec3::NEG_Z,
+            Vec3::X,
+        ];
+        let design: Vec<RefitPlacedSection<'_>> = at
+            .iter()
+            .enumerate()
+            .map(|(index, &position)| RefitPlacedSection {
+                position,
+                rotation: Quat::IDENTITY,
+                config: if index == 6 { &tank } else { &cube },
+            })
+            .collect();
+        let entity = |index: usize| Entity::from_raw_u32(index as u32 + 1).expect("a valid index");
+        let views: Vec<ShipSectionView> = design
+            .iter()
+            .enumerate()
+            .map(|(index, section)| {
+                let half = if index == 6 { 0.3 } else { 0.5 };
+                cube_view(entity(index), section.position, Vec3::splat(half))
+            })
+            .collect();
+
+        let past_the_tank = Ray3d::new(Vec3::new(5.0, 0.4, 0.0), Dir3::NEG_X);
+        let (inner, _) = pick_ship_block(past_the_tank, &views).expect("the ray enters a block");
+        assert_eq!(inner, entity(0), "the ray slips past the tank");
+        assert_eq!(free_link_points(&design, 0).len(), 1, "only +X is free");
+        assert!(
+            ghost_targets(&design, 0, inner, &views, &cube).is_empty(),
+            "the inner cube is never a target"
+        );
+
+        let onto_the_top = Ray3d::new(Vec3::new(0.0, 5.0, 0.0), Dir3::NEG_Y);
+        let (top, hit_top) = pick_ship_block(onto_the_top, &views).expect("the ray enters a block");
+        assert_eq!(top, entity(2));
+        let targets = ghost_targets(&design, 2, top, &views, &cube);
+        let aimed = nearest_link_point(
+            Vec3::Y,
+            Quat::IDENTITY,
+            &cube.base.link_points,
+            targets,
+            hit_top,
+        )
+        .expect("the top cube's open face is a target");
+        assert_eq!(cube.base.link_points[aimed].id, "positive_y");
     }
 }

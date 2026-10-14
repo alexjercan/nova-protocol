@@ -1833,6 +1833,8 @@ fn rig_rect(rig: &PanePointerRig, entity: Entity) -> Rect {
 fn ship_section_label_and_dot_are_one_unbroken_target() {
     let mut rig = pane_pointer_rig();
     rig.app.init_resource::<ShipRuntime>();
+    rig.app.init_resource::<ShipPlacementPreview>();
+    rig.app.add_message::<SectionAddCommand>();
     hear_ui_cues(&mut rig.app);
     let viewport = rig_ship_viewport(&mut rig);
 
