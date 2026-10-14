@@ -158,24 +158,24 @@ function rustNumber(rel: string, pattern: RegExp): number {
 {
     assert.equal(METERS_PER_UNIT, 10);
     assert.equal(engineMeters(30), "300 m", "30 u is a 300 m blast radius");
-    assert.equal(engineMeters(4.59, 1), "45.9 m", "the interceptor's arm");
+    assert.equal(engineMeters(4.81, 1), "48.1 m", "the interceptor's arm");
     assert.equal(engineKilometers(328.6, 1), "3.3 km", "a planetoid SOI");
     assert.equal(engineMetersPerSec(100), "1,000 m/s", "the reference speed");
     assert.equal(engineMetersPerSec2(64, 0), "640 m/s^2", "one bare drive");
 }
 
 // The attitude model's one crossing: the arm arrives in world units off the
-// collider boxes and the 8 G limit is SI, so 4.59 u is 45.9 m and the ceiling
-// is 78.48 / 45.9 - the same rad/s^2 the game reads.
+// collider boxes and the 8 G limit is SI, so 4.81 u is 48.1 m and the ceiling
+// is 78.48 / 48.1 - the same rad/s^2 the game reads.
 {
     const ceiling = structuralCeiling(INTERCEPTOR_ARM_U);
     assert.ok(
-        Math.abs(ceiling - (8 * 9.81) / 45.9) < 1e-9,
+        Math.abs(ceiling - (8 * 9.81) / 48.1) < 1e-9,
         `the interceptor's structural ceiling, got ${ceiling}`
     );
     assert.ok(
-        Math.abs(ceiling - 1.71) < 5e-3,
-        `~1.71 rad/s^2 as the widget prints it, got ${ceiling}`
+        Math.abs(ceiling - 1.63) < 5e-3,
+        `~1.63 rad/s^2 as the widget prints it, got ${ceiling}`
     );
     assert.equal(structuralCeiling(0), Infinity, "a point mass has no arm");
 }
@@ -199,7 +199,7 @@ function rustNumber(rel: string, pattern: RegExp): number {
         "the interceptor's section count"
     );
     assert.ok(
-        Math.abs(state.mass - 38.25) < 1e-9,
+        Math.abs(state.mass - 43.25) < 1e-9,
         `the interceptor's mass, got ${state.mass}`
     );
 }
@@ -956,7 +956,7 @@ console.log("widgets: the corridor scope reproduces the stand bank");
         picket < interceptor,
         `picket ${picket} < interceptor ${interceptor}`
     );
-    assert.equal(PICKET_CELLS.length, 21, "patrol_picket's 21 sections");
+    assert.equal(PICKET_CELLS.length, 21, "training_picket's 21 sections");
     const park = arrivalPark(950, 100, 500);
     assert.equal(park.centreDistance, 1550);
     assert.equal(park.gap, 500, "the margin is the gap");

@@ -64,8 +64,8 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
         role(
             "military",
             "Military",
-            "A patrol picket with one nose point-defense mount on light plate: the weakest \
-             start. The Line Warship class is its later goal.",
+            "A patrol picket with two point-defense mounts on reinforced plate: the lightest \
+             armed start. The Line Warship class is its later goal.",
             PATROL_PICKET_SHIP_ID,
             1_600,
             &[(ItemRoleType::PdcRound, 250), (ItemRoleType::HullPlate, 10)],

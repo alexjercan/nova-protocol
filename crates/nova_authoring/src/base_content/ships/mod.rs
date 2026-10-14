@@ -36,16 +36,20 @@ pub const MINING_TUG_SHIP_ID: &str = "mining_tug";
 /// point-defense mount and a flank collar.
 pub const SALVAGE_HAULER_SHIP_ID: &str = "salvage_hauler";
 /// The transport start hull: freight cubes and a tank pod on one vectoring
-/// drive, a flank collar, unarmed.
+/// drive, a cargo intake, a flank collar, unarmed.
 pub const LIGHT_FREIGHTER_SHIP_ID: &str = "light_freighter";
-/// The bounty hunter start hull: two point-defense mounts and a bow torpedo
-/// bay.
+/// The bounty hunter start hull: two point-defense mounts, a bow torpedo bay
+/// and a cargo intake.
 pub const INTERCEPTOR_SHIP_ID: &str = "interceptor";
-/// The pirate start hull: a nose railgun and two point-defense mounts.
+/// The pirate start hull: a nose railgun, two point-defense mounts and a
+/// cargo intake.
 pub const RAIDER_SHIP_ID: &str = "raider";
-/// The military start hull, the weakest: one nose point-defense mount on
-/// light plate.
+/// The military start hull, the lightest armed start: two point-defense
+/// mounts and a cargo intake on reinforced plate.
 pub const PATROL_PICKET_SHIP_ID: &str = "patrol_picket";
+/// The tutorial range's hull: one nose point-defense mount on light plate.
+/// Scenario-only, with no cargo intake.
+pub const TRAINING_PICKET_SHIP_ID: &str = "training_picket";
 /// The Line Warship class, the military goal: six point-defense mounts, a
 /// railgun, two torpedo bays and two collars.
 pub const LINE_WARSHIP_SHIP_ID: &str = "line_warship";
@@ -75,6 +79,11 @@ pub(crate) fn ship_catalog(assets: &BaseContentAssets) -> Vec<ShipDesignPrototyp
             PATROL_PICKET_SHIP_ID,
             "Patrol Picket",
             block::patrol_picket(),
+        ),
+        (
+            TRAINING_PICKET_SHIP_ID,
+            "Training Picket",
+            block::training_picket(),
         ),
         (LINE_WARSHIP_SHIP_ID, "Line Warship", block::line_warship()),
         (
@@ -137,10 +146,11 @@ pub(crate) fn inline_design(sections: Vec<SpaceshipSectionConfig>) -> ShipDesign
     })
 }
 
-/// Every section id the patrol picket's catalog entry carries, plates included, for
-/// content that modifies the whole hull at spawn rather than one named part.
+/// Every section id the training picket's catalog entry carries, plates
+/// included, for content that modifies the whole hull at spawn rather than one
+/// named part.
 pub(crate) fn picket_section_ids() -> Vec<String> {
-    block::patrol_picket()
+    block::training_picket()
         .sections()
         .into_iter()
         .map(|section| section.id)

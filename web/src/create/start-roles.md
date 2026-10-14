@@ -61,6 +61,10 @@ role that:
 
 - names a `hull` no visible ship design has (the base ships, your own, and
   those of the mods you depend on);
+- names a `hull` with no cargo intake section: an open-world ship jettisons
+  and takes cargo in through one;
+- names a `hull` whose cargo intake reaches as far out as a docking port's
+  face, where a berthed ship parks;
 - seeds its kit `stock` with an unknown item;
 - seeds a kit heavier than the hull's hold.
 

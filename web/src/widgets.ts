@@ -198,7 +198,7 @@ const CONTROLLER_MAX_TORQUE = 9760; // controller.rs
 // The GOTO widget flies this hull. `hullState(INTERCEPTOR_CELLS)` re-derives it
 // from the ship's own cells and agrees, which is the check that the assembly
 // model below is the game's; `web/tests/widgets.test.ts` holds them together.
-export const INTERCEPTOR_ARM_U = 4.59;
+export const INTERCEPTOR_ARM_U = 4.81;
 
 // Thrust is authored as an IMPULSE PER FIXED TICK and handed to avian with no
 // `dt` factor, so a hull's acceleration is its summed magnitude times the tick
@@ -2691,9 +2691,10 @@ const CARGO_INTAKE: SectionProto = {
 };
 
 // One authored cell of a built hull, in the terms `assets/base/ships/base.content.ron`
-// writes it: a build-grid position and the prototype seated there. Every base
-// section is mounted axis-aligned or is a cube, so the authored rotation
-// changes no box this file reads.
+// writes it: a build-grid position and the prototype seated there. The box is
+// the prototype's box as authored, so the authored rotation is not applied.
+// A section turned off its own axes (a door-up cargo intake) is written as an
+// inline part with its turned box instead.
 function cell(
     id: string,
     x: number,
@@ -2714,10 +2715,11 @@ function cell(
 
 // The Interceptor (`interceptor` in assets/base/ships/base.content.ron), the
 // small military boat and the hull the drydock figures pose. A two-deck
-// armoured body with a torpedo bay on the bow, two aft sponsons, a dorsal
-// fin, two PDC mounts on the upper deck, three bell drives in the stern row
-// and a docking collar off the port flank. Nothing here is a mesh: every
-// cell is a section on the same build grid a player builds on.
+// armoured body with a torpedo bay on the bow, two aft sponsons, two PDC
+// mounts on the upper deck, a cargo intake on the top deck aft, three bell
+// drives in the stern row and a docking collar off the port flank. Nothing
+// here is a mesh: every cell is a section on the same build grid a player
+// builds on.
 export const INTERCEPTOR_CELLS: ShipPart[] = [
     cell("plate_0", -1, 0, -2, HULL_CELL, "hull"),
     cell("plate_1", -1, 0, -1, HULL_CELL, "hull"),
@@ -2749,11 +2751,20 @@ export const INTERCEPTOR_CELLS: ShipPart[] = [
     cell("plate_27", -2, 0, 2, HULL_CELL, "sponsons"),
     cell("plate_28", 2, 0, 1, HULL_CELL, "sponsons"),
     cell("plate_29", 2, 0, 2, HULL_CELL, "sponsons"),
-    cell("plate_30", 0, 2, 1, HULL_CELL, "fin"),
     cell("bridge", 0, 1, -1, CONTROLLER_CELL, "bridge"),
     cell("torpedo_bow", 0, 0, -3.5, TORPEDO_BAY, "bow"),
     cell("pdc_port", -1, 1.75, -1, PDC_MOUNT, "guns"),
     cell("pdc_starboard", 1, 1.75, -1, PDC_MOUNT, "guns"),
+    // Door up: the 3x2x1 box turned a quarter about x, so it lies 3 wide,
+    // 1 tall and 2 long across the top deck over the two aft rows.
+    {
+        id: "cargo_intake",
+        label: CARGO_INTAKE.label,
+        health: CARGO_INTAKE.health,
+        center: [0, 2, 1.5],
+        size: [3, 1, 2],
+        group: "intake",
+    },
     cell("drive_port", -1, 0, 2, BASIC_DRIVE, "drives"),
     cell("drive_centre", 0, 0, 2, BASIC_DRIVE, "drives"),
     cell("drive_starboard", 1, 0, 2, BASIC_DRIVE, "drives"),
@@ -3029,8 +3040,8 @@ function initControllerArm(host: HTMLElement): void {
     const py = (x: number): number => AY - x * SCALE;
 
     // The 8 G curve beside it. Linear on both axes: the two ceilings are a
-    // factor of forty apart on this hull, so drawing them as two lines would
-    // need a log scale that flattens the only curve worth seeing.
+    // factor of nearly forty apart on this hull, so drawing them as two lines
+    // would need a log scale that flattens the only curve worth seeing.
     const BX0 = 336;
     const BX1 = 548;
     const BY0 = 210;
@@ -6082,8 +6093,8 @@ function initTorpedoRun(host: HTMLElement): void {
 // upper bound on what the clad ship does.
 // The tug and the interceptor fly the SAME drive fit - three basic
 // thrusters each, in assets/base/ships/base.content.ron - so the only thing
-// separating their curves is how much structure sits behind them. The picket
-// carries two basic thrusters on a light-plate frame.
+// separating their curves is how much structure sits behind them. The
+// training picket carries two basic thrusters on a light-plate frame.
 interface DriveRig {
     name: string;
     detail: string;
@@ -6093,7 +6104,7 @@ interface DriveRig {
 const DRIVE_RIGS: DriveRig[] = [
     {
         name: "picket",
-        detail: "patrol_picket, 21 sections",
+        detail: "training_picket, 21 sections",
         bom: [
             { proto: LIGHT_HULL, count: 16 },
             { proto: CONTROLLER_CELL, count: 1 },
@@ -6121,10 +6132,11 @@ const DRIVE_RIGS: DriveRig[] = [
         name: "interceptor",
         detail: "interceptor, 39 sections",
         bom: [
-            { proto: HULL_CELL, count: 31 },
+            { proto: HULL_CELL, count: 30 },
             { proto: CONTROLLER_CELL, count: 1 },
             { proto: TORPEDO_BAY, count: 1 },
             { proto: PDC_MOUNT, count: 2 },
+            { proto: CARGO_INTAKE, count: 1 },
             { proto: BASIC_DRIVE, count: 3 },
             { proto: DOCK_PORT, count: 1 },
         ],
@@ -10580,9 +10592,10 @@ const STANDOFF_TARGETS: [number, string][] = [
     [2250, "large planetoid"],
 ];
 
-// The Patrol Picket (`patrol_picket` in assets/base/ships/base.content.ron),
-// the smallest crewed hull: a slim dart of light plate with a dorsal spine, a
-// PDC on the nose face, two bell drives and a port collar.
+// The Training Picket (`training_picket` in assets/base/ships/base.content.ron),
+// the smallest crewed hull and the one the tutorial and drills fly: a slim
+// dart of light plate with a dorsal spine, a PDC on the nose face, two bell
+// drives and a port collar.
 export const PICKET_CELLS: ShipPart[] = [
     cell("plate_0", -1, 0, -2, LIGHT_HULL, "hull"),
     cell("plate_1", -1, 0, -1, LIGHT_HULL, "hull"),
@@ -10661,7 +10674,7 @@ function initArrivalStandoff(host: HTMLElement): void {
     const hi = Math.round(interceptorRadius);
     const hullName = (r: number): string =>
         r <= lo
-            ? `${meters(r)} (patrol picket)`
+            ? `${meters(r)} (training picket)`
             : r >= hi
               ? `${meters(r)} (interceptor)`
               : meters(r);

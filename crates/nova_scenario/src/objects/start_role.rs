@@ -3,7 +3,8 @@
 //! A role names a catalog hull and a kit: the credits and the items the ship
 //! starts with. It is authored once per role as a [`StartRole`] and read
 //! through [`GameStartRoles`]. The lint (`lint_start_role`) refuses a hull no
-//! visible ship design carries, an unknown kit item and a kit the hull's hold
+//! visible ship design carries, a hull with no cargo intake or with an intake
+//! where a berthed ship parks, an unknown kit item and a kit the hull's hold
 //! cannot carry.
 //!
 //! New Game's Create and Load insert the [`OpenWorldSession`]: the seed and
@@ -124,7 +125,8 @@ impl std::fmt::Display for StartRoleDesignId {
 
 /// One New Game start: the hull the player flies and the kit it starts with.
 ///
-/// Every field is required in RON. A hull no visible ship design carries, an
+/// Every field is required in RON. A hull no visible ship design carries, a
+/// hull with no cargo intake or with an intake where a berthed ship parks, an
 /// unknown kit item and a kit heavier than the hull's hold are refused at
 /// lint, see `lint_start_role`.
 #[derive(Clone, Debug, Reflect)]

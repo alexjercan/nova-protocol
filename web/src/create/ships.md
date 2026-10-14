@@ -189,11 +189,12 @@ painted by a [style](../styles/). Nothing in the base game is a modelled mesh.
 |---|---|
 | `mining_tug` | Mining Tug - the industrial start: a low work hull with a truss boom off the bow and a mining emitter at its tip (`mining_beam`), a cargo intake on the aft deck (`cargo_intake`), a cab forward and three bell drives |
 | `salvage_hauler` | Salvage Hauler - the scavenger start: a deep hold of freight cubes, a cab on the nose, a cargo intake on the dorsal deck, one point-defense mount and one vectoring drive. The biggest hold of the start hulls |
-| `light_freighter` | Light Freighter - the transport start: freight cubes stacked on a flat spine, a tank pod on the starboard flank, a solar wing either side of the stack and one vectoring drive. Unarmed |
+| `light_freighter` | Light Freighter - the transport start: freight cubes stacked on a flat spine, a cargo intake on top of the stack, a tank pod on the starboard flank, a solar wing either side of the stack and one vectoring drive. Unarmed |
 | `freighter_derelict` | Light Freighter: Derelict - the same freighter after a raid took its stern: no drive, no transom, the aft tank cube and the starboard wing gone. Everything forward of the tear, the cab and the collar included, is whole |
-| `interceptor` | Interceptor - the bounty hunter start: a compact two-deck body with stub wings, a torpedo bay on the bow centreline, two point-defense mounts on the top deck and three bell drives |
-| `raider` | Raider - the pirate start: a short hull with a railgun on the nose, an outrigger and a gun boom on the starboard side, a dorsal mount and four bell drives |
-| `patrol_picket` | Patrol Picket - the military start and the weakest start hull: a slim dart of light plate with one point-defense mount on the nose face and two bell drives |
+| `interceptor` | Interceptor - the bounty hunter start: a compact two-deck body with stub wings, a torpedo bay on the bow centreline, two point-defense mounts on the top deck, a cargo intake aft of them and three bell drives |
+| `raider` | Raider - the pirate start: a short hull with a railgun on the nose, an outrigger and a gun boom on the starboard side, a dorsal mount, a cargo intake on the aft deck and four bell drives |
+| `patrol_picket` | Patrol Picket - the military start and the lightest armed start hull: a slim dart of reinforced plate with a point-defense mount on the nose face, a second on the dorsal spine, a cargo intake on the aft deck and two bell drives |
+| `training_picket` | Training Picket - the tutorial range's hull, flown by the trainer and the drones: a slim dart of light plate with one point-defense mount on the nose face and two bell drives. Scenario-only, with no cargo intake |
 | `line_warship` | Line Warship - the military goal: a long armoured body with six PDC mounts, a railgun on the bow, a torpedo bay on each shoulder, a cargo intake on the aft deck (`cargo_intake`) and a docking collar off each shoulder, hatch outboard (`port_collar`, `starboard_collar`) |
 | `debris_plate` | Debris Plate - loose plating: the small pieces, and most of what a debris field is |
 

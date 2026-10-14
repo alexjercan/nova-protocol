@@ -108,7 +108,7 @@ Canisters come from two places: your own jettison, and a [mining beam](../mining
 ## Variants
 
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/cargo_intake.rs and assets/base/sections/base.content.ron. Mounted by crates/nova_authoring/src/base_content/ships/block.rs: `cargo_intake` on the mining tug, the salvage hauler and the line warship, door up. -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/cargo_intake.rs and assets/base/sections/base.content.ron. Mounted by crates/nova_authoring/src/base_content/ships/block.rs: `cargo_intake` on the mining tug, the salvage hauler, the light freighter, the interceptor, the raider, the patrol picket and the line warship, door up. The training picket carries none. -->
 <div class="catalog__head"><span class="catalog__title">Cargo intake - shipped prototypes</span></div>
 <table>
 <thead>
@@ -120,4 +120,4 @@ Canisters come from two places: your own jettison, and a [mining beam](../mining
 </table>
 </div>
 
-One intake ships. The Mining Tug, the Salvage Hauler and the Line Warship carry it on the top deck, door up. Bolt one onto any other hull in the ship editor; it takes neighbours on every face except the door. See [Ship sections for mods](../../../create/sections/#cargo-intake) for the numbers a mod can change.
+One intake ships. The Mining Tug, the Salvage Hauler, the Light Freighter, the Interceptor, the Raider, the Patrol Picket and the Line Warship carry it on top of the hull, door up. The Training Picket carries none. Bolt one onto any other hull in the ship editor; it takes neighbours on every face except the door. See [Ship sections for mods](../../../create/sections/#cargo-intake) for the numbers a mod can change.

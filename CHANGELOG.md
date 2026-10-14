@@ -44,9 +44,12 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Ships & Sections
 
-- **(breaking)** New hulls replace the block ships: `mining_tug`,
-  `salvage_hauler`, `light_freighter`, `freighter_derelict`, `interceptor`,
-  `raider`, `patrol_picket`, `line_warship` and `debris_plate`.
+- **(breaking)** New base hulls: `mining_tug`, `salvage_hauler`,
+  `light_freighter`, `freighter_derelict`, `interceptor`, `raider`,
+  `patrol_picket`, `training_picket`, `line_warship` and `debris_plate`.
+- Every open-world ship carries a cargo intake to jettison and take cargo:
+  the six start hulls and every generated ship, whose intake sits on top or
+  below, clear of its docking ports.
 - A cargo intake's door now stays shut for a canister the hold has no room
   for. A canister that fits still opens it.
 - A destroyed ship drops its hold as cargo canisters, and a destroyed section
@@ -136,8 +139,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   items with `Storage`, kept through retire and save, firing `OnStored` and
   `OnWithdrawn`. Stock scales with advancement.
 - A `StartRole` content kind names a New Game start: a hull and a kit of
-  credits and items. Lint refuses an unknown hull or item and a kit the hold
-  cannot carry.
+  credits and items. Lint refuses an unknown hull or item, an overweight kit
+  and a hull with no intake or one a docked ship blocks.
 
 ### Interface & HUD
 

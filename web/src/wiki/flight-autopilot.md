@@ -50,7 +50,7 @@ The autopilot verbs are the assist. Each writes to the _same_ actuators you use 
 While GOTO or STOP flies, the HUD draws the [predicted path](../hud/#flight-readouts) up to 30 seconds ahead, and GOTO a dim straight guide on to the target. The path forecasts the flight; the guide only points at the target. Neither plans a route around anything.
 
 <div class="widget" data-widget="goto-verb">
-<p>One GOTO leg by the numbers: the drive burns out while the arrival envelope allows, swings retrograde one flip early (the envelope budgets the coast the flip costs), brakes at 85% of what the drive can do down to a 15 m/s approach floor, and eases the last stretch onto the 500 m standoff with the fine RCS jets. The scope flies the base Interceptor, so the resolved distance counts its own 45.9 m arm - balance point to the outer face of its furthest section, not the 70 m the hull is long - as well as the body's. A longer leg just means a higher peak speed - the flip always lands the braking ramp on the standoff.</p>
+<p>One GOTO leg by the numbers: the drive burns out while the arrival envelope allows, swings retrograde one flip early (the envelope budgets the coast the flip costs), brakes at 85% of what the drive can do down to a 15 m/s approach floor, and eases the last stretch onto the 500 m standoff with the fine RCS jets. The scope flies the base Interceptor, so the resolved distance counts its own 48.1 m arm - balance point to the outer face of its furthest section, not the 70 m the hull is long - as well as the body's. A longer leg just means a higher peak speed - the flip always lands the braking ramp on the standoff.</p>
 </div>
 
 <details class="explain">

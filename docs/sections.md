@@ -960,7 +960,7 @@ the catalogue hulls and stations, per ship:
 | `freighter_derelict` | 67 | 9 | 13 | 1 | 1 | 16 | 27 |
 | `interceptor` | 64 | 5 | 14 | 2 | 1 | 15 | 27 |
 | `raider` | 67 | 9 | 12 | 9 | 0 | 11 | 26 |
-| `patrol_picket` | 40 | 5 | 12 | 4 | 0 | 3 | 16 |
+| `training_picket` | 40 | 5 | 12 | 4 | 0 | 3 | 16 |
 | `line_warship` | 178 | 22 | 72 | 25 | 0 | 32 | 27 |
 | `debris_plate` | 33 | 3 | 5 | 2 | 2 | 6 | 15 |
 | `ring_station` | 210 | 0 | 36 | 0 | 18 | 24 | 132 |

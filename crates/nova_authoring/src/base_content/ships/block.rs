@@ -67,8 +67,9 @@ pub const BLOCK_PORT_COLLAR_SECTION_ID: &str = "port_collar";
 /// port collar.
 pub(crate) const BLOCK_STARBOARD_COLLAR_SECTION_ID: &str = "starboard_collar";
 
-/// The one point-defense mount the patrol picket carries on its nose, so
-/// content that arms or disarms it names a section rather than a hull.
+/// The point-defense mount the patrol picket and the training picket carry on
+/// the nose, so content that arms or disarms it names a section rather than a
+/// hull.
 pub(crate) const PICKET_GUN_SECTION_ID: &str = "pdc";
 
 /// The line warship's point-defense mounts: dorsal fore, dorsal aft, then the
@@ -269,11 +270,12 @@ fn freighter_fittings() -> Vec<Special> {
     ]
 }
 
-/// The transport start: freight cubes stacked on a flat spine, a tank pod on
-/// the starboard flank, a solar wing either side of the stack, and one
-/// vectoring drive on a square transom. Unarmed.
+/// The transport start: freight cubes stacked on a flat spine, a cargo intake
+/// on top of the stack, a tank pod on the starboard flank, a solar wing either
+/// side of the stack, and one vectoring drive on a square transom. Unarmed.
 pub(super) fn light_freighter() -> BlockShip {
     let mut specials = freighter_fittings();
+    specials.push(door_up_intake("cargo_intake", Vec3::new(0.0, 2.0, 0.5)));
     specials.push(part(
         MAIN_DRIVE_SECTION_ID,
         VECTOR_THRUSTER_SECTION_ID,
@@ -318,16 +320,15 @@ pub(super) fn freighter_derelict() -> BlockShip {
     }
 }
 
-/// The bounty hunter start: a compact two-deck body with stub wings, a dorsal
-/// fin, a torpedo bay on the bow centreline, two point-defense mounts on the
-/// top deck and three bell drives.
+/// The bounty hunter start: a compact two-deck body with stub wings, a torpedo
+/// bay on the bow centreline, two point-defense mounts on the top deck, a
+/// cargo intake aft of them and three bell drives.
 pub(super) fn interceptor() -> BlockShip {
     BlockShip {
         cells: union(vec![
             block(IVec3::new(-1, 0, -2), IVec3::new(3, 2, 5)),
             block(IVec3::new(-2, 0, 1), IVec3::new(1, 1, 2)),
             block(IVec3::new(2, 0, 1), IVec3::new(1, 1, 2)),
-            vec![IVec3::new(0, 2, 1)],
         ]),
         specials: vec![
             cell_part(
@@ -343,6 +344,7 @@ pub(super) fn interceptor() -> BlockShip {
             ),
             turret("pdc_port", IVec3::new(-1, 2, -1)),
             turret("pdc_starboard", IVec3::new(1, 2, -1)),
+            door_up_intake("cargo_intake", Vec3::new(0.0, 2.0, 1.5)),
             cell_part(
                 DRIVE_PORT_SECTION_ID,
                 BASIC_THRUSTER_SECTION_ID,
@@ -371,8 +373,8 @@ pub(super) fn interceptor() -> BlockShip {
 }
 
 /// The pirate start: a short hull with a railgun on the nose, an outrigger
-/// and a gun boom on the starboard side, a dorsal mount, and four bell
-/// drives. Its lopsided silhouette reads as a refit, not a yard design.
+/// and a gun boom on the starboard side, a dorsal mount, a cargo intake on
+/// the aft deck, and four bell drives. Its lopsided silhouette reads as a refit, not a yard design.
 pub(super) fn raider() -> BlockShip {
     BlockShip {
         cells: union(vec![
@@ -396,6 +398,7 @@ pub(super) fn raider() -> BlockShip {
             ),
             turret("pdc_dorsal", IVec3::new(0, 2, -1)),
             turret("pdc_boom", IVec3::new(2, 2, 0)),
+            door_up_intake("cargo_intake", Vec3::new(0.0, 1.0, 1.5)),
             cell_part(
                 DRIVE_PORT_SECTION_ID,
                 BASIC_THRUSTER_SECTION_ID,
@@ -428,10 +431,60 @@ pub(super) fn raider() -> BlockShip {
     }
 }
 
-/// The military start, and the weakest start hull: a slim dart of light
-/// plate with one point-defense mount on the nose face, where the hull cannot
-/// mask its forward arc, and a dorsal spine over two bell drives.
+/// The military start, and the lightest armed start hull: a slim dart of
+/// reinforced plate with one point-defense mount on the nose face, where the
+/// hull cannot mask its forward arc, a second mount on the dorsal spine, a
+/// cargo intake on the aft deck and two bell drives.
 pub(super) fn patrol_picket() -> BlockShip {
+    BlockShip {
+        cells: union(vec![
+            block(IVec3::new(-1, 0, -2), IVec3::new(3, 1, 6)),
+            block(IVec3::new(0, 1, -2), IVec3::new(1, 1, 2)),
+            vec![IVec3::new(0, 0, -3)],
+        ]),
+        specials: vec![
+            cell_part(
+                BLOCK_BRIDGE_SECTION_ID,
+                BASIC_CONTROLLER_SECTION_ID,
+                IVec3::new(0, 1, -1),
+            ),
+            // Rotate the mount's -Y base onto the nose's -Z face. The
+            // half-cell mount then centres just outside it.
+            part(
+                PICKET_GUN_SECTION_ID,
+                PDC_KINETIC_TURRET_SECTION_ID,
+                Vec3::new(0.0, 0.0, -3.75),
+                Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
+            ),
+            turret("pdc_dorsal", IVec3::new(0, 2, -2)),
+            door_up_intake("cargo_intake", Vec3::new(0.0, 1.0, 1.5)),
+            cell_part(
+                DRIVE_PORT_SECTION_ID,
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(-1, 0, 3),
+            ),
+            cell_part(
+                DRIVE_STARBOARD_SECTION_ID,
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(1, 0, 3),
+            ),
+            flank_collar(
+                BLOCK_PORT_COLLAR_SECTION_ID,
+                FlankType::Port,
+                IVec3::new(-2, 0, 0),
+            ),
+        ],
+        plate: REINFORCED_HULL_SECTION_ID,
+        zones: vec![],
+        style: ARMOURED_STYLE_ID,
+    }
+}
+
+/// The tutorial range's hull, flown by the trainer and the drones: a slim
+/// dart of light plate with one point-defense mount on the nose face, where
+/// the hull cannot mask its forward arc, and a dorsal spine over two bell
+/// drives. Scenario-only, so it carries no cargo intake.
+pub(super) fn training_picket() -> BlockShip {
     BlockShip {
         cells: union(vec![
             block(IVec3::new(-1, 0, -2), IVec3::new(3, 1, 5)),
@@ -860,16 +913,18 @@ mod tests {
         }
     }
 
-    /// The picket carries the ONE gun id content names.
+    /// Both pickets carry the nose gun id content names.
     #[test]
     fn the_picket_carries_the_mount_content_names() {
-        assert!(
-            patrol_picket()
-                .sections()
-                .iter()
-                .any(|section| section.id == PICKET_GUN_SECTION_ID),
-            "the picket has no '{PICKET_GUN_SECTION_ID}' mount"
-        );
+        for picket in [patrol_picket(), training_picket()] {
+            assert!(
+                picket
+                    .sections()
+                    .iter()
+                    .any(|section| section.id == PICKET_GUN_SECTION_ID),
+                "a picket has no '{PICKET_GUN_SECTION_ID}' mount"
+            );
+        }
     }
 
     /// The line warship carries exactly the turrets content walks by name.

@@ -126,7 +126,7 @@ pub(crate) fn trainer_with(capabilities: ShipCapabilities) -> ScenarioObjectConf
             controller: SpaceshipController::Player(PlayerControllerConfig { input_mapping }),
             capabilities,
             design: ships::patched_design(
-                ships::PATROL_PICKET_SHIP_ID,
+                ships::TRAINING_PICKET_SHIP_ID,
                 [
                     ships::on_section(
                         ships::BLOCK_BRIDGE_SECTION_ID,
@@ -303,7 +303,7 @@ pub(crate) fn drone(id: &str, name: &str, position: Meters3) -> ScenarioObjectCo
                 leash: Some(DRONE_LEASH),
                 ..Default::default()
             }),
-            design: ships::patched_design(ships::PATROL_PICKET_SHIP_ID, section_patches),
+            design: ships::patched_design(ships::TRAINING_PICKET_SHIP_ID, section_patches),
             lootable: false,
             inventory: ShipInventoryStock::new([]),
             credits: 2_000,

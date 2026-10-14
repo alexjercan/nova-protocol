@@ -1,6 +1,8 @@
-//! Reference checks over one start role: its hull resolves and its kit fits.
+//! Reference checks over one start role: its hull resolves, carries a cargo
+//! intake clear of its docking ports, and its kit fits.
 
 use nova_gameplay::prelude::GameItems;
+use nova_ship::prelude::{intake_in_dock_approach, RefitPlacedSection, SectionKind};
 
 use super::{ship::check_stock, KnownSections, KnownShipDesigns, LintIssue};
 use crate::prelude::*;
@@ -10,6 +12,10 @@ use crate::prelude::*;
 ///
 /// Errors:
 /// - `hull` names a ship design `designs` does not hold;
+/// - the hull carries no cargo intake section: an open-world ship jettisons
+///   and takes cargo in through one;
+/// - an intake reaches a docking port's face, where a berthed hull parks
+///   (see [`intake_in_dock_approach`]);
 /// - the kit's `stock` names an item `items` does not hold, or weighs more
 ///   than the hull's hold.
 pub fn lint_start_role(
@@ -28,6 +34,7 @@ pub fn lint_start_role(
                 &GameShipDesigns::default(),
                 sections.catalog(),
             );
+            check_intake(id, role, &resolved, source, &mut issues);
             Some(resolved.cargo_capacity_g())
         }
         None => {
@@ -53,12 +60,95 @@ pub fn lint_start_role(
     issues
 }
 
+/// Refuse a start hull with no cargo intake, or with an intake where a
+/// berthed hull parks.
+fn check_intake(
+    id: &str,
+    role: &StartRole,
+    resolved: &ResolvedShipDesign,
+    source: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    let hull = &role.hull;
+    let has_intake = resolved
+        .sections
+        .iter()
+        .any(|section| matches!(section.config.kind, SectionKind::CargoIntake(_)));
+    if !has_intake {
+        issues.push(LintIssue::error(
+            source,
+            format!(
+                "start role '{id}': hull '{hull}' has no cargo intake section; an open-world \
+                 ship jettisons and takes cargo in through one"
+            ),
+        ));
+        return;
+    }
+    let placed: Vec<RefitPlacedSection<'_>> = resolved
+        .sections
+        .iter()
+        .map(|section| RefitPlacedSection {
+            position: section.position,
+            rotation: section.rotation,
+            config: &section.config,
+        })
+        .collect();
+    if let Some((intake, port)) = intake_in_dock_approach(&placed) {
+        issues.push(LintIssue::error(
+            source,
+            format!(
+                "start role '{id}': hull '{hull}' intake '{}' reaches docking port '{}''s \
+                 face, where a berthed hull parks",
+                resolved.sections[intake].id, resolved.sections[port].id
+            ),
+        ));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use nova_gameplay::prelude::ShipInventoryStock;
 
     use super::*;
-    use crate::lint::LintSeverity;
+    use crate::lint::{
+        fixtures::{sections, ships},
+        LintSeverity,
+    };
+
+    fn role(hull: &str) -> StartRole {
+        StartRole {
+            id: "military".into(),
+            name: "Military".to_string(),
+            about: String::new(),
+            hull: hull.into(),
+            kit: StartKit {
+                credits: 0,
+                stock: ShipInventoryStock::default(),
+            },
+            lore: String::new(),
+        }
+    }
+
+    /// Every open-world ship takes cargo in: a role hull of one plain hull
+    /// section, with no intake, is refused by name.
+    #[test]
+    fn a_start_role_whose_hull_has_no_cargo_intake_is_refused() {
+        let found = lint_start_role(
+            &role("picket"),
+            &ships(&["picket"]),
+            &sections(&["hull"]),
+            &GameItems::default(),
+            "test",
+        );
+        assert!(
+            found
+                .iter()
+                .any(|issue| issue.severity == LintSeverity::Error
+                    && issue.message.contains("start role 'military'")
+                    && issue.message.contains("'picket' has no cargo intake")),
+            "{found:?}"
+        );
+    }
 
     #[test]
     fn a_start_role_naming_an_unknown_hull_is_refused() {

@@ -1128,6 +1128,23 @@
                                         ),
                                     ),
                                     (
+                                        id: "cargo_intake",
+                                        position: (
+                                            0.0,
+                                            1.0,
+                                            1.5,
+                                        ),
+                                        rotation: (
+                                            0.70710677,
+                                            0.0,
+                                            0.0,
+                                            0.70710677,
+                                        ),
+                                        source: Prototype(
+                                            id: "cargo_intake_section",
+                                        ),
+                                    ),
+                                    (
                                         id: "drive_port",
                                         position: (
                                             -1.0,
