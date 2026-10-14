@@ -240,7 +240,7 @@ mod tests {
         prelude::{ClockFreeze, RunCheats, ShipCredits, SpaceshipRootMarker},
         GameStates, PauseStates,
     };
-    use nova_ui::{prelude::in_input_mode, NovaUiPlugin};
+    use nova_ui::NovaUiPlugin;
 
     use super::*;
     use crate::hud::DebugHudPlugin;
@@ -318,15 +318,17 @@ mod tests {
     }
 
     /// A stand-in for `nova_menu`'s `open_command_shell` under that system's
-    /// own gate: `:` opens the CRT in [`InputMode::Normal`] only.
+    /// own gate: it reads every frame, and `:` opens the CRT in
+    /// [`InputMode::Normal`] only.
     fn open_shell_on_colon(
         mut keyboard: MessageReader<KeyboardInput>,
+        mode: Res<InputMode>,
         mut next: ResMut<NextState<PauseStates>>,
     ) {
-        if keyboard
+        let typed_colon = keyboard
             .read()
-            .any(|event| event.state == ButtonState::Pressed && event.text.as_deref() == Some(":"))
-        {
+            .any(|event| event.state == ButtonState::Pressed && event.text.as_deref() == Some(":"));
+        if typed_colon && *mode == InputMode::Normal {
             next.set(PauseStates::Commands);
         }
     }
@@ -356,10 +358,7 @@ mod tests {
             PreUpdate,
             write_egui_wants_input_system.before(crate::hud::DebugHudSystems::Claim),
         );
-        app.add_systems(
-            Update,
-            open_shell_on_colon.run_if(in_input_mode(InputMode::Normal)),
-        );
+        app.add_systems(Update, open_shell_on_colon);
         // An egui context whose text field has the keyboard, as the prompt
         // does once clicked.
         let mut context = EguiContext::default();

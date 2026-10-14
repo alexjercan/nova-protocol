@@ -646,3 +646,68 @@ fn the_command_shell_over_the_menu_leaves_the_backdrop_flying() {
         "and closing it leaves them where it found them"
     );
 }
+
+/// A `:` typed into a focused field does not open the command shell later,
+/// when the field lets the keyboard go. A frozen world runs no fixed step,
+/// and without one Bevy keeps every message, so a reader that skipped the
+/// colon while the field held the keyboard used to read it on the first
+/// Normal frame: closing the Nova Debug window opened the shell.
+#[test]
+fn a_colon_typed_into_a_field_does_not_open_the_shell_when_the_field_lets_go() {
+    use bevy::{
+        ecs::message::{MessageRegistry, ShouldUpdateMessages},
+        input::{keyboard::KeyboardInput, ButtonState},
+    };
+    use nova_interface::{nova_command::prelude::CommandTerminal, prelude::NovaOsCloseTransition};
+    use nova_ui::input_mode::prelude::{ClaimKeyboard, InputMode};
+
+    let mut app = app();
+    app.init_resource::<CommandTerminal>();
+    app.init_resource::<NovaOsCloseTransition>();
+    app.add_message::<KeyboardInput>();
+    enter_playing(&mut app);
+    // What `TimePlugin` sets: messages update only after a fixed step, and
+    // a frozen world runs none.
+    app.world_mut()
+        .resource_mut::<MessageRegistry>()
+        .should_update = ShouldUpdateMessages::Waiting;
+
+    let window = app.world_mut().spawn_empty().id();
+    let colon = KeyboardInput {
+        key_code: KeyCode::Semicolon,
+        logical_key: bevy::input::keyboard::Key::Character(":".into()),
+        state: ButtonState::Pressed,
+        text: Some(":".into()),
+        repeat: false,
+        window,
+    };
+    app.world_mut().write_message(colon.clone());
+    // The focused field claims the keyboard each frame it holds it.
+    for _ in 0..3 {
+        app.world_mut()
+            .write_message(ClaimKeyboard(InputMode::Insert));
+        app.update();
+    }
+    assert_eq!(*app.world().resource::<InputMode>(), InputMode::Insert);
+    assert_eq!(
+        pause_state(&app),
+        PauseStates::Unpaused,
+        "the field takes the colon"
+    );
+
+    // The field lets go: no claim, so the keyboard is Normal again.
+    app.update();
+    assert_eq!(*app.world().resource::<InputMode>(), InputMode::Normal);
+    app.update();
+    assert_eq!(
+        pause_state(&app),
+        PauseStates::Unpaused,
+        "the colon went into the field, not to the shell"
+    );
+
+    // A colon typed now is the gesture.
+    app.world_mut().write_message(colon);
+    app.update();
+    app.update();
+    assert_eq!(pause_state(&app), PauseStates::Commands);
+}

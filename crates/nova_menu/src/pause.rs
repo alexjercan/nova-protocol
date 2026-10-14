@@ -20,6 +20,7 @@ use nova_gameplay::prelude::*;
 use nova_interface::prelude::{NovaOsCloseTransition, ShipRuntime};
 use nova_scenario::prelude::*;
 use nova_ui::{
+    input_mode::prelude::InputMode,
     prelude::{PAUSE_SETTINGS_Z, PAUSE_Z},
     screen::{scroll_bar, scroll_column, scroll_viewport},
     theme,
@@ -131,8 +132,15 @@ pub(crate) fn toggle_pause(
 ///
 /// Read as a logical character, not a key code, so a layout where `:` is not
 /// Shift+Semicolon still opens the shell with the key that prints one.
+///
+/// It reads the keyboard EVERY frame and checks the input mode itself. A run
+/// condition would leave the reader behind while a field holds the keyboard,
+/// and a frozen world runs no fixed step, so Bevy keeps those messages: the
+/// first Normal frame would read a colon typed into the field and open the
+/// shell.
 pub(crate) fn open_command_shell(
     mut keyboard: MessageReader<KeyboardInput>,
+    mode: Option<Res<InputMode>>,
     game_state: Option<Res<State<GameStates>>>,
     current: Res<State<PauseStates>>,
     rebind: Option<Res<crate::settings::PendingRebind>>,
@@ -144,6 +152,11 @@ pub(crate) fn open_command_shell(
         .read()
         .any(|event| event.state == ButtonState::Pressed && event.text.as_deref() == Some(":"));
     if !typed_colon {
+        return;
+    }
+    // In a focused text field - the editor's inspector, a rename, the Nova
+    // Debug prompt - a `:` is a character the player is typing, not a gesture.
+    if mode.is_some_and(|mode| *mode != InputMode::Normal) {
         return;
     }
     // Inside the CRT the key is text: the shell is already open and the player

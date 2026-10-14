@@ -28,7 +28,6 @@ use nova_hud::prelude::HudVisibility;
 use nova_interface::prelude::NovaOsCloseTransition;
 use nova_scenario::prelude::{CurrentOutcome, ScenarioStartFailure, UnloadScenario};
 use nova_ui::{
-    input_mode::prelude::{in_input_mode, InputMode},
     theme::SelectedUiTheme,
     widget::{button_on_setting, TextFieldSystems},
 };
@@ -425,15 +424,13 @@ impl Plugin for NovaMenuPlugin {
         );
         // The command shell opens over every surface, so its key is NOT gated
         // on Playing the way the pause overlay's is. It IS gated on the CRT
-        // existing: a menu-only rig has no monitor to open. And on Normal input
-        // mode: in a focused text field - the editor's inspector, a rename - a
-        // `:` is a character the player is typing, not a gesture.
+        // existing: a menu-only rig has no monitor to open. The input mode is
+        // checked inside the system, which must read every frame.
         app.add_systems(
             Update,
             open_command_shell.run_if(
                 resource_exists::<CommandTerminal>
-                    .and_then(resource_exists::<NovaOsCloseTransition>)
-                    .and_then(in_input_mode(InputMode::Normal)),
+                    .and_then(resource_exists::<NovaOsCloseTransition>),
             ),
         );
         app.add_systems(
