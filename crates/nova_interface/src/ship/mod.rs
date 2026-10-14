@@ -42,6 +42,10 @@
 //! `HullBuyCommand`. When it hires out escorts, an "Escorts for hire" list
 //! under that shows each with its price and a Hire button that raises an
 //! `EscortHireCommand`.
+//! While the ship is docked with a hull it may loot, a "Strip the docked
+//! wreck" list shows each of the partner's sections with the parts a strip
+//! gives, its time and a Strip button that raises a `SectionStripCommand`;
+//! the strip runs on the game clock and its progress shows under the header.
 //! The panel scrolls with the wheel while the pointer is over it.
 //!
 //! # Module layout
@@ -55,6 +59,7 @@
 //! | `shipyard` | The "Ships for sale" list and the buy action handler. |
 //! | `escorts` | The "Escorts for hire" list and the hire action handler. |
 //! | `station_buy` | The "This station" block and the station buy action handler. |
+//! | `strip` | The "Strip the docked wreck" list, the strip action handler and the strip timer. |
 //! | `scene` | The schematic 3D scene, its camera, the projected badges, the button observers and the panel refresh. |
 
 mod app;
@@ -66,6 +71,7 @@ mod scene;
 mod sections;
 mod shipyard;
 mod station_buy;
+mod strip;
 
 #[cfg(test)]
 mod tests;
@@ -75,7 +81,7 @@ use nova_ui::input_mode::prelude::{in_input_mode, InputMode};
 
 pub(crate) use self::{
     app::*, escorts::*, rebind::*, rebuild::*, refit::*, scene::*, sections::*, shipyard::*,
-    station_buy::*,
+    station_buy::*, strip::*,
 };
 pub use self::{
     escorts::EscortHireCommand,
@@ -84,6 +90,7 @@ pub use self::{
     sections::{SectionCode, ShipSections},
     shipyard::HullBuyCommand,
     station_buy::{StationBuyCommand, STATION_BUY_BUTTON},
+    strip::{SectionStripCommand, STRIP_BUTTON_PREFIX, STRIP_LIST},
 };
 
 /// Glob-import surface: `use nova_interface::ship::prelude::*`.
@@ -100,6 +107,7 @@ pub mod prelude {
         sections::{SectionCode, ShipSections},
         shipyard::HullBuyCommand,
         station_buy::{StationBuyCommand, STATION_BUY_BUTTON},
+        strip::{SectionStripCommand, STRIP_BUTTON_PREFIX, STRIP_LIST},
         SHIP_RADIUS_MAX, SHIP_RADIUS_MIN,
     };
 }
@@ -135,6 +143,7 @@ impl Plugin for ShipPanePlugin {
         app.add_message::<HullBuyCommand>();
         app.add_message::<EscortHireCommand>();
         app.add_message::<StationBuyCommand>();
+        app.add_message::<SectionStripCommand>();
         app.add_systems(
             Update,
             (
@@ -148,6 +157,9 @@ impl Plugin for ShipPanePlugin {
                     apply_ship_hull_buy_commands,
                     apply_ship_escort_hire_commands,
                     apply_ship_station_buy_commands,
+                    apply_ship_strip_commands,
+                    // Runs with the pane closed too: a strip goes on in flight.
+                    advance_ship_strip,
                     reselect_swapped_section,
                     manage_ship_scene,
                     reconcile_ship_target,
@@ -169,6 +181,7 @@ impl Plugin for ShipPanePlugin {
                     update_ship_add_list,
                     update_ship_hull_list,
                     update_ship_escort_list,
+                    update_ship_strip_list,
                 )
                     .chain(),
             )

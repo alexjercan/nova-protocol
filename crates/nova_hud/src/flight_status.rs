@@ -21,7 +21,9 @@ use nova_gameplay::prelude::PlayerSpaceshipMarker;
 use nova_ship::{
     flight::prelude::*,
     input::prelude::FlightVerbHints,
-    prelude::{CameraAuthoritySystems, DockedHelmType, DockedShip, DockingConnection},
+    prelude::{
+        CameraAuthoritySystems, DockedHelmType, DockedShip, DockingConnection, SectionStripJob,
+    },
 };
 use nova_ui::hud::{chip_node, chip_paint, ChipText, ChipTone};
 
@@ -552,7 +554,9 @@ fn emphasize_speed_on_burn(
 /// `NEUTRAL` would promise a helm the player can take. An undocked player
 /// hull whose travel lock is on a station that refuses a dock reads the
 /// station's own line ([`FlightVerbHints::dock_refusal`]), ahead of a
-/// maneuver: the lock is the question and the refusal is the answer.
+/// maneuver: the lock is the question and the refusal is the answer. A hull
+/// stripping a docked wreck reads `STRIP <code> <percent>%` from its
+/// [`SectionStripJob`], so the strip shows in flight with the Ship pane shut.
 fn drive_mode_chip(
     q_hud: Query<&FlightStatusHudTargetEntity, With<FlightStatusHudMarker>>,
     mut q_ui: Query<(&mut ScreenIndicatorAnchor, &mut Text, &ChildOf), With<ModeChipUIMarker>>,
@@ -560,6 +564,7 @@ fn drive_mode_chip(
         Option<&Autopilot>,
         Option<&DockedShip>,
         Has<PlayerSpaceshipMarker>,
+        Option<&SectionStripJob>,
     )>,
     q_connections: Query<&DockingConnection>,
     hints: Option<Res<FlightVerbHints>>,
@@ -583,19 +588,23 @@ fn drive_mode_chip(
                 .and_then(|hints| hints.dock_refusal.clone())
         };
         match q_ship.get(**ship) {
-            Ok((_, Some(docked), _)) if faulted(docked) => {
+            Ok((_, Some(docked), ..)) if faulted(docked) => {
                 **anchor = Some(ScreenIndicatorAnchorKind::Entity(**ship));
                 **text = "HELM FAULT".to_string();
             }
-            Ok((_, Some(docked), _)) if station_held(docked) => {
+            Ok((.., Some(job))) => {
+                **anchor = Some(ScreenIndicatorAnchorKind::Entity(**ship));
+                **text = format!("STRIP {} {:.0}%", job.code, job.progress() * 100.0);
+            }
+            Ok((_, Some(docked), ..)) if station_held(docked) => {
                 **anchor = Some(ScreenIndicatorAnchorKind::Entity(**ship));
                 **text = "STATION HELM".to_string();
             }
-            Ok((_, Some(docked), _)) if !docked.drives => {
+            Ok((_, Some(docked), ..)) if !docked.drives => {
                 **anchor = Some(ScreenIndicatorAnchorKind::Entity(**ship));
                 **text = "NEUTRAL".to_string();
             }
-            Ok((_, None, player)) if refusal(player).is_some() => {
+            Ok((_, None, player, _)) if refusal(player).is_some() => {
                 **anchor = Some(ScreenIndicatorAnchorKind::Entity(**ship));
                 **text = refusal(player).unwrap_or_default();
             }

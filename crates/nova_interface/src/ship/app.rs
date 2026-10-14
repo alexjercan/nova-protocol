@@ -29,6 +29,7 @@ use super::{
     sections::*,
     shipyard::spawn_ship_hull_list,
     station_buy::spawn_ship_station_list,
+    strip::spawn_ship_strip_list,
 };
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
@@ -270,6 +271,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                         });
                 });
             spawn_ship_station_list(panel);
+            spawn_ship_strip_list(panel);
             spawn_ship_rebuild_list(panel);
             spawn_ship_swap_list(panel);
             spawn_ship_add_list(panel);
