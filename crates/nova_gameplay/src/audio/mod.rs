@@ -360,11 +360,13 @@ impl Plugin for NovaAudioPlugin {
 
         // Audio sinks do not follow `Time<Virtual>`: without this a loop keeps
         // roaring at its last volume behind a frozen sim. Every frozen overlay
-        // needs it - the pause overlay, the TAB interface and the command modal.
+        // needs it - the pause overlay, the TAB interface, the command modal
+        // and the debug window.
         for frozen in [
             crate::PauseStates::Paused,
             crate::PauseStates::Interface,
             crate::PauseStates::Commands,
+            crate::PauseStates::Debug,
         ] {
             app.add_systems(OnEnter(frozen), pause_world_voices);
             app.add_systems(OnExit(frozen), resume_world_voices);

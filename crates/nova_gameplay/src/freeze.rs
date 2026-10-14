@@ -42,15 +42,18 @@ pub enum FreezeOwner {
     /// the saved transients are back, so every resumed body starts on the
     /// same tick; released at once when the Load is refused.
     WorldResume,
+    /// The Nova Debug window (`PauseStates::Debug`).
+    DebugHud,
 }
 
 impl FreezeOwner {
     /// Every owner, for the fixed-size hold table.
-    const ALL: [FreezeOwner; 4] = [
+    const ALL: [FreezeOwner; 5] = [
         FreezeOwner::PauseMenu,
         FreezeOwner::Interface,
         FreezeOwner::ScenarioLoad,
         FreezeOwner::WorldResume,
+        FreezeOwner::DebugHud,
     ];
 
     fn index(self) -> usize {
@@ -59,6 +62,7 @@ impl FreezeOwner {
             FreezeOwner::Interface => 1,
             FreezeOwner::ScenarioLoad => 2,
             FreezeOwner::WorldResume => 3,
+            FreezeOwner::DebugHud => 4,
         }
     }
 }

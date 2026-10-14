@@ -7,11 +7,13 @@
 //! or `nova_hud`'s ammo number. The draw systems of the Nova gizmo groups also
 //! run only while their flag is on, so a hidden overlay costs no queries.
 //!
-//! Every overlay boots off. A missing gizmo group is a wiring fault and panics
-//! in [`GizmoConfigStore::config_mut`] on the first apply.
+//! Every overlay boots off, and a switch stays as set after the Nova Debug
+//! window closes. A missing gizmo group is a wiring fault and panics in
+//! [`GizmoConfigStore::config_mut`] on the first apply.
 
 use avian3d::prelude::{PhysicsDiagnosticsUiSettings, PhysicsGizmos};
 use bevy::{pbr::wireframe::WireframeConfig, prelude::*};
+use bevy_inspector_egui::egui;
 #[cfg(feature = "debug")]
 use nova_hud::prelude::AmmoReadoutDebug;
 
@@ -65,6 +67,27 @@ pub fn apply_debug_overlays(
     store.config_mut::<SectionGizmos>().0.enabled = overlays.sections;
     #[cfg(feature = "debug")]
     ammo_number.set_if_neq(AmmoReadoutDebug(overlays.ammo_number));
+}
+
+/// One checkbox per overlay. A tick writes the record only when it changed,
+/// so an idle window does not re-apply every frame.
+pub(crate) fn overlays_ui(world: &mut World, ui: &mut egui::Ui) {
+    let Some(current) = world.get_resource::<DebugOverlays>().copied() else {
+        ui.label("this app has no debug overlays");
+        return;
+    };
+    let mut wanted = current;
+    ui.checkbox(
+        &mut wanted.physics,
+        "Physics: colliders, contacts, diagnostics",
+    );
+    ui.checkbox(&mut wanted.wireframe, "Wireframe: every mesh");
+    ui.checkbox(&mut wanted.gravity, "Gravity: wells and dominant links");
+    ui.checkbox(&mut wanted.sections, "Sections: barrels, rounds, drives");
+    ui.checkbox(&mut wanted.ammo_number, "Ammo number: rounds/capacity");
+    if wanted != current {
+        *world.resource_mut::<DebugOverlays>() = wanted;
+    }
 }
 
 /// Register the record and its apply system.

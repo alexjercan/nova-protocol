@@ -97,11 +97,15 @@ iteration cost bites.
 ### Debug tooling
 
 `cargo run --features dev` compiles in `nova_debug`'s `DebugPlugin`
-(`crates/nova_debug/src/lib.rs`), which adds the inspector, the wireframe
-pass, and the physics, section and gravity debug overlays. Every overlay boots
-off and has its own flag in the `DebugOverlays` resource
-(`crates/nova_debug/src/hud/overlays.rs`). **F11** (`DEBUG_TOGGLE_KEYCODE`)
-shows the inspector window, where the flags can be edited. Note the
+(`crates/nova_debug/src/lib.rs`), which adds the Nova Debug window and the
+dev overlays. **F11** (`DEBUG_TOGGLE_KEYCODE`) opens and closes the window
+(`crates/nova_debug/src/hud/mod.rs`); Escape also closes it. In flight it
+enters `PauseStates::Debug`: the clocks stop, flight input is off and the
+cursor is free. Over the pause menu, the TAB interface, the command modal or
+the main menu it opens without changing the state. The window has one
+checkbox per overlay (physics, wireframe, gravity, sections, the ammo number;
+the `DebugOverlays` resource, all off at boot, kept after the window closes)
+and a Raw section with every entity, resource and asset. Note the
 feature is spelled `debug`, with `dev` as an alias for it (root `Cargo.toml`);
 `--features dev` and `--features debug` are interchangeable.
 

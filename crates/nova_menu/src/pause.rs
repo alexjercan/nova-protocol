@@ -100,10 +100,10 @@ pub(crate) fn toggle_pause(
         let destination = match current.get() {
             PauseStates::Unpaused => PauseStates::Paused,
             PauseStates::Paused => PauseStates::Unpaused,
-            // The interface and the command modal own their own back-out
-            // (`nova_interface`), so the clocks stay held until the surface
-            // has closed.
-            state @ (PauseStates::Interface | PauseStates::Commands) => *state,
+            // The interface, the command modal and the debug window own their
+            // own back-out (`nova_interface`, `nova_debug`), so the clocks
+            // stay held until the surface has closed.
+            state @ (PauseStates::Interface | PauseStates::Commands | PauseStates::Debug) => *state,
         };
         if destination == *current.get() {
             return;
@@ -333,8 +333,9 @@ pub(crate) fn keep_frozen_cursor_released(
 /// Re-grab on resume, but only during scenario play: a live player ship is what
 /// distinguishes it (PlayerSpaceshipMarker is only inserted by the scenario spawn path;
 /// the editor's build-mode preview never carries it). Grabs unconditionally now, debug
-/// builds included; the F11 inspector reclaims the cursor while it is up (nova_debug's
-/// `sync_inspector_cursor`).
+/// builds included; the F11 debug window is a frozen surface of its own
+/// (`PauseStates::Debug`) and frees the cursor through
+/// [`SurfaceCursorPlugin`](crate::SurfaceCursorPlugin).
 pub(crate) fn restore_cursor(
     mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>,
     q_player: Query<(), With<PlayerSpaceshipMarker>>,

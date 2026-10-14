@@ -1,46 +1,30 @@
-//! The egui world inspector, plus the avian physics gizmos and their
-//! diagnostics UI.
+//! The `bevy_egui` plumbing the Nova Debug window draws on, plus the avian
+//! physics gizmos and their diagnostics UI.
 //!
-//! F11 shows the inspector window; [`crate::DebugPlugin`] reads the key and
-//! boots this `DebugEnabled` off, and `sync_inspector_cursor` hands the cursor
-//! back while the window is up. The physics gizmos and panel are the
-//! `physics` flag of [`DebugOverlays`](crate::hud::overlays::DebugOverlays).
+//! The gizmos and the diagnostics panel are the `physics` flag of
+//! [`DebugOverlays`](crate::hud::overlays::DebugOverlays); the window is
+//! [`DebugHudPlugin`](crate::hud::DebugHudPlugin).
 
 use avian3d::prelude::*;
 use bevy::{camera::RenderTarget, prelude::*, winit::WinitPlugin};
 use bevy_inspector_egui::{
     bevy_egui,
-    bevy_egui::{
-        EguiContext, EguiMultipassSchedule, EguiPlugin, EguiPrimaryContextPass, PrimaryEguiContext,
-    },
-    egui, DefaultInspectorConfigPlugin,
+    bevy_egui::{EguiContext, EguiMultipassSchedule, EguiPlugin, PrimaryEguiContext},
+    DefaultInspectorConfigPlugin,
 };
 
-/// Whether the inspector window is up.
-#[derive(Resource, Default, Clone, Debug, Deref, DerefMut, PartialEq, Eq, Hash)]
-pub struct DebugEnabled(pub bool);
-
-/// A plugin that provides a full debug UI and physics visualization.
-///
-/// This plugin adds:
-/// - Egui support
-/// - An inspector window for inspecting the world, entities, and assets
-/// - Physics debug gizmos from avian3d
-/// - Physics diagnostics and their UI
-///
-/// The inspector window behaves similarly to the WorldInspectorPlugin
-/// but is driven by a custom UI system.
+/// `bevy_egui`, the inspector's reflection config, and avian's physics
+/// gizmos and diagnostics.
 ///
 /// The egui half is added only when [`WinitPlugin`] is present; see
-/// [`add_egui_inspector`]. The avian gizmos and diagnostics are added
-/// unconditionally.
+/// [`add_egui`]. The avian gizmos and diagnostics are added unconditionally.
+/// Add it before [`DebugHudPlugin`](crate::hud::DebugHudPlugin), which draws
+/// only when egui is there.
 pub struct InspectorDebugPlugin;
 
 impl Plugin for InspectorDebugPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<DebugEnabled>();
-
-        add_egui_inspector(app);
+        add_egui(app);
 
         app.add_plugins((
             avian3d::prelude::PhysicsDebugPlugin,
@@ -50,28 +34,23 @@ impl Plugin for InspectorDebugPlugin {
     }
 }
 
-/// Add `bevy_egui` and everything that consumes it - the inspector panel and
-/// its primary-context placement - to an app that has a winit event loop.
+/// Add `bevy_egui` and the primary-context placement to an app that has a
+/// winit event loop.
 ///
 /// Winit is the precondition, not rendering: egui takes its input from the
 /// winit window behind each `Window` entity. `AppBuilder::headless` disables
 /// `WinitPlugin` while a virtual `(Window, PrimaryWindow)` entity still
 /// exists, so an assembled `bevy_egui` warns once per window per frame
-/// ("Cannot access an underlying winit window") and drives a panel nobody can
+/// ("Cannot access an underlying winit window") and drives a window nobody can
 /// see. Keying on winit also covers an offscreen run that has a GPU but no
 /// window.
-fn add_egui_inspector(app: &mut App) {
+fn add_egui(app: &mut App) {
     if !app.is_plugin_added::<WinitPlugin>() {
         return;
     }
 
     app.add_plugins(EguiPlugin::default());
     app.add_plugins(DefaultInspectorConfigPlugin);
-
-    app.add_systems(
-        EguiPrimaryContextPass,
-        inspector_ui.run_if(resource_equals(DebugEnabled(true))),
-    );
 
     // Auto-creation stays off - `keep_inspector_on_window_camera`
     // owns primary-context placement, and both would fight over it.
@@ -80,38 +59,6 @@ fn add_egui_inspector(app: &mut App) {
         ..Default::default()
     });
     app.add_systems(Update, keep_inspector_on_window_camera);
-}
-
-/// Draws the inspector UI when debug mode is enabled.
-///
-/// This creates a window with:
-/// - Full world inspector
-/// - Material inspector
-/// - Entity list and explorer
-///
-/// The UI uses the same internal systems as WorldInspectorPlugin.
-fn inspector_ui(world: &mut World) {
-    let Ok(egui_context) = world
-        .query_filtered::<&mut EguiContext, With<PrimaryEguiContext>>()
-        .single(world)
-    else {
-        error!("inspector_ui: no EguiContext found");
-        return;
-    };
-    let mut egui_context = egui_context.clone();
-
-    egui::Window::new("Debug Inspector").show(egui_context.get_mut(), |ui| {
-        egui::ScrollArea::vertical().show(ui, |ui| {
-            bevy_inspector_egui::bevy_inspector::ui_for_world(world, ui);
-
-            egui::CollapsingHeader::new("Materials").show(ui, |ui| {
-                bevy_inspector_egui::bevy_inspector::ui_for_assets::<StandardMaterial>(world, ui);
-            });
-
-            ui.heading("Entities");
-            bevy_inspector_egui::bevy_inspector::ui_for_entities(world, ui);
-        });
-    });
 }
 
 /// Keep the inspector's `PrimaryEguiContext` on a window-targeting camera,
@@ -195,7 +142,7 @@ mod tests {
     #[test]
     fn an_app_without_winit_never_assembles_egui() {
         let mut app = App::new();
-        add_egui_inspector(&mut app);
+        add_egui(&mut app);
 
         assert!(
             !app.is_plugin_added::<EguiPlugin>(),
@@ -329,7 +276,7 @@ mod rehome_hazard_tests {
     }
 }
 
-/// `InspectorDebugPlugin` and its `DebugEnabled` flag.
+/// `InspectorDebugPlugin`.
 pub mod prelude {
-    pub use super::{DebugEnabled, InspectorDebugPlugin};
+    pub use super::InspectorDebugPlugin;
 }

@@ -234,6 +234,10 @@ mod context_tests {
         assert!(!flight_is_live(&app));
 
         freeze(&mut app, PauseStates::Unpaused);
+        freeze(&mut app, PauseStates::Debug);
+        assert!(!flight_is_live(&app), "the debug window holds flight too");
+
+        freeze(&mut app, PauseStates::Unpaused);
         app.world_mut().entity_mut(player).despawn();
         app.update();
         assert!(!flight_is_live(&app), "the rig despawns with the marker");

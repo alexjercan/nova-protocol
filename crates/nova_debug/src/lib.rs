@@ -1,6 +1,6 @@
 //! `nova_debug` is the debug-only tooling plugin, compiled only under the
 //! `debug` feature so it costs nothing in a shipped build. `DebugPlugin` adds
-//! the world inspector and dev overlays (gravity, section wireframes); the
+//! the Nova Debug window (F11) and the dev overlays it switches; the
 //! `harness` module is the Nova adapter over the `nova_autopilot` driver,
 //! providing the headless-run presets the examples and the `nova_probe`
 //! run-harness drive - `nova_autopilot` (scripted play) and `nova_screenshot`
@@ -11,18 +11,11 @@
 
 #![warn(missing_docs)]
 
-use bevy::{
-    prelude::*,
-    window::{CursorGrabMode, CursorOptions, PrimaryWindow},
-};
+use bevy::prelude::*;
 use nova_autopilot::autopilot::AUTOPILOT_ENV;
-use nova_gameplay::{prelude::PlayerSpaceshipMarker, GameStates, PauseStates};
-use nova_scenario::prelude::CurrentOutcome;
+use nova_gameplay::GameStates;
 
-use crate::{
-    inspector::{DebugEnabled as InspectorEnabled, InspectorDebugPlugin},
-    wireframe::WireframeDebugPlugin,
-};
+use crate::{inspector::InspectorDebugPlugin, wireframe::WireframeDebugPlugin};
 
 pub mod gravity;
 pub mod harness;
@@ -91,26 +84,28 @@ pub mod prelude {
             LoopProfile, SheetGrid, BEAT_DEADLINE_SECS, NOVA_AUTOPILOT_STEP, SETTLE_FRAMES,
             SHOT_DEADLINE_SECS, STEP_DEADLINE_SECS,
         },
-        hud::overlays::DebugOverlays,
+        hud::{overlays::DebugOverlays, DebugHud, DebugHudPlugin, DebugHudSystems},
         DebugPlugin,
     };
 }
 
-/// The keycode that shows and hides the inspector window.
+/// The keycode that opens and closes the Nova Debug window.
 pub const DEBUG_TOGGLE_KEYCODE: KeyCode = KeyCode::F11;
 
 /// A plugin that adds various debugging tools.
 ///
-/// Adds the world inspector and wireframe/section/gravity overlays as
+/// Adds the Nova Debug window and the wireframe/section/gravity overlays as
 /// sub-plugins, plus, on host targets, the screenshot hotkey and the loop
 /// capture SFX sidecar. Every overlay boots off and has its own flag in
-/// [`DebugOverlays`](hud::overlays::DebugOverlays); F11 shows the inspector
-/// window.
+/// [`DebugOverlays`](hud::overlays::DebugOverlays); F11 opens the Nova Debug
+/// window ([`DebugHudPlugin`](hud::DebugHudPlugin)).
 pub struct DebugPlugin;
 
 impl Plugin for DebugPlugin {
     fn build(&self, app: &mut App) {
+        // Egui first: the debug window draws only when it is there.
         app.add_plugins(InspectorDebugPlugin);
+        app.add_plugins(hud::DebugHudPlugin);
         app.add_plugins(WireframeDebugPlugin);
         app.add_plugins(sections::SectionsDebugPlugin);
         app.add_plugins(gravity::GravityDebugPlugin);
@@ -122,12 +117,6 @@ impl Plugin for DebugPlugin {
         app.add_plugins(sfx_sidecar::SfxSidecarPlugin);
 
         hud::overlays::build(app);
-
-        app.add_systems(Update, toggle_debug_mode);
-        app.add_systems(
-            Update,
-            sync_inspector_cursor.run_if(in_state(GameStates::Playing)),
-        );
 
         // Under the headless autopilot (the `harness` presets), confirm the
         // asset loader actually reached gameplay before the clean exit, so a run
@@ -141,152 +130,10 @@ impl Plugin for DebugPlugin {
     }
 }
 
-/// The one reader of [`DEBUG_TOGGLE_KEYCODE`]: show or hide the inspector
-/// window.
-fn toggle_debug_mode(mut inspector: ResMut<InspectorEnabled>, keyboard: Res<ButtonInput<KeyCode>>) {
-    if keyboard.just_pressed(DEBUG_TOGGLE_KEYCODE) {
-        **inspector = !**inspector;
-    }
-}
-
-/// Reconcile the flight cursor with the F11 debug inspector. Flight hides and
-/// locks the cursor unconditionally
-/// (nova_editor's `setup_grab_cursor_scenario`, nova_menu's `restore_cursor` /
-/// `regrab_cursor_on_player_spawn`), including debug builds, so this is the
-/// debug-only counterpart that keeps the inspector usable: while the inspector
-/// (an egui panel) is up it owns the pointer, so free the cursor; when it drops,
-/// grab it back for flight - unless a menu/pause/outcome surface owns it (those
-/// free it through their own transitions and must not be overridden here). Runs
-/// only in `GameStates::Playing`; [`Single`] makes it a no-op on headless rigs
-/// with no window.
-fn sync_inspector_cursor(
-    inspector: Res<InspectorEnabled>,
-    pause: Res<State<PauseStates>>,
-    outcome: Option<Res<CurrentOutcome>>,
-    q_player: Query<(), With<PlayerSpaceshipMarker>>,
-    cursor: Single<&mut CursorOptions, With<PrimaryWindow>>,
-) {
-    let mut cursor = cursor.into_inner();
-    if **inspector {
-        // Inspector up: it owns the pointer. Idempotent guard so we do not
-        // trip change detection every frame.
-        if !cursor.visible {
-            cursor.grab_mode = CursorGrabMode::None;
-            cursor.visible = true;
-        }
-        return;
-    }
-    // Inspector down: hand the cursor back to flight, but yield to any surface
-    // that legitimately owns it (the pause overlay, a live outcome frame, or the
-    // pre-spawn gap with no player ship). Mirrors nova_menu's `restore_cursor` /
-    // `regrab_cursor_on_player_spawn` guards - kept a separate check here rather
-    // than a shared helper because those live in a crate nova_debug does not
-    // depend on and each carries a slightly different guard set; the predicate is
-    // simple enough that the drift risk is low.
-    if pause.get().is_frozen()
-        || outcome.is_some_and(|outcome| outcome.0.is_some())
-        || q_player.is_empty()
-    {
-        return;
-    }
-    if cursor.visible {
-        cursor.grab_mode = CursorGrabMode::Locked;
-        cursor.visible = false;
-    }
-}
-
 /// Print the `Update` schedule's system graph (via `bevy_mod_debugdump`) for
 /// inspecting system ordering; a dev-only diagnostic, not wired into a schedule.
 pub fn debugdump(app: &mut App) {
     bevy_mod_debugdump::print_schedule_graph(app, Update);
     // bevy_mod_debugdump::print_schedule_graph(app, PostUpdate);
     // bevy_mod_debugdump::print_schedule_graph(app, FixedUpdate);
-}
-
-#[cfg(test)]
-mod tests {
-    use bevy::state::app::StatesPlugin;
-
-    use super::*;
-
-    /// Build a minimal app around `sync_inspector_cursor`: a primary window with
-    /// a visible cursor, the inspector toggle, the pause state, and (optionally)
-    /// a live player ship. Mirrors flight the way `DebugPlugin` runs it, minus
-    /// the `GameStates::Playing` run gate (asserted by construction here).
-    fn app(inspector_on: bool, cursor_visible: bool, with_player: bool) -> App {
-        let mut app = App::new();
-        app.add_plugins(StatesPlugin);
-        app.init_state::<PauseStates>();
-        app.insert_resource(InspectorEnabled(inspector_on));
-        app.world_mut().spawn((
-            PrimaryWindow,
-            CursorOptions {
-                visible: cursor_visible,
-                grab_mode: if cursor_visible {
-                    CursorGrabMode::None
-                } else {
-                    CursorGrabMode::Locked
-                },
-                ..default()
-            },
-        ));
-        if with_player {
-            app.world_mut().spawn(PlayerSpaceshipMarker);
-        }
-        app.add_systems(Update, sync_inspector_cursor);
-        app
-    }
-
-    fn cursor(app: &mut App) -> CursorOptions {
-        app.world_mut()
-            .query_filtered::<&CursorOptions, With<PrimaryWindow>>()
-            .single(app.world())
-            .unwrap()
-            .clone()
-    }
-
-    /// The fix: with the inspector down, flying holds the cursor hidden+locked
-    /// even in a debug build (the grab must not be compiled out under
-    /// `feature = "debug"`).
-    #[test]
-    fn inspector_off_while_flying_hides_the_cursor() {
-        let mut app = app(false, true, true);
-        app.update();
-        let c = cursor(&mut app);
-        assert!(!c.visible);
-        assert_eq!(c.grab_mode, CursorGrabMode::Locked);
-    }
-
-    /// The inspector (an egui panel) reclaims the cursor while it is up.
-    #[test]
-    fn inspector_on_frees_the_cursor() {
-        let mut app = app(true, false, true);
-        app.update();
-        let c = cursor(&mut app);
-        assert!(c.visible);
-        assert_eq!(c.grab_mode, CursorGrabMode::None);
-    }
-
-    /// The regrab yields to the pause overlay: with the inspector down but the
-    /// game paused, the cursor the pause menu freed must stay free.
-    #[test]
-    fn inspector_off_yields_to_pause() {
-        let mut app = app(false, true, true);
-        app.world_mut()
-            .resource_mut::<NextState<PauseStates>>()
-            .set(PauseStates::Paused);
-        app.update();
-        let c = cursor(&mut app);
-        assert!(c.visible, "paused: the freed cursor must not be re-grabbed");
-    }
-
-    /// The regrab yields to the pre-spawn gap: no player ship yet means flight
-    /// has not started, so leave the cursor as the menu left it.
-    #[test]
-    fn inspector_off_yields_when_no_player() {
-        let mut app = app(false, true, false);
-        app.update();
-        let c = cursor(&mut app);
-        assert!(c.visible, "no player ship: do not grab yet");
-    }
 }

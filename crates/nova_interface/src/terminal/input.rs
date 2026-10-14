@@ -66,7 +66,7 @@ pub(crate) fn close_surface_from_menu_keys(
     match current.get() {
         PauseStates::Commands => close.closing = true,
         PauseStates::Interface => next.set(PauseStates::Unpaused),
-        PauseStates::Unpaused | PauseStates::Paused => {}
+        PauseStates::Unpaused | PauseStates::Paused | PauseStates::Debug => {}
     }
 }
 

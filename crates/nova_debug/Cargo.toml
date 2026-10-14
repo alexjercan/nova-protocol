@@ -35,6 +35,11 @@ nova_scenario = { path = "../nova_scenario" }
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 dirs = "6"
 
+[dev-dependencies]
+# The cursor proof stands the game's one surface cursor rule beside the debug
+# window. Nothing in the menu depends on this crate.
+nova_menu = { path = "../nova_menu" }
+
 [features]
 # The ammo number is a `nova_hud` debug-build feature, so the overlay flag can
 # only reach it in a debug build. `nova_core/debug` turns this on.

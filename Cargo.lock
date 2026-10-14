@@ -4704,6 +4704,7 @@ dependencies = [
  "nova_hud",
  "nova_input",
  "nova_interface",
+ "nova_menu",
  "nova_scenario",
  "nova_ship",
 ]

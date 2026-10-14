@@ -172,6 +172,11 @@ pub enum PauseStates {
     /// Gameplay is frozen behind the `NOVA COMMANDS` CRT modal. Closing it
     /// returns to the state it was opened over.
     Commands,
+    /// Gameplay is frozen behind the Nova Debug window (`nova_debug`, F11).
+    /// Entered only from [`PauseStates::Unpaused`]; over any other state the
+    /// window opens without changing it. Declared in every build, so a match
+    /// does not change shape with the `debug` feature.
+    Debug,
 }
 
 /// Whether a scene-local surface owns Escape right now, so the pause menu must

@@ -135,9 +135,11 @@ use training_store::TrainingProgressPlugin;
 use widgets::{on_menu_button_activate, play_menu_focus_cue, MenuCueSystems};
 
 /// The cursor rule for the frozen surfaces every game app has: the TAB
-/// interface and the command modal free the cursor on the way in and give
-/// flight its lock back on the way out, and a frozen surface keeps it free
-/// against a flight reconciler that runs later in the frame.
+/// interface, the command modal and the debug window (`PauseStates::Debug`)
+/// free the cursor on the way in and give flight its lock back on the way
+/// out, and a frozen surface keeps it free against a flight reconciler that
+/// runs later in the frame. This is the one owner of the cursor in those
+/// states; `nova_debug` does not touch it.
 ///
 /// [`NovaMenuPlugin`] adds it. `nova_core`'s `AppBuilder` adds it alone to an
 /// app with its own game plugins: that app has no menu, but it has the TAB
@@ -147,7 +149,11 @@ pub struct SurfaceCursorPlugin;
 
 impl Plugin for SurfaceCursorPlugin {
     fn build(&self, app: &mut App) {
-        for surface in [PauseStates::Interface, PauseStates::Commands] {
+        for surface in [
+            PauseStates::Interface,
+            PauseStates::Commands,
+            PauseStates::Debug,
+        ] {
             app.add_systems(OnEnter(surface), release_cursor);
             app.add_systems(OnExit(surface), restore_cursor);
         }
