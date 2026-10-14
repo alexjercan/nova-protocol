@@ -38,7 +38,7 @@
 //! closing speed on it, its speed, and whether its drive or its RCS is
 //! pushing.
 //!
-//! Under `NOVA_AUTOPILOT=1` (debug only) a smoke walk waits for both escorts
+//! Under `NOVA_AUTOPILOT=1` a smoke walk waits for both escorts
 //! in the fleet in open space, checks them, lets the formation settle, and
 //! shoots `escort-sandbox.png` with `NOVA_CAPTURE=1`. Unset, no walk and no
 //! deadline run.
@@ -114,20 +114,17 @@ fn main() -> bevy::app::AppExit {
             .run_if(in_state(GameStates::Playing)),
     );
 
-    #[cfg(feature = "debug")]
-    {
-        if std::env::var_os("NOVA_AUTOPILOT").is_some() {
-            app.insert_resource(bevy::ecs::error::FallbackErrorHandler(
-                bevy::ecs::error::panic,
-            ));
-            app.add_systems(Update, open_world_stage::hold_the_walk_clock);
-            app.add_systems(
-                Startup,
-                nova_protocol::nova_debug::harness::force_capture_resolution,
-            );
-        }
-        app.add_plugins(smoke::script());
+    if std::env::var_os("NOVA_AUTOPILOT").is_some() {
+        app.insert_resource(bevy::ecs::error::FallbackErrorHandler(
+            bevy::ecs::error::panic,
+        ));
+        app.add_systems(Update, open_world_stage::hold_the_walk_clock);
+        app.add_systems(
+            Startup,
+            nova_protocol::nova_debug::harness::force_capture_resolution,
+        );
     }
+    app.add_plugins(smoke::script());
 
     app.run()
 }
@@ -493,7 +490,6 @@ fn draw_the_rcs(
     ));
 }
 
-#[cfg(feature = "debug")]
 mod smoke {
     use std::sync::Arc;
 

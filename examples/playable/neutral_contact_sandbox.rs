@@ -29,7 +29,7 @@
 //! under the floor, red over it), a ring round each Neutral (red while it
 //! answers someone) and a line to the ship it answers.
 //!
-//! Under `NOVA_AUTOPILOT=1` (debug only) a smoke walk waits for the cast,
+//! Under `NOVA_AUTOPILOT=1` a smoke walk waits for the cast,
 //! checks the Neutral sides and the clean tallies, lands one staged 25 HP hit
 //! from the player on the raider, checks that the tally holds it and the
 //! raider does not answer, and shoots `neutral-contact.png` with
@@ -89,19 +89,16 @@ fn main() -> bevy::app::AppExit {
          fire a burst at the raider or the station",
     ));
 
-    #[cfg(feature = "debug")]
-    {
-        if std::env::var_os("NOVA_AUTOPILOT").is_some() {
-            app.insert_resource(bevy::ecs::error::FallbackErrorHandler(
-                bevy::ecs::error::panic,
-            ));
-            app.add_systems(
-                Startup,
-                nova_protocol::nova_debug::harness::force_capture_resolution,
-            );
-        }
-        app.add_plugins(smoke::script());
+    if std::env::var_os("NOVA_AUTOPILOT").is_some() {
+        app.insert_resource(bevy::ecs::error::FallbackErrorHandler(
+            bevy::ecs::error::panic,
+        ));
+        app.add_systems(
+            Startup,
+            nova_protocol::nova_debug::harness::force_capture_resolution,
+        );
     }
+    app.add_plugins(smoke::script());
 
     app.run()
 }
@@ -537,7 +534,6 @@ fn draw_the_neutrals(
     }
 }
 
-#[cfg(feature = "debug")]
 mod smoke {
     use std::sync::Arc;
 

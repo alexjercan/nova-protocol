@@ -43,7 +43,7 @@
 //! trigger box), its detection range and its normal; and ring each drifting
 //! canister, labelled with its contents.
 //!
-//! Under `NOVA_AUTOPILOT=1` (debug only) a smoke walk waits for the window,
+//! Under `NOVA_AUTOPILOT=1` a smoke walk waits for the window,
 //! checks the player is the role's hull with the role's kit and an intake,
 //! jettisons one unit of the kit's first item as the Inventory pane's
 //! Jettison applies its plan, waits for the panel to log it, and shoots
@@ -99,7 +99,6 @@ fn main() -> bevy::app::AppExit {
         })
     });
     open_world_stage::isolate_the_profile(env!("CARGO_CRATE_NAME"));
-    #[cfg(feature = "debug")]
     let shot = format!("start-role-{role}.png");
 
     let mut app = nova_protocol::prelude::editor_app(true, None);
@@ -141,20 +140,17 @@ fn main() -> bevy::app::AppExit {
             .run_if(in_state(GameStates::Playing)),
     );
 
-    #[cfg(feature = "debug")]
-    {
-        if std::env::var_os("NOVA_AUTOPILOT").is_some() {
-            app.insert_resource(bevy::ecs::error::FallbackErrorHandler(
-                bevy::ecs::error::panic,
-            ));
-            app.add_systems(Update, open_world_stage::hold_the_walk_clock);
-            app.add_systems(
-                Startup,
-                nova_protocol::nova_debug::harness::force_capture_resolution,
-            );
-        }
-        app.add_plugins(smoke::script(&shot));
+    if std::env::var_os("NOVA_AUTOPILOT").is_some() {
+        app.insert_resource(bevy::ecs::error::FallbackErrorHandler(
+            bevy::ecs::error::panic,
+        ));
+        app.add_systems(Update, open_world_stage::hold_the_walk_clock);
+        app.add_systems(
+            Startup,
+            nova_protocol::nova_debug::harness::force_capture_resolution,
+        );
     }
+    app.add_plugins(smoke::script(&shot));
 
     app.run()
 }
@@ -530,7 +526,6 @@ fn draw_the_intakes(
     ));
 }
 
-#[cfg(feature = "debug")]
 mod smoke {
     use std::{collections::BTreeMap, sync::Arc};
 

@@ -35,7 +35,7 @@
 //! [`NEARBY_RANGE`], coloured by how the station's guns read it: red hostile,
 //! green own, grey neutral.
 //!
-//! Under `NOVA_AUTOPILOT=1` (debug only) a smoke walk waits for the dock,
+//! Under `NOVA_AUTOPILOT=1` a smoke walk waits for the dock,
 //! buys the station from the Station tab, checks it is owned, on the Player
 //! side and named as the player's, closes the interface and shoots
 //! `station-own-sandbox.png` with `NOVA_CAPTURE=1`. Unset, no walk and no
@@ -96,20 +96,17 @@ fn main() -> bevy::app::AppExit {
             .run_if(in_state(GameStates::Playing)),
     );
 
-    #[cfg(feature = "debug")]
-    {
-        if std::env::var_os("NOVA_AUTOPILOT").is_some() {
-            app.insert_resource(bevy::ecs::error::FallbackErrorHandler(
-                bevy::ecs::error::panic,
-            ));
-            app.add_systems(Update, open_world_stage::hold_the_walk_clock);
-            app.add_systems(
-                Startup,
-                nova_protocol::nova_debug::harness::force_capture_resolution,
-            );
-        }
-        app.add_plugins(smoke::script());
+    if std::env::var_os("NOVA_AUTOPILOT").is_some() {
+        app.insert_resource(bevy::ecs::error::FallbackErrorHandler(
+            bevy::ecs::error::panic,
+        ));
+        app.add_systems(Update, open_world_stage::hold_the_walk_clock);
+        app.add_systems(
+            Startup,
+            nova_protocol::nova_debug::harness::force_capture_resolution,
+        );
     }
+    app.add_plugins(smoke::script());
 
     app.run()
 }
@@ -377,7 +374,6 @@ fn admits(refusal: Option<DockRefusalType>) -> String {
     })
 }
 
-#[cfg(feature = "debug")]
 mod smoke {
     use std::sync::Arc;
 

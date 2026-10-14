@@ -41,7 +41,7 @@
 //! ```
 //!
 //! Nothing closes the pane and no deadline ends the run unless
-//! `NOVA_AUTOPILOT=1` (debug only) is set. Then a smoke walk withdraws the
+//! `NOVA_AUTOPILOT=1` is set. Then a smoke walk withdraws the
 //! Hauler's plates, stores them at the Depot, takes one back with Shift,
 //! checking both holds and the storage after each, and closes the pane.
 //! `NOVA_CAPTURE=1` shoots one frame per move and one of the flight view
@@ -115,11 +115,8 @@ fn main() -> bevy::app::AppExit {
         QuickMoveDiagnosticsPlugin,
     ));
 
-    #[cfg(feature = "debug")]
-    {
-        app.add_plugins(smoke::script());
-        app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
-    }
+    app.add_plugins(smoke::script());
+    app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
 
     app.run()
 }
@@ -602,7 +599,6 @@ fn draw_the_holds(
     ));
 }
 
-#[cfg(feature = "debug")]
 mod smoke {
     use std::sync::Arc;
 

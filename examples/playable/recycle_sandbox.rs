@@ -35,7 +35,7 @@
 //! the strip order, from green (first off) to violet (late); the next one
 //! is ringed in yellow and the berth port in red, labelled `last`.
 //!
-//! Under `NOVA_AUTOPILOT=1` (debug only) a smoke walk waits for the dock,
+//! Under `NOVA_AUTOPILOT=1` a smoke walk waits for the dock,
 //! opens the Recycle tab, presses Strip, shuts the interface, waits for the
 //! first section to come off and shoots `recycle-sandbox.png` with
 //! `NOVA_CAPTURE=1`. Unset, no walk and no deadline run.
@@ -105,20 +105,17 @@ fn main() -> bevy::app::AppExit {
             .run_if(in_state(GameStates::Playing)),
     );
 
-    #[cfg(feature = "debug")]
-    {
-        if std::env::var_os("NOVA_AUTOPILOT").is_some() {
-            app.insert_resource(bevy::ecs::error::FallbackErrorHandler(
-                bevy::ecs::error::panic,
-            ));
-            app.add_systems(Update, open_world_stage::hold_the_walk_clock);
-            app.add_systems(
-                Startup,
-                nova_protocol::nova_debug::harness::force_capture_resolution,
-            );
-        }
-        app.add_plugins(smoke::script());
+    if std::env::var_os("NOVA_AUTOPILOT").is_some() {
+        app.insert_resource(bevy::ecs::error::FallbackErrorHandler(
+            bevy::ecs::error::panic,
+        ));
+        app.add_systems(Update, open_world_stage::hold_the_walk_clock);
+        app.add_systems(
+            Startup,
+            nova_protocol::nova_debug::harness::force_capture_resolution,
+        );
     }
+    app.add_plugins(smoke::script());
 
     app.run()
 }
@@ -466,7 +463,6 @@ fn draw_the_strip(
     }
 }
 
-#[cfg(feature = "debug")]
 mod smoke {
     use std::sync::Arc;
 

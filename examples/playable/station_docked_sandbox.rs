@@ -125,22 +125,19 @@ fn main() -> bevy::app::AppExit {
         drive_the_sandbox.run_if(in_state(GameStates::Playing)),
     );
 
-    #[cfg(feature = "debug")]
-    {
-        if std::env::var_os("NOVA_AUTOPILOT").is_some() {
-            app.insert_resource(bevy::ecs::error::FallbackErrorHandler(
-                bevy::ecs::error::panic,
-            ));
-            // The software rasterizer's frames are seconds long: the clamp
-            // keeps the berth from integrating a whole frame of drift.
-            app.add_systems(Update, smoke::hold_the_walk_clock);
-            app.add_systems(
-                Startup,
-                nova_protocol::nova_debug::harness::force_capture_resolution,
-            );
-        }
-        app.add_plugins(smoke::script());
+    if std::env::var_os("NOVA_AUTOPILOT").is_some() {
+        app.insert_resource(bevy::ecs::error::FallbackErrorHandler(
+            bevy::ecs::error::panic,
+        ));
+        // The software rasterizer's frames are seconds long: the clamp
+        // keeps the berth from integrating a whole frame of drift.
+        app.add_systems(Update, smoke::hold_the_walk_clock);
+        app.add_systems(
+            Startup,
+            nova_protocol::nova_debug::harness::force_capture_resolution,
+        );
     }
+    app.add_plugins(smoke::script());
 
     app.run()
 }
@@ -738,7 +735,6 @@ mod ship_overlay {
     }
 }
 
-#[cfg(feature = "debug")]
 mod smoke {
     use std::sync::Arc;
 
