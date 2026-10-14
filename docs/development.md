@@ -105,7 +105,13 @@ cursor is free. Over the pause menu, the TAB interface, the command modal or
 the main menu it opens without changing the state. The window has one
 checkbox per overlay (physics, wireframe, gravity, sections, the ammo number;
 the `DebugOverlays` resource, all off at boot, kept after the window closes),
-an Entities section and a Raw section with every entity, resource and asset.
+Cheats and Command sections, an Entities section and a Raw section with every
+entity, resource and asset. Cheats and Command drive the game's command shell
+(`crates/nova_debug/src/hud/console.rs`): the prompt is the CRT's prompt with
+its scrollback, TAB completion and history, and each cheat button submits a
+command line with the player ship's id, so an unarmed run shows the shell's
+refusal until "Arm cheats" (`cheats enable`). While a field in the window has
+the keyboard, the window claims `InputMode::Insert`, so `:` types a colon.
 Entities lists the top-level entities by sector (the observer's cell first)
 or by type (`crates/nova_debug/src/hud/entities.rs`). An entity under a
 sector root is in that root's cell; a top-level body in a streaming world is

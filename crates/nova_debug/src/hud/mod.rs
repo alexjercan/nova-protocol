@@ -12,10 +12,12 @@
 //! it in every frozen state, `Debug` included, and gives flight its lock back
 //! on the way out.
 //!
-//! The window's sections: the overlay switches ([`overlays`]), the world's
-//! top-level entities by sector and by type ([`entities`]), and the raw world
-//! (every entity, resource and asset).
+//! The window's sections: the overlay switches ([`overlays`]), the cheat
+//! buttons and a prompt over the game's command shell ([`console`]), the
+//! world's top-level entities by sector and by type ([`entities`]), and the
+//! raw world (every entity, resource and asset).
 
+mod console;
 mod entities;
 pub mod overlays;
 
@@ -28,6 +30,7 @@ use nova_gameplay::{
     prelude::{Clocks, FreezeOwner},
     GameStates, PauseStates,
 };
+use nova_ui::prelude::{InputMode, InputModeSystems};
 
 use crate::DEBUG_TOGGLE_KEYCODE;
 
@@ -36,6 +39,8 @@ use crate::DEBUG_TOGGLE_KEYCODE;
 pub struct DebugHud {
     pub(crate) open: bool,
     entities_tab: entities::EntitiesTab,
+    /// The Cheats section's `<item> <n>` field.
+    item_give: String,
 }
 
 impl DebugHud {
@@ -70,8 +75,24 @@ pub struct DebugHudPlugin;
 impl Plugin for DebugHudPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DebugHud>();
-        app.configure_sets(PreUpdate, DebugHudSystems::Toggle.after(InputSystems));
-        app.add_systems(PreUpdate, toggle_debug_hud.in_set(DebugHudSystems::Toggle));
+        app.configure_sets(
+            PreUpdate,
+            (
+                DebugHudSystems::Claim.before(InputModeSystems),
+                DebugHudSystems::Toggle.after(InputSystems),
+            ),
+        );
+        app.add_systems(
+            PreUpdate,
+            (
+                // An app without `nova_ui`'s arbiter has no input modes to
+                // claim.
+                console::claim_keyboard_for_debug_hud
+                    .run_if(resource_exists::<InputMode>)
+                    .in_set(DebugHudSystems::Claim),
+                toggle_debug_hud.in_set(DebugHudSystems::Toggle),
+            ),
+        );
         app.add_systems(OnEnter(PauseStates::Debug), hold_clocks_for_debug_hud);
         app.add_systems(OnExit(PauseStates::Debug), release_clocks_for_debug_hud);
         if app.is_plugin_added::<EguiPlugin>() {
@@ -160,6 +181,13 @@ fn debug_hud_ui(world: &mut World) {
                 egui::CollapsingHeader::new("Overlays")
                     .default_open(true)
                     .show(ui, |ui| overlays::overlays_ui(world, ui));
+                egui::CollapsingHeader::new("Cheats").show(ui, |ui| {
+                    let mut item = std::mem::take(&mut world.resource_mut::<DebugHud>().item_give);
+                    console::cheats_ui(world, ui, &mut item);
+                    world.resource_mut::<DebugHud>().item_give = item;
+                });
+                egui::CollapsingHeader::new("Command")
+                    .show(ui, |ui| console::command_ui(world, ui));
                 egui::CollapsingHeader::new("Entities").show(ui, |ui| {
                     let mut tab = world.resource::<DebugHud>().entities_tab;
                     entities::entities_ui(world, ui, &mut tab);

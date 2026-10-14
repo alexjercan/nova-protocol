@@ -27,6 +27,9 @@ nova_gameplay = { path = "../nova_gameplay" }
 nova_input = { path = "../nova_input" }
 nova_ship = { path = "../nova_ship" }
 nova_hud = { path = "../nova_hud" }
+# The window claims the keyboard through the input-mode arbiter while it takes
+# text.
+nova_ui = { path = "../nova_ui" }
 nova_scenario = { path = "../nova_scenario" }
 # The Entities section groups rows by the streamed sector that owns them.
 nova_world = { path = "../nova_world" }
@@ -41,6 +44,8 @@ dirs = "6"
 # The cursor proof stands the game's one surface cursor rule beside the debug
 # window. Nothing in the menu depends on this crate.
 nova_menu = { path = "../nova_menu" }
+# The command proofs run the game's dispatcher behind the window's prompt.
+nova_console = { path = "../nova_console" }
 
 [features]
 # The ammo number is a `nova_hud` debug-build feature, so the overlay flag can
