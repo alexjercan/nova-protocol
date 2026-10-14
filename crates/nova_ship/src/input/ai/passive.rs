@@ -132,10 +132,12 @@ pub(super) fn update_passive_flight(
         // the order owns the helm until it is interrupted or reaches a
         // terminal outcome, and two writers on one hull's autopilot would
         // churn the maneuver between them every frame.
+        // A follower's passive helm is the follow order's (`follow`).
         (
             With<SpaceshipRootMarker>,
             With<AISpaceshipMarker>,
             Without<ShipOrderHelmAuthority>,
+            Without<AIFollow>,
         ),
     >,
     wells: LiveWells,

@@ -252,7 +252,11 @@ fn ai_desired_velocity(
 /// turn at all gets a lead long enough to make the whole approach a crawl,
 /// which is the honest answer rather than a special case. Pure for unit
 /// testing.
-fn ai_radial_speed(range_error: f32, authority: FlightAuthority, settings: &FlightSettings) -> f32 {
+pub(super) fn ai_radial_speed(
+    range_error: f32,
+    authority: FlightAuthority,
+    settings: &FlightSettings,
+) -> f32 {
     arrival_speed_limit(
         range_error.abs(),
         authority.linear_acceleration,
@@ -374,6 +378,7 @@ pub(super) fn update_combat_flight(
             Option<&FlightAuthority>,
             Option<&mut Autopilot>,
             Has<DockedShip>,
+            Has<AIFollow>,
         ),
         // Silent while a scenario order holds the helm: the order's own drive
         // is the single writer then (see `ShipOrderHelmAuthority`), and the
@@ -404,8 +409,19 @@ pub(super) fn update_combat_flight(
         ),
     >,
 ) {
-    for (ship, transform, com, state, target, evade, clearance, authority, autopilot, docked) in
-        &mut q_spaceship
+    for (
+        ship,
+        transform,
+        com,
+        state,
+        target,
+        evade,
+        clearance,
+        authority,
+        autopilot,
+        docked,
+        following,
+    ) in &mut q_spaceship
     {
         // A docked ship does not fight: acquisition clears its target and the
         // passive pilot holds the pair still, replacing any held velocity.
@@ -428,7 +444,9 @@ pub(super) fn update_combat_flight(
             })
             .and_then(|enemy| Some((enemy, ai_target_anchor(Some(enemy), &q_target)?)));
         let Some((enemy, target_anchor)) = engagement else {
-            if held {
+            // A follower keeps the held velocity: the follow driver retargets
+            // it onto the slot this frame.
+            if held && !following {
                 commands.entity(ship).remove::<Autopilot>();
             }
             continue;

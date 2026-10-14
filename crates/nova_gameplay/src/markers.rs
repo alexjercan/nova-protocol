@@ -27,10 +27,11 @@ use crate::{
 pub mod prelude {
     pub use super::{
         station_offers, ControllerSectionMarker, DerelictShipMarker, GunRoundMarker,
-        PlayerSpaceshipMarker, RailgunSectionMarker, RailgunSlugProjectileMarker,
-        SectionInactiveMarker, SectionMarker, SpaceshipRootMarker, StationDesignId, StationMarker,
-        StationServiceType, StationServices, ThrusterSectionMarker, TorpedoProjectileMarker,
-        TorpedoSectionMarker, TurretBulletProjectileMarker, TurretSectionMarker,
+        PlayerFleetMarker, PlayerSpaceshipMarker, RailgunSectionMarker,
+        RailgunSlugProjectileMarker, SectionInactiveMarker, SectionMarker, SpaceshipRootMarker,
+        StationDesignId, StationMarker, StationServiceType, StationServices, ThrusterSectionMarker,
+        TorpedoProjectileMarker, TorpedoSectionMarker, TurretBulletProjectileMarker,
+        TurretSectionMarker,
     };
 }
 
@@ -64,6 +65,17 @@ pub struct SpaceshipRootMarker;
 #[derive(Component, Debug, Clone, Reflect)]
 #[require(SpaceshipRootMarker, Allegiance = Allegiance::Player)]
 pub struct PlayerSpaceshipMarker;
+
+/// Marks a ship root in the player's fleet: a hired escort that follows the
+/// player ship from sector to sector.
+///
+/// The streamed world never adopts or freezes a fleet escort, as it never
+/// adopts the player ship: it travels with the player, and the world save
+/// keeps it in the player's record, not in a sector's. Removed when the
+/// escort is neutralized; the wreck is then a sector's body like any other.
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[require(SpaceshipRootMarker, Allegiance = Allegiance::Player)]
+pub struct PlayerFleetMarker;
 
 /// Marks a derelict ship root: every section but its hull and docking ports
 /// carries [`SectionInactiveMarker`].

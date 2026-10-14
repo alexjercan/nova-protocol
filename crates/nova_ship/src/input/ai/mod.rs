@@ -25,6 +25,7 @@ use crate::input::targeting::prelude::{SensorContacts, SensorRange, AI_SENSOR_RA
 
 mod acquisition;
 mod behavior;
+mod follow;
 mod frozen;
 mod guns;
 pub mod maneuver;
@@ -36,6 +37,7 @@ mod torpedo;
 
 use acquisition::{mirror_ai_combat_state, update_ai_target, update_point_defense_target};
 use behavior::update_behavior_state;
+use follow::update_follow_flight;
 use guns::{on_projectile_input, update_turret_target_input};
 use maneuver::update_combat_flight;
 use mission::interrupt_ai_ship_orders;
@@ -52,6 +54,7 @@ pub(crate) use self::guns::{ai_turret_gun_target, AI_POINT_DEFENSE_MAGAZINE_DIVI
 pub use self::{
     acquisition::{AIPointDefenseRange, AIPointDefenseTarget, AITarget},
     behavior::{AIBehaviorState, AIEngageRange, AILeash, AIOrbitDirective, AIPatrolRoute},
+    follow::{AIFollow, AI_FOLLOW_GAP},
     frozen::{freeze_ai, thaw_ai, FrozenAI},
     guns::AI_FIRE_RANGE_FACTOR,
     maneuver::{AIStandoffClearance, AI_STANDOFF_OUTER_EDGE},
@@ -105,10 +108,10 @@ pub(super) fn sense_and_pick(world: &mut World) {
 pub mod prelude {
     pub use super::{
         freeze_ai, thaw_ai, AIAvoidMargin, AIAvoidanceDetour, AIBehaviorState, AIEngageGrace,
-        AIEngageRange, AIEvade, AILeash, AINonCombatant, AIOrbitDirective, AIOrderInterruption,
-        AIPatrolRoute, AIPointDefenseRange, AIPointDefenseTarget, AIRailgun, AISpaceshipMarker,
-        AIStandoffClearance, AITarget, AIThreat, AIWaypointSlack, FrozenAI, SpaceshipAIInputPlugin,
-        AI_FIRE_RANGE_FACTOR, AI_STANDOFF_OUTER_EDGE, AI_TORPEDO_MAX_RANGE,
+        AIEngageRange, AIEvade, AIFollow, AILeash, AINonCombatant, AIOrbitDirective,
+        AIOrderInterruption, AIPatrolRoute, AIPointDefenseRange, AIPointDefenseTarget, AIRailgun,
+        AISpaceshipMarker, AIStandoffClearance, AITarget, AIThreat, AIWaypointSlack, FrozenAI,
+        SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR, AI_STANDOFF_OUTER_EDGE, AI_TORPEDO_MAX_RANGE,
     };
 }
 
@@ -171,6 +174,7 @@ impl Plugin for SpaceshipAIInputPlugin {
         app.register_type::<AIWaypointSlack>();
         app.register_type::<AIStandoffClearance>();
         app.register_type::<AIOrderInterruption>();
+        app.register_type::<AIFollow>();
 
         // Threat sensing is an observer, not a system: HealthApplyDamage is
         // an entity event that propagates to the ship root, and reacting at
@@ -210,6 +214,9 @@ impl Plugin for SpaceshipAIInputPlugin {
                 // velocity it was holding.
                 update_combat_flight,
                 update_passive_flight,
+                // After both: a follower that broke off this frame flies to
+                // its slot this frame (see `follow`).
+                update_follow_flight,
                 update_turret_target_input,
                 on_projectile_input,
                 // Commit-on-launch runs before the trigger write, so the

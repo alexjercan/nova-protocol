@@ -29,7 +29,9 @@ use std::{
 use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
 use bevy::prelude::*;
 use nova_events::prelude::{EntityId, GeneratedBodyId, Meters3, ScenarioAddressableMarker};
-use nova_gameplay::prelude::{CargoCanister, SpaceshipRootMarker, TempEntity, UnsettledBody};
+use nova_gameplay::prelude::{
+    CargoCanister, PlayerFleetMarker, SpaceshipRootMarker, TempEntity, UnsettledBody,
+};
 use nova_scenario::prelude::{
     freeze_asteroid, freeze_ore_drop, freeze_ship, freeze_station, prepare_frozen_asteroid,
     thaw_asteroid, thaw_ore_drop, thaw_ship, thaw_station, AsteroidMarker, FrozenAsteroid,
@@ -673,10 +675,11 @@ pub(crate) type PersistentBody = Or<(
 /// stays live and is asked again next frame, for a bounded number of
 /// advancing frames.
 ///
-/// The [`WorldObserver`] and every authored, addressable object stay
-/// top-level and are never adopted: the world streams around the first, and a
-/// scenario owns the second. A body parented to anything but a sector root
-/// belongs to that parent.
+/// The [`WorldObserver`], every escort of the player's fleet
+/// ([`PlayerFleetMarker`]) and every authored, addressable object stay
+/// top-level and are never adopted: the world streams around the first, the
+/// fleet travels with it, and a scenario owns the last. A body parented to
+/// anything but a sector root belongs to that parent.
 ///
 /// A transient (a projectile, a chunk of debris) is not adopted. One that is
 /// top-level outside the window is despawned.
@@ -712,6 +715,7 @@ pub fn adopt_moving_bodies<G: SectorGenerator>(world: &mut World) {
         .query_filtered::<(Entity, &Transform, Option<&Position>, Option<&ChildOf>), (
             PersistentBody,
             Without<WorldObserver>,
+            Without<PlayerFleetMarker>,
             Without<ScenarioAddressableMarker>,
         )>()
         .iter(world)
@@ -790,8 +794,8 @@ pub enum SectorSnapshotError {
     },
     /// A persistent body that no cell owns and that no save can place: an
     /// authored, addressable one other than the observer, or one parented to
-    /// something that is not a sector root. A save refuses rather than drop
-    /// it.
+    /// something that is not a sector root. A fleet escort is neither: the
+    /// save keeps it with the player. A save refuses rather than drop it.
     UnownedBody {
         /// The body's name, or its entity.
         label: String,
@@ -852,8 +856,9 @@ impl std::fmt::Display for SectorSnapshotError {
 ///
 /// A docked ship is kept without its dock ([`DockPolicy::Undock`]), so a
 /// saved world thaws the pair undocked where it stood. The
-/// [`WorldObserver`] is not part of it: the world streams around the
-/// observer, and its owner saves it.
+/// [`WorldObserver`] and the player's fleet ([`PlayerFleetMarker`]) are not
+/// part of it: the world streams around the observer, the fleet travels with
+/// it, and their owner saves both.
 ///
 /// # Errors
 ///
@@ -878,11 +883,13 @@ pub fn snapshot_sectors<G: SectorGenerator>(
         .query_filtered::<(Entity, Option<&ChildOf>, Has<ScenarioAddressableMarker>), (
             PersistentBody,
             Without<WorldObserver>,
+            Without<PlayerFleetMarker>,
         )>()
         .iter(world)
         .find(|(_, parent, addressable)| {
             *addressable
-                || parent.is_some_and(|parent| !world.entity(parent.parent()).contains::<SectorRoot>())
+                || parent
+                    .is_some_and(|parent| !world.entity(parent.parent()).contains::<SectorRoot>())
         })
         .map(|(entity, ..)| entity);
     if let Some(entity) = unowned {
@@ -910,6 +917,7 @@ pub fn snapshot_sectors<G: SectorGenerator>(
             PersistentBody,
             Without<ChildOf>,
             Without<WorldObserver>,
+            Without<PlayerFleetMarker>,
             Without<ScenarioAddressableMarker>,
         )>()
         .iter(world)
