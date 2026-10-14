@@ -23,6 +23,52 @@ pub const AI_FOLLOW_GAP: f32 = 20.0;
 /// hunts back and forth across the slot.
 const AI_FOLLOW_SLACK: f32 = 3.0;
 
+/// Where a follower at `from` steers to reach `slot` without flying through
+/// the leader whose anchor is `leader`.
+///
+/// The slot itself while the straight line to it keeps `clearance` from the
+/// leader. Otherwise a point turned from the follower's side toward the
+/// slot's side by half the angle between them, at most 60 degrees, at twice
+/// the follower's distance (at least `clearance`); when the two sides are
+/// opposite it turns over the leader's `up`. At 60 degrees and twice the
+/// distance the line to that point keeps the follower's own distance, so no
+/// leg comes nearer the leader than the follower already is. Recomputed every
+/// tick, the point walks the follower outward and round the leader. Without
+/// it, a slot on the far side (an escort spawned away from a station on the
+/// side the leader docked by, or a leader that turns about) sends the
+/// follower straight through the leader's hull.
+pub(super) fn follow_waypoint(
+    from: Vec3,
+    slot: Vec3,
+    leader: Vec3,
+    clearance: f32,
+    up: Vec3,
+) -> Vec3 {
+    let path = slot - from;
+    let along = if path.length_squared() > 0.0 {
+        ((leader - from).dot(path) / path.length_squared()).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    if (from + path * along).distance(leader) >= clearance {
+        return slot;
+    }
+    let own_side = (from - leader).normalize_or(up);
+    let slot_side = (slot - leader).normalize_or(up);
+    let axis = own_side
+        .cross(slot_side)
+        .try_normalize()
+        .or_else(|| {
+            up.reject_from(own_side)
+                .try_normalize()
+                .and_then(|over| own_side.cross(over).try_normalize())
+        })
+        .unwrap_or_else(|| own_side.any_orthonormal_vector());
+    let turn = (own_side.angle_between(slot_side) * 0.5).min(std::f32::consts::FRAC_PI_3);
+    let radius = 2.0 * from.distance(leader).max(clearance);
+    leader + Quat::from_axis_angle(axis, turn) * own_side * radius
+}
+
 /// A standing follow order: hold a slot beside `leader` on `side`.
 ///
 /// The slot is `side` (a unit vector in the leader's local frame; +X is
@@ -105,13 +151,23 @@ pub(super) fn update_follow_flight(
                 facing: None,
             }
         } else {
-            let reach =
-                leader_arm.map_or(0.0, |arm| **arm) + arm.map_or(0.0, |arm| **arm) + AI_FOLLOW_GAP;
-            let slot = leader_anchor + leader_transform.rotation * (follow.side * reach);
-            let to_slot = slot - live_structure_anchor(transform, com);
-            let distance = to_slot.length();
+            let arms = leader_arm.map_or(0.0, |arm| **arm) + arm.map_or(0.0, |arm| **arm);
+            let slot =
+                leader_anchor + leader_transform.rotation * (follow.side * (arms + AI_FOLLOW_GAP));
+            let from = live_structure_anchor(transform, com);
+            let waypoint = follow_waypoint(
+                from,
+                slot,
+                leader_anchor,
+                arms + AI_FOLLOW_GAP * 0.5,
+                leader_transform.rotation * Vec3::Y,
+            );
+            let to_waypoint = waypoint - from;
+            // The way left, round the leader when it detours, so the closing
+            // speed brakes for the slot and not for the moving waypoint.
+            let distance = to_waypoint.length() + waypoint.distance(slot);
             let closing = if distance > AI_FOLLOW_SLACK {
-                to_slot / distance
+                to_waypoint.normalize_or_zero()
                     * ai_radial_speed(
                         distance - AI_FOLLOW_SLACK,
                         authority.copied().unwrap_or_default(),
@@ -137,5 +193,53 @@ pub(super) fn update_follow_flight(
                 commands.entity(ship).insert(Autopilot::engage(action));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A follower whose slot lies across the leader goes round it, over the
+    /// leader's up when the slot is straight across, and every leg keeps the
+    /// clearance; a follower with a clear line flies straight to its slot.
+    #[test]
+    fn a_follower_goes_round_the_leader_to_a_slot_across_it_and_straight_to_a_clear_one() {
+        let (leader, clearance, up) = (Vec3::ZERO, 10.0, Vec3::Y);
+        let distance_to_leader = |from: Vec3, to: Vec3| {
+            let path = to - from;
+            let along = ((leader - from).dot(path) / path.length_squared()).clamp(0.0, 1.0);
+            (from + path * along).distance(leader)
+        };
+
+        let clear = (Vec3::new(30.0, 0.0, 30.0), Vec3::new(30.0, 0.0, -30.0));
+        assert_eq!(
+            follow_waypoint(clear.0, clear.1, leader, clearance, up),
+            clear.1
+        );
+
+        let (from, slot) = (Vec3::new(-14.0, 0.0, 0.0), Vec3::new(14.0, 0.0, 0.0));
+        let waypoint = follow_waypoint(from, slot, leader, clearance, up);
+        assert!(
+            waypoint.y > 0.0,
+            "straight across goes over the top: {waypoint}"
+        );
+        assert!(distance_to_leader(from, waypoint) >= clearance - 1e-3);
+
+        // Walk the carrot: each step moves to the waypoint, and every leg of
+        // the way keeps the clearance until the line to the slot is clear.
+        let mut at = from;
+        for _ in 0..8 {
+            let next = follow_waypoint(at, slot, leader, clearance, up);
+            assert!(
+                distance_to_leader(at, next) >= clearance - 1e-3,
+                "the leg from {at} to {next} cuts the leader"
+            );
+            if next == slot {
+                return;
+            }
+            at = next;
+        }
+        panic!("the follower never reached a clear line to its slot, last at {at}");
     }
 }
