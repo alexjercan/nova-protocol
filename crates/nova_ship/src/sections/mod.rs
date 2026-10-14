@@ -33,6 +33,7 @@ pub mod placeholder_art;
 pub mod railgun_section;
 pub mod section_add;
 pub mod section_animation;
+pub mod section_strip;
 pub mod shell_shape;
 pub mod shell_skin;
 pub mod ship_measure;
@@ -60,11 +61,11 @@ pub mod prelude {
         integrity::prelude::*, link_points::prelude::*, live_structure_anchor,
         mining_section::prelude::*, patch::prelude::*, placeholder_art::prelude::*,
         railgun_section::prelude::*, section_add::prelude::*, section_animation::prelude::*,
-        shell_shape::prelude::*, shell_skin::prelude::*, ship_measure::prelude::*,
-        signature::prelude::*, skin_decor::prelude::*, skin_reading::prelude::*,
-        skin_report::prelude::*, skin_style::prelude::*, station_buy::prelude::*,
-        thruster_section::prelude::*, torpedo_section::prelude::*, turret_section::prelude::*,
-        SpaceshipSectionPlugin, SpaceshipSectionSystems,
+        section_strip::prelude::*, shell_shape::prelude::*, shell_skin::prelude::*,
+        ship_measure::prelude::*, signature::prelude::*, skin_decor::prelude::*,
+        skin_reading::prelude::*, skin_report::prelude::*, skin_style::prelude::*,
+        station_buy::prelude::*, thruster_section::prelude::*, torpedo_section::prelude::*,
+        turret_section::prelude::*, SpaceshipSectionPlugin, SpaceshipSectionSystems,
     };
 }
 
@@ -280,6 +281,8 @@ impl Plugin for SpaceshipSectionPlugin {
         // simply never fires without a rendered scene.
         app.add_observer(frozen_piece::stamp_detached_piece_source);
         app.add_observer(frozen_piece::apply_resumed_scene_poses);
+        app.register_type::<section_strip::SectionStripJob>();
+        app.add_observer(section_strip::strip_section);
         // The authored-animation rig and driver. Unconditional, not
         // render-gated: the components must exist headless (a server loads
         // the same content), and without spawned scenes the rigs stay empty.
