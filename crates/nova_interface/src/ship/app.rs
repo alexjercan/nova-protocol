@@ -23,7 +23,6 @@ use nova_ui::{
 
 use super::{
     catalogue::spawn_ship_catalogue, rebuild::spawn_ship_rebuild_list, scene::*, sections::*,
-    strip::spawn_ship_strip_list,
 };
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
@@ -263,7 +262,6 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                             .observe(on_ship_repair_button);
                         });
                 });
-            spawn_ship_strip_list(panel);
             spawn_ship_rebuild_list(panel);
             spawn_ship_catalogue(panel);
             panel.spawn((ShipPanelField::Note, themed_label("", 12.0, UiColor::Label)));

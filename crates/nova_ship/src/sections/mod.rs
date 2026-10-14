@@ -284,7 +284,7 @@ impl Plugin for SpaceshipSectionPlugin {
         // simply never fires without a rendered scene.
         app.add_observer(frozen_piece::stamp_detached_piece_source);
         app.add_observer(frozen_piece::apply_resumed_scene_poses);
-        app.register_type::<section_strip::SectionStripJob>();
+        app.register_type::<section_strip::HullStripJob>();
         app.add_observer(section_strip::strip_section);
         // The authored-animation rig and driver. Unconditional, not
         // render-gated: the components must exist headless (a server loads

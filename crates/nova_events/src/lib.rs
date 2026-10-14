@@ -1393,11 +1393,12 @@ pub struct StationBoughtEventInfo {
     pub price_cr: u32,
 }
 
-/// A Ship pane strip took one section off the docked lootable partner and
+/// A Recycle tab strip took one section off the docked lootable partner and
 /// put its parts in the ship's hold (`onstripped`).
 ///
-/// One event per strip that finished; a refused or cancelled strip fires
-/// nothing. No credits move.
+/// One event per section a whole-hull strip takes, the berth port last; a
+/// refused strip, a section held by a full hold and an undock fire nothing.
+/// No credits move.
 #[derive(Debug, Clone, EventKind, Reflect)]
 #[event_name("onstripped")]
 #[event_info(StrippedEventInfo)]

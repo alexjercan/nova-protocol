@@ -31,6 +31,7 @@ mod icons;
 pub mod inventory;
 pub mod map;
 pub mod pane;
+pub mod recycle;
 pub mod ship;
 pub mod station;
 pub mod terminal;
@@ -61,6 +62,7 @@ pub mod prelude {
         bindings::interface_bindings,
         map::prelude::*,
         pane::InterfacePaneType,
+        recycle::prelude::*,
         ship::prelude::*,
         station::prelude::*,
         terminal::prelude::*,
@@ -83,16 +85,17 @@ use crate::{
     inventory::InventoryPaneSystems,
     map::MapPaneSystems,
     pane::{
-        leave_station_pane, next_interface_pane, play_interface_toggle, rebuild_interface_body,
-        refresh_pane_input_hints, show_station_tab, spawn_interface_root, sync_nova_os_contexts,
+        leave_docked_pane, next_interface_pane, play_interface_toggle, rebuild_interface_body,
+        refresh_pane_input_hints, show_docked_tabs, spawn_interface_root, sync_nova_os_contexts,
         toggle_interface, InterfacePaneType,
     },
+    recycle::RecyclePaneSystems,
     ship::ShipPaneSystems,
     station::StationPaneSystems,
     terminal::CommandsSystems,
 };
 
-/// Wires the TAB interface, its four panes, and the `:` command modal.
+/// Wires the TAB interface, its five panes, and the `:` command modal.
 ///
 /// Added by the assembly crate (`nova_core`), not by the HUD - the interface
 /// and the flight HUD are peers, and the plugin that orders them belongs above
@@ -135,7 +138,8 @@ impl Plugin for InterfacePlugin {
                 .before(MapPaneSystems)
                 .before(ShipPaneSystems)
                 .before(InventoryPaneSystems)
-                .before(StationPaneSystems),
+                .before(StationPaneSystems)
+                .before(RecyclePaneSystems),
         );
         // A hull buy clears the Ship pane's selection before the Ship pane
         // reads it (see `StationPaneSystems`).
@@ -151,6 +155,7 @@ impl Plugin for InterfacePlugin {
                 ShipPaneSystems,
                 InventoryPaneSystems,
                 StationPaneSystems,
+                RecyclePaneSystems,
             )
                 .before(UiThemeSystems),
         );
@@ -159,10 +164,10 @@ impl Plugin for InterfacePlugin {
             (
                 toggle_interface.run_if(in_state(GameStates::Playing)),
                 next_interface_pane.run_if(in_input_mode(InputMode::Normal)),
-                leave_station_pane,
+                leave_docked_pane,
                 spawn_interface_root,
                 rebuild_interface_body,
-                show_station_tab,
+                show_docked_tabs,
                 refresh_pane_input_hints,
             )
                 .chain()
@@ -188,6 +193,7 @@ impl Plugin for InterfacePlugin {
         app.add_plugins(ship::ShipPanePlugin);
         app.add_plugins(inventory::InventoryPanePlugin);
         app.add_plugins(station::StationPanePlugin);
+        app.add_plugins(recycle::RecyclePanePlugin);
     }
 }
 

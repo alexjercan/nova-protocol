@@ -1,12 +1,15 @@
-//! A section stripped off a docked lootable hull: the running strip and the
-//! removal it ends in.
+//! A docked lootable hull stripped whole: the running strip, the order its
+//! sections come off in, and the removal each one ends in.
 //!
-//! The rule that plans a strip is [`plan_section_strip`]; this module adds
-//! the structure facts it reads and the two ship-side pieces a strip needs.
-//! [`strip_splits_hull`] says whether taking a section would leave the hull
-//! in two pieces. [`SectionStripJob`] sits on the stripping ship while the
-//! timer runs, so the Ship pane and the HUD can show its progress. When the
-//! timer ends, a [`SectionStripRequest`] takes the section off its hull.
+//! The rules that plan a strip are [`plan_hull_strip`] and
+//! [`plan_section_yield`]; this module adds the order and the two ship-side
+//! pieces a strip needs. [`HullStripJob`] sits on the stripping ship while
+//! the strip runs, so the Recycle tab and the HUD can show its progress.
+//! [`next_strip_section`] picks the section that comes off next: the one
+//! farthest from the berth port, so the rest of the hull stays joined to the
+//! berth at every step, and the berth last. When a section's timer ends, a
+//! [`SectionStripRequest`] takes it off its hull. The berth is not taken off
+//! that way: the stripping ship lets go of the dock and the hull despawns.
 //!
 //! A strip is not a destruction. The section does not go through
 //! `IntegrityDestroyMarker`, which would fire the destruction burst,
@@ -18,93 +21,140 @@
 //! then a design section with no live entity, as a destroyed one is, so a
 //! freeze, a thaw and a save keep it stripped.
 //!
-//! [`plan_section_strip`]: nova_gameplay::prelude::plan_section_strip
+//! [`plan_hull_strip`]: nova_gameplay::prelude::plan_hull_strip
+//! [`plan_section_yield`]: nova_gameplay::prelude::plan_section_yield
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, VecDeque};
 
 use bevy::prelude::*;
-use nova_gameplay::prelude::{ConnectedTo, Health, SectionMarker, SpaceshipRootMarker};
+use nova_gameplay::prelude::{
+    ConnectedTo, Health, HullStripPauseType, SectionMarker, SpaceshipRootMarker,
+};
 
-/// The strip job, the split rule and the removal request.
+/// The strip job, the strip order and the removal request.
 pub mod prelude {
-    pub use super::{strip_splits_hull, SectionStripJob, SectionStripRequest};
+    pub use super::{next_strip_section, HullStripJob, HullStripStep, SectionStripRequest};
 }
 
-/// A strip in progress, on the root of the ship that strips.
+/// A whole-hull strip in progress, on the root of the ship that strips.
 ///
-/// Inserted by the Ship pane when a strip is planned and removed when it
-/// finishes or is cancelled. Not saved: a save mid-strip loses only the
-/// timer, and nothing has moved yet.
+/// Inserted by the Recycle tab when a strip is planned and removed when the
+/// hull is gone or the strip stops. Not saved: a save mid-strip loses the
+/// running section's timer, and every section already taken stays taken.
 #[derive(Component, Clone, Debug, PartialEq, Reflect)]
 #[reflect(Component)]
-pub struct SectionStripJob {
+pub struct HullStripJob {
     /// The docked hull being stripped.
     pub partner: Entity,
-    /// The section being stripped, a child of `partner`.
+    /// The section coming off now; `None` until the next one is picked.
+    pub step: Option<HullStripStep>,
+    /// Game seconds of the sections already taken.
+    pub done_secs: f32,
+    /// Game seconds the whole strip was planned to take.
+    pub total_secs: f32,
+    /// Why the strip holds at a finished section, while it does.
+    #[reflect(ignore)]
+    pub paused: Option<HullStripPauseType>,
+    /// Sections taken so far.
+    pub taken: u32,
+}
+
+/// The section a [`HullStripJob`] is taking off now.
+#[derive(Clone, Debug, PartialEq, Reflect)]
+pub struct HullStripStep {
+    /// The section, a child of the job's partner.
     pub section: Entity,
-    /// The section's design section id on `partner`.
+    /// Its design section id on the partner.
     pub section_id: String,
-    /// The section's pane code on `partner` (`PDC-1`).
+    /// Its pane code on the partner (`PDC-1`).
     pub code: String,
-    /// Game seconds the strip has run.
+    /// Game seconds it has run.
     pub elapsed_secs: f32,
-    /// Game seconds the strip takes.
+    /// Game seconds it takes.
     pub duration_secs: f32,
 }
 
-impl SectionStripJob {
-    /// The share of the strip done, in `[0, 1]`.
+impl HullStripJob {
+    /// A strip of `partner` planned to take `total_secs`, with nothing taken.
+    pub fn new(partner: Entity, total_secs: f32) -> Self {
+        Self {
+            partner,
+            step: None,
+            done_secs: 0.0,
+            total_secs,
+            paused: None,
+            taken: 0,
+        }
+    }
+
+    /// The share of the whole strip done, in `[0, 1]`.
     pub fn progress(&self) -> f32 {
-        if self.duration_secs <= 0.0 {
+        if self.total_secs <= 0.0 {
             return 1.0;
         }
-        (self.elapsed_secs / self.duration_secs).clamp(0.0, 1.0)
+        let running = self.step.as_ref().map_or(0.0, |step| step.elapsed_secs);
+        ((self.done_secs + running) / self.total_secs).clamp(0.0, 1.0)
     }
 
-    /// Game seconds left, never below zero.
+    /// Game seconds left on the plan, never below zero.
     pub fn remaining_secs(&self) -> f32 {
-        (self.duration_secs - self.elapsed_secs).max(0.0)
+        let running = self.step.as_ref().map_or(0.0, |step| step.elapsed_secs);
+        (self.total_secs - self.done_secs - running).max(0.0)
     }
+}
 
-    /// Whether the timer has run out.
+impl HullStripStep {
+    /// Whether the section's timer has run out.
     pub fn is_done(&self) -> bool {
         self.elapsed_secs >= self.duration_secs
     }
 }
 
 /// Asks to take section `entity` off its hull after a strip: raised by the
-/// Ship pane once the strip's parts are in the stripping ship's hold.
+/// Recycle tab once the section's parts are in the stripping ship's hold.
 #[derive(EntityEvent, Clone, Copy, Debug)]
 pub struct SectionStripRequest {
     /// The section to take off.
     pub entity: Entity,
 }
 
-/// Whether removing `target` leaves the other live sections of its hull in
-/// more than one connected piece. `graph` lists every live section of the
-/// hull with its neighbours ([`ConnectedTo`]); a neighbour not listed is
-/// ignored. A hull of one section, or of `target` alone, never splits.
-pub fn strip_splits_hull<'a>(
-    target: Entity,
-    graph: impl IntoIterator<Item = (Entity, &'a [Entity])>,
-) -> bool {
-    let graph: BTreeMap<Entity, &[Entity]> = graph
+/// The live section a whole-hull strip takes next: the one farthest from
+/// `berth` in hops over [`ConnectedTo`], so every section left is still
+/// joined to the berth. A section the berth cannot reach goes first. Ties go
+/// to the lowest `key`, the caller's order. The berth comes last, once it is
+/// the only section left; `None` when `graph` is empty.
+///
+/// `graph` lists every live section of the hull with its order key and its
+/// neighbours; a neighbour not listed is ignored.
+pub fn next_strip_section<'a, K: Ord + Copy>(
+    berth: Entity,
+    graph: impl IntoIterator<Item = (Entity, K, &'a [Entity])>,
+) -> Option<Entity> {
+    let graph: BTreeMap<Entity, (K, &[Entity])> = graph
         .into_iter()
-        .filter(|(section, _)| *section != target)
+        .map(|(section, key, neighbours)| (section, (key, neighbours)))
         .collect();
-    let Some(&start) = graph.keys().next() else {
-        return false;
-    };
-    let mut reached = BTreeSet::from([start]);
-    let mut stack = vec![start];
-    while let Some(section) = stack.pop() {
-        for neighbour in graph[&section] {
-            if graph.contains_key(neighbour) && reached.insert(*neighbour) {
-                stack.push(*neighbour);
+    let mut hops: BTreeMap<Entity, u32> = BTreeMap::new();
+    if graph.contains_key(&berth) {
+        hops.insert(berth, 0);
+        let mut queue = VecDeque::from([berth]);
+        while let Some(section) = queue.pop_front() {
+            let next = hops[&section] + 1;
+            for neighbour in graph[&section].1 {
+                if graph.contains_key(neighbour) && !hops.contains_key(neighbour) {
+                    hops.insert(*neighbour, next);
+                    queue.push_back(*neighbour);
+                }
             }
         }
     }
-    reached.len() < graph.len()
+    graph
+        .iter()
+        .max_by(|(a, (a_key, _)), (b, (b_key, _))| {
+            let distance = |section: &Entity| hops.get(section).copied().unwrap_or(u32::MAX);
+            distance(a).cmp(&distance(b)).then_with(|| b_key.cmp(a_key))
+        })
+        .map(|(section, _)| *section)
 }
 
 /// Take a stripped section off its hull: prune it from its neighbours'
@@ -113,7 +163,7 @@ pub fn strip_splits_hull<'a>(
 ///
 /// # Panics
 ///
-/// On an entity that is not a live section of a ship root: the Ship pane
+/// On an entity that is not a live section of a ship root: the Recycle tab
 /// raises the request only for a live section of the docked partner.
 pub(crate) fn strip_section(
     request: On<SectionStripRequest>,
@@ -190,29 +240,32 @@ mod tests {
         assert_eq!(world.get::<Health>(root).unwrap().max, 200.0);
     }
 
-    /// A chain A-B-C splits when B goes and holds when an end goes; a ring
-    /// holds whatever goes.
+    /// A chain berth-A-B with a spur C off A and a stray D the berth cannot
+    /// reach: D goes first, then the farthest (B), then A's tie with C by
+    /// key, and the berth last. After each pick the rest still reaches the
+    /// berth.
     #[test]
-    fn a_strip_splits_the_hull_only_through_a_cut_section() {
-        let e = entities(4);
-        let (a, b, c, d) = (e[0], e[1], e[2], e[3]);
-        let chain = [(a, vec![b]), (b, vec![a, c]), (c, vec![b])];
-        let graph = || chain.iter().map(|(s, n)| (*s, n.as_slice()));
-        assert!(strip_splits_hull(b, graph()));
-        assert!(!strip_splits_hull(a, graph()));
-        assert!(!strip_splits_hull(c, graph()));
-        let ring = [
-            (a, vec![b, d]),
-            (b, vec![a, c]),
-            (c, vec![b, d]),
-            (d, vec![c, a]),
+    fn a_strip_peels_the_hull_from_the_far_end_and_takes_the_berth_last() {
+        let e = entities(5);
+        let (berth, a, b, c, d) = (e[0], e[1], e[2], e[3], e[4]);
+        let mut graph: Vec<(Entity, u32, Vec<Entity>)> = vec![
+            (berth, 0, vec![a]),
+            (a, 1, vec![berth, b, c]),
+            (b, 2, vec![a]),
+            (c, 3, vec![a]),
+            (d, 4, vec![]),
         ];
-        for target in [a, b, c, d] {
-            assert!(!strip_splits_hull(
-                target,
-                ring.iter().map(|(s, n)| (*s, n.as_slice()))
-            ));
+        let mut order = Vec::new();
+        while let Some(next) =
+            next_strip_section(berth, graph.iter().map(|(s, k, n)| (*s, *k, n.as_slice())))
+        {
+            order.push(next);
+            graph.retain(|(s, ..)| *s != next);
         }
-        assert!(!strip_splits_hull(a, [(a, [].as_slice())]));
+        assert_eq!(order, vec![d, b, c, a, berth]);
+        assert_eq!(
+            next_strip_section(berth, std::iter::empty::<(Entity, u32, &[Entity])>()),
+            None
+        );
     }
 }

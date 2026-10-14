@@ -38,11 +38,8 @@
 //! it, and a click on a valid ghost raises a `SectionAddCommand`. With no
 //! part in hand, a click on a block selects its section. What the station
 //! sells as a whole (ships, escorts and the station itself) is in the
-//! Station pane (`crate::station`).
-//! While the ship is docked with a hull it may loot, a "Strip the docked
-//! wreck" list shows each of the partner's sections with the parts a strip
-//! gives, its time and a Strip button that raises a `SectionStripCommand`;
-//! the strip runs on the game clock and its progress shows under the header.
+//! Station pane (`crate::station`); stripping a docked wreck is in the
+//! Recycle pane (`crate::recycle`).
 //! The panel scrolls with the wheel while the pointer is over it.
 //!
 //! # Module layout
@@ -55,7 +52,6 @@
 //! | `refit` | The Swap and Add action handlers and their refusal lines. |
 //! | `catalogue` | The station catalogue: listed parts, prices, Place and Swap. |
 //! | `ghost` | The placement ghost, its callout, and the view's pointer and click. |
-//! | `strip` | The "Strip the docked wreck" list, the strip action handler and the strip timer. |
 //! | `scene` | The schematic 3D scene, its camera, the projected badges, the button observers and the panel refresh. |
 
 mod app;
@@ -66,7 +62,6 @@ mod rebuild;
 mod refit;
 mod scene;
 mod sections;
-mod strip;
 
 #[cfg(test)]
 mod tests;
@@ -76,14 +71,12 @@ use nova_ui::input_mode::prelude::{in_input_mode, InputMode};
 
 pub(crate) use self::{
     app::*, catalogue::*, ghost::*, rebind::*, rebuild::*, refit::*, scene::*, sections::*,
-    strip::*,
 };
 pub use self::{
     ghost::{ship_ghost_aim, ship_view_window_px, SHIP_GHOST_CALLOUT},
     refit::{SectionAddCommand, SectionSwapCommand},
     scene::{cuboid_edges, ease_orbit_center, ship_framing, ShipRuntime, SHIP_BLOCK_FILL_SCALE},
     sections::{design_section_code, SectionCode, ShipSections},
-    strip::{SectionStripCommand, STRIP_BUTTON_PREFIX, STRIP_LIST, STRIP_PROGRESS},
 };
 
 /// Glob-import surface: `use nova_interface::ship::prelude::*`.
@@ -98,7 +91,6 @@ pub mod prelude {
             cuboid_edges, ease_orbit_center, ship_framing, ShipRuntime, SHIP_BLOCK_FILL_SCALE,
         },
         sections::{design_section_code, SectionCode, ShipSections},
-        strip::{SectionStripCommand, STRIP_BUTTON_PREFIX, STRIP_LIST, STRIP_PROGRESS},
         SHIP_RADIUS_MAX, SHIP_RADIUS_MIN,
     };
 }
@@ -132,7 +124,6 @@ impl Plugin for ShipPanePlugin {
         app.add_message::<SectionRebuildCommand>();
         app.add_message::<SectionSwapCommand>();
         app.add_message::<SectionAddCommand>();
-        app.add_message::<SectionStripCommand>();
         app.add_systems(
             Update,
             (
@@ -143,9 +134,6 @@ impl Plugin for ShipPanePlugin {
                     apply_ship_rebuild_commands,
                     apply_ship_swap_commands,
                     apply_ship_add_commands,
-                    apply_ship_strip_commands,
-                    // Runs with the pane closed too: a strip goes on in flight.
-                    advance_ship_strip,
                     reselect_swapped_section,
                     manage_ship_scene,
                     reconcile_ship_target,
@@ -165,7 +153,6 @@ impl Plugin for ShipPanePlugin {
                     update_ship_panel,
                     update_ship_rebuild_list,
                     update_ship_catalogue,
-                    update_ship_strip_list,
                 )
                     .chain(),
             )

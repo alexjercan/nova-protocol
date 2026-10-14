@@ -17,12 +17,12 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
-use nova_gameplay::prelude::PlayerSpaceshipMarker;
+use nova_gameplay::prelude::{HullStripPauseType, PlayerSpaceshipMarker};
 use nova_ship::{
     flight::prelude::*,
     input::prelude::FlightVerbHints,
     prelude::{
-        CameraAuthoritySystems, DockedHelmType, DockedShip, DockingConnection, SectionStripJob,
+        CameraAuthoritySystems, DockedHelmType, DockedShip, DockingConnection, HullStripJob,
     },
 };
 use nova_ui::hud::{chip_node, chip_paint, ChipText, ChipTone};
@@ -555,8 +555,9 @@ fn emphasize_speed_on_burn(
 /// hull whose travel lock is on a station that refuses a dock reads the
 /// station's own line ([`FlightVerbHints::dock_refusal`]), ahead of a
 /// maneuver: the lock is the question and the refusal is the answer. A hull
-/// stripping a docked wreck reads `STRIP <code> <percent>%` from its
-/// [`SectionStripJob`], so the strip shows in flight with the Ship pane shut.
+/// stripping a docked wreck reads `STRIP <percent>%` from its
+/// [`HullStripJob`], or `STRIP HELD: HOLD FULL` while a full hold holds it,
+/// so the strip shows in flight with the Recycle tab shut.
 fn drive_mode_chip(
     q_hud: Query<&FlightStatusHudTargetEntity, With<FlightStatusHudMarker>>,
     mut q_ui: Query<(&mut ScreenIndicatorAnchor, &mut Text, &ChildOf), With<ModeChipUIMarker>>,
@@ -564,7 +565,7 @@ fn drive_mode_chip(
         Option<&Autopilot>,
         Option<&DockedShip>,
         Has<PlayerSpaceshipMarker>,
-        Option<&SectionStripJob>,
+        Option<&HullStripJob>,
     )>,
     q_connections: Query<&DockingConnection>,
     hints: Option<Res<FlightVerbHints>>,
@@ -594,7 +595,12 @@ fn drive_mode_chip(
             }
             Ok((.., Some(job))) => {
                 **anchor = Some(ScreenIndicatorAnchorKind::Entity(**ship));
-                **text = format!("STRIP {} {:.0}%", job.code, job.progress() * 100.0);
+                **text = match job.paused {
+                    Some(HullStripPauseType::HoldFull { .. }) => {
+                        "STRIP HELD: HOLD FULL".to_string()
+                    }
+                    None => format!("STRIP {:.0}%", job.progress() * 100.0),
+                };
             }
             Ok((_, Some(docked), ..)) if station_held(docked) => {
                 **anchor = Some(ScreenIndicatorAnchorKind::Entity(**ship));

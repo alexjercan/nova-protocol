@@ -40,18 +40,18 @@ pub mod prelude {
     pub use nova_events::prelude::{CreditChangeCauseType, ItemTradeType};
 
     pub use super::{
-        kg_text, plan_credit_take, plan_item_jettison, plan_item_storage, plan_item_trade,
-        plan_item_transfer, plan_plate_repair, plan_recipe_payment, plan_section_rebuild,
-        plan_section_strip, strip_duration_secs, BuildRecipe, CargoCanister,
+        kg_text, plan_credit_take, plan_hull_strip, plan_item_jettison, plan_item_storage,
+        plan_item_trade, plan_item_transfer, plan_plate_repair, plan_recipe_payment,
+        plan_section_rebuild, plan_section_yield, strip_duration_secs, BuildRecipe, CargoCanister,
         CargoCanisterIdAllocator, CargoCanisterRuntimeId, CreditTakeRefusalType, GameItems,
-        ItemCategoryType, ItemDesign, ItemDesignId, ItemJettison, ItemJettisonRefusalType,
-        ItemRoleType, ItemStorageRefusalType, ItemStorageType, ItemTrade, ItemTradeRefusalType,
+        HullStrip, HullStripPartner, HullStripPauseType, HullStripRefusalType, ItemCategoryType,
+        ItemDesign, ItemDesignId, ItemJettison, ItemJettisonRefusalType, ItemRoleType,
+        ItemStorageRefusalType, ItemStorageType, ItemTrade, ItemTradeRefusalType,
         ItemTransferRefusalType, ItemTransferType, LootableShipMarker, PlateRepair,
         PlateRepairRefusalType, RecipePayment, RecipePaymentRefusalType, SectionRebuildRefusalType,
-        SectionStrip, SectionStripRefusalType, ShipCredits, ShipInventory, ShipInventoryReport,
-        ShipInventoryReports, ShipInventoryStock, StationPartner, StationStorage, StripTarget,
-        TradePriceType, CARGO_CANISTER_MAX_MASS_G, HULL_PLATE_HEALTH, STRIP_MIN_SECS,
-        STRIP_SECS_PER_PART,
+        ShipCredits, ShipInventory, ShipInventoryReport, ShipInventoryReports, ShipInventoryStock,
+        StationPartner, StationStorage, StripTarget, TradePriceType, CARGO_CANISTER_MAX_MASS_G,
+        HULL_PLATE_HEALTH, STRIP_MIN_SECS, STRIP_SECS_PER_PART,
     };
 }
 
@@ -710,7 +710,7 @@ pub enum ShipInventoryReport {
         /// Credits the ship paid the station.
         price_cr: u32,
     },
-    /// A Ship pane strip took one section off the docked partner and put
+    /// A Recycle tab strip took one section off the docked partner and put
     /// its parts in this ship's hold.
     Stripped {
         /// The stripped hull's scenario id.
@@ -1453,51 +1453,67 @@ pub fn strip_duration_secs(recipe: &BuildRecipe) -> f32 {
     (recipe.part_count() as f32 * STRIP_SECS_PER_PART).max(STRIP_MIN_SECS)
 }
 
-/// The section a strip would take, as the caller read it off the docked
-/// partner.
+/// One live section of the docked partner, as a strip reads it.
 #[derive(Clone, Copy, Debug)]
 pub struct StripTarget<'a> {
     /// The section's build recipe.
     pub recipe: &'a BuildRecipe,
     /// Its health, current over max.
     pub health_share: f32,
-    /// It is the partner's port that holds the dock.
-    pub berth: bool,
-    /// Removing it leaves the partner's live sections in more than one
-    /// connected piece.
-    pub splits_hull: bool,
 }
 
-/// A planned strip: the parts it puts in the ship's hold and how long it
-/// takes.
+impl StripTarget<'_> {
+    /// The parts a strip of this section returns:
+    /// [`BuildRecipe::strip_parts_at`] its health share.
+    pub fn parts(&self) -> BTreeMap<ItemDesignId, u32> {
+        self.recipe
+            .strip_parts_at(self.health_share)
+            .map(|(item, count)| (item.clone(), count))
+            .collect()
+    }
+}
+
+/// The docked partner a whole-hull strip reads.
+#[derive(Clone, Debug)]
+pub struct HullStripPartner<'a> {
+    /// The partner is a station that is not a derelict.
+    pub living_station: bool,
+    /// The partner may be looted: it is neutralized or carries
+    /// [`LootableShipMarker`], the rule a Take reads.
+    pub lootable: bool,
+    /// Every live section of the partner, the berth port included.
+    pub sections: Vec<StripTarget<'a>>,
+}
+
+/// A planned whole-hull strip: the parts it is expected to put in the hold
+/// and how long it takes, summed over every live section.
 #[derive(Clone, Debug, PartialEq)]
-pub struct SectionStrip {
-    /// Parts added to the ship's hold, by
-    /// [`BuildRecipe::strip_parts_at`]. Never empty.
+pub struct HullStrip {
+    /// Each live section's [`StripTarget::parts`], summed. A section that
+    /// yields no whole part adds nothing but still comes off.
     pub parts: BTreeMap<ItemDesignId, u32>,
-    /// Game seconds the strip takes, see [`strip_duration_secs`].
+    /// Game seconds the strip takes: each section's
+    /// [`strip_duration_secs`], summed.
     pub duration_secs: f32,
 }
 
-/// Why a strip changes nothing, in check order.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SectionStripRefusalType {
+/// Why a whole-hull strip does not start, in check order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HullStripRefusalType {
     /// The ship has no docked partner.
     NotDocked,
-    /// The ship is already stripping a section.
+    /// The ship is already stripping a hull.
     Busy,
+    /// The partner is a living station: it trades, it is not salvage.
+    LivingStation,
     /// The partner is neither neutralized nor lootable.
     NotLootable,
-    /// The section is not a live section of the partner: it is stripped or
-    /// destroyed.
-    SectionGone,
-    /// The section is the partner's port that holds the dock.
-    Berth,
-    /// Removing the section would split the partner's hull in two.
-    SplitsHull,
-    /// At its health the section yields no whole part.
-    NoParts,
-    /// The parts weigh more than the ship's hold has room for.
+}
+
+/// Why a running strip holds at a finished section instead of taking it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HullStripPauseType {
+    /// The section's parts weigh more than the ship's hold has room for.
     HoldFull {
         /// Grams the parts weigh.
         need_g: u64,
@@ -1506,57 +1522,60 @@ pub enum SectionStripRefusalType {
     },
 }
 
-/// Plan stripping one section of the docked partner into the ship's `own`
-/// hold.
+/// Plan stripping the whole docked partner.
 ///
-/// `partner_lootable` is `None` while the ship is not docked, else whether
-/// the partner may be looted: it is neutralized or carries
-/// [`LootableShipMarker`], the rule a Take reads. `busy` is whether the ship
-/// is stripping another section. `target` is `None` when the section is not
-/// live on the partner. The parts are [`BuildRecipe::strip_parts_at`] the
-/// section's health share. Checks run in [`SectionStripRefusalType`] order,
-/// and a refusal changes nothing.
-pub fn plan_section_strip(
-    items: &GameItems,
-    partner_lootable: Option<bool>,
+/// `partner` is `None` while the ship is not docked. `busy` is whether the
+/// ship is already stripping. Checks run in [`HullStripRefusalType`] order,
+/// and a refusal changes nothing. The plan's parts are what the strip gives
+/// if no section is damaged meanwhile; the hold is not checked here, because
+/// a strip that fills the hold pauses ([`plan_section_yield`]) rather than
+/// refusing.
+pub fn plan_hull_strip(
+    partner: Option<&HullStripPartner<'_>>,
     busy: bool,
-    target: Option<StripTarget<'_>>,
-    own: &ShipInventory,
-) -> Result<SectionStrip, SectionStripRefusalType> {
-    let lootable = partner_lootable.ok_or(SectionStripRefusalType::NotDocked)?;
+) -> Result<HullStrip, HullStripRefusalType> {
+    let partner = partner.ok_or(HullStripRefusalType::NotDocked)?;
     if busy {
-        return Err(SectionStripRefusalType::Busy);
+        return Err(HullStripRefusalType::Busy);
     }
-    if !lootable {
-        return Err(SectionStripRefusalType::NotLootable);
+    if partner.living_station {
+        return Err(HullStripRefusalType::LivingStation);
     }
-    let target = target.ok_or(SectionStripRefusalType::SectionGone)?;
-    if target.berth {
-        return Err(SectionStripRefusalType::Berth);
+    if !partner.lootable {
+        return Err(HullStripRefusalType::NotLootable);
     }
-    if target.splits_hull {
-        return Err(SectionStripRefusalType::SplitsHull);
+    let mut parts = BTreeMap::new();
+    let mut duration_secs = 0.0;
+    for section in &partner.sections {
+        for (item, count) in section.parts() {
+            *parts.entry(item).or_insert(0) += count;
+        }
+        duration_secs += strip_duration_secs(section.recipe);
     }
-    let parts: BTreeMap<ItemDesignId, u32> = target
-        .recipe
-        .strip_parts_at(target.health_share)
-        .map(|(item, count)| (item.clone(), count))
-        .collect();
-    if parts.is_empty() {
-        return Err(SectionStripRefusalType::NoParts);
-    }
+    Ok(HullStrip {
+        parts,
+        duration_secs,
+    })
+}
+
+/// The parts one finished section puts in the ship's `own` hold, or why the
+/// strip holds there: the parts do not fit. An empty map is a section that
+/// yields no whole part; it comes off all the same.
+pub fn plan_section_yield(
+    items: &GameItems,
+    target: StripTarget<'_>,
+    own: &ShipInventory,
+) -> Result<BTreeMap<ItemDesignId, u32>, HullStripPauseType> {
+    let parts = target.parts();
     let need_g: u64 = parts
         .iter()
         .map(|(item, &count)| items.design(item).stack_mass_g(count))
         .sum();
     let free_g = own.free_g(items);
     if need_g > u64::from(free_g) {
-        return Err(SectionStripRefusalType::HoldFull { need_g, free_g });
+        return Err(HullStripPauseType::HoldFull { need_g, free_g });
     }
-    Ok(SectionStrip {
-        parts,
-        duration_secs: strip_duration_secs(target.recipe),
-    })
+    Ok(parts)
 }
 
 /// The docked partner a station service reads: whether it offers the
@@ -2518,8 +2537,6 @@ mod strip_tests {
         StripTarget {
             recipe,
             health_share,
-            berth: false,
-            splits_hull: false,
         }
     }
 
@@ -2528,12 +2545,7 @@ mod strip_tests {
     #[test]
     fn a_strip_returns_the_recipe_times_yield_times_health_rounded_down() {
         let recipe = recipe();
-        let at = |share: f32| -> BTreeMap<ItemDesignId, u32> {
-            recipe
-                .strip_parts_at(share)
-                .map(|(item, count)| (item.clone(), count))
-                .collect()
-        };
+        let at = |share: f32| target(&recipe, share).parts();
         assert_eq!(
             at(1.0),
             [("FrameSpar".into(), 1), ("SectionPanel".into(), 3)].into()
@@ -2548,58 +2560,65 @@ mod strip_tests {
         }
     }
 
-    /// Each refusal fires in its documented order, and a clean plan carries
-    /// the parts and the time.
+    /// A hull strip refuses in its documented order, and a clean plan sums
+    /// every section's parts and time; a section that yields nothing still
+    /// takes its time.
     #[test]
-    fn a_strip_refuses_in_order_and_plans_the_parts_and_the_time() {
-        use SectionStripRefusalType::*;
-        let items = crate::test_support::test_items();
+    fn a_hull_strip_refuses_in_order_and_sums_every_section() {
+        use HullStripRefusalType::*;
         let recipe = recipe();
-        let roomy = hold(&items, 10_000_000);
-        let whole = Some(target(&recipe, 1.0));
-        let plan = |lootable, busy, target, own: &ShipInventory| {
-            plan_section_strip(&items, lootable, busy, target, own)
+        let partner = |living_station, lootable| HullStripPartner {
+            living_station,
+            lootable,
+            sections: vec![target(&recipe, 1.0), target(&recipe, 0.1)],
         };
-
-        assert_eq!(plan(None, true, None, &roomy), Err(NotDocked));
-        assert_eq!(plan(Some(false), true, None, &roomy), Err(Busy));
-        assert_eq!(plan(Some(false), false, whole, &roomy), Err(NotLootable));
-        assert_eq!(plan(Some(true), false, None, &roomy), Err(SectionGone));
-        let berth = StripTarget {
-            berth: true,
-            splits_hull: true,
-            ..target(&recipe, 1.0)
-        };
-        assert_eq!(plan(Some(true), false, Some(berth), &roomy), Err(Berth));
-        let splits = StripTarget {
-            splits_hull: true,
-            ..target(&recipe, 1.0)
-        };
+        assert_eq!(plan_hull_strip(None, true), Err(NotDocked));
+        assert_eq!(plan_hull_strip(Some(&partner(true, true)), true), Err(Busy));
         assert_eq!(
-            plan(Some(true), false, Some(splits), &roomy),
-            Err(SplitsHull)
+            plan_hull_strip(Some(&partner(true, true)), false),
+            Err(LivingStation)
         );
         assert_eq!(
-            plan(Some(true), false, Some(target(&recipe, 0.1)), &roomy),
-            Err(NoParts)
+            plan_hull_strip(Some(&partner(false, false)), false),
+            Err(NotLootable)
         );
-        let need_g = 3 * items.design(&"SectionPanel".into()).mass_g as u64
-            + items.design(&"FrameSpar".into()).mass_g as u64;
-        let tight = hold(&items, need_g as u32 - 1);
-        assert_eq!(
-            plan(Some(true), false, whole, &tight),
-            Err(HoldFull {
-                need_g,
-                free_g: need_g as u32 - 1
-            })
-        );
-        let strip = plan(Some(true), false, whole, &hold(&items, need_g as u32))
-            .expect("a lootable partner's whole section with room strips");
+        let strip =
+            plan_hull_strip(Some(&partner(false, true)), false).expect("a lootable wreck strips");
         assert_eq!(
             strip.parts,
             [("FrameSpar".into(), 1), ("SectionPanel".into(), 3)].into()
         );
-        assert_eq!(strip.duration_secs, 8.0);
+        assert_eq!(strip.duration_secs, 16.0);
+    }
+
+    /// A finished section's parts go in while they fit; a hold short by one
+    /// gram holds the strip with the mass needed and free.
+    #[test]
+    fn a_section_whose_parts_do_not_fit_pauses_the_strip() {
+        let items = crate::test_support::test_items();
+        let recipe = recipe();
+        let need_g = 3 * items.design(&"SectionPanel".into()).mass_g as u64
+            + items.design(&"FrameSpar".into()).mass_g as u64;
+        assert_eq!(
+            plan_section_yield(
+                &items,
+                target(&recipe, 1.0),
+                &hold(&items, need_g as u32 - 1)
+            ),
+            Err(HullStripPauseType::HoldFull {
+                need_g,
+                free_g: need_g as u32 - 1
+            })
+        );
+        assert_eq!(
+            plan_section_yield(&items, target(&recipe, 1.0), &hold(&items, need_g as u32)),
+            Ok([("FrameSpar".into(), 1), ("SectionPanel".into(), 3)].into())
+        );
+        // Nothing to carry fits a full hold: the section comes off empty.
+        assert_eq!(
+            plan_section_yield(&items, target(&recipe, 0.1), &hold(&items, 0)),
+            Ok(BTreeMap::new())
+        );
     }
 
     /// The time is one second per recipe part, with a floor for small parts.
