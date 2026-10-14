@@ -689,6 +689,14 @@ name = "system_station_own"
 path = "examples/systems/system_station_own.rs"
 required-features = ["debug"]
 
+# A section stripped off a docked generated derelict through the Ship pane:
+# recipe parts by yield and health in the hold, gone across a retired cell,
+# refused twice over and on a hull that is not lootable.
+[[example]]
+name = "system_station_strip"
+path = "examples/systems/system_station_strip.rs"
+required-features = ["debug"]
+
 # A living generated station's trade and storage through the Inventory pane:
 # buy, sell and store by clicks, the storage kept through a retire and a thaw,
 # withdrawn whole, an over-cap store refused on the form, and the storage
