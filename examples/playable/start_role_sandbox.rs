@@ -23,7 +23,11 @@
 //! 3. `:` opens the shell: `cheats enable`, then `credits give <ship-id>
 //!    1000` or `credits set <ship-id> 0`, with the ship id from the panel;
 //! 4. Esc opens the pause menu; Settings > Graphics has Pause when
-//!    unfocused.
+//!    unfocused;
+//! 5. jettison and take back: TAB, Inventory, click a hold row, Jettison,
+//!    pick the quantity, Confirm; the canister leaves the intake door. Then
+//!    fly the intake door (top or bottom face, per the panel) onto the
+//!    canister: the box in front of the door is the pickup area.
 //!
 //! ```text
 //! nix develop --command cargo run --example start_role_sandbox --features debug -- --role pirate
@@ -32,11 +36,17 @@
 //! The diagnostics panel (`F3`) shows the role, the hull, the kit, the live
 //! balance and hold, the hull's value at ask and its trade-in by health, the
 //! cell and the distance from the origin, and the generated hulls in the
-//! window. The gizmos ring each generated hull at its containment radius,
-//! labelled with its span.
+//! window, whether the player hull has an intake and which face it is on,
+//! the pickups ready now, and the last jettison and pickup (item, count).
+//! The gizmos ring each generated hull at its containment radius, labelled
+//! with its span; draw each ship's intake face, its pickup area (the
+//! trigger box), its detection range and its normal; and ring each drifting
+//! canister, labelled with its contents.
 //!
 //! Under `NOVA_AUTOPILOT=1` (debug only) a smoke walk waits for the window,
-//! checks the player is the role's hull with the role's kit, and shoots
+//! checks the player is the role's hull with the role's kit and an intake,
+//! jettisons one unit of the kit's first item as the Inventory pane's
+//! Jettison applies its plan, waits for the panel to log it, and shoots
 //! `start-role-<role>.png` with `NOVA_CAPTURE=1`. Unset, no walk and no
 //! deadline run.
 
@@ -105,8 +115,8 @@ fn main() -> bevy::app::AppExit {
         phase: SandboxPhaseType::Streaming,
     });
     app.add_plugins(diagnostics::PlayableDiagnosticsPlugin::new(
-        "fly the role's hull   [TAB] interface, [M] next tab, [C] chart on Map   [:] shell: \
-         cheats enable, credits give <ship-id> 1000",
+        "fly the role's hull   [TAB] interface, [M] next tab, [C] chart on Map   TAB Inventory: \
+         Jettison, then fly the intake box onto the canister   [:] shell: cheats enable",
     ));
     app.add_systems(
         Update,
@@ -116,6 +126,19 @@ fn main() -> bevy::app::AppExit {
         PostUpdate,
         draw_the_start
             .in_set(DiagnosticsSystems)
+            .after(TransformSystems::Propagate)
+            .run_if(in_state(GameStates::Playing)),
+    );
+    app.init_resource::<IntakeLog>();
+    app.add_observer(note_a_canister_born);
+    app.add_observer(note_a_canister_gone);
+    app.add_observer(note_a_jettison);
+    app.add_observer(note_a_pickup);
+    app.add_systems(
+        PostUpdate,
+        draw_the_intakes
+            .in_set(DiagnosticsSystems)
+            .after(draw_the_start)
             .after(TransformSystems::Propagate)
             .run_if(in_state(GameStates::Playing)),
     );
@@ -322,6 +345,193 @@ fn draw_the_start(
     ));
 }
 
+/// One canister's contents as `(item, count)` pairs.
+type Contents = Vec<(String, u32)>;
+
+/// The player's last jettison and pickup. The intake triggers its event
+/// after it spawns or despawns the canister, and the event names only the
+/// intake, so the canister's contents wait in `moved` until the event says
+/// which intake moved it.
+#[derive(Resource, Default, Debug)]
+struct IntakeLog {
+    moved: Contents,
+    last_jettison: Option<Contents>,
+    last_pickup: Option<Contents>,
+}
+
+fn contents_of(canister: &CargoCanister) -> Contents {
+    canister
+        .stacks()
+        .map(|(item, count)| (item.to_string(), count))
+        .collect()
+}
+
+fn show_contents(contents: Option<&Contents>) -> String {
+    contents.map_or_else(
+        || "-".to_string(),
+        |contents| {
+            contents
+                .iter()
+                .map(|(item, count)| format!("{count} {item}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        },
+    )
+}
+
+fn note_a_canister_born(
+    add: On<Add, CargoCanister>,
+    q_canisters: Query<&CargoCanister>,
+    mut log: ResMut<IntakeLog>,
+) {
+    if let Ok(canister) = q_canisters.get(add.entity) {
+        log.moved = contents_of(canister);
+    }
+}
+
+fn note_a_canister_gone(
+    remove: On<Remove, CargoCanister>,
+    q_canisters: Query<&CargoCanister>,
+    mut log: ResMut<IntakeLog>,
+) {
+    if let Ok(canister) = q_canisters.get(remove.entity) {
+        log.moved = contents_of(canister);
+    }
+}
+
+/// True when `intake` is a section of the player ship.
+fn on_the_player(
+    intake: Entity,
+    q_parents: &Query<&ChildOf>,
+    q_player: &Query<(), With<PlayerSpaceshipMarker>>,
+) -> bool {
+    q_parents
+        .get(intake)
+        .is_ok_and(|parent| q_player.contains(parent.parent()))
+}
+
+fn note_a_jettison(
+    ejected: On<CargoCanisterEjected>,
+    q_parents: Query<&ChildOf>,
+    q_player: Query<(), With<PlayerSpaceshipMarker>>,
+    mut log: ResMut<IntakeLog>,
+) {
+    if on_the_player(ejected.entity, &q_parents, &q_player) {
+        log.last_jettison = Some(std::mem::take(&mut log.moved));
+    }
+}
+
+fn note_a_pickup(
+    taken: On<CargoCanisterTaken>,
+    q_parents: Query<&ChildOf>,
+    q_player: Query<(), With<PlayerSpaceshipMarker>>,
+    mut log: ResMut<IntakeLog>,
+) {
+    if on_the_player(taken.entity, &q_parents, &q_player) {
+        log.last_pickup = Some(std::mem::take(&mut log.moved));
+    }
+}
+
+/// Each live intake's face, pickup area, detection range and normal, each
+/// drifting canister with its contents, and the player's intake traffic.
+fn draw_the_intakes(
+    mut gizmos: Gizmos<DiagnosticsGizmos>,
+    mut panel: ResMut<DiagnosticsPanel>,
+    log: Res<IntakeLog>,
+    readiness: Option<Res<CargoPickupReadiness>>,
+    q_player: Query<(Entity, &GlobalTransform), With<PlayerSpaceshipMarker>>,
+    q_intakes: Query<
+        (
+            Entity,
+            &GlobalTransform,
+            &CargoIntakeSectionConfigHelper,
+            &SectionCollider,
+            &ChildOf,
+        ),
+        (With<CargoIntakeSectionMarker>, With<SectionMarker>),
+    >,
+    q_canisters: Query<(&GlobalTransform, &CargoCanister)>,
+) {
+    let player = q_player.single().ok();
+    let ready = |intake: Entity| {
+        readiness.as_deref().is_some_and(|readiness| {
+            readiness
+                .pairs
+                .iter()
+                .any(|pair| pair.intake == intake && pair.ready)
+        })
+    };
+    let mut faces: Vec<&str> = Vec::new();
+    for (intake, transform, config, collider, parent) in &q_intakes {
+        let rotation = transform.rotation();
+        let (face, normal) = cargo_intake_face(transform.translation(), rotation, *collider);
+        let gap = config.capture_gap.to_engine();
+        let mine = player.is_some_and(|(ship, _)| ship == parent.parent());
+        let color = if ready(intake) {
+            palette::PUSH
+        } else if mine {
+            palette::OK
+        } else {
+            palette::MUTED
+        };
+        gizmos.cube(
+            Transform::from_translation(face + normal * gap * 0.5)
+                .with_rotation(rotation)
+                .with_scale(Vec3::new(
+                    config.aperture_width.to_engine(),
+                    config.aperture_height.to_engine(),
+                    gap,
+                )),
+            color,
+        );
+        let range = config.detection_range.to_engine();
+        diagnostics::ring(&mut gizmos, face, normal, range, color);
+        diagnostics::vector(&mut gizmos, face, normal, range, color);
+        if let Some((_, ship)) = player.filter(|_| mine) {
+            let up = ship.rotation().inverse() * normal;
+            let side = if up.y > 0.5 {
+                "top"
+            } else if up.y < -0.5 {
+                "bottom"
+            } else {
+                "side"
+            };
+            faces.push(side);
+            panel.label(face + normal * range, format!("intake ({side})"));
+        }
+    }
+    let size = CARGO_CANISTER_SIZE.length() * 0.5;
+    let mut drifting = 0;
+    for (transform, canister) in &q_canisters {
+        drifting += 1;
+        let centre = transform.translation();
+        diagnostics::sphere(&mut gizmos, centre, size, palette::TARGET);
+        panel.label(centre, show_contents(Some(&contents_of(canister))));
+    }
+    let ready_now = player.map_or(0, |(ship, _)| {
+        readiness.as_deref().map_or(0, |readiness| {
+            readiness
+                .pairs
+                .iter()
+                .filter(|pair| pair.ship == ship && pair.ready)
+                .count()
+        })
+    });
+    let intake = if faces.is_empty() {
+        "no".to_string()
+    } else {
+        format!("yes ({})", faces.join(", "))
+    };
+    panel.line(format!(
+        "intake: {intake}   canisters drifting: {drifting}   pickups ready: {ready_now}"
+    ));
+    panel.line(format!(
+        "last jettison: {}   last pickup: {}",
+        show_contents(log.last_jettison.as_ref()),
+        show_contents(log.last_pickup.as_ref())
+    ));
+}
+
 #[cfg(feature = "debug")]
 mod smoke {
     use std::{collections::BTreeMap, sync::Arc};
@@ -336,6 +546,8 @@ mod smoke {
     const SHOT_SECS: f32 = 120.0;
     /// Frames the scene gets to settle before the shot.
     const SETTLE_FRAMES: u32 = 10;
+    /// Seconds the intake gets to open its door and drop the canister.
+    const JETTISON_SECS: f32 = 120.0;
 
     fn ready(world: &World) -> bool {
         world
@@ -387,6 +599,13 @@ mod smoke {
             .map(|(item, count)| (item.to_string(), count))
             .collect();
         assert_eq!(held, kit, "start role sandbox: kit stock");
+        let mut q_intakes = world.query_filtered::<&ChildOf, With<CargoIntakeSectionMarker>>();
+        assert!(
+            q_intakes
+                .iter(world)
+                .any(|parent| parent.parent() == player),
+            "start role sandbox: '{id}' hull has no intake"
+        );
         let cell = world
             .get::<Position>(player)
             .and_then(|position| cell_of(world, position.0));
@@ -397,8 +616,64 @@ mod smoke {
         );
     }
 
-    /// The smoke walk: the world streams in, the start is the role's, and a
-    /// frame of it with the diagnostics up is shot.
+    /// The kit's first item: the one the smoke jettisons.
+    fn first_kit_item(world: &World) -> ItemDesignId {
+        let id = world.resource::<Sandbox>().role.clone();
+        world
+            .resource::<GameStartRoles>()
+            .get_role(&StartRoleDesignId::from(id.as_str()))
+            .and_then(|role| role.kit.stock.stacks().next().map(|(item, _)| item.clone()))
+            .unwrap_or_else(|| panic!("start role sandbox: '{id}' starts with an empty hold"))
+    }
+
+    /// Jettison one unit of the kit's first item through the player's first
+    /// intake, as the Inventory pane's Jettison applies its plan.
+    fn jettison_one_item(world: &mut World) {
+        let player = the_player(world).expect("start role sandbox: one player ship");
+        let mut q_intakes =
+            world.query_filtered::<(Entity, &ChildOf), With<CargoIntakeSectionMarker>>();
+        let intake = q_intakes
+            .iter(world)
+            .find(|(_, parent)| parent.parent() == player)
+            .map(|(intake, _)| intake)
+            .expect("start role sandbox: the player hull has an intake");
+        let item = first_kit_item(world);
+        let own = world
+            .get::<ShipInventory>(player)
+            .expect("start role sandbox: the player carries a hold")
+            .clone();
+        let plan = plan_item_jettison(
+            world.resource::<GameItems>(),
+            world.get::<DockedShip>(player).is_some(),
+            true,
+            None,
+            &item,
+            Some(1),
+            &own,
+        )
+        .unwrap_or_else(|refusal| panic!("start role sandbox: jettison refused: {refusal:?}"));
+        world
+            .get_mut::<ShipInventory>(player)
+            .expect("start role sandbox: the player carries a hold")
+            .remove(&item, plan.count);
+        world
+            .entity_mut(intake)
+            .insert(CargoIntakeEjectionQueue(plan.canisters.into()));
+    }
+
+    /// The panel logged the jettison: one unit of the kit's first item.
+    fn jettison_logged(world: &World) -> bool {
+        let item = first_kit_item(world).to_string();
+        world
+            .resource::<IntakeLog>()
+            .last_jettison
+            .as_ref()
+            .is_some_and(|contents| *contents == [(item.clone(), 1)])
+    }
+
+    /// The smoke walk: the world streams in, the start is the role's, one
+    /// item leaves the intake and the panel logs it, and a frame of it with
+    /// the diagnostics up is shot.
     pub(super) fn script(shot: &str) -> AutopilotPlugin<GameStates> {
         let name = shot.to_string();
         AutopilotPlugin::<GameStates>::new()
@@ -409,6 +684,12 @@ mod smoke {
             .add()
             .step("start role sandbox: check the start")
             .on_enter(assert_the_start)
+            .add()
+            .step("start role sandbox: jettison one kit item")
+            .on_enter(jettison_one_item)
+            .until(Arc::new(jettison_logged))
+            .diagnose(|world| format!("{:?}", world.get_resource::<IntakeLog>()))
+            .deadline(JETTISON_SECS)
             .add()
             .step("start role sandbox: settle")
             .until(frames(SETTLE_FRAMES))
