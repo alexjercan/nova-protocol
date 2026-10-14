@@ -29,12 +29,14 @@ use crate::{
     keybind::EditorRebind,
     node::{
         node_of_view, sections_of, spawn_object_node, spawn_section_node, spawn_ship_node,
-        EditContext, NextChildOrdinal, NodeView, ObjectChoice, ObjectNode, SectionNode,
+        EditContext, NextChildOrdinal, NodeId, NodeView, ObjectChoice, ObjectNode, SectionNode,
         SectionNodes, ShipDriver, ShipNode,
     },
     palette,
     preview::{insert_preview_section, PreviewRole},
+    scenario::lower_fleet,
     snap::{self, PlacedSection},
+    station::{short_fault, StationCatalogs},
     ExampleStates,
 };
 
@@ -549,14 +551,37 @@ pub(crate) fn found_empty_ship(
 /// out inside a ship, and this is the same rule stated where the transition
 /// actually happens - a disabled button is a paint job, and the keyboard, the
 /// autopilot and any future shortcut all arrive here instead.
+///
+/// And only with every ship marked as a station able to be one. A hull the
+/// station lint refuses - a thruster on it, no docking port, no controller -
+/// is said on the status line by name, with its faults, and nothing flies:
+/// spawning it as a ship instead would hide the mark the builder set.
 pub(crate) fn continue_to_simulation(
     _activate: On<Activate>,
     context: Res<EditContext>,
+    q_ships: Query<(Entity, &NodeId, &ShipNode, &Transform)>,
+    nodes: SectionNodes,
+    catalogs: StationCatalogs,
     mut game_state: ResMut<NextState<ExampleStates>>,
     mut says: EditorSays,
 ) {
     if context.ship().is_some() {
         says.refuse("Play flies the whole scenario - leave the ship first");
+        return;
+    }
+    if let Some((name, faults)) = catalogs
+        .refused(&lower_fleet(&q_ships, &nodes))
+        .into_iter()
+        .next()
+    {
+        says.refuse(format!(
+            "{name} cannot be a station: {}",
+            faults
+                .iter()
+                .map(|fault| short_fault(fault))
+                .collect::<Vec<_>>()
+                .join("; ")
+        ));
         return;
     }
     game_state.set(ExampleStates::Scenario);

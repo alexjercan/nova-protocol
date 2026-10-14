@@ -1191,7 +1191,7 @@ fn an_object_reports_where_it_stands() {
 
 #[test]
 fn a_ship_reports_who_flies_it() {
-    let rows = ship_rows(&ShipNode::default(), &Transform::default());
+    let rows = ship_rows(&ShipNode::default(), &Transform::default(), &[]);
 
     assert_eq!(
         row(&rows, "Driver").value,
@@ -1220,7 +1220,7 @@ fn a_seeded_hull_reads_as_a_ship_rather_than_as_a_spawn_config() {
         ..default()
     };
 
-    let rows = ship_rows(&picket, &Transform::default());
+    let rows = ship_rows(&picket, &Transform::default(), &[]);
 
     assert_eq!(text_of(&rows, "Name"), "Picket Warden");
     assert_eq!(row(&rows, "Driver").value, RowValue::Driver(ShipDriver::Ai));
@@ -1244,7 +1244,7 @@ fn a_ship_is_named_like_anything_else_in_the_document() {
         name: "Kestrel".to_string(),
         ..default()
     };
-    let rows = ship_rows(&ship, &Transform::default());
+    let rows = ship_rows(&ship, &Transform::default(), &[]);
 
     assert_eq!(text_of(&rows, "Name"), "Kestrel");
     assert_eq!(

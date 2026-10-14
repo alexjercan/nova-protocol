@@ -11,6 +11,7 @@
 use nova_gameplay::prelude::{ItemRoleType, ShipInventoryStock};
 use nova_scenario::prelude::{
     ShipDesign, ShipIntegrityConfig, SpaceshipSectionConfig, StationDesign, StationServiceType,
+    STATION_COLLAPSE_THRESHOLD,
 };
 use nova_world_base::prelude::{
     ARMOURED_STYLE_ID, BLOCK_WAYSTATION_STATION_ID, INDUSTRIAL_STYLE_ID, RING_STATION_STATION_ID,
@@ -35,11 +36,6 @@ const WAYSTATION_STORAGE_CAP_G: u32 = 100_000;
 /// Grams an armed station stores for the ships that dock with it: the
 /// waystation's cap, so a docked ship reads the same store at every station.
 const ARMED_STATION_STORAGE_CAP_G: u32 = WAYSTATION_STORAGE_CAP_G;
-
-/// The share of its hull pool at which a station collapses: half, above the
-/// ship default, so a station comes apart sooner, a sever that cuts away
-/// half of it included.
-const STATION_COLLAPSE_THRESHOLD: f32 = 0.5;
 
 /// Every shipped station, in stable generated-content order.
 pub(crate) fn station_catalog(assets: &BaseContentAssets) -> Vec<StationDesign> {

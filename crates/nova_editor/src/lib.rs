@@ -24,6 +24,7 @@
 //! - `stage`     - the ground plane the range is laid out on
 //! - `highlight` - the node under the pointer, lit on the rail and on the stage
 //! - `generate`  - the seed, and the hull the collapse builds from it
+//! - `station`   - the station design a ship marked as a station spawns as
 //! - `scenario`  - the default world a document is seeded with, and the sandbox script
 //! - `template`  - the worlds File > New Scenario can start from
 //! - `event`     - the script as nodes: a handler, its filters and actions, its
@@ -70,6 +71,7 @@ mod scenario;
 mod skin;
 mod snap;
 mod stage;
+mod station;
 mod template;
 mod ui;
 

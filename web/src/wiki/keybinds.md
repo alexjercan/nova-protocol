@@ -556,6 +556,15 @@ the skin and the plating closes over it before you click. A placement the editor
 refuses stays bare. The toggle carries through to Play, so the ship you built
 clad is the ship you fly clad.
 
+**Station**, a checkbox on a ship's inspector, spawns that hull as a station:
+parked, docked with, and offering Rebuild, Refit, Trade and Storage. The hull
+needs a docking port and a controller, and no thruster. Under the box, the
+**Station Check** row reads `ready`, or the first fault, with all of them in
+its hint. Play refuses a marked hull that fails and names it and its faults on
+the status line. The ship you fly cannot be a station. Driver **AI** spawns a
+living station, and **None** spawns a dead one. Save writes the hull as a
+station, and Open reads it back as a marked ship.
+
 ### Generate a hull
 
 **Generate**, in the same left-rail block, rolls a whole hull into the ship you

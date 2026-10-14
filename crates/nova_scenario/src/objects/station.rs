@@ -65,9 +65,15 @@ pub mod prelude {
         freeze_station, station_orbit_velocity, station_scenario_object, thaw_station,
         FrozenStation, GameStationDesigns, StationConfig, StationDesign, StationDesignId,
         StationMarker, StationServiceType, StationServices, StationStorage,
-        STATION_LEVEL_TOLERANCE_RAD, STATION_ORBIT_TOLERANCE,
+        STATION_COLLAPSE_THRESHOLD, STATION_LEVEL_TOLERANCE_RAD, STATION_ORBIT_TOLERANCE,
     };
 }
+
+/// The share of its hull pool at which a station collapses: half, above the
+/// ship default, so a station comes apart sooner, a sever that cuts away
+/// half of it included. Every shipped station and every station the sandbox
+/// editor writes authors this value.
+pub const STATION_COLLAPSE_THRESHOLD: f32 = 0.5;
 
 /// How far off its parked attitude a settled station may rest, in radians.
 ///

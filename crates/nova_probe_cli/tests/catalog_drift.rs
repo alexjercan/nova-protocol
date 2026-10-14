@@ -1034,6 +1034,18 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_sandbox_station",
+        &[
+            "a marked hull with no port reads as no station",
+            "Play refuses a hull the station lint refuses",
+            "a marked hull with a port and a controller reads ready",
+            "the marked hull spawns as a station",
+            "the sandbox station holds still with no thrust",
+            "the sandbox station levels",
+            "the sandbox station admits a dock",
+        ],
+    ),
+    (
         "system_station_storage",
         &[
             "the docked player buys and sells at a living station",
@@ -1067,7 +1079,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 523;
+const SYSTEMS_INVARIANTS: usize = 530;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

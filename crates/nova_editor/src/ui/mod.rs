@@ -1711,7 +1711,7 @@ fn wanted_rows(
         // WHO FLIES IT in the lead, WHERE YOU ARE in the trail. One column
         // for both meant entering the player's ship hid the fact that it was
         // the player's.
-        let (glyph, kind) = ship_mark(node.driver);
+        let (glyph, kind) = ship_mark(node);
         let (label, ordinal) = tree_text(&node.name, &id.0);
         let inside = entered == Some(ship);
         // ONE walk for both: this row's count and the rows under it are the

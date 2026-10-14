@@ -105,12 +105,15 @@ fn a_seeded_hull_reads_as_a_ship_by_who_flies_it() {
         seeded(SpaceshipController::Player(
             PlayerControllerConfig::default()
         )),
-        ship_mark(ShipDriver::Player),
+        ship_mark(&ShipNode::default()),
         "the ship Play hands the player reads the same seeded or minted"
     );
     assert_eq!(
         seeded(SpaceshipController::AI(AIControllerConfig::default())),
-        ship_mark(ShipDriver::Ai),
+        ship_mark(&ShipNode {
+            driver: ShipDriver::Ai,
+            ..ShipNode::default()
+        }),
         "a picket is an AI ship and the tree should say so"
     );
     let (glyph, kind) = seeded(SpaceshipController::None);

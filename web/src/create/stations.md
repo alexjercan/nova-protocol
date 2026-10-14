@@ -261,6 +261,14 @@ SpawnScenarioObject((
 A station spawn takes no section patches and no inline design: a station is
 the design, and a one-off station is one more `Station` item.
 
+The Sandbox editor writes the same pair. A ship marked **Station** in its
+inspector saves as a `Station` item under the ship's node id and a `Station`
+object that spawns it. The editor writes the hull and its side and fills the
+rest: the four services, a 100 kg storage cap, 5000 credits, and the base
+waystation's hull plates, rations and salvaged parts cut to fit the hull's
+hold. Driver **None** saves `derelict: true`. The content lint checks the
+saved station like any other.
+
 ## Overlay and lint
 
 Overlay is last-wins by id, as for every content kind: a mod that defines a

@@ -55,9 +55,11 @@ use crate::{
     keybind::on_rebind_action,
     node::{
         default_allegiance, id_order, EditContext, NodeId, ObjectBodyStale, ObjectNode,
-        ScenarioNode, SectionNode, ShipDriver, ShipNode,
+        ScenarioNode, SectionNode, SectionNodes, ShipDriver, ShipNode,
     },
     preview::body_is_drawn_from,
+    scenario::lower_ship,
+    station::StationCatalogs,
     ui::{
         layer,
         window::{on_open_colour_window, on_open_pick_window, on_open_ref_window},
@@ -400,6 +402,11 @@ pub(crate) struct Document<'w, 's> {
     gates: Query<'w, 's, &'static GateNode>,
     expressions: Query<'w, 's, &'static ExpressionNode>,
     names: ScriptNames<'w, 's>,
+    /// Every section node with its pose: what a ship marked as a station is
+    /// lowered from to lint it.
+    section_nodes: SectionNodes<'w, 's>,
+    /// The catalogs that lint is run against.
+    stations: StationCatalogs<'w>,
 }
 
 impl Document<'_, '_> {
@@ -458,7 +465,16 @@ impl Document<'_, '_> {
             InspectTarget::Scenario(scenario) => self.scenario_rows(scenario),
             InspectTarget::Ship(ship) => {
                 let (node, pose) = self.ships.get(ship).ok()?;
-                ship_rows(node, pose)
+                // Linted only while the mark is on: an unmarked ship has no
+                // check row, and a big hull is not resolved for nothing.
+                let faults = if node.station {
+                    let id = self.ids.get(ship).ok()?;
+                    self.stations
+                        .faults_of(&lower_ship(ship, id, node, *pose, &self.section_nodes))
+                } else {
+                    Vec::new()
+                };
+                ship_rows(node, pose, &faults)
             }
             // CURATED unless the View menu says otherwise: a turret's whole
             // config is a joint tree nobody authors from a scenario, and the
@@ -2509,6 +2525,22 @@ impl EditTargets<'_, '_> {
             // Handled before the routing: a kind is swapped on the node, not
             // written through a path. See [`on_inspector_choice`].
             FieldRoot::Kind => Err("not a field".to_string()),
+            FieldRoot::Station => {
+                let mut ship = self
+                    .ships
+                    .get_mut(field.node)
+                    .map_err(|_| GRIP_GONE.to_string())?;
+                // The flown ship is never a station: lowering routes it to the
+                // player spawn, so a mark on it would be one the range never
+                // reads. Refused while it is still a click, as a second
+                // Player driver is.
+                if ship.driver == ShipDriver::Player && !ship.station {
+                    return Err(STATION_FLOWN.to_string());
+                }
+                if_it_took(&mut ship, |ship| {
+                    edit(&mut ship.station, &field.path, field.optional)
+                })
+            }
             FieldRoot::Config => {
                 if self.is_script(field.node) {
                     return self.edit_script(field, edit);
@@ -2756,6 +2788,12 @@ fn wrapped(window: &mut Window, at: Vec2, travel: f32) -> f32 {
     landing - at.x
 }
 
+/// Why the Station mark is refused on the ship the player flies.
+pub(crate) const STATION_FLOWN: &str = "the ship you fly cannot be a station - set it to AI first";
+
+/// Why the Player driver is refused on a ship marked as a station.
+pub(crate) const STATION_UNFLOWN: &str = "a station is not flown - clear Station first";
+
 /// Flip a `bool` field.
 pub(crate) fn on_inspector_flag(
     activate: On<Activate>,
@@ -2900,6 +2938,10 @@ pub(crate) fn on_inspector_driver(
     let Ok((_, mut ship, _)) = ships.get_mut(option.ship) else {
         return;
     };
+    if option.driver == ShipDriver::Player && ship.station {
+        says.refuse(STATION_UNFLOWN);
+        return;
+    }
     if ship.driver != option.driver {
         ship.driver = option.driver;
         ship.allegiance = default_allegiance(option.driver);

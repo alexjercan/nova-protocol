@@ -49,6 +49,7 @@ use crate::{
         ShipDriver, ShipNode, ShipNodes,
     },
     scenario::PLAYER_ID,
+    station::short_fault,
 };
 
 /// The document nodes the inspector can be pointed at, so one `get` answers
@@ -192,6 +193,12 @@ pub(crate) enum FieldRoot {
     /// children the old kind owned. See
     /// [`retype_script_node`](crate::event::retype_script_node).
     Kind,
+    /// Whether a ship is marked as a station: [`ShipNode::station`].
+    ///
+    /// Its own root because the mark is a field of the editor's node, not of
+    /// any authored config, and because setting it has a rule the write has
+    /// to keep - the ship the player flies is never a station.
+    Station,
 }
 
 /// One step of a reflection path.
@@ -2385,14 +2392,26 @@ pub(crate) fn curated_object_rows(object: &ObjectNode, pose: &Transform) -> Vec<
 /// one its driver implies.
 pub(crate) const IMPLIED_ALLEGIANCE: &str = "default";
 
-/// The rows a ship shows: who flies it, which side it is on, and where it
-/// sits.
+/// What the Station Check row reads when the hull can be a station.
+pub(crate) const STATION_READY: &str = "ready";
+
+/// The rows a ship shows: who flies it, which side it is on, whether it is a
+/// station, and where it sits.
 ///
 /// Allegiance is READ here, not set: it is what makes a picket dormant and a
 /// hulk inert, so a builder has to be able to see it - but the only way to
 /// choose one today is to choose a driver, and a control that offered more
 /// than that would be offering to break the wake script.
-pub(crate) fn ship_rows(ship: &ShipNode, pose: &Transform) -> Vec<InspectorRow> {
+///
+/// `station_faults` is what the station lint says about the hull as a
+/// station (see [`crate::station`]). A ship marked as one shows a read-only
+/// Station Check row under the mark: [`STATION_READY`], or the first fault
+/// with every fault in its hint. An unmarked ship shows no check.
+pub(crate) fn ship_rows(
+    ship: &ShipNode,
+    pose: &Transform,
+    station_faults: &[String],
+) -> Vec<InspectorRow> {
     let mut rows = vec![
         name_row(ship.name.clone()),
         InspectorRow {
@@ -2422,7 +2441,30 @@ pub(crate) fn ship_rows(ship: &ShipNode, pose: &Transform) -> Vec<InspectorRow> 
             ),
         )
         .saying("Which side this ship is on. It follows the driver unless a script overwrites it."),
+        InspectorRow {
+            root: FieldRoot::Station,
+            label: "Station".to_string(),
+            value: RowValue::Flag(ship.station),
+            ..fixed(FieldRoot::Station, "Station", "")
+        }
+        .saying(
+            "Spawn this hull as a station: parked, docked with, and offering rebuild, refit, \
+             trade and storage. It needs a docking port and a controller, and no thruster.",
+        ),
     ];
+    if ship.station {
+        let check = match station_faults.first() {
+            None => fixed(FieldRoot::Config, "Station Check", STATION_READY)
+                .saying("This hull can be a station."),
+            Some(first) => {
+                fixed(FieldRoot::Config, "Station Check", short_fault(first)).saying(format!(
+                    "Play refuses until this is fixed: {}.",
+                    station_faults.join("; ")
+                ))
+            }
+        };
+        rows.push(check);
+    }
     rows.extend(pose_rows(pose));
     rows
 }

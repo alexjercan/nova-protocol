@@ -49,7 +49,8 @@ use nova_modding::prelude::{BundleManifest, ModMeta};
 use nova_scenario::prelude::{
     AIControllerConfig, EventActionConfig, EventConfig, ScenarioConfig, ScenarioEventConfig,
     ScenarioObjectConfig, ScenarioObjectKind, SectionId, ShipDesignId, ShipDesignPrototype,
-    ShipDesignSource, SpaceshipController, SpaceshipSectionConfig,
+    ShipDesignSource, SpaceshipController, SpaceshipSectionConfig, StationConfig, StationDesign,
+    StationDesignId,
 };
 use nova_ship::prelude::{GameSections, TargetingSettings};
 use nova_ui::theme::UiColor;
@@ -66,6 +67,7 @@ use crate::{
         lower_fleet, ship_design, world_objects, world_script, world_settings, HullForm,
         LoweredFleet, Range,
     },
+    station::StationCatalogs,
 };
 
 /// Where one document is saved: the mod id it is written under, and the name
@@ -164,17 +166,22 @@ pub(crate) fn saved_range(id: &str) -> Range<'_> {
 ///
 /// Designs first because that is the order they are read in - a scenario
 /// referencing a prototype is easier to follow under the prototype than over
-/// it - and in id order, because the output is a file.
+/// it - and in id order, because the output is a file. A ship marked as a
+/// station writes its `stations` design, built by
+/// [`StationCatalogs::designs`], in place of a ship prototype: the range
+/// spawns it by that id.
 pub(crate) fn document_content(
     settings: &ScenarioNode,
     id: &str,
     world: Vec<ScenarioObjectConfig>,
     fleet: &LoweredFleet,
+    stations: Vec<StationDesign>,
     script: Vec<ScenarioEventConfig>,
     targeting: &TargetingSettings,
 ) -> Vec<Content> {
     let mut items: Vec<Content> = fleet
         .designs()
+        .filter(|ship| !ship.station)
         .map(|ship| {
             Content::Ship(ShipDesignPrototype {
                 id: ship.id.as_str().into(),
@@ -183,6 +190,7 @@ pub(crate) fn document_content(
             })
         })
         .collect();
+    items.extend(stations.into_iter().map(Content::Station));
     items.push(Content::Scenario(crate::scenario::range_scenario(
         settings,
         saved_range(id),
@@ -239,6 +247,8 @@ pub(crate) struct LiftedShip {
     /// The keys each section fires on, by section id. Sorted, because the
     /// document is rebuilt from it.
     pub(crate) binds: BTreeMap<SectionId, Vec<InputSource>>,
+    /// Whether the file spawned it as a station of its own design.
+    pub(crate) station: bool,
 }
 
 /// A saved file, split back into the two things the document is made of.
@@ -260,13 +270,22 @@ pub(crate) struct LiftedDocument {
 /// ship prototypes is a legal mod and an empty document, and the two are worth
 /// telling apart at the call site.
 pub(crate) fn lift_content(items: &[Content]) -> Option<LiftedDocument> {
-    let designs: BTreeMap<&ShipDesignId, &ShipDesignPrototype> = items
-        .iter()
-        .filter_map(|item| match item {
-            Content::Ship(ship) => Some((&ship.id, ship)),
-            _ => None,
-        })
-        .collect();
+    let designs = FileDesigns {
+        ships: items
+            .iter()
+            .filter_map(|item| match item {
+                Content::Ship(ship) => Some((&ship.id, ship)),
+                _ => None,
+            })
+            .collect(),
+        stations: items
+            .iter()
+            .filter_map(|item| match item {
+                Content::Station(station) => Some((&station.id, station)),
+                _ => None,
+            })
+            .collect(),
+    };
     let scenario = items.iter().find_map(|item| match item {
         Content::Scenario(scenario) => Some(scenario),
         _ => None,
@@ -298,18 +317,30 @@ pub(crate) fn lift_content(items: &[Content]) -> Option<LiftedDocument> {
     Some(lifted)
 }
 
+/// The designs one saved file carries, by id: what its spawns may reference
+/// and the editor can still show.
+#[derive(Default)]
+pub(crate) struct FileDesigns<'a> {
+    /// Its ship prototypes.
+    pub(crate) ships: BTreeMap<&'a ShipDesignId, &'a ShipDesignPrototype>,
+    /// Its station designs.
+    pub(crate) stations: BTreeMap<&'a StationDesignId, &'a StationDesign>,
+}
+
 /// Split authored spawns into the two things a document is made of.
 ///
 /// A HULL becomes a ship node - its sections are nodes of their own and a
-/// double click goes inside it. Everything else is an object, placed and
-/// lowered verbatim.
+/// double click goes inside it. A station of a design the same file carries
+/// is a hull too, and lifts as a ship node marked as a station. Everything
+/// else is an object, placed and lowered verbatim.
 ///
-/// The one hull that stays an object is one naming a prototype nothing here
-/// carries: the editor would have to invent the sections it cannot read, and a
-/// design it cannot show is not one it should offer to edit.
+/// The one hull that stays an object is one naming a design nothing here
+/// carries - a ship prototype, or a station from the shipped catalog: the
+/// editor would have to invent the sections it cannot read, and a design it
+/// cannot show is not one it should offer to edit.
 pub(crate) fn lift_objects(
     objects: impl IntoIterator<Item = ScenarioObjectConfig>,
-    designs: &BTreeMap<&ShipDesignId, &ShipDesignPrototype>,
+    designs: &FileDesigns,
 ) -> LiftedDocument {
     let mut lifted = LiftedDocument::default();
     for object in objects {
@@ -359,16 +390,15 @@ fn is_layout(event: &ScenarioEventConfig) -> bool {
 /// The node keeps the spawn's OWN id: a picket is `picket_warden` because the
 /// sandbox's wake handler flips that id, and the design a save wrote is
 /// referenced by the id it was written under.
-fn lift_ship(
-    object: &ScenarioObjectConfig,
-    designs: &BTreeMap<&ShipDesignId, &ShipDesignPrototype>,
-) -> Option<LiftedShip> {
-    let ScenarioObjectKind::Spaceship(spawn) = &object.kind else {
-        return None;
+fn lift_ship(object: &ScenarioObjectConfig, designs: &FileDesigns) -> Option<LiftedShip> {
+    let spawn = match &object.kind {
+        ScenarioObjectKind::Spaceship(spawn) => spawn,
+        ScenarioObjectKind::Station(station) => return lift_station(object, station, designs),
+        _ => return None,
     };
     let (id, design) = match &spawn.design {
         // A design of this file's own, under the id it was written with.
-        ShipDesignSource::Prototype { id, .. } => (id.to_string(), &designs.get(id)?.design),
+        ShipDesignSource::Prototype { id, .. } => (id.to_string(), &designs.ships.get(id)?.design),
         // A design authored in place - every seeded ship of the stock range.
         ShipDesignSource::Inline(design) => (object.base.id.clone(), design),
     };
@@ -403,6 +433,38 @@ fn lift_ship(
         style: design.presentation.style.clone(),
         sections: design.sections.clone(),
         binds,
+        station: false,
+    })
+}
+
+/// The ship node a station spawn stands for, when its design is one the same
+/// file carries: the hull lifts like a ship's, the node takes the design's id
+/// (which a save writes as the node id), and the station's life is its
+/// driver - AI for a living station, none for a dead one.
+fn lift_station(
+    object: &ScenarioObjectConfig,
+    station: &StationConfig,
+    designs: &FileDesigns,
+) -> Option<LiftedShip> {
+    let design = designs.stations.get(&station.design)?;
+    let driver = if station.derelict {
+        ShipDriver::Adrift
+    } else {
+        ShipDriver::Ai
+    };
+    Some(LiftedShip {
+        id: design.id.to_string(),
+        name: object.base.name.clone(),
+        driver,
+        allegiance: Some(station.allegiance),
+        pilot: AIControllerConfig::default(),
+        pose: Transform::from_translation(object.base.position.to_engine())
+            .with_rotation(object.base.rotation),
+        skin: design.hull.presentation.skin,
+        style: design.hull.presentation.style.clone(),
+        sections: design.hull.sections.clone(),
+        binds: BTreeMap::new(),
+        station: true,
     })
 }
 
@@ -427,6 +489,7 @@ pub(crate) fn insert_lifted_ship(
             driver: ship.driver,
             allegiance: ship.allegiance,
             pilot: ship.pilot.clone(),
+            station: ship.station,
         },
         ship.pose,
     );
@@ -664,6 +727,7 @@ pub(crate) fn apply_file_request(
     q_settings: Query<&ScenarioNode>,
     roots: Query<Entity, With<ScenarioNode>>,
     targeting: Option<Res<TargetingSettings>>,
+    catalogs: StationCatalogs,
 ) {
     let targeting = targeting.as_deref().cloned().unwrap_or_default();
     let asked = std::mem::take(&mut *request);
@@ -682,11 +746,21 @@ pub(crate) fn apply_file_request(
                 status.say("nothing has named this document yet", UiColor::Danger, now);
                 return;
             };
+            // A station design the lint refuses is still written: the file
+            // is the builder's work, and the content lint reports it when the
+            // mod loads. Play is where a refused station is stopped.
+            let fleet = lower_fleet(&q_ships, &nodes);
+            let stations = catalogs
+                .designs(&fleet, HullForm::Prototype)
+                .into_iter()
+                .map(|(design, _)| design)
+                .collect();
             let items = document_content(
                 &world_settings(&context, &q_settings),
                 &slot.id,
                 world_objects(&context, &q_objects),
-                &lower_fleet(&q_ships, &nodes),
+                &fleet,
+                stations,
                 world_script(&context, &script),
                 &targeting,
             );

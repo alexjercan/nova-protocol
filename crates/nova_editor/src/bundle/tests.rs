@@ -392,12 +392,20 @@ fn lower(world: &mut World) -> Vec<Content> {
              q_objects: ObjectNodes,
              script: ScriptNodes,
              q_ships: Query<(Entity, &NodeId, &ShipNode, &Transform)>,
-             q_settings: Query<&ScenarioNode>| {
+             q_settings: Query<&ScenarioNode>,
+             catalogs: StationCatalogs| {
+                let fleet = lower_fleet(&q_ships, &nodes);
+                let stations = catalogs
+                    .designs(&fleet, HullForm::Prototype)
+                    .into_iter()
+                    .map(|(design, _)| design)
+                    .collect();
                 document_content(
                     &world_settings(&context, &q_settings),
                     SAVED_ID,
                     world_objects(&context, &q_objects),
-                    &lower_fleet(&q_ships, &nodes),
+                    &fleet,
+                    stations,
                     world_script(&context, &script),
                     &TargetingSettings::default(),
                 )
@@ -900,4 +908,62 @@ fn a_tuned_section_is_saved_as_a_patch_on_the_part_it_names() {
     };
     assert_eq!(id, "light_hull_section");
     assert_eq!(patch.health, Some(250.0));
+}
+
+/// A ship marked as a station is saved as a STATION: its hull goes out as a
+/// station design under the node's id, the range spawns a station by that id,
+/// and Open brings the node back marked, with the driver its life implies.
+#[test]
+fn a_ship_marked_as_a_station_is_saved_as_one_and_opens_marked() {
+    let mut world = world_with_document();
+    let scenario = world.resource::<EditContext>().path[0];
+    let station = world
+        .spawn((
+            ShipNode {
+                name: "Outpost".to_string(),
+                driver: ShipDriver::Ai,
+                allegiance: Some(Allegiance::Neutral),
+                station: true,
+                ..default()
+            },
+            NodeId("ship_5".to_string()),
+            NextChildOrdinal::default(),
+            Transform::from_xyz(40.0, 0.0, 0.0),
+            ChildOf(scenario),
+        ))
+        .id();
+    world.spawn((
+        SectionNode {
+            source: SectionSource::prototype("light_hull_section"),
+            binds: vec![],
+        },
+        NodeId("hull_1".to_string()),
+        Transform::default(),
+        ChildOf(station),
+    ));
+
+    let items = lower(&mut world);
+
+    assert!(
+        items
+            .iter()
+            .any(|item| matches!(item, Content::Station(design) if design.id.as_str() == "ship_5")),
+        "the hull is written as a station design under the node's id"
+    );
+    assert!(
+        !items
+            .iter()
+            .any(|item| matches!(item, Content::Ship(ship) if ship.id.as_str() == "ship_5")),
+        "and not as a ship prototype as well"
+    );
+    let lifted = lift_content(&items).expect("the file carries a range");
+    let ship = lifted
+        .ships
+        .iter()
+        .find(|ship| ship.id == "ship_5")
+        .expect("the station comes back as a ship node");
+    assert!(ship.station, "marked as a station");
+    assert_eq!(ship.driver, ShipDriver::Ai, "a living station");
+    assert_eq!(ship.name, "Outpost");
+    assert_eq!(ship.sections.len(), 1, "with the hull it was built from");
 }

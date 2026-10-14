@@ -129,6 +129,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
   stock seen on your last dock.
 - Alt-tab no longer pauses play by default. Settings > Graphics > Pause when
   unfocused turns the focus pause back on.
+- A Sandbox ship's Station box spawns it as a station. Station Check names
+  the first fault and Play refuses a hull with a thruster, no port or no
+  controller. Save writes a `Station` item.
 
 ### Web & Platform
 

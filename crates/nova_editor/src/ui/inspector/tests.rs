@@ -652,6 +652,110 @@ fn a_second_ship_cannot_take_the_controls_while_another_flies() {
     );
 }
 
+/// The flown ship is never a station, both ways round: its Station box is
+/// refused on the status line, and a station refuses the Player driver. An
+/// AI ship takes the mark, and the check row appears under it.
+#[test]
+fn only_a_ship_the_player_does_not_fly_takes_the_station_mark() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    let flown = app
+        .world_mut()
+        .spawn((
+            EditorNode,
+            ShipNode::default(),
+            NodeId("ship_1".to_string()),
+            Transform::default(),
+            ChildOf(scenario),
+        ))
+        .id();
+    let escort = app
+        .world_mut()
+        .spawn((
+            EditorNode,
+            ShipNode {
+                driver: ShipDriver::Ai,
+                ..default()
+            },
+            NodeId("ship_2".to_string()),
+            Transform::default(),
+            ChildOf(scenario),
+        ))
+        .id();
+    let station_box = |app: &mut App| {
+        app.world_mut()
+            .query_filtered::<(Entity, &Name), With<InspectorFlag>>()
+            .iter(app.world())
+            .find(|(_, name)| name.as_str() == "Inspector Flag Station")
+            .map(|(entity, _)| entity)
+            .expect("a Station box")
+    };
+    let said = |app: &App| {
+        app.world()
+            .resource::<crate::config::EditorStatus>()
+            .line()
+            .map(|(line, _)| line.to_string())
+    };
+
+    app.world_mut().resource_mut::<EditContext>().enter(flown);
+    app.update();
+    let toggle = station_box(&mut app);
+    app.world_mut().trigger(Activate { entity: toggle });
+    app.update();
+    assert!(
+        !app.world()
+            .get::<ShipNode>(flown)
+            .expect("the ship")
+            .station,
+        "the flown ship stays a ship"
+    );
+    assert_eq!(said(&app).as_deref(), Some(STATION_FLOWN));
+
+    app.world_mut().resource_mut::<EditContext>().exit();
+    app.world_mut().resource_mut::<EditContext>().enter(escort);
+    app.update();
+    let toggle = station_box(&mut app);
+    app.world_mut().trigger(Activate { entity: toggle });
+    app.update();
+    assert!(
+        app.world()
+            .get::<ShipNode>(escort)
+            .expect("the escort")
+            .station,
+        "an AI ship takes the mark"
+    );
+    let rows = row_names(&mut app);
+    assert!(
+        rows.iter().any(|row| row == "Station Check"),
+        "and the check row stands under it: {rows:?}"
+    );
+
+    // Taken off the flown ship first, so the one-flier rule is not what
+    // refuses the Player option below.
+    app.world_mut()
+        .get_mut::<ShipNode>(flown)
+        .expect("the ship")
+        .driver = ShipDriver::Ai;
+    let option = app
+        .world_mut()
+        .query::<(Entity, &InspectorDriver)>()
+        .iter(app.world())
+        .find(|(_, option)| option.driver == ShipDriver::Player)
+        .map(|(entity, _)| entity)
+        .expect("a player option");
+    app.world_mut().trigger(Activate { entity: option });
+    app.update();
+    assert_eq!(
+        app.world()
+            .get::<ShipNode>(escort)
+            .expect("the escort")
+            .driver,
+        ShipDriver::Ai,
+        "a station is not flown"
+    );
+    assert_eq!(said(&app).as_deref(), Some(STATION_UNFLOWN));
+}
+
 /// The panel used to go blank at the root, which reads as the panel breaking
 /// every time you leave a ship. The root holds the document, so it says what
 /// the document holds.

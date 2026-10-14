@@ -17,8 +17,6 @@
 //! Picking therefore lands on a VIEW. Every pointer path maps it back with
 //! [`node_of_view`].
 
-use std::collections::BTreeMap;
-
 use avian3d::prelude::{Collider, ColliderAabb, Sensor};
 use bevy::{prelude::*, ui_widgets::Activate};
 use nova_events::units::prelude::*;
@@ -28,7 +26,7 @@ use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
 
 use crate::{
-    bundle::{insert_lifted_ship, lift_objects, DocumentSlot},
+    bundle::{insert_lifted_ship, lift_objects, DocumentSlot, FileDesigns},
     config::{EditorSays, SelectedNode},
     event::lift,
     frame::{framed_extent, CameraFraming},
@@ -228,6 +226,12 @@ pub(crate) struct ShipNode {
     /// a picket's leash has to survive a trip through the document. Ignored
     /// unless `driver` is [`ShipDriver::Ai`].
     pub(crate) pilot: AIControllerConfig,
+    /// Whether the range spawns this hull as a STATION rather than a ship: a
+    /// parked, docked-with hull that offers services (see
+    /// [`crate::station`]). Never set on the ship the player flies; the
+    /// inspector refuses both ways round. An AI driver makes it a living
+    /// station, no driver a dead one.
+    pub(crate) station: bool,
 }
 
 impl Default for ShipNode {
@@ -240,6 +244,7 @@ impl Default for ShipNode {
             driver: ShipDriver::Player,
             allegiance: None,
             pilot: AIControllerConfig::default(),
+            station: false,
         }
     }
 }
@@ -957,7 +962,7 @@ pub(crate) fn found_document(
     // Through the SAME lift a saved file goes through: the stock range's hulks
     // and pickets are hulls with sections, and a hull the document held as an
     // opaque object was one a double click could not go inside.
-    let seed = lift_objects(template.objects(), &BTreeMap::new());
+    let seed = lift_objects(template.objects(), &FileDesigns::default());
     for object in seed.objects {
         insert_object_node(commands, scenario, object);
     }

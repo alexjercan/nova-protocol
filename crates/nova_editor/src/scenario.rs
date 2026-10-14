@@ -51,6 +51,7 @@ use crate::{
         LOCK_ON_SOUND, RADAR_DENY_SOUND, RADAR_RETARGET_SOUND, RCS_LOOP_SOUND, SAFETY_ON_SOUND,
         SHIP_COLLAPSE_SOUND, WARN_HULL_SOUND, WARN_LOCK_SOUND,
     },
+    station::{station_design_id, StationCatalogs},
 };
 
 /// What the open document calls its own range.
@@ -246,15 +247,50 @@ pub(crate) fn setup_scenario(
     // does not get the retry.
     scenarios: Option<ResMut<GameScenarios>>,
     targeting: Option<Res<TargetingSettings>>,
+    catalogs: StationCatalogs,
+    stations: Option<ResMut<GameStationDesigns>>,
 ) {
     let targeting = targeting.as_deref().cloned().unwrap_or_default();
+    let fleet = lower_fleet(&q_ships, &nodes);
     let scenario = assets.resolved(sandbox_scenario(
         &world_settings(&context, &q_settings),
         world_objects(&context, &q_objects),
-        &lower_fleet(&q_ships, &nodes),
+        &fleet,
         world_script(&context, &script),
         &targeting,
     ));
+
+    // The station designs the range spawns by id, registered for the life of
+    // this Play session as the range itself is below. A design the station
+    // lint refuses is NOT registered: Play refuses it first
+    // (`crate::placement::continue_to_simulation`), and one that got past
+    // that reaches the start gate naming an unknown design, which refuses the
+    // range with its FAILED TO START report rather than spawning a hull that
+    // is not a station.
+    let mut registered = Vec::new();
+    for (design, faults) in catalogs.designs(&fleet, HullForm::Inline) {
+        if faults.is_empty() {
+            registered.push(design);
+        } else {
+            error!(
+                "setup_scenario: station design '{}' is refused and not registered: {}",
+                design.id,
+                faults.join("; ")
+            );
+        }
+    }
+    match stations {
+        Some(mut stations) => {
+            for design in registered {
+                stations.retain(|held| held.id != design.id);
+                stations.push(design);
+            }
+        }
+        None if !registered.is_empty() => {
+            commands.insert_resource(GameStationDesigns(registered));
+        }
+        None => {}
+    }
 
     // Register the range for the life of this Play session: the DEFEAT
     // overlay's Retry resolves the queued `NextScenario` against this registry,
@@ -366,7 +402,7 @@ pub(crate) fn default_world_objects() -> Vec<ScenarioObjectConfig> {
 }
 
 /// One ship, flattened out of its subtree.
-fn lower_ship(
+pub(crate) fn lower_ship(
     entity: Entity,
     id: &NodeId,
     ship: &ShipNode,
@@ -398,6 +434,7 @@ fn lower_ship(
         style: ship.style.clone(),
         position: pose.translation,
         rotation: pose.rotation,
+        station: ship.station,
     }
 }
 
@@ -443,17 +480,27 @@ pub(crate) struct LoweredShip {
     /// scenario shows it, which is the whole point of naming a ship.
     pub(crate) name: String,
     /// Who is at the controls, which is what decides the spawn's controller.
-    driver: ShipDriver,
+    pub(crate) driver: ShipDriver,
     /// Which side it fights for, or `None` to take the driver's default.
-    allegiance: Option<Allegiance>,
+    pub(crate) allegiance: Option<Allegiance>,
     /// The AI pilot's standing orders, used only by an AI-driven ship.
-    pilot: AIControllerConfig,
+    pub(crate) pilot: AIControllerConfig,
     pub(crate) sections: Vec<SpaceshipSectionConfig>,
-    inputs: Vec<(SectionId, Vec<InputSource>)>,
+    pub(crate) inputs: Vec<(SectionId, Vec<InputSource>)>,
     pub(crate) skin: bool,
     pub(crate) style: Option<String>,
-    position: Vec3,
-    rotation: Quat,
+    pub(crate) position: Vec3,
+    pub(crate) rotation: Quat,
+    /// Whether the range spawns it as a station. See [`crate::station`].
+    pub(crate) station: bool,
+}
+
+impl LoweredShip {
+    /// What the range calls this hull when it spawns as a station: the name
+    /// the builder gave it, or one built from its id.
+    pub(crate) fn station_name(&self) -> String {
+        ship_name(self, &format!("Sandbox Station {}", self.id))
+    }
 }
 
 /// The whole document, lowered: the player's ship and every hull standing
@@ -474,6 +521,12 @@ impl LoweredFleet {
         std::iter::once(&self.player)
             .chain(self.standing.iter())
             .filter(|ship| !ship.id.is_empty())
+    }
+
+    /// Every ship of the document marked as a station, in id order. The
+    /// flown ship is never one: the inspector refuses the mark on it.
+    pub(crate) fn stations(&self) -> impl Iterator<Item = &LoweredShip> {
+        self.standing.iter().filter(|ship| ship.station)
     }
 }
 
@@ -653,7 +706,13 @@ fn sandbox_objects(
             .standing
             .iter()
             .filter(|ship| !flight || !ship.sections.is_empty())
-            .map(|ship| standing_ship(ship, form)),
+            .map(|ship| {
+                if ship.station {
+                    standing_station(ship, form)
+                } else {
+                    standing_ship(ship, form)
+                }
+            }),
     );
 
     objects
@@ -942,6 +1001,29 @@ fn standing_ship(ship: &LoweredShip, form: HullForm) -> ScenarioObjectConfig {
             design: hull_of(ship, form),
             inventory: ShipInventoryStock::new([]),
             ..default()
+        }),
+    }
+}
+
+/// One ship of the document marked as a station, parked where it was
+/// dragged to and spawned by its station design's id.
+///
+/// The side is the node's own, or Neutral where it states none - the side an
+/// AI ship the builder adds stands on. No driver makes it a dead station; the
+/// station spawn picks its own AI for a living one. It starts at rest.
+fn standing_station(ship: &LoweredShip, form: HullForm) -> ScenarioObjectConfig {
+    ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: ship.id.clone(),
+            name: ship.station_name(),
+            position: Meters3::from_engine(ship.position),
+            rotation: ship.rotation,
+        },
+        kind: ScenarioObjectKind::Station(StationConfig {
+            design: station_design_id(ship, form),
+            allegiance: ship.allegiance.unwrap_or(Allegiance::Neutral),
+            derelict: ship.driver == ShipDriver::Adrift,
+            initial_velocity: MetersPerSecond3::ZERO,
         }),
     }
 }

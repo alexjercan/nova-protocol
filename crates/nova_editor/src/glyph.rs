@@ -16,7 +16,7 @@ use nova_ship::prelude::{GameSections, SectionKind};
 use crate::{
     event::ScriptAdd,
     gallery::GalleryCategory,
-    node::{ObjectChoice, ObjectNode, SectionNode, ShipDriver},
+    node::{ObjectChoice, ObjectNode, SectionNode, ShipDriver, ShipNode},
 };
 
 /// The document root. TRIGRAM FOR HEAVEN - a stack of rules, which is what a
@@ -38,9 +38,17 @@ pub(crate) const SHIP_ADRIFT: &str = "\u{25b9}";
 /// ship used to hide the fact that it was the player's.
 pub(crate) const INSIDE: &str = "@";
 
-/// The mark a ship row wears, and what it means.
-pub(crate) fn ship_mark(driver: ShipDriver) -> (&'static str, &'static str) {
-    match driver {
+/// A ship marked as a station: the station object's own mark, so a station
+/// reads the same built here or placed from a catalog.
+pub(crate) const SHIP_STATION: &str = "\u{25a2}";
+
+/// The mark a ship row wears, and what it means. A station is marked as one
+/// whoever drives it: what the hull IS outranks who is at its controls.
+pub(crate) fn ship_mark(ship: &ShipNode) -> (&'static str, &'static str) {
+    if ship.station {
+        return (SHIP_STATION, "STATION");
+    }
+    match ship.driver {
         ShipDriver::Player => (SHIP_PLAYER, "SHIP - PLAYER"),
         ShipDriver::Ai => (SHIP_AI, "SHIP - AI"),
         ShipDriver::Adrift => (SHIP_ADRIFT, "SHIP - ADRIFT"),
@@ -103,7 +111,7 @@ pub(crate) fn object_mark(object: &ObjectNode) -> (&'static str, &'static str) {
         // apart from the rock's solid disc at a glance.
         ScenarioObjectKind::Planet(_) => ("\u{25d0}", "PLANET"),
         // WHITE SQUARE WITH ROUNDED CORNERS - a parked block nothing flies.
-        ScenarioObjectKind::Station(_) => ("\u{25a2}", "STATION"),
+        ScenarioObjectKind::Station(_) => (SHIP_STATION, "STATION"),
     }
 }
 
