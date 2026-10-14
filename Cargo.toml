@@ -236,6 +236,13 @@ path = "examples/playable/railgun_wake_bench.rs"
 name = "greeble_catalog"
 path = "examples/playable/greeble_catalog.rs"
 
+# One shipped hull in its style with the greeble solve drawn over it: cells,
+# link points and links under the diagnostics layer, `N` for the next hull.
+[[example]]
+name = "greeble_solve"
+path = "examples/playable/greeble_solve.rs"
+required-features = ["debug"]
+
 # A browsable gallery of the generated part-candidate meshes under
 # art/part-candidates: a paged grid, a focus turntable and a reassembled recipe
 # ship with an explode toggle, all driven from the keyboard.
