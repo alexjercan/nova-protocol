@@ -9,7 +9,8 @@
 //! side, offers Refit, and hires out an escort at [`walk::HIRE_OFFER`], and
 //! stands outside the spawn's cell. The player jumps beside it and is put on
 //! a berth at its collar each frame until the dock takes; the walk never
-//! flies the approach (`system_station_docking` does).
+//! flies the approach (`system_station_docking` does). It hires two escorts,
+//! one per fleet slot, through the same button.
 //!
 //! DISCLOSED FIXTURE STATE: once docked, the player holds 1,000,000 cr, so
 //! the escort is affordable. The hire goes through the Station pane's Hire
@@ -20,7 +21,13 @@
 //! crossing JUMPS the player and the escort together three cells out, so the
 //! station's cell retires and freezes behind them; the follow is then proved
 //! by jumping the player a kilometre on and waiting for the escort to fly
-//! back into formation. Then the player's own flight computer burns it to
+//! back into formation. The player then starts from rest on its main drive,
+//! the key a pilot holds, and a trace of every physics step checks that each
+//! escort's velocity changed only by what its own drive and RCS delivered and
+//! logs how fast each escort was when the player had opened 30 m; no escort
+//! may fly faster than the player by more than the follow order's closing
+//! speed. The player
+//! stops, and its own flight computer burns it to
 //! 50 m/s along its nose and turns its travel a right angle to starboard,
 //! and the escort flies formation through both: a trace of every physics
 //! step checks that only its own velocity moved it. The kill is exact damage
@@ -29,12 +36,14 @@
 //!
 //! | # | marker | claim |
 //! | - | - | - |
-//! | 1 | `outcome: an escort is hired from a station's catalogue` | the escort stands with the offer's name and the id its roster slot gives, Player-sided, in the fleet and following the player on the starboard slot, owned by no cell; the offer left the catalogue; the player paid the price and the station took it, both as `EscortHire`; `OnEscortHired` fired once with the escort, the hull and the price |
+//! | 1 | `outcome: an escort is hired from a station's catalogue` | the first escort stands with the offer's name and the id its roster slot gives, Player-sided, in the fleet and following the player on the starboard slot, owned by no cell, and the second on the port slot; both offers left the catalogue; the player paid both prices and the station took them, all as `EscortHire`; `OnEscortHired` fired once per escort with the escort, the hull and the price |
+//! | 1b | `outcome: two hired escorts spawn clear of each other and every hull` | at the pose each escort spawned in, its hull keeps daylight to the other escort, the player and the station, every hull measured by its `HullRadius` about its centre of mass |
 //! | 2 | `outcome: an escort crosses sectors beside the player` | after the jump the station's cell is frozen, no frozen record holds the escort, and the escort is live, owned by no cell, and back in formation after the player jumps on |
+//! | 2b | `outcome: escorts follow a start from rest under their own thrust` | from the player at rest to the fleet back in formation on the coasting player, no physics step changed an escort's velocity by more than its own drive impulse over its mass plus its RCS push and its well's pull, no escort moved before its own thrust fired, and no escort flew faster than the player by more than `AI_FOLLOW_CLOSING_SPEED` plus 5 m/s |
 //! | 3 | `outcome: an escort flies formation through a turn` | while the player burns to 50 m/s and turns its travel a right angle, the escort ends in formation behind and beside the new travel, matching the player's velocity; its drive took it from rest to the cruise; no physics step moved it more than 0.5 m past its own velocity; it never came within 50 m of the player's hull |
-//! | 4 | `outcome: the leave save holds the escort in the player's fleet` | the saved player's fleet is the escort, on the starboard slot, and no saved sector holds it |
+//! | 4 | `outcome: the leave save holds the escort in the player's fleet` | the saved player's fleet is the two escorts, on the starboard and port slots, and no saved sector holds either |
 //! | 5 | `outcome: a loaded escort is beside the player and follows` | after Load the escort stands in the fleet beside the player, following the loaded player, and is back in formation after the player jumps on |
-//! | 6 | `outcome: a killed escort is gone from the fleet after a save and a Load` | the neutralized escort leaves the fleet and a cell takes its wreck; the leave save's fleet is empty and a sector holds the wreck; after Load no ship is in the fleet and the wreck stands in its cell, neutralized |
+//! | 6 | `outcome: a killed escort is gone from the fleet after a save and a Load` | both escorts are killed; each neutralized escort leaves the fleet and a cell takes its wreck; the leave save's fleet is empty and a sector holds the first wreck; after Load no ship is in the fleet and the wreck stands in its cell, neutralized |
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
@@ -44,7 +53,10 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 //! Add `NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=<dir>` to shoot the hire list as
-//! `station-hire-list.png`, the escort in formation as
+//! `station-hire-list.png`, the two escorts as they spawned from above as
+//! `station-hire-pair.png`, the start from rest from above as
+//! `station-hire-start-0.png` to `station-hire-start-3.png`, the escort in
+//! formation as
 //! `station-hire-escort.png`, after the crossing as
 //! `station-hire-crossed.png`, and the turn from above as
 //! `station-hire-turn-0.png` to `station-hire-turn-5.png`.
@@ -109,7 +121,7 @@ mod walk {
     use std::sync::Arc;
 
     use avian3d::prelude::{
-        AngularVelocity, ComputedCenterOfMass, LinearVelocity, Position, Rotation,
+        AngularVelocity, ComputedCenterOfMass, ComputedMass, LinearVelocity, Position, Rotation,
     };
     use nova_protocol::{
         nova_debug::harness::{
@@ -157,6 +169,18 @@ mod walk {
     const LIST_SHOT: &str = "station-hire-list.png";
     const ESCORT_SHOT: &str = "station-hire-escort.png";
     const CROSSED_SHOT: &str = "station-hire-crossed.png";
+    const PAIR_SHOT: &str = "station-hire-pair.png";
+    /// The shots of the start from rest, in order, [`TURN_SHOT_GAP`] frames
+    /// apart.
+    const START_SHOTS: [&str; 4] = [
+        "station-hire-start-0.png",
+        "station-hire-start-1.png",
+        "station-hire-start-2.png",
+        "station-hire-start-3.png",
+    ];
+    /// How far (engine units, 30 m) the player opens from rest before the
+    /// start trace reads each escort's speed.
+    const START_OPENED: f32 = 3.0;
 
     /// How far from the station the player parks before the berth.
     const PARK_DISTANCE: Meters = Meters(2_000.0);
@@ -211,6 +235,20 @@ mod walk {
         before: Option<BeforeHire>,
         /// The cell the crossing landed in.
         crossed: Option<SectorCoord>,
+        /// The second escort's id and price.
+        second: Option<(GeneratedBodyId, u32)>,
+        /// Each hired escort's spawn, in hire order.
+        spawns: Vec<EscortSpawn>,
+    }
+
+    /// The pose a hired escort spawned in, and the player's and the
+    /// station's at that moment, as root position and rotation.
+    #[derive(Clone, Copy, Debug)]
+    struct EscortSpawn {
+        escort: Entity,
+        pose: (Vec3, Quat),
+        player: (Vec3, Quat),
+        station: (Vec3, Quat),
     }
 
     impl HireWatch {
@@ -235,7 +273,10 @@ mod walk {
         fn build(&self, app: &mut App) {
             app.init_resource::<HireWatch>();
             app.init_resource::<FollowTrace>();
+            app.init_resource::<StartTrace>();
             app.add_systems(FixedUpdate, trace_the_follow);
+            app.add_systems(FixedLast, trace_the_start);
+            app.add_observer(record_the_spawn);
             app.add_systems(Update, hold_the_walk_clock);
             app.add_observer(|event: On<GameEvent>, mut watch: ResMut<HireWatch>| {
                 let name = event.name();
@@ -308,6 +349,53 @@ mod walk {
 
     fn escort(world: &World) -> Entity {
         escort_root(world).expect("station hire: the escort stands")
+    }
+
+    fn second_root(world: &World) -> Option<Entity> {
+        wearing(world, &world.resource::<HireWatch>().second.as_ref()?.0)
+    }
+
+    fn second(world: &World) -> Entity {
+        second_root(world).expect("station hire: the second escort stands")
+    }
+
+    /// Both escorts, starboard then port.
+    fn escorts(world: &World) -> [Entity; 2] {
+        [escort(world), second(world)]
+    }
+
+    /// Record the pose a hired escort spawns in, and the player's and the
+    /// station's: the spawn reads its root `Transform`, which the scenario
+    /// object carries from the first command.
+    fn record_the_spawn(
+        add: On<Add, PlayerFleetMarker>,
+        mut watch: ResMut<HireWatch>,
+        q_root: Query<&Transform>,
+        q_player: Query<&Transform, With<PlayerSpaceshipMarker>>,
+        q_station: Query<(&Transform, &GeneratedBodyId), With<StationMarker>>,
+    ) {
+        if watch.spawns.len() >= 2 {
+            return;
+        }
+        let pose = |transform: &Transform| (transform.translation, transform.rotation);
+        let (Ok(escort), Ok(player)) = (q_root.get(add.entity), q_player.single()) else {
+            return;
+        };
+        let Some(station) = q_station
+            .iter()
+            .find(|(_, id)| Some(*id) == watch.id.as_ref())
+            .map(|(transform, _)| pose(transform))
+        else {
+            return;
+        };
+        let spawn = EscortSpawn {
+            escort: add.entity,
+            pose: pose(escort),
+            player: pose(player),
+            station,
+        };
+        info!("station hire: an escort spawns {spawn:?}");
+        watch.spawns.push(spawn);
     }
 
     fn escort_name(world: &World) -> String {
@@ -400,6 +488,22 @@ mod walk {
         })
     }
 
+    /// Both escorts stand with the sections they spawn with.
+    fn fleet_stands() -> Arc<Predicate> {
+        when(|world| {
+            [escort_root(world), second_root(world)]
+                .into_iter()
+                .all(|escort| {
+                    escort.is_some_and(|escort| {
+                        world.get::<Position>(escort).is_some()
+                            && world
+                                .get::<HullRadius>(escort)
+                                .is_some_and(|arm| **arm > 0.0)
+                    })
+                })
+        })
+    }
+
     /// The escort stands with the sections it spawns with.
     fn escort_stands() -> Arc<Predicate> {
         when(|world| {
@@ -422,15 +526,19 @@ mod walk {
                     .iter()
                     .filter(|data| data["cause"] == "EscortHire")
                     .count()
-                    >= 2
+                    >= 4
         })
     }
 
     /// How far the escort stands from its formation goal and how fast it
     /// moves against the player, engine units.
     fn formation_error(world: &World) -> Option<(f32, f32)> {
+        formation_error_of(world, escort_root(world)?)
+    }
+
+    /// [`formation_error`] for `escort`.
+    fn formation_error_of(world: &World, escort: Entity) -> Option<(f32, f32)> {
         let player = the_player(world)?;
-        let escort = escort_root(world)?;
         let follow = world.get::<AIFollow>(escort)?;
         let anchor = |root: Entity| {
             let transform = world.get::<Transform>(root)?;
@@ -464,6 +572,33 @@ mod walk {
         when(|world| {
             formation_error(world).is_some_and(|(distance, speed)| {
                 distance < FORMATION_REACH && speed < FORMATION_SPEED
+            })
+        })
+    }
+
+    /// Both escorts are in formation.
+    fn fleet_in_formation() -> Arc<Predicate> {
+        when(|world| {
+            [escort_root(world), second_root(world)]
+                .into_iter()
+                .all(|escort| {
+                    escort
+                        .and_then(|escort| formation_error_of(world, escort))
+                        .is_some_and(|(distance, speed)| {
+                            distance < FORMATION_REACH && speed < FORMATION_SPEED
+                        })
+                })
+        })
+    }
+
+    /// The player is at rest, with no flight computer engaged.
+    fn player_at_rest() -> Arc<Predicate> {
+        when(|world| {
+            the_player(world).is_some_and(|player| {
+                world.get::<Autopilot>(player).is_none()
+                    && world
+                        .get::<LinearVelocity>(player)
+                        .is_some_and(|velocity| velocity.length() < 0.05)
             })
         })
     }
@@ -744,6 +879,109 @@ mod walk {
         world.resource_mut::<HireWatch>().before = Some(before);
     }
 
+    /// The next escort stands at [`HIRE_OFFER`] once the first left the
+    /// catalogue, and its Hire button is in view.
+    fn next_escort_offered() -> Arc<Predicate> {
+        when(|world| {
+            let Some(station) = station_root(world) else {
+                return false;
+            };
+            let first = &world.resource::<HireWatch>().before().escort;
+            world
+                .get::<HullOffers>(station)
+                .and_then(|offers| offers.0.get(HIRE_OFFER))
+                .is_some_and(|offer| match offer.terms {
+                    HullOfferType::Hire { slot } => escort_id(&station_id(world), slot) != *first,
+                    HullOfferType::Sale => false,
+                })
+                && hire_button_in_view(world)
+        })
+    }
+
+    /// Record the second escort's id and price.
+    fn record_second_hire(world: &mut World) {
+        let station = station(world);
+        let items = world.resource::<GameItems>().clone();
+        let offer = world
+            .get::<HullOffers>(station)
+            .expect("station hire: the station still hires out escorts")
+            .0[HIRE_OFFER]
+            .clone();
+        let HullOfferType::Hire { slot } = offer.terms else {
+            panic!("station hire: offer {HIRE_OFFER} is for sale");
+        };
+        let id = escort_id(&station_id(world), slot);
+        let price = u32::try_from(escort_price_cr(&items, &offer)).expect("the price fits");
+        info!(
+            "station hire: second escort '{}' hires for {price} cr as '{id}'",
+            offer.name
+        );
+        world.resource_mut::<HireWatch>().second = Some((id, price));
+    }
+
+    /// Claim 1b: each escort spawned clear of the other escort, the player
+    /// and the station.
+    fn assert_the_spawns(world: &mut World) {
+        let watch = world.resource::<HireWatch>();
+        assert_eq!(
+            watch.spawns.len(),
+            2,
+            "station hire: two escort spawns recorded"
+        );
+        let spawns = [watch.spawns[0], watch.spawns[1]];
+        let player = player(world);
+        let station = station(world);
+        // The centre of mass and arm of `root`, at a recorded root pose.
+        let hull = |root: Entity, (at, rotation): (Vec3, Quat)| {
+            let com = world
+                .get::<ComputedCenterOfMass>(root)
+                .map_or(Vec3::ZERO, |com| com.0);
+            let arm = world.get::<HullRadius>(root).map_or(0.0, |arm| **arm);
+            (at + rotation * com, arm)
+        };
+        let daylight =
+            |(a, arm_a): (Vec3, f32), (b, arm_b): (Vec3, f32)| a.distance(b) - arm_a - arm_b;
+        let first = hull(spawns[0].escort, spawns[0].pose);
+        let second = hull(spawns[1].escort, spawns[1].pose);
+        let mut gaps = vec![("escort to escort", daylight(first, second))];
+        for spawn in spawns {
+            let own = hull(spawn.escort, spawn.pose);
+            gaps.push((
+                "escort to player",
+                daylight(own, hull(player, spawn.player)),
+            ));
+            gaps.push((
+                "escort to station",
+                daylight(own, hull(station, spawn.station)),
+            ));
+        }
+        for (pair, gap) in &gaps {
+            info!(
+                "station hire: spawn daylight {pair} {:.0} m",
+                Meters::from_engine(*gap).get()
+            );
+        }
+        let worst = gaps
+            .iter()
+            .copied()
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .expect("pairs measured");
+        assert!(
+            worst.1 > 0.0,
+            "station hire: a hired escort spawned overlapping a hull ({}: {:.0} m)",
+            worst.0,
+            Meters::from_engine(worst.1).get()
+        );
+        nova_probe::probe_marker(
+            world,
+            "outcome: two hired escorts spawn clear of each other and every hull",
+            serde_json::json!({
+                "escort_to_escort_m": Meters::from_engine(gaps[0].1).get(),
+                "least_m": Meters::from_engine(worst.1).get(),
+            }),
+        );
+    }
+
     /// Claim 1: the escort, the catalogue, the credits and the report; then
     /// undock.
     fn assert_the_hire(world: &mut World) {
@@ -782,31 +1020,48 @@ mod walk {
             world.get::<ChildOf>(escort).is_none(),
             "station hire: no cell owns the escort"
         );
+        let second = second(world);
+        assert_eq!(
+            world
+                .get::<AIFollow>(second)
+                .map(|follow| (follow.leader, follow.side)),
+            Some((player, FLEET_SIDES[1])),
+            "station hire: the second escort follows the player on the port slot"
+        );
+        let second_price = watch
+            .second
+            .as_ref()
+            .expect("station hire: the second hire is recorded")
+            .1;
         let mut catalogue = before.catalogue.clone();
+        catalogue.remove(HIRE_OFFER);
         catalogue.remove(HIRE_OFFER);
         assert_eq!(
             catalogue_names(world, station),
             catalogue,
-            "station hire: the hired offer left the catalogue"
+            "station hire: both hired offers left the catalogue"
         );
         assert_eq!(
             credits(world, player),
-            before.player_cr - before.price_cr,
-            "station hire: the player paid the price"
+            before.player_cr - before.price_cr - second_price,
+            "station hire: the player paid both prices"
         );
         assert_eq!(
             credits(world, station),
-            before.station_cr + before.price_cr,
-            "station hire: the station took the price"
+            before.station_cr + before.price_cr + second_price,
+            "station hire: the station took both prices"
         );
         let causes = watch
             .named("oncreditschanged")
             .into_iter()
             .filter(|data| data["cause"] == "EscortHire")
             .count();
-        assert_eq!(causes, 2, "station hire: both balances moved as EscortHire");
+        assert_eq!(
+            causes, 4,
+            "station hire: both balances moved as EscortHire, per hire"
+        );
         let hired = watch.named("onescorthired");
-        assert_eq!(hired.len(), 1, "station hire: one OnEscortHired");
+        assert_eq!(hired.len(), 2, "station hire: one OnEscortHired per escort");
         let event = hired[0].clone();
         assert_eq!(event["escort"], before.escort.to_string());
         assert_eq!(event["hull"], before.name.as_str());
@@ -852,7 +1107,9 @@ mod walk {
     fn jump_the_pair(world: &mut World) {
         let (edge, _) = world_shape(world);
         let offset = Vec3::X * Meters(edge.get() * CROSSING_CELLS as f32).to_engine();
-        for root in [player(world), escort(world)] {
+        let mut roots = vec![player(world)];
+        roots.extend(fleet(world));
+        for root in roots {
             let at = world.get::<Position>(root).expect("a body stands").0 + offset;
             world.entity_mut(root).insert(Position(at));
         }
@@ -1138,6 +1395,295 @@ mod walk {
         trace.steps += 1;
     }
 
+    /// One escort as the start trace saw it.
+    #[derive(Clone, Debug, Default)]
+    struct EscortStart {
+        /// Its velocity at the last step.
+        last: Option<Vec3>,
+        /// The largest velocity change of one step past its own drive, RCS
+        /// and well, engine units per second.
+        worst_excess: f32,
+        /// The first step its velocity changed, and its own thrust fired.
+        first_move: Option<u32>,
+        first_thrust: Option<u32>,
+        /// Its speed and the player's when the player had opened
+        /// [`START_OPENED`] from rest.
+        at_opened: Option<(f32, f32)>,
+        /// The most it flew faster than the player, engine units per second.
+        overtake: f32,
+        /// Its top speed, engine units per second.
+        top: f32,
+    }
+
+    /// What the start trace saw over the start from rest, one physics step at
+    /// a time.
+    #[derive(Resource, Default, Debug)]
+    struct StartTrace {
+        /// Whether the start runs.
+        on: bool,
+        /// Where the player stood at rest.
+        origin: Option<Vec3>,
+        /// Steps traced.
+        steps: u32,
+        /// The first step the player moved.
+        player_moved: Option<u32>,
+        /// Whether the main drive was let go at the cruise.
+        released: bool,
+        /// Starboard, then port.
+        escorts: [EscortStart; 2],
+    }
+
+    /// One physics step of the start trace, after the solver: each escort's
+    /// velocity change against what its own drives (per-tick impulse times
+    /// input over the mass), its RCS push and the dominant well delivered
+    /// this step, logged per step.
+    fn trace_the_start(world: &mut World) {
+        if !world
+            .get_resource::<StartTrace>()
+            .is_some_and(|trace| trace.on)
+        {
+            return;
+        }
+        let (Some(player), Some(first), Some(second)) =
+            (the_player(world), escort_root(world), second_root(world))
+        else {
+            return;
+        };
+        let dt = world.resource::<Time>().delta_secs();
+        let rcs_accel = world.resource::<FlightSettings>().rcs_accel;
+        let gravity = world.resource::<GravitySettings>().clone();
+        let wells: Vec<(Entity, Vec3, GravityWell)> = world
+            .query::<(Entity, &Position, &GravityWell)>()
+            .iter(world)
+            .map(|(entity, position, well)| (entity, position.0, well.clone()))
+            .collect();
+        let drives: Vec<(Entity, f32)> = world
+            .query_filtered::<(&ChildOf, &ThrusterSectionMagnitude, &ThrusterSectionInput), Without<SectionInactiveMarker>>()
+            .iter(world)
+            .map(|(parent, magnitude, input)| (parent.parent(), **magnitude * input.clamp(0.0, 1.0)))
+            .collect();
+        let read = |root: Entity| {
+            (
+                world.get::<Position>(root).map_or(Vec3::ZERO, |p| p.0),
+                world
+                    .get::<LinearVelocity>(root)
+                    .map_or(Vec3::ZERO, |v| v.0),
+            )
+        };
+        let (player_at, player_v) = read(player);
+        let samples: Vec<(Vec3, Vec3, f32)> = [first, second]
+            .into_iter()
+            .map(|escort| {
+                let (at, velocity) = read(escort);
+                let impulse: f32 = drives
+                    .iter()
+                    .filter(|(parent, _)| *parent == escort)
+                    .map(|(_, impulse)| impulse)
+                    .sum();
+                let mass = world
+                    .get::<ComputedMass>(escort)
+                    .map_or(f32::INFINITY, |mass| mass.value());
+                let rcs = world
+                    .get::<RcsBudget>(escort)
+                    .map_or(0.0, |rcs| rcs.applied);
+                let well = world
+                    .get::<GravityAffected>(escort)
+                    .and_then(|_| {
+                        dominant_well_acceleration(
+                            at,
+                            world.get::<DominantWell>(escort).map(|well| well.0),
+                            &wells,
+                            &gravity,
+                            &mut Vec::new(),
+                            &mut Vec::new(),
+                        )
+                    })
+                    .map_or(0.0, |(_, accel)| accel.length());
+                (at, velocity, impulse / mass + (rcs * rcs_accel + well) * dt)
+            })
+            .collect();
+        // Let the drive go at the cruise, whatever frame the shots are on.
+        if player_v.length() >= CRUISE
+            && !std::mem::replace(&mut world.resource_mut::<StartTrace>().released, true)
+        {
+            release_action("main_drive")(world);
+            info!("station hire: the player lets the drive go at the cruise");
+        }
+        let mut trace = world.resource_mut::<StartTrace>();
+        let step = trace.steps;
+        let origin = *trace.origin.get_or_insert(player_at);
+        let opened = player_at.distance(origin);
+        if trace.player_moved.is_none() && player_v.length() > 1e-5 {
+            trace.player_moved = Some(step);
+        }
+        for (index, (at, velocity, own)) in samples.into_iter().enumerate() {
+            let escort = &mut trace.escorts[index];
+            let change = escort.last.map_or(0.0, |last| (velocity - last).length());
+            if escort.last.is_some() {
+                escort.worst_excess = escort.worst_excess.max(change - own);
+                if change > 1e-5 && escort.first_move.is_none() {
+                    escort.first_move = Some(step);
+                }
+            }
+            if own > 0.0 && escort.first_thrust.is_none() {
+                escort.first_thrust = Some(step);
+            }
+            escort.overtake = escort.overtake.max(velocity.length() - player_v.length());
+            escort.top = escort.top.max(velocity.length());
+            if opened >= START_OPENED && escort.at_opened.is_none() {
+                escort.at_opened = Some((velocity.length(), player_v.length()));
+            }
+            escort.last = Some(velocity);
+            let offset = at - player_at;
+            info!(
+                "station hire: start step={step} escort={index} opened={opened:.2} \
+                 player_v=({:.3},{:.3},{:.3}) v=({:.3},{:.3},{:.3}) dv={change:.4} own={own:.4} \
+                 offset=({:.1},{:.1},{:.1})",
+                player_v.x,
+                player_v.y,
+                player_v.z,
+                velocity.x,
+                velocity.y,
+                velocity.z,
+                offset.x,
+                offset.y,
+                offset.z,
+            );
+        }
+        trace.steps += 1;
+    }
+
+    /// Start the start trace and hold the main drive down.
+    fn start_on_the_drive(world: &mut World) {
+        world.insert_resource(StartTrace {
+            on: true,
+            ..default()
+        });
+        press_action("main_drive")(world);
+        info!("station hire: the player starts from rest on its main drive");
+    }
+
+    /// Claim 2b: each escort's velocity changed only by its own thrust and
+    /// no escort moved before its own thrust fired; then the player stops.
+    fn mark_the_start(world: &mut World) {
+        let trace = std::mem::take(&mut *world.resource_mut::<StartTrace>());
+        info!(
+            "station hire: start trace steps={} player_moved={:?} escorts={:?}",
+            trace.steps, trace.player_moved, trace.escorts
+        );
+        assert!(trace.steps > 0, "station hire: the start was traced");
+        for (index, escort) in trace.escorts.iter().enumerate() {
+            assert!(
+                escort.worst_excess < 1e-3,
+                "station hire: a step changed escort {index}'s velocity {} u/s past its own \
+                 thrust",
+                escort.worst_excess
+            );
+            assert!(
+                escort.overtake < AI_FOLLOW_CLOSING_SPEED + 0.5,
+                "station hire: escort {index} flew {} u/s faster than the player",
+                escort.overtake
+            );
+            assert!(
+                escort.first_thrust.is_some() && escort.first_thrust <= escort.first_move,
+                "station hire: escort {index} moved no sooner than its own thrust fired: thrust \
+                 at step {:?}, moved at step {:?}",
+                escort.first_thrust,
+                escort.first_move
+            );
+        }
+        let at_opened: Vec<_> = trace
+            .escorts
+            .iter()
+            .map(|escort| {
+                escort.at_opened.map(|(escort, player)| {
+                    (
+                        Meters::from_engine(escort).get(),
+                        Meters::from_engine(player).get(),
+                    )
+                })
+            })
+            .collect();
+        nova_probe::probe_marker(
+            world,
+            "outcome: escorts follow a start from rest under their own thrust",
+            serde_json::json!({
+                "steps": trace.steps,
+                "worst_excess_mps": trace
+                    .escorts
+                    .iter()
+                    .map(|escort| Meters::from_engine(escort.worst_excess).get())
+                    .collect::<Vec<_>>(),
+                "speed_at_30m_opened_mps": at_opened,
+                "top_mps": trace
+                    .escorts
+                    .iter()
+                    .map(|escort| Meters::from_engine(escort.top).get())
+                    .collect::<Vec<_>>(),
+                "overtake_mps": trace
+                    .escorts
+                    .iter()
+                    .map(|escort| Meters::from_engine(escort.overtake).get())
+                    .collect::<Vec<_>>(),
+            }),
+        );
+        info!(
+            "station hire: escort and player speeds (m/s) when the player had opened 30 m: \
+             {at_opened:?}"
+        );
+        let player = player(world);
+        world
+            .entity_mut(player)
+            .insert(Autopilot::engage(AutopilotAction::Stop));
+    }
+
+    /// Frame the player and the fleet from above in the world's frame.
+    fn frame_the_fleet(world: &mut World) {
+        let mut roots = vec![player(world)];
+        roots.extend(fleet(world));
+        let points: Vec<Vec3> = roots
+            .iter()
+            .map(|root| {
+                world
+                    .get::<Transform>(*root)
+                    .expect("a body stands")
+                    .translation
+            })
+            .collect();
+        let middle = points.iter().sum::<Vec3>() / points.len() as f32;
+        let span = points
+            .iter()
+            .map(|point| point.distance(middle))
+            .fold(0.0, f32::max)
+            .max(20.0)
+            * 2.0;
+        let eye = middle + Vec3::new(0.0, 2.2 * span, 0.4 * span);
+        pose_camera(
+            world,
+            Meters3::from_engine(eye),
+            Meters3::from_engine(middle),
+        );
+    }
+
+    /// Frame the fleet, settle, shoot `name` and hand the camera back.
+    fn shoot_the_fleet(
+        script: AutopilotPlugin<GameStates>,
+        name: &'static str,
+        frames_before: u32,
+    ) -> AutopilotPlugin<GameStates> {
+        script
+            .step(format!("station hire: frame the fleet for {name}"))
+            .each(|world, _, _| frame_the_fleet(world))
+            .until(frames(frames_before))
+            .add()
+            .step(format!("station hire: shoot {name}"))
+            .on_enter(move |world: &mut World| shoot(world, name))
+            .each(|world, _, _| frame_the_fleet(world))
+            .until(shot_written(name))
+            .deadline(SHOT_DEADLINE_SECS)
+            .add()
+    }
+
     /// Hand the player's helm a held velocity of [`CRUISE`] along
     /// `direction`, nose on it: the player flies under its own computer.
     fn cruise_along(world: &mut World, direction: Vec3) {
@@ -1298,6 +1844,13 @@ mod walk {
     /// Claim 4: the leave save holds the escort in the player's fleet.
     fn assert_the_save(world: &mut World) {
         let id = escort_name(world);
+        let second = world
+            .resource::<HireWatch>()
+            .second
+            .as_ref()
+            .expect("station hire: the second hire is recorded")
+            .0
+            .to_string();
         let (header, state) = open_the_leave_save(world);
         let fleet: Vec<(String, Vec3)> = state
             .player
@@ -1305,14 +1858,18 @@ mod walk {
             .iter()
             .map(|escort| (escort.id.0.clone(), escort.side))
             .collect();
+        let mut expected = vec![
+            (id.clone(), FLEET_SIDES[0]),
+            (second.clone(), FLEET_SIDES[1]),
+        ];
+        expected.sort_by(|a, b| a.0.cmp(&b.0));
         assert_eq!(
-            fleet,
-            [(id.clone(), FLEET_SIDES[0])],
-            "station hire: the saved fleet is the escort on the starboard slot"
+            fleet, expected,
+            "station hire: the saved fleet is the two escorts on the starboard and port slots"
         );
         assert!(
-            !frozen_holds(&state.sectors, &id),
-            "station hire: no saved sector holds the escort"
+            !frozen_holds(&state.sectors, &id) && !frozen_holds(&state.sectors, &second),
+            "station hire: no saved sector holds an escort"
         );
         nova_probe::probe_marker(
             world,
@@ -1320,7 +1877,7 @@ mod walk {
             serde_json::json!({
                 "generation": header.generation,
                 "format": header.format,
-                "fleet": [id],
+                "fleet": [id, second],
             }),
         );
         info!(
@@ -1345,6 +1902,11 @@ mod walk {
                 .map(|follow| (follow.leader, follow.side)),
             Some((player, FLEET_SIDES[0])),
             "station hire: the loaded escort follows the loaded player"
+        );
+        assert_eq!(
+            fleet(world).len(),
+            2,
+            "station hire: both escorts loaded in the fleet"
         );
         let (distance, _) = formation_error(world).expect("station hire: the escort follows");
         assert!(
@@ -1373,8 +1935,13 @@ mod walk {
 
     /// Exact damage on every live flight computer of the escort: an armed
     /// hull with no computer left is neutralized.
-    fn kill_the_escort(world: &mut World) {
-        let escort = escort(world);
+    fn kill_the_escorts(world: &mut World) {
+        for escort in escorts(world) {
+            kill_the_escort(world, escort);
+        }
+    }
+
+    fn kill_the_escort(world: &mut World, escort: Entity) {
         let computers: Vec<(Entity, f32)> = world
             .query_filtered::<(Entity, &ChildOf, &Health), (
                 With<ControllerSectionMarker>,
@@ -1401,16 +1968,20 @@ mod walk {
         }
     }
 
-    /// The escort is neutralized, out of the fleet, and a cell owns it.
+    /// Both escorts are neutralized, out of the fleet, and a cell owns each.
     fn escort_lost() -> Arc<Predicate> {
         when(|world| {
-            escort_root(world).is_some_and(|escort| {
-                world.get::<NeutralizedMarker>(escort).is_some()
-                    && world.get::<PlayerFleetMarker>(escort).is_none()
-                    && world
-                        .get::<ChildOf>(escort)
-                        .is_some_and(|parent| world.get::<SectorRoot>(parent.parent()).is_some())
-            })
+            [escort_root(world), second_root(world)]
+                .into_iter()
+                .all(|escort| {
+                    escort.is_some_and(|escort| {
+                        world.get::<NeutralizedMarker>(escort).is_some()
+                            && world.get::<PlayerFleetMarker>(escort).is_none()
+                            && world.get::<ChildOf>(escort).is_some_and(|parent| {
+                                world.get::<SectorRoot>(parent.parent()).is_some()
+                            })
+                    })
+                })
         })
     }
 
@@ -1627,13 +2198,34 @@ mod walk {
             // measured once the clock runs again.
             when(|world| escort_root(world).is_some()),
             SESSION_SECS,
+        )
+        // The next escort takes the hired one's place in the list.
+        .step("station hire: the next escort is offered")
+        .until(next_escort_offered())
+        .deadline(SESSION_SECS)
+        .add()
+        .step("station hire: record the second hire")
+        .on_enter(record_second_hire)
+        .add()
+        .click_named(
+            "station hire: hire the second escort",
+            HIRE_BUTTON,
+            when(|world| second_root(world).is_some()),
+            SESSION_SECS,
         );
         // The pane pushed its reports under the interface pause; the tracker
         // drains them once the clock runs again.
         let script = tap(script, "the interface key", "interface_toggle", unpaused())
             .step("station hire: the hire reports")
-            .until(and(hire_reported(), escort_stands()))
+            .until(and(hire_reported(), fleet_stands()))
             .deadline(SESSION_SECS)
+            .add()
+            .step("station hire: assert the spawns")
+            .on_enter(assert_the_spawns)
+            .add();
+        let script = shoot_the_fleet(script, PAIR_SHOT, SETTLE_FRAMES)
+            .step("station hire: release the camera after the spawn")
+            .on_enter(release_the_camera)
             .add()
             .step("station hire: assert the hire, and undock")
             .on_enter(assert_the_hire)
@@ -1668,9 +2260,40 @@ mod walk {
             .until(escort_in_formation())
             .deadline(SESSION_SECS)
             .add();
-        let script = shoot_the_pair(script, "after the crossing", CROSSED_SHOT)
+        let mut script = shoot_the_pair(script, "after the crossing", CROSSED_SHOT)
             .step("station hire: mark the crossing")
             .on_enter(mark_the_crossing)
+            .add()
+            .step("station hire: the fleet holds round the player at rest")
+            .until(and(fleet_in_formation(), player_at_rest()))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station hire: the player starts on its main drive")
+            .on_enter(start_on_the_drive)
+            .add();
+        for name in START_SHOTS {
+            script = shoot_the_fleet(script, name, TURN_SHOT_GAP);
+        }
+        let script = script
+            .step("station hire: the player reaches the cruise on its drive")
+            .until(player_cruising())
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station hire: release the camera after the start")
+            .on_enter(release_the_camera)
+            .add()
+            .step("station hire: the fleet flies into formation on the coasting player")
+            .until(fleet_in_formation())
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station hire: mark the start and stop")
+            .on_enter(mark_the_start)
+            .until(player_at_rest())
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station hire: the fleet holds round the stopped player")
+            .until(fleet_in_formation())
+            .deadline(SESSION_SECS)
             .add()
             .step("station hire: the player burns ahead")
             .on_enter(burn_ahead)
@@ -1707,8 +2330,8 @@ mod walk {
             .step("station hire: mark the loaded follow")
             .on_enter(mark_the_loaded_follow)
             .add()
-            .step("station hire: kill the escort")
-            .on_enter(kill_the_escort)
+            .step("station hire: kill both escorts")
+            .on_enter(kill_the_escorts)
             .until(escort_lost())
             .deadline(SESSION_SECS)
             .add()

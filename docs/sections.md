@@ -195,12 +195,19 @@ price. The price is `escort_price_cr`, `hull_price_cr` times
 `EscortHire`), pushes `ShipInventoryReport::EscortHired` (`OnEscortHired`)
 and triggers `EscortHireRequest`. `hire_station_escort`
 (`nova_scenario/src/objects/fleet.rs`) takes the offer off the catalogue and
-spawns the escort Player-sided, with an empty hold and no credits, beside the
-player on its slot and away from the station, then adds `PlayerFleetMarker`
-and `AIFollow`. `update_follow_flight` (`nova_ship/src/input/ai/follow.rs`)
-flies the escort as the combat pilot flies: a held `MatchVelocity` of the
-leader's velocity plus a closing speed the hull can brake from
-(`ai_radial_speed`), so only its drive and its computers move it. The goal is
+spawns the escort Player-sided, with an empty hold and no credits, then adds
+`PlayerFleetMarker` and `AIFollow`. `escort_spawn_position` puts it on its
+slot side, away from the station, past both arms plus `AI_FOLLOW_GAP`, and
+steps it further out until it stands `ESCORT_SPAWN_CLEARANCE` (5 u) clear of
+every hull and sized body, so a second hire never lands on the first.
+`update_follow_flight` (`nova_ship/src/input/ai/follow.rs`) flies the escort
+as the combat pilot flies: a held `MatchVelocity` of the leader's heading at
+a lagged speed plus a closing speed the hull can brake from (`ai_radial_speed`,
+at most `AI_FOLLOW_CLOSING_SPEED`, 2 u/s). Only a speed gain lags
+(`AI_FOLLOW_FEED_LAG`, 2 s); a turn or a slow-down is flown at once. It never
+holds a velocity against the leader's travel. So a leader that starts from
+rest opens a gap before its escort follows, and only the escort's drive and
+computers move it. The goal is
 `formation_goal`. A leader at or above `AI_FOLLOW_TRAVEL_SPEED` (1 u/s) sets
 the frame with its travel, not its nose: the slot is the side times both arms
 plus `AI_FOLLOW_GAP` (20 u), `AI_FOLLOW_TRAIL` (10 u) behind the leader. A
