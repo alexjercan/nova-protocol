@@ -27,6 +27,7 @@ fn a_commanded_velocity_is_flown_to_and_then_held() {
         .insert(Autopilot::engage(AutopilotAction::MatchVelocity {
             velocity: commanded,
             facing: None,
+            rcs: true,
         }));
 
     run(&mut app, 900);
@@ -61,6 +62,7 @@ fn a_held_velocity_never_completes_itself() {
         .insert(Autopilot::engage(AutopilotAction::MatchVelocity {
             velocity: Vec3::ZERO,
             facing: None,
+            rcs: true,
         }));
 
     run(&mut app, 600);
@@ -92,6 +94,7 @@ fn a_held_velocity_publishes_no_leg_for_the_instruments() {
         .insert(Autopilot::engage(AutopilotAction::MatchVelocity {
             velocity: Vec3::new(2.0, 0.0, 0.0),
             facing: None,
+            rcs: true,
         }));
 
     run(&mut app, 60);
@@ -121,6 +124,7 @@ fn the_nose_goes_where_it_was_asked_once_the_velocity_is_held() {
         .insert(Autopilot::engage(AutopilotAction::MatchVelocity {
             velocity: commanded,
             facing: Some(facing),
+            rcs: true,
         }));
 
     run(&mut app, 900);
@@ -148,6 +152,7 @@ fn a_velocity_error_worth_turning_for_takes_the_hull_off_its_facing() {
         .insert(Autopilot::engage(AutopilotAction::MatchVelocity {
             velocity: Vec3::new(0.0, 0.0, -3.0),
             facing: Some(Dir3::X),
+            rcs: true,
         }));
 
     run(&mut app, 400);

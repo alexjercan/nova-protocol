@@ -4,9 +4,10 @@
 //!
 //! The follower flies its leader's heading at a lagged speed plus a closing
 //! speed toward its slot, handed to the flight computer as a held
-//! [`AutopilotAction::MatchVelocity`]. Its own drive, RCS and turn move it;
-//! nothing writes its pose or velocity, and the lag makes it follow a leader
-//! that starts rather than share the leader's motion.
+//! [`AutopilotAction::MatchVelocity`] that refuses the RCS except to dodge
+//! its leader. Its own drive and turn move it; nothing writes its pose or
+//! velocity, and the lag makes it follow a leader that starts rather than
+//! share the leader's motion.
 //!
 //! The order owns the passive helm: `update_passive_flight` skips a follower,
 //! and `update_combat_flight` leaves a held velocity to this driver when the
@@ -60,6 +61,11 @@ pub const AI_FOLLOW_FEED_LAG: f32 = 2.0;
 /// meters off asked for the full speed the hull could brake from, and an
 /// escort raced past a starting leader at three times its speed.
 pub const AI_FOLLOW_CLOSING_SPEED: f32 = 2.0;
+
+/// Time (seconds) ahead at which a follower closing on its leader may use its
+/// RCS to dodge: about the time its drive takes to turn onto the dodge. A
+/// leader that turned into an escort on the drive alone came within its hull.
+const AI_FOLLOW_DODGE_LEAD: f32 = 2.0;
 
 /// Distance (world units, 200 m) from its goal inside which a follower points
 /// its nose where the leader points; further out it points at its goal, so
@@ -140,7 +146,13 @@ pub(super) struct FollowFeed(f32);
 /// than [`AI_FOLLOW_CLOSING_SPEED`]. A follower of a travelling leader never
 /// holds a velocity back against the travel: a slot that lies behind it is
 /// waited for, not flown back to. The flight computer reaches the held
-/// velocity with the hull's own drive and RCS.
+/// velocity with the hull's drive alone: an RCS push turns no hull and lights
+/// no plume, so an escort that took up its leader's start on it slid along as
+/// if dragged. A follower may use its RCS only to get out of its leader's
+/// way: inside [`AI_FOLLOW_CLEARANCE`] of it, or closing on it fast enough
+/// to get there within [`AI_FOLLOW_DODGE_LEAD`]. Inside that clearance it
+/// first flies straight out, since the leg planner cannot steer out of a
+/// clearance it starts inside.
 ///
 /// Runs after `update_combat_flight` in the AI chain, so a ship that broke off
 /// this frame flies to its slot this frame.
@@ -244,6 +256,7 @@ pub(super) fn update_follow_flight(
             AutopilotAction::MatchVelocity {
                 velocity: fed,
                 facing: None,
+                rcs: false,
             }
         } else {
             let own_arm = arm.map_or(0.0, |arm| **arm);
@@ -288,10 +301,32 @@ pub(super) fn update_follow_flight(
                 },
                 &obstacles,
             );
-            let to_next = plan.goal + leader_anchor - from;
+            // The leader's clearance, in the leader's frame. `plan_leg` ignores
+            // a body whose clearance holds `from`, so inside it the leg runs
+            // straight at the goal, across the leader's bow when the goal lies
+            // past it. The follower flies straight out first.
+            let offset = from - leader_anchor;
+            let bubble = leader_arm + own_arm + AI_FOLLOW_CLEARANCE;
+            let next = if offset.length() < bubble {
+                offset.normalize_or(Vec3::X) * (bubble + AI_FOLLOW_SLACK)
+            } else {
+                plan.goal
+            };
+            // The drive must turn before it pushes, too slow to dodge a
+            // leader that turns into the follower; the RCS may help only
+            // when the follower is in the leader's clearance or will be
+            // within AI_FOLLOW_DODGE_LEAD at the speed they close. Not round
+            // the other hulls: two escorts holding side by side sit inside
+            // each other's clearance, and their RCS took up the leader's
+            // start again.
+            let closing_on_leader = (leader_velocity - own_velocity)
+                .dot(offset.normalize_or_zero())
+                .max(0.0);
+            let crowded = offset.length() - bubble < closing_on_leader * AI_FOLLOW_DODGE_LEAD;
+            let to_next = next + leader_anchor - from;
             // The way left, round a body when the leg detours, so the closing
             // speed brakes for the goal and not for the corner.
-            let distance = to_next.length() + (plan.goal + leader_anchor).distance(goal);
+            let distance = to_next.length() + (next + leader_anchor).distance(goal);
             let closing = if distance > AI_FOLLOW_SLACK {
                 to_next.normalize_or_zero()
                     * ai_radial_speed(
@@ -313,7 +348,11 @@ pub(super) fn update_follow_flight(
                 let ahead = leader_velocity.normalize();
                 velocity -= ahead * velocity.dot(ahead).min(0.0);
             }
-            AutopilotAction::MatchVelocity { velocity, facing }
+            AutopilotAction::MatchVelocity {
+                velocity,
+                facing,
+                rcs: crowded,
+            }
         };
         match autopilot {
             // Retarget a held velocity in place: engaging afresh every tick
@@ -408,6 +447,8 @@ mod flight_tests {
         steps: u32,
         first_move: Option<u32>,
         first_thrust: Option<u32>,
+        /// The velocity the RCS delivered, world units per second.
+        rcs: f32,
     }
 
     impl StepTrace {
@@ -417,6 +458,7 @@ mod flight_tests {
             self.steps = 0;
             self.first_move = None;
             self.first_thrust = None;
+            self.rcs = 0.0;
         }
     }
 
@@ -453,8 +495,9 @@ mod flight_tests {
             .filter(|(&ChildOf(parent), ..)| parent == ship)
             .map(|(_, magnitude, input)| **magnitude * input.clamp(0.0, 1.0))
             .sum();
-        let own =
-            impulse / mass.value() + rcs.map_or(0.0, |rcs| rcs.applied) * settings.rcs_accel * dt;
+        let pushed = rcs.map_or(0.0, |rcs| rcs.applied) * settings.rcs_accel * dt;
+        let own = impulse / mass.value() + pushed;
+        trace.rcs += pushed;
         let (at, velocity) = (position.0, velocity.0);
         if let Some((last_at, last_velocity)) = trace.last {
             let unexplained = ((at - last_at) - velocity * dt).length()
@@ -709,18 +752,87 @@ mod flight_tests {
         );
     }
 
+    /// An escort in formation keeps clear of a leader that turns hard into
+    /// it: a right angle to starboard, the escort's side, at 36 degrees a
+    /// second. The drive alone turned too late, and the escort, inside the
+    /// leader's clearance, flew to its new slot across the leader's bow.
+    #[test]
+    fn an_escort_dodges_a_leader_that_turns_into_it() {
+        let mut app = follow_physics_app();
+        let leader = app
+            .world_mut()
+            .spawn((
+                RigidBody::Kinematic,
+                Transform::default(),
+                LinearVelocity::ZERO,
+                AngularVelocity::ZERO,
+                HullRadius(ARM),
+                Allegiance::Player,
+            ))
+            .id();
+        let escort = spawn_follower(&mut app, Vec3::new(24.0, 0.0, 10.0), leader);
+        // A heavy hull, slow to turn, as the corvette the player hires.
+        let mut controllers = app.world_mut().query::<&mut PDController>();
+        for mut controller in controllers.iter_mut(app.world_mut()) {
+            controller.max_angular_acceleration = 0.5;
+        }
+        app.world_mut().resource_mut::<StepTrace>().follower = Some(escort);
+        settle(&mut app);
+        let cruise = |tick: u32| (tick as f32 / 60.0).min(5.0);
+        for tick in 0..1800 {
+            app.world_mut()
+                .entity_mut(leader)
+                .insert(LinearVelocity(Vec3::NEG_Z * cruise(tick)));
+            app.update();
+        }
+        let (distance, speed) = formation_error(&app, escort, leader);
+        assert!(
+            distance < 2.0 * AI_FOLLOW_SLACK && speed < 0.5,
+            "the escort flies its slot before the turn: {distance:.1} u off, {speed:.2} u/s apart"
+        );
+
+        let rate = 36f32.to_radians();
+        let mut closest = f32::INFINITY;
+        for tick in 0..1200 {
+            let turned = (tick as f32 / 60.0 * rate).min(90f32.to_radians());
+            let rotation = Quat::from_rotation_y(-turned);
+            let mut entity = app.world_mut().entity_mut(leader);
+            entity.insert(LinearVelocity(rotation * Vec3::NEG_Z * 5.0));
+            entity.insert(AngularVelocity(if turned < 90f32.to_radians() {
+                Vec3::NEG_Y * rate
+            } else {
+                Vec3::ZERO
+            }));
+            app.update();
+            let world = app.world();
+            closest = closest.min(
+                world
+                    .get::<Transform>(escort)
+                    .unwrap()
+                    .translation
+                    .distance(world.get::<Transform>(leader).unwrap().translation)
+                    - 2.0 * ARM,
+            );
+        }
+        assert!(
+            closest > AI_FOLLOW_CLEARANCE * 0.5,
+            "the escort kept clear of the leader's hull: closest {closest:.1} u"
+        );
+    }
+
     /// How far (world units, 30 m) a leader starting from rest travels while
     /// its escort must stay under half its speed.
     const OPENED: f32 = 3.0;
 
     /// An escort beside a leader at rest does not take up the leader's
     /// motion when the leader starts: the leader opens a gap first, and the
-    /// escort follows it under its own thrust, never back against the travel
-    /// and never faster than the leader by more than its closing speed. No step changes the escort's
-    /// velocity by more than its own drive and RCS delivered that step, and
-    /// it moves no sooner than its own thrust fires.
+    /// escort follows it on its drive, never on its RCS, never back against
+    /// the travel and never faster than the leader by more than its closing
+    /// speed. No step changes the escort's velocity by more than its own
+    /// drive delivered that step, and it moves no sooner than its drive
+    /// fires.
     #[test]
-    fn an_escort_lets_its_leader_open_a_gap_before_it_follows_under_its_own_thrust() {
+    fn an_escort_lets_its_leader_open_a_gap_then_follows_on_its_drive_not_its_rcs() {
         let mut app = follow_physics_app();
         let leader = app
             .world_mut()
@@ -778,6 +890,12 @@ mod flight_tests {
             trace.worst_excess < 1e-4,
             "a step changed the escort's velocity {} u/s past its own thrust",
             trace.worst_excess
+        );
+        assert!(
+            trace.rcs == 0.0,
+            "the escort's RCS pushed it {} u/s: a torque-free push with no plume reads as the \
+             leader dragging it",
+            trace.rcs
         );
         let (first_thrust, first_move) = (trace.first_thrust, trace.first_move);
         assert!(

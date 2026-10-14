@@ -267,6 +267,12 @@ pub enum AutopilotAction {
         /// Where the nose should point while the velocity is held; `None`
         /// leaves the attitude to whatever the burn needs.
         facing: Option<Dir3>,
+        /// Whether the RCS may reach the velocity. `false` leaves every
+        /// push to the drive, which turns the hull onto the error and burns:
+        /// an escort that took up its leader's start on a torque-free 5 g
+        /// RCS push slid along with no plume and no turn, as if the leader
+        /// dragged it.
+        rcs: bool,
     },
 }
 

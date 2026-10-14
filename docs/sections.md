@@ -222,9 +222,15 @@ as the combat pilot flies: a held `MatchVelocity` of the leader's heading at
 a lagged speed plus a closing speed the hull can brake from (`ai_radial_speed`,
 at most `AI_FOLLOW_CLOSING_SPEED`, 2 u/s). Only a speed gain lags
 (`AI_FOLLOW_FEED_LAG`, 2 s); a turn or a slow-down is flown at once. It never
-holds a velocity against the leader's travel. So a leader that starts from
-rest opens a gap before its escort follows, and only the escort's drive and
-computers move it. The goal is
+holds a velocity against the leader's travel. The held velocity refuses the
+RCS (`MatchVelocity { rcs: false }`), so the escort turns onto the error and
+burns its drive: an RCS push turns no hull and lights no plume, and an escort
+that took up the leader's start on it slid along as if dragged. The RCS may
+help only to dodge: inside the leader's clearance (both arms plus 10 u), or
+when the leader closes on the escort fast enough to reach that clearance
+within `AI_FOLLOW_DODGE_LEAD` (2 s), about the time the drive takes to turn.
+So a leader that starts from rest opens a gap before its escort follows, and
+only the escort's drive and computers move it. The goal is
 `formation_goal`. A leader at or above `AI_FOLLOW_TRAVEL_SPEED` (1 u/s) sets
 the frame with its travel, not its nose: the slot is the side times both arms
 plus `AI_FOLLOW_GAP` (20 u), `AI_FOLLOW_TRAIL` (10 u) behind the leader. A
@@ -232,6 +238,8 @@ slower leader leaves the escort where it is, pulled into `AI_FOLLOW_HOLD`
 (15 to 40 u between the hulls), so a hull turning in place keeps its escort
 still. The leg is planned in the leader's frame with `plan_leg`, round the
 leader, every other hull and every sized body by the escort's arm plus 10 u.
+`plan_leg` cannot steer out of a clearance it starts inside, so an escort
+inside the leader's clearance first flies straight out of it.
 Far from its goal the escort points at it; within 20 u it points where the
 leader points. It keeps its leash centred on the leader and gives way to a
 combat engage. A neutralized escort leaves the fleet.

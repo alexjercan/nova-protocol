@@ -478,6 +478,7 @@ mod walk {
         let action = AutopilotAction::MatchVelocity {
             velocity,
             facing: Some(Dir3::NEG_Z),
+            rcs: true,
         };
         match autopilot {
             Some(mut autopilot) => {

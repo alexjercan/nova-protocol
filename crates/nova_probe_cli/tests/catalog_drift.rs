@@ -1029,7 +1029,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "an escort is hired from a station's catalogue",
             "two hired escorts spawn clear of each other and every hull",
             "an escort crosses sectors beside the player",
-            "escorts follow a start from rest under their own thrust",
+            "escorts follow a start from rest on their own drive",
             "an escort flies formation through a turn",
             "the leave save holds the escort in the player's fleet",
             "a loaded escort is beside the player and follows",

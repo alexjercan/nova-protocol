@@ -1074,6 +1074,8 @@ pub(super) fn autopilot_step(
     // desired velocity is a STANDING one rather than a goal to arrive at.
     let mut hold_facing: Option<Vec3> = None;
     let mut is_velocity_hold = false;
+    // Cleared by a MatchVelocity that leaves every push to the drive.
+    let mut rcs_permitted = true;
     // Set by the arrival leg when it loses its stopping plan this tick; the
     // system logs the edge.
     let mut brake_degraded = None;
@@ -1178,13 +1180,18 @@ pub(super) fn autopilot_step(
             telemetry = Some(numbers);
             desired
         }
-        AutopilotAction::MatchVelocity { velocity, facing } => {
+        AutopilotAction::MatchVelocity {
+            velocity,
+            facing,
+            rcs,
+        } => {
             // Nothing to plan and nothing to arrive at: the goal IS the
             // desired velocity, and the whole of the leg is the error
             // below. No telemetry either - the instruments read a leg
             // with a destination, and this has none.
             is_velocity_hold = true;
             hold_facing = facing.map(Vec3::from);
+            rcs_permitted = rcs;
             velocity
         }
         AutopilotAction::Orbit { well, plan } => {
@@ -1234,9 +1241,10 @@ pub(super) fn autopilot_step(
     // Both need the ship's `rcs_enabled` capability, so a hull without it
     // keeps the exact main-drive behavior, and delta-v left in the
     // magazine: an empty [`RcsBudget`] hands the goal back to the main
-    // drive until it refills.
+    // drive until it refills. A held velocity that refuses the RCS
+    // (`MatchVelocity::rcs`) flies as a hull without it.
     let capabilities = env.capabilities;
-    let rcs_granted = capabilities.rcs_enabled;
+    let rcs_granted = capabilities.rcs_enabled && rcs_permitted;
     let rcs_capable = rcs_granted && !helm.rcs_budget.is_empty(settings) && error_speed > 1e-3;
     // The RCS takes a goal only where it has CLEAR authority over the local
     // gravity: its `rcs_accel` push must comfortably exceed the inward

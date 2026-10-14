@@ -488,6 +488,7 @@ pub(super) fn update_combat_flight(
         let action = AutopilotAction::MatchVelocity {
             velocity: target_velocity + velocity,
             facing: Dir3::new(to_target).ok(),
+            rcs: true,
         };
         match autopilot {
             // Already holding a velocity: retarget it in place. Engaging
@@ -671,7 +672,9 @@ mod combat_flight_tests {
         let (mut world, ship, _) = combat_world(AIBehaviorState::Engage, AI_STANDOFF_CLEARANCE);
         world.run_system_once(update_combat_flight).unwrap();
 
-        let Some(AutopilotAction::MatchVelocity { velocity, facing }) = engaged(&world, ship)
+        let Some(AutopilotAction::MatchVelocity {
+            velocity, facing, ..
+        }) = engaged(&world, ship)
         else {
             panic!("engaging must hand the computer a velocity to hold");
         };
@@ -691,7 +694,9 @@ mod combat_flight_tests {
         let (mut world, ship, _) = combat_world(AIBehaviorState::Evade, 1000.0);
         world.run_system_once(update_combat_flight).unwrap();
 
-        let Some(AutopilotAction::MatchVelocity { velocity, facing }) = engaged(&world, ship)
+        let Some(AutopilotAction::MatchVelocity {
+            velocity, facing, ..
+        }) = engaged(&world, ship)
         else {
             panic!("evading must hand the computer a velocity to hold");
         };

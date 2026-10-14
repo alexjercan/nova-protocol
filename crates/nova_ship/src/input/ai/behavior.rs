@@ -1380,6 +1380,7 @@ mod behavior_state_tests {
             .insert(Autopilot::engage(AutopilotAction::MatchVelocity {
                 velocity: Vec3::X * 10.0,
                 facing: None,
+                rcs: true,
             }));
         let turret = world
             .spawn((

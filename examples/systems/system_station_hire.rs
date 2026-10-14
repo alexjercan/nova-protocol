@@ -39,7 +39,7 @@
 //! | 1 | `outcome: an escort is hired from a station's catalogue` | the first escort stands with the offer's name and the id its roster slot gives, Player-sided, in the fleet and following the player on the starboard slot, owned by no cell, and the second on the port slot; both offers left the catalogue; the player paid both prices and the station took them, all as `EscortHire`; `OnEscortHired` fired once per escort with the escort, the hull and the price |
 //! | 1b | `outcome: two hired escorts spawn clear of each other and every hull` | at the pose each escort spawned in, its hull keeps daylight to the other escort, the player and the station, every hull measured by its `HullRadius` about its centre of mass |
 //! | 2 | `outcome: an escort crosses sectors beside the player` | after the jump the station's cell is frozen, no frozen record holds the escort, and the escort is live, owned by no cell, and back in formation after the player jumps on |
-//! | 2b | `outcome: escorts follow a start from rest under their own thrust` | from the player at rest to the fleet back in formation on the coasting player, no physics step changed an escort's velocity by more than its own drive impulse over its mass plus its RCS push and its well's pull, no escort moved before its own thrust fired, and no escort flew faster than the player by more than `AI_FOLLOW_CLOSING_SPEED` plus 5 m/s |
+//! | 2b | `outcome: escorts follow a start from rest on their own drive` | from the player at rest to the fleet back in formation on the coasting player, no physics step changed an escort's velocity by more than its own drive impulse over its mass plus its RCS push and its well's pull, its RCS delivered nothing and its drive did the following, no escort moved before its drive fired, and no escort flew faster than the player by more than `AI_FOLLOW_CLOSING_SPEED` plus 5 m/s |
 //! | 3 | `outcome: an escort flies formation through a turn` | while the player burns to 50 m/s and turns its travel a right angle, the escort ends in formation behind and beside the new travel, matching the player's velocity; its drive took it from rest to the cruise; no physics step moved it more than 0.5 m past its own velocity; it never came within 50 m of the player's hull |
 //! | 4 | `outcome: the leave save holds the escort in the player's fleet` | the saved player's fleet is the two escorts, on the starboard and port slots, and no saved sector holds either |
 //! | 5 | `outcome: a loaded escort is beside the player and follows` | after Load the escort stands in the fleet beside the player, following the loaded player, and is back in formation after the player jumps on |
@@ -1408,9 +1408,13 @@ mod walk {
         /// The largest velocity change of one step past its own drive, RCS
         /// and well, engine units per second.
         worst_excess: f32,
-        /// The first step its velocity changed, and its own thrust fired.
+        /// The first step its velocity changed, and its drive fired.
         first_move: Option<u32>,
         first_thrust: Option<u32>,
+        /// The velocity its drive and its RCS delivered, engine units per
+        /// second.
+        drive: f32,
+        rcs: f32,
         /// Its speed and the player's when the player had opened
         /// [`START_OPENED`] from rest.
         at_opened: Option<(f32, f32)>,
@@ -1476,7 +1480,7 @@ mod walk {
             )
         };
         let (player_at, player_v) = read(player);
-        let samples: Vec<(Vec3, Vec3, f32)> = [first, second]
+        let samples: Vec<(Vec3, Vec3, f32, f32, f32)> = [first, second]
             .into_iter()
             .map(|escort| {
                 let (at, velocity) = read(escort);
@@ -1504,7 +1508,13 @@ mod walk {
                         )
                     })
                     .map_or(0.0, |(_, accel)| accel.length());
-                (at, velocity, impulse / mass + (rcs * rcs_accel + well) * dt)
+                (
+                    at,
+                    velocity,
+                    impulse / mass,
+                    rcs * rcs_accel * dt,
+                    well * dt,
+                )
             })
             .collect();
         // Let the drive go at the cruise, whatever frame the shots are on.
@@ -1521,7 +1531,8 @@ mod walk {
         if trace.player_moved.is_none() && player_v.length() > 1e-5 {
             trace.player_moved = Some(step);
         }
-        for (index, (at, velocity, own)) in samples.into_iter().enumerate() {
+        for (index, (at, velocity, drive, rcs, well)) in samples.into_iter().enumerate() {
+            let own = drive + rcs + well;
             let escort = &mut trace.escorts[index];
             let change = escort.last.map_or(0.0, |last| (velocity - last).length());
             if escort.last.is_some() {
@@ -1530,7 +1541,9 @@ mod walk {
                     escort.first_move = Some(step);
                 }
             }
-            if own > 0.0 && escort.first_thrust.is_none() {
+            escort.drive += drive;
+            escort.rcs += rcs;
+            if drive > 0.0 && escort.first_thrust.is_none() {
                 escort.first_thrust = Some(step);
             }
             escort.overtake = escort.overtake.max(velocity.length() - player_v.length());
@@ -1568,8 +1581,9 @@ mod walk {
         info!("station hire: the player starts from rest on its main drive");
     }
 
-    /// Claim 2b: each escort's velocity changed only by its own thrust and
-    /// no escort moved before its own thrust fired; then the player stops.
+    /// Claim 2b: each escort's velocity changed only by its own drive, never
+    /// its RCS, and no escort moved before its drive fired; then the player
+    /// stops.
     fn mark_the_start(world: &mut World) {
         let trace = std::mem::take(&mut *world.resource_mut::<StartTrace>());
         info!(
@@ -1590,9 +1604,16 @@ mod walk {
                 escort.overtake
             );
             assert!(
+                escort.rcs == 0.0 && escort.drive > 0.0,
+                "station hire: escort {index} followed on its drive, not its RCS: drive {} u/s, \
+                 RCS {} u/s",
+                escort.drive,
+                escort.rcs
+            );
+            assert!(
                 escort.first_thrust.is_some() && escort.first_thrust <= escort.first_move,
-                "station hire: escort {index} moved no sooner than its own thrust fired: thrust \
-                 at step {:?}, moved at step {:?}",
+                "station hire: escort {index} moved no sooner than its drive fired: drive at \
+                 step {:?}, moved at step {:?}",
                 escort.first_thrust,
                 escort.first_move
             );
@@ -1611,7 +1632,7 @@ mod walk {
             .collect();
         nova_probe::probe_marker(
             world,
-            "outcome: escorts follow a start from rest under their own thrust",
+            "outcome: escorts follow a start from rest on their own drive",
             serde_json::json!({
                 "steps": trace.steps,
                 "worst_excess_mps": trace
@@ -1620,6 +1641,16 @@ mod walk {
                     .map(|escort| Meters::from_engine(escort.worst_excess).get())
                     .collect::<Vec<_>>(),
                 "speed_at_30m_opened_mps": at_opened,
+                "drive_mps": trace
+                    .escorts
+                    .iter()
+                    .map(|escort| Meters::from_engine(escort.drive).get())
+                    .collect::<Vec<_>>(),
+                "rcs_mps": trace
+                    .escorts
+                    .iter()
+                    .map(|escort| Meters::from_engine(escort.rcs).get())
+                    .collect::<Vec<_>>(),
                 "top_mps": trace
                     .escorts
                     .iter()
@@ -1699,6 +1730,7 @@ mod walk {
             .insert(Autopilot::engage(AutopilotAction::MatchVelocity {
                 velocity: direction * CRUISE,
                 facing: Dir3::new(direction).ok(),
+                rcs: true,
             }));
         info!("station hire: the player cruises along {direction}");
     }

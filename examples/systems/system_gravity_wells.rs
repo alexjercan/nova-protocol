@@ -332,6 +332,7 @@ fn start_the_crossing(world: &mut World) {
         .insert(Autopilot::engage(AutopilotAction::MatchVelocity {
             velocity: Vec3::X * CROSS_SPEED.to_engine(),
             facing: Some(Dir3::X),
+            rcs: true,
         }));
     world.insert_resource(Crossing::new(hull, well_a, well_b));
     info!("gravity wells: flying the crossing");
