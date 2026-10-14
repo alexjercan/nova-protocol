@@ -367,10 +367,12 @@ fn land_carved_chunks(
         }
         landed += 1;
         trace!("land_carved_chunks: {entity:?} is clear, going dynamic");
+        // `try_`: a scenario unload (the menu backdrop cycles scenes) can
+        // despawn the chunk in the same frame, before these commands apply.
         commands
             .entity(entity)
-            .insert((RigidBody::Dynamic, grace.collider.clone(), GravityAffected))
-            .remove::<ChunkGrace>();
+            .try_insert((RigidBody::Dynamic, grace.collider.clone(), GravityAffected))
+            .try_remove::<ChunkGrace>();
     }
 }
 
