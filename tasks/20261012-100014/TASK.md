@@ -1,8 +1,8 @@
 # Upgrades: buy a whole ship from a tiered station catalogue
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 74
-- TAGS: v0.16.0,wizard
+- TAGS: v0.16.0, wizard
 
 ## User facts
 - Epic `20261012-100008`. Decision 6, third rung: buy an entire ship at a station; the catalogue is tiered by the station's advancement; the old hull is sold or kept in station storage is NOT in scope (sections are never items; a hull is not an item either). Decide the fate of the old hull with the owner.
@@ -30,6 +30,8 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
 - UI: the Ship pane's side panel, a "Ships for sale" list under the Add list (the pane that already holds the refit lists; there is no Station pane). Each row: name, length in m and section count, a class summary, price, trade-in, and a Buy button or the refusal.
 
 - Agent result 2026-10-14: implemented as decided. Proof: `examples/systems/system_station_buy.rs` (seed 10, the first hull of the nearest living Refit station, bought by the Buy button; 3 roster invariants) passed under lavapipe; the tier test is `a_first_ring_station_sells_small_hulls_and_the_same_catalogue_for_a_seed` (`crates/nova_world_base/src/station_hulls.rs`); the buy rule has 5 unit tests in `crates/nova_ship/src/sections/hull_buy.rs`. Found on the run: the starting warship trades in for 12,615 cr against a 9,540 cr first hull, so the first buy pays the player; the economy page should judge if the trade-in share or the starter's recipes need a cut. A 100 kg base storage refuses the buy for a hold over that; the player must sell or store first. The kinds line names classes by pane code prefix (`41 HULL, 2 CTL, 6 THR`). No ship preview in the list.
+
+- Orchestrator close 2026-10-14: landed in eb3a0aa01. A generated living station with `Refit` sells 3 to 5 hulls (`station_hulls.rs`, seeded by world seed and station id, size by advancement, kept in `FrozenStation.hulls` and the save). Price is the new recipes at ask. The old hull trades in at strip value times health share. The hold moves to station storage, and the buy is refused if storage cannot take it. The ship root stays and the sections are replaced and redocked at the same port. New `OnShipBought` event and credit cause `ShipBuy`. Proof: `examples/systems/system_station_buy.rs` passed twice (buy, save, load gives back the 54-section hull). The orchestrator reviewed the Ships for sale crop and the docked frame (STATION HELM, DOCK active; a rock sits close under the new hull) and re-ran `content lint`: 0 errors. For the owner: the starting warship trades in for 12,615 cr against a 9,540 cr first hull, so the first buy pays the player; base station storage of 100 kg refuses a full hold.
 
 ## Delivery gate
 - The catalogue is generated from the station's civilization and advancement, deterministic from the seed; buying swaps the player's design and respawns the hull docked. Stop for the owner on the old hull (trade-in credit vs. left as a derelict).
