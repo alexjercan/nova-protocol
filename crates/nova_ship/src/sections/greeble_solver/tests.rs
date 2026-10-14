@@ -1,5 +1,10 @@
+use std::collections::{BTreeMap, BTreeSet};
+
 use super::*;
-use crate::sections::{shell_skin::derive_skin, skin_surface::skin_surface};
+use crate::sections::{
+    shell_skin::{derive_skin, SkinPlate, SkinStructure},
+    skin_surface::skin_surface,
+};
 
 fn link(id: &str, connects: &[&str]) -> GreebleLinkConfig {
     GreebleLinkConfig {
@@ -153,8 +158,8 @@ fn the_same_surface_rules_and_seed_give_the_same_placements() {
     let structure = block(6, 2, 3);
     let surface = surface_of(&structure);
     let rules = compiled(&sample_rules());
-    let seed = greeble_seed(&structure, "industrial");
-    assert_eq!(seed, greeble_seed(&structure, "industrial"));
+    let seed = greeble_seed("industrial");
+    assert_eq!(seed, greeble_seed("industrial"));
 
     for offset in 0..4 {
         let first = solve_greebles(&surface, &rules, seed + offset);
@@ -162,6 +167,122 @@ fn the_same_surface_rules_and_seed_give_the_same_placements() {
         assert_eq!(first, second);
         assert!(!first.fallback);
     }
+}
+
+/// A plate's identity across an edit: its cell and the face it shows.
+type PlateKey = ([i32; 3], [i32; 3]);
+
+fn plate_key(plate: &SkinPlate) -> PlateKey {
+    (
+        plate.cell.to_array(),
+        (plate.cell - plate.anchor).to_array(),
+    )
+}
+
+/// Per plate key, the plate keys and back slots across its four slots.
+fn link_keys(
+    plates: &[SkinPlate],
+    surface: &SkinSurface,
+) -> BTreeMap<PlateKey, Vec<Option<(PlateKey, u8)>>> {
+    (0..surface.len())
+        .map(|cell| {
+            let links = surface.cells()[cell]
+                .links
+                .iter()
+                .map(|link| link.map(|link| (plate_key(&plates[link.cell]), link.slot)))
+                .collect();
+            (plate_key(&plates[cell]), links)
+        })
+        .collect()
+}
+
+/// Of the plates after an edit that lie more than `radius` links from every
+/// plate the edit touched, how many there are and how many keep their greeble
+/// and turn. A plate is touched when it is new or its links changed.
+fn kept_outside(
+    before: &SkinStructure,
+    after: &SkinStructure,
+    rules: &CompiledGreebleRules,
+    seed: u64,
+    radius: u32,
+) -> (usize, usize) {
+    let (old_plates, new_plates) = (derive_skin(before), derive_skin(after));
+    let (old_surface, new_surface) = (
+        skin_surface(before, &old_plates),
+        skin_surface(after, &new_plates),
+    );
+    let (old_links, new_links) = (
+        link_keys(&old_plates, &old_surface),
+        link_keys(&new_plates, &new_surface),
+    );
+    let old = solve_greebles(&old_surface, rules, seed);
+    let new = solve_greebles(&new_surface, rules, seed);
+    let old_at: BTreeMap<PlateKey, usize> = old_plates
+        .iter()
+        .enumerate()
+        .map(|(index, plate)| (plate_key(plate), index))
+        .collect();
+
+    let mut near = BTreeSet::new();
+    for (cell, plate) in new_plates.iter().enumerate() {
+        let key = plate_key(plate);
+        if old_links.get(&key) != new_links.get(&key) {
+            near.extend(
+                ball(&new_surface, cell, radius)
+                    .into_iter()
+                    .map(|(at, _)| at),
+            );
+        }
+    }
+    let outside: Vec<usize> = (0..new_plates.len())
+        .filter(|cell| !near.contains(cell))
+        .collect();
+    let kept = outside
+        .iter()
+        .filter(|cell| {
+            let was = old_at[&plate_key(&new_plates[**cell])];
+            old.cells[was] == new.cells[**cell]
+        })
+        .count();
+    (outside.len(), kept)
+}
+
+/// Removing one section keeps the greeble and turn of at least 95% of the
+/// plates more than 2 links from every plate the edit touched.
+///
+/// A share, not every plate: the solve guarantees no radius. The pick order
+/// is global, a forced line run carries a change along it, and a `max_count`
+/// cap or a factor-0 ban reaches past radius 2. Measured 2026-10-14 on this
+/// fixture: 5226 of 5392 kept (96.9%) at radius 2, and 96.7% to 96.9% at
+/// radius 0 to 3, so the loss does not shrink with distance.
+#[test]
+fn removing_a_section_keeps_most_placements_away_from_the_edit() {
+    let before = block(8, 2, 4);
+    let rules = compiled(&sample_rules());
+    let removals = [
+        IVec3::new(0, 0, 0),
+        IVec3::new(4, 1, 2),
+        IVec3::new(3, 0, 0),
+        IVec3::new(7, 1, 3),
+    ];
+    let (mut outside, mut kept) = (0, 0);
+    for removed in removals {
+        let mut after = SkinStructure::default();
+        for cell in before.filled_cells().filter(|cell| *cell != removed) {
+            after.insert(cell, [true; 6]);
+        }
+        for style in 0..16 {
+            let seed = greeble_seed(&format!("style_{style}"));
+            let (count, same) = kept_outside(&before, &after, &rules, seed, 2);
+            outside += count;
+            kept += same;
+        }
+    }
+    assert!(outside > 0, "the edits leave plates outside radius 2");
+    assert!(
+        kept * 100 >= outside * 95,
+        "{kept} of {outside} plates outside radius 2 keep their greeble",
+    );
 }
 
 #[test]

@@ -29,10 +29,7 @@ use std::{
 use bevy::prelude::*;
 use nova_gameplay::prelude::Fnv64;
 
-use crate::sections::{
-    shell_skin::{SkinStructure, FACES},
-    skin_surface::{SkinSurface, SURFACE_SLOTS},
-};
+use crate::sections::skin_surface::{SkinSurface, SURFACE_SLOTS};
 
 /// The prelude: the rule types, their ids, the compiled rules, the solve and
 /// the seed helper.
@@ -665,29 +662,17 @@ pub struct GreebleSolution {
     pub fallback: bool,
 }
 
-/// The seed a surface is solved with: [`Fnv64`] over the style id and the
-/// structure's cells, sockets and exits, in cell order.
+/// The seed a surface is solved with: [`Fnv64`] over the style id alone.
 ///
-/// Same structure and style, same seed. Any change to the structure changes
-/// the seed.
-pub fn greeble_seed(structure: &SkinStructure, style: &str) -> u64 {
-    let mut cells: Vec<IVec3> = structure.filled_cells().collect();
-    cells.sort_unstable_by_key(|cell| (cell.x, cell.y, cell.z));
-    let mut hash = Fnv64::new()
+/// The structure is NOT in the seed. Each draw also hashes the plate's own
+/// key (its cell and out face, [`crate::sections::skin_surface::SurfaceCell`]),
+/// so plates still differ from each other, and an edit to the structure
+/// changes the draws only where it changes the plates and their links.
+pub fn greeble_seed(style: &str) -> u64 {
+    Fnv64::new()
         .write(&(style.len() as u64).to_le_bytes())
-        .write(style.as_bytes());
-    for cell in cells {
-        let faces = (0..FACES.len()).fold(0u16, |set, face| {
-            let offers = u16::from(structure.offers(cell, face) == Some(true));
-            let fires = u16::from(structure.fires(cell, face));
-            set | offers << face | fires << (face + FACES.len())
-        });
-        for value in [cell.x, cell.y, cell.z] {
-            hash = hash.write(&value.to_le_bytes());
-        }
-        hash = hash.write(&faces.to_le_bytes());
-    }
-    hash.finish()
+        .write(style.as_bytes())
+        .finish()
 }
 
 /// Places one greeble variant on every cell of `surface`.
