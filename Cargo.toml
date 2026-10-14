@@ -673,6 +673,14 @@ name = "system_station_buy"
 path = "examples/systems/system_station_buy.rs"
 required-features = ["debug"]
 
+# An escort hired at a living generated station through the Ship pane: it
+# follows the player across a retired cell, through a save and a Load, and a
+# killed escort leaves the fleet for good and its wreck stays in its cell.
+[[example]]
+name = "system_station_hire"
+path = "examples/systems/system_station_hire.rs"
+required-features = ["debug"]
+
 # A living generated station's trade and storage through the Inventory pane:
 # buy, sell and store by clicks, the storage kept through a retire and a thaw,
 # withdrawn whole, an over-cap store refused on the form, and the storage
