@@ -703,6 +703,51 @@ fn offset_ship_app() -> (App, Entity, Entity, Entity) {
     (app, hull, turret, thruster)
 }
 
+/// A station add or swap changes the ship while its pane is open: the new
+/// section gets a block in the schematic, and the block of a section the swap
+/// took away goes with it. The scene is built once at open, so without the
+/// reconcile the new section has a badge but no block, and the old block
+/// points at a despawned section.
+#[test]
+fn a_section_added_or_swapped_while_the_pane_is_open_gets_its_block() {
+    let (mut app, hull, turret, _thruster) = offset_ship_app();
+    let ship = app.world().get::<ChildOf>(hull).unwrap().0;
+    let added = app
+        .world_mut()
+        .spawn((
+            SectionMarker,
+            Name::new("Added gun"),
+            EntityId::new("cube_d"),
+            Transform::from_translation(Vec3::new(3.0, 3.0, -1.0)),
+            SectionCollider::Cuboid { size: Vec3::ONE },
+            ChildOf(ship),
+            TurretSectionMarker,
+            SectionClass::Turret,
+        ))
+        .id();
+    app.world_mut().entity_mut(turret).despawn();
+    app.world_mut()
+        .run_system_once(assign_section_codes)
+        .unwrap();
+    app.world_mut().run_system_once(manage_ship_scene).unwrap();
+
+    let blocks: Vec<Entity> = app
+        .world_mut()
+        .query::<&ShipBlock>()
+        .iter(app.world())
+        .map(|block| block.section)
+        .collect();
+    assert!(
+        blocks.contains(&added),
+        "the added section has a block: {blocks:?}"
+    );
+    assert!(
+        !blocks.contains(&turret),
+        "the swapped-out section has no block: {blocks:?}"
+    );
+    assert_eq!(blocks.len(), 3, "one block per live section: {blocks:?}");
+}
+
 fn ship_orbit(app: &mut App) -> ShipOrbit {
     *app.world_mut()
         .query_filtered::<&ShipOrbit, With<ShipCameraMarker>>()

@@ -146,6 +146,16 @@ pub struct ShipRuntime {
     pub(crate) image: Option<Handle<Image>>,
     pub(crate) scene_root: Option<Entity>,
     pub(crate) blips: bevy::platform::collections::HashMap<Entity, Entity>,
+    /// The schematic block per section, kept in step with the live section
+    /// tree by `manage_ship_scene` while the pane is open.
+    pub(crate) blocks: bevy::platform::collections::HashMap<Entity, Entity>,
+    /// The structural mate overlay, rebuilt when the section tree changes.
+    pub(crate) mate_overlay: Option<Entity>,
+    /// The fill per section family, the outline edge mesh and the mate
+    /// overlay material, made at open and shared by every block.
+    pub(crate) mat_blocks: Vec<Handle<StandardMaterial>>,
+    pub(crate) mat_mates: Option<Handle<StandardMaterial>>,
+    pub(crate) edge_mesh: Option<Handle<Mesh>>,
     /// The box outline, and its accent variant for the selected section;
     /// swapped per block in `update_ship_blocks`.
     pub(crate) mat_outline: Option<Handle<StandardMaterial>>,
@@ -203,7 +213,11 @@ impl ShipRuntime {
 }
 
 /// Build the schematic block scene + camera when the Ship pane opens, tear it down on
-/// close.
+/// close, and keep one block per live section while it is open.
+///
+/// A station add, swap or rebuild changes the section tree under an open
+/// pane. Only the blocks and the mate overlay follow it; the camera, its
+/// orbit and the selection stay as the player left them.
 #[expect(
     clippy::too_many_arguments,
     reason = "one system reading the panel, its camera and the ship it draws"
@@ -219,11 +233,21 @@ pub(crate) fn manage_ship_scene(
     meshes: Option<ResMut<Assets<Mesh>>>,
     materials: Option<ResMut<Assets<StandardMaterial>>>,
     sections: ShipSections,
+    q_coded: Query<(), Added<SectionCode>>,
+    mut removed: RemovedComponents<SectionMarker>,
 ) {
     // Shown, not active: the scene, camera and selection survive the command
     // modal over the pane. Input gates on the pane owning the screen instead.
     let active = interface_shown(&pause, &close) && *pane == InterfacePaneType::Ship;
+    // Read every frame, so a despawn from before the pane opened is not
+    // taken for a change to the open scene.
+    let tree_changed = removed.read().count() > 0 || !q_coded.is_empty();
     if active == runtime.active {
+        if active && tree_changed {
+            if let Some(mut meshes) = meshes {
+                reconcile_ship_blocks(&mut commands, &mut runtime, &mut meshes, &sections);
+            }
+        }
         return;
     }
     runtime.active = active;
@@ -235,6 +259,9 @@ pub(crate) fn manage_ship_scene(
         for (_, blip) in runtime.blips.drain() {
             commands.entity(blip).try_despawn();
         }
+        // The blocks and the overlay went with the scene root.
+        runtime.blocks.clear();
+        runtime.mate_overlay = None;
         runtime.image = None;
         runtime.selected = None;
         runtime.repair_target = None;
@@ -262,8 +289,10 @@ pub(crate) fn manage_ship_scene(
     // variant. Shared handles, so selecting a section only swaps its outline
     // material, never respawns. Colours come from the theme when the pane
     // opens; a theme change shows on the next open.
-    let block_mats = SectionIconType::ALL
-        .map(|icon| materials.add(unlit(theme.color_alpha(icon.color(), icon.block_alpha()))));
+    runtime.mat_blocks = SectionIconType::ALL
+        .map(|icon| materials.add(unlit(theme.color_alpha(icon.color(), icon.block_alpha()))))
+        .to_vec();
+    runtime.mat_mates = Some(materials.add(unlit(theme.color(UiColor::Accent))));
     runtime.mat_outline = Some(materials.add(unlit(theme.color_alpha(UiColor::Primary, 0.95))));
     runtime.mat_outline_selected = Some(materials.add(unlit(theme.color(UiColor::Accent))));
 
@@ -309,55 +338,14 @@ pub(crate) fn manage_ship_scene(
         ChildOf(scene_root),
     ));
 
-    // One proxy per section: a family-tinted fill shrunk to leave a GAP to its
-    // neighbours, wrapped in a box OUTLINE at the full collider size. The gap
-    // and outline keep adjacent sections from merging.
-    let outline_mat = runtime.mat_outline.clone().unwrap();
     // One shared unit-cube edge mesh, scaled per block by the outline's transform.
-    let edge_mesh = meshes.add(cuboid_edges());
+    runtime.edge_mesh = Some(meshes.add(cuboid_edges()));
+    runtime.scene_root = Some(scene_root);
     for view in &views {
-        let full = (view.half_extents * 2.0).max(Vec3::splat(0.2));
-        let fill = full * SHIP_BLOCK_FILL_SCALE;
-        let mesh = meshes.add(Cuboid::new(fill.x, fill.y, fill.z));
-        commands
-            .spawn((
-                ShipBlock {
-                    section: view.entity,
-                },
-                Mesh3d(mesh),
-                MeshMaterial3d(block_mats[SectionIconType::of(view.kind) as usize].clone()),
-                Transform {
-                    translation: view.local.translation,
-                    rotation: view.local.rotation,
-                    scale: Vec3::ONE,
-                },
-                RenderLayers::layer(SHIP_LAYER),
-                ChildOf(scene_root),
-            ))
-            .with_children(|block| {
-                block.spawn((
-                    ShipBlockOutline,
-                    Mesh3d(edge_mesh.clone()),
-                    MeshMaterial3d(outline_mat.clone()),
-                    // Unit edges scaled to the FULL collider size (the fill inside
-                    // is smaller, so the outline frames it with a visible gap).
-                    Transform::from_scale(full),
-                    RenderLayers::layer(SHIP_LAYER),
-                ));
-            });
+        let block = spawn_ship_block(&mut commands, &runtime, &mut meshes, view);
+        runtime.blocks.insert(view.entity, block);
     }
-
-    if let Some(mesh) = mate_edges_mesh(&views) {
-        commands.spawn((
-            ShipMateOverlay,
-            Mesh3d(meshes.add(mesh)),
-            MeshMaterial3d(materials.add(unlit(theme.color(UiColor::Accent)))),
-            Transform::default(),
-            Visibility::Hidden,
-            RenderLayers::layer(SHIP_LAYER),
-            ChildOf(scene_root),
-        ));
-    }
+    runtime.mate_overlay = spawn_mate_overlay(&mut commands, &runtime, &mut meshes, &views);
 
     // Bow is ship-local -Z. The arrow starts clear of the foremost block and
     // points away from the hull, so the view reads fore and aft.
@@ -400,9 +388,114 @@ pub(crate) fn manage_ship_scene(
         ));
     }
 
-    runtime.scene_root = Some(scene_root);
     // Default the selection to the first section so the panel is useful at once.
     runtime.selected = views.first().map(|v| v.entity);
+}
+
+/// Despawn the blocks of sections that are gone, spawn one for each new
+/// section, and rebuild the mate overlay over the new tree.
+fn reconcile_ship_blocks(
+    commands: &mut Commands,
+    runtime: &mut ShipRuntime,
+    meshes: &mut Assets<Mesh>,
+    sections: &ShipSections,
+) {
+    let views = sections.collect();
+    let live: BTreeSet<Entity> = views.iter().map(|view| view.entity).collect();
+    runtime.blocks.retain(|section, block| {
+        let keep = live.contains(section);
+        if !keep {
+            commands.entity(*block).try_despawn();
+        }
+        keep
+    });
+    for view in &views {
+        if !runtime.blocks.contains_key(&view.entity) {
+            let block = spawn_ship_block(commands, runtime, meshes, view);
+            runtime.blocks.insert(view.entity, block);
+        }
+    }
+    if let Some(overlay) = runtime.mate_overlay.take() {
+        commands.entity(overlay).try_despawn();
+    }
+    runtime.mate_overlay = spawn_mate_overlay(commands, runtime, meshes, &views);
+}
+
+/// One proxy per section: a family-tinted fill shrunk to leave a GAP to its
+/// neighbours, wrapped in a box OUTLINE at the full collider size. The gap
+/// and outline keep adjacent sections from merging.
+fn spawn_ship_block(
+    commands: &mut Commands,
+    runtime: &ShipRuntime,
+    meshes: &mut Assets<Mesh>,
+    view: &ShipSectionView,
+) -> Entity {
+    let full = (view.half_extents * 2.0).max(Vec3::splat(0.2));
+    let fill = full * SHIP_BLOCK_FILL_SCALE;
+    let mut block = commands.spawn((
+        ShipBlock {
+            section: view.entity,
+        },
+        Mesh3d(meshes.add(Cuboid::new(fill.x, fill.y, fill.z))),
+        Transform {
+            translation: view.local.translation,
+            rotation: view.local.rotation,
+            scale: Vec3::ONE,
+        },
+        RenderLayers::layer(SHIP_LAYER),
+    ));
+    if let Some(root) = runtime.scene_root {
+        block.insert(ChildOf(root));
+    }
+    if let Some(material) = runtime
+        .mat_blocks
+        .get(SectionIconType::of(view.kind) as usize)
+    {
+        block.insert(MeshMaterial3d(material.clone()));
+    }
+    if let (Some(edges), Some(outline)) = (&runtime.edge_mesh, &runtime.mat_outline) {
+        block.with_children(|block| {
+            block.spawn((
+                ShipBlockOutline,
+                Mesh3d(edges.clone()),
+                MeshMaterial3d(outline.clone()),
+                // Unit edges scaled to the FULL collider size (the fill inside
+                // is smaller, so the outline frames it with a visible gap).
+                Transform::from_scale(full),
+                RenderLayers::layer(SHIP_LAYER),
+            ));
+        });
+    }
+    block.id()
+}
+
+/// The structural mate overlay over `views`, shown as `show_mates` says.
+/// `None` when no two sections mate.
+fn spawn_mate_overlay(
+    commands: &mut Commands,
+    runtime: &ShipRuntime,
+    meshes: &mut Assets<Mesh>,
+    views: &[ShipSectionView],
+) -> Option<Entity> {
+    let mesh = mate_edges_mesh(views)?;
+    let mut overlay = commands.spawn((
+        ShipMateOverlay,
+        Mesh3d(meshes.add(mesh)),
+        Transform::default(),
+        if runtime.show_mates {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        },
+        RenderLayers::layer(SHIP_LAYER),
+    ));
+    if let Some(root) = runtime.scene_root {
+        overlay.insert(ChildOf(root));
+    }
+    if let Some(material) = &runtime.mat_mates {
+        overlay.insert(MeshMaterial3d(material.clone()));
+    }
+    Some(overlay.id())
 }
 
 /// The whole-ship framing in ship-local space: the centroid of the sections
