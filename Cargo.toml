@@ -105,6 +105,15 @@ path = "examples/playable/storage_quick_loop.rs"
 name = "station_docked_sandbox"
 path = "examples/playable/station_docked_sandbox.rs"
 
+# Buying a parked hull by hand: New Game on a pinned seed, docked at a living
+# generated station with hulls for sale parked at its ports, after one buy so
+# the old ship is parked for rebuy too. The overlay marks each port and hull
+# and reads the prices and keys. No deadline ends it; under NOVA_AUTOPILOT a
+# smoke walk shoots the yard and ends.
+[[example]]
+name = "shipyard_sandbox"
+path = "examples/playable/shipyard_sandbox.rs"
+
 # The whole-ship strip by hand: New Game on a pinned seed, docked at a
 # lootable generated wreck with the Recycle tab up. The overlay marks each
 # section by strip order, the port last, and reads the strip and the hold.

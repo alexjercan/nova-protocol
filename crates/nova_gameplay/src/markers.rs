@@ -27,11 +27,11 @@ use crate::{
 pub mod prelude {
     pub use super::{
         station_offers, ControllerSectionMarker, DerelictShipMarker, GunRoundMarker,
-        OwnedStationMarker, PlayerFleetMarker, PlayerSpaceshipMarker, RailgunSectionMarker,
-        RailgunSlugProjectileMarker, SectionInactiveMarker, SectionMarker, SpaceshipRootMarker,
-        StationDesignId, StationMarker, StationServiceType, StationServices, ThrusterSectionMarker,
-        TorpedoProjectileMarker, TorpedoSectionMarker, TurretBulletProjectileMarker,
-        TurretSectionMarker,
+        OwnedShipMarker, OwnedStationMarker, PlayerFleetMarker, PlayerSpaceshipMarker,
+        RailgunSectionMarker, RailgunSlugProjectileMarker, SectionInactiveMarker, SectionMarker,
+        SpaceshipRootMarker, StationDesignId, StationMarker, StationServiceType, StationServices,
+        ThrusterSectionMarker, TorpedoProjectileMarker, TorpedoSectionMarker,
+        TurretBulletProjectileMarker, TurretSectionMarker,
     };
 }
 
@@ -73,9 +73,19 @@ pub struct PlayerSpaceshipMarker;
 /// adopts the player ship: it travels with the player, and the world save
 /// keeps it in the player's record, not in a sector's. Removed when the
 /// escort is neutralized; the wreck is then a sector's body like any other.
+/// An escort is an owned ship ([`OwnedShipMarker`]) by requirement.
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
-#[require(SpaceshipRootMarker, Allegiance = Allegiance::Player)]
+#[require(SpaceshipRootMarker, OwnedShipMarker, Allegiance = Allegiance::Player)]
 pub struct PlayerFleetMarker;
+
+/// Marks a ship root the player owns but does not fly: a fleet escort
+/// ([`PlayerFleetMarker`] requires it) or a hull the player traded in,
+/// parked for rebuy. The one record that a ship is the player's: its hold
+/// lists as the player's storage while it is docked at the station the
+/// player is docked at. Removed with [`PlayerFleetMarker`] when an escort
+/// is neutralized.
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+pub struct OwnedShipMarker;
 
 /// Marks a derelict ship root: every section but its hull and docking ports
 /// carries [`SectionInactiveMarker`].

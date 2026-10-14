@@ -15,7 +15,7 @@ use nova_gameplay::{prelude::*, test_support::test_items};
 use nova_input::prelude::RegisterInputActions;
 use nova_ship::prelude::{
     CargoIntakeEjectionQueue, CargoIntakeSectionMarker, DockedHelmType, DockedShip,
-    DockingConnection, OwnedShipMarker,
+    DockingConnection,
 };
 use nova_ui::widget::{TextFieldError, TextFieldValue};
 

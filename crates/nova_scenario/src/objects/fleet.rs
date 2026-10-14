@@ -369,7 +369,8 @@ fn spaceship_hire_config(
 }
 
 /// Take a neutralized escort out of the fleet for good: it stops following,
-/// and without [`PlayerFleetMarker`] the streaming layer gives the wreck to
+/// and without [`PlayerFleetMarker`] it is no longer the player's
+/// ([`OwnedShipMarker`]) and the streaming layer gives the wreck to
 /// the cell it drifts in, and the save keeps it there.
 fn release_neutralized_escort(
     neutralized: On<Add, NeutralizedMarker>,
@@ -385,7 +386,7 @@ fn release_neutralized_escort(
     );
     commands
         .entity(neutralized.entity)
-        .try_remove::<(PlayerFleetMarker, AIFollow)>();
+        .try_remove::<(PlayerFleetMarker, OwnedShipMarker, AIFollow)>();
 }
 
 #[cfg(test)]

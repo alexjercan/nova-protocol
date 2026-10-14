@@ -20,7 +20,7 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use nova_gameplay::prelude::*;
+use nova_gameplay::{prelude::*, transform::prelude::PointRotationOutput};
 use nova_ship::prelude::*;
 
 use crate::objects::{
@@ -240,13 +240,21 @@ fn swap_parked_hull(world: &mut World, request: HullBuyRequest) {
     );
 
     world.entity_mut(hull).despawn();
+    // Posed before the rebuild: each new flight computer seeds its attitude
+    // command from the root's Transform as it spawns
+    // (`insert_controller_section_target`), and a seed from the old pose
+    // turns the bought hull off its port before it redocks.
+    let pose = Transform::from_translation(new_at).with_rotation(new_turn);
+    world
+        .entity_mut(ship)
+        .insert((Position(new_at), Rotation(new_turn), pose));
     rehull_ship(world, ship, bought, |resolved| {
         bought_hull_controller(&buyer, resolved)
     });
+    // The root takes the bought hull's name, so a later rebuy parks this
+    // hull under it.
     world.entity_mut(ship).insert((
-        Position(new_at),
-        Rotation(new_turn),
-        Transform::from_translation(new_at).with_rotation(new_turn),
+        Name::new(new_name),
         velocity,
         spin,
         HullBuyRedock {
@@ -255,6 +263,12 @@ fn swap_parked_hull(world: &mut World, request: HullBuyRequest) {
             frames: 0,
         },
     ));
+    // Undocked, the player's hull slews toward the chase camera's aim; aim it
+    // along the new hull, or the hull turns toward where the old one looked
+    // before it redocks.
+    for mut aim in world.query::<&mut PointRotationOutput>().iter_mut(world) {
+        **aim = new_turn;
+    }
 
     let mut commands = world.commands();
     let mut parked = spawn_parked_hull(

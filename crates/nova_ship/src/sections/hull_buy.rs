@@ -26,9 +26,10 @@ use super::{docking_section::PORT_FACE, prelude::*};
 /// the pose rules and the buy request.
 pub mod prelude {
     pub use super::{
-        bought_hull_pose, hull_price_cr, hull_trade_in_cr, parked_hull_pose, plan_hull_buy,
-        HullBuyPartner, HullBuyPlan, HullBuyRefusalType, HullBuyRequest, HullOffer, HullOfferType,
-        HullOffers, OwnedShipMarker, ParkedHull, ParkedHullType, ParkedHulls,
+        bought_hull_pose, hull_price_cr, hull_trade_in_cr, parked_hull_clear_pose,
+        parked_hull_pose, plan_hull_buy, posed_colliders, HullBuyPartner, HullBuyPlan,
+        HullBuyRefusalType, HullBuyRequest, HullOffer, HullOfferType, HullOffers, ParkedHull,
+        ParkedHullType, ParkedHulls,
     };
 }
 
@@ -99,12 +100,6 @@ pub struct ParkedHull(pub Entity);
 #[derive(Component, Debug, Default, Reflect)]
 #[relationship_target(relationship = ParkedHull, linked_spawn)]
 pub struct ParkedHulls(Vec<Entity>);
-
-/// A ship whose hold is the player's although the player does not fly it: a
-/// hull the player traded in, parked for rebuy. Its hold lists as the
-/// player's storage while the player is docked at the same station.
-#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
-pub struct OwnedShipMarker;
 
 /// Asks to swap ship `entity`'s hull with the parked hull `hull` of
 /// `station`: the ship root takes the parked hull's design, state and
@@ -286,6 +281,79 @@ pub fn parked_hull_pose(
     let turned = (arc * rotation).normalize();
     let reach = turned * (hull_port.0 + hull_port.1 * PORT_FACE);
     (face - reach, turned)
+}
+
+/// Where a hull parks at station port `berth` clear of the station and of
+/// `obstacles`, as `(position, rotation)` in the station root's frame, or
+/// `None` when it fits there at no roll.
+///
+/// `station` and `hull` are each design's sections in its own root's frame,
+/// `hull_port` the hull section that docks and `obstacles` colliders in the
+/// station root's frame, such as hulls parked before. The hull is posed by
+/// [`parked_hull_pose`], then rolled a quarter turn at a time about the
+/// station port's outward axis through its face, and the first roll where no
+/// hull section overlaps a station section or an obstacle wins
+/// ([`section_colliders_overlap`]). The docking pair is exempt: its faces
+/// meet.
+///
+/// # Panics
+///
+/// When `berth` is not in `station` or `hull_port` not in `hull`.
+pub fn parked_hull_clear_pose(
+    station: &[DesignSection],
+    berth: usize,
+    hull: &[DesignSection],
+    hull_port: usize,
+    obstacles: &[PlacedSectionCollider],
+) -> Option<(Vec3, Quat)> {
+    let port = &station[berth];
+    let (at, turn) = parked_hull_pose(
+        (Vec3::ZERO, Quat::IDENTITY),
+        (port.position, port.rotation),
+        (hull[hull_port].position, hull[hull_port].rotation),
+    );
+    let face = port.position + port.rotation * PORT_FACE;
+    let axis = port.rotation * Vec3::NEG_Z;
+    (0..4u8)
+        .map(|quarter| {
+            let roll =
+                Quat::from_axis_angle(axis, std::f32::consts::FRAC_PI_2 * f32::from(quarter));
+            (face + roll * (at - face), (roll * turn).normalize())
+        })
+        .find(|&pose| {
+            posed_colliders(hull, pose)
+                .enumerate()
+                .all(|(index, posed)| {
+                    station.iter().enumerate().all(|(other, section)| {
+                        (index == hull_port && other == berth)
+                            || !section_colliders_overlap(posed, posed_collider(section))
+                    }) && obstacles
+                        .iter()
+                        .all(|&obstacle| !section_colliders_overlap(posed, obstacle))
+                })
+        })
+}
+
+/// Every section of `sections` posed by a root at `(position, rotation)`,
+/// in design order.
+pub fn posed_colliders(
+    sections: &[DesignSection],
+    (position, rotation): (Vec3, Quat),
+) -> impl Iterator<Item = PlacedSectionCollider> + '_ {
+    sections.iter().map(move |section| PlacedSectionCollider {
+        position: position + rotation * section.position,
+        rotation: rotation * section.rotation,
+        collider: section.config.base.collider.unwrap_or_default(),
+    })
+}
+
+/// One section's collider in its root's frame.
+fn posed_collider(section: &DesignSection) -> PlacedSectionCollider {
+    PlacedSectionCollider {
+        position: section.position,
+        rotation: section.rotation,
+        collider: section.config.base.collider.unwrap_or_default(),
+    }
 }
 
 #[cfg(test)]
@@ -482,6 +550,88 @@ pub(crate) mod tests {
         assert!(
             new_axis.abs_diff_eq(old_axis, 1e-4),
             "{new_axis} vs {old_axis}"
+        );
+    }
+
+    /// A part posed in a root's frame, a cuboid of `size`.
+    fn part(id: &str, position: Vec3, rotation: Quat, size: Vec3) -> DesignSection {
+        let mut part = section(
+            id,
+            SectionKind::Hull(HullSectionConfig::default()),
+            recipe(0, 0),
+        );
+        part.position = position;
+        part.rotation = rotation;
+        part.config.base.collider = Some(SectionCollider::Cuboid { size });
+        part
+    }
+
+    /// A station with a port facing +X beside `beside`, and a hull whose
+    /// three-cell wing stands one cell behind its port.
+    fn east_collar(beside: &[Vec3]) -> (Vec<DesignSection>, Vec<DesignSection>) {
+        let mut station = vec![
+            part("core", Vec3::ZERO, Quat::IDENTITY, Vec3::ONE),
+            part(
+                "collar_east",
+                Vec3::new(2.0, 0.0, 0.0),
+                Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2),
+                Vec3::ONE,
+            ),
+        ];
+        station.extend(
+            beside
+                .iter()
+                .map(|&at| part("solar", at, Quat::IDENTITY, Vec3::ONE)),
+        );
+        let hull = vec![
+            part("dock", Vec3::ZERO, Quat::IDENTITY, Vec3::ONE),
+            part(
+                "wing",
+                Vec3::new(0.0, 0.0, 1.0),
+                Quat::IDENTITY,
+                Vec3::new(3.0, 1.0, 1.0),
+            ),
+        ];
+        (station, hull)
+    }
+
+    /// The yard station split when a parked hull's wing landed in the solar
+    /// row beside its collar: the hull rolls about the port until it clears.
+    #[test]
+    fn a_hull_for_sale_rolls_about_its_port_clear_of_a_station_part() {
+        let (station, hull) = east_collar(&[Vec3::new(4.0, 0.0, 1.5)]);
+        let unrolled = parked_hull_pose(
+            (Vec3::ZERO, Quat::IDENTITY),
+            (station[1].position, station[1].rotation),
+            (hull[0].position, hull[0].rotation),
+        );
+        assert!(posed_colliders(&hull, unrolled)
+            .any(|posed| section_colliders_overlap(posed, posed_collider(&station[2]))));
+        let pose = parked_hull_clear_pose(&station, 1, &hull, 0, &[])
+            .expect("a quarter roll clears the solar part");
+        for posed in posed_colliders(&hull, pose) {
+            for section in [&station[0], &station[2]] {
+                assert!(!section_colliders_overlap(posed, posed_collider(section)));
+            }
+        }
+        let (dock, _) = pose;
+        assert!(dock.abs_diff_eq(Vec3::new(3.0, 0.0, 0.0), 1e-4), "{dock}");
+    }
+
+    /// A hull blocked at every roll, by the station or by an obstacle, is
+    /// not parked at that port.
+    #[test]
+    fn a_hull_blocked_at_every_roll_does_not_park_at_the_port() {
+        let (station, hull) = east_collar(&[Vec3::new(4.0, 0.0, 1.5), Vec3::new(4.0, 0.0, -1.5)]);
+        let obstacle = |at: Vec3| PlacedSectionCollider {
+            position: at,
+            rotation: Quat::IDENTITY,
+            collider: SectionCollider::Cuboid { size: Vec3::ONE },
+        };
+        assert!(parked_hull_clear_pose(&station, 1, &hull, 0, &[]).is_some());
+        assert_eq!(
+            parked_hull_clear_pose(&station, 1, &hull, 0, &[obstacle(Vec3::new(4.0, 1.5, 0.0))]),
+            None
         );
     }
 }

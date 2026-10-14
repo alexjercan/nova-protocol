@@ -218,9 +218,10 @@ Docked at a living station, the **Station** pane shows what it sells: **This sta
 ### Buying a ship
 
 <!-- List and action: crates/nova_interface/src/station/shipyard.rs. Price,
-     trade-in and binding: crates/nova_ship/src/sections/hull_buy.rs. -->
+     trade-in and parking: crates/nova_ship/src/sections/hull_buy.rs. Swap and
+     bindings: crates/nova_scenario/src/objects/station_hulls.rs. -->
 
-Docked at a living station in an Open World that offers refit, open the Station pane: **Ships for sale** lists each hull. Each hull shows its length, its sections by kind, its price and what the station pays for your ship. Click **Buy** to take it. Your old ship is traded in: each section pays for its parts by its health, and a lost section pays nothing. Your hold goes into the station's storage, and the new ship docks where the old one was, at full health, with an empty hold. Your guns' keys carry over to the new guns of the same kind; a drive is flown by the computer. A hold the storage cannot take is refused, as is a price your credits and the trade-in cannot cover. In a saved Open World the new ship stays across a Load.
+Every ship a station sells is parked at one of its docking ports, and one port is always left free for you. Docked at a living station in an Open World that offers refit, open the Station pane: **Ships for sale** lists each parked ship. Each shows its length, its sections by kind, its price and what the station pays for your ship. Click **Buy** to take it. You take the controls of the parked ship and fly it away from its port. Your old ship is traded in: each section pays for its parts by its health, and a lost section pays nothing. It stays parked at its port with its hold, listed as **(rebuy)** for what the station paid you, and its hold shows in the Inventory pane as storage while you are docked at that station. The new ship has full health and an empty hold, and its keys are the default ones for its weapons, the same as a new game's. A price your credits and the trade-in cannot cover is refused. In a saved Open World your new ship and the parked ships stay across a Load.
 
 ### Hiring an escort
 

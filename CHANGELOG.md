@@ -72,9 +72,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - At a `Refit` station the Ship pane lists the parts it builds, with prices.
   Place one, aim its ghost at a free socket and click to add it, paid by
   recipe; it takes its kind's key and fires `OnAdded`.
-- A generated `Refit` station sells three to five hulls on the Station pane. A
-  buy trades in the old hull by health, stores the hold and docks the new hull
-  with start-role bindings (`OnShipBought`).
+- A `Refit` station parks a hull for sale at each port it fits, one kept free.
+  A buy hands you its helm with start-role keys and parks your old ship for
+  rebuy at the trade-in (`OnShipBought`).
 - A generated `Refit` station hires out one to three armed escorts
   (`OnEscortHired`). Each spawns clear, follows on its own drive across
   sectors, holds for a dock and saves; a neutralized one leaves.
@@ -123,8 +123,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** An asteroid `lock_signature` override must be finite and above
   zero. Any other value fails at lint and at load.
 - **(breaking)** `Station` content spawns by id as `kind: Station` with a
-  required side and `collapse_threshold`. Save format 9 (chart, plates, hulls,
-  fleet, owned stations, role) refuses older saves.
+  required side and `collapse_threshold`. Save format 10 (chart, plates,
+  fleet, owned stations, role, parked hulls) refuses old saves.
 - A station is a dynamic body: gravity and rams move it, its bridge levels it
   and it orbits in a well. At its `collapse_threshold` share of hull it
   collapses like a ship and drops its hold and storage.

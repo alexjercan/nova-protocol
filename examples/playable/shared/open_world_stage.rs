@@ -176,8 +176,10 @@ pub struct StationCandidate<'a> {
     pub derelict: bool,
     /// Its side.
     pub allegiance: Option<&'a Allegiance>,
-    /// Its hull and escort catalogue.
+    /// Its escort catalogue.
     pub offers: Option<&'a HullOffers>,
+    /// It parks hulls for sale, or is about to.
+    pub sells_hulls: bool,
 }
 
 impl StationCandidate<'_> {
@@ -218,19 +220,24 @@ pub fn nearest_station(
             Has<DerelictShipMarker>,
             Option<&Allegiance>,
             Option<&HullOffers>,
+            Has<ParkedHulls>,
+            Has<PendingParkedHulls>,
         ), With<StationMarker>>()
         .iter(world)
-        .filter(|(id, position, services, derelict, allegiance, offers)| {
-            accept(&StationCandidate {
-                id,
-                position: position.0,
-                services: *services,
-                derelict: *derelict,
-                allegiance: *allegiance,
-                offers: *offers,
-            }) && SectorCoord::containing(Meters3::from_engine(position.0), edge)
-                != SectorCoord::ORIGIN
-        })
+        .filter(
+            |(id, position, services, derelict, allegiance, offers, parked, pending)| {
+                accept(&StationCandidate {
+                    id,
+                    position: position.0,
+                    services: *services,
+                    derelict: *derelict,
+                    allegiance: *allegiance,
+                    offers: *offers,
+                    sells_hulls: *parked || *pending,
+                }) && SectorCoord::containing(Meters3::from_engine(position.0), edge)
+                    != SectorCoord::ORIGIN
+            },
+        )
         .map(|(id, position, ..)| {
             (
                 Meters3::from_engine(position.0)
@@ -421,9 +428,9 @@ pub struct StationDock {
 const PARK_DISTANCE: Meters = Meters(2_000.0);
 
 /// Advance `dock` one step: choose the station once the spawn's window is in,
-/// park beside it, wait for its window and for its catalogue, then berth the
-/// player each call until the dock takes. Returns the player and the station
-/// once docked.
+/// park beside it, wait for its window and for its parked hulls to dock, then
+/// berth the player each call until the dock takes. Returns the player and
+/// the station once docked.
 ///
 /// # Panics
 ///
@@ -450,9 +457,16 @@ pub fn advance_station_dock(
         }
         StationDockPhaseType::Jumped => {
             let chosen = dock.station.clone()?;
+            // Every hull the station parks takes its port first, so the
+            // berth takes the port left free.
             let stands = body_by_id(world, &chosen.id).is_some_and(|station| {
                 world.get::<Position>(station).is_some()
-                    && world.get::<HullOffers>(station).is_some()
+                    && world.get::<PendingParkedHulls>(station).is_none()
+                    && world.get::<ParkedHulls>(station).is_none_or(|parked| {
+                        parked
+                            .iter()
+                            .all(|hull| world.get::<DockedShip>(hull).is_some())
+                    })
             });
             if window_is(world, chosen.cell) && stands {
                 dock.phase = StationDockPhaseType::Docking;

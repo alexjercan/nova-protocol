@@ -1,39 +1,46 @@
-//! system_station_buy: a whole hull is bought from a living generated
-//! station's catalogue, the old hull traded in, and the bought hull is the
-//! player's ship from then on.
+//! system_station_buy: a station parks its hulls for sale at its docking
+//! ports, a buy hands the player one of them and parks the old ship for
+//! rebuy, and a rebuy hands the old ship back.
 //!
 //! Boots the shipped app (via [`editor_app`]), starts New Game on a pinned
 //! seed the way the Create World modal does, and lets the window stream in.
 //! It picks the nearest generated station that is living, not on the Enemy
-//! side, offers Refit, sells hulls, and stands outside the spawn's cell. The
-//! player jumps beside it and is put on a berth at its collar each frame
-//! until the dock takes; the walk never flies the approach
+//! side, offers Refit, parks hulls for sale, and stands outside the spawn's
+//! cell. The player jumps beside it and is put on a berth at its one free
+//! port each frame until the dock takes; the walk never flies the approach
 //! (`system_station_docking` does).
 //!
 //! THE HOLD AND BOTH BALANCES ARE DISCLOSED FIXTURE STATE: once docked, the
 //! hold is set to two section panels, and the player and the station each
-//! hold 1,000,000 cr, so the first hull is affordable and the station can pay
-//! any trade-in. The buy goes through the Station pane's Buy button on the first
-//! hull, the code path a player clicks. The player undocks, leaves to the
-//! main menu, the leave save is read back off disk through [`open_world`],
-//! and the world is loaded again in this process through the Load screen.
+//! hold 1,000,000 cr, so every hull is affordable and the station can pay any
+//! trade-in. The buy and the rebuy go through the Station pane's Buy buttons,
+//! the code path a player clicks. Between them the player undocks, jumps away
+//! until the station's cell retires, and jumps back until it thaws. Then the
+//! player leaves to the main menu, the leave save is read back off disk
+//! through [`open_world`], and the world is loaded again in this process
+//! through the Load screen.
 //!
 //! | # | marker | claim |
 //! | - | - | - |
-//! | 1 | `outcome: a hull is bought from a station's catalogue` | the player's design is the offer, inline, and every offered section is live; the hold moved whole into the station's storage with one `OnStored` per stack; the player paid the price less the trade-in and the station took it, both as `ShipBuy`; `OnShipBought` fired once with the name, the price and the trade-in; the new hull docked with the station through a new connection |
-//! | 2 | `outcome: the leave save holds the bought hull and the station's catalogue` | the saved player carries every offered section and none the offer lacks; the saved station keeps its catalogue, name for name |
-//! | 3 | `outcome: a loaded world gives back the bought hull` | after Load the player's live sections are the offer's, and the station sells the same catalogue |
+//! | 1 | `outcome: a station parks its hulls for sale at its ports` | the station parks one hull for sale per docking port but one, each docked with it and inert: no driver, Neutral, not lootable; one port stays free |
+//! | 2 | `outcome: a buy hands the player the parked hull and parks the old one` | the player's design is the parked hull's, every section live, its hold empty and docked with the station through a new connection; the old ship is parked for rebuy at the trade-in, owned, docked, with its design and the hold it had; the player paid the price less the trade-in and the station took it, both as `ShipBuy`; `OnShipBought` fired once; storage did not change and nothing was stored; the bought hull then undocks |
+//! | 3 | `outcome: the retired record holds the parked hulls` | the cell is not live and the station's record lists every parked hull by name and listing, the old ship with its sections and its hold |
+//! | 4 | `outcome: the thawed station parks the same hulls` | the thawed station parks the same hulls in the same order, each docked with it, the old ship owned with its hold |
+//! | 5 | `outcome: a rebuy hands the player the old ship back` | the Station pane lists the old ship for rebuy; after the rebuy the player's design and hold are the old ship's, the hull it flew is parked for rebuy at its trade-in, and the player paid the rebuy price less that trade-in |
+//! | 6 | `outcome: the leave save holds the player's hull and the parked hulls` | the saved player carries the old ship's sections and none the bought hull adds; the saved station lists the same parked hulls |
+//! | 7 | `outcome: a loaded world gives back the player's hull and the parked hulls` | after Load the player's live sections and hold are the old ship's, and the station parks the same hulls, each docked |
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! NOVA_AUTOPILOT=1 NOVA_AUTOPILOT_DEADLINE=2400 \
+//! NOVA_AUTOPILOT=1 NOVA_AUTOPILOT_DEADLINE=3600 \
 //!   cargo run --example system_station_buy --features debug
-//! # look for: `station buy: PASS the loaded world gives back the bought hull`,
+//! # look for: `station buy: PASS the loaded world gives back the player's hull and the parked hulls`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
-//! Add `NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=<dir>` to shoot the hull list as
-//! `station-buy-offer.png` and the bought hull docked as
-//! `station-buy-docked.png`.
+//! Add `NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=<dir>` to shoot the parked hulls as
+//! `station-buy-parked.png`, the hull list as `station-buy-offer.png`, the
+//! bought hull docked as `station-buy-docked.png` and the rebuy row as
+//! `station-buy-rebuy.png`.
 
 use bevy::prelude::*;
 use clap::Parser;
@@ -42,9 +49,9 @@ use clap::Parser;
 #[command(name = "system_station_buy")]
 #[command(version = "1.0.0")]
 #[command(
-    about = "New Game on a pinned seed: dock at a living generated station that sells hulls, buy \
-             the first from the Station pane, then check the bought hull through a save and a Load. \
-             Autopilot-only correctness range",
+    about = "New Game on a pinned seed: dock at a living generated station that parks hulls for \
+             sale, buy one, retire and thaw the station, rebuy the old ship, then check both \
+             through a save and a Load. Autopilot-only correctness range",
     long_about = None
 )]
 struct Cli;
@@ -107,7 +114,8 @@ mod walk {
     };
     use nova_ui::widget::TextFieldValue;
     use nova_world::prelude::{
-        desired_sectors, FrozenBody, FrozenBodyType, FrozenSector, SectorRoot, WorldConfig,
+        desired_sectors, FrozenBody, FrozenBodyType, FrozenSector, FrozenSectors, SectorRoot,
+        WorldConfig,
     };
 
     use super::*;
@@ -132,21 +140,22 @@ mod walk {
     const LOAD_BUTTON: &str = "Load Button";
     const LOAD_WORLD_BUTTON: &str = "Load World Button";
 
-    /// The offer the walk buys, and its Buy button.
-    const OFFER: usize = 0;
-    const BUY_BUTTON: &str = "HullBuy-0";
     /// The Station pane's panel, which scrolls under the wheel.
     const STATION_PANEL: &str = "StationPanel";
+    /// The suffix the hull list puts on a hull parked for rebuy.
+    const REBUY_LISTING: &str = " (rebuy)";
 
-    /// The disclosed fixture hold, which the buy moves into storage.
+    /// The disclosed fixture hold, which stays in the old ship on the buy.
     const HELD_ITEM: &str = "SectionPanel";
     const HELD_COUNT: u32 = 2;
     /// The disclosed fixture balance of the player and of the station.
     const FIXTURE_CREDITS: u32 = 1_000_000;
 
     /// The PNGs the capture path shoots.
+    const PARKED_SHOT: &str = "station-buy-parked.png";
     const OFFER_SHOT: &str = "station-buy-offer.png";
     const DOCKED_SHOT: &str = "station-buy-docked.png";
+    const REBUY_SHOT: &str = "station-buy-rebuy.png";
 
     /// How far from the station the player parks before the berth.
     const PARK_DISTANCE: Meters = Meters(2_000.0);
@@ -165,20 +174,33 @@ mod walk {
     /// The virtual clock's clamp on the software rasterizer.
     const WALK_CLOCK_SECS: f32 = 1.0;
 
-    /// What the walk recorded right before the buy.
+    /// A parked hull as the walk compares it: its name, its listing, its
+    /// design's section ids and its hold.
+    #[derive(Clone, Debug, PartialEq)]
+    struct ParkedView {
+        name: String,
+        terms: ParkedHullType,
+        sections: BTreeSet<String>,
+        hold: BTreeMap<String, u32>,
+    }
+
+    /// What the walk recorded right before a buy or a rebuy.
     #[derive(Clone, Debug)]
     struct BeforeBuy {
         player_cr: u32,
         station_cr: u32,
         hold: BTreeMap<String, u32>,
         storage: BTreeMap<String, u32>,
+        /// The hull bought, its price and the player's trade-in.
+        hull: Entity,
         price_cr: u32,
         trade_in_cr: u32,
         name: String,
-        design: String,
         offered: BTreeSet<String>,
+        /// The player's design and name before the buy.
         old: BTreeSet<String>,
-        catalogue: Vec<String>,
+        flown: String,
+        parked: Vec<ParkedView>,
         connection: Entity,
     }
 
@@ -191,10 +213,26 @@ mod walk {
         id: Option<GeneratedBodyId>,
         /// The cell it stands in.
         cell: Option<SectorCoord>,
+        /// The cell the retire jump lands in.
+        away: Option<SectorCoord>,
         /// Where it stood when chosen, for the park point.
         position: Option<Meters3>,
+        /// The station's docking ports.
+        ports: usize,
         /// The facts right before the buy.
-        before: Option<BeforeBuy>,
+        buy: Option<BeforeBuy>,
+        /// The station's parked hulls as the player left it.
+        left: Option<Vec<ParkedView>>,
+        /// The entity that wore the station's id before the retire.
+        retired: Option<Entity>,
+        /// The facts right before the rebuy.
+        rebuy: Option<BeforeBuy>,
+        /// The station's parked hulls after the rebuy.
+        after: Option<Vec<ParkedView>>,
+        /// The Buy button the next click aims at.
+        button: Option<String>,
+        /// The hull list's rows that list a hull for rebuy.
+        rebuy_rows: Vec<String>,
     }
 
     impl BuyWatch {
@@ -206,10 +244,16 @@ mod walk {
                 .collect()
         }
 
-        fn before(&self) -> &BeforeBuy {
-            self.before
+        fn buy(&self) -> &BeforeBuy {
+            self.buy
                 .as_ref()
                 .expect("station buy: the facts before the buy are recorded")
+        }
+
+        fn rebuy(&self) -> &BeforeBuy {
+            self.rebuy
+                .as_ref()
+                .expect("station buy: the facts before the rebuy are recorded")
         }
     }
 
@@ -292,6 +336,14 @@ mod walk {
             .collect()
     }
 
+    fn hold_of(world: &World, root: Entity) -> BTreeMap<String, u32> {
+        hold_map(
+            world
+                .get::<ShipInventory>(root)
+                .expect("station buy: every ship carries a hold"),
+        )
+    }
+
     fn storage_map(world: &World, station: Entity) -> BTreeMap<String, u32> {
         world
             .get::<StationStorage>(station)
@@ -323,17 +375,83 @@ mod walk {
             })
     }
 
-    /// The names of the hulls `station` sells.
-    fn catalogue_names(world: &World, station: Entity) -> Vec<String> {
+    /// The hulls parked at `station`, in park order.
+    fn parked_hulls(world: &World, station: Entity) -> Vec<Entity> {
         world
-            .get::<StationHullCatalogue>(station)
-            .map_or_else(Vec::new, |catalogue| {
-                catalogue.0.iter().map(|offer| offer.name.clone()).collect()
-            })
+            .get::<ParkedHulls>(station)
+            .map_or_else(Vec::new, |parked| parked.iter().collect())
     }
 
-    fn offered_ids(world: &World) -> BTreeSet<String> {
-        world.resource::<BuyWatch>().before().offered.clone()
+    fn parked_view(world: &World, hull: Entity) -> ParkedView {
+        ParkedView {
+            name: world
+                .get::<Name>(hull)
+                .expect("station buy: a parked hull is named")
+                .to_string(),
+            terms: *world
+                .get::<ParkedHullType>(hull)
+                .expect("station buy: a parked hull is listed"),
+            sections: design_ids(world, hull),
+            hold: hold_of(world, hull),
+        }
+    }
+
+    fn parked_views(world: &World, station: Entity) -> Vec<ParkedView> {
+        parked_hulls(world, station)
+            .into_iter()
+            .map(|hull| parked_view(world, hull))
+            .collect()
+    }
+
+    /// The live docking ports mounted on `root`.
+    fn ports_of(world: &mut World, root: Entity) -> Vec<Entity> {
+        let ports: Vec<Entity> = world
+            .query_filtered::<Entity, (With<DockingSectionMarker>, Without<SectionInactiveMarker>)>(
+            )
+            .iter(world)
+            .collect();
+        ports
+            .into_iter()
+            .filter(|port| mounted_on(world, *port, root))
+            .collect()
+    }
+
+    fn mounted_on(world: &World, section: Entity, root: Entity) -> bool {
+        let mut at = section;
+        while let Some(parent) = world.get::<ChildOf>(at).map(ChildOf::parent) {
+            if parent == root {
+                return true;
+            }
+            at = parent;
+        }
+        false
+    }
+
+    /// Whether `ship` is docked with `station`.
+    fn docked_with(world: &World, ship: Entity, station: Entity) -> bool {
+        world.get::<DockedShip>(ship).is_some_and(|docked| {
+            world
+                .get::<DockingConnection>(docked.connection)
+                .is_some_and(|connection| connection.joins(station))
+        })
+    }
+
+    /// The parked hull whose row the hull list shows first among those with
+    /// `terms`, and its row index, which names its Buy button.
+    fn row_of(
+        world: &World,
+        station: Entity,
+        terms: fn(ParkedHullType) -> bool,
+    ) -> (usize, Entity) {
+        parked_hulls(world, station)
+            .into_iter()
+            .enumerate()
+            .find(|(_, hull)| {
+                world
+                    .get::<ParkedHullType>(*hull)
+                    .is_some_and(|listed| terms(*listed))
+            })
+            .unwrap_or_else(|| panic!("station buy: no parked hull of the wanted listing"))
     }
 
     fn world_shape(world: &World) -> (Meters, i32) {
@@ -367,11 +485,15 @@ mod walk {
         })
     }
 
+    /// The station stands with its hulls parked and every one docked with it.
     fn the_station_stands() -> Arc<Predicate> {
         when(|world| {
             station_root(world).is_some_and(|station| {
+                let parked = parked_hulls(world, station);
                 world.get::<Position>(station).is_some()
-                    && world.get::<HullOffers>(station).is_some()
+                    && world.get::<PendingParkedHulls>(station).is_none()
+                    && !parked.is_empty()
+                    && parked.iter().all(|hull| docked_with(world, *hull, station))
             })
         })
     }
@@ -388,36 +510,43 @@ mod walk {
         })
     }
 
-    /// The player's design is the offer's.
-    fn hull_bought() -> Arc<Predicate> {
-        when(|world| {
-            the_player(world).is_some_and(|player| design_ids(world, player) == offered_ids(world))
-        })
-    }
-
-    /// Every offered section is live on the player ship.
-    fn bought_hull_live() -> Arc<Predicate> {
-        when(|world| {
-            the_player(world).is_some_and(|player| live_ids(world, player) == offered_ids(world))
-        })
-    }
-
-    /// The buy reported and the new hull docked through a new connection.
-    fn bought_and_redocked() -> Arc<Predicate> {
-        when(|world| {
-            let watch = world.resource::<BuyWatch>();
-            let Some(before) = watch.before.as_ref() else {
-                return false;
-            };
+    /// The player flies the design `pick` reads off the record, every section
+    /// live.
+    fn flies(pick: fn(&BuyWatch) -> &BTreeSet<String>) -> Arc<Predicate> {
+        when(move |world| {
             let Some(player) = the_player(world) else {
                 return false;
             };
-            !watch.named("onshipbought").is_empty()
-                && watch.named("oncreditschanged").len() >= 2
+            let watch = world.resource::<BuyWatch>();
+            let want = pick(watch);
+            design_ids(world, player) == *want && live_ids(world, player) == *want
+        })
+    }
+
+    /// The swap reported and the player docked through a new connection, the
+    /// old hull parked and docked with the station.
+    fn swapped_and_redocked(pick: fn(&BuyWatch) -> Option<&BeforeBuy>) -> Arc<Predicate> {
+        when(move |world| {
+            let watch = world.resource::<BuyWatch>();
+            let Some(before) = pick(watch) else {
+                return false;
+            };
+            let (Some(player), Some(station)) = (the_player(world), station_root(world)) else {
+                return false;
+            };
+            let bought = watch.named("onshipbought").len();
+            let reported = match watch.rebuy {
+                Some(_) => bought >= 2,
+                None => bought >= 1,
+            };
+            reported
                 && live_ids(world, player) == before.offered
                 && world
                     .get::<DockedShip>(player)
                     .is_some_and(|docked| docked.connection != before.connection)
+                && parked_hulls(world, station)
+                    .iter()
+                    .all(|hull| docked_with(world, *hull, station))
         })
     }
 
@@ -440,11 +569,19 @@ mod walk {
         })
     }
 
-    /// Whether the Buy button lies inside the Station panel's box, where a
-    /// click lands on it.
+    fn the_button(world: &World) -> String {
+        world
+            .resource::<BuyWatch>()
+            .button
+            .clone()
+            .expect("station buy: a Buy button is aimed at")
+    }
+
+    /// Whether the aimed Buy button lies inside the Station panel's box,
+    /// where a click lands on it.
     fn buy_button_in_view(world: &World) -> bool {
         match (
-            ui_node_rect(world, BUY_BUTTON),
+            ui_node_rect(world, &the_button(world)),
             ui_node_rect(world, STATION_PANEL),
         ) {
             (Some(button), Some(panel)) => {
@@ -452,6 +589,20 @@ mod walk {
             }
             _ => false,
         }
+    }
+
+    /// The hull list's row names that carry the rebuy listing.
+    fn rebuy_rows(world: &World) -> Vec<String> {
+        world
+            .try_query::<&Text>()
+            .map(|mut texts| {
+                texts
+                    .iter(world)
+                    .filter(|text| text.0.ends_with(REBUY_LISTING))
+                    .map(|text| text.0.clone())
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     /// Teleport the player to `position`, at rest.
@@ -500,26 +651,9 @@ mod walk {
 
     /// The free, live docking ports mounted on `root`, lowest first.
     fn free_ports(world: &mut World, root: Entity) -> Vec<Entity> {
-        let ports: Vec<Entity> = world
-            .query_filtered::<Entity, (
-                With<DockingSectionMarker>,
-                Without<DockedPort>,
-                Without<SectionInactiveMarker>,
-            )>()
-            .iter(world)
-            .collect();
-        let mut ports: Vec<Entity> = ports
+        let mut ports: Vec<Entity> = ports_of(world, root)
             .into_iter()
-            .filter(|port| {
-                let mut at = *port;
-                while let Some(parent) = world.get::<ChildOf>(at).map(ChildOf::parent) {
-                    if parent == root {
-                        return true;
-                    }
-                    at = parent;
-                }
-                false
-            })
+            .filter(|port| world.get::<DockedPort>(*port).is_none())
             .collect();
         ports.sort();
         ports
@@ -550,7 +684,7 @@ mod walk {
             .unwrap_or_else(|| panic!("station buy: {target:?} has no free docking port"))
     }
 
-    /// Put the player on the berth at the station's collar, moving and
+    /// Put the player on the berth at the station's free port, moving and
     /// turning with the station, then ask to dock. Every frame until the dock
     /// takes, as `system_station_round_trip` does.
     fn berth_and_dock(world: &mut World) {
@@ -633,61 +767,212 @@ mod walk {
     }
 
     /// Pick the nearest station that is living, not on the Enemy side,
-    /// offers Refit, sells hulls, and stands outside the spawn's cell.
+    /// offers Refit, parks hulls for sale, and stands outside the spawn's
+    /// cell; choose the retire jump.
     fn choose_the_station(world: &mut World) {
-        let (edge, _) = world_shape(world);
-        let mut stations: Vec<(f32, GeneratedBodyId, Entity, Vec3)> = world
+        let (edge, radius) = world_shape(world);
+        let mut stations: Vec<(f32, GeneratedBodyId, Vec3)> = world
             .query_filtered::<(
-                Entity,
                 &GeneratedBodyId,
                 &Position,
                 Option<&StationServices>,
                 Has<DerelictShipMarker>,
                 Option<&Allegiance>,
-                Option<&HullOffers>,
+                Has<PendingParkedHulls>,
+                Has<ParkedHulls>,
             ), With<StationMarker>>()
             .iter(world)
-            .filter(|(_, _, position, services, derelict, allegiance, offers)| {
-                station_offers(*services, *derelict, StationServiceType::Refit)
-                    && offers.is_some_and(|offers| !offers.0.is_empty())
-                    && *allegiance != Some(&Allegiance::Enemy)
-                    && SectorCoord::containing(Meters3::from_engine(position.0), edge)
-                        != SectorCoord::ORIGIN
-            })
-            .map(|(entity, id, position, ..)| {
+            .filter(
+                |(_, position, services, derelict, allegiance, pending, parked)| {
+                    station_offers(*services, *derelict, StationServiceType::Refit)
+                        && (*pending || *parked)
+                        && *allegiance != Some(&Allegiance::Enemy)
+                        && SectorCoord::containing(Meters3::from_engine(position.0), edge)
+                            != SectorCoord::ORIGIN
+                },
+            )
+            .map(|(id, position, ..)| {
                 (
                     Meters3::from_engine(position.0)
                         .distance(Meters3::ZERO)
                         .get(),
                     id.clone(),
-                    entity,
                     position.0,
                 )
             })
             .collect();
         stations.sort_by(|a, b| a.0.total_cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
-        let Some((distance, id, entity, at)) = stations.into_iter().next() else {
+        let Some((distance, id, at)) = stations.into_iter().next() else {
             panic!(
                 "station buy: the window on seed {STATION_SEED} holds no living, non-Enemy \
-                 station with Refit and hulls outside the spawn's cell"
+                 station with Refit and parked hulls outside the spawn's cell"
             );
         };
         let position = Meters3::from_engine(at);
         let cell = SectorCoord::containing(position, edge);
-        info!(
-            "station buy: chose '{id}' in cell {cell}, {distance:.0} m out, selling {:?}",
-            catalogue_names(world, entity)
+        let axes = [cell.x, cell.y, cell.z];
+        let (axis, _) = axes
+            .iter()
+            .enumerate()
+            .max_by_key(|(_, index)| index.abs())
+            .expect("three axes");
+        let mut away = [0; 3];
+        away[axis] = axes[axis] - axes[axis].signum() * (radius + 1);
+        let away = SectorCoord::new(away[0], away[1], away[2]);
+        assert!(
+            !desired_sectors(away, radius).contains(&cell),
+            "station buy: the window around {away} leaves {cell} out"
         );
+        info!("station buy: chose '{id}' in cell {cell}, {distance:.0} m out");
         let mut watch = world.resource_mut::<BuyWatch>();
         watch.id = Some(id);
         watch.cell = Some(cell);
+        watch.away = Some(away);
         watch.position = Some(position);
+    }
+
+    /// Claim 1: the station parks one hull for sale per port but one, each
+    /// docked and inert, and one port stays free.
+    fn assert_the_parked(world: &mut World) {
+        let station = station(world);
+        let ports = ports_of(world, station).len();
+        let free = free_ports(world, station).len();
+        let parked = parked_hulls(world, station);
+        assert!(ports >= 2, "station buy: the station has {ports} ports");
+        assert_eq!(
+            parked.len(),
+            ports - 1,
+            "station buy: one hull for sale per port but one"
+        );
+        assert_eq!(free, 1, "station buy: one port stays free");
+        for hull in &parked {
+            let view = parked_view(world, *hull);
+            assert_eq!(
+                view.terms,
+                ParkedHullType::Sale,
+                "station buy: '{}' is for sale",
+                view.name
+            );
+            assert!(
+                docked_with(world, *hull, station),
+                "station buy: '{}' is docked with the station",
+                view.name
+            );
+            assert!(
+                matches!(
+                    world.get::<SpaceshipController>(*hull),
+                    Some(SpaceshipController::None)
+                ),
+                "station buy: '{}' has no driver",
+                view.name
+            );
+            assert_eq!(
+                world.get::<Allegiance>(*hull),
+                Some(&Allegiance::Neutral),
+                "station buy: '{}' is Neutral",
+                view.name
+            );
+            assert!(
+                world.get::<LootableShipMarker>(*hull).is_none(),
+                "station buy: '{}' is not lootable",
+                view.name
+            );
+        }
+        let names: Vec<String> = parked
+            .iter()
+            .map(|hull| parked_view(world, *hull).name)
+            .collect();
+        world.resource_mut::<BuyWatch>().ports = ports;
+        nova_probe::probe_marker(
+            world,
+            "outcome: a station parks its hulls for sale at its ports",
+            serde_json::json!({
+                "station": station_id(world).to_string(),
+                "ports": ports,
+                "parked": names,
+            }),
+        );
+        info!("station buy: {ports} ports, parked for sale {names:?}, one port free");
+    }
+
+    /// The trade-in `ship`'s live sections fetch, each at its health share.
+    fn live_trade_in_cr(world: &World, ship: Entity) -> u32 {
+        let items = world.resource::<GameItems>();
+        let design = world
+            .get::<ShipDesignSections>(ship)
+            .expect("station buy: the ship has a design");
+        let children: Vec<Entity> = world
+            .get::<Children>(ship)
+            .map_or_else(Vec::new, |children| children.iter().collect());
+        let live: Vec<(BuildRecipe, f32)> = children
+            .into_iter()
+            .filter(|child| world.get::<SectionMarker>(*child).is_some())
+            .map(|child| {
+                let id = &world.get::<EntityId>(child).expect("a section has an id").0;
+                let health = world.get::<Health>(child).expect("a section has health");
+                (
+                    design
+                        .get(id)
+                        .expect("a live section is in the design")
+                        .config
+                        .base
+                        .build
+                        .clone(),
+                    health.current / health.max,
+                )
+            })
+            .collect();
+        let trade_in_cr =
+            hull_trade_in_cr(items, live.iter().map(|(recipe, share)| (recipe, *share)));
+        u32::try_from(trade_in_cr).expect("the trade-in fits")
+    }
+
+    /// The facts before buying the parked hull `hull`, and aim the next
+    /// click at its Buy button, row `row`.
+    fn record_before(world: &mut World, row: usize, hull: Entity) -> BeforeBuy {
+        let player = player(world);
+        let station = station(world);
+        let view = parked_view(world, hull);
+        let price_cr = match view.terms {
+            ParkedHullType::Sale => {
+                let design = world
+                    .get::<ShipDesignSections>(hull)
+                    .expect("station buy: a parked hull has a design");
+                u32::try_from(hull_price_cr(
+                    world.resource::<GameItems>(),
+                    design.0.iter().map(|section| &section.config.base.build),
+                ))
+                .expect("the price fits")
+            }
+            ParkedHullType::Rebuy { price_cr } => price_cr,
+        };
+        world.resource_mut::<BuyWatch>().button = Some(format!("HullBuy-{row}"));
+        BeforeBuy {
+            player_cr: credits(world, player),
+            station_cr: credits(world, station),
+            hold: hold_of(world, player),
+            storage: storage_map(world, station),
+            hull,
+            price_cr,
+            trade_in_cr: live_trade_in_cr(world, player),
+            name: view.name,
+            offered: view.sections,
+            old: design_ids(world, player),
+            flown: world
+                .get::<Name>(player)
+                .expect("station buy: the player's ship has a name")
+                .to_string(),
+            parked: parked_views(world, station),
+            connection: world
+                .get::<DockedShip>(player)
+                .expect("station buy: the player is docked")
+                .connection,
+        }
     }
 
     /// Disclosed fixture state: the hold set to [`HELD_COUNT`] of
     /// [`HELD_ITEM`] and both balances set to [`FIXTURE_CREDITS`]. Then record
-    /// the balances, the hold, the storage, the offer and what the buy must
-    /// cost and pay.
+    /// the facts the buy of the first hull for sale must change.
     fn record_before_buy(world: &mut World) {
         let player = player(world);
         let station = station(world);
@@ -711,116 +996,97 @@ mod walk {
             "station buy: fixture sets the hold to {HELD_COUNT} {HELD_ITEM} and both balances to \
              {FIXTURE_CREDITS} cr"
         );
-
-        let offers = world
-            .get::<HullOffers>(station)
-            .expect("station buy: the chosen station sells hulls");
-        let offer = offers.0[OFFER].clone();
-        let price_cr = hull_price_cr(
-            &items,
-            offer
-                .sections
-                .iter()
-                .map(|section| &section.config.base.build),
-        );
-        let design = world
-            .get::<ShipDesignSections>(player)
-            .expect("station buy: the player ship has a design");
-        let children: Vec<Entity> = world
-            .get::<Children>(player)
-            .map_or_else(Vec::new, |children| children.iter().collect());
-        let live: Vec<(BuildRecipe, f32)> = children
-            .into_iter()
-            .filter(|child| world.get::<SectionMarker>(*child).is_some())
-            .map(|child| {
-                let id = &world.get::<EntityId>(child).expect("a section has an id").0;
-                let health = world.get::<Health>(child).expect("a section has health");
-                (
-                    design
-                        .get(id)
-                        .expect("a live section is in the design")
-                        .config
-                        .base
-                        .build
-                        .clone(),
-                    health.current / health.max,
-                )
-            })
-            .collect();
-        let trade_in_cr =
-            hull_trade_in_cr(&items, live.iter().map(|(recipe, share)| (recipe, *share)));
-        let catalogue = world
-            .get::<StationHullCatalogue>(station)
-            .expect("station buy: the chosen station carries its catalogue");
-        let before = BeforeBuy {
-            player_cr: credits(world, player),
-            station_cr: credits(world, station),
-            hold: hold_map(world.get::<ShipInventory>(player).expect("a hold")),
-            storage: storage_map(world, station),
-            price_cr: u32::try_from(price_cr).expect("the price fits"),
-            trade_in_cr: u32::try_from(trade_in_cr).expect("the trade-in fits"),
-            name: offer.name.clone(),
-            design: format!("{:?}", catalogue.0[OFFER].design),
-            offered: offer
-                .sections
-                .iter()
-                .map(|section| section.id.clone())
-                .collect(),
-            old: design_ids(world, player),
-            catalogue: catalogue_names(world, station),
-            connection: world
-                .get::<DockedShip>(player)
-                .expect("station buy: the player is docked")
-                .connection,
-        };
+        let (row, hull) = row_of(world, station, |terms| terms == ParkedHullType::Sale);
+        let before = record_before(world, row, hull);
         info!(
-            "station buy: offer {OFFER} '{}' costs {} cr, the old hull trades in for {} cr",
+            "station buy: row {row} '{}' costs {} cr, the old hull trades in for {} cr",
             before.name, before.price_cr, before.trade_in_cr
         );
-        world.resource_mut::<BuyWatch>().before = Some(before);
+        world.resource_mut::<BuyWatch>().buy = Some(before);
     }
 
-    /// Claim 1: the bought hull, the hold, the credits, the reports and the
-    /// redock; then undock.
-    fn assert_the_buy(world: &mut World) {
+    /// Check the swap `before` led to: the player flies the bought hull, the
+    /// hull it flew is parked for rebuy at its trade-in with the hold it had,
+    /// the balances moved by the price less the trade-in, and `bought`
+    /// `OnShipBought` reports stand. Returns the station's parked hulls.
+    fn assert_the_swap(world: &World, before: &BeforeBuy, bought: usize) -> Vec<ParkedView> {
         let player = player(world);
         let station = station(world);
         let watch = world.resource::<BuyWatch>();
-        let before = watch.before().clone();
         assert_eq!(
             design_ids(world, player),
             before.offered,
-            "station buy: the player's design is the offer"
+            "station buy: the player's design is the bought hull's"
         );
         assert_eq!(
             live_ids(world, player),
             before.offered,
-            "station buy: every offered section is live"
+            "station buy: every bought section is live"
         );
-        match world.get::<SpaceshipDesign>(player) {
-            Some(SpaceshipDesign(ShipDesignSource::Inline(design))) => assert_eq!(
-                format!("{design:?}"),
-                before.design,
-                "station buy: the root's design is the offer, inline"
+        assert!(
+            world.get_entity(before.hull).is_err(),
+            "station buy: the bought hull is no longer parked"
+        );
+        let parked = parked_views(world, station);
+        assert_eq!(
+            parked.len(),
+            before.parked.len(),
+            "station buy: the station parks as many hulls as before"
+        );
+        let mut want = before.parked.clone();
+        want.retain(|view| view.name != before.name || view.sections != before.offered);
+        let old_ship = parked_hulls(world, station)
+            .into_iter()
+            .find(|hull| !want.iter().any(|view| *view == parked_view(world, *hull)))
+            .expect("station buy: the old ship is parked");
+        let old = parked_view(world, old_ship);
+        assert_eq!(
+            world.get::<Name>(player).map(Name::as_str),
+            Some(before.name.as_str()),
+            "station buy: the player's ship takes the bought hull's name"
+        );
+        assert_eq!(
+            old.name, before.flown,
+            "station buy: the old ship parks under the name it was flown as"
+        );
+        assert_eq!(
+            old.terms,
+            ParkedHullType::Rebuy {
+                price_cr: before.trade_in_cr
+            },
+            "station buy: the old ship is parked for rebuy at the trade-in"
+        );
+        assert_eq!(
+            old.sections, before.old,
+            "station buy: the old ship keeps its design"
+        );
+        assert_eq!(
+            old.hold, before.hold,
+            "station buy: the old ship keeps its hold"
+        );
+        assert!(
+            world.get::<OwnedShipMarker>(old_ship).is_some(),
+            "station buy: the old ship is the player's own"
+        );
+        assert!(
+            docked_with(world, old_ship, station),
+            "station buy: the old ship is docked with the station"
+        );
+        assert!(
+            matches!(
+                world.get::<SpaceshipController>(old_ship),
+                Some(SpaceshipController::None)
             ),
-            other => panic!("station buy: the root's design is not inline: {other:?}"),
-        }
-        let hold = world.get::<ShipInventory>(player).expect("a hold");
-        assert!(hold.is_empty(), "station buy: the new hold opens empty");
-        let mut storage = before.storage.clone();
-        for (item, count) in &before.hold {
-            *storage.entry(item.clone()).or_default() += count;
-        }
+            "station buy: the old ship has no driver"
+        );
         assert_eq!(
             storage_map(world, station),
-            storage,
-            "station buy: the old hold moved whole into storage"
+            before.storage,
+            "station buy: storage did not change"
         );
-        let stored = watch.named("onstored");
-        assert_eq!(
-            stored.len(),
-            before.hold.len(),
-            "station buy: one OnStored per stack"
+        assert!(
+            watch.named("onstored").is_empty(),
+            "station buy: nothing was stored"
         );
         assert_eq!(
             credits(world, player),
@@ -832,56 +1098,90 @@ mod walk {
             before.station_cr + before.price_cr - before.trade_in_cr,
             "station buy: the station took the price less the trade-in"
         );
-        let causes: Vec<&serde_json::Value> = watch
+        let causes = watch
             .named("oncreditschanged")
             .into_iter()
             .filter(|data| data["cause"] == "ShipBuy")
-            .collect();
+            .count();
         assert_eq!(
-            causes.len(),
-            2,
-            "station buy: both balances moved as ShipBuy"
+            causes,
+            2 * bought,
+            "station buy: both balances moved as ShipBuy on each buy"
         );
-        let bought = watch.named("onshipbought");
-        assert_eq!(bought.len(), 1, "station buy: one OnShipBought");
-        let event = bought[0].clone();
+        let reports = watch.named("onshipbought");
+        assert_eq!(
+            reports.len(),
+            bought,
+            "station buy: one OnShipBought per buy"
+        );
+        let event = reports[bought - 1].clone();
         assert_eq!(event["hull"], before.name.as_str());
         assert_eq!(event["price_cr"], before.price_cr);
         assert_eq!(event["trade_in_cr"], before.trade_in_cr);
-        let docked = world
-            .get::<DockedShip>(player)
-            .expect("station buy: the new hull is docked");
-        assert_ne!(
-            docked.connection, before.connection,
-            "station buy: the new hull docked through a new connection"
-        );
-        let connection = world
-            .get::<DockingConnection>(docked.connection)
-            .expect("station buy: the dock has a connection");
         assert!(
-            [connection.first_ship, connection.second_ship].contains(&station),
-            "station buy: the new hull docked with the station"
+            docked_with(world, player, station),
+            "station buy: the player docked with the station"
         );
+        assert_ne!(
+            world
+                .get::<DockedShip>(player)
+                .expect("station buy: the player is docked")
+                .connection,
+            before.connection,
+            "station buy: the player docked through a new connection"
+        );
+        parked
+    }
+
+    /// Claim 2: the buy; then undock.
+    fn assert_the_buy(world: &mut World) {
+        let before = world.resource::<BuyWatch>().buy().clone();
+        let player = player(world);
+        assert!(
+            world
+                .get::<ShipInventory>(player)
+                .is_some_and(ShipInventory::is_empty),
+            "station buy: the bought hull's hold opens empty"
+        );
+        let parked = assert_the_swap(world, &before, 1);
+        let old = parked
+            .iter()
+            .find(|view| matches!(view.terms, ParkedHullType::Rebuy { .. }))
+            .expect("station buy: the old ship is parked")
+            .clone();
         nova_probe::probe_marker(
             world,
-            "outcome: a hull is bought from a station's catalogue",
+            "outcome: a buy hands the player the parked hull and parks the old one",
             serde_json::json!({
                 "station": station_id(world).to_string(),
                 "hull": before.name,
                 "sections": before.offered.len(),
                 "price_cr": before.price_cr,
                 "trade_in_cr": before.trade_in_cr,
-                "stored": before.hold,
+                "old": old.name,
+                "old_hold": old.hold,
             }),
         );
         info!(
-            "station buy: bought '{}' ({} sections) for {} cr less {} cr trade-in, redocked",
+            "station buy: bought '{}' ({} sections) for {} cr less {} cr trade-in; '{}' parked \
+             for rebuy holding {:?}",
             before.name,
             before.offered.len(),
             before.price_cr,
-            before.trade_in_cr
+            before.trade_in_cr,
+            old.name,
+            old.hold
         );
         world.trigger(DockingReleaseRequest { entity: player });
+    }
+
+    /// The station's parked hulls as the player leaves it for the retire.
+    fn record_the_station_as_left(world: &mut World) {
+        let station = station(world);
+        let left = parked_views(world, station);
+        let mut watch = world.resource_mut::<BuyWatch>();
+        watch.left = Some(left);
+        watch.retired = Some(station);
     }
 
     fn the_station_record(
@@ -899,12 +1199,158 @@ mod walk {
         }
     }
 
-    /// Claim 2: the leave save holds the bought hull and the catalogue.
+    /// The parked hulls a station record lists, as the walk compares them.
+    /// A record keeps a design, not its section list, so `sections` holds
+    /// the ids of `want` the record carries.
+    fn record_views(body: &FrozenBody, want: &[ParkedView]) -> Vec<ParkedView> {
+        let FrozenBodyType::Station(station) = body.body() else {
+            panic!("station buy: the station froze as {:?}", body.body());
+        };
+        station
+            .parked()
+            .iter()
+            .zip(want.iter().map(Some).chain(std::iter::repeat(None)))
+            .map(|(parked, want)| ParkedView {
+                name: parked.name().to_string(),
+                terms: parked.terms(),
+                sections: want.map_or_else(BTreeSet::new, |want| {
+                    want.sections
+                        .iter()
+                        .filter(|id| parked.ship().has_section(id))
+                        .cloned()
+                        .collect()
+                }),
+                hold: hold_map(parked.ship().inventory()),
+            })
+            .collect()
+    }
+
+    /// Claim 3: the retired record lists the parked hulls as left.
+    fn assert_the_retire(world: &mut World) {
+        let id = station_id(world).to_string();
+        let watch = world.resource::<BuyWatch>();
+        let cell = watch.cell.expect("chosen");
+        let left = watch.left.clone().expect("left");
+        let retired = watch.retired.expect("left");
+        assert!(
+            !live_cells(world).contains(&cell),
+            "station buy: the station's cell {cell} is retired"
+        );
+        assert!(
+            world.get_entity(retired).is_err(),
+            "station buy: the retire despawned the station"
+        );
+        let body = the_station_record(world.resource::<FrozenSectors>().get(cell), &id, cell);
+        let recorded = record_views(&body, &left);
+        assert_eq!(
+            recorded, left,
+            "station buy: the record lists the parked hulls as left"
+        );
+        let names: Vec<&str> = recorded.iter().map(|view| view.name.as_str()).collect();
+        nova_probe::probe_marker(
+            world,
+            "outcome: the retired record holds the parked hulls",
+            serde_json::json!({ "id": id, "cell": cell.to_string(), "parked": names }),
+        );
+        info!("station buy: sector {cell} retired with '{id}' parking {names:?}");
+    }
+
+    /// Claim 4: the thawed station parks the same hulls, each docked.
+    fn assert_the_thaw(world: &mut World) {
+        let watch = world.resource::<BuyWatch>();
+        let left = watch.left.clone().expect("left");
+        let retired = watch.retired.expect("left");
+        let station = station(world);
+        assert_ne!(station, retired, "station buy: the thaw is a new entity");
+        assert_eq!(
+            parked_views(world, station),
+            left,
+            "station buy: the thawed station parks the same hulls"
+        );
+        for hull in parked_hulls(world, station) {
+            let owned = world.get::<OwnedShipMarker>(hull).is_some();
+            let rebuy = matches!(
+                world.get::<ParkedHullType>(hull),
+                Some(ParkedHullType::Rebuy { .. })
+            );
+            assert_eq!(
+                owned, rebuy,
+                "station buy: only the hull parked for rebuy is the player's own"
+            );
+        }
+        let names: Vec<&str> = left.iter().map(|view| view.name.as_str()).collect();
+        nova_probe::probe_marker(
+            world,
+            "outcome: the thawed station parks the same hulls",
+            serde_json::json!({ "id": station_id(world).to_string(), "parked": names }),
+        );
+        info!("station buy: the thawed station parks {names:?}, each docked");
+    }
+
+    /// Record the facts the rebuy must change.
+    fn record_before_rebuy(world: &mut World) {
+        let station = station(world);
+        let (row, hull) = row_of(world, station, |terms| {
+            matches!(terms, ParkedHullType::Rebuy { .. })
+        });
+        let before = record_before(world, row, hull);
+        info!(
+            "station buy: row {row} '{}' rebuys for {} cr, the flown hull trades in for {} cr",
+            before.name, before.price_cr, before.trade_in_cr
+        );
+        world.resource_mut::<BuyWatch>().rebuy = Some(before);
+    }
+
+    /// Claim 5: the rebuy hands the old ship back; then undock.
+    fn assert_the_rebuy(world: &mut World) {
+        let watch = world.resource::<BuyWatch>();
+        let buy = watch.buy().clone();
+        let before = watch.rebuy().clone();
+        let rows = watch.rebuy_rows.clone();
+        assert!(
+            rows.contains(&format!("{}{REBUY_LISTING}", before.name)),
+            "station buy: the hull list shows '{}' for rebuy: {rows:?}",
+            before.name
+        );
+        let player = player(world);
+        assert_eq!(
+            before.offered, buy.old,
+            "station buy: the hull rebought is the old ship"
+        );
+        assert_eq!(
+            hold_of(world, player),
+            buy.hold,
+            "station buy: the player has the old ship's hold back"
+        );
+        let parked = assert_the_swap(world, &before, 2);
+        world.resource_mut::<BuyWatch>().after = Some(parked.clone());
+        let names: Vec<&str> = parked.iter().map(|view| view.name.as_str()).collect();
+        nova_probe::probe_marker(
+            world,
+            "outcome: a rebuy hands the player the old ship back",
+            serde_json::json!({
+                "station": station_id(world).to_string(),
+                "hull": before.name,
+                "price_cr": before.price_cr,
+                "trade_in_cr": before.trade_in_cr,
+                "row": rows,
+                "parked": names,
+            }),
+        );
+        info!(
+            "station buy: rebought '{}' for {} cr less {} cr trade-in; the station parks {names:?}",
+            before.name, before.price_cr, before.trade_in_cr
+        );
+        world.trigger(DockingReleaseRequest { entity: player });
+    }
+
+    /// Claim 6: the leave save holds the old ship and the parked hulls.
     fn assert_the_save(world: &mut World) {
         let id = station_id(world).to_string();
         let watch = world.resource::<BuyWatch>();
         let cell = watch.cell.expect("chosen");
-        let before = watch.before().clone();
+        let buy = watch.buy().clone();
+        let after = watch.after.clone().expect("rebought");
         let root = nova_assets::storage::worlds_root()
             .expect("station buy: the sandboxed CONFIG_ROOT gives a worlds root");
         let slug = world_slug(WORLD_NAME).expect("the world name has a slug");
@@ -917,79 +1363,153 @@ mod walk {
             &RegisteredScenarios::from(world.resource::<GameScenarios>()),
         )
         .unwrap_or_else(|refusal| panic!("station buy: cannot open the leave save: {refusal}"));
-        for section in &before.offered {
+        for section in &buy.old {
             assert!(
                 state.player.ship.has_section(section),
-                "station buy: the saved player carries the offered '{section}'"
+                "station buy: the saved player carries the old ship's '{section}'"
             );
         }
-        for section in before.old.difference(&before.offered) {
+        for section in buy.offered.difference(&buy.old) {
             assert!(
                 !state.player.ship.has_section(section),
-                "station buy: the saved player keeps no old '{section}'"
+                "station buy: the saved player keeps no bought '{section}'"
             );
         }
         let body = the_station_record(state.sectors.get(cell), &id, cell);
-        let saved: Vec<String> = match body.body() {
-            FrozenBodyType::Station(station) => station
-                .hulls()
-                .iter()
-                .map(|offer| offer.name.clone())
-                .collect(),
-            other => panic!("station buy: the station froze as {other:?}"),
-        };
-        assert_eq!(
-            saved, before.catalogue,
-            "station buy: the save keeps the station's catalogue"
-        );
+        let saved = record_views(&body, &after);
+        assert_eq!(saved, after, "station buy: the save lists the parked hulls");
+        let names: Vec<&str> = saved.iter().map(|view| view.name.as_str()).collect();
         nova_probe::probe_marker(
             world,
-            "outcome: the leave save holds the bought hull and the station's catalogue",
+            "outcome: the leave save holds the player's hull and the parked hulls",
             serde_json::json!({
                 "slug": slug,
                 "generation": header.generation,
                 "format": header.format,
-                "sections": before.offered.len(),
-                "catalogue": saved,
+                "sections": buy.old.len(),
+                "parked": names,
             }),
         );
         info!(
-            "station buy: save generation {} (format {}) holds '{}' and the catalogue {saved:?}",
-            header.generation, header.format, before.name
+            "station buy: save generation {} (format {}) holds the old ship and parks {names:?}",
+            header.generation, header.format
         );
     }
 
-    /// Claim 3: the loaded world gives back the bought hull and the
-    /// catalogue.
+    /// Claim 7: the loaded world gives back the old ship and the parked
+    /// hulls.
     fn assert_the_load(world: &mut World) {
-        let before = world.resource::<BuyWatch>().before().clone();
+        let watch = world.resource::<BuyWatch>();
+        let buy = watch.buy().clone();
+        let after = watch.after.clone().expect("rebought");
         let player = player(world);
         let station = station(world);
         assert_eq!(
             live_ids(world, player),
-            before.offered,
-            "station buy: the loaded player's live sections are the offer's"
+            buy.old,
+            "station buy: the loaded player's live sections are the old ship's"
         );
-        let catalogue = catalogue_names(world, station);
         assert_eq!(
-            catalogue, before.catalogue,
-            "station buy: the loaded station sells the same catalogue"
+            hold_of(world, player),
+            buy.hold,
+            "station buy: the loaded player holds the old ship's hold"
         );
+        assert_eq!(
+            parked_views(world, station),
+            after,
+            "station buy: the loaded station parks the same hulls"
+        );
+        let names: Vec<&str> = after.iter().map(|view| view.name.as_str()).collect();
         nova_probe::probe_marker(
             world,
-            "outcome: a loaded world gives back the bought hull",
+            "outcome: a loaded world gives back the player's hull and the parked hulls",
             serde_json::json!({
                 "id": station_id(world).to_string(),
-                "hull": before.name,
-                "sections": before.offered.len(),
-                "catalogue": catalogue,
+                "sections": buy.old.len(),
+                "parked": names,
             }),
         );
         info!(
-            "station buy: PASS the loaded world gives back the bought hull '{}' ({} sections)",
-            before.name,
-            before.offered.len()
+            "station buy: PASS the loaded world gives back the player's hull and the parked \
+             hulls {names:?}"
         );
+    }
+
+    /// Click the Buy button [`BuyWatch::button`] names, the beats
+    /// `click_named` appends with the name read at run time: which row a
+    /// hull takes is known only once it is parked.
+    fn click_the_button(
+        script: AutopilotPlugin<GameStates>,
+        label: &str,
+        landed: Arc<Predicate>,
+    ) -> AutopilotPlugin<GameStates> {
+        script
+            .step(format!("{label}: the button is up"))
+            .until(when(|world| {
+                ui_node_rect(world, &the_button(world)).is_some()
+            }))
+            .deadline(BEAT_SECS)
+            .add()
+            .step(format!("{label}: aim"))
+            .on_enter(|world: &mut World| hover_named(the_button(world))(world))
+            .each(|world, _, _| keep_hovering_named(the_button(world))(world))
+            .until(when(|world| pointer_over_node(the_button(world))(world)))
+            .deadline(BEAT_SECS)
+            .add()
+            .step(format!("{label}: press"))
+            .on_enter(press_mouse(MouseButton::Left))
+            .until(pointer_pressed())
+            .deadline(BEAT_SECS)
+            .add()
+            .step(format!("{label}: release"))
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(landed)
+            .deadline(SESSION_SECS)
+            .add()
+    }
+
+    /// Open the interface on the Station pane and scroll the aimed Buy
+    /// button into view.
+    fn open_the_hull_list(
+        script: AutopilotPlugin<GameStates>,
+        label: &str,
+    ) -> AutopilotPlugin<GameStates> {
+        tap(
+            script,
+            &format!("the interface key ({label})"),
+            "interface_toggle",
+            when(|world| {
+                world
+                    .get_resource::<State<PauseStates>>()
+                    .is_some_and(|pause| *pause.get() == PauseStates::Interface)
+            }),
+        )
+        .click_named(
+            &format!("station buy: open the Station pane ({label})"),
+            "InterfaceTabStation",
+            the_interface_shows(InterfacePaneType::Station),
+            SESSION_SECS,
+        )
+        .step(format!("station buy: settle the lists ({label})"))
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        // The hull list can stand past the bottom of a short panel: the
+        // wheel over the panel scrolls it into view.
+        .step(format!(
+            "station buy: scroll the hull list into view ({label})"
+        ))
+        .each(|world, _, frame| {
+            keep_hovering_named(STATION_PANEL)(world);
+            if frame % 2 == 1 && !buy_button_in_view(world) {
+                scroll_lines(-1.0)(world);
+            }
+        })
+        .until(when(buy_button_in_view))
+        .deadline(SESSION_SECS)
+        .add()
+        .step(format!("station buy: settle the scroll ({label})"))
+        .until(frames(SETTLE_FRAMES))
+        .add()
     }
 
     /// The walk. Every beat waits on a world value.
@@ -1045,65 +1565,42 @@ mod walk {
             ))
             .deadline(SESSION_SECS)
             .add()
+            .step("station buy: assert the parked hulls")
+            .on_enter(assert_the_parked)
+            .add()
             .step("station buy: berth and dock")
             .each(|world, _, _| berth_and_dock(world))
             .until(player_docked())
             .deadline(SESSION_SECS)
             .add()
+            .step("station buy: settle the dock")
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station buy: shoot the parked hulls")
+            .on_enter(|world: &mut World| shoot(world, PARKED_SHOT))
+            .until(shot_written(PARKED_SHOT))
+            .deadline(SHOT_DEADLINE_SECS)
+            .add()
             .step("station buy: set the fixture and record the balances")
             .on_enter(record_before_buy)
             .until(frames(1))
             .add();
-        let script = tap(
+        let script = open_the_hull_list(script, "buy")
+            .step("station buy: shoot the hull list")
+            .on_enter(|world: &mut World| shoot(world, OFFER_SHOT))
+            .until(shot_written(OFFER_SHOT))
+            .deadline(SHOT_DEADLINE_SECS)
+            .add();
+        let script = click_the_button(
             script,
-            "the interface key",
-            "interface_toggle",
-            when(|world| {
-                world
-                    .get_resource::<State<PauseStates>>()
-                    .is_some_and(|pause| *pause.get() == PauseStates::Interface)
-            }),
-        )
-        .click_named(
-            "station buy: open the Station pane",
-            "InterfaceTabStation",
-            the_interface_shows(InterfacePaneType::Station),
-            SESSION_SECS,
-        )
-        .step("station buy: settle the lists")
-        .until(frames(SETTLE_FRAMES))
-        .add()
-        // The hull list can stand past the bottom of a short panel: the
-        // wheel over the panel scrolls it into view.
-        .step("station buy: scroll the hull list into view")
-        .each(|world, _, frame| {
-            keep_hovering_named(STATION_PANEL)(world);
-            if frame % 2 == 1 && !buy_button_in_view(world) {
-                scroll_lines(-1.0)(world);
-            }
-        })
-        .until(when(buy_button_in_view))
-        .deadline(SESSION_SECS)
-        .add()
-        .step("station buy: settle the scroll")
-        .until(frames(SETTLE_FRAMES))
-        .add()
-        .step("station buy: shoot the hull list")
-        .on_enter(|world: &mut World| shoot(world, OFFER_SHOT))
-        .until(shot_written(OFFER_SHOT))
-        .deadline(SHOT_DEADLINE_SECS)
-        .add()
-        .click_named(
-            "station buy: buy the first hull",
-            BUY_BUTTON,
-            and(hull_bought(), bought_hull_live()),
-            SESSION_SECS,
+            "station buy: buy the first hull for sale",
+            flies(|watch| &watch.buy().offered),
         );
         // The pane pushed its reports under the interface pause; the tracker
         // drains them once the clock runs again.
-        tap(script, "the interface key", "interface_toggle", unpaused())
-            .step("station buy: the buy reports and the new hull docks")
-            .until(bought_and_redocked())
+        let script = tap(script, "the interface key", "interface_toggle", unpaused())
+            .step("station buy: the buy reports and the bought hull docks")
+            .until(swapped_and_redocked(|watch| watch.buy.as_ref()))
             .deadline(SESSION_SECS)
             .add()
             .step("station buy: settle the view")
@@ -1116,6 +1613,73 @@ mod walk {
             .add()
             .step("station buy: assert the buy, and undock")
             .on_enter(assert_the_buy)
+            .until(player_free())
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station buy: record the station as left")
+            .on_enter(record_the_station_as_left)
+            .add()
+            .step("station buy: jump away until the station's cell retires")
+            .on_enter(|world: &mut World| {
+                let (edge, _) = world_shape(world);
+                let away = world.resource::<BuyWatch>().away.expect("chosen");
+                park_player(world, away.centre(edge));
+            })
+            .until(window_is(|world| world.resource::<BuyWatch>().away))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station buy: assert the retired record")
+            .on_enter(assert_the_retire)
+            .add()
+            .step("station buy: jump back to the station's side")
+            .on_enter(park_beside)
+            .until(and(
+                window_is(|world| world.resource::<BuyWatch>().cell),
+                the_station_stands(),
+            ))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station buy: assert the thaw")
+            .on_enter(assert_the_thaw)
+            .add()
+            .step("station buy: berth and dock again")
+            .each(|world, _, _| berth_and_dock(world))
+            .until(player_docked())
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station buy: record the rebuy")
+            .on_enter(record_before_rebuy)
+            .until(frames(1))
+            .add();
+        let script = open_the_hull_list(script, "rebuy")
+            .step("station buy: the hull list shows the old ship for rebuy")
+            .until(when(|world| !rebuy_rows(world).is_empty()))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station buy: record the rebuy row")
+            .on_enter(|world: &mut World| {
+                let rows = rebuy_rows(world);
+                info!("station buy: the hull list shows {rows:?}");
+                world.resource_mut::<BuyWatch>().rebuy_rows = rows;
+            })
+            .add()
+            .step("station buy: shoot the rebuy row")
+            .on_enter(|world: &mut World| shoot(world, REBUY_SHOT))
+            .until(shot_written(REBUY_SHOT))
+            .deadline(SHOT_DEADLINE_SECS)
+            .add();
+        let script = click_the_button(
+            script,
+            "station buy: rebuy the old ship",
+            flies(|watch| &watch.rebuy().offered),
+        );
+        tap(script, "the interface key", "interface_toggle", unpaused())
+            .step("station buy: the rebuy reports and the old ship docks")
+            .until(swapped_and_redocked(|watch| watch.rebuy.as_ref()))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station buy: assert the rebuy, and undock")
+            .on_enter(assert_the_rebuy)
             .until(player_free())
             .deadline(SESSION_SECS)
             .add()
@@ -1163,7 +1727,7 @@ mod walk {
             .step("station buy: the loaded window streams the station back")
             .until(and(
                 window_is(|world| world.resource::<BuyWatch>().cell),
-                and(the_station_stands(), bought_hull_live()),
+                and(the_station_stands(), flies(|watch| &watch.rebuy().offered)),
             ))
             .deadline(SESSION_SECS)
             .add()

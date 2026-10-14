@@ -22,7 +22,6 @@ use nova_gameplay::prelude::*;
 use nova_input::prelude::InputBindings;
 use nova_ship::prelude::{
     CargoIntakeEjectionQueue, CargoIntakeSectionMarker, DockedShip, DockingConnection,
-    OwnedShipMarker,
 };
 use nova_ui::{
     theme::UiColor,
@@ -1382,12 +1381,7 @@ pub(crate) struct InventoryShips<'w, 's> {
     items: Res<'w, GameItems>,
     players: Query<'w, 's, (Entity, Option<&'static DockedShip>), With<PlayerSpaceshipMarker>>,
     connections: Query<'w, 's, &'static DockingConnection>,
-    fleet: Query<
-        'w,
-        's,
-        (Entity, Option<&'static DockedShip>),
-        Or<(With<PlayerFleetMarker>, With<OwnedShipMarker>)>,
-    >,
+    fleet: Query<'w, 's, (Entity, Option<&'static DockedShip>), With<OwnedShipMarker>>,
     station_roots: Query<'w, 's, (), With<StationMarker>>,
     ships: Query<
         'w,
@@ -1496,9 +1490,8 @@ impl InventoryShips<'_, '_> {
     /// ship docked at the same station. Empty while undocked or docked with
     /// any other ship.
     ///
-    /// An own ship is a fleet escort ([`PlayerFleetMarker`]) or a hull the
-    /// player traded in, parked for rebuy ([`OwnedShipMarker`]). The one
-    /// place that decides it.
+    /// An own ship is one marked [`OwnedShipMarker`]: a fleet escort or a
+    /// hull the player traded in, parked for rebuy.
     pub(crate) fn own_holds(&self, pair: InventoryPair) -> Vec<Entity> {
         let Some(partner) = pair.partner else {
             return Vec::new();
@@ -1936,10 +1929,12 @@ pub(crate) fn apply_credit_take_commands(
             .map_err(|refusal| credit_take_refusal_text(refusal, &partner_title));
         let (note, cue, volume) = match result {
             Ok(amount) => {
-                let [(_, _, _, _, mut own_cr, mut own_reports), (_, _, _, _, mut partner_cr, mut partner_reports)] =
-                    ships.ships.get_many_mut([pair.own, partner]).expect(
-                        "InventoryShips::pair checked both ships, and a ship does not dock with itself",
-                    );
+                let [
+                    (_, _, _, _, mut own_cr, mut own_reports),
+                    (_, _, _, _, mut partner_cr, mut partner_reports),
+                ] = ships.ships.get_many_mut([pair.own, partner]).expect(
+                    "InventoryShips::pair checked both ships, and a ship does not dock with itself",
+                );
                 let taken_cr = own_cr.0 + amount;
                 own_reports.change_credits(&mut own_cr, taken_cr, CreditChangeCauseType::Take);
                 partner_reports.change_credits(&mut partner_cr, 0, CreditChangeCauseType::Take);

@@ -288,7 +288,7 @@ impl Plugin for SpaceshipSectionPlugin {
         app.register_type::<hull_buy::ParkedHull>();
         app.register_type::<hull_buy::ParkedHulls>();
         app.register_type::<hull_buy::ParkedHullType>();
-        app.register_type::<hull_buy::OwnedShipMarker>();
+        app.register_type::<nova_gameplay::prelude::OwnedShipMarker>();
         app.add_observer(section_strip::strip_section);
         // The authored-animation rig and driver. Unconditional, not
         // render-gated: the components must exist headless (a server loads

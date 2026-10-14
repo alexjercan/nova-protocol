@@ -213,33 +213,41 @@ and each keeps its binding and its health across a freeze and thaw.
 
 ## Buy a hull
 
-A living station that a generated world places sells three to five whole
-hulls. The world lays them out for the station's civilization from the world
-seed and the station's id, so a station sells the same list on every visit
-and keeps it across a save. Each hull's roles follow what the civilization
-can build, and its size grows with the civilization's advancement: a station
-near the origin sells small hulls only. A station a scenario places sells
-none.
+A living station that a generated world places sells one whole hull per
+docking port but one, so one port is always free for the player. A hull
+that fits at no free port without touching the station or another parked
+hull is not offered. The world lays them out for the station's civilization
+from the world seed and the station's id, so a station sells the same list on
+every visit and keeps it across a save. Each hull's roles follow what the
+civilization can build, and its size grows with the civilization's
+advancement: a station near the origin sells small hulls only. A station a
+scenario places sells none.
 
-Docked to a living station that offers `Refit`, the Station pane lists the hulls
-under **Ships for sale**: each hull's name, length, section count and kinds,
-the price and the trade-in, and a Buy button or the reason it is refused.
+Every hull for sale is a real ship parked at one of the station's ports. A
+parked hull is inert: nobody flies it, it is Neutral, it does not shoot, and
+it cannot be looted or stripped. Docked to a living station that offers
+`Refit`, the Station pane lists the parked hulls under **Ships for sale**:
+each hull's name, length, section count and kinds, the price and the
+trade-in, and a Buy button or the reason it is refused.
 
 | rule | what happens |
 |---|---|
-| the gate | docked to a living station whose `services` list `Refit`, that sells hulls |
-| the price | every new section's [build recipe](../sections/#build-recipe) at ask: its `credits` plus its parts at the item's `ask_cr` |
+| the gate | docked to a living station whose `services` list `Refit`, with a hull parked |
+| the price | every section's [build recipe](../sections/#build-recipe) at ask: its `credits` plus its parts at the item's `ask_cr`. A rebuy costs the trade-in the station paid |
 | the trade-in | the station buys the old hull: each live section's `strip_yield` share of its recipe parts at the item's `bid_cr`, times its health share, rounded down per section. A lost section pays nothing |
-| the hold | every stack moves into the station's storage. The new hold opens empty |
+| the swap | the player takes the controls of the parked hull, which undocks and redocks with the station. The old ship parks where it stood, listed as `(rebuy)` at the trade-in |
+| the hold | the old hold stays in the old ship. While docked at that station, its hold lists as the player's storage. The new hold opens empty |
 | the credits | the ship pays the price less the trade-in. When the trade-in is worth more, the station pays the difference |
-| the binding | a thruster none (the flight computer drives it), a weapon the key of the old hull's first section of its kind, or an empty binding to set with Rebind. Each mining emitter takes its own free key of `V`, `B`, `N`, `C` |
-| refusals | in this order: not docked, no `Refit` service, more mining emitters than keys, no storage room for the hold, too few credits with the trade-in, a station that cannot pay the trade-in |
-| the result | the new hull docks where the old one was, at full health. The ship keeps it across a save |
-| events | `OnShipBought`, one `OnStored` per hold stack and one `OnCreditsChanged` per party with `cause: ShipBuy`, see [Hold events](../events/#hold-events) |
+| the binding | the start-role keys for the new hull: turrets the trigger, railguns `R`, torpedoes `F`, mining emitters `V` then `B`, `N`, `C`. No old binding carries over |
+| refusals | in this order: not docked, no `Refit` service, too few credits with the trade-in, a station that cannot pay the trade-in |
+| the result | the new hull docks where it was parked, at full health. The ship and the parked hulls keep across a retire, a save and a Load |
+| events | `OnShipBought` and one `OnCreditsChanged` per party with `cause: ShipBuy`, see [Hold events](../events/#hold-events) |
 
-The proof is `system_station_buy`: on a New Game, the player docks at a
-generated station, buys its first hull through the pane, and the hull and the
-station's list come back after a save and a Load.
+The proof is `system_station_buy`: on a New Game, the station parks its hulls
+for sale; the player buys one through the pane, the old ship parks for
+rebuy, the station's cell retires and thaws, the player buys the old ship
+back, and the player's hull and the parked hulls come back after a save and
+a Load.
 
 ## Hire an escort
 

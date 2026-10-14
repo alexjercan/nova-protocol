@@ -188,42 +188,65 @@ keeps its own credit scaling, unfloored per part.
 
 ### Buying a hull
 
-A generated living station carries a `StationHullCatalogue`
-(`nova_scenario/src/objects/station_hulls.rs`): three to five whole inline
-designs that `station_hulls` (`nova_world_base/src/station_hulls.rs`) lays
-out for its civilization from the world seed and the station id. Roles cycle
-from a seeded start through the roles the civilization's advancement can
-build, and each hull is `generate_ship` at that advancement, so the size
-ceiling tiers the list: a first-ring station sells small hulls only. The
-catalogue rides `SectorStation.hulls` in the manifest (checked by
-`check_ship_design`, refused on a dead station) and `FrozenStation.hulls`,
-so it keeps across a retire, a thaw and a save. `insert_hull_offers`
-resolves it into `HullOffers` (`nova_ship/src/sections/hull_buy.rs`), which
-the pane reads. The Station pane's "Ships for sale" list
-(`nova_interface/src/station/shipyard.rs`) shows each hull's length, section
-count, kind summary, price and trade-in, with a Buy button or the refusal.
-`plan_hull_buy` checks, in order: docked, `Refit`, storage room for the
-whole hold, the player's
-balance plus the trade-in against the price, and the station's balance plus
-the price against the trade-in. The price is `hull_price_cr`, every new
-section's recipe at ask; the trade-in is `hull_trade_in_cr`, each live
-section's strip value at bid times its health share, rounded down per
-section. A confirmed buy moves every hold stack into station storage
-(`Stored` per stack), moves both balances (cause `ShipBuy`), pushes
-`ShipInventoryReport::ShipBought` (`OnShipBought`), and triggers
-`HullBuyRequest`. `buy_station_hull` keeps the ship root, so the HUD, the
-camera and the scenario id keep their owner: it despawns every section,
-makes the design the offer inline, sets the player's `input_mapping` to the
-start-role scheme for the new hull (`start_role_bindings`: turrets the
-trigger, railguns R, torpedoes F, the first emitter V and each later one
-the next `ADDED_MINING_KEYS` key; no old binding carries over), drops the root's pinned
-health, marks and history stamps, opens an empty hold at the new capacity,
-and spawns the new sections posed by `bought_hull_pose` so the first
-docking port's face lies on the old port's face. The old port's despawn
-releases the dock, and `redock_bought_hull` docks the new port with the
-station, giving up with a warning after `REDOCK_FRAMES`.
+A generated living station sells whole inline designs that `station_hulls`
+(`nova_world_base/src/station_hulls.rs`) lays out for its civilization from
+the world seed and the station id: one per docking port but one, the count
+`station_clearance` reads off the station design, so the last port stays
+free for the player. Roles cycle from a seeded start through the roles the
+civilization's advancement can build, and each hull is `generate_ship` at
+that advancement, so the size ceiling tiers the list: a first-ring station
+sells small hulls only. They ride `SectorStation.hulls` in the manifest
+(checked by `check_ship_design`, refused on a dead station).
+`spawn_sector_station` hands the hulls for sale to `PendingParkedHulls`, and
+`park_pending_hulls` (`nova_scenario/src/objects/parked_hulls.rs`) spawns each
+as a real ship once the station's sections are live, in catalogue order,
+while two ports are free, and docks it by `dock_parked_hulls`. A hull takes
+the first free port in design order where it stands clear:
+`parked_hull_clear_pose` (`nova_ship/src/sections/hull_buy.rs`) poses it by
+`parked_hull_pose`, the hull's first port facing the station's, and rolls it
+a quarter turn at a time about the port axis until no section overlaps a
+station section, a hull parked before it or the three-cell approach lane of
+another free port (`section_colliders_overlap`). A hull that fits nowhere is
+not parked, with a warning, so a station sells at most its ports less one.
+A parked hull is inert: no driver, Neutral, every capability off, not
+lootable, no credits. It carries `ParkedHull(station)` and `ParkedHullType`
+(`Sale` or `Rebuy { price_cr }`, `nova_ship/src/sections/hull_buy.rs`); the
+station's `ParkedHulls` despawns them with it. A parked hull is no persistent
+body of its own: `freeze_station` records each in `FrozenStation.parked`
+(`FrozenParkedHull`: name, listing, pose relative to the station, ship), and a
+thaw parks them again where they froze. A station whose only docks are its
+own parked hulls retires; the save format is 10.
 
-After its hulls for sale the catalogue holds one to three escorts for hire
+The Station pane's "Ships for sale" list
+(`nova_interface/src/station/shipyard.rs`) shows every hull parked at the
+docked station, a rebuy named "(rebuy)": its length, section count, kind
+summary, price and trade-in, with a Buy button or the refusal.
+`plan_hull_buy` checks, in order: docked, `Refit`, the player's balance plus
+the trade-in against the price, and the station's balance plus the price
+against the trade-in. A hull for sale costs `hull_price_cr`, every section's
+recipe at ask; a rebuy costs the trade-in it was paid. The trade-in is
+`hull_trade_in_cr`, each live section's strip value at bid times its health
+share, rounded down per section. A confirmed buy moves both balances (cause
+`ShipBuy`), pushes `ShipInventoryReport::ShipBought` (`OnShipBought`), and
+triggers `HullBuyRequest`. `swap_parked_hull`
+(`nova_scenario/src/objects/station_hulls.rs`) keeps the player's ship root,
+so the HUD, the camera and the scenario id keep their owner: it freezes both
+hulls, rebuilds the root as the parked hull (`rehull_ship`) at its pose with
+the start-role bindings for the new hull (`start_role_bindings`: turrets the
+trigger, railguns R, torpedoes F, the first emitter V and each later one the
+next `ADDED_MINING_KEYS` key; no old binding carries over), and parks the old
+ship where it stood as `Rebuy { price_cr: trade-in }` with `OwnedShipMarker`.
+The old ship keeps its hold; the Inventory pane lists the hold of a docked
+`OwnedShipMarker` ship as storage. `OwnedShipMarker` (`nova_gameplay`) is
+the one record that a ship is the player's: a parked rebuy carries it, and
+`PlayerFleetMarker` requires it, so an escort does too; a neutralized escort
+loses both. The root takes the bought hull's name. The old port's despawn
+releases the dock, and `redock_bought_hull` docks the new hull with the
+station, giving up with a warning after `REDOCK_FRAMES`. A docked ship
+that is not the station's own parked hull keeps the station from retiring,
+so the player undocks the bought hull normally.
+
+After its hulls for sale the station lists one to three escorts for hire
 (`HullOfferType::Hire { slot }`): fighting roles (scavenger, armored) the
 civilization can build, cycled from a seeded start, none where it builds no
 fighting role. Each keeps its roster slot, so `escort_id` (station id, stem

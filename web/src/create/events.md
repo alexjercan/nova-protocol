@@ -816,7 +816,7 @@ inventory, so a handler counts occurrences, not frames.
 | `OnRebuilt` | the rebuilt ship | none | `section` (the code the lost section had, `PDC-1`), `parts` (every recipe part, item id to count), `price_cr` (work plus bought parts) |
 | `OnSwapped` | the refitted ship | none | `section` (the Ship pane code, `PDC-1`), `from` and `to` (the old and new section prototype ids), `parts` (every part of the new part's recipe), `price_cr` (work plus bought parts) |
 | `OnAdded` | the refitted ship | none | `section` (the new section's Ship pane code, `PDC-3`), `part` (its section prototype id), `at` and `point` (the code and socket id it mounts on), `parts` (every part of its recipe), `price_cr` (work plus bought parts) |
-| `OnShipBought` | the ship that bought | none | `hull` (the catalogue name, `Vel civilian Mk 1`), `price_cr` (every new section's recipe at ask), `trade_in_cr` (what the station paid for the old hull) |
+| `OnShipBought` | the ship that bought | none | `hull` (the parked hull's name, `Vel civilian Mk 1`), `price_cr` (every section's recipe at ask, or for a rebuy the trade-in paid for it), `trade_in_cr` (what the station paid for the old hull) |
 | `OnEscortHired` | the ship that hired | none | `escort` (the escort's id, `sector_1_0_0_cluster_1_0_0_station_0_escort_0`), `hull` (the catalogue name, `Vel armored escort 1`), `price_cr` (the hull's price times 3/2) |
 | `OnStationBought` | the ship that bought | none | `station` (the station's id, `sector_0_n1_0_cluster_0_n1_0_station_0`), `price_cr` (its sections, hold and credits at ask, times 2) |
 | `OnStripped` | the ship that stripped | none | `hull` (the wreck's id), `section` (the stripped section's code on the wreck, `PDC-1`; the last is the port the player docked through), `parts` (every part the strip put in the hold, item id to count) |
@@ -847,8 +847,7 @@ with `cause: Add`, a hull buy one per party with `cause: ShipBuy`, and an
 escort hire one per party with `cause: EscortHire`. A station buy raises
 one, for the player only, with `cause: StationBuy`: the price goes to the
 civilization, so the station's purse does not move. An armed `credits give`
-or `credits set` command raises one with `cause: Cheat`. A
-hull buy also raises one `OnStored` per stack of the old hold. A move that
+or `credits set` command raises one with `cause: Cheat`. A move that
 leaves the purse unchanged raises nothing. `OnStored` and `OnWithdrawn` fire
 once per confirmed move and move no credits, so they raise no
 `OnCreditsChanged`.

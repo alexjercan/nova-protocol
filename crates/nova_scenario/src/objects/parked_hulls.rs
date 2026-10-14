@@ -11,12 +11,15 @@
 //! A station's hulls arrive as [`PendingParkedHulls`]: the hulls for sale of
 //! a generated station's first spawn, or the records of a thaw.
 //! [`park_pending_hulls`] spawns them once the station's ports are live: a
-//! hull for sale at the station's ports in design order, the last port kept
-//! free for the player, and a thawed hull where it froze relative to the
-//! station. [`dock_parked_hulls`] then docks each with the port it lies on.
+//! hull for sale at the first free station port where it stands clear
+//! ([`parked_hull_clear_pose`]), one port always kept free for the player,
+//! and a thawed hull where it froze relative to the station.
+//! [`dock_parked_hulls`] then docks each with the port it lies on.
 //!
-//! FAIL LOUD. More hulls for sale than the station has ports less one, or a
-//! hull for sale with no docking port, is a generator bug and panics.
+//! A hull for sale that fits at no free port is not parked, with a warning:
+//! the catalogue offers what the station's ports hold. A hull for sale with
+//! no docking port, or one whose design does not resolve, is a generator bug
+//! and panics.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -211,10 +214,13 @@ fn sale_hull(offer: &StationHullOffer) -> impl Bundle {
 }
 
 /// Park every station's pending hulls once its sections are live: a hull
-/// for sale on the station port it takes in design order, the last port
-/// kept free and hulls past the other ports dropped with a warning, posed by [`parked_hull_pose`] on the hull's first docking
-/// port; a thawed hull where it froze relative to the station. Each moves
-/// as the station moves.
+/// for sale, in catalogue order, on its first docking port at the first free
+/// station port in design order where it stands clear of the station, of
+/// the hulls parked before it and of the other free ports' approach lanes
+/// ([`parked_hull_clear_pose`]), while two ports are still free, so one
+/// stays free for the player; a hull that fits nowhere is dropped with a
+/// warning. A thawed hull parks where it froze relative to the station.
+/// Each moves as the station moves.
 ///
 /// The station's pose is its `Transform`: a station spawned this frame has
 /// no avian pose yet, and the spawn and the thaw both set the `Transform`.
@@ -248,10 +254,8 @@ fn park_pending_hulls(
         };
         let velocity = velocity.copied().unwrap_or_default();
         let spin = spin.copied().unwrap_or_default();
-        let ports: Vec<&DesignSection> = design
-            .0
-            .iter()
-            .filter(|section| section.config.kind.class() == SectionClass::Docking)
+        let mut free: Vec<usize> = (0..design.0.len())
+            .filter(|&index| design.0[index].config.kind.class() == SectionClass::Docking)
             .collect();
         let sales = pending
             .0
@@ -262,22 +266,18 @@ fn park_pending_hulls(
             sales == 0 || sales == pending.0.len(),
             "park_pending_hulls: station {station:?} parks hulls for sale beside thawed ones"
         );
-        let berths = ports.len().saturating_sub(1);
-        if sales > berths {
-            warn!(
-                "park_pending_hulls: station {station:?} has {} ports and {sales} hulls for \
-                 sale; it keeps one port free and parks the first {berths}",
-                ports.len()
-            );
-        }
-        let mut berths = ports[..berths].iter();
+        let mut parked: Vec<PlacedSectionCollider> = Vec::new();
         for hull in &pending.0 {
             match hull {
                 PendingParkedHull::Sale(offer) => {
-                    // Hulls past the station's ports less one are not parked.
-                    let Some(berth) = berths.next() else {
+                    if free.len() < 2 {
+                        warn!(
+                            "park_pending_hulls: station {station:?} keeps its last free port; \
+                             '{}' is not parked",
+                            offer.name
+                        );
                         continue;
-                    };
+                    }
                     let (resolved, errors) = resolve_ship_design(
                         &ShipDesignSource::Inline(offer.design.clone()),
                         &game_designs,
@@ -288,31 +288,56 @@ fn park_pending_hulls(
                         "park_pending_hulls: hull '{}' does not resolve: {errors:?}",
                         offer.name
                     );
-                    let port = resolved
+                    let sections: Vec<DesignSection> = resolved
                         .sections
+                        .into_iter()
+                        .map(|section| DesignSection {
+                            id: section.id,
+                            position: section.position,
+                            rotation: section.rotation,
+                            config: section.config,
+                        })
+                        .collect();
+                    let port = sections
                         .iter()
-                        .find(|section| section.config.kind.class() == SectionClass::Docking)
+                        .position(|section| section.config.kind.class() == SectionClass::Docking)
                         .unwrap_or_else(|| {
                             panic!(
                                 "park_pending_hulls: hull '{}' has no docking port",
                                 offer.name
                             )
                         });
-                    let (at, turn) = parked_hull_pose(
-                        (transform.translation, transform.rotation),
-                        (berth.position, berth.rotation),
-                        (port.position, port.rotation),
-                    );
+                    let fit = free.iter().enumerate().find_map(|(slot, &berth)| {
+                        let mut obstacles = parked.clone();
+                        obstacles.extend(
+                            free.iter()
+                                .filter(|&&other| other != berth)
+                                .map(|&other| approach_lane(&design.0[other])),
+                        );
+                        parked_hull_clear_pose(&design.0, berth, &sections, port, &obstacles)
+                            .map(|pose| (slot, pose))
+                    });
+                    let Some((slot, (at, turn))) = fit else {
+                        warn!(
+                            "park_pending_hulls: hull '{}' fits at no free port of station \
+                             {station:?}; it is not parked",
+                            offer.name
+                        );
+                        continue;
+                    };
+                    let berth = free.remove(slot);
+                    parked.extend(posed_colliders(&sections, (at, turn)));
                     debug!(
                         "park_pending_hulls: station {station:?} parks '{}' at port '{}'",
-                        offer.name, berth.id
+                        offer.name, design.0[berth].id
                     );
+                    let pose = *transform * Transform::from_translation(at).with_rotation(turn);
                     spawn_parked_hull(
                         &mut commands,
                         station,
                         &offer.name,
                         ParkedHullType::Sale,
-                        Transform::from_translation(at).with_rotation(turn),
+                        pose,
                     )
                     .insert(sale_hull(offer))
                     // After the spawn bundle, which holds a zero velocity.
@@ -328,6 +353,18 @@ fn park_pending_hulls(
             }
         }
         commands.entity(station).remove::<PendingParkedHulls>();
+    }
+}
+
+/// The lane a ship docks along at a free station port: the three cells
+/// straight out from its face, one cell wide, in the station root's frame.
+fn approach_lane(port: &DesignSection) -> PlacedSectionCollider {
+    PlacedSectionCollider {
+        position: port.position + port.rotation * Vec3::new(0.0, 0.0, -2.0),
+        rotation: port.rotation,
+        collider: SectionCollider::Cuboid {
+            size: Vec3::new(1.0, 1.0, 3.0),
+        },
     }
 }
 

@@ -1030,9 +1030,13 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
     (
         "system_station_buy",
         &[
-            "a hull is bought from a station's catalogue",
-            "the leave save holds the bought hull and the station's catalogue",
-            "a loaded world gives back the bought hull",
+            "a station parks its hulls for sale at its ports",
+            "a buy hands the player the parked hull and parks the old one",
+            "the retired record holds the parked hulls",
+            "the thawed station parks the same hulls",
+            "a rebuy hands the player the old ship back",
+            "the leave save holds the player's hull and the parked hulls",
+            "a loaded world gives back the player's hull and the parked hulls",
         ],
     ),
     (
@@ -1128,7 +1132,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 559;
+const SYSTEMS_INVARIANTS: usize = 563;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

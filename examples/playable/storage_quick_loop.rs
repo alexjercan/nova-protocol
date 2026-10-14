@@ -13,10 +13,10 @@
 //! `shared/docking_pair.rs` with a second port, marked as the shipped
 //! `block_waystation` design so it trades and stores as that station does.
 //! The Hauler is a second tender marked as a hull the player owns but does
-//! not fly ([`OwnedShipMarker`]), as a traded-in hull parked for rebuy is; a
-//! hired escort ([`PlayerFleetMarker`]) lists the same way. Neither hull is
-//! shipped content. The docks are made by the docking verb itself,
-//! with each hull put on its berth until the dock takes.
+//! not fly ([`OwnedShipMarker`]), as a traded-in hull parked for rebuy and
+//! a hired escort are. Neither hull is shipped content. The docks are made
+//! by the docking verb itself, with each hull put on its berth until the
+//! dock takes.
 //!
 //! The Inventory pane opens once both docks hold. What to try:
 //!
@@ -556,10 +556,7 @@ fn draw_the_holds(
         ),
         With<PlayerSpaceshipMarker>,
     >,
-    q_fleet: Query<
-        (&GlobalTransform, &Name, &ShipInventory, &DockedShip),
-        Or<(With<PlayerFleetMarker>, With<OwnedShipMarker>)>,
-    >,
+    q_fleet: Query<(&GlobalTransform, &Name, &ShipInventory, &DockedShip), With<OwnedShipMarker>>,
     q_stations: Query<(&Name, &StationStorage), With<StationMarker>>,
     q_connections: Query<&DockingConnection>,
 ) {

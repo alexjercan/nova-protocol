@@ -1,0 +1,551 @@
+//! shipyard_sandbox: dock at a station that parks its hulls for sale at its
+//! ports, with the ship you traded in parked beside them for rebuy.
+//!
+//! Boots the shipped app and starts New Game on a pinned seed as the
+//! scavenger, as the Create World modal does, but without a save folder. When
+//! the window has streamed in, it picks the nearest generated station that
+//! is living, not on the Enemy side, offers Refit and parks hulls for sale,
+//! waits for every parked hull to dock, and berths the player at the port
+//! left free until the dock takes. Then the fixture lands, once:
+//!
+//! - the player holds [`PLAYER_CREDITS`] and [`HELD_COUNT`] more
+//!   [`HELD_ITEM`] in its hold;
+//! - the first hull for sale is bought through [`HullBuyCommand`], the
+//!   message the Station tab's Buy button writes;
+//! - the bought hull redocks with the station, and the old ship parks at the
+//!   port the player held, listed for rebuy with the hold it had.
+//!
+//! From there it is yours. Nothing ends the run.
+//!
+//! What to try:
+//!
+//! 1. open the interface (`TAB`), Station tab: **Ships for sale** lists the
+//!    parked hulls and the old ship as `(rebuy)`;
+//! 2. Inventory tab: the old ship's hold lists as storage while you are
+//!    docked;
+//! 3. buy another hull, or rebuy the old ship: you take its helm and the
+//!    hull you flew parks at its port;
+//! 4. undock (`D`) and fly clear: the parked hulls stay docked and inert.
+//!
+//! ```text
+//! nix develop --command cargo run --example shipyard_sandbox --features debug
+//! ```
+//!
+//! The diagnostics (`F3`) draw every docking port of the station, coloured
+//! and labelled by what holds it: free (green), the player (cyan), a hull for
+//! sale (yellow), a hull parked for rebuy (violet), anything else (red). A
+//! line runs from each held port to the hull on it, and a ring marks where
+//! each parked hull sits. The panel counts the ports, the hulls for sale
+//! against ports less one, and the connections held, and lists each parked
+//! hull's price and default keys, and the rebuy price and hold of each hull
+//! parked for rebuy.
+//!
+//! Under `NOVA_AUTOPILOT=1` (debug only) a smoke walk waits for the fixture,
+//! checks the station parks one hull per port but one with the old ship
+//! among them, and shoots `shipyard-sandbox.png` with `NOVA_CAPTURE=1`.
+//! Unset, no walk and no deadline run.
+
+#[path = "shared/diagnostics.rs"]
+mod diagnostics;
+#[path = "shared/open_world_stage.rs"]
+mod open_world_stage;
+
+use std::collections::HashMap;
+
+use avian3d::prelude::ComputedCenterOfMass;
+use bevy::prelude::*;
+use clap::Parser;
+use diagnostics::{palette, DiagnosticsGizmos, DiagnosticsPanel, DiagnosticsSystems};
+use nova_input::prelude::InputSource;
+use nova_protocol::{nova_interface::station::HullBuyCommand, prelude::*};
+use open_world_stage::{advance_station_dock, the_player, OpenWorldStartPlugin, StationDock};
+
+#[derive(Parser)]
+#[command(name = "shipyard_sandbox")]
+#[command(version = "1.0.0")]
+#[command(
+    about = "Dock at a generated station that parks its hulls for sale at its ports, with your \
+             traded-in ship parked for rebuy",
+    long_about = None
+)]
+struct Cli;
+
+/// The world seed: `system_station_buy`'s, whose window holds a living
+/// Neutral station that parks hulls for sale.
+const SANDBOX_SEED: u32 = 10;
+/// The start role the player flies.
+const SANDBOX_ROLE: &str = "scavenger";
+/// The player's balance once docked: past any hull's price.
+const PLAYER_CREDITS: u32 = 1_000_000;
+/// The cargo the fixture adds to the hold, so the old ship parks with some.
+const HELD_ITEM: &str = "SectionPanel";
+const HELD_COUNT: u32 = 2;
+/// The radius of a port's marker, world units.
+const PORT_MARK: f32 = 0.6;
+
+fn main() -> bevy::app::AppExit {
+    let _ = Cli::parse();
+    open_world_stage::isolate_the_profile(env!("CARGO_CRATE_NAME"));
+
+    let mut app = nova_protocol::prelude::editor_app(true, None);
+    app.add_plugins(OpenWorldStartPlugin {
+        seed: SANDBOX_SEED,
+        role: SANDBOX_ROLE.into(),
+    });
+    app.init_resource::<Sandbox>();
+    app.add_plugins(diagnostics::PlayableDiagnosticsPlugin::new(
+        "[TAB] interface: Station tab buys a parked hull or rebuys yours   [D] undock   [W] \
+         burn, [X] stop",
+    ));
+    app.add_systems(
+        Update,
+        drive_the_sandbox.run_if(in_state(GameStates::Playing)),
+    );
+    app.add_systems(
+        PostUpdate,
+        draw_the_shipyard
+            .in_set(DiagnosticsSystems)
+            .after(TransformSystems::Propagate)
+            .run_if(in_state(GameStates::Playing)),
+    );
+
+    #[cfg(feature = "debug")]
+    {
+        if std::env::var_os("NOVA_AUTOPILOT").is_some() {
+            app.insert_resource(bevy::ecs::error::FallbackErrorHandler(
+                bevy::ecs::error::panic,
+            ));
+            app.add_systems(Update, open_world_stage::hold_the_walk_clock);
+            app.add_systems(
+                Startup,
+                nova_protocol::nova_debug::harness::force_capture_resolution,
+            );
+        }
+        app.add_plugins(smoke::script());
+    }
+
+    app.run()
+}
+
+/// Where the sandbox's setup stands.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum SandboxPhaseType {
+    /// Streaming in and docking at the station.
+    #[default]
+    Docking,
+    /// Docked; the buy is asked for.
+    Buying,
+    /// The bought hull redocks and the old ship parks.
+    Redocking,
+    /// The player is docked in the bought hull. The run is the player's.
+    Ready,
+}
+
+/// The sandbox's setup.
+#[derive(Resource, Default, Debug)]
+struct Sandbox {
+    phase: SandboxPhaseType,
+    dock: StationDock,
+    /// The connection the player held before the buy.
+    released: Option<Entity>,
+}
+
+/// The chosen station, once it stands.
+fn chosen_station(world: &mut World) -> Option<Entity> {
+    let chosen = world.resource::<Sandbox>().dock.station.clone()?;
+    open_world_stage::body_by_id(world, &chosen.id)
+}
+
+/// The hulls parked at `station`, in park order.
+fn parked_hulls(world: &World, station: Entity) -> Vec<Entity> {
+    world
+        .get::<ParkedHulls>(station)
+        .map_or_else(Vec::new, |parked| parked.iter().collect())
+}
+
+/// Every hull parked at `station` is docked.
+fn all_parked_docked(world: &World, station: Entity) -> bool {
+    parked_hulls(world, station)
+        .iter()
+        .all(|hull| world.get::<DockedShip>(*hull).is_some())
+}
+
+/// Advance the setup one phase at a time.
+fn drive_the_sandbox(world: &mut World) {
+    let phase = world.resource::<Sandbox>().phase;
+    match phase {
+        SandboxPhaseType::Docking => {
+            let mut dock = std::mem::take(&mut world.resource_mut::<Sandbox>().dock);
+            let docked = advance_station_dock(
+                world,
+                &mut dock,
+                "living, non-Enemy station with Refit that parks hulls for sale",
+                |station| {
+                    station.offers_service(StationServiceType::Refit)
+                        && station.not_enemy()
+                        && station.sells_hulls
+                },
+            );
+            world.resource_mut::<Sandbox>().dock = dock;
+            if let Some((player, _)) = docked {
+                let items = world.resource::<GameItems>().clone();
+                if let Some(mut hold) = world.get_mut::<ShipInventory>(player) {
+                    hold.add(&items, &HELD_ITEM.into(), HELD_COUNT);
+                }
+                if let Some(mut credits) = world.get_mut::<ShipCredits>(player) {
+                    credits.0 = PLAYER_CREDITS;
+                }
+                info!(
+                    "shipyard sandbox: docked; the player holds {PLAYER_CREDITS} cr and \
+                     {HELD_COUNT} more {HELD_ITEM}"
+                );
+                world.resource_mut::<Sandbox>().phase = SandboxPhaseType::Buying;
+            }
+        }
+        SandboxPhaseType::Buying => {
+            let (Some(player), Some(station)) = (the_player(world), chosen_station(world)) else {
+                return;
+            };
+            let Some(hull) = parked_hulls(world, station)
+                .into_iter()
+                .find(|hull| world.get::<ParkedHullType>(*hull) == Some(&ParkedHullType::Sale))
+            else {
+                panic!("shipyard sandbox: the station parks no hull for sale");
+            };
+            let released = world
+                .get::<DockedShip>(player)
+                .expect("shipyard sandbox: the player is docked")
+                .connection;
+            info!(
+                "shipyard sandbox: buying '{}'",
+                world.get::<Name>(hull).map_or("?", Name::as_str)
+            );
+            world.write_message(HullBuyCommand { hull });
+            let mut sandbox = world.resource_mut::<Sandbox>();
+            sandbox.released = Some(released);
+            sandbox.phase = SandboxPhaseType::Redocking;
+        }
+        SandboxPhaseType::Redocking => {
+            let (Some(player), Some(station)) = (the_player(world), chosen_station(world)) else {
+                return;
+            };
+            let released = world.resource::<Sandbox>().released;
+            let redocked = world
+                .get::<DockedShip>(player)
+                .is_some_and(|docked| Some(docked.connection) != released);
+            let parked_old = parked_hulls(world, station)
+                .iter()
+                .any(|hull| world.get::<OwnedShipMarker>(*hull).is_some());
+            if redocked && parked_old && all_parked_docked(world, station) {
+                world.resource_mut::<Sandbox>().phase = SandboxPhaseType::Ready;
+                info!("shipyard sandbox: the bought hull is docked and the old ship parked; the run is yours");
+            }
+        }
+        SandboxPhaseType::Ready => {}
+    }
+}
+
+/// A ship's live anchor: its transform about its centre of mass.
+fn anchor(transform: &GlobalTransform, com: Option<&ComputedCenterOfMass>) -> Vec3 {
+    let transform = transform.compute_transform();
+    live_structure_anchor(&transform, com)
+}
+
+/// The default keys of a hull's design, as the buy binds them: each weapon
+/// and emitter by section id.
+fn default_keys(
+    design: &SpaceshipDesign,
+    designs: &GameShipDesigns,
+    sections: &GameSections,
+) -> String {
+    let (resolved, errors) = resolve_ship_design(&design.0, designs, sections);
+    if !errors.is_empty() {
+        return format!("unresolved: {errors:?}");
+    }
+    let keys: Vec<String> = start_role_bindings(&resolved)
+        .into_iter()
+        .map(|(section, sources)| {
+            let first = sources
+                .first()
+                .map_or_else(|| "none".to_string(), InputSource::label);
+            format!("{section} {first}")
+        })
+        .collect();
+    if keys.is_empty() {
+        "no weapons".to_string()
+    } else {
+        keys.join(", ")
+    }
+}
+
+/// What holds a station port, for its colour and label.
+enum PortHolderType {
+    Free,
+    Player,
+    Sale(String),
+    Rebuy(String),
+    Other(String),
+}
+
+/// Every port of the chosen station by what holds it, the line from each
+/// held port to its hull, a ring where each parked hull sits, and the panel
+/// rows that count them.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one overlay reading the station, its ports, its connections, its parked hulls and \
+              the catalogs that price and bind them"
+)]
+#[expect(
+    clippy::type_complexity,
+    reason = "the parked hull's pose, design and hold"
+)]
+fn draw_the_shipyard(
+    mut gizmos: Gizmos<DiagnosticsGizmos>,
+    mut panel: ResMut<DiagnosticsPanel>,
+    mut keys: Local<HashMap<Entity, String>>,
+    sandbox: Res<Sandbox>,
+    items: Res<GameItems>,
+    designs: Res<GameShipDesigns>,
+    sections: Res<GameSections>,
+    q_station: Query<(Entity, &GeneratedBodyId, &Children, Option<&ParkedHulls>)>,
+    q_ports: Query<(&GlobalTransform, &EntityId, Option<&DockedPort>), With<DockingSectionMarker>>,
+    q_connections: Query<&DockingConnection>,
+    q_ships: Query<(
+        &Name,
+        &GlobalTransform,
+        Option<&ComputedCenterOfMass>,
+        Option<&HullRadius>,
+        Option<&ParkedHullType>,
+        Option<&ShipDesignSections>,
+        Option<&ShipInventory>,
+        Option<&SpaceshipDesign>,
+        Has<PlayerSpaceshipMarker>,
+        Option<&DockedShip>,
+    )>,
+) {
+    panel.line(format!("setup: {:?}", sandbox.phase));
+    let Some(chosen) = sandbox.dock.station.as_ref() else {
+        return;
+    };
+    let Some((station, _, children, parked)) =
+        q_station.iter().find(|(_, id, ..)| **id == chosen.id)
+    else {
+        return;
+    };
+    let parked: Vec<Entity> = parked.map_or_else(Vec::new, |parked| parked.iter().collect());
+    keys.retain(|hull, _| parked.contains(hull));
+
+    let mut ports = 0usize;
+    let mut held = 0;
+    for port in children.iter() {
+        let Ok((at, id, docked)) = q_ports.get(port) else {
+            continue;
+        };
+        ports += 1;
+        let at = at.translation();
+        let holder = docked
+            .and_then(|docked| q_connections.get(docked.0).ok())
+            .map(|connection| {
+                let ship = if connection.first_ship == station {
+                    connection.second_ship
+                } else {
+                    connection.first_ship
+                };
+                (ship, connection)
+            });
+        let state = match holder {
+            None => PortHolderType::Free,
+            Some((ship, _)) => {
+                held += 1;
+                match q_ships.get(ship) {
+                    Ok((name, ship_at, com, .., terms, _, _, _, player, _)) => {
+                        let name = name.to_string();
+                        gizmos.line(at, anchor(ship_at, com), palette::MUTED);
+                        match (player, terms) {
+                            (true, _) => PortHolderType::Player,
+                            (false, Some(ParkedHullType::Sale)) => PortHolderType::Sale(name),
+                            (false, Some(ParkedHullType::Rebuy { .. })) => {
+                                PortHolderType::Rebuy(name)
+                            }
+                            (false, None) => PortHolderType::Other(name),
+                        }
+                    }
+                    Err(_) => PortHolderType::Other(format!("{ship:?}")),
+                }
+            }
+        };
+        let (color, label) = match &state {
+            PortHolderType::Free => (palette::OK, format!("{}: free", id.0)),
+            PortHolderType::Player => (palette::VELOCITY, format!("{}: you", id.0)),
+            PortHolderType::Sale(name) => (palette::TARGET, format!("{}: for sale, {name}", id.0)),
+            PortHolderType::Rebuy(name) => (palette::ZONE, format!("{}: rebuy, {name}", id.0)),
+            PortHolderType::Other(name) => (palette::ALERT, format!("{}: {name}", id.0)),
+        };
+        diagnostics::sphere(&mut gizmos, at, PORT_MARK, color);
+        panel.label(at, label);
+    }
+
+    let sales = parked
+        .iter()
+        .filter(|hull| {
+            q_ships
+                .get(**hull)
+                .is_ok_and(|(.., terms, _, _, _, _, _)| terms == Some(&ParkedHullType::Sale))
+        })
+        .count();
+    panel.line(format!(
+        "ports {ports}, parked {} of ports less one ({}), for sale {sales}, connections held \
+         {held}",
+        parked.len(),
+        ports.saturating_sub(1),
+    ));
+
+    for hull in &parked {
+        let Ok((name, at, com, radius, terms, design, hold, source, _, docked)) =
+            q_ships.get(*hull)
+        else {
+            continue;
+        };
+        let centre = anchor(at, com);
+        let color = match terms {
+            Some(ParkedHullType::Rebuy { .. }) => palette::ZONE,
+            _ => palette::TARGET,
+        };
+        let color = if docked.is_some() {
+            color
+        } else {
+            palette::ALERT
+        };
+        let up = at.rotation() * Vec3::Y;
+        diagnostics::ring(&mut gizmos, centre, up, radius.map_or(2.0, |r| r.0), color);
+        let price = match (terms, design) {
+            (Some(ParkedHullType::Rebuy { price_cr }), _) => u64::from(*price_cr),
+            (_, Some(design)) => hull_price_cr(
+                &items,
+                design.0.iter().map(|section| &section.config.base.build),
+            ),
+            (_, None) => 0,
+        };
+        let bindings = match source {
+            Some(source) => keys
+                .entry(*hull)
+                .or_insert_with(|| default_keys(source, &designs, &sections))
+                .clone(),
+            None => "no design".to_string(),
+        };
+        let docked = if docked.is_some() { "" } else { ", NOT DOCKED" };
+        match terms {
+            Some(ParkedHullType::Rebuy { price_cr }) => {
+                let cargo: Vec<String> = hold
+                    .map(|hold| {
+                        hold.stacks()
+                            .map(|(item, count)| format!("{count} {item}"))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                panel.line(format!(
+                    "rebuy {name}: {price_cr} cr, hold [{}]{docked}",
+                    cargo.join(", ")
+                ));
+                panel.line(format!("    keys on rebuy: {bindings}"));
+            }
+            _ => {
+                panel.line(format!("for sale {name}: {price} cr{docked}"));
+                panel.line(format!("    keys: {bindings}"));
+            }
+        }
+        panel.label(centre, format!("{name}, {price} cr"));
+    }
+}
+
+#[cfg(feature = "debug")]
+mod smoke {
+    use std::sync::Arc;
+
+    use nova_protocol::nova_debug::harness::{shoot, AutopilotPlugin};
+
+    use super::*;
+
+    /// Seconds the world gets to start, stream, dock and buy on a software
+    /// GPU.
+    const SETUP_SECS: f32 = 900.0;
+    /// Seconds a shot gets to land.
+    const SHOT_SECS: f32 = 120.0;
+    /// Frames the view gets before the shot.
+    const SETTLE_FRAMES: u32 = 20;
+    /// The PNG of the station with its parked hulls and the overlay.
+    const SHOT: &str = "shipyard-sandbox.png";
+
+    fn ready(world: &World) -> bool {
+        world
+            .get_resource::<Sandbox>()
+            .is_some_and(|sandbox| sandbox.phase == SandboxPhaseType::Ready)
+    }
+
+    /// The station parks one hull per port but one, every one docked, the
+    /// old ship among them for rebuy with its hold.
+    fn assert_the_shipyard(world: &mut World) {
+        let player = the_player(world).expect("shipyard sandbox: one player ship");
+        let station = chosen_station(world).expect("shipyard sandbox: the station stands");
+        assert!(
+            world.get::<DockedShip>(player).is_some(),
+            "shipyard sandbox: the player is docked"
+        );
+        let ports = world
+            .get::<Children>(station)
+            .expect("shipyard sandbox: the station has sections")
+            .iter()
+            .filter(|section| world.get::<DockingSectionMarker>(*section).is_some())
+            .count();
+        let parked = parked_hulls(world, station);
+        assert_eq!(
+            parked.len(),
+            ports - 1,
+            "shipyard sandbox: one parked hull per port but one"
+        );
+        assert!(
+            all_parked_docked(world, station),
+            "shipyard sandbox: every parked hull is docked"
+        );
+        let old: Vec<Entity> = parked
+            .iter()
+            .copied()
+            .filter(|hull| world.get::<OwnedShipMarker>(*hull).is_some())
+            .collect();
+        assert_eq!(old.len(), 1, "shipyard sandbox: one old ship parked");
+        let hold = world
+            .get::<ShipInventory>(old[0])
+            .expect("shipyard sandbox: the old ship has a hold");
+        assert!(
+            hold.stacks()
+                .any(|(item, count)| item.as_str() == HELD_ITEM && count >= HELD_COUNT),
+            "shipyard sandbox: the old ship keeps the hold"
+        );
+        info!(
+            "shipyard sandbox: PASS {ports} ports, {} parked, the old ship among them",
+            parked.len()
+        );
+    }
+
+    /// The smoke walk: the fixture lands, and a frame of the station with the
+    /// diagnostics up is shot.
+    pub(super) fn script() -> AutopilotPlugin<GameStates> {
+        AutopilotPlugin::<GameStates>::new()
+            .step("shipyard sandbox: dock, buy a parked hull and redock")
+            .until(Arc::new(ready))
+            .diagnose(|world| format!("{:?}", world.get_resource::<Sandbox>()))
+            .deadline(SETUP_SECS)
+            .add()
+            .step("shipyard sandbox: check the shipyard")
+            .on_enter(assert_the_shipyard)
+            .add()
+            .step("shipyard sandbox: settle the view")
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("shipyard sandbox: shoot the shipyard")
+            .on_enter(|world: &mut World| shoot(world, SHOT))
+            .until(shot_written(SHOT))
+            .deadline(SHOT_SECS)
+            .add()
+    }
+}
