@@ -52,7 +52,7 @@ fn toggle_pause(
     match pause.get() {
         PauseStates::Unpaused => next.set(PauseStates::Paused),
         PauseStates::Paused => next.set(PauseStates::Unpaused),
-        PauseStates::Interface | PauseStates::Commands => {}
+        PauseStates::Interface | PauseStates::Commands | PauseStates::Debug => {}
     }
 }
 
