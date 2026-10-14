@@ -83,6 +83,20 @@
   - Soft `near` factors see only cells already placed, so they depend on the collapse order.
 
 - Owner decision 2026-10-14: the greeble seed comes from the style id alone, with the per-plate keys, so a ship edit only changes greebles near the edit. It does not hash the whole structure.
+- Wiring landed 2026-10-15 (agent): 30e7bd591 (styles carry `greeble_rules`; `solve_decor` runs `skin_surface` +
+  `solve_greebles(.., greeble_seed(style id))` in `spawn_ship_skin`, the editor preview, the skin report and the probe;
+  `FixturePlacement`, the scatter and their tests are gone; bad rules fail lint and the merge drops the style),
+  932084d2a (docs: `docs/sections.md`, `web/src/create/styles.md`, relief rows re-measured).
+  - Lavapipe frames, base fleet and station showcase: every base kit dresses; no solve error or fallback in the logs.
+    Skin report on all 13 hulls: 0 pieces on a creased top, mean tilt under a piece 0.
+  - Defect seen: on `raider`, `salvage_patch_plate` (0.88 x 0.68 cells) and `salvage_patch_strip` (0.45 x 0.84)
+    overhang plate edges. `SEAT_REACH` assumes a piece at most half a cell across. This is the plate-fit work.
+  - Not verified: a re-clad keeps the pieces on kept plates and solves only new plates, so links across the repair
+    edge are not checked; kit weights are untuned; the before frames predate later hull changes.
+- Plate fit proposal 2026-10-15 (agent, waiting for approval): the solve runs before meshing, and a plate that
+  carries a piece reshapes so its plateau covers the turned collider footprint. Feet stay as derived, so the seams to
+  the neighbours do not change; only that plate's chamfers steepen. Options and the recommendation are in the agent
+  report; nothing is implemented.
 
 ## Delivery gate
 - After the research note is accepted: propose how a plate learns which greeble sits on it and reshapes (flattened pad, footprint), show before/after frames, then implement. Regenerate base content.
