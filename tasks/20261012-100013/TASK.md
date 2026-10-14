@@ -55,6 +55,8 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
   3. plating and greebles do not rebuild locally around the new section.
 - The owner rates these Ship HUD problems as the worst.
 
+- Owner feedback 2026-10-14, second round: the add ghost can select a section inside the ship, which has no reachable face, so nothing can attach there. Only sections with a free, unobstructed link point on the outer surface may be targeted.
+
 ## Delivery gate
 - Propose explicit attachment points on a hull design (content), lint for overlap, and the bind rule for a new section. Stop for the owner on whether base hulls get authored points or only generated ones.
 

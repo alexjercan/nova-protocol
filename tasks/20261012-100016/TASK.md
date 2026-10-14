@@ -45,6 +45,8 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
   - hiring several escorts spawns them on top of each other;
   - escorts still seem to gain speed or inertia from the player when the player starts to move. An escort must gain velocity only from its own thrust and simply follow.
 
+- Owner feedback 2026-10-14, third round: escorts still seem to gain velocity the moment the player starts moving, "like they get a relative force applied to them". Investigate further under real manual input.
+
 ## Delivery gate
 - A `fleet` field in `SavedPlayer`; an escort is a generated hull with `Allegiance::Player` and a follow order; it crosses sectors with the player (not frozen in the old cell). Stop for the owner on the escort's death rule (gone for good vs. rebuyable).
 
