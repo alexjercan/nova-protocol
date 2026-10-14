@@ -89,6 +89,14 @@ path = "examples/playable/docking_approach.rs"
 name = "trade_loop"
 path = "examples/playable/trade_loop.rs"
 
+# Quick moves in the Inventory pane by hand: start docked at a trading,
+# storing depot with your own second ship on its far port, and move stacks by
+# double click. The overlay reads each hold and the last quick move. Nothing
+# ends it; under NOVA_AUTOPILOT a smoke walk withdraws, stores and shoots.
+[[example]]
+name = "storage_quick_loop"
+path = "examples/playable/storage_quick_loop.rs"
+
 # The station UI by hand: New Game on a pinned seed, docked at a living
 # generated station that refits and sells hulls, rich, with recipe parts in
 # the hold and the Ship tab open. Nothing closes it and no deadline ends it;
