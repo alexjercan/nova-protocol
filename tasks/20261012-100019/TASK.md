@@ -10,6 +10,7 @@
 
 ## Agent findings
 - Generated derelicts spawn with every system disabled, `lootable: true`, Neutral, no controller; detached pieces exist (`FrozenTransient::DetachedPiece`, `crates/nova_world_base/src/save/transients.rs:61-81`). `SalvagedParts` is a required item role (`tasks/20260930-100831/TASK.md`).
+- Landed 2026-10-14 (61e175631, cec1d8e38, df31a875d, 4064d49e2, 8c40d6be1). `system_station_strip` passes under Xvfb and lavapipe on seed 115: PDC-1 of a derelict strips into 1 SectionPanel (recipe 2 panels x 0.5 yield x 100% health; the three single parts floor to 0) with one `OnStripped`, a second strip refuses `SectionGone`, an undock stops a running strip with nothing moved, the frozen and thawed wreck lack PDC-1, and a living Neutral station refuses NotLootable. Seed 95 holds no derelict. The lowest free port of that station faces into its hull; a berth there crushed both hulls, so the walk berths at the most outward port.
 
 ## Delivery gate
 - Strip uses the section recipe times `strip_yield` times health fraction; the lint rule (strip yield at bid never exceeds the recipe at ask) lives with the recipe. The detached piece despawns into parts, not a floating item.
