@@ -114,12 +114,13 @@ build: (
 | `parts` | map of item id to count | Part items the build spends. Keys are quoted item ids in the `Parts` category; each count is above zero. |
 | `strip_yield` | number | The share of each part count a strip or the section's destruction gives back, rounded down per part. In `(0, 1]`. |
 
-A strip is the Ship pane's salvage of a docked wreck (a derelict or a
-neutralized ship): one section comes off the wreck and each part of its
-recipe goes into the player's hold as `count * strip_yield * health share`,
-rounded down. It takes 1 s per recipe part, at least 3 s, and fires
-`OnStripped` (see [Hold events](../events/#hold-events)). The port that holds
-the dock and a section whose loss would split the hull are refused.
+A strip is the Recycle tab's salvage of a whole docked wreck (a derelict
+or a neutralized ship). It takes the sections off one at a time, the port
+that holds the dock last, and each part of a section's recipe goes into the
+player's hold as `count * strip_yield * health share`, rounded down. Each
+section takes 1 s per recipe part, at least 3 s, and fires `OnStripped` (see
+[Hold events](../events/#hold-events)). When the port comes off, the wreck is
+gone.
 
 A rebuild takes the parts from the ship's hold first and buys the rest from
 the station's stock at ask. The ship pays the recipe's `credits` plus the

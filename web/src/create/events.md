@@ -59,7 +59,7 @@ The whole vocabulary at a glance:
 | [`OnShipBought`](#hold-events) | `id`, `type_name`, `hull`, `price_cr`, `trade_in_cr` | the Ship pane buys a whole hull from a docked station |
 | [`OnEscortHired`](#hold-events) | `id`, `type_name`, `escort`, `hull`, `price_cr` | the Ship pane hires an escort from a docked station into the fleet |
 | [`OnStationBought`](#hold-events) | `id`, `type_name`, `station`, `price_cr` | the Ship pane buys the docked station from its civilization |
-| [`OnStripped`](#hold-events) | `id`, `type_name`, `hull`, `section`, `parts` | a Ship pane strip of a docked wreck's section finishes |
+| [`OnStripped`](#hold-events) | `id`, `type_name`, `hull`, `section`, `parts` | a Recycle tab strip takes a section off a docked wreck, once per section, the berth port last |
 | [`OnStored`](#hold-events) | `id`, `other_id`, `other_type_name`, `item`, `count` | the player stores a stack in a docked station's storage |
 | [`OnWithdrawn`](#hold-events) | `id`, `other_id`, `other_type_name`, `item`, `count` | the player withdraws a stack from a docked station's storage |
 
@@ -819,7 +819,7 @@ inventory, so a handler counts occurrences, not frames.
 | `OnShipBought` | the ship that bought | none | `hull` (the catalogue name, `Vel civilian Mk 1`), `price_cr` (every new section's recipe at ask), `trade_in_cr` (what the station paid for the old hull) |
 | `OnEscortHired` | the ship that hired | none | `escort` (the escort's id, `sector_1_0_0_cluster_1_0_0_station_0_escort_0`), `hull` (the catalogue name, `Vel armored escort 1`), `price_cr` (the hull's price times 3/2) |
 | `OnStationBought` | the ship that bought | none | `station` (the station's id, `sector_0_n1_0_cluster_0_n1_0_station_0`), `price_cr` (its sections, hold and credits at ask, times 2) |
-| `OnStripped` | the ship that stripped | none | `hull` (the wreck's id), `section` (the stripped section's code on the wreck, `PDC-1`), `parts` (every part the strip put in the hold, item id to count) |
+| `OnStripped` | the ship that stripped | none | `hull` (the wreck's id), `section` (the stripped section's code on the wreck, `PDC-1`; the last is the port the player docked through), `parts` (every part the strip put in the hold, item id to count) |
 | `OnStored` | the station whose storage took the stack | the player's ship | `item`, `count` |
 | `OnWithdrawn` | the station whose storage gave the stack | the player's ship | `item`, `count` |
 

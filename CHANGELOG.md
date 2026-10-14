@@ -76,9 +76,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Buy a living generated station on the Station pane for twice its worth at
   ask (`OnStationBought`). It leaves its civilization for your side, admits you
   on any side and sells its hold at bid.
-- Docked with a wreck, the Ship pane strips a section into its recipe parts
-  times yield and health, timed by part count (`OnStripped`). It stays
-  stripped across a save.
+- Docked with a wreck, a Recycle tab loots its hold and strips the whole hull
+  on the game clock into recipe parts, port last (`OnStripped`); the wreck is
+  then gone.
 
 ### Scenarios & Objectives
 

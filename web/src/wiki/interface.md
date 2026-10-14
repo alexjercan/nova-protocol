@@ -28,15 +28,15 @@ Every ship carries a second seat of control: the **interface**. Press <kbd>Tab</
      (interface_toggle Tab / Right Thumb, interface_next_tab M / Y).
      Back-out owner (Escape, Start): crates/nova_interface/src/terminal/input.rs
      `close_surface_from_menu_keys`. First open shows Map, later opens the last
-     pane: `InterfacePaneType` in pane.rs. Station tab gate: `show_station_tab`
-     and `leave_station_pane` in pane.rs. -->
+     pane: `InterfacePaneType` in pane.rs. Station and Recycle tab gate: `DockedTab`,
+     `show_docked_tabs` and `leave_docked_pane` in pane.rs. -->
 
 | You do | What happens |
 | --- | --- |
 | <kbd>Tab</kbd> (or click the right stick) | The interface opens on the Map pane, or on the pane you last used. It needs a live ship, and it does not open over the pause menu. |
 | <kbd>Tab</kbd> again, <kbd>Esc</kbd>, or gamepad Start | Close it and return to flight. |
-| <kbd>M</kbd> (or gamepad <kbd>Y</kbd>) | Step to the next pane: Map, Ship, Inventory, Station while you are docked at a living station, then Map again. While a text field has the caret, such as the Inventory quantity, <kbd>M</kbd> types instead. |
-| Click **Map**, **Ship**, **Inventory** or **Station** | Switch to that pane. The **Station** tab shows only while you are docked at a living station; undock and the interface opens on Ship instead. |
+| <kbd>M</kbd> (or gamepad <kbd>Y</kbd>) | Step to the next pane: Map, Ship, Inventory, then Station while you are docked at a living station or Recycle while you are docked with a wreck, then Map again. While a text field has the caret, such as the Inventory quantity, <kbd>M</kbd> types instead. |
+| Click **Map**, **Ship**, **Inventory**, **Station** or **Recycle** | Switch to that pane. The **Station** tab shows only while you are docked at a living station, and the **Recycle** tab only while you are docked with a wreck you may loot; undock and the interface opens on Ship instead. |
 | <kbd>:</kbd> | Open the [command shell](../commands/) over the pane. Close it and you are back on the same pane, with its camera and selection as you left them. |
 
 <details class="explain">
@@ -238,11 +238,12 @@ Docked at a living station in an Open World, the Station pane shows **This stati
 
 ## Stripping a wreck
 
-<!-- List, timer and action: crates/nova_interface/src/ship/strip.rs. Rule:
-     crates/nova_gameplay/src/inventory.rs `plan_section_strip`. Removal:
+<!-- Pane, timer and action: crates/nova_interface/src/recycle/strip.rs. Loot
+     list: recycle/loot.rs. Rule: crates/nova_gameplay/src/inventory.rs
+     `plan_hull_strip`, `plan_section_yield`. Order and removal:
      crates/nova_ship/src/sections/section_strip.rs. -->
 
-Docked with a derelict wreck or a neutralized ship, the Ship pane's panel shows **Strip the docked wreck**: each of its sections under its code, with the parts a strip gives, its health and the time it takes, and a **Strip** button. A strip takes 1 s per part of the section's build recipe, at least 3 s, and runs only while the game runs: close the pane and the HUD chip over your ship reads `STRIP PDC-1 40%`. When it ends, the section comes off the wreck and its parts go into your hold: each part of its recipe times its strip yield times its health, rounded down. The wreck stays stripped when its sector streams away and back, and across a Load. One section strips at a time. Undock and the strip stops with nothing moved. A strip is refused on the note line for the port you are docked through (`strip: DOCK-1 holds the dock`), a section that would split the wreck, a section too damaged to give a whole part, a hold without room, a section already gone and a hull that is not a wreck you may loot.
+Docked with a derelict wreck or a neutralized ship, the interface shows the **Recycle** tab where **Station** would be. It shows what the whole wreck is expected to give and how long stripping it takes, a **Strip the wreck** button, and the wreck's hold, each stack with **Take all** and its credits with **Take credits**. A strip takes the wreck apart one section at a time, the section farthest from your port first, and the port you are docked through last. Each section takes 1 s per part of its build recipe, at least 3 s, and runs only while the game runs: close the interface and fly on docked, and the HUD chip over your ship reads `STRIP 40%`. As each section comes off, its parts go into your hold: each part of its recipe times its strip yield times its health, rounded down. When the port comes off, the wreck is gone, along with anything left in its hold, and your ship floats free. A hold without room holds the strip at that section (`STRIP HELD: HOLD FULL`) until you make room. Undock and the strip stops; what it took stays taken, when its sector streams away and back and across a Load. A strip is refused at a living station, while one is already running and at a hull that is not a wreck you may loot.
 
 ## The inventory
 
