@@ -1,8 +1,8 @@
 # Wizard: seed then start role; six roles as content
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 78
-- TAGS: v0.16.0,wizard
+- TAGS: v0.16.0, wizard
 
 ## User facts
 - Epic `20261012-100008`. Decisions 5 and 5b (2026-10-12): the New World modal becomes a wizard: seed, then a start role; six roles, each resolving to a small base hull plus a kit (credits, plates, ammo, goods) at inner-ring advancement; relations start the same for every role; the Line Warship is no longer the start.
@@ -50,3 +50,11 @@
 
 ## Done when
 - The wizard ships with six roles as base content and the example mod can add one.
+
+## Orchestrator close (2026-10-15)
+- Six approved roles with new per-role hulls; all old block-built ships deleted; save format moved on with no compatibility (79651e531 and follow-ups).
+- Owner round 2026-10-14: patrol_picket grown to 9,980 cr with a second PDC and an intake (6fd0a4ee2); the old hull kept as `training_picket` for the tutorial and drills. Every open-world hull carries a cargo intake on the top or bottom face, clear of docking ports, refused at lint and by the generator layout check (140e9f60f). Regenerated role text 460a65bde.
+- Proof: `system_start_roles` claim 7, every role jettisons a kit item and takes it back (16917dc8e); `start_role_sandbox` F3 shows the intake, pickup box and last jettison (65538d322).
+- Orchestrator re-ran `content lint` on the working tree: 0 errors, 0 warnings, 0 findings.
+- Owner review open: hull price spread (9,980 to 23,920 cr), thruster page accelerations now 58 / 44 / 64 m/s^2, enemy pickets now carry two PDCs, the menu duel raider has an intake.
+- Not verified: a live intake pickup by hand.
