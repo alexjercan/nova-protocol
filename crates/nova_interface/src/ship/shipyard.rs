@@ -1,7 +1,8 @@
 //! The Ship pane's "Ships for sale" list and the Buy action.
 //!
 //! While the ship is docked at a living station that offers Refit and sells
-//! hulls ([`HullOffers`]), the panel lists every hull under the add list:
+//! hulls ([`HullOffers`]), the panel lists every hull for sale under the add
+//! list (an escort for hire is in the escort list instead):
 //! its name, its length and section count, how many sections of each kind it
 //! carries, the price and the trade-in, and a Buy button or the reason the
 //! buy is refused. A click raises a [`HullBuyCommand`];
@@ -255,6 +256,8 @@ pub(crate) fn update_ship_hull_list(
                 .0
                 .iter()
                 .enumerate()
+                // The escorts for hire have their own list (`escorts`).
+                .filter(|(_, offer)| offer.terms == HullOfferType::Sale)
                 .map(|(index, offer)| {
                     let planned =
                         plan_offer(&items, &resolved, offer, trade_in_cr, &bound, &q_holds);
@@ -391,6 +394,12 @@ pub(crate) fn apply_ship_hull_buy_commands(
         .0
         .get(command.offer)
         .unwrap_or_else(|| panic!("buy: station {station:?} has no offer {}", command.offer));
+    assert_eq!(
+        offer.terms,
+        HullOfferType::Sale,
+        "buy: offer {} of station {station:?} is for hire, not for sale",
+        command.offer
+    );
     let trade_in_cr = live_trade_in_cr(&items, &resolved, &q_health);
     let bound = live_bindings(&resolved, &q_bindings);
     let planned = plan_offer(&items, &resolved, offer, trade_in_cr, &bound, &q_holds.p0());

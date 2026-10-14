@@ -27,8 +27,27 @@ use super::{docking_section::PORT_FACE, prelude::*};
 pub mod prelude {
     pub use super::{
         bought_hull_bindings, bought_hull_pose, hull_price_cr, hull_trade_in_cr, plan_hull_buy,
-        HullBuyPartner, HullBuyPlan, HullBuyRefusalType, HullBuyRequest, HullOffer, HullOffers,
+        HullBuyPartner, HullBuyPlan, HullBuyRefusalType, HullBuyRequest, HullOffer, HullOfferType,
+        HullOffers,
     };
+}
+
+/// The terms a station offers one catalogue hull on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub enum HullOfferType {
+    /// The player buys the hull and it replaces the player's own
+    /// ([`HullBuyRequest`]).
+    Sale,
+    /// The player hires the hull, crewed, as an escort that joins the fleet
+    /// (`crate::sections::escort_hire`). A hire consumes the offer.
+    Hire {
+        /// The escort's slot in the station's roster: the index of its
+        /// generated id, so a hired escort keeps one id whatever was hired
+        /// before it.
+        slot: u32,
+    },
 }
 
 /// One hull a station sells, as the buy rule and the Ship pane read it.
@@ -36,6 +55,8 @@ pub mod prelude {
 pub struct HullOffer {
     /// The catalogue name the list shows (`Vel civilian Mk 1`).
     pub name: String,
+    /// Whether the player buys or hires it.
+    pub terms: HullOfferType,
     /// Every section the hull places, resolved, in design order.
     pub sections: Vec<DesignSection>,
 }
@@ -352,6 +373,7 @@ mod tests {
     fn offer() -> HullOffer {
         HullOffer {
             name: "Test hull".to_string(),
+            terms: HullOfferType::Sale,
             sections: vec![
                 section(
                     "hull",

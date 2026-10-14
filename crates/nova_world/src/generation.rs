@@ -548,8 +548,8 @@ impl SectorDescription {
             canonical_sections(&mut out, &design.hull);
             for hull in &station.hulls {
                 out.push_str(&format!(
-                    "  hull '{}' integrity {:?} presentation {:?}\n",
-                    hull.name, hull.design.integrity, hull.design.presentation,
+                    "  hull '{}' terms {:?} integrity {:?} presentation {:?}\n",
+                    hull.name, hull.terms, hull.design.integrity, hull.design.presentation,
                 ));
                 canonical_sections(&mut out, &hull.design);
             }

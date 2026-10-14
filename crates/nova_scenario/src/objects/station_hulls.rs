@@ -50,7 +50,9 @@ const REDOCK_FRAMES: u32 = 30;
 pub struct StationHullOffer {
     /// The name the list shows (`Vel civilian Mk 1`).
     pub name: String,
-    /// The hull a buy spawns.
+    /// Whether the player buys it or hires it as an escort.
+    pub terms: HullOfferType,
+    /// The hull a buy or a hire spawns.
     pub design: ShipDesign,
 }
 
@@ -134,6 +136,7 @@ fn insert_hull_offers(
         .iter()
         .map(|offer| HullOffer {
             name: offer.name.clone(),
+            terms: offer.terms,
             sections: resolve_offer(&offer.design, &designs, &sections).1,
         })
         .collect();
@@ -208,6 +211,13 @@ fn buy_station_hull(
             request.station, request.offer
         );
     };
+    assert_eq!(
+        offer.terms,
+        HullOfferType::Sale,
+        "buy_station_hull: offer {} of station {:?} is for hire, not for sale",
+        request.offer,
+        request.station
+    );
     let old_port = children
         .iter()
         .find_map(|child| match q_sections.get(child) {
