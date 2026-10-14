@@ -1,486 +1,719 @@
-# Research: a clearer greeble placement language
+# Research: greeble placement as a seeded solve on the hull surface
 
 Task: `tasks/20261013-133640/TASK.md`. Consumer: `tasks/20261013-133643/TASK.md`
-(plating reshapes to fit the greeble). Research only. No code changed.
-Diagrams: `RESEARCH.html` in this folder.
+(plating reshapes to fit the greeble). Research only. No committed code changed.
+Diagrams: `RESEARCH.html` in this folder (cell graph across a fold, socket
+matching, solver loop).
 
-Labels: **[code]** read from the source at `7c2a4ce17`. **[log]** read from a
-run log. **[doc]** read from a committed doc. **[web]** checked on the web
-during this research. **[knowledge]** from memory, not checked. **[unverified]**
-is a claim that nobody measured.
+This note replaces the rejected note of 0a46d2f95. The owner's direction
+(TASK.md, 2026-10-14): greebles get link-point-like sockets, the outer shell is
+a 2D surface, a deterministic seeded WFC-style solver places greebles and empty
+cells, rules may look past direct neighbours, and the language is a technical
+solver configuration.
 
-## 1. How placement works today
+Labels: **[code]** read from the source at a0fd0baf3. **[proto]** measured with
+the throwaway prototype in section 8. **[web]** checked on the web during this
+research. **[knowledge]** from memory, not checked. **[unverified]** nobody
+measured it.
 
-### Pipeline [code]
+## 0. Summary
+
+- **Domain.** One solver cell per derived plate. A plate already is one quad
+  of outer surface (`derive_skin`, `shell_skin.rs:263`). Each cell has 4 edge
+  slots. Across each slot the derivation already knows what lies there; the
+  graph keeps that answer instead of discarding it. The result is a quad graph
+  with borders and some 3-valent corners, like an irregular Townscaper grid.
+- **Language.** Three candidates: A, edge sockets plus a closed list of hard
+  constraints (DeBroglie style); B, authored window patterns (overlapping-model
+  style); C, edge sockets for radius 1 plus `near` range terms that are soft
+  weights, or hard bans when the factor is 0.
+- **Solver.** A small AC-3 + min-entropy solver with counter-based hashing. The
+  prototype solves real hulls (42 to 206 plates) in 15 to 192 us per ship,
+  release build. Over 13 hulls x 1000 seeds it needed 0 restarts. With one
+  hard radius-2 rule that can hit a forced cell, 0 to 0.5% of solves needed
+  one restart. The result is the same for the same seed. Removing one section
+  keeps the tile on 93 to 100% of the plates the edit did not change.
+- **Recommendation.** Candidate C. First slice: the surface graph and the
+  solver as pure functions in `nova_ship` with unit tests, no wiring.
+
+## 1. What exists today
+
+### The decoration pipeline [code]
 
 ```
-derive_skin(structure)            shell_skin.rs:263   plates (shape + rotation)
-read_plates(structure, plates)    skin_reading.rs:300 one PlateReading per plate
-scatter_decor(plates, readings)   skin_decor.rs:129   <= FixturePlacement acts here
-  claims(): filter -> lattice -> hash share          skin_decor.rs:237-249
-  fill_patches(): per-block floor + borrowing        skin_decor.rs:309-390
-  turns_for(): quarter turns                         skin_decor.rs:456-479
-decor_pose(plate, turns)          skin_decor.rs:530   bed on seat_normal, then yaw
-spawn decor as ChildOf(plate)     shell_skin.rs:979-985
+read_structure(placed)              shell_skin.rs:1053  cells, sockets, exits
+derive_skin(structure)              shell_skin.rs:263   one SkinPlate per clad cell
+read_plates(structure, plates)      skin_reading.rs:300 PlateReading per plate
+scatter_decor(plates, readings, st) skin_decor.rs:129   <- replaced by the solve
+decor_pose(plate, turns)            skin_decor.rs:530   bed on seat_normal, then yaw
+spawn decor ChildOf(plate)          shell_skin.rs:979-985
 ```
 
-The plates are final before the scatter runs. Nothing flows back from a greeble
-to its plate. Task 133643 must change this order.
+- `FixturePlacement { region, density, orientation }` (`skin_style.rs:200`)
+  expands into a private scatter rule. A plate takes at most one piece; the
+  first fixture in the list wins (`skin_style.rs:219-236`). The share is a
+  hash of cell, out face and fixture id (`skin_decor.rs:237`, `:498`).
+- The module states "There is no RNG anywhere in this module"
+  (`skin_decor.rs:11`). Decoration is a pure function of structure. The editor
+  re-derives the whole skin and decoration on every structure change
+  (`crates/nova_editor/src/skin.rs:74`, `:147`, `:182`). The live ship derives
+  once, when sections are added to a clad root (`shell_skin.rs:886-1000`).
+- A frozen wreck stores each plate's `ShellShape` and each greeble's model,
+  pose and health (`frozen.rs:57-73`). It does not re-run placement on thaw.
 
-An author writes three words. `StyleFixtureConfig::scatter` expands them into
-a private `ScatterRule` (`skin_style.rs:291-305`) with ten fields: `relief`,
-`whole_seat`, `facing`, `min_run`, `min_height`, `min_depth`, `near_fitting`,
-`stride`, `chance` and `patch` (`skin_style.rs:465-505`).
+### What dies and what stays
 
-### `region` [code]
+| dies | stays |
+|---|---|
+| `FixtureRegion`, `FixtureDensity`, `FixtureOrientation`, `FixturePlacement` (`skin_style.rs:121-205`) | `derive_skin`, `ShellShape`, `read_plates` facts |
+| `ScatterRule`, `claims`, `fill_patches`, `on_lattice`, `turns_for` (`skin_decor.rs:237-479`) | `decor_pose`, `decor_body`, frozen decor records |
+| fixture list order as priority (`skin_style.rs:229-236`) | `StyleFixtureConfig { id, model, health, collider }` minus `placement` |
 
-`FixtureRegion::rule` (`skin_style.rs:370-422`) maps each word to a relief list
-and gates. The relief is `relief_of(&plate.shape)` (`skin_reading.rs:492-511`):
-`Flat` if no edge falls and no corner is capped; any other whole-cell plate is
-`Step`; a half-cell plate is `Brink` (1 edge falls), `Ridge` (2 opposite),
-`Peak` (4) or `Spur` (2 adjacent or 3).
+### The solver the repo already has [code]
 
-| region | relief admitted | other gates |
+`crates/nova_wfc` collapses ship structure on a box grid.
+
+- Simple tiled model. Sockets come from catalog link points
+  (`nova_wfc/src/lib.rs:1-20`). Multi-cell parts are segment tiles with joint
+  faces that accept only their partner segment (`tiles.rs:379-397`).
+- Min-entropy cell choice with an RNG tie-break (`collapse.rs:780`),
+  weighted draw (`collapse.rs:374`), AC-3 style propagation with an O(T^2)
+  support scan per edge (`collapse.rs:338`).
+- No backtracking. It never contradicts because `VACUUM` is compatible with
+  every tile and is never struck (`collapse.rs:74-78`). This is the key trick
+  for greebles too: the empty tile.
+- Seeded by `StdRng::seed_from_u64` (`collapse.rs:315`). The `rand` docs do not
+  promise `StdRng` output across `rand` versions [knowledge]. Ship looks must
+  not change on a dependency bump, which is why the scatter uses `Fnv64`
+  (`skin_decor.rs:483-497`).
+- `nova_wfc` depends on `nova_ship` (`nova_wfc/Cargo.toml:17`), so the skin
+  cannot call it. Reuse its patterns, not its code.
+
+## 2. The surface model
+
+### 2.1 Cells
+
+**One cell per plate.** A plate stands in one empty cell and shows exactly one
+out face (`facing`, `shell_skin.rs:678`). So the plates are already a partition
+of the outer surface into unit quads. The number of cells is the plate count:
+42 to 206 on the base hulls (2.5).
+
+Not one cell per voxel face. At an inside angle one plate covers two voxel
+faces: the deck plate rises to `FULL` against the wall
+(`boundary_heights`, `shell_skin.rs:388`; `plate_level`, `:505`). A face-based
+graph would have cells with no plate under them.
+
+Not sub-cells yet. All 56 base greebles fit inside one plate: the largest
+collider is `salvage_patch_plate` at 0.88 x 0.68 cells (generated RON,
+`assets/base/styles/base.content.ron`). A 2x2 split per plate keeps quad
+topology (subdividing quads gives quads; odd corners stay at the old corners),
+so it can come later without changing the language. It quadruples the cell
+count.
+
+### 2.2 Edge slots and neighbours
+
+Each cell has 4 edge slots. For slot `k`, `a` is the in-plane step across it,
+`c` the plate cell and `n` its out direction. `boundary_heights` already
+classifies the cell across each edge (`shell_skin.rs:388-457`, `open_edge`
+`:458-501`). The graph uses the same branches and records the neighbour plate:
+
+| derivation branch | context | neighbour plate |
 |---|---|---|
-| `Panel` | Flat | seat, `min_height` 1 |
-| `Deck` | Flat, Step | seat, `min_height` 1, `min_depth` 2, ANY facing |
-| `Flank` | Flat, Step | seat, `min_height` 1, `min_depth` 2, facing Side |
-| `Edge` | Brink | seat |
-| `HighGround` | Ridge, Peak, Spur, **Step** | NO seat gate, facing Up, `min_depth` 1 |
-| `NearFitting` | any | seat, fitting distance <= 1 face step |
-| `Anywhere` | any | seat |
+| `walls(c + a)` (`shell_skin.rs:617`) | `Concave` | plate in `c + n` facing `-a` (the wall continues up) |
+| same, wall one cell high | `StepUp` | plate in `c + a + n` facing `n` (top of the wall) |
+| `c + a` is clad, same out | `Flat` | plate in `c + a` |
+| `c + a` is clad, other out | `Twist` | plate in `c + a` (the one-plate-per-cell rule bent the surface) |
+| open, plate in `c - n + a` faces `a` (`open_edge`) | `Convex` | plate in `c - n + a` |
+| `ends_against` structure (`shell_skin.rs:604`) | `Stop` | none (fitting, or a `Bare` face) |
+| `exit_pocket` (`shell_skin.rs:328`) | `Pocket` | none (muzzle, bell or bay mouth) |
+| open space, no plate round the corner | `Rim` | none |
 
-Two more gates come from the collider, not from any word
-(`skin_style.rs:319-339`): `min_run = ceil(max(x, z) * 2)`, capped at 3, and
-`needs_seat = collider.y >= TRIM_HEIGHT (0.1)`. A piece under 0.1 cells tall is
-"trim" and skips the seat gate in every region.
+Two rules make the graph well formed:
 
-### `density` [code]
+- **Symmetrise.** If plate P names Q across slot k, Q's slot back to P is the
+  slot whose direction points from Q toward P in Q's plane. If Q's own
+  derivation named nobody there, the link is added (the far side reads
+  `StepDown`). If Q's slot already names a third plate, P's slot becomes a
+  border. [proto] counts: 0 to 45 one-sided links per hull before this step,
+  0 to 15 conflicts, and at most 1 non-mutual slot after it (5 on one edited
+  hull).
+- **Priority** when several candidates exist: Concave, StepUp, Flat or Twist,
+  then Convex. This keeps two sheets apart where voxels touch only on an edge,
+  as the usual voxel-surface rule does [knowledge].
 
-`FixtureDensity::rule` (`skin_style.rs:442-450`) is a (stride, share, patch)
-triple:
+`Bare` sockets need no special case. A `Bare` face offers nothing to the skin
+(`shell_skin.rs:1103`), so no plate stands there and its neighbours read
+`Stop` or `Rim`.
 
-| rung | stride | share | patch floor |
+### 2.3 The cell frame
+
+Directional sockets need an "up" on each cell, and the frames must agree on
+handedness. The obvious frame, `face_plane(out)` (`shell_skin.rs:352`), does
+not: for `+Y` the axes are `(x, z)` and `x cross z = -y`, so the corner order
+runs one way on `+Y` and the other way on `-Y`. A tile turned by `r` would read
+mirrored on half the faces.
+
+Proposal: `up = link_point_up(n)` (`link_points.rs:415`): ship `+Y` projected
+onto the face, or `+Z` on faces that point along Y. `right = up x n`. Slots in
+order `E (right), N (up), W, S`, counter-clockwise seen from outside on every
+face. This is the convention sockets already use, so "tile north" means the
+same as "socket up". The plate's own `rotation` is a proper rotation too, but
+it is chosen to make the shape canonical (`plate_for`, `shell_skin.rs:635`), so
+its axes follow the plate's edge pattern, not the ship. The solver output
+converts the cell-frame turn into the plate frame for `decor_pose`.
+
+Across an edge the solver needs the neighbour's slot index `m`, not a global
+direction. A tile on cell P with turn `r` shows socket `sides[(k - r) mod 4]` on
+slot `k`, and that socket meets the neighbour's socket on slot `m`. With one
+consistent handedness, a socket read left to right on one side reads right to
+left on the other, so chiral sockets need the usual mirrored pair (2.4, A).
+
+### 2.4 What a cell carries
+
+All of it is already computed by the derivation or the reading.
+
+| fact | source | used for |
+|---|---|---|
+| `out` class: Up, Down, Side | `PlateFacing` (`skin_reading.rs:148`) | tile filter |
+| `level`: Half, Full | `ShellShape.level` (`shell_shape.rs:194`) | tile filter |
+| `falls`: 0 to 4, slots whose context is `Convex` or `Rim` | graph | tile filter (replaces relief words) |
+| `seat` | `ShellShape::has_seat` (`shell_shape.rs:324`) | tile filter |
+| `tilt` | `ShellShape::tilt` | tile filter |
+| `fitting`: face steps to a fitting, saturating at 3 | `PlateReading.fitting` (`skin_reading.rs:81`) | tile filter, weights |
+| per slot: context (2.2) | graph | socket filter |
+
+`falls` replaces `PlateRelief`. It is the same count `relief_of` takes
+(`skin_reading.rs:492`) without the class names. A filter says
+`falls: (min: 2)`, not `HighGround`.
+
+### 2.5 Measured topology [proto]
+
+Graph built by a Python port of `cladding_cells`, `facing` and the edge
+branches (diagonal stair ramps not ported). Plate counts match the table in
+`docs/sections.md` for all five ships. The station counts differ from that
+table, which predates the current station layouts (truss and solar sections
+with `Bare` sockets, 86e971480). Link counts are per link, borders per slot.
+
+| hull | plates | Flat | Convex | Concave | Step | Twist | border slots | 3-valent corners |
+|---|---|---|---|---|---|---|---|---|
+| `block_waystation` | 42 | 50 | 31 | 0 | 0 | 0 | 6 | 8 |
+| `block_cutter` | 64 | 68 | 40 | 0 | 8 | 0 | 24 | 8 |
+| `block_gunship` | 61 | 44 | 30 | 5 | 18 | 5 | 39 | 4 |
+| `block_hauler` | 93 | 84 | 60 | 14 | 8 | 4 | 31 | 16 |
+| `block_line_warship` | 171 | 179 | 66 | 7 | 38 | 9 | 85 | 1 |
+| `ring_station` (177 sections) | 206 | 112 | 152 | 0 | 20 | 0 | 256 | 28 |
+| `spire_station` (217 sections) | 122 | 120 | 52 | 0 | 0 | 0 | 144 | 0 |
+| `yard_station` (190 sections) | 122 | 108 | 72 | 0 | 0 | 0 | 128 | 20 |
+
+Readings:
+
+- Convex folds are a third to over half of all links. Ships are thin, so a
+  line rule that cannot cross a convex fold will stop at every hull corner.
+- Stations are mostly border: truss and solar sections are `Bare`, and
+  fittings stop the skin. A rule that needs a long run of plate finds little
+  there.
+- Most corners are 4-valent. 3-valent corners sit on convex box corners. One
+  6-valent corner appeared on the hauler.
+
+### 2.6 Irregular topology
+
+The graph is a quad mesh with borders and extraordinary vertices. Every cell
+has exactly 4 slots, so tiles with 4 sides work everywhere. What is irregular
+is the vertex: 3, 4 or more cells can meet at a corner. Consequences:
+
+- **Edge rules are always well defined.** They need a cell, a slot and the
+  neighbour's slot.
+- **Lines are well defined.** On a quad mesh the slot opposite the one you
+  entered by is unique, so "continue straight" walks a quad strip. It turns
+  over a fold by itself. This is how a line greeble follows a hull edge.
+- **2x2 and 3x3 windows are not.** At a 3-valent corner a "2x2" window has 3
+  cells. Windows must be defined by graph distance (a ring of radius r), or
+  only at 4-valent corners, or per valence.
+- **Prior art.** Townscaper runs on an irregular quad grid made by splitting
+  a triangle-and-quad hex grid into quads and relaxing it; its modules are
+  picked from the corner states of each quad [knowledge]. DeBroglie supports
+  graph topologies built from mesh faces (`MeshTopologyBuilder`), but only the
+  adjacent model works on them, not the overlapping model [web]. Both match
+  this graph: adjacency on edges works, window patterns are the hard part.
+
+## 3. The rule language
+
+### 3.1 Shared by all candidates
+
+- A style keeps its fixtures (`model`, `health`, `collider`) and loses
+  `placement`. A new `greebles` block holds the solver configuration. Tiles
+  name fixtures by id. One fixture may back several tiles (a line piece and its
+  end).
+- **Empty** is a tile with a weight. Its sides use the built-in socket
+  `empty`.
+- **Filter** `on:` takes the cell facts of 2.4:
+  `(out: [Up, Side], level: [Half], falls: (min: 1, max: 1), seat: true, fitting: (max: 1))`.
+  An omitted field does not filter. A filter is a hard unary rule: the tile is
+  struck from the cell before the solve, as `nova_wfc` does for aim and zone
+  (`aim_allowed`, `collapse.rs:67-79`).
+- **Rotation** `rotate: All | Half | None`. `None` keeps tile `+Z` on the
+  cell's `up`. `Half` allows 0 and 180 degrees. `All` allows 4 turns.
+  Symmetric socket sets drop duplicate variants, as in mxgmn's symmetry
+  classes [knowledge].
+- **Mirror** `mirror: true` adds reflected variants. Off by default.
+  Reflection is not a rotation (`shell_shape.rs:38` says the same for plates),
+  and a mirrored greeble needs a mirrored model or a symmetric one. [proto]
+  found the failure this prevents: a line end with an `out` side next to its
+  line side can cap only one end of a run. Rotations cannot produce the other
+  end, so propagation struck the line from every run (0.0 lines per ship).
+- **Footprint** `footprint: (1, 1)` default. A `(1, n)` or `(2, 2)` tile
+  compiles to segment tiles joined by private sockets that accept only the
+  next segment, as `nova_wfc` does for multi-cell parts (`tiles.rs:383-388`).
+  Segments may need all-`Flat` internal links.
+- **Pins** come out of filters and sockets: a socket that only sits on a
+  `Pocket` or `Stop` edge pins a tile beside fitting mouths; a `require` rule
+  strikes `empty` from the cells a filter selects, so something must go there.
+- **Seed.** The seed is a hash of the style id and the plate keys, not a
+  stored number (4.1). Same structure and style give the same result.
+
+The five greebles re-expressed below:
+
+| greeble | today (`base.content.ron`) | intent in solver terms |
+|---|---|---|
+| `industrial_hazard_band` | `Edge`, `Every`, `Along` | a line on single-fall plates, along the fall edge, capped at both ends |
+| `industrial_crane` | `Edge`, `Rare`, `Outward` | back side faces a `Convex` or `Rim` edge, empty ring, at least 4 apart, at most 3 |
+| `industrial_stack` | `HighGround`, `Regular`, `Free` | `out: Up`, `falls >= 2`, at least 2 apart |
+| `industrial_radiator` | `Panel`, `Dense`, `Along` | `falls: 0`, seat, empty ring, `rotate: Half` |
+| `armoured_ammo_stripes` | `NearFitting`, `Every`, `Along` | one side on a `Pocket` edge, required there |
+
+### 3.2 Candidate A: edge sockets + named constraints
+
+**Model.** Simple tiled WFC. Every tile side carries a socket. Sockets pair
+through an explicit symmetric table and may restrict which edge contexts they
+sit on. Everything past radius 1 is a hard constraint from a closed list,
+modelled on DeBroglie: `Separation`, `PairSeparation`, `Count`, `MaxRun`,
+`Require` [web: DeBroglie constraint list].
+
+- Sockets: `(id, pairs: [ids], edges: [contexts])`. Matching is by the table,
+  not by equal names. A chiral socket is written as a pair `"x"` / `"x'"`
+  listed in each other's `pairs`.
+- Rotation and mirror: shared rules.
+- Weights: one number per tile, plus `Weight(tiles, on: filter, factor)` to
+  scale it on some cells.
+- Larger windows: none directly. Separation covers spacing and rings; `MaxRun`
+  covers line length; `Count` covers per-ship limits.
+- Plate constraints: `on:` filters and socket `edges:`.
+
+```ron
+greebles: (
+    empty: (weight: 6.0),
+    sockets: [
+        (id: "free",  pairs: ["free", "out", "empty"]),
+        (id: "out",   pairs: ["free", "out", "empty"], edges: [Convex, Rim]),
+        (id: "clear", pairs: ["empty"]),
+        (id: "band",  pairs: ["band"], edges: [Flat]),
+        (id: "mouth", pairs: ["empty"], edges: [Pocket]),
+    ],
+    tiles: [
+        (id: "hazard_band", fixture: "industrial_hazard_band",
+         sides: ("band", "out", "band", "free"), rotate: All, weight: 8.0,
+         on: (falls: (min: 1, max: 1))),
+        (id: "hazard_band_end", fixture: "industrial_hazard_band",
+         sides: ("band", "free", "free", "free"), rotate: All, weight: 1.0,
+         on: (falls: (min: 1, max: 2))),
+        (id: "crane", fixture: "industrial_crane",
+         sides: ("clear", "out", "clear", "clear"), rotate: All, weight: 0.6,
+         on: (falls: (min: 1))),
+        (id: "stack", fixture: "industrial_stack",
+         sides: ("free", "free", "free", "free"), rotate: None, weight: 1.0,
+         on: (out: [Up], falls: (min: 2))),
+        (id: "radiator", fixture: "industrial_radiator",
+         sides: ("clear", "clear", "clear", "clear"), rotate: Half, weight: 1.5,
+         on: (falls: (max: 0), seat: true)),
+    ],
+    constraints: [
+        Separation(tiles: ["crane"], distance: 4),
+        Separation(tiles: ["stack"], distance: 2),
+        Count(tiles: ["crane"], max: 3),
+        MaxRun(tiles: ["hazard_band"], length: 8),
+    ],
+),
+// armoured style, same shape:
+(id: "ammo_stripes", fixture: "armoured_ammo_stripes",
+ sides: ("free", "mouth", "free", "free"), rotate: All, weight: 1.0),
+Require(tiles: ["ammo_stripes"], on: (fitting: (max: 1))),
+```
+
+- Pros: every rule is a named, documented thing. Lint can check each one. Maps
+  one to one onto DeBroglie's set, which is proven in practice.
+- Cons: every new idea needs a new constraint type in code. "Something changes
+  when X is near" is not expressible except as a hard ban. Many hard rules
+  raise the restart rate (4.2).
+
+### 3.3 Candidate B: window patterns
+
+**Model.** Overlapping-model style, but the patterns are authored, not learned
+from a sample. Tiles carry no sockets. Rules say which tiles may or must
+appear together inside a window: a pair across one edge, a ring of radius r
+round a cell, or the cells round a 4-valent corner (2x2).
+
+- "Sockets": none. Adjacency is `Pair` rules with a relative axis (`Along`,
+  `Across`, `Any`) and an edge context. Default allow: two tiles with no rule
+  may touch.
+- Rotation: a tile has an `axis: None | Line | Facing`; rules speak about the
+  axis relative to the edge.
+- Weights: per tile, plus per-window `weight` on `Quad` patterns.
+- Larger windows: native. `Ring(r)` windows, `Quad` patterns at 4-valent
+  corners only.
+- Plate constraints: `on:` filters; `Facing(tile, toward: contexts)`.
+
+```ron
+greebles: (
+    empty: (weight: 6.0),
+    tiles: [
+        (id: "hazard_band", fixture: "industrial_hazard_band", axis: Line,
+         weight: 8.0, on: (falls: (min: 1, max: 1))),
+        (id: "crane", fixture: "industrial_crane", axis: Facing,
+         weight: 0.6, on: (falls: (min: 1))),
+        (id: "stack", fixture: "industrial_stack", axis: None,
+         weight: 1.0, on: (out: [Up], falls: (min: 2))),
+        (id: "radiator", fixture: "industrial_radiator", axis: Line,
+         weight: 1.5, on: (falls: (max: 0), seat: true)),
+    ],
+    rules: [
+        Pair(a: "hazard_band", b: "hazard_band", across: [Flat], axes: Along),
+        Line(tile: "hazard_band", min: 2, max: 8),        // continuation + ends
+        Facing(tile: "crane", toward: [Convex, Rim]),
+        Ring(centre: "crane", radius: 1, others: Only(["empty"])),
+        Ring(centre: "crane", radius: 3, others: Not(["crane"])),
+        Ring(centre: "stack", radius: 1, others: Not(["stack"])),
+        Ring(centre: "radiator", radius: 1, others: Only(["empty"])),
+        Quad(cells: [["radiator", "radiator"], ["radiator", "radiator"]], weight: 0.0),
+        Count(tile: "crane", max: 3),
+    ],
+),
+// armoured:
+Ring(centre: "ammo_stripes", radius: 1, others: Not(["ammo_stripes"]), on_edge: [Pocket]),
+```
+
+- Pros: speaks the owner's words directly ("2x2", "within range"). One
+  mechanism for near and far.
+- Cons: windows are n-ary constraints. AC-3 handles binary constraints; rings
+  and quads need their own propagators. `Quad` is undefined at 3-valent
+  corners (2.6), which are on every convex box corner. Default-allow pairs make
+  it hard to see why two tiles never touch. The true overlapping model learns
+  patterns from an example; doing that would need an authored sample hull,
+  which is a tool, not a format [knowledge: mxgmn overlapping model].
+
+### 3.4 Candidate C: edge sockets + range terms
+
+**Model.** A's sockets for radius 1, so AC-3 sees every local rule. Every rule
+past radius 1 is one `near` term on a tile: which tiles or plate facts, within
+what graph distance, and a factor. Factor 0 is a hard ban, applied when the
+other tile is placed (forward checking). Any other factor scales the tile's
+weight at draw time. A per-tile `count` caps the total.
+
+- Sockets: as A, `(id, pairs, edges)`.
+- Rotation and mirror: shared rules.
+- Weights: per tile, scaled by every `near` term that matches already-placed
+  cells or plate facts.
+- Larger windows: `near` with `within: r` is a ring of radius r in the graph;
+  `tiles` or `fitting` say what to look for. Line continuation and ends are
+  sockets (as A). Required margin is a `clear` socket (radius 1) or a factor-0
+  term (radius > 1).
+- Plate constraints: `on:` filters and socket `edges:`.
+- Lint rule: a factor-0 term may not target a tile that a socket can force
+  (a tile with a socket whose `pairs` exclude `empty`). Such a ban can empty a
+  forced cell; [proto] measured 0.5% restarts with min-entropy and up to 37%
+  with a fixed order (4.2). Without it, [proto] measured 0 restarts.
+
+```ron
+greebles: (
+    empty: (weight: 6.0),
+    sockets: [
+        (id: "free",  pairs: ["free", "out", "empty"]),
+        (id: "out",   pairs: ["free", "out", "empty"], edges: [Convex, Rim]),
+        (id: "clear", pairs: ["empty"]),
+        (id: "band",  pairs: ["band"], edges: [Flat]),
+        (id: "mouth", pairs: ["empty"], edges: [Pocket]),
+    ],
+    tiles: [
+        (id: "hazard_band", fixture: "industrial_hazard_band",
+         sides: ("band", "out", "band", "free"), rotate: All, weight: 8.0,
+         on: (falls: (min: 1, max: 1))),
+        (id: "hazard_band_end", fixture: "industrial_hazard_band",
+         sides: ("band", "free", "free", "free"), rotate: All, weight: 1.0,
+         on: (falls: (min: 1, max: 2))),
+        (id: "crane", fixture: "industrial_crane",
+         sides: ("clear", "out", "clear", "clear"), rotate: All, weight: 0.6,
+         on: (falls: (min: 1)),
+         near: [
+             (tiles: ["crane"], within: 3, factor: 0.0),
+             (tiles: ["hazard_band_end"], within: 1, factor: 3.0),
+         ],
+         count: (max: 3)),
+        (id: "stack", fixture: "industrial_stack",
+         sides: ("free", "free", "free", "free"), rotate: None, weight: 1.0,
+         on: (out: [Up], falls: (min: 2)),
+         near: [(tiles: ["stack"], within: 1, factor: 0.0)]),
+        (id: "radiator", fixture: "industrial_radiator",
+         sides: ("clear", "clear", "clear", "clear"), rotate: Half, weight: 1.5,
+         on: (falls: (max: 0), seat: true),
+         near: [(fitting: 2, factor: 0.5)]),
+    ],
+),
+// armoured:
+(id: "ammo_stripes", fixture: "armoured_ammo_stripes",
+ sides: ("free", "mouth", "free", "free"), rotate: All, weight: 1.0,
+ require: true),            // strikes `empty` where this tile fits
+```
+
+- Pros: two mechanisms only (sockets, `near`). Soft terms never contradict.
+  "If a certain greeble is in range something changes" is a weight change, not
+  a new constraint type. The lint rule above makes the hard part provably
+  local.
+- Cons: soft terms depend on collapse order: a term can only see cells already
+  placed. With a fixed order this is stable; it is still less transparent than
+  a hard rule. Counts are enforced by banning after the cap, so a hull can end
+  below a minimum (no `min` without backtracking).
+
+### 3.5 Side by side
+
+| | A sockets + constraints | B windows | C sockets + `near` |
 |---|---|---|---|
-| `Rare` | 2 | 0.10 | 6 |
-| `Sparse` | 2 | 0.15 | 6 |
-| `Regular` | 2 | 0.30 | 5 |
-| `Dense` | 2 | 0.50 | 4 |
-| `Every` | 1 | 1.00 | 0 |
+| radius-1 rules | sockets (AC-3) | `Pair`, `Ring(1)` (n-ary) | sockets (AC-3) |
+| past radius 1 | closed hard list | `Ring(r)`, `Quad` | `near` factor, 0 = hard |
+| 3-valent corners | no issue | `Quad` undefined | no issue |
+| contradiction risk | grows with each hard rule | highest (n-ary) | none without forced-tile bans (lint) |
+| new rule kinds need code | yes | rarely | rarely |
+| maps to | DeBroglie, ghx_proc_gen | overlapping model | `nova_wfc` + weight fields |
 
-- Stride 2 keeps only cells with even coordinates on both in-plane axes
-  (`on_lattice`, `skin_decor.rs:424-431`). So 3 of 4 plates are never on offer.
-- The share is a hash of (cell, out face, fixture id) against the share
-  (`skin_decor.rs:248`, `498-510`). No RNG. Spatially it is white noise.
-- The patch floor puts one piece in each `patch`-cubed block that the share
-  left empty (`skin_decor.rs:309-390`). If the block has no free plate, it may
-  BORROW a plate from a lower-priority rule, under three conditions
-  (`skin_decor.rs:297-308`, `397-400`).
-- Priority: a plate takes at most one piece, and the first fixture in the list
-  wins (`skin_decor.rs:125-143`). So the real count of a rule depends on every
-  rule above it and on every rule it can borrow from.
+## 4. The solver
 
-### `orientation` [code]
+### 4.1 Determinism
 
-`turns_for` (`skin_decor.rs:456-479`) picks 0 to 3 quarter turns about the
-plate's out axis:
+- **Cell order**: the plate order of `derive_skin`, sorted by cell
+  (`shell_skin.rs:263-271`). Variant order: tile order, then turn.
+- **Randomness**: no RNG stream. Each draw is a counter-based hash:
+  `Fnv64(cell, out, style id, attempt, purpose)`, the same family as
+  `cell_hash` (`skin_decor.rs:498`). A per-cell value does not depend on how
+  many draws came before it, so an edit far away does not shift it.
+- **Tie-break**: min-entropy picks the cell with fewest variants; ties go to
+  the lowest per-cell hash, then the lowest index. No hash map iteration.
+- **Weights**: summed in variant order, so float rounding is the same every
+  run. Integer weights would remove the question entirely [unverified need].
+- **Not bevy_rand.** Gameplay is seeded through `bevy_rand`, but the skin must
+  stay a pure function of structure: the editor preview must equal the flown
+  ship, and nothing is saved. A per-design seed field could be added later;
+  it would be content and save data.
+- [proto] Re-solving every 37th seed (28 per hull) gave identical results on
+  all 13 hulls, both orders.
 
-- `Free`: 0 turns. The piece keeps the PLATE's rotation. That rotation is the
-  turn that makes the plate's shape canonical (`shell_skin.rs:643-661`), so it
-  depends on the plate's own edge pattern, not on the ship.
-- `Along`: +Z on `PlateReading::along`, the axis with the longer run of like
-  plate; ties go to the lower axis (`skin_reading.rs:329-338`).
-- `Outward`: +Z on `PlateReading::fall`. The fall is a cardinal only on a
-  `Brink`; it is a diagonal on a corner and zero on Flat, Ridge and Peak
-  (`skin_reading.rs:206-212`, `553-569`). Zero means 0 turns.
+### 4.2 Contradictions
 
-`decor_pose` then beds the piece onto `seat_normal` (`skin_decor.rs:530-535`),
-so a piece on a raked plate already tilts with it. The owner's "turn with an
-angled plate" is already true for tilt. It is not true for yaw.
+Sources, from the prototype:
 
-### Real base content [code]
+1. **Radius-1 rules** are sockets. AC-3 sees them. With `empty` compatible with
+   every non-forcing socket, no contradiction appeared in 13 hulls x 1000
+   seeds.
+2. **Bans past radius 1** (factor 0, `Separation`, `Count`) are applied when a
+   tile is placed. They only remove the banned tile. They cannot empty a cell
+   unless the cell was forced to that tile by a socket (a line or a segment).
+3. **Global structure** that AC-3 cannot see: a chiral line end (3.1 Mirror)
+   or a line that cannot terminate inside its run. Propagation strikes these
+   tiles up front; they do not contradict, they silently vanish. Lint must
+   catch them (a tile placeable on no reference hull is an error).
 
-Generated RON, `assets/base/styles/base.content.ron`, from
-`crates/nova_authoring/src/base_content/styles.rs`:
+Policy (bounded):
 
-```ron
-(   id: "industrial_stack",            // styles.rs:112
-    collider: (0.18, 0.28, 0.18),
-    placement: (region: HighGround, density: Regular, orientation: Free)),
-(   id: "industrial_crane",            // styles.rs:129
-    collider: (0.16, 0.45, 0.32),
-    placement: (region: Edge, density: Rare, orientation: Outward)),
-(   id: "industrial_hazard_band",      // styles.rs:145
-    collider: (0.19, 0.03, 0.9),
-    placement: (region: Edge, density: Every, orientation: Along)),
-(   id: "industrial_radiator",         // styles.rs:237
-    collider: (0.38, 0.27, 0.28),
-    placement: (region: Panel, density: Dense, orientation: Along)),
-(   id: "armoured_chaff",              // styles.rs:631
-    collider: (0.3, 0.13, 0.18),
-    placement: (region: Panel, density: Sparse, orientation: Outward)),
-(   id: "armoured_ammo_stripes",       // styles.rs:663
-    collider: (0.3, 0.02, 0.34),
-    placement: (region: NearFitting, density: Every, orientation: Along)),
-(   id: "civilian_windows",            // styles.rs:802
-    placement: (region: Flank, density: Dense, orientation: Along)),
+- Restart with `attempt + 1` in the hash, at most 8 attempts.
+- If all fail, solve once more with every forcing tile removed. Without them
+  the solve has no forced cells, so bans cannot contradict. Log a warning with
+  the ship and style. A player-built hull is a valid runtime condition, so this
+  is a runtime fallback, not a hidden authoring error; reference hulls are
+  checked at lint.
+- Worst case: 9 solves x O(cells x variants x 4) propagation steps plus
+  O(cells^2) for a naive min-entropy scan. At 206 cells that is under 2 ms
+  even at 10x the prototype time.
+- No backtracking. Model Synthesis "modifying in blocks" re-solves a failing
+  region instead of the whole output [web: Merrell 2021 comparison]. It is the
+  next step if restarts ever become common; on hulls of a few hundred cells a
+  full restart is cheaper than the bookkeeping.
+
+### 4.3 Performance [proto]
+
+Release build, std only, bitmask domains, precomputed compatibility masks,
+8 tiles / 23 variants, 1000 seeds per hull:
+
+| hull | plates | min-entropy us/solve | fixed-order us/solve |
+|---|---|---|---|
+| `block_waystation` | 42 | 15 | 6 |
+| `block_hauler` | 93 | 49 | 14 |
+| `block_line_warship` | 171 | 137 | 26 |
+| `ring_station` | 206 | 192 | 31 |
+| `spire_station` | 122 | 76 | 18 |
+| `yard_station` | 122 | 79 | 19 |
+
+- A per-ship solve at spawn is cheap. First-party crates build at
+  `opt-level = 1` in dev (`Cargo.toml:1310-1311`), so expect several times
+  slower there [unverified].
+- Cache per style, once at load: the compiled variant table and the
+  compatibility masks, as `nova_wfc::TileSet` is built once and collapsed many
+  times (`nova_wfc/src/lib.rs:228`). Do not cache per ship: the solve is
+  cheaper than invalidation.
+- The min-entropy scan is O(cells) per collapse. A bucket queue makes it
+  O(1); not needed at these sizes.
+
+### 4.4 Stability under edits
+
+- **Live ship.** Solved once at spawn. A destroyed section takes its plates
+  and their greebles (`shell_skin.rs:979-986`); nothing re-solves. How a live
+  section add re-clads was not checked [unverified].
+- **Editor.** Re-solves on every change (`nova_editor/src/skin.rs:74`). [proto]
+  Removing one section, the share of plates present before and after that
+  keep their tile and turn:
+
+| edit | plates | min-entropy | fixed order |
+|---|---|---|---|
+| hauler, section 0 | 93 -> 91 | 95.5% | 97.9% |
+| hauler, section 25 | 93 -> 92 | 93.3% | 95.4% |
+| warship, section 0 | 171 -> 171 | 96.7% | 98.2% |
+| warship, section 75 | 171 -> 172 | 93.1% | 97.5% |
+| ring station, section 0 | 206 -> 205 | 97.4% | 98.9% |
+| ring station, section 88 | 206 -> 206 | 100% | 100% |
+
+  So 2 to 7% of untouched plates change per edit. The fixed order is more
+  stable and faster, but restarts far more when forcing tiles meet bans
+  (4.2). Hash-keyed draws are what keep this local; a single RNG stream would
+  re-roll the whole hull on any edit.
+- **No incremental solve.** Keeping the previous answer outside the edit would
+  make the look depend on build history, and the flown ship would differ from
+  a fresh solve of the same structure. The skin's contract is a pure function
+  (`shell_skin.rs:1-14`).
+
+### 4.5 Frozen wrecks
+
+Placements are stored, not re-solved: a freeze keeps each greeble's model,
+pose and health under its plate (`frozen.rs:57-73`). Thaw needs no solver, and
+a solver change cannot alter an existing wreck. A non-frozen ship respawned
+from its design re-solves and gets the same result for the same structure,
+style and solver version. A solver change re-rolls those ships, as a scatter
+change does today.
+
+## 5. Interaction with task 133643 (plating fits the greeble)
+
+The order changes from derive, read, scatter, spawn to:
+
+```
+derive_skin -> read_plates -> surface graph -> solve -> reshape plates -> spawn plates + greebles
 ```
 
-There are 56 fixtures in 5 styles. `styles.rs` has 27 comments with "measured"
-and 13 with "starv". Most of them explain list order, not look. Example:
-"the hatch measured `x0 of 12`" until it was moved above the corrugation
-(`styles.rs:350-355`).
+The solver hands each placement to the reshape step:
 
-### Measured counts
-
-What the hulls offer, per relief, on the landed skin [doc]
-(`docs/sections.md`, table after line 690):
-
-| hull | plates | flat | step | ridge | peak | brink | spur |
-|---|---|---|---|---|---|---|---|
-| `block_waystation` | 42 | 3 | 3 | 0 | 0 | 13 | 23 |
-| `block_cutter` | 64 | 11 | 8 | 5 | 2 | 14 | 24 |
-| `block_gunship` | 61 | 2 | 24 | 2 | 1 | 7 | 25 |
-| `block_hauler` | 93 | 16 | 20 | 4 | 1 | 15 | 37 |
-| `block_line_warship` | 171 | 23 | 54 | 21 | 0 | 44 | 29 |
-| `ring_station` | 210 | 0 | 36 | 0 | 18 | 24 | 132 |
-| `spire_station` | 134 | 10 | 16 | 4 | 0 | 48 | 56 |
-| `yard_station` | 134 | 10 | 12 | 0 | 22 | 24 | 66 |
-
-What the industrial kit took, on the landed skin [log] (the only post-landing
-tally on disk: session scratchpad `133631/run-final-C.log`, scenario
-`skin_survey`, ship entity `1334v0`, 139 plates, relief `step x34, ridge x13,
-peak x3, brink x44, spur x45`, no flat plate). Format is TAKEN of REACH:
-
-```
-industrial_stack x2 of 6        industrial_radiator x0 of 0
-industrial_crane x1 of 12       industrial_duct x0 of 0
-industrial_hazard_band x40 of 40  industrial_winch x0 of 0
-industrial_umbilical x1 of 1    industrial_floodlight x0 of 0
-industrial_plate_rack x0 of 1   industrial_louvre x0 of 0
-industrial_cells x0 of 1        industrial_hatch x9 of 34
-industrial_stencil x8 of 34     industrial_ribbing x2 of 34
-63 pieces, 63 off flat (100%), 8 on a creased top
+```rust
+pub struct GreeblePlacement {
+    pub plate: usize,          // anchor plate, index into the plates
+    pub tile: usize,           // compiled tile, names the fixture
+    pub turns: u8,             // quarter turns in the PLATE frame, for decor_pose
+    pub cells: Vec<usize>,     // every plate the footprint covers, anchor first
+    pub pad: Vec2,             // fixture collider x, z: the flat area to provide
+}
 ```
 
-7 of 14 rules placed nothing. The `Dense` filler (`ribbing`) took 2 and the
-`Regular` hatch took 9, so the rung does not predict the count; list order
-does. The task 133631 close also records `armoured_intake` at 0 of 1 on the
-gunship [doc]. Earlier prototype logs in the same folder (`run-hybrid3-*`) use
-a different relief split and are not valid for the landed code.
+- The reshape flattens the plateau under `pad` on each covered plate. For a
+  footprint over several plates, the shared edges hold the level so the pads
+  meet.
+- The solve reads pre-reshape facts only, and the reshape changes heights
+  inside a plate, never an edge context. So there is no loop between them.
+- A filter like `seat: true` may become unnecessary once every placed greeble
+  gets a pad; keep it until 133643 shows the frames.
+- Frozen plates store `ShellShape` (`frozen.rs:66`). A pad that changes the
+  shape changes the stored plate. World saves are at format 8
+  (`nova_world_base/src/save/mod.rs:75`), so that is a migration and a `**(breaking)**` entry, or the pad must be
+  re-derivable from the stored decor.
+- A multi-plate greeble is a child of its anchor plate (`shell_skin.rs:985`).
+  If the anchor is shot off the piece goes; the other plates keep their pads.
 
-## 2. What is unclear to a modder
+## 6. Prior art
 
-Each item is a place where the authored words do not predict where the piece
-lands. All are [code] unless labelled.
+| source | what it does | lesson | label |
+|---|---|---|---|
+| WFC, simple tiled vs overlapping (mxgmn) | tiled: tiles + adjacency; overlapping: every NxN window is a copy from a sample | sockets for edges; windows need a sample or authored patterns | [knowledge] |
+| Model Synthesis (Merrell 2007; comparison 2021) | same algorithm family; scanline order; modifies in blocks to cut failure rate | block re-solve is the fallback if restarts grow | [web] |
+| DeBroglie (Boris the Brave) | adjacent and overlapping models; constraints: border, fixed tile, path, max consecutive, mirror, symmetry, count, separation, pair separation; backtracking optional | the constraint list for A; graph topology only with the adjacent model | [web] |
+| Townscaper, Bad North (Stalberg) | irregular quad grid; modules from corner states; constraint solve over modules | an irregular quad graph is enough; corners are where irregularity lives | [knowledge] |
+| marian42 infinite city | horizontal connectors flipped, not flipped or symmetric; vertical connectors with a rotation index; backtracking from history | chiral sockets as mirrored pairs; backtracking can undo late and far | [web] |
+| WFC on meshes (DeBroglie `MeshTopologyBuilder`; Merrell's thesis on non-grid shapes) | cells are mesh faces, adjacency through shared edges | our plate graph is this case | [web] |
+| AC-3 / AC-4 | AC-3 re-checks an arc when a neighbour changes; AC-4 keeps support counts for optimal time | AC-3 with bitmasks is enough for ~25 variants; ghx_proc_gen uses AC-4 | [knowledge], [web] for ghx |
+| `nova_wfc` (this repo) | 3D simple tiled, empty always compatible, no backtracking | the contradiction-free pattern; joint sockets for multi-cell parts | [code] |
 
-1. **`HighGround` includes `Step`** (`skin_style.rs:403-408`). `Step` is "any
-   other whole-cell plate: it climbs structure beside it"
-   (`skin_reading.rs:94-96`). So `industrial_stack` can land at the FOOT of a
-   raised block, which is the low ground beside a wall.
-2. **`Panel` is `Flat` only, and `Flat` is now rare.** Since 18a4f9ae8 every
-   plate top is a flat plateau inside chamfered rims (`docs/sections.md`,
-   "Almost every plate still has a SEAT"). A Brink plate LOOKS like a flat
-   panel with one bevelled side, but it is not `Panel`. The industrial radiator and duct,
-   and the armoured sensor, intake, chaff and hatch, the civilian dish, livery,
-   skylight, vent and fairing, and the salvage hose
-   all ride `Panel`. On `ring_station` that is 0 plates; on the 139-plate survey
-   ship it was 0 [log].
-3. **`Deck` does not mean up.** Its facing is `Any` (`skin_style.rs:380-385`).
-   `industrial_plate_rack` can lie on the belly or a flank. `Flank` is the same
-   plates with facing Side, so it is a subset of `Deck`, and the two fight for
-   the same plates (`styles.rs:172-183`).
-4. **`NearFitting` reads narrow and is wide.** Measured, a pocket rule placed
-   first took 45% of a ship [doc] (`web/src/create/styles.md`, "The seven
-   regions"). Every base kit puts it last for that reason.
-5. **`Edge` stops at corners.** A hull corner plate is `Spur`, not `Brink`, so
-   a rim line has a gap at every corner. A whole-cell plate on an edge is
-   `Step` (`skin_reading.rs:502-504`), so the line also stops where the plate
-   climbs a wall.
-6. **The collider changes the placement silently.** A decal 0.09 cells tall is
-   trim and lands on a crease; at 0.10 it does not (`skin_style.rs:337-351`).
-   A piece 0.45 long needs a run of 1; at 0.55 it needs a run of 2
-   (`skin_style.rs:319-322`). No placement word says this.
-7. **The rung word does not predict a count.** The count is stride x share x
-   priority x patch floor x borrowing. A `Rare` rule landed nothing on every
-   bench seed until borrowing was added (`skin_decor.rs:292-295`). Lattice
-   parity "can zero a strided pocket rule outright" (`styles.rs`, comment on
-   `armoured_ammo_stripes`, near line 676).
-8. **The hash looks random.** The share is white noise over the lattice.
-   Neighbouring plates of one run get unrelated answers. This is the owner's
-   "it's pretty random", in code.
-9. **`Outward` does nothing on most of its rules.** It turns only on a Brink.
-   `armoured_chaff` is `Panel` (Flat only, no fall), so it never turns.
-   `industrial_floodlight` is `NearFitting`, so it turns only where the plate
-   beside the fitting is a Brink.
-10. **`Free` is not "unturned".** It keeps the plate's canonical-shape turn
-    (`shell_skin.rs:643-661`). On a symmetric Flat plate that is stable; on an
-    asymmetric plate it depends on which edges fall. Two magazines on two
-    neighbouring spurs can face different ways. [code; not seen in a frame]
-11. **Priority is the real language.** Order decides starvation, and the
-    builder comments are mostly about order. A modder cannot see starvation on
-    screen; only the debug `x0 of N` tally shows it (`shell_skin.rs:990-1017`).
+**Rust crates.**
 
-## 3. Prior art
+- `ghx_proc_gen`: model synthesis / WFC with sockets, rotations, weights and
+  AC-4. Cartesian 2D and 3D grids only; restarts from the beginning on a
+  contradiction [web]. Our domain is a graph, so it does not fit.
+- The `wfc` and `wave-function-collapse` crates are grid and image oriented
+  [web: crates.io listing; not read in depth].
+- Recommendation: write a small solver in `nova_ship` (about 400 lines in the
+  prototype's shape). The domain is a graph, the variant count is small
+  (bitmask fits in a u32 or u64), and the hash and order rules are ours.
 
-1. **SpaceshipGenerator (Blender, a1studmuffin)** [web: source read via
-   `gh api`]. Per face: skip faces with aspect ratio > 3, sort the face by
-   normal (rear, front, top, bottom, side), then pick ONE detail type from a
-   weighted table for that class (for example top: antenna 30%, grid 30%,
-   cylinders 30%). `not engine_faces or ...` guarantees at least one engine.
-   Lesson: classes come from geometry the reader can see, and one roll per
-   face picks from a table. No priority list.
-2. **Blender greeble add-ons (Plating Generator, Greeble Generator,
-   GreebleMaster)** [web]. Plating Generator first cuts faces into panels, then
-   scatters pieces on the panels. A piece "can either conform to the shape of
-   the face or maintain [its] proportions". Greeble Generator aligns every part
-   to the face normal with no manual rotation. Lesson: split the surface first,
-   then fill; orientation is the surface frame, not an authored word.
-3. **Houdini (Scatter, Copy to Points)** [web]. The surface carries attributes
-   (normal, groups); points copy instances with +Z on `N`. Density is a point
-   count or an attribute. Lesson: the frame comes from surface attributes.
-   Density as a number works only with a human looking at the result.
-4. **CGA shape grammar (Mueller et al., SIGGRAPH 2006; CityEngine)** [web for
-   the paper; operators from knowledge]. Oriented scopes, `split`, `repeat`
-   and `comp(f)`. `comp(f) { top: Roof | side: Facade }` names face classes;
-   `repeat` places a module every N metres along an axis, so a facade gets a
-   rhythm, not noise. Lesson: name the feature, then the pattern along it.
-5. **Wave Function Collapse and Townscaper (Gumin; Stalberg)** [web]. Tiles
-   are chosen from the values on their corners (dual grid, marching squares);
-   WFC picks among compatible tiles with weights. Lesson: Nova's `ShellShape`
-   is already a corner and edge keyed tile. A greeble could be chosen by the
-   plate's key, or (task 133643) the plate key could be chosen to fit the
-   greeble.
-6. **Socket and anchor decoration** [knowledge]. Space Engineers blocks
-   declare mount points per side; KSP parts declare attach nodes; Elite
-   Dangerous ship kits have fixed slots per hull (bumper, spoiler, wings,
-   tail; one piece per slot) [web for Elite]. No Man's Sky ships combine named
-   descriptor parts with a chance per part [web]. Lesson: a slot is the
-   clearest possible "where", but it must be authored per part. Nova hull
-   cubes are uniform, so section sockets cannot say "edge". Nova already has
-   sockets (`LinkPoint`, with `skin: Clad | Bare` from 53c5a186a); a fitting's
-   exit face is the one place a socket adds facts.
-7. **Starbase decals, Space Engineers greebling** [web]. Both are manual: the
-   player places decals or decorative blocks. Builder advice is "mark off some
-   broad areas with higher concentration, sprinkle small groupings between".
-   Lesson: humans greeble by area and cluster, not by uniform share.
+## 7. Recommendation
 
-Common thread: the good systems name a FEATURE the reader can see, place by a
-PATTERN or a table on that feature, and take orientation from the surface
-frame. None of them has a hidden priority list.
+**Candidate C, edge sockets plus `near` range terms.** It keeps every rule
+that touches a neighbour in the socket table, where AC-3 sees it and the
+prototype measured zero restarts on every base hull. It folds everything
+farther away into one term whose factor is either a hard ban or a weight
+change, which is exactly the owner's "if a certain greeble is in range maybe
+something changes" without a new constraint type per idea. Its one source of
+contradiction, a hard ban on a tile that a socket can force, is a static
+property of the configuration, so lint can refuse it instead of the solver
+backtracking. A has the same core but grows a constraint type per idea and
+has no soft form. B speaks windows natively but needs n-ary propagators and
+breaks at 3-valent corners, which sit on every convex box corner.
 
-## 4. Candidate languages
+**Smallest first slice** (no behaviour change, no format change):
 
-Shared by all three candidates:
+1. `crates/nova_ship/src/sections/skin_surface.rs`: build the surface graph
+   from `SkinStructure` and `&[SkinPlate]` (cells, 4 slots, contexts, frame).
+   Proof: unit tests on the existing `hull(...)` fixtures: a lone cube gives 6
+   cells, 12 `Convex` links and 8 3-valent corners; an L shape gives a
+   `Concave` or `StepUp` link; a `Bare` face gives `Stop` borders.
+2. The solver as a pure function over the graph and a compiled tile set:
+   sockets, `rotate`, `on`, weights, `near`, `count`, restart and fallback.
+   Proof: same input twice gives the same placements; a line tile placed on a
+   run continues to both ends; a factor-0 `near` term is never violated.
+3. Next slice, after the owner reviews frames: the `greebles` block replaces
+   `placement` in style content (`**(breaking)**`), all 5 base kits migrate,
+   `FixturePlacement` and the scatter are deleted, and 133643 starts.
 
-- **`orientation` is deleted.** Every piece is posed in the FEATURE FRAME:
-  +Y out of the plate, bedded on the tilt (`seat_normal`, as today); +Z along
-  the run (or the long axis of a patch); +X toward outboard where the plate
-  falls one way. The run axis has no sign, so the engine picks the sign of +Z
-  that puts +X outboard. At a run end, +Z points into the run. So a crane jib
-  is authored along +X once and always leans out. This keeps today's `Along`
-  for every piece and turns `Outward` into a model convention. The 32 `Along`,
-  18 `Free` and 6 `Outward` uses migrate by re-authoring at most the
-  `Outward` models (rotate the model 90 degrees in its recipe). [unverified:
-  per-model check needed for the 6]
-- **Kinds are the relief classes, named as the log names them**: `Flat`,
-  `Step`, `Ridge`, `Peak`, `Brink`, `Spur` (`skin_reading.rs:116-123`), plus
-  `Mouth` = a plate one face step from a fitting exit. A plate is `Mouth`
-  before its relief. The debug tally already prints these words, and the
-  editor can tint them. Optional `facing: Up | Down | Side` reuses
-  `PlateFacing` (`skin_reading.rs:148-159`).
-- **Hidden gates die.** `min_depth`, `min_height`, the trim rule and the seat
-  gate go away when 133643 gives every piece a pad. `min_run` becomes part of
-  the pattern.
-- **Saves are safe.** A frozen wreck stores each greeble's model, pose and
-  health, not its placement (`skin_decor.rs:583-601`). A language change
-  breaks style RON only. Mark it `**(breaking)**`.
+Agent defaults for owner review: seed from structure and style id (no saved
+seed); one cell per plate (no sub-cells); restarts then a fallback without
+forcing tiles; mirror off by default.
 
-### Candidate A: feature + pattern (CGA style)
+## 8. Prototype
 
-**Model.** A placement is `on` (one or more kinds), an optional `facing`, and
-a `pattern` over each CONNECTED FEATURE of that kind. A feature is a run (Brink,
-Ridge, Step along a wall, Mouth ring) or a patch (connected Flat on one plane),
-or a point (Peak, Spur).
+Scratchpad only, not committed:
+`/tmp/claude-1000/-home-alex-personal-nova-protocol/216d5d00-66e8-4958-a2e4-e285d6d0793a/scratchpad/133640-wfc/`.
 
-| pattern | where it lands | replaces |
-|---|---|---|
-| `Line` | every plate of each run of 2 or more | `Every` + `min_run` |
-| `Every(n)` | every n-th plate along the run, on the ship lattice (`cell mod n == 0`) | stride + share |
-| `Ends` | the first and last plate of each run | (not possible today) |
-| `Middle` | the middle plate of each run or patch | (not possible today) |
-| `Once` | one per ship: the middle of the longest feature, ties to the lowest cell | `Rare` + patch floor |
+- `ron.py`, `skin.py`: read the base sections, ships and stations RON and port
+  `read_cells`, `cladding_cells`, `stands`, `facing` and the edge branches of
+  `boundary_heights` to Python. Diagonal stair ramps are not ported.
+- `graph.py`, `dump.py`: build the surface graph of 2.2 and dump it, plus three
+  hulls with one section removed.
+- `rs/main.rs`: std-only Rust solver, built with `rustc -O`. Bitmask domains,
+  AC-3, min-entropy or fixed hash order, counter-based hash, restart up to 30.
+- Tiles: empty, a line (`band`) and its end, a crane (`out` back side, `clear`
+  sides, separation 4, max 3), a vent (`clear` sides), a stack (separation 2),
+  a 1x2 radiator as two joined segments.
 
-On a point kind (Peak, Spur), `Line` means every point and `Every(n)` uses the
-lattice. `Every(n)` is anchored to the ship lattice, not to the run start, so
-adding a cell does not move the other pieces (the same stability as today).
-`Ends` and `Middle` are run-relative by definition and may move when a run
-grows.
+Results, 13 hulls x 1000 seeds each:
 
-List order stays, but only as a tie rule inside one feature: `Ends` before
-`Line` on Brink gives caps and a line. Content lint can PROVE starvation: any
-rule after a `Line` on the same kinds and facing can never land. That is an
-error at lint.
+| run | restarts | unsolved | us/solve |
+|---|---|---|---|
+| min-entropy | 0 on every hull | 0 | 15 to 192 |
+| fixed hash order | 0 on every hull | 0 | 6 to 31 |
+| min-entropy + radius-2 ban on forcing tiles | 0 to 0.5% (max 2 attempts) | 0 | 18 to 204 |
+| fixed order + same ban | 4.5% to 37% (max 8 attempts) | 0 | 10 to 49 |
 
-**RON:**
+Mean per ship on `block_line_warship`, min-entropy: 18.5 band, 19.4 band end,
+2.9 crane, 3.0 stack, 3.5 radiators, 117.8 empty of 171 plates. Two prototype
+findings are recorded above: the chiral line end (3.1) and the forced-cell
+contradiction (4.2).
 
-```ron
-(   id: "industrial_hazard_band",
-    placement: (on: [Brink], pattern: Line)),
-(   id: "industrial_stack",
-    placement: (on: [Ridge, Peak, Spur], facing: Up, pattern: Every(2))),
-(   id: "industrial_radiator",
-    placement: (on: [Flat], pattern: Every(2))),
-(   id: "armoured_ammo_stripes",
-    placement: (on: [Mouth], pattern: Line)),
-(   id: "industrial_crane",            // new look: a hoist capping each edge run
-    placement: (on: [Brink], pattern: Ends)),
-```
-
-**Plates.** Kinds are `relief_of` plus a fitting distance. Runs reuse the walk
-in `read_plates` (`skin_reading.rs:321-327`), which already measures like
-runs; it needs the run's id, index and length kept instead of thrown away.
-
-**Density and orientation.** Density becomes spacing (`Every(n)`) or count
-(`Once`, `Middle`). Rarity is explicit: "one per ship", "one per run". No hash
-share, no patch floor, no borrowing. Orientation: the feature frame above.
-
-**Needs from 133643.** The placement pass must return, per placed piece, the
-plate, the footprint (collider x and z), the feature frame, and for `Line` the
-neighbours in the run. The plate then flattens a pad under the footprint. For
-a `Line` the pads must meet across plate seams, so the reshape must keep the
-level on the shared edge along the run. This is the order change:
-derive -> read -> place -> reshape -> spawn.
-
-**Main risk.** Regular patterns read as machined. `salvage` wants "unplanned"
-(`web/src/create/styles.md`, "Reading as UNPLANNED"). Mitigation, if the owner
-wants it: one explicit hash pattern `Scatter(n)` = "about one in n plates",
-used only by salvage. That re-introduces a share, but as one honest number.
-
-**Migration cost.**
-- Base builders: rewrite 56 placements in `styles.rs`; delete most order
-  comments; rewrite the ~20 builder tests that pin order and rungs
-  (`styles.rs:1567-2145`). Regenerate base RON.
-- Engine: replace `FixtureRegion`, `FixtureDensity`, `FixtureOrientation`,
-  `ScatterRule`, `fill_patches`, `lends`, `turns_for` (`skin_style.rs`,
-  `skin_decor.rs`); update `skin_report.rs` rule counts; editor
-  `crates/nova_editor/src/skin.rs` (2 sites); `examples/shared/dev_fixtures/styles.rs`
-  (6); `greeble_catalog.rs`, `block_bench.rs`, `shape_bench.rs`; 3 test
-  fixtures in `frozen.rs` and `frozen_piece.rs`.
-- Example mod (`assets/mods/example`): no style content. Cost 0.
-- the-ledger webmod (`webmods/the-ledger`): no style content. Cost 0.
-- Docs: `web/src/create/styles.md` placement section (about 150 lines),
-  `docs/sections.md` style section (about 50 lines), `docs/concept-index.md`
-  row, one `**(breaking)**` changelog entry.
-
-### Candidate B: weighted table per plate kind (SpaceshipGenerator / WFC weights)
-
-**Model.** Each plate of a kind rolls ONCE (the same cell hash as today)
-against a table. The table holds every fixture whose `on` lists that kind
-(after `facing`), each with its `weight`, plus the style's `bare` weight for
-that kind. No list order and no lattice.
-
-**RON:**
-
-```ron
-Style((
-    id: "industrial",
-    bare: {Flat: 1.0, Step: 6.0, Ridge: 2.0, Peak: 1.0, Brink: 0.0, Spur: 3.0, Mouth: 1.0},
-    fixtures: [
-        (   id: "industrial_hazard_band",
-            placement: (on: [Brink], weight: 20.0)),
-        (   id: "industrial_crane",           // 1 in 21 brink plates
-            placement: (on: [Brink], weight: 1.0)),
-        (   id: "industrial_stack",
-            placement: (on: [Ridge, Peak, Spur], facing: Up, weight: 1.0)),
-        (   id: "industrial_radiator",
-            placement: (on: [Flat], weight: 1.0)),
-    ],
-)),
-(   id: "armoured_ammo_stripes",
-    placement: (on: [Mouth], weight: 1.0)),   // armoured bare: {Mouth: 0.0, ...}
-```
-
-**Plates.** Per plate, no runs needed. Kinds as above.
-
-**Density and orientation.** Density becomes a weight against `bare`. The
-share of a kind is exact: weight / (sum of weights + bare). Starvation is
-impossible, because there is no order. Optional `at_least: 1` per ship covers
-small hulls. Orientation: the feature frame.
-
-**Needs from 133643.** Per placed piece: plate, footprint, frame. Pads are
-per plate. A line (hazard band) is only a line when its weight wins every roll,
-so pads along a run do not need to agree. Simplest for 133643.
-
-**Main risk.** It is still white noise. The owner's complaint "pretty random"
-stays: proportions become predictable, positions do not. A 1-in-21 crane on a
-ship with 12 brink plates lands 0 or 1 by chance.
-
-**Migration cost.** Same files as A. Smaller engine change: `fill_patches`,
-`lends`, `on_lattice` and the ladder die; `claims` becomes one weighted pick.
-Style RON gains a `bare` map. Example mod and the-ledger: 0. Docs: same pages.
-
-### Candidate C: panel layout first, greebles fill panels (Plating Generator / CGA split)
-
-**Model.** The engine first cuts each patch (connected same-kind, same-facing
-plates on one plane) into PANELS: rectangles of whole plates, greedy
-largest-first, on the ship lattice, from the style's panel sizes. Runs are cut
-into strips. Each greeble declares the panel size it fills. Each panel takes
-one greeble, by the hash among the fitting ones, or stays blank.
-
-**RON:**
-
-```ron
-Style((
-    id: "industrial",
-    panels: [(2, 2), (2, 1), (1, 1)],
-    fixtures: [
-        (   id: "industrial_hazard_band",
-            placement: (on: [Brink], panel: Strip)),
-        (   id: "industrial_stack",
-            placement: (on: [Ridge, Peak, Spur], facing: Up, panel: (1, 1))),
-        (   id: "industrial_radiator",      // a 2-plate bank: needs a new model
-            placement: (on: [Flat], panel: (2, 1))),
-        (   id: "armoured_ammo_stripes",
-            placement: (on: [Mouth], panel: Strip)),
-    ],
-)),
-```
-
-**Plates.** Needs patch and run segmentation plus a deterministic packer.
-
-**Density and orientation.** Density becomes the panel mix and the blank
-panels. Orientation: the panel's long axis. Multi-plate greebles become
-possible; today "decoration cannot span cells" (`web/src/create/styles.md`).
-
-**Needs from 133643.** The most: a panel is several plates that must reshape
-as ONE pad at one level. The plate must learn its panel, not only its piece.
-
-**Main risk.** Scope and stability. A one-cell edit re-packs a whole patch, so
-the editor preview jumps on every build step. A piece over several plates
-breaks "a greeble is a child of one plate" (`shell_skin.rs:985`): damage, shot
-off, and frozen wrecks all assume one parent.
-
-**Migration cost.** Highest. Everything in A, plus a packer, multi-plate decor
-parents, frozen decor for spanning pieces, and new 2-plate models for the
-kits that want them. Example mod and the-ledger: 0.
-
-## 5. Recommendation
-
-**Candidate A, feature + pattern**, with `Scatter(n)` held back unless the
-salvage look needs it. A answers each of the owner's three points directly.
-The place words become the relief classes the engine already logs and the
-editor can tint, so `on: [Brink]` means exactly the plates a reader can see,
-with no hidden union, depth, height or trim gate. Density stops being a
-priority-coupled share and becomes a pattern a modder can predict from the
-words alone ("every 2nd plate", "both ends", "one per ship"); the 27 "measured"
-comments in `styles.rs` exist because today's rung does not predict a count.
-Orientation dies into a feature frame that also gives `Outward` pieces a real
-outboard axis on every falling plate, not only on a Brink. A also feeds 133643
-the best inputs: a run and a footprint per piece, so the pads of a `Line` can
-meet across seams. B is the cheaper fallback, but it keeps the white-noise look
-the owner calls random. C is the right long-term direction for multi-plate
-greebles, but its edit stability and multi-parent decor make it a later step
-that can build on A's features.
-
-Do you accept candidate A (`on` a relief kind, `pattern: Line | Every(n) | Ends | Middle | Once`, no density or orientation) as the language task 133643 implements?
+Do you accept candidate C (edge sockets for radius-1 rules, `near` range terms with a factor where 0 is a hard ban, `on` plate filters, one solver cell per plate) as the placement language task 133643 implements?
