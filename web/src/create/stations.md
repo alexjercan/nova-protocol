@@ -106,7 +106,7 @@ differs is who the station lets in and who flies the pair.
 
 | rule | what happens |
 |---|---|
-| admission | a living station reads its `allegiance`: `Enemy` refuses every dock, any other side admits. A derelict admits whatever its side; it is a hull to loot |
+| admission | a living station reads its `allegiance`: `Enemy` refuses every dock, and any side refuses a ship it is hostile to (a `Player` station and an Enemy-flagged ship, or a station answering that ship's fire). A derelict admits whatever its side; it is a hull to loot. A station you [own](#buy-the-station) admits you whatever your side |
 | the refusal | while the travel lock is on a station that refuses, the HUD mode chip reads `<NAME> REFUSES DOCKING` with the station object's `name`, the DOCK chip reads `DOCK REFUSED`, and `DOCK` builds nothing |
 | one connection | a hull holds one connection. A station with several ports still admits one ship; a second ship meets `<NAME> DOCK OCCUPIED` until the first lets go |
 | a living station's helm | the station owns the pair's helm. `HELM` is refused, the HUD reads `STATION HELM`, and the docked ship's drive, RCS and maneuvers are held. The station has no thruster, so the pair never moves; its bridge holds the pair level on the station's parked attitude |
@@ -266,6 +266,29 @@ The proof is `system_station_hire`: on a New Game, the player hires an escort
 through the pane, crosses sectors with it and finds it beside the ship after a
 save and a Load; a killed escort is gone from the fleet after the next save
 and Load.
+
+## Buy the station
+
+A living station that a generated world places is for sale to the ship docked
+with it. The Ship pane shows it under **This station**: its name, its price
+and a **Buy station** button or the reason it is refused. A station a
+scenario places and a derelict are not for sale.
+
+| rule | what happens |
+|---|---|
+| the gate | docked to a living station a generated world placed. No `services` entry is needed |
+| the price | twice what the station is worth at ask: every live section's [build recipe](../sections/#build-recipe), every stack of its hold at the item's `ask_cr`, and its credits. Your storage there is already yours and is not priced |
+| the credits | the ship pays the price to the civilization. The station keeps its own credits, stock and services |
+| refusals | in this order: not docked, not for sale, already yours, too few credits |
+| what becomes yours | the station admits you whatever your side. Its hold sells to you at the item's `bid_cr`; storage withdraw stays free. Its services still price at ask, and Take does not reach its credits |
+| what stays | the station keeps its civilization's side and its guns. It earns no income yet, and you cannot set its stock targets yet |
+| sectors and saves | the station stays yours when its sector retires and thaws, and the world save keeps it yours |
+| events | `OnStationBought` and one `OnCreditsChanged` for your ship with `cause: StationBuy`, see [Hold events](../events/#hold-events) |
+
+The proof is `system_station_own`: on a New Game, the player docks at a
+generated station of its own side, buys it through the pane, leaves its
+sector and comes back, saves and Loads, and then docks there with an
+Enemy-flagged ship, which the station refused before the buy.
 
 ## Spawning one
 

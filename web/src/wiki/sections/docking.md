@@ -61,7 +61,7 @@ You do not choose the ports. The game pairs the nearest eligible ones on the two
 
 <!-- Behavior verified against crates/nova_ship/src/sections/docking_section/admission.rs DockAdmission::admits, read by the DOCK chip (input/player/hints.rs) and on_docking_connection_request (connection.rs). -->
 
-The geometry is only half of it: the DOCK chip also goes dark, and a request refuses, while the target itself will not have you. A target refuses while it reads [Hostile](../../factions/) to you, while it is on the Enemy side, while it is [answering](../../factions/#retaliation) any ship's fire, or while its AI is actively fighting. A calm ally or Neutral lets you in, and a **neutralized** ship always admits a boarding, whatever side it was.
+The geometry is only half of it: the DOCK chip also goes dark, and a request refuses, while the target itself will not have you. A target refuses while it reads [Hostile](../../factions/) to you, while it is on the Enemy side, while it is [answering](../../factions/#retaliation) any ship's fire, or while its AI is actively fighting. A calm ally or Neutral lets you in, and a **neutralized** ship always admits a boarding, whatever side it was. A station you own lets you in whatever your side.
 
 A dock already made is never re-judged this way - a ship under fire from someone else stays docked with you. Only you hitting a docked Neutral with a crew aboard forces the undock, at once (see [Letting go](#letting-go)).
 

@@ -221,6 +221,13 @@ Docked at a living station in an Open World that offers refit, scroll the Ship p
 
 Under **Ships for sale**, the same station lists its **Escorts for hire**: armed hulls with a crew. Each shows its length, its sections by kind and its price, half again what the hull would cost. Click **Hire** and the escort joins your side, beside your ship. It holds station on your starboard side, the second on your port side; a third hire is refused. An escort matches your speed and facing, follows you across sectors and fights what attacks you. In a saved Open World your escorts stay across a Load. An escort that loses its last flight computer is out of your fleet and stays behind as a wreck.
 
+## Buying a station
+
+<!-- Block and action: crates/nova_interface/src/ship/station_buy.rs. Price:
+     crates/nova_ship/src/sections/station_buy.rs. -->
+
+Docked at a living station in an Open World, the Ship pane's panel shows **This station**: its name and its price, twice what its sections, its hold and its credits are worth at ask. Click **Buy station** to make it yours; the credits go to its civilization. An owned station lets you dock whatever side you are flagged, and its hold sells to you at the price it would pay. It keeps its side and its guns, and it earns nothing yet. In a saved Open World it stays yours across a Load. A price your credits cannot cover is refused.
+
 ## The inventory
 
 <figure class="figure">
@@ -310,7 +317,7 @@ Every live ship trades: any docked ship that is neither neutralized nor lootable
 | Rations | 8 cr | 6 cr |
 | Salvaged parts | 120 cr | 90 cr |
 
-Prices are fixed per item and the same on every ship. A Buy pays the ask and a Sell earns the bid, so selling back what you bought loses credits. While the form is open it shows the price and your balance after, for example `Price 20 cr, you after: 1,980 cr`. **Confirm** moves the items and the credits at once, and the note line reads `Bought 5 Stone ore from Frame Tender for 20 cr` or `Sold 10 Stone ore to Frame Tender for 30 cr`. A refused trade changes nothing and keeps the form open: `Refused: enter a quantity`, `Refused: quantity is zero`, `Refused: only 2 Stone ore in Frame Tender`, `Refused: Line Warship has room for 30 kg more`, `Refused: Frame Tender has only 20 cr`, `Refused: Frame Tender cannot hold more credits`, `Refused: Frame Tender does not trade`, or `Refused: not docked`. A trade never splits to fit the hold or the credits.
+Prices are fixed per item and the same on every ship. A Buy pays the ask and a Sell earns the bid, so selling back what you bought loses credits. At a station you [own](#buying-a-station), a Buy pays the bid instead. While the form is open it shows the price and your balance after, for example `Price 20 cr, you after: 1,980 cr`. **Confirm** moves the items and the credits at once, and the note line reads `Bought 5 Stone ore from Frame Tender for 20 cr` or `Sold 10 Stone ore to Frame Tender for 30 cr`. A refused trade changes nothing and keeps the form open: `Refused: enter a quantity`, `Refused: quantity is zero`, `Refused: only 2 Stone ore in Frame Tender`, `Refused: Line Warship has room for 30 kg more`, `Refused: Frame Tender has only 20 cr`, `Refused: Frame Tender cannot hold more credits`, `Refused: Frame Tender does not trade`, or `Refused: not docked`. A trade never splits to fit the hold or the credits.
 
 ### Jettison and pickup
 

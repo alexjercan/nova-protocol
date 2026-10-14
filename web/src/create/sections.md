@@ -1134,7 +1134,8 @@ never strand a hull clamped to something. A maneuver (ORBIT, GOTO, STOP) flies
 the pair and leaves the dock in place. A [station](../stations/#docking-at-a-station)
 is the exception to the helm rule: a living one owns the pair's helm and
 refuses `HELM`, a dead one hands the helm to the docked player at capture, and
-a living station on the Enemy side refuses the dock with a line on the HUD.
+a living station on the Enemy side, or one hostile to the ship, refuses the
+dock with a line on the HUD, unless the player owns it.
 
 <!-- Grammar verified against crates/nova_ship/src/sections/docking_section/mod.rs (config and defaults) and port.rs (the envelope and its strictest-of-two grading). Values from assets/base/sections/base.content.ron docking_port_section. -->
 

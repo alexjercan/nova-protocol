@@ -173,6 +173,29 @@ plus half the gap of the leader, `follow_waypoint` steers it outward and
 round the leader instead. It avoids no other body. A neutralized escort
 leaves the fleet.
 
+Docked at a living generated station (it wears a `GeneratedBodyId` and is not
+derelict), the Ship pane's "This station" block
+(`nova_interface/src/ship/station_buy.rs`) offers the station itself, above
+the lost-section list. No authored service gates it: every such station is
+for sale. The price is `station_price_cr`
+(`nova_ship/src/sections/station_buy.rs`): every live section's recipe at ask
+(`hull_price_cr`), the station's hold at ask and its credits, times
+`STATION_OWNERSHIP_FACTOR` (2/1). The player's storage there is already the
+player's and is not priced. `plan_station_buy` checks, in order: docked, for
+sale (`StationSaleType`), not owned, and the player's balance. A confirmed buy
+charges the player (cause `StationBuy`), pushes
+`ShipInventoryReport::StationBought` (`OnStationBought`) and inserts
+`OwnedStationMarker` on the station root. The price goes to the
+civilization, so the station keeps its balance, stock and services. An owned
+station keeps its civilization side and its AI, admits the player whatever
+the player's side (see "Who lets a dock in"), and sells its hold to the
+player at bid (`TradePriceType::Owned` in `plan_item_trade`); storage
+withdraw was already free. Its services still price at ask, its credits are
+its trading float (Take does not reach them), and it earns nothing yet: the
+`TODO(20261012-100028)` in `thaw_station` is where income will accrue.
+Ownership has one source of truth: the live marker, and `FrozenStation.owned`
+in the frozen record a retire or a save writes and a thaw reads back.
+
 `SectionKind` variants (one module per kind under `crates/nova_ship/src/sections/`;
 `turret_section/` and `torpedo_section/` are directories, not single files):
 
@@ -470,11 +493,14 @@ without the hulls touching.
 read by the DOCK chip and by the request. A ship target refuses with
 `DockRefusalType::Combat` while Hostile, Enemy, answering fire or fighting
 (a neutralized target admits). A station target (`StationMarker`) answers by
-`station_admission(allegiance, derelict, occupied)`: `StationOccupied` while
-a `DockedShip` is on its root (the one-connection-per-hull rule the port
-search already enforces, named so the HUD can say it), `EnemyStation` for a
-living station on the Enemy side, and admitted otherwise, a derelict on any
-side. `FlightVerbHints::dock_refusal` carries a station's line (`<NAME>
+`station_admission(allegiance, derelict, occupied, owned, hostile)`, in that
+order: `StationOccupied` while a `DockedShip` is on its root (the
+one-connection-per-hull rule the port search already enforces, named so the
+HUD can say it); admitted for a station the player owns
+(`OwnedStationMarker`) or a derelict, on any side; `EnemyStation` for a
+living station on the Enemy side; `HostileStation` for a living station the
+ship is hostile to by `ship_relation` (a Player station and an Enemy-flagged
+ship, or a station answering the ship's fire); and admitted otherwise. `FlightVerbHints::dock_refusal` carries a station's line (`<NAME>
 REFUSES DOCKING`, `<NAME> DOCK OCCUPIED`) while the travel lock is on it; the
 mode chip shows it and the DOCK chip reads `DOCK REFUSED`. A ship's refusal
 stays the dark chip.
@@ -1545,6 +1571,13 @@ per contact. A symmetric rule - ram damage - wants both.
   `thaw_fleet_escort` - `crates/nova_scenario/src/objects/fleet.rs`; the pane:
   `crates/nova_interface/src/ship/escorts.rs`; proof:
   `examples/systems/system_station_hire.rs`.
+- Station buy: `station_price_cr`, `STATION_OWNERSHIP_FACTOR`,
+  `plan_station_buy`, `StationSaleType` -
+  `crates/nova_ship/src/sections/station_buy.rs`; `OwnedStationMarker` -
+  `crates/nova_gameplay/src/markers.rs`; `FrozenStation.owned` -
+  `crates/nova_scenario/src/objects/station.rs`; the pane:
+  `crates/nova_interface/src/ship/station_buy.rs`; proof:
+  `examples/systems/system_station_own.rs`.
 - Integrity core: `NovaIntegrityPlugin` -
   `crates/nova_gameplay/src/integrity/mod.rs`; graph, sever and collapse:
   `ShipIntegrityPlugin` - `crates/nova_ship/src/sections/integrity.rs`.
