@@ -23,7 +23,8 @@ use bevy::{
 };
 use nova_events::prelude::{GeneratedBodyId, Meters, Meters3, ScenarioAddressableMarker};
 use nova_gameplay::prelude::{
-    ClusterType, DerelictShipMarker, IntegrityEnvelope, TempEntity, UnsettledBody,
+    ClusterType, DerelictShipMarker, IntegrityEnvelope, PlayerFleetMarker, TempEntity,
+    UnsettledBody,
 };
 use nova_scenario::prelude::{
     asteroid_scenario_object_prepared, base_scenario_object, planet_scenario_object_prepared,
@@ -1110,7 +1111,9 @@ pub(crate) fn freeze_sector_bodies(
 ///   materialize: they describe a world nobody configured any more, and no
 ///   other system would ever retire them, because the desired set names the
 ///   same coordinates either way. Adoption would give a waiting body to the
-///   new world's cell.
+///   new world's cell. The player's fleet ([`PlayerFleetMarker`]) stays: it
+///   belongs to the player's record, and a Load thaws it with the player
+///   before the world arms.
 ///
 /// Every [`FrozenSectors`] record and every unsettled-body wait goes on each
 /// of those frames too: a record is the state of the world that froze it, and
@@ -1134,6 +1137,7 @@ pub fn clear_sector_work<G: SectorGenerator>(
             PersistentBody,
             Without<ChildOf>,
             Without<WorldObserver>,
+            Without<PlayerFleetMarker>,
             Without<ScenarioAddressableMarker>,
         ),
     >,
