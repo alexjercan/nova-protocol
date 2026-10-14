@@ -59,7 +59,7 @@
     StartRole((
         id: "military",
         name: "Military",
-        about: "A patrol picket with one nose point-defense mount on light plate: the weakest start. The Line Warship class is its later goal.",
+        about: "A patrol picket with two point-defense mounts on reinforced plate: the lightest armed start. The Line Warship class is its later goal.",
         hull: "patrol_picket",
         kit: (
             credits: 1600,
