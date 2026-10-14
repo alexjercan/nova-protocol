@@ -1709,10 +1709,14 @@ impl<'a> Draw<'a> {
             ShipLayout {
                 design: ShipDesign {
                     sections,
+                    // The base voice, not the default: AUTHORED-OR-SILENT
+                    // reads an unset cue as a mute hull, and a generated
+                    // escort with no `rcs_loop_sound` pushed on its RCS in
+                    // silence.
                     presentation: ShipPresentationConfig {
                         skin: true,
                         style: Some(role_style_id(self.request.role).to_string()),
-                        ..default()
+                        ..ShipPresentationConfig::base_voice()
                     },
                     ..default()
                 },
@@ -2758,6 +2762,28 @@ pub(crate) mod tests {
                     "{role:?} {condition} wears the wrong style"
                 );
             }
+        }
+    }
+
+    /// AUTHORED-OR-SILENT reads an unset voice as a mute hull, so a generated
+    /// ship - a sector ship, a hull for sale, a hired escort - must author the
+    /// base voice or its RCS pushes make no sound at all.
+    #[test]
+    fn every_generated_hull_hisses_its_rcs() {
+        let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
+        for role in [
+            ShipRoleType::Civilian,
+            ShipRoleType::Industrial,
+            ShipRoleType::Scavenger,
+            ShipRoleType::Armored,
+        ] {
+            let layout =
+                generate_ship(&snapshot, request(1, role, 1.0)).expect("the ship generates");
+            assert_eq!(
+                layout.design.presentation.rcs_loop_sound,
+                ShipPresentationConfig::base_voice().rcs_loop_sound,
+                "{role:?} has no RCS loop"
+            );
         }
     }
 

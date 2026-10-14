@@ -46,6 +46,7 @@ mod manual;
 mod navigation;
 mod order;
 mod prediction;
+mod rcs_puff;
 mod state;
 mod thrusters;
 mod well_target;
@@ -67,6 +68,7 @@ pub use self::{
         ShipOrderReported, ShipOrderReports, SuspendedArrivalStandoff,
     },
     prediction::{FlightPrediction, FlightPredictionEndType},
+    rcs_puff::prelude::{RcsPuffMarker, RcsPuffPlugin},
     state::{
         resolved_arrival_standoff, Autopilot, AutopilotAction, AutopilotPhase, BodyRadius,
         FlightArrivalStandoff, FlightIntent, FlightSettings, MainDriveCommanded, ManeuverTelemetry,
@@ -103,10 +105,10 @@ pub mod prelude {
         FlightArrivalStandoff, FlightAuthority, FlightIntent, FlightPrediction,
         FlightPredictionEndType, FlightSettings, LegPlan, MainDriveCommanded, ManeuverTelemetry,
         NovaFlightPlugin, NovaFlightSystems, OrbitPlan, PlayerAutopilotCompleted, RcsActive,
-        RcsBudget, RcsIntent, ScriptedAlign, ScriptedAlignSettled, ShipHelmOrder,
-        ShipOrderDirective, ShipOrderEngaged, ShipOrderHelmAuthority, ShipOrderOutcome,
-        ShipOrderReport, ShipOrderReported, ShipOrderReports, SuspendedArrivalStandoff,
-        WellTargetType,
+        RcsBudget, RcsIntent, RcsPuffMarker, RcsPuffPlugin, ScriptedAlign, ScriptedAlignSettled,
+        ShipHelmOrder, ShipOrderDirective, ShipOrderEngaged, ShipOrderHelmAuthority,
+        ShipOrderOutcome, ShipOrderReport, ShipOrderReported, ShipOrderReports,
+        SuspendedArrivalStandoff, WellTargetType,
     };
 }
 

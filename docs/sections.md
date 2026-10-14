@@ -224,8 +224,8 @@ at most `AI_FOLLOW_CLOSING_SPEED`, 2 u/s). Only a speed gain lags
 (`AI_FOLLOW_FEED_LAG`, 2 s); a turn or a slow-down is flown at once. It never
 holds a velocity against the leader's travel. The held velocity refuses the
 RCS (`MatchVelocity { rcs: false }`), so the escort turns onto the error and
-burns its drive: an RCS push turns no hull and lights no plume, and an escort
-that took up the leader's start on it slid along as if dragged. The RCS may
+burns its drive: an RCS push turns no hull and lights no drive plume, and an
+escort that took up the leader's start on it slid along as if dragged. The RCS may
 help only to dodge: inside the leader's clearance (both arms plus 10 u), or
 when the leader closes on the escort fast enough to reach that clearance
 within `AI_FOLLOW_DODGE_LEAD` (2 s), about the time the drive takes to turn.

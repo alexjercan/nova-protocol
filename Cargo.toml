@@ -1146,6 +1146,10 @@ name = "loop_rcs_magazine"
 path = "examples/screenshots/loop_rcs_magazine.rs"
 
 [[example]]
+name = "loop_rcs_puff"
+path = "examples/screenshots/loop_rcs_puff.rs"
+
+[[example]]
 name = "loop_predicted_path"
 path = "examples/screenshots/loop_predicted_path.rs"
 

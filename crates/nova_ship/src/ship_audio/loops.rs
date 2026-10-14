@@ -15,7 +15,7 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 
 use super::{
-    levels::{engine_volume, rcs_volume},
+    levels::{engine_volume, rcs_exterior_volume, rcs_volume},
     routing::{owning_root, route_from},
     RAILGUN_CHARGE_FLOOR, RAILGUN_CHARGE_MAX_VOLUME, RAILGUN_CHARGE_TOP_SPEED,
 };
@@ -159,6 +159,10 @@ pub(super) fn drive_thruster_loops(
 /// player's modal or the autopilot wrote the command. A command the burn
 /// refused - no capability, a suppressed partner, an empty magazine - pushed
 /// nothing, so it hisses nothing.
+///
+/// Two curves, by route: the pilot's own hull hiss is [`rcs_volume`], and
+/// every other ship's is the louder, floored [`rcs_exterior_volume`], so a
+/// light push out in the world is still heard past the rolloff and the cap.
 pub(super) fn drive_rcs_loops(
     mut commands: Commands,
     time: Res<Time>,
@@ -191,7 +195,11 @@ pub(super) fn drive_rcs_loops(
         if effort <= 1e-4 {
             continue;
         }
-        let level = rcs_volume(effort);
+        let level = if q_is_player.contains(root) {
+            rcs_volume(effort)
+        } else {
+            rcs_exterior_volume(effort)
+        };
         let slot = targets.entry((root, handle)).or_insert(0.0);
         *slot = slot.max(level);
     }
@@ -671,9 +679,9 @@ mod tests {
         );
     }
 
-    /// A ship carrying its RCS voice on the ROOT, holding a full command and
-    /// delivering `applied` of it.
-    fn spawn_rcs_ship(app: &mut App, applied: f32) -> Entity {
+    /// A ship at `at` carrying its RCS voice on the ROOT, holding a full
+    /// command and delivering `applied` of it.
+    fn spawn_rcs_ship_at(app: &mut App, at: Vec3, applied: f32) -> Entity {
         let sounds = ShipFeedbackSounds {
             rcs_loop: Some(AssetRef::from(RIG_RCS)),
             ..Default::default()
@@ -681,7 +689,7 @@ mod tests {
         app.world_mut()
             .spawn((
                 SpaceshipRootMarker,
-                GlobalTransform::from(Transform::from_translation(Vec3::ZERO)),
+                GlobalTransform::from(Transform::from_translation(at)),
                 RcsIntent(Vec3::X),
                 RcsBudget {
                     applied,
@@ -692,16 +700,24 @@ mod tests {
             .id()
     }
 
+    /// [`spawn_rcs_ship_at`] at the origin.
+    fn spawn_rcs_ship(app: &mut App, applied: f32) -> Entity {
+        spawn_rcs_ship_at(app, Vec3::ZERO, applied)
+    }
+
     #[test]
     fn the_rcs_loop_plays_while_the_controller_burns_and_retires_at_rest() {
         let mut app = loop_app();
         let ship = spawn_rcs_ship(&mut app, 1.0);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(PlayerSpaceshipMarker);
         settle(&mut app);
         let (route, level) = voice_for(&mut app, ship).expect("a burning ship hisses");
-        assert_eq!(route, AudioRoute::Exterior);
+        assert_eq!(route, AudioRoute::Hull);
         assert!(
             (level - RCS_MAX_VOLUME).abs() < 1e-3,
-            "a full-deflection burn drives the loop to its ceiling, got {level}"
+            "a full-deflection burn drives the pilot's own loop to its ceiling, got {level}"
         );
 
         // The burn stops delivering (the mouse stopped / the autopilot
@@ -711,6 +727,40 @@ mod tests {
         assert!(
             voice_for(&mut app, ship).is_none(),
             "the loop mutes and goes"
+        );
+    }
+
+    /// An escort holds its slot 200 m off the leader, so a hiss that only
+    /// reads beside the camera is one the pilot never hears.
+    const ESCORT_RANGE: f32 = 30.0;
+
+    /// An escort's RCS must be heard. Through the engine's own mix, a light push from another ship at escort range
+    /// must sound at least as loud as the pilot's own hull hiss at full
+    /// deflection, and the cap must not hold it silent.
+    #[test]
+    fn another_ships_light_rcs_push_is_heard_at_escort_range() {
+        let mut app = loop_app();
+        app.add_plugins(NovaAudioPlugin);
+        app.world_mut()
+            .spawn((SfxListenerMarker, GlobalTransform::IDENTITY));
+        let ship = spawn_rcs_ship_at(&mut app, Vec3::X * ESCORT_RANGE, 0.25);
+        settle(&mut app);
+
+        let mut q_voice = app
+            .world_mut()
+            .query::<(&RcsLoopSfx, &SfxVoice, &VoiceMix)>();
+        let (_, voice, mix) = q_voice
+            .iter(app.world())
+            .find(|(sfx, ..)| sfx.source == ship)
+            .expect("another ship's RCS push opens a voice");
+        assert_eq!(voice.route, AudioRoute::Exterior);
+        assert!(!mix.capped, "a lone hiss is not capped");
+        assert!(
+            mix.level >= RCS_MAX_VOLUME,
+            "a quarter push at {} m resolves to {}, under the pilot's own full hiss {}",
+            ESCORT_RANGE * 10.0,
+            mix.level,
+            RCS_MAX_VOLUME
         );
     }
 

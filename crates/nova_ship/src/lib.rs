@@ -87,6 +87,10 @@ impl Plugin for NovaShipPlugin {
         });
         app.add_plugins(camera::SpaceshipCameraControllerPlugin);
         app.add_plugins(flight::NovaFlightPlugin);
+        // What an RCS push looks like. Render-only, like the damage effects.
+        if self.render {
+            app.add_plugins(flight::RcsPuffPlugin);
+        }
         app.add_plugins(ship_audio::ShipAudioPlugin);
 
         // Configure system Sets

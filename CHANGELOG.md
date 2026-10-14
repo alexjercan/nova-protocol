@@ -171,6 +171,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** A refused mining pulse plays the section's new required
   `refusal_sound` at the emitter, once per pulse. Base content uses
   `radar_deny.wav`.
+- Every RCS push throws gas puffs off the hull. Another ship's RCS hiss is
+  louder and carries at any push, and generated ships now voice their RCS and
+  cockpit cues.
 
 ### Internals & Tooling
 
