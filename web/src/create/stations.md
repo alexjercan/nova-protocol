@@ -75,7 +75,7 @@ what levels the station, see below.
 A docked ship trades with a living station that offers `Trade` as it trades
 with a ship, and keeps items in the storage of one that offers `Storage` (see
 [Trade and storage](#trade-and-storage)). `Rebuild` and `Refit` are in play
-too (see [Rebuild](#rebuild), [Swap](#swap), [Add](#add) and [Buy a hull](#buy-a-hull)); `Jobs` and `Roster` are
+too (see [Rebuild](#rebuild), [Swap](#swap), [Add](#add), [Buy a hull](#buy-a-hull) and [Hire an escort](#hire-an-escort)); `Jobs` and `Roster` are
 checked and carried, and the screens that read them are their own task.
 
 ## How a station behaves
@@ -240,6 +240,32 @@ the price and the trade-in, and a Buy button or the reason it is refused.
 The proof is `system_station_buy`: on a New Game, the player docks at a
 generated station, buys its first hull through the pane, and the hull and the
 station's list come back after a save and a Load.
+
+## Hire an escort
+
+After its hulls for sale, a living station that a generated world places
+hires out one to three armed escorts: scavenger and armored hulls its
+civilization can build, laid out from the world seed and the station's id. A
+civilization that builds no armed role hires none, and a station a scenario
+places hires none. The Ship pane lists them under **Escorts for hire**: each
+escort's name, length, section count and kinds, the price, and a Hire button
+or the reason it is refused.
+
+| rule | what happens |
+|---|---|
+| the gate | docked to a living station whose `services` list `Refit`, that hires out escorts |
+| the price | half again the hull's price: every section's [build recipe](../sections/#build-recipe) at ask, times 3/2 |
+| the fleet | two slots, starboard then port. A third hire is refused |
+| the credits | the ship pays the price and the station takes it |
+| refusals | in this order: not docked, no `Refit` service, a full fleet, too few credits, a station balance that would overflow |
+| the result | the escort leaves the station's list and spawns on your side, beside your ship, with an empty hold. It holds station beside you, matches your speed and facing, and fights what attacks you |
+| sectors and saves | an escort flies with you across sectors and the world save keeps it in your fleet. A neutralized escort leaves the fleet and stays in its sector as a wreck |
+| events | `OnEscortHired` and one `OnCreditsChanged` per party with `cause: EscortHire`, see [Hold events](../events/#hold-events) |
+
+The proof is `system_station_hire`: on a New Game, the player hires an escort
+through the pane, crosses sectors with it and finds it beside the ship after a
+save and a Load; a killed escort is gone from the fleet after the next save
+and Load.
 
 ## Spawning one
 

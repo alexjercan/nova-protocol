@@ -60,6 +60,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A generated `Refit` station sells three to five hulls on the Ship pane. A
   buy trades in the old hull by health, stores the hold, docks the new hull
   and fires `OnShipBought`.
+- A generated `Refit` station hires out one to three armed escorts
+  (`OnEscortHired`). An escort holds station beside you across sectors and
+  keeps across a save; a neutralized one leaves the fleet.
 
 ### Scenarios & Objectives
 
@@ -99,8 +102,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** An asteroid `lock_signature` override must be finite and above
   zero. Any other value fails at lint and at load.
 - **(breaking)** Stations are content: `Station` entries spawned by id as
-  `kind: Station` with a required side and hull `collapse_threshold`. Save
-  format 8 (chart, plates, hulls) refuses older saves.
+  `kind: Station` with a required side and `collapse_threshold`. Save format
+  8 (chart, plates, hulls, fleet) refuses older saves.
 - A station is a dynamic body: gravity and rams move it, its bridge levels it
   and it orbits in a well. At its `collapse_threshold` share of hull it
   collapses like a ship and drops its hold and storage.

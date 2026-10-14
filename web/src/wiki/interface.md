@@ -214,6 +214,13 @@ Docked at a living station that offers refit, select a section on the Ship pane.
 
 Docked at a living station in an Open World that offers refit, scroll the Ship pane's panel to **Ships for sale**. Each hull shows its length, its sections by kind, its price and what the station pays for your ship. Click **Buy** to take it. Your old ship is traded in: each section pays for its parts by its health, and a lost section pays nothing. Your hold goes into the station's storage, and the new ship docks where the old one was, at full health, with an empty hold. Your guns' keys carry over to the new guns of the same kind; a drive is flown by the computer. A hold the storage cannot take is refused, as is a price your credits and the trade-in cannot cover. In a saved Open World the new ship stays across a Load.
 
+## Hiring an escort
+
+<!-- List and action: crates/nova_interface/src/ship/escorts.rs. Price and
+     fleet slots: crates/nova_ship/src/sections/escort_hire.rs. -->
+
+Under **Ships for sale**, the same station lists its **Escorts for hire**: armed hulls with a crew. Each shows its length, its sections by kind and its price, half again what the hull would cost. Click **Hire** and the escort joins your side, beside your ship. It holds station on your starboard side, the second on your port side; a third hire is refused. An escort matches your speed and facing, follows you across sectors and fights what attacks you. In a saved Open World your escorts stay across a Load. An escort that loses its last flight computer is out of your fleet and stays behind as a wreck.
+
 ## The inventory
 
 <figure class="figure">

@@ -267,6 +267,16 @@ and at thaw: the cell it was generated in, the generator's stem and an index.
 so a payload string that names a generated body is the typed id and nothing
 written by hand is.
 
+A hired escort wears a `GeneratedBodyId` too (`escort_id`: the station's id
+with the stem `<stem>_<index>_escort` and the roster slot as its index), but it
+is not a cell's body: `PlayerFleetMarker` keeps it out of `adopt_moving_bodies`
+and the freeze, `freeze_fleet` (`nova_scenario/src/objects/fleet.rs`) writes
+it into `SavedPlayer.fleet`, and the player's spawn thaws it beside the
+player, following it. The save refuses a fleet escort on a slot outside
+`FLEET_SIDES` or on a slot another escort holds. A neutralized escort loses
+the marker and its `AIFollow`, so the next `Adopt` gives the wreck to the cell
+it stands in.
+
 Three consequences, each with its owner:
 
 - **Lint refuses the literal.** A `Names::Object` or `Names::NewObject` field,
@@ -974,12 +984,12 @@ The hold events cross the crate line the same way ship orders do: a queue
 component. `ShipInventoryReports` (`nova_gameplay`) is required by every
 spaceship root, and the owning system pushes one report per occurrence - the
 cargo intake for a taken or dropped stack, the inventory pane for a confirmed
-trade and each purse it moved or a station store or withdraw, the ship pane for a repair, a rebuild, a swap, an add or a hull buy. Credits have one
+trade and each purse it moved or a station store or withdraw, the ship pane for a repair, a rebuild, a swap, an add, a hull buy or an escort hire. Credits have one
 choke point, `ShipInventoryReports::change_credits`, which is the only
 post-spawn writer and reports nothing for a no-op. `track_ship_inventory_reports`
 drains the queue in `FixedUpdate` after `SpaceshipSectionSystems` and fires
 `OnPickedUp`, `OnJettisoned`, `OnTraded`, `OnCreditsChanged`, `OnRepaired`,
-`OnRebuilt`, `OnSwapped`, `OnAdded`, `OnShipBought`, `OnStored` and `OnWithdrawn`;
+`OnRebuilt`, `OnSwapped`, `OnAdded`, `OnShipBought`, `OnEscortHired`, `OnStored` and `OnWithdrawn`;
 pane reports pushed under the interface pause arrive on the first fixed tick
 after it closes. `OnMined` has no queue: `pulse_mining_beams` (`mining.rs`)
 fires it per pulse that flips at least one corner, with the rock as `id` and

@@ -57,6 +57,7 @@ The whole vocabulary at a glance:
 | [`OnSwapped`](#hold-events) | `id`, `type_name`, `section`, `from`, `to`, `parts`, `price_cr` | the Ship pane swaps a section for another part at a docked station |
 | [`OnAdded`](#hold-events) | `id`, `type_name`, `section`, `part`, `at`, `point`, `parts`, `price_cr` | the Ship pane adds a part at a free socket at a docked station |
 | [`OnShipBought`](#hold-events) | `id`, `type_name`, `hull`, `price_cr`, `trade_in_cr` | the Ship pane buys a whole hull from a docked station |
+| [`OnEscortHired`](#hold-events) | `id`, `type_name`, `escort`, `hull`, `price_cr` | the Ship pane hires an escort from a docked station into the fleet |
 | [`OnStored`](#hold-events) | `id`, `other_id`, `other_type_name`, `item`, `count` | the player stores a stack in a docked station's storage |
 | [`OnWithdrawn`](#hold-events) | `id`, `other_id`, `other_type_name`, `item`, `count` | the player withdraws a stack from a docked station's storage |
 
@@ -808,12 +809,13 @@ inventory, so a handler counts occurrences, not frames.
 | `OnPickedUp` | the ship whose intake took the stack | none | `canister`, `item`, `count` |
 | `OnJettisoned` | the ship whose intake dropped the stack | none | `canister`, `item`, `count` |
 | `OnTraded` | the ship traded WITH | the player's ship | `trade` (`Buy` or `Sell`, from the player's side), `item`, `count`, `price_cr` |
-| `OnCreditsChanged` | the ship whose purse moved | none | `previous_cr`, `current_cr`, `delta_cr` (signed), `cause` (`Trade`, `Take`, `Rebuild`, `Swap`, `Add` or `ShipBuy`) |
+| `OnCreditsChanged` | the ship whose purse moved | none | `previous_cr`, `current_cr`, `delta_cr` (signed), `cause` (`Trade`, `Take`, `Rebuild`, `Swap`, `Add`, `ShipBuy` or `EscortHire`) |
 | `OnRepaired` | the repaired ship | none | `section` (the Ship pane code, `CTL-1`), `item`, `count` (plates spent) |
 | `OnRebuilt` | the rebuilt ship | none | `section` (the code the lost section had, `PDC-1`), `parts` (every recipe part, item id to count), `price_cr` (work plus bought parts) |
 | `OnSwapped` | the refitted ship | none | `section` (the Ship pane code, `PDC-1`), `from` and `to` (the old and new section prototype ids), `parts` (every part of the new part's recipe), `price_cr` (work plus bought parts) |
 | `OnAdded` | the refitted ship | none | `section` (the new section's Ship pane code, `PDC-3`), `part` (its section prototype id), `at` and `point` (the code and socket id it mounts on), `parts` (every part of its recipe), `price_cr` (work plus bought parts) |
 | `OnShipBought` | the ship that bought | none | `hull` (the catalogue name, `Vel civilian Mk 1`), `price_cr` (every new section's recipe at ask), `trade_in_cr` (what the station paid for the old hull) |
+| `OnEscortHired` | the ship that hired | none | `escort` (the escort's id, `sector_1_0_0_cluster_1_0_0_station_0_escort_0`), `hull` (the catalogue name, `Vel armored escort 1`), `price_cr` (the hull's price times 3/2) |
 | `OnStored` | the station whose storage took the stack | the player's ship | `item`, `count` |
 | `OnWithdrawn` | the station whose storage gave the stack | the player's ship | `item`, `count` |
 
@@ -837,13 +839,14 @@ one `OnCreditsChanged` per party, `cause: Trade`, in the same frame; the
 loot-take of a dead ship's purse raises one with `cause: Take`; a rebuild
 raises one per party with `cause: Rebuild`, the ship paying and the station
 paid, a swap one per party with `cause: Swap`, an add one per party
-with `cause: Add`, and a hull buy one per party with `cause: ShipBuy`. A
+with `cause: Add`, a hull buy one per party with `cause: ShipBuy`, and an
+escort hire one per party with `cause: EscortHire`. A
 hull buy also raises one `OnStored` per stack of the old hold. A move that
 leaves the purse unchanged raises nothing. `OnStored` and `OnWithdrawn` fire
 once per confirmed move and move no credits, so they raise no
 `OnCreditsChanged`.
 
-Trades, stores, withdraws, repairs, rebuilds, swaps, adds and hull buys come from the interface panes, which run while the world
+Trades, stores, withdraws, repairs, rebuilds, swaps, adds, hull buys and escort hires come from the interface panes, which run while the world
 is paused: their events arrive on the first simulation tick after the pane
 closes. Intake and mining events arrive the frame the hold changes.
 
@@ -871,7 +874,8 @@ A prospecting berth that wants one of each:
 ```
 
 The example mod's `example_prospect` scenario runs all but `OnRebuilt`,
-`OnSwapped`, `OnAdded`, `OnShipBought`, `OnStored` and `OnWithdrawn`.
+`OnSwapped`, `OnAdded`, `OnShipBought`, `OnEscortHired`, `OnStored` and
+`OnWithdrawn`.
 
 </details>
 

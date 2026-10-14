@@ -146,6 +146,33 @@ docking port's face lies on the old port's face. The old port's despawn
 releases the dock, and `redock_bought_hull` docks the new port with the
 station, giving up with a warning after `REDOCK_FRAMES`.
 
+After its hulls for sale the catalogue holds one to three escorts for hire
+(`HullOfferType::Hire { slot }`): fighting roles (scavenger, armored) the
+civilization can build, cycled from a seeded start, none where it builds no
+fighting role. Each keeps its roster slot, so `escort_id` (station id, stem
+`<stem>_<index>_escort`, the slot as index) gives one escort one id however
+the earlier ones were hired. The Ship pane's "Escorts for hire" list
+(`nova_interface/src/ship/escorts.rs`) shows each escort's length, kinds and
+price with a Hire button or the refusal. `plan_escort_hire`
+(`nova_ship/src/sections/escort_hire.rs`) checks, in order: docked, `Refit`,
+a free fleet slot (`FLEET_SIDES`, starboard then port, so the cap is two),
+the player's balance against the price, and the station's balance plus the
+price. The price is `escort_price_cr`, `hull_price_cr` times
+`ESCORT_HIRE_FACTOR` (3/2). A confirmed hire moves both balances (cause
+`EscortHire`), pushes `ShipInventoryReport::EscortHired` (`OnEscortHired`)
+and triggers `EscortHireRequest`. `hire_station_escort`
+(`nova_scenario/src/objects/fleet.rs`) takes the offer off the catalogue and
+spawns the escort Player-sided, with an empty hold and no credits, beside the
+player on its slot and away from the station, then adds `PlayerFleetMarker`
+and `AIFollow`. `update_follow_flight` (`nova_ship/src/input/ai/follow.rs`)
+holds the escort at the leader's anchor plus the leader's rotation times the
+side times both arms plus `AI_FOLLOW_GAP` (20 u), matches the leader's
+velocity and facing, keeps its leash centred on the leader, and gives way to
+a combat engage. When the straight line to the slot passes within both arms
+plus half the gap of the leader, `follow_waypoint` steers it outward and
+round the leader instead. It avoids no other body. A neutralized escort
+leaves the fleet.
+
 `SectionKind` variants (one module per kind under `crates/nova_ship/src/sections/`;
 `turret_section/` and `torpedo_section/` are directories, not single files):
 
@@ -1511,6 +1538,13 @@ per contact. A symmetric rule - ram damage - wants both.
   `crates/nova_world_base/src/station_hulls.rs`; the pane:
   `crates/nova_interface/src/ship/shipyard.rs`; proof:
   `examples/systems/system_station_buy.rs`.
+- Escort hire: `escort_id`, `escort_price_cr`, `plan_escort_hire`,
+  `FLEET_SIDES`, `EscortHireRequest` -
+  `crates/nova_ship/src/sections/escort_hire.rs`; `AIFollow` -
+  `crates/nova_ship/src/input/ai/follow.rs`; the spawn, `freeze_fleet` and
+  `thaw_fleet_escort` - `crates/nova_scenario/src/objects/fleet.rs`; the pane:
+  `crates/nova_interface/src/ship/escorts.rs`; proof:
+  `examples/systems/system_station_hire.rs`.
 - Integrity core: `NovaIntegrityPlugin` -
   `crates/nova_gameplay/src/integrity/mod.rs`; graph, sever and collapse:
   `ShipIntegrityPlugin` - `crates/nova_ship/src/sections/integrity.rs`.
