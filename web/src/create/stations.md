@@ -258,13 +258,13 @@ or the reason it is refused.
 | the fleet | two slots, starboard then port. A third hire is refused |
 | the credits | the ship pays the price and the station takes it |
 | refusals | in this order: not docked, no `Refit` service, a full fleet, too few credits, a station balance that would overflow |
-| the result | the escort leaves the station's list and spawns on your side, beside your ship, with an empty hold. It holds station beside you, matches your speed and facing, and fights what attacks you |
+| the result | the escort leaves the station's list and spawns on your side, beside your ship, with an empty hold. It flies on its own drive to its place off your side and behind your travel, matches your speed, holds where it is while you stop, and fights what attacks you |
 | sectors and saves | an escort flies with you across sectors and the world save keeps it in your fleet. A neutralized escort leaves the fleet and stays in its sector as a wreck |
 | events | `OnEscortHired` and one `OnCreditsChanged` per party with `cause: EscortHire`, see [Hold events](../events/#hold-events) |
 
 The proof is `system_station_hire`: on a New Game, the player hires an escort
-through the pane, crosses sectors with it and finds it beside the ship after a
-save and a Load; a killed escort is gone from the fleet after the next save
+through the pane, crosses sectors with it, sees it fly formation through a
+turn and finds it beside the ship after a save and a Load; a killed escort is gone from the fleet after the next save
 and Load.
 
 ## Buy the station

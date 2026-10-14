@@ -61,8 +61,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   buy trades in the old hull by health, stores the hold, docks the new hull
   and fires `OnShipBought`.
 - A generated `Refit` station hires out one to three armed escorts
-  (`OnEscortHired`). An escort holds station beside you across sectors and
-  keeps across a save; a neutralized one leaves the fleet.
+  (`OnEscortHired`). An escort flies formation on its own drive across
+  sectors and saves; a neutralized one leaves the fleet.
 - A living generated station sells itself on the Ship pane for twice its worth
   at ask (`OnStationBought`). It stays yours across a save, admits you on any
   side and sells its hold at bid.

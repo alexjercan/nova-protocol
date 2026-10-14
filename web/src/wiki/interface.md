@@ -219,7 +219,7 @@ Docked at a living station in an Open World that offers refit, scroll the Ship p
 <!-- List and action: crates/nova_interface/src/ship/escorts.rs. Price and
      fleet slots: crates/nova_ship/src/sections/escort_hire.rs. -->
 
-Under **Ships for sale**, the same station lists its **Escorts for hire**: armed hulls with a crew. Each shows its length, its sections by kind and its price, half again what the hull would cost. Click **Hire** and the escort joins your side, beside your ship. It holds station on your starboard side, the second on your port side; a third hire is refused. An escort matches your speed and facing, follows you across sectors and fights what attacks you. In a saved Open World your escorts stay across a Load. An escort that loses its last flight computer is out of your fleet and stays behind as a wreck.
+Under **Ships for sale**, the same station lists its **Escorts for hire**: armed hulls with a crew. Each shows its length, its sections by kind and its price, half again what the hull would cost. Click **Hire** and the escort joins your side, beside your ship. It flies on your starboard side, the second on your port side; a third hire is refused. An escort flies on its own drive: while you travel it takes its place 200 m off your side and 100 m behind, and matches your speed; while you stop or turn in place it holds where it is. It follows you across sectors and fights what attacks you. In a saved Open World your escorts stay across a Load. An escort that loses its last flight computer is out of your fleet and stays behind as a wreck.
 
 ## Buying a station
 

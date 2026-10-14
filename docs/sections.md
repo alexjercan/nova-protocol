@@ -198,13 +198,19 @@ and triggers `EscortHireRequest`. `hire_station_escort`
 spawns the escort Player-sided, with an empty hold and no credits, beside the
 player on its slot and away from the station, then adds `PlayerFleetMarker`
 and `AIFollow`. `update_follow_flight` (`nova_ship/src/input/ai/follow.rs`)
-holds the escort at the leader's anchor plus the leader's rotation times the
-side times both arms plus `AI_FOLLOW_GAP` (20 u), matches the leader's
-velocity and facing, keeps its leash centred on the leader, and gives way to
-a combat engage. When the straight line to the slot passes within both arms
-plus half the gap of the leader, `follow_waypoint` steers it outward and
-round the leader instead. It avoids no other body. A neutralized escort
-leaves the fleet.
+flies the escort as the combat pilot flies: a held `MatchVelocity` of the
+leader's velocity plus a closing speed the hull can brake from
+(`ai_radial_speed`), so only its drive and its computers move it. The goal is
+`formation_goal`. A leader at or above `AI_FOLLOW_TRAVEL_SPEED` (1 u/s) sets
+the frame with its travel, not its nose: the slot is the side times both arms
+plus `AI_FOLLOW_GAP` (20 u), `AI_FOLLOW_TRAIL` (10 u) behind the leader. A
+slower leader leaves the escort where it is, pulled into `AI_FOLLOW_HOLD`
+(15 to 40 u between the hulls), so a hull turning in place keeps its escort
+still. The leg is planned in the leader's frame with `plan_leg`, round the
+leader, every other hull and every sized body by the escort's arm plus 10 u.
+Far from its goal the escort points at it; within 20 u it points where the
+leader points. It keeps its leash centred on the leader and gives way to a
+combat engage. A neutralized escort leaves the fleet.
 
 Docked at a living generated station (it wears a `GeneratedBodyId` and is not
 derelict), the Ship pane's "This station" block
