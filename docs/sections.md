@@ -219,8 +219,11 @@ own parked hulls retires; the save format is 10.
 
 The Station pane's "Ships for sale" list
 (`nova_interface/src/station/shipyard.rs`) shows every hull parked at the
-docked station, a rebuy named "(rebuy)": its length, section count, kind
-summary, price and trade-in, with a Buy button or the refusal.
+docked station, a rebuy named "(rebuy)": a 3D view, its length, section
+count, kind summary, price and trade-in, with a Buy button or the refusal.
+The view (`hull_preview.rs`) draws the hull's design as the Ship pane draws a
+ship, one tinted block per section, on its own render layer and camera; the
+cameras render only while the Station pane is on screen.
 `plan_hull_buy` checks, in order: docked, `Refit`, the player's balance plus
 the trade-in against the price, and the station's balance plus the price
 against the trade-in. A hull for sale costs `hull_price_cr`, every section's

@@ -74,9 +74,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - At a `Refit` station the Ship pane lists the parts it builds, with prices.
   Place one, aim its ghost at a free socket and click to add it, paid by
   recipe; it takes its kind's key and fires `OnAdded`.
-- A `Refit` station parks a hull for sale at each port it fits, one kept free.
-  A buy hands you its helm with start-role keys and parks your old ship for
-  rebuy at the trade-in (`OnShipBought`).
+- A `Refit` station parks a hull for sale, shown in 3D, at each port it fits,
+  one kept free. A buy hands you its helm with start-role keys and parks your
+  old ship for rebuy (`OnShipBought`).
 - A generated `Refit` station hires out one to three armed escorts
   (`OnEscortHired`). Each spawns clear, follows on its own drive across
   sectors, holds for a dock and saves; a neutralized one leaves.

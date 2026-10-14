@@ -21,9 +21,11 @@
 //! | --- | --- |
 //! | `station_buy` | The "This station" block and the station buy action handler. |
 //! | `shipyard` | The "Ships for sale" list and the buy action handler. |
+//! | `hull_preview` | The 3D view of each hull on a "Ships for sale" card. |
 //! | `escorts` | The "Escorts for hire" list and the hire action handler. |
 
 mod escorts;
+mod hull_preview;
 mod shipyard;
 mod station_buy;
 
@@ -39,7 +41,7 @@ pub use self::{
     shipyard::HullBuyCommand,
     station_buy::{StationBuyCommand, STATION_BUY_BUTTON},
 };
-pub(crate) use self::{escorts::*, shipyard::*, station_buy::*};
+pub(crate) use self::{escorts::*, hull_preview::*, shipyard::*, station_buy::*};
 use crate::pane::{panel_paint, themed_label};
 
 /// Glob-import surface: `use nova_interface::station::prelude::*`.
@@ -258,6 +260,7 @@ pub(crate) struct StationPanePlugin;
 impl Plugin for StationPanePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<StationRuntime>();
+        app.init_resource::<HullPreviews>();
         app.add_message::<HullBuyCommand>();
         app.add_message::<EscortHireCommand>();
         app.add_message::<StationBuyCommand>();
@@ -270,6 +273,7 @@ impl Plugin for StationPanePlugin {
                 scroll_station_panel,
                 update_station_sale_block,
                 update_station_hull_list,
+                sync_hull_previews,
                 update_station_escort_list,
                 update_station_panel,
             )

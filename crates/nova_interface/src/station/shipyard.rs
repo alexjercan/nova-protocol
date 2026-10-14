@@ -2,9 +2,10 @@
 //!
 //! While the ship is docked at a living station that offers Refit and has
 //! hulls parked at its ports ([`ParkedHulls`]), the pane lists every one, a
-//! hull for sale and a hull traded in for rebuy alike: its name, its length
-//! and section count, how many sections of each kind it carries, the price
-//! and the trade-in, and a Buy button or the reason the buy is refused. A
+//! hull for sale and a hull traded in for rebuy alike: a 3D view of the hull
+//! (`hull_preview`), its name, its length and section count, how many
+//! sections of each kind it carries, the price and the trade-in, and a Buy
+//! button or the reason the buy is refused. A
 //! click raises a [`HullBuyCommand`]; [`apply_station_hull_buy_commands`]
 //! plans it with [`plan_hull_buy`], moves the credits both ways, and raises
 //! the [`HullBuyRequest`] the scenario crate swaps the hulls from. The old
@@ -18,7 +19,7 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{theme::UiColor, widget::ButtonSpec};
 
-use super::{offer_cell, offer_rows, StationRuntime};
+use super::{offer_cell, offer_rows, HullPreviewSlot, StationRuntime, HULL_PREVIEW_PX};
 use crate::{
     pane::{compact_button, play_menu_select, themed_label},
     ship::{code_prefix, ResolvedSite, ShipRuntime, StationSite},
@@ -41,6 +42,13 @@ pub(crate) struct StationHullList;
 /// so the rows respawn only when one changes.
 #[derive(Component, Default)]
 pub(crate) struct StationHullRows(Vec<HullRow>);
+
+impl StationHullRows {
+    /// The hulls the rows list, in list order.
+    pub(crate) fn hulls(&self) -> impl Iterator<Item = Entity> + '_ {
+        self.0.iter().map(|row| row.hull)
+    }
+}
 
 /// One parked hull as the list shows it.
 #[derive(Clone, Debug, PartialEq)]
@@ -284,6 +292,26 @@ pub(crate) fn update_station_hull_list(
     commands.entity(rows_entity).with_children(|parent| {
         for (index, row) in rows.iter().enumerate() {
             parent.spawn(offer_cell()).with_children(|cell| {
+                // `sync_hull_previews` hands the image its hull's view. The
+                // frame takes the card's width: a fixed width here makes
+                // taffy measure the labels at min-content width and grow the
+                // list by hundreds of px. The image is absolute so its
+                // measure cannot size the card either.
+                cell.spawn(Node {
+                    height: px(HULL_PREVIEW_PX.y as f32),
+                    flex_shrink: 0.0,
+                    ..default()
+                })
+                .with_child((
+                    HullPreviewSlot { hull: row.hull },
+                    ImageNode::default(),
+                    Node {
+                        position_type: PositionType::Absolute,
+                        width: percent(100),
+                        height: percent(100),
+                        ..default()
+                    },
+                ));
                 cell.spawn(themed_label(&row.name, 13.0, UiColor::Primary));
                 cell.spawn(themed_label(&row.size, 12.0, UiColor::Body));
                 cell.spawn(themed_label(&row.kinds, 12.0, UiColor::Body));
