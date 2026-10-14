@@ -1,8 +1,8 @@
 # Greebles: research a clearer placement language than region, density, orientation
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 95
-- TAGS: v0.16.0,skin,research
+- TAGS: v0.16.0, skin, research
 
 ## User facts
 - Owner feedback 2026-10-13 on the style language (`FixturePlacement { region, density, orientation }`):
@@ -22,6 +22,10 @@
   - Rules may look past direct neighbours: 2x2 or 3x3 windows, or what lies within a range.
   - The language is a technical solver configuration. It uses no game-fiction words; the code is the code.
   - The research note is redone on this basis.
+
+- Second note landed 2026-10-14 in 7dae7ad3c (seeded solve on the shell surface; candidates A, B, C; agent recommended C).
+- Owner decision 2026-10-14: candidate C's structure is accepted, but its plate filters and socket keywords are not. The accepted language is greebles with four link points naming style-declared link types (`connects`), empty as a greeble with `fixture: None`, optional `near` (`greebles`, `radius`, `factor`, where 0 is a hard ban), optional `max_count`, required `rotate` and `weight`, and no plate geometry filters. It is recorded at the top of `RESEARCH.md` under "Accepted language". No compatibility with today's look.
+- Orchestrator close 2026-10-14: research accepted; the solver slice starts under 133643.
 
 ## Delivery gate
 - A research note in this task folder: how placement works today (region, density, orientation, with real style content), what modders find unclear, prior art (procedural greebling in other games/tools), and two or three candidate languages with real RON examples for the existing styles. Stop for the owner.

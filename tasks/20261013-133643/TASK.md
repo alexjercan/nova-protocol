@@ -11,6 +11,8 @@
 ## Agent findings
 - Depends on the placement language research task (same strand). Not yet surveyed.
 
+- Owner decision 2026-10-14: the greeble placement language is accepted (`tasks/20261013-133640/RESEARCH.md`, "Accepted language"). Start the solver slice now: the surface graph module and the pure seeded solver with unit tests, as in section 7 of that note, using the accepted language rather than the candidate C keywords. No compatibility with today's greeble placement, and no save migration (nothing is released).
+
 ## Delivery gate
 - After the research note is accepted: propose how a plate learns which greeble sits on it and reshapes (flattened pad, footprint), show before/after frames, then implement. Regenerate base content.
 

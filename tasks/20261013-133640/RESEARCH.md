@@ -16,6 +16,56 @@ the throwaway prototype in section 8. **[web]** checked on the web during this
 research. **[knowledge]** from memory, not checked. **[unverified]** nobody
 measured it.
 
+## Accepted language (owner, 2026-10-14)
+
+This section overrides the candidate RON in section 3. The owner rejected the
+plate filters and socket keywords there (`on`, `falls`, `out`, `clear`,
+`within`, `count`) and any attempt to keep today's look. Ships may look
+different after the change.
+
+- A greeble has four link points, `up`, `right`, `down`, `left`, in the cell
+  frame. Each names a link type.
+- Link types are ids declared by the style, each with `connects`: the link
+  types it may face. Lint requires `connects` to be symmetric and every id to
+  be known.
+- Empty is a greeble with `fixture: None`. It takes part in the solve.
+- `rotate: All | Half | None` and `weight` are required.
+- `near: [(greebles, radius, factor)]` is optional (absent = no range rules).
+  `radius` is graph distance in cells. Factor 0 is a hard ban; any other
+  factor scales the weight.
+- `max_count` is optional (absent = no cap).
+- The solver reads no plate geometry: no edge, corner, normal or seat
+  filters. The shell is a graph with one cell per plate. A side with no
+  neighbour accepts any link type.
+- Kept from the note: one cell per plate; seed hashed from structure plus
+  style id; min-entropy choice with a hash tie-break; restart up to 8 times,
+  then a logged fallback; mirror off; lint refuses a factor-0 `near` term on a
+  greeble that a link type can force (a link type whose `connects` excludes
+  the empty greeble's types).
+
+```ron
+greeble_rules: (
+    link_types: [
+        (id: "any",    connects: ["any", "empty"]),
+        (id: "empty",  connects: ["any", "empty", "spaced"]),
+        (id: "spaced", connects: ["empty"]),
+        (id: "line",   connects: ["line"]),
+    ],
+    greebles: [
+        (id: "empty", fixture: None, weight: 6.0, rotate: None,
+         link_points: (up: "empty", right: "empty", down: "empty", left: "empty")),
+        (id: "hazard_line", fixture: Some("industrial_hazard_band"), weight: 8.0, rotate: All,
+         link_points: (up: "line", right: "any", down: "line", left: "any")),
+        (id: "hazard_line_end", fixture: Some("industrial_hazard_band_end"), weight: 1.0, rotate: All,
+         link_points: (up: "line", right: "any", down: "any", left: "any")),
+        (id: "crane", fixture: Some("industrial_crane"), weight: 0.6, rotate: All,
+         link_points: (up: "spaced", right: "spaced", down: "spaced", left: "spaced"),
+         near: [(greebles: ["crane"], radius: 3, factor: 0.0)],
+         max_count: 3),
+    ],
+)
+```
+
 ## 0. Summary
 
 - **Domain.** One solver cell per derived plate. A plate already is one quad
