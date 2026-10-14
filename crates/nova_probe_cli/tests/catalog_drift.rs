@@ -1060,11 +1060,13 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
     (
         "system_station_strip",
         &[
-            "a docked derelict's section strips into recipe parts",
-            "a second strip of a stripped section refuses",
-            "a strip stops with no change on an undock",
-            "a stripped section stays gone across a retire and a thaw",
-            "a hull that is not lootable refuses a strip",
+            "an undock stops a whole-ship strip and keeps what it took",
+            "a part-stripped wreck stays part-stripped across a retire and a thaw",
+            "a whole-ship strip runs with the HUD closed and removes the docking port last",
+            "a finished strip demolishes the wreck and releases the player",
+            "a finished strip's yield is in the hold",
+            "a wreck a strip demolished stays gone across a retire",
+            "a living station shows the Station tab and refuses a strip",
         ],
     ),
     (
@@ -1123,7 +1125,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 554;
+const SYSTEMS_INVARIANTS: usize = 556;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

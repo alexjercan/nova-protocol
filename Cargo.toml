@@ -105,6 +105,14 @@ path = "examples/playable/storage_quick_loop.rs"
 name = "station_docked_sandbox"
 path = "examples/playable/station_docked_sandbox.rs"
 
+# The whole-ship strip by hand: New Game on a pinned seed, docked at a
+# lootable generated wreck with the Recycle tab up. The overlay marks each
+# section by strip order, the port last, and reads the strip and the hold.
+# Nothing ends it; under NOVA_AUTOPILOT a smoke walk strips and shoots it.
+[[example]]
+name = "recycle_sandbox"
+path = "examples/playable/recycle_sandbox.rs"
+
 # A station bought by hand: New Game on a pinned seed, docked at a living
 # Neutral station with the credits to buy it. The overlay reads its side,
 # civilization, admission and prices. Nothing ends it; under NOVA_AUTOPILOT a
@@ -743,9 +751,9 @@ name = "system_station_own"
 path = "examples/systems/system_station_own.rs"
 required-features = ["debug"]
 
-# A section stripped off a docked generated derelict through the Ship pane:
-# recipe parts by yield and health in the hold, gone across a retired cell,
-# refused twice over and on a hull that is not lootable.
+# A docked generated derelict stripped whole from the Recycle tab with the HUD
+# shut: an undock part-way keeps what it took across a retire and a thaw, the
+# port comes off last, the wreck is gone and the parts are in the hold.
 [[example]]
 name = "system_station_strip"
 path = "examples/systems/system_station_strip.rs"

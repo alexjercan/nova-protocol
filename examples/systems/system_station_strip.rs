@@ -1,7 +1,8 @@
-//! system_station_strip: a section stripped off a docked generated derelict
-//! breaks down into recipe parts in the player's hold, stays gone across a
-//! retire and a thaw, and a strip is refused twice over the same section and
-//! on a hull that is not lootable.
+//! system_station_strip: the Recycle tab strips a whole docked generated
+//! derelict on the game clock, one section at a time with the berth port
+//! last, then the wreck is gone and the player is free. An undock part-way
+//! stops the strip and keeps what it took, across a retire and a thaw; a
+//! living station shows the Station tab and refuses a strip.
 //!
 //! Boots the shipped app (via [`editor_app`]), starts New Game on a pinned
 //! seed the way the Create World modal does, and lets the window stream in.
@@ -10,40 +11,39 @@
 //! beside each and is put on a berth at its collar each frame until the dock
 //! takes; the walk never flies an approach (`system_station_docking` does).
 //!
-//! The first strip goes through the Ship pane's Strip button, the code path a
-//! player clicks; it strips the section with the longest strip the rule
-//! allows. The second strip of that section, the strip that is stopped by an
-//! undock and the strip at the living station are `SectionStripCommand`s,
-//! the message a Strip button writes, so a stale or a refused click is the
-//! same message.
+//! Both strips start from the Recycle tab's Strip button, the code path a
+//! player clicks, and run with the TAB interface shut. The first is stopped
+//! by an undock once it has taken a section; the second, after a retire and
+//! a thaw and a new dock, runs to the end. The strip at the living station is
+//! a `HullStripCommand`, the message the Strip button writes.
 //!
-//! DISCLOSED FIXTURE STATE: while a strip runs, `Time<Virtual>` runs at a
-//! quarter speed, so the software rasterizer's long frames leave a few frames
-//! to shoot the progress in; it goes back to full speed after the undock.
-//! The berth points the mouse rig where it points the hull, so an undock does
-//! not turn the hull back through the wreck. The crossing JUMPS the player
-//! past the active radius from the wreck, so its cell retires and freezes,
-//! then back beside it, so it thaws.
+//! DISCLOSED FIXTURE STATE: the berth points the mouse rig where it points
+//! the hull, so an undock does not turn the hull back through the wreck. The
+//! crossing JUMPS the player past the active radius from the wreck, so its
+//! cell retires and freezes, then back beside it, so it thaws.
 //!
 //! | # | marker | claim |
 //! | - | - | - |
-//! | 1 | `outcome: a docked derelict's section strips into recipe parts` | the section is gone from the wreck; the hold gained each recipe part times the strip yield times the section's health share, rounded down; `OnStripped` fired once with the wreck, the section code and the parts |
-//! | 2 | `outcome: a second strip of a stripped section refuses` | the same command again shows `strip: <code> is already gone`, starts no strip and moves nothing |
-//! | 3 | `outcome: a strip stops with no change on an undock` | a strip running when the player undocks is gone, its section still stands and the hold did not move |
-//! | 4 | `outcome: a stripped section stays gone across a retire and a thaw` | the wreck's frozen record holds no state for the stripped section and holds the stopped one; the thawed wreck has no live stripped section and has the stopped one |
-//! | 5 | `outcome: a hull that is not lootable refuses a strip` | docked at a living station, the strip list is hidden and a strip command shows the not-lootable reason, starts no strip and moves nothing |
+//! | 1 | `outcome: an undock stops a whole-ship strip and keeps what it took` | a strip that has taken a section stops when the player undocks; the taken sections are gone, the rest and the berth stand, and the hold gained the parts of each `OnStripped` |
+//! | 2 | `outcome: a part-stripped wreck stays part-stripped across a retire and a thaw` | the frozen record holds exactly the sections left standing; the thawed wreck has exactly those live |
+//! | 3 | `outcome: a whole-ship strip runs with the HUD closed and removes the docking port last` | every section came off while the TAB interface was shut, one `OnStripped` each, and the last is the berth port |
+//! | 4 | `outcome: a finished strip demolishes the wreck and releases the player` | the wreck is gone, the player has no dock and no connection names it, and no strip runs |
+//! | 5 | `outcome: a finished strip's yield is in the hold` | the hold gained the whole-hull plan's parts, the sum of every `OnStripped` |
+//! | 6 | `outcome: a wreck a strip demolished stays gone across a retire` | the retired cell's frozen record holds no wreck, and none stands when the cell streams back |
+//! | 7 | `outcome: a living station shows the Station tab and refuses a strip` | docked at a living station, the Station tab shows and the Recycle tab does not; a strip command shows the living-station reason, starts no strip and moves nothing |
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
 //! NOVA_AUTOPILOT=1 NOVA_AUTOPILOT_DEADLINE=3600 \
 //!   cargo run --example system_station_strip --features debug
-//! # look for: `station strip: PASS a hull that is not lootable refuses a strip`,
+//! # look for: `station strip: PASS a living station shows the Station tab`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
-//! Add `NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=<dir>` to shoot the strip list as
-//! `station-strip-list.png`, the HUD chip of the running strip as
-//! `station-strip-hud.png` and the list's progress line as
-//! `station-strip-progress.png`.
+//! Add `NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=<dir>` to shoot the Recycle tab
+//! before the strip as `recycle-tab-plan.png`, the wreck early and late in
+//! the strip as `recycle-wreck-early.png` and `recycle-wreck-late.png`, the
+//! HUD chip as `recycle-strip-hud.png` and the Recycle tab mid-strip as
+//! `recycle-tab-mid-strip.png`.
 
 use bevy::prelude::*;
 use clap::Parser;
@@ -52,10 +52,10 @@ use clap::Parser;
 #[command(name = "system_station_strip")]
 #[command(version = "1.0.0")]
 #[command(
-    about = "New Game on a pinned seed: dock at a generated derelict, strip a section from the \
-             Ship pane into recipe parts, refuse a second strip, stop one with an undock, leave \
-             the wreck's cell and come back, then refuse a strip at a living station. \
-             Autopilot-only correctness range",
+    about = "New Game on a pinned seed: dock at a generated derelict, start a whole-ship strip \
+             from the Recycle tab, undock part-way, leave the wreck's cell and come back, strip \
+             the rest with the port last until the wreck is gone, then refuse a strip at a \
+             living station. Autopilot-only correctness range",
     long_about = None
 )]
 struct Cli;
@@ -86,7 +86,7 @@ fn main() -> bevy::app::AppExit {
                 bevy::ecs::error::panic,
             ));
         }
-        // The fleet's 1920x1080, the size the list is shot at.
+        // The fleet's 1920x1080, the size the tab is shot at.
         app.add_systems(
             Startup,
             nova_protocol::nova_debug::harness::force_capture_resolution,
@@ -102,7 +102,10 @@ fn main() -> bevy::app::AppExit {
 
 #[cfg(feature = "debug")]
 mod walk {
-    use std::{collections::BTreeMap, sync::Arc};
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        sync::Arc,
+    };
 
     use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
     use nova_protocol::{
@@ -112,10 +115,8 @@ mod walk {
         nova_events::engine::GameEvent,
         nova_interface::{
             pane::InterfacePaneType,
-            ship::{
-                design_section_code, SectionStripCommand, ShipRuntime, STRIP_BUTTON_PREFIX,
-                STRIP_LIST, STRIP_PROGRESS,
-            },
+            recycle::{HullStripCommand, RecycleRuntime, RECYCLE_STRIP_BUTTON},
+            ship::design_section_code,
         },
         prelude::*,
     };
@@ -137,17 +138,20 @@ mod walk {
     const CREATE_WORLD_BUTTON: &str = "Create World Button";
     const WORLD_NEXT_BUTTON: &str = "World Next Button";
     /// The start role the walk picks: the scavenger's salvage hauler, a compact
-    /// box. The first role's mining tug has a bow boom that can strike a berthed
-    /// partner.
+    /// box with a deep hold. The first role's mining tug has a bow boom that
+    /// can strike a berthed partner.
     const START_ROLE_BUTTON: &str = "Start Role Button: scavenger";
 
-    /// The Ship pane's side panel, which scrolls under the wheel.
-    const SHIP_PANEL: &str = "ShipPanel";
+    /// The interface tabs, named `InterfaceTab<label>`.
+    const RECYCLE_TAB: &str = "InterfaceTabRecycle";
+    const STATION_TAB: &str = "InterfaceTabStation";
 
     /// The PNGs the capture path shoots.
-    const LIST_SHOT: &str = "station-strip-list.png";
-    const HUD_SHOT: &str = "station-strip-hud.png";
-    const PROGRESS_SHOT: &str = "station-strip-progress.png";
+    const PLAN_SHOT: &str = "recycle-tab-plan.png";
+    const WRECK_EARLY_SHOT: &str = "recycle-wreck-early.png";
+    const HUD_SHOT: &str = "recycle-strip-hud.png";
+    const TAB_SHOT: &str = "recycle-tab-mid-strip.png";
+    const WRECK_LATE_SHOT: &str = "recycle-wreck-late.png";
 
     /// How far from a target the player parks before the berth.
     const PARK_DISTANCE: Meters = Meters(2_000.0);
@@ -162,17 +166,20 @@ mod walk {
 
     /// Seconds a load, a stream or a beat gets on a software-rendered GPU.
     const SESSION_SECS: f32 = 240.0;
-    /// Frames the Ship pane gets to build its panel and lists.
+    /// Seconds the whole rest of the wreck gets to come off.
+    const STRIP_SECS: f32 = 1_200.0;
+    /// Frames the Recycle pane gets to build its panel.
     const SETTLE_FRAMES: u32 = 10;
     /// The virtual clock's clamp on the software rasterizer.
     const WALK_CLOCK_SECS: f32 = 1.0;
-    /// The disclosed virtual clock speed while a strip runs.
-    const STRIP_CLOCK_SPEED: f32 = 0.25;
-    /// The share of the first strip done before the HUD is shot.
-    const HUD_SHOT_PROGRESS: f32 = 0.2;
+    /// The shares of the second strip done when the wreck, the HUD chip and
+    /// the tab are shot, and the wreck again.
+    const EARLY_SHOT_PROGRESS: f32 = 0.1;
+    const MID_SHOT_PROGRESS: f32 = 0.4;
+    const LATE_SHOT_PROGRESS: f32 = 0.7;
 
-    /// The not-lootable refusal line, as the Ship pane writes it.
-    const NOT_LOOTABLE_NOTE: &str = "strip: the docked hull is not a wreck you may loot";
+    /// The living-station refusal line, as the Recycle pane writes it.
+    const LIVING_STATION_NOTE: &str = "strip: a living station is not salvage";
 
     /// One target the walk docks at.
     #[derive(Clone, Debug)]
@@ -182,25 +189,33 @@ mod walk {
         position: Meters3,
     }
 
-    /// A section the walk strips, as planned before the strip.
+    /// One `OnStripped`.
     #[derive(Clone, Debug)]
-    struct Planned {
-        id: String,
-        code: String,
-        parts: BTreeMap<ItemDesignId, u32>,
+    struct Stripped {
+        data: serde_json::Value,
     }
 
     /// What the run saw and recorded between beats.
     #[derive(Resource, Default, Debug)]
     struct StripWatch {
-        /// Every strip event's payload.
-        stripped: Vec<serde_json::Value>,
+        stripped: Vec<Stripped>,
+        /// Each frame a running strip took sections off the wreck: how many,
+        /// and whether the TAB interface was shut that frame.
+        drops: Vec<(usize, bool)>,
+        /// The wreck's live sections last frame, while a strip ran.
+        seen: Option<usize>,
         wreck: Option<Target>,
         station: Option<Target>,
-        /// The section the Strip button strips.
-        first: Option<Planned>,
-        /// The section whose strip the undock stops.
-        stopped: Option<Planned>,
+        /// Every section of the wreck at the first dock: id to pane code.
+        codes: BTreeMap<String, String>,
+        /// The wreck port the player docks through.
+        berth: Option<String>,
+        /// The whole-hull plan's parts at the first dock.
+        planned: BTreeMap<ItemDesignId, u32>,
+        /// The player's hold at the first dock.
+        start_hold: Option<ShipInventory>,
+        /// The sections standing after the undock.
+        left: BTreeSet<String>,
         /// The player's hold right before the step that checks it.
         hold: Option<ShipInventory>,
         /// The cell the crossing landed in.
@@ -213,15 +228,34 @@ mod walk {
         fn build(&self, app: &mut App) {
             app.init_resource::<StripWatch>();
             app.add_systems(Update, hold_the_walk_clock);
+            app.add_systems(Last, watch_the_drops);
             app.add_observer(|event: On<GameEvent>, mut watch: ResMut<StripWatch>| {
                 if event.name() != "onstripped" {
                     return;
                 }
                 let data = event.info().data.clone().unwrap_or_default();
                 info!("station strip: onstripped {data}");
-                watch.stripped.push(data);
+                watch.stripped.push(Stripped { data });
             });
         }
+    }
+
+    /// Record each frame a running strip takes sections off the wreck, with
+    /// the pause state of that frame. Runs in `Last`, after the strip's
+    /// commands, so a section taken this frame is gone and the berth's frame
+    /// shows the whole wreck gone.
+    fn watch_the_drops(world: &mut World) {
+        let running =
+            the_player(world).is_some_and(|player| world.get::<HullStripJob>(player).is_some());
+        let live = wreck_root(world).map_or(0, |wreck| live_sections(world, wreck).len());
+        let unpaused = world
+            .get_resource::<State<PauseStates>>()
+            .is_some_and(|pause| *pause.get() == PauseStates::Unpaused);
+        let mut watch = world.resource_mut::<StripWatch>();
+        if let Some(seen) = watch.seen.filter(|seen| live < *seen) {
+            watch.drops.push((seen - live, unpaused));
+        }
+        watch.seen = running.then_some(live);
     }
 
     /// Hold the virtual clock's clamp at [`WALK_CLOCK_SECS`] every frame: a
@@ -231,13 +265,6 @@ mod walk {
         if time.max_delta() != clamp {
             time.set_max_delta(clamp);
         }
-    }
-
-    fn set_clock_speed(world: &mut World, speed: f32) {
-        world
-            .resource_mut::<Time<Virtual>>()
-            .set_relative_speed(speed);
-        info!("station strip: fixture sets the virtual clock to {speed}x");
     }
 
     fn when(check: impl Fn(&World) -> bool + Send + Sync + 'static) -> Arc<Predicate> {
@@ -297,22 +324,6 @@ mod walk {
         station_root(world).expect("station strip: the station stands")
     }
 
-    fn first(world: &World) -> Planned {
-        world
-            .resource::<StripWatch>()
-            .first
-            .clone()
-            .expect("station strip: the first strip is planned")
-    }
-
-    fn stopped(world: &World) -> Planned {
-        world
-            .resource::<StripWatch>()
-            .stopped
-            .clone()
-            .expect("station strip: the stopped strip is planned")
-    }
-
     fn hold(world: &World) -> ShipInventory {
         world
             .get::<ShipInventory>(player(world))
@@ -331,14 +342,6 @@ mod walk {
             .hold
             .clone()
             .expect("station strip: the hold is recorded")
-    }
-
-    fn job(world: &World) -> Option<&SectionStripJob> {
-        world.get::<SectionStripJob>(the_player(world)?)
-    }
-
-    fn note(world: &World) -> Option<&str> {
-        world.get_resource::<ShipRuntime>()?.note()
     }
 
     /// Every live section of `root`: entity, design section id, health share
@@ -364,12 +367,6 @@ mod walk {
                 Some((*child, id.0.clone(), share, neighbours))
             })
             .collect()
-    }
-
-    fn has_live_section(world: &World, root: Entity, id: &str) -> bool {
-        live_sections(world, root)
-            .iter()
-            .any(|(_, live, ..)| live == id)
     }
 
     fn world_shape(world: &World) -> (Meters, i32) {
@@ -464,27 +461,6 @@ mod walk {
                 .get_resource::<State<PauseStates>>()
                 .is_some_and(|pause| *pause.get() == PauseStates::Unpaused)
         })
-    }
-
-    fn the_note_is(expected: impl Fn(&World) -> String + Send + Sync + 'static) -> Arc<Predicate> {
-        when(move |world| note(world) == Some(expected(world).as_str()))
-    }
-
-    /// Whether the named node lies inside the Ship panel's box, where a
-    /// click lands on it and a shot shows it.
-    fn in_panel(world: &World, name: &str) -> bool {
-        match (ui_node_rect(world, name), ui_node_rect(world, SHIP_PANEL)) {
-            (Some(node), Some(panel)) => node.min.y >= panel.min.y && node.max.y <= panel.max.y,
-            _ => false,
-        }
-    }
-
-    /// Whether the named node sits below the Ship panel's bottom edge.
-    fn below_panel(world: &World, name: &str) -> bool {
-        match (ui_node_rect(world, name), ui_node_rect(world, SHIP_PANEL)) {
-            (Some(node), Some(panel)) => node.max.y > panel.max.y,
-            _ => true,
-        }
     }
 
     /// Teleport the player to `position`, at rest.
@@ -657,28 +633,6 @@ mod walk {
             .add()
     }
 
-    /// Open the TAB interface on the Ship pane and let it settle.
-    fn open_the_ship_pane(
-        script: AutopilotPlugin<GameStates>,
-        label: &str,
-    ) -> AutopilotPlugin<GameStates> {
-        tap(
-            script,
-            &format!("the interface key {label}"),
-            "interface_toggle",
-            interface_open(),
-        )
-        .click_named(
-            &format!("station strip: open the Ship pane {label}"),
-            "InterfaceTabShip",
-            the_interface_shows(InterfacePaneType::Ship),
-            SESSION_SECS,
-        )
-        .step(format!("station strip: settle the schematic {label}"))
-        .until(frames(SETTLE_FRAMES))
-        .add()
-    }
-
     /// Close the TAB interface, so the clock runs again.
     fn close_the_interface(
         script: AutopilotPlugin<GameStates>,
@@ -690,32 +644,6 @@ mod walk {
             "interface_toggle",
             unpaused(),
         )
-    }
-
-    /// Scroll the Ship panel until the node `shown` names is inside it, then
-    /// settle.
-    fn scroll_into_view(
-        script: AutopilotPlugin<GameStates>,
-        label: &str,
-        shown: impl Fn(&World) -> String + Send + Sync + Clone + 'static,
-    ) -> AutopilotPlugin<GameStates> {
-        let seen = shown.clone();
-        script
-            .step(format!("station strip: scroll {label} into view"))
-            .each(move |world, _, frame| {
-                keep_hovering_named(SHIP_PANEL)(world);
-                let name = shown(world);
-                if frame % 2 == 1 && !in_panel(world, &name) {
-                    let lines = if below_panel(world, &name) { -1.0 } else { 1.0 };
-                    scroll_lines(lines)(world);
-                }
-            })
-            .until(when(move |world| in_panel(world, &seen(world))))
-            .deadline(SESSION_SECS)
-            .add()
-            .step(format!("station strip: settle the scroll {label}"))
-            .until(frames(SETTLE_FRAMES))
-            .add()
     }
 
     fn shoot_step(
@@ -845,247 +773,6 @@ mod walk {
         }
     }
 
-    /// Plan every strip the rule allows on the docked wreck. The first strip
-    /// is the longest, so the strip runs over the most frames; the stopped
-    /// one is the next.
-    fn plan_the_strips(world: &mut World) {
-        let wreck = wreck(world);
-        let berth = partner_berth(world, wreck);
-        let items = world.resource::<GameItems>().clone();
-        let own = hold(world);
-        let design = world
-            .get::<ShipDesignSections>(wreck)
-            .expect("station strip: a generated wreck keeps its design")
-            .clone();
-        let live = live_sections(world, wreck);
-        let graph: Vec<(Entity, &[Entity])> = live
-            .iter()
-            .map(|(section, _, _, neighbours)| (*section, neighbours.as_slice()))
-            .collect();
-        let mut allowed: Vec<(f32, Planned)> = Vec::new();
-        for (section, id, share, _) in &live {
-            let recipe = &design
-                .get(id)
-                .expect("station strip: a live section is a design section")
-                .config
-                .base
-                .build;
-            let code = design_section_code(&design, id).expect("a design section has a code");
-            let planned = plan_section_strip(
-                &items,
-                Some(true),
-                false,
-                Some(StripTarget {
-                    recipe,
-                    health_share: *share,
-                    berth: *section == berth,
-                    splits_hull: strip_splits_hull(*section, graph.iter().copied()),
-                }),
-                &own,
-            );
-            info!(
-                "station strip: {code} ('{id}', {:.0}% health): {planned:?}",
-                share * 100.0
-            );
-            let Ok(strip) = planned else {
-                continue;
-            };
-            // The claim's arithmetic, apart from the rule: each part times
-            // the yield times the health share, rounded down.
-            let parts: BTreeMap<ItemDesignId, u32> = recipe
-                .parts
-                .iter()
-                .map(|(item, &count)| {
-                    let returned = (f64::from(count)
-                        * f64::from(recipe.strip_yield)
-                        * f64::from(share.clamp(0.0, 1.0)))
-                    .floor() as u32;
-                    (item.clone(), returned)
-                })
-                .filter(|(_, count)| *count > 0)
-                .collect();
-            assert_eq!(
-                strip.parts, parts,
-                "station strip: the plan gives recipe x yield x health for {code}"
-            );
-            allowed.push((
-                strip.duration_secs,
-                Planned {
-                    id: id.clone(),
-                    code,
-                    parts,
-                },
-            ));
-        }
-        allowed.sort_by(|a, b| b.0.total_cmp(&a.0).then_with(|| a.1.id.cmp(&b.1.id)));
-        let mut allowed = allowed.into_iter().map(|(_, planned)| planned);
-        let first = allowed
-            .next()
-            .expect("station strip: the wreck has a section the rule lets strip");
-        let stopped = allowed
-            .next()
-            .expect("station strip: the wreck has a second section the rule lets strip");
-        info!(
-            "station strip: strips {} for {:?}, stops {}",
-            first.code, first.parts, stopped.code
-        );
-        record_hold(world);
-        let mut watch = world.resource_mut::<StripWatch>();
-        watch.first = Some(first);
-        watch.stopped = Some(stopped);
-    }
-
-    fn strip_button(world: &World) -> String {
-        format!("{STRIP_BUTTON_PREFIX}{}", first(world).code)
-    }
-
-    /// The first strip ended: the section is gone and an event fired.
-    fn the_first_strip_ends() -> Arc<Predicate> {
-        when(|world| {
-            job(world).is_none()
-                && !world.resource::<StripWatch>().stripped.is_empty()
-                && wreck_root(world)
-                    .is_some_and(|wreck| !has_live_section(world, wreck, &first(world).id))
-        })
-    }
-
-    /// Claim 1: the section is gone, the hold gained the parts, and one
-    /// `OnStripped` names the wreck, the code and the parts.
-    fn assert_the_strip(world: &mut World) {
-        let wreck = wreck(world);
-        let first = first(world);
-        let before = recorded_hold(world);
-        let after = hold(world);
-        assert!(
-            !has_live_section(world, wreck, &first.id),
-            "station strip: {} is gone from the wreck",
-            first.code
-        );
-        let mut items: std::collections::BTreeSet<ItemDesignId> =
-            before.stacks().map(|(item, _)| item.clone()).collect();
-        items.extend(after.stacks().map(|(item, _)| item.clone()));
-        for item in &items {
-            let gained = after.count(item) - before.count(item).min(after.count(item));
-            assert_eq!(
-                gained,
-                first.parts.get(item).copied().unwrap_or(0),
-                "station strip: the hold gained recipe x yield x health of '{item}'"
-            );
-            assert!(
-                after.count(item) >= before.count(item),
-                "station strip: the strip took no '{item}'"
-            );
-        }
-        let watch = world.resource::<StripWatch>();
-        assert_eq!(watch.stripped.len(), 1, "station strip: one OnStripped");
-        let event = &watch.stripped[0];
-        assert_eq!(event["hull"], wreck_target(world).id.to_string());
-        assert_eq!(event["section"], first.code);
-        let parts: BTreeMap<String, u32> = first
-            .parts
-            .iter()
-            .map(|(item, count)| (item.to_string(), *count))
-            .collect();
-        assert_eq!(
-            event["parts"],
-            serde_json::to_value(&parts).expect("parts serialize"),
-            "station strip: OnStripped carries the parts"
-        );
-        nova_probe::probe_marker(
-            world,
-            "outcome: a docked derelict's section strips into recipe parts",
-            serde_json::json!({
-                "wreck": wreck_target(world).id.to_string(),
-                "section": first.code,
-                "parts": parts,
-            }),
-        );
-        info!("station strip: {} stripped into {parts:?}", first.code);
-        record_hold(world);
-    }
-
-    fn send_strip(world: &mut World, section: String) {
-        info!("station strip: sends a strip of '{section}'");
-        world.write_message(SectionStripCommand { section });
-    }
-
-    /// Claim 2: the second strip refused and moved nothing.
-    fn assert_the_second_refusal(world: &mut World) {
-        let first = first(world);
-        assert!(job(world).is_none(), "station strip: no strip started");
-        assert_eq!(
-            hold(world),
-            recorded_hold(world),
-            "station strip: the refused strip moved nothing"
-        );
-        assert_eq!(
-            world.resource::<StripWatch>().stripped.len(),
-            1,
-            "station strip: the refused strip reported nothing"
-        );
-        nova_probe::probe_marker(
-            world,
-            "outcome: a second strip of a stripped section refuses",
-            serde_json::json!({ "section": first.code, "note": note(world) }),
-        );
-        info!("station strip: the second strip of {} refused", first.code);
-    }
-
-    /// The stopped strip runs with the clock.
-    fn the_stopped_strip_runs() -> Arc<Predicate> {
-        when(|world| job(world).is_some_and(|job| job.elapsed_secs > 0.0))
-    }
-
-    fn undock(world: &mut World) {
-        let job = job(world).cloned().expect("station strip: a strip runs");
-        assert_eq!(job.section_id, stopped(world).id);
-        info!(
-            "station strip: undocks with {} at {:.0}%",
-            job.code,
-            job.progress() * 100.0
-        );
-        let player = player(world);
-        world.trigger(DockingReleaseRequest { entity: player });
-    }
-
-    fn free_and_idle() -> Arc<Predicate> {
-        when(|world| {
-            the_player(world).is_some_and(|player| {
-                world.get::<DockedShip>(player).is_none()
-                    && world.get::<SectionStripJob>(player).is_none()
-            })
-        })
-    }
-
-    /// Claim 3: the undock stopped the strip with no change.
-    fn assert_the_stop(world: &mut World) {
-        let stopped = stopped(world);
-        assert!(
-            has_live_section(world, wreck(world), &stopped.id),
-            "station strip: the stopped section still stands"
-        );
-        assert_eq!(
-            hold(world),
-            recorded_hold(world),
-            "station strip: the stopped strip moved nothing"
-        );
-        assert_eq!(
-            world.resource::<StripWatch>().stripped.len(),
-            1,
-            "station strip: the stopped strip reported nothing"
-        );
-        nova_probe::probe_marker(
-            world,
-            "outcome: a strip stops with no change on an undock",
-            serde_json::json!({ "section": stopped.code }),
-        );
-        info!(
-            "station strip: the undock stopped the strip of {}",
-            stopped.code
-        );
-        set_clock_speed(world, 1.0);
-    }
-
     /// Jump the player past the active radius from the wreck, along +X.
     fn jump_out(world: &mut World) {
         let (edge, radius) = world_shape(world);
@@ -1129,77 +816,497 @@ mod walk {
         })
     }
 
-    /// Claim 4, first half: the frozen wreck holds no stripped section.
+    fn job(world: &World) -> Option<&HullStripJob> {
+        world.get::<HullStripJob>(the_player(world)?)
+    }
+
+    fn note(world: &World) -> Option<&str> {
+        world.get_resource::<RecycleRuntime>()?.note()
+    }
+
+    fn start_hold(world: &World) -> ShipInventory {
+        world
+            .resource::<StripWatch>()
+            .start_hold
+            .clone()
+            .expect("station strip: the start hold is recorded")
+    }
+
+    fn berth_id(world: &World) -> String {
+        world
+            .resource::<StripWatch>()
+            .berth
+            .clone()
+            .expect("station strip: the berth is recorded")
+    }
+
+    fn live_ids(world: &World, root: Entity) -> BTreeSet<String> {
+        live_sections(world, root)
+            .into_iter()
+            .map(|(_, id, ..)| id)
+            .collect()
+    }
+
+    /// The parts every `OnStripped` so far carried, summed.
+    fn stripped_parts(world: &World) -> BTreeMap<ItemDesignId, u32> {
+        let mut parts: BTreeMap<ItemDesignId, u32> = BTreeMap::new();
+        for stripped in &world.resource::<StripWatch>().stripped {
+            let map = stripped.data["parts"]
+                .as_object()
+                .expect("station strip: OnStripped carries parts");
+            for (item, count) in map {
+                let count = u32::try_from(count.as_u64().expect("a part count is a number"))
+                    .expect("a part count fits u32");
+                *parts.entry(ItemDesignId::from(item.as_str())).or_default() += count;
+            }
+        }
+        parts.retain(|_, count| *count > 0);
+        parts
+    }
+
+    /// What the hold gained since `before`, per item. Panics on a loss.
+    fn gained(before: &ShipInventory, after: &ShipInventory) -> BTreeMap<ItemDesignId, u32> {
+        let mut items: BTreeSet<ItemDesignId> =
+            before.stacks().map(|(item, _)| item.clone()).collect();
+        items.extend(after.stacks().map(|(item, _)| item.clone()));
+        items
+            .into_iter()
+            .filter_map(|item| {
+                let (was, is) = (before.count(&item), after.count(&item));
+                assert!(is >= was, "station strip: the hold lost '{item}'");
+                (is > was).then_some((item, is - was))
+            })
+            .collect()
+    }
+
+    /// Plan the whole-hull strip of the docked wreck and record its sections,
+    /// its berth and the hold.
+    fn plan_the_strip(world: &mut World) {
+        let wreck = wreck(world);
+        let items = world.resource::<GameItems>().clone();
+        let own = hold(world);
+        let design = world
+            .get::<ShipDesignSections>(wreck)
+            .expect("station strip: a generated wreck keeps its design")
+            .clone();
+        let live = live_sections(world, wreck);
+        let sections = live
+            .iter()
+            .map(|(_, id, share, _)| StripTarget {
+                recipe: &design
+                    .get(id)
+                    .expect("station strip: a live section is a design section")
+                    .config
+                    .base
+                    .build,
+                health_share: *share,
+            })
+            .collect();
+        let strip = plan_hull_strip(
+            Some(&HullStripPartner {
+                living_station: false,
+                lootable: true,
+                sections,
+            }),
+            false,
+        )
+        .expect("station strip: the docked wreck may be stripped");
+        let mass_g: u64 = strip
+            .parts
+            .iter()
+            .map(|(item, count)| items.design(item).stack_mass_g(*count))
+            .sum();
+        let free_g = own.free_g(&items);
+        info!(
+            "station strip: {} sections, {:.0} s, {:?} ({mass_g} g; the hold has {free_g} g free)",
+            live.len(),
+            strip.duration_secs,
+            strip.parts
+        );
+        // A strip that cannot fit holds at a section until there is room;
+        // the walk would stall there, so a seed that turns this up fails here.
+        assert!(
+            mass_g <= u64::from(free_g),
+            "station strip: the wreck's {mass_g} g of parts fit the hold's {free_g} g free"
+        );
+        let codes: BTreeMap<String, String> = live
+            .iter()
+            .map(|(_, id, ..)| {
+                let code = design_section_code(&design, id).expect("a design section has a code");
+                (id.clone(), code)
+            })
+            .collect();
+        let mut watch = world.resource_mut::<StripWatch>();
+        watch.codes = codes;
+        watch.planned = strip.parts;
+        watch.start_hold = Some(own);
+        drop(watch);
+        record_the_berth(world);
+    }
+
+    /// Record the wreck port the player is docked through: the berth a
+    /// strip from this dock takes last.
+    fn record_the_berth(world: &mut World) {
+        let berth = partner_berth(world, wreck(world));
+        let berth = world
+            .get::<EntityId>(berth)
+            .expect("station strip: the berth wears an id")
+            .0
+            .clone();
+        let code = world.resource::<StripWatch>().codes[&berth].clone();
+        info!("station strip: docked through {berth} ({code})");
+        world.resource_mut::<StripWatch>().berth = Some(berth);
+    }
+
+    /// Open the TAB interface on the `tab` pane and let it settle.
+    fn open_the_pane(
+        script: AutopilotPlugin<GameStates>,
+        label: &str,
+        tab: &'static str,
+        pane: InterfacePaneType,
+    ) -> AutopilotPlugin<GameStates> {
+        tap(
+            script,
+            &format!("the interface key {label}"),
+            "interface_toggle",
+            interface_open(),
+        )
+        .click_named(
+            &format!("station strip: open the {pane:?} pane {label}"),
+            tab,
+            the_interface_shows(pane),
+            SESSION_SECS,
+        )
+        .step(format!("station strip: settle the {pane:?} pane {label}"))
+        .until(frames(SETTLE_FRAMES))
+        .add()
+    }
+
+    /// Open the Recycle pane, press Strip and shut the interface.
+    fn start_the_strip(
+        script: AutopilotPlugin<GameStates>,
+        label: &str,
+        plan_shot: Option<&'static str>,
+    ) -> AutopilotPlugin<GameStates> {
+        let script = open_the_pane(script, label, RECYCLE_TAB, InterfacePaneType::Recycle);
+        let script = match plan_shot {
+            Some(shot) => shoot_step(script, shot),
+            None => script,
+        };
+        let script = script.click_named(
+            &format!("station strip: press Strip {label}"),
+            RECYCLE_STRIP_BUTTON,
+            when(|world| job(world).is_some()),
+            SESSION_SECS,
+        );
+        close_the_interface(script, label)
+    }
+
+    fn the_strip_reaches(share: f32) -> Arc<Predicate> {
+        when(move |world| job(world).is_some_and(|job| job.progress() >= share))
+    }
+
+    fn undock(world: &mut World) {
+        let job = job(world).cloned().expect("station strip: a strip runs");
+        info!(
+            "station strip: undocks after {} sections at {:.0}%",
+            job.taken,
+            job.progress() * 100.0
+        );
+        let player = player(world);
+        world.trigger(DockingReleaseRequest { entity: player });
+    }
+
+    fn free_and_idle() -> Arc<Predicate> {
+        when(|world| {
+            the_player(world).is_some_and(|player| {
+                world.get::<DockedShip>(player).is_none()
+                    && world.get::<HullStripJob>(player).is_none()
+            })
+        })
+    }
+
+    /// Claim 1: the undock stopped the strip and kept what it took.
+    fn assert_the_stop(world: &mut World) {
+        let wreck = wreck(world);
+        let left = live_ids(world, wreck);
+        let watch = world.resource::<StripWatch>();
+        let taken: Vec<&String> = watch
+            .codes
+            .keys()
+            .filter(|id| !left.contains(*id))
+            .collect();
+        let taken_codes: BTreeSet<&str> =
+            taken.iter().map(|id| watch.codes[*id].as_str()).collect();
+        let event_codes: BTreeSet<&str> = watch
+            .stripped
+            .iter()
+            .map(|stripped| {
+                stripped.data["section"]
+                    .as_str()
+                    .expect("OnStripped names a section")
+            })
+            .collect();
+        assert!(!taken.is_empty(), "station strip: the strip took a section");
+        assert_eq!(
+            watch.stripped.len(),
+            taken.len(),
+            "station strip: one OnStripped per taken section"
+        );
+        assert_eq!(
+            taken_codes, event_codes,
+            "station strip: the OnStripped sections are the ones gone"
+        );
+        assert!(
+            left.contains(&berth_id(world)),
+            "station strip: the berth still stands"
+        );
+        assert_eq!(
+            gained(&start_hold(world), &hold(world)),
+            stripped_parts(world),
+            "station strip: the hold gained the parts of each OnStripped"
+        );
+        let taken: Vec<String> = taken_codes.iter().map(|code| code.to_string()).collect();
+        nova_probe::probe_marker(
+            world,
+            "outcome: an undock stops a whole-ship strip and keeps what it took",
+            serde_json::json!({
+                "wreck": wreck_target(world).id.to_string(),
+                "taken": taken,
+                "left": left.len(),
+            }),
+        );
+        info!("station strip: the undock stopped the strip after {taken:?}");
+        world.resource_mut::<StripWatch>().left = left;
+    }
+
+    /// Claim 2, first half: the frozen wreck holds exactly the sections left.
     fn assert_the_retire(world: &mut World) {
         let wreck = wreck_target(world);
-        let (first, stopped) = (first(world), stopped(world));
         assert!(
             wreck_root(world).is_none(),
             "station strip: the wreck retired with its cell"
         );
+        let watch = world.resource::<StripWatch>();
+        let ids: Vec<&str> = watch.codes.keys().map(String::as_str).collect();
+        let expected: Vec<bool> = ids.iter().map(|id| watch.left.contains(*id)).collect();
         assert_eq!(
             frozen_sections(
                 world.resource::<FrozenSectors>(),
                 &wreck.id.to_string(),
-                &[&first.id, &stopped.id]
+                &ids
             ),
-            Some(vec![false, true]),
-            "station strip: the frozen wreck holds the stopped section and not the stripped one"
+            Some(expected),
+            "station strip: the frozen wreck holds the sections left and no taken one"
         );
-        info!("station strip: the wreck froze without {}", first.code);
+        info!("station strip: the wreck froze part-stripped");
     }
 
-    /// Claim 4: the thawed wreck has no stripped section.
+    /// Claim 2: the thawed wreck has exactly the sections left.
     fn assert_the_thaw(world: &mut World) {
         let wreck = wreck(world);
-        let (first, stopped) = (first(world), stopped(world));
-        assert!(
-            !has_live_section(world, wreck, &first.id),
-            "station strip: the thawed wreck has no {}",
-            first.code
+        let left = world.resource::<StripWatch>().left.clone();
+        assert_eq!(
+            live_ids(world, wreck),
+            left,
+            "station strip: the thawed wreck has the sections left"
         );
-        assert!(
-            has_live_section(world, wreck, &stopped.id),
-            "station strip: the thawed wreck keeps {}",
-            stopped.code
-        );
-        let watch = world.resource::<StripWatch>();
-        let crossed = watch.crossed;
+        let crossed = world.resource::<StripWatch>().crossed;
         nova_probe::probe_marker(
             world,
-            "outcome: a stripped section stays gone across a retire and a thaw",
+            "outcome: a part-stripped wreck stays part-stripped across a retire and a thaw",
             serde_json::json!({
                 "wreck": wreck_target(world).id.to_string(),
-                "section": first.code,
+                "left": left.len(),
                 "cell": wreck_target(world).cell.to_string(),
                 "crossed": crossed.map(|cell| cell.to_string()),
             }),
         );
-        info!("station strip: the wreck thawed without {}", first.code);
+        info!(
+            "station strip: the wreck thawed with {} sections",
+            left.len()
+        );
     }
 
-    /// A live section id of the docked station, for the refused strip.
-    fn station_section(world: &World) -> String {
-        live_sections(world, station(world))
-            .into_iter()
-            .map(|(_, id, ..)| id)
-            .min()
-            .expect("station strip: the station has sections")
+    fn the_wreck_is_gone() -> Arc<Predicate> {
+        when(|world| {
+            wreck_root(world).is_none()
+                && the_player(world).is_some_and(|player| {
+                    world.get::<DockedShip>(player).is_none()
+                        && world.get::<HullStripJob>(player).is_none()
+                })
+        })
     }
 
-    fn strip_list_hidden(world: &mut World) -> bool {
+    /// Claims 3, 4 and 5: the strip ran shut, took the berth last, removed
+    /// the wreck, freed the player and filled the hold.
+    fn assert_the_finish(world: &mut World) {
+        let player = player(world);
+        let watch = world.resource::<StripWatch>();
+        let berth_code = watch.codes[&berth_id(world)].clone();
+        let sections: Vec<String> = watch
+            .stripped
+            .iter()
+            .map(|stripped| {
+                assert_eq!(
+                    stripped.data["hull"],
+                    wreck_target(world).id.to_string(),
+                    "station strip: OnStripped names the wreck"
+                );
+                stripped.data["section"]
+                    .as_str()
+                    .expect("OnStripped names a section")
+                    .to_string()
+            })
+            .collect();
+        let all: BTreeSet<&str> = watch.codes.values().map(String::as_str).collect();
+        assert_eq!(
+            sections.len(),
+            all.len(),
+            "station strip: one OnStripped per section"
+        );
+        assert_eq!(
+            sections.iter().map(String::as_str).collect::<BTreeSet<_>>(),
+            all,
+            "station strip: every section came off"
+        );
+        assert_eq!(
+            sections.last(),
+            Some(&berth_code),
+            "station strip: the berth port came off last"
+        );
+        let dropped: usize = watch.drops.iter().map(|(count, _)| count).sum();
+        assert_eq!(
+            dropped,
+            all.len(),
+            "station strip: the strip took every section off the wreck"
+        );
+        assert!(
+            watch.drops.iter().all(|(_, unpaused)| *unpaused),
+            "station strip: every section came off with the interface shut: {:?}",
+            watch.drops
+        );
+        let frames = watch.drops.len();
+        nova_probe::probe_marker(
+            world,
+            "outcome: a whole-ship strip runs with the HUD closed and removes the docking port last",
+            serde_json::json!({ "order": sections, "berth": berth_code, "frames": frames }),
+        );
+
+        assert!(
+            wreck_root(world).is_none(),
+            "station strip: the wreck is gone"
+        );
+        assert!(world.get::<DockedShip>(player).is_none());
+        assert!(world.get::<HullStripJob>(player).is_none());
+        let holding: Vec<Entity> = world
+            .try_query::<(Entity, &DockingConnection)>()
+            .map(|mut query| {
+                query
+                    .iter(world)
+                    .filter(|(_, connection)| {
+                        connection.first_ship == player || connection.second_ship == player
+                    })
+                    .map(|(entity, _)| entity)
+                    .collect()
+            })
+            .unwrap_or_default();
+        assert!(
+            holding.is_empty(),
+            "station strip: no connection holds the player: {holding:?}"
+        );
+        let speed = world
+            .get::<LinearVelocity>(player)
+            .map_or(0.0, |velocity| velocity.0.length());
+        nova_probe::probe_marker(
+            world,
+            "outcome: a finished strip demolishes the wreck and releases the player",
+            serde_json::json!({
+                "wreck": wreck_target(world).id.to_string(),
+                "player_speed": speed,
+            }),
+        );
+
+        let planned = world.resource::<StripWatch>().planned.clone();
+        let gained = gained(&start_hold(world), &hold(world));
+        assert_eq!(
+            gained, planned,
+            "station strip: the hold gained the whole-hull plan"
+        );
+        assert_eq!(
+            gained,
+            stripped_parts(world),
+            "station strip: the hold gained the sum of every OnStripped"
+        );
+        let parts: BTreeMap<String, u32> = gained
+            .iter()
+            .map(|(item, count)| (item.to_string(), *count))
+            .collect();
+        nova_probe::probe_marker(
+            world,
+            "outcome: a finished strip's yield is in the hold",
+            serde_json::json!({ "parts": parts }),
+        );
+        info!("station strip: the wreck is stripped whole into {parts:?}");
+    }
+
+    /// Whether any frozen record holds a body wearing `id`.
+    fn frozen_holds(sectors: &FrozenSectors, id: &str) -> bool {
+        sectors
+            .iter()
+            .any(|(_, record)| record.bodies().iter().any(|body| body.id() == Some(id)))
+    }
+
+    /// Claim 6, first half: the retired cell holds no wreck.
+    fn assert_the_empty_retire(world: &mut World) {
+        let id = wreck_target(world).id.to_string();
+        assert!(
+            !frozen_holds(world.resource::<FrozenSectors>(), &id),
+            "station strip: no frozen record holds the demolished wreck"
+        );
+    }
+
+    /// Claim 6: the cell streamed back without the wreck.
+    fn assert_the_empty_thaw(world: &mut World) {
+        assert!(
+            wreck_root(world).is_none(),
+            "station strip: the demolished wreck did not come back"
+        );
+        nova_probe::probe_marker(
+            world,
+            "outcome: a wreck a strip demolished stays gone across a retire",
+            serde_json::json!({
+                "wreck": wreck_target(world).id.to_string(),
+                "cell": wreck_target(world).cell.to_string(),
+            }),
+        );
+        info!("station strip: the demolished wreck stayed gone");
+    }
+
+    /// Whether the interface tab named `name` shows.
+    fn tab_shows(world: &mut World, name: &str) -> bool {
         world
             .query::<(&Name, &Node)>()
             .iter(world)
-            .find(|(name, _)| name.as_str() == STRIP_LIST)
-            .is_some_and(|(_, node)| node.display == Display::None)
+            .find(|(found, _)| found.as_str() == name)
+            .is_some_and(|(_, node)| node.display != Display::None)
     }
 
-    /// Claim 5: a living station refuses the strip and nothing moves.
+    fn send_strip(world: &mut World) {
+        info!("station strip: sends a strip command");
+        world.write_message(HullStripCommand);
+    }
+
+    /// Claim 7: the Station tab shows, the Recycle tab does not, and the
+    /// strip refused with nothing moved.
     fn assert_the_station_refusal(world: &mut World) {
         assert!(
-            strip_list_hidden(world),
-            "station strip: the strip list hides at a living station"
+            tab_shows(world, STATION_TAB),
+            "station strip: the Station tab shows at a living station"
+        );
+        assert!(
+            !tab_shows(world, RECYCLE_TAB),
+            "station strip: the Recycle tab hides at a living station"
         );
         assert!(job(world).is_none(), "station strip: no strip started");
         assert_eq!(
@@ -1207,16 +1314,17 @@ mod walk {
             recorded_hold(world),
             "station strip: the refused strip moved nothing"
         );
-        assert_eq!(world.resource::<StripWatch>().stripped.len(), 1);
+        let count = world.resource::<StripWatch>().codes.len();
+        assert_eq!(world.resource::<StripWatch>().stripped.len(), count);
         nova_probe::probe_marker(
             world,
-            "outcome: a hull that is not lootable refuses a strip",
+            "outcome: a living station shows the Station tab and refuses a strip",
             serde_json::json!({
                 "station": station_target(world).id.to_string(),
                 "note": note(world),
             }),
         );
-        info!("station strip: PASS a hull that is not lootable refuses a strip");
+        info!("station strip: PASS a living station shows the Station tab and refuses a strip");
     }
 
     /// The walk. Every beat waits on a world value.
@@ -1274,74 +1382,13 @@ mod walk {
             .until(player_docked())
             .deadline(SESSION_SECS)
             .add()
-            .step("station strip: plan the strips")
-            .on_enter(plan_the_strips)
+            .step("station strip: plan the strip")
+            .on_enter(plan_the_strip)
             .until(frames(1))
             .add();
-        let script = open_the_ship_pane(script, "to strip");
-        let script = scroll_into_view(script, "the Strip button", strip_button);
-        // The button's name holds the section code, known only once the wreck
-        // is docked, so the click is spelled out rather than `click_named`.
-        let script = shoot_step(script, LIST_SHOT)
-            .step("station strip: aim at the Strip button")
-            .each(|world, _, _| {
-                let name = strip_button(world);
-                keep_hovering_named(name)(world);
-            })
-            .until(when(|world| pointer_over_node(strip_button(world))(world)))
-            .deadline(SESSION_SECS)
-            .add()
-            .step("station strip: press Strip")
-            .on_enter(press_mouse(MouseButton::Left))
-            .until(pointer_pressed())
-            .deadline(SESSION_SECS)
-            .add()
-            .step("station strip: release Strip")
-            .on_enter(|world: &mut World| {
-                set_clock_speed(world, STRIP_CLOCK_SPEED);
-                release_mouse(MouseButton::Left)(world);
-            })
-            .until(when(|world| job(world).is_some()))
-            .deadline(SESSION_SECS)
-            .add();
-        let script = close_the_interface(script, "to run the strip")
-            .step("station strip: the strip runs in flight")
-            .until(when(|world| {
-                job(world).is_some_and(|job| job.progress() >= HUD_SHOT_PROGRESS)
-            }))
-            .deadline(SESSION_SECS)
-            .add();
-        let script = shoot_step(script, HUD_SHOT);
-        let script = open_the_ship_pane(script, "to watch the strip");
-        let script = scroll_into_view(script, "the strip progress", |_| STRIP_PROGRESS.to_string());
-        let script = shoot_step(script, PROGRESS_SHOT);
-        let script = close_the_interface(script, "to finish the strip")
-            .step("station strip: the strip ends")
-            .until(the_first_strip_ends())
-            .deadline(SESSION_SECS)
-            .add()
-            .step("station strip: assert the strip")
-            .on_enter(assert_the_strip)
-            .add();
-        let script = open_the_ship_pane(script, "to strip again")
-            .step("station strip: strip the stripped section again")
-            .on_enter(|world: &mut World| send_strip(world, first(world).id))
-            .until(the_note_is(|world| {
-                format!("strip: {} is already gone", first(world).code)
-            }))
-            .deadline(SESSION_SECS)
-            .add()
-            .step("station strip: assert the second refusal")
-            .on_enter(assert_the_second_refusal)
-            .add()
-            .step("station strip: start the strip the undock stops")
-            .on_enter(|world: &mut World| send_strip(world, stopped(world).id))
-            .until(when(|world| job(world).is_some()))
-            .deadline(SESSION_SECS)
-            .add();
-        let script = close_the_interface(script, "to run the stopped strip")
-            .step("station strip: the stopped strip runs")
-            .until(the_stopped_strip_runs())
+        let script = start_the_strip(script, "to strip", Some(PLAN_SHOT))
+            .step("station strip: the strip takes a section in flight")
+            .until(when(|world| job(world).is_some_and(|job| job.taken >= 1)))
             .deadline(SESSION_SECS)
             .add()
             .step("station strip: undock mid-strip")
@@ -1371,6 +1418,65 @@ mod walk {
             .step("station strip: assert the thaw")
             .on_enter(assert_the_thaw)
             .add()
+            .step("station strip: berth and dock at the wreck again")
+            .each(|world, _, _| berth_and_dock(world, wreck(world)))
+            .until(player_docked())
+            .deadline(SESSION_SECS)
+            .add()
+            // The new dock may take another free port: the strip ends on it.
+            .step("station strip: record the new berth")
+            .on_enter(record_the_berth)
+            .add();
+        let script = start_the_strip(script, "to strip the rest", None)
+            .step("station strip: the strip runs early")
+            .until(the_strip_reaches(EARLY_SHOT_PROGRESS))
+            .deadline(STRIP_SECS)
+            .add();
+        let script = shoot_step(script, WRECK_EARLY_SHOT)
+            .step("station strip: the strip runs mid-way")
+            .until(the_strip_reaches(MID_SHOT_PROGRESS))
+            .deadline(STRIP_SECS)
+            .add();
+        let script = shoot_step(script, HUD_SHOT);
+        let script = open_the_pane(
+            script,
+            "to watch the strip",
+            RECYCLE_TAB,
+            InterfacePaneType::Recycle,
+        );
+        let script = shoot_step(script, TAB_SHOT);
+        let script = close_the_interface(script, "to finish the strip")
+            .step("station strip: the strip runs late")
+            .until(the_strip_reaches(LATE_SHOT_PROGRESS))
+            .deadline(STRIP_SECS)
+            .add();
+        let script = shoot_step(script, WRECK_LATE_SHOT)
+            .step("station strip: the strip ends with the wreck")
+            .until(the_wreck_is_gone())
+            .deadline(STRIP_SECS)
+            .add()
+            .step("station strip: assert the finish")
+            .on_enter(assert_the_finish)
+            .add()
+            .step("station strip: jump past the active radius again")
+            .on_enter(jump_out)
+            .until(and(
+                window_is(|world| world.resource::<StripWatch>().crossed),
+                wreck_cell_frozen(),
+            ))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station strip: assert the empty retire")
+            .on_enter(assert_the_empty_retire)
+            .add()
+            .step("station strip: jump back to the wreck's cell")
+            .on_enter(|world: &mut World| park_beside(world, &wreck_target(world)))
+            .until(window_is(player_cell))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station strip: assert the empty thaw")
+            .on_enter(assert_the_empty_thaw)
+            .add()
             .step("station strip: jump to the station's side")
             .on_enter(|world: &mut World| park_beside(world, &station_target(world)))
             .until(and(window_is(player_cell), the_station_stands()))
@@ -1384,14 +1490,19 @@ mod walk {
             .step("station strip: record the hold")
             .on_enter(record_hold)
             .add();
-        open_the_ship_pane(script, "at the station")
-            .step("station strip: strip a station section")
-            .on_enter(|world: &mut World| send_strip(world, station_section(world)))
-            .until(the_note_is(|_| NOT_LOOTABLE_NOTE.to_string()))
-            .deadline(SESSION_SECS)
-            .add()
-            .step("station strip: assert the station refusal")
-            .on_enter(assert_the_station_refusal)
-            .add()
+        open_the_pane(
+            script,
+            "at the station",
+            STATION_TAB,
+            InterfacePaneType::Station,
+        )
+        .step("station strip: strip the station")
+        .on_enter(send_strip)
+        .until(when(|world| note(world) == Some(LIVING_STATION_NOTE)))
+        .deadline(SESSION_SECS)
+        .add()
+        .step("station strip: assert the station refusal")
+        .on_enter(assert_the_station_refusal)
+        .add()
     }
 }
