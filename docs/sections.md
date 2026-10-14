@@ -110,6 +110,39 @@ grows the root's pinned health by the part's pool, and spawns the section at
 full health. The Ship side panel scrolls under the wheel while hovered
 (`scroll_ship_panel`), and the camera zoom yields to it.
 
+### Stripping a docked wreck
+
+Docked with a hull the player may loot (neutralized, or a derelict with
+`LootableShipMarker`), the Ship pane's "Strip the docked wreck" list
+(`nova_interface/src/ship/strip.rs`) shows each live section of the partner
+under its design code, with the parts a strip gives and its time, or the
+refusal, and a Strip button that raises `SectionStripCommand`.
+`plan_section_strip` (`nova_gameplay/src/inventory.rs`) checks, in order:
+docked, no strip already running, a lootable partner, the section still
+live, not the berth (the port that holds the dock, so a hull is never
+stripped to nothing), not a cut section (`strip_splits_hull`), at least one
+whole part, and the hold's free mass. The parts are
+`BuildRecipe::strip_parts_at`: `floor(count * strip_yield * health share)`
+per part. The time is `strip_duration_secs`: `STRIP_SECS_PER_PART` (1 s) per
+recipe part, at least `STRIP_MIN_SECS` (3 s).
+
+A planned strip inserts `SectionStripJob` (`nova_ship/src/sections/section_strip.rs`)
+on the player root. `advance_ship_strip` runs it on the virtual clock, so it
+holds while the TAB interface is open; the list's progress line and the HUD
+mode chip (`STRIP <code> <percent>%`) show it. An undock, or the section
+leaving, stops the job with no change; the job is not saved. When the timer
+ends the strip is planned again: the parts go into the hold, the pane pushes
+`ShipInventoryReport::Stripped` (`OnStripped`) and triggers
+`SectionStripRequest`. `strip_section` takes the section off without the
+destroy path, so it fires no burst, no `OnDestroyed`, no canister drop and no
+floating piece: it prunes the section from its neighbours' `ConnectedTo`,
+lowers the root's pinned health maximum by the section's pool, and despawns
+it. A stripped section is then a design section with no live entity, as a
+destroyed one is, so a freeze, a thaw and a save keep it stripped with no
+save field, and a second strip refuses (`SectionGone`). The trade-in
+(`hull_trade_in_cr`) prices the same recipes at bid but keeps its own
+credit scaling, unfloored per part.
+
 ### Buying a hull
 
 A generated living station carries a `StationHullCatalogue`
@@ -1578,6 +1611,12 @@ per contact. A symmetric rule - ram damage - wants both.
   `crates/nova_scenario/src/objects/station.rs`; the pane:
   `crates/nova_interface/src/ship/station_buy.rs`; proof:
   `examples/systems/system_station_own.rs`.
+- Section strip: `plan_section_strip`, `strip_duration_secs`,
+  `BuildRecipe::strip_parts_at` - `crates/nova_gameplay/src/inventory.rs`;
+  `SectionStripJob`, `SectionStripRequest`, `strip_splits_hull`,
+  `strip_section` - `crates/nova_ship/src/sections/section_strip.rs`; the
+  pane and the timer: `crates/nova_interface/src/ship/strip.rs`; proof:
+  `examples/systems/system_station_strip.rs`.
 - Integrity core: `NovaIntegrityPlugin` -
   `crates/nova_gameplay/src/integrity/mod.rs`; graph, sever and collapse:
   `ShipIntegrityPlugin` - `crates/nova_ship/src/sections/integrity.rs`.

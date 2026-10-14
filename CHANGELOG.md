@@ -66,6 +66,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A living generated station sells itself on the Ship pane for twice its worth
   at ask (`OnStationBought`). It stays yours across a save, admits you on any
   side and sells its hold at bid.
+- Docked with a wreck, the Ship pane strips a section into its recipe parts
+  times yield and health, timed by part count (`OnStripped`). It stays
+  stripped across a save.
 
 ### Scenarios & Objectives
 

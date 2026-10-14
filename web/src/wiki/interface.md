@@ -228,6 +228,12 @@ Under **Ships for sale**, the same station lists its **Escorts for hire**: armed
 
 Docked at a living station in an Open World, the Ship pane's panel shows **This station**: its name and its price, twice what its sections, its hold and its credits are worth at ask. Click **Buy station** to make it yours; the credits go to its civilization. An owned station lets you dock whatever side you are flagged, and its hold sells to you at the price it would pay. It keeps its side and its guns, and it earns nothing yet. In a saved Open World it stays yours across a Load. A price your credits cannot cover is refused.
 
+<!-- List, timer and action: crates/nova_interface/src/ship/strip.rs. Rule:
+     crates/nova_gameplay/src/inventory.rs `plan_section_strip`. Removal:
+     crates/nova_ship/src/sections/section_strip.rs. -->
+
+Docked with a derelict wreck or a neutralized ship, the Ship pane's panel shows **Strip the docked wreck**: each of its sections under its code, with the parts a strip gives, its health and the time it takes, and a **Strip** button. A strip takes 1 s per part of the section's build recipe, at least 3 s, and runs only while the game runs: close the pane and the HUD chip over your ship reads `STRIP PDC-1 40%`. When it ends, the section comes off the wreck and its parts go into your hold: each part of its recipe times its strip yield times its health, rounded down. The wreck stays stripped when its sector streams away and back, and across a Load. One section strips at a time. Undock and the strip stops with nothing moved. A strip is refused on the note line for the port you are docked through (`strip: DOCK-1 holds the dock`), a section that would split the wreck, a section too damaged to give a whole part, a hold without room, a section already gone and a hull that is not a wreck you may loot.
+
 ## The inventory
 
 <figure class="figure">
