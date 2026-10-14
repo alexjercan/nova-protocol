@@ -107,12 +107,14 @@ pub(crate) const fn chart_cluster_tag(cluster: ClusterType) -> &'static str {
     }
 }
 
-/// The colour of a station mark: living or dead.
-pub(crate) const fn chart_station_color(derelict: bool) -> UiColor {
-    if derelict {
-        UiColor::Danger
-    } else {
-        UiColor::Nominal
+/// What a station mark is, as the panel's kind line names it, and its
+/// colour: dead, the player's (in the Map's ally colour) or a civilization's.
+/// A dead station is dead whoever owned it.
+pub(crate) const fn chart_station_kind(derelict: bool, owned: bool) -> (&'static str, UiColor) {
+    match (derelict, owned) {
+        (true, _) => ("DEAD STATION", UiColor::Danger),
+        (false, true) => ("OWNED STATION", UiColor::Info),
+        (false, false) => ("LIVING STATION", UiColor::Nominal),
     }
 }
 
@@ -294,7 +296,7 @@ pub(crate) fn manage_map_chart(
             (
                 MapChartMarkType::Station(station.id.clone()),
                 station.id.origin,
-                chart_station_color(station.derelict),
+                chart_station_kind(station.derelict, station.owned).1,
             )
         })
         .chain(chart.wrecks().iter().map(|wreck| {
@@ -545,13 +547,10 @@ pub(crate) fn chart_panel_field(
             UiColor::Body,
         ),
         (Some(MapChartMarkType::Station(id)), MapPanelField::Kind) => {
-            let derelict = station(id).is_some_and(|station| station.derelict);
-            let word = if derelict {
-                "DEAD STATION"
-            } else {
-                "LIVING STATION"
-            };
-            (word.to_string(), chart_station_color(derelict))
+            let (word, color) = station(id).map_or(chart_station_kind(false, false), |station| {
+                chart_station_kind(station.derelict, station.owned)
+            });
+            (word.to_string(), color)
         }
         (Some(MapChartMarkType::Wreck(_)), MapPanelField::Name) => {
             ("Derelict hull".to_string(), UiColor::Body)
@@ -629,8 +628,9 @@ pub(crate) fn spawn_chart_legend(legend: &mut ChildSpawnerCommands) {
         });
     }
     for (color, word) in [
-        (chart_station_color(false), "Living station"),
-        (chart_station_color(true), "Dead station"),
+        (chart_station_kind(false, false).1, "Living station"),
+        (chart_station_kind(false, true).1, "Owned station"),
+        (chart_station_kind(true, false).1, "Dead station"),
         (MAP_CHART_WRECK_COLOR, "Wreck"),
         (MapContactKind::OwnShip.color(), "Own ship"),
     ] {

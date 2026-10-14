@@ -132,14 +132,18 @@ impl std::fmt::Display for StationDesignId {
 pub struct StationMarker(pub StationDesignId);
 
 /// Marks a station root the player owns: bought from its civilization with
-/// the Ship pane's station buy.
+/// the Station pane's station buy.
 ///
 /// The station's frozen record carries it (`FrozenStation`'s `owned`), so
 /// ownership crosses a retire, a thaw and a Load with the body; nothing else
-/// keeps a copy. What it changes: docking admission skips the side rule, so
-/// the station refuses no hull (only its one held connection), and a Buy
-/// from its hold pays bid, not ask. The station keeps its civilization's side
-/// and its AI; a dead owned station keeps the marker and is a derelict.
+/// keeps a copy. The buy also moves the station to the Player side and drops
+/// its civilization's name (`nova_ship`'s `owned_station`), so its AI fires
+/// on the player's foes; a generated civilization can be on the Player side
+/// too, so the side alone does not say who owns it. What the marker changes:
+/// docking admission skips the side rule, so the station refuses no hull
+/// (only when every port is held), a Buy from its hold pays bid, not ask,
+/// and the chart and Map show it as owned. A dead owned station keeps the
+/// marker and is a Neutral derelict.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
 pub struct OwnedStationMarker;

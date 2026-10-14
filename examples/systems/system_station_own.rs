@@ -1,19 +1,21 @@
 //! system_station_own: a living generated station bought from its
-//! civilization stays the player's across a retire, a thaw, a save and a
-//! Load, and admits a player ship its side would refuse.
+//! civilization becomes the player's: it leaves its civilization for the
+//! Player side and the owned name, the chart and the Map show it as the
+//! player's, and it stays so across a retire, a thaw, a save and a Load.
 //!
 //! Boots the shipped app (via [`editor_app`]), starts New Game on a pinned
 //! seed the way the Create World modal does, and lets the window stream in.
-//! It picks the nearest generated station that is living, on the Player
-//! side, and stands outside the spawn's cell. The player jumps beside it and
-//! is put on a berth at its collar each frame until the dock takes; the walk
-//! never flies the approach (`system_station_docking` does).
+//! It picks the nearest generated station that is living, on the Neutral
+//! side, and stands outside the spawn's cell: a side the buy visibly
+//! changes. The player jumps beside it and is put on a berth at its collar
+//! each frame until the dock takes; the walk never flies the approach
+//! (`system_station_docking` does).
 //!
 //! DISCLOSED FIXTURE STATE: once docked, the player holds 100,000,000 cr, so
 //! the station is affordable. The player's side is set to Enemy twice, as
-//! the stance graph will one day set it: once beside the station before the
-//! buy, for one admission check with no frame run, and once after the Load,
-//! while the player berths and docks; it is set back to Player after each.
+//! the stance graph will one day set it, each time for one admission check
+//! with no frame run, and set back to Player at once: the bought station is
+//! on the Player side, and its guns would answer an Enemy-flagged ship.
 //! The buy goes through the Station pane's Buy station button, the code path a
 //! player clicks. After the undock the player JUMPS two kilometres straight
 //! out from the station, at rest; the berth points the mouse rig where it
@@ -23,22 +25,25 @@
 //!
 //! | # | marker | claim |
 //! | - | - | - |
-//! | 1 | `outcome: a living station refuses an Enemy-flagged ship` | the chosen Player-side station refuses the player with `HostileStation` while the player's side is Enemy, and admits it on the Player side |
-//! | 2 | `outcome: a station is bought from its civilization` | the station carries `OwnedStationMarker`; the player paid the price the rule gives (twice its sections, stock and credits at ask) as one `StationBuy` change; the station's balance did not move; `OnStationBought` fired once with the station and the price |
-//! | 3 | `outcome: a bought station stays owned across a retire and a thaw` | after the jump the station's cell is frozen and its record is owned; after the jump back the thawed station carries `OwnedStationMarker` |
-//! | 4 | `outcome: the leave save holds the station owned` | the saved sector's station record is owned |
-//! | 5 | `outcome: a loaded owned station admits an Enemy-flagged ship` | after Load the station carries `OwnedStationMarker`; with the player's side Enemy the admission names no refusal and the dock takes |
+//! | 1 | `outcome: an unowned station is its civilization's` | the chosen station is not owned, on the Neutral side, named `<civilization> station`, and its guns read an Enemy ship as Neutral |
+//! | 2 | `outcome: a station is bought from its civilization` | the station carries `OwnedStationMarker`, is on the Player side and named `Owned station`, no longer for its civilization; its guns read an Enemy ship as Hostile and the player as Own; the player paid the price the rule gives (twice its sections, stock and credits at ask) as one `StationBuy` change; the station's balance did not move; `OnStationBought` fired once with the station and the price |
+//! | 3 | `outcome: the chart holds the bought station as the player's` | after the undock the chart's entry for the station is owned, living and last seen as `Owned station` |
+//! | 4 | `outcome: a bought station stays the player's across a retire and a thaw` | after the jump the station's cell is frozen and its record is owned; after the jump back the thawed station is owned, on the Player side and named `Owned station`, and admits an Enemy-flagged ship its side would refuse |
+//! | 5 | `outcome: the leave save holds the station owned` | the saved sector's station record is owned, and the saved chart holds it owned |
+//! | 6 | `outcome: a loaded station is still the player's` | after Load the station is owned, on the Player side and named `Owned station`; Enemy-flagged, the admission names no refusal; the chart holds it owned; the player docks |
+//! | 7 | `outcome: the Map's chart view shows the station as the player's` | the chart view labels the station `STN-n`; selected, the panel reads `OWNED STATION` and `Owned station` |
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
 //! NOVA_AUTOPILOT=1 NOVA_AUTOPILOT_DEADLINE=3600 \
 //!   cargo run --example system_station_own --features debug
-//! # look for: `station own: PASS the loaded owned station admits an Enemy-flagged ship`,
+//! # look for: `station own: PASS the Map's chart view shows the station as the player's`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 //! Add `NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=<dir>` to shoot the Buy station row
-//! as `station-own-buy.png`, the block docked at the loaded owned station as
-//! `station-own-owned.png` and the docked pair as `station-own-docked.png`.
+//! as `station-own-buy.png`, the docked pair at the loaded owned station as
+//! `station-own-docked.png`, the block there as `station-own-owned.png` and
+//! the Map's chart view with the station selected as `station-own-chart.png`.
 
 use bevy::prelude::*;
 use clap::Parser;
@@ -47,9 +52,9 @@ use clap::Parser;
 #[command(name = "system_station_own")]
 #[command(version = "1.0.0")]
 #[command(
-    about = "New Game on a pinned seed: check a living Player-side station refuses an \
-             Enemy-flagged ship, dock and buy it from the Station pane, leave its cell and come \
-             back, save and Load, then dock Enemy-flagged at the owned station. Autopilot-only \
+    about = "New Game on a pinned seed: dock at a living Neutral station and buy it from the \
+             Station pane; it takes the Player side and the owned name, the chart holds it as the \
+             player's, and it stays so across a retire, a thaw, a save and a Load. Autopilot-only \
              correctness range",
     long_about = None
 )]
@@ -107,6 +112,7 @@ mod walk {
         },
         nova_events::engine::GameEvent,
         nova_interface::{pane::InterfacePaneType, station::STATION_BUY_BUTTON},
+        nova_world_base::prelude::WorldSaveState,
         prelude::*,
     };
     use nova_ui::widget::TextFieldValue;
@@ -117,8 +123,8 @@ mod walk {
     use super::*;
 
     /// The seed the range plays: its window around the spawn holds a living
-    /// Player-side station outside the spawn's cell.
-    const STATION_SEED: u32 = 95;
+    /// Neutral station outside the spawn's cell.
+    const STATION_SEED: u32 = 10;
 
     const NEW_GAME_BUTTON: &str = "New Game Button";
     const WORLD_NAME_FIELD: &str = "World Name Field";
@@ -147,6 +153,7 @@ mod walk {
     const BUY_SHOT: &str = "station-own-buy.png";
     const OWNED_SHOT: &str = "station-own-owned.png";
     const DOCKED_SHOT: &str = "station-own-docked.png";
+    const CHART_SHOT: &str = "station-own-chart.png";
 
     /// How far from the station the player parks before the berth.
     const PARK_DISTANCE: Meters = Meters(2_000.0);
@@ -187,6 +194,8 @@ mod walk {
         cell: Option<SectorCoord>,
         /// Where it stood when chosen, for the park point.
         position: Option<Meters3>,
+        /// Its civilization's name, from its name before the buy.
+        civilization: Option<String>,
         /// The facts right before the buy.
         before: Option<BeforeBuy>,
         /// The cell the crossing landed in.
@@ -282,6 +291,110 @@ mod walk {
         world.get::<OwnedStationMarker>(station).is_some()
     }
 
+    fn side(world: &World, root: Entity) -> Option<Allegiance> {
+        world.get::<Allegiance>(root).copied()
+    }
+
+    fn name(world: &World, root: Entity) -> String {
+        world
+            .get::<Name>(root)
+            .expect("station own: a station is named")
+            .as_str()
+            .to_string()
+    }
+
+    /// How the station's guns read `other`: the relation its AI targets by.
+    fn station_reads(world: &World, station: Entity, other: RelationParty<'_>) -> Relation {
+        ship_relation(
+            RelationParty {
+                entity: station,
+                allegiance: world.get::<Allegiance>(station),
+                retaliation: world.get::<RetaliationTarget>(station),
+            },
+            other,
+        )
+    }
+
+    /// An Enemy ship that is not in the world: the station's guns read it by
+    /// its side alone.
+    fn an_enemy() -> RelationParty<'static> {
+        RelationParty {
+            entity: Entity::PLACEHOLDER,
+            allegiance: Some(&Allegiance::Enemy),
+            retaliation: None,
+        }
+    }
+
+    /// The player's party, as the station's guns read it.
+    fn the_player_party(world: &World) -> RelationParty<'_> {
+        let player = player(world);
+        RelationParty {
+            entity: player,
+            allegiance: world.get::<Allegiance>(player),
+            retaliation: world.get::<RetaliationTarget>(player),
+        }
+    }
+
+    /// The station is the player's: owned, on the Player side, named
+    /// [`OWNED_STATION_NAME`] and no longer for its civilization. `when` names
+    /// the beat for the failure.
+    fn assert_the_players(world: &World, when: &str) {
+        let station = station(world);
+        let civilization = world
+            .resource::<OwnWatch>()
+            .civilization
+            .clone()
+            .expect("station own: the civilization is recorded");
+        assert!(owned(world, station), "station own: {when}: owned");
+        assert_eq!(
+            side(world, station),
+            Some(Allegiance::Player),
+            "station own: {when}: on the player's side"
+        );
+        let name = name(world, station);
+        assert_eq!(
+            name, OWNED_STATION_NAME,
+            "station own: {when}: named as the player's"
+        );
+        assert!(
+            !name.contains(&civilization),
+            "station own: {when}: '{name}' no longer names {civilization}"
+        );
+    }
+
+    /// The chart's entry for the station: owned, living, last seen with the
+    /// owned name.
+    fn assert_the_chart_owns(chart: &Chart, id: &GeneratedBodyId, when: &str) {
+        let entry = chart
+            .station(id)
+            .unwrap_or_else(|| panic!("station own: {when}: the chart holds the station"));
+        assert!(entry.owned, "station own: {when}: the chart holds it owned");
+        assert!(
+            !entry.derelict,
+            "station own: {when}: the chart holds it living"
+        );
+        assert_eq!(
+            entry.summary.as_ref().map(|summary| summary.name.as_str()),
+            Some(OWNED_STATION_NAME),
+            "station own: {when}: the chart last saw it as the player's"
+        );
+    }
+
+    /// Enemy-flagged, the player is admitted by the station its side would
+    /// refuse; no frame runs while the side is Enemy.
+    fn admitted_enemy_flagged(world: &mut World) -> Option<DockRefusalType> {
+        set_side(world, Allegiance::Enemy);
+        let station = station(world);
+        let hostile = station_reads(world, station, the_player_party(world));
+        let refused = refusal(world);
+        set_side(world, Allegiance::Player);
+        assert_eq!(
+            hostile,
+            Relation::Hostile,
+            "station own: the Player-side station reads an Enemy-flagged ship as hostile"
+        );
+        refused
+    }
     /// Why the station refuses the player now, through the one admission
     /// point the dock request reads.
     fn refusal(world: &mut World) -> Option<DockRefusalType> {
@@ -654,7 +767,7 @@ mod walk {
             .into_iter()
             .filter(|(_, side, derelict, at)| {
                 !derelict
-                    && *side == Some(Allegiance::Player)
+                    && *side == Some(Allegiance::Neutral)
                     && SectorCoord::containing(Meters3::from_engine(*at), edge)
                         != SectorCoord::ORIGIN
             })
@@ -669,8 +782,8 @@ mod walk {
         stations.sort_by(|a, b| a.0.total_cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
         let Some((distance, id, at)) = stations.into_iter().next() else {
             panic!(
-                "station own: the window on seed {STATION_SEED} holds no living Player-side \
-                 station outside the spawn's cell"
+                "station own: the window on seed {STATION_SEED} holds no living Neutral station \
+                 outside the spawn's cell"
             );
         };
         let position = Meters3::from_engine(at);
@@ -682,36 +795,41 @@ mod walk {
         watch.position = Some(position);
     }
 
-    /// Claim 1: Enemy-flagged, the player is refused by the living station
-    /// it is about to buy; on the Player side it is admitted. No frame runs
-    /// while the side is Enemy.
-    fn assert_the_refusal(world: &mut World) {
+    /// Claim 1: before the buy the station is its civilization's: no one
+    /// owns it, it is on its civilization's Neutral side and named for it,
+    /// and its guns read an Enemy ship as Neutral.
+    fn assert_the_civilization(world: &mut World) {
+        let station = station(world);
         assert!(
-            !owned(world, station(world)),
+            !owned(world, station),
             "station own: the station is no one's before the buy"
         );
-        set_side(world, Allegiance::Enemy);
-        let refused = refusal(world);
-        set_side(world, Allegiance::Player);
-        let admitted = refusal(world);
         assert_eq!(
-            refused,
-            Some(DockRefusalType::HostileStation),
-            "station own: a living Player station refuses an Enemy-flagged ship"
+            side(world, station),
+            Some(Allegiance::Neutral),
+            "station own: the station is on its civilization's side"
         );
+        let name = name(world, station);
+        let civilization = name
+            .strip_suffix(" station")
+            .unwrap_or_else(|| panic!("station own: '{name}' is a generated station name"))
+            .to_string();
         assert_eq!(
-            admitted, None,
-            "station own: the station admits the player on the Player side"
+            station_reads(world, station, an_enemy()),
+            Relation::Neutral,
+            "station own: the Neutral station's guns leave an Enemy ship alone"
         );
         nova_probe::probe_marker(
             world,
-            "outcome: a living station refuses an Enemy-flagged ship",
+            "outcome: an unowned station is its civilization's",
             serde_json::json!({
                 "station": station_id(world).to_string(),
-                "refusal": format!("{refused:?}"),
+                "name": name,
+                "civilization": civilization,
             }),
         );
-        info!("station own: the unowned station refuses the Enemy-flagged player");
+        info!("station own: '{name}' is {civilization}'s, on the Neutral side");
+        world.resource_mut::<OwnWatch>().civilization = Some(civilization);
     }
 
     /// Disclosed fixture state: the player's balance set to
@@ -758,12 +876,23 @@ mod walk {
     fn assert_the_buy(world: &mut World) {
         let player = player(world);
         let station = station(world);
-        let watch = world.resource::<OwnWatch>();
-        let before = watch
+        let before = world
+            .resource::<OwnWatch>()
             .before
             .clone()
             .expect("station own: the buy is recorded");
-        assert!(owned(world, station), "station own: the station is owned");
+        assert_the_players(world, "after the buy");
+        assert_eq!(
+            station_reads(world, station, an_enemy()),
+            Relation::Hostile,
+            "station own: the bought station's guns read an Enemy ship as hostile"
+        );
+        assert_eq!(
+            station_reads(world, station, the_player_party(world)),
+            Relation::Own,
+            "station own: the bought station's guns read the player as its own"
+        );
+        let watch = world.resource::<OwnWatch>();
         assert_eq!(
             credits(world, player),
             before.player_cr - before.price_cr,
@@ -799,6 +928,30 @@ mod walk {
             before.price_cr
         );
         world.trigger(DockingReleaseRequest { entity: player });
+    }
+
+    /// The chart holds the station owned: the undock's record landed.
+    fn the_chart_owns_it() -> Arc<Predicate> {
+        when(|world| {
+            world
+                .resource::<OwnWatch>()
+                .id
+                .as_ref()
+                .and_then(|id| world.resource::<Chart>().station(id))
+                .is_some_and(|entry| entry.owned)
+        })
+    }
+
+    /// Claim 3: the chart holds the bought station as the player's.
+    fn assert_the_chart(world: &mut World) {
+        let id = station_id(world);
+        assert_the_chart_owns(world.resource::<Chart>(), &id, "after the undock");
+        nova_probe::probe_marker(
+            world,
+            "outcome: the chart holds the bought station as the player's",
+            serde_json::json!({ "station": id.to_string(), "name": OWNED_STATION_NAME }),
+        );
+        info!("station own: the chart holds '{id}' as the player's");
     }
 
     /// Jump the undocked player [`PARK_DISTANCE`] straight out from the
@@ -856,7 +1009,7 @@ mod walk {
         })
     }
 
-    /// Claim 3, first half: the retired station's record is owned.
+    /// Claim 4, first half: the retired station's record is owned.
     fn assert_the_retire(world: &mut World) {
         let id = station_id(world).to_string();
         assert!(
@@ -874,25 +1027,27 @@ mod walk {
         );
     }
 
-    /// Claim 3: the thawed station is owned.
+    /// Claim 4: the thawed station is the player's, and admits an
+    /// Enemy-flagged ship its Player side would refuse.
     fn assert_the_thaw(world: &mut World) {
-        let station = station(world);
-        assert!(
-            owned(world, station),
-            "station own: the thawed station is owned"
+        assert_the_players(world, "after the thaw");
+        let refused = admitted_enemy_flagged(world);
+        assert_eq!(
+            refused, None,
+            "station own: the thawed owned station admits an Enemy-flagged ship"
         );
         let watch = world.resource::<OwnWatch>();
         let (cell, crossed) = (watch.cell, watch.crossed);
         nova_probe::probe_marker(
             world,
-            "outcome: a bought station stays owned across a retire and a thaw",
+            "outcome: a bought station stays the player's across a retire and a thaw",
             serde_json::json!({
                 "station": station_id(world).to_string(),
                 "cell": cell.map(|cell| cell.to_string()),
                 "crossed": crossed.map(|cell| cell.to_string()),
             }),
         );
-        info!("station own: the station thawed owned");
+        info!("station own: the station thawed the player's");
     }
 
     /// The leave save, read back off disk.
@@ -912,7 +1067,8 @@ mod walk {
         (header, state)
     }
 
-    /// Claim 4: the leave save holds the station owned.
+    /// Claim 5: the leave save holds the station owned, on the record and
+    /// on the chart.
     fn assert_the_save(world: &mut World) {
         let id = station_id(world).to_string();
         let (header, state) = open_the_leave_save(world);
@@ -921,6 +1077,7 @@ mod walk {
             Some(true),
             "station own: the saved station record is owned"
         );
+        assert_the_chart_owns(&state.chart, &station_id(world), "in the save");
         nova_probe::probe_marker(
             world,
             "outcome: the leave save holds the station owned",
@@ -936,37 +1093,96 @@ mod walk {
         );
     }
 
-    /// Claim 5, first half: the loaded station is owned, and admits the
-    /// player Enemy-flagged. The side stays Enemy through the berth.
-    fn assert_the_loaded_admission(world: &mut World) {
-        let station = station(world);
-        assert!(
-            owned(world, station),
-            "station own: the loaded station is owned"
-        );
-        set_side(world, Allegiance::Enemy);
+    /// Claim 6, first half: the loaded station is the player's, admits the
+    /// player Enemy-flagged, and the loaded chart holds it owned.
+    fn assert_the_loaded_station(world: &mut World) {
+        assert_the_players(world, "after the Load");
+        let refused = admitted_enemy_flagged(world);
         assert_eq!(
-            refusal(world),
-            None,
-            "station own: the owned station admits an Enemy-flagged ship"
+            refused, None,
+            "station own: the loaded owned station admits an Enemy-flagged ship"
+        );
+        assert_the_chart_owns(
+            world.resource::<Chart>(),
+            &station_id(world),
+            "after the Load",
         );
     }
 
-    /// Claim 5: the Enemy-flagged dock took; the side goes back to Player.
+    /// Claim 6: the player docked at the loaded station.
     fn mark_the_loaded_dock(world: &mut World) {
-        let player = player(world);
-        assert_eq!(
-            world.get::<Allegiance>(player),
-            Some(&Allegiance::Enemy),
-            "station own: the player docked Enemy-flagged"
+        nova_probe::probe_marker(
+            world,
+            "outcome: a loaded station is still the player's",
+            serde_json::json!({ "station": station_id(world).to_string() }),
+        );
+        info!("station own: the loaded station is still the player's, and the player docked");
+    }
+
+    /// Every UI text on screen.
+    fn texts(world: &mut World) -> Vec<String> {
+        world
+            .query::<&Text>()
+            .iter(world)
+            .map(|text| text.0.clone())
+            .collect()
+    }
+
+    fn a_text_reads(check: impl Fn(&str) -> bool + Send + Sync + 'static) -> Arc<Predicate> {
+        when(move |world| {
+            world
+                .try_query::<&Text>()
+                .is_some_and(|mut query| query.iter(world).any(|text| check(&text.0)))
+        })
+    }
+
+    /// The station's chart code, from the chart's found order.
+    fn station_code(world: &World) -> String {
+        let id = station_id(world);
+        let index = world
+            .resource::<Chart>()
+            .stations()
+            .iter()
+            .position(|station| station.id == id)
+            .expect("station own: the chart holds the station");
+        format!("STN-{}", index + 1)
+    }
+
+    /// Select the station's mark on the chart view by its code.
+    fn select_the_mark(world: &mut World) {
+        let target = format!("MapChartMark{}", station_code(world));
+        let label = world
+            .query::<(Entity, &Name)>()
+            .iter(world)
+            .find(|(_, name)| name.as_str() == target)
+            .map(|(entity, _)| entity)
+            .unwrap_or_else(|| panic!("station own: no label named '{target}'"));
+        world.trigger(bevy::ui_widgets::Activate { entity: label });
+    }
+
+    /// Claim 7: the chart view labels the station by code, and its panel
+    /// says it is the player's.
+    fn assert_the_chart_view(world: &mut World) {
+        let code = station_code(world);
+        let shown = texts(world);
+        assert!(
+            shown.contains(&code),
+            "station own: the chart view labels the station {code}: {shown:?}"
+        );
+        assert!(
+            shown.iter().any(|text| text == "OWNED STATION"),
+            "station own: the panel says the station is owned: {shown:?}"
+        );
+        assert!(
+            shown.iter().any(|text| text == OWNED_STATION_NAME),
+            "station own: the panel names the station as the player's: {shown:?}"
         );
         nova_probe::probe_marker(
             world,
-            "outcome: a loaded owned station admits an Enemy-flagged ship",
-            serde_json::json!({ "station": station_id(world).to_string() }),
+            "outcome: the Map's chart view shows the station as the player's",
+            serde_json::json!({ "code": code, "station": station_id(world).to_string() }),
         );
-        set_side(world, Allegiance::Player);
-        info!("station own: PASS the loaded owned station admits an Enemy-flagged ship");
+        info!("station own: PASS the Map's chart view shows the station as the player's");
     }
 
     /// Leave to the main menu, run `saved` on the leave save, Load the world
@@ -1070,8 +1286,8 @@ mod walk {
             ))
             .deadline(SESSION_SECS)
             .add()
-            .step("station own: the unowned station refuses an Enemy-flagged ship")
-            .on_enter(assert_the_refusal)
+            .step("station own: the unowned station is its civilization's")
+            .on_enter(assert_the_civilization)
             .add()
             .step("station own: berth and dock")
             .each(|world, _, _| berth_and_dock(world))
@@ -1100,6 +1316,13 @@ mod walk {
             .until(player_free())
             .deadline(SESSION_SECS)
             .add()
+            .step("station own: the chart records the undock")
+            .until(the_chart_owns_it())
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station own: assert the chart")
+            .on_enter(assert_the_chart)
+            .add()
             .step("station own: fly clear of the station")
             .on_enter(fly_clear)
             .until(frames(2))
@@ -1127,10 +1350,10 @@ mod walk {
             .on_enter(assert_the_thaw)
             .add();
         let script = leave_and_load(script, assert_the_save, the_station_stands())
-            .step("station own: the loaded owned station admits an Enemy-flagged ship")
-            .on_enter(assert_the_loaded_admission)
+            .step("station own: the loaded station is still the player's")
+            .on_enter(assert_the_loaded_station)
             .add()
-            .step("station own: berth and dock Enemy-flagged")
+            .step("station own: berth and dock")
             .each(|world, _, _| berth_and_dock(world))
             .until(player_docked())
             .deadline(SESSION_SECS)
@@ -1144,6 +1367,36 @@ mod walk {
             .until(shot_written(DOCKED_SHOT))
             .deadline(SHOT_DEADLINE_SECS)
             .add();
-        shoot_the_block(script, "owned", STATION_BLOCK, OWNED_SHOT)
+        let script = shoot_the_block(script, "owned", STATION_BLOCK, OWNED_SHOT).click_named(
+            "station own: open the Map pane",
+            "InterfaceTabMap",
+            the_interface_shows(InterfacePaneType::Map),
+            BEAT_SECS,
+        );
+        tap(
+            script,
+            "the chart key",
+            "map_chart",
+            a_text_reads(|text| text.starts_with("STN-")),
+        )
+        .step("station own: settle the chart view")
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("station own: select the station on the chart")
+        .on_enter(select_the_mark)
+        .until(a_text_reads(|text| text == "OWNED STATION"))
+        .deadline(BEAT_SECS)
+        .add()
+        .step("station own: settle the panel")
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("station own: assert the chart view")
+        .on_enter(assert_the_chart_view)
+        .add()
+        .step("station own: shoot the chart view")
+        .on_enter(|world: &mut World| shoot(world, CHART_SHOT))
+        .until(shot_written(CHART_SHOT))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
     }
 }

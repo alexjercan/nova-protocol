@@ -6,8 +6,8 @@
 //! button or the reason the buy is refused. A click raises a
 //! [`StationBuyCommand`]; [`apply_station_buy_commands`] plans it with
 //! [`plan_station_buy`], charges the price as a `StationBuy` credit change,
-//! queues one `StationBought` report and marks the station
-//! [`OwnedStationMarker`]. Docked at a station the player owns, the block
+//! queues one `StationBought` report and makes the station the player's
+//! ([`owned_station`]). Docked at a station the player owns, the block
 //! says so instead. A ship, a dead station and a station a scenario placed by
 //! hand show no block: no civilization sells them.
 //!
@@ -252,8 +252,10 @@ fn on_station_buy_button(
 
 /// Apply [`StationBuyCommand`]s by the [`plan_station_buy`] rule: charge the
 /// price with a `StationBuy` credit change on the player ship, queue one
-/// `StationBought` report and mark the station [`OwnedStationMarker`]. The
-/// price goes to the civilization, so the station's balance does not move.
+/// `StationBought` report and make the station the player's
+/// ([`owned_station`]: owned, on the Player side, no longer named for its
+/// civilization). The price goes to the civilization, so the station's
+/// balance does not move.
 /// A refusal changes nothing and shows its reason on the note line.
 ///
 /// # Panics
@@ -301,7 +303,7 @@ pub(crate) fn apply_station_buy_commands(
         station: station_id.0.clone(),
         price_cr: plan.price_cr,
     });
-    commands.entity(docked.station).insert(OwnedStationMarker);
+    commands.entity(docked.station).insert(owned_station());
     runtime.say(format!("bought {} for {} cr", docked.name, plan.price_cr));
     info!(
         "station buy: {} ({:?}) is the player's for {} cr",

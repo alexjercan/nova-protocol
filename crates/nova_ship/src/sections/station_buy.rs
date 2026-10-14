@@ -4,24 +4,53 @@
 //! is [`station_price_cr`]: what the station is worth at ask (every live
 //! section's recipe, its hold's stock and its credits) times
 //! [`STATION_OWNERSHIP_FACTOR`]. A buy charges the player the price and
-//! makes the station the player's (`OwnedStationMarker`); the price goes to
-//! the civilization, so the station keeps its own balance and stock. The
-//! player's storage there was already the player's and is not priced.
+//! makes the station the player's ([`owned_station`]): it leaves its
+//! civilization, takes the Player side and drops the civilization's name.
+//! The price goes to the civilization, so the station keeps its own balance
+//! and stock. The player's storage there was already the player's and is not
+//! priced.
 //!
 //! An owned station earns nothing yet: income needs the play-time clock of
 //! the economy strand (see the `TODO(20261012-100028)` in the scenario
 //! crate's `thaw_station`).
 
-use nova_gameplay::prelude::{BuildRecipe, GameItems, ShipInventory};
+use bevy::prelude::Name;
+use nova_gameplay::prelude::{
+    Allegiance, BuildRecipe, GameItems, OwnedStationMarker, ShipInventory,
+};
 
 use super::hull_buy::hull_price_cr;
 
-/// The price rule, the sale terms, the plan and its refusals.
+/// The price rule, the sale terms, the plan, its refusals and what a bought
+/// station becomes.
 pub mod prelude {
     pub use super::{
-        plan_station_buy, station_price_cr, StationBuyPlan, StationBuyRefusalType, StationSaleType,
-        STATION_OWNERSHIP_FACTOR,
+        owned_station, plan_station_buy, station_price_cr, StationBuyPlan, StationBuyRefusalType,
+        StationSaleType, OWNED_STATION_NAME, STATION_OWNERSHIP_FACTOR,
     };
+}
+
+/// The name a station the player owns carries in place of its
+/// civilization's (`"<civilization> station"`). It ends in `" station"` as
+/// every generated station name does, so a bought station that dies is
+/// renamed as a generated one is (`"Owned dead station"`).
+pub const OWNED_STATION_NAME: &str = "Owned station";
+
+/// What a bought station's root takes: [`OwnedStationMarker`], the Player
+/// side and [`OWNED_STATION_NAME`].
+///
+/// The station is no longer its civilization's: its guns and the relation
+/// model read it as the player's side, and its name no longer names the
+/// civilization. The marker is the one record of ownership, frozen as
+/// `FrozenStation.owned`; the side and the name freeze with the hull and the
+/// body as every ship's do. A generated civilization can be on the Player
+/// side, so the side alone does not say who owns a station.
+pub fn owned_station() -> (OwnedStationMarker, Allegiance, Name) {
+    (
+        OwnedStationMarker,
+        Allegiance::Player,
+        Name::new(OWNED_STATION_NAME),
+    )
 }
 
 /// The ownership factor, the price over what the station is worth at ask, as

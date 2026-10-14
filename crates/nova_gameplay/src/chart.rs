@@ -85,6 +85,9 @@ pub struct ChartStation {
     pub id: GeneratedBodyId,
     /// Dead when found: a derelict station offers no service.
     pub derelict: bool,
+    /// The player's when last seen: bought from its civilization
+    /// (`OwnedStationMarker`).
+    pub owned: bool,
     /// What the player saw there on the last dock. `None` until the player
     /// docks: a station seen on sensors only shows no stock.
     pub summary: Option<StationSummary>,
@@ -151,13 +154,14 @@ impl Chart {
         self.stations.iter().find(|station| station.id == *id)
     }
 
-    /// Record that the player found the station `id`. A station already
-    /// found keeps its entry.
-    pub fn find_station(&mut self, id: &GeneratedBodyId, derelict: bool) {
+    /// Record that the player found the station `id`, dead or alive, owned
+    /// or not. A station already found keeps its entry.
+    pub fn find_station(&mut self, id: &GeneratedBodyId, derelict: bool, owned: bool) {
         if self.station(id).is_none() {
             self.stations.push(ChartStation {
                 id: id.clone(),
                 derelict,
+                owned,
                 summary: None,
             });
         }
@@ -169,15 +173,17 @@ impl Chart {
         &mut self,
         id: &GeneratedBodyId,
         derelict: bool,
+        owned: bool,
         summary: StationSummary,
     ) {
-        self.find_station(id, derelict);
+        self.find_station(id, derelict, owned);
         let station = self
             .stations
             .iter_mut()
             .find(|station| station.id == *id)
             .expect("found above");
         station.derelict = derelict;
+        station.owned = owned;
         station.summary = Some(summary);
     }
 

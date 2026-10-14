@@ -2694,6 +2694,7 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
     chart.record_station(
         &GeneratedBodyId::new(east, "cluster_1_0_0_station", 0),
         false,
+        false,
         StationSummary {
             name: "Test station".to_string(),
             services: vec![StationServiceType::Trade],

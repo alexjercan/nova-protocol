@@ -9,8 +9,8 @@
 use bevy::prelude::*;
 use nova_events::prelude::GeneratedBodyId;
 use nova_gameplay::prelude::{
-    Chart, ChartSectorEdge, DerelictShipMarker, PlayerSpaceshipMarker, ShipInventory,
-    StationMarker, StationServices, StationStorage, StationSummary,
+    Chart, ChartSectorEdge, DerelictShipMarker, OwnedStationMarker, PlayerSpaceshipMarker,
+    ShipInventory, StationMarker, StationServices, StationStorage, StationSummary,
 };
 use nova_ship::prelude::{DockedShip, DockingConnection, SensorContacts};
 use nova_world::prelude::{CurrentSector, SectorClusterTypes, SectorRoot, WorldConfig};
@@ -71,6 +71,7 @@ pub(crate) fn chart_sensor_finds(
             &GeneratedBodyId,
             Has<StationMarker>,
             Has<DerelictShipMarker>,
+            Has<OwnedStationMarker>,
         ),
         Or<(With<StationMarker>, With<DerelictShipMarker>)>,
     >,
@@ -80,13 +81,13 @@ pub(crate) fn chart_sensor_finds(
         return;
     };
     for contact in contacts.iter() {
-        let Ok((id, station, derelict)) = bodies.get(contact.entity) else {
+        let Ok((id, station, derelict, owned)) = bodies.get(contact.entity) else {
             continue;
         };
         if station {
             if chart.station(id).is_none() {
                 info!("nova_world_base: the chart finds the station '{id}'");
-                chart.find_station(id, derelict);
+                chart.find_station(id, derelict, owned);
             }
         } else if !chart.has_wreck(id) {
             info!("nova_world_base: the chart finds the wreck '{id}'");
@@ -100,11 +101,11 @@ pub(crate) fn chart_sensor_finds(
 pub(crate) struct LastDockedStation(Option<Entity>);
 
 /// Write the summary of the station the player is docked to: on the dock,
-/// whenever its hold or storage changes while docked, and once more on the
-/// undock from the station as it was left.
+/// whenever its hold or storage changes or the player buys it while docked,
+/// and once more on the undock from the station as it was left.
 #[expect(
     clippy::type_complexity,
-    reason = "a station's identity, services, hold and storage in one query"
+    reason = "a station's identity, services, ownership, hold and storage in one query"
 )]
 pub(crate) fn chart_docked_station(
     player: Query<Option<&DockedShip>, With<PlayerSpaceshipMarker>>,
@@ -115,6 +116,7 @@ pub(crate) fn chart_docked_station(
             Option<&Name>,
             Option<&StationServices>,
             Has<DerelictShipMarker>,
+            Has<OwnedStationMarker>,
             Ref<ShipInventory>,
             Ref<StationStorage>,
         ),
@@ -144,12 +146,15 @@ pub(crate) fn chart_docked_station(
         (None, None) => (None, false),
     };
     last.0 = partner;
-    let Some(Ok((id, name, services, derelict, hold, storage))) =
+    let Some(Ok((id, name, services, derelict, owned, hold, storage))) =
         station.map(|station| stations.get(station))
     else {
         return;
     };
-    if !changed && !hold.is_changed() && !storage.is_changed() {
+    // A buy lands the marker, the side and the name together, so a station
+    // the chart does not yet hold as owned is recorded again.
+    let bought = chart.station(id).is_some_and(|known| known.owned != owned);
+    if !changed && !bought && !hold.is_changed() && !storage.is_changed() {
         return;
     }
     let summary = StationSummary {
@@ -167,10 +172,11 @@ pub(crate) fn chart_docked_station(
             .map(|(item, count)| (item.clone(), count))
             .collect(),
     };
-    if chart
-        .station(id)
-        .is_some_and(|known| known.summary.as_ref() == Some(&summary) && known.derelict == derelict)
-    {
+    if chart.station(id).is_some_and(|known| {
+        known.summary.as_ref() == Some(&summary)
+            && known.derelict == derelict
+            && known.owned == owned
+    }) {
         return;
     }
     info!(
@@ -179,5 +185,5 @@ pub(crate) fn chart_docked_station(
         summary.stock.len(),
         summary.stored.len()
     );
-    chart.record_station(id, derelict, summary);
+    chart.record_station(id, derelict, owned, summary);
 }

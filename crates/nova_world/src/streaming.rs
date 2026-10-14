@@ -416,8 +416,9 @@ const DEAD_STATION_SUFFIX: &str = "dead station";
 ///
 /// # Panics
 ///
-/// On a name [`generated_station_name`] did not write: a generated station is
-/// named only there, so another name is a station this module did not spawn.
+/// On a name neither [`generated_station_name`] nor the station buy
+/// ([`OWNED_STATION_NAME`](nova_ship::prelude::OWNED_STATION_NAME)) wrote: a generated station is named only there,
+/// so another name is a station this module did not spawn.
 fn dead_station_name(name: &str) -> Option<String> {
     if name.ends_with(&format!(" {DEAD_STATION_SUFFIX}")) {
         return None;
@@ -1203,10 +1204,13 @@ pub fn clear_sector_work<G: SectorGenerator>(
 
 #[cfg(test)]
 mod station_name_tests {
+    use nova_ship::prelude::OWNED_STATION_NAME;
+
     use super::*;
 
-    /// A generated living station's name turns into the dead one's, a dead
-    /// name stays, and a name the generator never writes is refused.
+    /// A generated living station's name turns into the dead one's, a bought
+    /// station's too, a dead name stays, and a name the generator never
+    /// writes is refused.
     #[test]
     fn a_dead_generated_station_takes_the_dead_station_name() {
         let living = generated_station_name("Vessa", false);
@@ -1214,6 +1218,10 @@ mod station_name_tests {
         assert_eq!(
             dead_station_name(&living).as_deref(),
             Some("Vessa dead station")
+        );
+        assert_eq!(
+            dead_station_name(OWNED_STATION_NAME).as_deref(),
+            Some("Owned dead station")
         );
         assert_eq!(
             dead_station_name(&generated_station_name("Vessa", true)),
