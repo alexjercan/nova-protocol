@@ -41,6 +41,14 @@ pub mod prelude {
 /// off and returns to its slot.
 pub const ESCORT_LEASH: Meters = Meters(3_000.0);
 
+/// Daylight (world units, 50 m) a hired escort spawns with to every hull and
+/// sized body, measured on their reach spheres.
+const ESCORT_SPAWN_CLEARANCE: f32 = 5.0;
+
+/// How many places out along the side away from the station a hire tries
+/// before it gives up: each is one escort's width further out.
+const ESCORT_SPAWN_TRIES: u32 = 64;
+
 /// One fleet escort as the world save keeps it.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -176,19 +184,71 @@ fn design_reach(offer: &HullOffer) -> f32 {
         + 1.0
 }
 
+/// Where a hired escort of reach `reach` spawns.
+///
+/// `leader` is the hiring ship's anchor and `leader_arm` its arm, `away` the
+/// unit direction from the station to it and `up` its up axis. The first
+/// place is beside the leader on the `away` side, clear of it by
+/// [`AI_FOLLOW_GAP`], moved along the fleet `side` (in a frame whose -Z is
+/// `away`, as [`FLEET_SIDES`] reads) by its own reach plus half the gap, so
+/// two slots never share a place. While that place leaves less than
+/// [`ESCORT_SPAWN_CLEARANCE`] between the escort's reach and any of
+/// `occupied` (centre and radius of every hull and sized body), it moves one
+/// escort's width further along `away`.
+///
+/// # Panics
+///
+/// When [`ESCORT_SPAWN_TRIES`] places are all taken: a hire must never put
+/// one hull inside another.
+fn escort_spawn_position(
+    leader: Vec3,
+    leader_arm: f32,
+    away: Vec3,
+    up: Vec3,
+    side: Vec3,
+    reach: f32,
+    occupied: &[(Vec3, f32)],
+) -> Vec3 {
+    let up = up
+        .reject_from(away)
+        .try_normalize()
+        .unwrap_or_else(|| away.any_orthonormal_vector());
+    let frame = Mat3::from_cols(away.cross(up), up, -away);
+    let first = leader
+        + away * (leader_arm + reach + AI_FOLLOW_GAP)
+        + frame * side * (reach + AI_FOLLOW_GAP * 0.5);
+    let step = 2.0 * reach + ESCORT_SPAWN_CLEARANCE;
+    (0..ESCORT_SPAWN_TRIES)
+        .map(|try_index| first + away * step * try_index as f32)
+        .find(|place| {
+            occupied.iter().all(|&(centre, radius)| {
+                place.distance(centre) >= radius + reach + ESCORT_SPAWN_CLEARANCE
+            })
+        })
+        .unwrap_or_else(|| {
+            panic!(
+                "escort_spawn_position: no clear place in {ESCORT_SPAWN_TRIES} tries out from \
+                 {leader} along {away}"
+            )
+        })
+}
+
 /// Hire a station's offer into the player's fleet, as a Ship pane hire asks
 /// once the hire rule moved the credits.
 ///
 /// The offer leaves the catalogue. The escort spawns with the player's
 /// rotation and the station's velocity, beside the player on the side away
-/// from the station, clear of both hulls by [`AI_FOLLOW_GAP`]: Player-sided,
-/// an AI with an [`ESCORT_LEASH`] leash, an empty hold and no credits.
+/// from the station, at the place [`escort_spawn_position`] finds clear of
+/// every hull (the player, the station, the rest of the fleet, traffic) and
+/// sized body: Player-sided, an AI with an [`ESCORT_LEASH`] leash, an empty
+/// hold and no credits.
 ///
 /// # Panics
 ///
 /// On a station with no catalogue or no such offer, an offer for sale, or an
 /// escort id that is not the offer's slot: the Ship pane raises the request
-/// from the same catalogue the frame it plans it.
+/// from the same catalogue the frame it plans it. On no clear place, see
+/// [`escort_spawn_position`].
 fn hire_station_escort(
     hire: On<EscortHireRequest>,
     mut commands: Commands,
@@ -204,6 +264,13 @@ fn hire_station_escort(
         Option<&ComputedCenterOfMass>,
         Option<&HullRadius>,
     )>,
+    // Every hull, the station and the player among them, and every sized
+    // body, as the follow order rounds them.
+    q_hull: Query<
+        (&Transform, Option<&ComputedCenterOfMass>, &HullRadius),
+        With<SpaceshipRootMarker>,
+    >,
+    q_body: Query<(&Transform, &BodyRadius), (Without<SpaceshipRootMarker>, Without<BeaconMarker>)>,
 ) {
     let EscortHireRequest {
         entity: leader,
@@ -236,8 +303,24 @@ fn hire_station_escort(
     let away = (leader_anchor - live_structure_anchor(station_transform, station_com))
         .try_normalize()
         .unwrap_or(leader_transform.rotation * side);
-    let reach = leader_arm.map_or(0.0, |arm| **arm) + design_reach(offer) + AI_FOLLOW_GAP;
-    let position = leader_anchor + away * reach;
+    let occupied: Vec<(Vec3, f32)> = q_hull
+        .iter()
+        .map(|(transform, com, radius)| (live_structure_anchor(transform, com), **radius))
+        .chain(
+            q_body
+                .iter()
+                .map(|(transform, radius)| (transform.translation, **radius)),
+        )
+        .collect();
+    let position = escort_spawn_position(
+        leader_anchor,
+        leader_arm.map_or(0.0, |arm| **arm),
+        away,
+        leader_transform.rotation * Vec3::Y,
+        side,
+        design_reach(offer),
+        &occupied,
+    );
     let velocity = station_velocity.map_or(Vec3::ZERO, |velocity| **velocity);
 
     let mut remaining = catalogue.0.clone();
@@ -303,4 +386,70 @@ fn release_neutralized_escort(
     commands
         .entity(neutralized.entity)
         .try_remove::<(PlayerFleetMarker, AIFollow)>();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Two escorts hired one after the other from a ship docked at a station
+    /// stand apart, each clear of the other, the ship and the station, and
+    /// a place taken by a hull moves the escort further out instead of into
+    /// it.
+    #[test]
+    fn hired_escorts_spawn_apart_and_clear_of_every_hull() {
+        let (leader, leader_arm) = (Vec3::ZERO, 3.0);
+        let station = (Vec3::new(-30.0, 0.0, 0.0), 25.0);
+        let away = Vec3::X;
+        let mut occupied = vec![(leader, leader_arm), station];
+        let clear = |place: Vec3, reach: f32, occupied: &[(Vec3, f32)]| {
+            occupied.iter().all(|&(centre, radius)| {
+                place.distance(centre) >= radius + reach + ESCORT_SPAWN_CLEARANCE
+            })
+        };
+
+        let first = escort_spawn_position(
+            leader,
+            leader_arm,
+            away,
+            Vec3::Y,
+            FLEET_SIDES[0],
+            4.0,
+            &occupied,
+        );
+        assert!(
+            clear(first, 4.0, &occupied),
+            "the first escort stands clear: {first}"
+        );
+        occupied.push((first, 4.0));
+        let second = escort_spawn_position(
+            leader,
+            leader_arm,
+            away,
+            Vec3::Y,
+            FLEET_SIDES[1],
+            4.0,
+            &occupied,
+        );
+        assert!(
+            clear(second, 4.0, &occupied),
+            "the second escort stands clear of the first, the ship and the station: {second}"
+        );
+
+        // A hull parked on the first place: the escort moves out past it.
+        let parked = vec![(leader, leader_arm), station, (first, 6.0)];
+        let moved = escort_spawn_position(
+            leader,
+            leader_arm,
+            away,
+            Vec3::Y,
+            FLEET_SIDES[0],
+            4.0,
+            &parked,
+        );
+        assert!(
+            clear(moved, 4.0, &parked) && (moved - first).dot(away) > 0.0,
+            "a taken place moves the escort further out along the way from the station: {moved}"
+        );
+    }
 }
