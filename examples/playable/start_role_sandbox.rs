@@ -50,8 +50,6 @@
 //! `start-role-<role>.png` with `NOVA_CAPTURE=1`. Unset, no walk and no
 //! deadline run.
 
-#[path = "shared/diagnostics.rs"]
-mod diagnostics;
 #[path = "shared/open_world_stage.rs"]
 mod open_world_stage;
 
@@ -59,7 +57,7 @@ use avian3d::prelude::Position;
 use bevy::prelude::*;
 use clap::Parser;
 use diagnostics::{palette, DiagnosticsGizmos, DiagnosticsPanel, DiagnosticsSystems};
-use nova_protocol::prelude::*;
+use nova_protocol::{nova_debug::diagnostics, prelude::*};
 use open_world_stage::{cell_of, the_player, window_settled, OpenWorldStartPlugin};
 
 #[derive(Parser)]
@@ -114,7 +112,7 @@ fn main() -> bevy::app::AppExit {
         start_km,
         phase: SandboxPhaseType::Streaming,
     });
-    app.add_plugins(diagnostics::PlayableDiagnosticsPlugin::new(
+    app.add_plugins(diagnostics::DiagnosticsHintPlugin::new(
         "fly the role's hull   [TAB] interface, [M] next tab, [C] chart on Map   TAB Inventory: \
          Jettison, then fly the intake box onto the canister   [:] shell: cheats enable",
     ));

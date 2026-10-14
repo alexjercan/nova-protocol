@@ -17,6 +17,8 @@ use bevy_inspector_egui::egui;
 #[cfg(feature = "debug")]
 use nova_hud::prelude::AmmoReadoutDebug;
 
+use crate::diagnostics::DiagnosticsGizmos;
+
 /// Which dev overlays are drawn. All off by default.
 #[derive(Resource, Reflect, Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[reflect(Resource)]
@@ -32,6 +34,9 @@ pub struct DebugOverlays {
     /// The exact `rounds/capacity` under each ammo gauge. Only a `debug`
     /// build has the number; elsewhere the flag draws nothing.
     pub ammo_number: bool,
+    /// The F3 layer: an example's hint line, live-value panel, world labels
+    /// and [`DiagnosticsGizmos`]. F3 flips it too.
+    pub diagnostics: bool,
 }
 
 /// The gizmo group the gravity overlay draws in.
@@ -67,6 +72,7 @@ pub fn apply_debug_overlays(
     store.config_mut::<SectionGizmos>().0.enabled = overlays.sections;
     #[cfg(feature = "debug")]
     ammo_number.set_if_neq(AmmoReadoutDebug(overlays.ammo_number));
+    store.config_mut::<DiagnosticsGizmos>().0.enabled = overlays.diagnostics;
 }
 
 /// One checkbox per overlay. A tick writes the record only when it changed,
@@ -85,6 +91,10 @@ pub(crate) fn overlays_ui(world: &mut World, ui: &mut egui::Ui) {
     ui.checkbox(&mut wanted.gravity, "Gravity: wells and dominant links");
     ui.checkbox(&mut wanted.sections, "Sections: barrels, rounds, drives");
     ui.checkbox(&mut wanted.ammo_number, "Ammo number: rounds/capacity");
+    ui.checkbox(
+        &mut wanted.diagnostics,
+        "Diagnostics (F3): an example's panel, labels and gizmos",
+    );
     if wanted != current {
         *world.resource_mut::<DebugOverlays>() = wanted;
     }
@@ -114,6 +124,7 @@ mod tests {
         store.insert(GizmoConfig::default(), PhysicsGizmos::default());
         store.insert(GizmoConfig::default(), GravityGizmos);
         store.insert(GizmoConfig::default(), SectionGizmos);
+        store.insert(GizmoConfig::default(), DiagnosticsGizmos);
         app.insert_resource(store);
         app.insert_resource(WireframeConfig {
             global: true,
@@ -130,7 +141,7 @@ mod tests {
     }
 
     /// What each layer's switch reads, in [`DebugOverlays`] field order.
-    fn layers(app: &App) -> [bool; 5] {
+    fn layers(app: &App) -> [bool; 6] {
         let world = app.world();
         let store = world.resource::<GizmoConfigStore>();
         let physics = store.config::<PhysicsGizmos>().0.enabled;
@@ -149,6 +160,7 @@ mod tests {
             store.config::<GravityGizmos>().0.enabled,
             store.config::<SectionGizmos>().0.enabled,
             ammo_number,
+            store.config::<DiagnosticsGizmos>().0.enabled,
         ]
     }
 
@@ -158,21 +170,22 @@ mod tests {
     fn each_overlay_flag_switches_only_its_own_layer() {
         let mut app = rig();
         app.update();
-        assert_eq!(layers(&app), [false; 5], "every overlay boots off");
+        assert_eq!(layers(&app), [false; 6], "every overlay boots off");
 
-        let flags: [fn(&mut DebugOverlays) -> &mut bool; 5] = [
+        let flags: [fn(&mut DebugOverlays) -> &mut bool; 6] = [
             |o| &mut o.physics,
             |o| &mut o.wireframe,
             |o| &mut o.gravity,
             |o| &mut o.sections,
             |o| &mut o.ammo_number,
+            |o| &mut o.diagnostics,
         ];
         for (at, flag) in flags.into_iter().enumerate() {
             let mut overlays = DebugOverlays::default();
             *flag(&mut overlays) = true;
             app.insert_resource(overlays);
             app.update();
-            let mut wanted = [false; 5];
+            let mut wanted = [false; 6];
             // The ammo number only exists in a `debug` build.
             wanted[at] = cfg!(feature = "debug") || at != 4;
             assert_eq!(layers(&app), wanted, "flag {at} alone");
@@ -196,6 +209,6 @@ mod tests {
 
         crate::harness::hide_dev_overlays(app.world_mut());
         app.update();
-        assert_eq!(layers(&app), [false; 5]);
+        assert_eq!(layers(&app), [false; 6]);
     }
 }

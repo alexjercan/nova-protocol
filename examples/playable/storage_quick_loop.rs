@@ -47,8 +47,6 @@
 //! `NOVA_CAPTURE=1` shoots one frame per move and one of the flight view
 //! with the overlay.
 
-#[path = "shared/diagnostics.rs"]
-mod diagnostics;
 #[path = "shared/docking_pair.rs"]
 mod docking_pair;
 
@@ -57,7 +55,7 @@ use bevy::{prelude::*, ui_widgets::Activate};
 use clap::Parser;
 use diagnostics::{palette, DiagnosticsGizmos, DiagnosticsPanel, DiagnosticsSystems};
 use docking_pair::{spar, tender};
-use nova_protocol::{nova_interface::pane::InterfacePaneType, prelude::*};
+use nova_protocol::{nova_debug::diagnostics, nova_interface::pane::InterfacePaneType, prelude::*};
 use nova_ui::prelude::DoubleClick;
 
 #[derive(Parser)]
@@ -111,7 +109,7 @@ fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(storage_plugin).build();
     app.add_plugins((
-        diagnostics::PlayableDiagnosticsPlugin::new(
+        diagnostics::DiagnosticsHintPlugin::new(
             "double-click an item: move its stack   Shift+double-click: one",
         ),
         QuickMoveDiagnosticsPlugin,

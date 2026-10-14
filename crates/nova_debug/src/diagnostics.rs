@@ -1,13 +1,16 @@
-//! The diagnostics layer every hand-played example shares: a hint line, world
-//! gizmos and a text panel of live values, so a person can check a feature by
-//! eye while playing it.
+//! The F3 diagnostics layer: a hint line, world gizmos and a text panel of
+//! live values, so a person can check a feature by eye while playing it.
 //!
-//! Include it with `#[path = "shared/diagnostics.rs"] mod diagnostics;`, add
-//! [`PlayableDiagnosticsPlugin`], and draw from systems in
+//! [`DiagnosticsPlugin`] owns the layer and `DebugPlugin` adds it, so every
+//! debug build has it; adding it twice panics. It boots OFF. A hand-played
+//! example adds [`DiagnosticsHintPlugin`] with one line of keys to try: that
+//! shows the hint line and turns the layer on at start. Draw from systems in
 //! [`DiagnosticsSystems`]:
 //!
 //! ```ignore
-//! app.add_plugins(diagnostics::PlayableDiagnosticsPlugin::new(
+//! use nova_debug::diagnostics;
+//!
+//! app.add_plugins(diagnostics::DiagnosticsHintPlugin::new(
 //!     "fly with WASD, dock with an escort",
 //! ));
 //! app.add_systems(PostUpdate, draw_the_fleet.in_set(diagnostics::DiagnosticsSystems));
@@ -19,30 +22,28 @@
 //! }
 //! ```
 //!
-//! The layer is ON at start and [`DIAGNOSTICS_TOGGLE_KEY`] flips it. The hint
-//! line stays up while the layer is off, and names the key. Panel lines and
-//! world labels are written fresh each frame: the plugin clears them in
-//! `First`, so a value nobody writes this frame is gone, not stale.
+//! [`DIAGNOSTICS_TOGGLE_KEY`] and the Nova Debug window's Diagnostics checkbox
+//! flip one flag, [`DebugOverlays::diagnostics`]. The hint line stays up while
+//! the layer is off, and names the key. Panel lines and world labels are
+//! written fresh each frame: the plugin clears them in `First`, so a value
+//! nobody writes this frame is gone, not stale.
 //!
 //! In flight the hint and the panel sit at the top left. While a surface is
-//! up (the TAB interface, the command modal or the pause menu) they move to
-//! the bottom left, clear of the pane's title row and filter buttons, and
-//! the world labels hide: the flight camera's points do not show through a
-//! pane. Gizmos stay: the world's draw under the pane's card, and an example
-//! that draws in the Ship view puts them there with [`draw_on_layers`].
+//! up (the TAB interface, the command modal, the pause menu or the Nova Debug
+//! window) they move to the bottom left, clear of the pane's title row and
+//! filter buttons, and the world labels hide: the flight camera's points do
+//! not show through a pane. Gizmos stay: the world's draw under the pane's
+//! card, and an example that draws in the Ship view puts them there with
+//! [`draw_on_layers`].
 //!
-//! This is not `nova_debug`'s F11 layer. That one starts OFF, raises the egui
-//! inspector (which frees the cursor) and draws every section's barrels and
-//! drives. This layer draws only what one example names, needs no `debug`
-//! feature, and leaves the cursor and the flight input alone.
-
-#![allow(
-    dead_code,
-    reason = "each example uses part of the shared layer, and an include compiles it per example"
-)]
+//! This layer draws only what one example names, and leaves the cursor and
+//! the flight input alone.
 
 use bevy::{camera::visibility::RenderLayers, prelude::*};
-use nova_protocol::prelude::*;
+use nova_gameplay::PauseStates;
+use nova_scenario::prelude::ScenarioCameraMarker;
+
+use crate::hud::overlays::{apply_debug_overlays, overlay_on, DebugOverlays};
 
 /// The one key that shows and hides the diagnostics in every playable
 /// example. No default game, editor, debug or probe binding uses F3.
@@ -99,12 +100,8 @@ pub fn draw_on_layers(store: &mut GizmoConfigStore, layers: Option<&RenderLayers
     }
 }
 
-/// Whether the diagnostics show. Starts `true`.
-#[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct DiagnosticsShown(pub bool);
-
 /// The systems that draw diagnostics, in `Update` and `PostUpdate`. They run
-/// only while [`DiagnosticsShown`] is `true`. Draw world-space gizmos in
+/// only while [`DebugOverlays::diagnostics`] is on. Draw world-space gizmos in
 /// `PostUpdate` to read the propagated transforms.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DiagnosticsSystems;
@@ -130,14 +127,20 @@ impl DiagnosticsPanel {
     }
 }
 
-/// The hint line, the panel and the toggle.
-pub struct PlayableDiagnosticsPlugin {
+/// The layer: the panel, the gizmo group, the toggle and the hint line's
+/// node. Off at boot. `DebugPlugin` adds it.
+pub struct DiagnosticsPlugin;
+
+/// One line of keys to try, shown above the panel with the toggle key added,
+/// and the layer turned on at start. For a hand-played example; needs
+/// [`DiagnosticsPlugin`] (a debug build's `DebugPlugin`).
+pub struct DiagnosticsHintPlugin {
     hint: String,
 }
 
-impl PlayableDiagnosticsPlugin {
-    /// The layer with `hint`, one line of the keys to try. The plugin adds
-    /// the toggle key to it.
+impl DiagnosticsHintPlugin {
+    /// The hint `hint`, one line of the keys to try. The plugin adds the
+    /// toggle key to it.
     pub fn new(hint: impl Into<String>) -> Self {
         Self { hint: hint.into() }
     }
@@ -167,17 +170,13 @@ const OVERLAY_INSET_PX: f32 = 12.0;
 /// the frame-rate readout.
 const OVERLAY_TOP_PX: f32 = 44.0;
 
-/// The hint, kept for the root's spawn.
+/// The hint line, with the toggle key.
 #[derive(Resource)]
 struct Hint(String);
 
-impl Plugin for PlayableDiagnosticsPlugin {
+impl Plugin for DiagnosticsPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(DiagnosticsShown(true));
-        app.insert_resource(Hint(format!(
-            "{}   [{DIAGNOSTICS_TOGGLE_LABEL}] diagnostics",
-            self.hint
-        )));
+        app.init_resource::<DebugOverlays>();
         app.init_resource::<DiagnosticsPanel>();
         app.insert_gizmo_config(
             DiagnosticsGizmos,
@@ -194,22 +193,39 @@ impl Plugin for PlayableDiagnosticsPlugin {
         );
         app.configure_sets(
             Update,
-            DiagnosticsSystems.run_if(resource_equals(DiagnosticsShown(true))),
+            DiagnosticsSystems.run_if(overlay_on(|overlays| overlays.diagnostics)),
         );
         app.configure_sets(
             PostUpdate,
-            DiagnosticsSystems.run_if(resource_equals(DiagnosticsShown(true))),
+            DiagnosticsSystems.run_if(overlay_on(|overlays| overlays.diagnostics)),
         );
         app.add_systems(Startup, spawn_the_overlay);
         app.add_systems(First, clear_the_panel);
-        app.add_systems(Update, toggle_the_diagnostics);
+        app.add_systems(Update, toggle_the_diagnostics.before(apply_debug_overlays));
         app.add_systems(
             PostUpdate,
             (show_the_panel, place_the_labels, move_the_overlay)
                 .after(DiagnosticsSystems)
                 .after(TransformSystems::Propagate),
         );
-        info!("playable: {}", app.world().resource::<Hint>().0.as_str());
+    }
+}
+
+impl Plugin for DiagnosticsHintPlugin {
+    fn build(&self, app: &mut App) {
+        let hint = format!("{}   [{DIAGNOSTICS_TOGGLE_LABEL}] diagnostics", self.hint);
+        info!("playable: {hint}");
+        app.insert_resource(Hint(hint));
+        app.init_resource::<DebugOverlays>();
+        app.world_mut().resource_mut::<DebugOverlays>().diagnostics = true;
+    }
+
+    fn finish(&self, app: &mut App) {
+        assert!(
+            app.is_plugin_added::<DiagnosticsPlugin>(),
+            "nova_debug: DiagnosticsHintPlugin needs DiagnosticsPlugin; build with \
+             the `debug` feature so DebugPlugin adds it"
+        );
     }
 }
 
@@ -218,17 +234,13 @@ fn clear_the_panel(mut panel: ResMut<DiagnosticsPanel>) {
     panel.labels.clear();
 }
 
-fn toggle_the_diagnostics(
-    keys: Res<ButtonInput<KeyCode>>,
-    mut shown: ResMut<DiagnosticsShown>,
-    mut config: ResMut<GizmoConfigStore>,
-) {
+/// F3 flips the layer. The gizmo group follows in [`apply_debug_overlays`].
+fn toggle_the_diagnostics(keys: Res<ButtonInput<KeyCode>>, mut overlays: ResMut<DebugOverlays>) {
     if keys.just_pressed(DIAGNOSTICS_TOGGLE_KEY) {
-        shown.0 = !shown.0;
-        config.config_mut::<DiagnosticsGizmos>().0.enabled = shown.0;
+        overlays.diagnostics = !overlays.diagnostics;
         info!(
             "playable: diagnostics {}",
-            if shown.0 { "on" } else { "off" }
+            if overlays.diagnostics { "on" } else { "off" }
         );
     }
 }
@@ -250,9 +262,10 @@ fn text_node(text: &str) -> impl Bundle {
     )
 }
 
-/// The hint at the top left, the panel under it, and the label pool. Over the
-/// HUD and the interface, and never in the pointer's way.
-fn spawn_the_overlay(mut commands: Commands, hint: Res<Hint>) {
+/// The hint at the top left (when an example names one), the panel under
+/// it, and the label pool. Over the HUD and the interface, and never in the
+/// pointer's way.
+fn spawn_the_overlay(mut commands: Commands, hint: Option<Res<Hint>>) {
     commands
         .spawn((
             OverlayRoot,
@@ -270,7 +283,9 @@ fn spawn_the_overlay(mut commands: Commands, hint: Res<Hint>) {
             Pickable::IGNORE,
         ))
         .with_children(|parent| {
-            parent.spawn((HintText, Pickable::IGNORE, text_node(&hint.0)));
+            if let Some(hint) = &hint {
+                parent.spawn((HintText, Pickable::IGNORE, text_node(&hint.0)));
+            }
             parent.spawn((PanelText, Pickable::IGNORE, text_node("")));
         });
     for index in 0..MAX_LABELS {
@@ -299,14 +314,14 @@ fn spawn_the_overlay(mut commands: Commands, hint: Res<Hint>) {
 
 /// Write the panel's lines, or hide it while the layer is off or empty.
 fn show_the_panel(
-    shown: Res<DiagnosticsShown>,
+    overlays: Res<DebugOverlays>,
     panel: Res<DiagnosticsPanel>,
     mut q_panel: Query<(&mut Text, &mut Node), With<PanelText>>,
 ) {
     let Ok((mut text, mut node)) = q_panel.single_mut() else {
         return;
     };
-    let display = if shown.0 && !panel.lines.is_empty() {
+    let display = if overlays.diagnostics && !panel.lines.is_empty() {
         Display::Flex
     } else {
         Display::None
@@ -333,7 +348,7 @@ fn view_camera<'a>(
 }
 
 /// Whether a surface covers the flight view: the TAB interface, the command
-/// modal or the pause menu. Absent pause state (no gameplay plugins) is
+/// modal, the pause menu or the Nova Debug window. Absent pause state (no gameplay plugins) is
 /// flight.
 fn surface_up(pause: Option<&State<PauseStates>>) -> bool {
     pause.is_some_and(|pause| *pause.get() != PauseStates::Unpaused)
@@ -361,7 +376,7 @@ fn move_the_overlay(
 /// Project each label over its world point; hide the unused and the
 /// off-screen ones, and all of them while a surface is up.
 fn place_the_labels(
-    shown: Res<DiagnosticsShown>,
+    overlays: Res<DebugOverlays>,
     pause: Option<Res<State<PauseStates>>>,
     panel: Res<DiagnosticsPanel>,
     q_cameras: Query<(&Camera, &GlobalTransform, Has<ScenarioCameraMarker>), With<Camera3d>>,
@@ -369,7 +384,7 @@ fn place_the_labels(
 ) {
     let camera = view_camera(&q_cameras);
     for (label, mut text, mut node, mut visibility) in &mut q_labels {
-        let placed = (shown.0 && !surface_up(pause.as_deref()))
+        let placed = (overlays.diagnostics && !surface_up(pause.as_deref()))
             .then(|| panel.labels.get(label.0))
             .flatten()
             .zip(camera)

@@ -45,8 +45,6 @@
 //! among them, and shoots `shipyard-sandbox.png` with `NOVA_CAPTURE=1`.
 //! Unset, no walk and no deadline run.
 
-#[path = "shared/diagnostics.rs"]
-mod diagnostics;
 #[path = "shared/open_world_stage.rs"]
 mod open_world_stage;
 
@@ -57,7 +55,7 @@ use bevy::prelude::*;
 use clap::Parser;
 use diagnostics::{palette, DiagnosticsGizmos, DiagnosticsPanel, DiagnosticsSystems};
 use nova_input::prelude::InputSource;
-use nova_protocol::{nova_interface::station::HullBuyCommand, prelude::*};
+use nova_protocol::{nova_debug::diagnostics, nova_interface::station::HullBuyCommand, prelude::*};
 use open_world_stage::{advance_station_dock, the_player, OpenWorldStartPlugin, StationDock};
 
 #[derive(Parser)]
@@ -93,7 +91,7 @@ fn main() -> bevy::app::AppExit {
         role: SANDBOX_ROLE.into(),
     });
     app.init_resource::<Sandbox>();
-    app.add_plugins(diagnostics::PlayableDiagnosticsPlugin::new(
+    app.add_plugins(diagnostics::DiagnosticsHintPlugin::new(
         "[TAB] interface: Station tab buys a parked hull or rebuys yours   [D] undock   [W] \
          burn, [X] stop",
     ));

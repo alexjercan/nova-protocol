@@ -116,7 +116,16 @@ Entities lists the top-level entities by sector (the observer's cell first)
 or by type (`crates/nova_debug/src/hud/entities.rs`). An entity under a
 sector root is in that root's cell; a top-level body in a streaming world is
 in the cell its position falls in, tagged top-level; a fixed scene is one
-Scene group. A ship's sections show under the ship's row. Note the
+Scene group. A ship's sections show under the ship's row.
+
+The overlays include the F3 diagnostics layer
+(`crates/nova_debug/src/diagnostics.rs`, `DiagnosticsPlugin`, added by
+`DebugPlugin`): a hint line, a panel of live values, labels over world points
+and the `DiagnosticsGizmos` group. **F3** or its checkbox flips
+`DebugOverlays::diagnostics`. A hand-played example adds
+`DiagnosticsHintPlugin::new(hint)`, which shows its hint and turns the layer
+on at start, and draws in `DiagnosticsSystems`; such an example needs the
+`debug` feature (`required-features` in the root `Cargo.toml`). Note the
 feature is spelled `debug`, with `dev` as an alias for it (root `Cargo.toml`);
 `--features dev` and `--features debug` are interchangeable.
 

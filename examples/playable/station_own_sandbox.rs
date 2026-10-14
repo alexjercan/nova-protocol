@@ -41,15 +41,13 @@
 //! `station-own-sandbox.png` with `NOVA_CAPTURE=1`. Unset, no walk and no
 //! deadline run.
 
-#[path = "shared/diagnostics.rs"]
-mod diagnostics;
 #[path = "shared/open_world_stage.rs"]
 mod open_world_stage;
 
 use bevy::prelude::*;
 use clap::Parser;
 use diagnostics::{palette, DiagnosticsGizmos, DiagnosticsPanel, DiagnosticsSystems};
-use nova_protocol::prelude::*;
+use nova_protocol::{nova_debug::diagnostics, prelude::*};
 use open_world_stage::{advance_station_dock, OpenWorldStartPlugin, StationDock};
 
 #[derive(Parser)]
@@ -83,7 +81,7 @@ fn main() -> bevy::app::AppExit {
         role: SANDBOX_ROLE.to_string(),
     });
     app.init_resource::<Sandbox>();
-    app.add_plugins(diagnostics::PlayableDiagnosticsPlugin::new(
+    app.add_plugins(diagnostics::DiagnosticsHintPlugin::new(
         "[TAB] interface: Station tab, Buy station   [M] next tab, [C] chart on Map",
     ));
     app.add_systems(

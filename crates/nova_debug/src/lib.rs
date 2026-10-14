@@ -17,6 +17,7 @@ use nova_gameplay::GameStates;
 
 use crate::{inspector::InspectorDebugPlugin, wireframe::WireframeDebugPlugin};
 
+pub mod diagnostics;
 pub mod gravity;
 pub mod harness;
 pub mod hud;
@@ -71,6 +72,10 @@ pub mod prelude {
     pub use super::screenshot::{ScreenshotHotkeyPlugin, SCREENSHOT_KEYCODE};
     pub use super::{
         debugdump,
+        diagnostics::{
+            DiagnosticsGizmos, DiagnosticsHintPlugin, DiagnosticsPanel, DiagnosticsPlugin,
+            DiagnosticsSystems,
+        },
         harness::{
             assert_scenario_loaded, capture_window, capturing, drive_action, editor_field_focused,
             editor_filter_focused, editor_gallery_closed, editor_gallery_open,
@@ -94,8 +99,9 @@ pub const DEBUG_TOGGLE_KEYCODE: KeyCode = KeyCode::F11;
 
 /// A plugin that adds various debugging tools.
 ///
-/// Adds the Nova Debug window and the wireframe/section/gravity overlays as
-/// sub-plugins, plus, on host targets, the screenshot hotkey and the loop
+/// Adds the Nova Debug window, the wireframe/section/gravity overlays and the
+/// F3 diagnostics layer ([`DiagnosticsPlugin`](diagnostics::DiagnosticsPlugin))
+/// as sub-plugins, plus, on host targets, the screenshot hotkey and the loop
 /// capture SFX sidecar. Every overlay boots off and has its own flag in
 /// [`DebugOverlays`](hud::overlays::DebugOverlays); F11 opens the Nova Debug
 /// window ([`DebugHudPlugin`](hud::DebugHudPlugin)).
@@ -109,6 +115,7 @@ impl Plugin for DebugPlugin {
         app.add_plugins(WireframeDebugPlugin);
         app.add_plugins(sections::SectionsDebugPlugin);
         app.add_plugins(gravity::GravityDebugPlugin);
+        app.add_plugins(diagnostics::DiagnosticsPlugin);
         #[cfg(not(target_arch = "wasm32"))]
         app.add_plugins(screenshot::ScreenshotHotkeyPlugin);
         // Every WebM loop gets its SFX sidecar and Opus track without a second

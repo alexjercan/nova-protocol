@@ -694,8 +694,8 @@ pub fn freeze_bodies(mut commands: Commands, bodies: Query<(Entity, &RigidBody)>
 
 /// Disable the dev overlays so a captured frame is clean game render: every
 /// flag of [`DebugOverlays`](crate::hud::overlays::DebugOverlays) (physics,
-/// wireframe, gravity, sections, the ammo number), and close the Nova Debug
-/// window. This leaves the HUD alone, so a capture
+/// wireframe, gravity, sections, the ammo number) except the F3 diagnostics
+/// layer, and close the Nova Debug window. This leaves the HUD alone, so a capture
 /// example that wants the HUD in shot (the 3-tier HUD showcase) can keep it -
 /// add [`hide_dev_overlays`] at `Startup` and manage [`HudVisibility`] per
 /// beat.
@@ -705,7 +705,13 @@ pub fn freeze_bodies(mut commands: Commands, bodies: Query<(Entity, &RigidBody)>
 /// `Fn(&mut World)` `hide_overlay` hook.
 pub fn hide_dev_overlays(world: &mut World) {
     if let Some(mut overlays) = world.get_resource_mut::<crate::hud::overlays::DebugOverlays>() {
-        overlays.set_if_neq(default());
+        // The F3 layer stays: a hand-played example turns it on as its own
+        // subject, and its autopilot captures show the panel.
+        let diagnostics = overlays.diagnostics;
+        overlays.set_if_neq(crate::hud::overlays::DebugOverlays {
+            diagnostics,
+            ..default()
+        });
     }
     crate::hud::close_debug_hud(world);
 }

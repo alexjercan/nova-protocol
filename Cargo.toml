@@ -96,6 +96,7 @@ path = "examples/playable/trade_loop.rs"
 [[example]]
 name = "storage_quick_loop"
 path = "examples/playable/storage_quick_loop.rs"
+required-features = ["debug"]
 
 # The station UI by hand: New Game on a pinned seed, docked at a living
 # generated station that refits and sells hulls, rich, with recipe parts in
@@ -104,6 +105,7 @@ path = "examples/playable/storage_quick_loop.rs"
 [[example]]
 name = "station_docked_sandbox"
 path = "examples/playable/station_docked_sandbox.rs"
+required-features = ["debug"]
 
 # Buying a parked hull by hand: New Game on a pinned seed, docked at a living
 # generated station with hulls for sale parked at its ports, after one buy so
@@ -113,6 +115,7 @@ path = "examples/playable/station_docked_sandbox.rs"
 [[example]]
 name = "shipyard_sandbox"
 path = "examples/playable/shipyard_sandbox.rs"
+required-features = ["debug"]
 
 # The whole-ship strip by hand: New Game on a pinned seed, docked at a
 # lootable generated wreck with the Recycle tab up. The overlay marks each
@@ -121,6 +124,7 @@ path = "examples/playable/shipyard_sandbox.rs"
 [[example]]
 name = "recycle_sandbox"
 path = "examples/playable/recycle_sandbox.rs"
+required-features = ["debug"]
 
 # A station bought by hand: New Game on a pinned seed, docked at a living
 # Neutral station with the credits to buy it. The overlay reads its side,
@@ -129,6 +133,7 @@ path = "examples/playable/recycle_sandbox.rs"
 [[example]]
 name = "station_own_sandbox"
 path = "examples/playable/station_own_sandbox.rs"
+required-features = ["debug"]
 
 # The open world as any start role: New Game on a pinned seed as `--role`
 # (or NOVA_ROLE), with no save folder, and `--start-km` to fly far out where
@@ -137,6 +142,7 @@ path = "examples/playable/station_own_sandbox.rs"
 [[example]]
 name = "start_role_sandbox"
 path = "examples/playable/start_role_sandbox.rs"
+required-features = ["debug"]
 
 # Two escorts hired at a generated station through the Hire message, then the
 # player and its fleet in open space: fly, turn, stop, and dock with an
@@ -145,6 +151,7 @@ path = "examples/playable/start_role_sandbox.rs"
 [[example]]
 name = "escort_sandbox"
 path = "examples/playable/escort_sandbox.rs"
+required-features = ["debug"]
 
 # A start-role player beside a Neutral raider and a Neutral station: bump,
 # ram and shoot them. The overlay shows each Neutral's provocation tally
@@ -153,6 +160,7 @@ path = "examples/playable/escort_sandbox.rs"
 [[example]]
 name = "neutral_contact_sandbox"
 path = "examples/playable/neutral_contact_sandbox.rs"
+required-features = ["debug"]
 
 # The ore loop in one session: the line warship's beam mines a rock, its
 # intake takes one canister, and that ore is sold to a docked demo trader

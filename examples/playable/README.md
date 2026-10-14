@@ -15,17 +15,20 @@ nix develop --command cargo run --example <name> --features debug [-- <args>]
 
 ## Diagnostics layer
 
-`shared/diagnostics.rs` is the overlay most new examples share. It is on at
-start. `F3` shows and hides it. It has two parts:
+`nova_debug::diagnostics` is the overlay these examples draw on. Every debug
+build has it, and it boots off. An example turns it on at start with
+`DiagnosticsHintPlugin::new(hint)`, which also shows the hint line. `F3`, or
+the Diagnostics checkbox in the Nova Debug window (`F11`), shows and hides
+it. It has two parts:
 
 - gizmos in the world: rings, spheres, arrows and lines in the palette
   colours (cyan velocity, yellow target, violet zone, green OK, red alert,
   orange push, grey muted);
 - a text panel of live values at the top left, and labels over world points.
 
-While a surface is up (the TAB interface, the command modal or the pause
-menu) the hint and the panel move to the bottom left, and the world labels
-hide.
+While a surface is up (the TAB interface, the command modal, the pause menu
+or the Nova Debug window) the hint and the panel move to the bottom left,
+and the world labels hide. These examples need `--features debug`.
 
 ## Features and examples
 

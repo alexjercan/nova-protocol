@@ -40,8 +40,6 @@
 //! first section to come off and shoots `recycle-sandbox.png` with
 //! `NOVA_CAPTURE=1`. Unset, no walk and no deadline run.
 
-#[path = "shared/diagnostics.rs"]
-mod diagnostics;
 #[path = "shared/open_world_stage.rs"]
 mod open_world_stage;
 
@@ -52,7 +50,8 @@ use bevy::prelude::*;
 use clap::Parser;
 use diagnostics::{palette, DiagnosticsGizmos, DiagnosticsPanel, DiagnosticsSystems};
 use nova_protocol::{
-    nova_events::engine::GameEvent, nova_interface::ship::design_section_code, prelude::*,
+    nova_debug::diagnostics, nova_events::engine::GameEvent,
+    nova_interface::ship::design_section_code, prelude::*,
 };
 use open_world_stage::{
     berth_and_dock, body_by_id, cell_of, free_ports, park_beside, the_player, window_is,
@@ -90,7 +89,7 @@ fn main() -> bevy::app::AppExit {
         role: SANDBOX_ROLE.to_string(),
     });
     app.init_resource::<Sandbox>();
-    app.add_plugins(diagnostics::PlayableDiagnosticsPlugin::new(
+    app.add_plugins(diagnostics::DiagnosticsHintPlugin::new(
         "[TAB] interface: Recycle tab, Strip, Take   [M] next tab   undock to stop a strip",
     ));
     app.add_observer(count_the_strip);

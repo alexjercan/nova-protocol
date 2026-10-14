@@ -196,9 +196,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Internals & Tooling
 
-- Debug builds: F11 opens the Nova Debug window. In flight it freezes the
-  world. It has overlay checkboxes, cheat buttons, a command prompt, the
-  entities by sector and by type, and the raw inspector.
+- Debug builds: F11 opens the Nova Debug window and freezes flight. It has
+  overlay checkboxes (F3 diagnostics too), cheats, a command prompt, entities
+  by sector and by type, and the raw inspector.
 - `screenshot_station_showcase` parks every loaded station design in a row and
   shoots the row and each design, framed by its own hull.
 - `wfc_arena` fighters lose infinite ammo. Holds carry up to two spare

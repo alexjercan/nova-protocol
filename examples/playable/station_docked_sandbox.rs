@@ -35,7 +35,7 @@
 //! nix develop --command cargo run --example station_docked_sandbox --features debug
 //! ```
 //!
-//! The shared diagnostics layer (`shared/diagnostics.rs`, F3, on at start)
+//! The diagnostics layer (`nova_debug::diagnostics`, F3, on at start)
 //! prints the keys, and in the Ship view draws the free sockets (green
 //! rings, a grey cross where the lane is closed), the target socket, the part
 //! in hand's bounds (green valid, red refused) with its roll as a cyan arrow,
@@ -44,8 +44,8 @@
 //! target socket, the roll and socket step, the verdict, the parts the click
 //! buys and their cost, and the selected section's binding.
 //!
-//! It runs without `--features debug` too, at the cost of a second build of
-//! the engine. Under `NOVA_AUTOPILOT=1` (debug only) a smoke walk waits for
+//! It needs `--features debug`, which owns the diagnostics layer. Under
+//! `NOVA_AUTOPILOT=1` a smoke walk waits for
 //! the docked Ship tab, takes the kinetic PDC from the station catalogue,
 //! points at free sockets until the ghost stands valid, rolls the part and
 //! steps its socket, steps the socket back and rolls until it fits, clicks the
@@ -59,13 +59,10 @@
 //! `sandbox-map-after.png` and `sandbox-station.png`.
 //! Unset, no walk and no deadline run.
 
-#[path = "shared/diagnostics.rs"]
-mod diagnostics;
-
 use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
 use bevy::prelude::*;
 use clap::Parser;
-use nova_protocol::{nova_interface::pane::InterfacePaneType, prelude::*};
+use nova_protocol::{nova_debug::diagnostics, nova_interface::pane::InterfacePaneType, prelude::*};
 use nova_world::prelude::{desired_sectors, SectorRoot, WorldConfig};
 
 #[derive(Parser)]
@@ -119,7 +116,7 @@ fn main() -> bevy::app::AppExit {
     let mut app = nova_protocol::prelude::editor_app(true, None);
     app.init_resource::<Sandbox>();
     app.add_plugins((
-        diagnostics::PlayableDiagnosticsPlugin::new(KEYS_HINT),
+        diagnostics::DiagnosticsHintPlugin::new(KEYS_HINT),
         ship_overlay::ShipOverlayPlugin,
     ));
     app.add_systems(OnEnter(GameStates::MainMenu), start_the_world);

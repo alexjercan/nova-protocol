@@ -43,8 +43,6 @@
 //! shoots `escort-sandbox.png` with `NOVA_CAPTURE=1`. Unset, no walk and no
 //! deadline run.
 
-#[path = "shared/diagnostics.rs"]
-mod diagnostics;
 #[path = "shared/open_world_stage.rs"]
 mod open_world_stage;
 
@@ -52,7 +50,9 @@ use avian3d::prelude::{AngularVelocity, ComputedCenterOfMass, LinearVelocity, Po
 use bevy::prelude::*;
 use clap::Parser;
 use diagnostics::{palette, DiagnosticsGizmos, DiagnosticsPanel, DiagnosticsSystems};
-use nova_protocol::{nova_interface::station::EscortHireCommand, prelude::*};
+use nova_protocol::{
+    nova_debug::diagnostics, nova_interface::station::EscortHireCommand, prelude::*,
+};
 use open_world_stage::{
     advance_station_dock, the_player, OpenWorldStartPlugin, StationCandidate, StationDock,
 };
@@ -98,7 +98,7 @@ fn main() -> bevy::app::AppExit {
         role: SANDBOX_ROLE.into(),
     });
     app.init_resource::<Sandbox>();
-    app.add_plugins(diagnostics::PlayableDiagnosticsPlugin::new(
+    app.add_plugins(diagnostics::DiagnosticsHintPlugin::new(
         "[W] burn, [X] stop, mouse turns   [Shift]+mouse RCS   hold [Ctrl] on an escort to lock \
          it, then fly port to port to dock",
     ));

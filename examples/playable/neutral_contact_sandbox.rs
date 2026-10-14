@@ -35,16 +35,13 @@
 //! raider does not answer, and shoots `neutral-contact.png` with
 //! `NOVA_CAPTURE=1`. Unset, no walk and no deadline run.
 
-#[path = "shared/diagnostics.rs"]
-mod diagnostics;
-
 use std::collections::HashMap;
 
 use avian3d::prelude::{Collisions, LinearVelocity, PhysicsSystems};
 use bevy::{prelude::*, reflect::GetPath};
 use clap::Parser;
 use diagnostics::{palette, DiagnosticsGizmos, DiagnosticsPanel, DiagnosticsSystems};
-use nova_protocol::prelude::*;
+use nova_protocol::{nova_debug::diagnostics, prelude::*};
 
 #[derive(Parser)]
 #[command(name = "neutral_contact_sandbox")]
@@ -87,7 +84,7 @@ const BAR_WIDTH: usize = 20;
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(sandbox_plugin).build();
-    app.add_plugins(diagnostics::PlayableDiagnosticsPlugin::new(
+    app.add_plugins(diagnostics::DiagnosticsHintPlugin::new(
         "[W] burn, [X] stop, mouse turns   [LMB] PDC   drift in under 10 m/s, ram faster, or \
          fire a burst at the raider or the station",
     ));
