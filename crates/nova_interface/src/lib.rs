@@ -32,6 +32,7 @@ pub mod inventory;
 pub mod map;
 pub mod pane;
 pub mod ship;
+pub mod station;
 pub mod terminal;
 
 /// The 3D viewer the Map and Ship panes are two framings of: the orbit
@@ -61,6 +62,7 @@ pub mod prelude {
         map::prelude::*,
         pane::InterfacePaneType,
         ship::prelude::*,
+        station::prelude::*,
         terminal::prelude::*,
         viewer::{orbit_eye, zoom_radius, OrbitGesture},
         InterfacePlugin, InterfaceSystems,
@@ -81,15 +83,16 @@ use crate::{
     inventory::InventoryPaneSystems,
     map::MapPaneSystems,
     pane::{
-        next_interface_pane, play_interface_toggle, rebuild_interface_body,
-        refresh_pane_input_hints, spawn_interface_root, sync_nova_os_contexts, toggle_interface,
-        InterfacePaneType,
+        leave_station_pane, next_interface_pane, play_interface_toggle, rebuild_interface_body,
+        refresh_pane_input_hints, show_station_tab, spawn_interface_root, sync_nova_os_contexts,
+        toggle_interface, InterfacePaneType,
     },
     ship::ShipPaneSystems,
+    station::StationPaneSystems,
     terminal::CommandsSystems,
 };
 
-/// Wires the TAB interface, its three panes, and the `:` command modal.
+/// Wires the TAB interface, its four panes, and the `:` command modal.
 ///
 /// Added by the assembly crate (`nova_core`), not by the HUD - the interface
 /// and the flight HUD are peers, and the plugin that orders them belongs above
@@ -131,8 +134,12 @@ impl Plugin for InterfacePlugin {
                 .after(CommandsSystems::Toggle)
                 .before(MapPaneSystems)
                 .before(ShipPaneSystems)
-                .before(InventoryPaneSystems),
+                .before(InventoryPaneSystems)
+                .before(StationPaneSystems),
         );
+        // A hull buy clears the Ship pane's selection before the Ship pane
+        // reads it (see `StationPaneSystems`).
+        app.configure_sets(Update, StationPaneSystems.before(ShipPaneSystems));
         // The widget reconcilers paint after `UiThemeSystems`. A body or pane
         // row spawned after them shows one unpainted frame on each open and
         // pane switch.
@@ -143,6 +150,7 @@ impl Plugin for InterfacePlugin {
                 MapPaneSystems,
                 ShipPaneSystems,
                 InventoryPaneSystems,
+                StationPaneSystems,
             )
                 .before(UiThemeSystems),
         );
@@ -151,8 +159,10 @@ impl Plugin for InterfacePlugin {
             (
                 toggle_interface.run_if(in_state(GameStates::Playing)),
                 next_interface_pane.run_if(in_input_mode(InputMode::Normal)),
+                leave_station_pane,
                 spawn_interface_root,
                 rebuild_interface_body,
+                show_station_tab,
                 refresh_pane_input_hints,
             )
                 .chain()
@@ -177,6 +187,7 @@ impl Plugin for InterfacePlugin {
         app.add_plugins(map::MapPanePlugin);
         app.add_plugins(ship::ShipPanePlugin);
         app.add_plugins(inventory::InventoryPanePlugin);
+        app.add_plugins(station::StationPanePlugin);
     }
 }
 

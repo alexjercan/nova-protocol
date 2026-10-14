@@ -12,7 +12,7 @@
 //! flies the approach (`system_station_docking` does).
 //!
 //! DISCLOSED FIXTURE STATE: once docked, the player holds 1,000,000 cr, so
-//! the escort is affordable. The hire goes through the Ship pane's Hire
+//! the escort is affordable. The hire goes through the Station pane's Hire
 //! button, the code path a player clicks. After the undock the player JUMPS
 //! two kilometres straight out from the station, at rest, as a pilot who
 //! flies off would stand; the berth points the mouse rig where it points the
@@ -57,7 +57,7 @@ use clap::Parser;
 #[command(version = "1.0.0")]
 #[command(
     about = "New Game on a pinned seed: dock at a living generated station that hires out \
-             escorts, hire one from the Ship pane, cross sectors with it, check it through a save \
+             escorts, hire one from the Station pane, cross sectors with it, check it through a save \
              and a Load, then kill it and check it is gone from the fleet. Autopilot-only \
              correctness range",
     long_about = None
@@ -147,8 +147,8 @@ mod walk {
     /// chosen.
     pub(super) const HIRE_OFFER: usize = 5;
     const HIRE_BUTTON: &str = "EscortHire-5";
-    /// The Ship pane's side panel, which scrolls under the wheel.
-    const SHIP_PANEL: &str = "ShipPanel";
+    /// The Station pane's panel, which scrolls under the wheel.
+    const STATION_PANEL: &str = "StationPanel";
 
     /// The disclosed fixture balance of the player.
     const FIXTURE_CREDITS: u32 = 1_000_000;
@@ -180,7 +180,7 @@ mod walk {
     const SESSION_SECS: f32 = 240.0;
     /// Seconds a click gets.
     const BEAT_SECS: f32 = 60.0;
-    /// Frames the Ship pane gets to build its panel and lists.
+    /// Frames the Station pane gets to build its panel and lists.
     const SETTLE_FRAMES: u32 = 10;
     /// The virtual clock's clamp on the software rasterizer.
     const WALK_CLOCK_SECS: f32 = 1.0;
@@ -487,12 +487,12 @@ mod walk {
         })
     }
 
-    /// Whether the Hire button lies inside the Ship panel's box, where a
+    /// Whether the Hire button lies inside the Station panel's box, where a
     /// click lands on it.
     fn hire_button_in_view(world: &World) -> bool {
         match (
             ui_node_rect(world, HIRE_BUTTON),
-            ui_node_rect(world, SHIP_PANEL),
+            ui_node_rect(world, STATION_PANEL),
         ) {
             (Some(button), Some(panel)) => {
                 button.min.y >= panel.min.y && button.max.y <= panel.max.y
@@ -1592,19 +1592,19 @@ mod walk {
             }),
         )
         .click_named(
-            "station hire: open the Ship pane",
-            "InterfaceTabShip",
-            the_interface_shows(InterfacePaneType::Ship),
+            "station hire: open the Station pane",
+            "InterfaceTabStation",
+            the_interface_shows(InterfacePaneType::Station),
             SESSION_SECS,
         )
-        .step("station hire: settle the schematic")
+        .step("station hire: settle the lists")
         .until(frames(SETTLE_FRAMES))
         .add()
-        // The escort list stands under the hull list, past the bottom of a
-        // 1080p panel: the wheel over the panel scrolls it into view.
+        // The escort list stands under the hull list and can pass the bottom
+        // of the panel: the wheel over the panel scrolls it into view.
         .step("station hire: scroll the escort list into view")
         .each(|world, _, frame| {
-            keep_hovering_named(SHIP_PANEL)(world);
+            keep_hovering_named(STATION_PANEL)(world);
             if frame % 2 == 1 && !hire_button_in_view(world) {
                 scroll_lines(-1.0)(world);
             }

@@ -14,7 +14,7 @@
 //! the stance graph will one day set it: once beside the station before the
 //! buy, for one admission check with no frame run, and once after the Load,
 //! while the player berths and docks; it is set back to Player after each.
-//! The buy goes through the Ship pane's Buy station button, the code path a
+//! The buy goes through the Station pane's Buy station button, the code path a
 //! player clicks. After the undock the player JUMPS two kilometres straight
 //! out from the station, at rest; the berth points the mouse rig where it
 //! points the hull, so the undock does not turn the hull back through the
@@ -48,7 +48,7 @@ use clap::Parser;
 #[command(version = "1.0.0")]
 #[command(
     about = "New Game on a pinned seed: check a living Player-side station refuses an \
-             Enemy-flagged ship, dock and buy it from the Ship pane, leave its cell and come \
+             Enemy-flagged ship, dock and buy it from the Station pane, leave its cell and come \
              back, save and Load, then dock Enemy-flagged at the owned station. Autopilot-only \
              correctness range",
     long_about = None
@@ -106,7 +106,7 @@ mod walk {
             press_action, release_action, shoot, AutopilotPlugin, Predicate, SHOT_DEADLINE_SECS,
         },
         nova_events::engine::GameEvent,
-        nova_interface::{pane::InterfacePaneType, ship::STATION_BUY_BUTTON},
+        nova_interface::{pane::InterfacePaneType, station::STATION_BUY_BUTTON},
         prelude::*,
     };
     use nova_ui::widget::TextFieldValue;
@@ -130,10 +130,10 @@ mod walk {
     const LOAD_BUTTON: &str = "Load Button";
     const LOAD_WORLD_BUTTON: &str = "Load World Button";
 
-    /// The Ship pane's side panel, which scrolls under the wheel, and the
+    /// The Station pane's panel, which scrolls under the wheel, and the
     /// station block in it.
-    const SHIP_PANEL: &str = "ShipPanel";
-    const STATION_BLOCK: &str = "ShipStationBlock";
+    const STATION_PANEL: &str = "StationPanel";
+    const STATION_BLOCK: &str = "StationSaleBlock";
 
     /// The disclosed fixture balance of the player.
     const FIXTURE_CREDITS: u32 = 100_000_000;
@@ -158,7 +158,7 @@ mod walk {
     const SESSION_SECS: f32 = 240.0;
     /// Seconds a click gets.
     const BEAT_SECS: f32 = 60.0;
-    /// Frames the Ship pane gets to build its panel and lists.
+    /// Frames the Station pane gets to build its panel and lists.
     const SETTLE_FRAMES: u32 = 10;
     /// The virtual clock's clamp on the software rasterizer.
     const WALK_CLOCK_SECS: f32 = 1.0;
@@ -385,10 +385,13 @@ mod walk {
         })
     }
 
-    /// Whether the named node lies inside the Ship panel's box, where a
+    /// Whether the named node lies inside the Station panel's box, where a
     /// click lands on it and a shot shows it.
     fn in_panel(world: &World, name: &str) -> bool {
-        match (ui_node_rect(world, name), ui_node_rect(world, SHIP_PANEL)) {
+        match (
+            ui_node_rect(world, name),
+            ui_node_rect(world, STATION_PANEL),
+        ) {
             (Some(node), Some(panel)) => node.min.y >= panel.min.y && node.max.y <= panel.max.y,
             _ => false,
         }
@@ -546,7 +549,7 @@ mod walk {
             .add()
     }
 
-    /// Open the Ship pane, scroll the station block into view, settle and
+    /// Open the Station pane, scroll the station block into view, settle and
     /// shoot `shot`, waiting for `shown` before the shot.
     fn shoot_the_block(
         script: AutopilotPlugin<GameStates>,
@@ -565,19 +568,19 @@ mod walk {
             }),
         )
         .click_named(
-            &format!("station own: open the Ship pane {label}"),
-            "InterfaceTabShip",
-            the_interface_shows(InterfacePaneType::Ship),
+            &format!("station own: open the Station pane {label}"),
+            "InterfaceTabStation",
+            the_interface_shows(InterfacePaneType::Station),
             SESSION_SECS,
         )
-        .step(format!("station own: settle the schematic {label}"))
+        .step(format!("station own: settle the lists {label}"))
         .until(frames(SETTLE_FRAMES))
         .add()
         .step(format!(
             "station own: scroll the station block into view {label}"
         ))
         .each(move |world, _, frame| {
-            keep_hovering_named(SHIP_PANEL)(world);
+            keep_hovering_named(STATION_PANEL)(world);
             if frame % 2 == 1 && !in_panel(world, shown) {
                 scroll_lines(-1.0)(world);
             }

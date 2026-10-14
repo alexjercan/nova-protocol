@@ -111,7 +111,13 @@ fn card_rig() -> PanePointerRig {
     app.register_input_actions(crate::bindings::interface_bindings());
     app.add_systems(
         Update,
-        (rebuild_interface_body, refresh_pane_input_hints).chain(),
+        (
+            leave_station_pane,
+            rebuild_interface_body,
+            show_station_tab,
+            refresh_pane_input_hints,
+        )
+            .chain(),
     );
     hear_ui_cues(app);
     track_node_churn(app);
@@ -340,7 +346,7 @@ fn a_focused_text_field_types_m_instead_of_switching_panes() {
     press_m(&mut app);
     assert_eq!(
         *app.world().resource::<InterfacePaneType>(),
-        InterfacePaneType::Inventory.next(),
+        InterfacePaneType::Inventory.next(false),
         "with the field let go, M switches panes again"
     );
 }
@@ -404,5 +410,115 @@ fn a_tab_click_lands_while_the_ship_panel_is_scrolled_under_the_head() {
         *rig.app.world().resource::<InterfacePaneType>(),
         InterfacePaneType::Map,
         "a click on the Map tab must switch panes over the hidden row"
+    );
+}
+
+/// The Station tab's display, and whether a click there would land.
+fn station_tab_display(world: &mut World) -> Display {
+    world
+        .query::<(&ButtonValue<InterfacePaneType>, &Node)>()
+        .iter(world)
+        .find(|(value, _)| value.0 == InterfacePaneType::Station)
+        .map(|(_, node)| node.display)
+        .expect("the card has a Station tab")
+}
+
+/// Dock a player ship with a new partner, a station when `station`, and
+/// return the partner.
+fn dock_the_player(world: &mut World, station: bool) -> Entity {
+    use nova_gameplay::prelude::{SpaceshipRootMarker, StationDesignId, StationMarker};
+    use nova_ship::prelude::{DockedHelmType, DockedShip, DockingConnection};
+
+    let player = world
+        .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
+        .id();
+    let partner = world.spawn(SpaceshipRootMarker).id();
+    if station {
+        world
+            .entity_mut(partner)
+            .insert(StationMarker(StationDesignId::from("waystation")));
+    }
+    let connection = world
+        .spawn(DockingConnection {
+            first_ship: player,
+            first_section: Entity::PLACEHOLDER,
+            second_ship: partner,
+            second_section: Entity::PLACEHOLDER,
+            helm: DockedHelmType::Neutral,
+            measurement_fault: false,
+        })
+        .id();
+    world.entity_mut(player).insert(DockedShip {
+        connection,
+        helm: Quat::IDENTITY,
+        drives: false,
+    });
+    partner
+}
+
+#[test]
+fn the_station_tab_shows_only_while_docked_at_a_living_station() {
+    use nova_gameplay::prelude::{DerelictShipMarker, StationDesignId, StationMarker};
+
+    let mut rig = card_rig();
+    assert_eq!(station_tab_display(rig.app.world_mut()), Display::None);
+
+    // Not docked: the Station pane falls back to Ship before it is built.
+    *rig.app.world_mut().resource_mut::<InterfacePaneType>() = InterfacePaneType::Station;
+    settle(&mut rig.app);
+    assert_eq!(
+        *rig.app.world().resource::<InterfacePaneType>(),
+        InterfacePaneType::Ship
+    );
+
+    // Docked with a ship, not a station: still hidden.
+    let ship = dock_the_player(rig.app.world_mut(), false);
+    settle(&mut rig.app);
+    assert_eq!(station_tab_display(rig.app.world_mut()), Display::None);
+    rig.app
+        .world_mut()
+        .entity_mut(ship)
+        .insert(StationMarker(StationDesignId::from("waystation")));
+
+    // Docked with a living station: the tab shows and a click opens it.
+    settle(&mut rig.app);
+    assert_eq!(station_tab_display(rig.app.world_mut()), Display::Flex);
+    let station = tab_centre(rig.app.world_mut(), InterfacePaneType::Station);
+    click_at(&mut rig, station);
+    assert_eq!(
+        *rig.app.world().resource::<InterfacePaneType>(),
+        InterfacePaneType::Station
+    );
+    assert_eq!(
+        shown(rig.app.world_mut()),
+        ("STATION".to_string(), vec![InterfacePaneType::Station])
+    );
+
+    // The station dies: the tab hides and the pane falls back to Ship.
+    rig.app
+        .world_mut()
+        .entity_mut(ship)
+        .insert(DerelictShipMarker);
+    settle(&mut rig.app);
+    assert_eq!(station_tab_display(rig.app.world_mut()), Display::None);
+    assert_eq!(
+        *rig.app.world().resource::<InterfacePaneType>(),
+        InterfacePaneType::Ship
+    );
+}
+
+#[test]
+fn the_next_tab_key_steps_through_station_only_while_docked() {
+    assert_eq!(
+        InterfacePaneType::Inventory.next(false),
+        InterfacePaneType::Map
+    );
+    assert_eq!(
+        InterfacePaneType::Inventory.next(true),
+        InterfacePaneType::Station
+    );
+    assert_eq!(
+        InterfacePaneType::Station.next(true),
+        InterfacePaneType::Map
     );
 }

@@ -40,6 +40,7 @@ use crate::{
     ship::{
         on_ship_fit_button, on_ship_reset_button, spawn_ship_panel, ShipRuntime, ShipViewportMarker,
     },
+    station::{station_body, StationDock},
     terminal::NovaOsCloseTransition,
 };
 
@@ -56,14 +57,18 @@ pub enum InterfacePaneType {
     Ship,
     /// What the player ship carries, and what a docked ship carries.
     Inventory,
+    /// What the docked station sells: ships, escorts and the station itself.
+    /// Its tab shows only while the player ship is docked at a living station.
+    Station,
 }
 
 impl InterfacePaneType {
     /// Every pane, in title-row order, with its button label.
-    const ALL: [(Self, &'static str); 3] = [
+    const ALL: [(Self, &'static str); 4] = [
         (Self::Map, "Map"),
         (Self::Ship, "Ship"),
         (Self::Inventory, "Inventory"),
+        (Self::Station, "Station"),
     ];
 
     /// The per-pane action context id its verbs are bound under.
@@ -72,16 +77,18 @@ impl InterfacePaneType {
             Self::Map => "map",
             Self::Ship => "ship",
             Self::Inventory => "inventory",
+            Self::Station => "station",
         }
     }
 
     /// The pane `interface_next_tab` steps to: Map -> Ship -> Inventory ->
-    /// Map.
-    fn next(self) -> Self {
+    /// Station -> Map, skipping Station while `docked` is false.
+    fn next(self, docked: bool) -> Self {
         match self {
             Self::Map => Self::Ship,
             Self::Ship => Self::Inventory,
-            Self::Inventory => Self::Map,
+            Self::Inventory if docked => Self::Station,
+            Self::Inventory | Self::Station => Self::Map,
         }
     }
 
@@ -161,6 +168,7 @@ pub(crate) fn next_interface_pane(
     current: Res<State<PauseStates>>,
     mut pane: ResMut<InterfacePaneType>,
     ship: Option<Res<ShipRuntime>>,
+    dock: StationDock,
 ) {
     if *current.get() != PauseStates::Interface {
         return;
@@ -174,7 +182,35 @@ pub(crate) fn next_interface_pane(
     if !sources.just_pressed(action) {
         return;
     }
-    *pane = pane.next();
+    *pane = pane.next(dock.docked());
+}
+
+/// Leave the Station pane for the Ship pane while the player ship is not
+/// docked at a living station. Runs before the body is built, so the card
+/// never opens on a Station pane it cannot fill.
+pub(crate) fn leave_station_pane(dock: StationDock, mut pane: ResMut<InterfacePaneType>) {
+    if *pane == InterfacePaneType::Station && !dock.docked() {
+        *pane = InterfacePaneType::Ship;
+    }
+}
+
+/// Show the Station tab only while the player ship is docked at a living
+/// station. Runs after the card is built, so a new card's tab is right on its
+/// first frame.
+pub(crate) fn show_station_tab(
+    dock: StationDock,
+    mut q_tab: Query<(&ButtonValue<InterfacePaneType>, &mut Node)>,
+) {
+    let display = if dock.docked() {
+        Display::Flex
+    } else {
+        Display::None
+    };
+    for (value, mut node) in &mut q_tab {
+        if value.0 == InterfacePaneType::Station && node.display != display {
+            node.display = display;
+        }
+    }
 }
 
 /// Whether the interface is on screen: open, or covered by the command modal
@@ -366,6 +402,7 @@ fn pane_body(body: &mut ChildSpawnerCommands, pane: InterfacePaneType, icons: &I
         InterfacePaneType::Map => map_body(body, icons),
         InterfacePaneType::Ship => ship_body(body, icons),
         InterfacePaneType::Inventory => inventory_body(body, icons),
+        InterfacePaneType::Station => station_body(body),
     }
 }
 
@@ -456,6 +493,13 @@ pub(crate) fn side_panel(overflow: Overflow) -> impl Bundle {
             overflow,
             ..default()
         },
+        panel_paint(),
+    )
+}
+
+/// The fill and border of a pane's panel.
+pub(crate) fn panel_paint() -> impl Bundle {
+    (
         BackgroundColor(Color::NONE),
         ThemedFill::alpha(UiColor::Secondary, 0.08),
         BorderColor::all(Color::NONE),

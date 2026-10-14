@@ -62,14 +62,14 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - At a `Refit` station the Ship pane adds a part at any free socket of a live
   section, paid by recipe; it takes its kind's key and fires `OnAdded`. The
   panel now scrolls.
-- A generated `Refit` station sells three to five hulls on the Ship pane. A
+- A generated `Refit` station sells three to five hulls on the Station pane. A
   buy trades in the old hull by health, stores the hold, docks the new hull
   and fires `OnShipBought`.
 - A generated `Refit` station hires out one to three armed escorts
   (`OnEscortHired`). An escort flies formation on its own drive across
   sectors and saves; a neutralized one leaves the fleet.
-- A living generated station sells itself on the Ship pane for twice its worth
-  at ask (`OnStationBought`). It stays yours across a save, admits you on any
+- A living generated station sells itself on the Station pane for twice its
+  worth at ask (`OnStationBought`). It stays yours across a save, admits you on any
   side and sells its hold at bid.
 - Docked with a wreck, the Ship pane strips a section into its recipe parts
   times yield and health, timed by part count (`OnStripped`). It stays
@@ -149,6 +149,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New armed cheats `credits give <ship-id> <amount>` (signed) and `credits set
   <ship-id> <amount>` change a ship's credits, never below zero. Each change
   fires `OnCreditsChanged` with cause `Cheat`.
+- Docked at a living station, the TAB interface shows a Station tab with the
+  station, its ships for sale and its escorts for hire. M steps to it only
+  while docked.
 
 ### Web & Platform
 

@@ -1,12 +1,11 @@
-//! The Ship pane's "Ships for sale" list and the Buy action.
+//! The Station pane's "Ships for sale" list and the Buy action.
 //!
 //! While the ship is docked at a living station that offers Refit and sells
-//! hulls ([`HullOffers`]), the panel lists every hull for sale under the add
-//! list (an escort for hire is in the escort list instead):
-//! its name, its length and section count, how many sections of each kind it
+//! hulls ([`HullOffers`]), the pane lists every hull for sale (an escort for
+//! hire is in the escort list instead): its name, its length and section count, how many sections of each kind it
 //! carries, the price and the trade-in, and a Buy button or the reason the
 //! buy is refused. A click raises a [`HullBuyCommand`];
-//! [`apply_ship_hull_buy_commands`] plans it with [`plan_hull_buy`], moves the
+//! [`apply_station_hull_buy_commands`] plans it with [`plan_hull_buy`], moves the
 //! hold into the station's storage, moves the credits both ways, and raises
 //! the [`HullBuyRequest`] the scenario crate replaces the hull from.
 //!
@@ -18,13 +17,11 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{theme::UiColor, widget::ButtonSpec};
 
-use super::{
-    rebuild::{ResolvedSite, StationSite},
-    refit::{live_bindings, SectionBindingRow},
-    scene::ShipRuntime,
-    sections::code_prefix,
+use super::{offer_cell, offer_rows, StationRuntime};
+use crate::{
+    pane::{compact_button, play_menu_select, themed_label},
+    ship::{code_prefix, live_bindings, ResolvedSite, SectionBindingRow, ShipRuntime, StationSite},
 };
-use crate::pane::{compact_button, play_menu_select, themed_label};
 
 /// A request to buy hull `offer` of the docked station's [`HullOffers`],
 /// raised by a "Ships for sale" Buy button.
@@ -37,12 +34,12 @@ pub struct HullBuyCommand {
 /// The hull list container, hidden while the refit gate does not hold or
 /// the docked station sells no hull.
 #[derive(Component)]
-pub(crate) struct ShipHullList;
+pub(crate) struct StationHullList;
 
-/// The rows inside [`ShipHullList`], and the row texts they were built from,
+/// The rows inside [`StationHullList`], and the row texts they were built from,
 /// so the rows respawn only when one changes.
 #[derive(Component, Default)]
-pub(crate) struct ShipHullRows(Vec<HullRow>);
+pub(crate) struct StationHullRows(Vec<HullRow>);
 
 /// One offered hull as the list shows it.
 #[derive(Clone, Debug, PartialEq)]
@@ -71,7 +68,7 @@ const SUMMARY_ORDER: [SectionClass; 9] = [
 
 /// The hull's length and section count: the span of its section centres
 /// along its longest axis, plus one cell, in metres.
-pub(super) fn hull_size_text(offer: &HullOffer) -> String {
+pub(crate) fn hull_size_text(offer: &HullOffer) -> String {
     let (low, high) = offer.sections.iter().fold(
         (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)),
         |(low, high), section| (low.min(section.position), high.max(section.position)),
@@ -86,7 +83,7 @@ pub(super) fn hull_size_text(offer: &HullOffer) -> String {
 
 /// How many sections of each kind the hull carries, by section code prefix:
 /// `4 HULL, 1 CTL, 2 THR, 1 DOCK`.
-pub(super) fn hull_kinds_text(offer: &HullOffer) -> String {
+pub(crate) fn hull_kinds_text(offer: &HullOffer) -> String {
     SUMMARY_ORDER
         .iter()
         .filter_map(|&class| {
@@ -187,12 +184,12 @@ fn plan_offer(
     )
 }
 
-/// Build the hull list under the add list: a header and the rows
-/// [`update_ship_hull_list`] fills.
-pub(crate) fn spawn_ship_hull_list(panel: &mut ChildSpawnerCommands) {
+/// Build the hull list: a header and the rows
+/// [`update_station_hull_list`] fills.
+pub(crate) fn spawn_station_hull_list(panel: &mut ChildSpawnerCommands) {
     panel
         .spawn((
-            ShipHullList,
+            StationHullList,
             Node {
                 display: Display::None,
                 flex_direction: FlexDirection::Column,
@@ -204,14 +201,7 @@ pub(crate) fn spawn_ship_hull_list(panel: &mut ChildSpawnerCommands) {
         .with_children(|list| {
             list.spawn(crate::pane::divider());
             list.spawn(themed_label("Ships for sale", 13.0, UiColor::Accent));
-            list.spawn((
-                ShipHullRows::default(),
-                Node {
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(6.0),
-                    ..default()
-                },
-            ));
+            list.spawn((StationHullRows::default(), offer_rows()));
         });
 }
 
@@ -222,7 +212,7 @@ pub(crate) fn spawn_ship_hull_list(panel: &mut ChildSpawnerCommands) {
     clippy::too_many_arguments,
     reason = "one system reading the offers, the site, both holds, the bindings and the list"
 )]
-pub(crate) fn update_ship_hull_list(
+pub(crate) fn update_station_hull_list(
     mut commands: Commands,
     items: Option<Res<GameItems>>,
     site: StationSite,
@@ -230,8 +220,8 @@ pub(crate) fn update_ship_hull_list(
     q_holds: Query<(&ShipInventory, &ShipCredits, Option<&StationStorage>)>,
     q_bindings: Query<SectionBindingRow, With<SectionMarker>>,
     q_health: Query<&Health, With<SectionMarker>>,
-    mut q_list: Query<&mut Node, With<ShipHullList>>,
-    mut q_rows: Query<(Entity, &mut ShipHullRows)>,
+    mut q_list: Query<&mut Node, With<StationHullList>>,
+    mut q_rows: Query<(Entity, &mut StationHullRows)>,
 ) {
     let Ok(mut list) = q_list.single_mut() else {
         return;
@@ -296,30 +286,24 @@ pub(crate) fn update_ship_hull_list(
     commands.entity(rows_entity).despawn_children();
     commands.entity(rows_entity).with_children(|parent| {
         for row in &rows {
-            parent
-                .spawn(Node {
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(4.0),
-                    ..default()
-                })
-                .with_children(|cell| {
-                    cell.spawn(themed_label(&row.name, 13.0, UiColor::Primary));
-                    cell.spawn(themed_label(&row.size, 12.0, UiColor::Body));
-                    cell.spawn(themed_label(&row.kinds, 12.0, UiColor::Body));
-                    cell.spawn(themed_label(&row.price, 12.0, UiColor::Body));
-                    match &row.refusal {
-                        Some(refusal) => {
-                            cell.spawn(themed_label(refusal, 12.0, UiColor::Danger));
-                        }
-                        None => {
-                            cell.spawn((
-                                Name::new(format!("ShipBuy-{}", row.offer)),
-                                compact_button(ButtonSpec::new("Buy").fit().primary()),
-                            ))
-                            .observe(on_ship_buy_button(row.offer));
-                        }
+            parent.spawn(offer_cell()).with_children(|cell| {
+                cell.spawn(themed_label(&row.name, 13.0, UiColor::Primary));
+                cell.spawn(themed_label(&row.size, 12.0, UiColor::Body));
+                cell.spawn(themed_label(&row.kinds, 12.0, UiColor::Body));
+                cell.spawn(themed_label(&row.price, 12.0, UiColor::Body));
+                match &row.refusal {
+                    Some(refusal) => {
+                        cell.spawn(themed_label(refusal, 12.0, UiColor::Danger));
                     }
-                });
+                    None => {
+                        cell.spawn((
+                            Name::new(format!("HullBuy-{}", row.offer)),
+                            compact_button(ButtonSpec::new("Buy").fit().primary()),
+                        ))
+                        .observe(on_hull_buy_button(row.offer));
+                    }
+                }
+            });
         }
     });
     shown.0 = rows;
@@ -327,7 +311,7 @@ pub(crate) fn update_ship_hull_list(
 
 /// Raise a [`HullBuyCommand`] for offer `offer` when its Buy button is
 /// clicked.
-fn on_ship_buy_button(
+fn on_hull_buy_button(
     offer: usize,
 ) -> impl FnMut(On<Activate>, MessageWriter<HullBuyCommand>, Option<Res<SoundBank<UiSfx>>>, Commands)
 {
@@ -352,9 +336,10 @@ fn on_ship_buy_button(
     clippy::type_complexity,
     reason = "both holds, balances, report queues and the station storage in one query"
 )]
-pub(crate) fn apply_ship_hull_buy_commands(
+pub(crate) fn apply_station_hull_buy_commands(
     mut messages: MessageReader<HullBuyCommand>,
-    mut runtime: ResMut<ShipRuntime>,
+    mut runtime: ResMut<StationRuntime>,
+    mut ship: ResMut<ShipRuntime>,
     mut commands: Commands,
     items: Option<Res<GameItems>>,
     site: StationSite,
@@ -384,7 +369,7 @@ pub(crate) fn apply_ship_hull_buy_commands(
         return;
     };
     let Some((station, _)) = resolved.partner else {
-        runtime.note = Some((hull_refusal_text("", &HullBuyRefusalType::NotDocked), 2.5));
+        runtime.say(hull_refusal_text("", &HullBuyRefusalType::NotDocked));
         return;
     };
     let offers = q_offers
@@ -406,7 +391,7 @@ pub(crate) fn apply_ship_hull_buy_commands(
     let plan = match planned {
         Ok(plan) => plan,
         Err(refusal) => {
-            runtime.note = Some((hull_refusal_text(&offer.name, &refusal), 2.5));
+            runtime.say(hull_refusal_text(&offer.name, &refusal));
             return;
         }
     };
@@ -444,16 +429,13 @@ pub(crate) fn apply_ship_hull_buy_commands(
         offer: command.offer,
         bindings: plan.bindings.clone(),
     });
-    runtime.selected = None;
-    runtime.rebinding = None;
-    runtime.repair_target = None;
-    runtime.add_point = None;
-    runtime.reselect = None;
-    runtime.note = Some((
-        format!(
-            "bought {} for {} cr, {} cr for the old hull",
-            offer.name, plan.price_cr, plan.trade_in_cr
-        ),
-        2.5,
+    ship.selected = None;
+    ship.rebinding = None;
+    ship.repair_target = None;
+    ship.add_point = None;
+    ship.reselect = None;
+    runtime.say(format!(
+        "bought {} for {} cr, {} cr for the old hull",
+        offer.name, plan.price_cr, plan.trade_in_cr
     ));
 }

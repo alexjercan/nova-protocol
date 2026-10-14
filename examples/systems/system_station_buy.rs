@@ -13,7 +13,7 @@
 //! THE HOLD AND BOTH BALANCES ARE DISCLOSED FIXTURE STATE: once docked, the
 //! hold is set to two section panels, and the player and the station each
 //! hold 1,000,000 cr, so the first hull is affordable and the station can pay
-//! any trade-in. The buy goes through the Ship pane's Buy button on the first
+//! any trade-in. The buy goes through the Station pane's Buy button on the first
 //! hull, the code path a player clicks. The player undocks, leaves to the
 //! main menu, the leave save is read back off disk through [`open_world`],
 //! and the world is loaded again in this process through the Load screen.
@@ -43,7 +43,7 @@ use clap::Parser;
 #[command(version = "1.0.0")]
 #[command(
     about = "New Game on a pinned seed: dock at a living generated station that sells hulls, buy \
-             the first from the Ship pane, then check the bought hull through a save and a Load. \
+             the first from the Station pane, then check the bought hull through a save and a Load. \
              Autopilot-only correctness range",
     long_about = None
 )]
@@ -129,9 +129,9 @@ mod walk {
 
     /// The offer the walk buys, and its Buy button.
     const OFFER: usize = 0;
-    const BUY_BUTTON: &str = "ShipBuy-0";
-    /// The Ship pane's side panel, which scrolls under the wheel.
-    const SHIP_PANEL: &str = "ShipPanel";
+    const BUY_BUTTON: &str = "HullBuy-0";
+    /// The Station pane's panel, which scrolls under the wheel.
+    const STATION_PANEL: &str = "StationPanel";
 
     /// The disclosed fixture hold, which the buy moves into storage.
     const HELD_ITEM: &str = "SectionPanel";
@@ -155,7 +155,7 @@ mod walk {
     const SESSION_SECS: f32 = 240.0;
     /// Seconds a click gets.
     const BEAT_SECS: f32 = 60.0;
-    /// Frames the Ship pane gets to build its panel and lists.
+    /// Frames the Station pane gets to build its panel and lists.
     const SETTLE_FRAMES: u32 = 10;
     /// The virtual clock's clamp on the software rasterizer.
     const WALK_CLOCK_SECS: f32 = 1.0;
@@ -435,12 +435,12 @@ mod walk {
         })
     }
 
-    /// Whether the Buy button lies inside the Ship panel's box, where a
+    /// Whether the Buy button lies inside the Station panel's box, where a
     /// click lands on it.
     fn buy_button_in_view(world: &World) -> bool {
         match (
             ui_node_rect(world, BUY_BUTTON),
-            ui_node_rect(world, SHIP_PANEL),
+            ui_node_rect(world, STATION_PANEL),
         ) {
             (Some(button), Some(panel)) => {
                 button.min.y >= panel.min.y && button.max.y <= panel.max.y
@@ -1006,19 +1006,19 @@ mod walk {
             }),
         )
         .click_named(
-            "station buy: open the Ship pane",
-            "InterfaceTabShip",
-            the_interface_shows(InterfacePaneType::Ship),
+            "station buy: open the Station pane",
+            "InterfaceTabStation",
+            the_interface_shows(InterfacePaneType::Station),
             SESSION_SECS,
         )
-        .step("station buy: settle the schematic")
+        .step("station buy: settle the lists")
         .until(frames(SETTLE_FRAMES))
         .add()
-        // The hull list stands under the add list, past the bottom of a
-        // 1080p panel: the wheel over the panel scrolls it into view.
+        // The hull list can stand past the bottom of a short panel: the
+        // wheel over the panel scrolls it into view.
         .step("station buy: scroll the hull list into view")
         .each(|world, _, frame| {
-            keep_hovering_named(SHIP_PANEL)(world);
+            keep_hovering_named(STATION_PANEL)(world);
             if frame % 2 == 1 && !buy_button_in_view(world) {
                 scroll_lines(-1.0)(world);
             }

@@ -156,8 +156,8 @@ catalogue rides `SectorStation.hulls` in the manifest (checked by
 `check_ship_design`, refused on a dead station) and `FrozenStation.hulls`,
 so it keeps across a retire, a thaw and a save. `insert_hull_offers`
 resolves it into `HullOffers` (`nova_ship/src/sections/hull_buy.rs`), which
-the pane reads. Under the add list, the Ship pane's "Ships for sale" list
-(`nova_interface/src/ship/shipyard.rs`) shows each hull's length, section
+the pane reads. The Station pane's "Ships for sale" list
+(`nova_interface/src/station/shipyard.rs`) shows each hull's length, section
 count, kind summary, price and trade-in, with a Buy button or the refusal.
 `plan_hull_buy` checks, in order: docked, `Refit`, a mining key per emitter
 (`bought_hull_bindings`), storage room for the whole hold, the player's
@@ -184,8 +184,8 @@ After its hulls for sale the catalogue holds one to three escorts for hire
 civilization can build, cycled from a seeded start, none where it builds no
 fighting role. Each keeps its roster slot, so `escort_id` (station id, stem
 `<stem>_<index>_escort`, the slot as index) gives one escort one id however
-the earlier ones were hired. The Ship pane's "Escorts for hire" list
-(`nova_interface/src/ship/escorts.rs`) shows each escort's length, kinds and
+the earlier ones were hired. The Station pane's "Escorts for hire" list
+(`nova_interface/src/station/escorts.rs`) shows each escort's length, kinds and
 price with a Hire button or the refusal. `plan_escort_hire`
 (`nova_ship/src/sections/escort_hire.rs`) checks, in order: docked, `Refit`,
 a free fleet slot (`FLEET_SIDES`, starboard then port, so the cap is two),
@@ -213,9 +213,9 @@ leader points. It keeps its leash centred on the leader and gives way to a
 combat engage. A neutralized escort leaves the fleet.
 
 Docked at a living generated station (it wears a `GeneratedBodyId` and is not
-derelict), the Ship pane's "This station" block
-(`nova_interface/src/ship/station_buy.rs`) offers the station itself, above
-the lost-section list. No authored service gates it: every such station is
+derelict), the Station pane's "This station" block
+(`nova_interface/src/station/station_buy.rs`) offers the station itself. No
+authored service gates it: every such station is
 for sale. The price is `station_price_cr`
 (`nova_ship/src/sections/station_buy.rs`): every live section's recipe at ask
 (`hull_price_cr`), the station's hold at ask and its credits, times
@@ -1600,22 +1600,22 @@ per contact. A symmetric rule - ram damage - wants both.
   `HullBuyRequest` - `crates/nova_ship/src/sections/hull_buy.rs`; the
   catalogue, `buy_station_hull` and `redock_bought_hull` -
   `crates/nova_scenario/src/objects/station_hulls.rs`; the generator:
-  `crates/nova_world_base/src/station_hulls.rs`; the pane:
-  `crates/nova_interface/src/ship/shipyard.rs`; proof:
+  `crates/nova_world_base/src/station_hulls.rs`; the Station pane:
+  `crates/nova_interface/src/station/shipyard.rs`; proof:
   `examples/systems/system_station_buy.rs`.
 - Escort hire: `escort_id`, `escort_price_cr`, `plan_escort_hire`,
   `FLEET_SIDES`, `EscortHireRequest` -
   `crates/nova_ship/src/sections/escort_hire.rs`; `AIFollow` -
   `crates/nova_ship/src/input/ai/follow.rs`; the spawn, `freeze_fleet` and
   `thaw_fleet_escort` - `crates/nova_scenario/src/objects/fleet.rs`; the pane:
-  `crates/nova_interface/src/ship/escorts.rs`; proof:
+  `crates/nova_interface/src/station/escorts.rs`; proof:
   `examples/systems/system_station_hire.rs`.
 - Station buy: `station_price_cr`, `STATION_OWNERSHIP_FACTOR`,
   `plan_station_buy`, `StationSaleType` -
   `crates/nova_ship/src/sections/station_buy.rs`; `OwnedStationMarker` -
   `crates/nova_gameplay/src/markers.rs`; `FrozenStation.owned` -
   `crates/nova_scenario/src/objects/station.rs`; the pane:
-  `crates/nova_interface/src/ship/station_buy.rs`; proof:
+  `crates/nova_interface/src/station/station_buy.rs`; proof:
   `examples/systems/system_station_own.rs`.
 - Section strip: `plan_section_strip`, `strip_duration_secs`,
   `BuildRecipe::strip_parts_at` - `crates/nova_gameplay/src/inventory.rs`;

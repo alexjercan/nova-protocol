@@ -221,7 +221,7 @@ can build, and its size grows with the civilization's advancement: a station
 near the origin sells small hulls only. A station a scenario places sells
 none.
 
-Docked to a living station that offers `Refit`, the Ship pane lists the hulls
+Docked to a living station that offers `Refit`, the Station pane lists the hulls
 under **Ships for sale**: each hull's name, length, section count and kinds,
 the price and the trade-in, and a Buy button or the reason it is refused.
 
@@ -247,7 +247,7 @@ After its hulls for sale, a living station that a generated world places
 hires out one to three armed escorts: scavenger and armored hulls its
 civilization can build, laid out from the world seed and the station's id. A
 civilization that builds no armed role hires none, and a station a scenario
-places hires none. The Ship pane lists them under **Escorts for hire**: each
+places hires none. The Station pane lists them under **Escorts for hire**: each
 escort's name, length, section count and kinds, the price, and a Hire button
 or the reason it is refused.
 
@@ -270,7 +270,7 @@ and Load.
 ## Buy the station
 
 A living station that a generated world places is for sale to the ship docked
-with it. The Ship pane shows it under **This station**: its name, its price
+with it. The Station pane shows it under **This station**: its name, its price
 and a **Buy station** button or the reason it is refused. A station a
 scenario places and a derelict are not for sale.
 

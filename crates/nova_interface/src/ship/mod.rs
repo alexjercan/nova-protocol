@@ -26,9 +26,6 @@
 //! key or panel button -> message), spending hull plates from the player
 //! ship's `ShipInventory`.
 //!
-//! While the ship is docked at a living station a civilization keeps, a
-//! "This station" block shows its price and a Buy button that raises a
-//! `StationBuyCommand`; docked at a station the player owns, it says so.
 //! While the ship is docked at a living station that offers Rebuild, the
 //! panel lists the design sections the ship has lost, each under its design
 //! code, with a Rebuild button that raises a `SectionRebuildCommand`. While
@@ -37,11 +34,8 @@
 //! for, each with a Swap button that raises a `SectionSwapCommand`, and
 //! under them the selected section's free sockets and the parts that fit at
 //! the chosen one, each with an Add button that raises a `SectionAddCommand`.
-//! When that station sells hulls, a "Ships for sale" list under them shows
-//! each hull with its price, the trade-in and a Buy button that raises a
-//! `HullBuyCommand`. When it hires out escorts, an "Escorts for hire" list
-//! under that shows each with its price and a Hire button that raises an
-//! `EscortHireCommand`.
+//! What the station sells (ships, escorts and the station itself) is in the
+//! Station pane (`crate::station`).
 //! While the ship is docked with a hull it may loot, a "Strip the docked
 //! wreck" list shows each of the partner's sections with the parts a strip
 //! gives, its time and a Strip button that raises a `SectionStripCommand`;
@@ -56,21 +50,15 @@
 //! | `app` | The side panel layout and the repair action handler. |
 //! | `rebuild` | The lost-section list and the rebuild action handler. |
 //! | `refit` | The swap and add lists and their action handlers. |
-//! | `shipyard` | The "Ships for sale" list and the buy action handler. |
-//! | `escorts` | The "Escorts for hire" list and the hire action handler. |
-//! | `station_buy` | The "This station" block and the station buy action handler. |
 //! | `strip` | The "Strip the docked wreck" list, the strip action handler and the strip timer. |
 //! | `scene` | The schematic 3D scene, its camera, the projected badges, the button observers and the panel refresh. |
 
 mod app;
-mod escorts;
 mod rebind;
 mod rebuild;
 mod refit;
 mod scene;
 mod sections;
-mod shipyard;
-mod station_buy;
 mod strip;
 
 #[cfg(test)]
@@ -79,17 +67,11 @@ mod tests;
 use bevy::prelude::*;
 use nova_ui::input_mode::prelude::{in_input_mode, InputMode};
 
-pub(crate) use self::{
-    app::*, escorts::*, rebind::*, rebuild::*, refit::*, scene::*, sections::*, shipyard::*,
-    station_buy::*, strip::*,
-};
+pub(crate) use self::{app::*, rebind::*, rebuild::*, refit::*, scene::*, sections::*, strip::*};
 pub use self::{
-    escorts::EscortHireCommand,
     refit::{SectionAddCommand, SectionSwapCommand},
     scene::{cuboid_edges, ease_orbit_center, ship_framing, ShipRuntime, SHIP_BLOCK_FILL_SCALE},
     sections::{design_section_code, SectionCode, ShipSections},
-    shipyard::HullBuyCommand,
-    station_buy::{StationBuyCommand, STATION_BUY_BUTTON},
     strip::{SectionStripCommand, STRIP_BUTTON_PREFIX, STRIP_LIST, STRIP_PROGRESS},
 };
 
@@ -99,14 +81,11 @@ pub mod prelude {
     // `pub(crate)` (the module glob above), which rustc rejects as an
     // ambiguous import visibility through `super::`.
     pub use super::{
-        escorts::EscortHireCommand,
         refit::{SectionAddCommand, SectionSwapCommand},
         scene::{
             cuboid_edges, ease_orbit_center, ship_framing, ShipRuntime, SHIP_BLOCK_FILL_SCALE,
         },
         sections::{design_section_code, SectionCode, ShipSections},
-        shipyard::HullBuyCommand,
-        station_buy::{StationBuyCommand, STATION_BUY_BUTTON},
         strip::{SectionStripCommand, STRIP_BUTTON_PREFIX, STRIP_LIST, STRIP_PROGRESS},
         SHIP_RADIUS_MAX, SHIP_RADIUS_MIN,
     };
@@ -140,9 +119,6 @@ impl Plugin for ShipPanePlugin {
         app.add_message::<SectionRebuildCommand>();
         app.add_message::<SectionSwapCommand>();
         app.add_message::<SectionAddCommand>();
-        app.add_message::<HullBuyCommand>();
-        app.add_message::<EscortHireCommand>();
-        app.add_message::<StationBuyCommand>();
         app.add_message::<SectionStripCommand>();
         app.add_systems(
             Update,
@@ -154,9 +130,6 @@ impl Plugin for ShipPanePlugin {
                     apply_ship_rebuild_commands,
                     apply_ship_swap_commands,
                     apply_ship_add_commands,
-                    apply_ship_hull_buy_commands,
-                    apply_ship_escort_hire_commands,
-                    apply_ship_station_buy_commands,
                     apply_ship_strip_commands,
                     // Runs with the pane closed too: a strip goes on in flight.
                     advance_ship_strip,
@@ -175,12 +148,9 @@ impl Plugin for ShipPanePlugin {
                     project_ship_blips,
                     label_the_selected_section,
                     update_ship_panel,
-                    update_ship_station_list,
                     update_ship_rebuild_list,
                     update_ship_swap_list,
                     update_ship_add_list,
-                    update_ship_hull_list,
-                    update_ship_escort_list,
                     update_ship_strip_list,
                 )
                     .chain(),

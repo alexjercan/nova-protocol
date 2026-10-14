@@ -1,10 +1,10 @@
-//! The Ship pane's "This station" block and the station Buy action.
+//! The Station pane's "This station" block and the station Buy action.
 //!
 //! While the player ship is docked at a living station a civilization keeps
-//! (generated with the world, so it wears a [`GeneratedBodyId`]), the panel
+//! (generated with the world, so it wears a [`GeneratedBodyId`]), the pane
 //! shows the station's name, its price ([`station_price_cr`]) and a Buy
 //! button or the reason the buy is refused. A click raises a
-//! [`StationBuyCommand`]; [`apply_ship_station_buy_commands`] plans it with
+//! [`StationBuyCommand`]; [`apply_station_buy_commands`] plans it with
 //! [`plan_station_buy`], charges the price as a `StationBuy` credit change,
 //! queues one `StationBought` report and marks the station
 //! [`OwnedStationMarker`]. Docked at a station the player owns, the block
@@ -19,7 +19,7 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{theme::UiColor, widget::ButtonSpec};
 
-use super::scene::ShipRuntime;
+use super::{offer_cell, StationRuntime};
 use crate::pane::{compact_button, play_menu_select, themed_label};
 
 /// The name of the station Buy button.
@@ -33,12 +33,12 @@ pub struct StationBuyCommand;
 /// The block's container, hidden while the player is not docked at a station
 /// a civilization keeps or the player owns.
 #[derive(Component)]
-pub(crate) struct ShipStationList;
+pub(crate) struct StationSaleBlock;
 
-/// The rows inside [`ShipStationList`], and the row they were built from, so
+/// The rows inside [`StationSaleBlock`], and the row they were built from, so
 /// the rows respawn only when it changes.
 #[derive(Component, Default)]
-pub(crate) struct ShipStationRows(Option<StationRow>);
+pub(crate) struct StationSaleRows(Option<StationRow>);
 
 /// The docked station as the block shows it.
 #[derive(Clone, Debug, PartialEq)]
@@ -140,13 +140,13 @@ fn station_refusal_text(name: &str, refusal: &StationBuyRefusalType) -> String {
     }
 }
 
-/// Build the block above the lost-section list: a header and the rows
-/// [`update_ship_station_list`] fills.
-pub(crate) fn spawn_ship_station_list(panel: &mut ChildSpawnerCommands) {
+/// Build the block: a header and the rows
+/// [`update_station_sale_block`] fills.
+pub(crate) fn spawn_station_sale_block(panel: &mut ChildSpawnerCommands) {
     panel
         .spawn((
-            ShipStationList,
-            Name::new("ShipStationBlock"),
+            StationSaleBlock,
+            Name::new("StationSaleBlock"),
             Node {
                 display: Display::None,
                 flex_direction: FlexDirection::Column,
@@ -158,25 +158,18 @@ pub(crate) fn spawn_ship_station_list(panel: &mut ChildSpawnerCommands) {
         .with_children(|list| {
             list.spawn(crate::pane::divider());
             list.spawn(themed_label("This station", 13.0, UiColor::Accent));
-            list.spawn((
-                ShipStationRows::default(),
-                Node {
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(4.0),
-                    ..default()
-                },
-            ));
+            list.spawn((StationSaleRows::default(), offer_cell()));
         });
 }
 
 /// Show the block while the player is docked at a station for sale or owned,
 /// and respawn its rows when the price, the refusal or the ownership changes.
-pub(crate) fn update_ship_station_list(
+pub(crate) fn update_station_sale_block(
     mut commands: Commands,
     sale: StationSale,
     q_credits: Query<&ShipCredits>,
-    mut q_list: Query<&mut Node, With<ShipStationList>>,
-    mut q_rows: Query<(Entity, &mut ShipStationRows)>,
+    mut q_list: Query<&mut Node, With<StationSaleBlock>>,
+    mut q_rows: Query<(Entity, &mut StationSaleRows)>,
 ) {
     let Ok(mut list) = q_list.single_mut() else {
         return;
@@ -267,9 +260,9 @@ fn on_station_buy_button(
 ///
 /// On a station for sale with no scenario id: every generated station wears
 /// one.
-pub(crate) fn apply_ship_station_buy_commands(
+pub(crate) fn apply_station_buy_commands(
     mut messages: MessageReader<StationBuyCommand>,
-    mut runtime: ResMut<ShipRuntime>,
+    mut runtime: ResMut<StationRuntime>,
     mut commands: Commands,
     sale: StationSale,
     q_ids: Query<&EntityId>,
@@ -284,10 +277,7 @@ pub(crate) fn apply_ship_station_buy_commands(
     // command this frame would plan against a station not yet owned.
     messages.clear();
     let Some(docked) = sale.docked() else {
-        runtime.note = Some((
-            station_refusal_text("", &StationBuyRefusalType::NotDocked),
-            2.5,
-        ));
+        runtime.say(station_refusal_text("", &StationBuyRefusalType::NotDocked));
         return;
     };
     let Ok((mut own_cr, mut reports)) = q_credits.get_mut(docked.player) else {
@@ -296,7 +286,7 @@ pub(crate) fn apply_ship_station_buy_commands(
     let plan = match plan_station_buy(docked.price_cr, Some(docked.sale), own_cr.0) {
         Ok(plan) => plan,
         Err(refusal) => {
-            runtime.note = Some((station_refusal_text(&docked.name, &refusal), 2.5));
+            runtime.say(station_refusal_text(&docked.name, &refusal));
             return;
         }
     };
@@ -312,10 +302,7 @@ pub(crate) fn apply_ship_station_buy_commands(
         price_cr: plan.price_cr,
     });
     commands.entity(docked.station).insert(OwnedStationMarker);
-    runtime.note = Some((
-        format!("bought {} for {} cr", docked.name, plan.price_cr),
-        2.5,
-    ));
+    runtime.say(format!("bought {} for {} cr", docked.name, plan.price_cr));
     info!(
         "station buy: {} ({:?}) is the player's for {} cr",
         docked.name, docked.station, plan.price_cr

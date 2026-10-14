@@ -22,13 +22,10 @@ use nova_ui::{
 };
 
 use super::{
-    escorts::spawn_ship_escort_list,
     rebuild::spawn_ship_rebuild_list,
     refit::{spawn_ship_add_list, spawn_ship_swap_list},
     scene::*,
     sections::*,
-    shipyard::spawn_ship_hull_list,
-    station_buy::spawn_ship_station_list,
     strip::spawn_ship_strip_list,
 };
 use crate::{
@@ -270,13 +267,10 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                             .observe(on_ship_repair_button);
                         });
                 });
-            spawn_ship_station_list(panel);
             spawn_ship_strip_list(panel);
             spawn_ship_rebuild_list(panel);
             spawn_ship_swap_list(panel);
             spawn_ship_add_list(panel);
-            spawn_ship_hull_list(panel);
-            spawn_ship_escort_list(panel);
             panel.spawn((ShipPanelField::Note, themed_label("", 12.0, UiColor::Label)));
         });
 }

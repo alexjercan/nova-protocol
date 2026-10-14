@@ -1,6 +1,6 @@
 # Interface
 
-Every ship carries a second seat of control: the **interface**. Press <kbd>Tab</kbd> in flight and a full-screen panel opens over the frozen world with three panes: **Map**, **Ship** and **Inventory**. Flight resumes the moment you close it.
+Every ship carries a second seat of control: the **interface**. Press <kbd>Tab</kbd> in flight and a full-screen panel opens over the frozen world with three panes: **Map**, **Ship** and **Inventory**. Docked at a living station, a fourth pane, **Station**, sells ships, escorts and the station itself. Flight resumes the moment you close it.
 
 <figure class="figure">
     <!-- Capture: assets/wiki-interface-map.png -->
@@ -28,14 +28,15 @@ Every ship carries a second seat of control: the **interface**. Press <kbd>Tab</
      (interface_toggle Tab / Right Thumb, interface_next_tab M / Y).
      Back-out owner (Escape, Start): crates/nova_interface/src/terminal/input.rs
      `close_surface_from_menu_keys`. First open shows Map, later opens the last
-     pane: `InterfacePaneType` in pane.rs. -->
+     pane: `InterfacePaneType` in pane.rs. Station tab gate: `show_station_tab`
+     and `leave_station_pane` in pane.rs. -->
 
 | You do | What happens |
 | --- | --- |
 | <kbd>Tab</kbd> (or click the right stick) | The interface opens on the Map pane, or on the pane you last used. It needs a live ship, and it does not open over the pause menu. |
 | <kbd>Tab</kbd> again, <kbd>Esc</kbd>, or gamepad Start | Close it and return to flight. |
-| <kbd>M</kbd> (or gamepad <kbd>Y</kbd>) | Step to the next pane: Map, Ship, Inventory, then Map again. While a text field has the caret, such as the Inventory quantity, <kbd>M</kbd> types instead. |
-| Click **Map**, **Ship** or **Inventory** | Switch to that pane. |
+| <kbd>M</kbd> (or gamepad <kbd>Y</kbd>) | Step to the next pane: Map, Ship, Inventory, Station while you are docked at a living station, then Map again. While a text field has the caret, such as the Inventory quantity, <kbd>M</kbd> types instead. |
+| Click **Map**, **Ship**, **Inventory** or **Station** | Switch to that pane. The **Station** tab shows only while you are docked at a living station; undock and the interface opens on Ship instead. |
 | <kbd>:</kbd> | Open the [command shell](../commands/) over the pane. Close it and you are back on the same pane, with its camera and selection as you left them. |
 
 <details class="explain">
@@ -207,26 +208,34 @@ Docked at a living station that offers refit, select a section on the Ship pane.
 
 Docked at a living station that offers refit, select a section on the Ship pane. Under **Swap**, **Add** shows the section's free sockets as buttons, the first one chosen, and lists every part that fits at the chosen socket, each with its price. Click **Add** to fit it. The new part spawns at full health under the next code of its kind. A gun takes the key of your other guns of its kind, or none until you **Rebind** it; a drive is flown by the computer. A socket another section holds is refused: `add: HULL-2 positive_y is taken`. In a saved Open World the new part stays across a Load. The panel scrolls with the wheel while the pointer is over it.
 
-## Buying a ship
+## The station
 
-<!-- List and action: crates/nova_interface/src/ship/shipyard.rs. Price,
+<!-- Pane: crates/nova_interface/src/station/mod.rs. -->
+
+Docked at a living station, the **Station** pane shows what it sells: **This station**, **Ships for sale** and **Escorts for hire**, each offer with its price and a button or the reason it is refused. A station that offers none of the three says so. Results and refusals show on the note line under the lists. Refit (rebuild, swap and add) and the wreck strip stay in the Ship pane, beside the ship they change.
+
+### Buying a ship
+
+<!-- List and action: crates/nova_interface/src/station/shipyard.rs. Price,
      trade-in and binding: crates/nova_ship/src/sections/hull_buy.rs. -->
 
-Docked at a living station in an Open World that offers refit, scroll the Ship pane's panel to **Ships for sale**. Each hull shows its length, its sections by kind, its price and what the station pays for your ship. Click **Buy** to take it. Your old ship is traded in: each section pays for its parts by its health, and a lost section pays nothing. Your hold goes into the station's storage, and the new ship docks where the old one was, at full health, with an empty hold. Your guns' keys carry over to the new guns of the same kind; a drive is flown by the computer. A hold the storage cannot take is refused, as is a price your credits and the trade-in cannot cover. In a saved Open World the new ship stays across a Load.
+Docked at a living station in an Open World that offers refit, open the Station pane: **Ships for sale** lists each hull. Each hull shows its length, its sections by kind, its price and what the station pays for your ship. Click **Buy** to take it. Your old ship is traded in: each section pays for its parts by its health, and a lost section pays nothing. Your hold goes into the station's storage, and the new ship docks where the old one was, at full health, with an empty hold. Your guns' keys carry over to the new guns of the same kind; a drive is flown by the computer. A hold the storage cannot take is refused, as is a price your credits and the trade-in cannot cover. In a saved Open World the new ship stays across a Load.
 
-## Hiring an escort
+### Hiring an escort
 
-<!-- List and action: crates/nova_interface/src/ship/escorts.rs. Price and
+<!-- List and action: crates/nova_interface/src/station/escorts.rs. Price and
      fleet slots: crates/nova_ship/src/sections/escort_hire.rs. -->
 
 Under **Ships for sale**, the same station lists its **Escorts for hire**: armed hulls with a crew. Each shows its length, its sections by kind and its price, half again what the hull would cost. Click **Hire** and the escort joins your side, beside your ship. It flies on your starboard side, the second on your port side; a third hire is refused. An escort flies on its own drive: while you travel it takes its place 200 m off your side and 100 m behind, and matches your speed; while you stop or turn in place it holds where it is. It follows you across sectors and fights what attacks you. In a saved Open World your escorts stay across a Load. An escort that loses its last flight computer is out of your fleet and stays behind as a wreck.
 
-## Buying a station
+### Buying a station
 
-<!-- Block and action: crates/nova_interface/src/ship/station_buy.rs. Price:
+<!-- Block and action: crates/nova_interface/src/station/station_buy.rs. Price:
      crates/nova_ship/src/sections/station_buy.rs. -->
 
-Docked at a living station in an Open World, the Ship pane's panel shows **This station**: its name and its price, twice what its sections, its hold and its credits are worth at ask. Click **Buy station** to make it yours; the credits go to its civilization. An owned station lets you dock whatever side you are flagged, and its hold sells to you at the price it would pay. It keeps its side and its guns, and it earns nothing yet. In a saved Open World it stays yours across a Load. A price your credits cannot cover is refused.
+Docked at a living station in an Open World, the Station pane shows **This station**: its name and its price, twice what its sections, its hold and its credits are worth at ask. Click **Buy station** to make it yours; the credits go to its civilization. An owned station lets you dock whatever side you are flagged, and its hold sells to you at the price it would pay. It keeps its side and its guns, and it earns nothing yet. In a saved Open World it stays yours across a Load. A price your credits cannot cover is refused.
+
+## Stripping a wreck
 
 <!-- List, timer and action: crates/nova_interface/src/ship/strip.rs. Rule:
      crates/nova_gameplay/src/inventory.rs `plan_section_strip`. Removal:

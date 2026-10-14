@@ -1,11 +1,11 @@
-//! The Ship pane's "Escorts for hire" list and the Hire action.
+//! The Station pane's "Escorts for hire" list and the Hire action.
 //!
 //! While the ship is docked at a living station that offers Refit and hires
 //! out escorts ([`HullOfferType::Hire`] offers in its [`HullOffers`]), the
-//! panel lists them under the hulls for sale: the name, the length and
+//! pane lists them under the hulls for sale: the name, the length and
 //! section count, how many sections of each kind, the price, and a Hire
 //! button or the reason the hire is refused. A click raises an
-//! [`EscortHireCommand`]; [`apply_ship_escort_hire_commands`] plans it with
+//! [`EscortHireCommand`]; [`apply_station_escort_hire_commands`] plans it with
 //! [`plan_escort_hire`], moves the credits, and raises the
 //! [`EscortHireRequest`] the scenario crate spawns the escort from.
 //!
@@ -18,11 +18,14 @@ use nova_ship::prelude::*;
 use nova_ui::{theme::UiColor, widget::ButtonSpec};
 
 use super::{
-    rebuild::{ResolvedSite, StationSite},
-    scene::ShipRuntime,
+    offer_cell, offer_rows,
     shipyard::{hull_kinds_text, hull_size_text},
+    StationRuntime,
 };
-use crate::pane::{compact_button, play_menu_select, themed_label};
+use crate::{
+    pane::{compact_button, play_menu_select, themed_label},
+    ship::{ResolvedSite, StationSite},
+};
 
 /// A request to hire escort `offer` of the docked station's [`HullOffers`],
 /// raised by an "Escorts for hire" Hire button.
@@ -35,12 +38,12 @@ pub struct EscortHireCommand {
 /// The escort list container, hidden while the refit gate does not hold or
 /// the docked station hires out no escort.
 #[derive(Component)]
-pub(crate) struct ShipEscortList;
+pub(crate) struct StationEscortList;
 
-/// The rows inside [`ShipEscortList`], and the row texts they were built
+/// The rows inside [`StationEscortList`], and the row texts they were built
 /// from, so the rows respawn only when one changes.
 #[derive(Component, Default)]
-pub(crate) struct ShipEscortRows(Vec<EscortRow>);
+pub(crate) struct StationEscortRows(Vec<EscortRow>);
 
 /// One escort for hire as the list shows it.
 #[derive(Clone, Debug, PartialEq)]
@@ -103,11 +106,11 @@ fn plan_offer(
 }
 
 /// Build the escort list under the hull list: a header and the rows
-/// [`update_ship_escort_list`] fills.
-pub(crate) fn spawn_ship_escort_list(panel: &mut ChildSpawnerCommands) {
+/// [`update_station_escort_list`] fills.
+pub(crate) fn spawn_station_escort_list(panel: &mut ChildSpawnerCommands) {
     panel
         .spawn((
-            ShipEscortList,
+            StationEscortList,
             Node {
                 display: Display::None,
                 flex_direction: FlexDirection::Column,
@@ -119,14 +122,7 @@ pub(crate) fn spawn_ship_escort_list(panel: &mut ChildSpawnerCommands) {
         .with_children(|list| {
             list.spawn(crate::pane::divider());
             list.spawn(themed_label("Escorts for hire", 13.0, UiColor::Accent));
-            list.spawn((
-                ShipEscortRows::default(),
-                Node {
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(6.0),
-                    ..default()
-                },
-            ));
+            list.spawn((StationEscortRows::default(), offer_rows()));
         });
 }
 
@@ -137,15 +133,15 @@ pub(crate) fn spawn_ship_escort_list(panel: &mut ChildSpawnerCommands) {
     clippy::too_many_arguments,
     reason = "one system reading the offers, the site, the balances, the fleet and the list"
 )]
-pub(crate) fn update_ship_escort_list(
+pub(crate) fn update_station_escort_list(
     mut commands: Commands,
     items: Option<Res<GameItems>>,
     site: StationSite,
     q_offers: Query<&HullOffers>,
     q_credits: Query<&ShipCredits>,
     q_fleet: Query<&AIFollow, With<PlayerFleetMarker>>,
-    mut q_list: Query<&mut Node, With<ShipEscortList>>,
-    mut q_rows: Query<(Entity, &mut ShipEscortRows)>,
+    mut q_list: Query<&mut Node, With<StationEscortList>>,
+    mut q_rows: Query<(Entity, &mut StationEscortRows)>,
 ) {
     let Ok(mut list) = q_list.single_mut() else {
         return;
@@ -197,30 +193,24 @@ pub(crate) fn update_ship_escort_list(
     commands.entity(rows_entity).despawn_children();
     commands.entity(rows_entity).with_children(|parent| {
         for row in &rows {
-            parent
-                .spawn(Node {
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(4.0),
-                    ..default()
-                })
-                .with_children(|cell| {
-                    cell.spawn(themed_label(&row.name, 13.0, UiColor::Primary));
-                    cell.spawn(themed_label(&row.size, 12.0, UiColor::Body));
-                    cell.spawn(themed_label(&row.kinds, 12.0, UiColor::Body));
-                    cell.spawn(themed_label(&row.price, 12.0, UiColor::Body));
-                    match &row.refusal {
-                        Some(refusal) => {
-                            cell.spawn(themed_label(refusal, 12.0, UiColor::Danger));
-                        }
-                        None => {
-                            cell.spawn((
-                                Name::new(format!("EscortHire-{}", row.offer)),
-                                compact_button(ButtonSpec::new("Hire").fit().primary()),
-                            ))
-                            .observe(on_escort_hire_button(row.offer));
-                        }
+            parent.spawn(offer_cell()).with_children(|cell| {
+                cell.spawn(themed_label(&row.name, 13.0, UiColor::Primary));
+                cell.spawn(themed_label(&row.size, 12.0, UiColor::Body));
+                cell.spawn(themed_label(&row.kinds, 12.0, UiColor::Body));
+                cell.spawn(themed_label(&row.price, 12.0, UiColor::Body));
+                match &row.refusal {
+                    Some(refusal) => {
+                        cell.spawn(themed_label(refusal, 12.0, UiColor::Danger));
                     }
-                });
+                    None => {
+                        cell.spawn((
+                            Name::new(format!("EscortHire-{}", row.offer)),
+                            compact_button(ButtonSpec::new("Hire").fit().primary()),
+                        ))
+                        .observe(on_escort_hire_button(row.offer));
+                    }
+                }
+            });
         }
     });
     shown.0 = rows;
@@ -256,9 +246,9 @@ fn on_escort_hire_button(
     clippy::type_complexity,
     reason = "both balances and report queues in one query"
 )]
-pub(crate) fn apply_ship_escort_hire_commands(
+pub(crate) fn apply_station_escort_hire_commands(
     mut messages: MessageReader<EscortHireCommand>,
-    mut runtime: ResMut<ShipRuntime>,
+    mut runtime: ResMut<StationRuntime>,
     mut commands: Commands,
     items: Option<Res<GameItems>>,
     site: StationSite,
@@ -282,10 +272,7 @@ pub(crate) fn apply_ship_escort_hire_commands(
         return;
     };
     let Some((station, _)) = resolved.partner else {
-        runtime.note = Some((
-            escort_refusal_text("", &EscortHireRefusalType::NotDocked),
-            2.5,
-        ));
+        runtime.say(escort_refusal_text("", &EscortHireRefusalType::NotDocked));
         return;
     };
     let (offers, station_id) = q_offers.get(station).unwrap_or_else(|_| {
@@ -299,7 +286,7 @@ pub(crate) fn apply_ship_escort_hire_commands(
     let plan = match plan_offer(&items, &resolved, offer, &held, &q_credits.p0()) {
         Ok(plan) => plan,
         Err(refusal) => {
-            runtime.note = Some((escort_refusal_text(&offer.name, &refusal), 2.5));
+            runtime.say(escort_refusal_text(&offer.name, &refusal));
             return;
         }
     };
@@ -321,10 +308,7 @@ pub(crate) fn apply_ship_escort_hire_commands(
         hull: offer.name.clone(),
         price_cr: plan.price_cr,
     });
-    runtime.note = Some((
-        format!("hired {} for {} cr", offer.name, plan.price_cr),
-        2.5,
-    ));
+    runtime.say(format!("hired {} for {} cr", offer.name, plan.price_cr));
     commands.trigger(EscortHireRequest {
         entity: resolved.player,
         station,

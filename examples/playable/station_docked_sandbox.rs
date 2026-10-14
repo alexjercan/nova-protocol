@@ -10,6 +10,8 @@
 //!
 //! - the player holds [`PLAYER_CREDITS`], enough to buy the station, and
 //!   the station holds [`STATION_CREDITS`], enough to pay a trade-in;
+//! - the station's storage grows by the hold's mass, so a hull buy can store
+//!   the hold;
 //! - the hold carries up to [`PARTS_PER_ITEM`] of every part a catalogue
 //!   section's recipe asks for, as far as the hold has room;
 //! - the TAB interface opens on the Ship tab.
@@ -20,8 +22,7 @@
 //! What to try:
 //!
 //! 1. the Ship tab: rebuild, swap and add sections, and strip one;
-//! 2. the hull and escort lists and the "This station" block: buy a hull,
-//!    hire an escort, buy the station;
+//! 2. the Station tab: buy a hull, hire an escort, buy the station;
 //! 3. switch tabs after a change, and check the schematic, the plating and
 //!    the greebles follow it.
 //!
@@ -32,9 +33,10 @@
 //! It runs without `--features debug` too, at the cost of a second build of
 //! the engine. Under `NOVA_AUTOPILOT=1` (debug only) a smoke walk waits for
 //! the docked Ship tab, clicks the first Add button, and switches tabs after
-//! it: a Map tab click, an Inventory tab click and the next-tab key.
-//! `NOVA_CAPTURE=1` shoots `sandbox-ship.png`, `sandbox-placed.png` and
-//! `sandbox-map-after.png`. Unset, no walk and no deadline run.
+//! it: a Map tab click, an Inventory tab click and the next-tab key, which
+//! steps on to the Station tab while docked. `NOVA_CAPTURE=1` shoots
+//! `sandbox-ship.png`, `sandbox-placed.png`, `sandbox-map-after.png` and
+//! `sandbox-station.png`. Unset, no walk and no deadline run.
 
 use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
 use bevy::prelude::*;
@@ -411,9 +413,21 @@ fn set_the_fixture(world: &mut World, player: Entity) {
     if let Some(mut credits) = world.get_mut::<ShipCredits>(player) {
         credits.0 = PLAYER_CREDITS;
     }
+    let hold_g = world
+        .get::<ShipInventory>(player)
+        .map_or(0, |hold| hold.used_g(&items));
     if let Some(station) = station_root(world) {
         if let Some(mut credits) = world.get_mut::<ShipCredits>(station) {
             credits.0 = STATION_CREDITS;
+        }
+        // A hull buy moves the hold into the station's storage, so the
+        // storage grows by the hold, keeping what it stores.
+        if let Some(mut storage) = world.get_mut::<StationStorage>(station) {
+            let mut grown = StationStorage::new(storage.cap_g().saturating_add(hold_g));
+            for (item, count) in storage.stacks() {
+                grown.add(&items, item, count);
+            }
+            *storage = grown;
         }
     }
     info!(
@@ -455,6 +469,8 @@ mod smoke {
     const PLACED_SHOT: &str = "sandbox-placed.png";
     /// The PNG of the Map tab a click opens after the add.
     const MAP_AFTER_SHOT: &str = "sandbox-map-after.png";
+    /// The Station tab, reached with the next-tab key from Inventory.
+    const STATION_SHOT: &str = "sandbox-station.png";
     /// Seconds a click or a key gets to land.
     const BEAT_SECS: f32 = 60.0;
     /// The Ship pane's side panel, which scrolls under the wheel.
@@ -663,8 +679,16 @@ mod smoke {
             .add()
             .step("station sandbox: let the next-tab key up")
             .on_enter(release_action("interface_next_tab"))
-            .until(the_interface_shows(InterfacePaneType::Map))
+            .until(the_interface_shows(InterfacePaneType::Station))
             .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: settle the Station tab")
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station sandbox: shoot the Station tab")
+            .on_enter(|world: &mut World| shoot(world, STATION_SHOT))
+            .until(shot_written(STATION_SHOT))
+            .deadline(SHOT_SECS)
             .add()
     }
 }
