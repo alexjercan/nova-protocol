@@ -24,7 +24,7 @@ use nova_gameplay::prelude::{
     UnsettledBody,
 };
 use nova_scenario::prelude::{
-    freeze_ship, CurrentScenario, GeneratedMarks, NovaEventWorld, ResumedScenario,
+    freeze_fleet, freeze_ship, CurrentScenario, GeneratedMarks, NovaEventWorld, ResumedScenario,
     ResumedSpaceship, SavedScenario, SpentHandlers,
 };
 use nova_ship::prelude::{CameraView, ResumedCameraView};
@@ -33,7 +33,7 @@ use nova_world::prelude::{
 };
 
 use super::{
-    check_saved_ids, check_saved_items, check_saved_stock,
+    check_saved_fleet, check_saved_ids, check_saved_items, check_saved_stock,
     transients::{freeze_transients, hold_resumed_transients},
     write_world, SavedIdFault, SavedPlayer, WorldFolder, WorldLock, WorldSaveHeader,
     WorldSaveState, WORLD_SAVE_FORMAT,
@@ -265,6 +265,7 @@ pub fn resume_world(
         transform: player.transform,
         motion: player.motion,
         ship: player.ship,
+        fleet: player.fleet,
     });
     world.insert_resource(OpenWorldSession { seed: header.seed });
     world
@@ -386,15 +387,21 @@ pub(crate) fn snapshot_world(world: &mut World) {
             let sectors = snapshot_sectors::<NovaLayeredWorld>(world)?;
             let transients = freeze_transients(world)?;
             let scenario = capture_scenario(world)?;
-            freeze_ship(world, player)
-                .map(|ship| (sectors, transients, scenario, ship, view))
-                .map_err(|reason| SectorSnapshotError::Unsettled {
+            let ship =
+                freeze_ship(world, player).map_err(|reason| SectorSnapshotError::Unsettled {
                     label: "the player ship".to_string(),
                     coord: world.resource::<CurrentSector>().0,
                     reason,
-                })
+                })?;
+            let fleet =
+                freeze_fleet(world).map_err(|(label, reason)| SectorSnapshotError::Unsettled {
+                    label,
+                    coord: world.resource::<CurrentSector>().0,
+                    reason,
+                })?;
+            Ok((sectors, transients, scenario, ship, fleet, view))
         });
-    let (sectors, transients, scenario, ship, view) = match snapshot {
+    let (sectors, transients, scenario, ship, fleet, view) = match snapshot {
         Ok(snapshot) => snapshot,
         Err(unsettled @ SectorSnapshotError::Unsettled { .. }) => {
             let advanced = world.resource::<Time<Virtual>>().delta() > Duration::ZERO;
@@ -503,6 +510,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
             motion,
             ship,
             view,
+            fleet,
         },
         sectors,
         canister_ids_next,
@@ -521,6 +529,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
             state
                 .chart
                 .validate()
+                .and_then(|()| check_saved_fleet(&state))
                 .and_then(|()| check_saved_items(&state, &items))
                 .and_then(|()| check_saved_stock(&state, &items))
                 .map_err(|reason| SectorSnapshotError::InvalidSavedState { reason })

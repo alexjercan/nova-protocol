@@ -46,8 +46,8 @@ use nova_gameplay::prelude::{
     kg_text, CargoCanisterRuntimeId, Chart, GameItems, ItemDesignId, SavedBodyRef, SavedOwner,
     SavedSectionRef, SavedTargetRef, CARGO_CANISTER_MAX_MASS_G,
 };
-use nova_scenario::prelude::{FrozenShip, GameScenarios, SavedScenario, ScenarioId};
-use nova_ship::prelude::{CameraView, SavedTorpedoTarget};
+use nova_scenario::prelude::{FleetEscort, FrozenShip, GameScenarios, SavedScenario, ScenarioId};
+use nova_ship::prelude::{CameraView, SavedTorpedoTarget, FLEET_SIDES};
 use nova_world::prelude::{FrozenBody, FrozenBodyType, FrozenSectors, SectorCoord};
 use serde::{Deserialize, Serialize};
 
@@ -146,6 +146,10 @@ pub struct SavedPlayer {
     pub ship: FrozenShip,
     /// The player's camera, relative to the ship.
     pub view: CameraView,
+    /// The escorts that follow the player ship, in id order. They belong to
+    /// no sector: they cross cells with the player, so the player's record
+    /// keeps them.
+    pub fleet: Vec<FleetEscort>,
 }
 
 /// One world folder under the worlds root.
@@ -402,6 +406,8 @@ fn read_state(
         .chart
         .validate()
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
+    check_saved_fleet(&state)
+        .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     check_saved_items(&state, items)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     check_saved_stock(&state, items)
@@ -412,6 +418,29 @@ fn read_state(
         });
     }
     Ok(state)
+}
+
+/// The saved fleet fits the fleet: at most one escort on each of
+/// [`FLEET_SIDES`], and no other side. A save checks before it writes; Load
+/// checks on open, as a thaw would otherwise fly two escorts on one slot.
+fn check_saved_fleet(state: &WorldSaveState) -> Result<(), String> {
+    let mut held: Vec<Vec3> = Vec::new();
+    for escort in &state.player.fleet {
+        if !FLEET_SIDES.contains(&escort.side) {
+            return Err(format!(
+                "the escort '{}' holds the side {:?}, which is no fleet slot",
+                escort.id.0, escort.side
+            ));
+        }
+        if held.contains(&escort.side) {
+            return Err(format!(
+                "the escort '{}' holds the side {:?} another escort holds",
+                escort.id.0, escort.side
+            ));
+        }
+        held.push(escort.side);
+    }
+    Ok(())
 }
 
 /// Every item id the saved state holds is in `items`: the player's, every
@@ -427,6 +456,14 @@ fn check_saved_items(state: &WorldSaveState, items: &GameItems) -> Result<(), St
             "unknown item '{item}' held by the player ship '{}'",
             state.player.id.0
         ));
+    }
+    for escort in &state.player.fleet {
+        if let Some(item) = unknown(&mut escort.ship.item_ids()) {
+            return Err(format!(
+                "unknown item '{item}' held by the escort '{}'",
+                escort.id.0
+            ));
+        }
     }
     if let Some(item) = unknown(&mut state.chart.item_ids()) {
         return Err(format!("unknown item '{item}' named by the chart"));
@@ -489,6 +526,9 @@ fn check_saved_stock(state: &WorldSaveState, items: &GameItems) -> Result<(), St
         &state.player.ship,
         &format!("the player ship '{}'", state.player.id.0),
     )?;
+    for escort in &state.player.fleet {
+        check_hold(&escort.ship, &format!("the escort '{}'", escort.id.0))?;
+    }
     for (_, record) in state.sectors.iter() {
         for body in record.bodies() {
             match body.body() {
@@ -594,6 +634,13 @@ fn check_saved_ids(state: &WorldSaveState) -> Result<(), SavedIdFault> {
     let mut ids = BTreeSet::new();
     let mut ships: BTreeMap<&str, &FrozenShip> =
         BTreeMap::from([(state.player.id.0.as_str(), &state.player.ship)]);
+    ships.extend(
+        state
+            .player
+            .fleet
+            .iter()
+            .map(|escort| (escort.id.0.as_str(), &escort.ship)),
+    );
     let mut canisters = HashSet::new();
     let bodies: Vec<&FrozenBody> = state
         .sectors
@@ -621,6 +668,7 @@ fn check_saved_ids(state: &WorldSaveState) -> Result<(), SavedIdFault> {
         }
     }
     let ids_saved = std::iter::once(state.player.id.0.as_str())
+        .chain(state.player.fleet.iter().map(|escort| escort.id.0.as_str()))
         .chain(bodies.iter().filter_map(|body| body.id()));
     for id in ids_saved {
         if id.contains('/')

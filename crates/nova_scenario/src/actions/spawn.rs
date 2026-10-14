@@ -365,6 +365,7 @@ fn spawn_scenario_spaceship(
             transform,
             motion: (linear, angular),
             ship,
+            fleet,
             ..
         }) => {
             debug!("SpawnScenarioObject: '{id}' thaws its saved ship");
@@ -375,6 +376,10 @@ fn spawn_scenario_spaceship(
             entity_commands.insert((transform, GlobalTransform::from(transform)));
             thaw_ship(&mut entity_commands, ship);
             entity_commands.insert((LinearVelocity(linear), AngularVelocity(angular)));
+            let leader = entity_commands.id();
+            for escort in fleet {
+                thaw_fleet_escort(&mut commands, escort, leader);
+            }
         }
         None => {
             entity_commands.insert(spaceship_scenario_object(config.clone()));
@@ -1077,6 +1082,7 @@ mod tests {
             transform: pose,
             motion,
             ship: frozen,
+            fleet: Vec::new(),
         });
         let ship = spawn_player(&mut resumed);
         let world = resumed.world_mut();

@@ -667,6 +667,8 @@ pub struct ResumedSpaceship {
     pub motion: (Vec3, Vec3),
     /// The ship itself.
     pub ship: FrozenShip,
+    /// The escorts the ship's spawn thaws beside it, following it.
+    pub fleet: Vec<crate::objects::fleet::FleetEscort>,
 }
 
 /// Carries a thawing ship's record onto its root in the bundle that adds

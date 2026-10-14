@@ -2,7 +2,7 @@
 
 use std::{collections::BTreeSet, path::Path, time::Duration};
 
-use avian3d::prelude::{LinearVelocity, RigidBody, Rotation};
+use avian3d::prelude::{LinearVelocity, Position, RigidBody, Rotation};
 use bevy::prelude::*;
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack, LoadedSectionPacks};
 use nova_events::prelude::{EntityId, GeneratedBodyId};
@@ -11,20 +11,20 @@ use nova_gameplay::prelude::{
     CargoCanisterRuntimeId, Chart, ClockFreeze, DamageLevel, DamageMarks, DamageType, FreezeOwner,
     FrozenRoundFlight, GameItems, Health, ImpactSparkMarker, ImpactSparkPlugin, ImpactSparks,
     IntegrityDestroyMarker, ItemCategoryType, ItemDesign, ItemDesignId, ItemRoleType,
-    PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage, ProjectileOwner,
-    RailgunSlugProjectileMarker, RoundRake, SavedBodyRef, SavedLifetime, SavedOwner,
-    SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory,
+    PlayerFleetMarker, PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage,
+    ProjectileOwner, RailgunSlugProjectileMarker, RoundRake, SavedBodyRef, SavedLifetime,
+    SavedOwner, SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory,
     SpaceshipRootMarker, StationServiceType, StationSummary, TempEntity, TorpedoProjectileMarker,
     TurretBulletProjectileMarker,
 };
 use nova_scenario::prelude::{
-    freeze_asteroid, freeze_ore_drop, freeze_ship, freeze_station, spaceship_scenario_object,
-    AsteroidKind, AsteroidKindId, AsteroidMarker, AsteroidRadius, AsteroidSeed, AsteroidTexture,
-    CurrentScenario, MinedCanisterQueue, MinedOre, MinedOreDrop, SpaceshipConfig, StationMarker,
-    StationStorage,
+    freeze_asteroid, freeze_fleet, freeze_ore_drop, freeze_ship, freeze_station,
+    spaceship_scenario_object, AsteroidKind, AsteroidKindId, AsteroidMarker, AsteroidRadius,
+    AsteroidSeed, AsteroidTexture, CurrentScenario, MinedCanisterQueue, MinedOre, MinedOreDrop,
+    SpaceshipConfig, StationMarker, StationStorage,
 };
 use nova_ship::prelude::{
-    cargo_canister, freeze_canister, freeze_wreck_fragment, thaw_round, thaw_torpedo,
+    cargo_canister, freeze_canister, freeze_wreck_fragment, thaw_round, thaw_torpedo, AIFollow,
     BaseSectionConfig, BodyRadius, CameraView, CargoIntakeEjectionQueue, ChaseZoom,
     DamageSparkMarker, DamageSparks, DamageSparksPlugin, DestroySound, FrozenRound, FrozenTorpedo,
     HullSectionConfig, LockSignature, RoundSourceType, SavedTorpedoTarget, SectionAnimations,
@@ -126,6 +126,7 @@ fn state(generation: u64, credits: u32) -> WorldSaveState {
                 steer_from_ship: Quat::from_rotation_y(0.1),
                 zoom: 2.0,
             },
+            fleet: Vec::new(),
         },
         sectors: FrozenSectors::default(),
         canister_ids_next: 12,
@@ -324,6 +325,77 @@ fn a_written_world_opens_as_it_was_saved() {
     assert_eq!(
         ron::to_string(&saved).unwrap(),
         ron::to_string(&state(2, 990)).unwrap()
+    );
+}
+
+/// A fleet escort saves in the player's record and opens as it was frozen:
+/// its id, name, pose, motion, slot and ship. A save whose two escorts hold
+/// one slot is refused on open.
+#[test]
+fn a_saved_fleet_opens_as_it_was_frozen_and_a_doubled_slot_is_refused() {
+    let mut world = World::new();
+    let leader = world.spawn_empty().id();
+    let pose = Transform::from_xyz(40.0, 1.0, -7.5).with_rotation(Quat::from_rotation_y(0.4));
+    let escort = world
+        .spawn((
+            spaceship_scenario_object(SpaceshipConfig {
+                credits: 0,
+                ..default()
+            }),
+            ShipInventory::default(),
+            DamageMarks::default(),
+            EntityId("c_0_0_0_cluster_station_0_escort_1".to_string()),
+            Name::new("Vel scavenger escort 2"),
+        ))
+        .id();
+    // The record reads the physics pose, as a live escort's.
+    world.entity_mut(escort).insert((
+        pose,
+        Position(pose.translation),
+        Rotation(pose.rotation),
+        LinearVelocity(Vec3::new(0.5, 0.0, -2.0)),
+        PlayerFleetMarker,
+        AIFollow {
+            leader,
+            side: Vec3::NEG_X,
+        },
+    ));
+    let fleet = freeze_fleet(&mut world).expect("a bare escort is settled");
+    assert_eq!(fleet.len(), 1);
+    let mut saved = state(1, 750);
+    saved.player.fleet = fleet;
+
+    let root = tempfile::tempdir().unwrap();
+    let (folder, lock) = create_world(root.path(), "Fleet").unwrap();
+    write_world(&folder, &header("Fleet", 1), &saved).unwrap();
+    drop(lock);
+    let (_, lock, _, opened) =
+        open_world(root.path(), "fleet", &catalog(7), &items(), &scenarios()).unwrap();
+    drop(lock);
+    let [escort] = opened.player.fleet.as_slice() else {
+        panic!("one escort was saved, {} opened", opened.player.fleet.len());
+    };
+    assert_eq!(escort.id.0, "c_0_0_0_cluster_station_0_escort_1");
+    assert_eq!(escort.name, "Vel scavenger escort 2");
+    assert_eq!(escort.transform, pose);
+    assert_eq!(escort.motion.0, Vec3::new(0.5, 0.0, -2.0));
+    assert_eq!(escort.side, Vec3::NEG_X);
+    assert_eq!(
+        ron::to_string(&opened).unwrap(),
+        ron::to_string(&saved).unwrap()
+    );
+
+    let mut doubled = state(2, 750);
+    let mut twin = saved.player.fleet[0].clone();
+    twin.id = EntityId("c_0_0_0_cluster_station_0_escort_2".to_string());
+    doubled.player.fleet = vec![saved.player.fleet[0].clone(), twin];
+    write_world(&folder, &header("Fleet", 2), &doubled).unwrap();
+    let refusal = open_world(root.path(), "fleet", &catalog(7), &items(), &scenarios())
+        .map(|_| ())
+        .unwrap_err();
+    assert!(
+        matches!(&refusal, WorldRefusal::Unreadable(reason) if reason.contains("another escort holds")),
+        "{refusal:?}"
     );
 }
 
