@@ -19,7 +19,8 @@ use super::{hull_buy::hull_price_cr, prelude::*};
 pub const ESCORT_HIRE_FACTOR: (u64, u64) = (3, 2);
 
 /// The slots of the player's fleet, in fill order: each is the side, in the
-/// leader's local frame, an escort holds station on (starboard, then port).
+/// formation's frame (`formation_goal`), an escort flies on (starboard, then
+/// port).
 /// The fleet cap is their count.
 pub const FLEET_SIDES: [Vec3; 2] = [Vec3::X, Vec3::NEG_X];
 
