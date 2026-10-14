@@ -15,6 +15,13 @@
 ## Agent findings
 - Research only. No code until the owner accepts a note.
 - Note landed 2026-10-14 in 0a46d2f95 (`RESEARCH.md`, `RESEARCH.html`). Three candidates: A (`on` a plate kind plus `pattern: Line | Every(n) | Ends | Middle | Once`; no density or orientation), B (a weighted table per plate kind with a bare weight), C (panels first). The agent recommends A. Awaiting the owner's pick.
+- Owner decision 2026-10-14: all three candidates are REJECTED, and so is the in-game framing of the language ("Kinds a reader can see"). New direction:
+  - Greebles get link points, like sections do.
+  - The ship's outer shell is a 2D surface. Each greeble, and each empty cell, has rules for how it links to its neighbours.
+  - A deterministic, seeded WFC-style solver places them. Line-shaped greebles can form lines, and a greeble can require empty space around it.
+  - Rules may look past direct neighbours: 2x2 or 3x3 windows, or what lies within a range.
+  - The language is a technical solver configuration. It uses no game-fiction words; the code is the code.
+  - The research note is redone on this basis.
 
 ## Delivery gate
 - A research note in this task folder: how placement works today (region, density, orientation, with real style content), what modders find unclear, prior art (procedural greebling in other games/tools), and two or three candidate languages with real RON examples for the existing styles. Stop for the owner.
