@@ -87,10 +87,10 @@ pub use self::{
     escorts::EscortHireCommand,
     refit::{SectionAddCommand, SectionSwapCommand},
     scene::{cuboid_edges, ease_orbit_center, ship_framing, ShipRuntime, SHIP_BLOCK_FILL_SCALE},
-    sections::{SectionCode, ShipSections},
+    sections::{design_section_code, SectionCode, ShipSections},
     shipyard::HullBuyCommand,
     station_buy::{StationBuyCommand, STATION_BUY_BUTTON},
-    strip::{SectionStripCommand, STRIP_BUTTON_PREFIX, STRIP_LIST},
+    strip::{SectionStripCommand, STRIP_BUTTON_PREFIX, STRIP_LIST, STRIP_PROGRESS},
 };
 
 /// Glob-import surface: `use nova_interface::ship::prelude::*`.
@@ -104,10 +104,10 @@ pub mod prelude {
         scene::{
             cuboid_edges, ease_orbit_center, ship_framing, ShipRuntime, SHIP_BLOCK_FILL_SCALE,
         },
-        sections::{SectionCode, ShipSections},
+        sections::{design_section_code, SectionCode, ShipSections},
         shipyard::HullBuyCommand,
         station_buy::{StationBuyCommand, STATION_BUY_BUTTON},
-        strip::{SectionStripCommand, STRIP_BUTTON_PREFIX, STRIP_LIST},
+        strip::{SectionStripCommand, STRIP_BUTTON_PREFIX, STRIP_LIST, STRIP_PROGRESS},
         SHIP_RADIUS_MAX, SHIP_RADIUS_MIN,
     };
 }

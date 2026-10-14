@@ -79,7 +79,7 @@ pub(crate) fn kind_index(kind: SectionClass) -> usize {
 /// The code of design section `id`: its class prefix and its index among the
 /// design's sections of that class in id order ([`ShipDesignSections::class_index`]).
 /// A lost section and its rebuild show the same code.
-pub(crate) fn design_section_code(design: &ShipDesignSections, id: &str) -> Option<String> {
+pub fn design_section_code(design: &ShipDesignSections, id: &str) -> Option<String> {
     design
         .class_index(id)
         .map(|(class, index)| format!("{}-{index}", code_prefix(class)))

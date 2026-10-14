@@ -2,9 +2,9 @@
 //!
 //! While the player ship is docked with a partner it may loot (neutralized,
 //! or a derelict carrying [`LootableShipMarker`]), the panel lists each live
-//! section of the partner under its design code, with the parts a strip
-//! would give and its time, or the reason it cannot be stripped, and a Strip
-//! button. A click raises a [`SectionStripCommand`];
+//! section of the partner under its design code, in code order, with the
+//! parts a strip would give, its time and a Strip button, or the reason it
+//! cannot be stripped. A click raises a [`SectionStripCommand`];
 //! [`apply_ship_strip_commands`] plans it with [`plan_section_strip`] and
 //! starts a [`SectionStripJob`] on the player ship. [`advance_ship_strip`]
 //! runs the job on the game clock, so it holds while the TAB interface
@@ -35,6 +35,10 @@ use crate::pane::{compact_button, play_menu_select, themed_label};
 /// The name of the strip list's container, which a capture scrolls into
 /// view.
 pub const STRIP_LIST: &str = "ShipStripList";
+
+/// The name of the strip list's progress line, which a capture scrolls into
+/// view.
+pub const STRIP_PROGRESS: &str = "ShipStripProgress";
 
 /// The name prefix of a row's Strip button, followed by the section's pane
 /// code: `ShipStrip-PDC-1`.
@@ -72,6 +76,9 @@ struct StripRow {
     section: String,
     code: String,
     line: String,
+    /// Whether the strip is allowed: the row shows a Strip button, or the
+    /// refusal in the danger tone and no button.
+    allowed: bool,
 }
 
 /// The docked partner a strip reads.
@@ -256,6 +263,18 @@ fn strip_offer_text(strip: &SectionStrip, share: f32) -> String {
     )
 }
 
+/// The list order of a pane code: its prefix, then its number, so `HULL-2`
+/// sorts before `HULL-10`. A code with no number sorts by its text alone.
+fn code_order(code: &str) -> (String, u32) {
+    match code.rsplit_once('-') {
+        Some((prefix, index)) => match index.parse() {
+            Ok(index) => (prefix.to_string(), index),
+            Err(_) => (code.to_string(), 0),
+        },
+        None => (code.to_string(), 0),
+    }
+}
+
 /// The parts a finished strip gave, by item name.
 fn strip_parts_text(items: &GameItems, parts: &BTreeMap<ItemDesignId, u32>) -> String {
     parts
@@ -287,7 +306,11 @@ pub(crate) fn spawn_ship_strip_list(panel: &mut ChildSpawnerCommands) {
                 13.0,
                 UiColor::Accent,
             ));
-            list.spawn((ShipStripProgress, themed_label("", 12.0, UiColor::Primary)));
+            list.spawn((
+                ShipStripProgress,
+                Name::new(STRIP_PROGRESS),
+                themed_label("", 12.0, UiColor::Primary),
+            ));
             list.spawn((
                 Node {
                     height: Val::Px(6.0),
@@ -324,7 +347,8 @@ pub(crate) fn spawn_ship_strip_list(panel: &mut ChildSpawnerCommands) {
 
 /// Show the strip list while the player is docked with a lootable partner
 /// or a strip runs, keep the progress line on the running strip, and respawn
-/// the rows when a code, a yield or a refusal changes.
+/// the rows when a code, a yield or a refusal changes. While a strip runs the
+/// rows are empty and the progress line stands alone.
 #[expect(
     clippy::type_complexity,
     reason = "the list, its progress line and bar, and its rows"
@@ -348,25 +372,29 @@ pub(crate) fn update_ship_strip_list(
     let player = site.player().and_then(|player| q_player.get(player).ok());
     let job = player.and_then(|(_, job)| job);
     let partner = site.partner().filter(|partner| partner.lootable);
-    let rows = match (&partner, player, items.as_deref()) {
-        (Some(partner), Some((own, _)), Some(items)) => partner
+    // While a strip runs the list shows its progress alone: every row would
+    // read the same Busy refusal.
+    let mut rows: Vec<StripRow> = match (&partner, player, items.as_deref(), job) {
+        (Some(partner), Some((own, _)), Some(items), None) => partner
             .live
             .iter()
             .map(|&(_, id, share, _)| {
                 let code = partner.code(id);
-                let line = match plan(items, Some(partner), job.is_some(), id, own) {
-                    Ok(strip) => strip_offer_text(&strip, share),
-                    Err(refusal) => strip_refusal_text(&code, &refusal),
+                let (line, allowed) = match plan(items, Some(partner), false, id, own) {
+                    Ok(strip) => (strip_offer_text(&strip, share), true),
+                    Err(refusal) => (strip_refusal_text(&code, &refusal), false),
                 };
                 StripRow {
                     section: id.to_string(),
                     code,
                     line,
+                    allowed,
                 }
             })
             .collect(),
         _ => Vec::new(),
     };
+    rows.sort_by_cached_key(|row| code_order(&row.code));
     let display = if rows.is_empty() && job.is_none() {
         Display::None
     } else {
@@ -412,6 +440,10 @@ pub(crate) fn update_ship_strip_list(
                 })
                 .with_children(|cell| {
                     cell.spawn(themed_label(&row.code, 13.0, UiColor::Primary));
+                    if !row.allowed {
+                        cell.spawn(themed_label(&row.line, 12.0, UiColor::Danger));
+                        return;
+                    }
                     cell.spawn(themed_label(&row.line, 12.0, UiColor::Body));
                     cell.spawn((
                         Name::new(format!("{STRIP_BUTTON_PREFIX}{}", row.code)),
