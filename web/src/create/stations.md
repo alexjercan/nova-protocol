@@ -108,9 +108,9 @@ differs is who the station lets in and who flies the pair.
 |---|---|
 | admission | a living station reads its `allegiance`: `Enemy` refuses every dock, and any side refuses a ship it is hostile to (a `Player` station and an Enemy-flagged ship, or a station answering that ship's fire). A derelict admits whatever its side; it is a hull to loot. A station you [own](#buy-the-station) admits you whatever your side |
 | the refusal | while the travel lock is on a station that refuses, the HUD mode chip reads `<NAME> REFUSES DOCKING` with the station object's `name`, the DOCK chip reads `DOCK REFUSED`, and `DOCK` builds nothing |
-| one connection | a hull holds one connection. A station with several ports still admits one ship; a second ship meets `<NAME> DOCK OCCUPIED` until the first lets go |
-| a living station's helm | the station owns the pair's helm. `HELM` is refused, the HUD reads `STATION HELM`, and the docked ship's drive, RCS and maneuvers are held. The station has no thruster, so the pair never moves; its bridge holds the pair level on the station's parked attitude |
-| a dead station's helm | the docked player holds the helm from the capture, as after `HELM` on a ship, because the derelict's bridge is inactive, and gets it the moment a living station it is docked to turns dead. The player's burn tows the pair |
+| one ship per port | a ship holds one connection; a station holds one per docking port. A ship docks while any port is free; once every port is held the next ship meets `<NAME> DOCK OCCUPIED` until one lets go. The station and every ship docked at it move as one body |
+| a living station's helm | the station owns the helm of everything docked at it. `HELM` is refused, the HUD reads `STATION HELM`, and each docked ship's drive, RCS and maneuvers are held. The station has no thruster, so the assembly never moves; its bridge holds it level on the station's parked attitude |
+| a dead station's helm | the docked player holds the helm from the capture, as after `HELM` on a ship, because the derelict's bridge is inactive, and gets it the moment a living station it is docked to turns dead. The player's burn tows the station and every ship docked at it |
 | losing the port | a docking port destroyed while a ship is docked to it releases the dock |
 | leaving | `DOCK` again, from the ship, as always |
 

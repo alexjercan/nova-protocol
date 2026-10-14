@@ -63,6 +63,8 @@ You do not choose the ports. The game pairs the nearest eligible ones on the two
 
 The geometry is only half of it: the DOCK chip also goes dark, and a request refuses, while the target itself will not have you. A target refuses while it reads [Hostile](../../factions/) to you, while it is on the Enemy side, while it is [answering](../../factions/#retaliation) any ship's fire, or while its AI is actively fighting. A calm ally or Neutral lets you in, and a **neutralized** ship always admits a boarding, whatever side it was. A station you own lets you in whatever your side.
 
+A ship holds one dock at a time. A station holds one ship per docking port: you can dock while any of its ports is free, and once every port is held the HUD reads `<NAME> DOCK OCCUPIED`. Everything docked at a station turns with it as one body, held level by the station's bridge.
+
 A dock already made is never re-judged this way - a ship under fire from someone else stays docked with you. Only you hitting a docked Neutral with a crew aboard forces the undock, at once (see [Letting go](#letting-go)).
 
 ## What the clamp holds

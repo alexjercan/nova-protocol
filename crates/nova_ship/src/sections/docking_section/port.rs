@@ -149,8 +149,8 @@ pub struct DockingPorts<'w, 's> {
     /// The last tie-break, and the reason two equally good pairs resolve to
     /// the same answer on every run.
     ids: Query<'w, 's, &'static EntityId>,
-    /// Ships that already hold a connection. One per hull in this baseline:
-    /// the second dock would need a docking GRAPH, and that is deferred.
+    /// Ships that already hold a connection: one per ship. A station holds
+    /// no [`DockedShip`] and stays a candidate while it has a free port.
     docked: Query<'w, 's, (), With<DockedShip>>,
 }
 

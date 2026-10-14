@@ -587,9 +587,9 @@ read by the DOCK chip and by the request. A ship target refuses with
 `DockRefusalType::Combat` while Hostile, Enemy, answering fire or fighting
 (a neutralized target admits). A station target (`StationMarker`) answers by
 `station_admission(allegiance, derelict, occupied, owned, hostile)`, in that
-order: `StationOccupied` while a `DockedShip` is on its root (the
-one-connection-per-hull rule the port search already enforces, named so the
-HUD can say it); admitted for a station the player owns
+order: `StationOccupied` while every live port on its root is held (a held
+port is no candidate in the port search; this names the reason so the HUD
+can say it); admitted for a station the player owns
 (`OwnedStationMarker`) or a derelict, on any side; `EnemyStation` for a
 living station on the Enemy side; `HostileStation` for a living station the
 ship is hostile to by `ship_relation` (a Player station and an Enemy-flagged
@@ -598,7 +598,15 @@ REFUSES DOCKING`, `<NAME> DOCK OCCUPIED`) while the travel lock is on it; the
 mode chip shows it and the DOCK chip reads `DOCK REFUSED`. A ship's refusal
 stays the dark chip.
 
-**One hull drives the pair.** `DockingConnection.helm` is `DockedHelmType`:
+**A station is a hub.** A ship holds one connection (`DockedShip`); the port
+search names no pair for a ship that already has one. A station holds one
+connection per port: each connection to it carries the relationship
+`StationDock(station)`, the station lists them in `StationDocks` (Bevy
+removes it with the last one) and carries `DockedStation { helm, drives }`,
+the station side of `DockedShip`, while it holds any. The station and every
+hull docked at it are ONE assembly. A dock between two stations is refused.
+
+**One hull drives the assembly.** `DockingConnection.helm` is `DockedHelmType`:
 `Neutral` (a ship dock's start, and the state after a lost holder),
 `Held(player)`, toggled by `DockingHelmRequest` from the `dock_helm` binding
 (H), or `Station(station)`, set at capture when the partner is a living
@@ -606,16 +614,19 @@ station and never toggled: `helm_on_capture` gives a living station its own
 helm, a dead station `Held(player)`, and two ships `Neutral`. A request to
 take the helm of a pair with `measurement_fault` is refused, and
 `helm_request_admitted` refuses every request on a station-held pair;
-handing a held helm back is not refused. The driver is the holder while
-`Held`, the station while `Station`, else the non-player endpoint, else
-`second_ship`. A station drives with torque alone (its bridge's attitude
-loop as the helm wrench) and no thrust, so a station-held pair stays where
-it is. `measure_docked_assemblies` (`DockingSystems::Assembly`) writes
-`DockedShip.drives` on both roots and a `DockedAssembly` (combined mass,
-world centre of mass, velocity, root-frame inertia, reach) measured every tick.
-An unmeasurable pair logs an error once, drives neither root and sets
-`DockingConnection.measurement_fault`; the next measured pass clears it, and a
-new connection starts clear.
+handing a held helm back is not refused. For a ship pair the driver is the
+holder while `Held`, else the non-player endpoint, else `second_ship`. For a
+station hub it is the player holding the helm of its own connection (only at
+a dead station), else the station. A station drives with torque alone (its
+bridge's attitude loop as the helm wrench) and no thrust, so a station-held
+assembly stays where it is. `measure_docked_assemblies`
+(`DockingSystems::Assembly`) writes `drives` on every root (`DockedShip` or
+`DockedStation`) and a `DockedAssembly` (combined mass, world centre of mass,
+velocity, root-frame inertia, reach) measured every tick over N roots, with
+the parallel-axis term written out. An unmeasurable assembly logs an error
+once, drives no root and sets `DockingConnection.measurement_fault` on every
+connection of it; the next measured pass clears it, and a new connection
+starts clear.
 
 `DockedShip.drives` is the single gate, read at the FORCE and at every intent
 writer, so pilot, AI and scripted order are all held by the same line on the
@@ -638,7 +649,7 @@ back where it left off. A driver with no
 autopilot, scripted align, manual balancer and RCS writer each log an error
 once and skip it. Scripted align aims from the assembly's centre of mass.
 `apply_docked_helm_wrench` replaces the attitude torque with one wrench split
-over both roots: `a = I_asm^-1 tau`, each root gets `I_own a` and the force
+over every root: `a = I_asm^-1 tau`, each root gets `I_own a` and the force
 `m (a x r)` about the assembly centre of mass. RCS applies `m_i * dv` at each
 root's own centre of mass, so a translation adds no torque. The undocked path
 is unchanged.
@@ -650,7 +661,10 @@ takes over or is released holds the direction it is already pointing.
 **Ending it.** Three paths, and each removes only the connection it owns:
 
 - **the verb** (`on_docking_release_request`): `DOCK` pressed again, from
-  EITHER hull, exactly as `ORBIT` pressed again disengages. This is the only
+  EITHER hull of a ship pair or from the ship docked at a station, exactly as
+  `ORBIT` pressed again disengages. A station names no single connection, so
+  a request addressed to it does nothing; the other hulls docked at it stay
+  docked. This is the only
   pilot-facing path, and it is ungated - a capability withdrawn while docked
   must never strand a hull clamped to something.
 - **a destroyed port** (`on_docking_port_removed_release`), which frees the

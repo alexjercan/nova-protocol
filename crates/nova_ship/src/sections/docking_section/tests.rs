@@ -1277,13 +1277,13 @@ fn a_station_admits_by_its_side_unless_it_is_dead_or_occupied() {
     assert_eq!(
         station_admission(Some(Allegiance::Enemy), true, true, false, false),
         Err(DockRefusalType::StationOccupied),
-        "a derelict's one connection is still one"
+        "a derelict with every port held is full"
     );
 }
 
 /// A living station refuses a ship hostile to it; one the player owns
-/// refuses nobody, on the Enemy side or hostile to the ship, but still holds
-/// one connection.
+/// refuses nobody, on the Enemy side or hostile to the ship, but is still
+/// full once every port is held.
 #[test]
 fn an_owned_station_refuses_nobody_and_a_hostile_one_refuses_the_ship() {
     assert_eq!(
@@ -1305,7 +1305,7 @@ fn an_owned_station_refuses_nobody_and_a_hostile_one_refuses_the_ship() {
     assert_eq!(
         station_admission(Some(Allegiance::Player), false, true, true, false),
         Err(DockRefusalType::StationOccupied),
-        "an owned station's one connection is still one"
+        "an owned station with every port held is full"
     );
 }
 
@@ -1339,8 +1339,9 @@ fn a_living_station_holds_the_helm_and_a_dead_one_hands_it_to_the_player() {
 
 /// The station facts reach the one admission point: a facing pair with a
 /// station root on the far end docks or not by the station rule (its side,
-/// its death, the ship's side against it and whether the player owns it),
-/// and a station with a hull docked refuses the next one.
+/// its death, the ship's side against it and whether the player owns it).
+/// A station is a hub: it admits a hull while any port is free, and refuses
+/// only once every port is held.
 #[test]
 fn a_station_root_is_admitted_through_the_station_rule() {
     let station_marker = || StationMarker("waystation".into());
@@ -1409,31 +1410,72 @@ fn a_station_root_is_admitted_through_the_station_rule() {
         );
     }
 
-    // One connection per hull: a second hull meets an occupied station.
+    // A station with two ports: the first hull docks at the fore port, the
+    // second at the aft one, and a third meets a full station.
     let mut app = docking_app();
     let (first, _, station, _) = facing_pair(&mut app, NOMINAL_GAP);
     app.world_mut()
         .entity_mut(station)
         .insert((station_marker(), Allegiance::Neutral));
+    spawn_port(
+        &mut app,
+        station,
+        "aft",
+        Vec3::Z,
+        Quat::from_rotation_y(std::f32::consts::PI),
+    );
     let second = spawn_hull(
         &mut app,
-        Vec3::new(0.0, 3.0, -(1.0 + NOMINAL_GAP)),
+        Vec3::NEG_Z * (3.0 + 2.0 * NOMINAL_GAP),
         Quat::from_rotation_y(std::f32::consts::PI),
     );
     spawn_port(&mut app, second, "fore", Vec3::ZERO, Quat::IDENTITY);
-    spawn_port(&mut app, station, "top", Vec3::Y, Quat::IDENTITY);
+    let third = spawn_hull(&mut app, Vec3::new(0.0, 4.0, 0.0), Quat::IDENTITY);
+    spawn_port(&mut app, third, "fore", Vec3::ZERO, Quat::IDENTITY);
+    settle(&mut app);
+    let refusal = |app: &mut App, ship: Entity| {
+        app.world_mut()
+            .run_system_once(move |admission: DockAdmission| admission.refusal(ship, station))
+            .expect("the admission runs")
+    };
+
     request_dock(&mut app, first, station);
     assert_eq!(connections(&mut app).len(), 1);
-    let refusal = app
-        .world_mut()
-        .run_system_once(move |admission: DockAdmission| admission.refusal(second, station))
-        .expect("the admission runs");
-    assert_eq!(refusal, Some(DockRefusalType::StationOccupied));
+    assert_eq!(
+        refusal(&mut app, second),
+        None,
+        "a station with a free port admits the next hull"
+    );
     request_dock(&mut app, second, station);
     assert_eq!(
         connections(&mut app).len(),
-        1,
-        "a station holding its one connection admits no second hull"
+        2,
+        "the second hull docks at the free port"
+    );
+    for ship in [first, second] {
+        assert!(app.world().get::<DockedShip>(ship).is_some());
+    }
+    assert!(
+        app.world().get::<DockedShip>(station).is_none(),
+        "a station holds no ship record"
+    );
+    assert_eq!(
+        app.world()
+            .get::<StationDocks>(station)
+            .expect("the station lists its docks")
+            .len(),
+        2
+    );
+    assert_eq!(
+        refusal(&mut app, third),
+        Some(DockRefusalType::StationOccupied),
+        "every port is held"
+    );
+    request_dock(&mut app, third, station);
+    assert_eq!(
+        connections(&mut app).len(),
+        2,
+        "a full station admits no hull"
     );
 }
 
@@ -1441,11 +1483,14 @@ fn a_station_root_is_admitted_through_the_station_rule() {
 /// refused; docked to a dead station the player holds it from the capture.
 #[test]
 fn a_station_dock_opens_on_the_station_helm_rule() {
-    let drives = |app: &App, ship: Entity| {
-        app.world()
-            .get::<DockedShip>(ship)
-            .expect("the hull is docked")
-            .drives
+    let drives = |app: &App, root: Entity| match app.world().get::<DockedShip>(root) {
+        Some(ship) => ship.drives,
+        None => {
+            app.world()
+                .get::<DockedStation>(root)
+                .expect("the root is docked")
+                .drives
+        }
     };
 
     let mut app = docking_app();
@@ -1577,6 +1622,13 @@ fn losing_the_station_port_while_docked_releases_the_dock() {
         assert!(
             app.world().get::<DockedPort>(player_port).is_none(),
             "the player's port is free"
+        );
+        let hub = app.world().entity(station);
+        assert!(
+            !hub.contains::<StationDocks>()
+                && !hub.contains::<DockedStation>()
+                && !hub.contains::<DockedAssembly>(),
+            "the station holds no dock once its last one is gone"
         );
     }
 }

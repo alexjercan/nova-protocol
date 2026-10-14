@@ -15,11 +15,13 @@
 //! either ship takes the joint away ([`connection`]). There is no station
 //! service here: two ships are held in the pose they met in.
 //!
-//! A pair has one helm. Between two ships it starts neutral, with the partner
-//! flying the pair, and the player takes and hands it back with `HELM`
-//! ([`connection`]). A living station owns the helm of its pair and refuses
-//! `HELM`; a dead station hands it to the docked player at capture. The root
-//! that drives flies the pair as one body ([`assembly`]); the other is held,
+//! A ship holds one dock; a station is a hub that holds one per port, and
+//! the station with every hull docked at it is one assembly ([`connection`]).
+//! An assembly has one helm. Between two ships it starts neutral, with the
+//! partner flying the pair, and the player takes and hands it back with
+//! `HELM`. A living station owns the helm of its assembly and refuses `HELM`;
+//! a dead station hands it to the docked player at capture. The root that
+//! drives flies the assembly as one body ([`assembly`]); the others are held,
 //! the same shape the flight layer uses for an engaged autopilot: the loop
 //! that is not in charge does not get to apply torque.
 
@@ -40,13 +42,13 @@ pub use assembly::DockedAssembly;
 use assembly::{apply_docked_helm_wrench, measure_docked_assemblies};
 pub use connection::{
     helm_on_capture, helm_request_admitted, DockPartnerType, DockedHelmType, DockedPort,
-    DockedShip, DockingConnection, DockingConnectionRequest, DockingHelmRequest,
-    DockingReleaseRequest, DockingSystems,
+    DockedShip, DockedStation, DockingConnection, DockingConnectionRequest, DockingHelmRequest,
+    DockingReleaseRequest, DockingSystems, StationDock, StationDocks,
 };
 use connection::{
     on_docking_connection_request, on_docking_helm_request, on_docking_port_removed_release,
-    on_docking_release_request, on_station_derelict_release_helm, park_suppressed_docked_helms,
-    release_broken_docking_connections,
+    on_docking_release_request, on_station_derelict_release_helm, on_station_docks_emptied,
+    park_suppressed_docked_helms, release_broken_docking_connections,
 };
 pub(crate) use port::PORT_FACE;
 pub use port::{DockingPair, DockingPorts, PortPose};
@@ -58,10 +60,11 @@ pub mod prelude {
     pub use super::{
         docking_section, helm_on_capture, helm_request_admitted, preview_docking_section,
         station_admission, DockAdmission, DockPartnerType, DockRefusalType, DockedAssembly,
-        DockedHelmType, DockedPort, DockedShip, DockingConnection, DockingConnectionRequest,
-        DockingEnvelope, DockingHelmRequest, DockingPair, DockingPorts, DockingReleaseRequest,
-        DockingSectionConfig, DockingSectionConfigHelper, DockingSectionMarker,
-        DockingSectionPlugin, DockingSectionState, DockingSystems, PortPose,
+        DockedHelmType, DockedPort, DockedShip, DockedStation, DockingConnection,
+        DockingConnectionRequest, DockingEnvelope, DockingHelmRequest, DockingPair, DockingPorts,
+        DockingReleaseRequest, DockingSectionConfig, DockingSectionConfigHelper,
+        DockingSectionMarker, DockingSectionPlugin, DockingSectionState, DockingSystems, PortPose,
+        StationDock, StationDocks,
     };
 }
 
@@ -302,6 +305,9 @@ impl Plugin for DockingSectionPlugin {
         app.register_type::<DockingSectionState>();
         app.register_type::<DockedPort>();
         app.register_type::<DockedShip>();
+        app.register_type::<DockedStation>();
+        app.register_type::<StationDock>();
+        app.register_type::<StationDocks>();
         app.register_type::<DockingConnection>();
         app.register_type::<DockedAssembly>();
 
@@ -310,6 +316,7 @@ impl Plugin for DockingSectionPlugin {
         app.add_observer(on_docking_helm_request);
         app.add_observer(on_docking_port_removed_release);
         app.add_observer(on_station_derelict_release_helm);
+        app.add_observer(on_station_docks_emptied);
 
         app.add_systems(
             FixedUpdate,

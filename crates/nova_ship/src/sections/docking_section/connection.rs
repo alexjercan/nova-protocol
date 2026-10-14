@@ -6,6 +6,16 @@
 //! work. Releasing is therefore a despawn of that one entity and nothing else
 //! - no query sweeps a joint it did not create.
 //!
+//! # Ships hold one dock, a station is a hub
+//!
+//! A ship holds at most one connection ([`DockedShip`]). A station holds one
+//! per port: each connection to it carries [`StationDock`], the station
+//! lists them in [`StationDocks`] and carries [`DockedStation`] while it
+//! holds any. The station and every hull docked at it are one assembly
+//! ([`DockedAssembly`](super::DockedAssembly)), measured and flown as one
+//! body. A dock between two stations is refused: a station is never the
+//! ship that issues `DOCK`, and two hubs would join two assemblies.
+//!
 //! # One helm per pair
 //!
 //! The connection owns the pair's helm ([`DockedHelmType`]). A dock between
@@ -17,29 +27,28 @@
 //! pressed again is still what ends a dock, from either side.
 //!
 //! A station partner decides the helm at capture ([`helm_on_capture`]) and the
-//! joint is the same one. A LIVING station owns the pair
-//! ([`DockedHelmType::Station`]): `HELM` is refused, the player's hull is
-//! held, and the station's own flight computer is the driver. A station has no
-//! thruster, so the pair never translates; the computer's attitude torque,
-//! spread over both roots as the helm wrench, is all that acts, and it holds
-//! the pair level on the station's parked attitude. A DEAD station (a
-//! derelict) hands the helm to the docked player the instant the dock is made,
-//! as `HELM` would on a ship, because its computer is inactive and nothing
-//! else could fly the pair.
+//! joint is the same one. A LIVING station owns every connection to it
+//! ([`DockedHelmType::Station`]): `HELM` is refused, every docked hull is
+//! held, and the station's own flight computer drives the whole assembly. A
+//! station has no thruster, so the assembly never translates; the computer's
+//! attitude torque, spread over every root as the helm wrench, is all that
+//! acts, and it holds the assembly level on the station's parked attitude. A
+//! DEAD station (a derelict) hands the docked player the helm of the player's
+//! own connection the instant the dock is made, as `HELM` would on a ship,
+//! because its computer is inactive; the player then flies the whole
+//! assembly.
 //!
-//! Exactly one root drives a pair ([`DockedShip::drives`]) and every actuator
-//! skips the other. The driver flies the ASSEMBLY rather than its own hull:
-//! see [`DockedAssembly`](super::DockedAssembly).
+//! Exactly one root drives an assembly ([`DockedShip::drives`],
+//! [`DockedStation::drives`]) and every actuator skips the others. The
+//! driver flies the ASSEMBLY rather than its own hull: see
+//! [`DockedAssembly`](super::DockedAssembly).
 //!
 //! # A docked pair and the active window
 //!
-//! The player is always inside the active window, so the player's own pair
+//! The player is always inside the active window, so the player's own dock
 //! never meets a retiring cell. A pair of NPC hulls at retirement is a fault
-//! (`nova_world::freeze_body` under `DockPolicy::Refuse`), and that holds for
-//! a station with an NPC docked: nothing on master docks an NPC at a station -
-//! `DOCK` is a player verb and no AI or scripted order issues a
-//! [`DockingConnectionRequest`] - so the fault stays the fault and no
-//! speculative split is written for it.
+//! (`nova_world::freeze_body` under `DockPolicy::Refuse`), and so is a station
+//! hub with a hull docked.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -152,15 +161,15 @@ impl DockingConnection {
 #[reflect(Component)]
 pub struct DockedPort(pub Entity);
 
-/// On both roots of a docked pair, naming the connection and whether this
-/// root is the one that flies the pair.
+/// On a docked ship root, naming its one connection and whether this root is
+/// the one that flies the assembly. A station holds [`DockedStation`]
+/// instead.
 ///
 /// Its presence takes the root's torque off the normal PD path (see
 /// `sync_controller_section_forces`): the driver's attitude loop is spread
-/// over both roots by `apply_docked_helm_wrench`, and a held root's loop is
+/// over every root by `apply_docked_helm_wrench`, and a held root's loop is
 /// not applied at all. One connection per ship - a second `DOCK` onto an
-/// already docked hull is refused rather than growing a docking graph nothing
-/// else is ready for.
+/// already docked ship is refused; only a station is a hub.
 #[derive(Component, Clone, Copy, Debug, Reflect)]
 #[reflect(Component)]
 pub struct DockedShip {
@@ -176,6 +185,41 @@ pub struct DockedShip {
     /// of a measured pair and on neither of an unmeasured one. Written only
     /// by `measure_docked_assemblies` from [`DockingConnection::helm`]; every
     /// actuator, maneuver and order driver skips a root where it is false.
+    pub drives: bool,
+}
+
+/// On a connection to a station, naming the station hub that holds it.
+///
+/// A relationship: the station lists every connection it holds in
+/// [`StationDocks`], kept by Bevy as connections spawn and despawn, so a
+/// release is still the despawn of one connection entity.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+#[reflect(Component)]
+#[relationship(relationship_target = StationDocks)]
+pub struct StationDock(pub Entity);
+
+/// On a station, every connection docked at its ports, in the order they
+/// were made. Absent while no hull is docked: Bevy removes it with the last
+/// connection.
+#[derive(Component, Clone, Debug, Default, Reflect)]
+#[reflect(Component)]
+#[relationship_target(relationship = StationDock)]
+pub struct StationDocks(Vec<Entity>);
+
+/// On a station holding at least one connection: the station side of
+/// [`DockedShip`], with no connection of its own because it holds several
+/// ([`StationDocks`]).
+///
+/// Its presence takes the station's torque off the normal PD path exactly as
+/// [`DockedShip`] does for a ship.
+#[derive(Component, Clone, Copy, Debug, Reflect)]
+#[reflect(Component)]
+pub struct DockedStation {
+    /// The attitude command the station is parked on while it is held: its
+    /// live attitude, every tick, as [`DockedShip::helm`].
+    pub helm: Quat,
+    /// Whether the station flies its assembly this tick. Written only by
+    /// `measure_docked_assemblies`.
     pub drives: bool,
 }
 
@@ -208,8 +252,10 @@ pub struct DockingHelmRequest {
 /// Asks for the connection holding `entity` to be let go.
 ///
 /// Addressed to a SHIP, not to a connection, because that is what the pilot
-/// who presses `DOCK` again knows about. Either end may ask, whoever holds the
-/// helm: neither hull needs the other's permission to leave.
+/// who presses `DOCK` again knows about. Either end of a ship pair may ask,
+/// whoever holds the helm: neither hull needs the other's permission to
+/// leave. A station holds several connections and names none, so a request
+/// addressed to a station does nothing; the ship docked at it asks.
 #[derive(EntityEvent, Clone, Copy, Debug)]
 pub struct DockingReleaseRequest {
     /// The ship asking to be free.
@@ -275,6 +321,16 @@ pub(super) fn on_docking_connection_request(
     };
     let anchor = first_pose.face.midpoint(second_pose.face);
 
+    let is_station = |ship: Entity| q_roots.get(ship).is_ok_and(|(station, ..)| station);
+    let hub = match (is_station(first_ship), is_station(second_ship)) {
+        (true, true) => {
+            debug!("on_docking_connection_request: two stations never dock, refused");
+            return;
+        }
+        (true, false) => Some(first_ship),
+        (false, true) => Some(second_ship),
+        (false, false) => None,
+    };
     let helm = pair_helm_on_capture([first_ship, second_ship], &q_roots);
     let record = DockingConnection {
         first_ship,
@@ -284,16 +340,18 @@ pub(super) fn on_docking_connection_request(
         helm,
         measurement_fault: false,
     };
-    let connection = commands
-        .spawn((
-            Name::new("Docking Connection"),
-            record,
-            FixedJoint::new(first_ship, second_ship)
-                .with_local_anchor1(first_rotation.inverse() * (anchor - first_position))
-                .with_local_anchor2(second_rotation.inverse() * (anchor - second_position))
-                .with_local_basis2(second_rotation.inverse() * first_rotation),
-        ))
-        .id();
+    let mut connection = commands.spawn((
+        Name::new("Docking Connection"),
+        record,
+        FixedJoint::new(first_ship, second_ship)
+            .with_local_anchor1(first_rotation.inverse() * (anchor - first_position))
+            .with_local_anchor2(second_rotation.inverse() * (anchor - second_position))
+            .with_local_basis2(second_rotation.inverse() * first_rotation),
+    ));
+    if let Some(station) = hub {
+        connection.insert(StationDock(station));
+    }
+    let connection = connection.id();
     debug!("on_docking_connection_request: connection {connection:?} {record:?}");
 
     for section in [candidate.first_section, candidate.second_section] {
@@ -304,13 +362,29 @@ pub(super) fn on_docking_connection_request(
     }
     for (ship, rotation) in [(first_ship, first_rotation), (second_ship, second_rotation)] {
         let helm = helm_command(ship, &q_controllers).unwrap_or(rotation);
-        // Neither root drives until the assembly pass has measured the pair.
-        commands.entity(ship).try_insert(DockedShip {
-            connection,
-            helm,
-            drives: false,
-        });
+        // No root drives until the assembly pass has measured it. A hub that
+        // already holds a dock keeps the record it has.
+        if hub == Some(ship) {
+            commands.entity(ship).try_insert_if_new(DockedStation {
+                helm,
+                drives: false,
+            });
+        } else {
+            commands.entity(ship).try_insert(DockedShip {
+                connection,
+                helm,
+                drives: false,
+            });
+        }
     }
+}
+
+/// Take the docked record and the assembly off a station whose last
+/// connection has just gone.
+pub(super) fn on_station_docks_emptied(removed: On<Remove, StationDocks>, mut commands: Commands) {
+    commands
+        .entity(removed.entity)
+        .try_remove::<(DockedStation, super::DockedAssembly)>();
 }
 
 /// Free the partner of a port that has just been destroyed.
@@ -323,39 +397,39 @@ pub(super) fn on_docking_port_removed_release(
     removed: On<Remove, DockingSectionMarker>,
     mut commands: Commands,
     q_docked: Query<&DockedPort>,
-    q_connections: Query<&DockingConnection>,
+    q_connections: Query<(&DockingConnection, Option<&StationDock>)>,
     mut q_states: Query<&mut DockingSectionState>,
 ) {
     let Ok(&DockedPort(connection)) = q_docked.get(removed.entity) else {
         return;
     };
-    let Ok(record) = q_connections.get(connection) else {
+    let Ok((record, hub)) = q_connections.get(connection) else {
         return;
     };
     debug!(
         "on_docking_port_removed_release: port {:?} died",
         removed.entity
     );
-    release_connection(&mut commands, connection, record, &mut q_states);
+    release_connection(&mut commands, connection, record, hub, &mut q_states);
 }
 
 /// Drop any connection whose endpoints are no longer a live pair of ports on
 /// a live pair of hulls.
 pub(super) fn release_broken_docking_connections(
     mut commands: Commands,
-    q_connections: Query<(Entity, &DockingConnection)>,
+    q_connections: Query<(Entity, &DockingConnection, Option<&StationDock>)>,
     q_ships: Query<(), With<SpaceshipRootMarker>>,
     q_ports: Query<(), (With<DockingSectionMarker>, Without<SectionInactiveMarker>)>,
     mut q_states: Query<&mut DockingSectionState>,
 ) {
-    for (entity, connection) in &q_connections {
+    for (entity, connection, hub) in &q_connections {
         let intact = q_ships.contains(connection.first_ship)
             && q_ships.contains(connection.second_ship)
             && q_ports.contains(connection.first_section)
             && q_ports.contains(connection.second_section);
         if !intact {
             debug!("release_broken_docking_connections: {entity:?} lost an endpoint");
-            release_connection(&mut commands, entity, connection, &mut q_states);
+            release_connection(&mut commands, entity, connection, hub, &mut q_states);
         }
     }
 }
@@ -369,7 +443,7 @@ pub(super) fn on_docking_release_request(
     request: On<DockingReleaseRequest>,
     mut commands: Commands,
     q_docked: Query<&DockedShip>,
-    q_connections: Query<&DockingConnection>,
+    q_connections: Query<(&DockingConnection, Option<&StationDock>)>,
     mut q_states: Query<&mut DockingSectionState>,
 ) {
     let Ok(docked) = q_docked.get(request.entity) else {
@@ -379,14 +453,14 @@ pub(super) fn on_docking_release_request(
         );
         return;
     };
-    let Ok(record) = q_connections.get(docked.connection) else {
+    let Ok((record, hub)) = q_connections.get(docked.connection) else {
         return;
     };
     debug!(
         "on_docking_release_request: {:?} lets go of {:?}",
         request.entity, docked.connection
     );
-    release_connection(&mut commands, docked.connection, record, &mut q_states);
+    release_connection(&mut commands, docked.connection, record, hub, &mut q_states);
 }
 
 /// Take or hand back the helm of the pair the player is docked in.
@@ -434,34 +508,37 @@ pub(super) fn on_docking_helm_request(
 
 /// Hand a docked player the helm of a station that has just died.
 ///
-/// A living station owns its pair ([`DockedHelmType::Station`]); its flight
-/// computer goes inactive when it turns derelict, so the pair would be held
-/// by nobody. The connection takes the helm a dead station opens with
-/// ([`helm_on_capture`]), as if the player had docked at it dead.
+/// A living station owns every connection to it ([`DockedHelmType::Station`]);
+/// its flight computer goes inactive when it turns derelict, so the assembly
+/// would be held by nobody. Each connection takes the helm a dead station
+/// opens with ([`helm_on_capture`]), as if its hull had docked at it dead: the
+/// player's connection is the player's, every other one is neutral.
 pub(super) fn on_station_derelict_release_helm(
     added: On<Add, DerelictShipMarker>,
-    q_station: Query<&DockedShip, With<StationMarker>>,
+    q_station: Query<&StationDocks, With<StationMarker>>,
     q_player: Query<(), With<PlayerSpaceshipMarker>>,
     mut q_connections: Query<&mut DockingConnection>,
 ) {
     let station = added.entity;
-    let Ok(docked) = q_station.get(station) else {
+    let Ok(docks) = q_station.get(station) else {
         return;
     };
-    let Ok(mut connection) = q_connections.get_mut(docked.connection) else {
-        return;
-    };
-    if connection.helm != DockedHelmType::Station(station) {
-        return;
+    for entity in docks.iter() {
+        let Ok(mut connection) = q_connections.get_mut(entity) else {
+            continue;
+        };
+        if connection.helm != DockedHelmType::Station(station) {
+            continue;
+        }
+        let player = [connection.first_ship, connection.second_ship]
+            .into_iter()
+            .find(|ship| q_player.contains(*ship));
+        connection.helm = helm_on_capture(DockPartnerType::DeadStation, station, player);
+        debug!(
+            "on_station_derelict_release_helm: station {station:?} died, {entity:?} is now {:?}",
+            connection.helm
+        );
     }
-    let player = [connection.first_ship, connection.second_ship]
-        .into_iter()
-        .find(|ship| q_player.contains(*ship));
-    connection.helm = helm_on_capture(DockPartnerType::DeadStation, station, player);
-    debug!(
-        "on_station_derelict_release_helm: station {station:?} died, {:?} is now {:?}",
-        docked.connection, connection.helm
-    );
 }
 
 /// Hold every HELD docked root's command on the attitude it actually has.
@@ -473,7 +550,12 @@ pub(super) fn on_station_derelict_release_helm(
 /// the direction it already points. The driver is left alone: its command is
 /// its pilot's.
 pub(super) fn park_suppressed_docked_helms(
-    mut q_ships: Query<(Entity, &Rotation, &mut DockedShip)>,
+    mut q_ships: Query<(
+        Entity,
+        &Rotation,
+        Option<&mut DockedShip>,
+        Option<&mut DockedStation>,
+    )>,
     mut q_controllers: Query<
         (&ChildOf, &mut ControllerSectionRotationInput),
         (
@@ -482,16 +564,20 @@ pub(super) fn park_suppressed_docked_helms(
         ),
     >,
 ) {
-    for (ship, rotation, mut docked) in &mut q_ships {
-        if docked.drives {
-            continue;
-        }
+    for (root, rotation, ship, station) in &mut q_ships {
+        let helm = match (ship, station) {
+            (Some(ship), _) if !ship.drives => ship.map_unchanged(|ship| &mut ship.helm),
+            (_, Some(station)) if !station.drives => {
+                station.map_unchanged(|station| &mut station.helm)
+            }
+            _ => continue,
+        };
         for (mount, mut command) in &mut q_controllers {
-            if mount.0 == ship {
+            if mount.0 == root {
                 **command = rotation.0;
             }
         }
-        docked.helm = rotation.0;
+        *helm.into_inner() = rotation.0;
     }
 }
 
@@ -547,12 +633,18 @@ fn helm_command(
 /// Despawn `connection` (and with it the joint and its helm), free both
 /// ports, and start both surviving sleeves back in.
 ///
+/// The ship side loses its docked record and its assembly. The `hub` side,
+/// a station, keeps both while it holds other connections: its record goes
+/// with the last one (`on_station_docks_emptied`), and its assembly is
+/// re-measured without this hull on the next tick.
+///
 /// Every removal is a `try_`: this runs on the destruction path too, where
 /// half the entities it names are already on their way out.
 fn release_connection(
     commands: &mut Commands,
     entity: Entity,
     connection: &DockingConnection,
+    hub: Option<&StationDock>,
     q_states: &mut Query<&mut DockingSectionState>,
 ) {
     commands.entity(entity).try_despawn();
@@ -563,6 +655,9 @@ fn release_connection(
         }
     }
     for ship in [connection.first_ship, connection.second_ship] {
+        if hub.is_some_and(|hub| hub.0 == ship) {
+            continue;
+        }
         commands
             .entity(ship)
             .try_remove::<(DockedShip, super::DockedAssembly)>();

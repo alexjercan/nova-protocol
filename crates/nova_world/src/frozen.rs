@@ -40,7 +40,7 @@ use nova_scenario::prelude::{
 };
 use nova_ship::prelude::{
     freeze_canister, freeze_wreck_fragment, thaw_canister, thaw_wreck_fragment, DockedShip,
-    FrozenCanister, FrozenWreckFragment, ShipWreckFragmentMarker,
+    FrozenCanister, FrozenWreckFragment, ShipWreckFragmentMarker, StationDocks,
 };
 
 use crate::{
@@ -542,9 +542,9 @@ pub fn freeze_body(
     // decides first.
     let frozen = if body.contains::<StationMarker>() {
         assert!(
-            docked == DockPolicy::Undock || !body.contains::<DockedShip>(),
+            docked == DockPolicy::Undock || !body.contains::<StationDocks>(),
             "nova_world: station '{label}' has a ship docked and its cell is about to freeze \
-             it; a docked pair cannot be split across the active window"
+             it; a docked assembly cannot be split across the active window"
         );
         FrozenBodyType::Station(Box::new(freeze_station(world, entity)?))
     } else if body.contains::<SpaceshipRootMarker>() {

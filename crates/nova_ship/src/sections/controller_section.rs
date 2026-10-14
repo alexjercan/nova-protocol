@@ -12,8 +12,8 @@ use nova_gameplay::prelude::{
 };
 
 use crate::prelude::{
-    AttitudeEnvelope, DockedAssembly, DockedShip, HullRadius, PDController, PDControllerInput,
-    PDControllerOutput, PDControllerSystems, PDControllerTarget, PlaceholderArt,
+    AttitudeEnvelope, DockedAssembly, DockedShip, DockedStation, HullRadius, PDController,
+    PDControllerInput, PDControllerOutput, PDControllerSystems, PDControllerTarget, PlaceholderArt,
     PlaceholderArtType, RenderMeshTransform, SectionRenderMeshTransform, SectionRenderOf,
 };
 
@@ -479,11 +479,12 @@ pub(crate) fn update_controller_section_rotation_input(
 }
 
 pub(crate) fn sync_controller_section_forces(
-    // BOTH roots of a docked pair are excluded. The driver's loop reaches its
-    // pair through `apply_docked_helm_wrench`, spread over both roots, and a
-    // held root's loop is not applied at all - applying either here as well
-    // would turn the pair twice, or drag it against the joint.
-    mut q_root: Query<Forces, Without<DockedShip>>,
+    // EVERY root of a docked assembly is excluded, a station hub included.
+    // The driver's loop reaches its assembly through `apply_docked_helm_wrench`,
+    // spread over every root, and a held root's loop is not applied at all -
+    // applying either here as well would turn the assembly twice, or drag it
+    // against the joints.
+    mut q_root: Query<Forces, (Without<DockedShip>, Without<DockedStation>)>,
     // A disabled-in-place controller (zero-health, non-leaf, still attached ->
     // `SectionInactiveMarker`) must stop stabilizing the hull: with no live
     // computer the flight layer's semantics are "adrift" (the autopilot

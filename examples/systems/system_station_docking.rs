@@ -628,7 +628,7 @@ fn assert_living_station_pair_at_rest(world: &mut World) {
     );
     assert!(
         world
-            .get::<DockedShip>(station)
+            .get::<DockedStation>(station)
             .is_some_and(|docked| docked.drives),
         "station docking probe: the living station must drive its pair"
     );
@@ -713,7 +713,7 @@ fn assert_dead_station_pair_towed(world: &mut World) {
     assert!(docked.drives);
     assert!(
         world
-            .get::<DockedShip>(station)
+            .get::<DockedStation>(station)
             .is_some_and(|docked| !docked.drives),
         "station docking probe: a dead station must not drive the pair"
     );

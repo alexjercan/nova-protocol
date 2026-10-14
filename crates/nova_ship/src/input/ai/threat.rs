@@ -281,7 +281,8 @@ fn resolve_damage_attacker(
 /// docked; its fire waits for the undock. Provoked by the player, armed or
 /// not, it lets go of the dock at once, which ends the trade: the inventory
 /// pair is read from the dock every frame, and a transfer applies whole or
-/// not at all.
+/// not at all. A Neutral station provoked by the player lets go of the
+/// player's own dock and keeps every other hull docked at it.
 #[expect(
     clippy::too_many_arguments,
     reason = "one hit resolved to its shooter, its relation and the dock it ends"
@@ -297,9 +298,11 @@ pub(super) fn on_damage_track_threat(
             &mut AIProvocation,
             Has<AINonCombatant>,
             Has<DockedShip>,
+            Option<&StationDocks>,
         ),
         With<AISpaceshipMarker>,
     >,
+    q_connections: Query<&DockingConnection>,
     mut q_retaliation: Query<&mut RetaliationTarget>,
     q_owner: Query<&ProjectileOwner>,
     q_allegiance: Query<&Allegiance>,
@@ -313,7 +316,7 @@ pub(super) fn on_damage_track_threat(
         return;
     }
     let ship = damage.entity;
-    let Ok((own_allegiance, mut threat, mut provocation, non_combatant, docked)) =
+    let Ok((own_allegiance, mut threat, mut provocation, non_combatant, docked, docks)) =
         q_ship.get_mut(ship)
     else {
         return;
@@ -336,8 +339,19 @@ pub(super) fn on_damage_track_threat(
                 }
             }
         }
-        if docked && q_player.contains(shooter) {
-            commands.trigger(DockingReleaseRequest { entity: ship });
+        if q_player.contains(shooter) {
+            let shooter_docked_here = docks.is_some_and(|docks| {
+                docks.iter().any(|connection| {
+                    q_connections
+                        .get(connection)
+                        .is_ok_and(|connection| connection.joins(shooter))
+                })
+            });
+            if docked {
+                commands.trigger(DockingReleaseRequest { entity: ship });
+            } else if shooter_docked_here {
+                commands.trigger(DockingReleaseRequest { entity: shooter });
+            }
         }
     }
     let own = RelationParty {

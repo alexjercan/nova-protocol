@@ -126,9 +126,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A living station that loses its last turret or flight computer turns dead:
   services stop, its hold opens to Take and a docked player gets the helm. Its
   stock stays.
-- Docking at a station: an Enemy station refuses with `<NAME> REFUSES
-  DOCKING` on HUD; a living station holds the pair's helm and refuses
-  `HELM`; a dead station hands the helm to the docked player.
+- A station docks one ship per port and turns with them as one body. An Enemy
+  station refuses with `<NAME> REFUSES DOCKING`; a living one holds the helm,
+  a dead one hands it to the player.
 - **(breaking)** Every section needs a `build` recipe of credits and `Parts`
   items. Docked at a station with `Rebuild`, the Ship pane rebuilds a lost
   section with its old code and key.
