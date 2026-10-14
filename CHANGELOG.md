@@ -28,6 +28,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Open-world ships now grow slowly with distance: the first four civilization
   rings field small hulls only, medium hulls appear near 2,000 km out and the
   largest past 3,000 km.
+- A contact under 10 m/s of closing speed, up from 5 m/s, costs nothing, so a
+  glancing scrape or a drift out of STOP no longer damages what it touches.
 
 ### Combat & Weapons
 

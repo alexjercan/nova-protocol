@@ -58,10 +58,15 @@ const ENERGY_DAMAGE_MODIFIER: f32 = 0.05;
 /// clamp takes a 5 m/s arrival, and a mass floor would make the same arrival
 /// safe for a skiff and lethal for a carrier.
 ///
+/// 10 m/s sits above the 7.5 m/s drift the autopilot's STOP hands back, so a
+/// ship released drifting can bump what it drifts into, and a glancing scrape
+/// along a hull is free. Only the approach along the contact normal counts:
+/// sliding along a face at any speed is not a ram.
+///
 /// Only the EXCESS over this is a ram. A contact at 6 m/s is not "a 6 m/s ram
 /// minus a little", it is a 1 m/s one, so the curve leaves the safe speed
 /// smoothly instead of stepping over it.
-const SAFE_CONTACT_SPEED: MetersPerSecond = MetersPerSecond(5.0);
+const SAFE_CONTACT_SPEED: MetersPerSecond = MetersPerSecond(10.0);
 
 /// The share of the health a section was BUILT with that its own structure
 /// soaks before an impact's ENERGY term does anything at all.
@@ -702,10 +707,10 @@ mod tests {
     }
 
     /// A touch under the safe contact speed is free at any mass, which is what
-    /// lets two hulls dock, settle and rest against each other. The old speed
-    /// floor was 3.16 m/s and mass-blind in the other direction: damage was
-    /// linear in mass, so a carrier pair drifting together traded tens of hit
-    /// points on every one of hundreds of contacts.
+    /// lets two hulls dock, settle, scrape and rest against each other. A
+    /// speed floor that scaled with mass would make the same touch free for a
+    /// skiff and ruinous for a carrier pair, which meets on hundreds of
+    /// contacts.
     #[test]
     fn a_contact_under_the_safe_speed_is_free_however_heavy_it_is() {
         let safe = SAFE_CONTACT_SPEED.to_engine();

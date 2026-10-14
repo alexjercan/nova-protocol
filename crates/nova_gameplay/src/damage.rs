@@ -1237,11 +1237,11 @@ mod tests {
         // 100 u/s; light turret mass 0.05 @ 60 u/s). If these move, the
         // authored amounts must be re-read against them.
         //
-        // A hair under the old 20.25 / 3.825 because the ram model now spends
-        // only the approach ABOVE the safe contact speed, and 5 m/s of 1,000
-        // is a half percent of the shot.
-        assert!((representative_kinetic_damage(0.1, 100.0) - 20.055).abs() < 1e-3);
-        assert!((representative_kinetic_damage(0.05, 60.0) - 3.765).abs() < 1e-3);
+        // A hair under the old 20.25 / 3.825 because the ram model spends only
+        // the approach ABOVE the safe contact speed, and 10 m/s of 1,000 is
+        // one percent of the shot.
+        assert!((representative_kinetic_damage(0.1, 100.0) - 19.862).abs() < 1e-3);
+        assert!((representative_kinetic_damage(0.05, 60.0) - 3.706).abs() < 1e-3);
     }
 
     #[test]

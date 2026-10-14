@@ -8,7 +8,7 @@
 //! 3.16 m/s over damage that was linear in mass, and a carrier pair closing at
 //! 3.2 m/s - a docking approach - traded about 49 hit points per contact over
 //! hundreds of contacts a frame, which shredded both ships while they were
-//! parking. It is now a universal 5 m/s safe contact speed above which only
+//! parking. It is now a universal 10 m/s safe contact speed above which only
 //! the EXCESS is spent.
 //!
 //! | # | marker | claim |
@@ -80,7 +80,7 @@ struct Cli;
 /// `nova_gameplay/src/integrity/core.rs`. Below it a touch is free whatever is
 /// touching; above it, only the excess is spent.
 #[cfg(feature = "debug")]
-const SAFE_CONTACT_SPEED: MetersPerSecond = MetersPerSecond(5.0);
+const SAFE_CONTACT_SPEED: MetersPerSecond = MetersPerSecond(10.0);
 
 /// The large reference hull: the largest hull the fixtures build.
 const CARRIER: Side = Side::Hull {

@@ -907,7 +907,7 @@ nine generic pieces, and the ship adds its own `ShipIntegrityPlugin` on top:
   `HealthZeroMarker` its observer adds at zero.
 - `core.rs` (`IntegrityCorePlugin`) - the generic disable/destroy core, plus
   the contact impact damage, taken from the impulse avian's solver settled on
-  and spent only on the approach above a universal 5 m/s safe contact speed.
+  and spent only on the approach above a universal 10 m/s safe contact speed.
 - `erosion.rs` (`DamageLevelPlugin`) and `carve.rs` (`DamageMarksPlugin`) - the
   two damage READINGS, below.
 - `spew.rs` (`CarveSpewPlugin`) and `chunk.rs` (`CarvedChunkPlugin`) - what a
