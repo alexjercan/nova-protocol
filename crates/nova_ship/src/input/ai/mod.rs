@@ -54,7 +54,7 @@ pub(crate) use self::guns::{ai_turret_gun_target, AI_POINT_DEFENSE_MAGAZINE_DIVI
 pub use self::{
     acquisition::{AIPointDefenseRange, AIPointDefenseTarget, AITarget},
     behavior::{AIBehaviorState, AIEngageRange, AILeash, AIOrbitDirective, AIPatrolRoute},
-    follow::{formation_goal, AIFollow, AI_FOLLOW_GAP},
+    follow::{formation_goal, AIFollow, AI_FOLLOW_CLOSING_SPEED, AI_FOLLOW_GAP},
     frozen::{freeze_ai, thaw_ai, FrozenAI},
     guns::AI_FIRE_RANGE_FACTOR,
     maneuver::{AIStandoffClearance, AI_STANDOFF_OUTER_EDGE},
@@ -111,8 +111,9 @@ pub mod prelude {
         AIEngageGrace, AIEngageRange, AIEvade, AIFollow, AILeash, AINonCombatant, AIOrbitDirective,
         AIOrderInterruption, AIPatrolRoute, AIPointDefenseRange, AIPointDefenseTarget,
         AIProvocation, AIRailgun, AISpaceshipMarker, AIStandoffClearance, AITarget, AIThreat,
-        AIWaypointSlack, FrozenAI, SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR, AI_FOLLOW_GAP,
-        AI_STANDOFF_OUTER_EDGE, AI_TORPEDO_MAX_RANGE, NEUTRAL_RETALIATION_THRESHOLD,
+        AIWaypointSlack, FrozenAI, SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR,
+        AI_FOLLOW_CLOSING_SPEED, AI_FOLLOW_GAP, AI_STANDOFF_OUTER_EDGE, AI_TORPEDO_MAX_RANGE,
+        NEUTRAL_RETALIATION_THRESHOLD,
     };
 }
 
