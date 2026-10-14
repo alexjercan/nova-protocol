@@ -9,7 +9,13 @@
 //! must pass the post-build checks. The player is then put on a berth at the
 //! nearest living, non-Enemy generated station each frame until the dock
 //! takes; the walk never flies the approach (`system_station_docking` does).
-//! It undocks, waits for the crossing save, and changes its balance by one
+//! It undocks and waits for the crossing save. It then jettisons one unit of
+//! the kit's first item through its cargo intake, as the Inventory pane's
+//! Jettison does, and waits for the canister to leave the door. THE CANISTER
+//! IS THEN PUT IN THE INTAKE'S TRIGGER each frame, moving with the ship: a
+//! disclosed fixture move in place of flying the ship onto it. The intake
+//! must take it, and the hold must be the kit again. The walk then changes
+//! its balance by one
 //! credit. THAT CREDIT IS DISCLOSED FIXTURE STATE: a change the save never
 //! saw, so the reload can show it came from disk. Load last save reopens the
 //! world from disk: the session's role, the hull, the kit and the bindings
@@ -26,8 +32,9 @@
 //! | 2 | `outcome: the start role spawns its hull with its kit and its weapons bound` | the player's design sections are the hull's, its credits and hold are the kit's, every turret is on the trigger, every railgun on R, every bay on F, every miner on V |
 //! | 3 | `outcome: the start hull passes the post-build checks` | `ship_build_fault` finds no fault in the live design |
 //! | 4 | `outcome: the start hull docks at a generated station` | the player docks at the station's outward port and undocks |
-//! | 5 | `outcome: the start role survives a save and a load` | after Load last save the session's role, hull, kit and bindings are the role's, and the unsaved credit is gone |
-//! | 6 | `outcome: every start role started` | the walk started every role in the catalogue |
+//! | 5 | `outcome: the start hull jettisons and takes an item back in` | one kit unit planned by `plan_item_jettison` leaves the intake as a canister, the intake takes it back, and the hold is the kit again |
+//! | 6 | `outcome: the start role survives a save and a load` | after Load last save the session's role, hull, kit and bindings are the role's, and the unsaved credit is gone |
+//! | 7 | `outcome: every start role started` | the walk started every role in the catalogue |
 //!
 //! Each role's hull price and kit value at ask are logged for review, not
 //! asserted.
@@ -37,6 +44,7 @@
 //! NOVA_AUTOPILOT=1 cargo run --example system_start_roles --features debug
 //! # look for: `start roles: <role> starts <hull>: hull <n> cr, kit <n> cr`,
 //! #           `start roles: <role> docked at <station>`,
+//! #           `start roles: <role> jettisoned and took back one <item>`,
 //! #           `start roles: <role> came back from its save`,
 //! #           `start roles: PASS every start role started`,
 //! #           `autopilot: cycle complete, no panic`
@@ -87,6 +95,8 @@ fn main() -> bevy::app::AppExit {
         // milliseconds.
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
         app.init_resource::<walk::RolesWatch>();
+        app.add_observer(walk::count_ejected);
+        app.add_observer(walk::count_taken);
         app.add_plugins(walk::script());
     }
 
@@ -151,6 +161,31 @@ mod walk {
         station: Option<Entity>,
         /// The roles that came back from their save.
         started: Vec<String>,
+        /// The player's cargo intake while the jettison beat runs.
+        intake: Option<Entity>,
+        /// The canisters that stood before the jettison: the world's own,
+        /// such as a strip's yield, which the walk leaves alone.
+        strays: Vec<Entity>,
+        /// The canister the jettison dropped, once found.
+        canister: Option<Entity>,
+        /// Canisters that intake dropped.
+        ejected: usize,
+        /// Canisters that intake took.
+        taken: usize,
+    }
+
+    /// Count a canister the watched intake dropped.
+    pub(super) fn count_ejected(ejected: On<CargoCanisterEjected>, mut watch: ResMut<RolesWatch>) {
+        if watch.intake == Some(ejected.entity) {
+            watch.ejected += 1;
+        }
+    }
+
+    /// Count a canister the watched intake took.
+    pub(super) fn count_taken(taken: On<CargoCanisterTaken>, mut watch: ResMut<RolesWatch>) {
+        if watch.intake == Some(taken.entity) {
+            watch.taken += 1;
+        }
     }
 
     fn when(check: impl Fn(&World) -> bool + Send + Sync + 'static) -> Arc<Predicate> {
@@ -545,6 +580,184 @@ mod walk {
         world.trigger(DockingReleaseRequest { entity: player });
     }
 
+    /// The player's live cargo intakes, lowest first.
+    fn the_intakes(world: &mut World, root: Entity) -> Vec<Entity> {
+        let mut intakes = world.query_filtered::<(Entity, &ChildOf), (
+            With<CargoIntakeSectionMarker>,
+            Without<SectionInactiveMarker>,
+        )>();
+        let mut found: Vec<Entity> = intakes
+            .iter(world)
+            .filter(|(_, parent)| parent.parent() == root)
+            .map(|(intake, _)| intake)
+            .collect();
+        found.sort();
+        found
+    }
+
+    /// The first stack of role `id`'s kit.
+    fn kit_item(world: &World, id: &str) -> ItemDesignId {
+        role_of(world, id)
+            .kit
+            .stock
+            .stacks()
+            .next()
+            .map(|(item, _)| item.clone())
+            .unwrap_or_else(|| panic!("start roles: '{id}' starts with an empty hold"))
+    }
+
+    /// Jettison one unit of the kit's first item through the player's first
+    /// intake, as the Inventory pane's Jettison applies its plan.
+    fn jettison_one_item(world: &mut World, id: &str) {
+        let player = player(world);
+        let intake = *the_intakes(world, player)
+            .first()
+            .unwrap_or_else(|| panic!("start roles: '{id}' has no live cargo intake"));
+        let item = kit_item(world, id);
+        let docked = world.get::<DockedShip>(player).is_some();
+        let own = world
+            .get::<ShipInventory>(player)
+            .expect("start roles: the player carries a hold")
+            .clone();
+        let plan = plan_item_jettison(
+            world.resource::<GameItems>(),
+            docked,
+            true,
+            None,
+            &item,
+            Some(1),
+            &own,
+        )
+        .unwrap_or_else(|refusal| panic!("start roles: '{id}' jettison refused: {refusal:?}"));
+        world
+            .get_mut::<ShipInventory>(player)
+            .expect("start roles: the player carries a hold")
+            .remove(&item, plan.count);
+        world
+            .entity_mut(intake)
+            .insert(CargoIntakeEjectionQueue(plan.canisters.into()));
+        let strays: Vec<Entity> = world
+            .query_filtered::<Entity, With<CargoCanister>>()
+            .iter(world)
+            .collect();
+        let mut watch = world.resource_mut::<RolesWatch>();
+        watch.intake = Some(intake);
+        watch.strays = strays;
+        watch.canister = None;
+        watch.ejected = 0;
+        watch.taken = 0;
+    }
+
+    /// The canister the jettison dropped: new since the jettison, holding
+    /// one unit of the kit's first item.
+    fn find_the_canister(world: &mut World, id: &str) {
+        let item = kit_item(world, id);
+        let strays = world.resource::<RolesWatch>().strays.clone();
+        let mut canisters = world.query::<(Entity, &CargoCanister)>();
+        let found: Vec<Entity> = canisters
+            .iter(world)
+            .filter(|(canister, held)| {
+                !strays.contains(canister)
+                    && held
+                        .stacks()
+                        .map(|(i, n)| (i.clone(), n))
+                        .eq([(item.clone(), 1)])
+            })
+            .map(|(canister, _)| canister)
+            .collect();
+        assert_eq!(
+            found.len(),
+            1,
+            "start roles: '{id}' must drop exactly one canister of one {item}"
+        );
+        world.resource_mut::<RolesWatch>().canister = found.first().copied();
+    }
+
+    /// Disclosed fixture move: the jettisoned canister into the centre of
+    /// the watched intake's trigger, square to its face and moving with the
+    /// ship, once per frame until the intake takes it.
+    fn put_the_canister_in_the_intake(world: &mut World) {
+        let player = player(world);
+        let watch = world.resource::<RolesWatch>();
+        let (Some(intake), Some(canister)) = (watch.intake, watch.canister) else {
+            return;
+        };
+        if world.get_entity(canister).is_err() {
+            return;
+        }
+        let (local_at, local_rot) = local_pose(world, intake, player);
+        let position = world
+            .get::<Position>(player)
+            .expect("a player ship stands")
+            .0;
+        let rotation = world
+            .get::<Rotation>(player)
+            .expect("a player ship stands")
+            .0;
+        let velocity = world
+            .get::<LinearVelocity>(player)
+            .map_or(Vec3::ZERO, |v| v.0);
+        let collider = *world
+            .get::<SectionCollider>(intake)
+            .expect("start roles: an intake has a collider");
+        let gap = world
+            .get::<CargoIntakeSectionConfigHelper>(intake)
+            .expect("start roles: an intake keeps its config")
+            .capture_gap
+            .to_engine();
+        let intake_rot = rotation * local_rot;
+        let (face, normal) =
+            cargo_intake_face(position + rotation * local_at, intake_rot, collider);
+        world.entity_mut(canister).insert((
+            Position(face + normal * (gap * 0.5)),
+            Rotation(intake_rot),
+            LinearVelocity(velocity),
+            AngularVelocity(Vec3::ZERO),
+        ));
+    }
+
+    /// The watched intake took a canister and the jettisoned one is gone.
+    fn taken_back(world: &World) -> bool {
+        let watch = world.resource::<RolesWatch>();
+        watch.taken >= 1
+            && watch
+                .canister
+                .is_some_and(|canister| world.get_entity(canister).is_err())
+    }
+
+    fn report_the_take(world: &mut World, id: &str) {
+        let player = player(world);
+        let item = kit_item(world, id);
+        let held = world
+            .get::<ShipInventory>(player)
+            .expect("start roles: the player carries a hold")
+            .count(&item);
+        let kit = role_of(world, id)
+            .kit
+            .stock
+            .stacks()
+            .find_map(|(kit_item, count)| (*kit_item == item).then_some(count))
+            .unwrap_or_default();
+        // The item's count only: the intake may also take a stray canister
+        // that drifts into it, and a stray holds the world's items.
+        assert_eq!(held, kit, "start roles: '{id}' holds its kit {item} again");
+        let watch = world.resource::<RolesWatch>();
+        let (ejected, taken, strays) = (watch.ejected, watch.taken, watch.strays.len());
+        nova_probe::probe_marker(
+            world,
+            "outcome: the start hull jettisons and takes an item back in",
+            serde_json::json!({ "role": id, "item": item.to_string(), "taken": taken }),
+        );
+        info!(
+            "start roles: {id} jettisoned and took back one {item}: {ejected} dropped, {taken} \
+             taken, {strays} stray canisters left alone"
+        );
+        let mut watch = world.resource_mut::<RolesWatch>();
+        watch.intake = None;
+        watch.canister = None;
+        watch.strays.clear();
+    }
+
     /// Disclosed fixture state: one credit the save never saw.
     fn add_an_unsaved_credit(world: &mut World) {
         let player = player(world);
@@ -659,6 +872,22 @@ mod walk {
             .on_enter(move |world: &mut World| report_the_dock(world, id))
             .until(player_free_and_saved())
             .deadline(SESSION_SECS)
+            .add()
+            .step(label("jettison one kit item"))
+            .on_enter(move |world: &mut World| jettison_one_item(world, id))
+            .until(when(|world| world.resource::<RolesWatch>().ejected == 1))
+            .deadline(SESSION_SECS)
+            .add()
+            .step(label("find the canister"))
+            .on_enter(move |world: &mut World| find_the_canister(world, id))
+            .add()
+            .step(label("put the canister in the intake"))
+            .each(|world, _, _| put_the_canister_in_the_intake(world))
+            .until(when(taken_back))
+            .deadline(SESSION_SECS)
+            .add()
+            .step(label("report the take"))
+            .on_enter(move |world: &mut World| report_the_take(world, id))
             .add()
             .step(label("add an unsaved credit"))
             .on_enter(add_an_unsaved_credit)

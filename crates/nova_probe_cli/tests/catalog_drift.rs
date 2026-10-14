@@ -927,6 +927,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "the start role spawns its hull with its kit and its weapons bound",
             "the start hull passes the post-build checks",
             "the start hull docks at a generated station",
+            "the start hull jettisons and takes an item back in",
             "the start role survives a save and a load",
             "every start role started",
         ],
@@ -1125,7 +1126,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 556;
+const SYSTEMS_INVARIANTS: usize = 557;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///
