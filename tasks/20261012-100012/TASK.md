@@ -1,8 +1,8 @@
 # Upgrades: same-family section swap at a station
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 76
-- TAGS: v0.16.0,wizard
+- TAGS: v0.16.0, wizard
 
 ## User facts
 - Epic `20261012-100008`. Decision 6 (2026-10-12), first rung: while docked at a station, swap a section for a same-family, same-footprint one from the station's stock, paid in credits and parts; the generator's post-build checks validate the result; the deleted editor stays deleted.
@@ -10,6 +10,8 @@
 
 ## Agent findings
 - `ShipDesignSource::{Inline, Prototype { id, section_patches }}` (`crates/nova_scenario/src/objects/ship_design.rs:303-321`); the player's saved ship thaws the original design (`crates/nova_scenario/src/objects/spaceship.rs:583-615`). Post-build checks live in `crates/nova_world_base/src/ship_layout.rs`.
+
+- Orchestrator close 2026-10-14: landed in ccba31595. Swap offers come from the section catalogue (same kind and footprint, not hidden, not the fitted part) and are paid at the new part's full recipe through `plan_recipe_payment`, which rebuild shares. The family rule and the delta-only build check are in `design_sections.rs`; `ShipMeasure` moved to `ship_measure.rs`. The design is saved inline after a swap. New `OnSwapped` event and credit cause `Swap`. Proof: `examples/systems/system_station_swap.rs` (refusal for a thruster, swap to pierce PDC for 360 cr, survives freeze and thaw). The orchestrator reviewed the Ship pane frame (three offers, prices, Swap buttons) and re-ran `content lint`: 0 errors. For the owner: no refund for the old part. Gap: at 1024x768 the swap and rebuild lists clip below the side panel (no scrolling), so the example runs at 1920x1080.
 
 ## Delivery gate
 - The player ship is saved inline after the first swap; the swap is a design edit plus respawn of one section, keeping the old binding on that id. Stop for the owner on the family rule (same kind and footprint).
