@@ -1,8 +1,8 @@
 # Upgrades: add a section at a free attachment point
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 75
-- TAGS: v0.16.0,wizard
+- TAGS: v0.16.0, wizard
 
 ## User facts
 - Epic `20261012-100008`. Decision 6, second rung: add a section at a free attachment point of the hull, station only, validated by post-build checks; an occupied point refuses and nothing changes.
@@ -34,6 +34,8 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
 - Price: the new part's full recipe through `plan_recipe_payment`. Station only, Refit service.
 - Event: `OnAdded` (`onadded`) beside `OnSwapped`: `id`, `section` (new code), `part`, `at` (code of the section it mounts on), `point` (socket id), `parts`, `price_cr`. Credit cause `Add`.
 - UI: the Ship pane's Add list under the Swap list: point buttons for the selected section (first free point picked by default), then every catalogue part that fits there with its price or payment refusal and an Add button.
+
+- Orchestrator close 2026-10-14: landed in 85d7d130b. A free point is a socket of a live section that no design section mates (no authored content; a lost section's socket stays reserved). Fit order: free point, opposite-facing socket at roll 0, no overlap, delta-only post-build check (`section_add.rs`; the swap and add checks renamed Refit*). The new section takes the next code of its class and copies the first sibling's binding. Price is the full recipe. New `OnAdded` event and credit cause `Add`. The Ship side panel now scrolls, which also fixes the rebuild and swap clip. Proof: `examples/systems/system_station_add.rs` (refusal at a taken socket, an add on a base hull and on a generated hull, each surviving freeze and thaw). The orchestrator reviewed the Add list frame (point buttons, nine parts with prices) and re-ran `content lint`: 0 errors. Gaps: the Add list on a hull is long; no roll or socket cycling; `snap.rs` keeps its own overlap check; the Map panel still clips.
 
 ## Delivery gate
 - Propose explicit attachment points on a hull design (content), lint for overlap, and the bind rule for a new section. Stop for the owner on whether base hulls get authored points or only generated ones.
