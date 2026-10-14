@@ -42,6 +42,7 @@ pub mod skin_decor;
 pub mod skin_reading;
 pub mod skin_report;
 pub mod skin_style;
+pub mod skin_surface;
 pub mod station_buy;
 pub mod thruster_section;
 pub mod torpedo_section;
@@ -64,8 +65,9 @@ pub mod prelude {
         section_strip::prelude::*, shell_shape::prelude::*, shell_skin::prelude::*,
         ship_measure::prelude::*, signature::prelude::*, skin_decor::prelude::*,
         skin_reading::prelude::*, skin_report::prelude::*, skin_style::prelude::*,
-        station_buy::prelude::*, thruster_section::prelude::*, torpedo_section::prelude::*,
-        turret_section::prelude::*, SpaceshipSectionPlugin, SpaceshipSectionSystems,
+        skin_surface::prelude::*, station_buy::prelude::*, thruster_section::prelude::*,
+        torpedo_section::prelude::*, turret_section::prelude::*, SpaceshipSectionPlugin,
+        SpaceshipSectionSystems,
     };
 }
 

@@ -614,7 +614,7 @@ pub(super) fn ends_against(structure: &SkinStructure, skin: &HashSet<IVec3>, cel
 /// at its own height and the part sticks out of the surface, which is what a
 /// nozzle is supposed to do. Structure the skin really does have to climb says
 /// so by offering a socket in the skin's own plane.
-fn walls(structure: &SkinStructure, cell: IVec3, u: usize, v: usize) -> bool {
+pub(super) fn walls(structure: &SkinStructure, cell: IVec3, u: usize, v: usize) -> bool {
     [u, v]
         .iter()
         .any(|axis| (0..2).any(|side| structure.offers(cell, axis * 2 + side) == Some(true)))
