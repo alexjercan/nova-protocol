@@ -89,6 +89,14 @@ path = "examples/playable/docking_approach.rs"
 name = "trade_loop"
 path = "examples/playable/trade_loop.rs"
 
+# The station UI by hand: New Game on a pinned seed, docked at a living
+# generated station that refits and sells hulls, rich, with recipe parts in
+# the hold and the Ship tab open. Nothing closes it and no deadline ends it;
+# under NOVA_AUTOPILOT a smoke walk shoots the docked Ship tab and ends.
+[[example]]
+name = "station_docked_sandbox"
+path = "examples/playable/station_docked_sandbox.rs"
+
 # The ore loop in one session: the line warship's beam mines a rock, its
 # intake takes one canister, and that ore is sold to a docked demo trader
 # through the Inventory pane. The walk checks the ore and credit ledger at
