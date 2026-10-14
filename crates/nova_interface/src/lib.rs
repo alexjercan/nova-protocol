@@ -162,7 +162,11 @@ impl Plugin for InterfacePlugin {
         app.add_systems(
             Update,
             (
-                toggle_interface.run_if(in_state(GameStates::Playing)),
+                // Normal only: TAB typed into a focused field (a pane's
+                // quantity, the Nova Debug prompt) is a character, not a close.
+                toggle_interface
+                    .run_if(in_state(GameStates::Playing))
+                    .run_if(in_input_mode(InputMode::Normal)),
                 next_interface_pane.run_if(in_input_mode(InputMode::Normal)),
                 leave_docked_pane,
                 spawn_interface_root,

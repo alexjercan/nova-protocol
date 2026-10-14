@@ -351,6 +351,81 @@ fn a_focused_text_field_types_m_instead_of_switching_panes() {
     );
 }
 
+/// The Nova Debug window claims `InputMode::Insert` while its prompt has the
+/// keyboard. Before the toggle took the plugin's Normal gate, TAB typed there
+/// for completion also closed the Interface under the window.
+#[test]
+fn tab_typed_into_a_focused_field_does_not_close_the_interface() {
+    use bevy::{
+        input::{
+            keyboard::{Key, KeyboardInput},
+            ButtonState, InputPlugin,
+        },
+        state::app::StatesPlugin,
+    };
+    use nova_gameplay::{GameStates, PauseStates};
+    use nova_ui::{
+        prelude::{in_input_mode, ClaimKeyboard, InputMode, InputModeSystems},
+        NovaUiPlugin,
+    };
+
+    /// Whether a field holds the keyboard, as its owner claims each frame.
+    #[derive(Resource)]
+    struct FieldHasKeyboard(bool);
+
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, StatesPlugin, InputPlugin, NovaUiPlugin));
+    app.insert_state(GameStates::Playing);
+    app.insert_state(PauseStates::Interface);
+    app.register_input_actions(crate::bindings::interface_bindings());
+    app.insert_resource(FieldHasKeyboard(true));
+    app.add_systems(
+        PreUpdate,
+        (|field: Res<FieldHasKeyboard>, mut claims: MessageWriter<ClaimKeyboard>| {
+            if field.0 {
+                claims.write(ClaimKeyboard(InputMode::Insert));
+            }
+        })
+        .before(InputModeSystems),
+    );
+    app.add_systems(
+        Update,
+        toggle_interface
+            .run_if(in_state(GameStates::Playing))
+            .run_if(in_input_mode(InputMode::Normal)),
+    );
+    app.update();
+
+    let press_tab = |app: &mut App| {
+        for state in [ButtonState::Pressed, ButtonState::Released] {
+            app.world_mut().write_message(KeyboardInput {
+                key_code: KeyCode::Tab,
+                logical_key: Key::Tab,
+                state,
+                text: None,
+                repeat: false,
+                window: Entity::PLACEHOLDER,
+            });
+            app.update();
+        }
+    };
+    press_tab(&mut app);
+    assert_eq!(
+        *app.world().resource::<State<PauseStates>>().get(),
+        PauseStates::Interface,
+        "TAB into the focused field must not close the Interface"
+    );
+
+    app.insert_resource(FieldHasKeyboard(false));
+    app.update();
+    press_tab(&mut app);
+    assert_eq!(
+        *app.world().resource::<State<PauseStates>>().get(),
+        PauseStates::Unpaused,
+        "with the field let go, TAB closes the Interface again"
+    );
+}
+
 /// The Ship pane's side panel scrolled so its nested rows run up past the
 /// panel's top edge, under the tabs. bevy_ui 0.19.0 clips a node only by its
 /// direct parent, so a row nested in a non-clipping wrapper stays pickable
