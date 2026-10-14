@@ -129,6 +129,14 @@ path = "examples/playable/start_role_sandbox.rs"
 name = "escort_sandbox"
 path = "examples/playable/escort_sandbox.rs"
 
+# A start-role player beside a Neutral raider and a Neutral station: bump,
+# ram and shoot them. The overlay shows each Neutral's provocation tally
+# against the threshold, the contact speed against the free floor, and the
+# damage dealt. Nothing ends it.
+[[example]]
+name = "neutral_contact_sandbox"
+path = "examples/playable/neutral_contact_sandbox.rs"
+
 # The ore loop in one session: the line warship's beam mines a rock, its
 # intake takes one canister, and that ore is sold to a docked demo trader
 # through the Inventory pane. The walk checks the ore and credit ledger at
