@@ -24,6 +24,13 @@
 //! world labels are written fresh each frame: the plugin clears them in
 //! `First`, so a value nobody writes this frame is gone, not stale.
 //!
+//! In flight the hint and the panel sit at the top left. While a surface is
+//! up (the TAB interface, the command modal or the pause menu) they move to
+//! the bottom left, clear of the pane's title row and filter buttons, and
+//! the world labels hide: the flight camera's points do not show through a
+//! pane. Gizmos stay: the world's draw under the pane's card, and an example
+//! that draws in the Ship view puts them there with [`draw_on_layers`].
+//!
 //! This is not `nova_debug`'s F11 layer. That one starts OFF, raises the egui
 //! inspector (which frees the cursor) and draws every section's barrels and
 //! drives. This layer draws only what one example names, needs no `debug`
@@ -148,6 +155,18 @@ struct PanelText;
 #[derive(Component)]
 struct WorldLabel(usize);
 
+/// The node that holds the hint and the panel.
+#[derive(Component)]
+struct OverlayRoot;
+
+/// Distance (px) of the hint and the panel from the screen's left edge, and
+/// from its bottom edge while a surface is up.
+const OVERLAY_INSET_PX: f32 = 12.0;
+
+/// Distance (px) of the hint from the screen's top edge in flight: under
+/// the frame-rate readout.
+const OVERLAY_TOP_PX: f32 = 44.0;
+
 /// The hint, kept for the root's spawn.
 #[derive(Resource)]
 struct Hint(String);
@@ -186,7 +205,7 @@ impl Plugin for PlayableDiagnosticsPlugin {
         app.add_systems(Update, toggle_the_diagnostics);
         app.add_systems(
             PostUpdate,
-            (show_the_panel, place_the_labels)
+            (show_the_panel, place_the_labels, move_the_overlay)
                 .after(DiagnosticsSystems)
                 .after(TransformSystems::Propagate),
         );
@@ -231,16 +250,17 @@ fn text_node(text: &str) -> impl Bundle {
     )
 }
 
-/// The hint at the top centre, the panel under it at the left, and the label
-/// pool. Over the HUD and the interface, and never in the pointer's way.
+/// The hint at the top left, the panel under it, and the label pool. Over the
+/// HUD and the interface, and never in the pointer's way.
 fn spawn_the_overlay(mut commands: Commands, hint: Res<Hint>) {
     commands
         .spawn((
+            OverlayRoot,
             Name::new("PlayableDiagnostics"),
             Node {
                 position_type: PositionType::Absolute,
-                left: Val::Px(12.0),
-                top: Val::Px(44.0),
+                left: Val::Px(OVERLAY_INSET_PX),
+                top: Val::Px(OVERLAY_TOP_PX),
                 flex_direction: FlexDirection::Column,
                 align_items: AlignItems::FlexStart,
                 row_gap: Val::Px(4.0),
@@ -312,18 +332,44 @@ fn view_camera<'a>(
         .map(|(camera, transform, _)| (camera, transform))
 }
 
+/// Whether a surface covers the flight view: the TAB interface, the command
+/// modal or the pause menu. Absent pause state (no gameplay plugins) is
+/// flight.
+fn surface_up(pause: Option<&State<PauseStates>>) -> bool {
+    pause.is_some_and(|pause| *pause.get() != PauseStates::Unpaused)
+}
+
+/// Hold the hint and the panel at the top left in flight, and at the bottom
+/// left while a surface is up.
+fn move_the_overlay(
+    pause: Option<Res<State<PauseStates>>>,
+    mut q_root: Query<&mut Node, With<OverlayRoot>>,
+) {
+    let (top, bottom) = if surface_up(pause.as_deref()) {
+        (Val::Auto, Val::Px(OVERLAY_INSET_PX))
+    } else {
+        (Val::Px(OVERLAY_TOP_PX), Val::Auto)
+    };
+    for mut node in &mut q_root {
+        if node.top != top || node.bottom != bottom {
+            node.top = top;
+            node.bottom = bottom;
+        }
+    }
+}
+
 /// Project each label over its world point; hide the unused and the
-/// off-screen ones.
+/// off-screen ones, and all of them while a surface is up.
 fn place_the_labels(
     shown: Res<DiagnosticsShown>,
+    pause: Option<Res<State<PauseStates>>>,
     panel: Res<DiagnosticsPanel>,
     q_cameras: Query<(&Camera, &GlobalTransform, Has<ScenarioCameraMarker>), With<Camera3d>>,
     mut q_labels: Query<(&WorldLabel, &mut Text, &mut Node, &mut Visibility)>,
 ) {
     let camera = view_camera(&q_cameras);
     for (label, mut text, mut node, mut visibility) in &mut q_labels {
-        let placed = shown
-            .0
+        let placed = (shown.0 && !surface_up(pause.as_deref()))
             .then(|| panel.labels.get(label.0))
             .flatten()
             .zip(camera)
