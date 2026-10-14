@@ -422,8 +422,8 @@ mod walk {
         (position, rotation)
     }
 
-    /// The lowest free, live docking port mounted on `root`.
-    fn free_port(world: &mut World, root: Entity) -> Entity {
+    /// The free, live docking ports mounted on `root`, lowest first.
+    fn free_ports(world: &mut World, root: Entity) -> Vec<Entity> {
         let ports: Vec<Entity> = world
             .query_filtered::<Entity, (
                 With<DockingSectionMarker>,
@@ -432,7 +432,7 @@ mod walk {
             )>()
             .iter(world)
             .collect();
-        ports
+        let mut ports: Vec<Entity> = ports
             .into_iter()
             .filter(|port| {
                 let mut at = *port;
@@ -444,8 +444,34 @@ mod walk {
                 }
                 false
             })
-            .min()
+            .collect();
+        ports.sort();
+        ports
+    }
+
+    /// The lowest free, live docking port mounted on `root`.
+    fn free_port(world: &mut World, root: Entity) -> Entity {
+        free_ports(world, root)
+            .into_iter()
+            .next()
             .unwrap_or_else(|| panic!("station storage: {root:?} has no free docking port"))
+    }
+
+    /// The free port of `target` that faces most squarely away from its
+    /// root, so the berth sets the player outside the hull. A thawed station
+    /// respawns with new entity ids, so its lowest port can face into its own
+    /// structure, and a berth there puts the two hulls through each other.
+    fn outward_port(world: &mut World, target: Entity) -> Entity {
+        free_ports(world, target)
+            .into_iter()
+            .map(|port| {
+                let (at, rotation) = local_pose(world, port, target);
+                let facing = (rotation * Vec3::NEG_Z).dot(at.normalize_or_zero());
+                (port, facing)
+            })
+            .max_by(|a, b| a.1.total_cmp(&b.1).then_with(|| b.0.cmp(&a.0)))
+            .map(|(port, _)| port)
+            .unwrap_or_else(|| panic!("station storage: {target:?} has no free docking port"))
     }
 
     /// Put the player on the berth at the station's collar: its port facing
@@ -459,7 +485,7 @@ mod walk {
             return;
         }
         let station = station(world);
-        let station_port = free_port(world, station);
+        let station_port = outward_port(world, station);
         let player_port = free_port(world, player);
         let body = |entity: Entity| {
             (

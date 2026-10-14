@@ -165,6 +165,8 @@ mod walk {
     const BEAT_SECS: f32 = 60.0;
     /// Frames the Ship pane gets to build its panel and list.
     const SETTLE_FRAMES: u32 = 10;
+    /// The Ship pane's side panel, which scrolls under the wheel.
+    const SHIP_PANEL: &str = "ShipPanel";
     /// The virtual clock's clamp on the software rasterizer.
     const WALK_CLOCK_SECS: f32 = 1.0;
 
@@ -526,6 +528,23 @@ mod walk {
                 .get_resource::<State<PauseStates>>()
                 .is_some_and(|pause| *pause.get() == PauseStates::Unpaused)
         })
+    }
+
+    /// Whether the named node lies inside the Ship panel's box, where a
+    /// click lands on it.
+    fn in_panel(world: &World, name: &str) -> bool {
+        match (ui_node_rect(world, name), ui_node_rect(world, SHIP_PANEL)) {
+            (Some(node), Some(panel)) => node.min.y >= panel.min.y && node.max.y <= panel.max.y,
+            _ => false,
+        }
+    }
+
+    /// Whether the named node sits below the Ship panel's bottom edge.
+    fn below_panel(world: &World, name: &str) -> bool {
+        match (ui_node_rect(world, name), ui_node_rect(world, SHIP_PANEL)) {
+            (Some(node), Some(panel)) => node.max.y > panel.max.y,
+            _ => true,
+        }
     }
 
     /// Teleport the player to `position`, at rest.
@@ -1192,6 +1211,25 @@ mod walk {
             SESSION_SECS,
         )
         .step("station round trip: settle the schematic")
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        // The scavenger's section tree is long, so the Rebuild row starts
+        // below the panel: the wheel over the panel scrolls it into view.
+        .step("station round trip: scroll the Rebuild button into view")
+        .each(|world, _, frame| {
+            let name = format!("ShipRebuild-{LOST_CODE}");
+            keep_hovering_named(SHIP_PANEL)(world);
+            if frame % 2 == 1 && !in_panel(world, &name) {
+                let lines = if below_panel(world, &name) { -1.0 } else { 1.0 };
+                scroll_lines(lines)(world);
+            }
+        })
+        .until(when(|world| {
+            in_panel(world, &format!("ShipRebuild-{LOST_CODE}"))
+        }))
+        .deadline(SESSION_SECS)
+        .add()
+        .step("station round trip: settle the scroll")
         .until(frames(SETTLE_FRAMES))
         .add()
         .click_named(
