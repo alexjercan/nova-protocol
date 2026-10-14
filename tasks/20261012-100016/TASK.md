@@ -1,6 +1,6 @@
 # Fleet: hire an escort at a station
 
-- STATUS: CLOSED
+- STATUS: OPEN
 - PRIORITY: 73
 - TAGS: v0.16.0, wizard
 
@@ -40,6 +40,10 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
 - A hired escort is put in a position around the player instead of flying. It must follow the player with its AI flight controller (steering, thrust, matching speed), not orbit or snap to slots.
 
 - Orchestrator close 2026-10-14 (owner feedback): landed in 5ab1c02eb..044fa3f04. The escort was never moved directly; its slot was fixed to the leader's nose, so a turn swung the slot round the player and the escort chased it (it reached 176 m/s and overshot to 870 m in a 90 degree turn). Now the slot follows the leader's travel direction. The escort holds the leader's velocity plus a closing speed it can brake from, plans its leg round the leader, hulls and bodies (`plan_leg`), and holds position when the leader is under 10 m/s. `follow_waypoint` is deleted. Proof: `an_escort_flies_formation_on_its_leader_under_its_own_drive` in follow.rs, and claim 3 of system_station_hire (15 m off slot after a 90 degree turn at 50 m/s, no step unexplained by velocity). SYSTEMS_INVARIANTS 546. Orchestrator re-ran `content lint`: 0 errors; reviewed the after turn frames. Values for owner review: slot 200 m to the side and 100 m back, hold 150-400 m, clearance size plus 100 m, 30 m in-position tolerance. Gaps: two escorts and a reversing leader not run; in the live turn the inside escort came to 81 m of the hull (inside the 100 m clearance, no contact).
+
+- Owner feedback 2026-10-14, second round (reopens the task):
+  - hiring several escorts spawns them on top of each other;
+  - escorts still seem to gain speed or inertia from the player when the player starts to move. An escort must gain velocity only from its own thrust and simply follow.
 
 ## Delivery gate
 - A `fleet` field in `SavedPlayer`; an escort is a generated hull with `Allegiance::Player` and a follow order; it crosses sectors with the player (not frozen in the old cell). Stop for the owner on the escort's death rule (gone for good vs. rebuyable).

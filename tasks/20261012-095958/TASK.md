@@ -32,6 +32,8 @@ Children carry the `Stations:` title prefix and the `stations` tag.
 
 - Epic close 2026-10-13: Done when proven in one run, `examples/systems/system_station_round_trip.rs` (3626b51f6): New Game modal on seed 10, a PDC section zeroed as fixture, dock at a living generated station, Ship pane Rebuild (recipe parts and credits asserted, OnRebuilt once), undock, retire (frozen 0.00 m from where left), thaw (same state), Leave, Load through the Load screen, station as left and the section whole. Passed twice under lavapipe. Not covered: `seed: None`, combat loss, flown approach (system_station_docking), an orbiting station's pose, station credits inside the frozen record.
 
+- Owner feedback 2026-10-14: Neutral stations and ships are too sensitive. A light scrape from a collision makes them open fire. Add a damage threshold before a Neutral retaliates, and make a collision deal no damage below a minimum impact.
+
 ## Done when
 - A New Game player loses a section, docks at a generated station, rebuilds it from parts and credits, undocks, leaves the sector, returns, and the station is where and as they left it after a reload.
 
