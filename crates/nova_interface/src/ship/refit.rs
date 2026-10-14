@@ -347,6 +347,8 @@ pub struct SectionAddCommand {
     pub point: String,
     /// The catalogue part to add.
     pub prototype: String,
+    /// How the part mates the socket.
+    pub mount: MountPose,
 }
 
 /// The player binding components a live section may carry, beside its id
@@ -412,6 +414,9 @@ pub(crate) fn add_refusal_text(
         }
         SectionAddRefusalType::Fit(SectionAddFaultType::Overlap) => {
             format!("add: {name} on {code} would overlap the hull")
+        }
+        SectionAddRefusalType::Fit(SectionAddFaultType::Obstructed) => {
+            format!("add: {name} on {code} would hit the station or a ship docked there")
         }
         SectionAddRefusalType::Fit(SectionAddFaultType::Build(fault)) => {
             build_fault_text("add", name, code, fault)
@@ -582,6 +587,8 @@ pub(crate) fn apply_ship_add_commands(
                 resolved.design_index(section),
                 point,
                 offered,
+                command.mount,
+                &site.partner_colliders(&resolved),
             );
             let bound = live_bindings(&resolved, &q_bindings);
             let (own, own_cr, _) = q_holds

@@ -13,8 +13,8 @@ pub mod prelude {
         box_link_points, candidate_link_point_mates, cardinal_axis, derive_link_point_graph,
         link_point_pose, link_point_up, natural_link_point, nearest_link_point, snap_placement,
         unit_cube_link_points, LinkPoint, LinkPointGraphError, LinkPointMate, LinkPointRef,
-        LinkPointSkinType, PlacedSectionLinkPoints, SectionLinkPoints, LINK_POINT_NORMAL_MIN_DOT,
-        LINK_POINT_POSITION_EPSILON,
+        LinkPointSkinType, MountPose, PlacedSectionLinkPoints, SectionLinkPoints,
+        LINK_POINT_NORMAL_MIN_DOT, LINK_POINT_POSITION_EPSILON,
     };
 }
 
@@ -537,6 +537,82 @@ pub fn natural_link_point(part_link_points: &[LinkPoint], target_normal: Vec3) -
                 .then_with(|| radial(b).total_cmp(&radial(a)))
         })
         .map(|(index, _)| index)
+}
+
+/// The builder's two choices when a part mates a socket: which of the part's
+/// sockets does the mating, and how far the part rolls about the mating axis.
+///
+/// A mate fixes everything else, since the two sockets become coincident and
+/// their normals opposed. The editor and the Ship pane's placement ghost both
+/// keep one, step it with the same keys, and solve the mate with
+/// [`MountPose::snap`]. The default mounts a part as it was drawn.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect)]
+pub struct MountPose {
+    /// The part's mating socket, in steps from its [`natural_link_point`],
+    /// not an absolute index: zero mounts the part as drawn. Wraps, so a
+    /// caller can count up.
+    pub source: usize,
+    /// Quarter turns about the mating axis, 0..4.
+    pub roll: u32,
+}
+
+impl MountPose {
+    /// One quarter turn of the roll, forwards or `back`.
+    pub fn step_roll(&mut self, back: bool) {
+        self.roll = step_cycle(self.roll as usize % 4, 4, back) as u32;
+    }
+
+    /// One step of the mating socket around a part with `sockets` sockets,
+    /// forwards or `back`. Inert for a part with none.
+    pub fn step_source(&mut self, sockets: usize, back: bool) {
+        if sockets > 0 {
+            self.source = step_cycle(self.source % sockets, sockets, back);
+        }
+    }
+
+    /// The socket of `part_link_points` that mates a socket facing
+    /// `target_normal`: [`Self::source`] steps on from the part's
+    /// [`natural_link_point`]. `None` for a part with no sockets.
+    pub fn source_link_point(
+        self,
+        part_link_points: &[LinkPoint],
+        target_normal: Vec3,
+    ) -> Option<usize> {
+        let natural = natural_link_point(part_link_points, target_normal)?;
+        Some((natural + self.source) % part_link_points.len())
+    }
+
+    /// The part's mating socket and its `(position, rotation)` when it mates
+    /// a socket at `target_position` facing `target_normal`, in the space the
+    /// target is given in ([`snap_placement`]). `None` for a part with no
+    /// sockets.
+    pub fn snap(
+        self,
+        target_position: Vec3,
+        target_normal: Vec3,
+        part_link_points: &[LinkPoint],
+    ) -> Option<(usize, Vec3, Quat)> {
+        let source = self.source_link_point(part_link_points, target_normal)?;
+        let (position, rotation) = snap_placement(
+            target_position,
+            target_normal,
+            &part_link_points[source],
+            self.roll,
+        );
+        Some((source, position, rotation))
+    }
+}
+
+/// One step around a cycle of `len`, forwards or `back`.
+fn step_cycle(current: usize, len: usize, back: bool) -> usize {
+    if len == 0 {
+        return 0;
+    }
+    if back {
+        (current + len - 1) % len
+    } else {
+        (current + 1) % len
+    }
 }
 
 /// Six face-centre structural sockets for a box of `size` (FULL side lengths,

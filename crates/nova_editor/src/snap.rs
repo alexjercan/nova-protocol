@@ -81,9 +81,9 @@ pub(crate) struct Placement {
 /// Solve the placement of a part with `part_link_points` onto the section
 /// `hovered` of `ship`, aiming at the socket nearest the pointer's `hit`.
 ///
-/// `source` and `roll` are the builder's two choices - which of the part's
-/// sockets does the mating, and how far it is rolled about the mating axis -
-/// and both wrap, so a caller can just count up.
+/// `pose` is the builder's two choices - which of the part's sockets does
+/// the mating, and how far it is rolled about the mating axis - and both
+/// wrap, so a caller can just count up.
 pub(crate) fn solve(
     ship: &[PlacedSection],
     hovered: usize,
@@ -91,8 +91,7 @@ pub(crate) fn solve(
     part_link_points: &[LinkPoint],
     part_collider: SectionCollider,
     part_exit: Option<Vec3>,
-    source: usize,
-    roll: u32,
+    pose: MountPose,
 ) -> Placement {
     let target_section = &ship[hovered];
     let Some(target) = nearest_link_point(
@@ -123,19 +122,14 @@ pub(crate) fn solve(
         };
     }
 
-    // `source` is an OFFSET from the socket the part would naturally use, not
-    // an absolute index: zero mounts the part AS DRAWN, and stepping the key
-    // walks away from that. An absolute index made the default arbitrary - a
-    // thruster's first socket is its +X face, so bolting one to a tail turned
-    // it broadside until the builder found the right number of presses.
-    let natural = natural_link_point(part_link_points, target_normal).unwrap_or_default();
-    let source = (natural + source) % part_link_points.len();
-    let (position, rotation) = snap_placement(
-        target_position,
-        target_normal,
-        &part_link_points[source],
-        roll,
-    );
+    // `pose.source` is an OFFSET from the socket the part would naturally
+    // use, not an absolute index: zero mounts the part AS DRAWN. An absolute
+    // index made the default arbitrary - a thruster's first socket is its +X
+    // face, so bolting one to a tail turned it broadside until the builder
+    // found the right number of presses.
+    let (source, position, rotation) = pose
+        .snap(target_position, target_normal, part_link_points)
+        .expect("a part with sockets has a mating socket");
     let transform = Transform::from_translation(position).with_rotation(rotation);
 
     Placement {
@@ -307,8 +301,7 @@ mod tests {
             &base_socket(),
             SectionCollider::default(),
             Some(Vec3::Y),
-            0,
-            0,
+            MountPose { source: 0, roll: 0 },
         )
     }
 
@@ -320,8 +313,7 @@ mod tests {
             &unit_cube_link_points(),
             SectionCollider::default(),
             None,
-            1,
-            roll,
+            MountPose { source: 1, roll },
         )
     }
 
@@ -375,8 +367,7 @@ mod tests {
                 size: Vec3::new(3.0, 3.0, 2.0),
             },
             Some(Vec3::Z),
-            0,
-            0,
+            MountPose { source: 0, roll: 0 },
         );
         assert_eq!(placement.refusal, None);
         assert!(placement
@@ -413,8 +404,7 @@ mod tests {
             &mount,
             collider,
             Some(Vec3::Z),
-            0,
-            0,
+            MountPose { source: 0, roll: 0 },
         );
         assert_eq!(placement.refusal, None);
         assert!(placement
@@ -533,8 +523,7 @@ mod tests {
             &doubled,
             SectionCollider::default(),
             None,
-            0,
-            0,
+            MountPose { source: 0, roll: 0 },
         );
         assert_eq!(placement.refusal, Some(Refusal::Ambiguous));
     }
@@ -562,8 +551,7 @@ mod tests {
             &socket,
             long,
             None,
-            0,
-            0,
+            MountPose { source: 0, roll: 0 },
         );
         assert_eq!(placement.refusal, Some(Refusal::Overlap));
 
@@ -588,8 +576,7 @@ mod tests {
             &[],
             SectionCollider::default(),
             None,
-            0,
-            0,
+            MountPose { source: 0, roll: 0 },
         );
         assert_eq!(placement.refusal, Some(Refusal::NoPartSockets));
 
@@ -649,8 +636,7 @@ mod tests {
                 &points,
                 SectionCollider::default(),
                 None,
-                0,
-                0,
+                MountPose { source: 0, roll: 0 },
             );
             assert_eq!(placement.refusal, None);
             assert!(
@@ -675,8 +661,7 @@ mod tests {
             &points,
             SectionCollider::default(),
             None,
-            1,
-            0,
+            MountPose { source: 1, roll: 0 },
         );
         assert!(
             !cycled.transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5),
@@ -737,8 +722,7 @@ mod tests {
             &socket(Vec3::NEG_X),
             collider,
             None,
-            0,
-            0,
+            MountPose { source: 0, roll: 0 },
         );
         assert_eq!(placement.refusal, None);
 
@@ -787,8 +771,7 @@ mod tests {
             &points,
             SectionCollider::default(),
             None,
-            1,
-            0,
+            MountPose { source: 1, roll: 0 },
         );
         let wrapped = solve(
             &ship,
@@ -797,8 +780,10 @@ mod tests {
             &points,
             SectionCollider::default(),
             None,
-            1 + points.len(),
-            0,
+            MountPose {
+                source: 1 + points.len(),
+                roll: 0,
+            },
         );
         assert_eq!(first.source, wrapped.source);
         assert!(wrapped

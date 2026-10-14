@@ -91,7 +91,29 @@ pub(crate) struct StationSite<'w, 's> {
         ),
         With<SectionMarker>,
     >,
+    /// Every section's root, world pose and collider, read for the docked
+    /// partner's sections ([`StationSite::partner_colliders`]).
+    outside: Query<
+        'w,
+        's,
+        (
+            &'static ChildOf,
+            &'static GlobalTransform,
+            Option<&'static SectionCollider>,
+        ),
+        With<SectionMarker>,
+    >,
+    roots: Query<'w, 's, &'static GlobalTransform, With<SpaceshipRootMarker>>,
+    /// Every docked ship root, read for the ships docked to the partner,
+    /// such as the hulls a station parks for sale.
+    docked: Query<'w, 's, (Entity, &'static DockedShip), With<SpaceshipRootMarker>>,
 }
+
+/// How far past the player ship's farthest live section origin, in engine
+/// units (cells), a docked partner's section still counts as near: it is
+/// drawn in the Ship view and checked by the add fit. Four cells is 40 m,
+/// past the largest catalogue part.
+pub(crate) const PARTNER_REACH_MARGIN: f32 = 4.0;
 
 /// What [`StationSite::resolve`] found: the player ship, its design, its
 /// live sections, and the partner it is docked with and whether that partner
@@ -165,6 +187,57 @@ impl StationSite<'_, '_> {
             live,
             partner,
         })
+    }
+}
+
+impl StationSite<'_, '_> {
+    /// The colliders of the docked partner's sections, and of the sections of
+    /// every other ship docked to it (a station's parked hulls), near the
+    /// player ship, in its ship-root space: those whose box comes within
+    /// [`PARTNER_REACH_MARGIN`] of the ship's farthest live section origin.
+    /// Empty while the ship is not docked. The add fit refuses a part that
+    /// overlaps one, and the Ship view draws them.
+    pub(crate) fn partner_colliders(
+        &self,
+        resolved: &ResolvedSite<'_>,
+    ) -> Vec<PlacedSectionCollider> {
+        let Some((partner, _)) = resolved.partner else {
+            return Vec::new();
+        };
+        let Ok(ship) = self.roots.get(resolved.player) else {
+            return Vec::new();
+        };
+        let reach = resolved
+            .live
+            .iter()
+            .map(|section| section.position.length())
+            .fold(0.0_f32, f32::max)
+            + PARTNER_REACH_MARGIN;
+        let berthed: Vec<Entity> = self
+            .docked
+            .iter()
+            .filter(|&(ship, docked)| {
+                ship != resolved.player
+                    && self
+                        .connections
+                        .get(docked.connection)
+                        .is_ok_and(|connection| connection.joins(partner))
+            })
+            .map(|(ship, _)| ship)
+            .collect();
+        self.outside
+            .iter()
+            .filter(|(root, ..)| root.parent() == partner || berthed.contains(&root.parent()))
+            .map(|(_, pose, collider)| {
+                let local = pose.reparented_to(ship);
+                PlacedSectionCollider {
+                    position: local.translation,
+                    rotation: local.rotation,
+                    collider: collider.copied().unwrap_or_default(),
+                }
+            })
+            .filter(|placed| placed.position.length() - placed.half_extents().length() <= reach)
+            .collect()
     }
 }
 

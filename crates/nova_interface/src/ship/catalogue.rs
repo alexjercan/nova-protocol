@@ -263,6 +263,7 @@ fn on_ship_place_button(
         } else {
             Some(prototype.clone())
         };
+        runtime.mount = MountPose::default();
         play_menu_select(&mut commands, bank.as_deref());
     }
 }

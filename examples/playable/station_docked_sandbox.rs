@@ -22,7 +22,11 @@
 //! What to try:
 //!
 //! 1. the Ship tab: rebuild and swap sections, place a catalogue part with
-//!    the ghost, and strip one;
+//!    the ghost (R rolls it, F cycles its mating socket; a click buys the
+//!    parts the hold lacks at the station's ask), turn the view (Q/E) to the
+//!    docked station (dim outlines, on the ship's -X side) and aim a Railgun
+//!    Lance end-on (F) at a plate facing it to see it refused, and rebind a
+//!    gun with B;
 //! 2. the Station tab: buy a hull, hire an escort, buy the station;
 //! 3. switch tabs after a change, and check the schematic, the plating and
 //!    the greebles follow it.
@@ -31,16 +35,32 @@
 //! nix develop --command cargo run --example station_docked_sandbox --features debug
 //! ```
 //!
+//! The shared diagnostics layer (`shared/diagnostics.rs`, F3, on at start)
+//! prints the keys, and in the Ship view draws the free sockets (green
+//! rings, a grey cross where the lane is closed), the target socket, the part
+//! in hand's bounds (green valid, red refused) with its roll as a cyan arrow,
+//! and the collision volume of the station and the ships at its docks
+//! (violet). Its panel lists the part, the
+//! target socket, the roll and socket step, the verdict, the parts the click
+//! buys and their cost, and the selected section's binding.
+//!
 //! It runs without `--features debug` too, at the cost of a second build of
 //! the engine. Under `NOVA_AUTOPILOT=1` (debug only) a smoke walk waits for
 //! the docked Ship tab, takes the kinetic PDC from the station catalogue,
-//! points at free sockets until the ghost stands valid, clicks the view,
-//! rebinds the new gun to K, and switches tabs after it: a Map tab click, an
-//! Inventory tab click and the next-tab key, which steps on to the Station tab
-//! while docked. `NOVA_CAPTURE=1` shoots `sandbox-ship.png`,
-//! `sandbox-ghost.png`, `sandbox-placed.png`, `sandbox-rebind.png`,
-//! `sandbox-map-after.png` and `sandbox-station.png`. Unset, no walk and no
-//! deadline run.
+//! points at free sockets until the ghost stands valid, rolls the part and
+//! steps its socket, steps the socket back and rolls until it fits, clicks the
+//! view, rebinds the new gun to K, takes the Railgun Lance, turns the view to
+//! the station and points the lance at the sockets nearest it, through every
+//! mating socket, until the station refuses it (or warns that none reaches),
+//! and switches tabs after it: a Map tab click, an Inventory tab click and the
+//! next-tab key, which steps on to the Station tab while docked. `NOVA_CAPTURE=1` shoots `sandbox-ship.png`,
+//! `sandbox-ghost.png`, `sandbox-mount.png`, `sandbox-placed.png`,
+//! `sandbox-rebind.png`, `sandbox-station-refusal.png`,
+//! `sandbox-map-after.png` and `sandbox-station.png`.
+//! Unset, no walk and no deadline run.
+
+#[path = "shared/diagnostics.rs"]
+mod diagnostics;
 
 use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
 use bevy::prelude::*;
@@ -98,6 +118,10 @@ fn main() -> bevy::app::AppExit {
 
     let mut app = nova_protocol::prelude::editor_app(true, None);
     app.init_resource::<Sandbox>();
+    app.add_plugins((
+        diagnostics::PlayableDiagnosticsPlugin::new(KEYS_HINT),
+        ship_overlay::ShipOverlayPlugin,
+    ));
     app.add_systems(OnEnter(GameStates::MainMenu), start_the_world);
     app.add_systems(
         Update,
@@ -455,6 +479,268 @@ fn open_the_ship_tab(world: &mut World) {
     info!("station sandbox: the Ship tab is open; TAB closes and reopens the interface");
 }
 
+/// The keys the sandbox's station features answer to, for the diagnostics
+/// hint line.
+const KEYS_HINT: &str = "Ship tab: Place a part, R roll, F socket, click the ghost to buy \
+    missing parts and place (red at the station: refused), B rebind, TAB close";
+
+/// The Ship view's diagnostics on the shared layer: the free sockets, the
+/// target socket and its roll, the ghost's bounds and the station's collision
+/// volume as gizmos, and the placement, the quick buy and the selected
+/// section's binding as panel lines.
+mod ship_overlay {
+    use bevy::{camera::visibility::RenderLayers, ecs::system::SystemState};
+    use nova_protocol::nova_interface::ship::{
+        ship_placement, socket_lane_open, ShipPlacement, ShipRuntime, ShipSectionView, ShipSections,
+    };
+
+    use super::{diagnostics, diagnostics::palette, *};
+
+    /// What the gizmos draw this frame, read from the world.
+    #[derive(Resource, Default)]
+    struct ShipOverlay {
+        /// Each free socket of a live section, in ship-local space: where it
+        /// sits, which way it faces, and whether its lane is open.
+        free_points: Vec<(Vec3, Vec3, bool)>,
+        /// The ghost's placement and its part's collider half extents.
+        placement: Option<(ShipPlacement, Vec3)>,
+        /// The docked station's collision volume as the add fit measures it:
+        /// each box's centre and its ship-local half extents.
+        station: Vec<(Vec3, Vec3)>,
+    }
+
+    /// Reads the Ship pane into [`ShipOverlay`] and the panel, and draws it.
+    pub(super) struct ShipOverlayPlugin;
+
+    impl Plugin for ShipOverlayPlugin {
+        fn build(&self, app: &mut App) {
+            app.init_resource::<ShipOverlay>();
+            app.add_systems(
+                PostUpdate,
+                (read_the_ship, draw_the_ship)
+                    .chain()
+                    .in_set(diagnostics::DiagnosticsSystems)
+                    .after(TransformSystems::Propagate),
+            );
+        }
+    }
+
+    /// The Ship view camera's render layers, while it is open.
+    fn ship_view_layers(world: &mut World) -> Option<RenderLayers> {
+        world
+            .query::<(&Name, &RenderLayers)>()
+            .iter(world)
+            .find(|(name, _)| name.as_str() == "NovaOsShipCamera")
+            .map(|(_, layers)| layers.clone())
+    }
+
+    /// Each free socket of each live design section, with whether its lane
+    /// is open.
+    fn free_points(world: &mut World, views: &[ShipSectionView]) -> Vec<(Vec3, Vec3, bool)> {
+        let Some(design) = world
+            .query_filtered::<&ShipDesignSections, With<PlayerSpaceshipMarker>>()
+            .iter(world)
+            .next()
+        else {
+            return Vec::new();
+        };
+        let placed: Vec<RefitPlacedSection<'_>> = design
+            .0
+            .iter()
+            .map(|section| RefitPlacedSection {
+                position: section.position,
+                rotation: section.rotation,
+                config: &section.config,
+            })
+            .collect();
+        let mut points = Vec::new();
+        for (index, section) in design.0.iter().enumerate() {
+            let Some(view) = views.iter().find(|view| {
+                world
+                    .get::<EntityId>(view.entity)
+                    .is_some_and(|id| id.0 == section.id)
+            }) else {
+                continue;
+            };
+            for point in free_link_points(&placed, index) {
+                let (anchor, normal) = link_point_pose(
+                    section.position,
+                    section.rotation,
+                    &section.config.base.link_points[point],
+                );
+                let open = socket_lane_open(anchor, normal, view.entity, views);
+                points.push((anchor, normal, open));
+            }
+        }
+        points
+    }
+
+    /// Read the Ship view: put the gizmos on its layers, collect what they
+    /// draw, and write the panel lines.
+    fn read_the_ship(world: &mut World, state: &mut SystemState<ShipSections<'static, 'static>>) {
+        let layers = ship_view_layers(world);
+        diagnostics::draw_on_layers(
+            &mut world.resource_mut::<GizmoConfigStore>(),
+            layers.as_ref(),
+        );
+        let (Some(_), Some(runtime)) = (&layers, world.get_resource::<ShipRuntime>()) else {
+            *world.resource_mut::<ShipOverlay>() = ShipOverlay::default();
+            return;
+        };
+        let held = runtime.held().map(str::to_string);
+        let mount = runtime.mount();
+        let selected = runtime.selected();
+        let station: Vec<(Vec3, Vec3)> = runtime
+            .station_colliders()
+            .iter()
+            .map(|placed| (placed.position, placed.half_extents()))
+            .collect();
+        let views: Vec<ShipSectionView> = state
+            .get(world)
+            .map(|sections| sections.collect())
+            .unwrap_or_default();
+        let free_points = free_points(world, &views);
+        let placement = ship_placement(world).cloned().map(|placement| {
+            let half = world
+                .get_resource::<GameSections>()
+                .and_then(|sections| sections.get_section(&placement.prototype))
+                .map(|part| part.base.collider.unwrap_or_default().aabb_half_extents())
+                .unwrap_or(Vec3::splat(0.5));
+            (placement, half)
+        });
+
+        let mut lines = Vec::new();
+        match &held {
+            Some(part) => lines.push(format!(
+                "held: {part}  roll {}/4  socket step {}",
+                mount.roll, mount.source
+            )),
+            None => lines.push("held: nothing (Place a catalogue part)".to_string()),
+        }
+        match &placement {
+            Some((placement, _)) => {
+                lines.push(format!(
+                    "target: {} socket {}",
+                    placement.section, placement.point
+                ));
+                lines.push(match &placement.verdict {
+                    Ok(line) => format!("VALID: {line}"),
+                    Err(line) => format!("REFUSED: {line}"),
+                });
+                if let (Some(payment), Some(items)) =
+                    (&placement.payment, world.get_resource::<GameItems>())
+                {
+                    let bought: Vec<String> = payment
+                        .bought
+                        .iter()
+                        .map(|(item, count)| format!("{count} {}", items.design(item).name))
+                        .collect();
+                    let cost: u32 = payment
+                        .bought
+                        .iter()
+                        .map(|(item, count)| count * items.design(item).ask_cr)
+                        .sum();
+                    lines.push(if bought.is_empty() {
+                        "quick buy: nothing, the hold covers the recipe".to_string()
+                    } else {
+                        format!("quick buy: {} for {cost} cr at ask", bought.join(", "))
+                    });
+                }
+            }
+            None if held.is_some() => {
+                lines.push("target: none (point at an open socket)".to_string());
+            }
+            None => {}
+        }
+        if let Some(view) =
+            selected.and_then(|selected| views.iter().find(|view| view.entity == selected))
+        {
+            lines.push(format!(
+                "selected: {}  binding: {}",
+                view.code,
+                view.binding_text().unwrap_or_else(|| "none".to_string())
+            ));
+        }
+        let open = free_points.iter().filter(|(.., open)| *open).count();
+        lines.push(format!(
+            "free sockets: {open} open (green), {} interior (grey X); station boxes: {} \
+             (violet)",
+            free_points.len() - open,
+            station.len()
+        ));
+
+        let mut panel = world.resource_mut::<diagnostics::DiagnosticsPanel>();
+        for line in lines {
+            panel.line(line);
+        }
+        *world.resource_mut::<ShipOverlay>() = ShipOverlay {
+            free_points,
+            placement,
+            station,
+        };
+    }
+
+    /// Draw the free sockets, the target socket and the part's roll, the
+    /// ghost's bounds and the station's collision volume.
+    fn draw_the_ship(
+        overlay: Res<ShipOverlay>,
+        mut gizmos: Gizmos<diagnostics::DiagnosticsGizmos>,
+    ) {
+        for &(anchor, normal, lane_open) in &overlay.free_points {
+            if lane_open {
+                diagnostics::ring(&mut gizmos, anchor, normal, 0.15, palette::OK);
+                gizmos.line(anchor, anchor + normal * 0.3, palette::OK);
+            } else {
+                let (a, b) = normal.any_orthonormal_pair();
+                let size = 0.12;
+                gizmos.line(
+                    anchor - (a + b) * size,
+                    anchor + (a + b) * size,
+                    palette::MUTED,
+                );
+                gizmos.line(
+                    anchor - (a - b) * size,
+                    anchor + (a - b) * size,
+                    palette::MUTED,
+                );
+            }
+        }
+        for &(centre, half) in &overlay.station {
+            gizmos.cube(
+                Transform::from_translation(centre).with_scale(half * 2.0),
+                palette::ZONE,
+            );
+        }
+        let Some((placement, half)) = &overlay.placement else {
+            return;
+        };
+        diagnostics::vector(
+            &mut gizmos,
+            placement.anchor,
+            placement.normal,
+            0.8,
+            palette::TARGET,
+        );
+        let Some(pose) = placement.pose else {
+            return;
+        };
+        let bounds = if placement.verdict.is_ok() {
+            palette::OK
+        } else {
+            palette::ALERT
+        };
+        gizmos.cube(pose.with_scale(*half * 2.0), bounds);
+        // The roll: the part's own +X, which turns a quarter per R.
+        diagnostics::vector(
+            &mut gizmos,
+            pose.translation,
+            pose.rotation * Vec3::X,
+            half.x + 0.4,
+            palette::VELOCITY,
+        );
+    }
+}
+
 #[cfg(feature = "debug")]
 mod smoke {
     use std::sync::Arc;
@@ -462,7 +748,7 @@ mod smoke {
     use nova_input::prelude::InputSource;
     use nova_protocol::{
         nova_debug::harness::{press_action, release_action, shoot, AutopilotPlugin, Predicate},
-        nova_interface::ship::{ship_ghost_aim, ship_view_window_px, ShipRuntime},
+        nova_interface::ship::{ship_ghost_aim, ship_placement, ship_view_window_px, ShipRuntime},
     };
 
     use super::*;
@@ -485,10 +771,22 @@ mod smoke {
     /// How far the aim sits from a socket toward its section's centre, as a
     /// share of the way.
     const AIM_INSET: f32 = 0.15;
+    /// The PNG of the ghost rolled a quarter turn and on its next socket.
+    const MOUNT_SHOT: &str = "sandbox-mount.png";
     /// The PNG of the Ship tab after the add.
     const PLACED_SHOT: &str = "sandbox-placed.png";
     /// The PNG of the placed section after its rebind.
     const REBIND_SHOT: &str = "sandbox-rebind.png";
+    /// The PNG of the ghost refused against the docked station.
+    const STATION_REFUSAL_SHOT: &str = "sandbox-station-refusal.png";
+    /// How far from the station a free socket's aim may be for the walk to
+    /// try it: the railgun lance's length.
+    const STATION_REACH_CELLS: f32 = 3.0;
+    /// How far the Ship view turns toward the station before the walk aims:
+    /// the camera looks along ship-local +X at least this much.
+    const STATION_VIEW_FACING: f32 = 0.5;
+    /// Seconds the walk gets to try every free socket against the station.
+    const STATION_AIM_SECS: f32 = 600.0;
     /// The key the walk binds the placed gun to.
     const REBIND_KEY: KeyCode = KeyCode::KeyK;
     /// The PNG of the Map tab a click opens after the add.
@@ -509,6 +807,8 @@ mod smoke {
         sections: usize,
         aims: Vec<Vec3>,
         aiming: usize,
+        /// Socket steps taken at the current aim.
+        steps: u32,
     }
 
     /// Whether the selected section fires on [`REBIND_KEY`].
@@ -522,10 +822,81 @@ mod smoke {
             .is_some_and(|binding| binding.0.contains(&InputSource::from(REBIND_KEY)))
     }
 
-    /// The kinetic PDC's Place button, which every refit catalogue the
-    /// fixture's hold stocks lists.
-    fn place_button() -> String {
-        format!("ShipPlace-{PDC_KINETIC_TURRET_SECTION_ID}")
+    /// A catalogue part's Place button. Every refit catalogue the fixture's
+    /// hold stocks lists the kinetic PDC and the two-cell torpedo bay.
+    fn place_button(part: &str) -> String {
+        format!("ShipPlace-{part}")
+    }
+
+    /// Scroll the catalogue to the Place button of `part` and click it, so
+    /// `part` is in hand.
+    fn take_the_part(
+        script: AutopilotPlugin<GameStates>,
+        part: &'static str,
+    ) -> AutopilotPlugin<GameStates> {
+        script
+            .step(format!("station sandbox: find the Place button of {part}"))
+            .each(move |world, _, _| {
+                if ui_node_rect(world, &place_button(part)).is_none() {
+                    return;
+                }
+                let sections = player_sections(world);
+                let aims = free_socket_aims(world);
+                match world.get_resource_mut::<SmokeAdd>() {
+                    Some(mut add) => add.button = place_button(part),
+                    None => world.insert_resource(SmokeAdd {
+                        button: place_button(part),
+                        sections,
+                        aims,
+                        aiming: usize::MAX,
+                        steps: 0,
+                    }),
+                }
+            })
+            .until(Arc::new(move |world: &World| {
+                smoke_button(world) == Some(place_button(part))
+            }))
+            .deadline(BEAT_SECS)
+            .add()
+            .step(format!(
+                "station sandbox: scroll the Place button of {part} into view"
+            ))
+            .each(|world, _, frame| {
+                keep_hovering_named(SHIP_PANEL)(world);
+                if frame % 2 == 1 && !button_in_view(world) {
+                    scroll_lines(-1.0)(world);
+                }
+            })
+            .until(Arc::new(button_in_view))
+            .deadline(BEAT_SECS)
+            .add()
+            .step(format!(
+                "station sandbox: aim at the Place button of {part}"
+            ))
+            .each(|world, _, _| {
+                if let Some(button) = smoke_button(world) {
+                    keep_hovering_named(button)(world);
+                }
+            })
+            .until(Arc::new(|world: &World| {
+                smoke_button(world).is_some_and(|button| pointer_over_node(button)(world))
+            }))
+            .deadline(BEAT_SECS)
+            .add()
+            .step(format!("station sandbox: press the Place button of {part}"))
+            .on_enter(press_mouse(MouseButton::Left))
+            .until(pointer_pressed())
+            .deadline(BEAT_SECS)
+            .add()
+            .step(format!(
+                "station sandbox: release the Place button of {part}"
+            ))
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(Arc::new(move |world: &World| {
+                world.resource::<ShipRuntime>().held() == Some(part)
+            }))
+            .deadline(BEAT_SECS)
+            .add()
     }
 
     /// A point beside each free socket of each live design section, in
@@ -592,8 +963,136 @@ mod smoke {
         world.resource_mut::<SmokeAdd>().aiming = aiming;
     }
 
+    /// Which way the Ship view camera looks, in the ship-local scene.
+    fn ship_view_facing(world: &World) -> Vec3 {
+        let Some(mut cameras) = world.try_query::<(&Name, &GlobalTransform)>() else {
+            return Vec3::ZERO;
+        };
+        cameras
+            .iter(world)
+            .find(|(name, _)| name.as_str() == "NovaOsShipCamera")
+            .map_or(Vec3::ZERO, |(_, pose)| *pose.forward())
+    }
+
+    /// Whether the ghost stands refused because it would hit the station.
+    fn refused_by_the_station(world: &World) -> bool {
+        ship_placement(world).is_some_and(|placement| {
+            matches!(&placement.verdict, Err(line) if line.contains("would hit the station"))
+        })
+    }
+
+    /// Aim again from the free sockets nearest the docked station.
+    fn aim_from_the_station(world: &mut World) {
+        let mut aims = free_socket_aims(world);
+        let station: Vec<(Vec3, Vec3)> = world
+            .resource::<ShipRuntime>()
+            .station_colliders()
+            .iter()
+            .map(|placed| (placed.position, placed.half_extents()))
+            .collect();
+        // The gap from an aim to the nearest station box's surface.
+        let reach = |aim: &Vec3| {
+            station
+                .iter()
+                .map(|(centre, half)| ((*aim - *centre).abs() - *half).max(Vec3::ZERO).length())
+                .fold(f32::INFINITY, f32::min)
+        };
+        aims.sort_by(|a, b| reach(a).total_cmp(&reach(b)));
+        let free = aims.len();
+        aims.retain(|aim| reach(aim) <= STATION_REACH_CELLS);
+        info!(
+            "station sandbox: {free} free sockets, {} within reach, {} station boxes, nearest \
+             gaps {:?} cells",
+            aims.len(),
+            station.len(),
+            aims.iter().take(3).map(reach).collect::<Vec<_>>()
+        );
+        let mut add = world.resource_mut::<SmokeAdd>();
+        add.aims = aims;
+        add.aiming = usize::MAX;
+        add.steps = 0;
+    }
+
+    /// Point at the free sockets in turn until the ghost hits the station,
+    /// trying each mating socket of the part at each one; past the last aim,
+    /// `aiming` stands at the aim count.
+    fn aim_into_the_station(world: &mut World, _elapsed: f32, frame: u32) {
+        if frame % AIM_FRAMES == 1 {
+            release_action("ship_part_socket")(world);
+        }
+        if refused_by_the_station(world) || frame % AIM_FRAMES != 0 {
+            return;
+        }
+        let Some(add) = world.get_resource::<SmokeAdd>().cloned() else {
+            return;
+        };
+        debug!(
+            "station sandbox: aim {} at {:?} step {}: {:?}",
+            add.aiming,
+            add.aims.get(add.aiming),
+            add.steps,
+            ship_placement(world).map(|placement| (
+                &placement.section,
+                &placement.point,
+                placement.mount,
+                &placement.verdict
+            )),
+        );
+        // Every socket of the part in hand gets a turn at each aim.
+        let tries = world
+            .resource::<ShipRuntime>()
+            .held()
+            .and_then(|part| world.resource::<GameSections>().get_section(part))
+            .map_or(0, |part| part.base.link_points.len());
+        if add.aiming < add.aims.len() && (add.steps as usize) < tries {
+            world.resource_mut::<SmokeAdd>().steps += 1;
+            press_action("ship_part_socket")(world);
+            return;
+        }
+        let aiming = add.aiming.wrapping_add(1).min(add.aims.len());
+        let mut next = world.resource_mut::<SmokeAdd>();
+        next.aiming = aiming;
+        next.steps = 0;
+        if let Some(pixel) = add
+            .aims
+            .get(aiming)
+            .and_then(|&aim| ship_view_window_px(world, aim))
+        {
+            move_cursor(pixel)(world);
+        }
+    }
+
+    fn aims_spent(world: &World) -> bool {
+        world
+            .get_resource::<SmokeAdd>()
+            .is_some_and(|add| add.aiming == add.aims.len())
+    }
+
     fn ghost_is_valid(world: &World) -> bool {
         ship_ghost_aim(world).is_some_and(|(_, _, valid)| valid)
+    }
+
+    /// How the part in hand mates its socket.
+    fn mount(world: &World) -> MountPose {
+        world
+            .get_resource::<ShipRuntime>()
+            .map(ShipRuntime::mount)
+            .unwrap_or_default()
+    }
+
+    /// Tap `action` while `more` holds: press on even frames, release on odd
+    /// ones, so each tap is one step of the pose.
+    fn tap_while(
+        action: &'static str,
+        more: fn(&World) -> bool,
+    ) -> impl Fn(&mut World, f32, u32) + Send + Sync + 'static {
+        move |world, _, frame| {
+            if frame % 2 == 0 && more(world) {
+                press_action(action)(world);
+            } else {
+                release_action(action)(world);
+            }
+        }
     }
 
     /// How many live sections the player ship has.
@@ -684,7 +1183,7 @@ mod smoke {
     /// The smoke walk: the setup lands docked on the Ship tab, and a frame of
     /// it is shot.
     pub(super) fn script() -> AutopilotPlugin<GameStates> {
-        AutopilotPlugin::<GameStates>::new()
+        let script = AutopilotPlugin::<GameStates>::new()
             .step("station sandbox: docked on the Ship tab")
             .until(ready_on_the_ship_tab())
             .diagnose(|world| format!("{:?}", world.get_resource::<Sandbox>()))
@@ -697,58 +1196,9 @@ mod smoke {
             .on_enter(|world: &mut World| shoot(world, SHIP_SHOT))
             .until(shot_written(SHIP_SHOT))
             .deadline(SHOT_SECS)
-            .add()
-            .step("station sandbox: find the Place button")
-            .each(|world, _, _| {
-                if world.get_resource::<SmokeAdd>().is_none()
-                    && ui_node_rect(world, &place_button()).is_some()
-                {
-                    let sections = player_sections(world);
-                    let aims = free_socket_aims(world);
-                    world.insert_resource(SmokeAdd {
-                        button: place_button(),
-                        sections,
-                        aims,
-                        aiming: usize::MAX,
-                    });
-                }
-            })
-            .until(Arc::new(|world: &World| smoke_button(world).is_some()))
-            .deadline(BEAT_SECS)
-            .add()
-            .step("station sandbox: scroll the Place button into view")
-            .each(|world, _, frame| {
-                keep_hovering_named(SHIP_PANEL)(world);
-                if frame % 2 == 1 && !button_in_view(world) {
-                    scroll_lines(-1.0)(world);
-                }
-            })
-            .until(Arc::new(button_in_view))
-            .deadline(BEAT_SECS)
-            .add()
-            .step("station sandbox: aim at the Place button")
-            .each(|world, _, _| {
-                if let Some(button) = smoke_button(world) {
-                    keep_hovering_named(button)(world);
-                }
-            })
-            .until(Arc::new(|world: &World| {
-                smoke_button(world).is_some_and(|button| pointer_over_node(button)(world))
-            }))
-            .deadline(BEAT_SECS)
-            .add()
-            .step("station sandbox: press the Place button")
-            .on_enter(press_mouse(MouseButton::Left))
-            .until(pointer_pressed())
-            .deadline(BEAT_SECS)
-            .add()
-            .step("station sandbox: release the Place button")
-            .on_enter(release_mouse(MouseButton::Left))
-            .until(Arc::new(|world: &World| {
-                world.resource::<ShipRuntime>().held() == Some(PDC_KINETIC_TURRET_SECTION_ID)
-            }))
-            .deadline(BEAT_SECS)
-            .add()
+            .add();
+        let script = take_the_part(script, PDC_KINETIC_TURRET_SECTION_ID);
+        let script = script
             .step("station sandbox: aim the ghost at a free socket")
             .each(aim_the_ghost)
             .until(Arc::new(ghost_is_valid))
@@ -768,6 +1218,50 @@ mod smoke {
             .on_enter(|world: &mut World| shoot(world, GHOST_SHOT))
             .until(shot_written(GHOST_SHOT))
             .deadline(SHOT_SECS)
+            .add()
+            .step("station sandbox: roll the part a quarter turn")
+            .on_enter(press_action("ship_part_roll"))
+            .until(Arc::new(|world: &World| mount(world).roll == 1))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: let the roll key up")
+            .on_enter(release_action("ship_part_roll"))
+            .until(frames(2))
+            .add()
+            // The kinetic PDC mounts by one socket, so F leaves it in place;
+            // the frame after it shows the view did not tilt.
+            .step("station sandbox: press the socket key")
+            .on_enter(press_action("ship_part_socket"))
+            .until(frames(3))
+            .add()
+            .step("station sandbox: let the socket key up")
+            .on_enter(release_action("ship_part_socket"))
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station sandbox: shoot the rolled ghost")
+            .on_enter(|world: &mut World| shoot(world, MOUNT_SHOT))
+            .until(shot_written(MOUNT_SHOT))
+            .deadline(SHOT_SECS)
+            .diagnose(|world| format!("mount {:?}, aim {:?}", mount(world), ship_ghost_aim(world)))
+            .add()
+            .step("station sandbox: cycle the socket back to the drawn one")
+            .each(tap_while("ship_part_socket", |world| {
+                mount(world).source != 0
+            }))
+            .until(Arc::new(|world: &World| mount(world).source == 0))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: roll until the ghost fits")
+            .each(tap_while("ship_part_roll", |world| !ghost_is_valid(world)))
+            .until(Arc::new(ghost_is_valid))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: let the pose keys up")
+            .on_enter(|world: &mut World| {
+                release_action("ship_part_roll")(world);
+                release_action("ship_part_socket")(world);
+            })
+            .until(frames(SETTLE_FRAMES))
             .add()
             .step("station sandbox: press on the ghost")
             .on_enter(press_mouse(MouseButton::Left))
@@ -839,6 +1333,58 @@ mod smoke {
             .step("station sandbox: shoot the rebound gun")
             .on_enter(|world: &mut World| shoot(world, REBIND_SHOT))
             .until(shot_written(REBIND_SHOT))
+            .deadline(SHOT_SECS)
+            .add();
+        // The three-cell railgun lance: the fixture's berth leaves 2.5 cells
+        // between the station-facing plates and the station's boxes, so a
+        // one- or two-cell part never reaches them. The station is on the
+        // ship's -X side, away from the opening view, so the view turns first.
+        let script = take_the_part(script, RAILGUN_LANCE_SECTION_ID);
+        script
+            .step("station sandbox: turn the view to the station")
+            .on_enter(press_action("viewer_orbit_left"))
+            .until(Arc::new(|world: &World| {
+                ship_view_facing(world).x >= STATION_VIEW_FACING
+            }))
+            .diagnose(|world| format!("facing {:?}", ship_view_facing(world)))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: let the turn key up")
+            .on_enter(release_action("viewer_orbit_left"))
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station sandbox: aim from the sockets nearest the station")
+            .on_enter(aim_from_the_station)
+            .until(frames(1))
+            .add()
+            .step("station sandbox: aim the ghost into the station")
+            .each(aim_into_the_station)
+            .until(Arc::new(|world: &World| {
+                refused_by_the_station(world) || aims_spent(world)
+            }))
+            .diagnose(|world| {
+                format!(
+                    "{:?}, verdict {:?}",
+                    world.get_resource::<SmokeAdd>(),
+                    ship_placement(world).map(|placement| &placement.verdict)
+                )
+            })
+            .deadline(STATION_AIM_SECS)
+            .add()
+            .step("station sandbox: settle the refused ghost")
+            .on_enter(|world: &mut World| {
+                let verdict = ship_placement(world).map(|placement| placement.verdict.clone());
+                if refused_by_the_station(world) {
+                    info!("station sandbox: the station refuses the ghost: {verdict:?}");
+                } else {
+                    warn!("station sandbox: no free socket reaches the station: {verdict:?}");
+                }
+            })
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station sandbox: shoot the ghost against the station")
+            .on_enter(|world: &mut World| shoot(world, STATION_REFUSAL_SHOT))
+            .until(shot_written(STATION_REFUSAL_SHOT))
             .deadline(SHOT_SECS)
             .add()
             .click_named(

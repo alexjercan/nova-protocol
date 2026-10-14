@@ -121,6 +121,20 @@ pub fn interface_bindings() -> Vec<ActionBinding> {
         ActionBinding::new("ship_rebind", "SHIP", "Rebind Section Key")
             .context(ActionContext::InterfacePane("ship"))
             .keyboard([Keyboard(KeyCode::KeyB)]),
+        // With a part in hand the tilt keys roll it and cycle its mating
+        // socket, as the editor's R and F do. They FOLLOW the tilt keys: the
+        // Ship pane reads one or the other by whether a part is in hand, so
+        // one rebind moves both and they never need a row of their own.
+        ActionBinding::new("ship_part_roll", "SHIP", "Roll Part")
+            .follows("viewer_orbit_up")
+            .context(ActionContext::InterfacePane("ship"))
+            .keyboard([Keyboard(KeyCode::KeyR)])
+            .gamepad([Gamepad(GamepadButton::DPadUp)]),
+        ActionBinding::new("ship_part_socket", "SHIP", "Cycle Part Socket")
+            .follows("viewer_orbit_down")
+            .context(ActionContext::InterfacePane("ship"))
+            .keyboard([Keyboard(KeyCode::KeyF)])
+            .gamepad([Gamepad(GamepadButton::DPadDown)]),
         ActionBinding::new("inventory_details", "INVENTORY", "Item Details")
             .context(ActionContext::InterfacePane("inventory"))
             .keyboard([Keyboard(KeyCode::KeyI)]),

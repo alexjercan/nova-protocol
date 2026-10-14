@@ -97,17 +97,32 @@ socket a part covers is never a target, and a block with none shows no ghost.
 `free_link_points` (`section_add.rs`) is every socket no design section mates,
 live or lost, so a lost section's socket stays reserved for its rebuild. No
 content marks an attachment point; every hull, base, generated or modded, has
-them. `section_add_pose` places the part with its `natural_link_point` (the
-socket facing most nearly opposite, the editor's default) at roll 0 through
-`snap_placement`, using `link_point_pose`, the socket frame the editor's
-`snap.rs` solver also reads. It refuses an occupied point and a part with no
-socket. `section_add_clear` adds the refusal for a collider overlap with a
-design section it does not mate (`section_colliders_overlap`), and
+them. `section_add_pose` places the part by the player's `MountPose`
+(`ShipRuntime::mount`) through `MountPose::snap`: the mating socket is
+`MountPose::source` steps on from the part's `natural_link_point` (the socket
+facing most nearly opposite) and the roll is `MountPose::roll` quarter turns
+(`snap_placement`), using `link_point_pose`. The editor's `snap.rs` solver
+and `PlacementPose` use the same `MountPose`, so R (`ship_part_roll`) and F
+(`ship_part_socket`) step it alike; in the Ship pane those actions follow the
+tilt keys and act only while a part is in hand, and the pose resets when the
+part in hand changes. Targets are chosen at the default pose, so a step never
+moves the ghost to another point. It refuses an occupied point and a part
+with no socket. `section_add_clear` adds the refusal for a collider overlap
+with a design section it does not mate (`section_colliders_overlap`), and
 `section_add_fit` adds a post-build fault the add makes (`add_build_fault`:
 the swap's checks through `refit_build_fault`, with `placement_blocks_an_exit`
-for the lanes). The ghost block shows at the pose with a Nominal outline for a
-valid add and a Danger outline for a refusal, and its callout beside the
-pointer shows the price or the refusal. A click with a valid ghost raises
+for the lanes) and refuses `Obstructed` when the part's collider overlaps a
+collider outside the ship. The Ship pane passes the docked station's
+(`StationSite::partner_colliders`: the direct child sections of the partner
+root and of every other ship docked to it, such as its parked hulls, in
+ship-root space, within `PARTNER_REACH_MARGIN` cells of the ship's reach),
+and `sync_ship_station_blocks` draws the same boxes as dim outlines in the
+Ship view, not selectable. A swap does not check the station. The ghost block
+shows at the pose with a Nominal outline for a valid add and a Danger outline
+for a refusal, and its callout beside the pointer shows the refusal, or the
+price with the parts the hold gives and the parts bought at the station's ask
+(`RecipePayment`): the click buys exactly those, so it is the quick buy. A
+click with a valid ghost raises
 `SectionAddCommand`; a click with a refused ghost puts the refusal on the note
 line. A click on a section badge commits the same way (`commit_placement`),
 since the badge stops the click. The part stays in hand for the next add. With

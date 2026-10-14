@@ -37,12 +37,12 @@ use crate::{
         map_chart_button, on_map_chart_button, on_map_reframe_button, spawn_map_panel,
         MapLegendMarker, MapViewportMarker,
     },
+    recycle::{recycle_body, RecycleDock},
     ship::{
         on_ship_fit_button, on_ship_reset_button, on_ship_viewport_click, on_ship_viewport_enter,
         on_ship_viewport_leave, on_ship_viewport_move, spawn_ship_panel, ShipRuntime,
         ShipViewportMarker,
     },
-    recycle::{recycle_body, RecycleDock},
     station::{station_body, StationDock},
     terminal::NovaOsCloseTransition,
 };
@@ -148,7 +148,10 @@ pub(crate) fn toggle_interface(
     match current.get() {
         PauseStates::Unpaused if !player.is_empty() => next.set(PauseStates::Interface),
         PauseStates::Interface => next.set(PauseStates::Unpaused),
-        PauseStates::Unpaused | PauseStates::Paused | PauseStates::Commands => {}
+        PauseStates::Unpaused
+        | PauseStates::Paused
+        | PauseStates::Commands
+        | PauseStates::Debug => {}
     }
 }
 
@@ -258,7 +261,7 @@ pub(crate) fn interface_shown(pause: &State<PauseStates>, close: &NovaOsCloseTra
     match pause.get() {
         PauseStates::Interface => true,
         PauseStates::Commands => close.return_to == PauseStates::Interface,
-        PauseStates::Unpaused | PauseStates::Paused => false,
+        PauseStates::Unpaused | PauseStates::Paused | PauseStates::Debug => false,
     }
 }
 
@@ -613,12 +616,38 @@ pub(crate) struct InterfacePaneFooter;
 pub(crate) struct PaneInputHint {
     verb: &'static str,
     actions: &'static [&'static str],
+    when: HintWhenType,
 }
 
+/// When a footer hint shows, by whether the Ship pane has a catalogue part
+/// in hand: the tilt keys roll and cycle the part while one is, so the
+/// footer names what they do now.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum HintWhenType {
+    /// Shown always.
+    Always,
+    /// Shown only while a part is in hand.
+    Placing,
+    /// Shown only while no part is in hand.
+    Viewing,
+}
+
+/// One footer hint: a verb, the actions whose keys it names, and when it
+/// shows.
+type PaneKeyHint = (&'static str, &'static [&'static str], HintWhenType);
+
 /// The keys the Map pane answers to. Every name must be registered.
-const MAP_KEY_HINTS: &[(&str, &[&str])] = &[
-    ("Turn", &["viewer_orbit_left", "viewer_orbit_right"]),
-    ("Tilt", &["viewer_orbit_up", "viewer_orbit_down"]),
+const MAP_KEY_HINTS: &[PaneKeyHint] = &[
+    (
+        "Turn",
+        &["viewer_orbit_left", "viewer_orbit_right"],
+        HintWhenType::Always,
+    ),
+    (
+        "Tilt",
+        &["viewer_orbit_up", "viewer_orbit_down"],
+        HintWhenType::Always,
+    ),
     (
         "Pan",
         &[
@@ -627,22 +656,41 @@ const MAP_KEY_HINTS: &[(&str, &[&str])] = &[
             "viewer_pan_back",
             "viewer_pan_right",
         ],
+        HintWhenType::Always,
     ),
-    ("Reframe", &["viewer_reframe"]),
-    ("Select", &["viewer_prev", "viewer_next"]),
-    ("GOTO", &["map_goto"]),
-    ("Chart", &["map_chart"]),
+    ("Reframe", &["viewer_reframe"], HintWhenType::Always),
+    (
+        "Select",
+        &["viewer_prev", "viewer_next"],
+        HintWhenType::Always,
+    ),
+    ("GOTO", &["map_goto"], HintWhenType::Always),
+    ("Chart", &["map_chart"], HintWhenType::Always),
 ];
 
 /// The keys the Ship pane answers to. Every name must be registered.
-const SHIP_KEY_HINTS: &[(&str, &[&str])] = &[
-    ("Turn", &["viewer_orbit_left", "viewer_orbit_right"]),
-    ("Tilt", &["viewer_orbit_up", "viewer_orbit_down"]),
-    ("Reset", &["viewer_reframe"]),
-    ("Select", &["viewer_prev", "viewer_next"]),
-    ("Mates", &["ship_mates"]),
-    ("Repair", &["ship_repair"]),
-    ("Rebind", &["ship_rebind"]),
+const SHIP_KEY_HINTS: &[PaneKeyHint] = &[
+    (
+        "Turn",
+        &["viewer_orbit_left", "viewer_orbit_right"],
+        HintWhenType::Always,
+    ),
+    (
+        "Tilt",
+        &["viewer_orbit_up", "viewer_orbit_down"],
+        HintWhenType::Viewing,
+    ),
+    ("Roll part", &["ship_part_roll"], HintWhenType::Placing),
+    ("Cycle socket", &["ship_part_socket"], HintWhenType::Placing),
+    ("Reset", &["viewer_reframe"], HintWhenType::Always),
+    (
+        "Select",
+        &["viewer_prev", "viewer_next"],
+        HintWhenType::Always,
+    ),
+    ("Mates", &["ship_mates"], HintWhenType::Always),
+    ("Repair", &["ship_repair"], HintWhenType::Always),
+    ("Rebind", &["ship_rebind"], HintWhenType::Always),
 ];
 
 /// The pointer gestures both viewers read raw, outside [`InputBindings`]:
@@ -655,7 +703,7 @@ fn pane_footer(
     body: &mut ChildSpawnerCommands,
     legend: impl FnOnce(&mut ChildSpawnerCommands),
     controls: impl FnOnce(&mut ChildSpawnerCommands),
-    keys: &'static [(&'static str, &'static [&'static str])],
+    keys: &'static [PaneKeyHint],
 ) {
     let side = || Node {
         flex_grow: 1.0,
@@ -709,10 +757,25 @@ fn pane_footer(
                         ..default()
                     })
                     .with_children(|hints| {
-                        for &(verb, actions) in keys {
+                        for &(verb, actions, when) in keys {
+                            // A placing hint waits hidden until a part is in
+                            // hand ([`show_placing_hints`]).
+                            let display = if when == HintWhenType::Placing {
+                                Display::None
+                            } else {
+                                Display::Flex
+                            };
                             hints.spawn((
-                                PaneInputHint { verb, actions },
+                                PaneInputHint {
+                                    verb,
+                                    actions,
+                                    when,
+                                },
                                 themed_label("", 12.0, UiColor::Body),
+                                Node {
+                                    display,
+                                    ..default()
+                                },
                             ));
                         }
                         for pointer in POINTER_HINTS {
@@ -765,6 +828,26 @@ pub(crate) fn refresh_pane_input_hints(
         let value = format!("{keys} {}", hint.verb);
         if text.0 != value {
             text.0 = value;
+        }
+    }
+}
+
+/// Show each footer hint by its [`HintWhenType`]: while the Ship pane has a
+/// part in hand the tilt hint gives way to the roll and socket hints.
+pub(crate) fn show_placing_hints(
+    ship: Option<Res<ShipRuntime>>,
+    mut q_hint: Query<(&PaneInputHint, &mut Node)>,
+) {
+    let placing = ship.is_some_and(|ship| ship.held().is_some());
+    for (hint, mut node) in &mut q_hint {
+        let shown = match hint.when {
+            HintWhenType::Always => true,
+            HintWhenType::Placing => placing,
+            HintWhenType::Viewing => !placing,
+        };
+        let display = if shown { Display::Flex } else { Display::None };
+        if node.display != display {
+            node.display = display;
         }
     }
 }

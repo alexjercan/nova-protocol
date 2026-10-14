@@ -8,8 +8,12 @@
 //! targets ([`ghost_targets`]: free sockets open to space where the part
 //! stands clear) the one nearest the hit ([`nearest_link_point`]) is the
 //! point. A block with no target, such as one inside the hull, shows no
-//! ghost. [`section_add_pose`] gives the ghost's pose and [`section_add_fit`]
-//! with the payment and binding plan gives the verdict. A click on a valid
+//! ghost. [`section_add_pose`] at the player's [`MountPose`] (R rolls the
+//! part, F cycles its mating socket) gives the ghost's pose, and
+//! [`section_add_fit`] at that pose with the payment and binding plan gives
+//! the verdict. A valid verdict names the price and how many parts come from
+//! the hold and how many the click buys from the station at ask, so a part
+//! whose recipe the hold cannot cover is bought and placed in one click. A click on a valid
 //! ghost raises the [`SectionAddCommand`] the add handler applies by the same
 //! rule; a click on a refused one changes nothing and shows the refusal on
 //! the note line. With no part in hand, a click on a block selects its
@@ -34,7 +38,7 @@ use nova_ui::{
 };
 
 use super::{
-    rebuild::StationSite,
+    rebuild::{rebuild_price_text, StationSite},
     refit::{add_refusal_text, live_bindings, SectionAddCommand, SectionBindingRow},
     scene::{ShipCameraMarker, ShipRuntime, ShipViewportMarker, SHIP_BLOCK_FILL_SCALE},
     sections::{design_section_code, ShipSectionView, ShipSections},
@@ -45,22 +49,30 @@ use crate::{
     pane::{play_menu_select, themed_label},
 };
 
-/// What a click on the view would add, solved under the pointer.
+/// What a click on the view would add, solved under the pointer. Read by
+/// [`ship_placement`] for a diagnostics overlay.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct ShipPlacement {
+pub struct ShipPlacement {
     /// The design section id the part mounts on.
-    pub(crate) section: String,
+    pub section: String,
     /// The socket id of that section the part mates.
-    pub(crate) point: String,
+    pub point: String,
     /// The catalogue part in hand.
-    pub(crate) prototype: String,
+    pub prototype: String,
+    /// How the part mates the socket.
+    pub mount: MountPose,
     /// The part's pose in ship-local space, or `None` when it has no socket
     /// to mount by.
-    pub(crate) pose: Option<Transform>,
-    /// Where the callout points, in ship-local space.
-    pub(crate) anchor: Vec3,
+    pub pose: Option<Transform>,
+    /// Where the callout points, in ship-local space: the target socket.
+    pub anchor: Vec3,
+    /// The target socket's outward normal, in ship-local space.
+    pub normal: Vec3,
     /// The price line of a valid add, or the refusal line.
-    pub(crate) verdict: Result<String, String>,
+    pub verdict: Result<String, String>,
+    /// The payment a click makes: the hold's parts, the parts bought from
+    /// the station at ask, and the price. `None` for a refused add.
+    pub payment: Option<RecipePayment>,
 }
 
 /// The block under the pointer and the placement a click would add,
@@ -181,6 +193,7 @@ pub(crate) fn commit_placement(
                 section: placement.section.clone(),
                 point: placement.point.clone(),
                 prototype: placement.prototype.clone(),
+                mount: placement.mount,
             });
             play_menu_select(commands, bank);
         }
@@ -251,10 +264,12 @@ const LANE_START: f32 = 1e-3;
 ///
 /// A target is a free socket ([`free_link_points`]) whose outward lane
 /// leaves the ship without entering another block in `views`, where the
-/// part stands clear ([`section_add_clear`]). A section inside the hull has
-/// no open lane, and a socket a part covers fails the clear check, so
-/// neither is ever a target. A part with no socket keeps every open point,
-/// so the ghost still shows its refusal.
+/// part stands clear as drawn ([`section_add_clear`] at the default
+/// [`MountPose`]), so a roll or socket step never moves the ghost to
+/// another point: the fit at the chosen pose gives the verdict. A section
+/// inside the hull has no open lane, and a socket a part covers fails the
+/// clear check, so neither is ever a target. A part with no socket keeps
+/// every open point, so the ghost still shows its refusal.
 pub(crate) fn ghost_targets(
     design: &[RefitPlacedSection<'_>],
     index: usize,
@@ -269,22 +284,36 @@ pub(crate) fn ghost_targets(
         .filter(|&point| {
             let (anchor, normal) =
                 link_point_pose(target.position, target.rotation, &sockets[point]);
-            let Ok(direction) = Dir3::new(normal) else {
-                return false;
-            };
-            let lane = Ray3d::new(anchor + *direction * LANE_START, direction);
-            views
-                .iter()
-                .filter(|view| view.entity != own)
-                .all(|view| enter_block(lane, view).is_none())
+            socket_lane_open(anchor, normal, own, views)
         })
         .filter(|&point| {
             !matches!(
-                section_add_clear(design, index, point, offered),
+                section_add_clear(design, index, point, offered, MountPose::default()),
                 Err(SectionAddFaultType::Occupied | SectionAddFaultType::Overlap)
             )
         })
         .collect()
+}
+
+/// Whether the outward lane of a socket at `anchor` facing `normal`, both
+/// in ship-local space, leaves the ship without entering a block in `views`
+/// other than `own`, the block of the section that carries the socket. A
+/// free socket with a closed lane is inside the hull, and the ghost never
+/// aims there ([`ghost_targets`]).
+pub fn socket_lane_open(
+    anchor: Vec3,
+    normal: Vec3,
+    own: Entity,
+    views: &[ShipSectionView],
+) -> bool {
+    let Ok(direction) = Dir3::new(normal) else {
+        return false;
+    };
+    let lane = Ray3d::new(anchor + *direction * LANE_START, direction);
+    views
+        .iter()
+        .filter(|view| view.entity != own)
+        .all(|view| enter_block(lane, view).is_none())
 }
 
 /// Solve the block under the pointer and, with a part in hand, where a click
@@ -367,19 +396,26 @@ pub(crate) fn update_ship_placement(
                         .partner
                         .and_then(|(partner, _)| q_holds.get(partner).ok())
                         .map(|(stock, credits)| (stock, credits.0));
-                    let (anchor, _) =
+                    let (anchor, normal) =
                         link_point_pose(target.position, target.rotation, &sockets[free]);
-                    let pose = section_add_pose(&placed, index, free, offered).ok().map(
-                        |(position, rotation)| {
+                    let mount = runtime.mount;
+                    let pose = section_add_pose(&placed, index, free, offered, mount)
+                        .ok()
+                        .map(|(position, rotation)| {
                             Transform::from_translation(position).with_rotation(rotation)
-                        },
-                    );
+                        });
                     let mut hasher = DefaultHasher::new();
                     resolved.fit_key(section, free).hash(&mut hasher);
                     prototype.hash(&mut hasher);
+                    mount.hash(&mut hasher);
                     let key = hasher.finish();
                     if cache.key != Some(key) {
-                        cache.fit = Some(section_add_fit(&placed, &live, index, free, offered));
+                        // The docked station counts too: a part that would
+                        // sink into it is refused at the ghost.
+                        let outside = site.partner_colliders(&resolved);
+                        cache.fit = Some(section_add_fit(
+                            &placed, &live, index, free, offered, mount, &outside,
+                        ));
                         cache.key = Some(key);
                     }
                     let fit = cache.fit.clone().expect("the cache holds the keyed fit");
@@ -388,19 +424,30 @@ pub(crate) fn update_ship_placement(
                         .expect("the player ship carries a ShipInventory and ShipCredits");
                     let bound = live_bindings(&resolved, &q_bindings);
                     let name = &offered.base.name;
-                    let verdict = match resolved
+                    let (verdict, payment) = match resolved
                         .plan_add(&items, offered, fit, &bound, own, own_cr.0, partner)
                     {
-                        Ok(plan) => Ok(format!("{name} on {code}: {} cr", plan.payment.price_cr)),
-                        Err(refusal) => Err(add_refusal_text(&items, &code, name, &refusal)),
+                        Ok(plan) => (
+                            Ok(format!(
+                                "{name} on {code}, {}",
+                                rebuild_price_text(&plan.payment)
+                            )),
+                            Some(plan.payment),
+                        ),
+                        Err(refusal) => {
+                            (Err(add_refusal_text(&items, &code, name, &refusal)), None)
+                        }
                     };
                     placement = Some(ShipPlacement {
                         section: section.id.clone(),
                         point: sockets[free].id.clone(),
                         prototype: prototype.clone(),
+                        mount,
                         pose,
                         anchor,
+                        normal,
                         verdict,
+                        payment,
                     });
                 }
             }
@@ -595,6 +642,15 @@ pub fn ship_view_window_px(world: &World, point: Vec3) -> Option<Vec2> {
     let local = camera.world_to_viewport(camera_pose, point).ok()?;
     let min = transform.translation - node.size() * 0.5;
     Some((min + local) * node.inverse_scale_factor())
+}
+
+/// The placement the ghost shows this frame, while a part in hand is aimed
+/// over the view: what a diagnostics overlay draws and prints.
+pub fn ship_placement(world: &World) -> Option<&ShipPlacement> {
+    world
+        .get_resource::<ShipPlacementPreview>()?
+        .placement
+        .as_ref()
 }
 
 /// The design section id and socket id the ghost is aimed at, and whether a

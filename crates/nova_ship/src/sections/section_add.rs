@@ -4,12 +4,14 @@
 //! the ship's design mates, live or lost ([`free_link_points`]). Every hull
 //! has them, base, generated or modded, with nothing authored for the
 //! purpose, and a lost section's socket stays reserved for its rebuild. The
-//! offered part mates the point with its [`natural_link_point`] at roll 0, so
-//! it keeps the orientation it was drawn in.
+//! offered part mates the point by the player's [`MountPose`]; the default
+//! mates it with its [`natural_link_point`] at roll 0, so it keeps the
+//! orientation it was drawn in.
 //!
 //! [`section_add_clear`] refuses an occupied point, a part with no socket and
-//! an overlap; [`section_add_fit`] adds a post-build fault the add makes
-//! ([`RefitBuildFaultType`]).
+//! an overlap; [`section_add_fit`] adds a collision with a section outside
+//! the ship, such as the docked station's, and a post-build fault the add
+//! makes ([`RefitBuildFaultType`]).
 //! [`plan_section_add`] checks the station, the binding the new section takes
 //! ([`added_section_binds`]) and the payment, and a [`SectionAddRequest`] asks
 //! the scenario crate to put the part in the ship's design under
@@ -155,6 +157,9 @@ pub enum SectionAddFaultType {
     /// The part's collider box would interpenetrate a section of the design
     /// it does not mate.
     Overlap,
+    /// The part's collider box would interpenetrate a section outside the
+    /// ship, such as one of the station it is docked with.
+    Obstructed,
     /// The ship the add leaves fails a post-build check it passed.
     Build(RefitBuildFaultType),
 }
@@ -163,8 +168,7 @@ pub enum SectionAddFaultType {
 /// `section`, as `(position, rotation)` in ship-root space, before the
 /// overlap check of [`section_add_clear`] and the post-build checks of
 /// [`section_add_fit`]: the point must be free ([`free_link_points`]) and the
-/// part mates it with its [`natural_link_point`] at roll 0
-/// ([`snap_placement`]).
+/// part mates it by `mount` ([`MountPose::snap`]).
 ///
 /// The Ship pane's ghost stands here, so a refused add still shows where it
 /// would go.
@@ -177,6 +181,7 @@ pub fn section_add_pose(
     section: usize,
     point: usize,
     offered: &SectionConfig,
+    mount: MountPose,
 ) -> Result<(Vec3, Quat), SectionAddFaultType> {
     if !free_link_points(design, section).contains(&point) {
         return Err(SectionAddFaultType::Occupied);
@@ -187,14 +192,10 @@ pub fn section_add_pose(
         target.rotation,
         &target.config.base.link_points[point],
     );
-    let source = natural_link_point(&offered.base.link_points, target_normal)
+    let (_, position, rotation) = mount
+        .snap(target_position, target_normal, &offered.base.link_points)
         .ok_or(SectionAddFaultType::NoSockets)?;
-    Ok(snap_placement(
-        target_position,
-        target_normal,
-        &offered.base.link_points[source],
-        0,
-    ))
+    Ok((position, rotation))
 }
 
 /// Where `offered` stands when added at socket `point` of design section
@@ -215,8 +216,9 @@ pub fn section_add_clear(
     section: usize,
     point: usize,
     offered: &SectionConfig,
+    mount: MountPose,
 ) -> Result<(Vec3, Quat), SectionAddFaultType> {
-    let (position, rotation) = section_add_pose(design, section, point, offered)?;
+    let (position, rotation) = section_add_pose(design, section, point, offered, mount)?;
     let added = RefitPlacedSection {
         position,
         rotation,
@@ -240,7 +242,9 @@ pub fn section_add_clear(
 ///
 /// `design` is every section of the ship's design, live or lost; `live`
 /// holds the indices of the live ones. The part must stand clear
-/// ([`section_add_clear`]). Then the generator's post-build checks run on
+/// ([`section_add_clear`]) and overlap none of `outside`, the colliders of
+/// sections that are not the ship's, such as the docked station's, in
+/// ship-root space ([`section_colliders_overlap`]). Then the generator's post-build checks run on
 /// the live ship with the part and without it, and only a new fault refuses:
 /// one socket graph, which also refuses a socket with two suitors, clear exit
 /// lanes ([`placement_blocks_an_exit`]), the thrust floor and the flight
@@ -255,13 +259,21 @@ pub fn section_add_fit(
     section: usize,
     point: usize,
     offered: &SectionConfig,
+    mount: MountPose,
+    outside: &[PlacedSectionCollider],
 ) -> Result<(Vec3, Quat), SectionAddFaultType> {
-    let (position, rotation) = section_add_clear(design, section, point, offered)?;
+    let (position, rotation) = section_add_clear(design, section, point, offered, mount)?;
     let added = RefitPlacedSection {
         position,
         rotation,
         config: offered,
     };
+    if outside
+        .iter()
+        .any(|&other| section_colliders_overlap(other, collider(&added)))
+    {
+        return Err(SectionAddFaultType::Obstructed);
+    }
     let before: Vec<RefitPlacedSection<'_>> = live.iter().map(|&index| design[index]).collect();
     if let Some(fault) = add_build_fault(&before, added) {
         return Err(SectionAddFaultType::Build(fault));
@@ -509,14 +521,29 @@ mod tests {
         let design = [at(0.0, 0.0, &hull), at(-1.0, 0.0, &drive)];
         let live = [0, 1];
 
-        let (position, rotation) =
-            section_add_fit(&design, &live, 0, socket(&hull, "positive_y"), &hull)
-                .expect("a cube fits on the free top face");
+        let (position, rotation) = section_add_fit(
+            &design,
+            &live,
+            0,
+            socket(&hull, "positive_y"),
+            &hull,
+            MountPose::default(),
+            &[],
+        )
+        .expect("a cube fits on the free top face");
         assert!(position.abs_diff_eq(Vec3::Y, 1e-5), "{position:?}");
         assert!(rotation.abs_diff_eq(Quat::IDENTITY, 1e-5), "{rotation:?}");
 
         assert_eq!(
-            section_add_fit(&design, &live, 0, socket(&hull, "negative_x"), &hull),
+            section_add_fit(
+                &design,
+                &live,
+                0,
+                socket(&hull, "negative_x"),
+                &hull,
+                MountPose::default(),
+                &[]
+            ),
             Err(SectionAddFaultType::Occupied)
         );
     }
@@ -536,12 +563,180 @@ mod tests {
         let design = [at(0.0, 0.0, &hull), at(1.5, 0.0, &block)];
         let live = [0, 1];
         assert_eq!(
-            section_add_fit(&design, &live, 0, socket(&hull, "positive_x"), &hull),
+            section_add_fit(
+                &design,
+                &live,
+                0,
+                socket(&hull, "positive_x"),
+                &hull,
+                MountPose::default(),
+                &[]
+            ),
             Err(SectionAddFaultType::Overlap)
         );
         assert_eq!(
-            section_add_fit(&design, &live, 0, socket(&hull, "positive_y"), &block),
+            section_add_fit(
+                &design,
+                &live,
+                0,
+                socket(&hull, "positive_y"),
+                &block,
+                MountPose::default(),
+                &[]
+            ),
             Err(SectionAddFaultType::NoSockets)
+        );
+    }
+
+    /// A part that would sink into a section outside the ship, such as the
+    /// docked station's, is refused; one that only touches it fits.
+    #[test]
+    fn an_add_into_a_station_section_is_refused_as_obstructed() {
+        let hull = hull();
+        let design = [at(0.0, 0.0, &hull)];
+        let station = |y: f32| PlacedSectionCollider {
+            position: Vec3::new(0.0, y, 0.0),
+            rotation: Quat::IDENTITY,
+            collider: SectionCollider::Cuboid { size: Vec3::ONE },
+        };
+        let top = socket(&hull, "positive_y");
+        let fit = |outside: &[PlacedSectionCollider]| {
+            section_add_fit(&design, &[0], 0, top, &hull, MountPose::default(), outside)
+        };
+        assert_eq!(fit(&[station(1.5)]), Err(SectionAddFaultType::Obstructed));
+        assert!(
+            fit(&[station(2.0)]).is_ok(),
+            "a face against the station fits"
+        );
+    }
+
+    /// The player's mount pose moves the part: a roll turns a long part about
+    /// the mating axis in place, and a socket step stands it on its end.
+    /// Both cycles wrap back to the part as drawn.
+    #[test]
+    fn a_roll_or_socket_step_moves_the_added_part_and_both_wrap() {
+        let hull = hull();
+        let long = part(
+            "long",
+            SectionKind::Hull(HullSectionConfig::default()),
+            Vec3::new(1.0, 1.0, 2.0),
+            box_link_points(Vec3::new(1.0, 1.0, 2.0)),
+        );
+        let design = [at(0.0, 0.0, &hull)];
+        let top = socket(&hull, "positive_y");
+        let add = |mount| section_add_clear(&design, 0, top, &long, mount);
+
+        let (drawn_at, drawn) = add(MountPose::default()).expect("the part fits as drawn");
+        assert!(drawn_at.abs_diff_eq(Vec3::Y, 1e-5), "{drawn_at:?}");
+        assert!((drawn * Vec3::Z).abs_diff_eq(Vec3::Z, 1e-5));
+
+        let mut mount = MountPose::default();
+        mount.step_roll(false);
+        let (rolled_at, rolled) = add(mount).expect("the rolled part fits");
+        assert!(rolled_at.abs_diff_eq(Vec3::Y, 1e-5), "{rolled_at:?}");
+        assert!(
+            (rolled * Vec3::Z).abs().abs_diff_eq(Vec3::X, 1e-5),
+            "a quarter roll turns the long axis across"
+        );
+
+        let mut mount = MountPose::default();
+        mount.step_source(long.base.link_points.len(), false);
+        let (stood_at, stood) = add(mount).expect("the stood part fits");
+        assert!(
+            stood_at.abs_diff_eq(Vec3::new(0.0, 1.5, 0.0), 1e-5),
+            "{stood_at:?}"
+        );
+        assert!((stood * Vec3::Z).abs().abs_diff_eq(Vec3::Y, 1e-5));
+
+        let mut mount = MountPose::default();
+        for _ in 0..4 {
+            mount.step_roll(false);
+        }
+        for _ in 0..long.base.link_points.len() {
+            mount.step_source(long.base.link_points.len(), false);
+        }
+        assert_eq!(mount, MountPose::default());
+        mount.step_roll(true);
+        mount.step_source(long.base.link_points.len(), true);
+        assert_eq!(mount, MountPose { source: 5, roll: 3 });
+    }
+
+    /// A click on a valid ghost is the quick buy: the add takes the hold's
+    /// parts, buys exactly the rest from the station at ask in the same
+    /// plan, and refuses whole when the ship cannot pay or the station
+    /// lacks a part.
+    #[test]
+    fn an_add_buys_exactly_the_missing_parts_or_refuses_when_short() {
+        use nova_gameplay::{
+            prelude::{BuildRecipe, ItemDesignId},
+            test_support::test_items,
+        };
+
+        let items = test_items();
+        let mut gun = hull();
+        gun.base.build = BuildRecipe {
+            credits: 100,
+            parts: [("SectionPanel".into(), 2), ("TurretBody".into(), 1)].into(),
+            strip_yield: 0.5,
+        };
+        let hold = |stacks: &[(&str, u32)]| {
+            ShipInventory::new(
+                &items,
+                10_000_000,
+                stacks
+                    .iter()
+                    .map(|&(item, count)| (ItemDesignId::from(item), count)),
+            )
+        };
+        let own = hold(&[("SectionPanel", 1)]);
+        let stock = hold(&[("SectionPanel", 5), ("TurretBody", 5)]);
+        let bare = hold(&[("SectionPanel", 5)]);
+        let price = 100
+            + items.design(&"SectionPanel".into()).ask_cr
+            + items.design(&"TurretBody".into()).ask_cr;
+        let plan = |stock: &ShipInventory, own_cr: u32| {
+            plan_section_add(
+                &items,
+                &gun,
+                Ok((Vec3::Y, Quat::IDENTITY)),
+                [],
+                Some(StationPartner {
+                    offers: true,
+                    stock,
+                    credits_cr: 0,
+                }),
+                &own,
+                own_cr,
+            )
+        };
+
+        let payment = plan(&stock, price)
+            .expect("the ship pays the exact price")
+            .payment;
+        assert_eq!(payment.from_hold, [("SectionPanel".into(), 1)].into());
+        assert_eq!(
+            payment.bought,
+            [("SectionPanel".into(), 1), ("TurretBody".into(), 1)].into()
+        );
+        assert_eq!(payment.price_cr, price);
+
+        assert_eq!(
+            plan(&stock, price - 1),
+            Err(SectionAddRefusalType::Payment(
+                RecipePaymentRefusalType::InsufficientCredits {
+                    need: u64::from(price),
+                    have: price - 1,
+                }
+            ))
+        );
+        assert_eq!(
+            plan(&bare, price),
+            Err(SectionAddRefusalType::Payment(
+                RecipePaymentRefusalType::MissingParts {
+                    item: "TurretBody".into(),
+                    short: 1,
+                }
+            ))
         );
     }
 
@@ -562,7 +757,15 @@ mod tests {
         );
         let design = [at(0.0, 0.0, &hull), at(-1.0, 0.0, &drive)];
         assert!(matches!(
-            section_add_fit(&design, &[0, 1], 0, socket(&hull, "positive_y"), &hull),
+            section_add_fit(
+                &design,
+                &[0, 1],
+                0,
+                socket(&hull, "positive_y"),
+                &hull,
+                MountPose::default(),
+                &[]
+            ),
             Err(SectionAddFaultType::Build(
                 RefitBuildFaultType::Underpowered { .. }
             ))

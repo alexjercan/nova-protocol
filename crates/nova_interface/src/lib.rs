@@ -86,8 +86,8 @@ use crate::{
     map::MapPaneSystems,
     pane::{
         leave_docked_pane, next_interface_pane, play_interface_toggle, rebuild_interface_body,
-        refresh_pane_input_hints, show_docked_tabs, spawn_interface_root, sync_nova_os_contexts,
-        toggle_interface, InterfacePaneType,
+        refresh_pane_input_hints, show_docked_tabs, show_placing_hints, spawn_interface_root,
+        sync_nova_os_contexts, toggle_interface, InterfacePaneType,
     },
     recycle::RecyclePaneSystems,
     ship::ShipPaneSystems,
@@ -169,6 +169,7 @@ impl Plugin for InterfacePlugin {
                 rebuild_interface_body,
                 show_docked_tabs,
                 refresh_pane_input_hints,
+                show_placing_hints,
             )
                 .chain()
                 .in_set(InterfaceSystems),

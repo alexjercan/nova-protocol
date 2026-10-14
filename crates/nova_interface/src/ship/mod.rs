@@ -73,10 +73,13 @@ pub(crate) use self::{
     app::*, catalogue::*, ghost::*, rebind::*, rebuild::*, refit::*, scene::*, sections::*,
 };
 pub use self::{
-    ghost::{ship_ghost_aim, ship_view_window_px, SHIP_GHOST_CALLOUT},
+    ghost::{
+        ship_ghost_aim, ship_placement, ship_view_window_px, socket_lane_open, ShipPlacement,
+        SHIP_GHOST_CALLOUT,
+    },
     refit::{SectionAddCommand, SectionSwapCommand},
     scene::{cuboid_edges, ease_orbit_center, ship_framing, ShipRuntime, SHIP_BLOCK_FILL_SCALE},
-    sections::{design_section_code, SectionCode, ShipSections},
+    sections::{design_section_code, SectionCode, ShipSectionView, ShipSections},
 };
 
 /// Glob-import surface: `use nova_interface::ship::prelude::*`.
@@ -85,12 +88,15 @@ pub mod prelude {
     // `pub(crate)` (the module glob above), which rustc rejects as an
     // ambiguous import visibility through `super::`.
     pub use super::{
-        ghost::{ship_ghost_aim, ship_view_window_px, SHIP_GHOST_CALLOUT},
+        ghost::{
+            ship_ghost_aim, ship_placement, ship_view_window_px, socket_lane_open, ShipPlacement,
+            SHIP_GHOST_CALLOUT,
+        },
         refit::{SectionAddCommand, SectionSwapCommand},
         scene::{
             cuboid_edges, ease_orbit_center, ship_framing, ShipRuntime, SHIP_BLOCK_FILL_SCALE,
         },
-        sections::{design_section_code, SectionCode, ShipSections},
+        sections::{design_section_code, SectionCode, ShipSectionView, ShipSections},
         SHIP_RADIUS_MAX, SHIP_RADIUS_MIN,
     };
 }
@@ -136,6 +142,7 @@ impl Plugin for ShipPanePlugin {
                     apply_ship_add_commands,
                     reselect_swapped_section,
                     manage_ship_scene,
+                    sync_ship_station_blocks,
                     reconcile_ship_target,
                     apply_ship_rebind,
                 )

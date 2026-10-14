@@ -19,7 +19,10 @@ use bevy::{
     ui_widgets::{Activate, Button, SliderRange, SliderValue, ValueChange},
 };
 use nova_gameplay::prelude::*;
-use nova_ship::prelude::{derive_link_point_graph, PlacedSectionLinkPoints};
+use nova_ship::prelude::{
+    derive_link_point_graph, GameSections, MountPose, PlacedSectionCollider,
+    PlacedSectionLinkPoints,
+};
 use nova_ui::{
     theme::{ActiveUiTheme, UiColor},
     widget::{
@@ -194,12 +197,25 @@ pub struct ShipRuntime {
     /// The catalogue part in hand, which the placement ghost shows and a
     /// click on the view adds. Set by a catalogue row's Place button.
     pub(crate) held: Option<String>,
+    /// How the part in hand mates its socket, stepped by `ship_part_roll`
+    /// and `ship_part_socket`. Back to the part as drawn whenever the part
+    /// in hand changes.
+    pub(crate) mount: MountPose,
     /// The pointer over the view, in logical window pixels, while it is
     /// there; the ghost is solved under it.
     pub(crate) pointer: Option<Vec2>,
     /// The ghost's outline for a valid and for a refused placement.
     pub(crate) mat_ghost_go: Option<Handle<StandardMaterial>>,
     pub(crate) mat_ghost_no: Option<Handle<StandardMaterial>>,
+    /// The dim outline of the docked station's sections.
+    pub(crate) mat_station: Option<Handle<StandardMaterial>>,
+    /// The docked station's outlines in the scene, and the scene root and
+    /// partner they were drawn for.
+    pub(crate) station_blocks: Vec<Entity>,
+    pub(crate) station_drawn: Option<(Entity, Option<Entity>)>,
+    /// The docked station's colliders the outlines draw, in ship-local
+    /// space: the volume the add fit refuses a part against.
+    pub(crate) station_colliders: Vec<PlacedSectionCollider>,
 }
 
 impl ShipRuntime {
@@ -218,6 +234,18 @@ impl ShipRuntime {
     /// The catalogue part in hand, which a click on the view adds.
     pub fn held(&self) -> Option<&str> {
         self.held.as_deref()
+    }
+
+    /// How the part in hand mates its socket.
+    pub fn mount(&self) -> MountPose {
+        self.mount
+    }
+
+    /// The docked station's colliders near the ship, in ship-local space,
+    /// as the Ship view draws them and the add fit refuses against them.
+    /// Empty while undocked or while the pane is closed.
+    pub fn station_colliders(&self) -> &[PlacedSectionCollider] {
+        &self.station_colliders
     }
 
     /// The transient note the panel shows, such as why an action was
@@ -286,7 +314,12 @@ pub(crate) fn manage_ship_scene(
         runtime.rebind_awaiting_release = false;
         runtime.show_mates = false;
         runtime.held = None;
+        runtime.mount = MountPose::default();
         runtime.pointer = None;
+        // The outlines went with the scene root.
+        runtime.station_blocks.clear();
+        runtime.station_drawn = None;
+        runtime.station_colliders.clear();
         return;
     }
 
@@ -314,6 +347,7 @@ pub(crate) fn manage_ship_scene(
     runtime.mat_outline_selected = Some(materials.add(unlit(theme.color(UiColor::Accent))));
     runtime.mat_ghost_go = Some(materials.add(unlit(theme.color(UiColor::Nominal))));
     runtime.mat_ghost_no = Some(materials.add(unlit(theme.color(UiColor::Danger))));
+    runtime.mat_station = Some(materials.add(unlit(theme.color_alpha(UiColor::Secondary, 0.45))));
 
     let scene_root = commands
         .spawn((
@@ -438,6 +472,73 @@ fn reconcile_ship_blocks(
         commands.entity(overlay).try_despawn();
     }
     runtime.mate_overlay = spawn_mate_overlay(commands, runtime, meshes, &views);
+}
+
+/// One docked-station section outline in the Ship view: not a block of the
+/// ship, so it is never picked, selected or placed on.
+#[derive(Component)]
+pub(crate) struct ShipStationBlock;
+
+/// Draw the docked station's sections near the ship
+/// ([`StationSite::partner_colliders`]) as dim outlines in the scene's
+/// ship-local space, so a part the add fit refuses against the station is
+/// seen beside what it hits. Redrawn when the scene opens or the partner
+/// changes; undocked, nothing is drawn.
+pub(crate) fn sync_ship_station_blocks(
+    mut commands: Commands,
+    mut runtime: ResMut<ShipRuntime>,
+    site: StationSite,
+) {
+    let Some(root) = runtime.scene_root else {
+        return;
+    };
+    let resolved = site.resolve(StationServiceType::Refit);
+    let partner = resolved
+        .as_ref()
+        .and_then(|resolved| resolved.partner)
+        .map(|(partner, _)| partner);
+    if runtime.station_drawn == Some((root, partner)) {
+        return;
+    }
+    for block in runtime.station_blocks.drain(..) {
+        commands.entity(block).try_despawn();
+    }
+    runtime.station_drawn = Some((root, partner));
+    runtime.station_colliders.clear();
+    let (Some(resolved), Some(edges), Some(material)) = (
+        resolved,
+        runtime.edge_mesh.clone(),
+        runtime.mat_station.clone(),
+    ) else {
+        return;
+    };
+    let colliders = site.partner_colliders(&resolved);
+    let blocks: Vec<Entity> = colliders
+        .iter()
+        .map(|placed| {
+            let full = (placed.collider.aabb_half_extents() * 2.0).max(Vec3::splat(0.2));
+            commands
+                .spawn((
+                    ShipStationBlock,
+                    Mesh3d(edges.clone()),
+                    MeshMaterial3d(material.clone()),
+                    Transform {
+                        translation: placed.position,
+                        rotation: placed.rotation,
+                        scale: full,
+                    },
+                    RenderLayers::layer(SHIP_LAYER),
+                    ChildOf(root),
+                ))
+                .id()
+        })
+        .collect();
+    debug!(
+        "ship view: {} docked station sections drawn near the ship",
+        blocks.len()
+    );
+    runtime.station_blocks = blocks;
+    runtime.station_colliders = colliders;
 }
 
 /// One proxy per section: a family-tinted fill shrunk to leave a GAP to its
@@ -592,6 +693,10 @@ pub fn ease_orbit_center(center: Vec3, target: Vec3, dt: f32) -> Vec3 {
 /// Read the keyboard/mouse while the Ship pane is showing: orbit, cycle the
 /// selection, and raise repair on the selected section. The wheel zooms
 /// only while the pointer is off the side panel, which scrolls under it.
+///
+/// With a part in hand the tilt keys roll it and cycle its mating socket
+/// instead (`ship_part_roll` and `ship_part_socket` follow them), as the
+/// editor's R and F do.
 #[expect(
     clippy::too_many_arguments,
     reason = "the pane input beside the camera, the overlay and the panel hover"
@@ -600,6 +705,7 @@ pub(crate) fn ship_input(
     mut input: NovaOsAppInput,
     mut runtime: ResMut<ShipRuntime>,
     sections: ShipSections,
+    catalogue: Option<Res<GameSections>>,
     mut commands: MessageWriter<SectionRepairCommand>,
     q_inventory: Query<&ShipInventory, With<PlayerSpaceshipMarker>>,
     mut q_camera: Query<&mut ShipOrbit, With<ShipCameraMarker>>,
@@ -623,9 +729,28 @@ pub(crate) fn ship_input(
         return;
     }
 
+    let held_sockets = runtime.held.as_deref().map(|prototype| {
+        catalogue
+            .as_deref()
+            .and_then(|catalogue| catalogue.get_section(prototype))
+            .map_or(0, |part| part.base.link_points.len())
+    });
+    if let Some(sockets) = held_sockets {
+        if input.just_pressed("ship_part_roll") {
+            runtime.mount.step_roll(false);
+        }
+        if input.just_pressed("ship_part_socket") {
+            runtime.mount.step_source(sockets, false);
+        }
+    }
+
     if let Ok(mut orbit) = q_camera.single_mut() {
         // Turn, tilt and RMB-drag are the shared viewer's feel, not the ship's.
-        let gesture = OrbitGesture::read(&input, motion_delta);
+        let mut gesture = OrbitGesture::read(&input, motion_delta);
+        if held_sockets.is_some() {
+            gesture.tilt_up = false;
+            gesture.tilt_down = false;
+        }
         if !gesture.is_idle() {
             let (theta, phi) = gesture.apply_ship(dt, orbit.theta, orbit.phi);
             orbit.theta = theta;

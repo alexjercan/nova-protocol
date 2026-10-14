@@ -6,6 +6,7 @@
 //! [`crate::node`] as a tree of node entities, one config component per node.
 
 use bevy::{ecs::system::SystemParam, prelude::*};
+use nova_ship::prelude::MountPose;
 use nova_ui::theme::UiColor;
 use nova_wfc::prelude::WfcZone;
 
@@ -203,13 +204,11 @@ pub(crate) struct SectionPreviewMarker;
 /// A mate fixes everything else - the two sockets are coincident and their
 /// normals opposed - so these are the only degrees of freedom left, and
 /// neither can be derived from the ship.
-#[derive(Resource, Default, Debug, Clone, Copy, PartialEq, Eq, Reflect)]
-pub(crate) struct PlacementPose {
-    /// Socket index on the part. Wraps, so a caller can just count up.
-    pub(crate) source: usize,
-    /// Quarter turns about the mating axis, 0..4.
-    pub(crate) roll: u32,
-}
+///
+/// The pose itself is [`MountPose`], shared with the Ship pane's placement
+/// ghost, so both step and solve it alike.
+#[derive(Resource, Default, Debug, Clone, Copy, PartialEq, Eq, Reflect, Deref, DerefMut)]
+pub(crate) struct PlacementPose(pub(crate) MountPose);
 
 /// What a click would build right now, solved once per frame from the section
 /// under the pointer so the ghost and the click cannot disagree.

@@ -459,7 +459,7 @@ pub(crate) fn roll_armed_part(
     if armed_socket_count(&selection, &sections).is_none() {
         return;
     }
-    pose.roll = step_cycle(pose.roll as usize, 4, false) as u32;
+    pose.step_roll(false);
 }
 
 /// Ship > Cycle the Socket: one step of what the F key and Ctrl+wheel take.
@@ -473,7 +473,7 @@ pub(crate) fn cycle_armed_socket(
         return;
     };
     if sockets > 0 {
-        pose.source = step_cycle(pose.source % sockets, sockets, false);
+        pose.step_source(sockets, false);
     }
 }
 
@@ -586,18 +586,6 @@ pub(crate) fn continue_to_simulation(
     game_state.set(ExampleStates::Scenario);
 }
 
-/// One step around a cycle of `len`, forwards or `back`.
-fn step_cycle(current: usize, len: usize, back: bool) -> usize {
-    if len == 0 {
-        return 0;
-    }
-    if back {
-        (current + len - 1) % len
-    } else {
-        (current + 1) % len
-    }
-}
-
 /// The number of sockets the armed part carries, or `None` when nothing is
 /// armed.
 fn armed_socket_count(selection: &SectionChoice, sections: &GameSections) -> Option<usize> {
@@ -629,10 +617,10 @@ pub(crate) fn cycle_placement_pose(
         return;
     };
     if keys.just_pressed(PLACEMENT_ROLL_KEY) {
-        pose.roll = step_cycle(pose.roll as usize, 4, false) as u32;
+        pose.step_roll(false);
     }
     if keys.just_pressed(PLACEMENT_SOCKET_KEY) && sockets > 0 {
-        pose.source = step_cycle(pose.source % sockets, sockets, false);
+        pose.step_source(sockets, false);
     }
 }
 
@@ -666,11 +654,9 @@ pub(crate) fn wheel_placement_pose(
             _ => continue,
         };
         if socket_modifier {
-            if sockets > 0 {
-                pose.source = step_cycle(pose.source % sockets, sockets, back);
-            }
+            pose.step_source(sockets, back);
         } else {
-            pose.roll = step_cycle(pose.roll as usize, 4, back) as u32;
+            pose.step_roll(back);
         }
     }
 }
@@ -799,8 +785,7 @@ pub(crate) fn update_placement_preview(
             &part.base.link_points,
             part.base.collider.unwrap_or_default(),
             exit_normal(&part.kind),
-            pose.source,
-            pose.roll,
+            **pose,
         ),
     });
 }

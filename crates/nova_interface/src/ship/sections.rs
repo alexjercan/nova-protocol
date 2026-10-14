@@ -203,7 +203,10 @@ pub struct ShipSectionView {
 }
 
 impl ShipSectionView {
-    pub(crate) fn binding_text(&self) -> Option<String> {
+    /// The section's player binding as the panel's Control row reads it:
+    /// its sources, `UNBOUND` for a weapon or tool with none, or `None`
+    /// for a section that takes no player input.
+    pub fn binding_text(&self) -> Option<String> {
         self.bindings.as_ref().map(|bindings| {
             if bindings.is_empty() {
                 return "UNBOUND".to_string();

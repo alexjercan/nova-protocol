@@ -165,6 +165,11 @@ does NOT get an entry. Another page that states a different rule is wrong.
   while docked.
 - On the Ship pane a gun, torpedo bay, railgun or mining beam with no key
   reads UNBOUND, and B or Rebind gives it one.
+- With a part in hand on the Ship pane, R rolls it a quarter turn and F mates
+  it by its next socket, as in the editor; the ghost, fit and price follow.
+- The Ship pane shows the docked station and ships at its docks as dim
+  outlines and refuses a part that would hit them. The add callout counts the
+  parts bought at the station.
 - Double-click an Inventory item to sell, store, withdraw or buy its whole
   stack, Shift for one. Your own ships docked at the station list their holds
   as storage sections.

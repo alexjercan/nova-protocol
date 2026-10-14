@@ -685,9 +685,15 @@ mod walk {
                 .0
                 .clone();
             for &point in &free {
-                let Ok((position, rotation)) =
-                    section_add_fit(&placed, &live_indices, index, point, offered)
-                else {
+                let Ok((position, rotation)) = section_add_fit(
+                    &placed,
+                    &live_indices,
+                    index,
+                    point,
+                    offered,
+                    MountPose::default(),
+                    &[],
+                ) else {
                     continue;
                 };
                 let (socket, _) = link_point_pose(
@@ -733,6 +739,7 @@ mod walk {
             section: target.section,
             point: target.taken,
             prototype: PDC_KINETIC_TURRET_SECTION_ID.to_string(),
+            mount: MountPose::default(),
         });
     }
 
@@ -896,9 +903,13 @@ mod walk {
             .find_map(|child| world.get::<Text>(*child))
             .map(|text| text.0.clone())
             .expect("station add probe: the ghost callout has a line");
+        let held: u32 = HOLD.iter().map(|&(_, count)| count).sum();
         assert_eq!(
             text,
-            format!("{name} on {}: {PRICE} cr", target.code),
+            format!(
+                "{name} on {}, {PRICE} cr: {held} parts from the hold, 0 bought",
+                target.code
+            ),
             "station add probe: the ghost callout gives the price"
         );
         info!("station add probe: ghost callout: {text}");
@@ -911,6 +922,7 @@ mod walk {
             section: target.section,
             point: target.point,
             prototype: PDC_KINETIC_TURRET_SECTION_ID.to_string(),
+            mount: MountPose::default(),
         });
     }
 
