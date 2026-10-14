@@ -1,6 +1,6 @@
 # Own station: buy a station from a living civilization
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 72
 - TAGS: v0.16.0, wizard
 
@@ -74,3 +74,10 @@ Not verified live: the station's guns firing on an Enemy ship, and a Buy at bid 
 
 ## Done when
 - Buy works in a live run and ownership survives retire, thaw and reload.
+
+## Orchestrator close (2026-10-14)
+- Reviewed 842184072, 8498e2bda, 2a91c0e90, 5b8b5da1e and the sandbox frame: side Player, civilization none, OwnedStationMarker, chart owned, admission and Owned trade prices all read correctly on the F3 panel.
+- `examples/playable/station_own_sandbox.rs` builds at HEAD once 3a51f2b1b (shared open_world_stage.rs) is present; 2a91c0e90 alone does not.
+- Orchestrator re-ran `content lint` on the working tree: 0 errors, 0 warnings, 0 findings.
+- Open for the owner: an owned living station still holds the helm while docked (decision 3b unchanged); the panel prints the side as `Some(Player)`.
+- Not verified live: station guns firing on an Enemy ship; a Buy at bid through the Inventory pane.

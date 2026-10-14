@@ -1,6 +1,6 @@
 # Fleet: hire an escort at a station
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 73
 - TAGS: v0.16.0, wizard
 
@@ -60,3 +60,9 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
 
 ## Done when
 - Hire works in a live run and the escort survives a crossing and a reload.
+
+## Orchestrator close (2026-10-14)
+- Owner feedback rounds landed: spawn clearance (eb0af0561), drive-first follow and lag (3a173fe55, 755849592), trim zone, dock hold and stop order while docked (910f933c5), audible and visible RCS (37b148b7c).
+- Playable proof: `examples/playable/escort_sandbox.rs` (661adf6af) with the F3 overlay (slots, trim zone, velocity and RCS arrows, dock-hold radius). Smoke PASS, hand run stays open.
+- Orchestrator re-ran `content lint` on the working tree: 0 errors, 0 warnings, 0 findings.
+- Owner review values still open: 200 m side and 100 m back spacing, 50 m spawn clearance, 2 s lag, 20 m/s closing cap, 60 m trim zone, 400 m dock hold, RCS volume 0.12.

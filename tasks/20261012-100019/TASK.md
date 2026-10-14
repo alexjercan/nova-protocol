@@ -1,6 +1,6 @@
 # Salvage: strip a docked lootable hull into recipe parts
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 68
 - TAGS: v0.16.0, salvage
 
@@ -55,3 +55,10 @@
 - UI: no surface shows a docked partner's sections today (the Ship pane shows only the player ship; the Inventory pane shows the partner's hold). Options: (a) a "Strip the docked wreck" list in the Ship pane side panel, one row per live partner section with its code, yield and a Strip button, and a progress line (chosen: the station services live there and the panel scrolls); (b) a partner schematic in the Ship pane (a second 3D scene); (c) the Inventory pane partner column (no section concept there). The list shows only while docked with a lootable partner; a non-lootable partner is refused by the rule if a command reaches it. In flight the mode chip reads `STRIP <code> <percent>` while a strip runs.
 - List rows: a refused row shows its reason in the danger tone with no Strip button; while a strip runs the rows hide and the progress line stands alone; rows sort by code (`crates/nova_interface/src/ship/strip.rs`). Options: (a) this (chosen: a 30-section wreck listed every Busy refusal and a dead button per row); (b) a button on every row with the refusal on click (long list, dead buttons).
 - Proof seed: 115, the seed `system_open_world_identity` pins for its derelict; seed 95 holds no derelict in its window. The not-lootable check docks at the nearest living Player or Neutral station.
+
+## Orchestrator close (2026-10-14)
+- Reviewed fcaa793bd, 00857cdb2, c67f4351b, 940b08864 and the frames: the Recycle tab shows plan, progress and the wreck's hold; the F3 overlay numbers sections in strip order with the next ringed and the port marked last.
+- `system_station_strip` (seed 115) passes: port last, wreck demolished, player released, stays gone across a retire; Recycle hidden and strip refused at a living station.
+- Playable: `nix develop --command cargo run --example recycle_sandbox --features debug`.
+- Orchestrator re-ran `content lint` on the working tree: 0 errors, 0 warnings, 0 findings.
+- Owner review values: 3 s minimum per section, no demolition event, unlooted hold lost on demolition, strip pauses on a full hold instead of refusing.
