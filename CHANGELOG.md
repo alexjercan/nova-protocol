@@ -51,6 +51,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A link point can set `skin: Bare`: it still mates, but left open it gets no
   skin plate or greeble. Truss and solar panel ends are `Bare`, so spokes and
   wing tips stop clean.
+- Docked at a station with `Refit`, the Ship pane swaps a section for a part
+  of the same kind and size, paid by recipe, keeping its code and key, and
+  fires `OnSwapped`.
 
 ### Scenarios & Objectives
 

@@ -129,7 +129,8 @@ pub struct StationMarker(pub StationDesignId);
 pub enum StationServiceType {
     /// Rebuild destroyed sections of the docked ship.
     Rebuild,
-    /// Change the docked ship's section layout.
+    /// Swap a docked ship's section for another part of the same kind and
+    /// footprint, paid in parts and credits by the part's build recipe.
     Refit,
     /// Buy from and sell to the station's stock.
     Trade,

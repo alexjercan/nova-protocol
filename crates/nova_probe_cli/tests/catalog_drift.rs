@@ -998,6 +998,14 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_station_swap",
+        &[
+            "a cross-family swap is refused",
+            "a section is swapped at a station",
+            "a swapped section survives a freeze and thaw",
+        ],
+    ),
+    (
         "system_station_round_trip",
         &[
             "the lost section is rebuilt from its recipe at a generated station",
@@ -1041,7 +1049,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 512;
+const SYSTEMS_INVARIANTS: usize = 515;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

@@ -18,7 +18,7 @@ use nova_ui::{
     widget::{button, slider_track, text_field, ButtonSpec, TextFieldSpec, ThemedFill},
 };
 
-use super::{rebuild::spawn_ship_rebuild_list, scene::*, sections::*};
+use super::{rebuild::spawn_ship_rebuild_list, refit::spawn_ship_swap_list, scene::*, sections::*};
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
     pane::{
@@ -231,6 +231,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                         });
                 });
             spawn_ship_rebuild_list(panel);
+            spawn_ship_swap_list(panel);
             panel.spawn((ShipPanelField::Note, themed_label("", 12.0, UiColor::Label)));
         });
 }

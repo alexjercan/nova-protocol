@@ -74,9 +74,9 @@ what levels the station, see below.
 
 A docked ship trades with a living station that offers `Trade` as it trades
 with a ship, and keeps items in the storage of one that offers `Storage` (see
-[Trade and storage](#trade-and-storage)). `Rebuild` is the third service in
-play (see [Rebuild](#rebuild)); `Refit`, `Jobs` and `Roster` are checked and
-carried, and the screens that read them are their own task.
+[Trade and storage](#trade-and-storage)). `Rebuild` and `Refit` are in play
+too (see [Rebuild](#rebuild) and [Swap](#swap)); `Jobs` and `Roster` are
+checked and carried, and the screens that read them are their own task.
 
 ## How a station behaves
 
@@ -163,6 +163,28 @@ player set on a section is kept when the section is lost and across a save.
 The proof is `system_station_rebuild`: a ship loses a rebound PDC, docks,
 rebuilds it from hold and bought parts, and keeps it with its binding across
 a freeze and thaw.
+
+## Swap
+
+A ship docked to a living station that offers `Refit` can swap a live
+section for another part of the same family. Select the section in the Ship
+pane: the panel lists each part it can take, with a price or the reason it
+cannot be paid.
+
+| rule | what happens |
+|---|---|
+| the gate | docked to a living station whose `services` list `Refit`. A dead station and a ship offer no swap |
+| the family | the same kind of section (a turret for a turret) that fills the same cells, read from its `collider`, and not the part the section already is. Parts marked `hide_in_editor` are not offered |
+| the recipe | the new part's [build recipe](../sections/#build-recipe): its `credits` plus every part, paid as a rebuild pays it |
+| the old part | it is removed. Nothing is refunded |
+| the build checks | the ship the swap leaves must still join into one ship, keep every firing and exhaust lane clear, and keep enough thrust and flight computers for its mass. A swap is refused only for a check it breaks, not for one the ship already failed |
+| refusals | in this order: not docked, no `Refit` service, another kind of section, another size, the part the section already is, a part neither hold can cover, too few credits, a build check |
+| the result | the new part spawns where the old one stood, at full health, under the same code and with the old part's key binding. The ship keeps the new part across a save |
+| events | `OnSwapped` and one `OnCreditsChanged` per party with `cause: Swap`, see [Hold events](../events/#hold-events) |
+
+The proof is `system_station_swap`: a ship docks, a thruster swap for a PDC is
+refused, a damaged and rebound PDC is swapped for the pierce PDC, and the new
+part keeps its binding and its health across a freeze and thaw.
 
 ## Spawning one
 

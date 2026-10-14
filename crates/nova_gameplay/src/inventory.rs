@@ -18,8 +18,8 @@
 //! by the [`plan_item_jettison`] rule, a weapon's idle reload moves its
 //! ammunition item into the magazine, and a Buy or Sell with a docked trader
 //! moves items and [`ShipCredits`] together by the [`plan_item_trade`] rule.
-//! Every section config carries a [`BuildRecipe`]; a Ship pane rebuild at a
-//! docked station spends it by the [`plan_section_rebuild`] rule. A living
+//! Every section config carries a [`BuildRecipe`]; a Ship pane rebuild or
+//! swap at a docked station pays it by the [`plan_recipe_payment`] rule. A living
 //! station that offers Storage keeps a capped [`StationStorage`] beside its
 //! hold, and a Store or Withdraw moves items between it and the docked ship
 //! by the [`plan_item_storage`] rule, with no credits.
@@ -41,14 +41,15 @@ pub mod prelude {
 
     pub use super::{
         kg_text, plan_credit_take, plan_item_jettison, plan_item_storage, plan_item_trade,
-        plan_item_transfer, plan_plate_repair, plan_section_rebuild, BuildRecipe, CargoCanister,
-        CargoCanisterIdAllocator, CargoCanisterRuntimeId, CreditTakeRefusalType, GameItems,
-        ItemCategoryType, ItemDesign, ItemDesignId, ItemJettison, ItemJettisonRefusalType,
-        ItemRoleType, ItemStorageRefusalType, ItemStorageType, ItemTrade, ItemTradeRefusalType,
-        ItemTransferRefusalType, ItemTransferType, LootableShipMarker, PlateRepair,
-        PlateRepairRefusalType, RebuildPartner, SectionRebuild, SectionRebuildRefusalType,
-        ShipCredits, ShipInventory, ShipInventoryReport, ShipInventoryReports, ShipInventoryStock,
-        StationStorage, CARGO_CANISTER_MAX_MASS_G, HULL_PLATE_HEALTH,
+        plan_item_transfer, plan_plate_repair, plan_recipe_payment, plan_section_rebuild,
+        BuildRecipe, CargoCanister, CargoCanisterIdAllocator, CargoCanisterRuntimeId,
+        CreditTakeRefusalType, GameItems, ItemCategoryType, ItemDesign, ItemDesignId, ItemJettison,
+        ItemJettisonRefusalType, ItemRoleType, ItemStorageRefusalType, ItemStorageType, ItemTrade,
+        ItemTradeRefusalType, ItemTransferRefusalType, ItemTransferType, LootableShipMarker,
+        PlateRepair, PlateRepairRefusalType, RecipePayment, RecipePaymentRefusalType,
+        SectionRebuildRefusalType, ShipCredits, ShipInventory, ShipInventoryReport,
+        ShipInventoryReports, ShipInventoryStock, StationPartner, StationStorage,
+        CARGO_CANISTER_MAX_MASS_G, HULL_PLATE_HEALTH,
     };
 }
 
@@ -671,6 +672,21 @@ pub enum ShipInventoryReport {
     Rebuilt {
         /// Pane code of the rebuilt section (`PDC-1`).
         section: String,
+        /// Every part the recipe spent, from the hold and bought together.
+        parts: BTreeMap<ItemDesignId, u32>,
+        /// Credits the ship paid the station.
+        price_cr: u32,
+    },
+    /// A Ship pane swap at a docked station spent the offered part's
+    /// [`BuildRecipe`] and replaced a live section with it.
+    Swapped {
+        /// Pane code of the swapped section (`PDC-1`); a swap keeps the
+        /// section's family, so the code holds.
+        section: String,
+        /// The section prototype id the section was.
+        from: String,
+        /// The section prototype id it is now.
+        to: String,
         /// Every part the recipe spent, from the hold and bought together.
         parts: BTreeMap<ItemDesignId, u32>,
         /// Credits the ship paid the station.
@@ -1335,22 +1351,22 @@ impl BuildRecipe {
     }
 }
 
-/// The docked partner a rebuild reads: whether it offers the service, the
-/// stock missing parts are bought from and its balance.
+/// The docked partner a station service reads: whether it offers the
+/// service, the stock missing parts are bought from and its balance.
 #[derive(Clone, Copy, Debug)]
-pub struct RebuildPartner<'a> {
-    /// The partner is a living station whose design offers Rebuild.
-    pub offers_rebuild: bool,
+pub struct StationPartner<'a> {
+    /// The partner is a living station whose design offers the service.
+    pub offers: bool,
     /// The partner's hold.
     pub stock: &'a ShipInventory,
     /// The partner's credits.
     pub credits_cr: u32,
 }
 
-/// A planned rebuild: the parts to take from each hold and the credits to
-/// move from the ship to the station.
+/// A planned [`BuildRecipe`] payment: the parts to take from each hold and
+/// the credits to move from the ship to the station.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SectionRebuild {
+pub struct RecipePayment {
     /// Parts to remove from the ship's hold.
     pub from_hold: BTreeMap<ItemDesignId, u32>,
     /// Parts to remove from the station's hold, paid at ask.
@@ -1360,17 +1376,9 @@ pub struct SectionRebuild {
     pub price_cr: u32,
 }
 
-/// Why a rebuild changes nothing, in check order.
+/// Why a recipe cannot be paid, in check order.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SectionRebuildRefusalType {
-    /// The ship has no docked partner.
-    NotDocked,
-    /// The partner is not a living station that offers Rebuild.
-    NoRebuildService,
-    /// The section is live on the ship.
-    SectionNotLost,
-    /// No live section mates with the section where the design places it.
-    Unanchored,
+pub enum RecipePaymentRefusalType {
     /// Neither hold has enough of a part.
     MissingParts {
         /// The first part, in id order, the holds cannot cover.
@@ -1385,49 +1393,35 @@ pub enum SectionRebuildRefusalType {
         /// What the ship holds.
         have: u32,
     },
-    /// The station's balance after the rebuild would not fit in
+    /// The station's balance after the payment would not fit in
     /// [`ShipCredits`].
     CreditOverflow,
 }
 
-/// Plan rebuilding one lost section from its `recipe` while docked with
-/// `partner`.
+/// Plan paying `recipe` at a station whose hold is `stock` and whose balance
+/// is `stock_cr`, from the ship's `own` hold and `own_cr` balance.
 ///
-/// `partner` is `None` while the ship is not docked. `lost` is true when the
-/// design section is not live on the ship, and `anchored` when a live section
-/// mates with it where the design places it. Parts come from the ship's `own`
-/// hold first; the rest are bought from the partner's stock at
+/// Parts come from `own` first; the rest are bought from `stock` at
 /// [`ItemDesign::ask_cr`]. The price is the recipe's credits plus the bought
-/// parts. Checks run in [`SectionRebuildRefusalType`] order, and a refusal
-/// changes nothing. Every part resolves in `items`.
-pub fn plan_section_rebuild(
+/// parts. Checks run in [`RecipePaymentRefusalType`] order. Every part
+/// resolves in `items`. The one payment rule a rebuild and a swap share.
+pub fn plan_recipe_payment(
     items: &GameItems,
     recipe: &BuildRecipe,
-    partner: Option<RebuildPartner<'_>>,
-    lost: bool,
-    anchored: bool,
+    stock: &ShipInventory,
+    stock_cr: u32,
     own: &ShipInventory,
     own_cr: u32,
-) -> Result<SectionRebuild, SectionRebuildRefusalType> {
-    let partner = partner.ok_or(SectionRebuildRefusalType::NotDocked)?;
-    if !partner.offers_rebuild {
-        return Err(SectionRebuildRefusalType::NoRebuildService);
-    }
-    if !lost {
-        return Err(SectionRebuildRefusalType::SectionNotLost);
-    }
-    if !anchored {
-        return Err(SectionRebuildRefusalType::Unanchored);
-    }
+) -> Result<RecipePayment, RecipePaymentRefusalType> {
     let mut from_hold = BTreeMap::new();
     let mut bought = BTreeMap::new();
     let mut price = u64::from(recipe.credits);
     for (item, &count) in &recipe.parts {
         let held = own.count(item).min(count);
         let missing = count - held;
-        let stocked = partner.stock.count(item);
+        let stocked = stock.count(item);
         if missing > stocked {
-            return Err(SectionRebuildRefusalType::MissingParts {
+            return Err(RecipePaymentRefusalType::MissingParts {
                 item: item.clone(),
                 short: missing - stocked,
             });
@@ -1441,21 +1435,75 @@ pub fn plan_section_rebuild(
         }
     }
     if price > u64::from(own_cr) {
-        return Err(SectionRebuildRefusalType::InsufficientCredits {
+        return Err(RecipePaymentRefusalType::InsufficientCredits {
             need: price,
             have: own_cr,
         });
     }
     // The price fits: it is at most the ship's u32 balance.
     let price_cr = price as u32;
-    if partner.credits_cr.checked_add(price_cr).is_none() {
-        return Err(SectionRebuildRefusalType::CreditOverflow);
+    if stock_cr.checked_add(price_cr).is_none() {
+        return Err(RecipePaymentRefusalType::CreditOverflow);
     }
-    Ok(SectionRebuild {
+    Ok(RecipePayment {
         from_hold,
         bought,
         price_cr,
     })
+}
+
+/// Why a rebuild changes nothing, in check order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SectionRebuildRefusalType {
+    /// The ship has no docked partner.
+    NotDocked,
+    /// The partner is not a living station that offers Rebuild.
+    NoRebuildService,
+    /// The section is live on the ship.
+    SectionNotLost,
+    /// No live section mates with the section where the design places it.
+    Unanchored,
+    /// The recipe cannot be paid, see [`plan_recipe_payment`].
+    Payment(RecipePaymentRefusalType),
+}
+
+/// Plan rebuilding one lost section from its `recipe` while docked with
+/// `partner`.
+///
+/// `partner` is `None` while the ship is not docked; its `offers` is whether
+/// it is a living station that offers Rebuild. `lost` is true when the design
+/// section is not live on the ship, and `anchored` when a live section mates
+/// with it where the design places it. The recipe is paid by
+/// [`plan_recipe_payment`]. Checks run in [`SectionRebuildRefusalType`]
+/// order, and a refusal changes nothing.
+pub fn plan_section_rebuild(
+    items: &GameItems,
+    recipe: &BuildRecipe,
+    partner: Option<StationPartner<'_>>,
+    lost: bool,
+    anchored: bool,
+    own: &ShipInventory,
+    own_cr: u32,
+) -> Result<RecipePayment, SectionRebuildRefusalType> {
+    let partner = partner.ok_or(SectionRebuildRefusalType::NotDocked)?;
+    if !partner.offers {
+        return Err(SectionRebuildRefusalType::NoRebuildService);
+    }
+    if !lost {
+        return Err(SectionRebuildRefusalType::SectionNotLost);
+    }
+    if !anchored {
+        return Err(SectionRebuildRefusalType::Unanchored);
+    }
+    plan_recipe_payment(
+        items,
+        recipe,
+        partner.stock,
+        partner.credits_cr,
+        own,
+        own_cr,
+    )
+    .map_err(SectionRebuildRefusalType::Payment)
 }
 
 // Hand-written rather than derived: a derived `Deserialize` would accept a
@@ -2122,8 +2170,8 @@ mod rebuild_tests {
             &items,
             &[("TurretBody", 1), ("TurretBarrel", 3), ("ActuatorPack", 2)],
         );
-        let partner = RebuildPartner {
-            offers_rebuild: true,
+        let partner = StationPartner {
+            offers: true,
             stock: &station,
             credits_cr: 1_000,
         };
@@ -2162,9 +2210,9 @@ mod rebuild_tests {
                 ("SectionPanel", 2),
             ],
         );
-        let station = |offers_rebuild, stock, credits_cr| {
-            Some(RebuildPartner {
-                offers_rebuild,
+        let station = |offers, stock, credits_cr| {
+            Some(StationPartner {
+                offers,
                 stock,
                 credits_cr,
             })
@@ -2188,22 +2236,22 @@ mod rebuild_tests {
         );
         assert_eq!(
             plan(station(true, &empty, 0), true, true, 0),
-            Err(MissingParts {
+            Err(Payment(RecipePaymentRefusalType::MissingParts {
                 item: "ActuatorPack".into(),
                 short: 1,
-            })
+            }))
         );
         let price = 100 + 200 + 60 + 80 + 2 * 20;
         assert_eq!(
             plan(station(true, &stocked, 0), true, true, price - 1),
-            Err(InsufficientCredits {
+            Err(Payment(RecipePaymentRefusalType::InsufficientCredits {
                 need: u64::from(price),
                 have: price - 1,
-            })
+            }))
         );
         assert_eq!(
             plan(station(true, &stocked, u32::MAX), true, true, price),
-            Err(CreditOverflow)
+            Err(Payment(RecipePaymentRefusalType::CreditOverflow))
         );
         assert_eq!(
             plan(station(true, &stocked, 0), true, true, price).map(|plan| plan.price_cr),

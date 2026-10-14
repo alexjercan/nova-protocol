@@ -50,17 +50,19 @@ struct RebuildRow {
 }
 
 /// A live section of the player ship, placed in ship-root space.
-struct LiveSection {
-    id: String,
-    position: Vec3,
-    rotation: Quat,
+pub(crate) struct LiveSection {
+    pub(crate) entity: Entity,
+    pub(crate) id: String,
+    pub(crate) position: Vec3,
+    pub(crate) rotation: Quat,
     link_points: Vec<LinkPoint>,
 }
 
-/// The read-only facts a rebuild is planned from: the player ship's design,
-/// hold, balance and live sections, and the station it is docked with.
+/// The read-only facts a station service (a rebuild or a swap) is planned
+/// from: the player ship's design and live sections, and the station it is
+/// docked with.
 #[derive(SystemParam)]
-pub(crate) struct RebuildSite<'w, 's> {
+pub(crate) struct StationSite<'w, 's> {
     player: Query<
         'w,
         's,
@@ -91,20 +93,25 @@ pub(crate) struct RebuildSite<'w, 's> {
     >,
 }
 
-/// What [`RebuildSite::resolve`] found: the player ship, its design, its
+/// What [`StationSite::resolve`] found: the player ship, its design, its
 /// live sections, and the partner it is docked with and whether that partner
-/// is a living station offering Rebuild.
-struct ResolvedSite<'a> {
-    player: Entity,
-    design: &'a ShipDesignSections,
-    live: Vec<LiveSection>,
-    partner: Option<(Entity, bool)>,
+/// is a living station offering the service asked about.
+pub(crate) struct ResolvedSite<'a> {
+    pub(crate) player: Entity,
+    pub(crate) design: &'a ShipDesignSections,
+    pub(crate) live: Vec<LiveSection>,
+    pub(crate) partner: Option<(Entity, bool)>,
 }
 
-impl RebuildSite<'_, '_> {
+impl StationSite<'_, '_> {
     /// The partner the player ship `player` is docked with through `docked`,
-    /// and whether it is a living station that offers Rebuild.
-    fn partner(&self, player: Entity, docked: &DockedShip) -> (Entity, bool) {
+    /// and whether it is a living station that offers `service`.
+    fn partner(
+        &self,
+        player: Entity,
+        docked: &DockedShip,
+        service: StationServiceType,
+    ) -> (Entity, bool) {
         let connection = self.connections.get(docked.connection).unwrap_or_else(|_| {
             panic!(
                 "player ship {player:?} is docked through {:?}, which has no DockingConnection",
@@ -116,40 +123,42 @@ impl RebuildSite<'_, '_> {
         } else {
             connection.first_ship
         };
-        let offers = self.stations.get(other).is_ok_and(|(services, derelict)| {
-            station_offers(services, derelict, StationServiceType::Rebuild)
-        });
+        let offers = self
+            .stations
+            .get(other)
+            .is_ok_and(|(services, derelict)| station_offers(services, derelict, service));
         (other, offers)
     }
 
-    /// Whether the rebuild gate holds: the player ship has a design and is
-    /// docked with a living station that offers Rebuild. Reads no sections,
-    /// so the list can ask every frame.
-    fn gate(&self) -> bool {
+    /// Whether the `service` gate holds: the player ship has a design and is
+    /// docked with a living station that offers `service`. Reads no
+    /// sections, so a list can ask every frame.
+    pub(crate) fn gate(&self, service: StationServiceType) -> bool {
         self.player
             .single()
             .ok()
             .and_then(|(player, design, docked, _)| design.and(docked).map(|d| (player, d)))
-            .is_some_and(|(player, docked)| self.partner(player, docked).1)
+            .is_some_and(|(player, docked)| self.partner(player, docked, service).1)
     }
 
-    /// The player ship and its rebuild facts, or `None` when there is no
-    /// player ship or it has no design to rebuild from.
-    fn resolve(&self) -> Option<ResolvedSite<'_>> {
+    /// The player ship and its facts for `service`, or `None` when there is
+    /// no player ship or it has no design to plan from.
+    pub(crate) fn resolve(&self, service: StationServiceType) -> Option<ResolvedSite<'_>> {
         let (player, design, docked, children) = self.player.single().ok()?;
         let design = design?;
         let live = children
             .into_iter()
             .flatten()
-            .filter_map(|child| self.sections.get(*child).ok())
-            .map(|(id, transform, points)| LiveSection {
+            .filter_map(|child| self.sections.get(*child).ok().map(|found| (*child, found)))
+            .map(|(entity, (id, transform, points))| LiveSection {
+                entity,
                 id: id.0.clone(),
                 position: transform.translation,
                 rotation: transform.rotation,
                 link_points: points.0.clone(),
             })
             .collect();
-        let partner = docked.map(|docked| self.partner(player, docked));
+        let partner = docked.map(|docked| self.partner(player, docked, service));
         Some(ResolvedSite {
             player,
             design,
@@ -182,7 +191,7 @@ impl ResolvedSite<'_> {
         own: &ShipInventory,
         own_cr: u32,
         partner: Option<(&ShipInventory, u32)>,
-    ) -> Result<SectionRebuild, SectionRebuildRefusalType> {
+    ) -> Result<RecipePayment, SectionRebuildRefusalType> {
         let lost = !self.live.iter().any(|live| live.id == section.id);
         let placed: Vec<PlacedSectionLinkPoints<'_>> = self
             .live
@@ -204,8 +213,8 @@ impl ResolvedSite<'_> {
         let partner = self
             .partner
             .zip(partner)
-            .map(|((_, offers), (stock, credits_cr))| RebuildPartner {
-                offers_rebuild: offers,
+            .map(|((_, offers), (stock, credits_cr))| StationPartner {
+                offers,
                 stock,
                 credits_cr,
             });
@@ -238,21 +247,35 @@ fn rebuild_refusal_text(
         SectionRebuildRefusalType::Unanchored => {
             format!("rebuild: {code} has no live section to mount on")
         }
-        SectionRebuildRefusalType::MissingParts { item, short } => format!(
-            "rebuild: {code} needs {short} more {} than both holds carry",
-            items.design(item).name
-        ),
-        SectionRebuildRefusalType::InsufficientCredits { need, have } => {
-            format!("rebuild: {code} costs {need} cr, the ship holds {have} cr")
-        }
-        SectionRebuildRefusalType::CreditOverflow => {
-            format!("rebuild: the station cannot take the price of {code}")
+        SectionRebuildRefusalType::Payment(refusal) => {
+            format!("rebuild: {}", payment_refusal_text(items, code, refusal))
         }
     }
 }
 
-/// The price line for a rebuild the list can offer.
-fn rebuild_price_text(rebuild: &SectionRebuild) -> String {
+/// Why a recipe cannot be paid, after the action's prefix; a rebuild and a
+/// swap share it.
+pub(crate) fn payment_refusal_text(
+    items: &GameItems,
+    code: &str,
+    refusal: &RecipePaymentRefusalType,
+) -> String {
+    match refusal {
+        RecipePaymentRefusalType::MissingParts { item, short } => format!(
+            "{code} needs {short} more {} than both holds carry",
+            items.design(item).name
+        ),
+        RecipePaymentRefusalType::InsufficientCredits { need, have } => {
+            format!("{code} costs {need} cr, the ship holds {have} cr")
+        }
+        RecipePaymentRefusalType::CreditOverflow => {
+            format!("the station cannot take the price of {code}")
+        }
+    }
+}
+
+/// The price line for a rebuild or swap the list can offer.
+pub(crate) fn rebuild_price_text(rebuild: &RecipePayment) -> String {
     let held: u32 = rebuild.from_hold.values().sum();
     let bought: u32 = rebuild.bought.values().sum();
     format!(
@@ -294,7 +317,7 @@ pub(crate) fn spawn_ship_rebuild_list(panel: &mut ChildSpawnerCommands) {
 pub(crate) fn update_ship_rebuild_list(
     mut commands: Commands,
     items: Option<Res<GameItems>>,
-    site: RebuildSite,
+    site: StationSite,
     q_holds: Query<(&ShipInventory, &ShipCredits)>,
     mut q_list: Query<&mut Node, With<ShipRebuildList>>,
     mut q_rows: Query<(Entity, &mut ShipRebuildRows)>,
@@ -305,7 +328,11 @@ pub(crate) fn update_ship_rebuild_list(
     let Ok((rows_entity, mut shown)) = q_rows.single_mut() else {
         return;
     };
-    let resolved = if site.gate() { site.resolve() } else { None };
+    let resolved = if site.gate(StationServiceType::Rebuild) {
+        site.resolve(StationServiceType::Rebuild)
+    } else {
+        None
+    };
     let rows = match (resolved, items) {
         (Some(resolved), Some(items)) => {
             let (own, own_cr) = q_holds
@@ -396,7 +423,7 @@ pub(crate) fn apply_ship_rebuild_commands(
     mut runtime: ResMut<ShipRuntime>,
     mut commands: Commands,
     items: Option<Res<GameItems>>,
-    site: RebuildSite,
+    site: StationSite,
     mut q_holds: Query<(
         &mut ShipInventory,
         &mut ShipCredits,
@@ -406,7 +433,7 @@ pub(crate) fn apply_ship_rebuild_commands(
     if messages.is_empty() {
         return;
     }
-    let (Some(resolved), Some(items)) = (site.resolve(), items) else {
+    let (Some(resolved), Some(items)) = (site.resolve(StationServiceType::Rebuild), items) else {
         messages.clear();
         return;
     };

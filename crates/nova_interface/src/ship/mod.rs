@@ -28,7 +28,10 @@
 //!
 //! While the ship is docked at a living station that offers Rebuild, the
 //! panel lists the design sections the ship has lost, each under its design
-//! code, with a Rebuild button that raises a `SectionRebuildCommand`.
+//! code, with a Rebuild button that raises a `SectionRebuildCommand`. While
+//! it is docked at a living station that offers Refit, the panel lists the
+//! parts of the same kind and footprint the selected section can be swapped
+//! for, each with a Swap button that raises a `SectionSwapCommand`.
 //!
 //! # Module layout
 //!
@@ -37,11 +40,13 @@
 //! | `sections` | Section codes, the live section view and the repair seam. |
 //! | `app` | The side panel layout and the repair action handler. |
 //! | `rebuild` | The lost-section list and the rebuild action handler. |
+//! | `refit` | The swap list and the swap action handler. |
 //! | `scene` | The schematic 3D scene, its camera, the projected badges, the button observers and the panel refresh. |
 
 mod app;
 mod rebind;
 mod rebuild;
+mod refit;
 mod scene;
 mod sections;
 
@@ -51,8 +56,9 @@ mod tests;
 use bevy::prelude::*;
 use nova_ui::input_mode::prelude::{in_input_mode, InputMode};
 
-pub(crate) use self::{app::*, rebind::*, rebuild::*, scene::*, sections::*};
+pub(crate) use self::{app::*, rebind::*, rebuild::*, refit::*, scene::*, sections::*};
 pub use self::{
+    refit::SectionSwapCommand,
     scene::{cuboid_edges, ease_orbit_center, ship_framing, ShipRuntime, SHIP_BLOCK_FILL_SCALE},
     sections::{SectionCode, ShipSections},
 };
@@ -63,6 +69,7 @@ pub mod prelude {
     // `pub(crate)` (the module glob above), which rustc rejects as an
     // ambiguous import visibility through `super::`.
     pub use super::{
+        refit::SectionSwapCommand,
         scene::{
             cuboid_edges, ease_orbit_center, ship_framing, ShipRuntime, SHIP_BLOCK_FILL_SCALE,
         },
@@ -97,12 +104,15 @@ impl Plugin for ShipPanePlugin {
         app.init_resource::<ShipRuntime>();
         app.add_message::<SectionRepairCommand>();
         app.add_message::<SectionRebuildCommand>();
+        app.add_message::<SectionSwapCommand>();
         app.add_systems(
             Update,
             (
                 assign_section_codes,
                 apply_ship_section_commands,
                 apply_ship_rebuild_commands,
+                apply_ship_swap_commands,
+                reselect_swapped_section,
                 manage_ship_scene,
                 reconcile_ship_target,
                 apply_ship_rebind,
@@ -114,6 +124,7 @@ impl Plugin for ShipPanePlugin {
                 label_the_selected_section,
                 update_ship_panel,
                 update_ship_rebuild_list,
+                update_ship_swap_list,
             )
                 .chain()
                 .in_set(ShipPaneSystems),

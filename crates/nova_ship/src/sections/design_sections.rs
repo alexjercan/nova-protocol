@@ -6,15 +6,31 @@
 //! design section with no live child of that id. A Ship pane rebuild raises a
 //! [`SectionRebuildRequest`], and the scenario crate spawns that design
 //! section again through the same per-section spawn the ship was built with.
+//!
+//! A Ship pane swap replaces a live design section with a catalog part of
+//! the same family: the same [`SectionClass`] and the same
+//! [`SectionFootprint`] ([`section_swap_family`]). [`plan_section_swap`]
+//! checks the station and the payment, [`swap_build_fault`] runs the
+//! generator's post-build checks on the ship the swap would leave, and a
+//! [`SectionSwapRequest`] asks the scenario crate to edit the design and
+//! respawn that one section under its old id.
 
 use bevy::prelude::*;
-use nova_gameplay::prelude::SectionClass;
+use nova_gameplay::prelude::{
+    plan_recipe_payment, GameItems, RecipePayment, RecipePaymentRefusalType, SectionClass,
+    ShipInventory, StationPartner,
+};
 
 use super::prelude::*;
 
-/// The design sections list, the rebuild request and the anchor rule.
+/// The design sections list, the rebuild and swap requests, the anchor rule
+/// and the swap rules.
 pub mod prelude {
-    pub use super::{rebuild_anchored, DesignSection, SectionRebuildRequest, ShipDesignSections};
+    pub use super::{
+        plan_section_swap, rebuild_anchored, section_swap_family, swap_build_fault, swap_offers,
+        DesignSection, SectionFamilyFaultType, SectionRebuildRequest, SectionSwapRefusalType,
+        SectionSwapRequest, ShipDesignSections, SwapBuildFaultType, SwapPlacedSection,
+    };
 }
 
 /// One placed section of a ship's resolved design.
@@ -96,6 +112,264 @@ pub fn rebuild_anchored(
         .any(|mate| (mate.a.section_index == 0) != (mate.b.section_index == 0))
 }
 
+/// Asks to replace live design section `section` of ship `entity` with the
+/// catalog part `prototype`, at full health with the section's binding.
+/// Raised by a Ship pane swap after the swap rule took the recipe; the
+/// scenario crate observes it, saves the ship's design inline with the new
+/// part and respawns that one section under its old id.
+#[derive(EntityEvent, Clone, Debug)]
+pub struct SectionSwapRequest {
+    /// The ship root.
+    pub entity: Entity,
+    /// The design section id to replace.
+    pub section: String,
+    /// The section prototype id, in [`GameSections`], to put in its place.
+    pub prototype: String,
+}
+
+/// Why a part is not of a section's family, in check order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SectionFamilyFaultType {
+    /// The part is another kind of section.
+    OtherKind {
+        /// The section's class.
+        have: SectionClass,
+        /// The offered part's class.
+        offered: SectionClass,
+    },
+    /// The part fills another cell box.
+    OtherFootprint {
+        /// The section's footprint, in cells.
+        have: UVec3,
+        /// The offered part's footprint, in cells.
+        offered: UVec3,
+    },
+    /// The part is the prototype the section already is.
+    SamePart,
+}
+
+/// Whether `offered` may replace `current` in a swap: the same kind
+/// ([`SectionKind::class`]), the same [`SectionFootprint`] read from the
+/// authored collider, and another prototype. Same kind keeps the section's
+/// code, binding slot and the ship's capability counts; same footprint keeps
+/// the cells the section fills, so the part stands where the old one stood.
+pub fn section_swap_family(
+    current: &SectionConfig,
+    offered: &SectionConfig,
+) -> Result<(), SectionFamilyFaultType> {
+    let (have, offered_class) = (current.kind.class(), offered.kind.class());
+    if have != offered_class {
+        return Err(SectionFamilyFaultType::OtherKind {
+            have,
+            offered: offered_class,
+        });
+    }
+    let footprint = |config: &SectionConfig| {
+        SectionFootprint::from_collider(config.base.collider.unwrap_or_default()).0
+    };
+    let (have, offered_cells) = (footprint(current), footprint(offered));
+    if have != offered_cells {
+        return Err(SectionFamilyFaultType::OtherFootprint {
+            have,
+            offered: offered_cells,
+        });
+    }
+    if current.base.id == offered.base.id {
+        return Err(SectionFamilyFaultType::SamePart);
+    }
+    Ok(())
+}
+
+/// The catalog parts a station offers in place of `current`: every loaded
+/// prototype of its family ([`section_swap_family`]), in catalog order. A
+/// part hidden from the editor palette is a tile of a modelled craft, not a
+/// part a station sells, and is left out.
+pub fn swap_offers<'a>(
+    sections: &'a GameSections,
+    current: &SectionConfig,
+) -> impl Iterator<Item = &'a SectionConfig> {
+    let current = current.clone();
+    sections.iter().filter(move |offered| {
+        !offered.base.hide_in_editor && section_swap_family(&current, offered).is_ok()
+    })
+}
+
+/// Why a swap changes nothing, in check order.
+#[derive(Clone, Debug, PartialEq)]
+pub enum SectionSwapRefusalType {
+    /// The ship has no docked partner.
+    NotDocked,
+    /// The partner is not a living station that offers Refit.
+    NoRefitService,
+    /// The offered part is not of the section's family.
+    Family(SectionFamilyFaultType),
+    /// The offered part's recipe cannot be paid, see [`plan_recipe_payment`].
+    Payment(RecipePaymentRefusalType),
+    /// The ship the swap leaves fails a post-build check it passed, see
+    /// [`swap_build_fault`].
+    Build(SwapBuildFaultType),
+}
+
+/// Plan swapping the live section `current` for the catalog part `offered`
+/// while docked with `partner`, paid by the offered part's recipe.
+///
+/// `partner` is `None` while the ship is not docked; its `offers` is whether
+/// it is a living station that offers Refit. The recipe is paid by
+/// [`plan_recipe_payment`]: hold parts first, the rest bought at ask. Checks
+/// run in [`SectionSwapRefusalType`] order up to the payment; the post-build
+/// checks are [`swap_build_fault`], which the caller runs last. A refusal
+/// changes nothing.
+pub fn plan_section_swap(
+    items: &GameItems,
+    current: &SectionConfig,
+    offered: &SectionConfig,
+    partner: Option<StationPartner<'_>>,
+    own: &ShipInventory,
+    own_cr: u32,
+) -> Result<RecipePayment, SectionSwapRefusalType> {
+    let partner = partner.ok_or(SectionSwapRefusalType::NotDocked)?;
+    if !partner.offers {
+        return Err(SectionSwapRefusalType::NoRefitService);
+    }
+    section_swap_family(current, offered).map_err(SectionSwapRefusalType::Family)?;
+    plan_recipe_payment(
+        items,
+        &offered.base.build,
+        partner.stock,
+        partner.credits_cr,
+        own,
+        own_cr,
+    )
+    .map_err(SectionSwapRefusalType::Payment)
+}
+
+/// One live section as [`swap_build_fault`] reads it: placed in ship-root
+/// space with its finished config.
+#[derive(Clone, Copy, Debug)]
+pub struct SwapPlacedSection<'a> {
+    /// Section origin in ship-root space.
+    pub position: Vec3,
+    /// Section rotation in ship-root space.
+    pub rotation: Quat,
+    /// The finished config the section spawned from.
+    pub config: &'a SectionConfig,
+}
+
+/// A post-build check the ship a swap leaves fails, in check order.
+#[derive(Clone, Debug, PartialEq)]
+pub enum SwapBuildFaultType {
+    /// The sockets no longer join the sections into one ship.
+    Disconnected,
+    /// The sockets are invalid or ambiguous, see [`LinkPointGraphError`].
+    InvalidSockets,
+    /// A section can no longer fire, launch or exhaust down a clear lane.
+    BlockedExit,
+    /// The drives push less than the ship's mass needs.
+    Underpowered {
+        /// The drives' summed thrust after the swap.
+        thrust: f32,
+        /// The thrust the ship's mass needs.
+        needed: f32,
+    },
+    /// The ship carries fewer flight computers than its mass needs.
+    Undercontrolled {
+        /// The flight computers it carries.
+        controllers: usize,
+        /// How many its mass needs.
+        needed: usize,
+    },
+}
+
+/// The first post-build check the ship `live` fails once section `index` is
+/// replaced by `offered` and passed before, or `None` when the swap adds no
+/// fault.
+///
+/// The checks are the open-world generator's own, on the same readings: one
+/// socket graph ([`derive_link_point_graph`]), clear exit lanes
+/// ([`blocked_exits`]), the thrust floor and the flight computer count
+/// ([`ShipMeasure`]). A generated ship's role, advancement, size ceiling,
+/// mirror symmetry and ruin floor are not checked: a swap answers to no
+/// generation request, and replacing one of a mirrored pair breaks the
+/// symmetry by design. Only a NEW fault refuses, the rule
+/// [`placement_blocks_an_exit`] gives a builder: a ship that already fails a
+/// check is not made worse by a swap that leaves it failing the same way.
+///
+/// # Panics
+///
+/// When `index` is not in `live`.
+pub fn swap_build_fault(
+    live: &[SwapPlacedSection<'_>],
+    index: usize,
+    offered: &SectionConfig,
+) -> Option<SwapBuildFaultType> {
+    let mut after = live.to_vec();
+    after[index].config = offered;
+
+    let sockets = |sections: &[SwapPlacedSection<'_>]| {
+        let links: Vec<PlacedSectionLinkPoints<'_>> = sections
+            .iter()
+            .map(|section| PlacedSectionLinkPoints {
+                position: section.position,
+                rotation: section.rotation,
+                link_points: &section.config.base.link_points,
+            })
+            .collect();
+        derive_link_point_graph(&links)
+            .err()
+            .map(|errors| match errors.as_slice() {
+                [LinkPointGraphError::Disconnected { .. }] => SwapBuildFaultType::Disconnected,
+                _ => SwapBuildFaultType::InvalidSockets,
+            })
+    };
+    if let (None, Some(fault)) = (sockets(live), sockets(&after)) {
+        return Some(fault);
+    }
+
+    let blocked = |sections: &[SwapPlacedSection<'_>]| {
+        let placed: Vec<PlacedPart<'_>> = sections
+            .iter()
+            .map(|section| PlacedPart {
+                position: section.position,
+                rotation: section.rotation,
+                link_points: &section.config.base.link_points,
+                footprint: SectionFootprint::from_collider(
+                    section.config.base.collider.unwrap_or_default(),
+                )
+                .0,
+                exit: exit_normal(&section.config.kind),
+            })
+            .collect();
+        let (structure, _, occupied) = read_structure(&placed);
+        blocked_exits(&structure, &ship_exits(&placed, &occupied)).len()
+    };
+    // The swapped part fills the same cells, so both readings take one
+    // lattice and the counts compare cell for cell.
+    if blocked(&after) > blocked(live) {
+        return Some(SwapBuildFaultType::BlockedExit);
+    }
+
+    // Each floor on its own, so a ship that was short of flight computers
+    // is still refused a swap that also leaves it short of thrust.
+    let measure =
+        |sections: &[SwapPlacedSection<'_>]| ShipMeasure::of(sections.iter().map(|s| s.config));
+    let (before, after) = (measure(live), measure(&after));
+    if before.thrust >= before.needed_thrust() && after.thrust < after.needed_thrust() {
+        return Some(SwapBuildFaultType::Underpowered {
+            thrust: after.thrust,
+            needed: after.needed_thrust(),
+        });
+    }
+    if before.controllers >= before.needed_controllers()
+        && after.controllers < after.needed_controllers()
+    {
+        return Some(SwapBuildFaultType::Undercontrolled {
+            controllers: after.controllers,
+            needed: after.needed_controllers(),
+        });
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -165,5 +439,109 @@ mod tests {
         let live = [place(0.0)];
         assert!(rebuild_anchored(&live, place(1.0)));
         assert!(!rebuild_anchored(&live, place(2.0)));
+    }
+
+    fn part(id: &str, kind: SectionKind, size: Vec3, link_points: Vec<LinkPoint>) -> SectionConfig {
+        SectionConfig {
+            base: BaseSectionConfig {
+                id: id.to_string(),
+                collider: Some(SectionCollider::Cuboid { size }),
+                link_points,
+                ..default()
+            },
+            kind,
+        }
+    }
+
+    fn turret() -> SectionKind {
+        SectionKind::Turret(TurretSectionConfig::default())
+    }
+
+    fn thruster(magnitude: f32) -> SectionKind {
+        SectionKind::Thruster(ThrusterSectionConfig {
+            magnitude,
+            ..default()
+        })
+    }
+
+    /// The family is the kind and the cell box: a half-cell turret takes any
+    /// other one-cell turret, and refuses a drive, a two-cell turret and
+    /// itself, each named.
+    #[test]
+    fn a_swap_takes_only_another_part_of_the_same_kind_and_footprint() {
+        let half = Vec3::splat(0.5);
+        let current = part("pdc_kinetic", turret(), half, cube_points());
+        let sibling = part("pdc_pierce", turret(), Vec3::ONE, cube_points());
+        assert_eq!(section_swap_family(&current, &sibling), Ok(()));
+
+        let drive = part("drive", thruster(1.0), half, cube_points());
+        assert_eq!(
+            section_swap_family(&current, &drive),
+            Err(SectionFamilyFaultType::OtherKind {
+                have: SectionClass::Turret,
+                offered: SectionClass::Thruster,
+            })
+        );
+        let long = part(
+            "long_gun",
+            turret(),
+            Vec3::new(1.0, 1.0, 2.0),
+            cube_points(),
+        );
+        assert_eq!(
+            section_swap_family(&current, &long),
+            Err(SectionFamilyFaultType::OtherFootprint {
+                have: UVec3::ONE,
+                offered: UVec3::new(1, 1, 2),
+            })
+        );
+        assert_eq!(
+            section_swap_family(&current, &current.clone()),
+            Err(SectionFamilyFaultType::SamePart)
+        );
+
+        let catalog = GameSections(vec![current.clone(), sibling.clone(), drive, long]);
+        let offered: Vec<&str> = swap_offers(&catalog, &current)
+            .map(|offer| offer.base.id.as_str())
+            .collect();
+        assert_eq!(offered, ["pdc_pierce"]);
+    }
+
+    /// A swap is refused only for a fault it adds: a gun with no socket would
+    /// float free of the hull, and a weaker drive that drops a ship under the
+    /// thrust floor is refused, while the same drive on a ship already under
+    /// it is not.
+    #[test]
+    fn a_swap_is_refused_only_for_a_post_build_fault_it_adds() {
+        let one = Vec3::ONE;
+        let hull = part(
+            "hull",
+            SectionKind::Hull(HullSectionConfig::default()),
+            one,
+            cube_points(),
+        );
+        let gun = part("gun", turret(), one, cube_points());
+        let strong = part("strong", thruster(10.0), one, cube_points());
+        let weak = part("weak", thruster(0.01), one, cube_points());
+        let at = |x: f32, config| SwapPlacedSection {
+            position: Vec3::new(x, 0.0, 0.0),
+            rotation: Quat::IDENTITY,
+            config,
+        };
+
+        let floating = part("floating", turret(), one, Vec::new());
+        let ship = [at(0.0, &hull), at(1.0, &gun), at(-1.0, &strong)];
+        assert_eq!(swap_build_fault(&ship, 1, &gun), None);
+        assert_eq!(
+            swap_build_fault(&ship, 1, &floating),
+            Some(SwapBuildFaultType::Disconnected)
+        );
+        assert!(matches!(
+            swap_build_fault(&ship, 2, &weak),
+            Some(SwapBuildFaultType::Underpowered { .. })
+        ));
+
+        let already_short = [at(0.0, &hull), at(1.0, &gun), at(-1.0, &weak)];
+        assert_eq!(swap_build_fault(&already_short, 2, &weak), None);
     }
 }

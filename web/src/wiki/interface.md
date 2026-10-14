@@ -192,6 +192,14 @@ Your weapon, thruster and mining beam sections answer rebindable keys, and the S
 
 A reserved flight control is refused on the spot - `Space is already bound to flight control: Main Drive` - and the capture stays armed for another try. <kbd>LMB</kbd> is refused too, with `Left Mouse stays the pointer`: it is the button you click the blips with. Several sections may share one input (one key can fire every tube). <kbd>Esc</kbd> backs out with `Rebind cancelled` and leaves you on the pane. While a capture is armed, <kbd>:</kbd> does not open the command shell, <kbd>Tab</kbd> is refused as the interface toggle and does not close the interface, and <kbd>M</kbd> binds like any other key instead of switching the pane.
 
+## Swapping a section
+
+<!-- List and action: crates/nova_interface/src/ship/refit.rs. Family rule
+     and build checks: crates/nova_ship/src/sections/design_sections.rs
+     (`section_swap_family`, `swap_build_fault`). -->
+
+Docked at a living station that offers refit, select a section on the Ship pane. Below the panel, **Swap** lists every part of the same kind and size that can take its place, each with its price: the part's build recipe, with parts taken from your hold first and the rest bought from the station. Click **Swap** to fit it. The new part stands where the old one stood, at full health, with the same code and key. The old part is gone; nothing is refunded. A swap that would split the ship, block a gun or drive, or leave it short of thrust or flight computers is refused on the note line, as is a part of another kind: `swap: PDC-1 is a turret, Basic Thruster Section is a thruster`. In a saved Open World the new part stays across a Load.
+
 ## The inventory
 
 <figure class="figure">

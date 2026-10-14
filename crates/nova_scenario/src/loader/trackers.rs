@@ -1626,11 +1626,13 @@ mod tests {
 }
 
 /// Drain every ship's [`ShipInventoryReports`] into the hold events: pickup,
-/// jettison, trade, credits change, repair, rebuild, store and withdraw.
+/// jettison, trade, credits change, repair, rebuild, swap, store and
+/// withdraw.
 ///
 /// The intake pushes in the same fixed tick this drains, so a pickup reaches
 /// its handler in the frame it happened; a pane pushes in `Update`, so a
-/// trade, take, repair, rebuild, store or withdraw reaches its handler on the next fixed tick. Draining
+/// trade, take, repair, rebuild, swap, store or withdraw reaches its handler
+/// on the next fixed tick. Draining
 /// preserves the order the reports were queued in: a trade's two balance
 /// moves fire before the trade itself, which queued last.
 pub(super) fn track_ship_inventory_reports(
@@ -1765,6 +1767,26 @@ pub(super) fn track_ship_inventory_reports(
                         id,
                         type_name,
                         section,
+                        parts: parts
+                            .into_iter()
+                            .map(|(item, count)| (item.to_string(), count))
+                            .collect(),
+                        price_cr,
+                    });
+                }
+                ShipInventoryReport::Swapped {
+                    section,
+                    from,
+                    to,
+                    parts,
+                    price_cr,
+                } => {
+                    commands.fire::<OnSwappedEvent>(SwappedEventInfo {
+                        id,
+                        type_name,
+                        section,
+                        from,
+                        to,
                         parts: parts
                             .into_iter()
                             .map(|(item, count)| (item.to_string(), count))

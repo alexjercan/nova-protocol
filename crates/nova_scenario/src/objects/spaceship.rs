@@ -24,7 +24,9 @@ use nova_ship::prelude::*;
 use crate::{
     names::prelude::Names,
     objects::{
-        ship_design::prelude::{resolve_ship_design, GameShipDesigns, ShipDesignSource},
+        ship_design::prelude::{
+            resolve_ship_design, GameShipDesigns, ShipDesign, ShipDesignSource,
+        },
         station::{
             insert_station_services, on_station_neutralized_turn_derelict,
             prelude::GameStationDesigns,
@@ -931,6 +933,7 @@ impl Plugin for SpaceshipPlugin {
 
         app.add_observer(insert_spaceship_sections);
         app.add_observer(rebuild_design_section);
+        app.add_observer(swap_design_section);
         app.add_observer(remember_lost_section_binding);
         app.add_observer(insert_station_services);
         app.add_observer(on_station_neutralized_turn_derelict);
@@ -1108,6 +1111,163 @@ fn rebuild_design_section(
         "rebuild_design_section: ship {ship:?} rebuilds '{}'",
         section.id
     );
+    commands.entity(ship).with_children(|parent| {
+        spawn_design_section(
+            parent,
+            &section,
+            &controller,
+            derelict,
+            &mut Vec::new(),
+            None,
+        );
+    });
+}
+
+/// The design a ship owns once a swap edits it: `source` itself when it is
+/// inline, else a copy of the catalog design it names. A section the spawn
+/// patched keeps its patched pose and becomes inline with its finished
+/// config from `resolved`, so the copy spawns exactly what flies; every other
+/// section keeps its catalog reference.
+///
+/// # Panics
+///
+/// On a prototype id no loaded design carries: the ship could not have
+/// spawned from it.
+fn owned_ship_design(
+    source: &ShipDesignSource,
+    designs: &GameShipDesigns,
+    resolved: &ShipDesignSections,
+) -> ShipDesign {
+    let (id, patches) = match source {
+        ShipDesignSource::Inline(design) => return design.clone(),
+        ShipDesignSource::Prototype {
+            id,
+            section_patches,
+        } => (id, section_patches),
+    };
+    let mut design = designs
+        .get_design(id)
+        .unwrap_or_else(|| panic!("owned_ship_design: no loaded ship design '{id}'"))
+        .design
+        .clone();
+    for section in &mut design.sections {
+        if !patches.contains_key(&section.id) {
+            continue;
+        }
+        let Some(placed) = resolved.get(&section.id) else {
+            continue;
+        };
+        section.position = placed.position;
+        section.rotation = placed.rotation;
+        section.source = SectionSource::Inline(placed.config.clone());
+    }
+    design
+}
+
+/// Replace a live design section of a ship with a catalog part, as a Ship
+/// pane swap asks once the swap rule took the offered part's recipe.
+///
+/// The ship's design becomes inline (see [`owned_ship_design`]) with the
+/// section naming the new prototype, so a freeze and a save keep the swap.
+/// The old section entity is despawned and the new one is built under the
+/// same id by [`spawn_design_section`], at full health with the binding the
+/// old section flew with. The root's pinned health moves by the difference
+/// between the two parts' pools, so the collapse share stays a share of the
+/// ship as built now.
+///
+/// # Panics
+///
+/// On a root with no authored design, an id its design lacks, a section that
+/// is not live, or a prototype the catalog lacks: the pane plans a swap only
+/// for a live section of the player's ship and an offered catalog part.
+#[expect(
+    clippy::type_complexity,
+    reason = "the root's design, controller and pool beside the section's binding"
+)]
+fn swap_design_section(
+    request: On<SectionSwapRequest>,
+    mut commands: Commands,
+    game_sections: Res<GameSections>,
+    game_designs: Res<GameShipDesigns>,
+    mut q_ship: Query<
+        (
+            &SpaceshipDesign,
+            &mut ShipDesignSections,
+            &mut SpaceshipController,
+            Has<DerelictShipMarker>,
+            Option<&Children>,
+            Option<&mut Health>,
+        ),
+        (With<SpaceshipRootMarker>, Without<SectionMarker>),
+    >,
+    q_sections: Query<(&EntityId, &Health, SectionBindingQuery), With<SectionMarker>>,
+) {
+    let ship = request.entity;
+    let Ok((source, mut design, mut controller, derelict, children, root_health)) =
+        q_ship.get_mut(ship)
+    else {
+        panic!("swap_design_section: {ship:?} is not an authored ship root");
+    };
+    let Some(index) = design
+        .0
+        .iter()
+        .position(|section| section.id == request.section)
+    else {
+        panic!(
+            "swap_design_section: ship {ship:?} has no design section '{}'",
+            request.section
+        );
+    };
+    let offered = game_sections
+        .get_section(&request.prototype)
+        .unwrap_or_else(|| {
+            panic!(
+                "swap_design_section: no loaded section prototype '{}'",
+                request.prototype
+            )
+        })
+        .clone();
+    let Some((old, old_health, bindings)) = children
+        .into_iter()
+        .flatten()
+        .filter_map(|child| q_sections.get(*child).ok().map(|found| (*child, found)))
+        .find(|(_, (id, ..))| id.0 == request.section)
+        .map(|(child, (_, health, bindings))| (child, health.max, first_binding(bindings)))
+    else {
+        panic!(
+            "swap_design_section: section '{}' of ship {ship:?} is not live",
+            request.section
+        );
+    };
+    // A rebind writes the live section, not the table the spawn reads, so
+    // the binding the old part flew with goes into the table first.
+    if let (SpaceshipController::Player(config), Some(bindings)) = (controller.as_mut(), bindings) {
+        config
+            .input_mapping
+            .insert(request.section.clone(), bindings.to_vec());
+    }
+
+    let mut owned = owned_ship_design(&source.0, &game_designs, &design);
+    let placed = owned
+        .sections
+        .iter_mut()
+        .find(|section| section.id == request.section)
+        .expect("the owned design carries every design section");
+    placed.source = SectionSource::prototype(request.prototype.clone());
+    design.0[index].config = offered.clone();
+    let section = design.0[index].clone();
+    if let Some(mut pool) = root_health {
+        pool.max = (pool.max - old_health + offered.base.health).max(0.0);
+    }
+    debug!(
+        "swap_design_section: ship {ship:?} swaps '{}' to '{}'",
+        request.section, request.prototype
+    );
+    let controller = controller.clone();
+    commands
+        .entity(ship)
+        .insert(SpaceshipDesign(ShipDesignSource::Inline(owned)));
+    commands.entity(old).despawn();
     commands.entity(ship).with_children(|parent| {
         spawn_design_section(
             parent,

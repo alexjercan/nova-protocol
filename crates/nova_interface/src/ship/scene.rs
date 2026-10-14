@@ -173,6 +173,9 @@ pub struct ShipRuntime {
     pub(crate) rebind_awaiting_release: bool,
     /// Whether the structural mate overlay is visible.
     pub(crate) show_mates: bool,
+    /// The design section id a swap replaced, selected again once its new
+    /// entity is live.
+    pub(crate) reselect: Option<String>,
 }
 
 impl ShipRuntime {
@@ -181,6 +184,17 @@ impl ShipRuntime {
     /// refuse it.
     pub fn rebind_armed(&self) -> bool {
         self.rebinding.is_some()
+    }
+
+    /// The selected section, if any.
+    pub fn selected(&self) -> Option<Entity> {
+        self.selected
+    }
+
+    /// The transient note the panel shows, such as why an action was
+    /// refused, while it lasts.
+    pub fn note(&self) -> Option<&str> {
+        self.note.as_ref().map(|(note, _)| note.as_str())
     }
 }
 

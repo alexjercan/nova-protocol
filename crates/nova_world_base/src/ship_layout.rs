@@ -14,8 +14,10 @@
 //!
 //! MASS. A section's mass is its collider volume at density 1, so a structural
 //! cube weighs one cell. The drive bank grows until it pushes
-//! [`MIN_THRUST_PER_CELL`] per cell of the whole ship, and the ship carries one
-//! flight computer per [`CELLS_PER_CONTROLLER`] cells.
+//! [`MIN_THRUST_PER_CELL`](nova_ship::prelude::MIN_THRUST_PER_CELL) per cell
+//! of the whole ship, and the ship carries one flight computer per
+//! [`CELLS_PER_CONTROLLER`](nova_ship::prelude::CELLS_PER_CONTROLLER) cells:
+//! the floors a section swap at a station also holds a ship to.
 //!
 //! A layout draws a preferred source per hull and keeps civilian, industrial
 //! and armored ships to it where that source has a usable part; scavengers mix
@@ -73,8 +75,8 @@ use nova_scenario::prelude::{
 use nova_ship::prelude::{
     blocked_exits, cube_rotations, derive_link_point_graph, exit_normal, mirror_face,
     mirror_rotation, oriented_part, placement_blocks_an_exit, read_structure, ship_exits,
-    LinkPointGraphError, OrientedPart, PlacedPart, PlacedSectionLinkPoints, SectionCollider,
-    SectionConfig, SectionFootprint, SectionKind, GRID_EPSILON,
+    LinkPointGraphError, OrientedPart, PlacedPart, PlacedSectionLinkPoints, SectionConfig,
+    SectionFootprint, SectionKind, ShipMeasure, ShipMeasureShortfallType, GRID_EPSILON,
 };
 use nova_world::prelude::{CivilizationId, ShipRoleType, SECTOR_SHIP_CLEARANCE_MAX};
 
@@ -97,12 +99,6 @@ const MAX_HULL_CLEARANCE: Meters = SECTOR_SHIP_CLEARANCE_MAX;
 /// Cells a spine plan keeps free on every side for the fittings mounted on
 /// it, so a planned spine rarely fails the size ceiling once fitted.
 const FITTING_REACH: i32 = 2;
-
-/// The least drive thrust a ship carries per cell of its mass.
-const MIN_THRUST_PER_CELL: f32 = 0.06;
-
-/// The most cells of mass one flight computer turns.
-const CELLS_PER_CONTROLLER: f32 = 50.0;
 
 /// The most structural cube types one hull mixes.
 const STRUCTURAL_PALETTE: usize = 3;
@@ -1107,71 +1103,20 @@ fn weapon_slots(role: ShipRoleType, advancement: f32) -> u32 {
     }
 }
 
-/// A section's mass: its collider's volume, at the density 1 every section
-/// spawns with.
-fn mass(config: &SectionConfig) -> f32 {
-    use std::f32::consts::PI;
-    match config.base.collider.unwrap_or_default() {
-        SectionCollider::Cuboid { size } => size.x * size.y * size.z,
-        SectionCollider::Sphere { radius } => 4.0 / 3.0 * PI * radius.powi(3),
-        SectionCollider::Capsule { radius, length } => {
-            PI * radius * radius * (length + 4.0 / 3.0 * radius)
-        }
-        SectionCollider::Cylinder { radius, height } => PI * radius * radius * height,
-    }
-}
-
-/// What a ship's parts add up to.
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct ShipMeasure {
-    /// Mass, in cells.
-    mass: f32,
-    /// Summed drive thrust.
-    thrust: f32,
-    /// Flight computers.
-    controllers: usize,
-}
-
-impl ShipMeasure {
-    fn of<'p>(parts: impl IntoIterator<Item = &'p ShipPart>) -> Self {
-        let mut measure = Self {
-            mass: 0.0,
-            thrust: 0.0,
-            controllers: 0,
-        };
-        for part in parts {
-            measure.mass += mass(&part.config);
-            match &part.config.kind {
-                SectionKind::Thruster(thruster) => measure.thrust += thruster.magnitude,
-                SectionKind::Controller(_) => measure.controllers += 1,
-                _ => {}
+impl From<ShipMeasureShortfallType> for ShipLayoutConstraintType {
+    fn from(shortfall: ShipMeasureShortfallType) -> Self {
+        match shortfall {
+            ShipMeasureShortfallType::Underpowered { thrust, needed } => {
+                Self::Underpowered { thrust, needed }
             }
+            ShipMeasureShortfallType::Undercontrolled {
+                controllers,
+                needed,
+            } => Self::Undercontrolled {
+                controllers,
+                needed,
+            },
         }
-        measure
-    }
-
-    fn needed_thrust(self) -> f32 {
-        MIN_THRUST_PER_CELL * self.mass
-    }
-
-    fn needed_controllers(self) -> usize {
-        ((self.mass / CELLS_PER_CONTROLLER).ceil() as usize).max(1)
-    }
-
-    /// The first floor the ship falls short of.
-    fn shortfall(self) -> Option<ShipLayoutConstraintType> {
-        if self.thrust < self.needed_thrust() {
-            return Some(ShipLayoutConstraintType::Underpowered {
-                thrust: self.thrust,
-                needed: self.needed_thrust(),
-            });
-        }
-        (self.controllers < self.needed_controllers()).then(|| {
-            ShipLayoutConstraintType::Undercontrolled {
-                controllers: self.controllers,
-                needed: self.needed_controllers(),
-            }
-        })
     }
 }
 
@@ -1427,7 +1372,7 @@ impl<'a> Draw<'a> {
                 }
                 Err(constraint) => return Err(constraint),
             };
-            let Some(shortfall) = measure.shortfall() else {
+            let Some(shortfall) = measure.shortfall().map(ShipLayoutConstraintType::from) else {
                 return Ok(layout);
             };
             let drives = (measure.needed_thrust() / thruster.magnitude).ceil() as i32;
@@ -1755,7 +1700,11 @@ impl<'a> Draw<'a> {
             })
             .collect();
 
-        let measure = ShipMeasure::of(grid.placements.iter().map(|placement| placement.part));
+        let measure = ShipMeasure::of(
+            grid.placements
+                .iter()
+                .map(|placement| &placement.part.config),
+        );
         Ok((
             ShipLayout {
                 design: ShipDesign {
@@ -2140,8 +2089,8 @@ fn check(
     }
 
     connected_and_clear(request, design, &resolved, bounds)?;
-    if let Some(shortfall) = ShipMeasure::of(resolved).shortfall() {
-        return Err(shortfall);
+    if let Some(shortfall) = ShipMeasure::of(resolved.iter().map(|part| &part.config)).shortfall() {
+        return Err(shortfall.into());
     }
     let loose: BTreeSet<[i32; 3]> = cubes
         .difference(&dock_backing(snapshot, design))
@@ -2592,6 +2541,8 @@ pub(crate) mod fixture {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use nova_ship::prelude::{CELLS_PER_CONTROLLER, MIN_THRUST_PER_CELL};
+
     use super::{fixture::*, *};
 
     fn request(seed: u32, role: ShipRoleType, advancement: f32) -> ShipLayoutRequest {
@@ -2991,7 +2942,7 @@ pub(crate) mod tests {
                         .iter()
                         .map(|section| parts[prototype_of(section).expect("a prototype")])
                         .collect();
-                    let measure = ShipMeasure::of(carried.iter().copied());
+                    let measure = ShipMeasure::of(carried.iter().map(|part| &part.config));
                     let context = format!("seed {seed}, {role:?}, advancement {advancement}");
                     assert!(
                         measure.thrust >= MIN_THRUST_PER_CELL * measure.mass,

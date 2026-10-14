@@ -57,11 +57,12 @@ pub mod prelude {
         OnShipOrderCompleteEvent, OnShipOrderCompleteEventInfo, OnShipOrderFailedEvent,
         OnShipOrderFailedEventInfo, OnShipOrderInterruptedEvent, OnShipOrderInterruptedEventInfo,
         OnShipOrderResumedEvent, OnShipOrderResumedEventInfo, OnStartEvent, OnStartEventInfo,
-        OnStopCompleteEvent, OnStopCompleteEventInfo, OnStoredEvent, OnTimerEndEvent,
-        OnTimerEndEventInfo, OnTradedEvent, OnTravelLockEndEvent, OnTravelLockStartEvent,
-        OnUndockedEvent, OnUpdateEvent, OnUpdateEventInfo, OnWithdrawnEvent, OrbitEventInfo,
-        RebuiltEventInfo, RepairedEventInfo, ScenarioAddressableMarker, ShipOrderKind,
-        StorageEventInfo, TradedEventInfo, ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME, BEACON_TYPE_NAME,
+        OnStopCompleteEvent, OnStopCompleteEventInfo, OnStoredEvent, OnSwappedEvent,
+        OnTimerEndEvent, OnTimerEndEventInfo, OnTradedEvent, OnTravelLockEndEvent,
+        OnTravelLockStartEvent, OnUndockedEvent, OnUpdateEvent, OnUpdateEventInfo,
+        OnWithdrawnEvent, OrbitEventInfo, RebuiltEventInfo, RepairedEventInfo,
+        ScenarioAddressableMarker, ShipOrderKind, StorageEventInfo, SwappedEventInfo,
+        TradedEventInfo, ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME, BEACON_TYPE_NAME,
         CANISTER_FIELD_NAME, CINEMATIC_KEY_FIELD_NAME, CREDIT_CAUSE_FIELD_NAME,
         CURRENT_CREDITS_FIELD_NAME, DELTA_CREDITS_FIELD_NAME, ENTITY_ID_COMPONENT_NAME,
         ENTITY_OTHER_ID_COMPONENT_NAME, ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME,
@@ -918,6 +919,8 @@ pub enum CreditChangeCauseType {
     Take,
     /// A rebuild at a docked station paid for a section's recipe.
     Rebuild,
+    /// A swap at a docked station paid for the offered section's recipe.
+    Swap,
 }
 
 impl CreditChangeCauseType {
@@ -927,6 +930,7 @@ impl CreditChangeCauseType {
             CreditChangeCauseType::Trade => "Trade",
             CreditChangeCauseType::Take => "Take",
             CreditChangeCauseType::Rebuild => "Rebuild",
+            CreditChangeCauseType::Swap => "Swap",
         }
     }
 }
@@ -1192,6 +1196,47 @@ pub struct RebuiltEventInfo {
     pub price_cr: u32,
 }
 
+/// A Ship pane swap at a docked station replaced a live section with a part
+/// of the same family and footprint (`onswapped`).
+///
+/// One event per swap the rule allows; a refused swap fires nothing. The
+/// credits it paid also raise one `OnCreditsChanged` per party.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onswapped")]
+#[event_info(SwappedEventInfo)]
+pub struct OnSwappedEvent;
+
+/// Payload for [`OnSwappedEvent`]: the ship (`id` / `type_name`), the pane
+/// code of the swapped section, the section prototype it was and is now,
+/// every part the recipe spent and the credits the ship paid the station.
+///
+/// A swap keeps the section's id and family, so its pane code holds.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
+pub struct SwappedEventInfo {
+    /// Scenario id of the ship.
+    #[serde(rename = "id")]
+    pub id: String,
+    /// Type name of that ship.
+    #[serde(rename = "type_name")]
+    pub type_name: String,
+    /// Pane section code of the swapped section.
+    #[serde(rename = "section")]
+    pub section: String,
+    /// The section prototype id the section was.
+    #[serde(rename = "from")]
+    pub from: String,
+    /// The section prototype id it is now.
+    #[serde(rename = "to")]
+    pub to: String,
+    /// Every part the offered part's recipe spent, as a count per item design
+    /// id, from the hold and bought together.
+    #[serde(rename = "parts")]
+    pub parts: std::collections::BTreeMap<String, u32>,
+    /// Credits the ship paid: the recipe's work plus the bought parts at ask.
+    #[serde(rename = "price_cr")]
+    pub price_cr: u32,
+}
+
 /// A Store at a docked station moved items from the ship's hold into the
 /// station's storage (`onstored`).
 ///
@@ -1254,6 +1299,7 @@ mod inventory_event_tests {
             CreditChangeCauseType::Trade,
             CreditChangeCauseType::Take,
             CreditChangeCauseType::Rebuild,
+            CreditChangeCauseType::Swap,
         ] {
             let serialized = serde_json::to_value(cause).expect("a unit variant serializes");
             assert_eq!(serialized.as_str(), Some(cause.as_str()));

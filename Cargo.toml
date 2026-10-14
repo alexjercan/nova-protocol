@@ -649,6 +649,14 @@ name = "system_station_rebuild"
 path = "examples/systems/system_station_rebuild.rs"
 required-features = ["debug"]
 
+# A live PDC swapped at a living station for another PDC from the Ship pane:
+# a thruster swap refused with its reason, the recipe paid like a rebuild, the
+# old code and key kept, and the swap kept through a freeze and thaw.
+[[example]]
+name = "system_station_swap"
+path = "examples/systems/system_station_swap.rs"
+required-features = ["debug"]
+
 # A living generated station's trade and storage through the Inventory pane:
 # buy, sell and store by clicks, the storage kept through a retire and a thaw,
 # withdrawn whole, an over-cap store refused on the form, and the storage

@@ -57,6 +57,29 @@ parties), pushes `ShipInventoryReport::Rebuilt` (`OnRebuilt`), and triggers
 `SectionRebuildRequest`; `rebuild_design_section` spawns the section again at
 full health through the same per-section spawn the ship was built with.
 
+### Swapping a section
+
+While docked to a station that offers `Refit`, the Ship pane
+(`nova_interface/src/ship/refit.rs`) lists the parts the selected live
+section can be swapped for: `swap_offers` (`design_sections.rs`) yields each
+catalogue part that `section_swap_family` accepts. The family rule is the
+same `SectionKind::class` and the same `SectionFootprint` read from the
+authored collider, and another prototype. Parts with `hide_in_editor` are not
+offered. `plan_section_swap` checks the gate, the family and the payment;
+`plan_recipe_payment` (`nova_gameplay::inventory`) is the one payment rule a
+rebuild and a swap share. On a click, `swap_build_fault` runs the generator's
+post-build checks on the ship the swap leaves: one socket graph, clear exit
+lanes, the thrust floor and the flight computer count (`ShipMeasure`,
+`ship_measure.rs`, shared with `nova_world_base::ship_layout`). Only a fault
+the swap adds refuses it. A confirmed swap moves parts and credits (cause
+`Swap` on both parties), pushes `ShipInventoryReport::Swapped`
+(`OnSwapped`), and triggers `SectionSwapRequest`. `swap_design_section`
+(`nova_scenario/src/objects/spaceship.rs`) makes the root's design inline,
+points the section at the new prototype, moves the root's pinned health by
+the two parts' pool difference, and respawns the section at full health with
+the binding the old part flew with. The old part is not refunded. A freeze
+and a save keep the inline design, so the swap persists.
+
 `SectionKind` variants (one module per kind under `crates/nova_ship/src/sections/`;
 `turret_section/` and `torpedo_section/` are directories, not single files):
 
@@ -1401,6 +1424,13 @@ per contact. A symmetric rule - ram damage - wants both.
   `crates/nova_gameplay/src/inventory.rs`; the pane:
   `crates/nova_interface/src/ship/rebuild.rs`; proof:
   `examples/systems/system_station_rebuild.rs`.
+- Section swap: `section_swap_family`, `swap_offers`, `plan_section_swap`,
+  `swap_build_fault`, `SectionSwapRequest` -
+  `crates/nova_ship/src/sections/design_sections.rs`; `ShipMeasure` -
+  `crates/nova_ship/src/sections/ship_measure.rs`; `swap_design_section` -
+  `crates/nova_scenario/src/objects/spaceship.rs`; the pane:
+  `crates/nova_interface/src/ship/refit.rs`; proof:
+  `examples/systems/system_station_swap.rs`.
 - Integrity core: `NovaIntegrityPlugin` -
   `crates/nova_gameplay/src/integrity/mod.rs`; graph, sever and collapse:
   `ShipIntegrityPlugin` - `crates/nova_ship/src/sections/integrity.rs`.
