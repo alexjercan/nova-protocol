@@ -2,7 +2,7 @@
 
 use bevy::prelude::Vec3;
 use nova_events::units::prelude::*;
-use nova_gameplay::prelude::{kg_text, GameItems, ItemCategoryType};
+use nova_gameplay::prelude::{kg_text, GameItems, ItemCategoryType, ShipInventoryStock};
 use nova_ship::prelude::{
     candidate_link_point_mates, derive_link_point_graph, duplicate_muzzle_id, muzzle_ids,
     section_colliders_overlap, AmmoCapacity, CargoIntakeSectionConfig, ControllerSectionConfig,
@@ -49,16 +49,6 @@ pub(super) fn check_object_prototypes(
     let ScenarioObjectKind::Spaceship(ship) = &config.kind else {
         return;
     };
-    let mut known_stock = true;
-    for (item, _) in ship.inventory.stacks() {
-        if items.get(item).is_none() {
-            known_stock = false;
-            issues.push(LintIssue::error(
-                scenario,
-                format!("ship '{}': unknown item '{item}'", config.base.id),
-            ));
-        }
-    }
     let catalog = GameShipDesigns(
         ship.design
             .prototype_id()
@@ -75,25 +65,19 @@ pub(super) fn check_object_prototypes(
     );
     let (resolved, errors) = resolve_ship_design(&ship.design, &catalog, sections.catalog());
     // The spawn fills the hold from this stock and panics when it does not fit.
-    // An unknown design or item already reports its own error, and the stock
-    // has no hold or no mass to weigh.
+    // An unknown design already reports its own error and has no hold.
     let known_design = !errors
         .iter()
         .any(|error| matches!(error, ShipDesignError::UnknownDesign(_)));
-    let capacity_g = resolved.cargo_capacity_g();
-    let stock_g = known_stock.then(|| ship.inventory.mass_g(items));
-    if let Some(stock_g) = stock_g.filter(|&mass_g| known_design && mass_g > u64::from(capacity_g))
-    {
-        issues.push(LintIssue::error(
-            scenario,
-            format!(
-                "ship '{}': inventory stock of {} exceeds its {} hold",
-                config.base.id,
-                kg_text(stock_g),
-                kg_text(u64::from(capacity_g)),
-            ),
-        ));
-    }
+    check_stock(
+        "ship",
+        config.base.id.as_str(),
+        &ship.inventory,
+        known_design.then(|| resolved.cargo_capacity_g()),
+        items,
+        scenario,
+        issues,
+    );
     // An INLINE design is authored right here, so it is resolved and its
     // structure linted in one place below. It has no spawn layer to check
     // separately - it IS the design - and resolving it twice would report
@@ -129,6 +113,48 @@ pub(super) fn check_object_prototypes(
         issues.push(LintIssue::error(
             scenario,
             format!("ship '{}': {error}", config.base.id),
+        ));
+    }
+}
+
+/// Refuse a `stock` that names an item `items` does not hold, or that weighs
+/// more than `capacity_g`. `what` and `owner_id` name the owner in each
+/// finding: `ship` for a spawned ship, `start role` for a role's kit.
+///
+/// `capacity_g` is `None` when the owner's hull did not resolve: that reports
+/// its own error and has no hold, so only the items are checked. An unknown
+/// item has no mass, so the weight is checked only when every item is known.
+pub(super) fn check_stock(
+    what: &str,
+    owner_id: &str,
+    stock: &ShipInventoryStock,
+    capacity_g: Option<u32>,
+    items: &GameItems,
+    source: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    let mut known_stock = true;
+    for (item, _) in stock.stacks() {
+        if items.get(item).is_none() {
+            known_stock = false;
+            issues.push(LintIssue::error(
+                source,
+                format!("{what} '{owner_id}': unknown item '{item}'"),
+            ));
+        }
+    }
+    let Some(capacity_g) = capacity_g.filter(|_| known_stock) else {
+        return;
+    };
+    let stock_g = stock.mass_g(items);
+    if stock_g > u64::from(capacity_g) {
+        issues.push(LintIssue::error(
+            source,
+            format!(
+                "{what} '{owner_id}': inventory stock of {} exceeds its {} hold",
+                kg_text(stock_g),
+                kg_text(u64::from(capacity_g)),
+            ),
         ));
     }
 }

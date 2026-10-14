@@ -39,6 +39,8 @@ pub mod planet_type;
 pub mod ship_design;
 /// Spaceship scenario object: player/AI ships built from a section list.
 pub mod spaceship;
+/// The START ROLE content kind: one New Game start, a hull and a kit.
+pub mod start_role;
 /// The STATION content kind and object: a parked hull with a docking port,
 /// authored once and spawned by id.
 pub mod station;
@@ -52,7 +54,8 @@ pub mod prelude {
         asteroid_kind::prelude::*, asteroid_surface::prelude::*, beacon::prelude::*,
         fleet::prelude::*, light::prelude::*, planet::prelude::*, planet_surface::prelude::*,
         planet_type::prelude::*, ship_design::prelude::*, spaceship::prelude::*,
-        station::prelude::*, station_hulls::prelude::*, ScenarioObjectsPlugin,
+        start_role::prelude::*, station::prelude::*, station_hulls::prelude::*,
+        ScenarioObjectsPlugin,
     };
 }
 
@@ -74,6 +77,9 @@ impl Plugin for ScenarioObjectsPlugin {
     fn build(&self, app: &mut App) {
         trace!("ScenarioObjectsPlugin: build");
 
+        // The merge replaces it with the loaded roles; nothing in a scenario
+        // reads it, so it has no plugin of its own.
+        app.init_resource::<start_role::GameStartRoles>();
         app.add_plugins(anchor::AnchorPlugin);
         app.add_plugins(asteroid::AsteroidPlugin {
             render: self.render,

@@ -21,10 +21,12 @@ use crate::prelude::*;
 mod fixtures;
 mod scenario;
 mod ship;
+mod start_role;
 mod station;
 
 pub use scenario::{lint_campaign, lint_scenario};
 pub use ship::{lint_section_config, lint_section_recipe, lint_ship_design_config};
+pub use start_role::lint_start_role;
 pub use station::lint_station_design;
 
 /// Glob-import surface: `use nova_scenario::lint::prelude::*` brings the
@@ -32,8 +34,8 @@ pub use station::lint_station_design;
 pub mod prelude {
     pub use super::{
         lint_campaign, lint_scenario, lint_section_config, lint_section_recipe,
-        lint_ship_design_config, lint_station_design, KnownSections, KnownShipDesigns,
-        KnownStationDesigns, LintIssue, LintSeverity,
+        lint_ship_design_config, lint_start_role, lint_station_design, KnownSections,
+        KnownShipDesigns, KnownStationDesigns, LintIssue, LintSeverity,
     };
 }
 

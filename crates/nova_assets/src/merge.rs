@@ -1,7 +1,8 @@
 //! The content MERGE: flatten every enabled bundle's `Content` in dependency
 //! order and overlay it by id into the game's registries (`GameSections`,
 //! `GameShipDesigns`, `GameScenarios`, `GameCampaigns`, `GameStyles`,
-//! `GameItems`), linting the result as it goes.
+//! `GameItems`, `GameStationDesigns`, `GameStartRoles`), linting the result
+//! as it goes.
 
 /// Glob-import surface: `use nova_assets::merge::prelude::*` re-exports the
 /// public API of this module.
@@ -20,8 +21,8 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::{Fnv64, GameItems, GameStates, ItemDesign};
 use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog, BASE_MOD_ID};
 use nova_scenario::prelude::{
-    GameCampaigns, GameScenarios, GameShipDesigns, GameStationDesigns, NewGameStart,
-    ScenarioConfig, ShipDesignPrototype, StationDesign,
+    GameCampaigns, GameScenarios, GameShipDesigns, GameStartRoles, GameStationDesigns,
+    NewGameStart, ScenarioConfig, ShipDesignPrototype, StartRole, StationDesign,
 };
 use nova_ship::prelude::*;
 use nova_training::prelude::{Lesson, LessonSeverity, TrainingCatalog};
@@ -612,6 +613,30 @@ pub fn register_bundles(
                 .extend(found);
         }
     }
+    // Every MERGED start role, checked against the merged ships: a role may
+    // name a hull another mod ships.
+    for role in &outcome.start_roles {
+        let found = nova_scenario::prelude::lint_start_role(
+            role,
+            &merged_ships,
+            &merged_sections,
+            &merged_items,
+            role.id.as_str(),
+        );
+        for issue in &found {
+            warn!(
+                "register_bundles: content lint [{:?}] start role '{}': {}",
+                issue.severity, issue.scenario, issue.message
+            );
+        }
+        if !found.is_empty() {
+            content_issues
+                .0
+                .entry(role.id.to_string())
+                .or_default()
+                .extend(found);
+        }
+    }
     for scenario in outcome.scenarios.values() {
         let found = nova_scenario::prelude::lint_scenario(
             scenario,
@@ -707,6 +732,7 @@ pub fn register_bundles(
     commands.insert_resource(GameStyles(outcome.styles));
     commands.insert_resource(GameShipDesigns(outcome.ships));
     commands.insert_resource(GameStationDesigns(outcome.stations));
+    commands.insert_resource(GameStartRoles(outcome.start_roles));
     commands.insert_resource(TrainingCatalog::new(outcome.lessons));
     commands.insert_resource(GameUiThemes(outcome.ui_themes));
     commands.insert_resource(merged_items);
@@ -945,6 +971,10 @@ pub struct MergeOutcome {
     /// Stations in registration order, overlaid last-wins by id - so a mod
     /// rebuilds a base station by declaring the same id.
     pub stations: Vec<StationDesign>,
+    /// Start roles in registration order, overlaid last-wins by id - so a mod
+    /// replaces a base role by declaring the same id. The order is what a
+    /// role picker lists.
+    pub start_roles: Vec<StartRole>,
     /// Human-readable messages, one per intra-bundle duplicate id that was
     /// skipped. Empty on clean data.
     pub conflicts: Vec<String>,
@@ -1054,6 +1084,12 @@ fn merge_content_item(item: &Content, into: &mut MergeOutcome) {
         Content::Station(design) => match into.stations.iter_mut().find(|s| s.id == design.id) {
             Some(existing) => *existing = design.clone(),
             None => into.stations.push(design.clone()),
+        },
+        // A Vec, overlaid in place, so a mod's replacement keeps the base
+        // role's place in the picker.
+        Content::StartRole(role) => match into.start_roles.iter_mut().find(|r| r.id == role.id) {
+            Some(existing) => *existing = role.clone(),
+            None => into.start_roles.push(role.clone()),
         },
     }
 }

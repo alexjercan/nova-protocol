@@ -18,10 +18,10 @@ use nova_mod_format::{
 };
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::{
-    lint_campaign, lint_scenario, lint_ship_design_config, lint_station_design, CampaignConfig,
-    EventActionConfig, GeneratedWorldConfig, KnownSections, KnownShipDesigns, KnownStationDesigns,
-    LintIssue, LintSeverity, ScenarioConfig, ScenarioObjectKind, ScenarioWorldType,
-    ShipDesignPrototype, SpaceshipController, StationDesign,
+    lint_campaign, lint_scenario, lint_ship_design_config, lint_start_role, lint_station_design,
+    CampaignConfig, EventActionConfig, GeneratedWorldConfig, KnownSections, KnownShipDesigns,
+    KnownStationDesigns, LintIssue, LintSeverity, ScenarioConfig, ScenarioObjectKind,
+    ScenarioWorldType, ShipDesignPrototype, SpaceshipController, StartRole, StationDesign,
 };
 use nova_ship::prelude::{flight_rig_reserved_sources, SectionConfig};
 use nova_training::prelude::{
@@ -59,6 +59,7 @@ struct WalkedBundle {
     sections: Vec<SectionConfig>,
     ships: Vec<ShipDesignPrototype>,
     stations: Vec<StationDesign>,
+    start_roles: Vec<StartRole>,
     scenarios: Vec<ScenarioConfig>,
     campaigns: Vec<CampaignConfig>,
     lessons: Vec<Lesson>,
@@ -124,6 +125,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
     let mut sections = Vec::new();
     let mut ships = Vec::new();
     let mut stations = Vec::new();
+    let mut start_roles = Vec::new();
     let mut scenarios = Vec::new();
     let mut campaigns = Vec::new();
     let mut lessons = Vec::new();
@@ -134,6 +136,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
             Content::Section(section) => sections.push(section.as_ref().clone()),
             Content::Ship(ship) => ships.push(ship.clone()),
             Content::Station(station) => stations.push(station.clone()),
+            Content::StartRole(role) => start_roles.push(role.clone()),
             Content::Scenario(scenario) => scenarios.push(scenario.clone()),
             Content::Campaign(campaign) => campaigns.push(campaign.clone()),
             Content::Lesson(lesson) => lessons.push(lesson.clone()),
@@ -151,6 +154,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
         sections,
         ships,
         stations,
+        start_roles,
         scenarios,
         campaigns,
         lessons,
@@ -339,6 +343,20 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
         for issue in
             lint_station_design(station, &known_sections, &known_items, station.id.as_str())
         {
+            issues.push((bundle.id.clone(), issue));
+        }
+    }
+
+    // Start role references: every role THIS bundle ships names a hull from
+    // the visible ships and a kit that fits its hold.
+    for role in &bundle.start_roles {
+        for issue in lint_start_role(
+            role,
+            &known_ships,
+            &known_sections,
+            &known_items,
+            role.id.as_str(),
+        ) {
             issues.push((bundle.id.clone(), issue));
         }
     }
@@ -1261,6 +1279,7 @@ mod tests {
             sections,
             ships,
             stations: Vec::new(),
+            start_roles: Vec::new(),
             scenarios,
             campaigns,
             lessons,

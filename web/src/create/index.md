@@ -63,6 +63,7 @@ The [modding reference](reference/) is the exhaustive catalog:
 - [Ships for mods](ships/) - whole hulls authored once and spawned by id.
 - [Stations for mods](stations/) - parked hulls with a docking port, the
   services they offer and what they hold.
+- [Start roles for mods](start-roles/) - New Game starts: a hull and a kit.
 - [Ship skin styles for mods](styles/) - the look a hull's cladding wears.
 - [Training lessons for mods](lessons/) - a handbook screen and the practice
   range it hands off to.

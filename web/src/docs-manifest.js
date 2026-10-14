@@ -672,6 +672,23 @@ const CREATE_PAGES = [
         ],
     },
     {
+        slug: "start-roles",
+        md: "start-roles.md",
+        title: "Start roles for mods",
+        category: "Modding reference",
+        parent: "mod-files",
+        toc: true,
+        tags: ["modding", "reference", "ships"],
+        summary:
+            "Author a New Game start as content: the catalog hull the player flies and a kit of credits and items that fits its hold.",
+        related: ["ships", "objects", "base-content"],
+        headings: [
+            "The StartRole item",
+            "Overlay and lint",
+            "Base start roles",
+        ],
+    },
+    {
         slug: "styles",
         md: "styles.md",
         title: "Ship skin styles for mods",

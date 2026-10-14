@@ -133,6 +133,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - At a living station the Inventory pane trades with `Trade` and stores
   items with `Storage`, kept through retire and save, firing `OnStored` and
   `OnWithdrawn`. Stock scales with advancement.
+- A `StartRole` content kind names a New Game start: a hull and a kit of
+  credits and items. Lint refuses an unknown hull or item and a kit the hold
+  cannot carry.
 
 ### Interface & HUD
 

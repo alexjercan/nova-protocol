@@ -7,15 +7,18 @@
 //!
 //! A [`Content`] item is one of:
 //! - [`Content::Section`] - a [`SectionConfig`] prototype,
-//! - [`Content::Scenario`] - a [`ScenarioConfig`], and
+//! - [`Content::Scenario`] - a [`ScenarioConfig`],
 //! - [`Content::Campaign`] - a [`CampaignConfig`], the ordered scenario-id
 //!   mapping the Scenarios picker groups and launches by,
 //! - [`Content::Style`] - a [`ShipStyleConfig`], the look a ship's derived skin
 //!   wears: materials per surface role plus the decoration it scatters,
 //! - [`Content::Ship`] - a [`ShipDesignPrototype`], a whole hull a scenario spawns by id,
+//! - [`Content::Lesson`] - a [`Lesson`], one screen of the training handbook,
+//! - [`Content::UiTheme`] - a [`UiThemeConfig`], one look the whole UI paints in,
+//! - [`Content::Item`] - an [`ItemDesign`], a thing a ship carries and trades,
+//! - [`Content::Station`] - a [`StationDesign`], a parked hull a scenario spawns by id,
 //!   and
-//! - [`Content::Lesson`] - a [`Lesson`], one screen of the training handbook, and
-//! - [`Content::UiTheme`] - a [`UiThemeConfig`], one look the whole UI paints in.
+//! - [`Content::StartRole`] - a [`StartRole`], one New Game start: a hull and a kit.
 //!
 //! The kind lives IN the RON structure (an externally-tagged enum), so ONE
 //! loader reads any content file and a downstream router (`nova_assets`'s
@@ -50,7 +53,9 @@ use nova_gameplay::prelude::ItemDesign;
 // crate so the portal generator builds without bevy; re-exported here so game
 // code keeps importing them from nova_modding.
 pub use nova_mod_format::{BundleManifest, CatalogManifest, ModEntry, ModMeta, BASE_MOD_ID};
-use nova_scenario::prelude::{CampaignConfig, ScenarioConfig, ShipDesignPrototype, StationDesign};
+use nova_scenario::prelude::{
+    CampaignConfig, ScenarioConfig, ShipDesignPrototype, StartRole, StationDesign,
+};
 use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
 use nova_training::prelude::Lesson;
 use nova_ui::theme::UiThemeConfig;
@@ -140,6 +145,15 @@ pub enum Content {
     /// declaring its id. A spawn naming an id no bundle declares fails at
     /// lint and at load.
     Station(StationDesign),
+    /// A [`StartRole`] - registers into `GameStartRoles` keyed by its id. One
+    /// New Game start: the catalog hull the player flies and the kit of
+    /// credits and items it starts with.
+    ///
+    /// A mod adds a role by declaring a new id and replaces a base one by
+    /// declaring its id. A hull no visible ship design carries, an unknown
+    /// kit item and a kit heavier than the hull's hold fail at lint and at
+    /// load.
+    StartRole(StartRole),
 }
 
 impl Content {
@@ -160,6 +174,7 @@ impl Content {
             Content::UiTheme(_) => "ui theme",
             Content::Item(_) => "item",
             Content::Station(_) => "station",
+            Content::StartRole(_) => "start role",
         }
     }
 
@@ -176,6 +191,7 @@ impl Content {
             Content::UiTheme(cfg) => &cfg.id,
             Content::Item(design) => design.id.as_str(),
             Content::Station(design) => design.id.as_str(),
+            Content::StartRole(role) => role.id.as_str(),
         }
     }
 

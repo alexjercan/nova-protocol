@@ -1,0 +1,88 @@
+[
+    StartRole((
+        id: "industrial",
+        name: "Industrial",
+        about: "A mining tug with a bow mining beam and a cargo intake, unarmed. Cut ore from rocks and sell it.",
+        hull: "mining_tug",
+        kit: (
+            credits: 2200,
+            stock: {
+                "HullPlate": 15,
+                "Rations": 25,
+            },
+        ),
+        lore: "Mining crews work the rock fields for whoever buys the ore. The tug is old, but it pays.",
+    )),
+    StartRole((
+        id: "scavenger",
+        name: "Scavenger",
+        about: "A salvage hauler with the largest start hold, a cargo intake and one point-defense mount. Pick wrecks clean and sell what you take.",
+        hull: "salvage_hauler",
+        kit: (
+            credits: 1800,
+            stock: {
+                "HullPlate": 10,
+                "PdcRound": 200,
+            },
+        ),
+        lore: "Every fight leaves wrecks behind. Scavengers take what still has a price.",
+    )),
+    StartRole((
+        id: "transport",
+        name: "Transport",
+        about: "A light freighter with freight cubes, a tank pod and no weapons. Buy cargo at one station and sell it at another.",
+        hull: "light_freighter",
+        kit: (
+            credits: 2000,
+            stock: {
+                "Rations": 50,
+                "WaterIce": 50,
+            },
+        ),
+        lore: "Stations need food, water and parts they cannot make. Haulers carry them between stations.",
+    )),
+    StartRole((
+        id: "bounty_hunter",
+        name: "Bounty Hunter",
+        about: "An interceptor with two point-defense mounts and a bow torpedo bay. Hunt armed ships for the price on them.",
+        hull: "interceptor",
+        kit: (
+            credits: 1000,
+            stock: {
+                "HullPlate": 10,
+                "PdcRound": 200,
+                "Torpedo": 2,
+            },
+        ),
+        lore: "Some ships carry a price on their hull. Hunters collect it.",
+    )),
+    StartRole((
+        id: "military",
+        name: "Military",
+        about: "A patrol picket with one nose point-defense mount on light plate: the weakest start. The Line Warship class is its later goal.",
+        hull: "patrol_picket",
+        kit: (
+            credits: 1600,
+            stock: {
+                "HullPlate": 10,
+                "PdcRound": 250,
+            },
+        ),
+        lore: "Patrol crews start on small pickets and earn larger hulls. Few reach a warship.",
+    )),
+    StartRole((
+        id: "pirate",
+        name: "Pirate",
+        about: "A raider with a nose railgun and two point-defense mounts. Attack cargo ships and take their holds.",
+        hull: "raider",
+        kit: (
+            credits: 1200,
+            stock: {
+                "HullPlate": 10,
+                "PdcRound": 200,
+                "RailSlug": 15,
+            },
+        ),
+        lore: "Past the patrol routes, a full hold is a target. Raiders live on what they take.",
+    )),
+]

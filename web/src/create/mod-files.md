@@ -156,7 +156,7 @@ content is rebalanced, prune the entry.
 ## Content files
 
 Every `*.content.ron` file is a RON list. One file may contain any mix of the
-nine item kinds:
+ten item kinds:
 
 ```ron
 [
@@ -202,6 +202,14 @@ nine item kinds:
         storage_cap_g: 0,
         stock: {},
         credits: 500,
+    )),
+    StartRole((
+        id: "my_courier",
+        name: "Courier",
+        about: "A light freighter with no weapons.",
+        hull: "light_freighter",
+        kit: (credits: 2000, stock: {"Rations": 50}),
+        lore: "Couriers carry what stations cannot make.",
     )),
     Style((
         id: "my_look",
@@ -272,6 +280,8 @@ Large mods can use one scenario per file and list all of them in `content`.
 - A [station](../stations/) defines a hull that never flies - a docking port,
   a flight computer, what it offers and holds - that any scenario can park by
   id.
+- A [start role](../start-roles/) defines one New Game start: a catalog hull
+  and a kit of credits and items.
 - A [style](../styles/) defines the look a ship's derived cladding wears: the
   two plate surfaces, and the destructible decoration scattered over them.
 - A [lesson](../lessons/) is one screen of the in-game training handbook: a

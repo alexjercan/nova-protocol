@@ -39,7 +39,7 @@ The five spelling rules behind every snippet in these pages:
 
 | family | constructs |
 |---|---|
-| Mod structure | [bundle and content files](../mod-files/), [`Campaign`](../campaigns/), [`Lesson`](../lessons/), [`Scenario`](../scenarios/), [`Section`](../sections/), [`Ship`](../ships/), [`Station`](../stations/), [`Style`](../styles/) |
+| Mod structure | [bundle and content files](../mod-files/), [`Campaign`](../campaigns/), [`Lesson`](../lessons/), [`Scenario`](../scenarios/), [`Section`](../sections/), [`Ship`](../ships/), [`StartRole`](../start-roles/), [`Station`](../stations/), [`Style`](../styles/) |
 | Handler fields | [`name`](../events/), [`once`](../scenarios/#once-a-beat-that-happens-one-time), [`filters`](../filters/), [`actions`](../actions/) |
 | Events (28) | [`OnStart`](../events/#onstart), [`OnUpdate`](../events/#onupdate), [`OnTimerEnd`](../events/#ontimerend), [`OnCinematicFinished`](../events/#cinematic-endings), [`OnCinematicSkipped`](../events/#cinematic-endings), [`OnDefeated`](../events/#ondefeated), [`OnDestroyed`](../events/#ondestroyed), [`OnNeutralized`](../events/#onneutralized), [`OnEnter`](../events/#onenter), [`OnExit`](../events/#onexit), [`OnGotoComplete`](../events/#player-maneuver-completion), [`OnStopComplete`](../events/#player-maneuver-completion), [`OnOrbitStart`](../events/#orbit-lifecycle), [`OnOrbitStable`](../events/#orbit-lifecycle), [`OnOrbitLap`](../events/#orbit-lifecycle), [`OnOrbitUnstable`](../events/#orbit-lifecycle), [`OnOrbitEnd`](../events/#orbit-lifecycle), [`OnTravelLockStart`](../events/#lock-lifecycle), [`OnTravelLockEnd`](../events/#lock-lifecycle), [`OnCombatLockStart`](../events/#lock-lifecycle), [`OnCombatLockEnd`](../events/#lock-lifecycle), [`OnDocked`](../events/#docking-lifecycle), [`OnUndocked`](../events/#docking-lifecycle), [`OnShipOrderComplete`](../events/#onshipordercomplete), [`OnShipOrderInterrupted`](../events/#onshiporderinterrupted), [`OnShipOrderResumed`](../events/#onshiporderresumed), [`OnShipOrderCanceled`](../events/#onshipordercanceled), [`OnShipOrderFailed`](../events/#onshiporderfailed) |
 | Filters (6) | [`Entity`](../filters/#entity), [`Timer`](../filters/#timer), [`Cinematic`](../filters/#cinematic), [`ShipOrder`](../filters/#shiporder), [`Expression`](../filters/#expression), [`Conditional`](../filters/#conditional) (`Not` / `And` / `Or`) |
@@ -47,7 +47,7 @@ The five spelling rules behind every snippet in these pages:
 | Objects (7) | [`Anchor`](../objects/#anchor), [`Asteroid`](../objects/#asteroid), [`Planet`](../objects/#planet), [`Spaceship`](../objects/#spaceship), [`Station`](../objects/#station), [`Beacon`](../objects/#beacon), [`Light`](../objects/#light) (`Directional` / `Point`) |
 | Damage effects (3) | [`Cracks`, `Sparks`, `Plume`](../sections/#damage-effects) - the looks a section wears as it is damaged, authored in `base.damage_effects` |
 | Expression nodes (16) | values: [`Number`, `String`, `Boolean`](../expressions/#values-the-literal-types) - atoms: [`Literal`, `Name`, `Query`, `Parens`](../expressions/#factors-the-atoms) - terms: [`Factor`, `Multiply`, `Divide`](../expressions/#terms-multiply-divide) - expressions: [`Term`, `Add`, `Subtract`](../expressions/#expressions-add-subtract-the-value-root) - conditions: [`LessThan`, `GreaterThan`, `Equal`](../expressions/#conditions-the-boolean-root) |
-| Base ids & assets | [section prototypes](../base-content/#section-prototypes), [scenario ids](../base-content/#scenario-ids), [ship ids](../ships/#base-ships), [style ids](../base-content/#skin-styles), [`dep://base/` assets](../base-content/#assets-what-depbase-can-reach) |
+| Base ids & assets | [section prototypes](../base-content/#section-prototypes), [scenario ids](../base-content/#scenario-ids), [ship ids](../ships/#base-ships), [start role ids](../start-roles/#base-start-roles), [style ids](../base-content/#skin-styles), [`dep://base/` assets](../base-content/#assets-what-depbase-can-reach) |
 
 The wiki search (sidebar) indexes every construct name, so typing
 `ScatterObjects` or `OnEnter` up there jumps straight to the right page.
@@ -187,6 +187,7 @@ The wiki search (sidebar) indexes every construct name, so typing
 [`Sparks`](../sections/#damage-effects) (damage effect),
 [`SpawnScenarioObject`](../actions/#spawnscenarioobject) (actions),
 [`Spaceship`](../objects/#spaceship) (object),
+[`StartRole`](../start-roles/) (content item),
 [`Station`](../stations/) (content item),
 [`Station`](../objects/#station) (object),
 [`StopShip`](../actions/#stopship),
