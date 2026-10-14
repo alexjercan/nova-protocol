@@ -40,7 +40,7 @@ for responsibilities and the dependency graph.
 | `nova_console` | The command shell's dispatcher: the executor behind the `cmd>` prompt and the channel's `command` lane. Sits above `nova_menu` because a setting command writes the resources the settings screen owns. |
 | `nova_scenario` | Scenario engine: events, filters, actions, variables, world, loader, objects. |
 | `nova_world` | The streamed open world: a cell generated from its coordinate alone by a `SectorGenerator` type, checked, and a 5x5x5 active window streamed around one live scenario. Names no content; the game gets it through `nova_world_base`. Examples with their own game plugins install their own generator. |
-| `nova_world_base` | The base game's open world: the `NovaLayeredWorld` generator and its cluster policy over three environment fields, the `OpenWorldSession` seed New Game writes, and the plugin `AppBuilder` adds that streams the world only while an `OpenWorld` scenario runs with one player ship. |
+| `nova_world_base` | The base game's open world: the `NovaLayeredWorld` generator and its cluster policy over three environment fields, and the plugin `AppBuilder` adds that streams the world only while an `OpenWorld` scenario runs with one player ship. |
 | `nova_events` | Shared game-event kinds + entity identity components (gameplay <-> scenario). |
 | `nova_events_macros` | The `EventKind` derive behind `nova_events`' engine events. Its only consumer is `nova_events`. |
 | `nova_assets` | `bevy_asset_loader` setup; loads glb/textures/shaders/sounds; owns the mod merge, safe mode (a broken optional mod is disabled, not fatal, except during a scenario) + prefs. |

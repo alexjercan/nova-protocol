@@ -245,6 +245,13 @@ registry::scenario_actions! {
         effect: Injection,
         inspect: Reflect,
     },
+    /// Spawn the player ship as the start role New Game picked.
+    SpawnStartRole(StartRoleSpawnConfig) {
+        label: "Spawn Start Role",
+        stem: "role",
+        effect: Injection,
+        inspect: Reflect,
+    },
     /// Spawn many scenario objects across a region (id-prefixed).
     ScatterObjects(ScatterObjectsConfig) {
         label: "Scatter Objects",

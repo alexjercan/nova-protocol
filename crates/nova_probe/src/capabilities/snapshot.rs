@@ -149,8 +149,8 @@ use nova_interface::{
 };
 use nova_scenario::{
     prelude::{
-        AsteroidMarker, CurrentOutcome, CurrentScenario, PlanetMarker, ScenarioWorldType,
-        SpaceshipController,
+        AsteroidMarker, CurrentOutcome, CurrentScenario, OpenWorldSession, PlanetMarker,
+        ScenarioWorldType, SpaceshipController,
     },
     world::NovaEventWorld,
 };
@@ -166,7 +166,6 @@ use nova_ship::prelude::{
     TurretDefenseTarget, TurretSectionAimPoint, TurretSectionInput, TurretSectionMuzzleEntity,
     TurretSectionTargetInput, TurretSectionTargetRadius, WeaponsHot,
 };
-use nova_world_base::prelude::OpenWorldSession;
 
 use crate::capabilities::{frametime::prelude::*, timeline::stamp};
 
@@ -2205,7 +2204,10 @@ mod tests {
         assert_eq!(bare["beacons"], serde_json::json!([]));
 
         app.insert_resource(State::new(GameStates::MainMenu));
-        app.insert_resource(OpenWorldSession { seed: 12_345 });
+        app.insert_resource(OpenWorldSession {
+            seed: 12_345,
+            role: "industrial".into(),
+        });
         assert_eq!(
             capture_snapshot(app.world_mut(), "test")["world_seed"],
             serde_json::Value::Null,

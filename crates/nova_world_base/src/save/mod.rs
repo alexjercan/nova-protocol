@@ -17,8 +17,8 @@
 //! of lists as unreadable and never loads.
 //!
 //! The format is strict: an unknown field, a format other than
-//! [`WORLD_SAVE_FORMAT`] or another catalog refuses the world. Nothing is
-//! migrated. Native only: the web build has no saved worlds.
+//! [`WORLD_SAVE_FORMAT`], another catalog or a start role the loaded content
+//! does not hold refuses the world. Nothing is migrated. Native only: the web build has no saved worlds.
 //!
 //! The state carries the scenario ([`SavedScenario`]) beside the sectors: a
 //! Load resumes the same scenario with its objectives, variables, timers and
@@ -46,7 +46,10 @@ use nova_gameplay::prelude::{
     kg_text, CargoCanisterRuntimeId, Chart, GameItems, ItemDesignId, SavedBodyRef, SavedOwner,
     SavedSectionRef, SavedTargetRef, CARGO_CANISTER_MAX_MASS_G,
 };
-use nova_scenario::prelude::{FleetEscort, FrozenShip, GameScenarios, SavedScenario, ScenarioId};
+use nova_scenario::prelude::{
+    FleetEscort, FrozenShip, GameScenarios, GameStartRoles, SavedScenario, ScenarioId,
+    StartRoleDesignId,
+};
 use nova_ship::prelude::{CameraView, SavedTorpedoTarget, FLEET_SIDES};
 use nova_world::prelude::{FrozenBody, FrozenBodyType, FrozenSectors, SectorCoord};
 use serde::{Deserialize, Serialize};
@@ -72,7 +75,7 @@ pub use transients::{
 /// nobody held live is recorded as an arrival there. Every cell the player
 /// never visited regenerates from the seed on Load, so another generator
 /// would change it silently.
-pub const WORLD_SAVE_FORMAT: u32 = 8;
+pub const WORLD_SAVE_FORMAT: u32 = 9;
 
 /// The most characters a world name has, after trimming.
 const WORLD_NAME_MAX: usize = 32;
@@ -93,6 +96,9 @@ pub struct WorldSaveHeader {
     pub name: String,
     /// The world seed every pristine sector is generated from.
     pub seed: u32,
+    /// The start role the player ship spawns as. A Load refuses a role the
+    /// loaded content does not hold.
+    pub role: StartRoleDesignId,
     /// The digest of the catalog the world was saved with.
     pub catalog: u64,
     /// The mods of that catalog, in merge order, for the refusal text.
@@ -220,6 +226,11 @@ pub enum WorldRefusal {
         /// The scenario id it was saved with.
         saved: ScenarioId,
     },
+    /// The header names a start role the loaded content does not hold.
+    Role {
+        /// The role id it was saved with.
+        saved: StartRoleDesignId,
+    },
 }
 
 impl std::fmt::Display for WorldRefusal {
@@ -241,6 +252,9 @@ impl std::fmt::Display for WorldRefusal {
             Self::Scenario { saved } => {
                 write!(f, "its scenario '{saved}' is not in the loaded content")
             }
+            Self::Role { saved } => {
+                write!(f, "its start role '{saved}' is not in the loaded content")
+            }
             Self::Foreign(reason) | Self::Io(reason) | Self::Unrestored(reason) => {
                 f.write_str(reason)
             }
@@ -260,12 +274,13 @@ impl From<&GameScenarios> for RegisteredScenarios {
 }
 
 /// Every world folder under `root`, in folder-name order, each with its
-/// header checked against the `loaded` catalog.
+/// header checked against the `loaded` catalog and its start `roles`.
 ///
 /// A missing root is no worlds. A root that cannot be read is an error.
 pub fn list_worlds(
     root: &Path,
     loaded: &LoadedSectionPacks,
+    roles: &GameStartRoles,
 ) -> Result<Vec<WorldListing>, WorldRefusal> {
     let entries = match std::fs::read_dir(root) {
         Ok(entries) => entries,
@@ -285,7 +300,7 @@ pub fn list_worlds(
             continue;
         }
         let slug = entry.file_name().to_string_lossy().into_owned();
-        let header = check_slug(&slug).and_then(|()| read_header(&entry.path(), loaded));
+        let header = check_slug(&slug).and_then(|()| read_header(&entry.path(), loaded, roles));
         listings.push(WorldListing {
             folder: WorldFolder {
                 path: entry.path(),
@@ -331,13 +346,14 @@ pub fn open_world(
     root: &Path,
     slug: &str,
     loaded: &LoadedSectionPacks,
+    roles: &GameStartRoles,
     items: &GameItems,
     scenarios: &RegisteredScenarios,
 ) -> Result<(WorldFolder, WorldLock, WorldSaveHeader, WorldSaveState), WorldRefusal> {
     check_slug(slug)?;
     let path = root.join(slug);
     let lock = lock_world(&path)?;
-    let header = read_header(&path, loaded)?;
+    let header = read_header(&path, loaded, roles)?;
     let state = read_state(&path, &header, items, scenarios)?;
     sweep_orphans(&path, &state_file(header.generation));
     Ok((
@@ -354,7 +370,8 @@ pub fn open_world(
 /// Read the save of the world `slug` under `root` and run every check
 /// [`open_world`] runs, without its lock or its cleanup.
 ///
-/// Refuses a header of another format or catalog, and a state file that is
+/// Refuses a header of another format or catalog or naming a start role
+/// `roles` does not hold, and a state file that is
 /// missing, corrupt, of another generation, holding a camera view or a
 /// transient that cannot open, an id [`check_saved_ids`] refuses, a chart
 /// [`Chart::validate`] refuses, or an item `items` does not hold. Reads the whole state, so run it off the main
@@ -363,12 +380,13 @@ pub fn check_world(
     root: &Path,
     slug: &str,
     loaded: &LoadedSectionPacks,
+    roles: &GameStartRoles,
     items: &GameItems,
     scenarios: &RegisteredScenarios,
 ) -> Result<(), WorldRefusal> {
     check_slug(slug)?;
     let path = root.join(slug);
-    let header = read_header(&path, loaded)?;
+    let header = read_header(&path, loaded, roles)?;
     read_state(&path, &header, items, scenarios).map(drop)
 }
 
@@ -1155,8 +1173,12 @@ struct HeaderFormat {
 }
 
 /// Read the header of the world folder `path` and check it against the
-/// `loaded` catalog.
-fn read_header(path: &Path, loaded: &LoadedSectionPacks) -> Result<WorldSaveHeader, WorldRefusal> {
+/// `loaded` catalog and its start `roles`.
+fn read_header(
+    path: &Path,
+    loaded: &LoadedSectionPacks,
+    roles: &GameStartRoles,
+) -> Result<WorldSaveHeader, WorldRefusal> {
     let text = std::fs::read_to_string(path.join(HEADER_FILE))
         .map_err(|e| WorldRefusal::Unreadable(format!("{HEADER_FILE}: {e}")))?;
     let HeaderFormat { format } = ron::from_str(&text)
@@ -1172,6 +1194,9 @@ fn read_header(path: &Path, loaded: &LoadedSectionPacks) -> Result<WorldSaveHead
             loaded: loaded.digest.0,
             saved_mods: header.mods,
         });
+    }
+    if roles.get_role(&header.role).is_none() {
+        return Err(WorldRefusal::Role { saved: header.role });
     }
     Ok(header)
 }

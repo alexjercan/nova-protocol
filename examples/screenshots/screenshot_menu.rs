@@ -244,6 +244,7 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         .add()
         // The name field keeps the name it opens on: Create on it is the
         // player's untouched path.
+        .click("go on to the start role", "World Next Button")
         .click("create the world", "Create World Button")
         .step("reach the first flight")
         .until(state_is(GameStates::Playing))

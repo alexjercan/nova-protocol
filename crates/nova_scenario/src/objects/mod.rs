@@ -77,8 +77,8 @@ impl Plugin for ScenarioObjectsPlugin {
     fn build(&self, app: &mut App) {
         trace!("ScenarioObjectsPlugin: build");
 
-        // The merge replaces it with the loaded roles; nothing in a scenario
-        // reads it, so it has no plugin of its own.
+        // The merge replaces it with the loaded roles, and `SpawnStartRole`
+        // reads it. It has no systems, so it has no plugin of its own.
         app.init_resource::<start_role::GameStartRoles>();
         app.add_plugins(anchor::AnchorPlugin);
         app.add_plugins(asteroid::AsteroidPlugin {

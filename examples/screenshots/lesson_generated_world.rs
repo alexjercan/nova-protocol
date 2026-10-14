@@ -15,7 +15,7 @@
 //! ## The berth is posed, the dock and the transfer are not
 //!
 //! Docking is taught by `flight_dock` and `build_dock_envelope`, so this walk
-//! does not fly the approach. It moves the player's line warship so one of its
+//! does not fly the approach. It moves the player's ship so one of its
 //! docking ports faces one of the wreck's ports [`BERTH_GAP`] away, square and
 //! at rest - inside the shipped capture envelope - and writes the travel lock a
 //! radar dwell would. Everything after that is the player's input: the dock
@@ -90,6 +90,12 @@ const WORLD_NAME: &str = "Probe World";
 const SEED_FIELD: &str = "World Seed Field";
 #[cfg(feature = "debug")]
 const CREATE_WORLD_BUTTON: &str = "Create World Button";
+#[cfg(feature = "debug")]
+const WORLD_NEXT_BUTTON: &str = "World Next Button";
+/// The start role the walk picks: the first role's mining tug, the hull New
+/// Game selects when the player picks nothing.
+#[cfg(feature = "debug")]
+const START_ROLE_BUTTON: &str = "Start Role Button: industrial";
 
 /// How many cells the open world keeps live: radius 2 is a 5x5x5 window.
 #[cfg(feature = "debug")]
@@ -281,7 +287,7 @@ fn berth_beside_the_wreck(world: &mut World) {
     let (player_port, player_at) = ports_of(world, player)
         .into_iter()
         .next()
-        .expect("generated world: the line warship has a docking port");
+        .expect("generated world: the player ship has a docking port");
     let root = *world
         .get::<GlobalTransform>(player)
         .expect("generated world: the player ship has a transform");
@@ -305,6 +311,20 @@ fn berth_beside_the_wreck(world: &mut World) {
     }
     if let Some(mut body) = ship.get_mut::<Rotation>() {
         body.0 = rotation;
+    }
+    // Point the mouse rig where the berth points the hull. Left on the spawn
+    // heading, the rig turns the held hull back off the berth before DOCK.
+    let rigs: Vec<Entity> = world
+        .query_filtered::<Entity, With<PointRotationOutput>>()
+        .iter(world)
+        .collect();
+    for rig in rigs {
+        world.entity_mut(rig).insert((
+            PointRotation {
+                initial_rotation: rotation,
+            },
+            PointRotationOutput(rotation),
+        ));
     }
     world.insert_resource(HoldBerth);
     info!(
@@ -530,7 +550,7 @@ fn world_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .click_named(
             "click New Game",
             NEW_GAME_BUTTON,
-            ui_node_present(CREATE_WORLD_BUTTON),
+            ui_node_present(WORLD_NEXT_BUTTON),
             BEAT_DEADLINE_SECS,
         )
         .step("name the world")
@@ -555,6 +575,18 @@ fn world_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         })
         .until(frames(2))
         .add()
+        .click_named(
+            "click Next",
+            WORLD_NEXT_BUTTON,
+            ui_node_present(CREATE_WORLD_BUTTON),
+            BEAT_DEADLINE_SECS,
+        )
+        .click_named(
+            "pick the start role",
+            START_ROLE_BUTTON,
+            pointer_released(),
+            BEAT_DEADLINE_SECS,
+        )
         .click_named(
             "click Create",
             CREATE_WORLD_BUTTON,

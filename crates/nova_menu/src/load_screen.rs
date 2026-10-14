@@ -21,7 +21,7 @@ use bevy::{
 };
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_gameplay::prelude::*;
-use nova_scenario::prelude::GameScenarios;
+use nova_scenario::prelude::{GameScenarios, GameStartRoles};
 use nova_ui::{
     theme::UiColor,
     widget::{list_row, separator, themed_button, Selected, ThemedText, UiText},
@@ -124,12 +124,14 @@ pub(crate) struct LoadWorldButton;
 fn read_listings(
     root: &Path,
     packs: &LoadedSectionPacks,
+    roles: &GameStartRoles,
     items: &GameItems,
     scenarios: &GameScenarios,
     checks: &mut WorldChecks,
 ) -> Result<Vec<WorldListing>, WorldRefusal> {
-    let listings = list_worlds(root, packs);
+    let listings = list_worlds(root, packs, roles);
     let packs = Arc::new(packs.clone());
+    let roles = Arc::new(roles.clone());
     let items = Arc::new(items.clone());
     let scenarios = Arc::new(RegisteredScenarios::from(scenarios));
     checks.0 = listings
@@ -138,10 +140,12 @@ fn read_listings(
         .filter(|listing| listing.header.is_ok())
         .map(|listing| {
             let (root, slug) = (root.to_path_buf(), listing.folder.slug.clone());
-            let (packs, items) = (Arc::clone(&packs), Arc::clone(&items));
+            let (packs, roles, items) =
+                (Arc::clone(&packs), Arc::clone(&roles), Arc::clone(&items));
             let scenarios = Arc::clone(&scenarios);
-            let task = IoTaskPool::get()
-                .spawn(async move { check_world(&root, &slug, &packs, &items, &scenarios) });
+            let task = IoTaskPool::get().spawn(async move {
+                check_world(&root, &slug, &packs, &roles, &items, &scenarios)
+            });
             (listing.folder.slug.clone(), task)
         })
         .collect();
@@ -183,6 +187,7 @@ pub(crate) fn on_load_screen(
     _activate: On<Activate>,
     root: Res<WorldsRoot>,
     packs: Res<LoadedSectionPacks>,
+    roles: Res<GameStartRoles>,
     items: Res<GameItems>,
     scenarios: Res<GameScenarios>,
     mut checks: ResMut<WorldChecks>,
@@ -192,7 +197,7 @@ pub(crate) fn on_load_screen(
     mut panel: Single<&mut Visibility, With<LoadPanel>>,
 ) {
     listings.0 = match root.0.as_deref() {
-        Some(root) => read_listings(root, &packs, &items, &scenarios, &mut checks),
+        Some(root) => read_listings(root, &packs, &roles, &items, &scenarios, &mut checks),
         None => Ok(Vec::new()),
     };
     selected.0 = None;
@@ -257,6 +262,7 @@ pub(crate) fn on_delete_world_confirm(
     _activate: On<Activate>,
     root: Res<WorldsRoot>,
     packs: Res<LoadedSectionPacks>,
+    roles: Res<GameStartRoles>,
     items: Res<GameItems>,
     scenarios: Res<GameScenarios>,
     mut checks: ResMut<WorldChecks>,
@@ -271,7 +277,7 @@ pub(crate) fn on_delete_world_confirm(
     };
     let slug = slug.clone();
     let result = delete_world(root, &slug);
-    listings.0 = read_listings(root, &packs, &items, &scenarios, &mut checks);
+    listings.0 = read_listings(root, &packs, &roles, &items, &scenarios, &mut checks);
     *step = match result {
         Ok(()) => WorldDeleteStep::Idle,
         Err(refusal) => WorldDeleteStep::Refused {
@@ -288,6 +294,7 @@ pub(crate) fn on_load_world(
     _activate: On<Activate>,
     root: Res<WorldsRoot>,
     packs: Res<LoadedSectionPacks>,
+    roles: Res<GameStartRoles>,
     items: Res<GameItems>,
     scenarios: Res<GameScenarios>,
     checks: Res<WorldChecks>,
@@ -305,11 +312,12 @@ pub(crate) fn on_load_world(
     // its prompt back.
     *step = WorldDeleteStep::Idle;
     let (root, slug) = (root.to_path_buf(), slug.to_string());
-    let (packs, items) = (packs.clone(), items.clone());
+    let (packs, roles, items) = (packs.clone(), roles.clone(), items.clone());
     let scenarios = RegisteredScenarios::from(&*scenarios);
     let task = {
         let slug = slug.clone();
-        IoTaskPool::get().spawn(async move { open_world(&root, &slug, &packs, &items, &scenarios) })
+        IoTaskPool::get()
+            .spawn(async move { open_world(&root, &slug, &packs, &roles, &items, &scenarios) })
     };
     opening.0 = Some((slug, task));
 }
@@ -368,6 +376,7 @@ pub(crate) fn refuse_resumed_world(
     refused: Res<WorldResumeRefused>,
     root: Res<WorldsRoot>,
     packs: Res<LoadedSectionPacks>,
+    roles: Res<GameStartRoles>,
     items: Res<GameItems>,
     scenarios: Res<GameScenarios>,
     mut checks: ResMut<WorldChecks>,
@@ -383,7 +392,7 @@ pub(crate) fn refuse_resumed_world(
         return;
     };
     listings.0 = match root.0.as_deref() {
-        Some(root) => read_listings(root, &packs, &items, &scenarios, &mut checks),
+        Some(root) => read_listings(root, &packs, &roles, &items, &scenarios, &mut checks),
         None => Ok(Vec::new()),
     };
     // The refusal stands over whatever the new check of the world finds.
@@ -410,6 +419,7 @@ pub(crate) fn refresh_load_list(
     root: Res<WorldsRoot>,
     listings: Res<WorldListings>,
     checks: Res<WorldChecks>,
+    roles: Res<GameStartRoles>,
     mut selected: ResMut<SelectedWorldSlug>,
     lists: Query<Entity, With<LoadWorldList>>,
 ) {
@@ -453,7 +463,7 @@ pub(crate) fn refresh_load_list(
         for row in rows {
             let is_selected = selected.0.as_deref() == Some(row.folder.slug.as_str());
             let checking = checks.pending(&row.folder.slug);
-            spawn_load_row(list, row, is_selected, checking);
+            spawn_load_row(list, row, &roles, is_selected, checking);
         }
     });
 }
@@ -477,11 +487,12 @@ fn spawn_load_note(commands: &mut Commands, list: Entity, text: &str) {
 
 /// Spawn one clickable world row in the Mods row layout: an info column with
 /// the world's name (or slug, when the header did not read) over its status
-/// lines - [`CHECKING_TEXT`] while it is `checking`, the refusal when it has
-/// one.
+/// lines - the start role's name when the header read, [`CHECKING_TEXT`]
+/// while it is `checking`, the refusal when it has one.
 fn spawn_load_row(
     list: &mut ChildSpawnerCommands,
     listing: &WorldListing,
+    roles: &GameStartRoles,
     selected: bool,
     checking: bool,
 ) {
@@ -523,6 +534,18 @@ fn spawn_load_row(
                 TextColor(Color::NONE),
                 ThemedText::new(UiColor::Body),
             ));
+            if let Ok(header) = &listing.header {
+                // The listing refused a role `roles` lacked; the id stands in
+                // only if a mod reload dropped the role since.
+                let role = roles
+                    .get_role(&header.role)
+                    .map_or_else(|| header.role.to_string(), |role| role.name.clone());
+                info.spawn(row_line(
+                    "Load World Row Role",
+                    format!("Role: {role}"),
+                    UiColor::Secondary,
+                ));
+            }
             if checking {
                 info.spawn(row_line(
                     "Load World Row Checking",

@@ -4,6 +4,7 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use nova_events::prelude::*;
+use nova_ship::prelude::GameSections;
 
 use crate::prelude::*;
 
@@ -253,6 +254,103 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
             }
         });
     }
+}
+
+/// Spawn the player ship as the start role the [`OpenWorldSession`] names.
+///
+/// New Game's open world authors it in place of a fixed player ship. The ship
+/// is the role's catalog hull, named after that design, with the role's kit
+/// and [`start_role_bindings`]. It spawns through the same path as a
+/// `SpawnScenarioObject` ship, so a Load thaws the saved ship in its place.
+/// The lint refuses it outside a `Generated((seed: None))` world, the one
+/// world the session seeds.
+#[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct StartRoleSpawnConfig {
+    /// The player ship's scenario `EntityId`.
+    #[reflect(@Names::NewObject)]
+    pub id: String,
+    /// The ship's initial world position.
+    pub position: Meters3,
+    /// The ship's initial world rotation.
+    pub rotation: Quat,
+}
+
+impl EventAction<NovaEventWorld> for StartRoleSpawnConfig {
+    fn action(&self, world: &mut NovaEventWorld, _info: &GameEventInfo) {
+        let config = self.clone();
+        trace!("SpawnStartRole: spawning '{}'", config.id);
+        // Queued with world access: the session and the catalogs are
+        // resources, which a `Commands` closure cannot read.
+        world.push_command(move |commands| {
+            commands.queue(
+                move |world: &mut World| match start_role_ship(world, &config) {
+                    Ok((base, ship)) => spawn_scenario_spaceship(world, &base, &config.id, ship),
+                    Err(cause) => error!(
+                        "SpawnStartRole: player ship '{}' not spawned: {cause}",
+                        config.id
+                    ),
+                },
+            );
+        });
+    }
+}
+
+/// The player ship `config` spawns: the session's role, its hull and its kit.
+///
+/// # Errors
+///
+/// No [`OpenWorldSession`], a role [`GameStartRoles`] does not hold, a hull
+/// the ship catalog does not hold, or no catalog at all.
+fn start_role_ship(
+    world: &World,
+    config: &StartRoleSpawnConfig,
+) -> Result<(BaseScenarioObjectConfig, SpaceshipConfig), String> {
+    let session = world.get_resource::<OpenWorldSession>().ok_or_else(|| {
+        "no OpenWorldSession names a start role; start the world through New Game or Load"
+            .to_string()
+    })?;
+    let role = world
+        .get_resource::<GameStartRoles>()
+        .and_then(|roles| roles.get_role(&session.role))
+        .ok_or_else(|| format!("start role '{}' is not in the loaded content", session.role))?;
+    let (Some(designs), Some(sections)) = (
+        world.get_resource::<GameShipDesigns>(),
+        world.get_resource::<GameSections>(),
+    ) else {
+        return Err(format!(
+            "start role '{}': no ship or section catalog is loaded",
+            role.id
+        ));
+    };
+    let prototype = designs.get_design(&role.hull).ok_or_else(|| {
+        format!(
+            "start role '{}' names hull '{}', which is not in the ship catalog",
+            role.id, role.hull
+        )
+    })?;
+    let design = ShipDesignSource::prototype(role.hull.clone());
+    let (hull, _) = resolve_ship_design(&design, designs, sections);
+    let base = BaseScenarioObjectConfig {
+        id: config.id.clone(),
+        name: prototype.name.clone(),
+        position: config.position,
+        rotation: config.rotation,
+    };
+    let ship = SpaceshipConfig {
+        design,
+        controller: SpaceshipController::Player(PlayerControllerConfig {
+            input_mapping: start_role_bindings(&hull),
+        }),
+        capabilities: default(),
+        initial_velocity: MetersPerSecond3::ZERO,
+        allegiance: None,
+        inventory: role.kit.stock.clone(),
+        lootable: false,
+        credits: role.kit.credits,
+    };
+    Ok((base, ship))
 }
 
 /// Build the scenario station `id` on a fresh root spawned from `base`, from

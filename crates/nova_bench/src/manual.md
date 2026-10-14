@@ -137,6 +137,7 @@ Each gesture is one object with one verb:
 - `{"text": "<characters>"}`: type into the focused field. New Game also has
   `World Name Field`, which opens on `New World`; leave it. Type the exact
   requested world seed into `World Seed Field` after clearing it, then click
+  `World Next Button`. Leave the start role it selects first, and click
   `Create World Button`.
 
 Gestures in one act apply on the same tick, in order. A held input stays

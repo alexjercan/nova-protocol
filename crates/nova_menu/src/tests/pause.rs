@@ -10,12 +10,11 @@ use bevy::{
 };
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
-use nova_world_base::prelude::OpenWorldSession;
 
 use super::support::{
     app, clocks_paused, cue_app, dummy_scenario, dummy_scenarios, enter_playing, find_named,
     mods_app, observe_load_scenario, pause_state, press_escape, LoadedScenario, PlayedCues,
-    TEST_BACKDROP_ID,
+    TEST_BACKDROP_ID, TEST_ROLE_IDS,
 };
 use crate::{
     mods::ModsPanel,
@@ -288,7 +287,11 @@ fn pause_retry_reloads_the_current_scenario_keeps_the_session_and_unpauses() {
     let mut app = app();
     app.insert_resource(dummy_scenarios());
     app.insert_resource(CurrentScenario(Some(dummy_scenario("live_run").1)));
-    app.insert_resource(OpenWorldSession { seed: 9 });
+    let session = OpenWorldSession {
+        seed: 9,
+        role: TEST_ROLE_IDS[0].into(),
+    };
+    app.insert_resource(session.clone());
     observe_load_scenario(&mut app);
     enter_playing(&mut app);
     press_escape(&mut app);
@@ -306,7 +309,7 @@ fn pause_retry_reloads_the_current_scenario_keeps_the_session_and_unpauses() {
     );
     assert_eq!(
         app.world().get_resource::<OpenWorldSession>(),
-        Some(&OpenWorldSession { seed: 9 }),
+        Some(&session),
         "Retry keeps the session"
     );
     assert_eq!(pause_state(&app), PauseStates::Unpaused);

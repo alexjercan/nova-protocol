@@ -122,6 +122,11 @@ mod walk {
     const WORLD_NAME: &str = "Station Buy World";
     const SEED_FIELD: &str = "World Seed Field";
     const CREATE_WORLD_BUTTON: &str = "Create World Button";
+    const WORLD_NEXT_BUTTON: &str = "World Next Button";
+    /// The start role the walk picks: the scavenger's salvage hauler, a compact
+    /// box. The first role's mining tug has a bow boom that can strike a berthed
+    /// partner.
+    const START_ROLE_BUTTON: &str = "Start Role Button: scavenger";
     const PAUSE_EXIT_BUTTON: &str = "Pause Exit Button";
     const BACK_TO_MENU_BUTTON: &str = "Back To Menu Button";
     const LOAD_BUTTON: &str = "Load Button";
@@ -552,6 +557,21 @@ mod walk {
             LinearVelocity(velocity),
             AngularVelocity(spin),
         ));
+        // Point the mouse rig where the berth points the hull. Left on the
+        // spawn heading, it turns the hull off the berth once the buy lets
+        // the old dock go, and the new hull finds no port pair to redock.
+        let rigs: Vec<Entity> = world
+            .query_filtered::<Entity, With<PointRotationOutput>>()
+            .iter(world)
+            .collect();
+        for rig in rigs {
+            world.entity_mut(rig).insert((
+                PointRotation {
+                    initial_rotation: turn,
+                },
+                PointRotationOutput(turn),
+            ));
+        }
         world.trigger(DockingConnectionRequest {
             entity: player,
             target: station,
@@ -866,6 +886,7 @@ mod walk {
             &root,
             &slug,
             world.resource::<LoadedSectionPacks>(),
+            world.resource::<GameStartRoles>(),
             world.resource::<GameItems>(),
             &RegisteredScenarios::from(world.resource::<GameScenarios>()),
         )
@@ -955,7 +976,7 @@ mod walk {
             .click_named(
                 "station buy: click New Game",
                 NEW_GAME_BUTTON,
-                ui_node_present(CREATE_WORLD_BUTTON),
+                ui_node_present(WORLD_NEXT_BUTTON),
                 BEAT_SECS,
             )
             .step("station buy: name the world and enter the seed")
@@ -965,6 +986,18 @@ mod walk {
             })
             .until(frames(2))
             .add()
+            .click_named(
+                "station buy: click Next",
+                WORLD_NEXT_BUTTON,
+                ui_node_present(CREATE_WORLD_BUTTON),
+                BEAT_SECS,
+            )
+            .click_named(
+                "station buy: pick the start role",
+                START_ROLE_BUTTON,
+                pointer_released(),
+                BEAT_SECS,
+            )
             .click_named(
                 "station buy: click Create",
                 CREATE_WORLD_BUTTON,

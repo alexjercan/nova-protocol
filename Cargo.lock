@@ -4895,7 +4895,6 @@ dependencies = [
  "nova_interface",
  "nova_scenario",
  "nova_ship",
- "nova_world_base",
  "serde_json",
  "web-sys",
 ]

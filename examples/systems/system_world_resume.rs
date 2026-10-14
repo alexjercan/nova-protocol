@@ -2,8 +2,9 @@
 //! fresh process the way a saved game must survive a quit.
 //!
 //! Phase `create` (the default, no `--phase` flag) boots the shipped app,
-//! clicks New Game, names and creates "Probe World", then injects fixture
-//! state directly through production constructors and components: the
+//! clicks New Game, names "Probe World", picks the bounty hunter start role
+//! (two point-defense mounts and a torpedo bay) and creates it, then injects
+//! fixture state directly through production constructors and components: the
 //! nearest streamed asteroid's `BodyRadius` is set to a carved value, a
 //! mined canister is spawned with [`cargo_canister`] and a minted
 //! [`CargoCanisterRuntimeId`], and the player's credits and cargo stock are
@@ -213,6 +214,14 @@ const WORLD_NAME_FIELD: &str = "World Name Field";
 const SEED_FIELD: &str = "World Seed Field";
 #[cfg(feature = "debug")]
 const CREATE_WORLD_BUTTON: &str = "Create World Button";
+#[cfg(feature = "debug")]
+const WORLD_NEXT_BUTTON: &str = "World Next Button";
+/// The start role the walk picks: the bounty hunter's interceptor carries the
+/// two point-defense mounts and the torpedo bay the transient fixture fires.
+#[cfg(feature = "debug")]
+const START_ROLE_BUTTON: &str = "Start Role Button: bounty_hunter";
+#[cfg(feature = "debug")]
+const START_ROLE: &str = "bounty_hunter";
 #[cfg(feature = "debug")]
 const LOAD_BUTTON: &str = "Load Button";
 #[cfg(feature = "debug")]
@@ -846,6 +855,11 @@ fn nearest_asteroid(world: &mut World, from: Vec3) -> (Entity, EntityId) {
 /// remesh.
 #[cfg(feature = "debug")]
 fn inject_fixture(world: &mut World) {
+    assert_eq!(
+        world.resource::<OpenWorldSession>().role.as_str(),
+        START_ROLE,
+        "world_resume: Create must start the picked role"
+    );
     let items = world.resource::<GameItems>().clone();
     let player = the_player(world).expect("world_resume: exactly one player ship");
     let player_pos = world
@@ -900,7 +914,7 @@ fn inject_fixture(world: &mut World) {
         let max_count = (u64::from(inventory.free_g(&items)) / unit_mass) as u32;
         assert!(
             max_count >= 1,
-            "world_resume: the line warship has no room for fixture stock (free {}g)",
+            "world_resume: the player ship has no room for fixture stock (free {}g)",
             inventory.free_g(&items)
         );
         inventory.add(&items, &ration_id, max_count.clamp(1, 5));
@@ -1029,7 +1043,7 @@ fn assert_probe_world_on_disk(world: &mut World) {
     let root = nova_assets::storage::worlds_root()
         .expect("world_resume: the sandboxed CONFIG_ROOT must give a worlds root");
     let packs = world.resource::<LoadedSectionPacks>();
-    let listings = list_worlds(&root, packs)
+    let listings = list_worlds(&root, packs, world.resource::<GameStartRoles>())
         .unwrap_or_else(|e| panic!("world_resume: cannot list the sandboxed worlds root: {e}"));
     let probe = listings
         .iter()
@@ -1272,6 +1286,7 @@ fn record_transient_fixture_state(world: &mut World) -> serde_json::Value {
         &root,
         WORLD_SLUG,
         world.resource::<LoadedSectionPacks>(),
+        world.resource::<GameStartRoles>(),
         world.resource::<GameItems>(),
         &RegisteredScenarios::from(world.resource::<GameScenarios>()),
     )
@@ -1546,7 +1561,7 @@ fn create_script(
         .click_named(
             "world_resume: click New Game",
             NEW_GAME_BUTTON,
-            ui_node_present(CREATE_WORLD_BUTTON),
+            ui_node_present(WORLD_NEXT_BUTTON),
             BEAT_DEADLINE_SECS,
         )
         .step("world_resume: name and seed the world")
@@ -1556,6 +1571,18 @@ fn create_script(
         })
         .until(frames(2))
         .add()
+        .click_named(
+            "world_resume: click Next",
+            WORLD_NEXT_BUTTON,
+            ui_node_present(CREATE_WORLD_BUTTON),
+            BEAT_DEADLINE_SECS,
+        )
+        .click_named(
+            "world_resume: pick the start role",
+            START_ROLE_BUTTON,
+            pointer_released(),
+            BEAT_DEADLINE_SECS,
+        )
         .click_named(
             "world_resume: click Create",
             CREATE_WORLD_BUTTON,

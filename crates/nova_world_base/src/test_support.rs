@@ -16,9 +16,10 @@ use nova_gameplay::prelude::{
     PointRotationOutput, ShipInventory, ShipInventoryStock,
 };
 use nova_scenario::prelude::{
-    spaceship_scenario_object, CurrentScenario, GameStationDesigns, GeneratedMarks, NovaEventWorld,
-    ScenarioConfig, SectionSource, ShipDesign, ShipIntegrityConfig, SpaceshipConfig,
-    SpaceshipSectionConfig, SpentHandlers, StationDesign, StationServiceType,
+    spaceship_scenario_object, CurrentScenario, GameStartRoles, GameStationDesigns, GeneratedMarks,
+    NovaEventWorld, ScenarioConfig, SectionSource, ShipDesign, ShipIntegrityConfig,
+    SpaceshipConfig, SpaceshipSectionConfig, SpentHandlers, StartKit, StartRole, StationDesign,
+    StationServiceType,
 };
 use nova_ship::prelude::{
     ChaseCameraPlugin, ChaseZoom, ShipStyleConfig, SpaceshipCameraController,
@@ -33,6 +34,25 @@ use crate::{
 
 /// The scenario id the fixture's save names.
 pub const FIXTURE_SCENARIO_ID: &str = "session";
+
+/// The start role id the fixture's saves name.
+pub const FIXTURE_ROLE_ID: &str = "fixture_role";
+
+/// The start role catalog a fixture save is checked against: one role,
+/// [`FIXTURE_ROLE_ID`]. Nothing spawns it, so its hull names no design.
+pub fn fixture_roles() -> GameStartRoles {
+    GameStartRoles(vec![StartRole {
+        id: FIXTURE_ROLE_ID.into(),
+        name: "Fixture Role".to_string(),
+        about: "A role the save fixtures name.".to_string(),
+        hull: "fixture_hull".into(),
+        kit: StartKit {
+            credits: 300,
+            stock: ShipInventoryStock::default(),
+        },
+        lore: String::new(),
+    }])
+}
 
 /// The station designs the generator places, built from the fixture packs'
 /// `dock`, `controller` and `cube` prototypes: a docking collar, a flight
@@ -103,8 +123,8 @@ impl Plugin for WorldSaveTestPlugin {
 }
 
 /// Arm `world` as an open world with one player ship and no live sector:
-/// the fixture catalog, an armed config, the ledger, the canister counter
-/// and the player camera. Returns the player ship, which has 300 credits.
+/// the fixture catalog and start roles, an armed config, the ledger, the
+/// canister counter and the player camera. Returns the player ship, which has 300 credits.
 ///
 /// Add [`WorldSaveTestPlugin`] first: the camera's chase state comes from an
 /// observer that its chase plugin adds, and without it no save can complete.
@@ -136,6 +156,7 @@ pub fn arm_save_fixture(world: &mut World) -> Entity {
         .expect("the fixture packs build a snapshot, every role has a style and the station pins");
     world.insert_resource(loaded);
     world.insert_resource(items);
+    world.insert_resource(fixture_roles());
     world.insert_resource(WorldConfig {
         seed: 42,
         sector_edge: OPEN_WORLD_SECTOR_EDGE,

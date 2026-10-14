@@ -24,8 +24,8 @@ use nova_gameplay::prelude::{
     UnsettledBody,
 };
 use nova_scenario::prelude::{
-    freeze_fleet, freeze_ship, CurrentScenario, GeneratedMarks, NovaEventWorld, ResumedScenario,
-    ResumedSpaceship, SavedScenario, SpentHandlers,
+    freeze_fleet, freeze_ship, CurrentScenario, GeneratedMarks, NovaEventWorld, OpenWorldSession,
+    ResumedScenario, ResumedSpaceship, SavedScenario, SpentHandlers, StartRoleDesignId,
 };
 use nova_ship::prelude::{CameraView, ResumedCameraView};
 use nova_world::prelude::{
@@ -38,7 +38,7 @@ use super::{
     write_world, SavedIdFault, SavedPlayer, WorldFolder, WorldLock, WorldSaveHeader,
     WorldSaveState, WORLD_SAVE_FORMAT,
 };
-use crate::{NovaLayeredWorld, OpenWorldSession};
+use crate::NovaLayeredWorld;
 
 /// How many frames on which virtual time advanced a wanted save waits for
 /// its bodies to settle before it fails. The bound `nova_world` gives a
@@ -96,6 +96,7 @@ pub struct WorldSaveSession {
     _lock: Arc<WorldLock>,
     name: String,
     seed: u32,
+    role: StartRoleDesignId,
     /// The generation of the last good save, zero before the first.
     generation: u64,
     writer: Option<Task<Result<u64, String>>>,
@@ -113,8 +114,14 @@ pub struct WorldSaveSession {
 impl WorldSaveSession {
     /// The session of a world Create just made: nothing is saved yet, and the
     /// first armed frame saves it.
-    pub fn created(folder: WorldFolder, lock: WorldLock, name: String, seed: u32) -> Self {
-        Self::new(folder, lock, name, seed, 0, WorldSaveStatus::Unsaved)
+    pub fn created(
+        folder: WorldFolder,
+        lock: WorldLock,
+        name: String,
+        seed: u32,
+        role: StartRoleDesignId,
+    ) -> Self {
+        Self::new(folder, lock, name, seed, role, 0, WorldSaveStatus::Unsaved)
     }
 
     /// The session of a world Load opened at `header`'s generation.
@@ -122,8 +129,16 @@ impl WorldSaveSession {
         let status = WorldSaveStatus::Saved {
             generation: header.generation,
         };
-        let name = header.name.clone();
-        Self::new(folder, lock, name, header.seed, header.generation, status)
+        let (name, role) = (header.name.clone(), header.role.clone());
+        Self::new(
+            folder,
+            lock,
+            name,
+            header.seed,
+            role,
+            header.generation,
+            status,
+        )
     }
 
     fn new(
@@ -131,6 +146,7 @@ impl WorldSaveSession {
         lock: WorldLock,
         name: String,
         seed: u32,
+        role: StartRoleDesignId,
         generation: u64,
         status: WorldSaveStatus,
     ) -> Self {
@@ -139,6 +155,7 @@ impl WorldSaveSession {
             _lock: Arc::new(lock),
             name,
             seed,
+            role,
             generation,
             writer: None,
             wanted: None,
@@ -230,7 +247,7 @@ pub struct ResumedWorld {
 
 /// Seed `world` with everything a Load resumes: the session, the saved
 /// ledger and chart, the player ship the scenario's player spawn thaws, the camera view
-/// its controller opens at, the seed, the canister counter past every saved
+/// its controller opens at, the seed and start role, the canister counter past every saved
 /// id, and the saved transients, with the clocks held until they are back.
 ///
 /// An armed world is disarmed first. The saved ledger is restored only on
@@ -267,7 +284,10 @@ pub fn resume_world(
         ship: player.ship,
         fleet: player.fleet,
     });
-    world.insert_resource(OpenWorldSession { seed: header.seed });
+    world.insert_resource(OpenWorldSession {
+        seed: header.seed,
+        role: header.role.clone(),
+    });
     world
         .resource_mut::<CargoCanisterIdAllocator>()
         .resume_after(CargoCanisterRuntimeId(canister_ids_next));
@@ -493,6 +513,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
         format: WORLD_SAVE_FORMAT,
         name: session.name.clone(),
         seed: session.seed,
+        role: session.role.clone(),
         catalog,
         mods,
         game_version: env!("CARGO_PKG_VERSION").to_string(),

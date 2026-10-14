@@ -9,12 +9,11 @@ use bevy::{
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::HudVisibility;
 use nova_scenario::prelude::*;
-use nova_world_base::prelude::OpenWorldSession;
 
 use super::support::{
     app, cue_app, dummy_scenario, dummy_scenarios, dummy_start, enter_playing,
     observe_load_scenario, observe_unload_scenario, take_cues, LoadedScenario, PlayedCues,
-    Unloaded, TEST_BACKDROP_ID, TEST_START_ID,
+    Unloaded, TEST_BACKDROP_ID, TEST_ROLE_IDS, TEST_START_ID,
 };
 use crate::{
     menu_ui::{on_sandbox, resolve_new_game_scenario, NewGameStartFault},
@@ -96,7 +95,10 @@ fn start_new_game_scenario_loads_the_pick_or_the_session_seeded_start() {
         *app.world_mut().resource_mut::<GameMode>() = GameMode::NewGame;
         app.insert_resource(NewGameScenario(pick.map(|s| s.to_string())));
         if session {
-            app.insert_resource(OpenWorldSession { seed: 7 });
+            app.insert_resource(OpenWorldSession {
+                seed: 7,
+                role: TEST_ROLE_IDS[0].into(),
+            });
         }
         enter_playing(&mut app);
         let loaded = app.world().resource::<LoadedScenario>().0.clone();

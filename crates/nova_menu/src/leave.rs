@@ -27,8 +27,8 @@ use bevy::{
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::{
-    GameScenarios, LoadScenario, ResumedScenario, ScenarioStartFailure, ScenarioStartFailureReport,
-    UnloadScenario,
+    GameScenarios, GameStartRoles, LoadScenario, ResumedScenario, ScenarioStartFailure,
+    ScenarioStartFailureReport, UnloadScenario,
 };
 use nova_ui::{
     prelude::PAUSE_Z,
@@ -158,7 +158,8 @@ pub(crate) fn drive_pending_leave(
                     (Some(root), Some(packs), Some(items)) => {
                         let scenarios =
                             RegisteredScenarios::from(world.resource::<GameScenarios>());
-                        open_world(root, &slug, packs, items, &scenarios)
+                        let roles = world.resource::<GameStartRoles>();
+                        open_world(root, &slug, packs, roles, items, &scenarios)
                             .map_err(|refusal| refusal.to_string())
                     }
                     (None, ..) => Err("this system has no folder for saved worlds".to_string()),

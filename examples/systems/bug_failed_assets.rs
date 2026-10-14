@@ -76,6 +76,8 @@ const NEW_GAME_BUTTON: &str = "New Game Button";
 /// The world setup modal's button that starts the game.
 #[cfg(feature = "debug")]
 const CREATE_WORLD_BUTTON: &str = "Create World Button";
+#[cfg(feature = "debug")]
+const WORLD_NEXT_BUTTON: &str = "World Next Button";
 /// The world setup modal's name field.
 #[cfg(feature = "debug")]
 const WORLD_NAME_FIELD: &str = "World Name Field";
@@ -397,7 +399,7 @@ fn failed_assets_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin
         .add()
         .step("failed_assets: release New Game")
         .on_enter(release_mouse(MouseButton::Left))
-        .until(ui_node_present(CREATE_WORLD_BUTTON))
+        .until(ui_node_present(WORLD_NEXT_BUTTON))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("failed_assets: name the world")
@@ -411,6 +413,12 @@ fn failed_assets_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin
         })
         .until(frames(2))
         .add()
+        .click_named(
+            "failed_assets: click Next",
+            WORLD_NEXT_BUTTON,
+            ui_node_present(CREATE_WORLD_BUTTON),
+            BEAT_DEADLINE_SECS,
+        )
         .click_named(
             "failed_assets: create the world",
             CREATE_WORLD_BUTTON,

@@ -103,6 +103,8 @@ const WORLD_NAME: &str = "Station World";
 const SEED_FIELD: &str = "World Seed Field";
 #[cfg(feature = "debug")]
 const CREATE_WORLD_BUTTON: &str = "Create World Button";
+#[cfg(feature = "debug")]
+const WORLD_NEXT_BUTTON: &str = "World Next Button";
 
 /// How far from the station the player parks: outside the observer's hold
 /// radius with room to spare, so the station spawns rather than waits.
@@ -289,7 +291,7 @@ fn station_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .click_named(
             "generated_stations: click New Game",
             NEW_GAME_BUTTON,
-            ui_node_present(CREATE_WORLD_BUTTON),
+            ui_node_present(WORLD_NEXT_BUTTON),
             BEAT_DEADLINE_SECS,
         )
         .step("generated_stations: name the world and enter the seed")
@@ -305,6 +307,12 @@ fn station_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         })
         .until(frames(2))
         .add()
+        .click_named(
+            "generated_stations: click Next",
+            WORLD_NEXT_BUTTON,
+            ui_node_present(CREATE_WORLD_BUTTON),
+            BEAT_DEADLINE_SECS,
+        )
         .click_named(
             "generated_stations: click Create",
             CREATE_WORLD_BUTTON,

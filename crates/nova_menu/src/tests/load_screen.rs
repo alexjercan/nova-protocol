@@ -8,7 +8,7 @@ use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPacks};
 use nova_gameplay::prelude::*;
 use nova_world_base::{
     prelude::{create_world, ResumedWorld, WorldRefusal, WorldSaveSession, WorldSaveStatus},
-    test_support::{arm_save_fixture, WorldSaveTestPlugin, FIXTURE_SCENARIO_ID},
+    test_support::{arm_save_fixture, WorldSaveTestPlugin, FIXTURE_ROLE_ID, FIXTURE_SCENARIO_ID},
 };
 
 use super::support::{app, dummy_scenarios, dummy_start};
@@ -137,6 +137,7 @@ fn load_lists_a_saved_world_and_a_refused_one_and_loads_only_the_saved_one() {
         good_lock,
         "Good World".to_string(),
         42,
+        FIXTURE_ROLE_ID.into(),
     ));
     save_until_idle(&mut app);
     // Release the lock the fixture session held: Load re-locks the same
@@ -215,6 +216,7 @@ fn load_greys_a_world_while_its_check_runs_and_refuses_one_holding_an_unknown_it
         lock,
         "Holder World".to_string(),
         42,
+        FIXTURE_ROLE_ID.into(),
     ));
     save_until_idle(&mut app);
     app.world_mut().remove_resource::<WorldSaveSession>();

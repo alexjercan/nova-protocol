@@ -3,11 +3,12 @@
 Everything a handler can DO. Actions run in authored order once every filter
 passes; each is a newtype variant - `Name((field: value, ...))`, double
 parens even for one field. Failures warn and continue (a missing target id
-never panics a scenario). All 52 at a glance:
+never panics a scenario). All 53 at a glance:
 
 | action | group | what it does |
 |---|---|---|
 | [`SpawnScenarioObject`](#spawnscenarioobject) | [world](#spawning-the-world) | spawn one object: anchor, asteroid, planet, ship, beacon, or light |
+| [`SpawnStartRole`](#spawnstartrole) | [world](#spawning-the-world) | spawn the player's ship as the start role New Game picked |
 | [`ScatterObjects`](#scatterobjects) | [world](#spawning-the-world) | spawn `count` copies of a template at deterministic random positions |
 | [`DespawnScenarioObject`](#despawnscenarioobject) | [world](#spawning-the-world) | remove a scoped object and its whole child hierarchy |
 | [`CreateScenarioArea`](#createscenarioarea) | [world](#spawning-the-world) | spawn an invisible spherical sensor zone for `OnEnter` / `OnExit` |
@@ -101,6 +102,37 @@ The `base` block:
 
 The same spawn id twice in ONE handler is a lint Error; the same id across
 two handlers (an either-or fork) is a Warn.
+
+</details>
+
+### SpawnStartRole
+
+Spawn the player's ship as the [start role](../start-roles/) the player
+picked on New Game: the role's hull, its kit of credits and stock, and a
+Player controller. Each section of the hull is bound by its kind:
+point-defense turrets to the left mouse button and the gamepad right
+trigger, railguns to <kbd>R</kbd>, torpedo bays to <kbd>F</kbd> and mining
+beams to <kbd>V</kbd>. The ship takes the hull's design name.
+
+```ron
+SpawnStartRole((id: "player", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0))),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `id` | string | required | the ship's scenario id |
+| `position` | 3-tuple | required | world position, meters |
+| `rotation` | 4-tuple | required | world rotation quaternion `(x, y, z, w)` |
+
+Only a `world: Generated((seed: None))` scenario may use it: New Game's
+session names the role, and lint reports an error for it anywhere else. It
+counts as the scenario's player spawn. At run time, with no New Game session
+or a role the loaded content does not define, it logs an error and spawns
+nothing. On Load it spawns the same ship, and the save's ship state lands on
+it.
 
 </details>
 

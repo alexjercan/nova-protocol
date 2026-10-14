@@ -25,7 +25,9 @@ use nova_gameplay::prelude::{
     SavedOwner,
 };
 use nova_menu::prelude::NovaMenuPlugin;
-use nova_scenario::prelude::{CurrentScenario, GameScenarios, ScenarioConfig};
+use nova_scenario::prelude::{
+    CurrentScenario, GameScenarios, GameShipDesigns, GameStartRoles, ScenarioConfig,
+};
 use nova_ship::prelude::{thaw_round, FrozenRound, RoundSourceType};
 use nova_world::prelude::{CurrentSector, SectorCoord, SectorRoot, WorldConfig};
 use nova_world_base::{
@@ -34,7 +36,7 @@ use nova_world_base::{
         WorldResumeProgress, WorldResumeRefused, WorldSaveSession, WorldSaveState, WorldSaveStatus,
         WORLD_RESUME_SECONDS_MAX,
     },
-    test_support::{arm_save_fixture, WorldSaveTestPlugin},
+    test_support::{arm_save_fixture, WorldSaveTestPlugin, FIXTURE_ROLE_ID},
 };
 
 /// A scenario config with only the fields `CurrentScenario` needs: the Retry
@@ -140,6 +142,9 @@ fn a_load_that_cannot_fill_its_window_is_refused_and_releases_the_clocks() {
     let mut scenarios = GameScenarios::default();
     scenarios.insert("open_world".to_string(), dummy_scenario("open_world"));
     app.insert_resource(scenarios);
+    // The New Game modal's role details name each role's hull from the ship
+    // catalog; empty is enough for a rig that never opens it.
+    app.init_resource::<GameShipDesigns>();
 
     app.add_plugins(LoadingScreenPlugin);
     app.add_plugins(NovaMenuPlugin);
@@ -167,6 +172,7 @@ fn a_load_that_cannot_fill_its_window_is_refused_and_releases_the_clocks() {
         lock,
         "Resume".to_string(),
         42,
+        FIXTURE_ROLE_ID.into(),
     ));
     app.world_mut()
         .resource_mut::<NextState<GameStates>>()
@@ -313,6 +319,7 @@ fn a_load_that_cannot_fill_its_window_is_refused_and_releases_the_clocks() {
             &worlds_root,
             &slug,
             &packs,
+            app.world().resource::<GameStartRoles>(),
             app.world().resource::<GameItems>(),
             &RegisteredScenarios::from(app.world().resource::<GameScenarios>()),
         );
@@ -382,6 +389,7 @@ fn a_load_that_cannot_fill_its_window_is_refused_and_releases_the_clocks() {
         lock2,
         "Resume2".to_string(),
         42,
+        FIXTURE_ROLE_ID.into(),
     ));
     // Re-insert to mark it changed: this is not the app's first update, so
     // `request_world_save` would otherwise never see a reason to save.
@@ -532,6 +540,7 @@ fn a_load_that_cannot_fill_its_window_is_refused_and_releases_the_clocks() {
             &worlds_root,
             &slug2,
             &packs,
+            app.world().resource::<GameStartRoles>(),
             app.world().resource::<GameItems>(),
             &RegisteredScenarios::from(app.world().resource::<GameScenarios>()),
         );

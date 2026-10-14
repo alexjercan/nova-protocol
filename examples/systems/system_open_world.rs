@@ -2,9 +2,11 @@
 //! player drives it.
 //!
 //! Boots the shipped app (via [`editor_app`]), clicks New Game, reads the seed
-//! the world setup modal drew, clicks Create, and walks the session: the line
-//! warship, the world armed around it, the sectors streaming in, each bound
-//! weapon fired, a Retry, and the way back to the menu.
+//! the world setup modal drew, clicks Next, picks the pirate start role, clicks
+//! Create, and walks the session: the pirate's raider, the world armed around
+//! it, the sectors streaming in, each bound weapon fired, a Retry, and the way
+//! back to the menu. No start hull carries a torpedo bay beside a lance, so
+//! the F binding is the start-role unit test's claim, not this range's.
 //!
 //! ONE SUBJECT: the open world's session lifecycle. What a sector CONTAINS is
 //! `system_world_sectors`' range; this one holds the edges the base world adds
@@ -42,7 +44,7 @@ use nova_world::prelude::{NovaWorldSystems, SectorRoot, WorldConfig, WorldObserv
 #[command(name = "system_open_world")]
 #[command(version = "1.0.0")]
 #[command(
-    about = "New Game into the open world: the seed modal, the warship and its weapons, the streamed sectors, Retry and the way back to the menu. Autopilot-only correctness range - play the game to fly the world",
+    about = "New Game into the open world: the seed modal, the start role ship and its weapons, the streamed sectors, Retry and the way back to the menu. Autopilot-only correctness range - play the game to fly the world",
     long_about = None
 )]
 struct Cli;
@@ -97,6 +99,14 @@ const WORLD_NAME: &str = "Probe World";
 const SEED_FIELD: &str = "World Seed Field";
 #[cfg(feature = "debug")]
 const CREATE_WORLD_BUTTON: &str = "Create World Button";
+#[cfg(feature = "debug")]
+const WORLD_NEXT_BUTTON: &str = "World Next Button";
+/// The start role the walk picks: the pirate's raider carries both point-defense
+/// mounts and the lance, the most bound weapons of any start hull.
+#[cfg(feature = "debug")]
+const START_ROLE_BUTTON: &str = "Start Role Button: pirate";
+#[cfg(feature = "debug")]
+const START_ROLE: &str = "pirate";
 /// The pause overlay's two ways on.
 #[cfg(feature = "debug")]
 const RETRY_BUTTON: &str = "Pause Retry Button";
@@ -125,10 +135,9 @@ struct WorldWatch {
     armed_frames: u32,
     /// Frames that ended on a scenario of another role, or on none.
     off_world_frames: u32,
-    /// Rounds, lance shots and torpedoes the warship put out.
+    /// Rounds and lance shots the player ship put out.
     rounds: u32,
     lance_shots: u32,
-    torpedoes: u32,
     /// The player ship the first session spawned, so Retry can be told apart.
     first_player: Option<Entity>,
     /// The inputs the script holds this frame, and the ones it held last.
@@ -143,7 +152,6 @@ struct Held {
     combat: bool,
     trigger: bool,
     lance: bool,
-    torpedo: bool,
 }
 
 /// The watch, wired to the stages and events it reads.
@@ -166,11 +174,6 @@ impl Plugin for WorldWatchPlugin {
         app.add_observer(|_: On<RailgunFired>, mut watch: ResMut<WorldWatch>| {
             watch.lance_shots += 1;
         });
-        app.add_observer(
-            |_: On<Add, TorpedoProjectileMarker>, mut watch: ResMut<WorldWatch>| {
-                watch.torpedoes += 1;
-            },
-        );
     }
 }
 
@@ -246,15 +249,10 @@ fn hold_inputs(world: &mut World, _elapsed: f32, _frame: u32) {
         mouse.release(MouseButton::Left);
     }
     let mut keys = world.resource_mut::<ButtonInput<KeyCode>>();
-    for (key, down, was_down) in [
-        (KeyCode::KeyR, held.lance, was.lance),
-        (KeyCode::KeyF, held.torpedo, was.torpedo),
-    ] {
-        if down {
-            keys.press(key);
-        } else if was_down {
-            keys.release(key);
-        }
+    if held.lance {
+        keys.press(KeyCode::KeyR);
+    } else if was.lance {
+        keys.release(KeyCode::KeyR);
     }
 }
 
@@ -328,7 +326,7 @@ fn open_world_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Ga
         .click_named(
             "open_world: click New Game",
             NEW_GAME_BUTTON,
-            ui_node_present(CREATE_WORLD_BUTTON),
+            ui_node_present(WORLD_NEXT_BUTTON),
             BEAT_DEADLINE_SECS,
         )
         .step("open_world: the modal is up over the menu")
@@ -362,6 +360,18 @@ fn open_world_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Ga
         .until(frames(2))
         .add()
         .click_named(
+            "open_world: click Next",
+            WORLD_NEXT_BUTTON,
+            ui_node_present(CREATE_WORLD_BUTTON),
+            BEAT_DEADLINE_SECS,
+        )
+        .click_named(
+            "open_world: pick the start role",
+            START_ROLE_BUTTON,
+            pointer_released(),
+            BEAT_DEADLINE_SECS,
+        )
+        .click_named(
             "open_world: click Create",
             CREATE_WORLD_BUTTON,
             state_is(GameStates::Playing),
@@ -374,8 +384,8 @@ fn open_world_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Ga
         .step("open_world: Create started the modal's seed")
         .on_enter(assert_the_session)
         .add()
-        .step("open_world: the warship carries its bound weapons")
-        .on_enter(assert_the_warship)
+        .step("open_world: the raider carries its bound weapons")
+        .on_enter(assert_the_raider)
         .add()
         .step("open_world: the sectors stream in")
         .until(the_window_streamed())
@@ -388,7 +398,7 @@ fn open_world_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Ga
                 "outcome: the sectors around the player stream in",
                 serde_json::json!({ "roots": count::<SectorRoot>(world) }),
             );
-            info!("open_world: {LIVE_SECTORS} sectors stand around the warship");
+            info!("open_world: {LIVE_SECTORS} sectors stand around the player ship");
         })
         .add()
         // Each weapon on its own binding, under the combat stance the weapons
@@ -423,15 +433,6 @@ fn open_world_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Ga
         .until(watched(|watch| watch.lance_shots))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
-        .step("open_world: F launches a torpedo")
-        .on_enter(hold(Held {
-            combat: true,
-            torpedo: true,
-            ..default()
-        }))
-        .until(watched(|watch| watch.torpedoes))
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
         .step("open_world: report the weapons")
         .on_enter(|world: &mut World| {
             hold(Held::default())(world);
@@ -439,11 +440,10 @@ fn open_world_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Ga
             let fired = serde_json::json!({
                 "rounds": watch.rounds,
                 "lance_shots": watch.lance_shots,
-                "torpedoes": watch.torpedoes,
             });
             nova_probe::probe_marker(
                 world,
-                "outcome: each bound weapon fires from the warship",
+                "outcome: each bound weapon fires from the player ship",
                 fired,
             );
             info!("open_world: every bound weapon fired");
@@ -468,7 +468,7 @@ fn open_world_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Ga
             pointer_released(),
             BEAT_DEADLINE_SECS,
         )
-        .step("open_world: the retried world arms around a new warship")
+        .step("open_world: the retried world arms around a new player ship")
         .until(std::sync::Arc::new(|world: &World| {
             let before = world.resource::<WorldWatch>().first_player;
             armed_around_a_player(before)(world)
@@ -512,8 +512,8 @@ fn open_world_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Ga
         .add()
 }
 
-/// The session Create inserted is the seed the modal showed, and the world
-/// armed on it around the one player ship.
+/// The session Create inserted is the seed the modal showed and the role the
+/// walk picked, and the world armed on it around the one player ship.
 #[cfg(feature = "debug")]
 fn assert_the_session(world: &mut World) {
     let seed = world.resource::<WorldWatch>().seed;
@@ -523,12 +523,18 @@ fn assert_the_session(world: &mut World) {
         .0
         .as_ref()
         .map(|scenario| scenario.id.clone());
+    let role = world.resource::<OpenWorldSession>().role.clone();
     assert_eq!(Some(session), seed, "Create must start the modal's seed");
+    assert_eq!(
+        role.as_str(),
+        START_ROLE,
+        "Create must start the picked role"
+    );
     assert_eq!(current.as_deref(), Some(OPEN_WORLD_SCENARIO_ID));
     nova_probe::probe_marker(
         world,
         "outcome: create starts the open world on the modal's seed",
-        serde_json::json!({ "seed": session }),
+        serde_json::json!({ "seed": session, "role": role.as_str() }),
     );
     info!("open_world: Create started seed {session}");
 
@@ -547,10 +553,10 @@ fn assert_the_session(world: &mut World) {
     );
 }
 
-/// One line warship, with six mounts on the trigger, the lance on R and both
-/// bays on F.
+/// One raider, with its two mounts on the trigger, the lance on R, and no bay
+/// and no miner.
 #[cfg(feature = "debug")]
-fn assert_the_warship(world: &mut World) {
+fn assert_the_raider(world: &mut World) {
     let player = the_player(world).expect("open_world: exactly one player ship");
     let trigger = [
         InputSource::Mouse(MouseButton::Left),
@@ -583,17 +589,14 @@ fn assert_the_warship(world: &mut World) {
         .map(|(_, binding)| binding.0.clone())
         .collect();
 
-    assert_eq!(turrets.len(), 6, "six bound point-defense mounts");
+    assert_eq!(turrets.len(), 2, "two bound point-defense mounts");
     assert!(turrets.iter().all(|binding| binding == &trigger));
     assert_eq!(lances, [vec![InputSource::Keyboard(KeyCode::KeyR)]]);
-    assert_eq!(bays.len(), 2, "two bound torpedo bays");
-    assert!(bays
-        .iter()
-        .all(|binding| binding == &[InputSource::Keyboard(KeyCode::KeyF)]));
-    assert_eq!(miners, [vec![InputSource::Keyboard(KeyCode::KeyV)]]);
+    assert!(bays.is_empty(), "the raider has no torpedo bay");
+    assert!(miners.is_empty(), "the raider has no mining emitter");
     nova_probe::probe_marker(
         world,
-        "outcome: the open world spawns one line warship with its weapons bound",
+        "outcome: the open world spawns the picked start role's ship with its weapons bound",
         serde_json::json!({ "turrets": turrets.len(), "lances": lances.len(), "bays": bays.len() }),
     );
 }

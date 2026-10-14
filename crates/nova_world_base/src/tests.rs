@@ -94,7 +94,10 @@ fn scenario(world: ScenarioWorldType) -> CurrentScenario {
 fn world(on: ScenarioWorldType) -> World {
     let mut world = World::new();
     world.insert_resource(scenario(on));
-    world.insert_resource(OpenWorldSession { seed: SEED });
+    world.insert_resource(OpenWorldSession {
+        seed: SEED,
+        role: crate::test_support::FIXTURE_ROLE_ID.into(),
+    });
     world.insert_resource(loaded());
     world.insert_resource(styles());
     world.insert_resource(nova_gameplay::test_support::test_items());

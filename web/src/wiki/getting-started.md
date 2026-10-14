@@ -13,7 +13,7 @@ Under it sits a **field note** - one short fact taken from the handbook, with **
 <details class="explain">
 <summary>Show the full menu rundown</summary>
 
-- **New Game** - opens the world setup: a name for the world (desktop build only) and a seed (a fresh one each time, or type your own), **Randomize**, **Create** and **Cancel**. **Create** puts you in a line warship in an open world of sparse asteroid clusters, planetoids and [generated ships](../ships/#generated-ships), generated from the seed and streamed in around you as you fly. The same seed gives the same world on the same build. On the desktop build the world saves itself as you play, and the pause menu's Retry becomes **Load last save**; see [Saved worlds](#saved-worlds) below. The web build keeps no saved worlds.
+- **New Game** - opens the world setup in two steps. The first step takes a name for the world (desktop build only) and a seed (a fresh one each time, or type your own), with **Randomize**, **Next** and **Cancel**. The second step lists the start roles: select one to see its hull, its kit of credits and cargo, and its story, then press **Create**, or **Back** to change the seed. **Create** puts you in the role's ship in an open world of sparse asteroid clusters, planetoids and [generated ships](../ships/#generated-ships), generated from the seed and streamed in around you as you fly. The same seed gives the same world on the same build. On the desktop build the world saves itself as you play, and the pause menu's Retry becomes **Load last save**; see [Saved worlds](#saved-worlds) below. The web build keeps no saved worlds.
 - **Load** - desktop build only: lists your saved world folders and resumes the one you pick, or shows why it cannot. **Delete** removes the one you pick after you confirm.
 - **Sandbox** - opens the ship editor so you can build a ship and test-fly it in a practice scenario.
 - **Lessons** - opens the training handbook. Its first row, **Basic Training**, starts the first-flight course. Under it is one screen per topic, with a demonstration, the actions it uses under your own bindings, a link into this manual, and often a focused range to fly. The handbook keeps track of what you have done: a lesson you open is marked **read**, and one is marked **done** only when you win a scenario that teaches it - finishing Basic Training or the topic's own practice range. Both are kept between sessions, in their own file beside your settings.
@@ -53,7 +53,7 @@ On the desktop build, New Game saves what you play; the web build keeps no saved
 
 Each world is a folder named after it, under this system's data folder, inside `nova-protocol/worlds` (for example `~/.local/share/nova-protocol/worlds` on Linux, `~/Library/Application Support/nova-protocol/worlds` on macOS, or `%APPDATA%\nova-protocol\worlds` on Windows).
 
-The name field opens on `New World`; keep it or type your own. **Create** takes a name of 1 to 32 letters, digits, spaces, `_` or `-`, and the seed field above it. A name already taken, or one this system cannot make a folder for, is refused under the field and nothing starts. The game takes the world's first save as soon as the world comes up.
+The name field opens on `New World`; keep it or type your own. **Create** takes a name of 1 to 32 letters, digits, spaces, `_` or `-`, the seed field above it and the role you selected. A name already taken, or one this system cannot make a folder for, sends you back to the first step with the reason under the field, and nothing starts. The game takes the world's first save as soon as the world comes up.
 
 The game saves when you cross into a new sector, and again when you leave: **Back to Main Menu**, **Exit** and the window's close button each wait on that save before they act. While a save is writing or waiting, a notice at the bottom right says `Saving world...`. A successful save shows `World saved` for three seconds; a failure shows `SAVE FAILED: <reason>` until the next attempt or you leave. The grave/tilde HUD key (<kbd>~</kbd>) hides these notices with the rest of the HUD. An existing save is silent when first opened. Leaving shows an overlay while its save runs; a failed leave save offers **Try again** or **Leave without saving**, which keeps the last good save and leaves anyway.
 
@@ -69,7 +69,7 @@ A Load that cannot bring its sectors and transients back within 240 seconds is r
 
 ### A refused Load
 
-The Load screen lists every world folder and shows why one cannot be opened, on its row. It checks each saved state in the background: while a check runs, the row reads `Checking saved state` and **Load** stays greyed. **Load** checks the world again before it starts.
+The Load screen lists every world folder, with the start role each world began as, and shows why one cannot be opened, on its row. It checks each saved state in the background: while a check runs, the row reads `Checking saved state` and **Load** stays greyed. **Load** checks the world again before it starts.
 
 | Reason | Shown as |
 | --- | --- |
@@ -77,6 +77,7 @@ The Load screen lists every world folder and shows why one cannot be opened, on 
 | Saved with another save layout | `save format <found>; this build reads <current>` |
 | Saved with other content | `content changed; saved with <mods>` |
 | The scenario the save names is not in this game's content | `its scenario '<id>' is not in the loaded content` |
+| The start role the save names is not in this game's content | `its start role '<id>' is not in the loaded content` |
 | Save file missing, corrupt or of another generation | `unreadable: <reason>` |
 | The saved state holds an item this game's content does not define | `unreadable: state.<n>.ron: unknown item '<id>' held by <owner>`, or `named by the chart` |
 | A file operation failed | the raw I/O error |
@@ -168,9 +169,9 @@ Nothing here ends. The objective on your HUD just names the way out: <kbd>F1</kb
 
 ## Mining and cargo
 
-<!-- Route verified against crates/nova_authoring/src/base_content/scenarios/open_world.rs (the line warship and its stock), crates/nova_authoring/src/base_content/ships/block.rs (the warship's collars and dorsal intake), crates/nova_world_base/src/sector_ships.rs (`ship_stock`, `ship_credits`; every generated ship starts with goods and credits) and crates/nova_world/src/streaming.rs `spawn_sector_ship` (derelicts are lootable; a living generated ship trades its own stock and credits). -->
+<!-- Route verified against crates/nova_authoring/src/base_content/start_roles.rs (the start roles and their kits), crates/nova_authoring/src/base_content/ships/block.rs (each start hull's collar, intake and mining beam), crates/nova_world_base/src/sector_ships.rs (`ship_stock`, `ship_credits`; every generated ship starts with goods and credits) and crates/nova_world/src/streaming.rs `spawn_sector_ship` (derelicts are lootable; a living generated ship trades its own stock and credits). -->
 
-The line warship New Game gives you carries a docking port on each shoulder and a cargo intake on its top deck. Its hold is what keeps it fighting: a [repair](../interface/#the-ship) spends hull plates, and every idle [reload](../combat-weapons/#magazines) spends ammunition. Press <kbd>Tab</kbd> and step to the **Inventory** pane to see what you carry.
+Every start hull carries a docking port on its port flank. The mining tug and the salvage hauler also carry a cargo intake on the top deck, and only the mining tug carries a mining beam. The hold is what keeps a ship fighting: a [repair](../interface/#the-ship) spends hull plates, and every idle [reload](../combat-weapons/#magazines) spends ammunition. Press <kbd>Tab</kbd> and step to the **Inventory** pane to see what you carry.
 
 1. **Take from a wreck.** Each generated derelict wreck carries its own mixed goods - it may hold no hull plates at all - and a share of its credits. Travel-lock one, line one of your ports up with one of its ports and press <kbd>D</kbd> to [dock](../sections/docking/#flying-the-approach). In the Inventory pane, click an item and **Confirm** to [take](../interface/#take-and-give) it, or click **Take credits** to take its whole balance in one click. <kbd>D</kbd> again lets go.
 2. **Mine a rock.** Travel-lock a rock, put your nose on it inside 100 m and hold <kbd>V</kbd>. The [mining beam](../sections/mining-beam/#cutting-ore) cuts it once a second, and the ore drifts off the rock in canisters.

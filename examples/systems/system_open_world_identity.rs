@@ -100,6 +100,8 @@ const WORLD_NAME: &str = "Probe World";
 const SEED_FIELD: &str = "World Seed Field";
 #[cfg(feature = "debug")]
 const CREATE_WORLD_BUTTON: &str = "Create World Button";
+#[cfg(feature = "debug")]
+const WORLD_NEXT_BUTTON: &str = "World Next Button";
 
 /// How many cells the open world keeps live: radius 2 is a 5x5x5 window.
 #[cfg(feature = "debug")]
@@ -657,7 +659,7 @@ fn identity_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Game
         .click_named(
             "identity: click New Game",
             NEW_GAME_BUTTON,
-            ui_node_present(CREATE_WORLD_BUTTON),
+            ui_node_present(WORLD_NEXT_BUTTON),
             BEAT_DEADLINE_SECS,
         )
         .step("identity: name the world")
@@ -682,6 +684,12 @@ fn identity_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Game
         })
         .until(frames(2))
         .add()
+        .click_named(
+            "identity: click Next",
+            WORLD_NEXT_BUTTON,
+            ui_node_present(CREATE_WORLD_BUTTON),
+            BEAT_DEADLINE_SECS,
+        )
         .click_named(
             "identity: click Create",
             CREATE_WORLD_BUTTON,

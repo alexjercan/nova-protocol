@@ -118,6 +118,11 @@ mod walk {
     const WORLD_NAME: &str = "Chart World";
     const SEED_FIELD: &str = "World Seed Field";
     const CREATE_WORLD_BUTTON: &str = "Create World Button";
+    const WORLD_NEXT_BUTTON: &str = "World Next Button";
+    /// The start role the walk picks: the scavenger's salvage hauler, a compact
+    /// box. The first role's mining tug has a bow boom that can strike a berthed
+    /// partner.
+    const START_ROLE_BUTTON: &str = "Start Role Button: scavenger";
     const PAUSE_EXIT_BUTTON: &str = "Pause Exit Button";
     const BACK_TO_MENU_BUTTON: &str = "Back To Menu Button";
     const LOAD_BUTTON: &str = "Load Button";
@@ -701,6 +706,7 @@ mod walk {
             &root,
             &slug,
             world.resource::<LoadedSectionPacks>(),
+            world.resource::<GameStartRoles>(),
             world.resource::<GameItems>(),
             &RegisteredScenarios::from(world.resource::<GameScenarios>()),
         )
@@ -788,7 +794,7 @@ mod walk {
             .click_named(
                 "world chart: click New Game",
                 NEW_GAME_BUTTON,
-                ui_node_present(CREATE_WORLD_BUTTON),
+                ui_node_present(WORLD_NEXT_BUTTON),
                 BEAT_SECS,
             )
             .step("world chart: name the world and enter the seed")
@@ -798,6 +804,18 @@ mod walk {
             })
             .until(frames(2))
             .add()
+            .click_named(
+                "world chart: click Next",
+                WORLD_NEXT_BUTTON,
+                ui_node_present(CREATE_WORLD_BUTTON),
+                BEAT_SECS,
+            )
+            .click_named(
+                "world chart: pick the start role",
+                START_ROLE_BUTTON,
+                pointer_released(),
+                BEAT_SECS,
+            )
             .click_named(
                 "world chart: click Create",
                 CREATE_WORLD_BUTTON,

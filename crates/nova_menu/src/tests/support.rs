@@ -32,6 +32,29 @@ pub(crate) const TEST_START_ID: &str = "story_start";
 pub(crate) const TEST_BACKDROP_ID: &str = "test_backdrop";
 /// The practice range the fixture handbook's lessons hand off to.
 pub(crate) const TEST_RANGE_ID: &str = "test_range";
+/// The start roles the New Game modal lists, in list order.
+pub(crate) const TEST_ROLE_IDS: [&str; 2] = ["test_miner", "test_raider"];
+
+/// The start role catalog the New Game modal lists: [`TEST_ROLE_IDS`], each
+/// on a hull the empty ship catalog does not hold.
+pub(crate) fn dummy_roles() -> GameStartRoles {
+    GameStartRoles(
+        TEST_ROLE_IDS
+            .iter()
+            .map(|id| StartRole {
+                id: (*id).into(),
+                name: id.to_string(),
+                about: format!("How {id} plays."),
+                hull: format!("{id}_hull").as_str().into(),
+                kit: StartKit {
+                    credits: 1_000,
+                    stock: ShipInventoryStock::default(),
+                },
+                lore: String::new(),
+            })
+            .collect(),
+    )
+}
 
 /// A scratch settings store of this test's own, named after `what`.
 ///
@@ -112,6 +135,10 @@ pub(crate) fn app_storing_settings_at(root: impl Into<std::path::PathBuf>) -> Ap
     // The item catalog the Load list checks each saved world against; the
     // content merge publishes it in production.
     app.insert_resource(nova_gameplay::test_support::test_items());
+    // The start roles and ship catalog the New Game modal lists and names
+    // hulls from; the content merge publishes both in production.
+    app.insert_resource(dummy_roles());
+    app.init_resource::<GameShipDesigns>();
     // Headless: no TimePlugin, so provide the clocks the pause systems and the
     // handbook's looping demonstrations touch. Nothing advances them, so a test
     // that wants time to pass moves the clock itself.

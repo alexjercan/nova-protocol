@@ -44,7 +44,9 @@ use bevy::prelude::*;
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_events::prelude::Meters;
 use nova_gameplay::prelude::{Chart, GameItems, PlayerSpaceshipMarker};
-use nova_scenario::prelude::{CurrentScenario, GameStationDesigns, ScenarioWorldType};
+use nova_scenario::prelude::{
+    CurrentScenario, GameStationDesigns, OpenWorldSession, ScenarioWorldType,
+};
 use nova_ship::prelude::GameStyles;
 use nova_world::prelude::*;
 
@@ -94,7 +96,7 @@ pub use crate::{
 };
 
 /// Glob-import surface: `use nova_world_base::prelude::*` brings the plugin,
-/// the session, the generator, its clearance margin, the environment, cluster
+/// the generator, its clearance margin, the environment, cluster
 /// and civilization diagnostics, the ship-part snapshot, the ship layout, the
 /// ship planner, the base-world ids, the role style ids and the saved-world
 /// format into scope.
@@ -111,18 +113,18 @@ pub mod prelude {
         generate_ship, generate_wreck, plan_ship, role_style_id, sector_clusters, ship_stock,
         Civilization, CivilizationField, CivilizationReach, CivilizationStatusType, ClusterSummary,
         Environment, EnvironmentFieldType, EnvironmentFields, HullSlot, NovaLayeredWorld,
-        NovaWorldBasePlugin, OpenWorldSession, PinnedStation, PlannedShip, SectorClusters,
-        ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType, ShipLayoutFailure,
-        ShipLayoutRequest, ShipPart, ShipPartExclusionType, ShipPartFamilyType, ShipPartFault,
-        ShipPartPack, ShipPartSnapshot, ARMOURED_STYLE_ID, BLOCK_WAYSTATION_STATION_ID,
-        CIVILIAN_STYLE_ID, CLEARANCE_MARGIN, GENERATED_STATION_DESIGN_IDS, INDUSTRIAL_STYLE_ID,
-        OPEN_WORLD_BOUNDS_RADIUS_MAX, OPEN_WORLD_SCENARIO_ID, RING_STATION_STATION_ID,
-        SALVAGE_STYLE_ID, SPIRE_STATION_STATION_ID, STATION_STYLE_ID, YARD_STATION_STATION_ID,
+        NovaWorldBasePlugin, PinnedStation, PlannedShip, SectorClusters, ShipDriveLayoutType,
+        ShipLayout, ShipLayoutConstraintType, ShipLayoutFailure, ShipLayoutRequest, ShipPart,
+        ShipPartExclusionType, ShipPartFamilyType, ShipPartFault, ShipPartPack, ShipPartSnapshot,
+        ARMOURED_STYLE_ID, BLOCK_WAYSTATION_STATION_ID, CIVILIAN_STYLE_ID, CLEARANCE_MARGIN,
+        GENERATED_STATION_DESIGN_IDS, INDUSTRIAL_STYLE_ID, OPEN_WORLD_BOUNDS_RADIUS_MAX,
+        OPEN_WORLD_SCENARIO_ID, RING_STATION_STATION_ID, SALVAGE_STYLE_ID,
+        SPIRE_STATION_STATION_ID, STATION_STYLE_ID, YARD_STATION_STATION_ID,
     };
 }
 
-/// The id of the base bootstrap New Game launches: the player's warship, the
-/// lights and the sky, with every sector streamed in around them.
+/// The id of the base bootstrap New Game launches: the player's start role
+/// ship, the lights and the sky, with every sector streamed in around them.
 pub const OPEN_WORLD_SCENARIO_ID: &str = "open_world";
 
 /// The id the block-built waystation is spawned by: an unarmed plated block
@@ -177,17 +179,6 @@ const OPEN_WORLD_ACTIVE_RADIUS: i32 = 2;
 /// while the player is at its centre. The content lint refuses a larger one.
 pub const OPEN_WORLD_BOUNDS_RADIUS_MAX: Meters =
     Meters(OPEN_WORLD_SECTOR_EDGE.0 * (2 * OPEN_WORLD_ACTIVE_RADIUS + 1) as f32 / 2.0);
-
-/// The world the player asked for on the New Game screen.
-///
-/// Inserted by the menu's Create and by Load, for a scenario whose world is
-/// `Generated((seed: None))`. It stays for the whole run, so a Retry streams
-/// the same world again. A new New Game replaces it.
-#[derive(Resource, Clone, Copy, Debug, Eq, PartialEq)]
-pub struct OpenWorldSession {
-    /// The world seed every sector is generated from.
-    pub seed: u32,
-}
 
 /// The base game's open world.
 ///

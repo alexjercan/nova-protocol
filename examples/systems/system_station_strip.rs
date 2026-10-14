@@ -135,6 +135,11 @@ mod walk {
     const WORLD_NAME: &str = "Station Strip World";
     const SEED_FIELD: &str = "World Seed Field";
     const CREATE_WORLD_BUTTON: &str = "Create World Button";
+    const WORLD_NEXT_BUTTON: &str = "World Next Button";
+    /// The start role the walk picks: the scavenger's salvage hauler, a compact
+    /// box. The first role's mining tug has a bow boom that can strike a berthed
+    /// partner.
+    const START_ROLE_BUTTON: &str = "Start Role Button: scavenger";
 
     /// The Ship pane's side panel, which scrolls under the wheel.
     const SHIP_PANEL: &str = "ShipPanel";
@@ -1224,7 +1229,7 @@ mod walk {
             .click_named(
                 "station strip: click New Game",
                 NEW_GAME_BUTTON,
-                ui_node_present(CREATE_WORLD_BUTTON),
+                ui_node_present(WORLD_NEXT_BUTTON),
                 SESSION_SECS,
             )
             .step("station strip: name the world and enter the seed")
@@ -1234,6 +1239,18 @@ mod walk {
             })
             .until(frames(2))
             .add()
+            .click_named(
+                "station strip: click Next",
+                WORLD_NEXT_BUTTON,
+                ui_node_present(CREATE_WORLD_BUTTON),
+                BEAT_DEADLINE_SECS,
+            )
+            .click_named(
+                "station strip: pick the start role",
+                START_ROLE_BUTTON,
+                pointer_released(),
+                BEAT_DEADLINE_SECS,
+            )
             .click_named(
                 "station strip: click Create",
                 CREATE_WORLD_BUTTON,

@@ -59,6 +59,9 @@ struct Cli;
 /// The world seed: `system_station_buy`'s, whose window around the spawn
 /// holds a living Neutral station that refits and sells hulls.
 const SANDBOX_SEED: u32 = 10;
+/// The start role the player spawns as: the scavenger's salvage hauler has
+/// the largest start hold, so it takes the most recipe parts.
+const SANDBOX_ROLE: &str = "scavenger";
 /// The player's balance once docked: above the station's own price, which
 /// counts the station's balance twice.
 const PLAYER_CREDITS: u32 = 50_000_000;
@@ -155,7 +158,10 @@ fn start_the_world(
     if sandbox.phase != SandboxPhaseType::Menu {
         return;
     }
-    commands.insert_resource(OpenWorldSession { seed: SANDBOX_SEED });
+    commands.insert_resource(OpenWorldSession {
+        seed: SANDBOX_SEED,
+        role: SANDBOX_ROLE.into(),
+    });
     pick.0 = None;
     *mode = GameMode::NewGame;
     state.set(GameStates::Playing);

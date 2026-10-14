@@ -5,9 +5,9 @@
 use bevy::{prelude::*, ui_widgets::Activate};
 use nova_gameplay::prelude::*;
 use nova_input::prelude::{BindingSpec, InputBindings, InputSource};
+use nova_scenario::prelude::OpenWorldSession;
 use nova_training::prelude::*;
 use nova_ui::prelude::Selected;
-use nova_world_base::prelude::OpenWorldSession;
 
 use super::support::{
     all_texts, app, dummy_lessons, dummy_progress, dummy_scenarios, entity_by_name, FIXTURE_NOTE,

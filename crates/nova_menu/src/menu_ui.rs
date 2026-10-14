@@ -7,7 +7,7 @@ use bevy::{
 };
 use nova_gameplay::prelude::*;
 use nova_info::prelude::*;
-use nova_scenario::prelude::*;
+use nova_scenario::prelude::{OpenWorldSession, *};
 use nova_training::prelude::{catalog_field_notes, FieldNoteRotation, TrainingCatalog};
 use nova_ui::{
     screen::{
@@ -21,7 +21,6 @@ use nova_ui::{
         ThemedText, ThemedTextShadow, UiText,
     },
 };
-use nova_world_base::prelude::OpenWorldSession;
 #[cfg(not(target_arch = "wasm32"))]
 use nova_world_base::prelude::WorldSaveSession;
 

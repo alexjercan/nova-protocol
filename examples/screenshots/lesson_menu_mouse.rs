@@ -563,6 +563,7 @@ fn menu_mouse_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Ga
         })
         .until(frames(2))
         .add()
+        .click("go on to the start role", "World Next Button")
         .click("create the world", "Create World Button")
         .step("reach the first flight")
         .until(state_is(GameStates::Playing))

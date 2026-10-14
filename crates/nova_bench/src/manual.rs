@@ -84,8 +84,8 @@ pub fn opening(target: &PlayTarget, goal: &str, first: &Value) -> String {
 Leave `World Name Field` on the `New World` it opens with. For `World Seed Field`, use its `ui.targets` rect [x,y,w,h] and move to \
 [x+w-2,y+h/2] before clicking: the caret must be at the end, not the middle. Send ten \
 {{\"key\":\"Backspace\"}} gestures (one per digit of any u32) to clear the prefilled value. \
-Send {{\"text\":\"{world_seed}\"}}, then click `Create World Button`. Do not append to the \
-prefilled seed. Check game_state, scenario and world_seed after Create; the referee refuses a different \
+Send {{\"text\":\"{world_seed}\"}}, then click `World Next Button`. Leave the start role it \
+selects first, and click `Create World Button`. Do not append to the prefilled seed. Check game_state, scenario and world_seed after Create; the referee refuses a different \
 world. --seed is separate gameplay RNG, not the World Seed field."
         ),
     };

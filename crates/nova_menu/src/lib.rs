@@ -273,11 +273,14 @@ impl Plugin for NovaMenuPlugin {
                 .run_if(in_state(GameStates::MainMenu)),
         );
         // After the field's own systems, so a name or seed typed this frame is refused
-        // or accepted before anything repaints the field.
+        // or accepted before anything repaints the field. The role details
+        // rebuild on the frame a role is selected or the modal opens.
         app.add_systems(
             Update,
-            world_setup::read_world_setup
-                .after(TextFieldSystems)
+            (
+                world_setup::read_world_setup.after(TextFieldSystems),
+                world_setup::refresh_start_role_details,
+            )
                 .run_if(in_state(GameStates::MainMenu)),
         );
         // Safe mode's one report, owed on the front door once per recovery.

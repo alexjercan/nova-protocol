@@ -25,6 +25,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   Death keeps the last save.
 - Dying in New Game shows DEFEAT with Main Menu. On desktop it also offers
   Load last save, which reopens the world from its last save.
+- New Game asks for a name and seed, then a start role. Create spawns the
+  role's hull with its kit and its weapons bound.
 - Open-world ships now grow slowly with distance: the first four civilization
   rings field small hulls only, medium hulls appear near 2,000 km out and the
   largest past 3,000 km.
@@ -116,8 +118,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** An asteroid `lock_signature` override must be finite and above
   zero. Any other value fails at lint and at load.
 - **(breaking)** `Station` content spawns by id as `kind: Station` with a
-  required side and `collapse_threshold`. Save format 8 (chart, plates, hulls,
-  fleet, owned stations) refuses older saves.
+  required side and `collapse_threshold`. Save format 9 (chart, plates, hulls,
+  fleet, owned stations, role) refuses older saves.
 - A station is a dynamic body: gravity and rams move it, its bridge levels it
   and it orbits in a well. At its `collapse_threshold` share of hull it
   collapses like a ship and drops its hold and storage.

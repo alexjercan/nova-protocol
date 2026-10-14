@@ -66,6 +66,8 @@ const NEW_GAME_BUTTON: &str = "New Game Button";
 const SEED_FIELD: &str = "World Seed Field";
 #[cfg(feature = "debug")]
 const CREATE_WORLD_BUTTON: &str = "Create World Button";
+#[cfg(feature = "debug")]
+const WORLD_NEXT_BUTTON: &str = "World Next Button";
 
 /// Backspaces that clear any seed the window opens with: it pre-fills a random
 /// u32, at most ten digits.
@@ -614,7 +616,7 @@ fn world_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .click_named(
             "click New Game",
             NEW_GAME_BUTTON,
-            ui_node_present(CREATE_WORLD_BUTTON),
+            ui_node_present(WORLD_NEXT_BUTTON),
             BEAT_DEADLINE_SECS,
         )
         .step("move to the seed field's right edge")
@@ -645,6 +647,12 @@ fn world_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .until(text_field_reads(SEED_FIELD, WORLD_SEED.to_string()))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
+        .click_named(
+            "click Next",
+            WORLD_NEXT_BUTTON,
+            ui_node_present(CREATE_WORLD_BUTTON),
+            BEAT_DEADLINE_SECS,
+        )
         .click_named(
             "click Create",
             CREATE_WORLD_BUTTON,

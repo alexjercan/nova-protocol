@@ -22,7 +22,7 @@ use nova_world_base::{
         create_world, list_worlds, open_world, FrozenTransient, FrozenTransientType,
         RegisteredScenarios, WorldRefusal, WorldSaveSession, WorldSaveStatus,
     },
-    test_support::{arm_save_fixture, WorldSaveTestPlugin},
+    test_support::{arm_save_fixture, WorldSaveTestPlugin, FIXTURE_ROLE_ID},
 };
 use tempfile::TempDir;
 
@@ -67,6 +67,7 @@ fn saved_world() -> (App, TempDir, Entity) {
         lock,
         "Leave".to_string(),
         42,
+        FIXTURE_ROLE_ID.into(),
     ));
     enter_playing(&mut app);
     update_until(&mut app, "the first save", |app| {
@@ -140,6 +141,7 @@ fn the_save_notice_shows_new_saves_for_three_real_seconds_and_keeps_failures() {
         "leave",
         app.world()
             .resource::<nova_assets::prelude::LoadedSectionPacks>(),
+        app.world().resource::<GameStartRoles>(),
         app.world().resource::<GameItems>(),
         &RegisteredScenarios::from(app.world().resource::<GameScenarios>()),
     )
@@ -190,6 +192,7 @@ fn on_disk(app: &App, root: &Path) -> (u64, u32) {
         root,
         app.world()
             .resource::<nova_assets::prelude::LoadedSectionPacks>(),
+        app.world().resource::<GameStartRoles>(),
     )
     .unwrap();
     let [world] = &listed[..] else {
@@ -257,6 +260,7 @@ fn leaving_a_saved_world_waits_for_the_leave_save_with_input_still_paused() {
         "leave",
         app.world()
             .resource::<nova_assets::prelude::LoadedSectionPacks>(),
+        app.world().resource::<GameStartRoles>(),
         app.world().resource::<GameItems>(),
         &RegisteredScenarios::from(app.world().resource::<GameScenarios>()),
     )
@@ -501,6 +505,7 @@ fn entering_the_menu_after_a_death_releases_the_world() {
         "leave",
         app.world()
             .resource::<nova_assets::prelude::LoadedSectionPacks>(),
+        app.world().resource::<GameStartRoles>(),
         app.world().resource::<GameItems>(),
         &RegisteredScenarios::from(app.world().resource::<GameScenarios>()),
     )
@@ -575,6 +580,7 @@ fn a_write_in_flight_keeps_the_world_locked_after_a_death_exit() {
             "leave",
             app.world()
                 .resource::<nova_assets::prelude::LoadedSectionPacks>(),
+            app.world().resource::<GameStartRoles>(),
             app.world().resource::<GameItems>(),
             &RegisteredScenarios::from(app.world().resource::<GameScenarios>()),
         )

@@ -251,6 +251,28 @@ pub fn lint_scenario(
         ));
     }
 
+    // The start role comes from the session New Game's Create and Load
+    // insert, and only a session-seeded world has one: anywhere else the
+    // action would spawn no player ship.
+    if !scenario.world.needs_session() {
+        let mut start_roles = 0;
+        for action in scenario.events.iter().flat_map(|event| &event.actions) {
+            action.walk(&mut |action| {
+                if matches!(action, EventActionConfig::SpawnStartRole(_)) {
+                    start_roles += 1;
+                }
+            });
+        }
+        if start_roles > 0 {
+            issues.push(LintIssue::error(
+                id,
+                "SpawnStartRole outside a `world: Generated((seed: None))` scenario; only New \
+                 Game's session names a start role"
+                    .to_string(),
+            ));
+        }
+    }
+
     // Only New Game's Create and Load carry the typed seed, and both load a
     // chapter: the menu draws a backdrop and the handbook starts a practice
     // range with no session, so either would reach the generator with no seed.
@@ -312,6 +334,9 @@ pub fn lint_scenario(
                 match action {
                     EventActionConfig::SpawnScenarioObject(config) => {
                         event_spawns.push(config.base.id.clone());
+                    }
+                    EventActionConfig::SpawnStartRole(config) => {
+                        event_spawns.push(config.id.clone());
                     }
                     EventActionConfig::CreateScenarioArea(config) => {
                         event_spawns.push(config.id.clone());
@@ -883,6 +908,12 @@ fn collect_declared(action: &EventActionConfig, declared: &mut Declared) {
                     },
                 );
             }
+        }
+        // Its design is the session's role, unknown until New Game: the
+        // mining bindings are derived from the hull, so nothing is left for
+        // `spawned_ships` to check.
+        EventActionConfig::SpawnStartRole(config) => {
+            declared.spawn_ids.push(config.id.clone());
         }
         EventActionConfig::ScatterObjects(config) => {
             declared.scatter_prefixes.push(config.id_prefix.clone());
@@ -2063,7 +2094,7 @@ fn compares_the_clock_to_a_non_literal(
 }
 
 /// How many player-controlled ships the handlers on `trigger` spawn, however
-/// deeply nested.
+/// deeply nested. A `SpawnStartRole` is always one.
 fn player_spawns(scenario: &ScenarioConfig, trigger: EventConfig) -> usize {
     let mut players = 0;
     for action in scenario
@@ -2072,14 +2103,16 @@ fn player_spawns(scenario: &ScenarioConfig, trigger: EventConfig) -> usize {
         .filter(|event| event.name == trigger)
         .flat_map(|event| &event.actions)
     {
-        action.walk(&mut |action| {
-            if let EventActionConfig::SpawnScenarioObject(config) = action {
+        action.walk(&mut |action| match action {
+            EventActionConfig::SpawnScenarioObject(config) => {
                 if let ScenarioObjectKind::Spaceship(ship) = &config.kind {
                     if matches!(ship.controller, SpaceshipController::Player(_)) {
                         players += 1;
                     }
                 }
             }
+            EventActionConfig::SpawnStartRole(_) => players += 1,
+            _ => {}
         });
     }
     players

@@ -8,7 +8,7 @@
 //! side, offers Trade and Storage, and stands outside the spawn's cell. THE
 //! HOLD AND THE BALANCE ARE DISCLOSED FIXTURE STATE: the player's hold is set
 //! to 12 section panels and 3 rations and its balance to 1,000 cr, so the
-//! walk does not depend on what the warship spawns with. The player jumps
+//! walk does not depend on what the start role spawns with. The player jumps
 //! beside the station and is put on a berth at its collar each frame until the
 //! dock takes; the walk never flies the approach (`system_station_docking`
 //! does).
@@ -127,6 +127,11 @@ mod walk {
     const WORLD_NAME: &str = "Storage World";
     const SEED_FIELD: &str = "World Seed Field";
     const CREATE_WORLD_BUTTON: &str = "Create World Button";
+    const WORLD_NEXT_BUTTON: &str = "World Next Button";
+    /// The start role the walk picks: the scavenger's salvage hauler, a compact
+    /// box. The first role's mining tug has a bow boom that can strike a berthed
+    /// partner.
+    const START_ROLE_BUTTON: &str = "Start Role Button: scavenger";
     const PAUSE_EXIT_BUTTON: &str = "Pause Exit Button";
     const BACK_TO_MENU_BUTTON: &str = "Back To Menu Button";
     const LOAD_BUTTON: &str = "Load Button";
@@ -895,6 +900,7 @@ mod walk {
             &root,
             &slug,
             world.resource::<LoadedSectionPacks>(),
+            world.resource::<GameStartRoles>(),
             world.resource::<GameItems>(),
             &RegisteredScenarios::from(world.resource::<GameScenarios>()),
         )
@@ -958,7 +964,7 @@ mod walk {
             .click_named(
                 "station storage: click New Game",
                 NEW_GAME_BUTTON,
-                ui_node_present(CREATE_WORLD_BUTTON),
+                ui_node_present(WORLD_NEXT_BUTTON),
                 BEAT_SECS,
             )
             .step("station storage: name the world and enter the seed")
@@ -968,6 +974,18 @@ mod walk {
             })
             .until(frames(2))
             .add()
+            .click_named(
+                "station storage: click Next",
+                WORLD_NEXT_BUTTON,
+                ui_node_present(CREATE_WORLD_BUTTON),
+                BEAT_SECS,
+            )
+            .click_named(
+                "station storage: pick the start role",
+                START_ROLE_BUTTON,
+                pointer_released(),
+                BEAT_SECS,
+            )
             .click_named(
                 "station storage: click Create",
                 CREATE_WORLD_BUTTON,

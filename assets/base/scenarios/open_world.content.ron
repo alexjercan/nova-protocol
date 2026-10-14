@@ -2,7 +2,7 @@
     Scenario((
         id: "open_world",
         name: "Open World",
-        description: "An open world generated from your seed: sparse asteroid clusters, planetoids and generated ships, streamed in around your line warship as you fly.",
+        description: "An open world generated from your seed: sparse asteroid clusters, planetoids and generated ships, streamed in around your ship as you fly.",
         cubemap: "self://textures/cubemap.png",
         world: Generated((
             seed: None,
@@ -13,77 +13,19 @@
                 name: OnStart,
                 once: true,
                 actions: [
-                    SpawnScenarioObject((
-                        base: (
-                            id: "player",
-                            name: "Line Warship",
-                            position: (
-                                0.0,
-                                0.0,
-                                0.0,
-                            ),
-                            rotation: (
-                                0.0,
-                                0.0,
-                                0.0,
-                                1.0,
-                            ),
+                    SpawnStartRole((
+                        id: "player",
+                        position: (
+                            0.0,
+                            0.0,
+                            0.0,
                         ),
-                        kind: Spaceship((
-                            design: Prototype(
-                                id: "line_warship",
-                            ),
-                            controller: Player((
-                                input_mapping: {
-                                    "pdc_aft_port": [
-                                        Mouse(Left),
-                                        Gamepad(RightTrigger2),
-                                    ],
-                                    "pdc_aft_starboard": [
-                                        Mouse(Left),
-                                        Gamepad(RightTrigger2),
-                                    ],
-                                    "pdc_forward_port": [
-                                        Mouse(Left),
-                                        Gamepad(RightTrigger2),
-                                    ],
-                                    "pdc_forward_starboard": [
-                                        Mouse(Left),
-                                        Gamepad(RightTrigger2),
-                                    ],
-                                    "pdc_ventral_port": [
-                                        Mouse(Left),
-                                        Gamepad(RightTrigger2),
-                                    ],
-                                    "pdc_ventral_starboard": [
-                                        Mouse(Left),
-                                        Gamepad(RightTrigger2),
-                                    ],
-                                    "railgun_spinal": [
-                                        Keyboard(KeyR),
-                                    ],
-                                    "torpedo_port": [
-                                        Keyboard(KeyF),
-                                    ],
-                                    "torpedo_starboard": [
-                                        Keyboard(KeyF),
-                                    ],
-                                },
-                            )),
-                            initial_velocity: (
-                                0.0,
-                                0.0,
-                                0.0,
-                            ),
-                            inventory: {
-                                "HullPlate": 12,
-                                "PdcRound": 6000,
-                                "RailSlug": 20,
-                                "Torpedo": 12,
-                            },
-                            lootable: false,
-                            credits: 2000,
-                        )),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
                     )),
                     SpawnScenarioObject((
                         base: (
@@ -172,77 +114,19 @@
                 name: OnResume,
                 once: true,
                 actions: [
-                    SpawnScenarioObject((
-                        base: (
-                            id: "player",
-                            name: "Line Warship",
-                            position: (
-                                0.0,
-                                0.0,
-                                0.0,
-                            ),
-                            rotation: (
-                                0.0,
-                                0.0,
-                                0.0,
-                                1.0,
-                            ),
+                    SpawnStartRole((
+                        id: "player",
+                        position: (
+                            0.0,
+                            0.0,
+                            0.0,
                         ),
-                        kind: Spaceship((
-                            design: Prototype(
-                                id: "line_warship",
-                            ),
-                            controller: Player((
-                                input_mapping: {
-                                    "pdc_aft_port": [
-                                        Mouse(Left),
-                                        Gamepad(RightTrigger2),
-                                    ],
-                                    "pdc_aft_starboard": [
-                                        Mouse(Left),
-                                        Gamepad(RightTrigger2),
-                                    ],
-                                    "pdc_forward_port": [
-                                        Mouse(Left),
-                                        Gamepad(RightTrigger2),
-                                    ],
-                                    "pdc_forward_starboard": [
-                                        Mouse(Left),
-                                        Gamepad(RightTrigger2),
-                                    ],
-                                    "pdc_ventral_port": [
-                                        Mouse(Left),
-                                        Gamepad(RightTrigger2),
-                                    ],
-                                    "pdc_ventral_starboard": [
-                                        Mouse(Left),
-                                        Gamepad(RightTrigger2),
-                                    ],
-                                    "railgun_spinal": [
-                                        Keyboard(KeyR),
-                                    ],
-                                    "torpedo_port": [
-                                        Keyboard(KeyF),
-                                    ],
-                                    "torpedo_starboard": [
-                                        Keyboard(KeyF),
-                                    ],
-                                },
-                            )),
-                            initial_velocity: (
-                                0.0,
-                                0.0,
-                                0.0,
-                            ),
-                            inventory: {
-                                "HullPlate": 12,
-                                "PdcRound": 6000,
-                                "RailSlug": 20,
-                                "Torpedo": 12,
-                            },
-                            lootable: false,
-                            credits: 2000,
-                        )),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
                     )),
                     SpawnScenarioObject((
                         base: (

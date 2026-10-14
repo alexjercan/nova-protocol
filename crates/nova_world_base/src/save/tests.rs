@@ -20,8 +20,8 @@ use nova_gameplay::prelude::{
 use nova_scenario::prelude::{
     freeze_asteroid, freeze_fleet, freeze_ore_drop, freeze_ship, freeze_station,
     spaceship_scenario_object, AsteroidKind, AsteroidKindId, AsteroidMarker, AsteroidRadius,
-    AsteroidSeed, AsteroidTexture, CurrentScenario, MinedCanisterQueue, MinedOre, MinedOreDrop,
-    SpaceshipConfig, StationMarker, StationStorage,
+    AsteroidSeed, AsteroidTexture, CurrentScenario, GameStartRoles, MinedCanisterQueue, MinedOre,
+    MinedOreDrop, SpaceshipConfig, StationMarker, StationStorage,
 };
 use nova_ship::prelude::{
     cargo_canister, freeze_canister, freeze_wreck_fragment, thaw_round, thaw_torpedo, AIFollow,
@@ -46,7 +46,10 @@ use super::{
     WorldResumeRefused, WorldSaveHeader, WorldSaveSession, WorldSaveState, WorldSaveStatus,
     WORLD_SAVE_FORMAT,
 };
-use crate::{test_support::FIXTURE_SCENARIO_ID, NovaLayeredWorld};
+use crate::{
+    test_support::{fixture_roles, FIXTURE_ROLE_ID, FIXTURE_SCENARIO_ID},
+    NovaLayeredWorld,
+};
 
 /// A loaded catalog of digest `digest` from the base game and one mod.
 fn catalog(digest: u64) -> LoadedSectionPacks {
@@ -72,6 +75,11 @@ fn scenarios() -> RegisteredScenarios {
     RegisteredScenarios(BTreeSet::from([FIXTURE_SCENARIO_ID.to_string()]))
 }
 
+/// The start roles every header is checked against: the fixture's one.
+fn roles() -> GameStartRoles {
+    fixture_roles()
+}
+
 /// The saved scenario state of a world with nothing done in it.
 fn saved_scenario() -> SavedScenario {
     SavedScenario {
@@ -87,6 +95,7 @@ fn header(name: &str, generation: u64) -> WorldSaveHeader {
         format: WORLD_SAVE_FORMAT,
         name: name.to_string(),
         seed: 42,
+        role: FIXTURE_ROLE_ID.into(),
         catalog: 7,
         mods: vec!["base".to_string(), "extra_hulls".to_string()],
         game_version: "0.0.0-test".to_string(),
@@ -194,11 +203,27 @@ fn a_world_another_game_holds_open_is_refused() {
     write_world(&folder, &header("Held", 1), &state(1, 750)).unwrap();
 
     assert_eq!(
-        open_world(root.path(), "held", &catalog(7), &items(), &scenarios()).unwrap_err(),
+        open_world(
+            root.path(),
+            "held",
+            &catalog(7),
+            &roles(),
+            &items(),
+            &scenarios()
+        )
+        .unwrap_err(),
         WorldRefusal::Locked
     );
     drop(lock);
-    assert!(open_world(root.path(), "held", &catalog(7), &items(), &scenarios()).is_ok());
+    assert!(open_world(
+        root.path(),
+        "held",
+        &catalog(7),
+        &roles(),
+        &items(),
+        &scenarios()
+    )
+    .is_ok());
 }
 
 /// The list shows every folder with the reason it cannot load: another
@@ -222,7 +247,7 @@ fn the_list_shows_why_each_refused_world_cannot_load() {
     drop(create_world(root.path(), "Empty").unwrap());
     std::fs::create_dir(root.path().join("Hand Made")).unwrap();
 
-    let listed = list_worlds(root.path(), &catalog(8)).unwrap();
+    let listed = list_worlds(root.path(), &catalog(8), &roles()).unwrap();
     let shown: Vec<(&str, Result<&str, &WorldRefusal>)> = listed
         .iter()
         .map(|listing| {
@@ -254,7 +279,14 @@ fn the_list_shows_why_each_refused_world_cannot_load() {
     );
 
     assert!(matches!(
-        open_world(root.path(), "good", &catalog(8), &items(), &scenarios()),
+        open_world(
+            root.path(),
+            "good",
+            &catalog(8),
+            &roles(),
+            &items(),
+            &scenarios()
+        ),
         Err(WorldRefusal::Catalog { .. })
     ));
     assert!(matches!(
@@ -262,17 +294,33 @@ fn the_list_shows_why_each_refused_world_cannot_load() {
             root.path(),
             "other-format",
             &catalog(7),
+            &roles(),
             &items(),
             &scenarios()
         ),
         Err(WorldRefusal::Format { found: 99 })
     ));
     assert!(matches!(
-        open_world(root.path(), "../good", &catalog(7), &items(), &scenarios()),
+        open_world(
+            root.path(),
+            "../good",
+            &catalog(7),
+            &roles(),
+            &items(),
+            &scenarios()
+        ),
         Err(WorldRefusal::InvalidName(_))
     ));
-    let good = list_worlds(root.path(), &catalog(7)).unwrap();
+    let good = list_worlds(root.path(), &catalog(7), &roles()).unwrap();
     assert_eq!(good[2].header.as_ref().unwrap(), &header("Good", 1));
+    // The same header under content with no such start role.
+    let roleless = list_worlds(root.path(), &catalog(7), &GameStartRoles::default()).unwrap();
+    assert_eq!(
+        roleless[2].header,
+        Err(WorldRefusal::Role {
+            saved: FIXTURE_ROLE_ID.into()
+        })
+    );
 }
 
 /// No root yet is no worlds; a root that cannot be read is an error, not an
@@ -280,13 +328,15 @@ fn the_list_shows_why_each_refused_world_cannot_load() {
 #[test]
 fn a_missing_root_lists_nothing_and_an_unreadable_root_is_an_error() {
     let root = tempfile::tempdir().unwrap();
-    assert!(list_worlds(&root.path().join("worlds"), &catalog(7))
-        .unwrap()
-        .is_empty());
+    assert!(
+        list_worlds(&root.path().join("worlds"), &catalog(7), &roles())
+            .unwrap()
+            .is_empty()
+    );
     let file = root.path().join("not-a-folder");
     std::fs::write(&file, "").unwrap();
     assert!(matches!(
-        list_worlds(&file, &catalog(7)),
+        list_worlds(&file, &catalog(7), &roles()),
         Err(WorldRefusal::Io(_))
     ));
 }
@@ -309,6 +359,7 @@ fn a_written_world_opens_as_it_was_saved() {
         root.path(),
         "round-trip",
         &catalog(7),
+        &roles(),
         &items(),
         &scenarios(),
     )
@@ -369,8 +420,15 @@ fn a_saved_fleet_opens_as_it_was_frozen_and_a_doubled_slot_is_refused() {
     let (folder, lock) = create_world(root.path(), "Fleet").unwrap();
     write_world(&folder, &header("Fleet", 1), &saved).unwrap();
     drop(lock);
-    let (_, lock, _, opened) =
-        open_world(root.path(), "fleet", &catalog(7), &items(), &scenarios()).unwrap();
+    let (_, lock, _, opened) = open_world(
+        root.path(),
+        "fleet",
+        &catalog(7),
+        &roles(),
+        &items(),
+        &scenarios(),
+    )
+    .unwrap();
     drop(lock);
     let [escort] = opened.player.fleet.as_slice() else {
         panic!("one escort was saved, {} opened", opened.player.fleet.len());
@@ -390,9 +448,16 @@ fn a_saved_fleet_opens_as_it_was_frozen_and_a_doubled_slot_is_refused() {
     twin.id = EntityId("c_0_0_0_cluster_station_0_escort_2".to_string());
     doubled.player.fleet = vec![saved.player.fleet[0].clone(), twin];
     write_world(&folder, &header("Fleet", 2), &doubled).unwrap();
-    let refusal = open_world(root.path(), "fleet", &catalog(7), &items(), &scenarios())
-        .map(|_| ())
-        .unwrap_err();
+    let refusal = open_world(
+        root.path(),
+        "fleet",
+        &catalog(7),
+        &roles(),
+        &items(),
+        &scenarios(),
+    )
+    .map(|_| ())
+    .unwrap_err();
     assert!(
         matches!(&refusal, WorldRefusal::Unreadable(reason) if reason.contains("another escort holds")),
         "{refusal:?}"
@@ -410,8 +475,15 @@ fn a_failed_write_leaves_the_last_good_save() {
     assert!(write_world(&folder, &header("Kept", 2), &state(2, 990)).is_err());
     drop(lock);
 
-    let (_, _lock, read, saved) =
-        open_world(root.path(), "kept", &catalog(7), &items(), &scenarios()).unwrap();
+    let (_, _lock, read, saved) = open_world(
+        root.path(),
+        "kept",
+        &catalog(7),
+        &roles(),
+        &items(),
+        &scenarios(),
+    )
+    .unwrap();
     assert_eq!(read.generation, 1);
     assert_eq!(
         ron::to_string(&saved).unwrap(),
@@ -431,7 +503,15 @@ fn opening_a_world_removes_the_files_its_header_does_not_name() {
     std::fs::write(folder.path.join(".world.ron.123.tmp"), "half").unwrap();
     std::fs::write(folder.path.join("notes.txt"), "mine").unwrap();
 
-    open_world(root.path(), "swept", &catalog(7), &items(), &scenarios()).unwrap();
+    open_world(
+        root.path(),
+        "swept",
+        &catalog(7),
+        &roles(),
+        &items(),
+        &scenarios(),
+    )
+    .unwrap();
     assert_eq!(
         files(&folder.path),
         ["notes.txt", "state.1.ron", "world.lock", "world.ron"]
@@ -592,6 +672,7 @@ fn armed_session(root: &Path) -> (World, Entity) {
         lock,
         "Session".to_string(),
         42,
+        FIXTURE_ROLE_ID.into(),
     ));
     (world, player)
 }
@@ -647,6 +728,7 @@ fn the_first_frame_and_a_leave_each_write_a_save() {
         root.path(),
         "session",
         &catalog(digest),
+        &roles(),
         &items(),
         &scenarios(),
     )
@@ -708,6 +790,7 @@ fn a_world_that_disarms_and_rearms_never_overwrites_its_save() {
             root.path(),
             "session",
             &catalog(digest),
+            &roles(),
             &items(),
             &scenarios(),
         )
@@ -846,6 +929,7 @@ fn a_save_waits_visibly_until_the_player_camera_is_ready() {
         root.path(),
         "session",
         &catalog(digest),
+        &roles(),
         &items(),
         &scenarios(),
     )
@@ -923,8 +1007,15 @@ fn load(root: &Path, digest: u64) -> World {
         .remove_resource::<WorldConfig<NovaLayeredWorld>>()
         .unwrap();
     config.active_radius = 0;
-    let (folder, lock, header, state) =
-        open_world(root, "session", &catalog(digest), &items(), &scenarios()).unwrap();
+    let (folder, lock, header, state) = open_world(
+        root,
+        "session",
+        &catalog(digest),
+        &roles(),
+        &items(),
+        &scenarios(),
+    )
+    .unwrap();
     resume_world(&mut world, folder, lock, &header, state);
     world.insert_resource(config);
     restore_resumed_world(&mut world);
@@ -1100,6 +1191,7 @@ fn a_load_saves_nothing_until_its_transients_are_back() {
         root.path(),
         "session",
         &catalog(digest),
+        &roles(),
         &items(),
         &scenarios(),
     )
@@ -1186,6 +1278,7 @@ fn a_save_waits_out_a_live_blast_and_a_raking_slug() {
         root.path(),
         "session",
         &catalog(digest),
+        &roles(),
         &items(),
         &scenarios(),
     )
@@ -1219,6 +1312,7 @@ fn a_damage_spark_does_not_fail_the_save() {
         lock,
         "Sparking".to_string(),
         42,
+        FIXTURE_ROLE_ID.into(),
     ));
     world.spawn((
         DamageSparks::default(),
@@ -1249,6 +1343,7 @@ fn a_damage_spark_does_not_fail_the_save() {
         root.path(),
         "sparking",
         &catalog(digest),
+        &roles(),
         &items(),
         &scenarios(),
     )
@@ -1992,7 +2087,15 @@ fn a_world_with_a_duplicate_id_is_refused_on_open() {
         };
         write_world(&folder, &header("Ids", generation), &state).unwrap();
         assert_eq!(
-            open_world(root.path(), "ids", &catalog(7), &items(), &scenarios()).map(|_| ()),
+            open_world(
+                root.path(),
+                "ids",
+                &catalog(7),
+                &roles(),
+                &items(),
+                &scenarios()
+            )
+            .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
                 "state.{generation}.ron: {expected}"
             ))),
@@ -2014,8 +2117,15 @@ fn a_world_with_a_duplicate_id_is_refused_on_open() {
     };
     write_world(&folder, &header("Ids", frozen_generation), &frozen_target).unwrap();
     {
-        let (_, _lock, _, saved) =
-            open_world(root.path(), "ids", &catalog(7), &items(), &scenarios()).unwrap();
+        let (_, _lock, _, saved) = open_world(
+            root.path(),
+            "ids",
+            &catalog(7),
+            &roles(),
+            &items(),
+            &scenarios(),
+        )
+        .unwrap();
         assert_eq!(saved.transients.len(), 1);
     }
 
@@ -2038,8 +2148,15 @@ fn a_world_with_a_duplicate_id_is_refused_on_open() {
     )
     .unwrap();
     {
-        let (_, _lock, _, saved) =
-            open_world(root.path(), "ids", &catalog(7), &items(), &scenarios()).unwrap();
+        let (_, _lock, _, saved) = open_world(
+            root.path(),
+            "ids",
+            &catalog(7),
+            &roles(),
+            &items(),
+            &scenarios(),
+        )
+        .unwrap();
         assert_eq!(saved.transients.len(), 1);
     }
 
@@ -2053,8 +2170,15 @@ fn a_world_with_a_duplicate_id_is_refused_on_open() {
         ..state(final_generation, 750)
     };
     write_world(&folder, &header("Ids", final_generation), &state).unwrap();
-    let (_, _lock, _, saved) =
-        open_world(root.path(), "ids", &catalog(7), &items(), &scenarios()).unwrap();
+    let (_, _lock, _, saved) = open_world(
+        root.path(),
+        "ids",
+        &catalog(7),
+        &roles(),
+        &items(),
+        &scenarios(),
+    )
+    .unwrap();
     assert_eq!(saved.transients.len(), 2);
     assert_eq!(saved.sectors.len(), 1);
 }
@@ -2132,6 +2256,7 @@ fn a_world_with_a_duplicate_or_unminted_canister_is_refused_on_open() {
                 root.path(),
                 "canisters",
                 &catalog(7),
+                &roles(),
                 &items(),
                 &scenarios()
             )
@@ -2152,6 +2277,7 @@ fn a_world_with_a_duplicate_or_unminted_canister_is_refused_on_open() {
         root.path(),
         "canisters",
         &catalog(7),
+        &roles(),
         &items(),
         &scenarios(),
     )
@@ -2489,12 +2615,27 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
     .unwrap();
     // check_world takes no lock: it still answers while `lock` is held.
     assert_eq!(
-        check_world(root.path(), "items", &catalog(7), &items(), &scenarios()),
+        check_world(
+            root.path(),
+            "items",
+            &catalog(7),
+            &roles(),
+            &items(),
+            &scenarios()
+        ),
         refused(1, "the player ship 'player'")
     );
     drop(lock);
     assert_eq!(
-        open_world(root.path(), "items", &catalog(7), &items(), &scenarios()).map(|_| ()),
+        open_world(
+            root.path(),
+            "items",
+            &catalog(7),
+            &roles(),
+            &items(),
+            &scenarios()
+        )
+        .map(|_| ()),
         refused(1, "the player ship 'player'")
     );
 
@@ -2522,12 +2663,27 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
         };
         write_world(&folder, &header("Items", generation), &saved_state).unwrap();
         assert_eq!(
-            check_world(root.path(), "items", &catalog(7), &items(), &scenarios()),
+            check_world(
+                root.path(),
+                "items",
+                &catalog(7),
+                &roles(),
+                &items(),
+                &scenarios()
+            ),
             refused(generation, &owner),
             "check_world at generation {generation}"
         );
         assert_eq!(
-            open_world(root.path(), "items", &catalog(7), &items(), &scenarios()).map(|_| ()),
+            open_world(
+                root.path(),
+                "items",
+                &catalog(7),
+                &roles(),
+                &items(),
+                &scenarios()
+            )
+            .map(|_| ()),
             refused(generation, &owner),
             "open_world at generation {generation}"
         );
@@ -2554,16 +2710,38 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
         "state.{chart_generation}.ron: unknown item 'lost_core' named by the chart"
     )));
     assert_eq!(
-        check_world(root.path(), "items", &catalog(7), &items(), &scenarios()),
+        check_world(
+            root.path(),
+            "items",
+            &catalog(7),
+            &roles(),
+            &items(),
+            &scenarios()
+        ),
         chart_refused
     );
     assert_eq!(
-        open_world(root.path(), "items", &catalog(7), &items(), &scenarios()).map(|_| ()),
+        open_world(
+            root.path(),
+            "items",
+            &catalog(7),
+            &roles(),
+            &items(),
+            &scenarios()
+        )
+        .map(|_| ()),
         chart_refused
     );
 
-    let (_, _lock, _, saved) =
-        open_world(root.path(), "items", &catalog(7), &extended, &scenarios()).unwrap();
+    let (_, _lock, _, saved) = open_world(
+        root.path(),
+        "items",
+        &catalog(7),
+        &roles(),
+        &extended,
+        &scenarios(),
+    )
+    .unwrap();
     assert_eq!(
         saved.generation, last,
         "the extended catalog opens the last case"
@@ -2734,7 +2912,15 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
         };
         write_world(&folder, &header("Stock", generation), &saved_state).unwrap();
         assert_eq!(
-            open_world(root.path(), "stock", &catalog(7), &items(), &scenarios()).map(|_| ()),
+            open_world(
+                root.path(),
+                "stock",
+                &catalog(7),
+                &roles(),
+                &items(),
+                &scenarios()
+            )
+            .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
                 "state.{generation}.ron: {expected}"
             ))),
@@ -2749,8 +2935,15 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
             ..state(generation, 750)
         };
         write_world(&folder, &header("Stock", generation), &within).unwrap();
-        let (_, lock, _, saved) =
-            open_world(root.path(), "stock", &catalog(7), &items(), &scenarios()).unwrap();
+        let (_, lock, _, saved) = open_world(
+            root.path(),
+            "stock",
+            &catalog(7),
+            &roles(),
+            &items(),
+            &scenarios(),
+        )
+        .unwrap();
         assert_eq!(saved.generation, generation, "stock within its caps opens");
         drop(lock);
     }

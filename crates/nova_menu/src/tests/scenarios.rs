@@ -9,7 +9,6 @@ use nova_ui::{
     screen::{scroll_viewports, ScrollViewport},
     widget::Selected,
 };
-use nova_world_base::prelude::OpenWorldSession;
 #[cfg(not(target_arch = "wasm32"))]
 use nova_world_base::prelude::WorldSaveSession;
 

@@ -64,6 +64,20 @@ role that:
 - seeds its kit `stock` with an unknown item;
 - seeds a kit heavier than the hull's hold.
 
+## In the game
+
+The second step of the New Game wizard lists the roles and selects the
+first. The details pane shows the selected role's `name`, `about`, the
+hull's design name, the kit and the `lore`. **Create** starts the base
+`open_world` scenario, whose
+[`SpawnStartRole`](../actions/#spawnstartrole) action spawns the role's hull
+with its kit and binds its weapons.
+
+The world save records the role id. A Load refuses a world whose role id
+the loaded content does not define, with
+`its start role '<id>' is not in the loaded content`. The content check runs
+first, so a role that a mod change removed shows `content changed`.
+
 ## Base start roles
 
 Each base kit is worth 3,000 cr at ask: the credits plus the items at their

@@ -7,8 +7,9 @@
 //! Boots the shipped app (via [`editor_app`]), starts New Game on a pinned
 //! seed the way the Create World modal does, and lets the window stream in.
 //! It picks the nearest generated station that is living, not on the Enemy
-//! side, offers Rebuild, and stands outside the spawn's cell. THE LOSS AND
-//! THE PARTS ARE DISCLOSED FIXTURE STATE: the warship's `pdc_aft_port` is set
+//! side, offers Rebuild, and stands outside the spawn's cell. The walk picks
+//! the scavenger start role. THE LOSS AND THE PARTS ARE DISCLOSED FIXTURE
+//! STATE: the salvage hauler's `pdc_dorsal` is set
 //! to zero health with the depletion marker, the state the damage path leaves
 //! a dead section in, and the PDC recipe's parts are added to the hold, so
 //! the rebuild takes every part from the hold and costs the recipe's work.
@@ -124,16 +125,20 @@ mod walk {
     const WORLD_NAME: &str = "Round Trip World";
     const SEED_FIELD: &str = "World Seed Field";
     const CREATE_WORLD_BUTTON: &str = "Create World Button";
+    const WORLD_NEXT_BUTTON: &str = "World Next Button";
+    /// The start role the walk picks: the scavenger's salvage hauler carries the
+    /// point-defense mount the walk loses and the hold its recipe parts go in.
+    const START_ROLE_BUTTON: &str = "Start Role Button: scavenger";
+    const START_ROLE: &str = "scavenger";
     const PAUSE_EXIT_BUTTON: &str = "Pause Exit Button";
     const BACK_TO_MENU_BUTTON: &str = "Back To Menu Button";
     const LOAD_BUTTON: &str = "Load Button";
     const LOAD_WORLD_BUTTON: &str = "Load World Button";
 
-    /// The warship section the player loses and rebuilds: an aft PDC, a leaf
-    /// whose loss severs nothing else.
-    const LOST_SECTION: &str = "pdc_aft_port";
-    /// Its design code, the Rebuild button's name: it sorts first among the
-    /// warship's PDCs.
+    /// The salvage hauler section the player loses and rebuilds: its one PDC,
+    /// a leaf whose loss severs nothing else.
+    const LOST_SECTION: &str = "pdc_dorsal";
+    /// Its design code, the Rebuild button's name: the hauler's only PDC.
     const LOST_CODE: &str = "PDC-1";
 
     /// The disclosed fixture stack put in the station's storage while docked.
@@ -730,6 +735,11 @@ mod walk {
     /// the section's code, and kill the section the way the damage path
     /// leaves a dead one.
     fn lose_the_section(world: &mut World) {
+        assert_eq!(
+            world.resource::<OpenWorldSession>().role.as_str(),
+            START_ROLE,
+            "station round trip: Create must start the picked role"
+        );
         let player = player(world);
         let recipe = recipe(world);
         let items = world.resource::<GameItems>().clone();
@@ -1016,6 +1026,7 @@ mod walk {
             &root,
             &slug,
             world.resource::<LoadedSectionPacks>(),
+            world.resource::<GameStartRoles>(),
             world.resource::<GameItems>(),
             &RegisteredScenarios::from(world.resource::<GameScenarios>()),
         )
@@ -1104,7 +1115,7 @@ mod walk {
             .click_named(
                 "station round trip: click New Game",
                 NEW_GAME_BUTTON,
-                ui_node_present(CREATE_WORLD_BUTTON),
+                ui_node_present(WORLD_NEXT_BUTTON),
                 BEAT_SECS,
             )
             .step("station round trip: name the world and enter the seed")
@@ -1114,6 +1125,18 @@ mod walk {
             })
             .until(frames(2))
             .add()
+            .click_named(
+                "station round trip: click Next",
+                WORLD_NEXT_BUTTON,
+                ui_node_present(CREATE_WORLD_BUTTON),
+                BEAT_SECS,
+            )
+            .click_named(
+                "station round trip: pick the start role",
+                START_ROLE_BUTTON,
+                pointer_released(),
+                BEAT_SECS,
+            )
             .click_named(
                 "station round trip: click Create",
                 CREATE_WORLD_BUTTON,

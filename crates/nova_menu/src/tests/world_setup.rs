@@ -1,13 +1,16 @@
-//! The New Game modal: what a seed and a world name are, and what Create,
-//! Cancel and Randomize each do to the menu, the session, the worlds folder
-//! and the state.
+//! The New Game modal: what a seed and a world name are, and what Next,
+//! Create, Cancel and Randomize each do to the menu, the session, the worlds
+//! folder and the state.
 
 use bevy::{prelude::*, ui::InteractionDisabled, ui_widgets::Activate};
 use nova_gameplay::prelude::*;
+use nova_scenario::prelude::OpenWorldSession;
 use nova_ui::widget::{TextFieldError, TextFieldValue};
-use nova_world_base::prelude::{create_world, OpenWorldSession, WorldSaveSession};
+use nova_world_base::prelude::{create_world, WorldSaveSession};
 
-use super::support::{app, dummy_scenarios, observe_load_scenario, LoadedScenario, TEST_START_ID};
+use super::support::{
+    app, dummy_scenarios, observe_load_scenario, LoadedScenario, TEST_ROLE_IDS, TEST_START_ID,
+};
 use crate::{
     scenarios::NewGameScenario,
     world_setup::{parse_world_seed, WorldSeedField, WorldSetupOverlay, WorldsRoot},
@@ -137,32 +140,38 @@ fn randomize_writes_a_new_seed_into_the_field() {
 }
 
 #[test]
-fn a_bad_seed_is_refused_inline_and_greys_create_until_it_is_fixed() {
+fn a_bad_seed_is_refused_inline_and_greys_next_until_it_is_fixed() {
     let mut app = menu();
     press(&mut app, "New Game Button");
     let field = named(&mut app, "World Seed Field");
-    let create = named(&mut app, "Create World Button");
+    let next = named(&mut app, "World Next Button");
 
     type_seed(&mut app, "4294967296");
     assert!(app.world().entity(field).contains::<TextFieldError>());
-    assert!(app.world().entity(create).contains::<InteractionDisabled>());
+    assert!(app.world().entity(next).contains::<InteractionDisabled>());
 
     type_seed(&mut app, "7");
     assert!(!app.world().entity(field).contains::<TextFieldError>());
-    assert!(!app.world().entity(create).contains::<InteractionDisabled>());
+    assert!(!app.world().entity(next).contains::<InteractionDisabled>());
 }
 
 /// Create is the one way into the open world: the typed name becomes the
-/// world's folder and its saving session, the typed seed the session, the
-/// picker's override is cleared, and the declared start loads.
+/// world's folder and its saving session, the typed seed and the selected
+/// start role the session, the picker's override is cleared, and the
+/// declared start loads.
 #[test]
-fn create_starts_the_declared_new_game_on_the_typed_seed() {
+fn create_starts_the_declared_new_game_on_the_typed_seed_as_the_selected_role() {
     let mut app = menu();
     let root = worlds_at(&mut app);
     app.insert_resource(NewGameScenario(Some("practice_run".to_string())));
     press(&mut app, "New Game Button");
     type_name(&mut app, "Long Haul");
     type_seed(&mut app, "12345");
+    press(&mut app, "World Next Button");
+    press(
+        &mut app,
+        &format!("Start Role Button: {}", TEST_ROLE_IDS[1]),
+    );
 
     press(&mut app, "Create World Button");
 
@@ -173,7 +182,10 @@ fn create_starts_the_declared_new_game_on_the_typed_seed() {
 
     assert_eq!(
         app.world().get_resource::<OpenWorldSession>(),
-        Some(&OpenWorldSession { seed: 12_345 })
+        Some(&OpenWorldSession {
+            seed: 12_345,
+            role: TEST_ROLE_IDS[1].into(),
+        })
     );
     assert_eq!(app.world().resource::<NewGameScenario>().0, None);
     assert_eq!(*app.world().resource::<GameMode>(), GameMode::NewGame);
@@ -192,6 +204,7 @@ fn create_on_the_untouched_name_saves_the_world_as_new_world() {
     let mut app = menu();
     let root = worlds_at(&mut app);
     press(&mut app, "New Game Button");
+    press(&mut app, "World Next Button");
 
     press(&mut app, "Create World Button");
 
@@ -215,8 +228,8 @@ fn cancel_closes_only_the_modal() {
     assert_eq!(app.world().resource::<LoadedScenario>().0, None);
 }
 
-/// A name whose folder exists is refused under the field: nothing starts,
-/// and the existing world's folder is left as it was.
+/// A name whose folder exists is refused under the field, back on the world
+/// step: nothing starts, and the existing world's folder is left as it was.
 #[test]
 fn create_refuses_a_taken_world_name_inline_and_starts_nothing() {
     let mut app = menu();
@@ -225,9 +238,14 @@ fn create_refuses_a_taken_world_name_inline_and_starts_nothing() {
     press(&mut app, "New Game Button");
     type_name(&mut app, "taken");
     type_seed(&mut app, "7");
+    press(&mut app, "World Next Button");
 
     press(&mut app, "Create World Button");
 
+    for (step, display) in [("World Step", Display::Flex), ("Role Step", Display::None)] {
+        let step = named(&mut app, step);
+        assert_eq!(app.world().get::<Node>(step).unwrap().display, display);
+    }
     let field = named(&mut app, "World Name Field");
     let refusal = app
         .world()

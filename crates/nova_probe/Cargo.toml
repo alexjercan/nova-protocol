@@ -37,10 +37,9 @@ nova_ship = { path = "../nova_ship" }
 # directly out of the engine that owns it rather than re-exported through
 # nova_gameplay - the same probe -> dependency direction as nova_autopilot.
 nova_events = { path = "../nova_events" }
-# ... and snapshot-diffs NovaEventWorld's variables.
+# ... and snapshot-diffs NovaEventWorld's variables. Snapshot identity reads
+# the seed of the menu-created session, not an RNG guess.
 nova_scenario = { path = "../nova_scenario" }
-# Snapshot identity reads the seed of the menu-created session, not an RNG guess.
-nova_world_base = { path = "../nova_world_base" }
 # The snapshot's `ui` block reads the terminal model (NovaOsTerminal, via
 # nova_interface's re-export) and the CRT glass slice (map contact codes pushed
 # through the shipped warp inverse) - the screen a GUI player sees, as data.

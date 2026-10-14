@@ -100,6 +100,8 @@ const NEW_GAME_BUTTON: &str = "New Game Button";
 /// The world setup modal's button that starts the game.
 #[cfg(feature = "debug")]
 const CREATE_WORLD_BUTTON: &str = "Create World Button";
+#[cfg(feature = "debug")]
+const WORLD_NEXT_BUTTON: &str = "World Next Button";
 
 /// The world setup modal's name field.
 #[cfg(feature = "debug")]
@@ -197,7 +199,7 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         release_mouse(MouseButton::Left)(world);
         info!("menu_boot: clicked New Game");
     })
-    .until(ui_node_present(CREATE_WORLD_BUTTON))
+    .until(ui_node_present(WORLD_NEXT_BUTTON))
     .deadline(BEAT_DEADLINE_SECS)
     .add()
     .step("menu_boot: name the world")
@@ -213,6 +215,12 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
     .add()
     // New Game opens the world setup modal over the menu; Create is the
     // gesture that leaves it.
+    .click_named(
+        "menu_boot: click Next",
+        WORLD_NEXT_BUTTON,
+        ui_node_present(CREATE_WORLD_BUTTON),
+        BEAT_DEADLINE_SECS,
+    )
     .click_named(
         "menu_boot: click Create",
         CREATE_WORLD_BUTTON,
