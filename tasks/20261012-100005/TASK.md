@@ -1,6 +1,6 @@
 # Stations: buy stock, store and withdraw parts, sell goods while docked
 
-- STATUS: CLOSED
+- STATUS: OPEN
 - PRIORITY: 83
 - TAGS: v0.16.0, stations
 
@@ -13,6 +13,9 @@
 - Landed: `StationStorage` moved to `nova_gameplay::inventory`, one gate `station_offers` for Rebuild, Trade and Storage, `plan_item_storage` (Store/Withdraw, no credits), Inventory pane Storage column, `OnStored`/`OnWithdrawn`. Generated living-station stock and credits scale by advancement (`STATION_STOCK_SHARE` 0.5..1.0); a dead station keeps its authored stock as loot. World save format 5 -> 6. Proof: `examples/systems/system_station_storage.rs` (retire, thaw, save, load). The `TODO(20261012-100005)` at `station_design_id` in `sector_stations.rs` is untouched.
 
 - Orchestrator close 2026-10-13: landed in 42d502e91; follow-up 6129789a3 rewrote the `station_design_id` TODO without a task id (every civilization still builds the base waystation until a second station design exists) and trimmed two changelog entries to 200 chars. `content lint` re-run: 0 errors, 0 warnings. Agent-chosen values for owner review: `STATION_STOCK_SHARE` 0.5..1.0, dead stations keep full stock as loot, live proof on seed 10.
+
+## Owner feedback (2026-10-14, reopens the task)
+- Make item transactions faster: a double click (or a similar single gesture) on an item quick-sells, quick-buys, stores or withdraws it, so storing items is fast.
 
 ## Delivery gate
 - A station inventory on the station body with a cap from its design; the Inventory pane gains Store and Withdraw while docked to a station; Buy and Sell reuse the docked trade path. Reference prices only (the economy strand computes actual prices later).

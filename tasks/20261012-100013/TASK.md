@@ -57,6 +57,12 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
 
 - Owner feedback 2026-10-14, second round: the add ghost can select a section inside the ship, which has no reachable face, so nothing can attach there. Only sections with a free, unobstructed link point on the outer surface may be targeted.
 
+- Owner feedback 2026-10-14, third round (the owner says it already works much better):
+  - rebind sections in the Ship view (weapon and tool bindings);
+  - while placing, roll the part and cycle its attach link point with R and F, as in the editor (`crates/nova_editor/src/placement.rs:44-46`). R and F tilt the Ship view camera today. Orchestrator default: while a part is held, R and F act as in the editor; with no part held, they tilt;
+  - quick buy: when a part cannot be placed because recipe parts are missing, offer one action that buys the missing parts from the station and places it;
+  - while docked, the Ship view shows the docked station around the ship, not editable, and refuses a placement that would collide with it.
+
 ## Delivery gate
 - Propose explicit attachment points on a hull design (content), lint for overlap, and the bind rule for a new section. Stop for the owner on whether base hulls get authored points or only generated ones.
 
