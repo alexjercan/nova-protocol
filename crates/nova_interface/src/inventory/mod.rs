@@ -11,12 +11,17 @@
 //! Trade, by [`station_offers`](nova_gameplay::prelude::station_offers). The
 //! player's row opens Give when the partner is neutralized or lootable, Sell
 //! when it trades, Store when it is a living station that offers Storage, and
-//! Give otherwise; the form switches between Give, Sell and Store where the
-//! partner takes them. The partner's row opens Take when the partner is
+//! Give otherwise; the form switches between Give, Sell and each Store where
+//! the partner takes them. The partner's row opens Take when the partner is
 //! neutralized or lootable, Buy when it trades, and nothing otherwise. A
 //! storage column lists the station's [`StationStorage`](nova_gameplay::prelude::StationStorage)
-//! while it offers Storage, and its row opens Withdraw. A derelict station is
-//! lootable and offers no service. While undocked with a live cargo intake,
+//! while it offers Storage, and its row opens Withdraw. Under it, one section
+//! per own ship hold: the player's own ships docked at the station, or the
+//! docked partner itself when it is one of them, each with its own capacity.
+//! Its row opens Withdraw from that hold, and the player's row switches to a
+//! `To <ship>` Store into it. A partner that is an own ship shows no partner
+//! column and does not trade. A derelict station is lootable and offers no
+//! service. While undocked with a live cargo intake,
 //! the player's row opens a Jettison form. Confirm writes an
 //! [`InventoryActionCommand`], and [`apply_inventory_action_commands`] moves
 //! the items, and for a trade the credits, by the
@@ -99,7 +104,7 @@ impl Plugin for InventoryPanePlugin {
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct InventoryPaneSystems;
 
-/// Which column a row belongs to.
+/// Which column a row belongs to, and for the storage column which section.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum InventorySideType {
     /// The player ship.
@@ -108,6 +113,19 @@ pub(crate) enum InventorySideType {
     Partner,
     /// The storage of the living station the player ship is docked with.
     Storage,
+    /// The hold of one of the player's own ships, listed in the storage
+    /// column (see `InventoryShips::own_holds`). Names a row's section, never
+    /// a column.
+    Hold(Entity),
+}
+
+/// Where a Store puts items and a Withdraw takes them from.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum InventoryStoreType {
+    /// The docked station's [`StationStorage`](nova_gameplay::prelude::StationStorage).
+    Station,
+    /// The hold of one of the player's own ships.
+    Ship(Entity),
 }
 
 /// What the Inventory pane shows: the category filter, the selected row, the
@@ -149,10 +167,12 @@ pub(crate) enum InventoryActionType {
     Sell,
     /// Queue items from the player ship as canisters on its cargo intake.
     Jettison,
-    /// Move items from the player ship into the docked station's storage.
-    Store,
-    /// Move items from the docked station's storage to the player ship.
-    Withdraw,
+    /// Move items from the player ship into the station's storage or an own
+    /// ship's hold.
+    Store(InventoryStoreType),
+    /// Move items from the station's storage or an own ship's hold to the
+    /// player ship.
+    Withdraw(InventoryStoreType),
 }
 
 impl InventoryActionType {
@@ -161,7 +181,7 @@ impl InventoryActionType {
         match self {
             Self::Take => Some(ItemTransferType::Take),
             Self::Give => Some(ItemTransferType::Give),
-            Self::Buy | Self::Sell | Self::Jettison | Self::Store | Self::Withdraw => None,
+            Self::Buy | Self::Sell | Self::Jettison | Self::Store(_) | Self::Withdraw(_) => None,
         }
     }
 
@@ -170,15 +190,16 @@ impl InventoryActionType {
         match self {
             Self::Buy => Some(ItemTradeType::Buy),
             Self::Sell => Some(ItemTradeType::Sell),
-            Self::Take | Self::Give | Self::Jettison | Self::Store | Self::Withdraw => None,
+            Self::Take | Self::Give | Self::Jettison | Self::Store(_) | Self::Withdraw(_) => None,
         }
     }
 
-    /// The storage move this action is, or `None` for any other action.
-    pub(crate) fn storage(self) -> Option<ItemStorageType> {
+    /// The storage move this action is and where, or `None` for any other
+    /// action.
+    pub(crate) fn storage(self) -> Option<(ItemStorageType, InventoryStoreType)> {
         match self {
-            Self::Store => Some(ItemStorageType::Store),
-            Self::Withdraw => Some(ItemStorageType::Withdraw),
+            Self::Store(target) => Some((ItemStorageType::Store, target)),
+            Self::Withdraw(target) => Some((ItemStorageType::Withdraw, target)),
             Self::Take | Self::Give | Self::Buy | Self::Sell | Self::Jettison => None,
         }
     }

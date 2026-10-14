@@ -870,6 +870,8 @@ fn confirm_trades_items_for_credits_and_a_refusal_changes_nothing() {
 #[test]
 fn a_living_station_stores_and_withdraws_and_a_derelict_one_only_loots() {
     use InventoryActionType::{Buy, Store, Withdraw};
+    let station_store = Store(InventoryStoreType::Station);
+    let station_withdraw = Withdraw(InventoryStoreType::Station);
 
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
@@ -910,7 +912,7 @@ fn a_living_station_stores_and_withdraws_and_a_derelict_one_only_loots() {
                     InventorySideType::Partner,
                     InventorySideType::Storage,
                 ]
-                .map(|side| offered_action(side, terms, false))
+                .map(|side| offered_action(side, terms.as_ref(), false))
             })
             .expect("reading the offers")
     };
@@ -940,16 +942,16 @@ fn a_living_station_stores_and_withdraws_and_a_derelict_one_only_loots() {
 
     assert_eq!(
         offers(&mut app),
-        [Some(Store), None, Some(Withdraw)],
+        [Some(station_store), None, Some(station_withdraw)],
         "a station without Trade sells nothing"
     );
     assert_eq!(
-        confirm(&mut app, Store, Some(5)),
+        confirm(&mut app, station_store, Some(5)),
         moved("Stored 5 Hull plate at Waystation")
     );
     assert_eq!((plates(app.world(), player), stored(&app)), (7, 5));
     assert_eq!(
-        confirm(&mut app, Withdraw, Some(2)),
+        confirm(&mut app, station_withdraw, Some(2)),
         moved("Withdrew 2 Hull plate from Waystation")
     );
     assert_eq!((plates(app.world(), player), stored(&app)), (9, 3));
@@ -973,11 +975,11 @@ fn a_living_station_stores_and_withdraws_and_a_derelict_one_only_loots() {
     );
     // 3 plates stored leave 70 kg of the 100 kg cap: 8 plates are 80 kg.
     assert_eq!(
-        confirm(&mut app, Store, Some(8)),
+        confirm(&mut app, station_store, Some(8)),
         refused("Refused: storage full, 70 kg free")
     );
     assert_eq!(
-        confirm(&mut app, Withdraw, Some(4)),
+        confirm(&mut app, station_withdraw, Some(4)),
         refused("Refused: only 3 Hull plate in storage")
     );
     assert_eq!(
@@ -993,7 +995,7 @@ fn a_living_station_stores_and_withdraws_and_a_derelict_one_only_loots() {
             [(plate.clone(), 9)],
         ));
     assert_eq!(
-        confirm(&mut app, Withdraw, Some(1)),
+        confirm(&mut app, station_withdraw, Some(1)),
         refused("Refused: NOVA has room for 5 kg more")
     );
     assert_eq!((plates(app.world(), player), stored(&app)), (9, 3));
@@ -1011,7 +1013,7 @@ fn a_living_station_stores_and_withdraws_and_a_derelict_one_only_loots() {
         ]
     );
     assert_eq!(
-        confirm(&mut app, Store, Some(1)),
+        confirm(&mut app, station_store, Some(1)),
         refused("Refused: Waystation offers no storage")
     );
     assert_eq!((plates(app.world(), player), stored(&app)), (9, 3));
@@ -1103,10 +1105,13 @@ fn a_double_click_stores_a_hold_stack_and_withdraws_a_storage_stack() {
     click_at(&mut rig, at);
     assert_eq!(draft_action(&rig), Some(InventoryActionType::Sell));
     let store_chip = centre_of::<InventoryDraftActionChip>(rig.app.world_mut(), |chip| {
-        chip.0 == InventoryActionType::Store
+        chip.0 == InventoryActionType::Store(InventoryStoreType::Station)
     });
     click_at(&mut rig, store_chip);
-    assert_eq!(draft_action(&rig), Some(InventoryActionType::Store));
+    assert_eq!(
+        draft_action(&rig),
+        Some(InventoryActionType::Store(InventoryStoreType::Station))
+    );
     take_cues(&mut rig.app);
 
     let at = row_at(&mut rig, Own, &round);
@@ -1229,7 +1234,7 @@ fn a_double_click_that_would_overfill_refuses_and_changes_nothing() {
     assert_eq!(
         draft(&rig),
         Some(InventoryDraft {
-            action: InventoryActionType::Store,
+            action: InventoryActionType::Store(InventoryStoreType::Station),
             item: plate.clone(),
             quantity: Some(12),
         }),
@@ -1261,6 +1266,207 @@ fn a_double_click_that_would_overfill_refuses_and_changes_nothing() {
     assert_eq!(reports(&rig), 0);
     let credits = |entity| rig.app.world().get::<ShipCredits>(entity).unwrap().0;
     assert_eq!((credits(player), credits(station)), (100, 1_000));
+}
+
+/// Spawn one of the player's own ships, named Escort, with a 400 kg hold
+/// carrying `plates` hull plates, docked at `station` through a connection of
+/// its own, as a multi-dock station holds it.
+fn dock_own_ship_at(world: &mut World, station: Entity, plates: u32) -> Entity {
+    let escort = world
+        .spawn((
+            SpaceshipRootMarker,
+            PlayerFleetMarker,
+            Name::new("Escort"),
+            hold(plates),
+        ))
+        .id();
+    let connection = world
+        .spawn(DockingConnection {
+            first_ship: escort,
+            first_section: Entity::PLACEHOLDER,
+            second_ship: station,
+            second_section: Entity::PLACEHOLDER,
+            helm: DockedHelmType::Neutral,
+            measurement_fault: false,
+        })
+        .id();
+    world.entity_mut(escort).insert(DockedShip {
+        connection,
+        helm: Quat::IDENTITY,
+        drives: false,
+    });
+    escort
+}
+
+/// An own ship docked at the same station is a section of the storage column,
+/// headed by its name and its load against its own capacity. A double click
+/// on its row withdraws the stack into the player's hold, the `To Escort`
+/// chip stores into it, and a withdraw into a full hold refuses with no
+/// change. The station's own storage is not touched.
+#[test]
+fn a_docked_own_ship_hold_is_listed_in_storage_and_moves_stacks_both_ways() {
+    let (mut rig, player) = inventory_rig();
+    let plate = ItemDesignId::from(ItemRoleType::HullPlate);
+    let station = dock_station(&mut rig, player, vec![StationServiceType::Storage], 100_000);
+    let escort = dock_own_ship_at(rig.app.world_mut(), station, 20);
+    settle(&mut rig.app);
+    take_cues(&mut rig.app);
+    let texts = column_texts(rig.app.world_mut(), InventorySideType::Storage);
+    assert!(
+        texts.contains(&"Escort  200 kg / 400 kg".to_string())
+            && texts.contains(&"x20".to_string()),
+        "the storage column lists the escort's hold: {texts:?}"
+    );
+    let stored = |rig: &PanePointerRig| {
+        rig.app
+            .world()
+            .get::<StationStorage>(station)
+            .expect("a station root carries StationStorage")
+            .count(&plate)
+    };
+
+    let at = row_at(&mut rig, InventorySideType::Hold(escort), &plate);
+    double_click_at(&mut rig, at);
+    assert_eq!(
+        (
+            plates(rig.app.world(), player),
+            plates(rig.app.world(), escort)
+        ),
+        (32, 0)
+    );
+    assert_eq!(
+        note(&rig.app).as_deref(),
+        Some("Withdrew 20 Hull plate from Escort")
+    );
+    assert_eq!(
+        take_cues(&mut rig.app),
+        [UiSfx::MenuSelect, UiSfx::MenuSelect]
+    );
+
+    // The player's row opens the station's Store; the escort's chip switches
+    // it, and the double click stores the whole stack there.
+    let at = row_at(&mut rig, InventorySideType::Own, &plate);
+    click_at(&mut rig, at);
+    let to_escort = InventoryActionType::Store(InventoryStoreType::Ship(escort));
+    let chip =
+        centre_of::<InventoryDraftActionChip>(rig.app.world_mut(), |chip| chip.0 == to_escort);
+    click_at(&mut rig, chip);
+    settle(&mut rig.app);
+    let at = row_at(&mut rig, InventorySideType::Own, &plate);
+    double_click_at(&mut rig, at);
+    assert_eq!(
+        (
+            plates(rig.app.world(), player),
+            plates(rig.app.world(), escort)
+        ),
+        (0, 32)
+    );
+    assert_eq!(
+        note(&rig.app).as_deref(),
+        Some("Stored 32 Hull plate in Escort")
+    );
+    assert_eq!(stored(&rig), 0, "the station's storage is not touched");
+
+    // A full 100 kg hold of 10 plates takes nothing more.
+    rig.app
+        .world_mut()
+        .entity_mut(player)
+        .insert(ShipInventory::new(
+            &test_items(),
+            100_000,
+            [(plate.clone(), 10)],
+        ));
+    settle(&mut rig.app);
+    take_cues(&mut rig.app);
+    let at = row_at(&mut rig, InventorySideType::Hold(escort), &plate);
+    double_click_at(&mut rig, at);
+    assert_eq!(
+        (
+            plates(rig.app.world(), player),
+            plates(rig.app.world(), escort)
+        ),
+        (10, 32)
+    );
+    assert_eq!(
+        note(&rig.app).as_deref(),
+        Some("Refused: NOVA has room for 0 kg more")
+    );
+    assert_eq!(
+        take_cues(&mut rig.app),
+        [UiSfx::MenuSelect, UiSfx::EditorDeny]
+    );
+    let credits = |entity| rig.app.world().get::<ShipCredits>(entity).unwrap().0;
+    assert_eq!((credits(player), credits(station)), (100, 1_000));
+}
+
+/// Docked directly with one of the player's own ships, its hold is the
+/// storage column's one section and the partner column gives up its slot:
+/// the player's row stores into it and its row withdraws, with no trade and
+/// no Give.
+#[test]
+fn an_own_ship_partner_is_storage_not_a_trader() {
+    let (mut rig, player) = inventory_rig();
+    let plate = ItemDesignId::from(ItemRoleType::HullPlate);
+    let escort = dock_partner(rig.app.world_mut(), player, "Escort", 3);
+    rig.app
+        .world_mut()
+        .entity_mut(escort)
+        .insert(PlayerFleetMarker);
+    settle(&mut rig.app);
+    let offers = rig
+        .app
+        .world_mut()
+        .run_system_once(move |ships: InventoryShips| {
+            let pair = ships.pair().expect("one player ship");
+            let terms = ships.partner_terms(pair);
+            [
+                InventorySideType::Own,
+                InventorySideType::Partner,
+                InventorySideType::Hold(escort),
+            ]
+            .map(|side| offered_action(side, terms.as_ref(), false))
+        })
+        .expect("reading the offers");
+    assert_eq!(
+        offers,
+        [
+            Some(InventoryActionType::Store(InventoryStoreType::Ship(escort))),
+            None,
+            Some(InventoryActionType::Withdraw(InventoryStoreType::Ship(
+                escort
+            ))),
+        ]
+    );
+    let shown = |world: &mut World, side| {
+        world
+            .query::<(&InventoryColumnPanel, &Node)>()
+            .iter(world)
+            .find(|(panel, _)| panel.0 == side)
+            .map(|(_, node)| node.display)
+            .expect("the pane has a panel per side")
+    };
+    assert_eq!(
+        shown(rig.app.world_mut(), InventorySideType::Partner),
+        Display::None
+    );
+    assert_eq!(
+        shown(rig.app.world_mut(), InventorySideType::Storage),
+        Display::Flex
+    );
+
+    let at = row_at(&mut rig, InventorySideType::Own, &plate);
+    double_click_at(&mut rig, at);
+    assert_eq!(
+        (
+            plates(rig.app.world(), player),
+            plates(rig.app.world(), escort)
+        ),
+        (0, 15)
+    );
+    assert_eq!(
+        note(&rig.app).as_deref(),
+        Some("Stored 12 Hull plate in Escort")
+    );
 }
 
 /// A click moves the docked partner's whole credit balance in one

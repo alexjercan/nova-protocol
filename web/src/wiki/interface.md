@@ -335,6 +335,24 @@ Every live ship trades: any docked ship that is neither neutralized nor lootable
 
 Prices are fixed per item and the same on every ship. A Buy pays the ask and a Sell earns the bid, so selling back what you bought loses credits. At a station you [own](#buying-a-station), a Buy pays the bid instead. While the form is open it shows the price and your balance after, for example `Price 20 cr, you after: 1,980 cr`. **Confirm** moves the items and the credits at once, and the note line reads `Bought 5 Stone ore from Light Freighter for 20 cr` or `Sold 10 Stone ore to Light Freighter for 30 cr`. A refused trade changes nothing and keeps the form open: `Refused: enter a quantity`, `Refused: quantity is zero`, `Refused: only 2 Stone ore in Light Freighter`, `Refused: Line Warship has room for 30 kg more`, `Refused: Light Freighter has only 20 cr`, `Refused: Light Freighter cannot hold more credits`, `Refused: Light Freighter does not trade`, or `Refused: not docked`. A trade never splits to fit the hold or the credits.
 
+### Store and withdraw
+
+Docked at a living station that offers storage, a **Storage** column lists what the station keeps for you, with **Stored** showing its load against the station's cap. Click an item in your column to open **Store**, or an item in the storage column to open **Withdraw**. At a station that also trades, your item opens **Sell**: click the **Store** button to switch the form. **Confirm** moves the items at once and the note line reads `Stored 5 Hull plate at <station>` or `Withdrew 5 Hull plate from <station>`. No credits move. A refused move changes nothing: `Refused: storage full, 70 kg free`, `Refused: only 3 Hull plate in storage`, `Refused: <ship> has room for 5 kg more`, or `Refused: <station> offers no storage`.
+
+Your own ships are storage too. Each of your ships docked at the same station, or docked with you directly, shows as its own section of the storage column, headed by its name and its load against its own hold, for example `Escort  300 kg / 400 kg`. Click its item to **Withdraw** it into your hold. To store into it, click an item in your column, then the **To Escort** button. The note line reads `Stored 12 Hull plate in Escort` or `Withdrew 30 Hull plate from Escort`. A move that does not fit is refused whole: `Refused: <ship> has room for 0 kg more`. Docked directly with one of your ships, it does not trade and has no column of its own: its hold is the storage section.
+
+### Quick moves
+
+Double-click an item to move its whole stack at once: the double click confirms the form a click opens, with the stack as the quantity. Hold <kbd>Shift</kbd> while you double-click to move one item instead.
+
+| Double-click | Does |
+| --- | --- |
+| An item in your column | The action the form shows: **Sell** at a trader, **Store** at a station that keeps items, **Give** to a lootable ship. |
+| An item in the storage column, or in one of your ships' sections | **Withdraw** it into your hold. |
+| An item in the docked ship's or station's column | **Buy** it, or **Take** it from a lootable ship. |
+
+The Give, Sell, Store and To buttons stay as you set them from item to item, so after one click on **Store**, each double click stores. A quick move is refused exactly as **Confirm** would refuse it, with the reason on the note line and in the form, and nothing changes: double-clicking a stack the storage cannot take reads `Refused: storage full, 100 kg free`. Jettison has no quick move. Two clicks count as a double click when they land on the same item within half a second.
+
 ### Jettison and pickup
 
 Undocked, with a working [cargo intake](../sections/cargo-intake/), a click on an item in your column opens a **Jettison** form. **Confirm** takes the whole quantity out of your hold at once and packs it into canisters queued on the intake, and the note line reads `Jettisoned 4 Hull plate: 1 canister queued` with the number of canisters now waiting. A canister holds at most 200 kg across all its stacks, so a larger quantity fills several: one 150 kg torpedo, 10 rail slugs of 20 kg, 20 hull plates of 10 kg or 1000 PDC rounds of 0.2 kg each. A confirmed stack first tops up the last waiting canister where whole items still fit, even in the same frame. A refused jettison changes nothing: `Refused: undock to jettison`, `Refused: no working cargo intake`, `Refused: enter a quantity`, `Refused: quantity is zero`, or `Refused: only 2 Hull plate in Line Warship`.

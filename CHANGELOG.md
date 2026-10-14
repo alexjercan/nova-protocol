@@ -162,6 +162,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
   while docked.
 - On the Ship pane a gun, torpedo bay, railgun or mining beam with no key
   reads UNBOUND, and B or Rebind gives it one.
+- Double-click an Inventory item to sell, store, withdraw or buy its whole
+  stack, Shift for one. Your own ships docked at the station list their holds
+  as storage sections.
 
 ### Web & Platform
 
