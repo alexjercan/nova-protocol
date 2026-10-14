@@ -1,4 +1,4 @@
-//! The Load picker: a two-pane overlay in the Scenarios style listing every
+//! The Load picker: a two-pane overlay in the Mods style listing every
 //! world folder under [`WorldsRoot`], that resumes the selected one through
 //! the New Game handoff.
 //!
@@ -24,7 +24,7 @@ use nova_gameplay::prelude::*;
 use nova_scenario::prelude::GameScenarios;
 use nova_ui::{
     theme::UiColor,
-    widget::{list_row, themed_button, ButtonVariant, Selected, ThemedText, UiText},
+    widget::{list_row, separator, themed_button, Selected, ThemedText, UiText},
 };
 use nova_world_base::prelude::{
     check_world, delete_world, list_worlds, open_world, resume_world, RegisteredScenarios,
@@ -32,7 +32,7 @@ use nova_world_base::prelude::{
     WorldSaveSession, WorldSaveState,
 };
 
-use crate::{scenarios::NewGameScenario, widgets::button_variant, world_setup::WorldsRoot};
+use crate::{scenarios::NewGameScenario, widgets::danger_button, world_setup::WorldsRoot};
 
 /// Marker for the Load panel root, toggled by the Load button.
 #[derive(Component)]
@@ -475,9 +475,10 @@ fn spawn_load_note(commands: &mut Commands, list: Entity, text: &str) {
     });
 }
 
-/// Spawn one clickable world row: its name (or slug, when the header did not
-/// read) over the refusal text, when it has one, or [`CHECKING_TEXT`] while
-/// it is `checking`.
+/// Spawn one clickable world row in the Mods row layout: an info column with
+/// the world's name (or slug, when the header did not read) over its status
+/// lines - [`CHECKING_TEXT`] while it is `checking`, the refusal when it has
+/// one.
 fn spawn_load_row(
     list: &mut ChildSpawnerCommands,
     listing: &WorldListing,
@@ -503,49 +504,95 @@ fn spawn_load_row(
     }
     row.with_children(|row| {
         row.spawn((
-            Name::new("Load World Row Name"),
-            UiText,
-            Text::new(title),
-            TextFont {
-                font_size: FontSize::Px(15.0),
+            Name::new("Load World Row Info"),
+            Node {
+                flex_direction: FlexDirection::Column,
+                flex_grow: 1.0,
                 ..default()
             },
-            TextColor(Color::NONE),
-            ThemedText::new(UiColor::Body),
-        ));
-        if checking {
-            row.spawn((
-                Name::new("Load World Row Checking"),
+        ))
+        .with_children(|info| {
+            info.spawn((
+                Name::new("Load World Row Name"),
                 UiText,
-                Text::new(CHECKING_TEXT),
+                Text::new(title),
                 TextFont {
-                    font_size: FontSize::Px(12.0),
+                    font_size: FontSize::Px(15.0),
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Label),
+                ThemedText::new(UiColor::Body),
             ));
-        }
-        if let Err(refusal) = &listing.header {
-            row.spawn((
-                Name::new("Load World Row Refusal"),
-                UiText,
-                Text::new(refusal.to_string()),
-                TextFont {
-                    font_size: FontSize::Px(12.0),
-                    ..default()
-                },
-                TextColor(Color::NONE),
-                ThemedText::new(UiColor::Danger),
-            ));
-        }
+            if checking {
+                info.spawn(row_line(
+                    "Load World Row Checking",
+                    CHECKING_TEXT.to_string(),
+                    UiColor::Secondary,
+                ));
+            }
+            if let Err(refusal) = &listing.header {
+                info.spawn(row_line(
+                    "Load World Row Refusal",
+                    refusal.to_string(),
+                    UiColor::Danger,
+                ));
+            }
+        });
     });
 }
 
-/// Rebuild the world details pane from the selected world: name, seed,
-/// sector, credits, game version and saved time, or the refusal, and a Load
-/// button greyed on a refusal or while the world is checked, and a Delete
-/// button (or its confirm prompt, or the reason a delete refused).
+/// One small line under a world row's name, the size of the Mods row's
+/// version line.
+fn row_line(name: &'static str, text: String, color: UiColor) -> impl Bundle {
+    (
+        Name::new(name),
+        UiText,
+        Text::new(text),
+        TextFont {
+            font_size: FontSize::Px(12.0),
+            ..default()
+        },
+        TextColor(Color::NONE),
+        ThemedText::new(color),
+    )
+}
+
+/// The details pane's button row, spaced like the Mods details actions.
+fn actions_row(name: &'static str) -> impl Bundle {
+    (
+        Name::new(name),
+        Node {
+            flex_direction: FlexDirection::Row,
+            column_gap: px(8),
+            margin: UiRect::top(px(12)),
+            ..default()
+        },
+    )
+}
+
+/// A fixed-width slot for one details button: a themed button fills its
+/// parent, so without the slot it spans the whole details pane. The widths
+/// are the Mods details pane's: its main action and its portal buttons.
+fn button_slot(name: &'static str, width: f32) -> impl Bundle {
+    (
+        Name::new(name),
+        Node {
+            width: px(width),
+            ..default()
+        },
+    )
+}
+
+/// The Load button's slot width, the Mods Enable/Disable slot.
+const MAIN_SLOT_W: f32 = 180.0;
+/// The Delete, Delete world and Cancel slot width, the Mods portal slots.
+const SIDE_SLOT_W: f32 = 140.0;
+
+/// Rebuild the world details pane from the selected world: its name and a
+/// rule, then the seed, sector, credits, game version and saved time, or the
+/// refusal; a button row with Load, greyed on a refusal or while the world is
+/// checked, and Delete; or the delete prompt with its confirm row, or the
+/// reason a delete refused.
 pub(crate) fn refresh_load_details(
     mut commands: Commands,
     listings: Res<WorldListings>,
@@ -599,19 +646,22 @@ pub(crate) fn refresh_load_details(
             Ok(header) => header.name.clone(),
             Err(_) => listing.folder.slug.clone(),
         };
+        let checking = checks.pending(&listing.folder.slug);
+
+        details.spawn((
+            Name::new("Load World Details Name"),
+            Text::new(title.clone()),
+            TextFont {
+                font_size: FontSize::Px(20.0),
+                ..default()
+            },
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Body),
+        ));
+        details.spawn((Name::new("Load World Details Separator"), separator()));
 
         match &listing.header {
             Ok(header) => {
-                details.spawn((
-                    Name::new("Load World Details Name"),
-                    Text::new(title.clone()),
-                    TextFont {
-                        font_size: FontSize::Px(20.0),
-                        ..default()
-                    },
-                    TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Body),
-                ));
                 for line in [
                     format!("Seed: {}", header.seed),
                     format!("Sector: {}", header.player_sector),
@@ -630,14 +680,7 @@ pub(crate) fn refresh_load_details(
                         ThemedText::new(UiColor::Body),
                     ));
                 }
-                let mut load = details.spawn((
-                    Name::new("Load World Button"),
-                    themed_button("Load"),
-                    LoadWorldButton,
-                    observe(on_load_world),
-                ));
-                if checks.pending(&listing.folder.slug) {
-                    load.insert(InteractionDisabled);
+                if checking {
                     details.spawn((
                         Name::new("Load World Details Checking"),
                         Text::new(CHECKING_TEXT),
@@ -661,17 +704,43 @@ pub(crate) fn refresh_load_details(
                     TextColor(Color::NONE),
                     ThemedText::new(UiColor::Danger),
                 ));
-                details.spawn((
-                    Name::new("Load World Button"),
-                    themed_button("Load"),
-                    LoadWorldButton,
-                    InteractionDisabled,
-                    observe(on_load_world),
-                ));
             }
         }
 
-        if matches!(&*step, WorldDeleteStep::Confirm(slug) if slug == &listing.folder.slug) {
+        let confirming =
+            matches!(&*step, WorldDeleteStep::Confirm(slug) if slug == &listing.folder.slug);
+        let loadable = listing.header.is_ok() && !checking;
+
+        details
+            .spawn(actions_row("Load World Actions"))
+            .with_children(|actions| {
+                actions
+                    .spawn(button_slot("Load World Button Slot", MAIN_SLOT_W))
+                    .with_children(|slot| {
+                        let mut load = slot.spawn((
+                            Name::new("Load World Button"),
+                            themed_button("Load"),
+                            LoadWorldButton,
+                            observe(on_load_world),
+                        ));
+                        if !loadable {
+                            load.insert(InteractionDisabled);
+                        }
+                    });
+                if !confirming {
+                    actions
+                        .spawn(button_slot("Load World Delete Button Slot", SIDE_SLOT_W))
+                        .with_children(|slot| {
+                            slot.spawn((
+                                Name::new("Load World Delete Button"),
+                                danger_button("Delete"),
+                                observe(on_delete_world),
+                            ));
+                        });
+                }
+            });
+
+        if confirming {
             details.spawn((
                 Name::new("Load World Delete Prompt"),
                 Text::new(format!(
@@ -683,23 +752,39 @@ pub(crate) fn refresh_load_details(
                 },
                 TextColor(Color::NONE),
                 ThemedText::new(UiColor::Danger),
+                Node {
+                    margin: UiRect::top(px(12)),
+                    ..default()
+                },
             ));
-            details.spawn((
-                Name::new("Load World Delete Confirm Button"),
-                button_variant("Delete world", ButtonVariant::Danger, None),
-                observe(on_delete_world_confirm),
-            ));
-            details.spawn((
-                Name::new("Load World Delete Cancel Button"),
-                themed_button("Cancel"),
-                observe(on_delete_world_cancel),
-            ));
-        } else {
-            details.spawn((
-                Name::new("Load World Delete Button"),
-                button_variant("Delete", ButtonVariant::Danger, None),
-                observe(on_delete_world),
-            ));
+            details
+                .spawn(actions_row("Load World Delete Confirm Actions"))
+                .with_children(|actions| {
+                    actions
+                        .spawn(button_slot(
+                            "Load World Delete Confirm Button Slot",
+                            SIDE_SLOT_W,
+                        ))
+                        .with_children(|slot| {
+                            slot.spawn((
+                                Name::new("Load World Delete Confirm Button"),
+                                danger_button("Delete world"),
+                                observe(on_delete_world_confirm),
+                            ));
+                        });
+                    actions
+                        .spawn(button_slot(
+                            "Load World Delete Cancel Button Slot",
+                            SIDE_SLOT_W,
+                        ))
+                        .with_children(|slot| {
+                            slot.spawn((
+                                Name::new("Load World Delete Cancel Button"),
+                                themed_button("Cancel"),
+                                observe(on_delete_world_cancel),
+                            ));
+                        });
+                });
         }
     });
 }

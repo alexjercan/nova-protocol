@@ -449,7 +449,7 @@ pub(crate) fn setup_menu_ui(
         });
 
     // The Load picker: hidden until the Load button toggles it. Same
-    // list-beside-details shape as the Scenarios picker above; the Load
+    // list-beside-details shape and panel head as the Mods panel; the Load
     // button itself re-reads the worlds root on each open, so nothing here
     // needs to seed its resources.
     #[cfg(not(target_arch = "wasm32"))]
@@ -472,20 +472,11 @@ pub(crate) fn setup_menu_ui(
                         border: UiRect::all(px(theme::BORDER_W)),
                         ..default()
                     },
-                    ThemedRadius::control(),
+                    ThemedRadius::panel(),
                     panel(),
                 ))
                 .with_children(|parent| {
-                    parent.spawn((
-                        Name::new("Load Title"),
-                        Text::new("Load"),
-                        TextFont {
-                            font_size: FontSize::Px(24.0),
-                            ..default()
-                        },
-                        TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Body),
-                    ));
+                    parent.spawn((Name::new("Load Title"), panel_head("Load", None)));
                     parent.spawn((
                         Name::new("Load Subtitle"),
                         Text::new("Pick a saved world to resume."),

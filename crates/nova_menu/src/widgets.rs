@@ -120,6 +120,16 @@ pub(crate) fn button_variant(text: &str, variant: ButtonVariant, key: Option<&st
     (nova_ui::widget::button(spec), MenuSfxButton)
 }
 
+/// A danger button at the default 34px / 14px sizing, the size of a
+/// `themed_button` beside it in a details pane, plus the `MenuSfxButton`
+/// click cue. [`button_variant`] is the 40px menu-column sizing.
+pub(crate) fn danger_button(text: &str) -> impl Bundle {
+    (
+        nova_ui::widget::button(ButtonSpec::new(text).danger()),
+        MenuSfxButton,
+    )
+}
+
 /// A menu button that pops the panel it sits on: [`button`] plus the
 /// [`MenuSfxBack`] marker that swaps its voice.
 pub(crate) fn back_button(text: &str) -> impl Bundle {
