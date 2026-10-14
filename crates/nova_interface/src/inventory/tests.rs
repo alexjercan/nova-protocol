@@ -15,7 +15,7 @@ use nova_gameplay::{prelude::*, test_support::test_items};
 use nova_input::prelude::RegisterInputActions;
 use nova_ship::prelude::{
     CargoIntakeEjectionQueue, CargoIntakeSectionMarker, DockedHelmType, DockedShip,
-    DockingConnection,
+    DockingConnection, OwnedShipMarker,
 };
 use nova_ui::widget::{TextFieldError, TextFieldValue};
 
@@ -1268,15 +1268,22 @@ fn a_double_click_that_would_overfill_refuses_and_changes_nothing() {
     assert_eq!((credits(player), credits(station)), (100, 1_000));
 }
 
-/// Spawn one of the player's own ships, named Escort, with a 400 kg hold
-/// carrying `plates` hull plates, docked at `station` through a connection of
-/// its own, as a multi-dock station holds it.
-fn dock_own_ship_at(world: &mut World, station: Entity, plates: u32) -> Entity {
+/// Spawn one of the player's own ships, `name` with `owned` as the marker
+/// that makes it the player's, with a 400 kg hold carrying `plates` hull
+/// plates, docked at `station` through a connection of its own, as a
+/// multi-dock station holds it.
+fn dock_own_ship_at(
+    world: &mut World,
+    station: Entity,
+    name: &str,
+    owned: impl Bundle,
+    plates: u32,
+) -> Entity {
     let escort = world
         .spawn((
             SpaceshipRootMarker,
-            PlayerFleetMarker,
-            Name::new("Escort"),
+            owned,
+            Name::new(name.to_string()),
             hold(plates),
         ))
         .id();
@@ -1299,7 +1306,8 @@ fn dock_own_ship_at(world: &mut World, station: Entity, plates: u32) -> Entity {
 }
 
 /// An own ship docked at the same station is a section of the storage column,
-/// headed by its name and its load against its own capacity. A double click
+/// headed by its name and its load against its own capacity: a hired escort
+/// and a hull parked for rebuy alike. A double click
 /// on its row withdraws the stack into the player's hold, the `To Escort`
 /// chip stores into it, and a withdraw into a full hold refuses with no
 /// change. The station's own storage is not touched.
@@ -1308,14 +1316,23 @@ fn a_docked_own_ship_hold_is_listed_in_storage_and_moves_stacks_both_ways() {
     let (mut rig, player) = inventory_rig();
     let plate = ItemDesignId::from(ItemRoleType::HullPlate);
     let station = dock_station(&mut rig, player, vec![StationServiceType::Storage], 100_000);
-    let escort = dock_own_ship_at(rig.app.world_mut(), station, 20);
+    let escort = dock_own_ship_at(
+        rig.app.world_mut(),
+        station,
+        "Escort",
+        PlayerFleetMarker,
+        20,
+    );
+    dock_own_ship_at(rig.app.world_mut(), station, "Old hull", OwnedShipMarker, 5);
     settle(&mut rig.app);
     take_cues(&mut rig.app);
     let texts = column_texts(rig.app.world_mut(), InventorySideType::Storage);
     assert!(
         texts.contains(&"Escort  200 kg / 400 kg".to_string())
-            && texts.contains(&"x20".to_string()),
-        "the storage column lists the escort's hold: {texts:?}"
+            && texts.contains(&"x20".to_string())
+            && texts.contains(&"Old hull  50 kg / 400 kg".to_string())
+            && texts.contains(&"x5".to_string()),
+        "the storage column lists the escort's and the parked hull's holds: {texts:?}"
     );
     let stored = |rig: &PanePointerRig| {
         rig.app

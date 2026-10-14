@@ -12,9 +12,10 @@
 //! THE DEPOT IS DISCLOSED FIXTURE STATE: a moored spar from
 //! `shared/docking_pair.rs` with a second port, marked as the shipped
 //! `block_waystation` design so it trades and stores as that station does.
-//! The Hauler is a second tender marked as a fleet ship
-//! ([`PlayerFleetMarker`]), the marker the pane reads as "own ship". Neither
-//! hull is shipped content. The docks are made by the docking verb itself,
+//! The Hauler is a second tender marked as a hull the player owns but does
+//! not fly ([`OwnedShipMarker`]), as a traded-in hull parked for rebuy is; a
+//! hired escort ([`PlayerFleetMarker`]) lists the same way. Neither hull is
+//! shipped content. The docks are made by the docking verb itself,
 //! with each hull put on its berth until the dock takes.
 //!
 //! The Inventory pane opens once both docks hold. What to try:
@@ -254,7 +255,7 @@ fn find_ship(world: &mut World, id: &str) -> Option<Entity> {
         .map(|(entity, _)| entity)
 }
 
-/// Mark the Depot a station and the Hauler a fleet ship, put each hull on
+/// Mark the Depot a station and the Hauler an owned ship, put each hull on
 /// its berth and ask to dock until both docks hold, then open the Inventory
 /// pane once.
 fn stage_the_docks(world: &mut World) {
@@ -273,7 +274,7 @@ fn stage_the_docks(world: &mut World) {
             StationMarker(StationDesignId::from(DEPOT_DESIGN)),
             StationStorage::new(STORAGE_CAP_G),
         ));
-        world.entity_mut(hauler).insert(PlayerFleetMarker);
+        world.entity_mut(hauler).insert(OwnedShipMarker);
         return;
     }
     let mut waiting = false;
@@ -555,7 +556,10 @@ fn draw_the_holds(
         ),
         With<PlayerSpaceshipMarker>,
     >,
-    q_fleet: Query<(&GlobalTransform, &Name, &ShipInventory, &DockedShip), With<PlayerFleetMarker>>,
+    q_fleet: Query<
+        (&GlobalTransform, &Name, &ShipInventory, &DockedShip),
+        Or<(With<PlayerFleetMarker>, With<OwnedShipMarker>)>,
+    >,
     q_stations: Query<(&Name, &StationStorage), With<StationMarker>>,
     q_connections: Query<&DockingConnection>,
 ) {
