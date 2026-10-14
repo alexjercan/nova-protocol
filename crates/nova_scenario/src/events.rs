@@ -176,8 +176,8 @@ scenario_events! {
     OnTraded => OnTradedEvent { label: "On Traded" },
     /// A ship's credits balance moved (`id` = the ship; `previous_cr`,
     /// `current_cr`, `delta_cr`, `cause` = `Trade`, `Take`, `Rebuild`,
-    /// `Swap`, `Add`, `ShipBuy` or `EscortHire`). Once per ship per change, so a trade
-    /// raises one for each party.
+    /// `Swap`, `Add`, `ShipBuy`, `EscortHire` or `StationBuy`). Once per ship
+    /// per change, so a trade raises one for each party.
     OnCreditsChanged => OnCreditsChangedEvent { label: "On Credits Changed" },
     /// A Ship pane repair spent hull plates (`id` = the ship; `section` = the
     /// pane code such as `HULL-3`, `item`, `count` = plates spent). Once per
@@ -209,6 +209,10 @@ scenario_events! {
     /// `hull` = the catalogue name, `price_cr` = the hire price). Once per
     /// hire.
     OnEscortHired => OnEscortHiredEvent { label: "On Escort Hired" },
+    /// A Ship pane buy at a docked station made the station the player's
+    /// (`id` = the buying ship; `station` = the station's scenario id,
+    /// `price_cr` = the price). Once per buy.
+    OnStationBought => OnStationBoughtEvent { label: "On Station Bought" },
     /// A Store at a docked station moved items into its storage (`id` = the
     /// station, other = the ship that stored; `item`, `count`). Once per
     /// confirmed Store.

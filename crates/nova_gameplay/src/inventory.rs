@@ -48,7 +48,7 @@ pub mod prelude {
         ItemTradeRefusalType, ItemTransferRefusalType, ItemTransferType, LootableShipMarker,
         PlateRepair, PlateRepairRefusalType, RecipePayment, RecipePaymentRefusalType,
         SectionRebuildRefusalType, ShipCredits, ShipInventory, ShipInventoryReport,
-        ShipInventoryReports, ShipInventoryStock, StationPartner, StationStorage,
+        ShipInventoryReports, ShipInventoryStock, StationPartner, StationStorage, TradePriceType,
         CARGO_CANISTER_MAX_MASS_G, HULL_PLATE_HEALTH,
     };
 }
@@ -729,6 +729,13 @@ pub enum ShipInventoryReport {
         /// The hire price.
         price_cr: u32,
     },
+    /// A Ship pane buy at a docked station made the station the player's.
+    StationBought {
+        /// The station's scenario id.
+        station: String,
+        /// The price.
+        price_cr: u32,
+    },
 }
 
 /// The [`ShipInventoryReport`]s a ship's owning systems queued since the
@@ -876,13 +883,27 @@ pub enum ItemTradeRefusalType {
     CreditOverflow,
 }
 
+/// The prices a trading partner deals at.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+pub enum TradePriceType {
+    /// A partner the player does not own: a Buy pays [`ItemDesign::ask_cr`],
+    /// a Sell earns [`ItemDesign::bid_cr`].
+    Market,
+    /// A station the player owns: its stock is the player's, so a Buy pays
+    /// [`ItemDesign::bid_cr`] as a Sell earns it, and no spread is taken
+    /// from the owner.
+    Owned,
+}
+
 /// Plan a trade of `quantity` of `item` between the player ship (`own`,
 /// holding `own_cr`) and its docked `partner` (holding `partner_cr`).
 ///
-/// `partner_trades` is true when the partner is neither neutralized nor
-/// carries [`LootableShipMarker`]. A Buy moves items from the partner to the
-/// player at [`ItemDesign::ask_cr`] each; a Sell moves them from the player to
-/// the partner at [`ItemDesign::bid_cr`] each. Checks run in
+/// `prices` is `None` when the partner does not trade: it is neutralized or
+/// carries [`LootableShipMarker`], or it is a station that offers no Trade.
+/// A Buy moves items from the partner to the player at
+/// [`ItemDesign::ask_cr`] each, or at [`ItemDesign::bid_cr`] from a station
+/// the player owns ([`TradePriceType::Owned`]); a Sell moves them from the
+/// player to the partner at [`ItemDesign::bid_cr`] each. Checks run in
 /// [`ItemTradeRefusalType`] order, and a refusal changes nothing. `item`
 /// resolves in `items`.
 #[expect(
@@ -892,7 +913,7 @@ pub enum ItemTradeRefusalType {
 pub fn plan_item_trade(
     items: &GameItems,
     trade: ItemTradeType,
-    partner_trades: bool,
+    prices: Option<TradePriceType>,
     item: &ItemDesignId,
     quantity: Option<u32>,
     own: &ShipInventory,
@@ -900,16 +921,18 @@ pub fn plan_item_trade(
     partner: &ShipInventory,
     partner_cr: u32,
 ) -> Result<ItemTrade, ItemTradeRefusalType> {
-    if !partner_trades {
-        return Err(ItemTradeRefusalType::NotTrader);
-    }
+    let prices = prices.ok_or(ItemTradeRefusalType::NotTrader)?;
     let quantity = quantity.ok_or(ItemTradeRefusalType::NoQuantity)?;
     if quantity == 0 {
         return Err(ItemTradeRefusalType::ZeroQuantity);
     }
     let design = items.design(item);
+    let ask_cr = match prices {
+        TradePriceType::Market => design.ask_cr,
+        TradePriceType::Owned => design.bid_cr,
+    };
     let (seller, buyer, buyer_cr, seller_cr, unit_cr) = match trade {
-        ItemTradeType::Buy => (partner, own, own_cr, partner_cr, design.ask_cr),
+        ItemTradeType::Buy => (partner, own, own_cr, partner_cr, ask_cr),
         ItemTradeType::Sell => (own, partner, partner_cr, own_cr, design.bid_cr),
     };
     let held = seller.count(item);
@@ -1864,7 +1887,7 @@ mod transfer_tests {
             ShipInventory::new(&items, 400_000, [(ItemRoleType::StoneOre.into(), count)])
         };
         let plan = |trade,
-                    trades,
+                    trades: bool,
                     quantity,
                     own: &ShipInventory,
                     own_cr,
@@ -1873,7 +1896,7 @@ mod transfer_tests {
             plan_item_trade(
                 &items,
                 trade,
-                trades,
+                trades.then_some(TradePriceType::Market),
                 &ItemDesignId::from(ItemRoleType::StoneOre),
                 quantity,
                 own,
@@ -1896,6 +1919,24 @@ mod transfer_tests {
             Ok(ItemTrade {
                 count: 10,
                 price_cr: 30
+            })
+        );
+        // A station the player owns sells its stock at bid, not ask.
+        assert_eq!(
+            plan_item_trade(
+                &items,
+                Buy,
+                Some(TradePriceType::Owned),
+                &ItemDesignId::from(ItemRoleType::StoneOre),
+                Some(5),
+                &own,
+                100,
+                &partner,
+                0,
+            ),
+            Ok(ItemTrade {
+                count: 5,
+                price_cr: 15
             })
         );
         // Exact funds and exact room are valid; both balances may reach zero.

@@ -26,6 +26,9 @@
 //! key or panel button -> message), spending hull plates from the player
 //! ship's `ShipInventory`.
 //!
+//! While the ship is docked at a living station a civilization keeps, a
+//! "This station" block shows its price and a Buy button that raises a
+//! `StationBuyCommand`; docked at a station the player owns, it says so.
 //! While the ship is docked at a living station that offers Rebuild, the
 //! panel lists the design sections the ship has lost, each under its design
 //! code, with a Rebuild button that raises a `SectionRebuildCommand`. While
@@ -51,6 +54,7 @@
 //! | `refit` | The swap and add lists and their action handlers. |
 //! | `shipyard` | The "Ships for sale" list and the buy action handler. |
 //! | `escorts` | The "Escorts for hire" list and the hire action handler. |
+//! | `station_buy` | The "This station" block and the station buy action handler. |
 //! | `scene` | The schematic 3D scene, its camera, the projected badges, the button observers and the panel refresh. |
 
 mod app;
@@ -61,6 +65,7 @@ mod refit;
 mod scene;
 mod sections;
 mod shipyard;
+mod station_buy;
 
 #[cfg(test)]
 mod tests;
@@ -70,6 +75,7 @@ use nova_ui::input_mode::prelude::{in_input_mode, InputMode};
 
 pub(crate) use self::{
     app::*, escorts::*, rebind::*, rebuild::*, refit::*, scene::*, sections::*, shipyard::*,
+    station_buy::*,
 };
 pub use self::{
     escorts::EscortHireCommand,
@@ -77,6 +83,7 @@ pub use self::{
     scene::{cuboid_edges, ease_orbit_center, ship_framing, ShipRuntime, SHIP_BLOCK_FILL_SCALE},
     sections::{SectionCode, ShipSections},
     shipyard::HullBuyCommand,
+    station_buy::{StationBuyCommand, STATION_BUY_BUTTON},
 };
 
 /// Glob-import surface: `use nova_interface::ship::prelude::*`.
@@ -92,6 +99,7 @@ pub mod prelude {
         },
         sections::{SectionCode, ShipSections},
         shipyard::HullBuyCommand,
+        station_buy::{StationBuyCommand, STATION_BUY_BUTTON},
         SHIP_RADIUS_MAX, SHIP_RADIUS_MIN,
     };
 }
@@ -126,6 +134,7 @@ impl Plugin for ShipPanePlugin {
         app.add_message::<SectionAddCommand>();
         app.add_message::<HullBuyCommand>();
         app.add_message::<EscortHireCommand>();
+        app.add_message::<StationBuyCommand>();
         app.add_systems(
             Update,
             (
@@ -138,6 +147,7 @@ impl Plugin for ShipPanePlugin {
                     apply_ship_add_commands,
                     apply_ship_hull_buy_commands,
                     apply_ship_escort_hire_commands,
+                    apply_ship_station_buy_commands,
                     reselect_swapped_section,
                     manage_ship_scene,
                     reconcile_ship_target,
@@ -153,6 +163,7 @@ impl Plugin for ShipPanePlugin {
                     project_ship_blips,
                     label_the_selected_section,
                     update_ship_panel,
+                    update_ship_station_list,
                     update_ship_rebuild_list,
                     update_ship_swap_list,
                     update_ship_add_list,

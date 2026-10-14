@@ -932,6 +932,7 @@ impl Plugin for SpaceshipPlugin {
         app.init_resource::<GameItems>();
         // The station spawn reads the station catalog the same way.
         app.init_resource::<GameStationDesigns>();
+        app.register_type::<OwnedStationMarker>();
 
         app.add_observer(insert_spaceship_sections);
         app.add_observer(rebuild_design_section);

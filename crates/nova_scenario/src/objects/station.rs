@@ -39,8 +39,8 @@ use bevy::prelude::*;
 use nova_events::prelude::MetersPerSecond3;
 use nova_gameplay::prelude::{
     circular_orbit_speed, Allegiance, DerelictShipMarker, ItemDesignId, LootableShipMarker,
-    NeutralizedMarker, RetaliationTarget, SectionInactiveMarker, SectionMarker, ShipInventoryStock,
-    UnsettledBody,
+    NeutralizedMarker, OwnedStationMarker, RetaliationTarget, SectionInactiveMarker, SectionMarker,
+    ShipInventoryStock, UnsettledBody,
 };
 pub use nova_gameplay::prelude::{
     StationDesignId, StationMarker, StationServiceType, StationServices, StationStorage,
@@ -341,7 +341,12 @@ fn station_capabilities(living: bool) -> ShipCapabilities {
 }
 
 /// A station frozen with its cell: the design it was built from, the hull
-/// record a ship freezes to, and its storage.
+/// record a ship freezes to, its storage, its hull catalogue and whether the
+/// player owns it.
+///
+/// `owned` is the one record of ownership: the live [`OwnedStationMarker`]
+/// is frozen into it and thawed out of it, so a bought station stays the
+/// player's across a retire, a thaw and a Load with no list beside it.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
@@ -350,6 +355,7 @@ pub struct FrozenStation {
     ship: FrozenShip,
     storage: StationStorage,
     hulls: Vec<StationHullOffer>,
+    owned: bool,
 }
 
 impl FrozenStation {
@@ -373,6 +379,11 @@ impl FrozenStation {
         &self.hulls
     }
 
+    /// Whether the player owns the station.
+    pub fn owned(&self) -> bool {
+        self.owned
+    }
+
     /// Every item id the station holds: its hull's and its storage's.
     pub fn item_ids(&self) -> impl Iterator<Item = &ItemDesignId> {
         self.ship.item_ids().chain(self.storage.item_ids())
@@ -380,7 +391,7 @@ impl FrozenStation {
 }
 
 /// Freeze a station: its hull as [`freeze_ship`] records it, with its design
-/// id, storage and hull catalogue.
+/// id, storage, hull catalogue and whether it carries [`OwnedStationMarker`].
 ///
 /// # Errors
 ///
@@ -408,24 +419,34 @@ pub fn freeze_station(world: &World, station: Entity) -> Result<FrozenStation, U
             .get::<StationHullCatalogue>()
             .map(|catalogue| catalogue.0.clone())
             .unwrap_or_default(),
+        owned: root.contains::<OwnedStationMarker>(),
     })
 }
 
 /// Rebuild a frozen station on `entity`, which the caller spawned with its
 /// pose, identity and parent. The hull thaws through [`thaw_ship`]; the
-/// marker, the storage and a non-empty hull catalogue land beside it. The
-/// caller inserts the velocity after this.
+/// marker, the storage, a non-empty hull catalogue and, for an owned
+/// station, [`OwnedStationMarker`] land beside it. The caller inserts the
+/// velocity after this.
 pub fn thaw_station(entity: &mut EntityCommands, frozen: FrozenStation) {
     let FrozenStation {
         design,
         ship,
         storage,
         hulls,
+        owned,
     } = frozen;
     thaw_ship(entity, ship);
     entity.insert((StationMarker(design), storage));
     if !hulls.is_empty() {
         entity.insert(StationHullCatalogue(hulls));
+    }
+    if owned {
+        // TODO(20261012-100028): an owned station earns nothing yet. Its
+        // income for the play-time it stood frozen accrues here, into its
+        // `ShipCredits`, and live in a station tick, once the economy strand
+        // adds the play-time clock. Remove this when that income rule lands.
+        entity.insert(OwnedStationMarker);
     }
 }
 

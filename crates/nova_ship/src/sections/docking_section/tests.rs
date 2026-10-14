@@ -1255,29 +1255,57 @@ fn a_pair_grades_against_the_stricter_of_its_two_ports() {
 #[test]
 fn a_station_admits_by_its_side_unless_it_is_dead_or_occupied() {
     assert_eq!(
-        station_admission(Some(Allegiance::Enemy), false, false),
+        station_admission(Some(Allegiance::Enemy), false, false, false, false),
         Err(DockRefusalType::EnemyStation)
     );
     for side in [Some(Allegiance::Neutral), Some(Allegiance::Player), None] {
         assert_eq!(
-            station_admission(side, false, false),
+            station_admission(side, false, false, false, false),
             Ok(()),
             "a living {side:?} station admits"
         );
     }
     assert_eq!(
-        station_admission(Some(Allegiance::Enemy), true, false),
+        station_admission(Some(Allegiance::Enemy), true, false, false, true),
         Ok(()),
         "a derelict Enemy station is a hull to loot"
     );
     assert_eq!(
-        station_admission(Some(Allegiance::Neutral), false, true),
+        station_admission(Some(Allegiance::Neutral), false, true, false, false),
         Err(DockRefusalType::StationOccupied)
     );
     assert_eq!(
-        station_admission(Some(Allegiance::Enemy), true, true),
+        station_admission(Some(Allegiance::Enemy), true, true, false, false),
         Err(DockRefusalType::StationOccupied),
         "a derelict's one connection is still one"
+    );
+}
+
+/// A living station refuses a ship hostile to it; one the player owns
+/// refuses nobody, on the Enemy side or hostile to the ship, but still holds
+/// one connection.
+#[test]
+fn an_owned_station_refuses_nobody_and_a_hostile_one_refuses_the_ship() {
+    assert_eq!(
+        station_admission(Some(Allegiance::Player), false, false, false, true),
+        Err(DockRefusalType::HostileStation),
+        "a living Player station refuses an Enemy-flagged ship"
+    );
+    for (side, hostile) in [
+        (Some(Allegiance::Player), true),
+        (Some(Allegiance::Enemy), false),
+        (Some(Allegiance::Neutral), true),
+    ] {
+        assert_eq!(
+            station_admission(side, false, false, true, hostile),
+            Ok(()),
+            "an owned {side:?} station admits a ship hostile {hostile}"
+        );
+    }
+    assert_eq!(
+        station_admission(Some(Allegiance::Player), false, true, true, false),
+        Err(DockRefusalType::StationOccupied),
+        "an owned station's one connection is still one"
     );
 }
 
@@ -1310,25 +1338,66 @@ fn a_living_station_holds_the_helm_and_a_dead_one_hands_it_to_the_player() {
 }
 
 /// The station facts reach the one admission point: a facing pair with a
-/// station root on the far end docks or not by the station rule, and a
-/// station with a hull docked refuses the next one.
+/// station root on the far end docks or not by the station rule (its side,
+/// its death, the ship's side against it and whether the player owns it),
+/// and a station with a hull docked refuses the next one.
 #[test]
 fn a_station_root_is_admitted_through_the_station_rule() {
     let station_marker = || StationMarker("waystation".into());
-    for (case, side, derelict, admitted) in [
-        ("living enemy", Allegiance::Enemy, false, false),
-        ("living neutral", Allegiance::Neutral, false, true),
-        ("dead enemy", Allegiance::Enemy, true, true),
+    for (case, side, derelict, owned, player_side, admitted) in [
+        (
+            "living enemy",
+            Allegiance::Enemy,
+            false,
+            false,
+            Allegiance::Player,
+            false,
+        ),
+        (
+            "living neutral",
+            Allegiance::Neutral,
+            false,
+            false,
+            Allegiance::Player,
+            true,
+        ),
+        (
+            "dead enemy",
+            Allegiance::Enemy,
+            true,
+            false,
+            Allegiance::Player,
+            true,
+        ),
+        (
+            "living player, enemy ship",
+            Allegiance::Player,
+            false,
+            false,
+            Allegiance::Enemy,
+            false,
+        ),
+        (
+            "owned player, enemy ship",
+            Allegiance::Player,
+            false,
+            true,
+            Allegiance::Enemy,
+            true,
+        ),
     ] {
         let mut app = docking_app();
         let (first, _, second, _) = facing_pair(&mut app, NOMINAL_GAP);
         app.world_mut()
             .entity_mut(first)
-            .insert((PlayerSpaceshipMarker, Allegiance::Player));
+            .insert((PlayerSpaceshipMarker, player_side));
         let mut station = app.world_mut().entity_mut(second);
         station.insert((station_marker(), side));
         if derelict {
             station.insert(DerelictShipMarker);
+        }
+        if owned {
+            station.insert(OwnedStationMarker);
         }
 
         request_dock(&mut app, first, second);

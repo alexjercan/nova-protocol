@@ -1842,6 +1842,14 @@ pub(super) fn track_ship_inventory_reports(
                         price_cr,
                     });
                 }
+                ShipInventoryReport::StationBought { station, price_cr } => {
+                    commands.fire::<OnStationBoughtEvent>(StationBoughtEventInfo {
+                        id,
+                        type_name,
+                        station,
+                        price_cr,
+                    });
+                }
             }
         }
     }

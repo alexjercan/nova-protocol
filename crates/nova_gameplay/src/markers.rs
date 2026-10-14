@@ -1,7 +1,7 @@
 //! The ship-structure vocabulary: what a ship root, a section and a fired
 //! projectile ARE, with none of the behavior that builds or flies them.
 //!
-//! These are the fifteen markers that both sides of the ship seam read. The ship
+//! These are the markers that both sides of the ship seam read. The ship
 //! crate spawns them; `integrity` and `gravity` here classify entities by them
 //! (is this a ship root? a live section? a torpedo? a station?) without
 //! depending on the sections that define one. They are plain components with no
@@ -27,7 +27,7 @@ use crate::{
 pub mod prelude {
     pub use super::{
         station_offers, ControllerSectionMarker, DerelictShipMarker, GunRoundMarker,
-        PlayerFleetMarker, PlayerSpaceshipMarker, RailgunSectionMarker,
+        OwnedStationMarker, PlayerFleetMarker, PlayerSpaceshipMarker, RailgunSectionMarker,
         RailgunSlugProjectileMarker, SectionInactiveMarker, SectionMarker, SpaceshipRootMarker,
         StationDesignId, StationMarker, StationServiceType, StationServices, ThrusterSectionMarker,
         TorpedoProjectileMarker, TorpedoSectionMarker, TurretBulletProjectileMarker,
@@ -130,6 +130,19 @@ impl std::fmt::Display for StationDesignId {
 /// anchors on it so a cut never moves it off its orbit.
 #[derive(Component, Clone, Debug, PartialEq, Eq, Reflect)]
 pub struct StationMarker(pub StationDesignId);
+
+/// Marks a station root the player owns: bought from its civilization with
+/// the Ship pane's station buy.
+///
+/// The station's frozen record carries it (`FrozenStation`'s `owned`), so
+/// ownership crosses a retire, a thaw and a Load with the body; nothing else
+/// keeps a copy. What it changes: docking admission skips the side rule, so
+/// the station refuses no hull (only its one held connection), and a Buy
+/// from its hold pays bid, not ask. The station keeps its civilization's side
+/// and its AI; a dead owned station keeps the marker and is a derelict.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+#[reflect(Component)]
+pub struct OwnedStationMarker;
 
 /// What a docked ship can do at a station. The closed set the game knows; a
 /// station design lists the ones it offers.

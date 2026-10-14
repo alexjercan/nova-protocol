@@ -28,6 +28,7 @@ use super::{
     scene::*,
     sections::*,
     shipyard::spawn_ship_hull_list,
+    station_buy::spawn_ship_station_list,
 };
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
@@ -268,6 +269,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                             .observe(on_ship_repair_button);
                         });
                 });
+            spawn_ship_station_list(panel);
             spawn_ship_rebuild_list(panel);
             spawn_ship_swap_list(panel);
             spawn_ship_add_list(panel);

@@ -58,19 +58,19 @@ pub mod prelude {
         OnShipOrderCanceledEventInfo, OnShipOrderCompleteEvent, OnShipOrderCompleteEventInfo,
         OnShipOrderFailedEvent, OnShipOrderFailedEventInfo, OnShipOrderInterruptedEvent,
         OnShipOrderInterruptedEventInfo, OnShipOrderResumedEvent, OnShipOrderResumedEventInfo,
-        OnStartEvent, OnStartEventInfo, OnStopCompleteEvent, OnStopCompleteEventInfo,
-        OnStoredEvent, OnSwappedEvent, OnTimerEndEvent, OnTimerEndEventInfo, OnTradedEvent,
-        OnTravelLockEndEvent, OnTravelLockStartEvent, OnUndockedEvent, OnUpdateEvent,
-        OnUpdateEventInfo, OnWithdrawnEvent, OrbitEventInfo, RebuiltEventInfo, RepairedEventInfo,
-        ScenarioAddressableMarker, ShipBoughtEventInfo, ShipOrderKind, StorageEventInfo,
-        SwappedEventInfo, TradedEventInfo, ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME, BEACON_TYPE_NAME,
-        CANISTER_FIELD_NAME, CINEMATIC_KEY_FIELD_NAME, CREDIT_CAUSE_FIELD_NAME,
-        CURRENT_CREDITS_FIELD_NAME, DELTA_CREDITS_FIELD_NAME, ENTITY_ID_COMPONENT_NAME,
-        ENTITY_OTHER_ID_COMPONENT_NAME, ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME,
-        ENTITY_TYPE_NAME_COMPONENT_NAME, ITEM_COUNT_FIELD_NAME, ITEM_FIELD_NAME, LIGHT_TYPE_NAME,
-        PLANET_TYPE_NAME, PREVIOUS_CREDITS_FIELD_NAME, PRICE_FIELD_NAME, SECTION_FIELD_NAME,
-        SHIP_ORDER_FIELD_NAME, SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME,
-        TIMER_KEY_FIELD_NAME, TRADE_FIELD_NAME,
+        OnStartEvent, OnStartEventInfo, OnStationBoughtEvent, OnStopCompleteEvent,
+        OnStopCompleteEventInfo, OnStoredEvent, OnSwappedEvent, OnTimerEndEvent,
+        OnTimerEndEventInfo, OnTradedEvent, OnTravelLockEndEvent, OnTravelLockStartEvent,
+        OnUndockedEvent, OnUpdateEvent, OnUpdateEventInfo, OnWithdrawnEvent, OrbitEventInfo,
+        RebuiltEventInfo, RepairedEventInfo, ScenarioAddressableMarker, ShipBoughtEventInfo,
+        ShipOrderKind, StationBoughtEventInfo, StorageEventInfo, SwappedEventInfo, TradedEventInfo,
+        ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME, BEACON_TYPE_NAME, CANISTER_FIELD_NAME,
+        CINEMATIC_KEY_FIELD_NAME, CREDIT_CAUSE_FIELD_NAME, CURRENT_CREDITS_FIELD_NAME,
+        DELTA_CREDITS_FIELD_NAME, ENTITY_ID_COMPONENT_NAME, ENTITY_OTHER_ID_COMPONENT_NAME,
+        ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME, ENTITY_TYPE_NAME_COMPONENT_NAME,
+        ITEM_COUNT_FIELD_NAME, ITEM_FIELD_NAME, LIGHT_TYPE_NAME, PLANET_TYPE_NAME,
+        PREVIOUS_CREDITS_FIELD_NAME, PRICE_FIELD_NAME, SECTION_FIELD_NAME, SHIP_ORDER_FIELD_NAME,
+        SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME, TIMER_KEY_FIELD_NAME, TRADE_FIELD_NAME,
     };
 }
 
@@ -929,6 +929,8 @@ pub enum CreditChangeCauseType {
     ShipBuy,
     /// An escort hired at a docked station: its price.
     EscortHire,
+    /// A station bought from its civilization while docked: its price.
+    StationBuy,
 }
 
 impl CreditChangeCauseType {
@@ -942,6 +944,7 @@ impl CreditChangeCauseType {
             CreditChangeCauseType::Add => "Add",
             CreditChangeCauseType::ShipBuy => "ShipBuy",
             CreditChangeCauseType::EscortHire => "EscortHire",
+            CreditChangeCauseType::StationBuy => "StationBuy",
         }
     }
 }
@@ -1356,6 +1359,36 @@ pub struct EscortHiredEventInfo {
     pub price_cr: u32,
 }
 
+/// A Ship pane buy at a docked station made the station the player's
+/// (`onstationbought`).
+///
+/// One event per buy the rule allows; a refused buy fires nothing. The
+/// credits it moved also raise one `OnCreditsChanged` on the buying ship;
+/// the station's balance does not move, since the price goes to its
+/// civilization.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onstationbought")]
+#[event_info(StationBoughtEventInfo)]
+pub struct OnStationBoughtEvent;
+
+/// Payload for [`OnStationBoughtEvent`]: the buying ship (`id` /
+/// `type_name`), the station's scenario id and the price.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
+pub struct StationBoughtEventInfo {
+    /// Scenario id of the buying ship.
+    #[serde(rename = "id")]
+    pub id: String,
+    /// Type name of that ship.
+    #[serde(rename = "type_name")]
+    pub type_name: String,
+    /// Scenario id of the bought station.
+    #[serde(rename = "station")]
+    pub station: String,
+    /// The price: the station's worth at ask times the ownership factor.
+    #[serde(rename = "price_cr")]
+    pub price_cr: u32,
+}
+
 /// A Store at a docked station moved items from the ship's hold into the
 /// station's storage (`onstored`).
 ///
@@ -1422,6 +1455,7 @@ mod inventory_event_tests {
             CreditChangeCauseType::Add,
             CreditChangeCauseType::ShipBuy,
             CreditChangeCauseType::EscortHire,
+            CreditChangeCauseType::StationBuy,
         ] {
             let serialized = serde_json::to_value(cause).expect("a unit variant serializes");
             assert_eq!(serialized.as_str(), Some(cause.as_str()));

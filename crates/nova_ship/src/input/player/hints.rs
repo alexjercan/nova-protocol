@@ -92,7 +92,7 @@ pub struct FlightVerbHints {
     pub helm_station: bool,
     /// The line the HUD shows while the travel lock is on a station that
     /// refuses a dock ([`DockRefusalType`]), naming the station: `<NAME>
-    /// REFUSES DOCKING` for a living Enemy station, `<NAME> DOCK OCCUPIED`
+    /// REFUSES DOCKING` for a living Enemy or hostile station, `<NAME> DOCK OCCUPIED`
     /// for one already holding its connection. `None` while the lock is
     /// clear, on a ship, or on a station that admits; a ship's refusal keeps
     /// the dark chip it always had.
@@ -109,7 +109,9 @@ pub struct FlightVerbHints {
 pub fn dock_refusal_line(name: &str, refusal: DockRefusalType) -> Option<String> {
     match refusal {
         DockRefusalType::Combat => None,
-        DockRefusalType::EnemyStation => Some(format!("{name} REFUSES DOCKING")),
+        DockRefusalType::EnemyStation | DockRefusalType::HostileStation => {
+            Some(format!("{name} REFUSES DOCKING"))
+        }
         DockRefusalType::StationOccupied => Some(format!("{name} DOCK OCCUPIED")),
     }
 }

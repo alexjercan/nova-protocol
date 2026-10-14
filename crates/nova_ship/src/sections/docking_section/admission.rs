@@ -5,12 +5,13 @@
 //! offer and the act cannot disagree.
 //!
 //! A ship target is judged by its combat state. A station target is judged by
-//! its civilization's side and whether it is dead ([`station_admission`]): a
-//! living station of the Enemy side refuses, a derelict admits whoever comes
-//! to loot it, and a station already holding its one connection refuses the
-//! next hull. The one-connection rule itself is the `DockedShip` on the root:
-//! the port search names no pair for a docked hull, and the station branch
-//! here names the reason the HUD shows.
+//! [`station_admission`]: a station already holding its one connection
+//! refuses the next hull; a station the player owns ([`OwnedStationMarker`])
+//! refuses nobody else; a derelict admits whoever comes to loot it; a living
+//! station refuses while it is on the Enemy side or hostile to the ship
+//! asking (by side, or answering its fire). The one-connection rule itself is
+//! the `DockedShip` on the root: the port search names no pair for a docked
+//! hull, and the station branch here names the reason the HUD shows.
 //!
 //! A dock already made is never judged again here: a ship under fire stays
 //! docked, and the player hitting a docked Neutral is what forces the undock
@@ -30,29 +31,43 @@ pub enum DockRefusalType {
     Combat,
     /// A living station of an Enemy civilization.
     EnemyStation,
+    /// A living station hostile to the ship asking: their sides are hostile,
+    /// or one answers the other's fire.
+    HostileStation,
     /// A station whose one connection is already held.
     StationOccupied,
 }
 
 /// The station branch of admission: what a station on `allegiance`'s side
-/// answers, dead or alive, with or without a hull already docked.
+/// answers, dead or alive, owned or not, with or without a hull already
+/// docked, to a ship that is `hostile` to it ([`ship_relation`]).
 ///
 /// # Errors
 ///
 /// [`DockRefusalType::StationOccupied`] while a hull is docked, whatever the
-/// station is; then [`DockRefusalType::EnemyStation`] for a living station on
-/// the Enemy side. A derelict admits on any side: it is a hull to loot, and a
-/// `None` side is hostile to no one.
+/// station is. An `owned` station then admits: it refuses nobody. A derelict
+/// admits on any side: it is a hull to loot, and a `None` side is hostile to
+/// no one. A living station refuses with [`DockRefusalType::EnemyStation`]
+/// on the Enemy side, then with [`DockRefusalType::HostileStation`] while it
+/// and the ship are hostile.
 pub fn station_admission(
     allegiance: Option<Allegiance>,
     derelict: bool,
     occupied: bool,
+    owned: bool,
+    hostile: bool,
 ) -> Result<(), DockRefusalType> {
     if occupied {
         return Err(DockRefusalType::StationOccupied);
     }
-    if !derelict && allegiance == Some(Allegiance::Enemy) {
+    if owned || derelict {
+        return Ok(());
+    }
+    if allegiance == Some(Allegiance::Enemy) {
         return Err(DockRefusalType::EnemyStation);
+    }
+    if hostile {
+        return Err(DockRefusalType::HostileStation);
     }
     Ok(())
 }
@@ -72,6 +87,7 @@ pub struct DockAdmission<'w, 's> {
             Has<StationMarker>,
             Has<DerelictShipMarker>,
             Has<DockedShip>,
+            Has<OwnedStationMarker>,
         ),
         With<SpaceshipRootMarker>,
     >,
@@ -93,17 +109,11 @@ impl DockAdmission<'_, '_> {
     /// Neutral ship lets it in. A target that is not a ship root has no
     /// state to refuse with.
     pub fn refusal(&self, ship: Entity, target: Entity) -> Option<DockRefusalType> {
-        let Ok((allegiance, answering, state, neutralized, station, derelict, docked)) =
+        let Ok((allegiance, answering, state, neutralized, station, derelict, docked, owned)) =
             self.ships.get(target)
         else {
             return None;
         };
-        if station {
-            return station_admission(allegiance.copied(), derelict, docked).err();
-        }
-        if neutralized {
-            return None;
-        }
         let (own_allegiance, own_answering) = self
             .ships
             .get(ship)
@@ -122,6 +132,12 @@ impl DockAdmission<'_, '_> {
                 retaliation: answering,
             },
         ) == Relation::Hostile;
+        if station {
+            return station_admission(allegiance.copied(), derelict, docked, owned, hostile).err();
+        }
+        if neutralized {
+            return None;
+        }
         let enemy = allegiance == Some(&Allegiance::Enemy);
         let answers = answering.is_some_and(|answering| answering.is_some());
         let fighting = state.is_some_and(AIBehaviorState::engages);

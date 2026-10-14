@@ -1117,9 +1117,20 @@ pub(crate) struct PartnerTerms {
     pub(crate) trades: bool,
     /// It is a living station that offers Storage: Store and Withdraw.
     pub(crate) stores: bool,
+    /// It is a station the player owns: a Buy from it pays bid.
+    pub(crate) owned: bool,
 }
 
 impl PartnerTerms {
+    /// The prices it deals at, or `None` when it does not trade.
+    pub(crate) fn prices(self) -> Option<TradePriceType> {
+        self.trades.then_some(if self.owned {
+            TradePriceType::Owned
+        } else {
+            TradePriceType::Market
+        })
+    }
+
     /// Whether the player's row may switch to `action`: Give always, Sell
     /// while the partner trades, Store while it stores.
     fn takes(self, action: InventoryActionType) -> bool {
@@ -1251,6 +1262,7 @@ pub(crate) struct InventoryShips<'w, 's> {
             Option<&'static StationServices>,
             Has<DerelictShipMarker>,
             &'static mut StationStorage,
+            Has<OwnedStationMarker>,
         ),
         With<StationMarker>,
     >,
@@ -1352,15 +1364,17 @@ impl InventoryShips<'_, '_> {
         let partner = pair.partner?;
         let lootable = self.ship(partner).2;
         Some(match self.stations.get(partner) {
-            Ok((services, derelict, _)) => PartnerTerms {
+            Ok((services, derelict, _, owned)) => PartnerTerms {
                 lootable,
                 trades: !lootable && station_offers(services, derelict, StationServiceType::Trade),
                 stores: station_offers(services, derelict, StationServiceType::Storage),
+                owned,
             },
             Err(_) => PartnerTerms {
                 lootable,
                 trades: !lootable,
                 stores: false,
+                owned: false,
             },
         })
     }
@@ -1372,7 +1386,7 @@ impl InventoryShips<'_, '_> {
         self.partner_terms(pair)
             .filter(|terms| terms.stores)
             .and_then(|_| self.stations.get(partner).ok())
-            .map(|(_, _, storage)| storage)
+            .map(|(_, _, storage, _)| storage)
     }
 
     /// Every stack one side shows, or `None` for a partner or a storage that
@@ -1820,11 +1834,11 @@ fn trade_items(
         ItemTradeType::Buy => (partner, pair.own, &partner_title, &own_title),
         ItemTradeType::Sell => (pair.own, partner, &own_title, &partner_title),
     };
-    let trades = ships.partner_terms(pair).is_some_and(|terms| terms.trades);
+    let prices = ships.partner_terms(pair).and_then(PartnerTerms::prices);
     let (_, own, _, own_cr) = ships.ship(pair.own);
     let (_, theirs, _, partner_cr) = ships.ship(partner);
     let planned = plan_item_trade(
-        items, trade, trades, &item, quantity, own, own_cr, theirs, partner_cr,
+        items, trade, prices, &item, quantity, own, own_cr, theirs, partner_cr,
     )
     .map_err(|refusal| {
         trade_refusal_text(
@@ -1969,7 +1983,7 @@ fn store_items(
         .ships
         .get_mut(pair.own)
         .expect("InventoryShips::pair checked the player ship");
-    let (_, _, mut storage) = ships
+    let (_, _, mut storage, _) = ships
         .stations
         .get_mut(station)
         .expect("plan_item_storage refuses a partner without station storage");
@@ -2518,7 +2532,7 @@ pub(crate) fn update_inventory_panel(
             (Some(quantity), Some(other)) => {
                 let (_, own_stock, _, _) = ships.ship(pair.own);
                 let (_, their_stock, lootable, their_cr) = ships.ship(other);
-                let trades = terms.is_some_and(|terms| terms.trades);
+                let prices = terms.and_then(PartnerTerms::prices);
                 let action = draft.action;
                 match (action.transfer(), action.trade(), action.storage()) {
                     (Some(transfer), ..) => plan_item_transfer(
@@ -2548,7 +2562,7 @@ pub(crate) fn update_inventory_panel(
                     (None, Some(trade), _) => plan_item_trade(
                         items,
                         trade,
-                        trades,
+                        prices,
                         &draft.item,
                         Some(quantity),
                         own_stock,
