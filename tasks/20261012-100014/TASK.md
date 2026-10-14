@@ -53,6 +53,8 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
 
 - Owner decision 2026-10-14: a station sells as many ships as it has docking ports minus one, keeping one port free for the player. The traded-in old ship takes a port too. Mechanism: (A) real multi-dock. A station becomes a hub holding N docking connections, one per port. Each ship still holds one connection. The docked assembly covers the station plus every docked hull, and the station's helm and self-levelling act on that assembly. Parked offers and the old ship are real docks. A buy hands control to the docked offer, which can then undock normally. Rejected: (B) kinematic berths without a connection.
 
+- Owner decision 2026-10-14 (answers the 100 kg storage question): storage at a station is the player's own. The station's storage view shows the holds of the player's own ships docked at that station, such as a traded-in old ship parked at a port, as storage. The player moves items between the current ship and those holds. A trade-in no longer moves the old ship's cargo into station storage; the cargo stays in the old ship's hold, so the hold-does-not-fit refusal goes away. The station storage capacity is not raised.
+
 ## Delivery gate
 - The catalogue is generated from the station's civilization and advancement, deterministic from the seed; buying swaps the player's design and respawns the hull docked. Stop for the owner on the old hull (trade-in credit vs. left as a derelict).
 
