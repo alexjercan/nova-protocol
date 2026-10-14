@@ -186,6 +186,11 @@ fn side_color(side: Option<&Allegiance>) -> Color {
     }
 }
 
+/// A side as the panel reads it: its name, or `none`.
+fn side_text(side: Option<&Allegiance>) -> String {
+    side.map_or("none".to_string(), |side| format!("{side:?}"))
+}
+
 /// The colour of a relation: hostile red, own green, neutral grey.
 fn relation_color(relation: Relation) -> Color {
     match relation {
@@ -274,7 +279,7 @@ fn draw_the_station(
         radius.0 * 1.1,
         side_color(side),
     );
-    panel.label(centre, format!("{} ({side:?})", name.as_str()));
+    panel.label(centre, format!("{} ({})", name.as_str(), side_text(side)));
     for (ship, at, ship_side, ship_retaliation) in &q_ships {
         let at = at.translation();
         if ship == station || at.distance(centre) > NEARBY_RANGE {
@@ -301,7 +306,8 @@ fn draw_the_station(
     };
     panel.line(format!("station: {} ({id})", name.as_str()));
     panel.line(format!(
-        "side: {side:?}   civilization: {civilization}   OwnedStationMarker: {}",
+        "side: {}   civilization: {civilization}   OwnedStationMarker: {}",
+        side_text(side),
         if owned { "yes" } else { "no" }
     ));
     let charted = chart
