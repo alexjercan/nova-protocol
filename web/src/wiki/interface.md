@@ -90,7 +90,7 @@ The Map pane is a schematic 3D chart of local space: distance rings, a hub, and 
 | <kbd>T</kbd>, or click **Reframe** | left stick click | Reset the view. |
 | <kbd>C</kbd>, or click **Chart** | - | Switch between the local view and the chart view. |
 
-In a generated world, the chart view draws your chart at sector scale: a grid of sectors around yours, each sector you entered filled in the colour of its cluster type, and the stations and wrecks your sensors found. A label shows only a code: `STN-1` for a station, `WRK-1` for a wreck, numbered in the order you found them. Click a station to read what you saw at your last dock there: its name, services, trade stock and what you stored. A station you never docked at shows `Not docked: no stock seen.` A scene with no generated world has no chart.
+In a generated world, the chart view draws your chart at sector scale: a grid of sectors around yours, each sector you entered filled in the colour of its cluster type, and the stations and wrecks your sensors found. A label shows only a code: `STN-1` for a station, `WRK-1` for a wreck, numbered in the order you found them. Click a station to read what you saw at your last dock there: its name, services, trade stock and what you stored. A station you never docked at shows `Not docked: no stock seen.` A station you bought shows in the ally colour as `OWNED STATION`. A scene with no generated world has no chart.
 
 <details class="explain">
 <summary>Show explanation</summary>
@@ -234,7 +234,7 @@ Under **Ships for sale**, the same station lists its **Escorts for hire**: armed
 <!-- Block and action: crates/nova_interface/src/station/station_buy.rs. Price:
      crates/nova_ship/src/sections/station_buy.rs. -->
 
-Docked at a living station in an Open World, the Station pane shows **This station**: its name and its price, twice what its sections, its hold and its credits are worth at ask. Click **Buy station** to make it yours; the credits go to its civilization. An owned station lets you dock whatever side you are flagged, and its hold sells to you at the price it would pay. It keeps its side and its guns, and it earns nothing yet. In a saved Open World it stays yours across a Load. A price your credits cannot cover is refused.
+Docked at a living station in an Open World, the Station pane shows **This station**: its name and its price, twice what its sections, its hold and its credits are worth at ask. Click **Buy station** to make it yours; the credits go to its civilization. The station leaves its civilization: it joins your side, so its guns fire on your foes, and it is named **Owned station**. An owned station lets you dock whatever side you are flagged, and its hold sells to you at the price it would pay. It earns nothing yet. In a saved Open World it stays yours across a Load. A price your credits cannot cover is refused.
 
 ## Stripping a wreck
 

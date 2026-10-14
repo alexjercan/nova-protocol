@@ -280,15 +280,17 @@ scenario places and a derelict are not for sale.
 | the price | twice what the station is worth at ask: every live section's [build recipe](../sections/#build-recipe), every stack of its hold at the item's `ask_cr`, and its credits. Your storage there is already yours and is not priced |
 | the credits | the ship pays the price to the civilization. The station keeps its own credits, stock and services |
 | refusals | in this order: not docked, not for sale, already yours, too few credits |
-| what becomes yours | the station admits you whatever your side. Its hold sells to you at the item's `bid_cr`; storage withdraw stays free. Its services still price at ask, and Take does not reach its credits |
-| what stays | the station keeps its civilization's side and its guns. It earns no income yet, and you cannot set its stock targets yet |
-| sectors and saves | the station stays yours when its sector retires and thaws, and the world save keeps it yours |
+| what becomes yours | the station leaves its civilization: it takes the Player side, so its guns fire on your foes, and it is named `Owned station`. It admits you whatever your side. Its hold sells to you at the item's `bid_cr`; storage withdraw stays free. Its services still price at ask, and Take does not reach its credits |
+| what stays | the station keeps its stock, credits, services and the hulls it sells. It earns no income yet, and you cannot set its stock targets yet |
+| the Map | the chart holds it as yours: the chart view shows `OWNED STATION` in the ally colour |
+| sectors and saves | the station stays yours, on your side and under its new name, when its sector retires and thaws, and the world save keeps it so |
 | events | `OnStationBought` and one `OnCreditsChanged` for your ship with `cause: StationBuy`, see [Hold events](../events/#hold-events) |
 
 The proof is `system_station_own`: on a New Game, the player docks at a
-generated station of its own side, buys it through the pane, leaves its
-sector and comes back, saves and Loads, and then docks there with an
-Enemy-flagged ship, which the station refused before the buy.
+Neutral generated station, buys it through the pane and sees it take the
+Player side and the owned name, leaves its sector and comes back, saves and
+Loads, and finds it still the player's, on the chart and the Map too. An
+Enemy-flagged ship, which its Player side would refuse, is admitted.
 
 ## Spawning one
 

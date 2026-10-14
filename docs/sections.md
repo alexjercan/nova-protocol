@@ -266,16 +266,28 @@ player's and is not priced. `plan_station_buy` checks, in order: docked, for
 sale (`StationSaleType`), not owned, and the player's balance. A confirmed buy
 charges the player (cause `StationBuy`), pushes
 `ShipInventoryReport::StationBought` (`OnStationBought`) and inserts
-`OwnedStationMarker` on the station root. The price goes to the
+`owned_station()` on the station root: `OwnedStationMarker`,
+`Allegiance::Player` and `OWNED_STATION_NAME` ("Owned station"). The
+station leaves its civilization: its AI targets the player's foes, the
+relation model, the HUD and the Map read it as the player's side, and its
+name no longer carries the civilization's. The price goes to the
 civilization, so the station keeps its balance, stock and services. An owned
-station keeps its civilization side and its AI, admits the player whatever
-the player's side (see "Who lets a dock in"), and sells its hold to the
-player at bid (`TradePriceType::Owned` in `plan_item_trade`); storage
+station admits the player whatever the player's side (see "Who lets a dock
+in"), and sells its hold to the player at bid (`TradePriceType::Owned` in
+`plan_item_trade`); storage
 withdraw was already free. Its services still price at ask, its credits are
 its trading float (Take does not reach them), and it earns nothing yet: the
 `TODO(20261012-100028)` in `thaw_station` is where income will accrue.
 Ownership has one source of truth: the live marker, and `FrozenStation.owned`
-in the frozen record a retire or a save writes and a thaw reads back.
+in the frozen record a retire or a save writes and a thaw reads back. The side
+and the name freeze with the hull (`FrozenShip`) and the body (`FrozenBody`)
+as every ship's do; the side alone cannot mark ownership, since a generated
+civilization can be on the Player side. The chart keeps `ChartStation.owned`
+from the dock and the undock, and the Map's chart view names the station
+`OWNED STATION` in the ally colour. The generator still describes the station
+as its civilization's, a pure function of the seed; the frozen record
+replaces that description once the cell retires or saves, and nothing at
+runtime counts a civilization's stations.
 
 `SectionKind` variants (one module per kind under `crates/nova_ship/src/sections/`;
 `turret_section/` and `torpedo_section/` are directories, not single files):
@@ -1661,7 +1673,8 @@ per contact. A symmetric rule - ram damage - wants both.
   `crates/nova_interface/src/station/escorts.rs`; proof:
   `examples/systems/system_station_hire.rs`.
 - Station buy: `station_price_cr`, `STATION_OWNERSHIP_FACTOR`,
-  `plan_station_buy`, `StationSaleType` -
+  `plan_station_buy`, `StationSaleType`, `owned_station`,
+  `OWNED_STATION_NAME` -
   `crates/nova_ship/src/sections/station_buy.rs`; `OwnedStationMarker` -
   `crates/nova_gameplay/src/markers.rs`; `FrozenStation.owned` -
   `crates/nova_scenario/src/objects/station.rs`; the pane:
