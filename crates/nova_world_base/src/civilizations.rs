@@ -8,9 +8,16 @@
 //! smoothly with 3D distance and reaches zero only at [`INFLUENCE_REACH`];
 //! there is no territory border and no unclaimed pool.
 //!
+//! Advancement is a smoothstep of the centroid's distance from the world
+//! origin, saturating at [`ADVANCEMENT_SATURATION`], with a seeded offset
+//! scaled by the curve value: slow near the origin and fast far out, so the
+//! space a new ship starts in fields many small hulls and size climbs with
+//! distance.
+//!
 //! PURE. The open world's ship planner reads it to pick each generated ship's
-//! civilization and role, and debug diagnostics read it too. Every constant
-//! here is provisional until the diagnostic maps are reviewed.
+//! civilization and role, and debug diagnostics read it too. The advancement
+//! curve is decided; every other constant here is provisional until the
+//! diagnostic maps are reviewed.
 
 use nova_events::prelude::{Meters, Meters3};
 use nova_gameplay::prelude::Allegiance;
@@ -21,11 +28,12 @@ use crate::{
     INDUSTRIAL_STYLE_ID, SALVAGE_STYLE_ID,
 };
 
-/// The spacing of the civilization lattice: one civilization per node.
-const CIVILIZATION_LATTICE: Meters = Meters(240_000.0);
+/// The spacing of the civilization lattice: one civilization per node. Each
+/// multiple of it from the origin is one ring of civilizations.
+pub(crate) const CIVILIZATION_LATTICE: Meters = Meters(240_000.0);
 
 /// How far a centroid may move off its node on each axis, in either direction.
-const CIVILIZATION_JITTER: Meters = Meters(40_000.0);
+pub(crate) const CIVILIZATION_JITTER: Meters = Meters(40_000.0);
 
 /// The distance at which influence has fallen to one half.
 const INFLUENCE_CORE: Meters = Meters(160_000.0);
@@ -37,10 +45,16 @@ pub(crate) const INFLUENCE_REACH: Meters = Meters(320_000.0);
 /// that matches the inner parabola's slope at the core edge.
 const INFLUENCE_TAPER: f32 = 2.0 * (INFLUENCE_REACH.0 - INFLUENCE_CORE.0) / INFLUENCE_CORE.0;
 
-/// The centroid radius at which the advancement ramp reaches one.
-const ADVANCEMENT_SATURATION: Meters = Meters(1_000_000.0);
+/// The centroid radius at which the advancement curve reaches one. Far
+/// enough that the first four rings read at most 0.15, so they field small
+/// hulls only; medium hulls appear near 2,000 km and the largest past
+/// 3,000 km.
+const ADVANCEMENT_SATURATION: Meters = Meters(4_000_000.0);
 
-/// The seeded advancement offset, drawn in `[-0.1, 0.1)`.
+/// The seeded advancement offset as a share of the curve value: a
+/// civilization reads `curve * (1 + [-0.1, 0.1))`. Scaled by the curve so an
+/// inner civilization varies by a few hundredths and cannot lift its ring
+/// into larger hulls, while one at saturation still varies by a tenth.
 const ADVANCEMENT_VARIATION: f32 = 0.1;
 
 /// The chance a civilization is still living.
@@ -98,18 +112,6 @@ pub const fn role_style_id(role: ShipRoleType) -> &'static str {
     }
 }
 
-/// How advancement rises with a centroid's distance from the world origin.
-///
-/// TODO(20260923-110307): delete once the owner picks the shipped curve from
-/// the diagnostic maps.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum AdvancementCurveType {
-    /// A clamped straight ramp to [`ADVANCEMENT_SATURATION`].
-    Linear,
-    /// A smoothstep to [`ADVANCEMENT_SATURATION`].
-    Smoothstep,
-}
-
 /// One seeded civilization.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Civilization {
@@ -121,7 +123,7 @@ pub struct Civilization {
     /// and distance.
     pub status: CivilizationStatusType,
     /// Its advancement in `[0, 1]`: the curve read at the centroid's distance
-    /// from the origin, plus a seeded offset.
+    /// from the origin, plus a seeded offset scaled by that curve value.
     pub advancement: f32,
     /// Its seeded preference for each role, in [`ShipRoleType::ALL`] order.
     /// Each is at least zero; only fighter roles can be zero.
@@ -175,14 +177,12 @@ pub struct CivilizationReach {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CivilizationField {
     world_seed: u32,
-    curve: AdvancementCurveType,
 }
 
 impl CivilizationField {
-    /// The civilizations `world_seed` opens, with advancement read through
-    /// `curve`.
-    pub fn new(world_seed: u32, curve: AdvancementCurveType) -> Self {
-        Self { world_seed, curve }
+    /// The civilizations `world_seed` opens.
+    pub fn new(world_seed: u32) -> Self {
+        Self { world_seed }
     }
 
     /// The civilization at `node`. Every draw is a fixed number off its own
@@ -205,13 +205,9 @@ impl CivilizationField {
             CivilizationStatusType::Extinct
         };
 
-        let radius = centroid.length().0;
-        let curve = match self.curve {
-            AdvancementCurveType::Linear => (radius / ADVANCEMENT_SATURATION.0).clamp(0.0, 1.0),
-            AdvancementCurveType::Smoothstep => ramp(radius, 0.0, ADVANCEMENT_SATURATION.0),
-        };
+        let curve = advancement_curve(centroid.length());
         let offset = id.stream(b"advancement").signed() * ADVANCEMENT_VARIATION;
-        let advancement = (curve + offset).clamp(0.0, 1.0);
+        let advancement = (curve * (1.0 + offset)).clamp(0.0, 1.0);
 
         let mut roles = id.stream(b"roles");
         let mut role_preference: [f32; 4] =
@@ -312,6 +308,15 @@ impl CivilizationField {
     }
 }
 
+/// The advancement a centroid at `radius` from the world origin reads before
+/// its seeded offset: a smoothstep from zero at the origin to one at
+/// [`ADVANCEMENT_SATURATION`]. Slow early and fast late, so many small ships
+/// come first and larger ones only far out; a straight ramp to the same
+/// radius would read the first ring at 0.06, not 0.01.
+fn advancement_curve(radius: Meters) -> f32 {
+    ramp(radius.0, 0.0, ADVANCEMENT_SATURATION.0)
+}
+
 /// A civilization's influence at `distance` from its centroid.
 ///
 /// Two parabolas joined with matching value and slope at the core edge:
@@ -356,7 +361,7 @@ mod tests {
     const SEEDS: [u32; 3] = [20_260_922, 12_345, 4_000_000_000];
 
     fn field(seed: u32) -> CivilizationField {
-        CivilizationField::new(seed, AdvancementCurveType::Linear)
+        CivilizationField::new(seed)
     }
 
     /// Points on a sphere of `radius`, spread by a golden-angle spiral.
@@ -370,7 +375,7 @@ mod tests {
     }
 
     /// The lattice-gap corners, where the nearest centroid can be farthest,
-    /// and four shells out past advancement saturation: every place has a
+    /// and four shells out to 1,250 km: every place has a
     /// civilization in reach, and every one listed has positive influence.
     #[test]
     fn every_position_has_a_civilization_in_reach() {
@@ -473,7 +478,7 @@ mod tests {
     }
 
     /// The same node is the same civilization from every query, in any
-    /// order; the advancement curve changes advancement only.
+    /// order.
     #[test]
     fn a_civilization_is_the_same_from_every_query() {
         for seed in SEEDS {
@@ -496,25 +501,47 @@ mod tests {
             for civilization in [near_first, far_second, far_first, near_second] {
                 assert_eq!(civilization, direct);
             }
+        }
+    }
 
-            let smooth =
-                CivilizationField::new(seed, AdvancementCurveType::Smoothstep).civilization(node);
+    /// Advancement before the offset reads the decided ring table, rounded to
+    /// hundredths: 0.01, 0.04, 0.09 and 0.15 at rings one to four, 0.50 at
+    /// 2,000 km, 0.84 at 3,000 km and 1.00 at 4,000 km. Each civilization's
+    /// offset stays within a tenth of its own curve value, so an inner
+    /// civilization varies by a few hundredths at most.
+    #[test]
+    fn advancement_reads_the_ring_table_and_varies_by_a_tenth_of_its_curve() {
+        let expected = [0.01, 0.04, 0.09, 0.15, 0.50, 0.84, 1.00];
+        let radii = (1..=4)
+            .map(|ring| ring as f32 * CIVILIZATION_LATTICE.0)
+            .chain([2_000_000.0, 3_000_000.0, 4_000_000.0]);
+        for (radius, expected) in radii.zip(expected) {
+            let curve = advancement_curve(Meters(radius));
             assert_eq!(
-                (
-                    smooth.id,
-                    smooth.centroid,
-                    smooth.status,
-                    smooth.role_preference,
-                    smooth.allegiance
-                ),
-                (
-                    direct.id,
-                    direct.centroid,
-                    direct.status,
-                    direct.role_preference,
-                    direct.allegiance
-                )
+                (curve * 100.0).round() / 100.0,
+                expected,
+                "{} km reads {curve}",
+                radius / 1_000.0
             );
+        }
+
+        for seed in SEEDS {
+            let field = field(seed);
+            for x in -6..=6 {
+                for y in -6..=6 {
+                    for z in -2..=2 {
+                        let civilization = field.civilization([x, y, z]);
+                        let curve = advancement_curve(civilization.centroid.length());
+                        assert!(
+                            (civilization.advancement - curve).abs()
+                                <= ADVANCEMENT_VARIATION * curve + 1e-6,
+                            "seed {seed}: {} reads {} on a curve of {curve}",
+                            civilization.id,
+                            civilization.advancement
+                        );
+                    }
+                }
+            }
         }
     }
 

@@ -25,6 +25,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
   Death keeps the last save.
 - Dying in New Game shows DEFEAT with Main Menu. On desktop it also offers
   Load last save, which reopens the world from its last save.
+- Open-world ships now grow slowly with distance: the first four civilization
+  rings field small hulls only, medium hulls appear near 2,000 km out and the
+  largest past 3,000 km.
 
 ### Combat & Weapons
 

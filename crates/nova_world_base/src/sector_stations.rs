@@ -249,7 +249,6 @@ mod tests {
         clusters::{cluster_at, plan_sector, station_pose, Cluster},
         environment::EnvironmentFields,
         layered::NovaLayeredWorld,
-        SHIP_ADVANCEMENT_CURVE,
     };
 
     /// The examples' cell on `seed`, filled by the fixture generator.
@@ -282,8 +281,7 @@ mod tests {
             credits: 5_001,
             ..crate::test_support::fixture_stations().0.remove(0)
         };
-        let base =
-            CivilizationField::new(20_260_922, SHIP_ADVANCEMENT_CURVE).civilization([0, 0, 0]);
+        let base = CivilizationField::new(20_260_922).civilization([0, 0, 0]);
         let at = |status, advancement| {
             let generated = generated_station_design(
                 &design,
@@ -345,7 +343,7 @@ mod tests {
             let config = config(seed);
             let edge = config.sector_edge;
             let fields = EnvironmentFields::new(seed);
-            let civilizations = CivilizationField::new(seed, SHIP_ADVANCEMENT_CURVE);
+            let civilizations = CivilizationField::new(seed);
             let pinned = config.generator.stations();
             let mut hosts = |civilization: &Civilization, node: [i32; 3]| {
                 let clearance = pinned

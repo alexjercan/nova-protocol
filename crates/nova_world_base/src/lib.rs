@@ -75,13 +75,12 @@ pub use crate::save::{
 };
 pub use crate::{
     civilizations::{
-        role_style_id, AdvancementCurveType, Civilization, CivilizationField, CivilizationReach,
-        CivilizationStatusType,
+        role_style_id, Civilization, CivilizationField, CivilizationReach, CivilizationStatusType,
     },
     clusters::{sector_clusters, ClusterSummary, SectorClusters},
     environment::{Environment, EnvironmentFieldType, EnvironmentFields},
     layered::{NovaLayeredWorld, PinnedStation, CLEARANCE_MARGIN},
-    sector_ships::{plan_ship, ship_stock, HullSlot, PlannedShip, SHIP_ADVANCEMENT_CURVE},
+    sector_ships::{plan_ship, ship_stock, HullSlot, PlannedShip},
     sector_stations::GENERATED_STATION_DESIGN_IDS,
     ship_layout::{
         generate_ship, generate_wreck, ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType,
@@ -109,17 +108,16 @@ pub mod prelude {
     };
     pub use super::{
         generate_ship, generate_wreck, plan_ship, role_style_id, sector_clusters, ship_stock,
-        AdvancementCurveType, Civilization, CivilizationField, CivilizationReach,
-        CivilizationStatusType, ClusterSummary, Environment, EnvironmentFieldType,
-        EnvironmentFields, HullSlot, NovaLayeredWorld, NovaWorldBasePlugin, OpenWorldSession,
-        PinnedStation, PlannedShip, SectorClusters, ShipDriveLayoutType, ShipLayout,
-        ShipLayoutConstraintType, ShipLayoutFailure, ShipLayoutRequest, ShipPart,
-        ShipPartExclusionType, ShipPartFamilyType, ShipPartFault, ShipPartPack, ShipPartSnapshot,
-        ARMOURED_STYLE_ID, BLOCK_LINE_WARSHIP_SHIP_ID, BLOCK_WAYSTATION_STATION_ID,
-        CIVILIAN_STYLE_ID, CLEARANCE_MARGIN, GENERATED_STATION_DESIGN_IDS, INDUSTRIAL_STYLE_ID,
-        OPEN_WORLD_BOUNDS_RADIUS_MAX, OPEN_WORLD_SCENARIO_ID, RING_STATION_STATION_ID,
-        SALVAGE_STYLE_ID, SHIP_ADVANCEMENT_CURVE, SPIRE_STATION_STATION_ID, STATION_STYLE_ID,
-        YARD_STATION_STATION_ID,
+        Civilization, CivilizationField, CivilizationReach, CivilizationStatusType, ClusterSummary,
+        Environment, EnvironmentFieldType, EnvironmentFields, HullSlot, NovaLayeredWorld,
+        NovaWorldBasePlugin, OpenWorldSession, PinnedStation, PlannedShip, SectorClusters,
+        ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType, ShipLayoutFailure,
+        ShipLayoutRequest, ShipPart, ShipPartExclusionType, ShipPartFamilyType, ShipPartFault,
+        ShipPartPack, ShipPartSnapshot, ARMOURED_STYLE_ID, BLOCK_LINE_WARSHIP_SHIP_ID,
+        BLOCK_WAYSTATION_STATION_ID, CIVILIAN_STYLE_ID, CLEARANCE_MARGIN,
+        GENERATED_STATION_DESIGN_IDS, INDUSTRIAL_STYLE_ID, OPEN_WORLD_BOUNDS_RADIUS_MAX,
+        OPEN_WORLD_SCENARIO_ID, RING_STATION_STATION_ID, SALVAGE_STYLE_ID,
+        SPIRE_STATION_STATION_ID, STATION_STYLE_ID, YARD_STATION_STATION_ID,
     };
 }
 

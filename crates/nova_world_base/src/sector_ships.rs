@@ -48,21 +48,12 @@ use nova_ship::prelude::{SectionKind, ShipCapabilities};
 use nova_world::prelude::*;
 
 use crate::{
-    civilizations::{
-        AdvancementCurveType, Civilization, CivilizationField, CivilizationStatusType,
-    },
+    civilizations::{Civilization, CivilizationField, CivilizationStatusType},
     clusters::pick,
     environment::Environment,
     ship_layout::{generate_ship, generate_wreck, ShipLayoutRequest},
     ship_parts::ShipPartSnapshot,
 };
-
-/// The advancement curve the live world reads.
-///
-/// TODO(20260923-110307): the task's starting ramp until the owner picks the
-/// shipped curve from the diagnostic maps; delete with
-/// [`AdvancementCurveType`].
-pub const SHIP_ADVANCEMENT_CURVE: AdvancementCurveType = AdvancementCurveType::Linear;
 
 /// The chance that a cluster's hull after its first belongs to another
 /// civilization in reach rather than the cluster's primary.

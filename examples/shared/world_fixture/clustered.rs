@@ -902,7 +902,7 @@ pub fn plan_cell(
 ) -> Result<CellPlan, SectorFault> {
     let coord = input.coord;
     let edge = input.geometry.sector_edge;
-    let civilizations = CivilizationField::new(input.seed, SHIP_ADVANCEMENT_CURVE);
+    let civilizations = CivilizationField::new(input.seed);
     let mut groups = Vec::new();
     let mut parents = Vec::new();
     let mut members = Vec::new();

@@ -3,7 +3,7 @@
 //!
 //! One flat plane through the world origin, 2,560 km across, sampled on the
 //! CPU at 8 km a sample through the same `CivilizationField` the generator
-//! will read, and painted as six panels. Nothing streams and no ship is drawn:
+//! will read, and painted as five panels. Nothing streams and no ship is drawn:
 //! these are the maps a tuning pass reads before any civilization fields a
 //! ship.
 //!
@@ -14,8 +14,7 @@
 //!   primary changes; white dots mark centroids within 120 km of the plane.
 //! - Civilizations in reach: how many centroids are within the 320 km reach,
 //!   0 to 16.
-//! - Advancement, linear and smoothstep: the selection-weighted mean
-//!   advancement, 0 to 1, under each curve.
+//! - Advancement: the selection-weighted mean advancement, 0 to 1.
 //! - Living share: the selection-weight share of living civilizations, 0 to 1.
 //! - Dominant role: the role with the largest selection-weighted share BEFORE
 //!   content eligibility, brighter where it dominates more. Scavenger and
@@ -84,8 +83,8 @@ const SEEDS: [u32; 3] = [20_260_922, 12_345, 4_000_000_000];
 const PANEL_PIXELS: u32 = 320;
 
 /// World covered by one panel on both axes: 8 km a sample, from 1,280 km out
-/// on one side of the origin to 1,280 km on the other, past the 1,000 km
-/// advancement saturation.
+/// on one side of the origin to 1,280 km on the other, past the fifth
+/// civilization ring and short of the 4,000 km advancement saturation.
 const PANEL_EXTENT: Meters = Meters(2_560_000.0);
 
 /// The rings every panel carries, in meters from the origin.
@@ -135,8 +134,7 @@ const SURFACE: Srgba = Srgba::rgb(0.102, 0.102, 0.098);
 /// The bright end of the reach ramp: blue.
 const REACH_COLOUR: Srgba = Srgba::rgb(0.224, 0.529, 0.898);
 
-/// The bright end of both advancement ramps: orange, the same on both so the
-/// two curves compare directly.
+/// The bright end of the advancement ramp: orange.
 const ADVANCEMENT_COLOUR: Srgba = Srgba::rgb(0.851, 0.349, 0.149);
 
 /// The bright end of the living ramp: aqua.
@@ -235,23 +233,21 @@ impl CivilizationView {
     }
 }
 
-/// The six panels, in the order they are laid out and painted.
+/// The five panels, in the order they are laid out and painted.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PanelType {
     Primary,
     ReachCount,
-    AdvancementLinear,
-    AdvancementSmoothstep,
+    Advancement,
     LivingShare,
     DominantRole,
 }
 
 impl PanelType {
-    const ALL: [Self; 6] = [
+    const ALL: [Self; 5] = [
         Self::Primary,
         Self::ReachCount,
-        Self::AdvancementLinear,
-        Self::AdvancementSmoothstep,
+        Self::Advancement,
         Self::LivingShare,
         Self::DominantRole,
     ];
@@ -260,8 +256,7 @@ impl PanelType {
         match self {
             Self::Primary => "primary civilization",
             Self::ReachCount => "civilizations in reach, 0-16",
-            Self::AdvancementLinear => "advancement, linear, 0-1",
-            Self::AdvancementSmoothstep => "advancement, smoothstep, 0-1",
+            Self::Advancement => "advancement, 0-1",
             Self::LivingShare => "living share, 0-1",
             Self::DominantRole => "dominant role, pre-eligibility",
         }
@@ -275,7 +270,7 @@ impl PanelType {
 /// during boot.
 #[derive(Resource)]
 struct CivilizationPainting {
-    handles: [Handle<Image>; 6],
+    handles: [Handle<Image>; 5],
     painted: Option<CivilizationView>,
     summary: String,
 }
@@ -287,9 +282,9 @@ struct CivilizationJob {
     task: Task<CivilizationPixels>,
 }
 
-/// A finished paint: six panels of texels and a readout of what they hold.
+/// A finished paint: five panels of texels and a readout of what they hold.
 struct CivilizationPixels {
-    panels: [Vec<u8>; 6],
+    panels: [Vec<u8>; 5],
     summary: String,
 }
 
@@ -306,7 +301,7 @@ fn main() -> bevy::app::AppExit {
     #[cfg(feature = "debug")]
     {
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
-        // The fleet's 16:9, so the six panels and the readout fit one shot.
+        // The fleet's 16:9, so the five panels and the readout fit one shot.
         app.add_systems(Startup, force_capture_resolution);
         app.add_plugins(civilizations_script());
     }
@@ -323,7 +318,7 @@ fn civilizations_plugin(app: &mut App) {
     );
 }
 
-/// Load the empty bootstrap, lay out the six blank panels and the readout,
+/// Load the empty bootstrap, lay out the five blank panels and the readout,
 /// and log the report.
 fn boot_civilizations(
     mut commands: Commands,
@@ -338,7 +333,7 @@ fn boot_civilizations(
 
     info!("world civilizations report\n{}", civilization_report());
 
-    let handles: [Handle<Image>; 6] = std::array::from_fn(|_| images.add(blank_panel()));
+    let handles: [Handle<Image>; 5] = std::array::from_fn(|_| images.add(blank_panel()));
     commands.insert_resource(CivilizationPainting {
         handles: handles.clone(),
         painted: None,
@@ -476,7 +471,7 @@ fn request_paint(
     commands.insert_resource(CivilizationJob { view: wanted, task });
 }
 
-/// Take a finished paint and write it into the six panel images.
+/// Take a finished paint and write it into the five panel images.
 fn collect_paint(
     mut commands: Commands,
     mut job: Option<ResMut<CivilizationJob>>,
@@ -513,8 +508,7 @@ struct PlaceReading {
     /// The primary civilization and its selection share.
     primary: (CivilizationId, f32),
     reach_count: usize,
-    advancement_linear: f32,
-    advancement_smoothstep: f32,
+    advancement: f32,
     living_share: f32,
     /// The selection-weighted role shares, before content eligibility.
     role_shares: [f32; 4],
@@ -522,18 +516,17 @@ struct PlaceReading {
     nearest: f32,
 }
 
-/// Read one place from both curves' fields and the environment.
+/// Read one place from the civilization field and the environment.
 ///
 /// `Ok(None)` is a place with no civilization in reach; every other refusal
 /// panics, since a picture that painted it as some value would be a picture
 /// of a bug.
 fn read_place(
-    linear: &CivilizationField,
-    smooth: &CivilizationField,
+    civilizations: &CivilizationField,
     fields: &EnvironmentFields,
     position: Meters3,
 ) -> Option<PlaceReading> {
-    let reach = match linear.in_reach(position) {
+    let reach = match civilizations.in_reach(position) {
         Ok(reach) => reach,
         Err(SectorFault::Generation {
             field: "coverage", ..
@@ -546,8 +539,7 @@ fn read_place(
     let total: f32 = reach.iter().map(|entry| entry.selection_weight).sum();
 
     let mut primary = (reach[0].civilization.id, 0.0);
-    let mut advancement_linear = 0.0;
-    let mut advancement_smoothstep = 0.0;
+    let mut advancement = 0.0;
     let mut living_share = 0.0;
     let mut role_shares = [0.0; 4];
     let mut nearest = f32::INFINITY;
@@ -557,8 +549,7 @@ fn read_place(
         if share > primary.1 {
             primary = (civilization.id, share);
         }
-        advancement_linear += share * civilization.advancement;
-        advancement_smoothstep += share * smooth.civilization(civilization.id.node).advancement;
+        advancement += share * civilization.advancement;
         if civilization.status == CivilizationStatusType::Living {
             living_share += share;
         }
@@ -573,22 +564,20 @@ fn read_place(
     Some(PlaceReading {
         primary,
         reach_count: reach.len(),
-        advancement_linear,
-        advancement_smoothstep,
+        advancement,
         living_share,
         role_shares,
         nearest,
     })
 }
 
-/// Paint all six panels of one view.
+/// Paint all five panels of one view.
 ///
 /// PURE, and the whole cost of this example: one reach query and one
 /// environment reading per sample, on a worker.
 fn paint_view(view: CivilizationView) -> CivilizationPixels {
     let seed = SEEDS[view.seed];
-    let linear = CivilizationField::new(seed, AdvancementCurveType::Linear);
-    let smooth = CivilizationField::new(seed, AdvancementCurveType::Smoothstep);
+    let civilizations = CivilizationField::new(seed);
     let fields = EnvironmentFields::new(seed);
 
     let pixels = PANEL_PIXELS as usize;
@@ -601,8 +590,7 @@ fn paint_view(view: CivilizationView) -> CivilizationPixels {
         for column in 0..pixels {
             let horizontal = -span * 0.5 + (column as f32 + 0.5) * per_texel;
             readings.push(read_place(
-                &linear,
-                &smooth,
+                &civilizations,
                 &fields,
                 view.plane.point(horizontal, vertical),
             ));
@@ -615,7 +603,7 @@ fn paint_view(view: CivilizationView) -> CivilizationPixels {
     for x in -nodes..=nodes {
         for y in -nodes..=nodes {
             for z in -nodes..=nodes {
-                let centroid = linear.civilization([x, y, z]).centroid.get();
+                let centroid = civilizations.civilization([x, y, z]).centroid.get();
                 let (horizontal, vertical, off) = view.plane.project(centroid);
                 if off.abs() >= CENTROID_DOT_DEPTH {
                     continue;
@@ -629,7 +617,7 @@ fn paint_view(view: CivilizationView) -> CivilizationPixels {
         }
     }
 
-    let mut panels: [Vec<u8>; 6] = std::array::from_fn(|_| Vec::with_capacity(pixels * pixels * 4));
+    let mut panels: [Vec<u8>; 5] = std::array::from_fn(|_| Vec::with_capacity(pixels * pixels * 4));
     for row in 0..pixels {
         let vertical = span * 0.5 - (row as f32 + 0.5) * per_texel;
         for column in 0..pixels {
@@ -698,12 +686,7 @@ fn panel_colour(
             REACH_COLOUR,
             reading.reach_count as f32 / REACH_COUNT_MAX,
         ),
-        PanelType::AdvancementLinear => {
-            lerp_srgba(SURFACE, ADVANCEMENT_COLOUR, reading.advancement_linear)
-        }
-        PanelType::AdvancementSmoothstep => {
-            lerp_srgba(SURFACE, ADVANCEMENT_COLOUR, reading.advancement_smoothstep)
-        }
+        PanelType::Advancement => lerp_srgba(SURFACE, ADVANCEMENT_COLOUR, reading.advancement),
         PanelType::LivingShare => lerp_srgba(SURFACE, LIVING_COLOUR, reading.living_share),
         PanelType::DominantRole => {
             let (role, share) = dominant_role(reading.role_shares);
@@ -804,7 +787,7 @@ fn view_summary(readings: &[Option<PlaceReading>]) -> String {
          in reach min {} / median {} / max {}\n\
          primary share median {:.2}, nearest centroid at most {:.0} km\n\
          living share mean {:.2}\n\
-         advancement mean linear {:.2}, smoothstep {:.2}\n\
+         advancement mean {:.2}\n\
          dominant role by area: {dominant}",
         covered.len(),
         readings.len(),
@@ -814,8 +797,7 @@ fn view_summary(readings: &[Option<PlaceReading>]) -> String {
         stats.primary_median,
         stats.farthest_nearest / 1_000.0,
         stats.living,
-        stats.advancement.0,
-        stats.advancement.1,
+        stats.advancement,
     )
 }
 
@@ -826,8 +808,8 @@ struct PlaceStats {
     primary_median: f32,
     farthest_nearest: f32,
     living: f32,
-    /// Mean advancement, linear then smoothstep.
-    advancement: (f32, f32),
+    /// Mean advancement.
+    advancement: f32,
     /// Mean pre-eligibility role shares.
     roles: [f32; 4],
 }
@@ -854,10 +836,7 @@ impl PlaceStats {
                 .map(|reading| reading.nearest)
                 .fold(0.0, f32::max),
             living: mean(|reading| reading.living_share),
-            advancement: (
-                mean(|reading| reading.advancement_linear),
-                mean(|reading| reading.advancement_smoothstep),
-            ),
+            advancement: mean(|reading| reading.advancement),
             roles: std::array::from_fn(|role| {
                 readings
                     .iter()
@@ -893,28 +872,27 @@ fn civilization_report() -> String {
          selection-weight shares at each point.\n",
     );
     for seed in SEEDS {
-        let linear = CivilizationField::new(seed, AdvancementCurveType::Linear);
-        let smooth = CivilizationField::new(seed, AdvancementCurveType::Smoothstep);
+        let civilizations = CivilizationField::new(seed);
         let fields = EnvironmentFields::new(seed);
 
         report.push_str(&format!(
             "\n## Seed {seed}\n\n\
              | shell km | points | covered | reach min/med/max | primary share med | \
-             nearest max km | living | adv linear | adv smooth | civilian | industrial | \
-             scavenger | armored |\n\
-             | - | - | - | - | - | - | - | - | - | - | - | - | - |\n"
+             nearest max km | living | advancement | civilian | industrial | scavenger | \
+             armored |\n\
+             | - | - | - | - | - | - | - | - | - | - | - | - |\n"
         ));
         for radius in REPORT_SHELLS {
             let points = shell(radius);
             let readings: Vec<PlaceReading> = points
                 .iter()
-                .filter_map(|&point| read_place(&linear, &smooth, &fields, point))
+                .filter_map(|&point| read_place(&civilizations, &fields, point))
                 .collect();
             let refs: Vec<&PlaceReading> = readings.iter().collect();
             let stats = PlaceStats::of(&refs);
             report.push_str(&format!(
                 "| {:.0} | {} | {} | {}/{}/{} | {:.2} | {:.0} | {:.2} | {:.2} | {:.2} | {:.2} | \
-                 {:.2} | {:.2} | {:.2} |\n",
+                 {:.2} | {:.2} |\n",
                 radius / 1_000.0,
                 points.len(),
                 readings.len(),
@@ -924,8 +902,7 @@ fn civilization_report() -> String {
                 stats.primary_median,
                 stats.farthest_nearest / 1_000.0,
                 stats.living,
-                stats.advancement.0,
-                stats.advancement.1,
+                stats.advancement,
                 stats.roles[0],
                 stats.roles[1],
                 stats.roles[2],
@@ -933,7 +910,7 @@ fn civilization_report() -> String {
             ));
         }
 
-        let census = census(&linear);
+        let census = census(&civilizations);
         let living = census
             .iter()
             .filter(|civilization| civilization.status == CivilizationStatusType::Living)

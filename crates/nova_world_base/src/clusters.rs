@@ -82,7 +82,7 @@ use crate::{
     civilizations::{Civilization, CivilizationField, CivilizationStatusType},
     environment::{Environment, EnvironmentFields},
     layered::PinnedStation,
-    sector_ships::{plan_patrol, plan_ship, HullSlot, PlannedShip, SHIP_ADVANCEMENT_CURVE},
+    sector_ships::{plan_patrol, plan_ship, HullSlot, PlannedShip},
     sector_stations::{generated_station_design, station_design_id, StationClaims},
     ship_parts::ShipPartSnapshot,
     NovaLayeredWorld, CLEARANCE_MARGIN,
@@ -1688,7 +1688,7 @@ fn background_reach_max() -> Meters {
 /// pull. A parent stands within the core and a member within
 /// [`member_reach`] of the anchor. The distance along one axis is at most
 /// the distance itself, so this bounds every axis.
-fn cluster_reach() -> Meters {
+pub(crate) fn cluster_reach() -> Meters {
     let reach = ClusterType::ALL
         .into_iter()
         .map(|cluster_type| core_reach(cluster_type) + ROUNDING_SLACK + member_reach(cluster_type))
@@ -1749,7 +1749,7 @@ pub(crate) fn plan_sector(
 ) -> Result<SectorPlan, SectorFault> {
     let coord = input.coord;
     let edge = input.geometry.sector_edge;
-    let civilizations = CivilizationField::new(input.seed, SHIP_ADVANCEMENT_CURVE);
+    let civilizations = CivilizationField::new(input.seed);
     let pinned = |civilization: &Civilization| {
         let id = station_design_id(civilization);
         stations

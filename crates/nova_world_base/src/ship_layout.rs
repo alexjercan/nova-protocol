@@ -3378,4 +3378,63 @@ pub(crate) mod tests {
             format!("{:?}", omit(&intact.design, &witness))
         );
     }
+
+    /// Across 64 world seeds, no hull inside the second civilization ring is
+    /// medium: every civilization a ship standing there can be drawn from
+    /// caps its hulls in the smallest third of the clearance span, the
+    /// smallest of three equal size bands.
+    ///
+    /// Exhaustive per seed, not sampled. A ship draws its civilization from
+    /// those in reach of its cluster's anchor or of itself, and the anchor
+    /// stands within `sqrt(3)` cluster reaches of the hull, so every
+    /// candidate centroid lies within the ring radius plus the influence
+    /// reach plus that margin. Every layout passes its advancement's size
+    /// ceiling after it is built, so the ceiling bounds the hull.
+    #[test]
+    fn no_medium_hull_spawns_inside_the_second_ring() {
+        use crate::{
+            civilizations::{CIVILIZATION_JITTER, CIVILIZATION_LATTICE, INFLUENCE_REACH},
+            clusters::cluster_reach,
+            CivilizationField,
+        };
+
+        let ring = 2.0 * CIVILIZATION_LATTICE.0;
+        let bound = ring + INFLUENCE_REACH.0 + 3.0_f32.sqrt() * cluster_reach().0;
+        let nodes = ((bound + CIVILIZATION_JITTER.0) / CIVILIZATION_LATTICE.0).ceil() as i32;
+        let medium = ceiling(1.0 / 3.0);
+        let (mut candidates, mut largest) = (0, Meters(0.0));
+        for seed in 0..64 {
+            let field = CivilizationField::new(seed);
+            for x in -nodes..=nodes {
+                for y in -nodes..=nodes {
+                    for z in -nodes..=nodes {
+                        let civilization = field.civilization([x, y, z]);
+                        if civilization.centroid.length().0 > bound {
+                            continue;
+                        }
+                        candidates += 1;
+                        let cap = ceiling(civilization.advancement);
+                        largest = largest.max(cap);
+                        assert!(
+                            cap < medium,
+                            "seed {seed}: {} at {:.0} km reads {:.3}, capping hulls at {:?}, \
+                             past the medium band's {medium:?}",
+                            civilization.id,
+                            civilization.centroid.length().0 / 1_000.0,
+                            civilization.advancement,
+                            cap
+                        );
+                    }
+                }
+            }
+        }
+        assert!(
+            candidates > 64 * 100,
+            "the sweep saw {candidates} candidates"
+        );
+        assert!(
+            largest > MIN_HULL_CLEARANCE,
+            "the sweep never left the floor"
+        );
+    }
 }
