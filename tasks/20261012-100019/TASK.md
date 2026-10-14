@@ -1,8 +1,8 @@
 # Salvage: strip a docked lootable hull into recipe parts
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 68
-- TAGS: v0.16.0,salvage
+- TAGS: v0.16.0, salvage
 
 ## User facts
 - Epic `20261012-100018`. Strip is a timed action on a docked lootable partner: the section detaches through the existing detach path and breaks down into its recipe parts in the player's hold, more of them the healthier it was; refuses on a non-lootable hull; a stripped wreck stays stripped.
@@ -11,6 +11,8 @@
 ## Agent findings
 - Generated derelicts spawn with every system disabled, `lootable: true`, Neutral, no controller; detached pieces exist (`FrozenTransient::DetachedPiece`, `crates/nova_world_base/src/save/transients.rs:61-81`). `SalvagedParts` is a required item role (`tasks/20260930-100831/TASK.md`).
 - Landed 2026-10-14 (61e175631, cec1d8e38, df31a875d, 4064d49e2, 8c40d6be1). `system_station_strip` passes under Xvfb and lavapipe on seed 115: PDC-1 of a derelict strips into 1 SectionPanel (recipe 2 panels x 0.5 yield x 100% health; the three single parts floor to 0) with one `OnStripped`, a second strip refuses `SectionGone`, an undock stops a running strip with nothing moved, the frozen and thawed wreck lack PDC-1, and a living Neutral station refuses NotLootable. Seed 95 holds no derelict. The lowest free port of that station faces into its hull; a berth there crushed both hulls, so the walk berths at the most outward port.
+
+- Orchestrator close 2026-10-14: landed in 61e175631..fe1bb5c54. Parts are each recipe part x strip yield x health share, rounded down (`strip_parts_at`). The strip runs 1 s per part (at least 3 s) on the game clock and stops on undock. It removes the section through `SectionStripRequest` (unlink, lower the health max, despawn), not the detach path, which would fire a burst, `OnDestroyed` and a canister. Strips that split the hull are refused. New `OnStripped` event. No save change. Proof: `examples/systems/system_station_strip.rs`, seed 115 (strip, second strip refused, undock stops a running strip, the wreck stays stripped through retire and thaw, a living station refuses). The orchestrator reviewed the strip list frame and re-ran `content lint`: 0 errors. Gaps: base content yields little (single-count parts round to 0 at 0.5 yield), and most hull sections of a generated wreck refuse as splitting the hull; strip only advances with TAB closed, because the interface pauses the clock; no save and Load step in the example.
 
 ## Delivery gate
 - Strip uses the section recipe times `strip_yield` times health fraction; the lint rule (strip yield at bid never exceeds the recipe at ask) lives with the recipe. The detached piece despawns into parts, not a floating item.
