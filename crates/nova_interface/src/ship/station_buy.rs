@@ -146,6 +146,7 @@ pub(crate) fn spawn_ship_station_list(panel: &mut ChildSpawnerCommands) {
     panel
         .spawn((
             ShipStationList,
+            Name::new("ShipStationBlock"),
             Node {
                 display: Display::None,
                 flex_direction: FlexDirection::Column,

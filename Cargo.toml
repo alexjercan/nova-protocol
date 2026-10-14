@@ -681,6 +681,14 @@ name = "system_station_hire"
 path = "examples/systems/system_station_hire.rs"
 required-features = ["debug"]
 
+# A living generated station bought from its civilization through the Ship
+# pane: it stays the player's across a retired cell, a save and a Load, and
+# admits a player ship its side would refuse.
+[[example]]
+name = "system_station_own"
+path = "examples/systems/system_station_own.rs"
+required-features = ["debug"]
+
 # A living generated station's trade and storage through the Inventory pane:
 # buy, sell and store by clicks, the storage kept through a retire and a thaw,
 # withdrawn whole, an over-cap store refused on the form, and the storage

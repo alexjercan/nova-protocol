@@ -1034,6 +1034,16 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_station_own",
+        &[
+            "a living station refuses an Enemy-flagged ship",
+            "a station is bought from its civilization",
+            "a bought station stays owned across a retire and a thaw",
+            "the leave save holds the station owned",
+            "a loaded owned station admits an Enemy-flagged ship",
+        ],
+    ),
+    (
         "system_station_round_trip",
         &[
             "the lost section is rebuilt from its recipe at a generated station",
@@ -1089,7 +1099,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 535;
+const SYSTEMS_INVARIANTS: usize = 540;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///
