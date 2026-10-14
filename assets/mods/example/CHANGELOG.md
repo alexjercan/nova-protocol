@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.9.0
+
+- Add `example_surveyor`, a `StartRole`: a New Game start on the base
+  `light_freighter` with 1,500 cr, ten survey cores and twenty rations.
+- `example_prospect` flies the base `mining_tug` beside a `light_freighter`
+  trader, because the base block ships it used are gone. Needs a base game
+  whose content carries the `StartRole` kind and the new hulls.
+
 ## 1.8.0
 
 - Add `example_outpost`, a `Station`: four plates, a bridge and one collar,

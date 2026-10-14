@@ -57,6 +57,10 @@ binary assets it ships).
   services it offers (`Trade`, `Storage`), its storage cap, the stock its hold
   opens with and the credits it trades with. A scenario spawns it with
   `kind: Station((design: "example_outpost", ..))`.
+- **A start role** - `example_surveyor` is a `StartRole`: a row in the New
+  Game wizard that starts the player in the base `light_freighter` with a kit
+  of credits, this mod's survey cores and rations. The wizard binds the
+  weapon keys from the hull's sections, so the role binds nothing.
 
 ## Layout
 
