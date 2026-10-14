@@ -53,7 +53,7 @@ pub mod prelude {
             TrainingProgressPlugin, TrainingStoreAccess,
         },
         widgets::MenuCueSystems,
-        NewGameScenario, NovaMenuPlugin,
+        NewGameScenario, NovaMenuPlugin, SurfaceCursorPlugin,
     };
 }
 
@@ -133,6 +133,30 @@ use training::{
 };
 use training_store::TrainingProgressPlugin;
 use widgets::{on_menu_button_activate, play_menu_focus_cue, MenuCueSystems};
+
+/// The cursor rule for the frozen surfaces every game app has: the TAB
+/// interface and the command modal free the cursor on the way in and give
+/// flight its lock back on the way out, and a frozen surface keeps it free
+/// against a flight reconciler that runs later in the frame.
+///
+/// [`NovaMenuPlugin`] adds it. `nova_core`'s `AppBuilder` adds it alone to an
+/// app with its own game plugins: that app has no menu, but it has the TAB
+/// interface, and without this rule the interface opens over a locked,
+/// hidden cursor.
+pub struct SurfaceCursorPlugin;
+
+impl Plugin for SurfaceCursorPlugin {
+    fn build(&self, app: &mut App) {
+        for surface in [PauseStates::Interface, PauseStates::Commands] {
+            app.add_systems(OnEnter(surface), release_cursor);
+            app.add_systems(OnExit(surface), restore_cursor);
+        }
+        app.add_systems(
+            PostUpdate,
+            keep_frozen_cursor_released.run_if(in_state(GameStates::Playing)),
+        );
+    }
+}
 
 /// The main-menu plugin: owns [`GameStates::MainMenu`] and the settings/mods/
 /// scenarios screens.
@@ -420,15 +444,10 @@ impl Plugin for NovaMenuPlugin {
         // transition: the `Paused` hooks run on the way in and again on the
         // way back, rebuilding the overlay the CRT covered.
         for surface in [PauseStates::Interface, PauseStates::Commands] {
-            app.add_systems(
-                OnEnter(surface),
-                (hold_clocks_for_interface, release_cursor),
-            );
-            app.add_systems(
-                OnExit(surface),
-                (release_clocks_for_interface, restore_cursor),
-            );
+            app.add_systems(OnEnter(surface), hold_clocks_for_interface);
+            app.add_systems(OnExit(surface), release_clocks_for_interface);
         }
+        app.add_plugins(SurfaceCursorPlugin);
         // Leaving gameplay ENDS the scenario, whatever the exit path and
         // whichever screen comes next. The teardown used to ride the menu's own
         // backdrop load, which made it a property of where the player landed
@@ -492,10 +511,6 @@ impl Plugin for NovaMenuPlugin {
             restart_through_loading
                 .before(StateTransitionSystems::DependentTransitions)
                 .run_if(resource_exists::<GameAssets>),
-        );
-        app.add_systems(
-            PostUpdate,
-            keep_frozen_cursor_released.run_if(in_state(GameStates::Playing)),
         );
         #[cfg(not(target_arch = "wasm32"))]
         app.add_systems(

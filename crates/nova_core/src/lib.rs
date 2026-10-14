@@ -468,6 +468,9 @@ impl AppBuilder {
         if has_menu {
             self.app.add_plugins(NovaMenuPlugin);
         } else {
+            // No menu, but the TAB interface is here: it needs the game's
+            // cursor rule, or it opens over a locked, hidden cursor.
+            self.app.add_plugins(SurfaceCursorPlugin);
             // `window_plugin` turns bevy's close answer off for the menu.
             #[cfg(not(target_arch = "wasm32"))]
             self.app.add_systems(
