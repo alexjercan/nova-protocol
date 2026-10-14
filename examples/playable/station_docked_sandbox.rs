@@ -34,11 +34,13 @@
 //! It runs without `--features debug` too, at the cost of a second build of
 //! the engine. Under `NOVA_AUTOPILOT=1` (debug only) a smoke walk waits for
 //! the docked Ship tab, takes the kinetic PDC from the station catalogue,
-//! points at free sockets until the ghost stands valid, clicks the view, and
-//! switches tabs after it: a Map tab click, an Inventory tab click and the
-//! next-tab key, which steps on to the Station tab while docked.
-//! `NOVA_CAPTURE=1` shoots `sandbox-ship.png`, `sandbox-ghost.png`,
-//! `sandbox-placed.png`, `sandbox-map-after.png` and `sandbox-station.png`. Unset, no walk and no deadline run.
+//! points at free sockets until the ghost stands valid, clicks the view,
+//! rebinds the new gun to K, and switches tabs after it: a Map tab click, an
+//! Inventory tab click and the next-tab key, which steps on to the Station tab
+//! while docked. `NOVA_CAPTURE=1` shoots `sandbox-ship.png`,
+//! `sandbox-ghost.png`, `sandbox-placed.png`, `sandbox-rebind.png`,
+//! `sandbox-map-after.png` and `sandbox-station.png`. Unset, no walk and no
+//! deadline run.
 
 use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
 use bevy::prelude::*;
@@ -457,6 +459,7 @@ fn open_the_ship_tab(world: &mut World) {
 mod smoke {
     use std::sync::Arc;
 
+    use nova_input::prelude::InputSource;
     use nova_protocol::{
         nova_debug::harness::{press_action, release_action, shoot, AutopilotPlugin, Predicate},
         nova_interface::ship::{ship_ghost_aim, ship_view_window_px, ShipRuntime},
@@ -484,6 +487,10 @@ mod smoke {
     const AIM_INSET: f32 = 0.15;
     /// The PNG of the Ship tab after the add.
     const PLACED_SHOT: &str = "sandbox-placed.png";
+    /// The PNG of the placed section after its rebind.
+    const REBIND_SHOT: &str = "sandbox-rebind.png";
+    /// The key the walk binds the placed gun to.
+    const REBIND_KEY: KeyCode = KeyCode::KeyK;
     /// The PNG of the Map tab a click opens after the add.
     const MAP_AFTER_SHOT: &str = "sandbox-map-after.png";
     /// The Station tab, reached with the next-tab key from Inventory.
@@ -502,6 +509,17 @@ mod smoke {
         sections: usize,
         aims: Vec<Vec3>,
         aiming: usize,
+    }
+
+    /// Whether the selected section fires on [`REBIND_KEY`].
+    fn rebound(world: &World) -> bool {
+        let Some(runtime) = world.get_resource::<ShipRuntime>() else {
+            return false;
+        };
+        runtime
+            .selected()
+            .and_then(|section| world.get::<SpaceshipTurretInputBinding>(section))
+            .is_some_and(|binding| binding.0.contains(&InputSource::from(REBIND_KEY)))
     }
 
     /// The kinetic PDC's Place button, which every refit catalogue the
@@ -775,6 +793,52 @@ mod smoke {
             .step("station sandbox: shoot the placed section")
             .on_enter(|world: &mut World| shoot(world, PLACED_SHOT))
             .until(shot_written(PLACED_SHOT))
+            .deadline(SHOT_SECS)
+            .add()
+            .step("station sandbox: arm a rebind on the placed gun")
+            .on_enter(press_action("ship_rebind"))
+            .until(Arc::new(|world: &World| {
+                world
+                    .get_resource::<ShipRuntime>()
+                    .is_some_and(ShipRuntime::rebind_armed)
+            }))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: let the rebind key up")
+            .on_enter(release_action("ship_rebind"))
+            .until(frames(2))
+            .add()
+            .step("station sandbox: press the new key")
+            .on_enter(press_key(REBIND_KEY))
+            .until(Arc::new(rebound))
+            .diagnose(|world| {
+                format!(
+                    "note {:?}",
+                    world
+                        .get_resource::<ShipRuntime>()
+                        .and_then(|runtime| runtime.note().map(str::to_string))
+                )
+            })
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: let the new key up")
+            .on_enter(release_key(REBIND_KEY))
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station sandbox: scroll the panel to the gun's Control row")
+            .on_enter(|world: &mut World| {
+                let mut panels = world.query::<(&Name, &mut bevy::ui::ScrollPosition)>();
+                for (name, mut scroll) in panels.iter_mut(world) {
+                    if name.as_str() == SHIP_PANEL {
+                        *scroll = bevy::ui::ScrollPosition::default();
+                    }
+                }
+            })
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station sandbox: shoot the rebound gun")
+            .on_enter(|world: &mut World| shoot(world, REBIND_SHOT))
+            .until(shot_written(REBIND_SHOT))
             .deadline(SHOT_SECS)
             .add()
             .click_named(

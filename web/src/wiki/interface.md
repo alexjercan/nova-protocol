@@ -187,7 +187,7 @@ There is no manual reload. A weapon's magazine refills on its own from your inve
 
 Your weapon, thruster and mining beam sections answer rebindable keys, and the Ship pane is where you rebind them:
 
-1. Select a thruster, turret, torpedo bay, railgun or mining beam and press <kbd>B</kbd> (or click **Rebind**). A section with no key offers no **Rebind**.
+1. Select a thruster, turret, torpedo bay, railgun or mining beam and press <kbd>B</kbd> (or click **Rebind**). A gun, bay, railgun or beam with no key reads `UNBOUND` and **Rebind** gives it one; a thruster the flight computer drives offers no **Rebind**.
 2. The panel arms: `PRESS A KEY OR MOUSE BUTTON - ESC CANCELS`.
 3. The next key or mouse button you press takes over that section's keyboard-and-mouse trigger: `Bound engine_port to K`. A controller trigger on the same section is left alone, so rebinding at the desk never costs you the pad.
 

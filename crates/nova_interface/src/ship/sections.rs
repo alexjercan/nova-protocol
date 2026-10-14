@@ -382,7 +382,10 @@ impl ShipSections<'_, '_> {
                             .or_else(|| turret_bindings.map(|bindings| bindings.0.clone()))
                             .or_else(|| torpedo_bindings.map(|bindings| bindings.0.clone()))
                             .or_else(|| railgun_bindings.map(|bindings| bindings.0.clone()))
-                            .or_else(|| mining_bindings.map(|bindings| bindings.0.clone())),
+                            .or_else(|| mining_bindings.map(|bindings| bindings.0.clone()))
+                            // A weapon or tool fires only on a binding, so one
+                            // with none reads UNBOUND and Rebind gives it one.
+                            .or_else(|| takes_a_player_binding(kind).then(Vec::new)),
                         inactive,
                         zero_health,
                         disabled,
@@ -402,6 +405,13 @@ impl ShipSections<'_, '_> {
             .into_iter()
             .find(|view| view.code.eq_ignore_ascii_case(&wanted))
     }
+}
+
+/// Whether a section of `kind` always takes a player binding: a weapon or a
+/// mining emitter, which do nothing without one. A thruster takes one only
+/// when its ship maps it; otherwise the flight computer drives it.
+pub(crate) fn takes_a_player_binding(kind: SectionClass) -> bool {
+    kind.is_weapon() || kind == SectionClass::Mining
 }
 
 /// The line under the panel title: the section family, its integrity and its

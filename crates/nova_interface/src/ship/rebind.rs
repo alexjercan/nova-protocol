@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use nova_events::prelude::EntityId;
+use nova_gameplay::prelude::SectionClass;
 use nova_input::prelude::{
     captured_binds, rebind_verdict, ActionContext, InputBindings, InputSource, InputSources,
     RebindSurface, RebindVerdict,
@@ -17,6 +18,16 @@ fn reserved_conflict(bindings: &InputBindings, source: InputSource) -> Option<St
         .map(|action| format!("flight control: {}", action.label))
 }
 
+/// The binding a section of `class` rebinds from: its own, or an empty one
+/// when it is of `kind` and carries none.
+fn or_unbound<'a>(
+    class: Option<SectionClass>,
+    binding: Option<&'a [InputSource]>,
+    kind: SectionClass,
+) -> Option<&'a [InputSource]> {
+    binding.or((class == Some(kind)).then_some(&[]))
+}
+
 #[expect(
     clippy::type_complexity,
     reason = "one filtered query over the rebind rows"
@@ -31,6 +42,7 @@ pub(crate) fn apply_ship_rebind(
         Entity,
         &ChildOf,
         &EntityId,
+        Option<&SectionClass>,
         Option<&SpaceshipThrusterInputBinding>,
         Option<&SpaceshipTurretInputBinding>,
         Option<&SpaceshipTorpedoInputBinding>,
@@ -63,7 +75,8 @@ pub(crate) fn apply_ship_rebind(
     let Some(source) = sources.captured_desk() else {
         return;
     };
-    let Ok((_, parent, id, thruster, turret, torpedo, railgun, mining)) = targets.get(target)
+    let Ok((_, parent, id, class, thruster, turret, torpedo, railgun, mining)) =
+        targets.get(target)
     else {
         runtime.rebinding = None;
         return;
@@ -81,6 +94,14 @@ pub(crate) fn apply_ship_rebind(
     // Each mining section deploys on its own key, so a key another emitter on
     // this ship holds would deploy both on one press. The lint and the spawn
     // refuse the same. Other section kinds may still share a key on purpose.
+    // A weapon or emitter the ship never mapped has no binding component; it
+    // takes the kind's, empty, so the capture gives it its first key.
+    let class = class.copied();
+    let mining = or_unbound(
+        class,
+        mining.map(|binding| binding.0.as_slice()),
+        SectionClass::Mining,
+    );
     if mining.is_some() {
         let other = targets
             .iter()
@@ -113,26 +134,38 @@ pub(crate) fn apply_ship_rebind(
             .entity(target)
             .insert(SpaceshipThrusterInputBinding(binds.clone()));
         binds
-    } else if let Some(turret) = turret {
-        let binds = rebound(&turret.0);
+    } else if let Some(turret) = or_unbound(
+        class,
+        turret.map(|binding| binding.0.as_slice()),
+        SectionClass::Turret,
+    ) {
+        let binds = rebound(turret);
         commands
             .entity(target)
             .insert(SpaceshipTurretInputBinding(binds.clone()));
         binds
-    } else if let Some(torpedo) = torpedo {
-        let binds = rebound(&torpedo.0);
+    } else if let Some(torpedo) = or_unbound(
+        class,
+        torpedo.map(|binding| binding.0.as_slice()),
+        SectionClass::Torpedo,
+    ) {
+        let binds = rebound(torpedo);
         commands
             .entity(target)
             .insert(SpaceshipTorpedoInputBinding(binds.clone()));
         binds
-    } else if let Some(railgun) = railgun {
-        let binds = rebound(&railgun.0);
+    } else if let Some(railgun) = or_unbound(
+        class,
+        railgun.map(|binding| binding.0.as_slice()),
+        SectionClass::Railgun,
+    ) {
+        let binds = rebound(railgun);
         commands
             .entity(target)
             .insert(SpaceshipRailgunInputBinding(binds.clone()));
         binds
     } else if let Some(mining) = mining {
-        let binds = rebound(&mining.0);
+        let binds = rebound(mining);
         commands
             .entity(target)
             .insert(SpaceshipMiningInputBinding(binds.clone()));
@@ -357,5 +390,57 @@ mod tests {
             sent.bindings, binding,
             "and the rig is told the whole trigger, not just the key"
         );
+    }
+
+    /// A weapon added with no sibling to copy is UNBOUND, and a gun the ship
+    /// never mapped has no binding at all: the panel's capture gives each its
+    /// first key, so it fires and the change is sent for the save.
+    #[test]
+    fn an_unbound_weapon_takes_its_first_key_from_a_rebind() {
+        let (mut world, gun) = rebind_world();
+        let ship = world.get::<ChildOf>(gun).unwrap().parent();
+        let added = world
+            .spawn((
+                ChildOf(ship),
+                EntityId("weapon_0+".to_string()),
+                SectionClass::Turret,
+                SpaceshipTurretInputBinding(Vec::new()),
+            ))
+            .id();
+        let unmapped = world
+            .spawn((
+                ChildOf(ship),
+                EntityId("lance".to_string()),
+                SectionClass::Railgun,
+            ))
+            .id();
+
+        for (target, key) in [(added, KeyCode::KeyK), (unmapped, KeyCode::KeyL)] {
+            world.resource_mut::<ShipRuntime>().rebinding = Some(target);
+            let mut keys = world.resource_mut::<ButtonInput<KeyCode>>();
+            keys.release_all();
+            keys.clear();
+            keys.press(key);
+            world.run_system_once(apply_ship_rebind).unwrap();
+            assert!(world.resource::<ShipRuntime>().rebinding.is_none());
+        }
+
+        assert_eq!(
+            world.get::<SpaceshipTurretInputBinding>(added).unwrap().0,
+            vec![InputSource::Keyboard(KeyCode::KeyK)]
+        );
+        assert_eq!(
+            world
+                .get::<SpaceshipRailgunInputBinding>(unmapped)
+                .unwrap()
+                .0,
+            vec![InputSource::Keyboard(KeyCode::KeyL)]
+        );
+        let sent: Vec<String> = world
+            .resource::<Messages<SectionInputBindingChanged>>()
+            .iter_current_update_messages()
+            .map(|change| change.section_id.clone())
+            .collect();
+        assert_eq!(sent, ["weapon_0+", "lance"]);
     }
 }

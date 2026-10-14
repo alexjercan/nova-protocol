@@ -160,6 +160,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Docked at a living station, the TAB interface shows a Station tab with the
   station, its ships for sale and its escorts for hire. M steps to it only
   while docked.
+- On the Ship pane a gun, torpedo bay, railgun or mining beam with no key
+  reads UNBOUND, and B or Rebind gives it one.
 
 ### Web & Platform
 

@@ -718,11 +718,7 @@ pub(crate) fn ship_input(
             && list
                 .iter()
                 .find(|view| view.entity == sel)
-                .is_some_and(|view| {
-                    view.bindings
-                        .as_ref()
-                        .is_some_and(|bindings| !bindings.is_empty())
-                })
+                .is_some_and(|view| view.bindings.is_some())
         {
             runtime.rebinding = Some(sel);
             runtime.rebind_awaiting_release = true;
@@ -1379,11 +1375,11 @@ pub(crate) fn update_ship_panel(
     let control = selected.as_ref().and_then(ShipSectionView::binding_text);
 
     runtime.panel_repair_enabled = actions.repair_enabled;
-    runtime.panel_rebind_enabled = selected.as_ref().is_some_and(|view| {
-        view.bindings
-            .as_ref()
-            .is_some_and(|bindings| !bindings.is_empty())
-    });
+    // An UNBOUND weapon is the one that most needs a key, so a section that
+    // takes a binding offers Rebind with or without one.
+    runtime.panel_rebind_enabled = selected
+        .as_ref()
+        .is_some_and(|view| view.bindings.is_some());
 
     // Note line: the rebind prompt, else a transient action result. A
     // disabled Repair gives its reason in the form summary.
