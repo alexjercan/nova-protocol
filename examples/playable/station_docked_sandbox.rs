@@ -30,9 +30,11 @@
 //! ```
 //!
 //! It runs without `--features debug` too, at the cost of a second build of
-//! the engine. Under `NOVA_AUTOPILOT=1` (debug only) a short smoke walk
-//! waits for the docked Ship tab, shoots it as `sandbox-ship.png` under
-//! `NOVA_CAPTURE=1`, and ends the run. Unset, no walk and no deadline run.
+//! the engine. Under `NOVA_AUTOPILOT=1` (debug only) a smoke walk waits for
+//! the docked Ship tab, clicks the first Add button, and switches tabs after
+//! it: a Map tab click, an Inventory tab click and the next-tab key.
+//! `NOVA_CAPTURE=1` shoots `sandbox-ship.png`, `sandbox-placed.png` and
+//! `sandbox-map-after.png`. Unset, no walk and no deadline run.
 
 use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
 use bevy::prelude::*;
@@ -433,7 +435,9 @@ fn open_the_ship_tab(world: &mut World) {
 mod smoke {
     use std::sync::Arc;
 
-    use nova_protocol::nova_debug::harness::{shoot, AutopilotPlugin, Predicate};
+    use nova_protocol::nova_debug::harness::{
+        press_action, release_action, shoot, AutopilotPlugin, Predicate,
+    };
 
     use super::*;
 
@@ -447,6 +451,97 @@ mod smoke {
     const WALK_CLOCK_SECS: f32 = 1.0;
     /// The PNG of the docked Ship tab.
     const SHIP_SHOT: &str = "sandbox-ship.png";
+    /// The PNG of the Ship tab after the add.
+    const PLACED_SHOT: &str = "sandbox-placed.png";
+    /// The PNG of the Map tab a click opens after the add.
+    const MAP_AFTER_SHOT: &str = "sandbox-map-after.png";
+    /// Seconds a click or a key gets to land.
+    const BEAT_SECS: f32 = 60.0;
+    /// The Ship pane's side panel, which scrolls under the wheel.
+    const SHIP_PANEL: &str = "ShipPanel";
+
+    /// The Add button the walk clicks, and the player's section count before.
+    #[derive(Resource, Clone, Debug)]
+    struct SmokeAdd {
+        button: String,
+        sections: usize,
+    }
+
+    /// The first Add button of the add list, in name order.
+    fn first_add_button(world: &mut World) -> Option<String> {
+        let mut names: Vec<String> = world
+            .query::<&Name>()
+            .iter(world)
+            .map(|name| name.as_str().to_string())
+            .filter(|name| name.starts_with("ShipAdd-"))
+            .collect();
+        names.sort();
+        names.into_iter().next()
+    }
+
+    /// How many live sections the player ship has.
+    fn player_sections(world: &World) -> usize {
+        let Some(mut players) =
+            world.try_query_filtered::<&Children, With<PlayerSpaceshipMarker>>()
+        else {
+            return 0;
+        };
+        players.iter(world).next().map_or(0, |children| {
+            children
+                .iter()
+                .filter(|child| world.get::<SectionMarker>(*child).is_some())
+                .count()
+        })
+    }
+
+    fn smoke_button(world: &World) -> Option<String> {
+        world
+            .get_resource::<SmokeAdd>()
+            .map(|add| add.button.clone())
+    }
+
+    fn button_in_view(world: &World) -> bool {
+        let Some(button) = smoke_button(world) else {
+            return false;
+        };
+        match (
+            ui_node_rect(world, &button),
+            ui_node_rect(world, SHIP_PANEL),
+        ) {
+            (Some(button), Some(panel)) => {
+                button.min.y >= panel.min.y && button.max.y <= panel.max.y
+            }
+            _ => false,
+        }
+    }
+
+    fn the_interface_shows(pane: InterfacePaneType) -> Arc<Predicate> {
+        Arc::new(move |world: &World| {
+            world
+                .get_resource::<State<PauseStates>>()
+                .is_some_and(|pause| *pause.get() == PauseStates::Interface)
+                && world.get_resource::<InterfacePaneType>() == Some(&pane)
+        })
+    }
+
+    /// Log the pane tabs and what gates a tab click, so a tab that does not
+    /// answer says why.
+    fn report_the_tabs(world: &mut World) {
+        let pane = world.get_resource::<InterfacePaneType>().copied();
+        let rows: Vec<String> = world
+            .query::<(
+                &Name,
+                Has<nova_ui::widget::Selected>,
+                Has<bevy::ui::InteractionDisabled>,
+            )>()
+            .iter(world)
+            .filter(|(name, ..)| name.as_str().starts_with("InterfaceTab"))
+            .map(|(name, selected, disabled)| {
+                format!("{name} selected={selected} disabled={disabled}")
+            })
+            .collect();
+        info!("station sandbox: tabs, pane {pane:?}: {rows:?}");
+    }
 
     /// Hold the virtual clock's clamp every frame: a scenario load hands
     /// `Time<Virtual>` back at its default.
@@ -485,6 +580,91 @@ mod smoke {
             .on_enter(|world: &mut World| shoot(world, SHIP_SHOT))
             .until(shot_written(SHIP_SHOT))
             .deadline(SHOT_SECS)
+            .add()
+            .step("station sandbox: find an Add button")
+            .each(|world, _, _| {
+                if world.get_resource::<SmokeAdd>().is_none() {
+                    if let Some(button) = first_add_button(world) {
+                        let sections = player_sections(world);
+                        world.insert_resource(SmokeAdd { button, sections });
+                    }
+                }
+            })
+            .until(Arc::new(|world: &World| smoke_button(world).is_some()))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: scroll the Add button into view")
+            .each(|world, _, frame| {
+                keep_hovering_named(SHIP_PANEL)(world);
+                if frame % 2 == 1 && !button_in_view(world) {
+                    scroll_lines(-1.0)(world);
+                }
+            })
+            .until(Arc::new(button_in_view))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: aim at the Add button")
+            .each(|world, _, _| {
+                if let Some(button) = smoke_button(world) {
+                    keep_hovering_named(button)(world);
+                }
+            })
+            .until(Arc::new(|world: &World| {
+                smoke_button(world).is_some_and(|button| pointer_over_node(button)(world))
+            }))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: press the Add button")
+            .on_enter(press_mouse(MouseButton::Left))
+            .until(pointer_pressed())
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: release the Add button")
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(Arc::new(|world: &World| {
+                world
+                    .get_resource::<SmokeAdd>()
+                    .is_some_and(|add| player_sections(world) > add.sections)
+            }))
+            .diagnose(|world| format!("{:?}", world.get_resource::<SmokeAdd>()))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: settle the placed section")
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station sandbox: report the tabs after the add")
+            .on_enter(report_the_tabs)
+            .add()
+            .step("station sandbox: shoot the placed section")
+            .on_enter(|world: &mut World| shoot(world, PLACED_SHOT))
+            .until(shot_written(PLACED_SHOT))
+            .deadline(SHOT_SECS)
+            .add()
+            .click_named(
+                "station sandbox: open the Map tab after the add",
+                "InterfaceTabMap",
+                the_interface_shows(InterfacePaneType::Map),
+                BEAT_SECS,
+            )
+            .step("station sandbox: shoot the Map tab after the add")
+            .on_enter(|world: &mut World| shoot(world, MAP_AFTER_SHOT))
+            .until(shot_written(MAP_AFTER_SHOT))
+            .deadline(SHOT_SECS)
+            .add()
+            .click_named(
+                "station sandbox: open the Inventory tab",
+                "InterfaceTabInventory",
+                the_interface_shows(InterfacePaneType::Inventory),
+                BEAT_SECS,
+            )
+            .step("station sandbox: press the next-tab key")
+            .on_enter(press_action("interface_next_tab"))
+            .until(frames(1))
+            .add()
+            .step("station sandbox: let the next-tab key up")
+            .on_enter(release_action("interface_next_tab"))
+            .until(the_interface_shows(InterfacePaneType::Map))
+            .deadline(BEAT_SECS)
             .add()
     }
 }

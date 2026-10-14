@@ -4,7 +4,7 @@
 //!
 //! A free attachment point is a socket no section of the design mates; no
 //! content marks it. Two rounds share one run. In the first, the player flies
-//! the base `block_workship` (unarmed) and docks at a living waystation. The
+//! the base `mining_tug` (unarmed) and docks at a living waystation. The
 //! walk picks the first live section, in design order, with a free socket a
 //! kinetic PDC fits at, by the pane's own rule. An add at one of that
 //! section's mated sockets is refused with its reason and changes nothing.
@@ -57,7 +57,10 @@ const STATION_ID: &str = "waystation";
 /// The player object id.
 const PLAYER_ID: &str = "player_spaceship";
 /// The base catalogue hull of the first round.
-const BASE_HULL: &str = "block_workship";
+const BASE_HULL: &str = "mining_tug";
+/// The base hull's mining beam, which a player ship must bind, and its key.
+const BASE_MINING_SECTION: &str = "mining_beam";
+const MINING_KEY: InputSource = InputSource::Mouse(MouseButton::Right);
 
 /// The generated hull of the second round: the world and the hull seed.
 const WORLD_SEED: u32 = 20_261_014;
@@ -154,7 +157,10 @@ fn station_void(round: Round, game_assets: &GameAssets, sections: &GameSections)
     };
     let (design, input_mapping): (_, std::collections::BTreeMap<String, Vec<InputSource>>) =
         match round {
-            Round::Base => (ShipDesignSource::prototype(BASE_HULL), Default::default()),
+            Round::Base => (
+                ShipDesignSource::prototype(BASE_HULL),
+                [(BASE_MINING_SECTION.to_string(), vec![MINING_KEY])].into(),
+            ),
             Round::Generated => {
                 let design = generated_hull();
                 let turrets = design
@@ -267,6 +273,35 @@ mod walk {
     const SESSION_SECS: f32 = 240.0;
     /// Frames the Ship pane gets to build its panel and lists.
     const SETTLE_FRAMES: u32 = 10;
+    /// Seconds a tab click gets to switch the pane after an add.
+    const TAB_SWITCH_SECS: f32 = 30.0;
+    /// The PNG of the Ship pane right after the add.
+    const PLACED_SHOT: &str = "station-add-placed.png";
+    /// The PNG of the Map pane the tab click opens after the add.
+    const MAP_AFTER_SHOT: &str = "station-add-map-after.png";
+
+    /// Log the pane tabs and the state that gates a tab click, so a tab that
+    /// does not answer says why.
+    fn report_the_tabs(world: &mut World) {
+        let pane = world.get_resource::<InterfacePaneType>().copied();
+        let mut tabs = world.query::<(
+            Entity,
+            &Name,
+            Has<nova_ui::widget::Selected>,
+            Has<bevy::ui::InteractionDisabled>,
+            Option<&InheritedVisibility>,
+        )>();
+        let rows: Vec<String> = tabs
+            .iter(world)
+            .filter(|(_, name, ..)| name.as_str().starts_with("InterfaceTab"))
+            .map(|(entity, name, selected, disabled, visible)| {
+                format!(
+                    "{name} {entity} selected={selected} disabled={disabled} visible={visible:?}"
+                )
+            })
+            .collect();
+        info!("station add: tabs after the add, pane {pane:?}: {rows:?}");
+    }
     /// The Ship pane's side panel, which scrolls under the wheel.
     const SHIP_PANEL: &str = "ShipPanel";
     /// Gap between the two port faces on the berth, engine units.
@@ -1164,7 +1199,30 @@ mod walk {
                 &format!("ShipAdd-{PDC_KINETIC_TURRET_SECTION_ID}"),
                 pdc_added(),
                 SESSION_SECS,
-            );
+            )
+            .step("station add: settle the placed section")
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station add: report the tabs after the add")
+            .on_enter(report_the_tabs)
+            .until(frames(1))
+            .add()
+            .step("station add: shoot the placed section")
+            .on_enter(|world: &mut World| shoot(world, PLACED_SHOT))
+            .until(shot_written(PLACED_SHOT))
+            .deadline(SHOT_DEADLINE_SECS)
+            .add()
+            .click_named(
+                "station add: open the Map pane after the add",
+                "InterfaceTabMap",
+                the_interface_shows(InterfacePaneType::Map),
+                TAB_SWITCH_SECS,
+            )
+            .step("station add: shoot the Map pane after the add")
+            .on_enter(|world: &mut World| shoot(world, MAP_AFTER_SHOT))
+            .until(shot_written(MAP_AFTER_SHOT))
+            .deadline(SHOT_DEADLINE_SECS)
+            .add();
         // The pane pushed its reports under the interface pause; the tracker
         // drains them on the first fixed tick after the clock runs again.
         let script = tap(script, "the interface key", "interface_toggle", unpaused());

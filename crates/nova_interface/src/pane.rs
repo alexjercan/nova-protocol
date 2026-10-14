@@ -323,7 +323,12 @@ fn spawn_interface_card(
             panel(),
         ))
         .with_children(|card| {
-            card.spawn((InterfacePaneHead, panel_head(pane.label(), None)))
+            // TODO: bevy_ui 0.19.0 `clip_check_recursive` clips a node only by
+            // its direct parent, so a scrolled side panel's nested rows stay
+            // pickable past the panel's top edge and take tab clicks. The
+            // `ZIndex` stacks the head above the body for picking. Remove it
+            // when bevy_ui is at 0.19.1 or later, which walks every ancestor.
+            card.spawn((InterfacePaneHead, ZIndex(1), panel_head(pane.label(), None)))
                 .with_children(|head| {
                     head.spawn(segmented_container()).with_children(|seg| {
                         for (value, label) in InterfacePaneType::ALL {

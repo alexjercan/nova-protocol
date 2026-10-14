@@ -344,3 +344,65 @@ fn a_focused_text_field_types_m_instead_of_switching_panes() {
         "with the field let go, M switches panes again"
     );
 }
+
+/// The Ship pane's side panel scrolled so its nested rows run up past the
+/// panel's top edge, under the tabs. bevy_ui 0.19.0 clips a node only by its
+/// direct parent, so a row nested in a non-clipping wrapper stays pickable
+/// where the panel hides it. Before the head took a `ZIndex`, a tab click
+/// there landed on the hidden row and the pane did not switch, the bug the
+/// owner saw after a placement until the HUD was reopened.
+#[test]
+fn a_tab_click_lands_while_the_ship_panel_is_scrolled_under_the_head() {
+    let mut rig = card_rig();
+    *rig.app.world_mut().resource_mut::<InterfacePaneType>() = InterfacePaneType::Ship;
+    settle(&mut rig.app);
+    let world = rig.app.world_mut();
+    let panel = world
+        .query::<(Entity, &Name)>()
+        .iter(world)
+        .find(|(_, name)| name.as_str() == "ShipPanel")
+        .map(|(entity, _)| entity)
+        .expect("the Ship pane has its side panel");
+    let row = world
+        .spawn((
+            Node {
+                flex_shrink: 0.0,
+                width: px(4000),
+                margin: UiRect::left(px(-2000)),
+                ..default()
+            },
+            ChildOf(panel),
+        ))
+        .id();
+    let hidden = world
+        .spawn((
+            Node {
+                width: percent(100),
+                height: px(4000),
+                ..default()
+            },
+            Button,
+            ChildOf(row),
+        ))
+        .id();
+    world
+        .entity_mut(panel)
+        .insert(ScrollPosition(Vec2::new(0.0, 1500.0)));
+    settle(&mut rig.app);
+
+    let world = rig.app.world_mut();
+    let map = tab_centre(world, InterfacePaneType::Map);
+    let shown_panel = rect_of(world, panel);
+    let under = rect_of(world, hidden);
+    assert!(
+        map.y < shown_panel.min.y && under.contains(map),
+        "the hidden row {under:?} must lie under the Map tab {map:?}, above the panel {shown_panel:?}"
+    );
+
+    click_at(&mut rig, map);
+    assert_eq!(
+        *rig.app.world().resource::<InterfacePaneType>(),
+        InterfacePaneType::Map,
+        "a click on the Map tab must switch panes over the hidden row"
+    );
+}
