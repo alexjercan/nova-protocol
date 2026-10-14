@@ -1,6 +1,6 @@
 # Own station: buy a station from a living civilization
 
-- STATUS: CLOSED
+- STATUS: OPEN
 - PRIORITY: 72
 - TAGS: v0.16.0, wizard
 
@@ -22,6 +22,9 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
 - Agent result 2026-10-14: implemented in 097c0311f (rule, marker, admission, pane, event), 2d9ae5dc8 (proof) and bb4ccc06b (docs). Proof: `examples/systems/system_station_own.rs` on seed 95 (station `sector_0_n1_0_cluster_0_n1_0_station_0`, Player side, 177 sections, 144,366 cr) passed under lavapipe: refused Enemy-flagged before the buy (`HostileStation`), bought through the pane (player -144,366 cr, station balance unchanged, one `StationBuy`, one `OnStationBought`), frozen owned after a jump three cells out, thawed owned, saved owned (generation 5, format 8), and after Load docked Enemy-flagged. 5 roster invariants, `SYSTEMS_INVARIANTS` 540. Seed 10 has no Player-side station in the window. Unit tests: price and plan (`station_buy.rs`), admission (`docking_section/tests.rs`), owned bid price (`inventory.rs`).
 
 - Orchestrator close 2026-10-14: landed in 097c0311f, 2d9ae5dc8, bb4ccc06b and 52e7a0c43. Ownership is `OwnedStationMarker` on the live station and `FrozenStation.owned` on the frozen record; there is no `SavedPlayer` copy. Price is (recipes + hold + credits at ask) x 2, paid to the civilization. An owned station admits any side and sells at bid (`TradePriceType::Owned`). No income: `TODO(20261012-100028)` in `thaw_station`. New `OnStationBought` event and credit cause `StationBuy`. Proof: `examples/systems/system_station_own.rs`, seed 95 (refusal before the buy, then owned through retire, thaw, save and Load, and admits an Enemy-flagged ship). The orchestrator reviewed the owned-block frame and re-ran `content lint`: 0 errors. For the owner: a new admission reason `HostileStation` now refuses a ship at any station it is hostile to; before, only Enemy-side stations refused. Balance: 144,366 cr for a 177-section station.
+
+## Owner feedback (2026-10-14, reopens the task)
+- A bought station becomes the player's. It moves to the player's side and drops its old civilization, so it no longer counts as that civilization's station for prices, admission, relations or anything else. It saves that way.
 
 ## Delivery gate
 - Ownership is a field on the frozen station body and in `SavedPlayer`; an owned station's admission skips the civilization rule. Stop for the owner on the price (a multiple of its stock value) and whether income accrues (needs the clock, economy strand).

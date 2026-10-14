@@ -1,6 +1,6 @@
 # Salvage: strip a docked lootable hull into recipe parts
 
-- STATUS: CLOSED
+- STATUS: OPEN
 - PRIORITY: 68
 - TAGS: v0.16.0, salvage
 
@@ -13,6 +13,12 @@
 - Landed 2026-10-14 (61e175631, cec1d8e38, df31a875d, 4064d49e2, 8c40d6be1). `system_station_strip` passes under Xvfb and lavapipe on seed 115: PDC-1 of a derelict strips into 1 SectionPanel (recipe 2 panels x 0.5 yield x 100% health; the three single parts floor to 0) with one `OnStripped`, a second strip refuses `SectionGone`, an undock stops a running strip with nothing moved, the frozen and thawed wreck lack PDC-1, and a living Neutral station refuses NotLootable. Seed 95 holds no derelict. The lowest free port of that station faces into its hull; a berth there crushed both hulls, so the walk berths at the most outward port.
 
 - Orchestrator close 2026-10-14: landed in 61e175631..fe1bb5c54. Parts are each recipe part x strip yield x health share, rounded down (`strip_parts_at`). The strip runs 1 s per part (at least 3 s) on the game clock and stops on undock. It removes the section through `SectionStripRequest` (unlink, lower the health max, despawn), not the detach path, which would fire a burst, `OnDestroyed` and a canister. Strips that split the hull are refused. New `OnStripped` event. No save change. Proof: `examples/systems/system_station_strip.rs`, seed 115 (strip, second strip refused, undock stops a running strip, the wreck stays stripped through retire and thaw, a living station refuses). The orchestrator reviewed the strip list frame and re-ran `content lint`: 0 errors. Gaps: base content yields little (single-count parts round to 0 at 0.5 yield), and most hull sections of a generated wreck refuse as splitting the hull; strip only advances with TAB closed, because the interface pauses the clock; no save and Load step in the example.
+
+## Owner feedback (2026-10-14, reopens the task)
+- The owner likes strip. Changes:
+  - Strip is one action for the whole ship, not per section, and runs over time (about 1 s per recipe part over the hull). Because the player starts it and then leaves the HUD, the TAB clock pause no longer matters. Delete the per-section buttons and the split-hull refusals.
+  - The docking port is stripped last. A wreck is then fully demolished and the player is released.
+  - A fourth, docked-only HUD tab depends on what the player is docked to. At a living station it is the Station tab. At a neutralized ship or a dead station it is a "Recycle" tab with the whole-ship strip, its progress and looting the hold. It is hidden when not docked. Strip leaves the Ship tab.
 
 ## Delivery gate
 - Strip uses the section recipe times `strip_yield` times health fraction; the lint rule (strip yield at bid never exceeds the recipe at ask) lives with the recipe. The detached piece despawns into parts, not a floating item.

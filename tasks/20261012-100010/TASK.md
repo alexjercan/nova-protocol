@@ -38,6 +38,10 @@
 - 2026-10-14: no backwards compatibility. Nothing is released and old saves do not matter, so a save format change needs no migration and no compatibility path.
 - 2026-10-14 (owner addition): the main menu Load panel looks wrong, because its Load and Delete buttons are full width. Restyle it after the Mods panel.
 
+- Owner decisions 2026-10-14 (after the roles landed):
+  - The patrol_picket (military start) is worth too little at 3,860 cr. Grow it to about 10,000 cr of sections. It stays the lightest armed start.
+  - Every open-world ship has a cargo intake section, so it can jettison and pick up items. This covers the six role hulls, every hull the shipyard sells and every escort for hire. Lint refuses an open-world ship design without one. Campaign and scenario ships are exempt.
+
 ## Delivery gate
 - Propose `StartRoleDesignId`, `StartRole { id, name, about, hull: ShipDesignId, kit, lore }` as content; the harness spawns the role's hull; the save header records the role. Stop for the owner on the six hull and kit assignments.
 

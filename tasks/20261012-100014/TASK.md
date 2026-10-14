@@ -55,6 +55,8 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
 
 - Owner decision 2026-10-14 (answers the 100 kg storage question): storage at a station is the player's own. The station's storage view shows the holds of the player's own ships docked at that station, such as a traded-in old ship parked at a port, as storage. The player moves items between the current ship and those holds. A trade-in no longer moves the old ship's cargo into station storage; the cargo stays in the old ship's hold, so the hold-does-not-fit refusal goes away. The station storage capacity is not raised.
 
+- Owner feedback 2026-10-14: Ships for sale is boring as text rows. Show each hull as a 3D preview (turntable or framed render) with its name, price and stats.
+
 ## Delivery gate
 - The catalogue is generated from the station's civilization and advancement, deterministic from the seed; buying swaps the player's design and respawns the hull docked. Stop for the owner on the old hull (trade-in credit vs. left as a derelict).
 

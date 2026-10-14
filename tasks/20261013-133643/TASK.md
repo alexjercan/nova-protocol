@@ -82,6 +82,8 @@
     an exit pocket) without an end piece.
   - Soft `near` factors see only cells already placed, so they depend on the collapse order.
 
+- Owner decision 2026-10-14: the greeble seed comes from the style id alone, with the per-plate keys, so a ship edit only changes greebles near the edit. It does not hash the whole structure.
+
 ## Delivery gate
 - After the research note is accepted: propose how a plate learns which greeble sits on it and reshapes (flattened pad, footprint), show before/after frames, then implement. Regenerate base content.
 
