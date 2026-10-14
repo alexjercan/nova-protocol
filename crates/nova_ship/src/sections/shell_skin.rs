@@ -32,7 +32,7 @@
 //! [`ShipSkin`] is read back into a [`SkinStructure`] at spawn, and every plate
 //! the derivation answers with is bolted to the section it clads.
 
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 
 use avian3d::prelude::{Collider, ColliderDensity};
 use bevy::{
@@ -795,6 +795,8 @@ pub struct ShipSkin(pub bool);
 /// The thaw spawns a plate per frozen fixture itself, in the same command
 /// batch as the section it clads - by the time `spawn_ship_skin` would see the
 /// `Added<SectionLinkPoints>` edge, this marker is already on the root.
+/// `spawn_ship_skin` takes it off in that pass: it covers the one batch the
+/// thaw spawned, and a section a station adds later is re-clad round itself.
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub struct ShipSkinRestored;
@@ -860,14 +862,18 @@ pub(crate) fn frozen_plate_body(shape: ShellShape, pose: Transform, health: Heal
     )
 }
 
-/// Derive a freshly spawned ship's skin and bolt it on.
+/// Derive a ship's skin and bolt it on: the whole skin for a freshly spawned
+/// ship, and the plates round the new sections when a live ship grows.
 ///
-/// Runs on the SPAWN BATCH, the same `Added<SectionLinkPoints>` edge the
-/// integrity graph is built off: every section of a ship lands in one run of
-/// commands, so the batch is complete the first time this sees it and a ship is
-/// clad exactly once. Nothing re-derives afterwards, which is what lets combat
-/// take plates off and keeps them off - the skin is a pure function of the
-/// structure, and re-running it would grow back whatever was shot away.
+/// Runs on the `Added<SectionLinkPoints>` edge the integrity graph is built
+/// off. Every section of a fresh ship lands in one run of commands, so the
+/// batch is the whole ship the first time this sees it, and the whole skin is
+/// laid once. A station add, swap or rebuild spawns sections into a ship that
+/// already wears its skin; then only the cells whose plate the new structure
+/// changes are re-clad ([`changed_cells`]): the plate there comes off and the
+/// derived one goes on. Everywhere else the hull keeps what it wears, so a
+/// plate combat took off stays off - the skin is a pure function of the
+/// structure, and re-deriving it all would grow back whatever was shot away.
 ///
 /// Each plate is parented to the SECTION IT CLADS rather than to the ship root.
 /// That is what buys a destroyed section taking its own cladding down with it,
@@ -877,18 +883,24 @@ pub(crate) fn frozen_plate_body(shape: ShellShape, pose: Transform, health: Heal
 /// Decoration is scattered in the same pass, from the ship's [`ShipStyle`]. It
 /// hangs off the PLATE rather than the section, one level further out for the
 /// same reason: a plate shot off takes its greebles with it, which is what makes
-/// stripping a patch of skin read as stripping a patch of skin.
+/// stripping a patch of skin read as stripping a patch of skin. A re-clad keeps
+/// the scatter's answers for the plates it lays only.
 ///
-/// A root carrying [`ShipSkinRestored`] is skipped outright: a thaw already
-/// spawned its exact plates (and their decor) from a frozen record in the
-/// same command batch, and deriving a fresh, full-health skin on top would
-/// double the cladding.
+/// A whole batch on a root carrying [`ShipSkinRestored`] is skipped: a thaw
+/// already spawned its exact plates (and their decor) from a frozen record in
+/// the same command batch, and deriving a fresh, full-health skin on top would
+/// double the cladding. The marker is taken off then, so a later station add
+/// on the thawed ship re-clads round itself like any other.
+#[expect(
+    clippy::type_complexity,
+    reason = "the root, its sections and their plates, each one filtered query"
+)]
 fn spawn_ship_skin(
     mut commands: Commands,
-    q_added: Query<&ChildOf, (With<SectionMarker>, Added<SectionLinkPoints>)>,
+    q_added: Query<(Entity, &ChildOf), (With<SectionMarker>, Added<SectionLinkPoints>)>,
     q_clad: Query<
-        (&ShipSkin, Option<&ShipStyle>),
-        (With<SpaceshipRootMarker>, Without<ShipSkinRestored>),
+        (&ShipSkin, Option<&ShipStyle>, Has<ShipSkinRestored>),
+        With<SpaceshipRootMarker>,
     >,
     q_children: Query<&Children>,
     q_sections: Query<
@@ -900,15 +912,20 @@ fn spawn_ship_skin(
         ),
         With<SectionMarker>,
     >,
+    q_plates: Query<&Transform, With<ShipSkinMarker>>,
     styles: Option<Res<GameStyles>>,
 ) {
-    let roots: BTreeSet<Entity> = q_added
-        .iter()
-        .map(|ChildOf(root)| *root)
-        .filter(|root| q_clad.get(*root).is_ok_and(|(skin, _)| skin.0))
-        .collect();
+    let mut grown: BTreeMap<Entity, HashSet<Entity>> = BTreeMap::new();
+    for (section, ChildOf(root)) in &q_added {
+        if q_clad.get(*root).is_ok_and(|(skin, ..)| skin.0) {
+            grown.entry(*root).or_default().insert(section);
+        }
+    }
 
-    for root in roots {
+    for (root, new) in grown {
+        let Ok((_, worn, restored)) = q_clad.get(root) else {
+            continue;
+        };
         let Ok(children) = q_children.get(root) else {
             continue;
         };
@@ -927,10 +944,49 @@ fn spawn_ship_skin(
                 exit: exit.map(|exit| exit.0),
             });
         }
-        let (structure, phase, cells) = read_structure(&placed);
+        let whole = entities.iter().all(|section| new.contains(section));
+        if whole && restored {
+            commands.entity(root).remove::<ShipSkinRestored>();
+            continue;
+        }
+        let phase = lattice_phase(placed.iter().map(|part| part.position));
+        let (structure, cells) = read_cells(&placed, phase);
         if structure.is_empty() {
             continue;
         }
+        let plates = derive_skin(&structure);
+        // Index-aligned with `plates`: whether this pass lays that plate.
+        let relaid: Vec<bool> = if whole {
+            vec![true; plates.len()]
+        } else {
+            let kept: Vec<PlacedPart> = placed
+                .iter()
+                .zip(&entities)
+                .filter(|(_, section)| !new.contains(*section))
+                .map(|(part, _)| part.clone())
+                .collect();
+            let (before, _) = read_cells(&kept, phase);
+            let changed = changed_cells(&derive_skin(&before), &plates);
+            for section in &entities {
+                let Ok((pose, ..)) = q_sections.get(*section) else {
+                    continue;
+                };
+                for child in q_children.get(*section).into_iter().flatten() {
+                    let Ok(local) = q_plates.get(*child) else {
+                        continue;
+                    };
+                    let centre = pose.translation + pose.rotation * local.translation;
+                    if changed.contains(&section_cell(centre, phase)) {
+                        commands.entity(*child).despawn();
+                    }
+                }
+            }
+            plates
+                .iter()
+                .map(|plate| changed.contains(&plate.cell))
+                .collect()
+        };
+
         let sections: HashMap<IVec3, (Entity, Transform)> = cells
             .into_iter()
             .zip(entities)
@@ -942,11 +998,14 @@ fn spawn_ship_skin(
             .collect();
 
         let mut shapes: HashSet<ShellShape> = HashSet::new();
-        let plates = derive_skin(&structure);
         // Index-aligned with `plates`, so the scatter's answers can be looked
         // up by the index it gives them back. `None` where a plate was skipped.
         let mut laid: Vec<Option<Entity>> = Vec::with_capacity(plates.len());
-        for plate in &plates {
+        for (plate, relay) in plates.iter().zip(&relaid) {
+            if !relay {
+                laid.push(None);
+                continue;
+            }
             // The anchor is filled by construction, so a miss means two
             // sections shared a cell and only one of them is on record.
             let Some((section, pose)) = sections.get(&plate.anchor) else {
@@ -967,10 +1026,7 @@ fn spawn_ship_skin(
         // The root already remembers where the ship was hit - `DamageMarks` is
         // a requirement of `SpaceshipRootMarker`. Not inserted here: hull
         // sections carve too, so an unclad ship has a shape to carve after all.
-        let style = q_clad
-            .get(root)
-            .ok()
-            .and_then(|(_, style)| style)
+        let style = worn
             .zip(styles.as_ref())
             .and_then(|(worn, styles)| worn.resolve(styles));
         let readings = read_plates(&structure, &plates);
@@ -999,8 +1055,9 @@ fn spawn_ship_skin(
         // gap between the two is the starvation a screenshot cannot show, and
         // the reach is only computed when this line would be printed.
         debug!(
-            "spawn_ship_skin: ship {root} clad in {} plate(s) over {} shape(s); \
+            "spawn_ship_skin: ship {root} {} {} plate(s) over {} shape(s); \
              relief {}; decoration {}; {}",
+            if whole { "clad in" } else { "re-clad" },
             laid.iter().flatten().count(),
             shapes.len(),
             relief_tally(&readings),
@@ -1016,6 +1073,22 @@ fn spawn_ship_skin(
             skin_summary(&skin_report(&structure, &plates, &readings, style)),
         );
     }
+}
+
+/// The cells whose plate differs between the skin `before` a ship grew and
+/// the skin `after`: a plate gained, lost, reshaped, turned or bolted to
+/// another cell. Only these are re-clad, so the change stays local to the
+/// sections that caused it.
+fn changed_cells(before: &[SkinPlate], after: &[SkinPlate]) -> HashSet<IVec3> {
+    let before: HashMap<IVec3, &SkinPlate> =
+        before.iter().map(|plate| (plate.cell, plate)).collect();
+    let after: HashMap<IVec3, &SkinPlate> = after.iter().map(|plate| (plate.cell, plate)).collect();
+    before
+        .keys()
+        .chain(after.keys())
+        .filter(|cell| before.get(*cell) != after.get(*cell))
+        .copied()
+        .collect()
 }
 
 /// One placed part, as everything that reads a ship into cells sees it: where it
@@ -2324,6 +2397,78 @@ mod tests {
             plates_of(&app, ship).len(),
             5,
             "a re-derive grew back a plate that combat had taken off",
+        );
+    }
+
+    /// The cell each plate on `root` stands in, counted, read off the plate's
+    /// pose through the section it hangs off. A ship of unit cubes at whole
+    /// positions stands on the lattice with no phase.
+    fn plate_cells(app: &App, root: Entity) -> std::collections::BTreeMap<[i32; 3], usize> {
+        let world = app.world();
+        let mut cells = std::collections::BTreeMap::new();
+        for (plate, section) in plates_of(app, root) {
+            let pose = world
+                .get::<Transform>(section)
+                .expect("a section has a pose");
+            let local = world.get::<Transform>(plate).expect("a plate has a pose");
+            let centre = pose.translation + pose.rotation * local.translation;
+            *cells
+                .entry(centre.round().as_ivec3().to_array())
+                .or_insert(0) += 1;
+        }
+        cells
+    }
+
+    /// A section added to a clad ship re-clads the hull round it, and only
+    /// there.
+    ///
+    /// A station add spawns one section into a live ship. The new cell must
+    /// lose the plate that stood in it, the plates beside it must take the
+    /// shape the grown hull calls for, no plate may be laid twice, and a
+    /// plate combat took off away from the add must stay off.
+    #[test]
+    fn a_section_added_to_a_clad_ship_reclads_round_it_and_nowhere_else() {
+        let mut app = skin_app();
+        let line = |count: i32| -> Vec<(Vec3, Quat)> {
+            (0..count)
+                .map(|x| (Vec3::new(x as f32, 0.0, 0.0), Quat::IDENTITY))
+                .collect()
+        };
+        let ship = spawn_ship(&mut app, true, &line(3));
+        app.update();
+        let shot = plates_of(&app, ship)
+            .into_iter()
+            .find(|(plate, section)| {
+                let world = app.world();
+                let pose = world.get::<Transform>(*section).unwrap();
+                let local = world.get::<Transform>(*plate).unwrap();
+                (pose.translation + pose.rotation * local.translation)
+                    .round()
+                    .as_ivec3()
+                    == IVec3::new(-1, 0, 0)
+            })
+            .map(|(plate, _)| plate)
+            .expect("the aft end of the line is clad");
+        app.world_mut().entity_mut(shot).despawn();
+
+        app.world_mut().spawn((
+            SectionMarker,
+            SectionLinkPoints(unit_cube_link_points()),
+            Transform::from_translation(Vec3::new(3.0, 0.0, 0.0)),
+            ChildOf(ship),
+        ));
+        app.update();
+
+        let mut expected: std::collections::BTreeMap<[i32; 3], usize> =
+            derive_skin(&hull(&[0, 1, 2, 3].map(|x| IVec3::new(x, 0, 0))))
+                .iter()
+                .map(|plate| (plate.cell.to_array(), 1))
+                .collect();
+        expected.remove(&[-1, 0, 0]);
+        assert_eq!(
+            plate_cells(&app, ship),
+            expected,
+            "the grown ship must wear the grown hull's skin once, less the plate shot off",
         );
     }
 
