@@ -27,7 +27,7 @@
 //!
 //! Invariants 5 and 6 are the rest of the same sweep: a camera rig and a chip
 //! offset are promises about how big the thing underneath looks. The scene
-//! carries a consort cutter and a 50 m nav beacon parked 250 m ahead and off
+//! carries a consort mining tug and a 50 m nav beacon parked 250 m ahead and off
 //! the burn axis, close enough that their silhouettes are a hundred pixels
 //! across - which is the picture a fixed pixel offset was never a promise
 //! about, and far enough to one side that the GOTO leg flies past rather than
@@ -77,7 +77,7 @@ const CARRIER: &str = "fixture_carrier";
 /// The consort hull the world-anchored chips are measured against: a mid-size
 /// ship, so its silhouette is wide enough at the range it is parked at that a
 /// chip floating at a fixed pixel offset would land on its plating.
-const CONSORT: &str = "block_cutter";
+const CONSORT: &str = "mining_tug";
 
 /// The consort's scenario id.
 const CONSORT_ID: &str = "hud_shell_consort";

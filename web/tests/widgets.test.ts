@@ -15,10 +15,10 @@ import {
     engineMeters,
     engineMetersPerSec,
     engineMetersPerSec2,
-    GUNSHIP_ARM_U,
-    GUNSHIP_CELLS,
-    GUNSHIP_COMPUTERS,
-    GUNSHIP_MATES,
+    INTERCEPTOR_ARM_U,
+    INTERCEPTOR_CELLS,
+    INTERCEPTOR_COMPUTERS,
+    INTERCEPTOR_MATES,
     hudElements,
     hullState,
     kilometers,
@@ -56,7 +56,7 @@ import {
     COMMAND_CLASSES,
     COMMAND_ROWS,
     commandAllowed,
-    CUTTER_CELLS,
+    PICKET_CELLS,
     distanceAttenuation,
     GRAMMAR_HALF_WIDTH,
     GRAMMAR_HEIGHT,
@@ -158,45 +158,49 @@ function rustNumber(rel: string, pattern: RegExp): number {
 {
     assert.equal(METERS_PER_UNIT, 10);
     assert.equal(engineMeters(30), "300 m", "30 u is a 300 m blast radius");
-    assert.equal(engineMeters(5.52, 1), "55.2 m", "the gunship's arm");
+    assert.equal(engineMeters(4.59, 1), "45.9 m", "the interceptor's arm");
     assert.equal(engineKilometers(328.6, 1), "3.3 km", "a planetoid SOI");
     assert.equal(engineMetersPerSec(100), "1,000 m/s", "the reference speed");
     assert.equal(engineMetersPerSec2(64, 0), "640 m/s^2", "one bare drive");
 }
 
 // The attitude model's one crossing: the arm arrives in world units off the
-// collider boxes and the 8 G limit is SI, so 5.52 u is 55.2 m and the ceiling
-// is 78.48 / 55.2 - the same rad/s^2 the game reads.
+// collider boxes and the 8 G limit is SI, so 4.59 u is 45.9 m and the ceiling
+// is 78.48 / 45.9 - the same rad/s^2 the game reads.
 {
-    const ceiling = structuralCeiling(GUNSHIP_ARM_U);
+    const ceiling = structuralCeiling(INTERCEPTOR_ARM_U);
     assert.ok(
-        Math.abs(ceiling - (8 * 9.81) / 55.2) < 1e-9,
-        `the gunship's structural ceiling, got ${ceiling}`
+        Math.abs(ceiling - (8 * 9.81) / 45.9) < 1e-9,
+        `the interceptor's structural ceiling, got ${ceiling}`
     );
     assert.ok(
-        Math.abs(ceiling - 1.422) < 5e-3,
-        `~1.42 rad/s^2 as the widget prints it, got ${ceiling}`
+        Math.abs(ceiling - 1.71) < 5e-3,
+        `~1.71 rad/s^2 as the widget prints it, got ${ceiling}`
     );
     assert.equal(structuralCeiling(0), Infinity, "a point mass has no arm");
 }
 
-// ---- the Patrol Gunship ---------------------------------------------------
+// ---- the Interceptor ------------------------------------------------------
 
-// `GUNSHIP_ARM_U` is a constant because the GOTO scope needs it before the cell
+// `INTERCEPTOR_ARM_U` is a constant because the GOTO scope needs it before the cell
 // table exists. It has to be the arm that table derives, or the two widgets
 // fly different ships.
 {
-    const state = hullState(GUNSHIP_CELLS);
+    const state = hullState(INTERCEPTOR_CELLS);
     assert.ok(
-        Math.abs(state.arm - GUNSHIP_ARM_U) < 5e-3,
+        Math.abs(state.arm - INTERCEPTOR_ARM_U) < 5e-3,
         `the constant against the derived arm, got ${state.arm}`
     );
-    // assets/base/ships/base.content.ron, block_gunship: 53 sections and the
+    // assets/base/ships/base.content.ron, interceptor: 39 sections and the
     // volume of their boxes, with nothing anywhere authoring a mass.
-    assert.equal(GUNSHIP_CELLS.length, 53, "block_gunship's section count");
+    assert.equal(
+        INTERCEPTOR_CELLS.length,
+        39,
+        "the interceptor's section count"
+    );
     assert.ok(
-        Math.abs(state.mass - 64.75) < 1e-9,
-        `block_gunship's mass, got ${state.mass}`
+        Math.abs(state.mass - 38.25) < 1e-9,
+        `the interceptor's mass, got ${state.mass}`
     );
 }
 
@@ -205,48 +209,42 @@ function rustNumber(rel: string, pattern: RegExp): number {
 // to nothing would silently sever the moment the widget is touched.
 {
     const whole = severedParts(
-        GUNSHIP_CELLS,
-        GUNSHIP_MATES,
+        INTERCEPTOR_CELLS,
+        INTERCEPTOR_MATES,
         new Set<string>(),
-        GUNSHIP_COMPUTERS
+        INTERCEPTOR_COMPUTERS
     );
-    assert.equal(whole.held.length, 53, "the intact hull is one body");
+    assert.equal(whole.held.length, 39, "the intact hull is one body");
     assert.equal(whole.adrift.length, 0, "and nothing is adrift on it");
 }
 
-// Losing one of the two computers keeps the ship; losing both ends it, and
+// The interceptor flies on one computer, so losing the bridge ends it, and
 // every section left is a wreck rather than a hull with a long arm.
 {
-    const one = severedParts(
-        GUNSHIP_CELLS,
-        GUNSHIP_MATES,
-        new Set(["bridge"]),
-        GUNSHIP_COMPUTERS
-    );
-    assert.equal(one.held.length, 52, "the aft computer still flies it");
     const none = severedParts(
-        GUNSHIP_CELLS,
-        GUNSHIP_MATES,
-        new Set(GUNSHIP_COMPUTERS),
-        GUNSHIP_COMPUTERS
+        INTERCEPTOR_CELLS,
+        INTERCEPTOR_MATES,
+        new Set(INTERCEPTOR_COMPUTERS),
+        INTERCEPTOR_COMPUTERS
     );
+    assert.deepEqual(INTERCEPTOR_COMPUTERS, ["bridge"], "one computer");
     assert.equal(none.held.length, 0, "no computer, no ship");
-    assert.equal(none.adrift.length, 51, "all of it is adrift");
+    assert.equal(none.adrift.length, 38, "all of it is adrift");
 }
 
-// Shooting the bow spur off shortens the arm and RAISES the turn ceiling,
+// Shooting the bow torpedo bay off shortens the arm and RAISES the turn ceiling,
 // which is the whole claim the controller-arm widget makes.
 {
-    const bow = GUNSHIP_CELLS.filter((part) => part.group === "bow");
+    const bow = INTERCEPTOR_CELLS.filter((part) => part.group === "bow");
     const cut = severedParts(
-        GUNSHIP_CELLS,
-        GUNSHIP_MATES,
+        INTERCEPTOR_CELLS,
+        INTERCEPTOR_MATES,
         new Set(bow.map((part) => part.id)),
-        GUNSHIP_COMPUTERS
+        INTERCEPTOR_COMPUTERS
     );
     assert.equal(cut.adrift.length, 0, "the bow is the last thing out there");
     assert.ok(
-        hullState(cut.held).arm < GUNSHIP_ARM_U,
+        hullState(cut.held).arm < INTERCEPTOR_ARM_U,
         "the arm shortens without the bow"
     );
 }
@@ -948,14 +946,17 @@ console.log("widgets: the corridor scope reproduces the stand bank");
 
 // Arrival: hull radii from the cell plans, and the park rule.
 {
-    const gunship = hullRadiusMeters(GUNSHIP_CELLS);
+    const interceptor = hullRadiusMeters(INTERCEPTOR_CELLS);
     assert.ok(
-        Math.abs(gunship - GUNSHIP_ARM_U * METERS_PER_UNIT) < 0.1,
-        `the gunship's radius is its pinned structural arm: ${gunship}`
+        Math.abs(interceptor - INTERCEPTOR_ARM_U * METERS_PER_UNIT) < 0.1,
+        `the interceptor's radius is its pinned structural arm: ${interceptor}`
     );
-    const cutter = hullRadiusMeters(CUTTER_CELLS);
-    assert.ok(cutter < gunship, `cutter ${cutter} < gunship ${gunship}`);
-    assert.equal(CUTTER_CELLS.length, 26, "the cutter's plan is 26 cells");
+    const picket = hullRadiusMeters(PICKET_CELLS);
+    assert.ok(
+        picket < interceptor,
+        `picket ${picket} < interceptor ${interceptor}`
+    );
+    assert.equal(PICKET_CELLS.length, 21, "patrol_picket's 21 sections");
     const park = arrivalPark(950, 100, 500);
     assert.equal(park.centreDistance, 1550);
     assert.equal(park.gap, 500, "the margin is the gap");

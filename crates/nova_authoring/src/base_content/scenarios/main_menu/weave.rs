@@ -42,7 +42,7 @@ const WEAVE_LOOP: [Meters3; 10] = [
     Meters3::new(733.0, -460.0, -823.0),
 ];
 
-/// A navigation drill behind the menu: a cutter flies a ten-waypoint loop
+/// A navigation drill behind the menu: a mining tug flies a ten-waypoint loop
 /// straight through the backdrop's rock band. There is nothing hostile
 /// anywhere; the scene is the passive pilot itself - GOTO legs, waypoint
 /// turns, and the avoidance detours around every rock the seeded scatter
@@ -68,11 +68,11 @@ pub(crate) fn menu_weave(
         ));
     }
 
-    // The ship: an unarmed block cutter on the patrol loop. No hostiles exist
+    // The ship: the unarmed mining tug on the patrol loop. No hostiles exist
     // here, so it never leaves Patrol; the avoidance layer (AIAvoidanceDetour)
-    // rounds whatever rock blocks the current leg. The cutter's two bell
-    // drives make it the slowest hull in the fleet, which is the point - the
-    // thread reads as deliberate rather than as a fly-through.
+    // rounds whatever rock blocks the current leg. Three bell drives keep it
+    // slow, which is the point - the thread reads as deliberate rather than
+    // as a fly-through.
     objects.push(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: RUNNER_ID.to_string(),
@@ -84,17 +84,17 @@ pub(crate) fn menu_weave(
             allegiance: None,
             controller: SpaceshipController::AI(AIControllerConfig {
                 patrol: WEAVE_LOOP.to_vec(),
-                // Press in close to each mark: the DEFAULTS turn 792 m out
-                // (500 m margin + 250 m slack + the cutter's own 42 m hull) -
-                // most of an 870 m leg. A 100 m margin parks the cutter's
-                // FACE that far off the beacon - 142 m centre to mark - and
-                // 50 m of slack turns at 192 m, so the runner visibly REACHES
-                // each mark before rolling onto the next.
+                // Press in close to each mark: the DEFAULTS turn 750 m plus
+                // the tug's own hull radius out (500 m margin + 250 m slack) -
+                // most of an 870 m leg. A 100 m margin parks the tug's FACE
+                // that far off the beacon, and 50 m of slack turns 50 m past
+                // that, so the runner visibly REACHES each mark before
+                // rolling onto the next.
                 waypoint_slack: Some(Meters(50.0)),
                 arrival_standoff: Some(Meters(100.0)),
                 ..Default::default()
             }),
-            design: ships::design(ships::BLOCK_CUTTER_SHIP_ID),
+            design: ships::design(ships::MINING_TUG_SHIP_ID),
             lootable: false,
             inventory: ShipInventoryStock::new([]),
             credits: 2_000,

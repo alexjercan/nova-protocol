@@ -1,5 +1,5 @@
 // Gauntlet Run 2.0 content: one NEW scenario (no base overrides) - a real
-// parkour/slalom course. Spawns the player in a cutter at the START, then
+// parkour/slalom course. Spawns the player in a light freighter at the START, then
 // guides the pilot gate by gate (objective + gold marker) through SIX gates to
 // the FINISH, over three escalating acts (warmup / slalom / hazard). The route
 // turns and climbs; asteroids crowd the racing line to punish
@@ -7,8 +7,8 @@
 // off-line to sling or avoid. Crossing FINISH declares Victory; wrecking your
 // ship on the rocks declares Defeat with a Retry. Pure flying skill, no combat.
 // Data-driven RON (no engine changes); `base` is the only dependency - it owns
-// the `block_cutter` the course is flown in and the shared textures. The
-// cutter's crash tolerance is base's reinforced_hull_section (200 health); it is
+// the `light_freighter` the course is flown in and the shared textures. The
+// freighter's crash tolerance is base's reinforced_hull_section (200 health); it is
 // tuned by playtest against that base value, NOT by any mod's overlay of that
 // section (an enabled overlay could buff it, but gauntlet depends only on base).
 //
@@ -114,8 +114,8 @@
                     DebugMessage((
                         message: "Gauntlet Run 2.0 loaded from the mod portal.",
                     )),
-                    // The cutter: the base game's small unarmed workboat, which
-                    // is exactly what a time trial wants. Every capability is
+                    // The light freighter: the base game's small unarmed
+                    // transport, which is what a time trial wants. Every capability is
                     // enabled (the spawn default), so the pilot can GOTO/lock
                     // the gates from the first second. Its reinforced plating
                     // buys crash tolerance so the course is run-and-fail, not
@@ -129,11 +129,12 @@
                         ),
                         kind: Spaceship((
                             controller: Player((
-                                // No guns on the course: the cutter flies the
-                                // gauntlet unarmed, so there is nothing to bind.
+                                // No guns on the course: the freighter flies
+                                // the gauntlet unarmed, so there is nothing to
+                                // bind.
                                 input_mapping: {},
                             )),
-                            design: Prototype(id: "block_cutter"),
+                            design: Prototype(id: "light_freighter"),
                             initial_velocity: (0.0, 0.0, 0.0),
                             inventory: {},
                             lootable: false,

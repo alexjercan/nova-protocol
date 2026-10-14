@@ -84,7 +84,7 @@
 //! readable in one frame of the battery already on the threats.
 //!
 //! The eye stands off the starboard quarter and looks PAST the hull down the
-//! threat bearing, so the gunship takes the lower left of the frame at 100 m
+//! threat bearing, so the interceptor takes the lower left of the frame at 100 m
 //! and the torpedoes converge toward the upper right at a kilometre. That is
 //! the one composition that holds both ends of a line a kilometre long: framed
 //! on the ship the picks are off the edge, and framed on the salvo the mounts
@@ -238,7 +238,7 @@ const RELEASE_TAIL_SECS: f32 = 0.5;
 /// Where the point-defence still's eye stands, and what it looks at.
 ///
 /// Off the starboard quarter at about 115 m, aimed 90 m PAST the hull down the
-/// threat bearing. That puts the gunship in the lower left of the frame at a
+/// threat bearing. That puts the interceptor in the lower left of the frame at a
 /// third of the frame's height and sends world -Z away to the upper right, so a
 /// line drawn from a mount to a torpedo a kilometre out runs diagonally across
 /// the picture with both of its ends inside it.
@@ -309,7 +309,7 @@ fn the_battery(
     sections: &GameSections,
     ships: &GameShipDesigns,
 ) -> ScenarioConfig {
-    let player_hull = kit::catalog_ship(ships, "block_gunship");
+    let player_hull = kit::catalog_ship(ships, "interceptor");
     let player = hollow::ship(
         PLAYER_ID,
         "Player Ship",

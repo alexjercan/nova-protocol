@@ -76,7 +76,7 @@ pub(crate) const TRAINER_NAME: &str = "Trainer Seven";
 /// The trainer's one gun: the picket's nose mount, by the section id the
 /// catalog entry gives it. The input mapping and the range's fire lesson both
 /// name it.
-pub(crate) const TRAINER_GUN: &str = ships::BLOCK_CLEANUP_TURRET_ID;
+pub(crate) const TRAINER_GUN: &str = ships::PICKET_GUN_SECTION_ID;
 
 /// The trainer's gun mount and flight computer, armoured for the card.
 ///
@@ -126,7 +126,7 @@ pub(crate) fn trainer_with(capabilities: ShipCapabilities) -> ScenarioObjectConf
             controller: SpaceshipController::Player(PlayerControllerConfig { input_mapping }),
             capabilities,
             design: ships::patched_design(
-                ships::BLOCK_PICKET_SHIP_ID,
+                ships::PATROL_PICKET_SHIP_ID,
                 [
                     ships::on_section(
                         ships::BLOCK_BRIDGE_SECTION_ID,
@@ -303,7 +303,7 @@ pub(crate) fn drone(id: &str, name: &str, position: Meters3) -> ScenarioObjectCo
                 leash: Some(DRONE_LEASH),
                 ..Default::default()
             }),
-            design: ships::patched_design(ships::BLOCK_PICKET_SHIP_ID, section_patches),
+            design: ships::patched_design(ships::PATROL_PICKET_SHIP_ID, section_patches),
             lootable: false,
             inventory: ShipInventoryStock::new([]),
             credits: 2_000,

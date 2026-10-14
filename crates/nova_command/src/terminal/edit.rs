@@ -467,19 +467,19 @@ mod tests {
     #[test]
     fn the_prompt_jumps_and_kills_by_the_line_not_the_character() {
         let mut terminal = CommandTerminal::default();
-        type_text(&mut terminal, "section block_picket hull");
+        type_text(&mut terminal, "section patrol_picket hull");
 
         terminal.move_cursor_to_start();
         assert_eq!(terminal.cursor(), 0);
         terminal.move_cursor_to_end();
-        assert_eq!(terminal.cursor(), "section block_picket hull".len());
+        assert_eq!(terminal.cursor(), "section patrol_picket hull".len());
 
         terminal.move_cursor_to_start();
         type_text(&mut terminal, "x");
         terminal.kill_to_start();
         assert_eq!(
             terminal.prompt(),
-            "section block_picket hull",
+            "section patrol_picket hull",
             "the typo alone is cut"
         );
         assert_eq!(terminal.cursor(), 0);
@@ -650,10 +650,10 @@ mod tests {
         terminal.merge_live_values([(
             live::SHIP,
             vec![
-                "block_picket".to_string(),
-                "block_gunship".to_string(),
+                "patrol_picket".to_string(),
+                "interceptor".to_string(),
                 // A duplicate candidate must not become a duplicate Tab stop.
-                "block_gunship".to_string(),
+                "interceptor".to_string(),
             ],
         )]);
 
@@ -661,10 +661,10 @@ mod tests {
         assert_eq!(
             matches,
             vec![
-                "sections block_gunship".to_string(),
-                "sections block_picket".to_string(),
                 // The universal sub-verbs are offered past the command name too.
                 "sections help".to_string(),
+                "sections interceptor".to_string(),
+                "sections patrol_picket".to_string(),
                 "sections version".to_string(),
             ],
         );
@@ -679,33 +679,33 @@ mod tests {
         terminal.merge_live_values([
             (
                 live::SHIP.to_string(),
-                vec!["block_gunship".to_string(), "block_picket".to_string()],
+                vec!["interceptor".to_string(), "patrol_picket".to_string()],
             ),
             (
-                format!("{}:block_gunship", live::SECTION),
+                format!("{}:interceptor", live::SECTION),
                 vec!["hull_front".to_string(), "pdc_aft_port".to_string()],
             ),
             (
-                format!("{}:block_picket", live::SECTION),
+                format!("{}:patrol_picket", live::SECTION),
                 vec!["pdc_aft_port".to_string()],
             ),
         ]);
 
         // First position: the ships.
-        type_text(&mut terminal, "section block_p");
+        type_text(&mut terminal, "section patrol_p");
         assert!(terminal.complete());
-        assert_eq!(terminal.prompt(), "section block_picket");
+        assert_eq!(terminal.prompt(), "section patrol_picket");
 
         // Second position: only THAT ship's sections, and the settled first
         // argument is kept.
         terminal.reset_prompt();
-        type_text(&mut terminal, "section block_gunship hu");
+        type_text(&mut terminal, "section interceptor hu");
         assert!(terminal.complete());
-        assert_eq!(terminal.prompt(), "section block_gunship hull_front");
+        assert_eq!(terminal.prompt(), "section interceptor hull_front");
 
         // The picket carries no `hull_front`, so nothing completes there.
         terminal.reset_prompt();
-        type_text(&mut terminal, "section block_picket hu");
+        type_text(&mut terminal, "section patrol_picket hu");
         assert!(!terminal.complete());
     }
 

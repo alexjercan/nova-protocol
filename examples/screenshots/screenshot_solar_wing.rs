@@ -1,7 +1,7 @@
 //! screenshot_solar_wing: the derived skin at the open end of a solar wing
 //! and a truss spur.
 //!
-//! One ship, built from the `block_cutter` design with its sections replaced:
+//! One ship, built from the `mining_tug` design with its sections replaced:
 //! a 2x2x2 block of hull cubes holding the controller, a solar wing of
 //! [`WING`] panels off each X flank, and a [`SPUR`]-cell truss off +Z. The
 //! wing tips and the spur end are open sockets nothing mates, so this hull is
@@ -42,7 +42,7 @@ struct Cli;
 const SCENARIO_ID: &str = "solar_wing";
 
 /// The catalog design the test hull borrows its style and presentation from.
-const BASE_DESIGN: &str = "block_cutter";
+const BASE_DESIGN: &str = "mining_tug";
 
 /// One build-grid cell, in meters.
 const CELL_M: f32 = 10.0;

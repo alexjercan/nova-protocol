@@ -9,7 +9,7 @@
 //! at all. This range is where the weave is read.
 //!
 //! Two weaves run side by side, far enough apart that neither scanner can hear
-//! the other: an escort weave (`block_picket`) and a capital weave (the
+//! the other: an escort weave (`patrol_picket`) and a capital weave (the
 //! warship fixture, the largest hull that can fly a fight at all - see
 //! [`WARSHIP`]). Each mover closes on a parked hostile skiff fixture whose
 //! nose is held on it, which is the threat signal by itself - no shot is fired
@@ -71,7 +71,7 @@ use nova_protocol::prelude::*;
 struct Cli;
 
 /// The escort weave's mover: the cleanup group's armed picket.
-const PICKET: &str = "block_picket";
+const PICKET: &str = "patrol_picket";
 
 /// The capital weave's mover: the stolen Earth warship fixture, the only
 /// capital combatant the fixtures build.

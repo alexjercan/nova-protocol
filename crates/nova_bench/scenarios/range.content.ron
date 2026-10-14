@@ -4,10 +4,10 @@
 // and wall-clock budgets. Loaded loose, never installed:
 //   cargo run --features debug bench play crates/nova_bench/scenarios/range.content.ron \
 //       --agent pi --goal "..." --ticks 9000
-// The only outcome is Defeat when the gunship breaks up; nothing here shoots
+// The only outcome is Defeat when the warship breaks up; nothing here shoots
 // back, so that takes flying into something.
 //
-// The furniture, all from the gunship's spawn point facing -Z:
+// The furniture, all from the warship's spawn point facing -Z:
 //   - a 600 m planetoid 7 km dead ahead, the ORBIT target; its well is the
 //     dominant well inside about 3 km of the surface, and the orbit helm
 //     takes a ring from an approach of about 300 m/s but not from 550;
@@ -17,7 +17,7 @@
 //     so nothing here is carved (the body reads about five times the
 //     authored radius, the mesh's own extent);
 //   - a nav beacon, WORK MARK, 2.5 km to port and above;
-//   - a derelict hauler 2.4 km to starboard, unarmed, no controller, flagged
+//   - a derelict freighter 2.4 km to starboard, unarmed, no controller, flagged
 //     hostile so the radar will lock it: the GOTO target with a hull to
 //     size the park against, and the DESTROY target. It despawns when it
 //     breaks up, which the scorer counts as a kill.
@@ -47,13 +47,13 @@
                     SpawnScenarioObject((
                         base: (
                             id: "player",
-                            name: "Bench Gunship",
+                            name: "Bench Warship",
                             position: (0.0, 0.0, 0.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
                             initial_velocity: (0.0, 0.0, 0.0),
-                            design: Prototype(id: "block_gunship"),
+                            design: Prototype(id: "line_warship"),
                             controller: Player((
                                 input_mapping: {
                                     "pdc_forward_port": [Keyboard(KeyU)],
@@ -130,13 +130,13 @@
                     SpawnScenarioObject((
                         base: (
                             id: "derelict",
-                            name: "Derelict Hauler",
+                            name: "Derelict Freighter",
                             position: (1700.0, -150.0, -1700.0),
                             rotation: (0.0, 0.38268343, 0.0, 0.92387953),
                         ),
                         kind: Spaceship((
                             initial_velocity: (0.0, 0.0, 0.0),
-                            design: Prototype(id: "block_hauler"),
+                            design: Prototype(id: "light_freighter"),
                             controller: r#None,
                             allegiance: Some(Enemy),
                             inventory: {},
@@ -157,7 +157,7 @@
                 actions: [
                     Outcome((
                         outcome: Defeat,
-                        message: Some("The gunship broke up."),
+                        message: Some("The warship broke up."),
                     )),
                 ],
             ),

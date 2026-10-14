@@ -17,21 +17,22 @@ use nova_gameplay::prelude::{ItemRoleType, ShipInventoryStock};
 use nova_input::prelude::InputSource;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::ShipCapabilities;
-use nova_world_base::prelude::{BLOCK_LINE_WARSHIP_SHIP_ID, OPEN_WORLD_SCENARIO_ID};
+use nova_world_base::prelude::OPEN_WORLD_SCENARIO_ID;
 
 use crate::{
     base_content::{
         assets::BaseContentAssets,
-        ships::{
-            self, BLOCK_LINE_WARSHIP_MINING_ID, BLOCK_LINE_WARSHIP_PDC_IDS,
-            BLOCK_LINE_WARSHIP_RAILGUN_ID, BLOCK_LINE_WARSHIP_TORPEDO_IDS,
-        },
+        ships::{self, LINE_WARSHIP_PDC_IDS, LINE_WARSHIP_SHIP_ID},
     },
     scenario_helpers::prelude::entity,
 };
 
 /// The player's ship, by the id events and tools address it with.
 const PLAYER_ID: &str = "player";
+
+/// The warship's railgun and torpedo bays.
+const RAILGUN_ID: &str = "railgun_spinal";
+const TORPEDO_IDS: [&str; 2] = ["torpedo_port", "torpedo_starboard"];
 
 /// What the player's ship is called.
 const PLAYER_NAME: &str = "Line Warship";
@@ -97,7 +98,7 @@ fn player() -> ScenarioObjectConfig {
                 input_mapping: weapon_bindings(),
             }),
             capabilities: ShipCapabilities::default(),
-            design: ships::design(BLOCK_LINE_WARSHIP_SHIP_ID),
+            design: ships::design(LINE_WARSHIP_SHIP_ID),
             // At rest at the bootstrap origin, before any sector streams in:
             // an intentional stationary start, not a well interaction.
             initial_velocity: MetersPerSecond3::ZERO,
@@ -117,28 +118,24 @@ fn player() -> ScenarioObjectConfig {
 
 /// The warship's weapon bindings, on the keys every other player gun uses:
 /// point defense on the primary trigger, the railgun on `R`, and the torpedo
-/// bays on `F`. The mining emitter takes `V`.
+/// bays on `F`.
 fn weapon_bindings() -> BTreeMap<SectionId, Vec<InputSource>> {
     let pdc = vec![
         InputSource::Mouse(MouseButton::Left),
         InputSource::Gamepad(GamepadButton::RightTrigger2),
     ];
-    let mut bindings: BTreeMap<SectionId, Vec<InputSource>> = BLOCK_LINE_WARSHIP_PDC_IDS
+    let mut bindings: BTreeMap<SectionId, Vec<InputSource>> = LINE_WARSHIP_PDC_IDS
         .iter()
         .map(|id| (id.to_string(), pdc.clone()))
         .collect();
     bindings.insert(
-        BLOCK_LINE_WARSHIP_RAILGUN_ID.to_string(),
+        RAILGUN_ID.to_string(),
         vec![InputSource::Keyboard(KeyCode::KeyR)],
     );
     bindings.extend(
-        BLOCK_LINE_WARSHIP_TORPEDO_IDS
+        TORPEDO_IDS
             .iter()
             .map(|id| (id.to_string(), vec![InputSource::Keyboard(KeyCode::KeyF)])),
-    );
-    bindings.insert(
-        BLOCK_LINE_WARSHIP_MINING_ID.to_string(),
-        vec![InputSource::Keyboard(KeyCode::KeyV)],
     );
     bindings
 }
@@ -152,8 +149,8 @@ mod tests {
     #[test]
     fn the_open_world_warship_binds_pdc_to_the_trigger_railgun_to_r_and_torpedoes_to_f() {
         let bindings = weapon_bindings();
-        assert_eq!(bindings.len(), 6 + 1 + 2 + 1);
-        for pdc in BLOCK_LINE_WARSHIP_PDC_IDS {
+        assert_eq!(bindings.len(), 6 + 1 + 2);
+        for pdc in LINE_WARSHIP_PDC_IDS {
             assert_eq!(
                 bindings[pdc],
                 [
@@ -163,20 +160,13 @@ mod tests {
                 "'{pdc}'"
             );
         }
-        assert_eq!(
-            bindings[BLOCK_LINE_WARSHIP_RAILGUN_ID],
-            [InputSource::Keyboard(KeyCode::KeyR)]
-        );
-        for bay in BLOCK_LINE_WARSHIP_TORPEDO_IDS {
+        assert_eq!(bindings[RAILGUN_ID], [InputSource::Keyboard(KeyCode::KeyR)]);
+        for bay in TORPEDO_IDS {
             assert_eq!(
                 bindings[bay],
                 [InputSource::Keyboard(KeyCode::KeyF)],
                 "'{bay}'"
             );
         }
-        assert_eq!(
-            bindings[BLOCK_LINE_WARSHIP_MINING_ID],
-            [InputSource::Keyboard(KeyCode::KeyV)]
-        );
     }
 }

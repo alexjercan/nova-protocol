@@ -81,7 +81,7 @@ pub(super) const OBJ_TEXT_LANE: &str = "Thread the lane home.";
 
 pub(super) const LANE_ONE: &str = "LANE-1. Next one is off to port and a little high.";
 pub(super) const LANE_TWO: &str =
-    "That is the way. The cradle does not care for being turned with two tonnes on it.";
+    "That is the way. The boom does not care for being turned with two tonnes on it.";
 pub(super) const LANE_THREE: &str = "Tight through there. Nothing touched.";
 pub(super) const LANE_FOUR: &str = "LANE-4, and clear of the worst of it. Baikal in four hours.";
 

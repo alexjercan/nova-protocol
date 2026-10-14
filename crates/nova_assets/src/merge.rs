@@ -1277,9 +1277,9 @@ mod tests {
                 design: nova_scenario::prelude::ShipDesign::default(),
             })
         };
-        let base = [ship("block_gunship", "Gunship")];
+        let base = [ship("interceptor", "Interceptor")];
         let modded = [
-            ship("block_gunship", "Rusted Gunship"),
+            ship("interceptor", "Rusted Interceptor"),
             ship("raider", "Raider"),
         ];
 
@@ -1292,7 +1292,7 @@ mod tests {
                 .iter()
                 .map(|ship| (ship.id.as_str(), ship.name.as_str()))
                 .collect::<Vec<_>>(),
-            vec![("block_gunship", "Rusted Gunship"), ("raider", "Raider")],
+            vec![("interceptor", "Rusted Interceptor"), ("raider", "Raider")],
             "the mod's hull must win in place, and its new one must be added",
         );
     }

@@ -94,8 +94,8 @@ const LEAD_IN_CELLS: u32 = 3;
 ///
 /// Off the mount, not off the ship, and this is the whole framing problem of
 /// the lesson. A point-defence mount is a few metres of hardware that rises
-/// eight tenths of a metre; from a framing that holds the whole hundred-metre
-/// gunship it is a pixel twitching on a hull, and from one tight enough to
+/// eight tenths of a metre; from a framing that holds the whole interceptor it
+/// is a pixel twitching on a hull, and from one tight enough to
 /// fill the cell with the housing the picture is an anonymous grey wedge. This
 /// is the distance where the gun coming up is a real object AND enough of the
 /// deck, the hull line and the sky past it is in shot to say what it is bolted
@@ -171,7 +171,7 @@ const FIRING_SECS: f32 = 1.0;
 /// A COMPOSITION figure, and it is worth saying what it is not. The lesson
 /// teaches that a hull masks part of a mount's arc, and the obvious shot is a
 /// mount that cannot bear sitting on its stops beside one that is firing. That
-/// shot cannot be taken on this hull: the gunship carries its whole point
+/// shot cannot be taken on this hull: the interceptor carries its whole point
 /// defence on the open dorsal deck, and the raider sits in that deck's own
 /// plane, so every mount clears the hull and every mount fires however the
 /// ship is turned. Masking here needs a target well below the deck, and the

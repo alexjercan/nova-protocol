@@ -31,7 +31,7 @@
 //!
 //! That gap is the whole frame, so the eye is set to make it big. From
 //! [`REACH_EYE`], square on the lane at 2.2 km, the sheet is 3.2 km across: the
-//! gunship sits 166 px in from the left edge, the stream runs about 1,180 px,
+//! interceptor sits 166 px in from the left edge, the stream runs about 1,180 px,
 //! and the gap past the end of it is about 410 px of nothing. An oblique eye
 //! was tried first and is much worse - at 1.5 km off the lane's near end the
 //! foreshortening crushes the same 700 m to 150 px, and a frame whose subject
@@ -142,7 +142,7 @@ const PLAYER_ID: &str = "reach_player";
 /// Scenario id of the hostile torpedo boat at the far end of the lane.
 const BOAT_ID: &str = "reach_boat";
 /// PDC rounds the player's inventory holds, the stock `menu_duel` gives the
-/// same gunship. The quiet beat after the sheet reloads from it, so the lane
+/// same interceptor. The quiet beat after the sheet reloads from it, so the lane
 /// fill starts on full magazines.
 const PDC_RESERVE: u32 = 2000;
 
@@ -157,7 +157,7 @@ const PDC_REACH: Meters = Meters(2_000.0);
 ///
 /// Far enough that the gap is a third of the stream's own length and reads as
 /// deliberate rather than as a round or two falling short, close enough that
-/// one framing holds the gunship, the whole stream and the hull it cannot
+/// one framing holds the interceptor, the whole stream and the hull it cannot
 /// touch.
 const BOAT_POSITION: Meters3 = Meters3::new(0.0, 0.0, -2_700.0);
 
@@ -218,7 +218,7 @@ const TORPEDO_GAP: (Meters, Meters) = (Meters(2_100.0), Meters(2_620.0));
 /// HULL - a picture of a ship being shot at, in a lesson about a ship shooting.
 ///
 /// The RANGE is set by the stream, not by the ship. At 190 m the cell is 280 m
-/// across, so the gunship stands about half its height and a round stays in
+/// across, so the interceptor stands about half its height and a round stays in
 /// frame for well over a hundred metres of flight - long enough to read as a
 /// stream leaving rather than as a muzzle flash.
 #[cfg(feature = "debug")]
@@ -363,7 +363,7 @@ fn the_gun_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioC
         Quat::IDENTITY,
         SpaceshipController::None,
         Some(Allegiance::Player),
-        kit::catalog_ship(ships, "block_gunship"),
+        kit::catalog_ship(ships, "interceptor"),
         ShipInventoryStock::new([(ItemRoleType::PdcRound.into(), PDC_RESERVE)]),
     );
     let boat = hollow::ship(

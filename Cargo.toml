@@ -796,6 +796,11 @@ path = "examples/systems/stress_hull_collapse.rs"
 name = "screenshot_hero_ship"
 path = "examples/screenshots/screenshot_hero_ship.rs"
 
+# Every shipped catalog ship, one framed still each, for hull review.
+[[example]]
+name = "screenshot_base_fleet"
+path = "examples/screenshots/screenshot_base_fleet.rs"
+
 # The directional-HUD shells around the fleet's biggest hull.
 [[example]]
 name = "screenshot_hud_shell"

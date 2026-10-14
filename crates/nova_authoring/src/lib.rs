@@ -28,8 +28,9 @@ pub mod balance;
 /// silhouette or a mount that moves in `base_content` moves in the bench too.
 pub mod built_in_ships {
     pub use crate::base_content::ships::{
-        design, BLOCK_CUTTER_SHIP_ID, BLOCK_GUNSHIP_SHIP_ID, BLOCK_HAULER_SHIP_ID,
-        BLOCK_PICKET_SHIP_ID,
+        design, DEBRIS_PLATE_SHIP_ID, FREIGHTER_DERELICT_SHIP_ID, INTERCEPTOR_SHIP_ID,
+        LIGHT_FREIGHTER_SHIP_ID, LINE_WARSHIP_SHIP_ID, MINING_TUG_EMITTER_ID, MINING_TUG_SHIP_ID,
+        PATROL_PICKET_SHIP_ID, RAIDER_SHIP_ID, SALVAGE_HAULER_SHIP_ID,
     };
 }
 /// Generic constructors for Rust-authored scenario configuration.

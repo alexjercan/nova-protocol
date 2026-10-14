@@ -150,7 +150,7 @@ pub fn ambush_hollow(
     sections: &GameSections,
     ships: &GameShipDesigns,
 ) -> ScenarioConfig {
-    let player_hull = kit::catalog_ship(ships, "block_gunship");
+    let player_hull = kit::catalog_ship(ships, "interceptor");
     let player = ship(
         PLAYER_ID,
         "Player Ship",
@@ -209,7 +209,7 @@ pub fn ambush_hollow(
             Meters3::new(-860.0, -60.0, -700.0),
         ]),
         Some(Allegiance::Player),
-        kit::catalog_ship(ships, "block_gunship"),
+        kit::catalog_ship(ships, "interceptor"),
         ShipInventoryStock::new([]),
     );
     let wingman_b = ship(
@@ -223,7 +223,7 @@ pub fn ambush_hollow(
             Meters3::new(400.0, -200.0, -1_100.0),
         ]),
         Some(Allegiance::Player),
-        kit::catalog_ship(ships, "block_gunship"),
+        kit::catalog_ship(ships, "interceptor"),
         ShipInventoryStock::new([]),
     );
     let hostile_a = ship(
@@ -319,7 +319,7 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -> Sce
             input_mapping: BTreeMap::new(),
         }),
         None,
-        kit::catalog_ship(ships, "block_gunship"),
+        kit::catalog_ship(ships, "interceptor"),
         ShipInventoryStock::new([]),
     );
     let raider = ship(
@@ -456,7 +456,7 @@ pub fn torpedo_types_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -
             input_mapping: BTreeMap::new(),
         }),
         None,
-        kit::catalog_ship(ships, "block_gunship"),
+        kit::catalog_ship(ships, "interceptor"),
         ShipInventoryStock::new([]),
     );
     // A shell, because a camera riding two rounds that hold station in frame
@@ -549,7 +549,7 @@ pub fn solo_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -> Scenari
             input_mapping: BTreeMap::new(),
         }),
         None,
-        kit::catalog_ship(ships, "block_gunship"),
+        kit::catalog_ship(ships, "interceptor"),
         ShipInventoryStock::new([]),
     );
     let shell = kit::NearField {
@@ -598,7 +598,7 @@ pub fn duel_hollow(
     sections: &GameSections,
     ships: &GameShipDesigns,
 ) -> ScenarioConfig {
-    let player_hull = kit::catalog_ship(ships, "block_gunship");
+    let player_hull = kit::catalog_ship(ships, "interceptor");
     let player = ship(
         PLAYER_ID,
         "Player Ship",
@@ -690,7 +690,7 @@ pub fn hunter_hollow(
 ) -> ScenarioConfig {
     let player_hull = armoured(
         sections,
-        kit::catalog_ship(ships, "block_gunship"),
+        kit::catalog_ship(ships, "interceptor"),
         HUNTER_ARMOUR,
     );
     let player = ship(
@@ -922,7 +922,7 @@ pub fn flight_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -> Scena
             input_mapping: BTreeMap::new(),
         }),
         None,
-        kit::catalog_ship(ships, "block_gunship"),
+        kit::catalog_ship(ships, "interceptor"),
         ShipInventoryStock::new([]),
     );
 

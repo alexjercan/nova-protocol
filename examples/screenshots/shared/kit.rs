@@ -36,7 +36,7 @@ use nova_protocol::prelude::*;
 
 /// The shipped assembly, read straight from the ship catalog.
 ///
-/// `hull` is the catalog ship id (`block_gunship`, `block_picket`, ...).
+/// `hull` is the catalog ship id (`interceptor`, `patrol_picket`, ...).
 ///
 /// Read from the catalog rather than copied, because a copy drifts: a turret
 /// mount hand-typed a tenth of a unit off its authored seat is a hundred times

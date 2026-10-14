@@ -16,102 +16,77 @@ use nova_scenario::prelude::{
 use nova_ship::prelude::{
     AmmoCapacity, SectionConfigPatch, SectionKindPatch, TurretSectionConfigPatch,
 };
-use nova_world_base::prelude::BLOCK_LINE_WARSHIP_SHIP_ID;
 
 use super::assets::BaseContentAssets;
 
 mod block;
 
-pub use block::{BLOCK_BRIDGE_SECTION_ID, BLOCK_GUNSHIP_TURRET_IDS, BLOCK_PORT_COLLAR_SECTION_ID};
-pub(crate) use block::{
-    BLOCK_CLEANUP_TURRET_ID, BLOCK_LINE_WARSHIP_MINING_ID, BLOCK_LINE_WARSHIP_PDC_IDS,
-    BLOCK_LINE_WARSHIP_RAILGUN_ID, BLOCK_LINE_WARSHIP_TORPEDO_IDS,
+#[cfg(test)]
+pub(crate) use block::MAIN_DRIVE_SECTION_ID;
+pub(crate) use block::PICKET_GUN_SECTION_ID;
+pub use block::{
+    BLOCK_BRIDGE_SECTION_ID, BLOCK_PORT_COLLAR_SECTION_ID, LINE_WARSHIP_PDC_IDS,
+    MINING_TUG_EMITTER_ID,
 };
 
-/// The id the block-built utility cutter is spawned by: the small unarmed
-/// workboat.
-pub const BLOCK_CUTTER_SHIP_ID: &str = "block_cutter";
-/// The id the block-built bulk hauler is spawned by: unarmed freight on one
-/// vectoring drive.
-pub const BLOCK_HAULER_SHIP_ID: &str = "block_hauler";
-/// The id the block-built civilian workship is spawned by: an open work
-/// cradle, a port-flank docking collar, and no gun. Season one's player
-/// hull.
-pub const BLOCK_WORKSHIP_SHIP_ID: &str = "block_workship";
-/// The id the block-built frame tender is spawned by: a cargo body under two
-/// open gantry arches, carrying the same collar the workship docks on.
-pub const BLOCK_FRAME_TENDER_SHIP_ID: &str = "block_frame_tender";
-/// The id the damaged frame tender is spawned by: the frame tender with its
-/// stern and its main drive gone.
-pub const BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID: &str = "block_frame_tender_damaged";
-/// The id loose debris plating is spawned by: no computer, drive or gun.
-pub const BLOCK_WRECK_PLATE_SHIP_ID: &str = "block_wreck_plate";
-
-/// The id the block-built patrol gunship is spawned by: armoured, with six
-/// point-defense mounts.
-pub const BLOCK_GUNSHIP_SHIP_ID: &str = "block_gunship";
-/// The id the block-built picket is spawned by: one nose gun on thin
-/// plating.
-pub const BLOCK_PICKET_SHIP_ID: &str = "block_picket";
+/// The industrial start hull: a work boat with a mining emitter on a bow
+/// boom, a cargo intake and a flank collar. Unarmed.
+pub const MINING_TUG_SHIP_ID: &str = "mining_tug";
+/// The scavenger start hull: the biggest start hold, a cargo intake, one
+/// point-defense mount and a flank collar.
+pub const SALVAGE_HAULER_SHIP_ID: &str = "salvage_hauler";
+/// The transport start hull: freight cubes and a tank pod on one vectoring
+/// drive, a flank collar, unarmed.
+pub const LIGHT_FREIGHTER_SHIP_ID: &str = "light_freighter";
+/// The bounty hunter start hull: two point-defense mounts and a bow torpedo
+/// bay.
+pub const INTERCEPTOR_SHIP_ID: &str = "interceptor";
+/// The pirate start hull: a nose railgun and two point-defense mounts.
+pub const RAIDER_SHIP_ID: &str = "raider";
+/// The military start hull, the weakest: one nose point-defense mount on
+/// light plate.
+pub const PATROL_PICKET_SHIP_ID: &str = "patrol_picket";
+/// The Line Warship class, the military goal: six point-defense mounts, a
+/// railgun, two torpedo bays and two collars.
+pub const LINE_WARSHIP_SHIP_ID: &str = "line_warship";
+/// The light freighter with its stern and drive gone: a derelict to dock
+/// with.
+pub const FREIGHTER_DERELICT_SHIP_ID: &str = "freighter_derelict";
+/// Loose debris plating: no computer, drive or gun.
+pub const DEBRIS_PLATE_SHIP_ID: &str = "debris_plate";
 
 /// Every shipped ship, in stable generated-content order.
 pub(crate) fn ship_catalog(assets: &BaseContentAssets) -> Vec<ShipDesignPrototype> {
-    vec![
-        block_ship(
-            assets,
-            BLOCK_CUTTER_SHIP_ID,
-            "Utility Cutter",
-            block::utility_cutter(),
+    [
+        (MINING_TUG_SHIP_ID, "Mining Tug", block::mining_tug()),
+        (
+            SALVAGE_HAULER_SHIP_ID,
+            "Salvage Hauler",
+            block::salvage_hauler(),
         ),
-        block_ship(
-            assets,
-            BLOCK_HAULER_SHIP_ID,
-            "Bulk Hauler",
-            block::bulk_hauler(),
+        (
+            LIGHT_FREIGHTER_SHIP_ID,
+            "Light Freighter",
+            block::light_freighter(),
         ),
-        block_ship(
-            assets,
-            BLOCK_WORKSHIP_SHIP_ID,
-            "Utility Workship",
-            block::utility_workship(),
+        (INTERCEPTOR_SHIP_ID, "Interceptor", block::interceptor()),
+        (RAIDER_SHIP_ID, "Raider", block::raider()),
+        (
+            PATROL_PICKET_SHIP_ID,
+            "Patrol Picket",
+            block::patrol_picket(),
         ),
-        block_ship(
-            assets,
-            BLOCK_FRAME_TENDER_SHIP_ID,
-            "Frame Tender",
-            block::frame_tender(),
+        (LINE_WARSHIP_SHIP_ID, "Line Warship", block::line_warship()),
+        (
+            FREIGHTER_DERELICT_SHIP_ID,
+            "Light Freighter: Derelict",
+            block::freighter_derelict(),
         ),
-        block_ship(
-            assets,
-            BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID,
-            "Frame Tender: Damaged",
-            block::damaged_frame_tender(),
-        ),
-        block_ship(
-            assets,
-            BLOCK_GUNSHIP_SHIP_ID,
-            "Patrol Gunship",
-            block::patrol_gunship(),
-        ),
-        block_ship(
-            assets,
-            BLOCK_LINE_WARSHIP_SHIP_ID,
-            "Line Warship",
-            block::line_warship(),
-        ),
-        block_ship(
-            assets,
-            BLOCK_PICKET_SHIP_ID,
-            "Salvage Picket",
-            block::salvage_picket(),
-        ),
-        block_ship(
-            assets,
-            BLOCK_WRECK_PLATE_SHIP_ID,
-            "Carrier Wreck: Plating",
-            block::carrier_wreck_plate(),
-        ),
+        (DEBRIS_PLATE_SHIP_ID, "Debris Plate", block::debris_plate()),
     ]
+    .into_iter()
+    .map(|(id, name, design)| block_ship(assets, id, name, design))
+    .collect()
 }
 
 /// A spawn of one CATALOG design, by id, with nothing patched.
@@ -136,7 +111,7 @@ pub(crate) fn inline_raider(
     assets: &BaseContentAssets,
     collapse_threshold: f32,
 ) -> ShipDesignSource {
-    let design = block::salvage_raider();
+    let design = block::raider();
     let style = design.style.to_string();
     ShipDesignSource::Inline(ShipDesign {
         sections: design.sections(),
@@ -162,10 +137,10 @@ pub(crate) fn inline_design(sections: Vec<SpaceshipSectionConfig>) -> ShipDesign
     })
 }
 
-/// Every section id the picket's catalog entry carries, plates included, for
+/// Every section id the patrol picket's catalog entry carries, plates included, for
 /// content that modifies the whole hull at spawn rather than one named part.
 pub(crate) fn picket_section_ids() -> Vec<String> {
-    block::salvage_picket()
+    block::patrol_picket()
         .sections()
         .into_iter()
         .map(|section| section.id)
@@ -312,9 +287,49 @@ fn block_ship(
 #[cfg(test)]
 mod tests {
     use nova_scenario::prelude::SectionSource;
-    use nova_ship::prelude::{derive_link_point_graph, PlacedSectionLinkPoints, SectionLinkPoints};
+    use nova_ship::prelude::{
+        derive_link_point_graph, ship_build_fault, PlacedSectionLinkPoints, RefitPlacedSection,
+        SectionKind, SectionLinkPoints,
+    };
 
-    use super::BaseContentAssets;
+    use super::*;
+
+    /// Every shipped ship but the two that are wreckage on purpose passes the
+    /// generator's post-build checks as authored, and carries a docking port:
+    /// every station service needs a dock.
+    #[test]
+    fn every_crewed_ship_passes_the_post_build_checks_and_docks() {
+        let catalog =
+            crate::base_content::sections::section_catalog(&BaseContentAssets::from_paths());
+        for ship in ship_catalog(&BaseContentAssets::from_paths())
+            .into_iter()
+            .filter(|ship| {
+                ![FREIGHTER_DERELICT_SHIP_ID, DEBRIS_PLATE_SHIP_ID].contains(&ship.id.as_str())
+            })
+        {
+            let placed: Vec<RefitPlacedSection<'_>> = ship
+                .design
+                .sections
+                .iter()
+                .map(|section| RefitPlacedSection {
+                    position: section.position,
+                    rotation: section.rotation,
+                    config: catalog
+                        .iter()
+                        .find(|config| config.base.id == section.source.prototype_id())
+                        .unwrap_or_else(|| panic!("'{}' names a missing part", ship.id)),
+                })
+                .collect();
+            assert_eq!(ship_build_fault(&placed), None, "'{}'", ship.id);
+            assert!(
+                placed
+                    .iter()
+                    .any(|section| matches!(section.config.kind, SectionKind::Docking(_))),
+                "'{}' has no docking port",
+                ship.id
+            );
+        }
+    }
 
     /// Every shipped ship, ASSEMBLED, derives one connected structural graph.
     ///
@@ -332,7 +347,7 @@ mod tests {
     #[test]
     fn every_shipped_ship_has_one_connected_mate_graph() {
         let catalog = crate::generation::build_section_catalog();
-        for ship in super::ship_catalog(&BaseContentAssets::from_paths()) {
+        for ship in ship_catalog(&BaseContentAssets::from_paths()) {
             let sockets: Vec<_> = ship
                 .design
                 .sections

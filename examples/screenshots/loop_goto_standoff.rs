@@ -1,9 +1,9 @@
 //! loop_goto_standoff: two catalog hulls sent to one mark, watched from above.
 //!
-//! The stolen warship and the patrol gunship start the same distance from a
+//! The stolen warship and the interceptor start the same distance from a
 //! nav beacon and fly the production GOTO to it. Both park the same margin
 //! clear of the orb's FACE, measured from their own skin, so the warship's
-//! park point sits further out than the gunship's by the difference of the
+//! park point sits further out than the interceptor's by the difference of the
 //! two hulls. That difference is the whole picture: nothing here is staged but
 //! the margin, which is authored small so the hulls and the gap read at one
 //! scale.
@@ -31,7 +31,7 @@ const BEACON_POSITION: Meters3 = Meters3::ZERO;
 const BEACON_RADIUS: Meters = Meters(40.0);
 
 const WARSHIP_ID: &str = "standoff_warship";
-const GUNSHIP_ID: &str = "standoff_gunship";
+const INTERCEPTOR_ID: &str = "standoff_interceptor";
 
 /// How far from the mark's centre each hull starts, along its own bearing.
 ///
@@ -40,9 +40,9 @@ const GUNSHIP_ID: &str = "standoff_gunship";
 const START_DISTANCE: Meters = Meters(600.0);
 /// The two bearings, in world XZ, as unit directions from the mark: 32
 /// degrees apart, so the tracks run side by side without the warship's beam
-/// shadowing the gunship from above.
+/// shadowing the interceptor from above.
 const WARSHIP_BEARING: Vec3 = Vec3::new(-0.2756, 0.0, 0.9613);
-const GUNSHIP_BEARING: Vec3 = Vec3::new(0.2756, 0.0, 0.9613);
+const INTERCEPTOR_BEARING: Vec3 = Vec3::new(0.2756, 0.0, 0.9613);
 
 /// The margin each hull leaves between its own skin and the orb's face, the
 /// same number on both. Authored well under the 500 m default so the gap
@@ -102,10 +102,10 @@ fn standoff(game_assets: &GameAssets) -> ScenarioConfig {
             dev_fixtures::design(dev_fixtures::warship()),
         ),
         ship_object(
-            GUNSHIP_ID,
-            "Patrol Gunship",
-            GUNSHIP_BEARING,
-            design(BLOCK_GUNSHIP_SHIP_ID),
+            INTERCEPTOR_ID,
+            "Interceptor",
+            INTERCEPTOR_BEARING,
+            design(INTERCEPTOR_SHIP_ID),
         ),
     ];
 
@@ -251,7 +251,7 @@ fn send_both_to_the_mark(world: &mut World) {
     let Some(mark) = entity_by_id(world, BEACON_ID) else {
         panic!("loop_goto_standoff: no beacon '{BEACON_ID}' to send the hulls to");
     };
-    for id in [WARSHIP_ID, GUNSHIP_ID] {
+    for id in [WARSHIP_ID, INTERCEPTOR_ID] {
         let Some(ship) = entity_by_id(world, id) else {
             panic!("loop_goto_standoff: no ship '{id}' in the set");
         };
@@ -275,7 +275,7 @@ fn both_parked() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate
             .iter_entities()
             .filter_map(|entity| Some((entity.get::<EntityId>()?, entity.get::<Autopilot>())))
         {
-            if (id.0 == WARSHIP_ID || id.0 == GUNSHIP_ID) && autopilot.is_some() {
+            if (id.0 == WARSHIP_ID || id.0 == INTERCEPTOR_ID) && autopilot.is_some() {
                 engaged += 1;
             }
         }
@@ -329,7 +329,7 @@ fn trace_the_legs(
     }
     *next = t + 0.2;
     for (ship, id, position, rotation, velocity, angular, com, autopilot, telemetry) in &q_ship {
-        if id.0 != WARSHIP_ID && id.0 != GUNSHIP_ID {
+        if id.0 != WARSHIP_ID && id.0 != INTERCEPTOR_ID {
             continue;
         }
         let Some(autopilot) = autopilot else {
@@ -420,7 +420,7 @@ fn trace_the_legs(
 /// centre distance, hull radius, and the gap left between skin and orb face.
 #[cfg(feature = "debug")]
 fn report_the_park_points(world: &mut World) {
-    for id in [WARSHIP_ID, GUNSHIP_ID] {
+    for id in [WARSHIP_ID, INTERCEPTOR_ID] {
         let Some(ship) = entity_by_id(world, id) else {
             continue;
         };

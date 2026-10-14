@@ -1,6 +1,6 @@
-//! screenshot_mining_beam: the line warship's bow emitter cutting a locked rock.
+//! screenshot_mining_beam: the mining tug's bow emitter cutting a locked rock.
 //!
-//! The shipped `block_line_warship` parks at the origin with one ore rock dead
+//! The shipped `mining_tug` parks at the origin with one ore rock dead
 //! ahead of its `mining_beam` section. The script travel-locks the rock and
 //! holds the real `mine` action (`V`), so the doors, the tip, the pulses, the
 //! carve and the canisters are all the production path.
@@ -31,10 +31,10 @@
 //! The run fails loudly if the emitter's nodes first render in any pose but
 //! the stowed one, if the tip moves while the doors are not fully open, if a
 //! pulse is refused, if too few pulses pay ore, if the rock has pushed the
-//! warship off its mark, if a beam hit is left after the release, if the rock's
+//! tug off its mark, if a beam hit is left after the release, if the rock's
 //! lost solid corners, the pulse log and the ore in canisters and the hold
 //! disagree, or if the pulse sound did not play once per pulse through the
-//! warship's hull.
+//! tug's hull.
 //!
 //! Capture (windowed, real GPU). An armed run pins the clock to the loop's
 //! 30 fps, one frame a 1/30 s step - the same step [`TRACK_FRAME_STEP`] caps
@@ -64,25 +64,25 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "screenshot_mining_beam")]
 #[command(version = "1.0.0")]
-#[command(about = "Capture the line warship's mining beam deploying, cutting a locked rock and retracting", long_about = None)]
+#[command(about = "Capture the mining tug's mining beam deploying, cutting a locked rock and retracting", long_about = None)]
 struct Cli;
 
 const PLAYER_ID: &str = "player";
 const ROCK_ID: &str = "ore_rock";
 
-/// The line warship's emitter face centre, in engine units from its root:
-/// the -Z face of its cell at (1, 1, -7).
-const EMITTER_FACE: Vec3 = Vec3::new(1.0, 1.0, -7.5);
+/// The mining tug's emitter face centre, in engine units from its root:
+/// the -Z face of its cell at (0, 0, -6).
+const EMITTER_FACE: Vec3 = Vec3::new(0.0, 0.0, -6.5);
 
 /// Dead ahead of the emitter. The authored radius is nominal: this seed's
 /// meshed surface stands about 10 engine units out from its centre, so its
 /// near face is about 58 m ahead of the emitter, clear of the bow.
-const ROCK_CENTRE: Vec3 = Vec3::new(1.0, 1.0, -23.5);
-const ROCK_NEAR_FACE: Vec3 = Vec3::new(1.0, 1.0, -13.3);
+const ROCK_CENTRE: Vec3 = Vec3::new(0.0, 0.0, -22.5);
+const ROCK_NEAR_FACE: Vec3 = Vec3::new(0.0, 0.0, -12.3);
 const ROCK_RADIUS: Meters = Meters(25.0);
 const ROCK_SEED: u32 = 7;
 
-/// How far the parked warship may drift before the framings stop meaning
+/// How far the parked tug may drift before the framings stop meaning
 /// what they say, in engine units.
 #[cfg(feature = "debug")]
 const PARKED_DRIFT: f32 = 0.2;
@@ -221,7 +221,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
                 )]),
             }),
             allegiance: None,
-            design: ShipDesignSource::Inline(kit::catalog_ship(&ships, "block_line_warship")),
+            design: ShipDesignSource::Inline(kit::catalog_ship(&ships, "mining_tug")),
             inventory: ShipInventoryStock::new([]),
             ..default()
         }),
@@ -245,7 +245,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
     });
     let subject = Meters3::from_engine((EMITTER_FACE + ROCK_NEAR_FACE) * 0.5);
     commands.trigger(LoadScenario(ScenarioConfig {
-        description: "The line warship's mining beam on one locked rock.".to_string(),
+        description: "The mining tug's mining beam on one locked rock.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
             name: EventConfig::OnStart,
@@ -483,23 +483,23 @@ fn frame_hit(world: &mut World) {
 fn frame_cycle(world: &mut World) {
     pose_camera(
         world,
-        Meters3::from_engine(Vec3::new(7.0, 6.0, -12.0)),
-        Meters3::from_engine(Vec3::new(1.0, 1.0, -10.3)),
+        Meters3::from_engine(Vec3::new(6.0, 5.0, -11.0)),
+        Meters3::from_engine(Vec3::new(0.0, 0.0, -9.3)),
     );
 }
 
-/// Refuse a shot of a warship the rock has pushed off its mark.
+/// Refuse a shot of a tug the rock has pushed off its mark.
 #[cfg(feature = "debug")]
 fn assert_parked(world: &mut World) {
-    let player = kit::ship_root(world, PLAYER_ID).expect("the warship spawned");
+    let player = kit::ship_root(world, PLAYER_ID).expect("the tug spawned");
     let at = world.get::<GlobalTransform>(player).unwrap().translation();
     assert!(
         at.length() < PARKED_DRIFT,
-        "the warship drifted to {at:?}; the rock touched it"
+        "the tug drifted to {at:?}; the rock touched it"
     );
 }
 
-/// Press or release whatever the warship's mining section is bound to, read
+/// Press or release whatever the tug's mining section is bound to, read
 /// live rather than hard-coded, so a rebind of the section still drives the
 /// real key.
 #[cfg(feature = "debug")]
@@ -509,7 +509,7 @@ fn drive_mine_key(world: &mut World, phase: InputPhase) {
         .iter(world)
         .next()
         .and_then(|binding| binding.0.first().copied())
-        .expect("the warship's mining section is bound to a key");
+        .expect("the tug's mining section is bound to a key");
     dispatch::press_source(world, source, phase);
 }
 
@@ -541,7 +541,7 @@ fn set_paused(world: &mut World, paused: bool) {
 #[cfg(feature = "debug")]
 fn mining_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
-        .step("load the rock and the warship")
+        .step("load the rock and the tug")
         .enter(GameStates::Loading)
         .until(and(player_ship_present(), scenario_camera_present()))
         .deadline(STEP_DEADLINE_SECS)
@@ -555,7 +555,7 @@ fn mining_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         .step("lock the rock")
         .on_enter(|world| {
-            let player = kit::ship_root(world, PLAYER_ID).expect("the warship spawned");
+            let player = kit::ship_root(world, PLAYER_ID).expect("the tug spawned");
             let rock = {
                 let mut rocks = world.query_filtered::<(Entity, &EntityId), With<AsteroidMarker>>();
                 rocks
@@ -778,10 +778,10 @@ fn mining_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                         .sum()
                 })
                 .collect();
-            let player = kit::ship_root(world, PLAYER_ID).expect("the warship spawned");
+            let player = kit::ship_root(world, PLAYER_ID).expect("the tug spawned");
             let hold = world
                 .get::<ShipInventory>(player)
-                .expect("the warship has a hold")
+                .expect("the tug has a hold")
                 .count(&ItemRoleType::StoneOre.into());
             let in_canisters: u32 = canisters.iter().sum();
             info!(

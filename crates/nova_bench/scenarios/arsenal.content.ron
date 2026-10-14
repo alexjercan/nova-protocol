@@ -179,7 +179,7 @@
                         ),
                         kind: Spaceship((
                             initial_velocity: (0.0, 0.0, 0.0),
-                            design: Prototype(id: "block_hauler"),
+                            design: Prototype(id: "light_freighter"),
                             controller: r#None,
                             allegiance: Some(Enemy),
                             inventory: {},
@@ -196,7 +196,7 @@
                         ),
                         kind: Spaceship((
                             initial_velocity: (0.0, 0.0, 0.0),
-                            design: Prototype(id: "block_hauler"),
+                            design: Prototype(id: "light_freighter"),
                             controller: r#None,
                             allegiance: Some(Enemy),
                             inventory: {},
@@ -213,7 +213,7 @@
                         ),
                         kind: Spaceship((
                             initial_velocity: (0.0, 0.0, 0.0),
-                            design: Prototype(id: "block_picket"),
+                            design: Prototype(id: "patrol_picket"),
                             controller: AI((
                                 engage_delay: Some(60.0),
                                 leash: Some(9000.0),

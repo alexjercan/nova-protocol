@@ -48,7 +48,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
     commands.trigger(LoadScenario(ring::the_ring_with_hull(
         &game_assets,
         &ships,
-        "block_gunship",
+        "interceptor",
     )));
 }
 
@@ -76,8 +76,8 @@ const CUT_INTERVAL: f32 = 0.65;
 /// Two numbers decide how the ship SITS in that frame. The STAND-OFF (the
 /// length of the first three) sets how much of the width the hull fills: the
 /// lens is 45 degrees vertical, so at 16:9 it spans 1.47 times its distance,
-/// and an 85 m gunship is about two fifths of the frame width at 150 m and a
-/// fifth of it at 300. The LOOK-AHEAD decides where in the frame it sits, because the
+/// and a 65 m interceptor is under a third of the frame width at 150 m and a
+/// seventh of it at 300. The LOOK-AHEAD decides where in the frame it sits, because the
 /// camera aims at a point down the track rather than at the ship: half the
 /// horizontal field is 36 degrees, so a lead of 200 m at a 300 m stand-off
 /// pushes the subject 34 degrees off axis, onto the frame edge.

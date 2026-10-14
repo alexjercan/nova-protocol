@@ -46,10 +46,10 @@ const LESSON: &str = "flight_aim";
 
 /// Where the camera stands off the parked player, which sits at the origin.
 ///
-/// Set by the SUBJECT'S SIZE, not by taste: clad, `block_gunship` is
-/// 85 x 50 x 48 m - a 54.7 m bounding radius - so an eye at 70 m is a close-up
-/// of hull plating with the nose and the drive both out of frame. This sits at
-/// about 2.7 times the radius, which holds the whole corvette in a cell.
+/// Set by the SUBJECT'S SIZE, not by taste: the `interceptor` is about
+/// 50 x 30 x 65 m - a 44 m bounding radius - so an eye at 70 m is a close-up of
+/// hull plating with the nose and the drives both out of frame. This sits at
+/// about 3.4 times the radius, which holds the whole hull in a cell.
 #[cfg(feature = "debug")]
 const SWEEP_RANGE: Meters = Meters(150.0);
 /// How far above the hull the camera rides: a slight downward look, so the

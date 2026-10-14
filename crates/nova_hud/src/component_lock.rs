@@ -42,9 +42,10 @@ const MARKER_EXTENT_SCALE: f32 = 0.2;
 /// is allowed to fill more of its section - it is the one the player picked.
 const MARKER_SELECTED_EXTENT_SCALE: f32 = 0.32;
 
-/// How many section markers the overlay paints at once. Every hand-flyable
-/// hull fits under it whole (the gunship, the largest, has 53 sections); the
-/// capital hulls do not, and a marker per plate buries the fine-lock
+/// How many section markers the overlay paints at once. Most start hulls fit
+/// under it whole; the salvage hauler (69 sections) and the line warship (153)
+/// keep every system marker and lose some strided hull markers. The capital
+/// hulls are far over it, and a marker per plate buries the fine-lock
 /// highlight under 2081 dots.
 const MARKER_BUDGET: usize = 64;
 

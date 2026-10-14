@@ -108,7 +108,7 @@ fn nav_approach(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioCo
             input_mapping: BTreeMap::new(),
         }),
         None,
-        kit::catalog_ship(ships, "block_gunship"),
+        kit::catalog_ship(ships, "interceptor"),
     );
 
     // The corridor: big rocks downrange, so the shot has something with
@@ -264,11 +264,11 @@ fn radar_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         // The radar instrument as its own subject: the same latched nav sweep
         // from a tighter, lower camera.
         //
-        // The lens distance is set by the SUBJECT'S SIZE, not by taste. Clad,
-        // `block_gunship` is 85 x 50 x 48 m - a 54.7 m bounding radius - and
+        // The lens distance is set by the SUBJECT'S SIZE, not by taste. The
+        // `interceptor` is about 50 x 30 x 65 m - a 44 m bounding radius - and
         // an eye inside that is a close-up of hull plating with the ship's own
-        // drive and cockpit out of frame. This sits ~141 m out, about two and
-        // a half times the radius, which holds the whole corvette with the
+        // drives and cockpit out of frame. This sits ~141 m out, about three
+        // times the radius, which holds the whole hull with the
         // beacon's lock bracket beside it. Re-measure it if the hull is
         // re-clad: the framing that came before this one was measured against
         // the bare cell list and did not survive the skin.

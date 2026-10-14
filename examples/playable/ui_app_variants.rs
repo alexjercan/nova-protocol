@@ -219,7 +219,7 @@ struct FixtureShip {
 static OWN_SHIP: FixtureShip = FixtureShip {
     id: "player",
     name: "Picket",
-    design: "block_picket",
+    design: "patrol_picket",
 };
 
 /// The ship the Boarded context names. A fixture: it is only parked in
@@ -227,7 +227,7 @@ static OWN_SHIP: FixtureShip = FixtureShip {
 static BOARDED: FixtureShip = FixtureShip {
     id: "raider",
     name: "Raider",
-    design: "block_gunship",
+    design: "raider",
 };
 
 /// The station the Station context names. A mock: the scenario has no
@@ -755,7 +755,7 @@ fn load_scenario(mut commands: Commands, game_assets: Res<GameAssets>) {
             ship(
                 "hauler",
                 "Hauler",
-                "block_hauler",
+                "light_freighter",
                 Meters3::new(-1300.0, -40.0, -600.0),
                 SpaceshipController::None,
                 Allegiance::Player,
@@ -7838,7 +7838,7 @@ fn assert_dock(world: &mut World, context: SketchContext, when: &str) {
     let (head, partner) = match context {
         SketchContext::Undocked => ("UNDOCKED", "No station or boarded ship"),
         SketchContext::Station => ("STATION", "Mock station  (fixture)"),
-        SketchContext::Boarded => ("BOARDED", "Raider  block_gunship  (mock)"),
+        SketchContext::Boarded => ("BOARDED", "Raider  raider  (mock)"),
     };
     assert_eq!(
         (

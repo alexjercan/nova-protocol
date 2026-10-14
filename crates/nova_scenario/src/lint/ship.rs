@@ -1105,7 +1105,7 @@ mod tests {
         let issues = lint_scenario(
             &s,
             &sections(&["hull"]),
-            &ships(&["block_gunship"]),
+            &ships(&["interceptor"]),
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
@@ -1114,11 +1114,11 @@ mod tests {
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(errs[0].message.contains("no_such_ship"));
 
-        let s = scenario(vec![by_id("block_gunship")], vec![]);
+        let s = scenario(vec![by_id("interceptor")], vec![]);
         let issues = lint_scenario(
             &s,
             &sections(&["hull"]),
-            &ships(&["block_gunship"]),
+            &ships(&["interceptor"]),
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
@@ -1140,7 +1140,7 @@ mod tests {
                 },
                 kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
                     design: ShipDesignSource::Prototype {
-                        id: "block_gunship".into(),
+                        id: "interceptor".into(),
                         section_patches: [(
                             section.to_string(),
                             SpaceshipSectionConfigPatch {
@@ -1163,7 +1163,7 @@ mod tests {
         let issues = lint_scenario(
             &s,
             &sections(&["hull"]),
-            &ships(&["block_gunship"]),
+            &ships(&["interceptor"]),
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
@@ -1177,7 +1177,7 @@ mod tests {
         assert!(lint_scenario(
             &s,
             &sections(&["hull"]),
-            &ships(&["block_gunship"]),
+            &ships(&["interceptor"]),
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
@@ -1196,7 +1196,7 @@ mod tests {
     #[test]
     fn a_section_mounted_on_a_degenerate_rotation_is_an_error() {
         let ship = |rotation: Quat| ShipDesignPrototype {
-            id: "block_gunship".into(),
+            id: "interceptor".into(),
             name: "Gunship".to_string(),
             design: ShipDesign {
                 sections: vec![SpaceshipSectionConfig {
@@ -1281,7 +1281,7 @@ mod tests {
     #[test]
     fn a_catalog_ship_is_linted_where_it_is_authored() {
         let ship = |proto: &str| ShipDesignPrototype {
-            id: "block_gunship".into(),
+            id: "interceptor".into(),
             name: "Gunship".to_string(),
             design: ShipDesign {
                 sections: vec![SpaceshipSectionConfig {

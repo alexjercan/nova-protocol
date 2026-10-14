@@ -76,16 +76,16 @@ use nova_protocol::prelude::*;
 )]
 struct Cli;
 
-/// The ordered hull: the armed patrol gunship, the same hull the
+/// The ordered hull: the armed patrol interceptor, the same hull the
 /// `loop_helm_orders` capture flies an order on.
 ///
 /// Armed on purpose - the claims are about a ship whose own judgement can
 /// take a helm back for a fight. An unarmed hull spawns an `AINonCombatant`
 /// and never acquires anything, so its order could never be interrupted.
-const GUNSHIP: &str = "block_gunship";
+const INTERCEPTOR: &str = "interceptor";
 
 /// The ordered ship's scenario id.
-const GUNSHIP_ID: &str = "helm_orders_gunship";
+const INTERCEPTOR_ID: &str = "helm_orders_interceptor";
 
 /// The hostile's scenario id.
 const RAIDER_ID: &str = "helm_orders_contact";
@@ -174,7 +174,7 @@ fn setup_range(
     commands.trigger(LoadScenario(orders_range(&game_assets, &ships, &sections)));
 }
 
-/// The route the scenario orders the gunship round, in the order it is flown.
+/// The route the scenario orders the interceptor round, in the order it is flown.
 ///
 /// Three marks, so the loop is four legs and "the leg it was on" is a real
 /// index rather than the only one there is. The first leg runs AWAY from the
@@ -188,7 +188,7 @@ fn sweep_route() -> Vec<Meters3> {
     ]
 }
 
-/// The range: one interruptible gunship under a scenario-authored patrol
+/// The range: one interruptible interceptor under a scenario-authored patrol
 /// order, and one parked hostile off its route.
 fn orders_range(
     game_assets: &GameAssets,
@@ -220,7 +220,7 @@ fn orders_range(
     // subject, and everything this ship flies before the interruption must come
     // from the ORDER. What is authored here is the scanner reach that stages
     // the contact and the policy that makes the order interruptible at all.
-    let gunship = SpaceshipConfig {
+    let interceptor = SpaceshipConfig {
         controller: SpaceshipController::AI(AIControllerConfig {
             sensor_range: Some(SENSOR_REACH),
             order_interruption: Some(AIOrderInterruption::OnHostileContact),
@@ -237,7 +237,7 @@ fn orders_range(
         ..default()
     };
     // ...and parked NOSE-UP, out of the plane the route is flown in. A hostile
-    // holding its nose on the gunship inside the threat aim range is a threat
+    // holding its nose on the interceptor inside the threat aim range is a threat
     // whether or not anyone is at its helm, and a threatened ship jinks -
     // which is `system_ai_evade`'s subject, not this one's.
     let nose_up = Quat::from_rotation_x(core::f32::consts::FRAC_PI_2);
@@ -248,12 +248,12 @@ fn orders_range(
     // that found nothing would only warn.
     let orders = vec![
         ship(
-            GUNSHIP_ID,
-            "Patrol Gunship",
-            kit::catalog_ship(ships, GUNSHIP),
+            INTERCEPTOR_ID,
+            "Patrol Interceptor",
+            kit::catalog_ship(ships, INTERCEPTOR),
             Meters3::ZERO,
             Quat::IDENTITY,
-            gunship,
+            interceptor,
         ),
         // The raider fixture is ARMED, and so a hull the production neutralize
         // rule can take out of the fight by its bridge alone; an unarmed hull
@@ -270,14 +270,15 @@ fn orders_range(
         ),
         EventActionConfig::PatrolShip(PatrolShipActionConfig {
             order: ORDER_KEY.to_string(),
-            ship: GUNSHIP_ID.to_string(),
+            ship: INTERCEPTOR_ID.to_string(),
             waypoints: sweep_route(),
         }),
     ];
 
     ScenarioConfig {
-        description: "An AI gunship under a scenario patrol order, and one hostile off its route."
-            .to_string(),
+        description:
+            "An AI interceptor under a scenario patrol order, and one hostile off its route."
+                .to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
             name: EventConfig::OnStart,
@@ -318,7 +319,7 @@ fn orders_script() -> Script {
         .until(order_interrupted())
         .deadline(STEP_DEADLINE_SECS)
         .add()
-        .step("let the gunship fight")
+        .step("let the interceptor fight")
         .on_enter(mark_the_interrupt)
         .until(fight_under_way())
         .deadline(STEP_DEADLINE_SECS)
@@ -349,7 +350,7 @@ fn staged(world: &World, id: &str) -> Option<Entity> {
 }
 
 /// Both hulls are up and weighed, and the scenario's order is installed on the
-/// gunship with the helm in its hands.
+/// interceptor with the helm in its hands.
 ///
 /// A root avian has not measured yet has no centre of mass and no hull radius,
 /// so every distance this range reads would be taken from the build origin
@@ -365,13 +366,13 @@ fn order_staged() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
                         .is_some()
             })
         };
-        weighed(GUNSHIP_ID)
+        weighed(INTERCEPTOR_ID)
             && weighed(RAIDER_ID)
-            && staged(world, GUNSHIP_ID).is_some_and(|gunship| {
-                world.get::<ShipHelmOrder>(gunship).is_some()
-                    && world.get::<ShipOrderHelmAuthority>(gunship).is_some()
-                    && world.get::<AIOrderInterruption>(gunship).is_some()
-                    && world.get::<AISpaceshipMarker>(gunship).is_some()
+            && staged(world, INTERCEPTOR_ID).is_some_and(|interceptor| {
+                world.get::<ShipHelmOrder>(interceptor).is_some()
+                    && world.get::<ShipOrderHelmAuthority>(interceptor).is_some()
+                    && world.get::<AIOrderInterruption>(interceptor).is_some()
+                    && world.get::<AISpaceshipMarker>(interceptor).is_some()
             })
     })
 }
@@ -398,17 +399,17 @@ fn goal_of(autopilot: Option<&Autopilot>) -> Option<Vec3> {
 /// directive names.
 #[cfg(feature = "debug")]
 fn flying_its_leg(world: &World) -> bool {
-    let Some(gunship) = staged(world, GUNSHIP_ID) else {
+    let Some(interceptor) = staged(world, INTERCEPTOR_ID) else {
         return false;
     };
-    let Some((waypoints, leg)) = world.get::<ShipHelmOrder>(gunship).and_then(patrol_of) else {
+    let Some((waypoints, leg)) = world.get::<ShipHelmOrder>(interceptor).and_then(patrol_of) else {
         return false;
     };
     if waypoints.is_empty() {
         return false;
     }
-    world.get::<ShipOrderHelmAuthority>(gunship).is_some()
-        && goal_of(world.get::<Autopilot>(gunship)) == Some(waypoints[leg % waypoints.len()])
+    world.get::<ShipOrderHelmAuthority>(interceptor).is_some()
+        && goal_of(world.get::<Autopilot>(interceptor)) == Some(waypoints[leg % waypoints.len()])
 }
 
 /// The order is really flying the hull: it holds the helm, it is on a leg past
@@ -419,8 +420,8 @@ fn order_under_way() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
         let flown = world
             .get_resource::<OrderLog>()
             .is_some_and(|log| log.order_flown >= ORDER_FLOWN_MARK);
-        let past_the_first_leg = staged(world, GUNSHIP_ID)
-            .and_then(|gunship| world.get::<ShipHelmOrder>(gunship))
+        let past_the_first_leg = staged(world, INTERCEPTOR_ID)
+            .and_then(|interceptor| world.get::<ShipHelmOrder>(interceptor))
             .and_then(patrol_of)
             .is_some_and(|(_, leg)| leg >= 1);
         flown && past_the_first_leg && flying_its_leg(world)
@@ -432,20 +433,20 @@ fn order_under_way() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
 #[cfg(feature = "debug")]
 fn order_interrupted() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
     Arc::new(|world: &World| {
-        let Some(gunship) = staged(world, GUNSHIP_ID) else {
+        let Some(interceptor) = staged(world, INTERCEPTOR_ID) else {
             return false;
         };
-        world.get::<AIOrderInterrupted>(gunship).is_some()
-            && world.get::<ShipOrderHelmAuthority>(gunship).is_none()
-            && world.get::<AIBehaviorState>(gunship) == Some(&AIBehaviorState::Engage)
+        world.get::<AIOrderInterrupted>(interceptor).is_some()
+            && world.get::<ShipOrderHelmAuthority>(interceptor).is_none()
+            && world.get::<AIBehaviorState>(interceptor) == Some(&AIBehaviorState::Engage)
             && matches!(
                 world
-                    .get::<Autopilot>(gunship)
+                    .get::<Autopilot>(interceptor)
                     .map(|autopilot| autopilot.action),
                 Some(AutopilotAction::MatchVelocity { .. })
             )
             && world
-                .get::<AITarget>(gunship)
+                .get::<AITarget>(interceptor)
                 .is_some_and(|target| **target == staged(world, RAIDER_ID))
     })
 }
@@ -465,12 +466,12 @@ fn fight_under_way() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
 #[cfg(feature = "debug")]
 fn order_resumed() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
     Arc::new(|world: &World| {
-        let Some(gunship) = staged(world, GUNSHIP_ID) else {
+        let Some(interceptor) = staged(world, INTERCEPTOR_ID) else {
             return false;
         };
-        world.get::<AIOrderInterrupted>(gunship).is_none()
+        world.get::<AIOrderInterrupted>(interceptor).is_none()
             && world
-                .get::<AITarget>(gunship)
+                .get::<AITarget>(interceptor)
                 .is_some_and(|target| target.is_none())
             && flying_its_leg(world)
     })
@@ -493,9 +494,10 @@ fn resumed_leg_flown() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
 /// Open the census on the staged order.
 #[cfg(feature = "debug")]
 fn open_the_log(world: &mut World) {
-    let gunship = staged(world, GUNSHIP_ID).expect("helm orders: the gunship must be staged");
+    let interceptor =
+        staged(world, INTERCEPTOR_ID).expect("helm orders: the interceptor must be staged");
     let contact = staged(world, RAIDER_ID).expect("helm orders: the contact must be staged");
-    world.insert_resource(OrderLog::new(gunship, contact));
+    world.insert_resource(OrderLog::new(interceptor, contact));
     info!("helm orders: flying the authored order");
 }
 
@@ -582,18 +584,18 @@ struct Mark {
     order_flown: Meters,
 }
 
-/// Read the gunship's whole state at a beat boundary.
+/// Read the interceptor's whole state at a beat boundary.
 #[cfg(feature = "debug")]
 fn read_mark(world: &World) -> Mark {
     let log = world.resource::<OrderLog>();
-    let gunship = log.gunship;
-    let order = world.get::<ShipHelmOrder>(gunship);
+    let interceptor = log.interceptor;
+    let order = world.get::<ShipHelmOrder>(interceptor);
     let route = order.and_then(patrol_of);
-    let autopilot = world.get::<Autopilot>(gunship);
+    let autopilot = world.get::<Autopilot>(interceptor);
     Mark {
-        helm: world.get::<ShipOrderHelmAuthority>(gunship).is_some(),
-        interrupted: world.get::<AIOrderInterrupted>(gunship).is_some(),
-        engaged: world.get::<ShipOrderEngaged>(gunship).is_some(),
+        helm: world.get::<ShipOrderHelmAuthority>(interceptor).is_some(),
+        interrupted: world.get::<AIOrderInterrupted>(interceptor).is_some(),
+        engaged: world.get::<ShipOrderEngaged>(interceptor).is_some(),
         key: order.map(|order| order.key.clone()),
         waypoints: route
             .as_ref()
@@ -602,8 +604,10 @@ fn read_mark(world: &World) -> Mark {
         leg: route.map_or(usize::MAX, |(_, leg)| leg),
         verb: verb_of(autopilot),
         goal: goal_of(autopilot),
-        target: world.get::<AITarget>(gunship).and_then(|target| **target),
-        state: world.get::<AIBehaviorState>(gunship).copied(),
+        target: world
+            .get::<AITarget>(interceptor)
+            .and_then(|target| **target),
+        state: world.get::<AIBehaviorState>(interceptor).copied(),
         order_flown: log.order_flown,
     }
 }
@@ -640,7 +644,7 @@ struct Marks {
 #[derive(Resource, Debug)]
 struct OrderLog {
     /// The ordered hull.
-    gunship: Entity,
+    interceptor: Entity,
     /// The hostile it breaks off for.
     contact: Entity,
     /// Fixed steps sampled.
@@ -668,9 +672,9 @@ struct OrderLog {
 
 #[cfg(feature = "debug")]
 impl OrderLog {
-    fn new(gunship: Entity, contact: Entity) -> Self {
+    fn new(interceptor: Entity, contact: Entity) -> Self {
         Self {
-            gunship,
+            interceptor,
             contact,
             steps: 0,
             last_at: None,
@@ -693,14 +697,14 @@ impl OrderLog {
 #[cfg(feature = "debug")]
 fn census_the_order(
     mut log: ResMut<OrderLog>,
-    q_gunship: Query<(
+    q_interceptor: Query<(
         &avian3d::prelude::Position,
         Has<ShipOrderHelmAuthority>,
         Has<AIOrderInterrupted>,
         Option<&ShipHelmOrder>,
     )>,
 ) {
-    let Ok((position, helm, interrupted, order)) = q_gunship.get(log.gunship) else {
+    let Ok((position, helm, interrupted, order)) = q_interceptor.get(log.interceptor) else {
         return;
     };
     let at = position.0;

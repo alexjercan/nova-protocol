@@ -1,4 +1,4 @@
-//! loop_docked_helm: a line warship docked to a frame tender takes the HELM
+//! loop_docked_helm: a mining tug docked to a light freighter takes the HELM
 //! and flies the joined pair as one body.
 //!
 //! The berth is the lesson_cargo stage (port collars square, 5 m apart), not
@@ -41,12 +41,12 @@ const TENDER_ID: &str = "tender";
 /// Scenario id of the beacon the HELM flies to.
 const BEACON_ID: &str = "helm_beacon";
 
-/// The warship at the berth, where its port collar face stands 5 m from the
+/// The tug at the berth, where its port collar face stands 5 m from the
 /// tender's (the lesson_cargo stage).
 const PLAYER_POSITION: Meters3 = Meters3::new(0.0, 0.0, -140.0);
-/// The tender, off the warship's port collar.
+/// The tender, off the tug's port collar.
 const TENDER_POSITION: Meters3 = Meters3::new(-55.0, 0.0, -170.0);
-/// Turned 180 degrees about Y, so its port collar faces the warship's.
+/// Turned 180 degrees about Y, so its port collar faces the tug's.
 const TENDER_ROTATION: Quat = Quat::from_xyzw(0.0, 1.0, 0.0, 0.0);
 /// Abeam the berth, to +X: the HELM must yaw the pair about 90 degrees
 /// before it can burn toward this.
@@ -86,7 +86,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
     let player = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: PLAYER_ID.to_string(),
-            name: "Line Warship".to_string(),
+            name: "Mining Tug".to_string(),
             position: PLAYER_POSITION,
             rotation: Quat::IDENTITY,
         },
@@ -99,21 +99,21 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
                     vec![InputSource::Keyboard(KeyCode::KeyV)],
                 )]),
             }),
-            design: ShipDesignSource::Inline(kit::catalog_ship(&ships, "block_line_warship")),
+            design: ShipDesignSource::Inline(kit::catalog_ship(&ships, "mining_tug")),
             ..default()
         }),
     });
     let tender = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: TENDER_ID.to_string(),
-            name: "Frame Tender".to_string(),
+            name: "Light Freighter".to_string(),
             position: TENDER_POSITION,
             rotation: TENDER_ROTATION,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             allegiance: Some(Allegiance::Neutral),
             controller: SpaceshipController::None,
-            design: ShipDesignSource::Inline(kit::catalog_ship(&ships, "block_frame_tender")),
+            design: ShipDesignSource::Inline(kit::catalog_ship(&ships, "light_freighter")),
             ..default()
         }),
     });
@@ -133,7 +133,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
         }),
     });
     commands.trigger(LoadScenario(ScenarioConfig {
-        description: "The line warship docked to a frame tender, flown by the HELM.".to_string(),
+        description: "The mining tug docked to a light freighter, flown by the HELM.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
             name: EventConfig::OnStart,
@@ -380,7 +380,7 @@ fn tap(
 #[cfg(feature = "debug")]
 fn helm_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     let script = nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
-        .step("load the warship and the tender")
+        .step("load the tug and the tender")
         .enter(GameStates::Loading)
         .until(and(player_ship_present(), scenario_camera_present()))
         .deadline(STEP_DEADLINE)

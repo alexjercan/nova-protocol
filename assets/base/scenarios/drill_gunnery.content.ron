@@ -28,7 +28,7 @@
                         ),
                         kind: Spaceship((
                             design: Prototype(
-                                id: "block_picket",
+                                id: "patrol_picket",
                                 section_patches: {
                                     "bridge": (
                                         config: (

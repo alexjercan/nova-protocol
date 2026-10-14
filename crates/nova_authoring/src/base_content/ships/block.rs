@@ -2,15 +2,21 @@
 //! cube prototypes on a cell grid, wearing a derived skin.
 //!
 //! A block ship is a set of cells plus a handful of placed specials. It uses no
-//! modelled part, so a hull is reproducible from this source alone.
+//! modelled part, so a hull is reproducible from this source alone. A cell
+//! takes the hull's plate unless a zone names another hull prototype for it:
+//! the freight cubes of a hold, the tanks of a freighter.
 //!
 //! Every hull names the style its derived skin is clad with. See
 //! `base_content::styles`.
 //!
 //! Cells are BUILD-GRID cells, the one authored coordinate that is not metric:
-//! one cell is one world unit is 10 m.
+//! one cell is one world unit is 10 m. `-Z` is the bow, `+Z` the stern, `-X`
+//! the port flank.
+//!
+//! Every crewed hull carries one docking port, `port_collar`, standing off its
+//! port flank: every station service needs a dock.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
 use nova_scenario::prelude::{SectionSource, SpaceshipSectionConfig};
@@ -19,17 +25,25 @@ use nova_ship::prelude::{
     LIGHT_HULL_SECTION_ID, PDC_KINETIC_TURRET_SECTION_ID, RAILGUN_LANCE_SECTION_ID,
     REINFORCED_HULL_SECTION_ID, TORPEDO_SECTION_ID,
 };
-use nova_world_base::prelude::{ARMOURED_STYLE_ID, INDUSTRIAL_STYLE_ID, SALVAGE_STYLE_ID};
-
-use crate::base_content::sections::{
-    CARGO_INTAKE_SECTION_ID, MINING_BEAM_SECTION_ID, VECTOR_THRUSTER_SECTION_ID,
+use nova_world_base::prelude::{
+    ARMOURED_STYLE_ID, CIVILIAN_STYLE_ID, INDUSTRIAL_STYLE_ID, SALVAGE_STYLE_ID,
 };
 
-/// The drive section ids the block fleet repeats: a pair on the beam, or one
-/// on the centreline. Content that patches a drive names these.
+use crate::base_content::sections::{
+    CARGO_HULL_SECTION_ID, CARGO_INTAKE_SECTION_ID, MINING_BEAM_SECTION_ID, SOLAR_PANEL_SECTION_ID,
+    TANK_HULL_SECTION_ID, TRUSS_HULL_SECTION_ID, VECTOR_THRUSTER_SECTION_ID,
+};
+
+/// The drive section ids the block fleet repeats: a pair on the beam, one on
+/// the centreline, or one vectoring drive on a transom. Content that patches
+/// a drive names these.
 const DRIVE_PORT_SECTION_ID: &str = "drive_port";
 const DRIVE_STARBOARD_SECTION_ID: &str = "drive_starboard";
-const MAIN_DRIVE_SECTION_ID: &str = "main_drive";
+const DRIVE_CENTRE_SECTION_ID: &str = "drive_centre";
+pub(crate) const MAIN_DRIVE_SECTION_ID: &str = "main_drive";
+
+/// The second flight computer a hull heavier than one computer turns carries.
+const CONTROL_AFT_SECTION_ID: &str = "control_aft";
 
 /// How far a turret drops into its own cell to put its socket on the plate
 /// below: the mount's one link point sits a quarter cell under its centre.
@@ -45,67 +59,31 @@ pub const BLOCK_BRIDGE_SECTION_ID: &str = "bridge";
 /// take both computers and turn the station derelict.
 const WAYSTATION_LOWER_BRIDGE_SECTION_ID: &str = "lower_bridge";
 
-/// The gunship's point-defense mounts, in the order they are placed. Content
-/// that sets a magazine per turret walks this rather than naming six strings
-/// it would have to keep in step with the hull.
-pub const BLOCK_GUNSHIP_TURRET_IDS: [&str; 6] = [
-    "pdc_forward_port",
-    "pdc_forward_starboard",
-    "pdc_aft_port",
-    "pdc_aft_starboard",
-    "pdc_ventral_port",
-    "pdc_ventral_starboard",
-];
-
-/// The line warship's point-defense mounts: dorsal fore, dorsal aft, then the
-/// two ventral mounts. The open world binds every one to the same trigger.
-pub(crate) const BLOCK_LINE_WARSHIP_PDC_IDS: [&str; 6] = [
-    "pdc_forward_port",
-    "pdc_forward_starboard",
-    "pdc_aft_port",
-    "pdc_aft_starboard",
-    "pdc_ventral_port",
-    "pdc_ventral_starboard",
-];
-
-/// The line warship's one spinal railgun.
-pub(crate) const BLOCK_LINE_WARSHIP_RAILGUN_ID: &str = "spinal_lance";
-
-/// The line warship's two bow torpedo bays, port then starboard.
-pub(crate) const BLOCK_LINE_WARSHIP_TORPEDO_IDS: [&str; 2] = ["torpedo_port", "torpedo_starboard"];
-
-/// The line warship's dorsal cargo intake.
-pub(crate) const BLOCK_LINE_WARSHIP_INTAKE_ID: &str = "cargo_intake";
-
-/// The line warship's mining emitter.
-pub(crate) const BLOCK_LINE_WARSHIP_MINING_ID: &str = "mining_beam";
-
-/// The top-deck bow cell the line warship's emitter replaces, starboard of
-/// the lance. The deck cell below it would put the lance beside the beam lane
-/// and clad it shut.
-const LINE_WARSHIP_MINING_CELL: IVec3 = IVec3::new(1, 1, -7);
-
-/// The six dorsal cells the line warship's intake replaces, centred on the
-/// spine between the aft point-defense seats and the transom.
-const LINE_WARSHIP_INTAKE_CELLS: [IVec3; 6] = [
-    IVec3::new(-1, 1, 5),
-    IVec3::new(0, 1, 5),
-    IVec3::new(1, 1, 5),
-    IVec3::new(-1, 1, 6),
-    IVec3::new(0, 1, 6),
-    IVec3::new(1, 1, 6),
-];
-
-/// The one point-defense mount the picket carries, so content that arms or
-/// disarms it names a section rather than a hull.
-pub(crate) const BLOCK_CLEANUP_TURRET_ID: &str = "pdc";
-/// The port-flank docking collar the workship, both frame tenders and the line
-/// warship carry. Content that hardens, reads or shoots the hatch names this
-/// rather than the hull it is bolted to.
+/// The port-flank docking collar every crewed block ship and the waystation
+/// carry. Content that hardens, reads or shoots the hatch names this rather
+/// than the hull it is bolted to.
 pub const BLOCK_PORT_COLLAR_SECTION_ID: &str = "port_collar";
 /// The starboard-flank docking collar the line warship carries opposite its
 /// port collar.
-pub const BLOCK_STARBOARD_COLLAR_SECTION_ID: &str = "starboard_collar";
+pub(crate) const BLOCK_STARBOARD_COLLAR_SECTION_ID: &str = "starboard_collar";
+
+/// The one point-defense mount the patrol picket carries on its nose, so
+/// content that arms or disarms it names a section rather than a hull.
+pub(crate) const PICKET_GUN_SECTION_ID: &str = "pdc";
+
+/// The line warship's point-defense mounts: dorsal fore, dorsal aft, then the
+/// two ventral mounts. Content that sets a magazine per turret walks this.
+pub const LINE_WARSHIP_PDC_IDS: [&str; 6] = [
+    "pdc_forward_port",
+    "pdc_forward_starboard",
+    "pdc_aft_port",
+    "pdc_aft_starboard",
+    "pdc_ventral_port",
+    "pdc_ventral_starboard",
+];
+
+/// The mining tug's emitter, at the tip of its bow boom.
+pub const MINING_TUG_EMITTER_ID: &str = "mining_beam";
 
 /// The hull side a flank collar opens on.
 #[derive(Clone, Copy)]
@@ -129,30 +107,350 @@ pub(super) struct Special {
 }
 
 /// A block hull: its cells, its specials, the plate every unclaimed cell is
-/// built from, and the style its skin wears.
+/// built from, the zones that build some cells from another hull prototype,
+/// and the style its skin wears.
 pub(super) struct BlockShip {
     pub(super) cells: Vec<IVec3>,
     pub(super) specials: Vec<Special>,
-    /// The prototype every plain cell takes.
+    /// The prototype every plain cell outside a zone takes.
     pub(super) plate: &'static str,
+    /// Hull prototypes for listed cells, in place of `plate`. A zone cell
+    /// that is not in `cells` is an authoring error the tests refuse.
+    pub(super) zones: Vec<(&'static str, Vec<IVec3>)>,
     pub(super) style: &'static str,
 }
 
-/// The small unarmed workboat: one hull layer, two sponsons, a dorsal cab and
-/// a pair of bell drives. The shortest hull in the fleet.
-pub(super) fn utility_cutter() -> BlockShip {
+/// The industrial start: a low work hull with a two-cell truss boom off the
+/// bow and a mining emitter at its tip, a cargo intake on the aft deck, a cab
+/// forward, and three bell drives.
+///
+/// The boom puts the emitter a hull length ahead of the cab, so the beam lane
+/// and the rock it cuts sit clear of the plating.
+pub(super) fn mining_tug() -> BlockShip {
+    let boom = vec![IVec3::new(0, 0, -4), IVec3::new(0, 0, -5)];
     BlockShip {
         cells: union(vec![
-            block(IVec3::new(-1, 0, -3), IVec3::new(3, 1, 6)),
-            block(IVec3::new(-2, 0, 0), IVec3::new(1, 1, 3)),
+            block(IVec3::new(-1, 0, -3), IVec3::new(3, 1, 7)),
+            vec![IVec3::new(0, 1, -2), IVec3::new(0, 1, -1)],
+            boom.clone(),
+        ]),
+        specials: vec![
+            cell_part(
+                BLOCK_BRIDGE_SECTION_ID,
+                BASIC_CONTROLLER_SECTION_ID,
+                IVec3::new(0, 1, -2),
+            ),
+            cell_part(
+                MINING_TUG_EMITTER_ID,
+                MINING_BEAM_SECTION_ID,
+                IVec3::new(0, 0, -6),
+            ),
+            door_up_intake("cargo_intake", Vec3::new(0.0, 1.0, 1.5)),
+            cell_part(
+                DRIVE_PORT_SECTION_ID,
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(-1, 0, 3),
+            ),
+            cell_part(
+                DRIVE_CENTRE_SECTION_ID,
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(0, 0, 3),
+            ),
+            cell_part(
+                DRIVE_STARBOARD_SECTION_ID,
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(1, 0, 3),
+            ),
+            flank_collar(
+                BLOCK_PORT_COLLAR_SECTION_ID,
+                FlankType::Port,
+                IVec3::new(-2, 0, -1),
+            ),
+        ],
+        plate: REINFORCED_HULL_SECTION_ID,
+        zones: vec![(TRUSS_HULL_SECTION_ID, boom)],
+        style: INDUSTRIAL_STYLE_ID,
+    }
+}
+
+/// The scavenger start: a deep three-by-three hold of freight cubes, a cab on
+/// the nose, a cargo intake on the dorsal deck, one point-defense mount, and
+/// one vectoring drive on the square transom.
+///
+/// The biggest hold of the start hulls: salvage is bulky and the hauler has
+/// to bring it home.
+pub(super) fn salvage_hauler() -> BlockShip {
+    let hold = block(IVec3::new(-1, -1, -2), IVec3::new(3, 3, 5));
+    BlockShip {
+        cells: union(vec![
+            block(IVec3::new(-1, -1, -3), IVec3::new(3, 3, 7)),
+            block(IVec3::new(0, 0, -4), IVec3::new(1, 2, 1)),
+        ]),
+        specials: vec![
+            cell_part(
+                BLOCK_BRIDGE_SECTION_ID,
+                BASIC_CONTROLLER_SECTION_ID,
+                IVec3::new(0, 1, -4),
+            ),
+            cell_part(
+                CONTROL_AFT_SECTION_ID,
+                BASIC_CONTROLLER_SECTION_ID,
+                IVec3::new(0, 0, 3),
+            ),
+            part(
+                MAIN_DRIVE_SECTION_ID,
+                VECTOR_THRUSTER_SECTION_ID,
+                Vec3::new(0.0, 0.0, 4.5),
+                Quat::IDENTITY,
+            ),
+            door_up_intake("cargo_intake", Vec3::new(0.0, 2.0, 0.5)),
+            turret("pdc_dorsal", IVec3::new(0, 2, -2)),
+            flank_collar(
+                BLOCK_PORT_COLLAR_SECTION_ID,
+                FlankType::Port,
+                IVec3::new(-2, 0, -2),
+            ),
+        ],
+        plate: LIGHT_HULL_SECTION_ID,
+        zones: vec![(CARGO_HULL_SECTION_ID, hold)],
+        style: SALVAGE_STYLE_ID,
+    }
+}
+
+/// The cells forward of the light freighter's stern: a flat spine, a stack of
+/// freight cubes amidships, a cab, and a tank pod on the starboard flank.
+/// Shared with the derelict, so its collar stands where the freighter's does.
+fn freighter_bow() -> Vec<IVec3> {
+    union(vec![
+        block(IVec3::new(-1, 0, -3), IVec3::new(3, 1, 6)),
+        block(IVec3::new(-1, 1, -2), IVec3::new(3, 1, 4)),
+        vec![IVec3::new(0, 1, -3)],
+        block(IVec3::new(2, 0, 0), IVec3::new(1, 1, 2)),
+    ])
+}
+
+/// The light freighter's freight cubes and tanks.
+fn freighter_zones() -> Vec<(&'static str, Vec<IVec3>)> {
+    vec![
+        (
+            CARGO_HULL_SECTION_ID,
+            block(IVec3::new(-1, 1, -2), IVec3::new(3, 1, 4)),
+        ),
+        (
+            TANK_HULL_SECTION_ID,
             block(IVec3::new(2, 0, 0), IVec3::new(1, 1, 3)),
-            vec![IVec3::new(0, 0, -4), IVec3::new(0, 1, -1)],
+        ),
+    ]
+}
+
+/// The light freighter's forward specials: the cab, the second computer, the
+/// collar and the two solar wings off the freight stack.
+fn freighter_fittings() -> Vec<Special> {
+    vec![
+        cell_part(
+            BLOCK_BRIDGE_SECTION_ID,
+            BASIC_CONTROLLER_SECTION_ID,
+            IVec3::new(0, 1, -3),
+        ),
+        cell_part(
+            CONTROL_AFT_SECTION_ID,
+            BASIC_CONTROLLER_SECTION_ID,
+            IVec3::new(0, 0, 1),
+        ),
+        flank_collar(
+            BLOCK_PORT_COLLAR_SECTION_ID,
+            FlankType::Port,
+            IVec3::new(-2, 0, -2),
+        ),
+        solar("solar_port_inner", IVec3::new(-2, 1, -1)),
+        solar("solar_port_outer", IVec3::new(-3, 1, -1)),
+        solar("solar_starboard_inner", IVec3::new(2, 1, -1)),
+        solar("solar_starboard_outer", IVec3::new(3, 1, -1)),
+    ]
+}
+
+/// The transport start: freight cubes stacked on a flat spine, a tank pod on
+/// the starboard flank, a solar wing either side of the stack, and one
+/// vectoring drive on a square transom. Unarmed.
+pub(super) fn light_freighter() -> BlockShip {
+    let mut specials = freighter_fittings();
+    specials.push(part(
+        MAIN_DRIVE_SECTION_ID,
+        VECTOR_THRUSTER_SECTION_ID,
+        Vec3::new(0.0, 0.0, 4.5),
+        Quat::IDENTITY,
+    ));
+    BlockShip {
+        cells: union(vec![
+            freighter_bow(),
+            vec![IVec3::new(2, 0, 2)],
+            // The transom: the three-by-three face the vectoring drive mates.
+            block(IVec3::new(-1, -1, 3), IVec3::new(3, 3, 1)),
+        ]),
+        specials,
+        plate: REINFORCED_HULL_SECTION_ID,
+        zones: freighter_zones(),
+        style: CIVILIAN_STYLE_ID,
+    }
+}
+
+/// The light freighter after a raid took its stern: no drive, no transom,
+/// the aft tank cube and the starboard wing gone. Everything forward of the
+/// tear matches [`light_freighter`] cell for cell, so the cab and the collar
+/// stand where a docking approach expects them.
+pub(super) fn freighter_derelict() -> BlockShip {
+    let mut specials = freighter_fittings();
+    specials.retain(|part| part.id != "solar_starboard_outer");
+    BlockShip {
+        cells: carve(
+            union(vec![
+                freighter_bow(),
+                // A ragged tear, a column at a time: the derived skin needs an
+                // uneven edge to clad a break.
+                vec![IVec3::new(-1, 0, 3), IVec3::new(-1, -1, 3)],
+            ]),
+            &[IVec3::new(1, 1, 1), IVec3::new(1, 0, 2)],
+        ),
+        specials,
+        plate: REINFORCED_HULL_SECTION_ID,
+        zones: freighter_zones(),
+        style: CIVILIAN_STYLE_ID,
+    }
+}
+
+/// The bounty hunter start: a compact two-deck body with stub wings, a dorsal
+/// fin, a torpedo bay on the bow centreline, two point-defense mounts on the
+/// top deck and three bell drives.
+pub(super) fn interceptor() -> BlockShip {
+    BlockShip {
+        cells: union(vec![
+            block(IVec3::new(-1, 0, -2), IVec3::new(3, 2, 5)),
+            block(IVec3::new(-2, 0, 1), IVec3::new(1, 1, 2)),
+            block(IVec3::new(2, 0, 1), IVec3::new(1, 1, 2)),
+            vec![IVec3::new(0, 2, 1)],
         ]),
         specials: vec![
             cell_part(
                 BLOCK_BRIDGE_SECTION_ID,
                 BASIC_CONTROLLER_SECTION_ID,
                 IVec3::new(0, 1, -1),
+            ),
+            part(
+                "torpedo_bow",
+                TORPEDO_SECTION_ID,
+                Vec3::new(0.0, 0.0, -3.5),
+                Quat::IDENTITY,
+            ),
+            turret("pdc_port", IVec3::new(-1, 2, -1)),
+            turret("pdc_starboard", IVec3::new(1, 2, -1)),
+            cell_part(
+                DRIVE_PORT_SECTION_ID,
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(-1, 0, 2),
+            ),
+            cell_part(
+                DRIVE_CENTRE_SECTION_ID,
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(0, 0, 2),
+            ),
+            cell_part(
+                DRIVE_STARBOARD_SECTION_ID,
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(1, 0, 2),
+            ),
+            flank_collar(
+                BLOCK_PORT_COLLAR_SECTION_ID,
+                FlankType::Port,
+                IVec3::new(-2, 0, 0),
+            ),
+        ],
+        plate: REINFORCED_HULL_SECTION_ID,
+        zones: vec![],
+        style: ARMOURED_STYLE_ID,
+    }
+}
+
+/// The pirate start: a short hull with a railgun on the nose, an outrigger
+/// and a gun boom on the starboard side, a dorsal mount, and four bell
+/// drives. Its lopsided silhouette reads as a refit, not a yard design.
+pub(super) fn raider() -> BlockShip {
+    BlockShip {
+        cells: union(vec![
+            block(IVec3::new(-1, 0, -2), IVec3::new(3, 1, 6)),
+            block(IVec3::new(-1, 1, -2), IVec3::new(3, 1, 3)),
+            block(IVec3::new(2, 0, -1), IVec3::new(1, 1, 3)),
+            block(IVec3::new(2, 1, -1), IVec3::new(1, 1, 2)),
+            vec![IVec3::new(0, 0, -3)],
+        ]),
+        specials: vec![
+            cell_part(
+                BLOCK_BRIDGE_SECTION_ID,
+                BASIC_CONTROLLER_SECTION_ID,
+                IVec3::new(0, 1, -2),
+            ),
+            part(
+                "railgun_nose",
+                RAILGUN_LANCE_SECTION_ID,
+                Vec3::new(0.0, 0.0, -5.0),
+                Quat::IDENTITY,
+            ),
+            turret("pdc_dorsal", IVec3::new(0, 2, -1)),
+            turret("pdc_boom", IVec3::new(2, 2, 0)),
+            cell_part(
+                DRIVE_PORT_SECTION_ID,
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(-1, 0, 3),
+            ),
+            cell_part(
+                DRIVE_CENTRE_SECTION_ID,
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(0, 0, 3),
+            ),
+            cell_part(
+                DRIVE_STARBOARD_SECTION_ID,
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(1, 0, 3),
+            ),
+            cell_part(
+                "drive_outrigger",
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(2, 0, 2),
+            ),
+            flank_collar(
+                BLOCK_PORT_COLLAR_SECTION_ID,
+                FlankType::Port,
+                IVec3::new(-2, 0, 0),
+            ),
+        ],
+        plate: REINFORCED_HULL_SECTION_ID,
+        zones: vec![],
+        style: SALVAGE_STYLE_ID,
+    }
+}
+
+/// The military start, and the weakest start hull: a slim dart of light
+/// plate with one point-defense mount on the nose face, where the hull cannot
+/// mask its forward arc, and a dorsal spine over two bell drives.
+pub(super) fn patrol_picket() -> BlockShip {
+    BlockShip {
+        cells: union(vec![
+            block(IVec3::new(-1, 0, -2), IVec3::new(3, 1, 5)),
+            block(IVec3::new(0, 1, -1), IVec3::new(1, 1, 3)),
+            vec![IVec3::new(0, 0, -3)],
+        ]),
+        specials: vec![
+            cell_part(
+                BLOCK_BRIDGE_SECTION_ID,
+                BASIC_CONTROLLER_SECTION_ID,
+                IVec3::new(0, 1, -1),
+            ),
+            // Rotate the mount's -Y base onto the nose's -Z face. The
+            // half-cell mount then centres just outside it.
+            part(
+                PICKET_GUN_SECTION_ID,
+                PDC_KINETIC_TURRET_SECTION_ID,
+                Vec3::new(0.0, 0.0, -3.75),
+                Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
             ),
             cell_part(
                 DRIVE_PORT_SECTION_ID,
@@ -164,268 +462,37 @@ pub(super) fn utility_cutter() -> BlockShip {
                 BASIC_THRUSTER_SECTION_ID,
                 IVec3::new(1, 0, 2),
             ),
-        ],
-        plate: REINFORCED_HULL_SECTION_ID,
-        style: INDUSTRIAL_STYLE_ID,
-    }
-}
-
-/// The freight hull: a flat spine between two cargo shoulders, a stack of
-/// containers amidships, and a square transom with one vectoring drive on it.
-/// The widest hull in the fleet, so it reads as freight from any backdrop
-/// camera angle.
-pub(super) fn bulk_hauler() -> BlockShip {
-    BlockShip {
-        cells: union(vec![
-            block(IVec3::new(-1, 0, -3), IVec3::new(3, 1, 7)),
-            block(IVec3::new(-3, 0, -1), IVec3::new(2, 1, 3)),
-            block(IVec3::new(2, 0, -1), IVec3::new(2, 1, 3)),
-            block(IVec3::new(-1, 1, -1), IVec3::new(3, 1, 3)),
-            // The transom: a full three-by-three face is what a vectoring
-            // drive mates onto, and the only reason this hull has a ventral
-            // layer at all.
-            block(IVec3::new(-1, -1, 3), IVec3::new(3, 3, 1)),
-            vec![IVec3::new(0, 0, -4), IVec3::new(0, 1, -2)],
-        ]),
-        specials: vec![
-            cell_part(
-                BLOCK_BRIDGE_SECTION_ID,
-                BASIC_CONTROLLER_SECTION_ID,
-                IVec3::new(0, 1, -2),
-            ),
-            Special {
-                id: MAIN_DRIVE_SECTION_ID,
-                prototype: VECTOR_THRUSTER_SECTION_ID,
-                // Standing off the transom: the drive is three cells square
-                // and two deep, so its forward face lands on the z = 3 layer.
-                position: Vec3::new(0.0, 0.0, 4.5),
-                rotation: Quat::IDENTITY,
-            },
-        ],
-        plate: REINFORCED_HULL_SECTION_ID,
-        style: INDUSTRIAL_STYLE_ID,
-    }
-}
-
-/// A low hull with an open cradle amidships, a raised forward module, an aft
-/// deck over two drives, and a docking collar on the port flank.
-///
-/// The cradle is authored as absence: the cells the two bulwarks stand on,
-/// and nothing between them. The collar stands off the flank rather than the
-/// bow, so a docking approach comes in alongside.
-pub(super) fn utility_workship() -> BlockShip {
-    BlockShip {
-        cells: union(vec![
-            block(IVec3::new(-1, 0, -4), IVec3::new(3, 1, 8)),
-            block(IVec3::new(-1, 1, -4), IVec3::new(3, 1, 3)),
-            block(IVec3::new(-1, 1, 2), IVec3::new(3, 1, 2)),
-            block(IVec3::new(-2, 0, -1), IVec3::new(1, 1, 4)),
-            block(IVec3::new(2, 0, -1), IVec3::new(1, 1, 4)),
-        ]),
-        specials: vec![
-            cell_part(
-                BLOCK_BRIDGE_SECTION_ID,
-                BASIC_CONTROLLER_SECTION_ID,
-                IVec3::new(0, 1, -3),
-            ),
-            cell_part(
-                DRIVE_PORT_SECTION_ID,
-                BASIC_THRUSTER_SECTION_ID,
-                IVec3::new(-1, 0, 3),
-            ),
-            cell_part(
-                DRIVE_STARBOARD_SECTION_ID,
-                BASIC_THRUSTER_SECTION_ID,
-                IVec3::new(1, 0, 3),
-            ),
             flank_collar(
                 BLOCK_PORT_COLLAR_SECTION_ID,
                 FlankType::Port,
-                IVec3::new(-2, 0, -2),
+                IVec3::new(-2, 0, 0),
             ),
         ],
-        plate: REINFORCED_HULL_SECTION_ID,
-        style: INDUSTRIAL_STYLE_ID,
-    }
-}
-
-/// The frame tender: a long keel under a cargo body, two open frame arches
-/// standing over it on rails, a cab forward and a service stack aft, with the
-/// same port-flank collar the workship carries.
-///
-/// The arches are hull cells, not dressing, so the bay between them stays
-/// open and the load rides outside the hull volume.
-pub(super) fn frame_tender() -> BlockShip {
-    BlockShip {
-        cells: union(vec![
-            block(IVec3::new(-1, 0, -4), IVec3::new(3, 1, 9)),
-            block(IVec3::new(-1, 1, -4), IVec3::new(3, 1, 2)),
-            block(IVec3::new(-1, 1, -1), IVec3::new(3, 1, 4)),
-            block(IVec3::new(-1, 1, 3), IVec3::new(3, 2, 2)),
-            // The two arches, and the rails that make them one frame rather
-            // than two hoops.
-            block(IVec3::new(-2, 1, -1), IVec3::new(1, 2, 1)),
-            block(IVec3::new(2, 1, -1), IVec3::new(1, 2, 1)),
-            block(IVec3::new(-2, 1, 2), IVec3::new(1, 2, 1)),
-            block(IVec3::new(2, 1, 2), IVec3::new(1, 2, 1)),
-            block(IVec3::new(-1, 2, -1), IVec3::new(3, 1, 1)),
-            block(IVec3::new(-1, 2, 2), IVec3::new(3, 1, 1)),
-            block(IVec3::new(-2, 2, 0), IVec3::new(1, 1, 2)),
-            block(IVec3::new(2, 2, 0), IVec3::new(1, 1, 2)),
-        ]),
-        specials: vec![
-            cell_part(
-                BLOCK_BRIDGE_SECTION_ID,
-                BASIC_CONTROLLER_SECTION_ID,
-                IVec3::new(0, 1, -4),
-            ),
-            cell_part(
-                MAIN_DRIVE_SECTION_ID,
-                BASIC_THRUSTER_SECTION_ID,
-                IVec3::new(0, 0, 4),
-            ),
-            flank_collar(
-                BLOCK_PORT_COLLAR_SECTION_ID,
-                FlankType::Port,
-                IVec3::new(-2, 0, -3),
-            ),
-        ],
-        plate: REINFORCED_HULL_SECTION_ID,
-        style: INDUSTRIAL_STYLE_ID,
-    }
-}
-
-/// The frame tender with its stern removed.
-///
-/// The cell plan drops the drive, the transom under it, the service stack
-/// above that, and the starboard half of the aft arch. Everything forward of
-/// the tear matches `frame_tender` cell for cell, so the cab and the port
-/// collar stay where a docking approach expects them.
-pub(super) fn damaged_frame_tender() -> BlockShip {
-    BlockShip {
-        cells: union(vec![
-            // Everything forward of the tear, identical to `frame_tender`.
-            block(IVec3::new(-1, 0, -4), IVec3::new(3, 1, 6)),
-            block(IVec3::new(-1, 1, -4), IVec3::new(3, 1, 2)),
-            // The tear is authored a COLUMN at a time, not as a shorter hull:
-            // the derived skin needs an uneven edge to clad a break. The port
-            // side runs two cells further aft than the starboard one, and the
-            // deck above them stops at a third station.
-            block(IVec3::new(-1, 0, 2), IVec3::new(1, 1, 2)),
-            block(IVec3::new(1, 0, 2), IVec3::new(1, 1, 1)),
-            block(IVec3::new(-1, 1, -1), IVec3::new(2, 1, 4)),
-            block(IVec3::new(1, 1, -1), IVec3::new(1, 1, 2)),
-            // One plate of the service stack's deck, hanging off the port
-            // quarter with nothing around it.
-            block(IVec3::new(-1, 1, 3), IVec3::new(1, 1, 1)),
-            // The forward arch, whole. The aft one keeps its port leg and one
-            // cell of its top bar; the starboard leg, the rest of the bar and
-            // the rail between the arches are gone.
-            block(IVec3::new(-2, 1, -1), IVec3::new(1, 2, 1)),
-            block(IVec3::new(2, 1, -1), IVec3::new(1, 2, 1)),
-            block(IVec3::new(-2, 1, 2), IVec3::new(1, 2, 1)),
-            block(IVec3::new(-1, 2, -1), IVec3::new(3, 1, 1)),
-            block(IVec3::new(-1, 2, 2), IVec3::new(1, 1, 1)),
-            block(IVec3::new(-2, 2, 0), IVec3::new(1, 1, 2)),
-        ]),
-        // No drive: the hull cannot manoeuvre, and the empty transom shows
-        // it.
-        specials: vec![
-            cell_part(
-                BLOCK_BRIDGE_SECTION_ID,
-                BASIC_CONTROLLER_SECTION_ID,
-                IVec3::new(0, 1, -4),
-            ),
-            flank_collar(
-                BLOCK_PORT_COLLAR_SECTION_ID,
-                FlankType::Port,
-                IVec3::new(-2, 0, -3),
-            ),
-        ],
-        plate: REINFORCED_HULL_SECTION_ID,
-        style: INDUSTRIAL_STYLE_ID,
-    }
-}
-
-/// The armed patrol hull: a two-deck spine over a short ventral keel, stub
-/// wings, a dorsal fin, one vectoring drive, and six point-defense mounts
-/// covering both hemispheres. About one and a half cutters long.
-pub(super) fn patrol_gunship() -> BlockShip {
-    BlockShip {
-        cells: union(vec![
-            block(IVec3::new(-1, 0, -2), IVec3::new(3, 2, 5)),
-            // The keel, which squares the transom off for the drive and gives
-            // the ventral turrets something to stand under.
-            block(IVec3::new(-1, -1, 1), IVec3::new(3, 1, 2)),
-            block(IVec3::new(-2, 0, 0), IVec3::new(1, 1, 2)),
-            block(IVec3::new(2, 0, 0), IVec3::new(1, 1, 2)),
-            block(IVec3::new(0, 2, -1), IVec3::new(1, 1, 3)),
-            vec![
-                IVec3::new(0, 0, -3),
-                IVec3::new(0, 1, -3),
-                IVec3::new(0, 0, -4),
-            ],
-        ]),
-        specials: vec![
-            cell_part(
-                BLOCK_BRIDGE_SECTION_ID,
-                BASIC_CONTROLLER_SECTION_ID,
-                IVec3::new(0, 1, -1),
-            ),
-            cell_part(
-                "control_aft",
-                BASIC_CONTROLLER_SECTION_ID,
-                IVec3::new(0, 1, 1),
-            ),
-            Special {
-                id: MAIN_DRIVE_SECTION_ID,
-                prototype: VECTOR_THRUSTER_SECTION_ID,
-                position: Vec3::new(0.0, 0.0, 3.5),
-                rotation: Quat::IDENTITY,
-            },
-            turret(BLOCK_GUNSHIP_TURRET_IDS[0], IVec3::new(-1, 2, -2)),
-            turret(BLOCK_GUNSHIP_TURRET_IDS[1], IVec3::new(1, 2, -2)),
-            turret(BLOCK_GUNSHIP_TURRET_IDS[2], IVec3::new(-1, 2, 1)),
-            turret(BLOCK_GUNSHIP_TURRET_IDS[3], IVec3::new(1, 2, 1)),
-            under_turret(BLOCK_GUNSHIP_TURRET_IDS[4], IVec3::new(-1, -2, 2)),
-            under_turret(BLOCK_GUNSHIP_TURRET_IDS[5], IVec3::new(1, -2, 2)),
-        ],
-        plate: REINFORCED_HULL_SECTION_ID,
+        plate: LIGHT_HULL_SECTION_ID,
+        zones: vec![],
         style: ARMOURED_STYLE_ID,
     }
 }
 
-/// The open world's player hull: a long armoured body with a 3x3 transom for
-/// one vectoring drive, two shoulders that carry a bell drive aft and a
-/// torpedo bay forward, a dorsal bridge tower, and a keel under the aft half.
-///
-/// The railgun is bolted onto the bow on the centreline, breech on the nose
-/// plate, so the lance fires down the ship's own axis clear of the hull. Each
-/// bay sits ahead of its shoulder with its muzzle open and its inboard flank
-/// mated to the body. Three flight computers spread along the spine turn a
-/// hull this long. One docking collar takes the middle cell of each shoulder,
-/// hatch outboard, clear of the drives aft and the bays forward.
-///
-/// A 3x2 cargo intake replaces six top-deck cells aft, door up and flush
-/// with the deck, one plate row behind the aft point-defense seats. It is
-/// off-grid, so [`carve`] clears its cells.
-///
-/// A mining emitter replaces the starboard top-deck plate at the bow, its
-/// emitter face flush with the nose and its beam lane clear forward.
+/// The Line Warship class, the military goal: a long armoured body over a
+/// keel, two shoulders carrying a torpedo bay forward and a bell drive aft,
+/// a railgun on the bow, six point-defense mounts over both hemispheres, a
+/// dorsal bridge tower, a cargo intake on the aft deck, a docking collar off
+/// each shoulder and one vectoring drive on the transom.
 pub(super) fn line_warship() -> BlockShip {
     BlockShip {
-        cells: carve(
-            union(vec![
-                block(IVec3::new(-1, 0, -7), IVec3::new(3, 2, 15)),
-                // The keel: squares the transom off to the drive's 3x3 face
-                // and gives the ventral mounts a plate to hang from.
-                block(IVec3::new(-1, -1, -3), IVec3::new(3, 1, 11)),
-                block(IVec3::new(-2, 0, -4), IVec3::new(1, 1, 9)),
-                block(IVec3::new(2, 0, -4), IVec3::new(1, 1, 9)),
-                block(IVec3::new(0, 2, -3), IVec3::new(1, 1, 4)),
-            ]),
-            &LINE_WARSHIP_INTAKE_CELLS,
-        ),
+        cells: union(vec![
+            block(IVec3::new(-1, 0, -6), IVec3::new(3, 2, 14)),
+            // A narrow nose for the lance: a full-width bow would clad the
+            // torpedo bays' lanes shut.
+            block(IVec3::new(0, 0, -7), IVec3::new(1, 2, 1)),
+            // The keel squares the transom off to the drive's 3x3 face and
+            // gives the ventral mounts a plate to hang from.
+            block(IVec3::new(-1, -1, -1), IVec3::new(3, 1, 9)),
+            block(IVec3::new(-2, 0, -4), IVec3::new(1, 1, 12)),
+            block(IVec3::new(2, 0, -4), IVec3::new(1, 1, 12)),
+            block(IVec3::new(0, 2, -3), IVec3::new(1, 1, 3)),
+        ]),
         specials: vec![
             cell_part(
                 BLOCK_BRIDGE_SECTION_ID,
@@ -438,7 +505,12 @@ pub(super) fn line_warship() -> BlockShip {
                 IVec3::new(0, 0, -5),
             ),
             cell_part(
-                "control_aft",
+                "control_mid",
+                BASIC_CONTROLLER_SECTION_ID,
+                IVec3::new(0, 0, 0),
+            ),
+            cell_part(
+                CONTROL_AFT_SECTION_ID,
                 BASIC_CONTROLLER_SECTION_ID,
                 IVec3::new(0, 0, 5),
             ),
@@ -451,164 +523,61 @@ pub(super) fn line_warship() -> BlockShip {
             cell_part(
                 DRIVE_PORT_SECTION_ID,
                 BASIC_THRUSTER_SECTION_ID,
-                IVec3::new(-2, 0, 4),
+                IVec3::new(-2, 0, 7),
             ),
             cell_part(
                 DRIVE_STARBOARD_SECTION_ID,
                 BASIC_THRUSTER_SECTION_ID,
-                IVec3::new(2, 0, 4),
+                IVec3::new(2, 0, 7),
             ),
             part(
-                BLOCK_LINE_WARSHIP_RAILGUN_ID,
+                "railgun_spinal",
                 RAILGUN_LANCE_SECTION_ID,
                 Vec3::new(0.0, 0.0, -9.0),
                 Quat::IDENTITY,
             ),
             part(
-                BLOCK_LINE_WARSHIP_TORPEDO_IDS[0],
+                "torpedo_port",
                 TORPEDO_SECTION_ID,
                 Vec3::new(-2.0, 0.0, -5.5),
                 Quat::IDENTITY,
             ),
             part(
-                BLOCK_LINE_WARSHIP_TORPEDO_IDS[1],
+                "torpedo_starboard",
                 TORPEDO_SECTION_ID,
                 Vec3::new(2.0, 0.0, -5.5),
                 Quat::IDENTITY,
             ),
-            turret(BLOCK_LINE_WARSHIP_PDC_IDS[0], IVec3::new(-1, 2, -5)),
-            turret(BLOCK_LINE_WARSHIP_PDC_IDS[1], IVec3::new(1, 2, -5)),
-            turret(BLOCK_LINE_WARSHIP_PDC_IDS[2], IVec3::new(-1, 2, 3)),
-            turret(BLOCK_LINE_WARSHIP_PDC_IDS[3], IVec3::new(1, 2, 3)),
-            under_turret(BLOCK_LINE_WARSHIP_PDC_IDS[4], IVec3::new(-1, -2, 0)),
-            under_turret(BLOCK_LINE_WARSHIP_PDC_IDS[5], IVec3::new(1, -2, 0)),
+            turret(LINE_WARSHIP_PDC_IDS[0], IVec3::new(-1, 2, -5)),
+            turret(LINE_WARSHIP_PDC_IDS[1], IVec3::new(1, 2, -5)),
+            turret(LINE_WARSHIP_PDC_IDS[2], IVec3::new(-1, 2, 3)),
+            turret(LINE_WARSHIP_PDC_IDS[3], IVec3::new(1, 2, 3)),
+            under_turret(LINE_WARSHIP_PDC_IDS[4], IVec3::new(-1, -2, 2)),
+            under_turret(LINE_WARSHIP_PDC_IDS[5], IVec3::new(1, -2, 2)),
             flank_collar(
                 BLOCK_PORT_COLLAR_SECTION_ID,
                 FlankType::Port,
-                IVec3::new(-2, 0, 0),
+                IVec3::new(-3, 0, 0),
             ),
             flank_collar(
                 BLOCK_STARBOARD_COLLAR_SECTION_ID,
                 FlankType::Starboard,
-                IVec3::new(2, 0, 0),
+                IVec3::new(3, 0, 0),
             ),
-            // Local -Z (the door) turns to world +Y, local +Y to world +Z.
-            part(
-                BLOCK_LINE_WARSHIP_INTAKE_ID,
-                CARGO_INTAKE_SECTION_ID,
-                Vec3::new(0.0, 1.0, 5.5),
-                Quat::from_rotation_x(std::f32::consts::FRAC_PI_2),
-            ),
-            cell_part(
-                BLOCK_LINE_WARSHIP_MINING_ID,
-                MINING_BEAM_SECTION_ID,
-                LINE_WARSHIP_MINING_CELL,
-            ),
+            door_up_intake("cargo_intake", Vec3::new(0.0, 2.0, 5.5)),
         ],
         plate: REINFORCED_HULL_SECTION_ID,
+        zones: vec![],
         style: ARMOURED_STYLE_ID,
     }
 }
 
-/// A short hull with an outrigger down one flank, a boom up the other, four
-/// drives, and two turrets. Its asymmetric backdrop silhouette stays distinct
-/// from the gunship.
-pub(super) fn salvage_raider() -> BlockShip {
-    BlockShip {
-        cells: union(vec![
-            block(IVec3::new(-1, 0, -2), IVec3::new(3, 1, 6)),
-            block(IVec3::new(-1, 1, -2), IVec3::new(3, 1, 3)),
-            block(IVec3::new(-2, 0, -1), IVec3::new(1, 1, 3)),
-            block(IVec3::new(2, 1, -1), IVec3::new(1, 1, 2)),
-            vec![IVec3::new(0, 0, -3)],
-        ]),
-        specials: vec![
-            cell_part(
-                BLOCK_BRIDGE_SECTION_ID,
-                BASIC_CONTROLLER_SECTION_ID,
-                IVec3::new(0, 1, -2),
-            ),
-            cell_part(
-                DRIVE_PORT_SECTION_ID,
-                BASIC_THRUSTER_SECTION_ID,
-                IVec3::new(-1, 0, 3),
-            ),
-            cell_part(
-                "drive_center",
-                BASIC_THRUSTER_SECTION_ID,
-                IVec3::new(0, 0, 3),
-            ),
-            cell_part(
-                DRIVE_STARBOARD_SECTION_ID,
-                BASIC_THRUSTER_SECTION_ID,
-                IVec3::new(1, 0, 3),
-            ),
-            cell_part(
-                "drive_outrigger",
-                BASIC_THRUSTER_SECTION_ID,
-                IVec3::new(-2, 0, 1),
-            ),
-            turret("pdc_dorsal", IVec3::new(0, 2, -1)),
-            turret("pdc_boom", IVec3::new(2, 2, 0)),
-        ],
-        plate: REINFORCED_HULL_SECTION_ID,
-        style: SALVAGE_STYLE_ID,
-    }
-}
-
-/// The armed picket: a low, symmetric hull with its one gun pushed onto the
-/// nose face, where the hull cannot mask its forward arc.
-pub(super) fn salvage_picket() -> BlockShip {
-    salvage_craft(
-        union(vec![
-            block(IVec3::new(-1, 0, -3), IVec3::new(3, 1, 7)),
-            block(IVec3::new(-2, 0, 0), IVec3::new(5, 1, 3)),
-            vec![IVec3::new(0, 0, -4)],
-        ]),
-        vec![
-            cell_part(
-                BLOCK_BRIDGE_SECTION_ID,
-                BASIC_CONTROLLER_SECTION_ID,
-                IVec3::new(0, 0, -1),
-            ),
-            cell_part(
-                DRIVE_PORT_SECTION_ID,
-                BASIC_THRUSTER_SECTION_ID,
-                IVec3::new(-1, 0, 3),
-            ),
-            cell_part(
-                DRIVE_STARBOARD_SECTION_ID,
-                BASIC_THRUSTER_SECTION_ID,
-                IVec3::new(1, 0, 3),
-            ),
-            // Rotate the mount's -Y base onto the nose's -Z face. The
-            // half-cell mount then centres just outside it.
-            part(
-                BLOCK_CLEANUP_TURRET_ID,
-                PDC_KINETIC_TURRET_SECTION_ID,
-                Vec3::new(0.0, 0.0, -4.75),
-                Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-            ),
-        ],
-    )
-}
-
 /// Loose plating: the small piece a debris field is mostly built from.
-pub(super) fn carrier_wreck_plate() -> BlockShip {
+pub(super) fn debris_plate() -> BlockShip {
     wreck(union(vec![
-        block(IVec3::new(-1, 0, -2), IVec3::new(3, 1, 5)),
-        vec![IVec3::new(1, 1, 0), IVec3::new(-1, 1, -1)],
+        block(IVec3::new(-1, 0, -1), IVec3::new(3, 1, 3)),
+        vec![IVec3::new(2, 0, 0), IVec3::new(0, 1, 1)],
     ]))
-}
-
-/// A hull of thin plating wearing the salvage skin.
-fn salvage_craft(cells: Vec<IVec3>, specials: Vec<Special>) -> BlockShip {
-    BlockShip {
-        cells,
-        specials,
-        plate: LIGHT_HULL_SECTION_ID,
-        style: SALVAGE_STYLE_ID,
-    }
 }
 
 /// The waystation: a two-deck plated block with the bridge set into the top
@@ -636,6 +605,7 @@ pub(super) fn waystation() -> BlockShip {
             ),
         ],
         plate: REINFORCED_HULL_SECTION_ID,
+        zones: vec![],
         style: INDUSTRIAL_STYLE_ID,
     }
 }
@@ -647,6 +617,7 @@ fn wreck(cells: Vec<IVec3>) -> BlockShip {
         cells,
         specials: vec![],
         plate: REINFORCED_HULL_SECTION_ID,
+        zones: vec![],
         style: INDUSTRIAL_STYLE_ID,
     }
 }
@@ -717,11 +688,35 @@ fn cell_part(id: &'static str, prototype: &'static str, cell: IVec3) -> Special 
     }
 }
 
+/// A cargo intake lying on a deck with its door up: local -Z (the door) turns
+/// to world +Y and local +Y to world +Z, so it covers three cells across and
+/// two along at `centre`'s height. It is off-grid, so its cells are not hull.
+fn door_up_intake(id: &'static str, centre: Vec3) -> Special {
+    part(
+        id,
+        CARGO_INTAKE_SECTION_ID,
+        centre,
+        Quat::from_rotation_x(std::f32::consts::FRAC_PI_2),
+    )
+}
+
+/// One solar panel standing in `cell`. It mates only side to side, so a
+/// wing is a row of panels off a hull flank.
+fn solar(id: &'static str, cell: IVec3) -> Special {
+    cell_part(id, SOLAR_PANEL_SECTION_ID, cell)
+}
+
 impl BlockShip {
     /// The section list a catalog entry is built from: one plate per cell no
-    /// special claimed, then the specials themselves.
+    /// special claimed, built from its zone's prototype or the hull plate,
+    /// then the specials themselves.
     pub(super) fn sections(self) -> Vec<SpaceshipSectionConfig> {
         let plate = self.plate;
+        let zoned: HashMap<IVec3, &'static str> = self
+            .zones
+            .iter()
+            .flat_map(|(prototype, cells)| cells.iter().map(move |cell| (*cell, *prototype)))
+            .collect();
         let claimed: HashSet<IVec3> = self
             .specials
             .iter()
@@ -742,7 +737,7 @@ impl BlockShip {
                 id: format!("plate_{index}"),
                 position: cell.as_vec3(),
                 rotation: Quat::IDENTITY,
-                source: SectionSource::prototype(plate),
+                source: SectionSource::prototype(zoned.get(&cell).copied().unwrap_or(plate)),
             })
             .collect();
         sections.extend(self.specials.iter().map(|part| SpaceshipSectionConfig {
@@ -764,8 +759,7 @@ fn block(origin: IVec3, size: IVec3) -> Vec<IVec3> {
         .collect()
 }
 
-/// `cells` without the `hole`: the cells an off-grid special fills, which
-/// [`BlockShip::sections`] cannot claim for it.
+/// `cells` without the `hole`: the cells a ruin tore away.
 fn carve(cells: Vec<IVec3>, hole: &[IVec3]) -> Vec<IVec3> {
     cells
         .into_iter()
@@ -788,34 +782,29 @@ fn union(parts: Vec<Vec<IVec3>>) -> Vec<IVec3> {
 mod tests {
     use std::collections::HashMap;
 
-    use nova_ship::prelude::{exit_normal, placement_blocks_an_exit, PlacedPart, SectionFootprint};
-
     use super::*;
-    use crate::base_content::{assets::BaseContentAssets, sections::section_catalog};
 
     /// Every hand-authored block hull, so a fleet-wide test cannot miss one.
-    /// The wreck plate is included; `crewed` filters it out where a test
-    /// needs a bridge.
     fn fleet() -> Vec<(&'static str, BlockShip)> {
         vec![
-            ("cutter", utility_cutter()),
-            ("hauler", bulk_hauler()),
-            ("workship", utility_workship()),
-            ("frame tender", frame_tender()),
-            ("gunship", patrol_gunship()),
+            ("mining tug", mining_tug()),
+            ("salvage hauler", salvage_hauler()),
+            ("light freighter", light_freighter()),
+            ("freighter derelict", freighter_derelict()),
+            ("interceptor", interceptor()),
+            ("raider", raider()),
+            ("patrol picket", patrol_picket()),
             ("line warship", line_warship()),
-            ("raider", salvage_raider()),
-            ("picket", salvage_picket()),
-            ("wreck plate", carrier_wreck_plate()),
+            ("debris plate", debris_plate()),
             ("waystation", waystation()),
         ]
     }
 
-    /// The hulls that carry a bridge: everything but the wreck fragments.
+    /// The hulls that carry a bridge and a collar: everything but the debris.
     fn crewed() -> Vec<(&'static str, BlockShip)> {
         fleet()
             .into_iter()
-            .filter(|(name, _)| !name.starts_with("wreck"))
+            .filter(|(name, _)| *name != "debris plate")
             .collect()
     }
 
@@ -853,15 +842,21 @@ mod tests {
         }
     }
 
-    /// The gunship carries exactly the turrets content walks by name.
+    /// A zone names cells of its own hull: a zone cell outside the hull would
+    /// silently build nothing.
     #[test]
-    fn the_gunship_carries_every_turret_content_addresses() {
-        let sections = patrol_gunship().sections();
-        for turret in BLOCK_GUNSHIP_TURRET_IDS {
-            assert!(
-                sections.iter().any(|section| section.id == turret),
-                "the gunship is missing turret '{turret}'"
-            );
+    fn every_zone_cell_is_a_hull_cell() {
+        for (name, ship) in fleet() {
+            let cells: HashSet<IVec3> = ship.cells.iter().copied().collect();
+            let ruined = name == "freighter derelict";
+            for (prototype, zone) in &ship.zones {
+                for cell in zone {
+                    assert!(
+                        cells.contains(cell) || ruined,
+                        "'{name}' zones {cell} as '{prototype}' but has no cell there"
+                    );
+                }
+            }
         }
     }
 
@@ -869,180 +864,84 @@ mod tests {
     #[test]
     fn the_picket_carries_the_mount_content_names() {
         assert!(
-            salvage_picket()
+            patrol_picket()
                 .sections()
                 .iter()
-                .any(|section| section.id == BLOCK_CLEANUP_TURRET_ID),
-            "the picket has no '{BLOCK_CLEANUP_TURRET_ID}' mount"
+                .any(|section| section.id == PICKET_GUN_SECTION_ID),
+            "the picket has no '{PICKET_GUN_SECTION_ID}' mount"
         );
     }
 
-    /// The line warship carries every weapon the open world binds, each on the
-    /// section kind its binding drives.
+    /// The line warship carries exactly the turrets content walks by name.
     #[test]
-    fn the_line_warship_carries_every_weapon_the_open_world_binds() {
+    fn the_line_warship_carries_every_turret_content_addresses() {
         let sections = line_warship().sections();
-        let kind = |id: &str| {
-            sections
-                .iter()
-                .find(|section| section.id == id)
-                .map(|section| match &section.source {
-                    SectionSource::Prototype { id, .. } => id.as_str(),
-                    other => panic!("line warship section '{id}' is not a prototype: {other:?}"),
-                })
-                .unwrap_or_else(|| panic!("the line warship has no '{id}' section"))
-        };
-        for pdc in BLOCK_LINE_WARSHIP_PDC_IDS {
-            assert_eq!(kind(pdc), PDC_KINETIC_TURRET_SECTION_ID, "'{pdc}'");
-        }
-        assert_eq!(
-            kind(BLOCK_LINE_WARSHIP_RAILGUN_ID),
-            RAILGUN_LANCE_SECTION_ID
-        );
-        for bay in BLOCK_LINE_WARSHIP_TORPEDO_IDS {
-            assert_eq!(kind(bay), TORPEDO_SECTION_ID, "'{bay}'");
+        for turret in LINE_WARSHIP_PDC_IDS {
+            assert!(
+                sections.iter().any(|section| section.id == turret
+                    && section.source.prototype_id() == PDC_KINETIC_TURRET_SECTION_ID),
+                "the line warship is missing turret '{turret}'"
+            );
         }
     }
 
-    /// The line warship's two collars take an edge shoulder cell each and open
-    /// outboard with nothing in front of the hatch. The link graph accepts a
-    /// reversed hatch or a collar hanging off the hull, so this checks the pose.
+    /// Every collar stands outboard of a hull cell and opens away from it
+    /// with nothing in front of the hatch. The link graph accepts a reversed
+    /// hatch, so this checks the pose.
     #[test]
-    fn the_line_warship_collars_open_outboard_from_its_shoulders() {
-        let ship = line_warship();
-        let cells: HashSet<IVec3> = ship.cells.iter().copied().collect();
-        let sections = ship.sections();
-        let collars: Vec<_> = sections
-            .iter()
-            .filter(|section| {
-                matches!(&section.source, SectionSource::Prototype { id, .. } if id == DOCKING_PORT_SECTION_ID)
-            })
-            .collect();
-        assert_eq!(collars.len(), 2, "the line warship carries two collars");
-        for (id, cell, hatch) in [
-            (
-                BLOCK_PORT_COLLAR_SECTION_ID,
-                IVec3::new(-2, 0, 0),
-                IVec3::NEG_X,
-            ),
-            (
-                BLOCK_STARBOARD_COLLAR_SECTION_ID,
-                IVec3::new(2, 0, 0),
-                IVec3::X,
-            ),
-        ] {
-            let collar = collars
+    fn every_collar_opens_outboard_from_a_hull_cell() {
+        for (name, ship) in crewed() {
+            let cells: HashSet<IVec3> = ship.cells.iter().copied().collect();
+            let sections = ship.sections();
+            let collars: Vec<_> = sections
                 .iter()
-                .find(|section| section.id == id)
-                .unwrap_or_else(|| panic!("the line warship has no '{id}' collar"));
-            assert_eq!(collar.position, cell.as_vec3(), "'{id}' cell");
-            assert!(cells.contains(&cell), "'{id}' is not a hull cell");
+                .filter(|section| section.source.prototype_id() == DOCKING_PORT_SECTION_ID)
+                .collect();
             assert!(
-                cells.contains(&(cell - hatch)),
-                "'{id}' has no hull cell inboard of it"
-            );
-            assert!(
-                (collar.rotation * Vec3::NEG_Z).abs_diff_eq(hatch.as_vec3(), 1e-5),
-                "'{id}' hatch does not face {hatch}"
-            );
-            for step in 1..=3 {
-                let ahead = (cell + hatch * step).as_vec3();
-                if let Some(blocker) = sections
+                collars
                     .iter()
-                    .find(|section| section.position.distance(ahead) < 1.0)
-                {
-                    panic!("'{}' stands in front of '{id}'", blocker.id);
+                    .any(|collar| collar.id == BLOCK_PORT_COLLAR_SECTION_ID),
+                "'{name}' has no '{BLOCK_PORT_COLLAR_SECTION_ID}'"
+            );
+            for collar in collars {
+                let hatch = (collar.rotation * Vec3::NEG_Z).round().as_ivec3();
+                let cell = collar.position.round().as_ivec3();
+                assert!(
+                    cells.contains(&(cell - hatch)),
+                    "'{name}' '{}' has no hull cell inboard of it",
+                    collar.id
+                );
+                for step in 1..=3 {
+                    let ahead = (cell + hatch * step).as_vec3();
+                    if let Some(blocker) = sections
+                        .iter()
+                        .find(|section| section.position.distance(ahead) < 1.0)
+                    {
+                        panic!(
+                            "'{name}': '{}' stands in front of '{}'",
+                            blocker.id, collar.id
+                        );
+                    }
                 }
             }
         }
     }
 
-    /// A wreck fragment carries plain plating only: no computer, no drive and
-    /// no gun, so it never flies, shoots or reports itself neutralized.
+    /// Debris carries plain plating only: no computer, no drive and no gun,
+    /// so it never flies, shoots or reports itself neutralized.
     #[test]
-    fn a_wreck_fragment_carries_nothing_that_works() {
-        for (name, ship) in fleet()
-            .into_iter()
-            .filter(|(name, _)| name.starts_with("wreck"))
-        {
-            for section in ship.sections() {
-                assert!(
-                    matches!(&section.source, SectionSource::Prototype { id, .. } if id == REINFORCED_HULL_SECTION_ID),
-                    "'{name}' section '{}' is not plain plating",
-                    section.id
-                );
-            }
-        }
-    }
-
-    /// The line warship's intake sits where six top-deck cells were, door
-    /// up: no plate is left inside it and its door faces open space.
-    #[test]
-    fn the_line_warship_intake_opens_up_over_six_replaced_cells() {
-        let sections = line_warship().sections();
-        let intake = sections
-            .iter()
-            .find(|section| section.id == BLOCK_LINE_WARSHIP_INTAKE_ID)
-            .expect("the line warship carries its intake");
-        assert!((intake.rotation * Vec3::NEG_Z).abs_diff_eq(Vec3::Y, 1e-5));
-        for cell in LINE_WARSHIP_INTAKE_CELLS {
-            assert!(
-                !sections
-                    .iter()
-                    .any(|section| section.position == cell.as_vec3()),
-                "a section still fills intake cell {cell}"
+    fn debris_carries_nothing_that_works() {
+        for section in debris_plate().sections() {
+            assert_eq!(
+                section.source.prototype_id(),
+                REINFORCED_HULL_SECTION_ID,
+                "debris section '{}' is not plain plating",
+                section.id
             );
         }
     }
 
-    /// The line warship's emitter stands in a bow hull cell, faces forward,
-    /// and adds no blocked exit: its beam lane is void and no neighbour clads
-    /// it, and it clads no other part's lane.
-    #[test]
-    fn the_line_warship_emitter_fires_forward_down_a_clear_lane() {
-        let hull = line_warship();
-        assert!(hull.cells.contains(&LINE_WARSHIP_MINING_CELL));
-        let sections = hull.sections();
-        let emitter = sections
-            .iter()
-            .find(|section| section.id == BLOCK_LINE_WARSHIP_MINING_ID)
-            .expect("the line warship carries its emitter");
-        assert_eq!(emitter.position, LINE_WARSHIP_MINING_CELL.as_vec3());
-        assert!(
-            sections
-                .iter()
-                .filter(|section| section.position == emitter.position)
-                .count()
-                == 1,
-            "a plate still fills the emitter cell"
-        );
-
-        let catalog = section_catalog(&BaseContentAssets::from_paths());
-        let placed = |section: &SpaceshipSectionConfig| {
-            let config = catalog
-                .iter()
-                .find(|config| config.base.id == section.source.prototype_id())
-                .expect("every line warship section is in the catalog");
-            PlacedPart {
-                position: section.position,
-                rotation: section.rotation,
-                link_points: config.base.link_points.as_slice(),
-                footprint: *SectionFootprint::from_collider(
-                    config.base.collider.unwrap_or_default(),
-                ),
-                exit: exit_normal(&config.kind),
-            }
-        };
-        assert_eq!(placed(emitter).exit, Some(Vec3::NEG_Z));
-        let rest: Vec<PlacedPart> = sections
-            .iter()
-            .filter(|section| section.id != BLOCK_LINE_WARSHIP_MINING_ID)
-            .map(placed)
-            .collect();
-        assert!(!placement_blocks_an_exit(&rest, &placed(emitter)));
-    }
-
-    /// Every block ship carries the one bridge id content addresses.
+    /// Every crewed block ship carries the one bridge id content addresses.
     #[test]
     fn every_block_ship_carries_a_bridge() {
         for (name, ship) in crewed() {

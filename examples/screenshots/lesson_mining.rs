@@ -1,7 +1,7 @@
 //! lesson_mining: the FLIGHT lesson `flight_mine` - one press of MINE on a
 //! locked rock, from the shut emitter to the beam cutting ore.
 //!
-//! The scene is `screenshot_mining_beam`'s: the shipped `block_line_warship`
+//! The scene is `screenshot_mining_beam`'s: the shipped `mining_tug`
 //! parked at the origin with one ore rock dead ahead of its bow emitter. The
 //! script travel-locks the rock and holds the real `mine` action (`V`), so the
 //! doors, the tip, the pulse, the sparks and the carve are the production path.
@@ -70,20 +70,20 @@ const ROCK_ID: &str = "ore_rock";
 
 /// The rock of `screenshot_mining_beam`: dead ahead of the emitter, its
 /// meshed near face about 58 m out, clear of the bow.
-const ROCK_CENTRE: Vec3 = Vec3::new(1.0, 1.0, -23.5);
+const ROCK_CENTRE: Vec3 = Vec3::new(0.0, 0.0, -22.5);
 const ROCK_RADIUS: Meters = Meters(25.0);
 const ROCK_SEED: u32 = 7;
 
-/// Where the eye stands, in engine units from the warship's root: above,
+/// Where the eye stands, in engine units from the tug's root: above,
 /// to starboard and ahead of the emitter face, so the face with its doors and
 /// tip, the beam and its hit on the rock's near face share the cell.
 #[cfg(feature = "debug")]
-const EYE: Vec3 = Vec3::new(7.0, 6.0, -12.0);
+const EYE: Vec3 = Vec3::new(6.0, 5.0, -11.0);
 
 /// What the eye looks at: on the beam line, between the emitter face and the
 /// rock's near face.
 #[cfg(feature = "debug")]
-const AIM: Vec3 = Vec3::new(1.0, 1.0, -10.3);
+const AIM: Vec3 = Vec3::new(0.0, 0.0, -9.3);
 
 /// Cells the sheet opens on before the key goes down: the shut emitter.
 #[cfg(feature = "debug")]
@@ -138,7 +138,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
                 )]
                 .into(),
             }),
-            design: ShipDesignSource::Inline(kit::catalog_ship(&ships, "block_line_warship")),
+            design: ShipDesignSource::Inline(kit::catalog_ship(&ships, "mining_tug")),
             inventory: ShipInventoryStock::new([]),
             ..default()
         }),
@@ -161,7 +161,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
         }),
     });
     commands.trigger(LoadScenario(ScenarioConfig {
-        description: "The line warship's mining beam on one locked rock.".to_string(),
+        description: "The mining tug's mining beam on one locked rock.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
             name: EventConfig::OnStart,
@@ -213,7 +213,7 @@ fn pulses_past(pulses: usize) -> std::sync::Arc<nova_protocol::nova_debug::harne
     when(move |world| world.resource::<PulseLog>().0.len() > pulses)
 }
 
-/// Press or release whatever the warship's mining section is bound to, read
+/// Press or release whatever the tug's mining section is bound to, read
 /// live rather than hard-coded, so a rebind of the section still drives the
 /// real key.
 #[cfg(feature = "debug")]
@@ -223,7 +223,7 @@ fn drive_mine_key(world: &mut World, phase: InputPhase) {
         .iter(world)
         .next()
         .and_then(|binding| binding.0.first().copied())
-        .expect("the warship's mining section is bound to a key");
+        .expect("the tug's mining section is bound to a key");
     dispatch::press_source(world, source, phase);
 }
 
@@ -240,7 +240,7 @@ fn release_mine_key(world: &mut World) {
 /// Lock the rock and hold the camera beside the beam.
 #[cfg(feature = "debug")]
 fn lock_the_rock(world: &mut World) {
-    let player = kit::ship_root(world, PLAYER_ID).expect("the warship spawned");
+    let player = kit::ship_root(world, PLAYER_ID).expect("the tug spawned");
     let rock = {
         let mut rocks = world.query_filtered::<(Entity, &EntityId), With<AsteroidMarker>>();
         rocks
@@ -287,7 +287,7 @@ fn check_the_cut(world: &mut World) {
 #[cfg(feature = "debug")]
 fn mining_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
-        .step("load the rock and the warship")
+        .step("load the rock and the tug")
         .enter(GameStates::Loading)
         .until(and(player_ship_present(), scenario_camera_present()))
         .deadline(WAIT_DEADLINE_SECS)

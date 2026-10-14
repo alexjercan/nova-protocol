@@ -325,7 +325,7 @@ fn the_field(
     sections: &GameSections,
     ships: &GameShipDesigns,
 ) -> ScenarioConfig {
-    let player_hull = kit::catalog_ship(ships, "block_gunship");
+    let player_hull = kit::catalog_ship(ships, "interceptor");
     let player = hollow::ship(
         PLAYER_ID,
         "Player Ship",
@@ -362,7 +362,7 @@ fn the_field(
         Quat::from_rotation_y(std::f32::consts::PI - 0.5),
         SpaceshipController::None,
         Some(Allegiance::Player),
-        kit::catalog_ship(ships, "block_gunship"),
+        kit::catalog_ship(ships, "interceptor"),
         ShipInventoryStock::new([]),
     );
     // No allegiance AT ALL, rather than a third faction: a ship the relation
@@ -374,7 +374,7 @@ fn the_field(
         Quat::from_rotation_y(1.1),
         SpaceshipController::None,
         None,
-        kit::catalog_ship(ships, "block_cutter"),
+        kit::catalog_ship(ships, "mining_tug"),
         ShipInventoryStock::new([]),
     );
 

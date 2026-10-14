@@ -4,7 +4,7 @@
 //! lance's catalog card, and the `loop-section-railgun` loops.
 //!
 //! One player gunboat sits at the origin with a lance on its spine, bore down
-//! -Z. A base Patrol Gunship stands downrange on that line, bow-on, so the shot
+//! -Z. A base Raider stands downrange on that line, bow-on, so the shot
 //! rakes its long axis rather than clipping a shoulder - which is the whole
 //! skill the weapon asks for and the difference the bore sight is drawn to show.
 //!
@@ -82,12 +82,12 @@ const BOAT_ID: &str = "lance_boat";
 const LANCE_ID: &str = "lance";
 
 /// Scenario id of the hull that is shot at.
-const TARGET_ID: &str = "target_gunship";
+const TARGET_ID: &str = "target_raider";
 
-/// The catalog hull downrange. A base Patrol Gunship: 53 cells with a spine
-/// long enough that a bow-on shot has something to bore THROUGH, which is the
-/// claim the corridor figure makes.
-const TARGET_HULL: &str = "block_gunship";
+/// The catalog hull downrange. A base Raider: about 90 m from its railgun nose
+/// to its drives, long enough that a bow-on shot has something to bore THROUGH,
+/// which is the claim the corridor figure makes.
+const TARGET_HULL: &str = "raider";
 
 /// How far downrange the target stands. Well inside the lance's 18 km reach -
 /// the distance is chosen for the FRAMING, so the gunboat and the hull it is
@@ -199,7 +199,7 @@ const LOOP_OPEN_CHARGE: f32 = 0.97;
 ///
 /// The slowed loop is a diagram: it exists so the muzzle flash, the slug and
 /// the corridor can be told apart at all. It is a poor answer to "how fast is
-/// this", because it makes a weapon that guts a gunship between two blinks look
+/// this", because it makes a weapon that guts a hull between two blinks look
 /// like something you could watch. So the same walk records a second loop with
 /// the clock left alone, and the page carries both: what the shot IS, and what
 /// the shot LOOKS like.
@@ -465,7 +465,7 @@ fn lance_range(
     let target = ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: TARGET_ID.to_string(),
-            name: "Target Gunship".to_string(),
+            name: "Target Raider".to_string(),
             position: Meters3::new(0.0, 0.0, TARGET_Z.get()),
             // Turned to face the bore, so the slug runs the length of the hull.
             // A shot across a beam crosses two or three cells and leaves a
@@ -622,7 +622,7 @@ const SIGHT: RangeShot = RangeShot {
 /// was a few sparks around a silhouette.
 ///
 /// So: off the starboard bow instead, 150 m out. The lens spans 1.47 times its
-/// distance, so the frame is some 220 m wide and the 85 m hull fills about two
+/// distance, so the frame is some 220 m wide and the 90 m hull fills about two
 /// fifths of it. The slug crosses from the right, the entry is on a face the camera can
 /// see, and the sections the rake condemns die down the spine AWAY from the
 /// lens - a chain of fireballs walking into the hull, which is the one thing a

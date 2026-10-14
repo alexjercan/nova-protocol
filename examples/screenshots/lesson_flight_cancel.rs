@@ -105,7 +105,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
     commands.trigger(LoadScenario(cancel_range(&game_assets, &ships)));
 }
 
-/// One player gunship in a rock shell wide enough for the run-up.
+/// One player interceptor in a rock shell wide enough for the run-up.
 fn cancel_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
     let player = ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -122,7 +122,7 @@ fn cancel_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioCo
                 input_mapping: BTreeMap::new(),
             }),
             allegiance: None,
-            design: ShipDesignSource::Inline(kit::catalog_ship(ships, "block_gunship")),
+            design: ShipDesignSource::Inline(kit::catalog_ship(ships, "interceptor")),
             ..default()
         }),
     };

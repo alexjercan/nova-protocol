@@ -30,7 +30,7 @@
 //! ship's INTEGRITY ROOT dying is the whole hull letting go, and it is the
 //! only death in the game that is allowed to fill the frame - so it is drawn
 //! at the size of the hull it came out of, from that root's
-//! [`IntegrityEnvelope`] against the gunship [`HULK_PYRE`] was cut on.
+//! [`IntegrityEnvelope`] against the reference hull [`HULK_PYRE`] was cut on.
 //!
 //! Each size is its own pair of [`EffectAsset`]s, and the hull scale is a
 //! per-instance PROPERTY multiplied into both, because hanabi bakes a gradient
@@ -122,11 +122,12 @@ pub const BASE_VELOCITY_PROPERTY: &str = "base_velocity";
 /// The name the per-instance spatial scale is written under, in both graphs.
 const PYRE_SCALE_PROPERTY: &str = "hull_scale";
 
-/// The hull [`HULK_PYRE`] was cut against: a shipped gunship, 55.2 m of
-/// structural arm.
+/// The hull [`HULK_PYRE`] was cut against: a 53-section patrol hull with
+/// 55.2 m of structural arm, 90 m stem to stern. It is a size, not a catalog
+/// ship: no shipped hull matches it exactly.
 ///
 /// A hull death is that fireball multiplied by how much bigger the dead hull
-/// is, so the gunship is the one hull whose death is exactly as authored. One
+/// is, so a hull of this arm dies exactly as authored. One
 /// reference and not a table, because the figures below are a LOOK and a look
 /// is tuned once.
 const PYRE_REFERENCE_RADIUS: Meters = Meters(55.2);
@@ -149,9 +150,9 @@ const PYRE_FRAME_FLOOR: usize = 6;
 const PYRE_FRAME_CEILING: usize = 48;
 
 /// The batch [`PYRE_FRAME_FLOOR`] is the right chain for: the 53 sections of
-/// the gunship [`HULK_PYRE`] was cut on.
+/// the reference hull [`HULK_PYRE`] was cut on.
 ///
-/// A whole gunship going up at once lights six. Everything else is that read
+/// A whole reference hull going up at once lights six. Everything else is that read
 /// held at a bigger or smaller size - see [`frame_cap`].
 const PYRE_BATCH_REFERENCE: usize = 53;
 
@@ -162,7 +163,7 @@ const PYRE_BATCH_REFERENCE: usize = 53;
 /// twice the size is read by eye as roughly twice as much fire, not as forty
 /// times as much, and the chain is a sample of the collapse rather than a
 /// drawing of it. A carrier shedding all 2 081 of its sections lights 38, a
-/// 720-cell corridor 23, and anything at or under the gunship's own count the
+/// 720-cell corridor 23, and anything at or under the reference hull's count the
 /// six it always had.
 fn frame_cap(condemned: usize) -> usize {
     #[expect(
@@ -339,14 +340,14 @@ const SECTION_PYRE: PyreScale = PyreScale {
     linger: 0.9,
 };
 
-/// The whole hull letting go, at the size of the gunship it was cut on - 90 m
+/// The whole hull letting go, at the size of the reference hull it was cut on - 90 m
 /// stem to stern, 9 units - so the core covers THAT wreck without swallowing
 /// the frame: a death the camera cannot see THROUGH is a death nobody can
 /// read, and the sections thrown out of it are half of what makes it one.
 ///
 /// Every length below is multiplied per death by how much bigger the dead hull
-/// is than [`PYRE_REFERENCE_RADIUS`], so the figures here are what a gunship
-/// gets and the band each one covers is in [`hulk_scale`].
+/// is than [`PYRE_REFERENCE_RADIUS`], so the figures here are what the
+/// reference hull gets and the band each one covers is in [`hulk_scale`].
 ///
 /// The fragments carry it after that, and they are most of the picture: the
 /// flash is over in a third of a second, while at up to 8 units per second for
@@ -357,13 +358,13 @@ const SECTION_PYRE: PyreScale = PyreScale {
 /// The reach is the number that carries it: the fragments must get PAST the
 /// silhouette, because a debris field that stopped at the hull's own outline
 /// says the ship has merely broken rather than been destroyed. At up to 8
-/// units per second for 1.7 s a gunship's cross about 13 units, 130 m, out of
+/// units per second for 1.7 s the reference hull's cross about 13 units, 130 m, out of
 /// a hull 9 units long. A capital hull is 37 units stem to stern and gets the
 /// same picture only because the scale carries the speeds with it. A flat cut
 /// lit the middle of a wreck whose ends the fragments never got near.
 ///
 /// Those spans are outer FACE to outer face, so each includes the overhang a
-/// multi-cell drive has past its own centre cell - half a unit on the gunship,
+/// multi-cell drive has past its own centre cell - half a unit on the reference hull,
 /// a whole one on a capital hull. A centre-to-centre span reads
 /// each of them short.
 const HULK_PYRE: PyreScale = PyreScale {

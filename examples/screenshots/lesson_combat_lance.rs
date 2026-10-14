@@ -11,7 +11,7 @@
 //! neither shot can reach the other's subject (see [`WRECK_LANE_X`]):
 //!
 //! - the LANCE lane at the origin: a player gunboat with a lance on its spine,
-//!   bore down -Z, and a base Patrol Gunship downrange bow-on so the shot rakes
+//!   bore down -Z, and a base Raider downrange bow-on so the shot rakes
 //!   its long axis;
 //! - the WRECK lane, off to starboard: a siege lance fixture on a bench, and
 //!   a block hull built so that ONE slug takes it under the collapse threshold.
@@ -46,7 +46,7 @@
 //!
 //! What it cannot be is the railgun frame with a swing on it. That one stands
 //! abeam of the whole lane so both hulls fit, which leaves a kill ring 11 m
-//! across about thirty pixels of the cell and puts the gunship's far side to
+//! across about thirty pixels of the cell and puts the raider's far side to
 //! the lens. This one gives the gunboat up and stands on the target's port bow
 //! instead ([`BORE_EYE`]), because a ring is drawn on the section it marks and
 //! every ring but the entry one is inside an opaque hull.
@@ -174,11 +174,11 @@ const RANGE_ID: &str = "lesson_lance_range";
 /// it is aimed at.
 const BOAT_ID: &str = "lance_boat";
 const LANCE_ID: &str = "lance";
-const TARGET_ID: &str = "target_gunship";
+const TARGET_ID: &str = "target_raider";
 
-/// The catalog hull downrange: a base Patrol Gunship, whose spine is long
-/// enough that a bow-on shot has something to bore THROUGH.
-const TARGET_HULL: &str = "block_gunship";
+/// The catalog hull downrange: a base Raider, whose railgun nose and hull run
+/// about 90 m, so a bow-on shot has something to bore THROUGH.
+const TARGET_HULL: &str = "raider";
 
 /// How far downrange the target stands, in meters.
 ///
@@ -193,7 +193,7 @@ const TARGET_Z: Meters = Meters(-150.0);
 /// problem - the wider of the two corridors is [`SIEGE_RAKE_CELLS`], 30 m, and
 /// nothing crosses even a tenth of this. What costs is that the collapse sheet
 /// is photographed looking back up its own lane, so the lance lane lies ahead
-/// of it: at 900 m the gunship the first sheet guts sat in the top left corner
+/// of it: at 900 m the hull the first sheet guts sat in the top left corner
 /// of every collapse cell as a handful of drifting plates. Three kilometers
 /// puts it outside the frustum ([`BLOCK_EYE`] carries the arithmetic) and still
 /// inside one directional rig.
@@ -296,14 +296,14 @@ const COLLAPSE_SLOWDOWN: f32 = 0.11;
 /// How far the gunboat yaws off the target's spine at the far end of the
 /// bore-sight swing, in degrees.
 ///
-/// MEASURED, and the measurement is not the hull's half-width. The gunship is
-/// 70 m across the bow, but what the rake finds out at the wings is one cell of
-/// plate: the trace still prices three sections at 10.3 degrees off the
-/// centreline and none at all at 11.8, so the shoulder this sheet is about is a
-/// 27 m band and the edge of the hull is a metre and a half past it.
+/// Set against the hull's shoulder, not its half-width. The raider's body is
+/// 30 m across with a one-cell outrigger to starboard; ten degrees at this
+/// range walks the trace from about 18 m off the centreline at the nose to
+/// about 34 m at the drives, so it crosses the outrigger and the flank rather
+/// than the spine. [`MIN_RING_SPREAD`] is the check that the far end of the
+/// swing still prices fewer sections than the bow-on shot.
 ///
-/// Ten degrees, which lands inside that band: the far end of the swing is a
-/// shot catching a corner, not a shot missing. A sheet that swung wider spent
+/// The far end of the swing is a shot catching a corner, not a shot missing. A sheet that swung wider spent
 /// seven of its twenty cells on a clean pass, which is a different lesson.
 #[cfg(feature = "debug")]
 const BORE_YAW_SWING: f32 = 10.0;
@@ -340,7 +340,7 @@ const BORE_AIM: Meters3 = Meters3::new(0.0, 0.0, -150.0);
 /// 2x downscale leaves the sight thread a couple of pixels wide: at full charge
 /// the line is 0.72 m of holo geometry, which at this stand-off is about five
 /// pixels of the master frame. The aim point sits between the two hulls and a
-/// little short of the target, so the boat lands in the left third, the gunship
+/// little short of the target, so the boat lands in the left third, the raider
 /// in the right, and the thread crosses the black between them.
 #[cfg(feature = "debug")]
 const SIGHT_EYE: Meters3 = Meters3::new(150.0, 44.0, 20.0);
@@ -462,7 +462,7 @@ fn at(sections: &GameSections, id: String, kind: &str, position: Vec3) -> Spaces
 ///
 /// Bare structure rather than a clad hull, and the reason is the bore: cladding
 /// fills the empty cells AROUND a hull, and the one cell this design must keep
-/// empty is the one the shell leaves through. The gunship downrange wears the
+/// empty is the one the shell leaves through. The raider downrange wears the
 /// skin it ships with, which is where the frame's "this is the game" reading
 /// comes from.
 fn boat_hull(sections: &GameSections) -> Vec<SpaceshipSectionConfig> {
@@ -592,7 +592,7 @@ fn lance_range(
     let target = ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: TARGET_ID.to_string(),
-            name: "Target Gunship".to_string(),
+            name: "Target Raider".to_string(),
             position: Meters3::new(0.0, 0.0, TARGET_Z.get()),
             // Turned to face the bore, so the slug runs the length of the hull.
             // A shot across a beam crosses two or three cells and leaves a
@@ -724,7 +724,7 @@ fn lance_range(
 struct LanceProbe {
     /// Slugs that have left either lance.
     shots: u32,
-    /// Sections the target gunship had before the shell reached it.
+    /// Sections the target raider had before the shell reached it.
     target_sections: usize,
     /// Sections the block had before the siege shell reached it.
     block_sections: usize,
@@ -1197,7 +1197,7 @@ fn lance_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .until(frames(SETTLE_FRAMES))
         .add()
         // The bore sight FIRST, on a whole hull: the railgun frame opens this
-        // same gunship, and a sight drawn over a wreck prices what is left of
+        // same raider, and a sight drawn over a wreck prices what is left of
         // it. The swing and the wait are both counted in FRAMES so the sheet
         // lands on the armed run and on the smoke walk alike, and
         // `hold_the_lane_clock` keeps a smoke frame worth one cell of world.
@@ -1264,7 +1264,7 @@ fn lance_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
             let after = sections_of(world, TARGET_ID);
             assert!(
                 after < before,
-                "the target gunship still carries all {before} of its sections, so the sheet \
+                "the target raider still carries all {before} of its sections, so the sheet \
                  ends on a hull the shell never reached"
             );
         })

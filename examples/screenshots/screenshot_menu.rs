@@ -45,18 +45,18 @@ const BACKDROP: &str = "menu_gauntlet";
 #[cfg(feature = "debug")]
 const BACKDROP_SHIP_ID: &str = "gauntlet_ship";
 
-/// Where the camera stands relative to that gunship, in the HULL's own frame:
-/// off the starboard bow (`-Z` is ahead of it), raised, about 170 m out.
+/// Where the camera stands relative to that warship, in the HULL's own frame:
+/// off the starboard bow (`-Z` is ahead of it), raised, about 370 m out.
 ///
-/// The hull frame rather than world axes, because the gunship flies a patrol
+/// The hull frame rather than world axes, because the warship flies a patrol
 /// and a world-axis offset photographs whatever end the current leg presents -
 /// the first cut of this shot came out stern-on, a drive bell filling the
 /// middle of the menu. Riding the hull always gives the same three-quarter
-/// bow. A `block_gunship` is 85 m stem to stern, and 170 m of standoff makes a
-/// frame 250 m wide: the hull is about a third of it, so the sections and their
+/// bow. A `line_warship` is about 185 m stem to stern, and 370 m of standoff
+/// makes a frame 540 m wide: the hull is about a third of it, so the sections and their
 /// mounts stay separable, with the rock band still around them.
 #[cfg(feature = "debug")]
-const BACKDROP_EYE: Meters3 = Meters3::new(130.0, 50.0, -95.0);
+const BACKDROP_EYE: Meters3 = Meters3::new(285.0, 110.0, -210.0);
 
 /// The seed typed into the world setup window: the one the other v0.15.0
 /// world figures fly, so the post shows one world from setup to flight.
@@ -107,7 +107,7 @@ fn main() -> bevy::app::AppExit {
     // drew.
     //
     // The gauntlet, because it is the backdrop built around ONE named ship:
-    // a gunship holding a station against torpedo waves. The other three put
+    // a warship holding a station against torpedo waves. The other three put
     // their traffic on a route or on a dogfight, so the hull in shot is
     // whichever one the act has carried into view.
     //
@@ -167,9 +167,9 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         .until(frames(SETTLE_FRAMES))
         .add()
         // The backdrop's own SetCamera is an ESTABLISHING shot - 2.6 km out,
-        // where the gunship is a speck over a rock band. The menu is the
+        // where the warship is a speck over a rock band. The menu is the
         // reader's first sight of the fleet, so move in on the hull.
-        .step("frame the backdrop's gunship")
+        .step("frame the backdrop's warship")
         .on_enter(frame_backdrop_ship)
         .until(frames(SETTLE_FRAMES))
         .add()
@@ -276,9 +276,9 @@ fn seed_field_reads(seed: u32) -> std::sync::Arc<nova_protocol::nova_debug::harn
     })
 }
 
-/// Bolt the backdrop camera to the gauntlet's gunship.
+/// Bolt the backdrop camera to the gauntlet's warship.
 ///
-/// An anchor rather than a fixed pose: the gunship flies a patrol six
+/// An anchor rather than a fixed pose: the warship flies a patrol six
 /// waypoints wide, so a pose solved at this instant is a picture of where the
 /// ship USED to be by the time the PNG lands.
 #[cfg(feature = "debug")]

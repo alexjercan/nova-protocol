@@ -42,6 +42,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Ships & Sections
 
+- **(breaking)** New hulls replace the block ships: `mining_tug`,
+  `salvage_hauler`, `light_freighter`, `freighter_derelict`, `interceptor`,
+  `raider`, `patrol_picket`, `line_warship` and `debris_plate`.
 - A cargo intake's door now stays shut for a canister the hold has no room
   for. A canister that fits still opens it.
 - A destroyed ship drops its hold as cargo canisters, and a destroyed section

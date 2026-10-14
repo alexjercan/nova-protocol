@@ -27,9 +27,10 @@ use super::prelude::*;
 /// and the swap rules.
 pub mod prelude {
     pub use super::{
-        plan_section_swap, rebuild_anchored, section_swap_family, swap_build_fault, swap_offers,
-        DesignSection, RefitBuildFaultType, RefitPlacedSection, SectionFamilyFaultType,
-        SectionRebuildRequest, SectionSwapRefusalType, SectionSwapRequest, ShipDesignSections,
+        plan_section_swap, rebuild_anchored, section_swap_family, ship_build_fault,
+        swap_build_fault, swap_offers, DesignSection, RefitBuildFaultType, RefitPlacedSection,
+        SectionFamilyFaultType, SectionRebuildRequest, SectionSwapRefusalType, SectionSwapRequest,
+        ShipDesignSections,
     };
 }
 
@@ -329,6 +330,45 @@ pub fn swap_build_fault(
         blocked_exits(&structure, &ship_exits(&placed, &occupied)).len()
     };
     refit_build_fault(live, &after, || blocked(&after) > blocked(live))
+}
+
+/// The first post-build check a whole built ship fails, or `None` when it
+/// passes them all.
+///
+/// The same checks as [`refit_build_fault`], read absolutely rather than as
+/// a change: one socket graph, clear exit lanes, the thrust floor and the
+/// flight computer count. An authored start hull is held to it, so the ship a
+/// new player is handed could pass every refit it is offered.
+pub fn ship_build_fault(sections: &[RefitPlacedSection<'_>]) -> Option<RefitBuildFaultType> {
+    let links: Vec<PlacedSectionLinkPoints<'_>> = sections
+        .iter()
+        .map(|section| section.link_points())
+        .collect();
+    if let Err(errors) = derive_link_point_graph(&links) {
+        return Some(match errors.as_slice() {
+            [LinkPointGraphError::Disconnected { .. }] => RefitBuildFaultType::Disconnected,
+            _ => RefitBuildFaultType::InvalidSockets,
+        });
+    }
+    let placed: Vec<PlacedPart<'_>> = sections.iter().map(|s| s.placed_part()).collect();
+    let (structure, _, occupied) = read_structure(&placed);
+    if !blocked_exits(&structure, &ship_exits(&placed, &occupied)).is_empty() {
+        return Some(RefitBuildFaultType::BlockedExit);
+    }
+    ShipMeasure::of(sections.iter().map(|s| s.config))
+        .shortfall()
+        .map(|shortfall| match shortfall {
+            ShipMeasureShortfallType::Underpowered { thrust, needed } => {
+                RefitBuildFaultType::Underpowered { thrust, needed }
+            }
+            ShipMeasureShortfallType::Undercontrolled {
+                controllers,
+                needed,
+            } => RefitBuildFaultType::Undercontrolled {
+                controllers,
+                needed,
+            },
+        })
 }
 
 /// The first post-build check the ship `after` fails and `before` passed, or

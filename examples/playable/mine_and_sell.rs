@@ -5,7 +5,7 @@
 //! proves the Inventory pane's trades, and the intake's ECS examples prove the
 //! take. None of them proves that the ore a pulse cuts is the ore a player
 //! sells. This example runs the three in one session on their production
-//! paths: the real `mine` key on the shipped line warship's bow emitter, a
+//! paths: the real `mine` key on the shipped mining tug's bow emitter, a
 //! canister the rock drops taken whole through its dorsal cargo intake, the
 //! real `dock` key on a trader's port, and Sell through the pane.
 //!
@@ -17,7 +17,7 @@
 //! 1. lock the rock with the radar and hold the mine key (`V`) until ore
 //!    pays, then let it up.
 //! 2. fly the dorsal intake up under a canister the rock drops, slowly.
-//! 3. fly the starboard collar onto the trader's port, lock the trader and
+//! 3. fly the port collar onto the trader's port, lock the trader and
 //!    press the dock key.
 //! 4. press TAB, pick Inventory, click Stone ore on your side, pick Sell and
 //!    All, and Confirm.
@@ -28,7 +28,7 @@
 //!
 //! Under `NOVA_AUTOPILOT=1` the script plays all four steps. It keys the beam
 //! until at least five ore is cut, which drops more than one canister, and
-//! tracks the one holding the most ore. It flies the warship with the flight
+//! tracks the one holding the most ore. It flies the tug with the flight
 //! computer's `MatchVelocity`, the primitive every AI pilot steers with: down
 //! clear of the canisters, level under the tracked one, and slowly up onto it.
 //! It then holds the berth beside the trader
@@ -67,9 +67,9 @@ mod docking_pair;
 #[command(about = "Mine ore, take its canister aboard and sell it to a docked trader", long_about = None)]
 struct Cli;
 
-/// Scenario id of the warship the player flies.
+/// Scenario id of the tug the player flies.
 const PLAYER_ID: &str = "miner";
-/// The warship's name.
+/// The tug's name.
 const PLAYER_NAME: &str = "Miner";
 /// Scenario id of the ore rock.
 const ROCK_ID: &str = "ore_rock";
@@ -78,24 +78,25 @@ const TRADER_ID: &str = "trader";
 /// The trader's name, which the pane's note line reads.
 const TRADER_NAME: &str = "Trader";
 
-/// The rock of `screenshot_mining_beam`: dead ahead of the line warship's
+/// The rock of `screenshot_mining_beam`: dead ahead of the mining tug's
 /// bow emitter, its near face about 58 m out, clear of the bow.
-const ROCK_CENTRE: Vec3 = Vec3::new(1.0, 1.0, -23.5);
+const ROCK_CENTRE: Vec3 = Vec3::new(0.0, 0.0, -22.5);
 const ROCK_RADIUS: Meters = Meters(25.0);
 const ROCK_SEED: u32 = 7;
 
-/// Where the warship's root rests to dock, in engine units: aft of the rock
+/// Where the tug's root rests to dock, in engine units: aft of the rock
 /// and below the line the canister drifts along, so no canister crosses the
 /// berth.
 const BERTH: Vec3 = Vec3::new(0.0, -5.0, 12.0);
 
-/// Where the trader stands, in engine units: to starboard of the berth,
-/// turned so its port faces the warship's starboard collar. The collar face
-/// stands 25 m off the warship's root and the port face 25 m off the spar's,
-/// which leaves a 5 m face gap, half the capture distance.
-const TRADER_POSITION: Vec3 = Vec3::new(BERTH.x + 5.5, BERTH.y, BERTH.z);
+/// Where the trader stands, in engine units: to port of the berth, level with
+/// the tug's port collar at cell (-2, 0, -1), turned so its port faces that
+/// collar. The collar face stands 25 m off the tug's centreline and the port
+/// face 25 m off the spar's root, which leaves a 5 m face gap, half the
+/// capture distance.
+const TRADER_POSITION: Vec3 = Vec3::new(BERTH.x - 5.5, BERTH.y, BERTH.z - 1.0);
 
-/// What the warship holds at spawn: an empty hold and a few credits.
+/// What the tug holds at spawn: an empty hold and a few credits.
 const PLAYER_CREDITS: u32 = 50;
 /// What the trader carries at spawn: no ore, so every ore it ends with is
 /// the ore it bought.
@@ -159,7 +160,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
                 )]
                 .into(),
             }),
-            design: ShipDesignSource::Inline(kit::catalog_ship(&ships, "block_line_warship")),
+            design: ShipDesignSource::Inline(kit::catalog_ship(&ships, "mining_tug")),
             inventory: ShipInventoryStock::new([]),
             credits: PLAYER_CREDITS,
             ..default()
@@ -171,7 +172,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
         TRADER_ID,
         TRADER_NAME,
         TRADER_POSITION,
-        Quat::from_rotation_y(std::f32::consts::FRAC_PI_2),
+        Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2),
         SpaceshipConfig {
             controller: SpaceshipController::None,
             design: ShipDesignSource::Inline(spar()),
@@ -238,12 +239,12 @@ mod walk {
 
     use super::*;
 
-    /// The line warship's emitter face centre, in engine units from its root:
-    /// the -Z face of its cell at (1, 1, -7).
-    const EMITTER_FACE: Vec3 = Vec3::new(1.0, 1.0, -7.5);
+    /// The mining tug's emitter face centre, in engine units from its root:
+    /// the -Z face of its cell at (0, 0, -6).
+    const EMITTER_FACE: Vec3 = Vec3::new(0.0, 0.0, -6.5);
 
     /// The rock's near face on the beam line, as meshed from its seed.
-    const ROCK_NEAR_FACE: Vec3 = Vec3::new(1.0, 1.0, -13.3);
+    const ROCK_NEAR_FACE: Vec3 = Vec3::new(0.0, 0.0, -12.3);
 
     /// The ore the rock's kind yields.
     const ORE: &str = ItemRoleType::StoneOre.id();
@@ -255,10 +256,10 @@ mod walk {
     /// from the rock to the intake.
     const FLIGHT_DEADLINE: f32 = 900.0;
 
-    /// The least z the warship's root is flown to, in engine units, so its
+    /// The least z the tug's root is flown to, in engine units, so its
     /// bow keeps clear of the rock while it waits under the canister.
     const SAFE_Z: f32 = 0.0;
-    /// How far below the canister the intake face waits while the warship
+    /// How far below the canister the intake face waits while the tug
     /// levels under it, in engine units: clear of the bridge and the turrets.
     const HOVER_CLEARANCE: f32 = 2.5;
     /// The gap the lift closes to between the face and the canister's nearest
@@ -276,7 +277,7 @@ mod walk {
     /// The largest correction the helm asks for, in engine units per second:
     /// small enough for the RCS to trim with the nose held.
     const MAX_CORRECTION: f32 = 0.4;
-    /// How near a held point the warship must rest, in engine units and
+    /// How near a held point the tug must rest, in engine units and
     /// engine units per second.
     const HOLD_ARRIVAL: f32 = 0.08;
     const HOLD_REST: f32 = 0.03;
@@ -287,9 +288,9 @@ mod walk {
     /// is taken, in engine units.
     const PICKUP_SHOT_GAP: f32 = 0.5;
 
-    /// Where the warship closes on the berth from: beside it, clear of the
+    /// Where the tug closes on the berth from: beside it, clear of the
     /// spar, so the last leg is straight across the gap.
-    const BERTH_APPROACH: Vec3 = Vec3::new(BERTH.x - 2.0, BERTH.y, BERTH.z);
+    const BERTH_APPROACH: Vec3 = Vec3::new(BERTH.x + 2.0, BERTH.y, BERTH.z);
 
     /// The frames the capture path writes.
     const MINING_SHOT: &str = "mine-sell-mining.png";
@@ -374,7 +375,7 @@ mod walk {
                     .iter()
                     .find(|(&ChildOf(parent), ..)| parent == ship)
                 else {
-                    panic!("mine_and_sell: the warship has no cargo intake");
+                    panic!("mine_and_sell: the tug has no cargo intake");
                 };
                 let (face, normal) =
                     cargo_intake_face(intake.translation(), intake.rotation(), *collider);
@@ -655,7 +656,7 @@ mod walk {
         let price = collected * items.design(&ore_id).bid_cr;
         let own = inventory(world, PLAYER_ID);
         let partner = inventory(world, TRADER_ID);
-        assert!(own.is_empty(), "the warship's hold is empty after the Sell");
+        assert!(own.is_empty(), "the tug's hold is empty after the Sell");
         let mut expected: Vec<(&str, u32)> = TRADER_STOCK.to_vec();
         expected.push((ORE, collected));
         expected.sort_by_key(|(item, _)| *item);
@@ -668,7 +669,7 @@ mod walk {
         let own_credits = credits(world, PLAYER_ID);
         let partner_credits = credits(world, TRADER_ID);
         info!(
-            "mine_and_sell: sold {collected} ore for {price} cr: warship {own_credits} cr, \
+            "mine_and_sell: sold {collected} ore for {price} cr: tug {own_credits} cr, \
              trader {partner_credits} cr"
         );
         assert_eq!(own_credits, PLAYER_CREDITS + price);
@@ -754,7 +755,7 @@ mod walk {
         world.entity_mut(player).insert(TravelLock(Some(target)));
     }
 
-    /// Press or release whatever the warship's mining section is bound to,
+    /// Press or release whatever the tug's mining section is bound to,
     /// read live rather than hard-coded, so a rebind of the section still
     /// drives the real key.
     fn drive_mine_key(world: &mut World, phase: InputPhase) {
@@ -763,7 +764,7 @@ mod walk {
             .iter(world)
             .next()
             .and_then(|binding| binding.0.first().copied())
-            .expect("the warship's mining section is bound to a key");
+            .expect("the tug's mining section is bound to a key");
         dispatch::press_source(world, source, phase);
     }
 
@@ -792,10 +793,7 @@ mod walk {
         let mut intakes = world
             .query_filtered::<(&GlobalTransform, &SectionCollider), With<CargoIntakeSectionMarker>>(
             );
-        let (intake, collider) = intakes
-            .iter(world)
-            .next()
-            .expect("the warship has an intake");
+        let (intake, collider) = intakes.iter(world).next().expect("the tug has an intake");
         let (face, normal) = cargo_intake_face(intake.translation(), intake.rotation(), *collider);
         let subject = face + normal * 0.6;
         pose_camera(
@@ -834,7 +832,7 @@ mod walk {
     /// Mine, take, dock and sell, checking the ledger at each hand-off.
     fn script() -> AutopilotPlugin<GameStates> {
         let script = AutopilotPlugin::<GameStates>::new()
-            .step("load the warship, the rock and the trader")
+            .step("load the tug, the rock and the trader")
             .enter(GameStates::Loading)
             .until(and(player_ship_present(), scenario_camera_present()))
             .deadline(STEP_DEADLINE)

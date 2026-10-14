@@ -870,15 +870,20 @@ whichever of the two it started under. The base game generates its greeble model
 [Ship skin styles](https://alexjercan.github.io/nova-protocol/create/styles/).
 
 What a hull actually OFFERS is worth knowing before writing a rule. Measured on
-the eight catalogue hulls, per ship:
+the catalogue hulls and stations, per ship:
 
 | subject | plates | flat | step | ridge | peak | brink | spur |
 |---|---|---|---|---|---|---|---|
 | `block_waystation` | 42 | 3 | 3 | 0 | 0 | 13 | 23 |
-| `block_cutter` | 64 | 11 | 8 | 5 | 2 | 14 | 24 |
-| `block_gunship` | 61 | 2 | 24 | 2 | 1 | 7 | 25 |
-| `block_hauler` | 93 | 16 | 20 | 4 | 1 | 15 | 37 |
-| `block_line_warship` | 171 | 23 | 54 | 21 | 0 | 44 | 29 |
+| `mining_tug` | 56 | 6 | 9 | 3 | 4 | 12 | 22 |
+| `salvage_hauler` | 90 | 18 | 15 | 0 | 0 | 32 | 25 |
+| `light_freighter` | 74 | 11 | 14 | 4 | 0 | 20 | 25 |
+| `freighter_derelict` | 67 | 9 | 13 | 1 | 1 | 16 | 27 |
+| `interceptor` | 64 | 5 | 14 | 2 | 1 | 15 | 27 |
+| `raider` | 67 | 9 | 12 | 9 | 0 | 11 | 26 |
+| `patrol_picket` | 40 | 5 | 12 | 4 | 0 | 3 | 16 |
+| `line_warship` | 178 | 22 | 72 | 25 | 0 | 32 | 27 |
+| `debris_plate` | 33 | 3 | 5 | 2 | 2 | 6 | 15 |
 | `ring_station` | 210 | 0 | 36 | 0 | 18 | 24 | 132 |
 | `spire_station` | 134 | 10 | 16 | 4 | 0 | 48 | 56 |
 | `yard_station` | 134 | 10 | 12 | 0 | 22 | 24 | 66 |
@@ -956,7 +961,7 @@ burns at `SECTION_PYRE`, a whole hull at `HULK_PYRE`.
 A section is the same size on every ship, because a build-grid cell is. A HULL
 is not, so `HULK_PYRE` is the look and the dying root's `IntegrityEnvelope` is
 the size it is drawn at: every length is multiplied by the hull's containment
-radius over the 55.2 m gunship the look was cut on, and the flash by the square
+radius over the 55.2 m reference hull the look was cut on, and the flash by the square
 of it, because lumens stand in for a burning surface. The shipped hulls run
 from 0.88 on a skiff-sized hull to 3.52 on a carrier-sized one, so a carrier's debris
 reaches 479 m rather than ending 58 m inside its own wreck. Durations and
@@ -1007,7 +1012,7 @@ What a death still mints is instances, so this half DOES need a budget. A
 compartment death is QUEUED, and the whole frame's batch is spent at the end of
 it: `6 * sqrt(condemned / 53)` fires, floored at six and capped at 48, picked by
 farthest-point sampling over where the deaths happened. The reference is the
-53-section gunship the look was cut on, so an ordinary frame still lights the
+53-section reference hull the look was cut on, so an ordinary frame still lights the
 six it always did, a 720-cell corridor lights 23 and a whole carrier 38. The
 sampling is the half that matters: deaths arrive in section-graph order, so the
 first six of a collapse are six fires in one shoulder of the wreck - the chain
@@ -1069,7 +1074,7 @@ asteroid's collider node all hang under one. A severed fragment, a rock and a
 torpedo each resolve to their own body, so each is its own event, and only a cue
 with nothing physical over it falls back to a 60 m world cell (`SFX_AREA_CELL`,
 six world units). That cell used to be the whole rule, and a cell is about the
-size of a gunship, so it was the same mistake in both directions: a carrier
+size of a small hull, so it was the same mistake in both directions: a carrier
 collapse spanned two dozen cells and threw 25 trauma kicks in the frame it came
 apart - the pile-up the throttle exists to stop - while two hulls dying a few
 metres apart shared one death. The same collapse throws 3 kicks now.

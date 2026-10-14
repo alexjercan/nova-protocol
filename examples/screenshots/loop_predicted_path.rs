@@ -133,8 +133,8 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
     // private `mod kit` inside `ring.rs`, unreachable from here - this is the
     // same lookup it performs, read straight off `GameShipDesigns`.
     let hull = ships
-        .get_design(&"block_line_warship".into())
-        .unwrap_or_else(|| panic!("loop_predicted_path: unknown ship 'block_line_warship'"))
+        .get_design(&"line_warship".into())
+        .unwrap_or_else(|| panic!("loop_predicted_path: unknown ship 'line_warship'"))
         .design
         .clone();
     let facing = Quat::from_rotation_arc(
@@ -149,12 +149,8 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
         START,
         facing,
         SpaceshipController::Player(PlayerControllerConfig {
-            // The walk never fires the beam; the scenario lint refuses a player
-            // ship whose mining section has no binding.
-            input_mapping: std::collections::BTreeMap::from([(
-                "mining_beam".to_string(),
-                vec![nova_input::prelude::InputSource::Keyboard(KeyCode::KeyV)],
-            )]),
+            // The walk never fires: nothing here needs a weapon binding.
+            input_mapping: std::collections::BTreeMap::new(),
         }),
         None,
         hull,

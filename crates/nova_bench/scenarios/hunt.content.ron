@@ -1,10 +1,11 @@
-// The bench's hunt: one player gunship and one hostile raider parked ahead on
+// The bench's hunt: one player warship and one hostile raider parked ahead on
 // the burn line, with an objective and an outcome so the referee has a
 // verdict to score. Loaded loose, never installed:
 //   cargo run --features debug bench play crates/nova_bench/scenarios/hunt.content.ron
 // The raider holds station under a short engage grace, then fights. Every
-// mount has its own free key, so `section.<id>` presses one mount and never
-// its neighbour.
+// point-defense mount has its own free key, so `section.<id>` presses one
+// mount and never its neighbour. The railgun and torpedo bays stay unbound
+// and carry no rounds: the hunt is a point-defense fight.
 [
     Scenario((
         id: "bench_hunt",
@@ -24,13 +25,13 @@
                     SpawnScenarioObject((
                         base: (
                             id: "player",
-                            name: "Bench Gunship",
+                            name: "Bench Warship",
                             position: (0.0, 0.0, 0.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
                             initial_velocity: (0.0, 0.0, 0.0),
-                            design: Prototype(id: "block_gunship"),
+                            design: Prototype(id: "line_warship"),
                             controller: Player((
                                 input_mapping: {
                                     "pdc_forward_port": [Keyboard(KeyU)],
@@ -135,7 +136,7 @@
                 actions: [
                     Outcome((
                         outcome: Defeat,
-                        message: Some("The gunship broke up."),
+                        message: Some("The warship broke up."),
                     )),
                 ],
             ),
@@ -150,7 +151,7 @@
                 actions: [
                     Outcome((
                         outcome: Defeat,
-                        message: Some("The gunship is disarmed."),
+                        message: Some("The warship is disarmed."),
                     )),
                 ],
             ),

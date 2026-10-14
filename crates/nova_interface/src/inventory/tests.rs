@@ -1756,7 +1756,7 @@ mod generated_wreck {
     use super::*;
 
     /// The open world's player hull and the collar it docks on, facing -X.
-    const WARSHIP: &str = "block_line_warship";
+    const WARSHIP: &str = "line_warship";
     const PLAYER_COLLAR: &str = "port_collar";
     /// Face-to-face gap at capture, cells: inside the one-cell capture
     /// distance.

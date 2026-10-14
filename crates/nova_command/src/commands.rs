@@ -1210,7 +1210,7 @@ mod tests {
         // first argument: `ammo refill <ship>` takes one, so the second is the
         // sub-command that does not exist.
         assert_eq!(
-            headline("ammo refill block_gunship nope"),
+            headline("ammo refill interceptor nope"),
             "ammo refill: unknown subcommand 'nope'",
         );
     }

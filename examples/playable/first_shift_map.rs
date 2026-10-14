@@ -172,7 +172,7 @@ fn map_scenario(game_assets: &GameAssets, pilot: Pilot) -> ScenarioConfig {
             PLAYER_START_POS,
             Quat::IDENTITY,
             controller_for(pilot, Pilot::Cutter),
-            design(BLOCK_CUTTER_SHIP_ID),
+            design(MINING_TUG_SHIP_ID),
         )),
         spawn(ship_object(
             "industrial_carrier",
@@ -405,7 +405,12 @@ fn controller_for(pilot: Pilot, ship: Pilot) -> SpaceshipController {
         }
         bindings
     } else {
-        BTreeMap::new()
+        // The cutter is the base mining tug: its beam takes the key every
+        // player mining emitter uses.
+        BTreeMap::from([(
+            MINING_TUG_EMITTER_ID.to_string(),
+            vec![KeyCode::KeyV.into()],
+        )])
     };
 
     SpaceshipController::Player(PlayerControllerConfig { input_mapping })

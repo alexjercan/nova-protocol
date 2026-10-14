@@ -218,7 +218,7 @@ id or authored inline.
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `design` | design source | required | `Prototype(id: "block_gunship")` names a [ship design](../ships/) by id, with this spawn's own `section_patches` over it; `Inline((..))` carries a one-off design (below) |
+| `design` | design source | required | `Prototype(id: "interceptor")` names a [ship design](../ships/) by id, with this spawn's own `section_patches` over it; `Inline((..))` carries a one-off design (below) |
 | `controller` | controller | required | who flies it (below) |
 | `initial_velocity` | 3-tuple | required | explicit initial motion in meters per second, `(x, y, z)`. `(0.0, 0.0, 0.0)` is an authored stationary start, not immunity to gravity - a ship with no velocity inside a well's reach falls in like anything else |
 | `allegiance` | `Option` side | `None` | side override, strict RON `Some(Neutral)`. Omitted = the controller default: Player ships fight for the player, AI ships are hostile |
@@ -381,14 +381,14 @@ SpawnScenarioObject((
     kind: Spaceship((
         controller: Player((
             input_mapping: {
-                "turret_port": [Mouse(Left)],
+                "pdc_port": [Mouse(Left)],
             },
         )),
         initial_velocity: (0.0, 0.0, 0.0),
-        // The shipped patrol gunship, by id, with this spawn's own flight
-        // computer hardened; every other gunship is untouched.
+        // The shipped interceptor, by id, with this spawn's own flight
+        // computer hardened; every other interceptor is untouched.
         design: Prototype(
-            id: "block_gunship",
+            id: "interceptor",
             section_patches: {
                 "bridge": (config: (health: Some(500.0))),
             },
@@ -438,7 +438,7 @@ SpawnScenarioObject((
             engage_delay: Some(8.0),
         )),
         initial_velocity: (0.0, 0.0, 0.0),
-        design: Prototype(id: "block_picket"),
+        design: Prototype(id: "patrol_picket"),
         inventory: {},
         lootable: false,
         credits: 2000,

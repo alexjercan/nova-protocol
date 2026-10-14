@@ -28,7 +28,7 @@
                         ),
                         kind: Spaceship((
                             design: Prototype(
-                                id: "block_workship",
+                                id: "mining_tug",
                                 section_patches: {
                                     "bridge": (
                                         config: (
@@ -42,7 +42,13 @@
                                     ),
                                 },
                             ),
-                            controller: Player(()),
+                            controller: Player((
+                                input_mapping: {
+                                    "mining_beam": [
+                                        Keyboard(KeyV),
+                                    ],
+                                },
+                            )),
                             initial_velocity: (
                                 0.0,
                                 0.0,
@@ -72,7 +78,7 @@
                         ),
                         kind: Spaceship((
                             design: Prototype(
-                                id: "block_frame_tender_damaged",
+                                id: "freighter_derelict",
                                 section_patches: {
                                     "port_collar": (
                                         config: (
@@ -111,7 +117,7 @@
                         ),
                         kind: Spaceship((
                             design: Prototype(
-                                id: "block_wreck_plate",
+                                id: "debris_plate",
                             ),
                             controller: r#None,
                             initial_velocity: (
@@ -127,7 +133,7 @@
                     )),
                     SpawnScenarioObject((
                         base: (
-                            id: "gantry_debris_stack",
+                            id: "gantry_debris_tank",
                             name: "Debris",
                             position: (
                                 2405.0,
@@ -143,7 +149,7 @@
                         ),
                         kind: Spaceship((
                             design: Prototype(
-                                id: "block_wreck_plate",
+                                id: "debris_plate",
                             ),
                             controller: r#None,
                             initial_velocity: (
@@ -159,7 +165,7 @@
                     )),
                     SpawnScenarioObject((
                         base: (
-                            id: "gantry_debris_arch",
+                            id: "gantry_debris_wing",
                             name: "Debris",
                             position: (
                                 2485.0,
@@ -175,7 +181,7 @@
                         ),
                         kind: Spaceship((
                             design: Prototype(
-                                id: "block_wreck_plate",
+                                id: "debris_plate",
                             ),
                             controller: r#None,
                             initial_velocity: (
@@ -809,7 +815,7 @@
                     )),
                     NarrativeCue((
                         speaker: "Leila",
-                        text: "That is the way. The cradle does not care for being turned with two tonnes on it.",
+                        text: "That is the way. The boom does not care for being turned with two tonnes on it.",
                         icon: Some("self://portraits/leila.png"),
                         accent: Srgba((
                             red: 0.21176471,

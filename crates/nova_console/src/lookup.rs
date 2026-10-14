@@ -147,8 +147,8 @@ mod tests {
             }
             ship
         };
-        let player = ship("block_gunship", &["hull_front", "pdc_aft_port"]);
-        let picket = ship("block_picket", &["pdc_aft_port"]);
+        let player = ship("interceptor", &["hull_front", "pdc_aft_port"]);
+        let picket = ship("patrol_picket", &["pdc_aft_port"]);
         (world, player, picket)
     }
 
@@ -174,12 +174,12 @@ mod tests {
         let Found::Missing(detail) = section(&mut world, player, "pdc_dorsal") else {
             panic!("`pdc_dorsal` is not on the player ship");
         };
-        assert!(detail.contains("on block_gunship"), "{detail}");
+        assert!(detail.contains("on interceptor"), "{detail}");
         assert!(detail.contains("hull_front, pdc_aft_port"), "{detail}");
 
         let Found::Missing(detail) = ship(&mut world, "nobody") else {
             panic!("no ship is called `nobody`");
         };
-        assert!(detail.contains("block_gunship, block_picket"), "{detail}");
+        assert!(detail.contains("interceptor, patrol_picket"), "{detail}");
     }
 }

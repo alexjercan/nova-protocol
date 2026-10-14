@@ -64,12 +64,12 @@ const LOOP_NAME: &str = "landing-damage-sequence";
 #[cfg(feature = "debug")]
 const DAMAGE_STILL: &str = "wiki-ships-damage.png";
 
-/// Scenario id of the gunship that takes the beating.
+/// Scenario id of the interceptor that takes the beating.
 const SUBJECT_ID: &str = "damage_subject";
 
-/// The catalog hull the beating is delivered to: the fleet's warship, which is
-/// the only one carrying enough guns for the turret beat to cost it something.
-const SUBJECT_HULL: &str = "block_gunship";
+/// The catalog hull the beating is delivered to: the interceptor, the size the
+/// framing was cut for, with a second gun so the turret beat leaves one live.
+const SUBJECT_HULL: &str = "interceptor";
 
 /// The plating the broadside walks across, bow to waist, named by BUILD-GRID
 /// CELL along the port flank - the coordinate the hull is authored in, where
@@ -99,15 +99,15 @@ const BROADSIDE_FRACTION: f32 = 0.78;
 /// killing it disables a gun without severing anything - which is the beat:
 /// losing a weapon is not the same event as losing structure.
 #[cfg(feature = "debug")]
-const DISABLED_TURRET: &str = "pdc_forward_port";
+const DISABLED_TURRET: &str = "pdc_starboard";
 
-/// The cell the final hit goes through: the port aft deck plate.
+/// The cell the final hit goes through: the port top-deck plate.
 ///
-/// It is the seat the aft port mount stands on, and the mount's only link, so
+/// It is the seat the port mount stands on, and the mount's only link, so
 /// cutting the plate frees the gun and the deck it rode on as an independent
 /// wreck. A plate with nothing hanging off it frees nothing.
 #[cfg(feature = "debug")]
-const SEVERED_CELL: Vec3 = Vec3::new(-1.0, 1.0, 1.0);
+const SEVERED_CELL: Vec3 = Vec3::new(-1.0, 1.0, -1.0);
 
 /// Which way the still's lens faces, in the HULL's own frame - a direction
 /// only, so the tumble the sequence ends on cannot decide which face is shot.
@@ -116,18 +116,18 @@ const SEVERED_CELL: Vec3 = Vec3::new(-1.0, 1.0, 1.0);
 /// from the port QUARTER, which is a fine view of a hull coming apart in
 /// motion and the wrong one for a still, because everything the sequence
 /// touches is on the flank. Cracked plating runs bow to waist
-/// ([`BROADSIDE_CELLS`]), the dead gun is the forward port mount, and the hole
-/// is aft at [`SEVERED_CELL`] - one flank-on frame carries all three, an aft
-/// quarter carries none of them.
+/// ([`BROADSIDE_CELLS`]), the dead gun is the starboard mount on the top deck,
+/// and the hole is under the port mount at [`SEVERED_CELL`] - one flank-on
+/// frame carries all three, an aft quarter carries none of them.
 #[cfg(feature = "debug")]
 const STILL_EYE: Vec3 = Vec3::new(-1.0, 0.3, -0.35);
 
 /// How far the still's lens stands off the hull, meters.
 ///
-/// The gunship is 85 m stem to stern and the lens is across its beam, so the
-/// whole length is in frame: the lens spans 1.47 times its distance, so at this
-/// range the frame is about 198 m wide and the hull is a little over two fifths
-/// of it, which leaves the silhouette room without shrinking the cracks it is
+/// The interceptor is about 65 m stem to stern and the lens is across its
+/// beam, so the whole length is in frame: the lens spans 1.47 times its
+/// distance, so at this range the frame is about 198 m wide and the hull is a
+/// third of it, which leaves the silhouette room without shrinking the cracks it is
 /// here to show. The pod freed by the last beat is
 /// 90 m clear by the time the loop closes and may fall outside; the framing
 /// keeps the SHIP, because the hole the pod left is the readable half of the
@@ -149,7 +149,7 @@ const LOOP_EYE: Vec3 = Vec3::new(-0.68, 0.23, 0.70);
 /// The stand-off is the SHIP's, not the crack's. At 76 m this lens was inside
 /// its own subject: the loop showed a drive bell and a piece of plating, and
 /// the severed deck crossed close enough to fill the frame. The hull is shot
-/// from the port QUARTER, so it presents about 60 m rather than its 85 m
+/// from the port QUARTER, so it presents about 55 m rather than its 65 m
 /// length; held here that silhouette is a little over a third of the frame,
 /// which leaves the freed deck room to drift without leaving the shot, and a
 /// crack is still a crack.
@@ -195,7 +195,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
     commands.trigger(LoadScenario(damage_range(&game_assets, &ships)));
 }
 
-/// The set: one gunship three-quarter to the lens with its port flank open,
+/// The set: one interceptor three-quarter to the lens with its port flank open,
 /// a near rock field for parallax, and the photo rig.
 fn damage_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
     let subject = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
@@ -208,7 +208,7 @@ fn damage_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioCo
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::None,
             allegiance: Some(Allegiance::Enemy),
-            // The whole shipped gunship, turrets included: the sequence needs
+            // The whole shipped interceptor, turrets included: the sequence needs
             // a turret to disable and a real mate graph to sever along, and
             // both come from the catalog rather than from a hand-typed copy.
             design: ShipDesignSource::Inline(kit::catalog_ship(ships, SUBJECT_HULL)),
@@ -226,7 +226,7 @@ fn damage_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioCo
     };
 
     ScenarioConfig {
-        description: "A gunship worn down a level at a time, then cut open.".to_string(),
+        description: "An interceptor worn down a level at a time, then cut open.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
             name: EventConfig::OnStart,

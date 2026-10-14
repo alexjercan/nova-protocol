@@ -1,6 +1,6 @@
 //! "Drydock drift": the beauty set the website's pure-3D shots are taken from.
 //!
-//! A hero gunship posed at the origin, a near-field rock belt close enough to be
+//! A hero interceptor posed at the origin, a near-field rock belt close enough to be
 //! IN the frame, two neutral working hulls flying slow loops through the yard,
 //! and a planetoid far enough back that its surface reads as a body rather than
 //! a wall. The photo kit lights it (key + rim + fill) instead of the scenario's
@@ -50,20 +50,21 @@ pub const PLANETOID_SEED: u32 = 631_377_440;
 /// world units, 1.56 km, and nothing posed further out than that is inside it.
 pub const PLANETOID_MASS: f32 = 6_000.0;
 
-/// The set: planetoid, near-field belt, hero gunship, two drifting hulls.
+/// The set: planetoid, near-field belt, hero interceptor, two drifting hulls.
 pub fn drydock_drift(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
-    // The hero: a patrol gunship at the origin, turned three-quarters and tipped
+    // The hero: an interceptor at the origin, turned three-quarters and tipped
     // off the horizontal so it reads as a ship parked in a yard rather than a
-    // model on a shelf. The fleet's most detailed silhouette, which is what a
-    // beauty shot wants.
+    // model on a shelf. Wings, a fin, two turrets and a bow bay make a busy
+    // silhouette at a size the close framing holds, which is what a beauty
+    // shot wants.
     let hero = ship(
         "drydock_hero",
-        "Hero Gunship",
+        "Hero Interceptor",
         Meters3::ZERO,
         Quat::from_rotation_y(-0.55) * Quat::from_rotation_x(0.10) * Quat::from_rotation_z(0.18),
         SpaceshipController::None,
         None,
-        kit::catalog_ship(ships, "block_gunship"),
+        kit::catalog_ship(ships, "interceptor"),
     );
 
     // The yard traffic: two working hulls flying slow loops around the hero,
@@ -81,7 +82,7 @@ pub fn drydock_drift(game_assets: &GameAssets, ships: &GameShipDesigns) -> Scena
             Meters3::new(-300.0, 40.0, 860.0),
         ]),
         Some(Allegiance::Neutral),
-        kit::catalog_ship(ships, "block_hauler"),
+        kit::catalog_ship(ships, "light_freighter"),
     );
     let hauler_b = ship(
         "drydock_hauler_b",
@@ -94,7 +95,7 @@ pub fn drydock_drift(game_assets: &GameAssets, ships: &GameShipDesigns) -> Scena
             Meters3::new(580.0, -80.0, 600.0),
         ]),
         Some(Allegiance::Neutral),
-        kit::catalog_ship(ships, "block_cutter"),
+        kit::catalog_ship(ships, "salvage_hauler"),
     );
 
     let belt = kit::NearField {

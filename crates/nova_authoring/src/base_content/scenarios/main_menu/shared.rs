@@ -77,16 +77,16 @@ pub(super) fn backdrop_orbiter(
     id: &str,
     name: &str,
     position: Meters3,
-    // The silhouette knob: `true` flies the wide block hauler, `false` the
-    // small block cutter. Both are hand-built cube ships in the industrial
-    // look - a backdrop is read at two kilometres, where width separates two
-    // hulls and detail does not.
+    // The silhouette knob: `true` flies the light freighter with its solar
+    // wings, `false` the narrow mining tug on its bow boom - a backdrop is
+    // read at two kilometres, where width separates two hulls and detail
+    // does not.
     cargo: bool,
 ) -> ScenarioObjectConfig {
     let hull = if cargo {
-        ships::BLOCK_HAULER_SHIP_ID
+        ships::LIGHT_FREIGHTER_SHIP_ID
     } else {
-        ships::BLOCK_CUTTER_SHIP_ID
+        ships::MINING_TUG_SHIP_ID
     };
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {

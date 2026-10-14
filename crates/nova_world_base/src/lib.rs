@@ -114,22 +114,16 @@ pub mod prelude {
         NovaWorldBasePlugin, OpenWorldSession, PinnedStation, PlannedShip, SectorClusters,
         ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType, ShipLayoutFailure,
         ShipLayoutRequest, ShipPart, ShipPartExclusionType, ShipPartFamilyType, ShipPartFault,
-        ShipPartPack, ShipPartSnapshot, ARMOURED_STYLE_ID, BLOCK_LINE_WARSHIP_SHIP_ID,
-        BLOCK_WAYSTATION_STATION_ID, CIVILIAN_STYLE_ID, CLEARANCE_MARGIN,
-        GENERATED_STATION_DESIGN_IDS, INDUSTRIAL_STYLE_ID, OPEN_WORLD_BOUNDS_RADIUS_MAX,
-        OPEN_WORLD_SCENARIO_ID, RING_STATION_STATION_ID, SALVAGE_STYLE_ID,
-        SPIRE_STATION_STATION_ID, STATION_STYLE_ID, YARD_STATION_STATION_ID,
+        ShipPartPack, ShipPartSnapshot, ARMOURED_STYLE_ID, BLOCK_WAYSTATION_STATION_ID,
+        CIVILIAN_STYLE_ID, CLEARANCE_MARGIN, GENERATED_STATION_DESIGN_IDS, INDUSTRIAL_STYLE_ID,
+        OPEN_WORLD_BOUNDS_RADIUS_MAX, OPEN_WORLD_SCENARIO_ID, RING_STATION_STATION_ID,
+        SALVAGE_STYLE_ID, SPIRE_STATION_STATION_ID, STATION_STYLE_ID, YARD_STATION_STATION_ID,
     };
 }
 
 /// The id of the base bootstrap New Game launches: the player's warship, the
 /// lights and the sky, with every sector streamed in around them.
 pub const OPEN_WORLD_SCENARIO_ID: &str = "open_world";
-
-/// The id the block-built line warship is spawned by: the open world's player
-/// hull, with six point-defense mounts, one spinal railgun and two torpedo
-/// bays.
-pub const BLOCK_LINE_WARSHIP_SHIP_ID: &str = "block_line_warship";
 
 /// The id the block-built waystation is spawned by: an unarmed plated block
 /// with a bridge on top and a docking collar off its port flank, no drive.

@@ -108,7 +108,7 @@ Canisters come from two places: your own jettison, and a [mining beam](../mining
 ## Variants
 
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/cargo_intake.rs and assets/base/sections/base.content.ron. Mounted by crates/nova_authoring/src/base_content/ships/block.rs: `cargo_intake` on the line warship's top deck, door up. -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/cargo_intake.rs and assets/base/sections/base.content.ron. Mounted by crates/nova_authoring/src/base_content/ships/block.rs: `cargo_intake` on the mining tug, the salvage hauler and the line warship, door up. -->
 <div class="catalog__head"><span class="catalog__title">Cargo intake - shipped prototypes</span></div>
 <table>
 <thead>
@@ -120,4 +120,4 @@ Canisters come from two places: your own jettison, and a [mining beam](../mining
 </table>
 </div>
 
-One intake ships. The Line Warship you fly in New Game carries it on its top deck, aft of the dorsal guns, door up. Bolt one onto any other hull in the ship editor; it takes neighbours on every face except the door. See [Ship sections for mods](../../../create/sections/#cargo-intake) for the numbers a mod can change.
+One intake ships. The Mining Tug, the Salvage Hauler and the Line Warship carry it on the top deck, door up. Bolt one onto any other hull in the ship editor; it takes neighbours on every face except the door. See [Ship sections for mods](../../../create/sections/#cargo-intake) for the numbers a mod can change.

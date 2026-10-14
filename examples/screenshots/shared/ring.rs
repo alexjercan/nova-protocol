@@ -131,7 +131,7 @@ pub const STEADY_SECS: f32 = 2.0;
 /// The set: a gravity planetoid at the origin, a rock ring outside the flight
 /// path, and the player's ship parked on the ring radius.
 pub fn the_ring(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
-    the_ring_with_hull(game_assets, ships, "block_cutter")
+    the_ring_with_hull(game_assets, ships, "mining_tug")
 }
 
 /// The ring with a selected catalog hull for visual capture variants.

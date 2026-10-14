@@ -2,7 +2,7 @@
 //! hostile crosses its beat, and what its territorial tether does about the
 //! chase.
 //!
-//! One armed shipped combatant - the cleanup group's `block_picket` - flies a
+//! One armed shipped combatant - the cleanup group's `patrol_picket` - flies a
 //! four-mark diamond beat around its own patrol centroid, on the shipped AI
 //! defaults and the production GOTO autopilot. A parked armed intruder sits
 //! outside the beat, far enough out that the picket's own tether snaps before
@@ -74,7 +74,7 @@ struct Cli;
 /// routine for a fight and be pulled back out of one. An unarmed hull cannot
 /// stand in: it carries no weapon, so it spawns an `AINonCombatant` and never
 /// engages at all.
-const PICKET: &str = "block_picket";
+const PICKET: &str = "patrol_picket";
 
 /// The picket's scenario id.
 const PICKET_ID: &str = "ai_patrol_picket";

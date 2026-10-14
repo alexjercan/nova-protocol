@@ -1,5 +1,5 @@
-//! The torpedo-gauntlet main-menu backdrop: a station-keeping gunship's point
-//! defense against scripted torpedo batteries on both flanks. The gunship's
+//! The torpedo-gauntlet main-menu backdrop: a station-keeping line warship's point
+//! defense against scripted torpedo batteries on both flanks. The warship's
 //! PDC magazines are HARD (no reload), so it swats torpedoes until the guns
 //! run dry, the stream overruns it, and the blast ends the act; after a beat
 //! the menu turns to the next backdrop.
@@ -16,7 +16,7 @@ use crate::{
 };
 
 /// The defending hull, and the scatter prefix its depth dressing takes.
-const GUNSHIP_ID: &str = "gauntlet_ship";
+const WARSHIP_ID: &str = "gauntlet_ship";
 const ROCK_ID_PREFIX: &str = "gauntlet_rock_";
 /// The bay section on the off-screen tube, named again by the order that
 /// fires it.
@@ -25,7 +25,7 @@ const BAY_SECTION_ID: &str = "bay";
 const TIMER_RESET: &str = "gauntlet_reset";
 const TIMER_WATCHDOG: &str = "gauntlet_watchdog";
 
-/// The gunship's HARD magazine per PDC turret (SetAmmo strips the auto-reload).
+/// The warship's HARD magazine per PDC turret (SetAmmo strips the auto-reload).
 /// Sized so the stand SHOWS about four intercepts before the guns run dry and
 /// the next torpedo ends it - six mounts at 100 rounds/s spend this in roughly
 /// six seconds of battery fire, and an intercept costs about a second and a
@@ -36,9 +36,9 @@ const TIMER_WATCHDOG: &str = "gauntlet_watchdog";
 /// seconds before impact, the first torpedo through killed the ship, and the
 /// act ended in half a minute with nothing shot down. A mount needs enough
 /// rounds to FINISH the intercept it opened.
-const GUNSHIP_ROUNDS_PER_TURRET: u32 = 600;
+const WARSHIP_ROUNDS_PER_TURRET: u32 = 600;
 
-/// The gunship's station-keeping circuit, just left of frame center (the menu
+/// The warship's station-keeping circuit, just left of frame center (the menu
 /// panel owns the right half): a six-point ring with ~550 m legs and a little
 /// vertical wander - enough motion to read as a ship on watch, small enough
 /// that the guns, not the flying, stay the show. Its centroid anchors the
@@ -54,21 +54,21 @@ const HOLD_LOOP: [Meters3; 6] = [
     Meters3::new(-325.0, 180.0, -480.0),
 ];
 
-/// The gunship's authored detection range. Two geometry facts hang off it: the
+/// The warship's authored detection range. Two geometry facts hang off it: the
 /// batteries park ~7.2 km from the circuit's centroid, so a detection range that
-/// reached them would pull the gunship off station toward whichever battery its
+/// reached them would pull the warship off station toward whichever battery its
 /// acquisition found; and a leaked hit still overrides the passive gate (damage
 /// memory ignores detection range), which is why the batteries ALSO stay beyond
-/// leash + turret reach (2.5 km + 2 km) of the centroid - a lunging gunship can
+/// leash + turret reach (2.5 km + 2 km) of the centroid - a lunging warship can
 /// never bring its guns into range before the leash walks it home. Authored
 /// rather than left to the 4 km default so the framing survives a retune of
 /// the engine constants.
-const GUNSHIP_ENGAGE_RANGE: Meters = Meters(3_000.0);
+const WARSHIP_ENGAGE_RANGE: Meters = Meters(3_000.0);
 
 /// Battery parks: far off both flanks of the frame (~+-2.3 km visible at
 /// origin depth), at slightly scattered y/z so the inbound lanes fan instead
 /// of stacking. All are >7 km from the circuit centroid (see
-/// [`GUNSHIP_ENGAGE_RANGE`]); with launches SCRIPTED there is no AI launch
+/// [`WARSHIP_ENGAGE_RANGE`]); with launches SCRIPTED there is no AI launch
 /// envelope to stay inside of.
 const BATTERY_PARKS: [(&str, Meters3, f64, f64); 4] = [
     // (id, park, first launch at, relaunch every)
@@ -102,7 +102,7 @@ const BATTERY_PARKS: [(&str, Meters3, f64, f64); 4] = [
 /// no thrusters, no controller. `ForceTorpedoFire` on its `bay` is its whole
 /// brain;
 /// Enemy allegiance is what its torpedoes inherit, which is what makes them
-/// point-defense targets for the Player-allegiance gunship. Rotation stays
+/// point-defense targets for the Player-allegiance warship. Rotation stays
 /// identity: the bay launches along its +Y like a vertical cell and PN
 /// guidance arcs the torpedo onto the lane.
 fn battery(id: &str, park: Meters3) -> ScenarioObjectConfig {
@@ -130,12 +130,12 @@ fn battery(id: &str, park: Meters3) -> ScenarioObjectConfig {
     }
 }
 
-/// The act: the block gunship (six PDC turrets) holds a station circuit while
+/// The act: the line warship (six PDC turrets) holds a station circuit while
 /// four scripted batteries, parked far off BOTH flanks,
 /// launch standard torpedoes at it on staggered scenario timers. Torpedoes
-/// stream in from both sides of the frame and the gunship swats them
+/// stream in from both sides of the frame and the warship swats them
 /// mid-shot - but its magazines are hard (SetAmmo, no reload), so the
-/// defense eventually runs dry and the stream wins. The gunship's death
+/// defense eventually runs dry and the stream wins. The warship's death
 /// starts a short aftermath linger, then the menu turns to the next
 /// backdrop. A battery whose target is already gone skips its launch (no
 /// dud ordnance).
@@ -215,8 +215,8 @@ pub(crate) fn menu_gauntlet(
 
     let spawn_ship = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
-            id: GUNSHIP_ID.to_string(),
-            name: "Gauntlet Gunship".to_string(),
+            id: WARSHIP_ID.to_string(),
+            name: "Gauntlet Warship".to_string(),
             position: HOLD_LOOP[0],
             rotation: Quat::IDENTITY,
         },
@@ -232,10 +232,10 @@ pub(crate) fn menu_gauntlet(
                 // taking up station.
                 engage_delay: Some(2.0),
                 // If a torpedo leaks through, the hit overrides the passive
-                // gate and the gunship lunges; the leash walks it back onto
+                // gate and the warship lunges; the leash walks it back onto
                 // the circuit once the damage memory fades.
                 leash: Some(Meters(2_500.0)),
-                engage_range: Some(GUNSHIP_ENGAGE_RANGE),
+                engage_range: Some(WARSHIP_ENGAGE_RANGE),
                 // Hold the intercepts for the camera: the default 1.5 km PD
                 // ring kills inbound torpedoes at the frame edge; 1.3 km
                 // waits until the ordnance is well inside even the narrow 4:3
@@ -245,15 +245,15 @@ pub(crate) fn menu_gauntlet(
                 pd_range: Some(Meters(1_300.0)),
                 ..Default::default()
             }),
-            // The armoured block gunship with HARD magazines: the full
+            // The line warship with HARD magazines: the full
             // 100-rounds/s PDC turrets are the show, and their finite rounds
             // are the scene's clock - when they run dry the stand falls. Six
             // mounts cover both hemispheres, so a torpedo arriving from
             // either flank meets guns without the ship having to turn.
             design: ships::patched_design(
-                ships::BLOCK_GUNSHIP_SHIP_ID,
-                ships::BLOCK_GUNSHIP_TURRET_IDS.iter().map(|turret| {
-                    ships::on_section(turret, ships::turret_magazine(GUNSHIP_ROUNDS_PER_TURRET))
+                ships::LINE_WARSHIP_SHIP_ID,
+                ships::LINE_WARSHIP_PDC_IDS.iter().map(|turret| {
+                    ships::on_section(turret, ships::turret_magazine(WARSHIP_ROUNDS_PER_TURRET))
                 }),
             ),
             lootable: false,
@@ -282,7 +282,7 @@ pub(crate) fn menu_gauntlet(
             actions: stage
                 .into_iter()
                 .map(EventActionConfig::SpawnScenarioObject)
-                // Closer than the reference shot: the gunship IS this scene,
+                // Closer than the reference shot: the warship IS this scene,
                 // and at 3 km it was a handful of pixels. From (0, 800, 2,600)
                 // the 4:3 half-frame is ~1.5 km at origin depth - the raised
                 // circuit and its intercepts stay in shot, bigger.
@@ -292,12 +292,12 @@ pub(crate) fn menu_gauntlet(
                     // frame sees +-0.55 x the camera distance, so this pose
                     // already has the beacon exactly on the left edge. Coming
                     // in far enough to matter for the rolloff (~2 km) crops
-                    // it. The gunship reads at ~0.03 of full volume from
+                    // it. The warship reads at ~0.03 of full volume from
                     // here, which is the cost of keeping the shot.
                     backdrop_camera(Meters3::new(0.0, 800.0, 2_600.0)),
                     rock_scatter,
                     spawn_ship,
-                    // Stall watchdog (the duel's idiom): a gunship crippled
+                    // Stall watchdog (the duel's idiom): a warship crippled
                     // without counting as DEFEATED would freeze the cycle;
                     // healthy stands reload long before this fires.
                     timer(TIMER_WATCHDOG, 360.0),
@@ -309,14 +309,14 @@ pub(crate) fn menu_gauntlet(
                 )
                 .collect(),
         },
-        // The fall of the stand: the gunship's death (dry guns, leaked
+        // The fall of the stand: the warship's death (dry guns, leaked
         // torpedo) starts an aftermath linger - the wreck drifts, the
         // batteries fire into the dark and skip - then the FULL reset.
         ScenarioEventConfig {
             label: None,
             name: EventConfig::OnDefeated,
             once: false,
-            filters: vec![entity(GUNSHIP_ID)],
+            filters: vec![entity(WARSHIP_ID)],
             actions: vec![timer(TIMER_RESET, 8.0)],
         },
         // The fall of the stand ends the act: the menu cuts to its next
@@ -345,7 +345,7 @@ pub(crate) fn menu_gauntlet(
 
     // Each battery fires on its own self-restarting clock; the staggered
     // periods keep the two flanks trading lanes instead of salvoing. A
-    // launch during the aftermath linger (gunship gone) is skipped by the
+    // launch during the aftermath linger (warship gone) is skipped by the
     // action itself. A battery has no hull section, so it has no hold for a
     // torpedo reserve: the scene grants its bay unlimited ammunition, which
     // is a no-op after the first launch.
@@ -365,7 +365,7 @@ pub(crate) fn menu_gauntlet(
                 EventActionConfig::ForceTorpedoFire(ForceTorpedoFireActionConfig {
                     ship: id.to_string(),
                     section: BAY_SECTION_ID.to_string(),
-                    target: GUNSHIP_ID.to_string(),
+                    target: WARSHIP_ID.to_string(),
                 }),
                 timer(&format!("{id}_fire"), period),
             ],
@@ -373,8 +373,9 @@ pub(crate) fn menu_gauntlet(
     }
 
     ScenarioConfig {
-        description: "A gunship's doomed point-defense stand against batteries on both flanks."
-            .to_string(),
+        description:
+            "A line warship's doomed point-defense stand against batteries on both flanks."
+                .to_string(),
         role: ScenarioRole::Backdrop,
         events,
         ..ScenarioConfig::new(

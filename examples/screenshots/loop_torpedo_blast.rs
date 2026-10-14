@@ -1,5 +1,5 @@
 //! loop_torpedo_blast: the `torpedo-blast` webm loop - a Serpent torpedo
-//! weaves in and kills a stationary gunship.
+//! weaves in and kills a stationary interceptor.
 //!
 //! The docs site's first MOVING figure, authored in the same idiom as every
 //! still: an autopilot script whose steps call `loop_start` / `loop_end`
@@ -15,7 +15,7 @@
 //! instead of leaving it.
 //!
 //! The set is `screenshot_combat`'s ordnance chapter boiled down to its two
-//! ships: a target gunship parked at the origin and the torpedo boat high
+//! ships: a target interceptor parked at the origin and the torpedo boat high
 //! off its quarter, firing DOWN through open sky. Same rock shell, same seed,
 //! same reasoning (a level camera in a rock field frames rock soup; tipping
 //! the lens up puts sky behind the subject). Every actor is scripted or
@@ -28,7 +28,7 @@
 //! frame - which is the chain of fireballs `nova_gameplay::integrity::pyre`
 //! exists to draw. The earlier version of this loop toughened the plating and
 //! carved two named cells off with a scripted `HealthApplyDamage`, and it
-//! showed: a warhead went off and a gunship shrugged.
+//! showed: a warhead went off and a hull shrugged.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - the full walk, recording
@@ -55,17 +55,17 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "loop_torpedo_blast")]
 #[command(version = "1.0.0")]
-#[command(about = "The torpedo-blast webm loop: a salvo carves a gunship's outer hull. Autopilot-only: every actor is scripted or inert", long_about = None)]
+#[command(about = "The torpedo-blast webm loop: a salvo carves an interceptor's outer hull. Autopilot-only: every actor is scripted or inert", long_about = None)]
 struct Cli;
 
 /// The loop this example records - the webm's file stem.
 #[cfg(feature = "debug")]
 const LOOP_NAME: &str = "torpedo-blast";
 
-/// Scenario id of the stationary gunship the salvo carves.
+/// Scenario id of the stationary interceptor the salvo carves.
 const TARGET_ID: &str = "loop_target";
 /// The catalog hull the salvo is aimed at.
-const TARGET_HULL: &str = "block_gunship";
+const TARGET_HULL: &str = "interceptor";
 /// Scenario id of the torpedo boat.
 const LANCE_ID: &str = "loop_lance";
 
@@ -83,7 +83,7 @@ const TORPEDO_FUZE_RANGE: Meters = Meters(150.0);
 /// Where the lens stands, as an offset from what it frames.
 ///
 /// From BELOW the target, looking up the salvo's bearing, sky behind the hull.
-/// 320 m out, against an 85 m hull: the lens spans 1.47 times its distance, so
+/// 320 m out, against a 65 m hull: the lens spans 1.47 times its distance, so
 /// the frame is some 470 m wide. That holds the fireball (110 m at its peak),
 /// the sections thrown out of it, and the drift they have picked up by the end
 /// of the tail - the whole reason this framing does not need a camera move.
@@ -91,7 +91,7 @@ const TORPEDO_FUZE_RANGE: Meters = Meters(150.0);
 const LENS_OFFSET: Meters3 = Meters3::new(210.0, -185.0, 160.0);
 
 /// ONE round, not the boat's full salvo. One is already lethal - the 300 m
-/// blast covers the whole gunship and the aggregate falls through the
+/// blast covers the whole interceptor and the aggregate falls through the
 /// structural-collapse floor - and a second warhead arriving into a hull that
 /// is already coming apart adds a fireball nobody can attribute to anything.
 #[cfg(feature = "debug")]
@@ -180,7 +180,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
 /// shell around them and the photo rig. Both ships are `Controller::None` -
 /// nothing here flies itself, so the capture is deterministic.
 fn blast_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
-    // The whole shipped gunship at catalog health, turrets and cladding
+    // The whole shipped interceptor at catalog health, turrets and cladding
     // included. Nothing here is tuned for the shot: what the warhead does to
     // this hull is what it does to the same hull in a fight.
     let target = ship(
@@ -216,7 +216,7 @@ fn blast_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioCon
     };
 
     ScenarioConfig {
-        description: "A torpedo salvo carving a parked gunship.".to_string(),
+        description: "A torpedo salvo carving a parked interceptor.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
             name: EventConfig::OnStart,

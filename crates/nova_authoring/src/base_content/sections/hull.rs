@@ -18,6 +18,12 @@ use nova_ship::prelude::*;
 use super::recipes;
 use crate::base_content::assets::BaseContentAssets;
 
+/// The freight cube: reinforced plate stats in caged-freight art.
+pub(crate) const CARGO_HULL_SECTION_ID: &str = "cargo_hull_section";
+
+/// The tank cube: reinforced plate stats around a pressure vessel.
+pub(crate) const TANK_HULL_SECTION_ID: &str = "tank_hull_section";
+
 /// The open station truss: a girder cell whose two sockets face +-Z.
 pub(crate) const TRUSS_HULL_SECTION_ID: &str = "truss_hull_section";
 
@@ -92,7 +98,7 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
         // (resources, cargo capacity), these two are where the stats land.
         SectionConfig {
             base: BaseSectionConfig {
-                id: "cargo_hull_section".to_string(),
+                id: CARGO_HULL_SECTION_ID.to_string(),
                 damage_effects: DamageEffects(vec![DamageEffect::Cracks]),
                 name: "Cargo Hull Section".to_string(),
                 description: "A hull section packed with caged freight; every \
@@ -113,7 +119,7 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
         },
         SectionConfig {
             base: BaseSectionConfig {
-                id: "tank_hull_section".to_string(),
+                id: TANK_HULL_SECTION_ID.to_string(),
                 damage_effects: DamageEffects(vec![DamageEffect::Cracks]),
                 name: "Tank Hull Section".to_string(),
                 description: "A hull section carrying a pressure vessel in \

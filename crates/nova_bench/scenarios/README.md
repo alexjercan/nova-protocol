@@ -21,15 +21,15 @@ appear in the scenario.
 ## Fixtures
 
 - `hunt.content.ron`: a short scored gunfight. Use it as the control.
-- `range.content.ron`: a gunship, a planetoid, two rocks, a beacon, and an
-  inert hostile hauler. Use it for basic navigation, orbit, parking, and PDC
+- `range.content.ron`: a Line Warship, a planetoid, two rocks, a beacon, and
+  an inert hostile freighter. Use it for basic navigation, orbit, parking, and PDC
   tests.
 - `slingshot.content.ron`: Kestrel sits off the direct line to EXIT. A hostile
   pursuer wakes after 45 seconds. Use it for gravity assists, unsafe speed,
   collision, evasion, and route-cheese tests.
 - `arsenal.content.ron`: a player hull authored inline in the fixture - a
   railgun spine, a Serpent bay to port, a Lance bay to starboard and two
-  point-defence mounts. A carvable rock blocks an inert target barge, a hauler
+  point-defence mounts. A carvable rock blocks an inert target barge, a freighter
   ram target sits to port, and a picket wakes after 60 seconds. Use it for
   weapon choice, carving, NOVA OS commands, cheats, and destructive tests.
 - `docking.content.ron`: the `docking_approach` example as a fixture. A
@@ -39,12 +39,12 @@ appear in the scenario.
   row says `docked spar` or the gap the run ended at.
 - `docking_warship_tender.content.ron`: two catalog ships and a light. The
   player's Line Warship has its starboard collar 115 m from the port collar
-  of an inert damaged frame tender, 12 degrees out of square. Use it for
+  of an inert derelict freighter, 12 degrees out of square. Use it for
   captures between real multi-section hulls. It has no goal in the deck.
 
-Guns reload from the player ship's inventory. The gunship players carry 2000
-PDC rounds. The arsenal hull carries 1000 PDC rounds, 10 rail slugs and 2
-torpedoes, a full 700 kg hold. The Line Warship carries 6000 PDC rounds, 20
+Guns reload from the player ship's inventory. The hunt, range and slingshot
+warships fly on point defense only and carry 2000 PDC rounds. The arsenal hull carries 1000 PDC rounds, 10 rail slugs and 2
+torpedoes, a full 700 kg hold. The docking Line Warship carries 6000 PDC rounds, 20
 rail slugs and 12 torpedoes. Other ships carry nothing.
 
 ## Goal deck

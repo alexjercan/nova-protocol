@@ -7,13 +7,14 @@
 use bevy::prelude::*;
 use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_input::prelude::InputSource;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
 
 use super::super::{marks::Mark, SCATTER_SEED};
 use crate::base_content::{
     ships,
-    ships::{BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID, BLOCK_WRECK_PLATE_SHIP_ID},
+    ships::{DEBRIS_PLATE_SHIP_ID, FREIGHTER_DERELICT_SHIP_ID},
 };
 
 // --- the two ships -----------------------------------------------------------
@@ -57,13 +58,19 @@ pub(crate) fn kaveri() -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             allegiance: Some(Allegiance::Player),
             controller: SpaceshipController::Player(PlayerControllerConfig {
-                input_mapping: Default::default(),
+                // The tug's mining beam sits on `V`, the key every other
+                // player mining emitter uses.
+                input_mapping: [(
+                    ships::MINING_TUG_EMITTER_ID.to_string(),
+                    vec![InputSource::Keyboard(KeyCode::KeyV)],
+                )]
+                .into(),
             }),
             // Every verb is in the player's hands from the first frame: what
             // the chapter teaches, it teaches by asking for it.
             capabilities: ShipCapabilities::default(),
             design: ships::patched_design(
-                ships::BLOCK_WORKSHIP_SHIP_ID,
+                ships::MINING_TUG_SHIP_ID,
                 [
                     ships::on_section(
                         ships::BLOCK_BRIDGE_SECTION_ID,
@@ -89,8 +96,8 @@ pub(crate) fn kaveri() -> ScenarioObjectConfig {
 /// Gantry, stranded: nobody at the helm, nothing hostile aboard, and a stern
 /// that is not there any more.
 ///
-/// It flies the DAMAGED tender: the same hull with its drive, its transom,
-/// its service stack and half its aft arch missing. Nothing drives it and
+/// It flies the freighter DERELICT: the light freighter with its drive, its
+/// transom, an aft tank cube and half its starboard wing missing. Nothing drives it and
 /// nothing is authored to move it, so the hull the player closes on is exactly
 /// as still as the intact one: it LOOKS worse and the clamp is no harder.
 pub(crate) fn gantry() -> ScenarioObjectConfig {
@@ -106,7 +113,7 @@ pub(crate) fn gantry() -> ScenarioObjectConfig {
             controller: SpaceshipController::None,
             capabilities: ShipCapabilities::default(),
             design: ships::patched_design(
-                BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID,
+                FREIGHTER_DERELICT_SHIP_ID,
                 [ships::on_section(
                     ships::BLOCK_PORT_COLLAR_SECTION_ID,
                     ships::section_health(GANTRY_COLLAR_HEALTH),
@@ -125,7 +132,7 @@ pub(crate) fn gantry() -> ScenarioObjectConfig {
 /// The plating that came off Gantry, still hanging where it was thrown.
 ///
 /// Three pieces, hand-placed rather than scattered: they belong to the stern
-/// and the starboard arch the hull is missing, so they sit off those two faces
+/// and the starboard wing the hull is missing, so they sit off those two faces
 /// and nowhere else. The port side - the flank Kaveri comes about onto, and
 /// the one the collar is on - is deliberately clear. A field of loose rock
 /// around the one place the player has to fly precisely would make the dock a
@@ -139,13 +146,13 @@ pub(crate) fn wreckage() -> Vec<ScenarioObjectConfig> {
             0.4,
         ),
         (
-            "gantry_debris_stack",
+            "gantry_debris_tank",
             Meters3::new(5.0, -35.0, 130.0),
             2.3,
             -0.7,
         ),
         (
-            "gantry_debris_arch",
+            "gantry_debris_wing",
             Meters3::new(85.0, 5.0, 55.0),
             1.6,
             1.2,
@@ -165,7 +172,7 @@ pub(crate) fn wreckage() -> Vec<ScenarioObjectConfig> {
                 allegiance: Some(Allegiance::Neutral),
                 controller: SpaceshipController::None,
                 capabilities: ShipCapabilities::default(),
-                design: ships::design(BLOCK_WRECK_PLATE_SHIP_ID),
+                design: ships::design(DEBRIS_PLATE_SHIP_ID),
                 // Hanging where it was thrown, outside every moon's SOI: an
                 // intentional stationary start.
                 initial_velocity: MetersPerSecond3::ZERO,

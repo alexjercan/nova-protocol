@@ -39,7 +39,7 @@
                         ),
                         kind: Spaceship((
                             initial_velocity: (0.0, 0.0, 0.0),
-                            design: Prototype(id: "block_gunship"),
+                            design: Prototype(id: "line_warship"),
                             controller: Player((
                                 input_mapping: {
                                     "pdc_forward_port": [Keyboard(KeyU)],

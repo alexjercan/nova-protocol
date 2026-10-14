@@ -272,7 +272,7 @@
                         ),
                         kind: Spaceship((
                             design: Prototype(
-                                id: "block_cutter",
+                                id: "mining_tug",
                             ),
                             controller: AI((
                                 patrol: [

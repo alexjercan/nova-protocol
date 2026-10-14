@@ -253,7 +253,7 @@ fn duelist(
             // end the act seconds after it starts. The 500 keeps the DOGFIGHT
             // on screen; however the loser finally cripples (guns, computer,
             // or full destruction), the defeat chain fires and the finale
-            // plays. The block hulls bury their computers under plate, so
+            // plays. Both hulls bury their computers under plate, so
             // this is now belt-and-braces rather than the only thing holding
             // the act up - and the exposed guns are what actually decide it.
             design: ships::patched_section(
@@ -381,7 +381,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
         "Duel Victor",
         VICTOR_SPAWN,
         VICTOR_PATROL,
-        ships::design(ships::BLOCK_GUNSHIP_SHIP_ID),
+        ships::design(ships::INTERCEPTOR_SHIP_ID),
         // The relation model only makes Player<->Enemy hostile: one duelist
         // must fly the player's colors for AI-vs-AI combat to exist. It also
         // makes the Enemy finisher's ordnance hostile to the winner.
@@ -528,7 +528,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
             actions: vec![
                 set_number(VAR_DECIDED, 1.0),
                 forfeit(RIVAL_ID),
-                // The rival is out, so the gunship has won: the same beat its
+                // The rival is out, so the interceptor has won: the same beat its
                 // defeat would have armed, and the finale plays unchanged.
                 timer(TIMER_FINISHER_BEAT, 4.0),
             ],
@@ -618,7 +618,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
     ];
 
     ScenarioConfig {
-        description: "A gunship and a raider duel; a siege torpedo erases the winner; repeat."
+        description: "An interceptor and a raider duel; a siege torpedo erases the winner; repeat."
             .to_string(),
         role: ScenarioRole::Backdrop,
         events,

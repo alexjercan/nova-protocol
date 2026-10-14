@@ -53,8 +53,9 @@ create the required world session.
 
 The bench ships six fixtures under `crates/nova_bench/scenarios/`:
 
-- `hunt.content.ron`: one player gunship, one hostile inline raider parked 2600 m
-  ahead, an objective and both outcomes. The scenario scores itself.
+- `hunt.content.ron`: one player Line Warship on point defense only, one
+  hostile inline raider parked 2600 m ahead, an objective and both outcomes.
+  The scenario scores itself.
 - `range.content.ron`: an open range with no objective and no victory. A
   600 m planetoid 7 km ahead, two rocks, a nav beacon, and an unarmed hostile
   derelict support navigation, orbit, parking, and PDC goals.
@@ -69,7 +70,7 @@ The bench ships six fixtures under `crates/nova_bench/scenarios/`:
   tender with a port on its bow and an inert spar 120 m ahead, turned out of
   square, support docking and RCS goals; `me.docking` carries the approach.
 - `docking_warship_tender.content.ron`: the catalog Line Warship and an
-  inert damaged frame tender, their collars 115 m apart and 12 degrees out of
+  inert derelict freighter, their collars 115 m apart and 12 degrees out of
   square, support docking captures between real multi-section hulls.
 
 These six fixtures are bounded by `--ticks` and `--deadline`; a reader grades

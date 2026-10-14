@@ -1,7 +1,7 @@
 //! screenshot_diagonal_skin: the derived skin over hull cubes that touch
 //! along an edge only.
 //!
-//! One ship, built from the `block_cutter` design with its sections replaced:
+//! One ship, built from the `mining_tug` design with its sections replaced:
 //! a one-cell STAIRCASE and a 2x2 STEP BLOCK, each step touching the next
 //! along an edge, run four cells deep and tied together through a back layer
 //! that also holds the controller. A diagonal is where a corner-sampled skin
@@ -44,7 +44,7 @@ struct Cli;
 const SCENARIO_ID: &str = "diagonal_skin";
 
 /// The catalog design the test hull borrows its style and presentation from.
-const BASE_DESIGN: &str = "block_cutter";
+const BASE_DESIGN: &str = "mining_tug";
 
 /// One build-grid cell, in meters.
 const CELL_M: f32 = 10.0;

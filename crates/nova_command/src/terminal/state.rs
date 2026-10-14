@@ -72,7 +72,7 @@ pub struct CommandTerminal {
     /// [`CommandArg::Live`] argument names (`"ship" -> ["player_spaceship"]`).
     ///
     /// A key may be QUALIFIED by the argument before it
-    /// (`"section:block_gunship"`),
+    /// (`"section:interceptor"`),
     /// which is how `section <ship> <TAB>` offers that ship's sections and not
     /// every ship's. Completion tries the qualified key first and falls back to
     /// the bare token.

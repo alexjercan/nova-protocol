@@ -18,7 +18,7 @@ use super::*;
 use crate::base_content::{
     scenarios::marks::Mark,
     ships,
-    ships::{BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID, BLOCK_WRECK_PLATE_SHIP_ID},
+    ships::{DEBRIS_PLATE_SHIP_ID, FREIGHTER_DERELICT_SHIP_ID},
 };
 
 fn config() -> ScenarioConfig {
@@ -649,9 +649,9 @@ fn the_two_hulls_are_the_only_ships_and_neither_carries_a_gun() {
     let assets = crate::base_content::assets::BaseContentAssets::from_paths();
     let catalog = ships::ship_catalog(&assets);
     for id in [
-        ships::BLOCK_WORKSHIP_SHIP_ID,
-        BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID,
-        BLOCK_WRECK_PLATE_SHIP_ID,
+        ships::MINING_TUG_SHIP_ID,
+        FREIGHTER_DERELICT_SHIP_ID,
+        DEBRIS_PLATE_SHIP_ID,
     ] {
         let design = catalog
             .iter()
@@ -670,10 +670,7 @@ fn the_two_hulls_are_the_only_ships_and_neither_carries_a_gun() {
         }
     }
 
-    for id in [
-        ships::BLOCK_WORKSHIP_SHIP_ID,
-        BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID,
-    ] {
+    for id in [ships::MINING_TUG_SHIP_ID, FREIGHTER_DERELICT_SHIP_ID] {
         let design = catalog
             .iter()
             .find(|entry| entry.id.as_str() == id)
@@ -689,7 +686,7 @@ fn the_two_hulls_are_the_only_ships_and_neither_carries_a_gun() {
     }
 }
 
-/// Gantry flies the DAMAGED tender, and the damage is all behind the collar.
+/// Gantry flies the freighter derelict, and the damage is all behind the collar.
 ///
 /// The chapter asks for a hull that reads as hit and docks as easily as an
 /// intact one, which is two claims about the same cell plan: the drive and the
@@ -713,15 +710,15 @@ fn gantrys_damage_is_aft_of_everything_the_rescue_touches() {
     };
 
     let whole = section(
-        ships::BLOCK_FRAME_TENDER_SHIP_ID,
+        ships::LIGHT_FREIGHTER_SHIP_ID,
         ships::BLOCK_PORT_COLLAR_SECTION_ID,
     )
-    .expect("the tender carries a collar");
+    .expect("the freighter carries a collar");
     let hurt = section(
-        BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID,
+        FREIGHTER_DERELICT_SHIP_ID,
         ships::BLOCK_PORT_COLLAR_SECTION_ID,
     )
-    .expect("the damaged tender still carries it");
+    .expect("the derelict still carries it");
     assert!(
         whole.position == hurt.position && whole.rotation == hurt.rotation,
         "the collar has not moved: {:?} vs {:?}",
@@ -730,8 +727,8 @@ fn gantrys_damage_is_aft_of_everything_the_rescue_touches() {
     );
 
     assert!(
-        section(ships::BLOCK_FRAME_TENDER_SHIP_ID, "main_drive").is_some()
-            && section(BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID, "main_drive").is_none(),
+        section(ships::LIGHT_FREIGHTER_SHIP_ID, ships::MAIN_DRIVE_SECTION_ID).is_some()
+            && section(FREIGHTER_DERELICT_SHIP_ID, ships::MAIN_DRIVE_SECTION_ID).is_none(),
         "the raid took the main drive, which is what the mayday says it took"
     );
 }

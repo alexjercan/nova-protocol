@@ -123,8 +123,8 @@ const SCENE_CALL: &str = "call";
 /// of the hull.
 ///
 /// From here the hull reads intact at the near end and open at the far one -
-/// the stack gone, the arch cut in half, the transom empty where the drive
-/// was - with its own plating drifting past the stern behind it. Standing off
+/// the freight stack torn, the starboard wing short, the transom gone with the
+/// drive - with its own plating drifting past the stern behind it. Standing off
 /// the stern instead would put that plating between the lens and the ship.
 /// Kaveri arrives on the opposite flank, so the player never flies this
 /// angle.
@@ -302,7 +302,7 @@ fn early_release(beat: f64, posted: Vec<EventActionConfig>) -> ScenarioEventConf
 }
 
 /// The Defeat pair. Nothing in the chapter shoots, so the only way to lose is
-/// to fly the workship into something: a rock, or Gantry.
+/// to fly the tug into something: a rock, or Gantry.
 fn defeat(id: &str, message: &str) -> ScenarioEventConfig {
     once(
         EventConfig::OnDestroyed,
@@ -458,7 +458,7 @@ pub(crate) fn chapter_one(
                     // The helm, the ship's speed and the camera, in that
                     // order and all in the same frame. The cut is what makes
                     // the stop free: the player never watches a loaded
-                    // workship drop to a dead stop in one tick, they are
+                    // tug drop to a dead stop in one tick, they are
                     // already looking at Gantry when it happens.
                     EventActionConfig::SuspendPlayerControl(SuspendPlayerControlActionConfig),
                     EventActionConfig::ZeroShipMotion(ZeroShipMotionActionConfig {

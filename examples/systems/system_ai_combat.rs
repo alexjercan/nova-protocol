@@ -8,7 +8,7 @@
 //! after. This range is where the fight is read.
 //!
 //! Two engagements run side by side, far enough apart that neither scanner can
-//! hear the other: an escort fight (the shipped `block_picket` against a
+//! hear the other: an escort fight (the shipped `patrol_picket` against a
 //! parked salvage skiff fixture) and a capital fight (the capital warship
 //! fixture against a parked industrial carrier fixture, the largest hull in
 //! the fixture set). The two are chosen to put a factor of three between the
@@ -66,7 +66,7 @@ use nova_protocol::prelude::*;
 struct Cli;
 
 /// The escort fight's mover: the cleanup group's armed picket, one nose gun.
-const PICKET: &str = "block_picket";
+const PICKET: &str = "patrol_picket";
 
 /// The escort fight's target: the unarmed salvage needle fixture.
 #[cfg(feature = "debug")]

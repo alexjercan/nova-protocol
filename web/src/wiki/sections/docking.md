@@ -111,7 +111,7 @@ The other endings are damage. Shoot the port off either hull, or kill either shi
 ## Variants
 
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/docking_port.rs and assets/base/sections/base.content.ron. Mounted by crates/nova_authoring/src/base_content/ships/block.rs: port_collar on the workship, both frame tenders and the line warship; starboard_collar on the line warship. -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/docking_port.rs and assets/base/sections/base.content.ron. Mounted by crates/nova_authoring/src/base_content/ships/block.rs: port_collar on every crewed base hull; starboard_collar on the line warship. -->
 <div class="catalog__head"><span class="catalog__kindicon"><span class="figure__placeholder"><span class="figure__placeholder-name">assets/icon-docking.png</span></span></span><span class="catalog__title">Docking - shipped prototypes</span></div>
 <table>
 <thead>
@@ -123,4 +123,4 @@ The other endings are damage. Shoot the port off either hull, or kill either shi
 </table>
 </div>
 
-One port ships. The Utility Workship and both Frame Tenders carry one on the port flank, and the Line Warship carries one on each flank. Bolt one onto any other hull in the ship editor to fly a ship that can dock, or fly the `docking_approach` example, which hands you a tender built for the job. It takes neighbours on every face except the one it docks through - that face is the hatch. See [Ship sections for mods](../../../create/sections/#docking) for the numbers a mod can change, the capture envelope among them, and [Events](../../../create/events/#docking-lifecycle) for the two edges a scenario scripts a dock with.
+One port ships. Every crewed base hull carries one on the port flank, and the Line Warship carries a second on the starboard flank. Bolt one onto any other hull in the ship editor to fly a ship that can dock, or fly the `docking_approach` example, which hands you a tender built for the job. It takes neighbours on every face except the one it docks through - that face is the hatch. See [Ship sections for mods](../../../create/sections/#docking) for the numbers a mod can change, the capture envelope among them, and [Events](../../../create/events/#docking-lifecycle) for the two edges a scenario scripts a dock with.

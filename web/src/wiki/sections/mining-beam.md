@@ -10,7 +10,7 @@
             >assets/wiki-section-mining-beam.png</span
         >
         <span class="figure__placeholder-note"
-            >The line warship's bow emitter deployed, its green
+            >The mining tug's bow emitter deployed, its green
             beam running straight out to a locked ore rock about
             58 m ahead and ending on the rock's face.</span
         >
@@ -21,11 +21,11 @@ A mining beam is a **one-cell emitter** behind two sliding doors. Lock a rock, p
 
 The beam does not aim. It runs straight out of the emitter's face, so the **ship** aims it, the way a railgun is aimed. The lock only says which rock you mean.
 
-<!-- Values from crates/nova_authoring/src/base_content/sections/mining_beam.rs: health 90 (MINING_BEAM_BASE_HEALTH), TRACK_SECONDS 0.3 per leg, reach 100 m, pulse_interval_seconds 1.0, carve_radius_cells 1.5 of the rock's field, whose cell is FIELD_CELL_WORLD 0.5 units, about 5 m (crates/nova_scenario/src/objects/asteroid_carve.rs). Per-section key: `input_mapping` entry -> `SpaceshipMiningInputBinding` in crates/nova_ship/src/input/player/weapons.rs; the line warship's `mining_beam` takes V in crates/nova_authoring/src/base_content/scenarios/open_world.rs `weapon_bindings`; the editor default V with no pad button in crates/nova_editor/src/placement.rs `default_binds`. -->
+<!-- Values from crates/nova_authoring/src/base_content/sections/mining_beam.rs: health 90 (MINING_BEAM_BASE_HEALTH), TRACK_SECONDS 0.3 per leg, reach 100 m, pulse_interval_seconds 1.0, carve_radius_cells 1.5 of the rock's field, whose cell is FIELD_CELL_WORLD 0.5 units, about 5 m (crates/nova_scenario/src/objects/asteroid_carve.rs). Per-section key: `input_mapping` entry -> `SpaceshipMiningInputBinding` in crates/nova_ship/src/input/player/weapons.rs; the mining tug's `mining_beam` takes V in crates/nova_authoring/src/base_content/scenarios/season_one/stage.rs (Kaveri); the editor default V with no pad button in crates/nova_editor/src/placement.rs `default_binds`. -->
 
 | The mining beam at a glance | |
 |---|---|
-| Key | its own, held: <kbd>V</kbd> on the line warship |
+| Key | its own, held: <kbd>V</kbd> on the mining tug |
 | Deploy | doors **0.3 s**, then the tip **0.3 s** |
 | Reach | **100 m** from the emitter face, straight ahead of it |
 | Rate | a pulse as soon as it is out, then **one a second** |
@@ -43,7 +43,7 @@ The beam does not aim. It runs straight out of the emitter's face, so the **ship
 <!-- Behavior verified against crates/nova_ship/src/sections/mining_section.rs (hold to deploy, doors then tip, tip then doors on release, reverse mid-travel) and crates/nova_scenario/src/mining.rs (the MiningRefusalType checks in order, one refusal_sound per refused pulse at the emitter face, MiningBeamHit drawn only while every check passes, the first pulse into an untouched rock seeds its field and cuts nothing). -->
 
 1. **Lock the rock.** Hold the radar on it with weapons lowered, so it takes your **travel lock**. See [Targeting & radar](../../targeting-radar/#stances-and-slots).
-2. **Point the emitter at it.** The Line Warship's emitter sits on the starboard top deck at the bow and looks forward, so put your nose on the rock and close to inside 100 m.
+2. **Point the emitter at it.** The Mining Tug's emitter sits at the tip of its bow boom and looks forward, so put your nose on the rock and close to inside 100 m.
 3. **Hold the beam's key.** The doors part and the tip runs out. Once the tip is out, the beam fires at once and then once a second for as long as you hold the key.
 4. **Let go.** The tip runs in first, then the doors shut. Pressing or letting go halfway reverses from wherever the parts are.
 
@@ -108,7 +108,7 @@ Every rock in the New Game world holds ore. Ore sells only to a docked ship that
 ## Variants
 
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/mining_beam.rs and assets/base/sections/base.content.ron. Mounted by crates/nova_authoring/src/base_content/ships/block.rs: `mining_beam` at the line warship's bow cell (1, 1, -7). -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/mining_beam.rs and assets/base/sections/base.content.ron. Mounted by crates/nova_authoring/src/base_content/ships/block.rs: `mining_beam` at the mining tug's boom tip, cell (0, 0, -6). -->
 <div class="catalog__head"><span class="catalog__title">Mining beam - shipped prototypes</span></div>
 <table>
 <thead>
@@ -120,4 +120,4 @@ Every rock in the New Game world holds ore. Ore sells only to a docked ship that
 </table>
 </div>
 
-One emitter ships. The Line Warship you fly in New Game carries it on the starboard top deck at its bow. Bolt one onto any other hull in the ship editor; it takes neighbours on every face except the emitter face. The Ship pane lists it as `MNG`. See [Ship sections for mods](../../../create/sections/#mining) for the numbers a mod can change.
+One emitter ships. The Mining Tug carries it at the tip of its bow boom. Bolt one onto any other hull in the ship editor; it takes neighbours on every face except the emitter face. The Ship pane lists it as `MNG`. See [Ship sections for mods](../../../create/sections/#mining) for the numbers a mod can change.

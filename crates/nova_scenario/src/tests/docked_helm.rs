@@ -18,7 +18,7 @@ use serde::Deserialize;
 
 use crate::prelude::*;
 
-const WARSHIP: &str = "block_line_warship";
+const WARSHIP: &str = "line_warship";
 const STATION: &str = "test_only_station";
 const STATION_CELLS: IVec3 = IVec3::new(16, 10, 24);
 const PLAYER_COLLAR: &str = "starboard_collar";

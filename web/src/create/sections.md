@@ -1085,8 +1085,8 @@ track the gun still charges; it just charges invisibly.
 
 `DockingSectionConfig` - a docking port: a cylindrical, rotationally symmetric
 collar that holds this hull to another one. One ship,
-`docking_port_section`, carried by the workship, both frame tenders and the line
-warship; build a hull with one in the editor, or author your own port on a
+`docking_port_section`, carried on the port flank of every crewed base hull
+and on both flanks of the line warship; build a hull with one in the editor, or author your own port on a
 modded craft.
 
 ```ron
@@ -1153,7 +1153,8 @@ section's local `-Z` face. The door opens for a nearby canister that fits the
 hold, the intake takes one, at any speed, into the ship's
 [inventory](../objects/#inventory), and the Inventory pane's Jettison drops
 canisters out through it. One ships: `cargo_intake_section`, a 3x2x1 box on
-the line warship's top deck, door up.
+the top deck of the mining tug, the salvage hauler and the line warship, door
+up.
 
 ```ron
 kind: CargoIntake((
@@ -1214,8 +1215,8 @@ on the `-Z` face: that face is the door.
 
 `MiningSectionConfig` - a mining emitter: a beam out of the section's local
 `-Z` face that cuts ore from the ship's travel-locked rock. One ships:
-`mining_beam_section`, a 1x1x1 emitter at the line warship's bow, starboard of
-the railgun.
+`mining_beam_section`, a 1x1x1 emitter at the tip of the mining tug's bow
+boom.
 
 ```ron
 kind: Mining((

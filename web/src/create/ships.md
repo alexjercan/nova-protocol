@@ -132,9 +132,9 @@ the section's kind. The full patch surface is in
 [the sections list](../objects/#the-sections-list).
 
 Reach for a second ship id instead when the difference is what the design IS -
-the base game ships `block_frame_tender` and `block_frame_tender_damaged` as
-separate hulls because a missing drive, transom and arch are a different ship to
-fly, not a tweak. The Ledger does the same with its two hauler loads, `cargob`
+the base game ships `light_freighter` and `freighter_derelict` as separate
+hulls because a missing drive, transom and wing are a different ship to fly,
+not a tweak. The Ledger does the same with its two hauler loads, `cargob`
 and `cargob_lance`: which torpedo TYPE the pods carry decides whether a
 defender's point defense can answer the salvo at all, and that is the ship, not
 a tweak to it.
@@ -187,15 +187,17 @@ painted by a [style](../styles/). Nothing in the base game is a modelled mesh.
 
 | id | what it is |
 |---|---|
-| `block_cutter` | Utility Cutter - the small unarmed workboat, and the smallest thing that still reads as a crewed ship |
-| `block_hauler` | Bulk Hauler - a flat freight spine between two cargo shoulders, containers amidships, one vectoring drive |
-| `block_workship` | Utility Workship - the civilian work boat: an open cradle amidships for an outsized load, two bell drives aft, and a docking collar standing off the port flank |
-| `block_frame_tender` | Frame Tender - a long keel under a cargo body with two open gantry arches standing over it, carrying the same port-flank collar the workship docks on |
-| `block_frame_tender_damaged` | Frame Tender: Damaged - the same tender after a raid took its stern: no main drive, the transom and the service stack gone, and the aft arch broken off along a ragged, column-by-column edge. Everything forward of the hit, the cab and the collar included, is whole |
-| `block_gunship` | Patrol Gunship - the military patrol boat: a two-deck fighting spine and six PDC mounts covering both hemispheres |
-| `block_picket` | Salvage Picket - the armed picket, its one gun pushed onto the nose face |
-| `block_line_warship` | Line Warship - the New Game ship: a long armoured body with six PDC mounts, a railgun on the bow, a torpedo bay on each shoulder, a docking collar mid-shoulder on each flank, hatch outboard (`port_collar`, `starboard_collar`), a cargo intake on the top deck aft, door up (`cargo_intake`), and a mining beam at the bow, starboard of the railgun (`mining_beam`) |
-| `block_wreck_plate` | Carrier Wreck: Plating - loose plating: the small pieces, and most of what a debris field is |
+| `mining_tug` | Mining Tug - the industrial start: a low work hull with a truss boom off the bow and a mining emitter at its tip (`mining_beam`), a cargo intake on the aft deck (`cargo_intake`), a cab forward and three bell drives |
+| `salvage_hauler` | Salvage Hauler - the scavenger start: a deep hold of freight cubes, a cab on the nose, a cargo intake on the dorsal deck, one point-defense mount and one vectoring drive. The biggest hold of the start hulls |
+| `light_freighter` | Light Freighter - the transport start: freight cubes stacked on a flat spine, a tank pod on the starboard flank, a solar wing either side of the stack and one vectoring drive. Unarmed |
+| `freighter_derelict` | Light Freighter: Derelict - the same freighter after a raid took its stern: no drive, no transom, the aft tank cube and the starboard wing gone. Everything forward of the tear, the cab and the collar included, is whole |
+| `interceptor` | Interceptor - the bounty hunter start: a compact two-deck body with stub wings, a torpedo bay on the bow centreline, two point-defense mounts on the top deck and three bell drives |
+| `raider` | Raider - the pirate start: a short hull with a railgun on the nose, an outrigger and a gun boom on the starboard side, a dorsal mount and four bell drives |
+| `patrol_picket` | Patrol Picket - the military start and the weakest start hull: a slim dart of light plate with one point-defense mount on the nose face and two bell drives |
+| `line_warship` | Line Warship - the military goal: a long armoured body with six PDC mounts, a railgun on the bow, a torpedo bay on each shoulder, a cargo intake on the aft deck (`cargo_intake`) and a docking collar off each shoulder, hatch outboard (`port_collar`, `starboard_collar`) |
+| `debris_plate` | Debris Plate - loose plating: the small pieces, and most of what a debris field is |
+
+Every crewed base hull carries a docking collar on the port flank, `port_collar`.
 
 A mod may ship MODELLED craft instead, and The Ledger does: its `racer`,
 `cargoa`, `cargoa_raider`, `cargob` and `cargob_lance` are assembled from GLB

@@ -3,6 +3,13 @@
 All notable changes to the Gauntlet Run mod. Versions are the `meta.version`
 in `gauntlet.bundle.ron`; the portal keeps every published version.
 
+## 1.15.0
+
+- The course is now flown in the base game's `light_freighter`. Required: the
+  base game removed `block_cutter`, so a gauntlet built on it would spawn
+  nothing. The freighter is unarmed and reinforced like the cutter, with one
+  vectoring drive and a longer hull.
+
 ## 1.14.0
 
 - The act-3 gravity well is a 100 m barren `Planet` now, at the same place and

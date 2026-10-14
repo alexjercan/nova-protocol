@@ -40,7 +40,7 @@ binary assets it ships).
   collapses whichever is picked.
 - **A new item** - `example_survey_core` adds a fresh id to the item catalog;
   the arena's player ship starts with two of it in its hold.
-- **A hold tour** - `example_prospect` berths the shipped line warship beside
+- **A hold tour** - `example_prospect` berths the shipped mining tug beside
   a trader with an ore rock ahead. Six `once` handlers complete one objective
   each on `OnTraded`, `OnCreditsChanged`, `OnRepaired`, `OnJettisoned`,
   `OnPickedUp` and `OnMined`, and the sixth ends the run in Victory.

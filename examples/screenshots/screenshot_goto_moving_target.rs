@@ -164,15 +164,11 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
         START,
         facing,
         SpaceshipController::Player(PlayerControllerConfig {
-            // The walk never fires the beam; the scenario lint refuses a player
-            // ship whose mining section has no binding.
-            input_mapping: std::collections::BTreeMap::from([(
-                "mining_beam".to_string(),
-                vec![nova_input::prelude::InputSource::Keyboard(KeyCode::KeyV)],
-            )]),
+            // The walk never fires: nothing here needs a weapon binding.
+            input_mapping: std::collections::BTreeMap::new(),
         }),
         None,
-        design("block_line_warship"),
+        design("line_warship"),
     );
     // Circular orbit speed: v = sqrt(mu / r), in engine units because mu is
     // authored in them, then converted at the scenario edge. Tangent to the
@@ -191,7 +187,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::None,
             allegiance: Some(Allegiance::Neutral),
-            design: ShipDesignSource::Inline(design("block_hauler")),
+            design: ShipDesignSource::Inline(design("light_freighter")),
             initial_velocity: MetersPerSecond3::from_engine(Vec3::X * orbit_speed),
             ..default()
         }),

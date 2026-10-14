@@ -1,10 +1,10 @@
-//! loop_spine_cut: the `spine-cut` webm loop - a gunship's flank is cut
+//! loop_spine_cut: the `spine-cut` webm loop - an interceptor's flank is cut
 //! through, and the freed gun mount severs and drifts away as an independent
 //! wreck.
 //!
 //! The moving version of the section-severing invariant
 //! (`examples/systems/section_severing.rs`), staged on a real catalog hull:
-//! killing the gunship's port aft deck plate turns it into a genuine hole, and
+//! killing the interceptor's port top-deck plate turns it into a genuine hole, and
 //! the mount that was held on through it disconnects, gets its own rigid body
 //! and drifts free (`nova_ship::sections::integrity`). The loop opens on the
 //! intact hull turning slowly, holds through the cut, and rides the freed
@@ -41,21 +41,21 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "loop_spine_cut")]
 #[command(version = "1.0.0")]
-#[command(about = "The spine-cut webm loop: a severed gun mount drifts off a gunship. Autopilot-only: every actor is scripted or inert", long_about = None)]
+#[command(about = "The spine-cut webm loop: a severed gun mount drifts off an interceptor. Autopilot-only: every actor is scripted or inert", long_about = None)]
 struct Cli;
 
 /// The loop this example records - the webm's file stem.
 #[cfg(feature = "debug")]
 const LOOP_NAME: &str = "spine-cut";
 
-/// Scenario id of the gunship that loses its port flank.
+/// Scenario id of the interceptor that loses its port flank.
 const SUBJECT_ID: &str = "loop_subject";
 
 /// The catalog hull the cut is made in.
-const SUBJECT_HULL: &str = "block_gunship";
+const SUBJECT_HULL: &str = "interceptor";
 
-/// The BUILD-GRID CELL the cut goes through: the port aft deck plate, which is
-/// the seat the aft port mount stands on and the mount's only link, so cutting
+/// The BUILD-GRID CELL the cut goes through: the port top-deck plate, which is
+/// the seat the port mount stands on and the mount's only link, so cutting
 /// it severs the gun as an independent wreck. A plate with nothing hanging off
 /// it frees nothing.
 ///
@@ -63,7 +63,7 @@ const SUBJECT_HULL: &str = "block_gunship";
 /// is an artifact of the order its boxes were unioned (see
 /// [`kit::cell_section`]); the cell is the coordinate the hull is authored in.
 #[cfg(feature = "debug")]
-const CUT_CELL: Vec3 = Vec3::new(-1.0, 1.0, 1.0);
+const CUT_CELL: Vec3 = Vec3::new(-1.0, 1.0, -1.0);
 
 /// The slow tumble the hull carries into the cut, so the freed structure
 /// inherits real motion instead of hanging dead in frame.
@@ -156,7 +156,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
     commands.trigger(LoadScenario(sever_range(&game_assets, &ships)));
 }
 
-/// The set: one gunship, three-quarter to the lens, a near rock field for
+/// The set: one interceptor, three-quarter to the lens, a near rock field for
 /// depth and the photo rig.
 fn sever_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
     let subject = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
@@ -169,7 +169,7 @@ fn sever_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioCon
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::None,
             allegiance: Some(Allegiance::Enemy),
-            // The whole shipped gunship, turrets included. The kit used to
+            // The whole shipped interceptor, turrets included. The kit used to
             // drop them: its own hand-typed copy of the mount centres had
             // drifted from the builders', so the mounts mated nothing and the
             // ship came back `Disconnected` - empty adjacency, under which ANY
@@ -191,7 +191,7 @@ fn sever_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioCon
     };
 
     ScenarioConfig {
-        description: "A gunship losing its port mount to a spine cut.".to_string(),
+        description: "An interceptor losing its port mount to a spine cut.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
             name: EventConfig::OnStart,

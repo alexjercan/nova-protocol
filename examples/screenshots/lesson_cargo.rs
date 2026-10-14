@@ -9,8 +9,8 @@
 //!
 //! ## The scene is a staged berth
 //!
-//! The shipped `block_line_warship` and a Derelict Tender
-//! (`block_frame_tender_damaged`, lootable, 8 hull plates) stand berthed: the
+//! The shipped `mining_tug` and a Derelict Freighter
+//! (`freighter_derelict`, lootable, 8 hull plates) stand berthed: the
 //! two port collars square and 5 m apart, inside the 10 m capture gap. New
 //! Game streams its wrecks at seeded poses, so this scene stages its own
 //! derelict to make the take repeatable. The walk docks with the real `dock`
@@ -21,11 +21,11 @@
 //!
 //! - `interface_cargo_transfer`: the pane docked to the derelict; the
 //!   derelict's hull plates selected, All, Confirm, and the plates move into
-//!   the warship's column.
+//!   the tug's column.
 //! - `interface_jettison`: from the door half open, the intake's door folding
 //!   the rest of the way and the canister of plates leaving it. The camera
 //!   rides beside the hull in world axes ([`LessonChase`](lesson::LessonChase)).
-//! - `flight_cargo_pickup`: the warship rising the last meters under the
+//! - `flight_cargo_pickup`: the tug rising the last meters under the
 //!   canister on the flight computer's `MatchVelocity`, the primitive every AI
 //!   pilot steers with, and the canister going into the hold.
 //!
@@ -73,17 +73,17 @@ use nova_protocol::prelude::*;
 struct Cli;
 
 const PLAYER_ID: &str = "player";
-const DERELICT_ID: &str = "derelict_tender";
+const DERELICT_ID: &str = "derelict_freighter";
 
 /// The hull plates the derelict carries.
 const DERELICT_PLATES: u32 = 8;
 
-/// The warship at the berth, where its port collar face stands 5 m from the
+/// The tug at the berth, where its port collar face stands 5 m from the
 /// derelict's.
 const PLAYER_POSITION: Meters3 = Meters3::new(0.0, 0.0, -140.0);
-/// The derelict, off the warship's port collar.
+/// The derelict, off the tug's port collar.
 const DERELICT_POSITION: Meters3 = Meters3::new(-55.0, 0.0, -170.0);
-/// Turned 180 degrees about Y, so its port collar faces the warship's.
+/// Turned 180 degrees about Y, so its port collar faces the tug's.
 const DERELICT_ROTATION: Quat = Quat::from_xyzw(0.0, 1.0, 0.0, 0.0);
 
 fn main() -> bevy::app::AppExit {
@@ -104,7 +104,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
     let player = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: PLAYER_ID.to_string(),
-            name: "Line Warship".to_string(),
+            name: "Mining Tug".to_string(),
             position: PLAYER_POSITION,
             rotation: Quat::IDENTITY,
         },
@@ -116,7 +116,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
                 )]
                 .into(),
             }),
-            design: ShipDesignSource::Inline(kit::catalog_ship(&ships, "block_line_warship")),
+            design: ShipDesignSource::Inline(kit::catalog_ship(&ships, "mining_tug")),
             inventory: ShipInventoryStock::new([]),
             ..default()
         }),
@@ -124,17 +124,14 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
     let derelict = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: DERELICT_ID.to_string(),
-            name: "Derelict Tender".to_string(),
+            name: "Derelict Freighter".to_string(),
             position: DERELICT_POSITION,
             rotation: DERELICT_ROTATION,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             allegiance: Some(Allegiance::Neutral),
             controller: SpaceshipController::None,
-            design: ShipDesignSource::Inline(kit::catalog_ship(
-                &ships,
-                "block_frame_tender_damaged",
-            )),
+            design: ShipDesignSource::Inline(kit::catalog_ship(&ships, "freighter_derelict")),
             inventory: ShipInventoryStock::new([(ItemRoleType::HullPlate.into(), DERELICT_PLATES)]),
             lootable: true,
             credits: 0,
@@ -142,7 +139,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
         }),
     });
     commands.trigger(LoadScenario(ScenarioConfig {
-        description: "The line warship at the Derelict Tender's berth.".to_string(),
+        description: "The mining tug at the Derelict Freighter's berth.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
             name: EventConfig::OnStart,
@@ -189,7 +186,7 @@ mod walk {
     /// frames.
     const STEP_DEADLINE: f32 = 120.0;
     /// Real-seconds backstop for the flown pickup: the canister drifts at
-    /// 3 m/s and the warship closes on it slowly.
+    /// 3 m/s and the tug closes on it slowly.
     const FLIGHT_DEADLINE: f32 = 900.0;
 
     /// Cells the transfer sheet opens on before the first click.
@@ -200,11 +197,11 @@ mod walk {
     const JETTISON_SHEET_DOOR: f32 = 0.5;
     /// Game seconds the web loop keeps recording after the canister leaves.
     const JETTISON_LOOP_DRIFT_SECS: f32 = 3.0;
-    /// Game seconds the canister drifts off before the warship goes after it,
+    /// Game seconds the canister drifts off before the tug goes after it,
     /// so the pickup starts with the canister clear of the hull.
     const PICKUP_LEAD_SECS: f32 = 5.0;
 
-    /// How far below the canister the intake face waits while the warship
+    /// How far below the canister the intake face waits while the tug
     /// levels under it, in engine units. The canister rose straight off the
     /// face, so nothing of the hull stands between them.
     const HOVER_CLEARANCE: f32 = 1.5;
@@ -331,7 +328,7 @@ mod walk {
             .count(&ItemRoleType::HullPlate.into())
     }
 
-    /// Advance once the warship's hold holds `count` hull plates.
+    /// Advance once the tug's hold holds `count` hull plates.
     fn the_hold_holds(count: u32) -> Arc<Predicate> {
         when(move |world| {
             world
@@ -359,15 +356,12 @@ mod walk {
         resource_where::<State<PauseStates>>(|pause| *pause.get() == PauseStates::Unpaused)
     }
 
-    /// The warship's intake face centre and outward normal.
+    /// The tug's intake face centre and outward normal.
     fn intake_face(world: &mut World) -> (Vec3, Vec3) {
         let mut intakes = world
             .query_filtered::<(&GlobalTransform, &SectionCollider), With<CargoIntakeSectionMarker>>(
             );
-        let (intake, collider) = intakes
-            .iter(world)
-            .next()
-            .expect("the warship has an intake");
+        let (intake, collider) = intakes.iter(world).next().expect("the tug has an intake");
         cargo_intake_face(intake.translation(), intake.rotation(), *collider)
     }
 
@@ -393,7 +387,7 @@ mod walk {
         let player = root(world, PLAYER_ID);
         let hull = world
             .get::<Transform>(player)
-            .expect("the warship has a pose")
+            .expect("the tug has a pose")
             .translation;
         let (face, normal) = intake_face(world);
         let subject = face + normal * aim - hull;
@@ -445,7 +439,7 @@ mod walk {
             .iter()
             .find(|(&ChildOf(parent), ..)| parent == ship)
         else {
-            panic!("lesson_cargo: the warship has no cargo intake");
+            panic!("lesson_cargo: the tug has no cargo intake");
         };
         let (face, normal) = cargo_intake_face(intake.translation(), intake.rotation(), *collider);
         let velocity = match q_canisters.get(canister) {
@@ -588,7 +582,7 @@ mod walk {
     /// Dock, Take, undock, Jettison and take the canister back.
     fn script() -> AutopilotPlugin<GameStates> {
         let script = AutopilotPlugin::<GameStates>::new()
-            .step("load the warship and the derelict")
+            .step("load the tug and the derelict")
             .enter(GameStates::Loading)
             .until(and(player_ship_present(), scenario_camera_present()))
             .deadline(STEP_DEADLINE)

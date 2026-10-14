@@ -7,7 +7,8 @@
 //! torpedo bay. This row is where a silhouette change is reviewed against the
 //! ships it has to read apart from.
 //!
-//! The cutter and the picket are base content, spawned by their CATALOG ids, so
+//! The cutter (the base `mining_tug`) and the picket (the base
+//! `patrol_picket`) are base content, spawned by their CATALOG ids, so
 //! a silhouette that moves in `base_content` moves here. The other six are the
 //! shared example fixtures (`examples/shared/dev_fixtures/`), spawned inline.
 //! Cladding is still derived by the game from the structure - industrial on the
@@ -84,7 +85,7 @@ fn showcase(game_assets: &GameAssets) -> ScenarioConfig {
             "maintenance_cutter",
             "Maintenance Cutter",
             CUTTER_POSITION,
-            design(BLOCK_CUTTER_SHIP_ID),
+            design(MINING_TUG_SHIP_ID),
         ),
         ship_object(
             "industrial_carrier",
@@ -114,7 +115,7 @@ fn showcase(game_assets: &GameAssets) -> ScenarioConfig {
             "searcher_picket",
             "Searcher 3 - PDC Picket",
             SEARCHER_PICKET_POSITION,
-            design(BLOCK_PICKET_SHIP_ID),
+            design(PATROL_PICKET_SHIP_ID),
         ),
         ship_object(
             "searcher_claw",

@@ -2,7 +2,7 @@
     Scenario((
         id: "menu_duel",
         name: "Duel Cycle",
-        description: "A gunship and a raider duel; a siege torpedo erases the winner; repeat.",
+        description: "An interceptor and a raider duel; a siege torpedo erases the winner; repeat.",
         cubemap: "self://textures/cubemap.png",
         role: Backdrop,
         events: [
@@ -500,7 +500,7 @@
                         ),
                         kind: Spaceship((
                             design: Prototype(
-                                id: "block_gunship",
+                                id: "interceptor",
                                 section_patches: {
                                     "bridge": (
                                         config: (
@@ -957,7 +957,7 @@
                                     (
                                         id: "plate_23",
                                         position: (
-                                            -2.0,
+                                            2.0,
                                             0.0,
                                             -1.0,
                                         ),
@@ -974,7 +974,7 @@
                                     (
                                         id: "plate_24",
                                         position: (
-                                            -2.0,
+                                            2.0,
                                             0.0,
                                             0.0,
                                         ),
@@ -992,8 +992,8 @@
                                         id: "plate_25",
                                         position: (
                                             2.0,
+                                            0.0,
                                             1.0,
-                                            -1.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -1010,7 +1010,7 @@
                                         position: (
                                             2.0,
                                             1.0,
-                                            0.0,
+                                            -1.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -1024,6 +1024,23 @@
                                     ),
                                     (
                                         id: "plate_27",
+                                        position: (
+                                            2.0,
+                                            1.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
+                                    ),
+                                    (
+                                        id: "plate_28",
                                         position: (
                                             0.0,
                                             0.0,
@@ -1060,6 +1077,57 @@
                                         ),
                                     ),
                                     (
+                                        id: "railgun_nose",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            -5.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "railgun_lance_section",
+                                        ),
+                                    ),
+                                    (
+                                        id: "pdc_dorsal",
+                                        position: (
+                                            0.0,
+                                            1.75,
+                                            -1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "pdc_kinetic_turret_section",
+                                        ),
+                                    ),
+                                    (
+                                        id: "pdc_boom",
+                                        position: (
+                                            2.0,
+                                            1.75,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "pdc_kinetic_turret_section",
+                                        ),
+                                    ),
+                                    (
                                         id: "drive_port",
                                         position: (
                                             -1.0,
@@ -1077,7 +1145,7 @@
                                         ),
                                     ),
                                     (
-                                        id: "drive_center",
+                                        id: "drive_centre",
                                         position: (
                                             0.0,
                                             0.0,
@@ -1113,9 +1181,9 @@
                                     (
                                         id: "drive_outrigger",
                                         position: (
-                                            -2.0,
+                                            2.0,
                                             0.0,
-                                            1.0,
+                                            2.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -1128,37 +1196,20 @@
                                         ),
                                     ),
                                     (
-                                        id: "pdc_dorsal",
+                                        id: "port_collar",
                                         position: (
+                                            -2.0,
                                             0.0,
-                                            1.75,
-                                            -1.0,
-                                        ),
-                                        rotation: (
-                                            0.0,
-                                            0.0,
-                                            0.0,
-                                            1.0,
-                                        ),
-                                        source: Prototype(
-                                            id: "pdc_kinetic_turret_section",
-                                        ),
-                                    ),
-                                    (
-                                        id: "pdc_boom",
-                                        position: (
-                                            2.0,
-                                            1.75,
                                             0.0,
                                         ),
                                         rotation: (
                                             0.0,
+                                            0.70710677,
                                             0.0,
-                                            0.0,
-                                            1.0,
+                                            0.70710677,
                                         ),
                                         source: Prototype(
-                                            id: "pdc_kinetic_turret_section",
+                                            id: "docking_port_section",
                                         ),
                                     ),
                                 ],

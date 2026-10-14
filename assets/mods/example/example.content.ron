@@ -1158,9 +1158,9 @@
                         id: "prospect_mine",
                         message: "Cut ore from the rock ahead. [V] fires the beam.",
                     )),
-                    // The shipped line warship: bow mining emitter, dorsal
-                    // intake and a starboard collar. Two hull plates to repair
-                    // with, and credits to buy with.
+                    // The shipped mining tug: a mining emitter on a bow boom,
+                    // a cargo intake on the aft deck and a port collar. Two
+                    // hull plates to repair with, and credits to buy with.
                     SpawnScenarioObject((
                         base: (
                             id: "player_spaceship",
@@ -1170,7 +1170,7 @@
                         ),
                         kind: Spaceship((
                             design: Prototype(
-                                id: "block_line_warship",
+                                id: "mining_tug",
                             ),
                             controller: Player((
                                 input_mapping: {
@@ -1185,20 +1185,21 @@
                             credits: 500,
                         )),
                     )),
-                    // The tender alongside: its port collar faces the
-                    // warship's starboard collar across a 5 m gap, inside the
-                    // 10 m capture distance. Not lootable and holding
-                    // credits, so the pane offers Buy and Sell, not Take.
+                    // The tender alongside to port, turned end for end: its
+                    // port collar faces the tug's port collar across a 5 m
+                    // gap, inside the 10 m capture distance. Not lootable and
+                    // holding credits, so the pane offers Buy and Sell, not
+                    // Take.
                     SpawnScenarioObject((
                         base: (
                             id: "example_tender",
                             name: "Supply Tender",
-                            position: (55.0, 0.0, 30.0),
-                            rotation: (0.0, 0.0, 0.0, 1.0),
+                            position: (-55.0, 0.0, -30.0),
+                            rotation: (0.0, 1.0, 0.0, 0.0),
                         ),
                         kind: Spaceship((
                             design: Prototype(
-                                id: "block_frame_tender",
+                                id: "light_freighter",
                             ),
                             controller: None,
                             initial_velocity: (0.0, 0.0, 0.0),
@@ -1208,13 +1209,14 @@
                             credits: 1000,
                         )),
                     )),
-                    // An ore rock dead ahead of the bow emitter, pinned to
-                    // one silhouette so its near face stays in reach.
+                    // An ore rock dead ahead of the bow emitter, 165 m out,
+                    // pinned to one silhouette so its near face stays in
+                    // reach.
                     SpawnScenarioObject((
                         base: (
                             id: "example_ore_rock",
                             name: "Ore Rock",
-                            position: (10.0, 10.0, -235.0),
+                            position: (0.0, 0.0, -225.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
