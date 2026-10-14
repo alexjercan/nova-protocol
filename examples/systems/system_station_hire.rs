@@ -39,7 +39,7 @@
 //! | 1 | `outcome: an escort is hired from a station's catalogue` | the first escort stands with the offer's name and the id its roster slot gives, Player-sided, in the fleet and following the player on the starboard slot, owned by no cell, and the second on the port slot; both offers left the catalogue; the player paid both prices and the station took them, all as `EscortHire`; `OnEscortHired` fired once per escort with the escort, the hull and the price |
 //! | 1b | `outcome: two hired escorts spawn clear of each other and every hull` | at the pose each escort spawned in, its hull keeps daylight to the other escort, the player and the station, every hull measured by its `HullRadius` about its centre of mass |
 //! | 2 | `outcome: an escort crosses sectors beside the player` | after the jump the station's cell is frozen, no frozen record holds the escort, and the escort is live, owned by no cell, and back in formation after the player jumps on |
-//! | 2b | `outcome: escorts follow a start from rest on their own drive` | from the player at rest to the fleet back in formation on the coasting player, no physics step changed an escort's velocity by more than its own drive impulse over its mass plus its RCS push and its well's pull, its RCS delivered nothing and its drive did the following, no escort moved before its drive fired, and no escort flew faster than the player by more than `AI_FOLLOW_CLOSING_SPEED` plus 5 m/s |
+//! | 2b | `outcome: escorts follow a start from rest on their own drive` | from the player at rest to the fleet back in formation on the coasting player, no physics step changed an escort's velocity by more than its own drive impulse over its mass plus its RCS push and its well's pull, its RCS delivered under 0.5 m/s while the player's drive was on and under a tenth of what its drive delivered in all, no escort moved before its drive fired, and no escort flew faster than the player by more than `AI_FOLLOW_CLOSING_SPEED` plus 5 m/s |
 //! | 3 | `outcome: an escort flies formation through a turn` | while the player burns to 50 m/s and turns its travel a right angle, the escort ends in formation behind and beside the new travel, matching the player's velocity; its drive took it from rest to the cruise; no physics step moved it more than 0.5 m past its own velocity; it never came within 50 m of the player's hull |
 //! | 4 | `outcome: the leave save holds the escort in the player's fleet` | the saved player's fleet is the two escorts, on the starboard and port slots, and no saved sector holds either |
 //! | 5 | `outcome: a loaded escort is beside the player and follows` | after Load the escort stands in the fleet beside the player, following the loaded player, and is back in formation after the player jumps on |
@@ -1412,9 +1412,10 @@ mod walk {
         first_move: Option<u32>,
         first_thrust: Option<u32>,
         /// The velocity its drive and its RCS delivered, engine units per
-        /// second.
+        /// second, and its RCS while the player's drive was still on.
         drive: f32,
         rcs: f32,
+        rcs_starting: f32,
         /// Its speed and the player's when the player had opened
         /// [`START_OPENED`] from rest.
         at_opened: Option<(f32, f32)>,
@@ -1528,6 +1529,7 @@ mod walk {
         let step = trace.steps;
         let origin = *trace.origin.get_or_insert(player_at);
         let opened = player_at.distance(origin);
+        let released = trace.released;
         if trace.player_moved.is_none() && player_v.length() > 1e-5 {
             trace.player_moved = Some(step);
         }
@@ -1543,6 +1545,9 @@ mod walk {
             }
             escort.drive += drive;
             escort.rcs += rcs;
+            if !released {
+                escort.rcs_starting += rcs;
+            }
             if drive > 0.0 && escort.first_thrust.is_none() {
                 escort.first_thrust = Some(step);
             }
@@ -1581,9 +1586,9 @@ mod walk {
         info!("station hire: the player starts from rest on its main drive");
     }
 
-    /// Claim 2b: each escort's velocity changed only by its own drive, never
-    /// its RCS, and no escort moved before its drive fired; then the player
-    /// stops.
+    /// Claim 2b: each escort's velocity changed only by its own drive and
+    /// thrusters, its drive did the following and its RCS only trimmed, and
+    /// no escort moved before its drive fired; then the player stops.
     fn mark_the_start(world: &mut World) {
         let trace = std::mem::take(&mut *world.resource_mut::<StartTrace>());
         info!(
@@ -1604,11 +1609,12 @@ mod walk {
                 escort.overtake
             );
             assert!(
-                escort.rcs == 0.0 && escort.drive > 0.0,
-                "station hire: escort {index} followed on its drive, not its RCS: drive {} u/s, \
-                 RCS {} u/s",
+                escort.rcs_starting < 0.05 && escort.rcs < 0.1 * escort.drive,
+                "station hire: escort {index} followed on its drive, its RCS only trimming: \
+                 drive {} u/s, RCS {} u/s, {} u/s of it while the player sped up",
                 escort.drive,
-                escort.rcs
+                escort.rcs,
+                escort.rcs_starting
             );
             assert!(
                 escort.first_thrust.is_some() && escort.first_thrust <= escort.first_move,
@@ -1650,6 +1656,11 @@ mod walk {
                     .escorts
                     .iter()
                     .map(|escort| Meters::from_engine(escort.rcs).get())
+                    .collect::<Vec<_>>(),
+                "rcs_starting_mps": trace
+                    .escorts
+                    .iter()
+                    .map(|escort| Meters::from_engine(escort.rcs_starting).get())
                     .collect::<Vec<_>>(),
                 "top_mps": trace
                     .escorts

@@ -225,11 +225,14 @@ at most `AI_FOLLOW_CLOSING_SPEED`, 2 u/s). Only a speed gain lags
 holds a velocity against the leader's travel. The held velocity refuses the
 RCS (`MatchVelocity { rcs: false }`), so the escort turns onto the error and
 burns its drive: an RCS push turns no hull and lights no drive plume, and an
-escort that took up the leader's start on it slid along as if dragged. The RCS may
-help only to dodge: inside the leader's clearance (both arms plus 10 u), or
-when the leader closes on the escort fast enough to reach that clearance
-within `AI_FOLLOW_DODGE_LEAD` (2 s), about the time the drive takes to turn.
-So a leader that starts from rest opens a gap before its escort follows, and
+escort that took up the leader's start on it slid along as if dragged. The RCS
+is allowed for two things. It dodges: inside the leader's clearance (both
+arms plus 10 u), or when the leader closes on the escort fast enough to reach
+that clearance within `AI_FOLLOW_DODGE_LEAD` (2 s), about the time the drive
+takes to turn. And it trims: within `AI_FOLLOW_TRIM` (6 u) of the goal, with
+the error and the speed lag inside the flight computer's crumb band
+(`attitude_deadband`), once the leader has held its velocity for 1 s. A leader
+that starts, stops or turns leaves the escort to its drive. So a leader that starts from rest opens a gap before its escort follows, and
 only the escort's drive and computers move it. The goal is
 `formation_goal`. A leader at or above `AI_FOLLOW_TRAVEL_SPEED` (1 u/s) sets
 the frame with its travel, not its nose: the slot is the side times both arms
@@ -242,7 +245,13 @@ leader, every other hull and every sized body by the escort's arm plus 10 u.
 inside the leader's clearance first flies straight out of it.
 Far from its goal the escort points at it; within 20 u it points where the
 leader points. It keeps its leash centred on the leader and gives way to a
-combat engage. A neutralized escort leaves the fleet.
+combat engage. A leader that locks its escort within the far hold gap is
+coming to dock: the escort coasts on its own velocity, with no dodge, no
+clearance and no RCS, and the dock admits it as any calm ally. Docked, it
+replaces its maneuver with a STOP and holds the pair, as a docked passive
+driver does. At the undock it flies formation again, though the leader still
+locks it, until the leader locks something else. A neutralized escort leaves
+the fleet.
 
 Docked at a living generated station (it wears a `GeneratedBodyId` and is not
 derelict), the Station pane's "This station" block

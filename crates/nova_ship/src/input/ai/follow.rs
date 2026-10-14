@@ -62,6 +62,14 @@ pub const AI_FOLLOW_FEED_LAG: f32 = 2.0;
 /// escort raced past a starting leader at three times its speed.
 pub const AI_FOLLOW_CLOSING_SPEED: f32 = 2.0;
 
+/// How near (world units, 60 m) its goal a follower trims on its RCS, and how
+/// long (seconds) its leader must have held its velocity first. The trim
+/// takes only errors inside the flight computer's crumb band, which the drive
+/// leaves alone. A leader that starts, speeds up, stops or turns leaves the
+/// follower to its drive: an RCS that tracked the leader's change slid the
+/// escort along as if dragged.
+const AI_FOLLOW_TRIM: (f32, f32) = (6.0, 1.0);
+
 /// Time (seconds) ahead at which a follower closing on its leader may use its
 /// RCS to dodge: about the time its drive takes to turn onto the dodge. A
 /// leader that turned into an escort on the drive alone came within its hull.
@@ -128,12 +136,25 @@ pub struct AIFollow {
     pub side: Vec3,
 }
 
-/// The leader speed (world units per second) a follower flies on: the
-/// leader's speed with its gains seen through a lag of
-/// [`AI_FOLLOW_FEED_LAG`]. Seeded from the follower's own speed when it
-/// starts to fly formation, so it takes up nothing it does not already have.
+/// What a follower keeps of its leader between frames.
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
-pub(super) struct FollowFeed(f32);
+pub(super) struct FollowFeed {
+    /// The leader speed (world units per second) the follower flies on: the
+    /// leader's speed with its gains seen through a lag of
+    /// [`AI_FOLLOW_FEED_LAG`]. Seeded from the follower's own speed when it
+    /// starts to fly formation, so it takes up nothing it does not already
+    /// have.
+    speed: f32,
+    /// The velocity the leader holds, within the flight computer's crumb
+    /// band, and for how long (seconds), to tell a leader that changes its
+    /// motion from one that holds it.
+    leader_velocity: Vec3,
+    held_for: f32,
+    /// The follower undocked while its leader locks it. The leader's lock
+    /// asks it to hold still for a dock only once: it resumes formation at
+    /// the undock, until the leader locks something else.
+    undocked: bool,
+}
 
 /// Flies every [`AIFollow`] ship that is not fighting to its formation goal.
 ///
@@ -190,6 +211,7 @@ pub(super) fn update_follow_flight(
             Option<&LinearVelocity>,
             Option<&HullRadius>,
             Has<DockedShip>,
+            Option<&TravelLock>,
         ),
         Without<AIFollow>,
     >,
@@ -223,8 +245,14 @@ pub(super) fn update_follow_flight(
         docked,
     ) in &mut q_follower
     {
-        let Ok((leader_transform, leader_com, leader_velocity, leader_arm, leader_docked)) =
-            q_leader.get(follow.leader)
+        let Ok((
+            leader_transform,
+            leader_com,
+            leader_velocity,
+            leader_arm,
+            leader_docked,
+            leader_lock,
+        )) = q_leader.get(follow.leader)
         else {
             commands.entity(ship).remove::<AIFollow>();
             continue;
@@ -234,34 +262,84 @@ pub(super) fn update_follow_flight(
             leash.center = leader_anchor;
         }
         let own_velocity = own_velocity.map_or(Vec3::ZERO, |velocity| **velocity);
+        let leader_velocity = leader_velocity.map_or(Vec3::ZERO, |velocity| **velocity);
         if docked || state.engages() || !q_engine.iter().any(|&ChildOf(parent)| parent == ship) {
             // Formation resumes from the motion the follower has then.
             if let Some(mut feed) = feed {
-                feed.0 = own_velocity.length();
+                *feed = FollowFeed {
+                    speed: own_velocity.length(),
+                    leader_velocity,
+                    held_for: 0.0,
+                    undocked: docked,
+                };
+            }
+            // Docked, the follower holds the pair still, as a docked passive
+            // driver does, instead of flying the pair to its slot on the
+            // velocity it held when it docked.
+            if docked
+                && autopilot
+                    .is_some_and(|autopilot| !matches!(autopilot.action, AutopilotAction::Stop))
+            {
+                commands
+                    .entity(ship)
+                    .insert(Autopilot::engage(AutopilotAction::Stop));
             }
             continue;
         }
-        let leader_velocity = leader_velocity.map_or(Vec3::ZERO, |velocity| **velocity);
         let leader_speed = leader_velocity.length();
-        let held = feed.as_deref().map_or(own_velocity.length(), |feed| feed.0);
-        let fed_speed = (held + (leader_speed - held) * lag).min(leader_speed);
+        let last = feed.as_deref().copied().unwrap_or(FollowFeed {
+            speed: own_velocity.length(),
+            leader_velocity,
+            held_for: 0.0,
+            undocked: false,
+        });
+        let locked = leader_lock.is_some_and(|lock| lock.0 == Some(ship));
+        let fed_speed = (last.speed + (leader_speed - last.speed) * lag).min(leader_speed);
+        let crumb = settings.attitude_deadband;
+        let next_feed = if leader_velocity.distance(last.leader_velocity) <= crumb {
+            FollowFeed {
+                speed: fed_speed,
+                held_for: last.held_for + time.delta_secs(),
+                undocked: last.undocked && locked,
+                ..last
+            }
+        } else {
+            FollowFeed {
+                speed: fed_speed,
+                leader_velocity,
+                held_for: 0.0,
+                undocked: last.undocked && locked,
+            }
+        };
         match feed {
-            Some(mut feed) => feed.0 = fed_speed,
+            Some(mut feed) => *feed = next_feed,
             None => {
-                commands.entity(ship).insert(FollowFeed(fed_speed));
+                commands.entity(ship).insert(next_feed);
             }
         }
         let fed = leader_velocity.normalize_or_zero() * fed_speed;
-        let action = if leader_docked {
+        let own_arm = arm.map_or(0.0, |arm| **arm);
+        let leader_arm = leader_arm.map_or(0.0, |arm| **arm);
+        let from = live_structure_anchor(transform, com);
+        // A leader that locks its follower near it is coming to dock: the
+        // follower coasts on its own velocity, with no dodge, no clearance
+        // and no RCS, so the leader can match it and the ports can meet.
+        let docking = locked
+            && !next_feed.undocked
+            && from.distance(leader_anchor) < leader_arm + own_arm + AI_FOLLOW_HOLD.1;
+        let action = if docking {
+            AutopilotAction::MatchVelocity {
+                velocity: own_velocity,
+                facing: None,
+                rcs: false,
+            }
+        } else if leader_docked {
             AutopilotAction::MatchVelocity {
                 velocity: fed,
                 facing: None,
                 rcs: false,
             }
         } else {
-            let own_arm = arm.map_or(0.0, |arm| **arm);
-            let leader_arm = leader_arm.map_or(0.0, |arm| **arm);
-            let from = live_structure_anchor(transform, com);
             let goal = formation_goal(
                 from,
                 leader_anchor,
@@ -348,10 +426,17 @@ pub(super) fn update_follow_flight(
                 let ahead = leader_velocity.normalize();
                 velocity -= ahead * velocity.dot(ahead).min(0.0);
             }
+            // Fine positioning: at the slot, on its velocity, beside a
+            // leader that holds its motion.
+            let (trim_radius, trim_settle) = AI_FOLLOW_TRIM;
+            let trim = distance < trim_radius
+                && next_feed.held_for >= trim_settle
+                && leader_speed - fed_speed < crumb
+                && (velocity - own_velocity).length() < crumb;
             AutopilotAction::MatchVelocity {
                 velocity,
                 facing,
-                rcs: crowded,
+                rcs: crowded || trim,
             }
         };
         match autopilot {
@@ -520,7 +605,15 @@ mod flight_tests {
     /// The real flight layer and sections under the AI chain with the follow
     /// driver, as the patrol's physics harness wires the passive pilot.
     fn follow_physics_app() -> App {
+        follow_rig(false)
+    }
+
+    /// [`follow_physics_app`], with docking when `docking` is set.
+    fn follow_rig(docking: bool) -> App {
         let mut app = unfinished_integrity_physics_app();
+        if docking {
+            app.add_plugins(DockingSectionPlugin { render: false });
+        }
         app.add_plugins(PDControllerPlugin);
         app.add_plugins(NovaFlightPlugin);
         app.configure_sets(
@@ -820,13 +913,133 @@ mod flight_tests {
         );
     }
 
+    /// A docking port on `ship` at `offset`, its mouth turned out along
+    /// `outward` in the hull's frame.
+    fn spawn_port(app: &mut App, ship: Entity, offset: Vec3, outward: Vec3) -> Entity {
+        app.world_mut()
+            .spawn((
+                ChildOf(ship),
+                nova_events::prelude::EntityId("port".to_string()),
+                Transform::from_translation(offset)
+                    .with_rotation(Quat::from_rotation_arc(Vec3::NEG_Z, outward)),
+                docking_section(DockingSectionConfig::default()),
+            ))
+            .id()
+    }
+
+    /// The player docks with its own escort: a leader that locks its escort
+    /// and closes on it at 4 m/s finds the escort coasting where it was, its
+    /// RCS dark, and the ports meet. Docked, the escort holds the pair and
+    /// flies to no slot; undocked, it flies formation again.
+    #[test]
+    fn an_escort_holds_still_for_its_leader_to_dock_and_resumes_formation_at_the_undock() {
+        let mut app = follow_rig(true);
+        let leader = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                HullRadius(ARM),
+                Allegiance::Player,
+                PlayerSpaceshipMarker,
+                SpaceshipRootMarker,
+            ))
+            .id();
+        app.world_mut().spawn((
+            ChildOf(leader),
+            Transform::default(),
+            Collider::cuboid(1.0, 1.0, 1.0),
+            ColliderDensity(1.0),
+        ));
+        spawn_port(&mut app, leader, Vec3::ZERO, Vec3::X);
+        let escort = spawn_follower(&mut app, Vec3::new(20.0, 0.0, 0.0), leader);
+        spawn_port(&mut app, escort, Vec3::new(-1.0, 0.0, 0.0), Vec3::NEG_X);
+        app.world_mut().resource_mut::<StepTrace>().follower = Some(escort);
+        settle(&mut app);
+        for _ in 0..120 {
+            app.world_mut()
+                .entity_mut(leader)
+                .insert(LinearVelocity::ZERO);
+            app.update();
+        }
+        app.world_mut().resource_mut::<StepTrace>().reset();
+        let at = |app: &App, ship: Entity| app.world().get::<Transform>(ship).unwrap().translation;
+        let held_at = at(&app, escort);
+
+        // The leader locks the escort and closes on it at 0.4 u/s, asking
+        // for the dock every step.
+        app.world_mut()
+            .entity_mut(leader)
+            .insert(TravelLock(Some(escort)));
+        let mut docked_at = None;
+        // The RCS the escort spent and how far it drifted up to the capture;
+        // from the capture on it flies the pair.
+        let mut approach = (0.0, 0.0);
+        for tick in 0..4000 {
+            app.world_mut()
+                .entity_mut(leader)
+                .insert(LinearVelocity(Vec3::X * 0.4));
+            app.world_mut().trigger(DockingConnectionRequest {
+                entity: leader,
+                target: escort,
+            });
+            app.update();
+            if app.world().get::<DockedShip>(escort).is_some() {
+                docked_at = Some(tick);
+                break;
+            }
+            approach = (
+                app.world().resource::<StepTrace>().rcs,
+                at(&app, escort).distance(held_at),
+            );
+        }
+        let (rcs, drift) = approach;
+        assert!(
+            docked_at.is_some(),
+            "the leader docked with its escort: the escort drifted {drift:.2} u from where it held"
+        );
+        assert!(
+            rcs == 0.0 && drift < 0.5,
+            "the escort held still for the dock: RCS {rcs} u/s, drifted {drift:.2} u"
+        );
+
+        // Docked, the escort holds the pair and flies to no slot.
+        for _ in 0..300 {
+            app.update();
+            let action = app
+                .world()
+                .get::<Autopilot>(escort)
+                .map(|pilot| pilot.action);
+            assert!(
+                app.world().get::<DockedShip>(escort).is_some()
+                    && !matches!(action, Some(AutopilotAction::MatchVelocity { .. })),
+                "the escort stays docked and holds the pair, not its slot: {action:?}"
+            );
+        }
+
+        // Undocked, it flies formation again though the leader still locks it.
+        app.world_mut()
+            .trigger(DockingReleaseRequest { entity: leader });
+        let mut range = 0.0;
+        for _ in 0..1200 {
+            app.update();
+            range = at(&app, escort).distance(at(&app, leader));
+        }
+        assert!(
+            app.world().get::<DockedShip>(escort).is_none()
+                && range > 2.0 * ARM + AI_FOLLOW_HOLD.0 * 0.5,
+            "the escort flew back out to its formation gap after the undock: {range:.1} u off"
+        );
+    }
+
     /// How far (world units, 30 m) a leader starting from rest travels while
     /// its escort must stay under half its speed.
     const OPENED: f32 = 3.0;
 
     /// An escort beside a leader at rest does not take up the leader's
     /// motion when the leader starts: the leader opens a gap first, and the
-    /// escort follows it on its drive, never on its RCS, never back against
+    /// escort follows it on its drive, its RCS only trimming at the slot once
+    /// the leader holds its cruise, never back against
     /// the travel and never faster than the leader by more than its closing
     /// speed. No step changes the escort's velocity by more than its own
     /// drive delivered that step, and it moves no sooner than its drive
@@ -859,12 +1072,17 @@ mod flight_tests {
         // opens its first `OPENED`, the escort must stay under half its
         // speed; and it never flies back against the travel.
         let (mut shared, mut backward, mut overtake) = (false, 0.0_f32, 0.0_f32);
+        // The RCS the escort spent while the leader sped up.
+        let mut started = 0.0;
         for tick in 1..=900 {
             let speed = (tick as f32 / 60.0).min(5.0);
             app.world_mut()
                 .entity_mut(leader)
                 .insert(LinearVelocity(Vec3::NEG_Z * speed));
             app.update();
+            if tick == 300 {
+                started = app.world().resource::<StepTrace>().rcs;
+            }
             let velocity = app.world().get::<LinearVelocity>(escort).unwrap().0;
             if at(&app, leader).distance(leader_start) < OPENED {
                 shared |= velocity.length() > 0.5 * speed;
@@ -892,9 +1110,13 @@ mod flight_tests {
             trace.worst_excess
         );
         assert!(
-            trace.rcs == 0.0,
-            "the escort's RCS pushed it {} u/s: a torque-free push with no plume reads as the \
-             leader dragging it",
+            started < 0.05,
+            "the escort's RCS pushed it {started} u/s while the leader sped up: a torque-free \
+             push with no plume reads as the leader dragging it"
+        );
+        assert!(
+            trace.rcs > 0.0 && trace.rcs < 0.5,
+            "the escort's RCS pushed it {} u/s in all: it trims at the slot, it does not follow",
             trace.rcs
         );
         let (first_thrust, first_move) = (trace.first_thrust, trace.first_move);
