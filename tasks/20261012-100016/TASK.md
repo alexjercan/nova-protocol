@@ -1,6 +1,6 @@
 # Fleet: hire an escort at a station
 
-- STATUS: CLOSED
+- STATUS: OPEN
 - PRIORITY: 73
 - TAGS: v0.16.0, wizard
 
@@ -35,6 +35,9 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
 - Agent result 2026-10-14: implemented as decided, in 7d85c0993, 8c808ad71, c3131ba4d, 39e7fd1ba, 2d25677a7, a45eb2ec8, 6ea4d24e9 and the docs commit. Proof: `examples/systems/system_station_hire.rs` (seed 10, offer 5 'Fenhalka armored escort 1' for 16,320 cr; 5 roster invariants, `SYSTEMS_INVARIANTS` 535) passed under lavapipe: hire, a jump three cells out, the escort back on its slot, save, Load, the escort on its slot after the player jumps on, then two flight computers killed, the wreck in cell (5,0,0), an empty saved fleet and no fleet after Load. Unit tests: the roster (`station_hulls.rs`), the price and slots (`escort_hire.rs`), the save round trip (`save/tests.rs`) and the detour (`follow.rs`). Found on the live runs: a Load swept the thawed escort as a stray body (fixed in 2d25677a7); the first escort flew through the player to a slot on the station side (fixed in a45eb2ec8); the walk's berth left the mouse rig on the spawn heading, so the hull turned back through the station on undock (fixed in the walk). The follow order avoids only its leader, so an escort whose slot lies across a station still flies into it; the walk flies the player 2 km clear first. The escort has no crew wage and no orders.
 
 - Orchestrator close 2026-10-14: landed in 7d85c0993..98f94634d. 1 to 3 armed escorts per station are listed in the existing catalogue (`HullOfferType::Hire { slot }`), gated by `Refit`, at the hull price times 3/2. The fleet has two slots (starboard, then port), is saved in `SavedPlayer.fleet` (format 8) and survives world replacement. A neutralized escort is gone for good and leaves a normal wreck. Live-run fixes: the streaming reset no longer deletes thawed fleet escorts, and `follow_waypoint` routes an escort round its leader. Proof: `examples/systems/system_station_hire.rs` (hire, cross cells, save, Load, follow, kill, gone after a second save and Load). The orchestrator reviewed the crossed frame (player and escort side by side) and re-ran `content lint`: 0 errors. `SYSTEMS_INVARIANTS` 535. Gaps: escorts avoid only their leader, not stations (the walk jumps 2 km clear after undock); other station examples may hide an undock collision through the station; no wages and no orders; five older `[Unreleased]` entries exceed 200 characters.
+
+## Owner feedback (2026-10-14, reopens the task)
+- A hired escort is put in a position around the player instead of flying. It must follow the player with its AI flight controller (steering, thrust, matching speed), not orbit or snap to slots.
 
 ## Delivery gate
 - A `fleet` field in `SavedPlayer`; an escort is a generated hull with `Allegiance::Player` and a follow order; it crosses sectors with the player (not frozen in the old cell). Stop for the owner on the escort's death rule (gone for good vs. rebuyable).

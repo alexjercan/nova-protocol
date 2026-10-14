@@ -1,6 +1,6 @@
 # Upgrades: add a section at a free attachment point
 
-- STATUS: CLOSED
+- STATUS: OPEN
 - PRIORITY: 75
 - TAGS: v0.16.0, wizard
 
@@ -36,6 +36,15 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
 - UI: the Ship pane's Add list under the Swap list: point buttons for the selected section (first free point picked by default), then every catalogue part that fits there with its price or payment refusal and an Add button.
 
 - Orchestrator close 2026-10-14: landed in 85d7d130b. A free point is a socket of a live section that no design section mates (no authored content; a lost section's socket stays reserved). Fit order: free point, opposite-facing socket at roll 0, no overlap, delta-only post-build check (`section_add.rs`; the swap and add checks renamed Refit*). The new section takes the next code of its class and copies the first sibling's binding. Price is the full recipe. New `OnAdded` event and credit cause `Add`. The Ship side panel now scrolls, which also fixes the rebuild and swap clip. Proof: `examples/systems/system_station_add.rs` (refusal at a taken socket, an add on a base hull and on a generated hull, each surviving freeze and thaw). The orchestrator reviewed the Add list frame (point buttons, nine parts with prices) and re-ran `content lint`: 0 errors. Gaps: the Add list on a hull is long; no roll or socket cycling; `snap.rs` keeps its own overlap check; the Map panel still clips.
+
+## Owner feedback (2026-10-14, reopens the task)
+- Ships for sale, Escorts for hire and Buy station do not belong in the Ship tab. Move them to a new tab. Only refit (swap, add, rebuild) stays in Ship.
+- Refit picks rows named by socket code (`positive_x_a`), which means nothing to a player. Make it work like the editor: a section catalogue, limited to what the station sells, with the selected section as a ghost on the cursor; the player places it. Keep the current Ship view look, which the owner likes.
+- Bugs that must be reproduced, then fixed:
+  1. after placing a section, the other tabs do not open until the HUD is closed and opened again;
+  2. the HUD element for the new section does not update;
+  3. plating and greebles do not rebuild locally around the new section.
+- The owner rates these Ship HUD problems as the worst.
 
 ## Delivery gate
 - Propose explicit attachment points on a hull design (content), lint for overlap, and the bind rule for a new section. Stop for the owner on whether base hulls get authored points or only generated ones.
