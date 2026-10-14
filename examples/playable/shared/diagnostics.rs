@@ -34,7 +34,7 @@
     reason = "each example uses part of the shared layer, and an include compiles it per example"
 )]
 
-use bevy::prelude::*;
+use bevy::{camera::visibility::RenderLayers, prelude::*};
 use nova_protocol::prelude::*;
 
 /// The one key that shows and hides the diagnostics in every playable
@@ -79,6 +79,18 @@ pub mod palette {
 /// hides with the layer.
 #[derive(Clone, Default, Reflect, GizmoConfigGroup)]
 pub struct DiagnosticsGizmos;
+
+/// Put the diagnostics gizmos on `layers`, for a view that renders on its
+/// own render layers, such as the Ship pane's schematic camera. `None` puts
+/// them back on the world's default layer. The gizmos show on one set of
+/// layers at a time, so an example draws in one such view at a time.
+pub fn draw_on_layers(store: &mut GizmoConfigStore, layers: Option<&RenderLayers>) {
+    let (config, _) = store.config_mut::<DiagnosticsGizmos>();
+    let layers = layers.cloned().unwrap_or_default();
+    if config.render_layers != layers {
+        config.render_layers = layers;
+    }
+}
 
 /// Whether the diagnostics show. Starts `true`.
 #[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
@@ -230,6 +242,7 @@ fn spawn_the_overlay(mut commands: Commands, hint: Res<Hint>) {
                 left: Val::Px(12.0),
                 top: Val::Px(44.0),
                 flex_direction: FlexDirection::Column,
+                align_items: AlignItems::FlexStart,
                 row_gap: Val::Px(4.0),
                 ..default()
             },
