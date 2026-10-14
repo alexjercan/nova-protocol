@@ -71,7 +71,7 @@ const SUMMARY_ORDER: [SectionClass; 9] = [
 
 /// The hull's length and section count: the span of its section centres
 /// along its longest axis, plus one cell, in metres.
-fn hull_size_text(offer: &HullOffer) -> String {
+pub(super) fn hull_size_text(offer: &HullOffer) -> String {
     let (low, high) = offer.sections.iter().fold(
         (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)),
         |(low, high), section| (low.min(section.position), high.max(section.position)),
@@ -86,7 +86,7 @@ fn hull_size_text(offer: &HullOffer) -> String {
 
 /// How many sections of each kind the hull carries, by section code prefix:
 /// `4 HULL, 1 CTL, 2 THR, 1 DOCK`.
-fn hull_kinds_text(offer: &HullOffer) -> String {
+pub(super) fn hull_kinds_text(offer: &HullOffer) -> String {
     SUMMARY_ORDER
         .iter()
         .filter_map(|&class| {

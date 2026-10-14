@@ -111,7 +111,8 @@ pub mod prelude {
         AIEngageRange, AIEvade, AIFollow, AILeash, AINonCombatant, AIOrbitDirective,
         AIOrderInterruption, AIPatrolRoute, AIPointDefenseRange, AIPointDefenseTarget, AIRailgun,
         AISpaceshipMarker, AIStandoffClearance, AITarget, AIThreat, AIWaypointSlack, FrozenAI,
-        SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR, AI_STANDOFF_OUTER_EDGE, AI_TORPEDO_MAX_RANGE,
+        SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR, AI_FOLLOW_GAP, AI_STANDOFF_OUTER_EDGE,
+        AI_TORPEDO_MAX_RANGE,
     };
 }
 

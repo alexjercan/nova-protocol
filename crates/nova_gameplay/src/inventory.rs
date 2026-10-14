@@ -719,6 +719,16 @@ pub enum ShipInventoryReport {
         /// What the station paid for the old hull.
         trade_in_cr: u32,
     },
+    /// A Ship pane hire at a docked station added an escort to the player's
+    /// fleet.
+    EscortHired {
+        /// The escort's scenario id.
+        escort: String,
+        /// The catalogue name of the escort's hull.
+        hull: String,
+        /// The hire price.
+        price_cr: u32,
+    },
 }
 
 /// The [`ShipInventoryReport`]s a ship's owning systems queued since the

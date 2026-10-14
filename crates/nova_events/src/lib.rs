@@ -45,31 +45,32 @@ pub mod prelude {
         scale::LOAD_LIMIT,
         units::prelude::*,
         AddedEventInfo, CargoEventInfo, CinematicEventInfo, CreditChangeCauseType,
-        CreditsChangedEventInfo, DockingEventInfo, EntityId, EntityTypeName, ItemTradeType,
-        LockEventInfo, MinedEventInfo, OnAddedEvent, OnCinematicFinishedEvent,
+        CreditsChangedEventInfo, DockingEventInfo, EntityId, EntityTypeName, EscortHiredEventInfo,
+        ItemTradeType, LockEventInfo, MinedEventInfo, OnAddedEvent, OnCinematicFinishedEvent,
         OnCinematicSkippedEvent, OnCombatLockEndEvent, OnCombatLockStartEvent,
         OnCreditsChangedEvent, OnDefeatedEvent, OnDefeatedEventInfo, OnDestroyedEvent,
-        OnDestroyedEventInfo, OnDockedEvent, OnEnterEvent, OnEnterEventInfo, OnExitEvent,
-        OnExitEventInfo, OnGotoCompleteEvent, OnGotoCompleteEventInfo, OnJettisonedEvent,
-        OnMinedEvent, OnNeutralizedEvent, OnNeutralizedEventInfo, OnOrbitEndEvent, OnOrbitLapEvent,
-        OnOrbitStableEvent, OnOrbitStartEvent, OnOrbitUnstableEvent, OnPickedUpEvent,
-        OnRebuiltEvent, OnRepairedEvent, OnResumeEvent, OnResumeEventInfo, OnShipBoughtEvent,
-        OnShipOrderCanceledEvent, OnShipOrderCanceledEventInfo, OnShipOrderCompleteEvent,
-        OnShipOrderCompleteEventInfo, OnShipOrderFailedEvent, OnShipOrderFailedEventInfo,
-        OnShipOrderInterruptedEvent, OnShipOrderInterruptedEventInfo, OnShipOrderResumedEvent,
-        OnShipOrderResumedEventInfo, OnStartEvent, OnStartEventInfo, OnStopCompleteEvent,
-        OnStopCompleteEventInfo, OnStoredEvent, OnSwappedEvent, OnTimerEndEvent,
-        OnTimerEndEventInfo, OnTradedEvent, OnTravelLockEndEvent, OnTravelLockStartEvent,
-        OnUndockedEvent, OnUpdateEvent, OnUpdateEventInfo, OnWithdrawnEvent, OrbitEventInfo,
-        RebuiltEventInfo, RepairedEventInfo, ScenarioAddressableMarker, ShipBoughtEventInfo,
-        ShipOrderKind, StorageEventInfo, SwappedEventInfo, TradedEventInfo, ANCHOR_TYPE_NAME,
-        ASTEROID_TYPE_NAME, BEACON_TYPE_NAME, CANISTER_FIELD_NAME, CINEMATIC_KEY_FIELD_NAME,
-        CREDIT_CAUSE_FIELD_NAME, CURRENT_CREDITS_FIELD_NAME, DELTA_CREDITS_FIELD_NAME,
-        ENTITY_ID_COMPONENT_NAME, ENTITY_OTHER_ID_COMPONENT_NAME,
-        ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME, ENTITY_TYPE_NAME_COMPONENT_NAME,
-        ITEM_COUNT_FIELD_NAME, ITEM_FIELD_NAME, LIGHT_TYPE_NAME, PLANET_TYPE_NAME,
-        PREVIOUS_CREDITS_FIELD_NAME, PRICE_FIELD_NAME, SECTION_FIELD_NAME, SHIP_ORDER_FIELD_NAME,
-        SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME, TIMER_KEY_FIELD_NAME, TRADE_FIELD_NAME,
+        OnDestroyedEventInfo, OnDockedEvent, OnEnterEvent, OnEnterEventInfo, OnEscortHiredEvent,
+        OnExitEvent, OnExitEventInfo, OnGotoCompleteEvent, OnGotoCompleteEventInfo,
+        OnJettisonedEvent, OnMinedEvent, OnNeutralizedEvent, OnNeutralizedEventInfo,
+        OnOrbitEndEvent, OnOrbitLapEvent, OnOrbitStableEvent, OnOrbitStartEvent,
+        OnOrbitUnstableEvent, OnPickedUpEvent, OnRebuiltEvent, OnRepairedEvent, OnResumeEvent,
+        OnResumeEventInfo, OnShipBoughtEvent, OnShipOrderCanceledEvent,
+        OnShipOrderCanceledEventInfo, OnShipOrderCompleteEvent, OnShipOrderCompleteEventInfo,
+        OnShipOrderFailedEvent, OnShipOrderFailedEventInfo, OnShipOrderInterruptedEvent,
+        OnShipOrderInterruptedEventInfo, OnShipOrderResumedEvent, OnShipOrderResumedEventInfo,
+        OnStartEvent, OnStartEventInfo, OnStopCompleteEvent, OnStopCompleteEventInfo,
+        OnStoredEvent, OnSwappedEvent, OnTimerEndEvent, OnTimerEndEventInfo, OnTradedEvent,
+        OnTravelLockEndEvent, OnTravelLockStartEvent, OnUndockedEvent, OnUpdateEvent,
+        OnUpdateEventInfo, OnWithdrawnEvent, OrbitEventInfo, RebuiltEventInfo, RepairedEventInfo,
+        ScenarioAddressableMarker, ShipBoughtEventInfo, ShipOrderKind, StorageEventInfo,
+        SwappedEventInfo, TradedEventInfo, ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME, BEACON_TYPE_NAME,
+        CANISTER_FIELD_NAME, CINEMATIC_KEY_FIELD_NAME, CREDIT_CAUSE_FIELD_NAME,
+        CURRENT_CREDITS_FIELD_NAME, DELTA_CREDITS_FIELD_NAME, ENTITY_ID_COMPONENT_NAME,
+        ENTITY_OTHER_ID_COMPONENT_NAME, ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME,
+        ENTITY_TYPE_NAME_COMPONENT_NAME, ITEM_COUNT_FIELD_NAME, ITEM_FIELD_NAME, LIGHT_TYPE_NAME,
+        PLANET_TYPE_NAME, PREVIOUS_CREDITS_FIELD_NAME, PRICE_FIELD_NAME, SECTION_FIELD_NAME,
+        SHIP_ORDER_FIELD_NAME, SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME,
+        TIMER_KEY_FIELD_NAME, TRADE_FIELD_NAME,
     };
 }
 
@@ -926,6 +927,8 @@ pub enum CreditChangeCauseType {
     /// A whole ship bought at a docked station: the new hull's price less
     /// the old hull's trade-in.
     ShipBuy,
+    /// An escort hired at a docked station: its price.
+    EscortHire,
 }
 
 impl CreditChangeCauseType {
@@ -938,6 +941,7 @@ impl CreditChangeCauseType {
             CreditChangeCauseType::Swap => "Swap",
             CreditChangeCauseType::Add => "Add",
             CreditChangeCauseType::ShipBuy => "ShipBuy",
+            CreditChangeCauseType::EscortHire => "EscortHire",
         }
     }
 }
@@ -1321,6 +1325,37 @@ pub struct ShipBoughtEventInfo {
     pub trade_in_cr: u32,
 }
 
+/// A Ship pane hire at a docked station added an escort from the station's
+/// catalogue to the player's fleet (`onescorthired`).
+///
+/// One event per hire the rule allows; a refused hire fires nothing. The
+/// credits it moved also raise one `OnCreditsChanged` per party.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onescorthired")]
+#[event_info(EscortHiredEventInfo)]
+pub struct OnEscortHiredEvent;
+
+/// Payload for [`OnEscortHiredEvent`]: the hiring ship (`id` / `type_name`),
+/// the escort's scenario id, the catalogue name of its hull and its price.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
+pub struct EscortHiredEventInfo {
+    /// Scenario id of the hiring ship.
+    #[serde(rename = "id")]
+    pub id: String,
+    /// Type name of that ship.
+    #[serde(rename = "type_name")]
+    pub type_name: String,
+    /// Scenario id of the hired escort.
+    #[serde(rename = "escort")]
+    pub escort: String,
+    /// The catalogue name of the escort's hull.
+    #[serde(rename = "hull")]
+    pub hull: String,
+    /// The hire price: every section's recipe at ask, times the hire factor.
+    #[serde(rename = "price_cr")]
+    pub price_cr: u32,
+}
+
 /// A Store at a docked station moved items from the ship's hold into the
 /// station's storage (`onstored`).
 ///
@@ -1386,6 +1421,7 @@ mod inventory_event_tests {
             CreditChangeCauseType::Swap,
             CreditChangeCauseType::Add,
             CreditChangeCauseType::ShipBuy,
+            CreditChangeCauseType::EscortHire,
         ] {
             let serialized = serde_json::to_value(cause).expect("a unit variant serializes");
             assert_eq!(serialized.as_str(), Some(cause.as_str()));

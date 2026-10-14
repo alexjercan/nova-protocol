@@ -20,6 +20,8 @@ pub mod asteroid_kind;
 /// How a rock is textured (triplanar, no UVs) and how its silhouette is shaped.
 pub mod asteroid_surface;
 pub mod beacon;
+/// The player's fleet: hired escorts that follow the player ship.
+pub mod fleet;
 /// Light scenario object: the authored directional and point lights a scene
 /// lights itself with.
 pub mod light;
@@ -48,9 +50,9 @@ pub mod prelude {
     pub use super::{
         anchor::prelude::*, area::prelude::*, asteroid::prelude::*, asteroid_carve::prelude::*,
         asteroid_kind::prelude::*, asteroid_surface::prelude::*, beacon::prelude::*,
-        light::prelude::*, planet::prelude::*, planet_surface::prelude::*, planet_type::prelude::*,
-        ship_design::prelude::*, spaceship::prelude::*, station::prelude::*,
-        station_hulls::prelude::*, ScenarioObjectsPlugin,
+        fleet::prelude::*, light::prelude::*, planet::prelude::*, planet_surface::prelude::*,
+        planet_type::prelude::*, ship_design::prelude::*, spaceship::prelude::*,
+        station::prelude::*, station_hulls::prelude::*, ScenarioObjectsPlugin,
     };
 }
 
@@ -84,6 +86,7 @@ impl Plugin for ScenarioObjectsPlugin {
         });
         app.add_plugins(spaceship::SpaceshipPlugin);
         app.add_plugins(station_hulls::StationHullsPlugin);
+        app.add_plugins(fleet::FleetPlugin);
         app.add_plugins(area::ScenarioAreaPlugin);
         app.add_plugins(beacon::BeaconPlugin {
             render: self.render,

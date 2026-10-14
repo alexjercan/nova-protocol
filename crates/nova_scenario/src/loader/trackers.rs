@@ -1829,6 +1829,19 @@ pub(super) fn track_ship_inventory_reports(
                         trade_in_cr,
                     });
                 }
+                ShipInventoryReport::EscortHired {
+                    escort,
+                    hull,
+                    price_cr,
+                } => {
+                    commands.fire::<OnEscortHiredEvent>(EscortHiredEventInfo {
+                        id,
+                        type_name,
+                        escort,
+                        hull,
+                        price_cr,
+                    });
+                }
             }
         }
     }

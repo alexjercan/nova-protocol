@@ -318,12 +318,12 @@ pub fn bought_hull_pose(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use nova_gameplay::prelude::{ItemCategoryType, ItemDesign};
 
     use super::*;
 
-    fn items() -> GameItems {
+    pub(crate) fn items() -> GameItems {
         GameItems::new([
             ItemDesign {
                 id: "plate".into(),
@@ -370,7 +370,7 @@ mod tests {
         }
     }
 
-    fn offer() -> HullOffer {
+    pub(crate) fn offer() -> HullOffer {
         HullOffer {
             name: "Test hull".to_string(),
             terms: HullOfferType::Sale,

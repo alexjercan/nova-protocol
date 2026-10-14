@@ -22,6 +22,7 @@ use nova_ui::{
 };
 
 use super::{
+    escorts::spawn_ship_escort_list,
     rebuild::spawn_ship_rebuild_list,
     refit::{spawn_ship_add_list, spawn_ship_swap_list},
     scene::*,
@@ -271,6 +272,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
             spawn_ship_swap_list(panel);
             spawn_ship_add_list(panel);
             spawn_ship_hull_list(panel);
+            spawn_ship_escort_list(panel);
             panel.spawn((ShipPanelField::Note, themed_label("", 12.0, UiColor::Label)));
         });
 }
