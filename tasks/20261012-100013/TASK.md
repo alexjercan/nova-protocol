@@ -237,3 +237,12 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
   reads Esc in the interface, so nothing else runs on that press. The rule
   reads `ButtonInput<KeyCode>`, not a message, so there is no message
   backlog to drain while the world is frozen. Frame: `sandbox-esc-put-away.png`.
+- Placing block (item 16). A sibling block in the Ship panel
+  (`ship/held.rs`) shown in place of the selection block while `HeldPart`
+  holds a part on the player's own ship. Facts as rows like the Control row:
+  Price, From the hold, Bought, Socket (`n of m`), Roll (degrees). The price
+  is the aimed placement's payment when the ghost stands valid, else the
+  recipe's plan, the catalogue's price; a refusal shows the tile's short
+  reason in Danger. The block has its own note line, so an add's result
+  shows while the part stays in hand. Frames: `sandbox-ghost.png`,
+  `sandbox-placed.png`; `sandbox-esc-put-away.png` shows the selection back.

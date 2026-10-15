@@ -54,8 +54,9 @@
 //! places it in hand,
 //! points at free sockets until the ghost stands valid, rolls the part and
 //! steps its socket, steps the socket back and rolls until it fits, clicks the
-//! view and checks the view eases onto the placed section, presses Esc and
-//! checks the hand is empty and the interface still open, rebinds the new
+//! view and checks the view eases onto the placed section and that the panel
+//! shows the part in hand under Placing, presses Esc and checks the hand is
+//! empty, the panel back on the selection and the interface still open, rebinds the new
 //! gun to `T` and checks the selection did not step,
 //! checks the Delete button names the gun's yield, deletes the gun with
 //! Delete and checks the note names the parts that went to the hold, selects
@@ -804,6 +805,7 @@ mod smoke {
         nova_debug::harness::{press_action, release_action, shoot, AutopilotPlugin, Predicate},
         nova_interface::ship::{
             ship_ghost_aim, ship_hovered_section, ship_placement, ship_view_window_px, ShipRuntime,
+            SHIP_HELD_PANEL,
         },
     };
 
@@ -1438,6 +1440,29 @@ mod smoke {
             })
     }
 
+    /// The Placing block's texts in tree order while the panel shows it in
+    /// place of the selection; `None` while it is hidden.
+    fn held_panel_lines(world: &World) -> Option<Vec<String>> {
+        let mut blocks = world.try_query::<(Entity, &Name, &Node)>()?;
+        let (block, _, node) = blocks
+            .iter(world)
+            .find(|(_, name, _)| name.as_str() == SHIP_HELD_PANEL)?;
+        if node.display != Display::Flex {
+            return None;
+        }
+        let mut lines = Vec::new();
+        let mut stack = vec![block];
+        while let Some(entity) = stack.pop() {
+            if let Some(text) = world.get::<Text>(entity).filter(|text| !text.0.is_empty()) {
+                lines.push(text.0.clone());
+            }
+            if let Some(children) = world.get::<Children>(entity) {
+                stack.extend(children.iter().rev());
+            }
+        }
+        Some(lines)
+    }
+
     fn the_interface_shows(pane: InterfacePaneType) -> Arc<Predicate> {
         Arc::new(move |world: &World| {
             world
@@ -1631,6 +1656,22 @@ mod smoke {
             .step("station sandbox: report the tabs after the add")
             .on_enter(report_the_tabs)
             .add()
+            .step("station sandbox: the panel shows the part in hand")
+            .until(Arc::new(|world: &World| {
+                held_panel_lines(world).is_some_and(|lines| {
+                    lines.first().is_some_and(|line| line == "Placing")
+                        && lines.iter().any(|line| line.ends_with(" cr"))
+                        && lines.iter().any(|line| line == "LMB place, R roll, F socket, Q/Esc put away")
+                })
+            }))
+            .diagnose(|world| format!("placing block {:?}", held_panel_lines(world)))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: report the part in hand")
+            .on_enter(|world: &mut World| {
+                info!("station sandbox: placing block {:?}", held_panel_lines(world));
+            })
+            .add()
             .step("station sandbox: shoot the placed section")
             .on_enter(|world: &mut World| shoot(world, PLACED_SHOT))
             .until(shot_written(PLACED_SHOT))
@@ -1639,7 +1680,9 @@ mod smoke {
             .step("station sandbox: Esc puts the part in hand away")
             .on_enter(press_key(KeyCode::Escape))
             .until(Arc::new(|world: &World| {
-                world.resource::<HeldPart>().id().is_none() && ship_ghost_aim(world).is_none()
+                world.resource::<HeldPart>().id().is_none()
+                    && ship_ghost_aim(world).is_none()
+                    && held_panel_lines(world).is_none()
             }))
             .diagnose(|world| {
                 format!(
@@ -1661,8 +1704,9 @@ mod smoke {
             .step("station sandbox: shoot the empty hand")
             .on_enter(|world: &mut World| {
                 info!(
-                    "station sandbox: Esc put the part away, held {:?}, pause {:?}",
+                    "station sandbox: Esc put the part away, held {:?}, placing block {:?}, pause {:?}",
                     world.resource::<HeldPart>().id(),
+                    held_panel_lines(world),
                     world.get_resource::<State<PauseStates>>().map(State::get)
                 );
                 shoot(world, ESC_SHOT);

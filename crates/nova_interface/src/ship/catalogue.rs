@@ -153,7 +153,7 @@ fn tile_price_text(payment: &RecipePayment) -> String {
 
 /// Why a part cannot be paid, in the few words its gallery tile has room for.
 /// The focus card gives the whole reason.
-fn tile_refusal_text(refusal: &RecipePaymentRefusalType) -> String {
+pub(crate) fn tile_refusal_text(refusal: &RecipePaymentRefusalType) -> String {
     match refusal {
         RecipePaymentRefusalType::MissingParts { .. } => "Short of parts".to_string(),
         RecipePaymentRefusalType::InsufficientCredits { need, .. } => format!("Needs {need} cr"),

@@ -182,6 +182,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   the view. Q, E, R, F no longer turn it; the D-pad does.
 - With a part in hand, the Ship pane draws the section it aims at solid, lights
   the face the part mounts on and hides that section's badge and Delete.
+- With a part in hand, the Ship panel shows it under Placing in place of the
+  selection: its icon, name, price, parts from the hold, socket, roll and keys.
 - At a refit dock, Delete names and takes a selected section's strip
   yield; it is disabled, its reason in a tooltip, for a split hull, the last
   flight computer or the docked port; `OnStripped` fires.

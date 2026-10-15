@@ -132,7 +132,13 @@ click with a valid ghost raises
 `SectionAddCommand`; a click with a refused ghost puts the refusal on the note
 line. A click on a section badge commits the same way (`commit_placement`),
 since the badge stops the click. The part stays in hand for the next add. With
-no part in hand, a click on a block selects its section. `plan_section_add`
+no part in hand, a click on a block selects its section. While a part is in
+hand, the Ship panel shows the Placing block (`ship/held.rs`) in place of the
+selection: the part's icon and name, its price (the aimed placement's
+`RecipePayment`, else `plan_recipe_payment` of its recipe), the socket and
+roll of `ShipRuntime::mount`, the keys and the note line; Delete is hidden.
+Q over empty space or Esc (`close_surface_from_menu_keys`, before it closes
+anything) puts the part away. `plan_section_add`
 checks the gate, the fit, the binding and the payment (`plan_recipe_payment`,
 the full recipe). The new section's binding is `added_section_binds`: the
 first live bound section of its class by id lends its binding; with none, a

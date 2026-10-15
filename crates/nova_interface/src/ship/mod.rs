@@ -45,7 +45,8 @@
 //! `SectionSwapCommand`. Place puts the part in hand (`HeldPart`): a ghost
 //! block follows the pointer over the view, snapped to the free socket
 //! nearest it, with its price or refusal beside it, and a click on a valid
-//! ghost raises a `SectionAddCommand`. With no part in hand, a click on a
+//! ghost raises a `SectionAddCommand`. While the part is in hand the panel
+//! shows it under a Placing header in place of the selection. With no part in hand, a click on a
 //! block selects its section. What the station sells as a whole (ships,
 //! escorts and the station itself) is in the Station pane (`crate::station`);
 //! stripping a docked wreck is in the Inventory pane (`crate::inventory`).
@@ -62,12 +63,14 @@
 //! | `delete` | The Delete action: its rule, handler and refusal lines. |
 //! | `catalogue` | The station catalogue: the gallery host, its listing and Swap. |
 //! | `ghost` | The placement ghost, its callout, and the view's pointer and click. |
+//! | `held` | The panel's Placing block for the part in hand. |
 //! | `scene` | The schematic 3D scene, its camera, the projected badges, the button observers and the panel refresh. |
 
 mod app;
 mod catalogue;
 mod delete;
 mod ghost;
+mod held;
 mod rebind;
 mod rebuild;
 mod refit;
@@ -82,7 +85,7 @@ use nova_ship::prelude::{PartsGalleryPlugin, PartsGallerySystems};
 use nova_ui::input_mode::prelude::{in_input_mode, InputMode};
 
 pub(crate) use self::{
-    app::*, catalogue::*, delete::*, ghost::*, rebind::*, rebuild::*, refit::*, scene::*,
+    app::*, catalogue::*, delete::*, ghost::*, held::*, rebind::*, rebuild::*, refit::*, scene::*,
     sections::*,
 };
 pub use self::{
@@ -91,6 +94,7 @@ pub use self::{
         ship_ghost_aim, ship_hovered_section, ship_placement, ship_view_window_px,
         socket_lane_open, ShipPlacement, SHIP_GHOST_CALLOUT,
     },
+    held::SHIP_HELD_PANEL,
     refit::{SectionAddCommand, SectionSwapCommand},
     scene::{cuboid_edges, ease_orbit_center, ship_framing, ShipRuntime, SHIP_BLOCK_FILL_SCALE},
     sections::{design_section_code, SectionCode, ShipSectionView, ShipSections, ShipViewSubject},
@@ -107,6 +111,7 @@ pub mod prelude {
             ship_ghost_aim, ship_hovered_section, ship_placement, ship_view_window_px,
             socket_lane_open, ShipPlacement, SHIP_GHOST_CALLOUT,
         },
+        held::SHIP_HELD_PANEL,
         refit::{SectionAddCommand, SectionSwapCommand},
         scene::{
             cuboid_edges, ease_orbit_center, ship_framing, ShipRuntime, SHIP_BLOCK_FILL_SCALE,
@@ -189,6 +194,7 @@ impl Plugin for ShipPanePlugin {
                     project_ship_blips,
                     label_the_selected_section,
                     update_ship_panel,
+                    update_ship_held_block,
                     update_ship_rebuild_list.run_if(ship_view_editable),
                 )
                     .chain(),
