@@ -2434,6 +2434,100 @@ mod tests {
         );
     }
 
+    /// A thruster the player gave its own key in the Ship pane keeps that
+    /// key through a save and load; a thruster with no own key loads with no
+    /// binding, so it fires on the Main Drive.
+    #[test]
+    fn a_thruster_keeps_its_own_key_through_a_save_and_the_rest_stay_on_the_main_drive() {
+        let mut world = World::new();
+        world.init_resource::<GameSections>();
+        world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
+        world.add_observer(insert_spaceship_sections);
+
+        let thruster = |id: &str, z| SpaceshipSectionConfig {
+            id: id.to_string(),
+            position: Vec3::new(0.0, 0.0, z),
+            rotation: Quat::IDENTITY,
+            source: SectionSource::Inline(SectionConfig {
+                base: BaseSectionConfig {
+                    id: id.to_string(),
+                    ..default()
+                },
+                kind: SectionKind::Thruster(ThrusterSectionConfig::default()),
+            }),
+        };
+        let ship = world
+            .spawn((
+                Transform::default(),
+                spaceship_scenario_object(SpaceshipConfig {
+                    controller: SpaceshipController::Player(PlayerControllerConfig::default()),
+                    design: ShipDesignSource::Inline(ShipDesign {
+                        sections: vec![
+                            thruster("engine_port", 0.0),
+                            thruster("engine_starboard", 1.0),
+                        ],
+                        ..default()
+                    }),
+                    ..default()
+                }),
+            ))
+            .id();
+        world.flush();
+        let section = |world: &World, ship: Entity, id: &str| {
+            world
+                .entity(ship)
+                .get::<Children>()
+                .expect("the ship has sections")
+                .iter()
+                .find(|child| {
+                    world
+                        .entity(*child)
+                        .get::<EntityId>()
+                        .is_some_and(|section_id| section_id.0 == id)
+                })
+                .unwrap_or_else(|| panic!("section {id} is live"))
+        };
+        // The Ship pane's rebind writes the live section only, not the
+        // root's authored table.
+        let key = vec![InputSource::Keyboard(KeyCode::KeyJ)];
+        let port = section(&world, ship, "engine_port");
+        world
+            .entity_mut(port)
+            .insert(SpaceshipThrusterInputBinding(key.clone()));
+
+        let frozen = freeze_ship(&world, ship).expect("a settled ship freezes");
+        let SpaceshipController::Player(config) = &frozen.controller else {
+            panic!("the controller stays the player's");
+        };
+        assert_eq!(
+            config.input_mapping,
+            BTreeMap::from([("engine_port".to_string(), key.clone())])
+        );
+        world.entity_mut(ship).despawn();
+        let mut commands = world.commands();
+        let mut thawed = commands.spawn(Transform::default());
+        thaw_ship(&mut thawed, frozen);
+        let thawed = thawed.id();
+        world.flush();
+
+        let port = section(&world, thawed, "engine_port");
+        assert_eq!(
+            world
+                .entity(port)
+                .get::<SpaceshipThrusterInputBinding>()
+                .map(|binding| binding.0.clone()),
+            Some(key)
+        );
+        let starboard = section(&world, thawed, "engine_starboard");
+        assert!(
+            !world
+                .entity(starboard)
+                .contains::<SpaceshipThrusterInputBinding>(),
+            "a thruster with no own key must load on the Main Drive"
+        );
+    }
+
     /// A derelict keeps its hull and docking ports live and spawns every
     /// other section inactive; the same design spawned intact keeps every
     /// section live.

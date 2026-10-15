@@ -55,7 +55,8 @@ its own keyboard key, which fires it alone and takes it off the balance;
 reserved flight keys are refused. Backspace while rebinding a thruster
 removes the component (`apply_ship_rebind`), and
 `on_thruster_input_binding_removed` despawns its action and zeroes its
-throttle. The save reads live components, so a load keeps the Main Drive.
+throttle. The save reads live components (`live_input_mapping`), so a load
+keeps an own key, and keeps the Main Drive for a thruster with none.
 The pad half stays empty: RightTrigger no longer fires a thruster with its
 own key. The autopilot still flies every thruster.
 

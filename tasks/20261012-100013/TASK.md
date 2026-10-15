@@ -261,3 +261,8 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
   thruster. The proof undocks first: a station keeps the helm and a docked
   hull's throttle stays inert. Frames: `sandbox-thruster-default.png`,
   `sandbox-thruster-own-key.png`, `sandbox-thruster-cleared.png`.
+  Save: `freeze_ship` reads every live binding kind (`live_input_mapping`,
+  thruster included) and the load spawn thaws it into the section, so an
+  own key survives a load with no change; a weapon rebind uses the same
+  path. Proof: `a_thruster_keeps_its_own_key_through_a_save_and_the_rest_stay_on_the_main_drive`,
+  which fails if the thruster is dropped from `section_bindings`.
