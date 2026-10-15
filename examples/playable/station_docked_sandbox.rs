@@ -54,7 +54,8 @@
 //! places it in hand,
 //! points at free sockets until the ghost stands valid, rolls the part and
 //! steps its socket, steps the socket back and rolls until it fits, clicks the
-//! view and checks the view eases onto the placed section, rebinds the new
+//! view and checks the view eases onto the placed section, presses Esc and
+//! checks the hand is empty and the interface still open, rebinds the new
 //! gun to `T` and checks the selection did not step,
 //! checks the Delete button names the gun's yield, deletes the gun with
 //! Delete and checks the note names the parts that went to the hold, selects
@@ -67,7 +68,7 @@
 //! mating socket, until the station refuses it (or warns that none reaches),
 //! and switches tabs after it: a Map tab click, an Inventory tab click and the
 //! next-tab key, which steps on to the Station tab while docked. `NOVA_CAPTURE=1` shoots `sandbox-ship.png`,
-//! `sandbox-catalogue-all.png`, `sandbox-catalogue.png`, `sandbox-ghost.png`, `sandbox-mount.png`, `sandbox-placed.png`,
+//! `sandbox-catalogue-all.png`, `sandbox-catalogue.png`, `sandbox-ghost.png`, `sandbox-mount.png`, `sandbox-placed.png`, `sandbox-esc-put-away.png`,
 //! `sandbox-rebind-armed.png`, `sandbox-rebind.png`, `sandbox-delete-yield.png`,
 //! `sandbox-delete.png`,
 //! `sandbox-delete-refused.png`,
@@ -830,6 +831,9 @@ mod smoke {
     const MOUNT_SHOT: &str = "sandbox-mount.png";
     /// The PNG of the Ship tab after the add.
     const PLACED_SHOT: &str = "sandbox-placed.png";
+    /// The PNG of the Ship tab after Esc put the part in hand away: no ghost,
+    /// the interface still open.
+    const ESC_SHOT: &str = "sandbox-esc-put-away.png";
     /// The PNG of the placed section after its rebind.
     const REBIND_SHOT: &str = "sandbox-rebind.png";
     /// The PNG of the armed rebind: the lit button and the prompt banner.
@@ -1630,6 +1634,40 @@ mod smoke {
             .step("station sandbox: shoot the placed section")
             .on_enter(|world: &mut World| shoot(world, PLACED_SHOT))
             .until(shot_written(PLACED_SHOT))
+            .deadline(SHOT_SECS)
+            .add()
+            .step("station sandbox: Esc puts the part in hand away")
+            .on_enter(press_key(KeyCode::Escape))
+            .until(Arc::new(|world: &World| {
+                world.resource::<HeldPart>().id().is_none() && ship_ghost_aim(world).is_none()
+            }))
+            .diagnose(|world| {
+                format!(
+                    "held {:?}, aim {:?}",
+                    world.resource::<HeldPart>().id(),
+                    ship_ghost_aim(world)
+                )
+            })
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: let Esc up")
+            .on_enter(release_key(KeyCode::Escape))
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station sandbox: the Esc that emptied the hand left the Ship tab open")
+            .until(the_interface_shows(InterfacePaneType::Ship))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: shoot the empty hand")
+            .on_enter(|world: &mut World| {
+                info!(
+                    "station sandbox: Esc put the part away, held {:?}, pause {:?}",
+                    world.resource::<HeldPart>().id(),
+                    world.get_resource::<State<PauseStates>>().map(State::get)
+                );
+                shoot(world, ESC_SHOT);
+            })
+            .until(shot_written(ESC_SHOT))
             .deadline(SHOT_SECS)
             .add()
             .step("station sandbox: arm a rebind on the placed gun")

@@ -221,3 +221,19 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
   (`min_width: 0`). Bevy 0.19 text has no ellipsis, so wrap and clip it is.
   Frames: `sandbox-catalogue-all.png` at 1920x1080 (18 tiles, 6 columns)
   and at 1280x720 (5 columns), all lines inside their tiles.
+- Catalogue place (item 13). The footer's right group, first of Catalogue,
+  Fit and Reset, in their style (no primary fill). First, so Fit and Reset
+  keep their places at the right edge whether or not the dock refits. The
+  other place was after Reset, where the view tools would move when the
+  Catalogue hides. Frame: `sandbox-delete-yield.png`.
+- Delete while holding (item 14). `update_ship_delete_verdict` returns no
+  verdict while `HeldPart` holds a part, so the button, the key and the
+  footer hint go together through the one rule that already hid them off a
+  refit dock.
+- Esc puts the part away (item 15). The step sits in
+  `close_surface_from_menu_keys`, the one Esc owner, after an armed rebind
+  and Browse mode and before the modal and pane close: on the Ship pane
+  with a part in hand, Esc empties the hand and returns. No other system
+  reads Esc in the interface, so nothing else runs on that press. The rule
+  reads `ButtonInput<KeyCode>`, not a message, so there is no message
+  backlog to drain while the world is frozen. Frame: `sandbox-esc-put-away.png`.

@@ -287,3 +287,50 @@ fn tab_is_inert_while_the_pause_menu_owns_the_freeze() {
         "Tab does nothing while the pause menu is up"
     );
 }
+
+/// One Escape press, released before the next frame.
+fn press_escape(app: &mut App) {
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::Escape);
+    app.update();
+    let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+    keys.release(KeyCode::Escape);
+    keys.clear();
+    app.update();
+}
+
+/// Escape with a part in hand in the Ship pane puts the part away and does
+/// nothing else: the interface stays open. With the hand empty, the next
+/// Escape closes the interface as before.
+#[test]
+fn escape_puts_a_held_part_away_before_it_closes_the_interface() {
+    let mut app = toggle_app();
+    app.add_systems(
+        Update,
+        close_surface_from_menu_keys.before(toggle_interface),
+    );
+    app.insert_resource(crate::pane::InterfacePaneType::Ship);
+    app.insert_resource(nova_ship::prelude::HeldPart(Some("pdc".to_string())));
+    press_tab(&mut app);
+    assert_eq!(pause_state(&app), PauseStates::Interface);
+
+    press_escape(&mut app);
+    assert_eq!(
+        app.world().resource::<nova_ship::prelude::HeldPart>().0,
+        None,
+        "Escape empties the hand"
+    );
+    assert_eq!(
+        pause_state(&app),
+        PauseStates::Interface,
+        "the press that empties the hand leaves the interface open"
+    );
+
+    press_escape(&mut app);
+    assert_eq!(
+        pause_state(&app),
+        PauseStates::Unpaused,
+        "with the hand empty, Escape closes the interface"
+    );
+}

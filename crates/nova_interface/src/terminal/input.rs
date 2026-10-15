@@ -25,6 +25,7 @@ use nova_gameplay::{
     PauseStates,
 };
 use nova_input::prelude::*;
+use nova_ship::prelude::HeldPart;
 use nova_ui::{
     input_mode::prelude::InputMode,
     screen::{drive_wheel_scroll, max_scroll_y, page_step},
@@ -43,7 +44,8 @@ pub(crate) fn control_held(keys: &ButtonInput<KeyCode>) -> bool {
 /// `context-key-handled-in-one-owner` lesson), so one press never closes two
 /// layers. Precedence: an armed rebind capture keeps the key, then a browse
 /// surface over a pane (the Ship pane's catalogue, in [`InputMode::Browse`])
-/// closes itself, then the modal closes to the state it covered, then the
+/// closes itself, then a part in hand in the Ship pane is put away and the
+/// press ends there, then the modal closes to the state it covered, then the
 /// pane closes to flight. The pause
 /// menu's own toggle ignores both surfaces, so it comes last.
 ///
@@ -59,6 +61,8 @@ pub(crate) fn close_surface_from_menu_keys(
     mut close: ResMut<NovaOsCloseTransition>,
     ship: Option<Res<crate::ship::ShipRuntime>>,
     mode: Option<Res<InputMode>>,
+    pane: Option<Res<InterfacePaneType>>,
+    held: Option<ResMut<HeldPart>>,
 ) {
     let start = gamepads
         .iter()
@@ -70,6 +74,14 @@ pub(crate) fn close_surface_from_menu_keys(
         || mode.is_some_and(|mode| *mode == InputMode::Browse)
     {
         return;
+    }
+    if *current.get() == PauseStates::Interface
+        && pane.is_some_and(|pane| *pane == InterfacePaneType::Ship)
+    {
+        if let Some(mut held) = held.filter(|held| held.0.is_some()) {
+            held.0 = None;
+            return;
+        }
     }
     match current.get() {
         PauseStates::Commands => close.closing = true,
