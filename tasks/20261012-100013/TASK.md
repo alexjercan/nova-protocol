@@ -185,3 +185,9 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
   panel`, or `Delete: nothing to salvage`; items, not credits, from
   `delete_yield_text`. The note after the act is `deleted PDC-1: ... to the
   hold`, without "to the hold" when nothing was salvaged.
+- Q put-away (item 9). Q with no section under the pointer empties the hand
+  in the Ship pane (`pick_ship_part`) and in the editor
+  (`pick_section_under_pointer`); the ghost goes with it. Q over a section
+  still picks. In the editor a hit on something that is not a section
+  counts as empty space. Options were Q only, or a second key such as Esc
+  (the gallery and the rebind own Esc); Q only, as asked.

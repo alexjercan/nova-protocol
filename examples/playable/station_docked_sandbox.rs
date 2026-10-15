@@ -59,7 +59,8 @@
 //! Delete and checks the note names the parts that went to the hold, selects
 //! the port the dock holds by and checks its Delete is disabled with the
 //! reason under it and that the Delete key leaves it on, picks a
-//! hull part off the ship with Q, takes the Railgun Lance from the Catalogue, drags the
+//! hull part off the ship with Q, puts it away with Q over empty space and
+//! checks the hand is empty, takes the Railgun Lance from the Catalogue, drags the
 //! view to the station and points the lance at the sockets nearest it, through every
 //! mating socket, until the station refuses it (or warns that none reaches),
 //! and switches tabs after it: a Map tab click, an Inventory tab click and the
@@ -872,6 +873,10 @@ mod smoke {
     const STATION_SHOT: &str = "sandbox-station.png";
     /// Seconds a click or a key gets to land.
     const BEAT_SECS: f32 = 60.0;
+    /// How far inside the Ship view's top-left corner the walk points at
+    /// empty space, in pixels: clear of the ship, which the view frames in
+    /// its middle.
+    const EMPTY_INSET_PX: f32 = 24.0;
     /// The Ship pane's 3D view.
     const SHIP_VIEWPORT: &str = "ShipViewport";
 
@@ -1779,6 +1784,42 @@ mod smoke {
             .on_enter(|world: &mut World| shoot(world, PICK_SHOT))
             .until(shot_written(PICK_SHOT))
             .deadline(SHOT_SECS)
+            .add()
+            .step("station sandbox: point at empty space in the view")
+            .each(|world, _, _| {
+                if let Some(view) = ui_node_rect(world, SHIP_VIEWPORT) {
+                    move_cursor(view.min + Vec2::splat(EMPTY_INSET_PX))(world);
+                }
+            })
+            .until(Arc::new(|world: &World| {
+                pointer_over_node(SHIP_VIEWPORT)(world) && ship_hovered_section(world).is_none()
+            }))
+            .diagnose(|world| format!("hovered {:?}", ship_hovered_section(world)))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: Q over empty space puts the part away")
+            .on_enter(press_action("ship_pick"))
+            .until(Arc::new(|world: &World| {
+                world.resource::<HeldPart>().id().is_none() && ship_ghost_aim(world).is_none()
+            }))
+            .diagnose(|world| {
+                format!(
+                    "held {:?}, aim {:?}",
+                    world.resource::<HeldPart>().id(),
+                    ship_ghost_aim(world)
+                )
+            })
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: let the put-away key up")
+            .on_enter(|world: &mut World| {
+                release_action("ship_pick")(world);
+                info!(
+                    "station sandbox: Q over empty space, held {:?}",
+                    world.resource::<HeldPart>().id()
+                );
+            })
+            .until(frames(SETTLE_FRAMES))
             .add();
         // The three-cell railgun lance: the fixture's berth leaves 2.5 cells
         // between the station-facing plates and the station's boxes, so a

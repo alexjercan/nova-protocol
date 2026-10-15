@@ -479,8 +479,9 @@ pub(crate) fn reset_mount_for_new_part(held: Res<HeldPart>, mut runtime: ResMut<
 /// Put the part the section under the pointer was built from in hand on
 /// `ship_pick` (Q), as the editor's pipette does, at the default
 /// [`MountPose`]. Only at a Refit station, where a part in hand can be
-/// placed; elsewhere the note line says so. Read off the desk only: the pad
-/// has no pointer, and its half of the key turns the view.
+/// placed; elsewhere the note line says so. Over no section it puts the part
+/// in hand away. Read off the desk only: the pad has no pointer, and its half
+/// of the key turns the view.
 #[expect(
     clippy::too_many_arguments,
     reason = "one key read against the pane, the hovered block and the site"
@@ -506,7 +507,11 @@ pub(crate) fn pick_ship_part(
     {
         return;
     }
+    // Q over no section puts the part in hand away: an empty hand, no ghost.
     let Some(hovered) = preview.hovered else {
+        if held.0.is_some() {
+            held.0 = None;
+        }
         return;
     };
     let resolved = if site.gate(StationServiceType::Refit) {

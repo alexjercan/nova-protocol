@@ -42,7 +42,8 @@ use crate::{
 const PLACEMENT_ROLL_KEY: KeyCode = KeyCode::KeyR;
 /// Cycles which socket of the armed part does the mating.
 const PLACEMENT_SOCKET_KEY: KeyCode = KeyCode::KeyF;
-/// Arms whatever section is under the pointer, Factorio-pipette style.
+/// Arms whatever section is under the pointer, Factorio-pipette style; over
+/// nothing it puts the part in hand away.
 const PLACEMENT_PICK_KEY: KeyCode = KeyCode::KeyQ;
 
 /// Keys the editor's own WASD camera drives (`wasd_controller`). Binding one to
@@ -643,7 +644,8 @@ pub(crate) fn wheel_placement_pose(
 }
 
 /// Arm whatever prototype the section under the pointer was built from -
-/// Factorio's pipette.
+/// Factorio's pipette. Over no section it puts the part in hand away, as the
+/// Ship pane's pick does.
 ///
 /// Finding a part you can SEE on the ship meant opening the gallery and
 /// recognising it in a grid; this is the shortcut for "another one of those".
@@ -659,15 +661,14 @@ pub(crate) fn pick_section_under_pointer(
     if !keys.just_pressed(PLACEMENT_PICK_KEY) {
         return;
     }
-    let Some(section) = q_pointer
-        .iter()
-        .filter_map(|interaction| interaction.get_nearest_hit())
-        .find_map(|(entity, _)| node_of_view(*entity, &q_views))
-        .and_then(|node| q_nodes.get(node).ok())
-    else {
-        return;
-    };
-    let picked = HeldPart(Some(section.prototype().to_string()));
+    let picked = HeldPart(
+        q_pointer
+            .iter()
+            .filter_map(|interaction| interaction.get_nearest_hit())
+            .find_map(|(entity, _)| node_of_view(*entity, &q_views))
+            .and_then(|node| q_nodes.get(node).ok())
+            .map(|section| section.prototype().to_string()),
+    );
     if *selection != picked {
         *selection = picked;
     }

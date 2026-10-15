@@ -175,9 +175,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
   reads UNBOUND, and B or Rebind gives it one.
 - With a part in hand on the Ship pane, R rolls it a quarter turn and F mates
   it by its next socket, as in the editor; the ghost, fit and price follow.
-- The Ship pane uses the editor's controls: Q picks the part of the section
-  under the pointer, and the view turns by right-drag. Q, E, R and F no longer
-  turn it; the D-pad still does.
+- The Ship pane uses the editor's controls: Q picks the part under the
+  pointer or, over empty space, puts it away; right-drag turns the view. Q, E,
+  R and F no longer turn it; the D-pad does.
 - With a part in hand, the Ship pane draws the section it aims at solid, lights
   the face the part mounts on and hides that section's badge.
 - At a refit dock, Delete names and takes the selected section's strip
