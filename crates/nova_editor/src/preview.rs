@@ -142,7 +142,9 @@ pub(crate) fn insert_preview_object(
                 Transform::from_scale(Vec3::splat(radius)),
                 Mesh3d(art.meshes.add(visual.mesh)),
                 MeshMaterial3d(art.planet_materials.add(visual.material)),
-                Collider::sphere(radius),
+                // Unit sphere: avian scales a collider by its transform, and
+                // the scale above already carries the radius.
+                Collider::sphere(1.0),
             ));
         }
         ScenarioObjectKind::Beacon(beacon) => {

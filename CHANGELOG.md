@@ -211,6 +211,11 @@ does NOT get an entry. Another page that states a different rule is wrong.
   louder and carries at any push, and generated ships now voice their RCS and
   cockpit cues.
 
+### Fixes
+
+- The editor's planet hit box matches the drawn planet. It was far larger, so
+  F framed a scenario with a planet from too far away to see its ships.
+
 ### Internals & Tooling
 
 - Debug builds: F11 opens the Nova Debug window and freezes flight. It has
