@@ -33,6 +33,10 @@ pub mod sections;
 mod sfx_sidecar;
 pub mod wireframe;
 
+/// The `bevy_egui` the Nova Debug window draws with, for a debug example that
+/// draws its own egui window on the same context.
+pub use bevy_inspector_egui::bevy_egui;
+
 /// Glob-import surface: `use nova_debug::prelude::*` brings the harness presets
 /// ([`nova_autopilot`](harness::nova_autopilot),
 /// [`nova_screenshot`](harness::nova_screenshot)), the capture idiom

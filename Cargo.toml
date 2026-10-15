@@ -349,6 +349,16 @@ path = "examples/playable/world_field_clouds.rs"
 name = "world_civilizations"
 path = "examples/playable/world_civilizations.rs"
 
+# The open world's ship generator in one row, driven from an egui window:
+# role, intact or wreck, 1 to 7 hulls across an advancement range, seed and
+# reroll, bare or clad, and a style override. Every change regenerates the row,
+# lints each design and loads the scene again. Under NOVA_AUTOPILOT a smoke walk
+# stands five hulls across advancement 0 to 1 and shoots.
+[[example]]
+name = "generator_gallery"
+path = "examples/playable/generator_gallery.rs"
+required-features = ["debug"]
+
 # The open world's generated ships, laid out by the world's own
 # `generate_ship` from the content lint's part snapshot: every role at its
 # lowest and full advancement with a single and a paired drive, posed bare
