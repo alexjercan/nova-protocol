@@ -175,9 +175,9 @@ re-clads only the cells round the hole. No credits move. The per-frame
 back or why it is refused (`ShipRuntime::delete_verdict`), with or without a
 Refit dock. The Delete button shows while there is a verdict. It names the
 yield (`Delete: +1 Section panel`, or `Delete: nothing to salvage`) when the
-delete can go, and is disabled with the reason under it when it refuses; the
-Delete key then does nothing. The note after a delete names the parts that
-went to the hold.
+delete can go, and is disabled when it refuses, with the reason in its hover
+tooltip (`nova_ui`'s `Tooltip`); the Delete key then does nothing. The note
+after a delete names the parts that went to the hold.
 
 ### Stripping a docked wreck
 

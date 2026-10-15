@@ -18,7 +18,7 @@
 //! different colours, so it REBUILDS its children where the others repaint.
 //!
 //! One family per module - `button`, `panel`, `list_row`, `slider`,
-//! `segmented`, `chrome` - all re-exported here, with the shared
+//! `segmented`, `chrome`, `tooltip` - all re-exported here, with the shared
 //! [`DoubleClick`] detector (`double_click`), so `widget::<item>` paths are
 //! unchanged. [`NovaUiPlugin`](crate::NovaUiPlugin) wires every family's
 //! observers and reconcilers.
@@ -38,7 +38,7 @@ pub mod prelude {
         TextFieldFocused, TextFieldSpec, TextFieldSubmitted, TextFieldSystems, TextFieldValue,
         ThemedBadge, ThemedBorder, ThemedButton, ThemedCheckbox, ThemedFill, ThemedImageTint,
         ThemedPanel, ThemedPanelHead, ThemedRadius, ThemedSeparator, ThemedSwatch, ThemedText,
-        ThemedTextShadow, ThemedToggle, UiText, DOUBLE_CLICK_SECS,
+        ThemedTextShadow, ThemedToggle, Tooltip, TooltipPanel, UiText, DOUBLE_CLICK_SECS,
     };
 }
 
@@ -50,6 +50,7 @@ mod panel;
 mod segmented;
 mod slider;
 mod text_field;
+mod tooltip;
 
 #[cfg(test)]
 mod fixtures;
@@ -69,6 +70,7 @@ pub use panel::*;
 pub use segmented::*;
 pub use slider::*;
 pub use text_field::*;
+pub use tooltip::*;
 
 use self::{
     button::{button_on_interaction, reconcile_button_themes, reconcile_key_chips},
@@ -84,6 +86,7 @@ use self::{
     text_field::{
         one_field_holds_the_focus, paint_text_fields, text_field_keyboard, text_field_on_pointer,
     },
+    tooltip::{spawn_tooltip_panel, sync_tooltips},
 };
 use crate::{
     font::UiFont,
@@ -121,7 +124,8 @@ pub(crate) fn build(app: &mut App) {
     app.add_observer(list_row_on_interaction::<Insert, Hovered>)
         .add_observer(list_row_on_interaction::<Add, Selected>)
         .add_observer(list_row_on_interaction::<Remove, Selected>)
-        .add_observer(text_field_on_pointer);
+        .add_observer(text_field_on_pointer)
+        .add_observer(spawn_tooltip_panel);
 
     app.add_systems(
         Update,
@@ -141,6 +145,7 @@ pub(crate) fn build(app: &mut App) {
             reconcile_checkboxes,
             reconcile_swatches,
             reconcile_toggles,
+            sync_tooltips,
             // The rebuild first, then the value onto its new children. The
             // explicit edge auto-inserts an `ApplyDeferred`
             // (`ScheduleBuildSettings::auto_insert_apply_deferred`, default

@@ -200,3 +200,16 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
   is one rule for all selections. Open: the request says only a place eases,
   never a pick or a select. A pick never eases (it does not select). A select
   still eases, as it did before this task; removing that is the owner's call.
+
+## Fifth-round choices (2026-10-15)
+
+- Delete tooltip (item 11). `nova_ui` had no tooltip; the editor's two hint
+  panels are its own. Added `nova_ui::widget::Tooltip(String)`: a node that
+  carries it spawns a child panel, shown under the node while it is hovered
+  and the text is not empty. A child, not one global panel, because the
+  NOVA OS renders to an image through its own UI camera, and a child follows
+  its node there; `OverrideClip` keeps the scrolling Ship panel from cutting
+  it, and the new `TOOLTIP_Z` layer puts it over later siblings. Options
+  were a global panel positioned from the hovered node (needs a camera per
+  surface), or the editor's per-surface panels (one more copy). The width is
+  fixed at 240 px: an absolute child wraps in its node's width otherwise.

@@ -23,7 +23,7 @@
 //! `B` replaces the selected bindable section's input, and Delete takes the
 //! selected section off while docked at a station that refits, its parts back
 //! in the hold. The Delete button names what it gives back, or is disabled
-//! with the reason under it. While the form's quantity field has the caret,
+//! with the reason in its hover tooltip. While the form's quantity field has the caret,
 //! these keys type into it instead. The footer names only the keys that apply
 //! now.
 //!

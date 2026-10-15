@@ -20,7 +20,7 @@ use nova_ship::prelude::GalleryAction;
 use nova_ui::{
     screen::drive_wheel_scroll,
     theme::UiColor,
-    widget::{button, slider_track, text_field, ButtonSpec, TextFieldSpec, ThemedFill},
+    widget::{button, slider_track, text_field, ButtonSpec, TextFieldSpec, ThemedFill, Tooltip},
 };
 
 use super::{
@@ -57,8 +57,8 @@ pub(crate) fn scroll_ship_panel(
 
 /// Build the section panel: the selected section's icon over its code, name
 /// and condition bar; its binding; Rebind, Delete and Catalogue, with the
-/// reason Delete is refused under them; the note line; the repair form; and
-/// the lost-section list, beside the view. The parts a station builds are in
+/// reason Delete is refused in the Delete button's tooltip; the note line;
+/// the repair form; and the lost-section list, beside the view. The parts a station builds are in
 /// the gallery the Catalogue button opens (`super::catalogue`).
 /// [`update_ship_panel`] fills it. The texts carry a [`ShipPanelField`] so one
 /// system refreshes them, and the binding row or the form carries the field
@@ -176,6 +176,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                         ShipPanelButton::Delete,
                         button(ButtonSpec::new("Delete").fit()),
                         Name::new("ShipDelete"),
+                        Tooltip::default(),
                     ))
                     .observe(on_ship_delete_button);
                     row.spawn((
@@ -185,11 +186,6 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                         Name::new("ShipCatalogue"),
                     ));
                 });
-            panel.spawn((
-                Name::new("ShipDeleteReason"),
-                ShipPanelField::DeleteReason,
-                themed_label("", 12.0, UiColor::Danger),
-            ));
             // Under the actions: a result shows where the press was.
             panel.spawn((ShipPanelField::Note, themed_label("", 12.0, UiColor::Label)));
             panel

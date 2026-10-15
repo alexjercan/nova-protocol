@@ -7,7 +7,7 @@
 //! rule gives back ([`plan_section_yield`] at the section's health share)
 //! must fit in the hold. [`update_ship_delete_verdict`] runs it for the
 //! selection every frame: the panel's Delete button names the yield while it
-//! holds, and is disabled with the reason under it while it refuses.
+//! holds, and is disabled with the reason in its tooltip while it refuses.
 //!
 //! The `ship_delete` key and the enabled button raise a
 //! [`SectionDeleteCommand`]; a refused selection raises none, and so shows no
@@ -113,7 +113,7 @@ impl ResolvedSite<'_> {
     }
 }
 
-/// The reason line under the disabled Delete button for a refused delete of
+/// The tooltip of the disabled Delete button for a refused delete of
 /// section `code`, the part named `name`.
 pub(crate) fn delete_refusal_text(
     code: &str,

@@ -10,8 +10,8 @@
 //!
 //! Read bottom to top, the order is: the HUD and the screens, the menu's own
 //! panels, the editor's ladder, the report frames, the pause menu, its Settings
-//! panel, an open NOVA OS, the diagnostics exempt from the NOVA OS dim, the
-//! scenario loading screen, and the fatal asset report. Add a surface by naming
+//! panel, an open NOVA OS, the diagnostics exempt from the NOVA OS dim, a hover
+//! hint, the scenario loading screen, and the fatal asset report. Add a surface by naming
 //! it here, not by picking a number at the spawn site.
 //!
 //! One band is not numbered here. The editor stacks six modules of its own
@@ -66,6 +66,11 @@ pub const NOVA_OS_Z: i32 = 90;
 /// take the one readout the player opened the monitor to check.
 pub const NOVA_OS_EXEMPT_Z: i32 = 95;
 
+/// A hover hint ([`Tooltip`](crate::widget::Tooltip)): over every surface a
+/// pointer can be on, NOVA OS and its exempt chrome included, and under the
+/// loading screen, which takes the pointer away.
+pub const TOOLTIP_Z: i32 = 96;
+
 /// The scenario loading screen: over every modal a run can raise, because a
 /// load requested from a paused outcome frame draws over both of them.
 pub const LOADING_Z: i32 = 100;
@@ -77,7 +82,7 @@ pub const FATAL_Z: i32 = 200;
 pub mod prelude {
     pub use super::{
         EDITOR_CEILING_Z, FATAL_Z, HUD_Z, LOADING_Z, MENU_PANEL_Z, NOVA_OS_BACKDROP_Z,
-        NOVA_OS_EXEMPT_Z, NOVA_OS_Z, PAUSE_SETTINGS_Z, PAUSE_Z, REPORT_Z,
+        NOVA_OS_EXEMPT_Z, NOVA_OS_Z, PAUSE_SETTINGS_Z, PAUSE_Z, REPORT_Z, TOOLTIP_Z,
     };
 }
 
@@ -100,6 +105,7 @@ mod tests {
             ("nova os backdrop", NOVA_OS_BACKDROP_Z),
             ("nova os", NOVA_OS_Z),
             ("nova os exempt", NOVA_OS_EXEMPT_Z),
+            ("tooltip", TOOLTIP_Z),
             ("loading", LOADING_Z),
             ("fatal", FATAL_Z),
         ];

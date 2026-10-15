@@ -29,7 +29,7 @@
 //!    side) and aim a Railgun Lance end-on (F) at a plate facing it to see it
 //!    refused, rebind a gun with B, and delete a selected section with Delete
 //!    (the button names what goes back in the hold, or is disabled with the
-//!    reason under it);
+//!    reason in its hover tooltip);
 //! 2. the Station tab: buy a hull, hire an escort, buy the station;
 //! 3. switch tabs after a change, and check the schematic, the plating and
 //!    the greebles follow it.
@@ -59,7 +59,8 @@
 //! checks the Delete button names the gun's yield, deletes the gun with
 //! Delete and checks the note names the parts that went to the hold, selects
 //! the port the dock holds by and checks its Delete is disabled with the
-//! reason under it and that the Delete key leaves it on, picks a
+//! reason in its tooltip, that the Delete key leaves it on and that hovering
+//! it shows the tooltip, picks a
 //! hull part off the ship with Q, puts it away with Q over empty space and
 //! checks the hand is empty, takes the Railgun Lance from the Catalogue, drags the
 //! view to the station and points the lance at the sockets nearest it, through every
@@ -839,9 +840,11 @@ mod smoke {
     /// The PNG of the Ship tab once the rebound gun is deleted: the gun gone,
     /// the note naming the parts that went to the hold.
     const DELETE_SHOT: &str = "sandbox-delete.png";
-    /// The PNG of the docked port's disabled Delete, its reason line under
-    /// it.
+    /// The PNG of the docked port's disabled Delete under the pointer, its
+    /// reason in the tooltip under it.
     const DELETE_REFUSED_SHOT: &str = "sandbox-delete-refused.png";
+    /// The Ship panel's Delete button.
+    const DELETE_BUTTON: &str = "ShipDelete";
     /// The PNG of the Catalogue open on the kinetic PDC's category.
     const CATALOGUE_SHOT: &str = "sandbox-catalogue.png";
     /// The PNG of the Catalogue open on the Railgun Lance's category.
@@ -1370,7 +1373,7 @@ mod smoke {
             world.try_query::<(Entity, &Name, Has<bevy::ui::InteractionDisabled>)>()?;
         let (button, enabled) = buttons
             .iter(world)
-            .find(|(_, name, _)| name.as_str() == "ShipDelete")
+            .find(|(_, name, _)| name.as_str() == DELETE_BUTTON)
             .map(|(button, _, disabled)| (button, !disabled))?;
         let mut labels = world.try_query::<(&ChildOf, &Text)>()?;
         let label = labels
@@ -1380,13 +1383,34 @@ mod smoke {
         Some((label, enabled))
     }
 
-    /// The reason line under the Delete button.
+    /// The Delete button's tooltip: why it is refused, empty while it holds.
     fn delete_reason(world: &World) -> Option<String> {
-        let mut labels = world.try_query::<(&Name, &Text)>()?;
-        labels
+        let mut buttons = world.try_query::<(&Name, &nova_ui::widget::Tooltip)>()?;
+        buttons
             .iter(world)
-            .find(|(name, _)| name.as_str() == "ShipDeleteReason")
-            .map(|(_, text)| text.0.clone())
+            .find(|(name, _)| name.as_str() == DELETE_BUTTON)
+            .map(|(_, tooltip)| tooltip.0.clone())
+    }
+
+    /// Whether the Delete button's tooltip panel is up and laid out.
+    fn delete_tooltip_shown(world: &World) -> bool {
+        let Some(button) = world.try_query::<(Entity, &Name)>().and_then(|mut names| {
+            names
+                .iter(world)
+                .find(|(_, name)| name.as_str() == DELETE_BUTTON)
+                .map(|(button, _)| button)
+        }) else {
+            return false;
+        };
+        world
+            .try_query_filtered::<(&ChildOf, &Node, &ComputedNode), With<nova_ui::widget::TooltipPanel>>()
+            .is_some_and(|mut panels| {
+                panels.iter(world).any(|(parent, node, computed)| {
+                    parent.parent() == button
+                        && node.display == Display::Flex
+                        && computed.size().x > 0.0
+                })
+            })
     }
 
     fn the_interface_shows(pane: InterfacePaneType) -> Arc<Predicate> {
@@ -1804,12 +1828,19 @@ mod smoke {
             })
             .deadline(BEAT_SECS)
             .add()
+            .step("station sandbox: hover the disabled Delete for its reason")
+            .on_enter(hover_named(DELETE_BUTTON))
+            .each(|world, _, _| keep_hovering_named(DELETE_BUTTON)(world))
+            .until(Arc::new(delete_tooltip_shown))
+            .deadline(BEAT_SECS)
+            .add()
             .step("station sandbox: shoot the disabled Delete")
             .on_enter(|world: &mut World| {
                 info!(
-                    "station sandbox: delete button {:?}, reason {:?}",
+                    "station sandbox: delete button {:?}, tooltip {:?}, shown {}",
                     delete_button(world),
-                    delete_reason(world)
+                    delete_reason(world),
+                    delete_tooltip_shown(world)
                 );
                 shoot(world, DELETE_REFUSED_SHOT);
             })

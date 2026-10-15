@@ -27,7 +27,7 @@ use nova_ui::{
     theme::{ActiveUiTheme, UiColor},
     widget::{
         ButtonLabel, Selected, TextFieldError, TextFieldFocused, TextFieldValue, ThemedBorder,
-        ThemedFill, ThemedImageTint, ThemedText,
+        ThemedFill, ThemedImageTint, ThemedText, Tooltip,
     },
 };
 
@@ -57,8 +57,6 @@ pub(crate) enum ShipPanelField {
     Title,
     /// The section's input binding.
     Control,
-    /// Why Delete is refused, under the disabled button.
-    DeleteReason,
     /// The repair form, shown only while the selection has repairable damage.
     RepairForm,
     /// The live hull plate stock beside the typed quantity.
@@ -1400,8 +1398,8 @@ pub(crate) fn on_ship_rebind_button(
 ///
 /// Delete shows while a section is selected. While
 /// [`plan_ship_delete`](super::delete::plan_ship_delete) holds, its label
-/// names the yield; while it refuses, it is disabled with the reason under
-/// it.
+/// names the yield; while it refuses, it is disabled with the reason in its
+/// hover tooltip.
 ///
 /// The repair form shows only while the selection has repairable damage, and
 /// disables Repair with the reason in its summary while the draft is refused.
@@ -1437,6 +1435,7 @@ pub(crate) fn update_ship_panel(
             Has<InteractionDisabled>,
             Has<Selected>,
             &mut Node,
+            Option<&mut Tooltip>,
         ),
         (Without<ShipConditionFill>, Without<ShipRepairQuantity>),
     >,
@@ -1599,10 +1598,6 @@ pub(crate) fn update_ship_panel(
     for (field, mut text, mut themed) in &mut q_text {
         let (value, tint) = match field {
             ShipPanelField::Title => (title.as_str(), UiColor::Primary),
-            ShipPanelField::DeleteReason => (
-                delete_reason.as_deref().unwrap_or_default(),
-                UiColor::Danger,
-            ),
             ShipPanelField::Control => (control.as_deref().unwrap_or_default(), UiColor::Primary),
             ShipPanelField::RepairStock => (
                 form.as_ref().map_or("", |(stock, _)| stock.as_str()),
@@ -1627,11 +1622,11 @@ pub(crate) fn update_ship_panel(
         }
     }
 
-    for (entity, button, disabled, lit, mut node) in &mut q_button {
+    for (entity, button, disabled, lit, mut node, tooltip) in &mut q_button {
         let enabled = match button {
             ShipPanelButton::Repair => actions.repair_enabled,
             ShipPanelButton::Rebind => runtime.panel_rebind_enabled,
-            // A refused delete is disabled: its reason is the line under it.
+            // A refused delete is disabled: its reason is its tooltip.
             ShipPanelButton::Delete => matches!(runtime.delete_verdict, Some(Ok(_))),
         };
         if *button == ShipPanelButton::Delete {
@@ -1642,6 +1637,12 @@ pub(crate) fn update_ship_panel(
             };
             if node.display != wanted {
                 node.display = wanted;
+            }
+            if let Some(mut tooltip) = tooltip {
+                let reason = delete_reason.as_deref().unwrap_or_default();
+                if tooltip.0 != reason {
+                    tooltip.0 = reason.to_string();
+                }
             }
             for (parent, mut text) in &mut q_label {
                 if parent.parent() == entity && text.0 != delete_label {
