@@ -89,6 +89,25 @@
               echo "cargo: waiting for the build lock (another build is running)" >&2
               "$flock" 9
             fi
+            ensure_sccache
+          }
+
+          # With RUSTC_WRAPPER=sccache, rustc and the linker are children of
+          # the sccache server, not of cargo, so the cargo scope does not cap
+          # them. Keep the server in its own capped scope. The server is per
+          # user and other repos share it, but our lock does not cover their
+          # builds, so a stop can fail their compiles. Restart only when the
+          # scope is not active, which is once per boot or after the server's
+          # idle exit. A scope (not a service) keeps this shell's SCCACHE_*
+          # environment.
+          ensure_sccache() {
+            case ''${RUSTC_WRAPPER:-} in */sccache | sccache) ;; *) return ;; esac
+            [ "''${#scope[@]}" -gt 0 ] || return
+            [ "$(systemctl --user show nova-sccache.scope -p ActiveState --value 2>/dev/null)" = active ] && return
+            "$RUSTC_WRAPPER" --stop-server >/dev/null 2>&1
+            systemd-run --user --scope --unit=nova-sccache --quiet --collect \
+              -p MemoryHigh=10G -p MemoryMax=12G -- "$RUSTC_WRAPPER" --start-server >/dev/null 2>&1 9>&- ||
+              echo "cargo: could not start sccache in nova-sccache.scope, compiles run uncapped" >&2
           }
 
           if [ "$sub" = run ] || [ "$sub" = r ]; then
