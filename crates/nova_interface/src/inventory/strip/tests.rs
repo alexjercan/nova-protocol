@@ -88,8 +88,20 @@ fn design_section(id: &str, kind: SectionKind, build: BuildRecipe) -> DesignSect
     }
 }
 
-/// A player with a hold of `capacity_g` docked port to port with the wreck.
+/// A player with a hold of `capacity_g` docked port to port with an empty
+/// wreck.
 fn dock_with_a_wreck(world: &mut World, capacity_g: u32) -> (Entity, Wreck) {
+    dock_with_a_loaded_wreck(world, capacity_g, [], 0)
+}
+
+/// A player with a hold of `capacity_g` docked port to port with a wreck
+/// whose hold carries `stacks` and whose balance is `credits_cr`.
+fn dock_with_a_loaded_wreck(
+    world: &mut World,
+    capacity_g: u32,
+    stacks: impl IntoIterator<Item = (ItemDesignId, u32)>,
+    credits_cr: u32,
+) -> (Entity, Wreck) {
     let items = test_items();
     let player = world
         .spawn((
@@ -97,6 +109,7 @@ fn dock_with_a_wreck(world: &mut World, capacity_g: u32) -> (Entity, Wreck) {
             PlayerSpaceshipMarker,
             ShipInventory::new(&items, capacity_g, []),
             ShipInventoryReports::default(),
+            ShipCredits(0),
         ))
         .id();
     let player_port = world.spawn((DockingSectionMarker, ChildOf(player))).id();
@@ -105,6 +118,9 @@ fn dock_with_a_wreck(world: &mut World, capacity_g: u32) -> (Entity, Wreck) {
             SpaceshipRootMarker,
             LootableShipMarker,
             EntityId("wreck".to_string()),
+            ShipInventory::new(&items, 10_000_000, stacks),
+            ShipInventoryReports::default(),
+            ShipCredits(credits_cr),
             ShipDesignSections(vec![
                 design_section(
                     "port",
@@ -313,5 +329,61 @@ fn an_undock_stops_the_strip_and_keeps_what_it_took() {
     assert_eq!(
         app.world().resource::<InventoryRuntime>().note(),
         Some("strip stopped: you undocked; 1 section taken")
+    );
+}
+
+/// Strip takes the wreck's whole hold and balance before its first section,
+/// and names them with the parts when the wreck is gone. With no room for
+/// all of it, the press moves nothing at all and starts no strip.
+#[test]
+fn a_strip_takes_the_whole_hold_first_or_does_nothing() {
+    let plate = ItemDesignId::from(ItemRoleType::HullPlate.id());
+    // Six 10 kg plates: 60 kg, and the strip's 80 kg of parts after them.
+    let loot = || [(plate.clone(), 6)];
+
+    let mut app = strip_app();
+    let (player, wreck) = dock_with_a_loaded_wreck(app.world_mut(), 59_999, loot(), 50);
+    app.world_mut().write_message(HullStripCommand);
+    app.update();
+    assert!(job(&app, player).is_none(), "no room: no strip");
+    assert!(hold(&app, player).is_empty(), "no room: no partial take");
+    assert_eq!(
+        app.world().get::<ShipCredits>(player),
+        Some(&ShipCredits(0))
+    );
+    assert_eq!(
+        app.world()
+            .get::<ShipInventory>(wreck.root)
+            .map(|hold| hold.count(&plate)),
+        Some(6)
+    );
+    assert_eq!(
+        app.world().resource::<InventoryRuntime>().note(),
+        Some("strip: no room for 1 Hull plate")
+    );
+
+    let mut app = strip_app();
+    let (player, wreck) = dock_with_a_loaded_wreck(app.world_mut(), 1_000_000, loot(), 50);
+    app.world_mut().write_message(HullStripCommand);
+    app.update();
+    assert!(job(&app, player).is_some(), "the strip starts");
+    assert_eq!(hold(&app, player).count(&plate), 6);
+    assert_eq!(
+        app.world().get::<ShipCredits>(player),
+        Some(&ShipCredits(50))
+    );
+    assert_eq!(
+        app.world().resource::<InventoryRuntime>().note(),
+        Some("took 6 Hull plate and 50 cr; stripping the wreck: 17 s")
+    );
+    run_until(&mut app, 200, |app| {
+        app.world().get_entity(wreck.root).is_err()
+    });
+    assert_eq!(
+        app.world().resource::<InventoryRuntime>().note(),
+        Some(
+            "the wreck is stripped and gone: took 6 Hull plate and 50 cr, \
+             stripped 1 Frame spar, 6 Section panel"
+        )
     );
 }

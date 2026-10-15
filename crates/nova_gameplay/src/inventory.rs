@@ -41,17 +41,18 @@ pub mod prelude {
 
     pub use super::{
         kg_text, plan_credit_take, plan_hull_strip, plan_item_jettison, plan_item_storage,
-        plan_item_trade, plan_item_transfer, plan_plate_repair, plan_recipe_payment,
-        plan_section_rebuild, plan_section_yield, strip_duration_secs, BuildRecipe, CargoCanister,
-        CargoCanisterIdAllocator, CargoCanisterRuntimeId, CreditTakeRefusalType, GameItems,
-        HullStrip, HullStripPartner, HullStripPauseType, HullStripRefusalType, ItemCategoryType,
-        ItemDesign, ItemDesignId, ItemJettison, ItemJettisonRefusalType, ItemRoleType,
-        ItemStorageRefusalType, ItemStorageType, ItemTrade, ItemTradeRefusalType,
-        ItemTransferRefusalType, ItemTransferType, LootableShipMarker, PlateRepair,
-        PlateRepairRefusalType, RecipePayment, RecipePaymentRefusalType, SectionRebuildRefusalType,
-        ShipCredits, ShipInventory, ShipInventoryReport, ShipInventoryReports, ShipInventoryStock,
-        StationPartner, StationStorage, StripTarget, TradePriceType, CARGO_CANISTER_MAX_MASS_G,
-        HULL_PLATE_HEALTH, STRIP_MIN_SECS, STRIP_SECS_PER_PART,
+        plan_item_trade, plan_item_transfer, plan_loot_take, plan_plate_repair,
+        plan_recipe_payment, plan_section_rebuild, plan_section_yield, strip_duration_secs,
+        BuildRecipe, CargoCanister, CargoCanisterIdAllocator, CargoCanisterRuntimeId,
+        CreditTakeRefusalType, GameItems, HullStrip, HullStripPartner, HullStripPauseType,
+        HullStripRefusalType, ItemCategoryType, ItemDesign, ItemDesignId, ItemJettison,
+        ItemJettisonRefusalType, ItemRoleType, ItemStorageRefusalType, ItemStorageType, ItemTrade,
+        ItemTradeRefusalType, ItemTransferRefusalType, ItemTransferType, LootTake,
+        LootableShipMarker, PlateRepair, PlateRepairRefusalType, RecipePayment,
+        RecipePaymentRefusalType, SectionRebuildRefusalType, ShipCredits, ShipInventory,
+        ShipInventoryReport, ShipInventoryReports, ShipInventoryStock, StationPartner,
+        StationStorage, StripTarget, TradePriceType, CARGO_CANISTER_MAX_MASS_G, HULL_PLATE_HEALTH,
+        STRIP_MIN_SECS, STRIP_SECS_PER_PART,
     };
 }
 
@@ -1008,6 +1009,77 @@ pub fn plan_credit_take(
     Ok(partner_cr)
 }
 
+/// A planned Take all from a looted partner: what moves into the ship's
+/// hold and balance, and what stays behind for want of room.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Reflect)]
+pub struct LootTake {
+    /// The count to move of each partner stack, in id order; each above
+    /// zero.
+    pub taken: BTreeMap<ItemDesignId, u32>,
+    /// The count left in the partner of each stack the hold has no room for,
+    /// in id order; each above zero.
+    pub stayed: BTreeMap<ItemDesignId, u32>,
+    /// Credits to move: the partner's whole balance, or zero when it holds
+    /// none or the ship's balance would overflow.
+    pub taken_cr: u32,
+    /// Credits left in the partner because the ship's balance would
+    /// overflow.
+    pub stayed_cr: u32,
+}
+
+impl LootTake {
+    /// True when the take moves nothing.
+    pub fn is_empty(&self) -> bool {
+        self.taken.is_empty() && self.taken_cr == 0
+    }
+
+    /// True when the take leaves nothing behind.
+    pub fn is_whole(&self) -> bool {
+        self.stayed.is_empty() && self.stayed_cr == 0
+    }
+}
+
+/// Plan a Take all of `partner`'s hold and `partner_cr` into the ship's
+/// `own` hold and `own_cr` balance.
+///
+/// Each stack, in id order, moves as many units as the hold still has room
+/// for after the stacks before it; the rest stays. The balance moves whole
+/// unless the ship's balance would overflow, by [`plan_credit_take`]. Whether
+/// the partner may be looted is not read here: [`plan_item_transfer`] and
+/// [`plan_credit_take`] check it for each move.
+pub fn plan_loot_take(
+    items: &GameItems,
+    own: &ShipInventory,
+    own_cr: u32,
+    partner: &ShipInventory,
+    partner_cr: u32,
+) -> LootTake {
+    let mut take = LootTake::default();
+    let mut free_g = u64::from(own.free_g(items));
+    for (item, held) in partner.stacks() {
+        let mass_g = u64::from(items.design(item).mass_g);
+        let fits = if mass_g == 0 {
+            held
+        } else {
+            // At most `held`, so the cast back to u32 is exact.
+            u64::from(held).min(free_g / mass_g) as u32
+        };
+        if fits > 0 {
+            free_g -= u64::from(fits) * mass_g;
+            take.taken.insert(item.clone(), fits);
+        }
+        if fits < held {
+            take.stayed.insert(item.clone(), held - fits);
+        }
+    }
+    match plan_credit_take(true, own_cr, partner_cr) {
+        Ok(amount) => take.taken_cr = amount,
+        Err(CreditTakeRefusalType::Overflow) => take.stayed_cr = partner_cr,
+        Err(CreditTakeRefusalType::ZeroBalance | CreditTakeRefusalType::NotEligible) => {}
+    }
+    take
+}
+
 /// Which way a Store or Withdraw at a docked station moves items.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
 pub enum ItemStorageType {
@@ -1510,6 +1582,28 @@ pub struct HullStripPartner<'a> {
     pub lootable: bool,
     /// Every live section of the partner, the berth port included.
     pub sections: Vec<StripTarget<'a>>,
+    /// The Take all of the partner's hold and balance a strip runs first,
+    /// by [`plan_loot_take`].
+    pub loot: LootTake,
+}
+
+impl HullStripPartner<'_> {
+    /// The parts and time a strip of every live section gives, with no rule
+    /// checked: what the strip block shows before a strip may start.
+    pub fn plan(&self) -> HullStrip {
+        let mut parts = BTreeMap::new();
+        let mut duration_secs = 0.0;
+        for section in &self.sections {
+            for (item, count) in section.parts() {
+                *parts.entry(item).or_insert(0) += count;
+            }
+            duration_secs += strip_duration_secs(section.recipe);
+        }
+        HullStrip {
+            parts,
+            duration_secs,
+        }
+    }
 }
 
 /// A planned whole-hull strip: the parts it is expected to put in the hold
@@ -1535,6 +1629,10 @@ pub enum HullStripRefusalType {
     LivingStation,
     /// The partner is neither neutralized nor lootable.
     NotLootable,
+    /// The Take all a strip runs first would leave part of the partner's
+    /// hold or balance behind: [`HullStripPartner::loot`] is not whole. A
+    /// strip never demolishes a hull with loot still in it.
+    NoRoom,
 }
 
 /// Why a running strip holds at a finished section instead of taking it.
@@ -1553,10 +1651,12 @@ pub enum HullStripPauseType {
 ///
 /// `partner` is `None` while the ship is not docked. `busy` is whether the
 /// ship is already stripping. Checks run in [`HullStripRefusalType`] order,
-/// and a refusal changes nothing. The plan's parts are what the strip gives
-/// if no section is damaged meanwhile; the hold is not checked here, because
-/// a strip that fills the hold pauses ([`plan_section_yield`]) rather than
-/// refusing.
+/// and a refusal changes nothing. A strip starts by taking the partner's
+/// whole hold and balance ([`HullStripPartner::loot`]), so it refuses when
+/// that take would leave anything behind. The plan's parts are what the
+/// strip gives if no section is damaged meanwhile; the hold is not checked
+/// for them here, because a strip that fills the hold pauses
+/// ([`plan_section_yield`]) rather than refusing.
 pub fn plan_hull_strip(
     partner: Option<&HullStripPartner<'_>>,
     busy: bool,
@@ -1571,18 +1671,10 @@ pub fn plan_hull_strip(
     if !partner.lootable {
         return Err(HullStripRefusalType::NotLootable);
     }
-    let mut parts = BTreeMap::new();
-    let mut duration_secs = 0.0;
-    for section in &partner.sections {
-        for (item, count) in section.parts() {
-            *parts.entry(item).or_insert(0) += count;
-        }
-        duration_secs += strip_duration_secs(section.recipe);
+    if !partner.loot.is_whole() {
+        return Err(HullStripRefusalType::NoRoom);
     }
-    Ok(HullStrip {
-        parts,
-        duration_secs,
-    })
+    Ok(partner.plan())
 }
 
 /// The parts one finished section puts in the ship's `own` hold, or why the
@@ -2621,6 +2713,7 @@ mod strip_tests {
             living_station,
             lootable,
             sections: vec![target(&recipe, 1.0), target(&recipe, 0.1)],
+            loot: LootTake::default(),
         };
         assert_eq!(plan_hull_strip(None, true), Err(NotDocked));
         assert_eq!(plan_hull_strip(Some(&partner(true, true)), true), Err(Busy));
@@ -2632,6 +2725,9 @@ mod strip_tests {
             plan_hull_strip(Some(&partner(false, false)), false),
             Err(NotLootable)
         );
+        let mut stuffed = partner(false, true);
+        stuffed.loot.stayed_cr = 1;
+        assert_eq!(plan_hull_strip(Some(&stuffed), false), Err(NoRoom));
         let strip =
             plan_hull_strip(Some(&partner(false, true)), false).expect("a lootable wreck strips");
         assert_eq!(
@@ -2639,6 +2735,67 @@ mod strip_tests {
             [("FrameSpar".into(), 1), ("SectionPanel".into(), 3)].into()
         );
         assert_eq!(strip.duration_secs, 16.0);
+    }
+
+    /// A Take all moves each stack in id order while the hold has room and
+    /// names what stays; the strip refuses unless it leaves nothing behind.
+    #[test]
+    fn a_strip_refuses_while_a_take_all_would_leave_loot_behind() {
+        let items = crate::test_support::test_items();
+        let plate = ItemDesignId::from(ItemRoleType::HullPlate.id());
+        let panel = ItemDesignId::from("SectionPanel");
+        let spar = ItemDesignId::from("FrameSpar");
+        // 40 kg of spars, 30 kg of panels, 60 kg of plates; 50 cr.
+        let wreck = ShipInventory::new(
+            &items,
+            1_000_000,
+            [(spar.clone(), 1), (panel.clone(), 3), (plate.clone(), 6)],
+        );
+        let recipe = recipe();
+        let partner = |own: &ShipInventory, own_cr| HullStripPartner {
+            living_station: false,
+            lootable: true,
+            sections: vec![target(&recipe, 1.0)],
+            loot: plan_loot_take(&items, own, own_cr, &wreck, 50),
+        };
+
+        // Room for everything: it all moves and the strip starts.
+        let roomy = hold(&items, 130_000);
+        let whole = plan_loot_take(&items, &roomy, 0, &wreck, 50);
+        assert_eq!(
+            whole,
+            LootTake {
+                taken: [(spar.clone(), 1), (panel.clone(), 3), (plate.clone(), 6)].into(),
+                stayed: BTreeMap::new(),
+                taken_cr: 50,
+                stayed_cr: 0,
+            }
+        );
+        assert!(plan_hull_strip(Some(&partner(&roomy, 0)), false).is_ok());
+
+        // Ten kilograms short: the panels are last in id order, so two of
+        // the three fit and one stays. The strip refuses.
+        let short = hold(&items, 120_000);
+        let take = plan_loot_take(&items, &short, 0, &wreck, 50);
+        assert_eq!(take.taken.get(&panel), Some(&2));
+        assert_eq!(take.stayed, [(panel.clone(), 1)].into());
+        assert_eq!(take.taken_cr, 50);
+        assert_eq!(
+            plan_hull_strip(Some(&partner(&short, 0)), false),
+            Err(HullStripRefusalType::NoRoom)
+        );
+
+        // A balance that would overflow stays whole and refuses the strip.
+        let overflow = plan_loot_take(&items, &roomy, u32::MAX, &wreck, 50);
+        assert_eq!((overflow.taken_cr, overflow.stayed_cr), (0, 50));
+        assert_eq!(
+            plan_hull_strip(Some(&partner(&roomy, u32::MAX)), false),
+            Err(HullStripRefusalType::NoRoom)
+        );
+
+        // An empty wreck takes nothing and leaves nothing.
+        let empty = plan_loot_take(&items, &short, 0, &hold(&items, 0), 0);
+        assert!(empty.is_empty() && empty.is_whole());
     }
 
     /// A finished section's parts go in while they fit; a hold short by one

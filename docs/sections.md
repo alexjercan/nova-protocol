@@ -186,17 +186,24 @@ Docked with a hull the player may loot (neutralized, or a derelict with
 strip block over the partner column (`nova_interface/src/inventory/strip/`):
 the Strip button that raises `HullStripCommand`, the progress bar, the time,
 the sections left and the parts the whole hull is expected to give. The
-column header's Take all writes `TakeAllCommand`: what fits of every stack
-through the Take rule, then the credits. `plan_hull_strip`
+column header's Take all writes `TakeAllCommand`: `plan_loot_take` plans
+what fits of every stack in id order, then the credits, and each moves
+through the Take rule. A strip runs the same take first, so it never
+demolishes a hull with loot in it. `plan_hull_strip`
 (`nova_gameplay/src/inventory.rs`) refuses, in order: not docked, a strip
-already running, a living station, a partner the player may not loot. The
-plan sums each live section's `StripTarget::parts`
+already running, a living station, a partner the player may not loot, and a
+take that would leave a stack or the credits behind (`NoRoom`, read from
+`HullStripPartner::loot`). The strip block and `apply_hull_strip_commands`
+both read it through `plan_strip_press`: on `NoRoom` the Strip button is
+disabled and its tooltip names what has no room, and a press moves nothing.
+The plan sums each live section's `StripTarget::parts`
 (`BuildRecipe::strip_parts_at`: `floor(count * strip_yield * health share)`
 per part) and its `strip_duration_secs`: `STRIP_SECS_PER_PART` (1 s) per
 recipe part, at least `STRIP_MIN_SECS` (3 s). A small hold is no refusal:
 the strip holds at the first section that does not fit.
 
-A planned strip inserts `HullStripJob` (`nova_ship/src/sections/section_strip.rs`)
+A planned strip moves the loot (`take_loot`, the Take all path), then inserts
+`HullStripJob` (`nova_ship/src/sections/section_strip.rs`)
 on the player root. `advance_hull_strip` (`inventory/strip/mod.rs`) runs it on the
 virtual clock with the pane open or shut, so it holds while the TAB
 interface is open; the block's progress line and the HUD mode chip

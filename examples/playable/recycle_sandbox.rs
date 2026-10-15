@@ -37,9 +37,19 @@
 //! order, from green (first off) to violet (late); the next one is ringed in
 //! yellow with its seconds left, and the berth port in red, labelled `last`.
 //!
-//! Under `NOVA_AUTOPILOT=1` a smoke walk waits for the dock,
-//! opens the Inventory pane, presses Strip, shuts the interface, waits for the
-//! first section to come off and shoots `recycle-sandbox.png` with
+//! Strip first takes the wreck's whole hold and credits, as Take all does.
+//! When your hold has no room for all of it, Strip is disabled and moves
+//! nothing; point at it for what has no room.
+//!
+//! Under `NOVA_AUTOPILOT=1` a smoke walk waits for the dock and opens the
+//! Inventory pane. It fills the player's hold so the wreck's loot cannot
+//! fit, asserts Strip is disabled and a strip command moves nothing, and
+//! shoots the tooltip (`recycle-sandbox-no-room.png`). It empties the
+//! ballast, presses Strip, asserts the loot is in the hold and the wreck's
+//! hold and credits are empty, and shoots the pane
+//! (`recycle-sandbox-taken.png`). Then it shuts the interface, waits for a
+//! section that gives parts, asserts the hold holds the loot plus every part
+//! yielded, and shoots `recycle-sandbox.png`. Shots land with
 //! `NOVA_CAPTURE=1`. Unset, no walk and no deadline run.
 
 #[path = "shared/open_world_stage.rs"]
@@ -490,9 +500,13 @@ fn draw_the_strip(
 mod smoke {
     use std::sync::Arc;
 
+    use bevy::ui::InteractionDisabled;
     use nova_protocol::{
         nova_debug::harness::{shoot, AutopilotPlugin, Predicate, SHOT_DEADLINE_SECS},
-        nova_interface::{inventory::INVENTORY_STRIP_BUTTON, pane::InterfacePaneType},
+        nova_interface::{
+            inventory::{HullStripCommand, InventoryRuntime, INVENTORY_STRIP_BUTTON},
+            pane::InterfacePaneType,
+        },
     };
 
     use super::*;
@@ -505,6 +519,216 @@ mod smoke {
     const SETTLE_FRAMES: u32 = 10;
     /// The frame the walk shoots.
     const SHOT: &str = "recycle-sandbox.png";
+    /// The disabled Strip and its tooltip, with the hold too full.
+    const NO_ROOM_SHOT: &str = "recycle-sandbox-no-room.png";
+    /// The pane right after Strip took the loot.
+    const TAKEN_SHOT: &str = "recycle-sandbox-taken.png";
+
+    /// The holds and balances before the walk's ballast, and the ballast.
+    #[derive(Resource, Debug)]
+    struct SmokeLoot {
+        wreck: Entity,
+        own: ShipInventory,
+        own_cr: u32,
+        loot: ShipInventory,
+        loot_cr: u32,
+        /// The player's hold with the ballast in it.
+        stuffed: ShipInventory,
+    }
+
+    fn the_wreck(world: &mut World) -> Entity {
+        let (id, ..) = world
+            .resource::<Sandbox>()
+            .wreck
+            .clone()
+            .expect("recycle sandbox: a wreck was chosen");
+        body_by_id(world, &id).expect("recycle sandbox: the wreck stands")
+    }
+
+    fn player(world: &mut World) -> Entity {
+        the_player(world).expect("recycle sandbox: one player ship")
+    }
+
+    fn credits(world: &World, ship: Entity) -> u32 {
+        world
+            .get::<ShipCredits>(ship)
+            .expect("recycle sandbox: a ship root has credits")
+            .0
+    }
+
+    fn inventory(world: &World, ship: Entity) -> ShipInventory {
+        world
+            .get::<ShipInventory>(ship)
+            .expect("recycle sandbox: a ship root has a hold")
+            .clone()
+    }
+
+    /// Record both holds, give the wreck loot if it carries none, then fill
+    /// the player's hold with the wreck's lightest item until no unit of the
+    /// loot fits.
+    fn stuff_the_hold(world: &mut World) {
+        let items = world.resource::<GameItems>().clone();
+        let wreck = the_wreck(world);
+        let player = player(world);
+        if inventory(world, wreck).is_empty() {
+            let plate = items.role(ItemRoleType::HullPlate).id.clone();
+            world
+                .get_mut::<ShipInventory>(wreck)
+                .expect("recycle sandbox: the wreck has a hold")
+                .add(&items, &plate, 6);
+        }
+        let loot = inventory(world, wreck);
+        let own = inventory(world, player);
+        let (ballast, mass_g) = loot
+            .stacks()
+            .map(|(item, _)| (item.clone(), items.design(item).mass_g))
+            .filter(|(_, mass_g)| *mass_g > 0)
+            .min_by_key(|(_, mass_g)| *mass_g)
+            .expect("recycle sandbox: the loot has mass");
+        let mut stuffed = own.clone();
+        stuffed.add(&items, &ballast, own.free_g(&items) / mass_g);
+        assert!(
+            stuffed.free_g(&items) < mass_g,
+            "recycle sandbox: the ballast leaves no room for one unit of loot"
+        );
+        info!(
+            "recycle sandbox: wreck holds {:?} and {} cr; ballast {} {ballast}, {} g free",
+            loot.stacks().collect::<Vec<_>>(),
+            credits(world, wreck),
+            own.free_g(&items) / mass_g,
+            stuffed.free_g(&items)
+        );
+        world.entity_mut(player).insert(stuffed.clone());
+        let smoke = SmokeLoot {
+            wreck,
+            own,
+            own_cr: credits(world, player),
+            loot,
+            loot_cr: credits(world, wreck),
+            stuffed,
+        };
+        world.insert_resource(smoke);
+    }
+
+    /// The Strip button's disabled state and tooltip text.
+    fn strip_button(world: &World) -> Option<(bool, String)> {
+        let mut buttons =
+            world.try_query::<(&Name, Has<InteractionDisabled>, &nova_ui::widget::Tooltip)>()?;
+        buttons
+            .iter(world)
+            .find(|(name, ..)| name.as_str() == INVENTORY_STRIP_BUTTON)
+            .map(|(_, disabled, tooltip)| (disabled, tooltip.0.clone()))
+    }
+
+    /// Whether the Strip button's tooltip panel is up and laid out.
+    fn strip_tooltip_shown(world: &World) -> bool {
+        let Some(button) = world.try_query::<(Entity, &Name)>().and_then(|mut names| {
+            names
+                .iter(world)
+                .find(|(_, name)| name.as_str() == INVENTORY_STRIP_BUTTON)
+                .map(|(button, _)| button)
+        }) else {
+            return false;
+        };
+        world
+            .try_query_filtered::<(&ChildOf, &Node, &ComputedNode), With<nova_ui::widget::TooltipPanel>>()
+            .is_some_and(|mut panels| {
+                panels.iter(world).any(|(parent, node, computed)| {
+                    parent.parent() == button
+                        && node.display == Display::Flex
+                        && computed.size().x > 0.0
+                })
+            })
+    }
+
+    /// With no room: the button is disabled, and a strip command moves
+    /// nothing at all and starts no strip.
+    fn assert_nothing_moved(world: &mut World) {
+        let player = player(world);
+        let smoke = world.resource::<SmokeLoot>();
+        let (wreck, stuffed, own_cr) = (smoke.wreck, smoke.stuffed.clone(), smoke.own_cr);
+        let (loot, loot_cr) = (smoke.loot.clone(), smoke.loot_cr);
+        let (disabled, reason) = strip_button(world).expect("recycle sandbox: Strip is up");
+        assert!(disabled, "recycle sandbox: Strip is disabled with no room");
+        assert!(
+            reason.starts_with("no room for "),
+            "recycle sandbox: the tooltip names what has no room, got {reason:?}"
+        );
+        assert!(job(world).is_none(), "recycle sandbox: no strip started");
+        assert_eq!(
+            inventory(world, player),
+            stuffed,
+            "recycle sandbox: the hold is untouched"
+        );
+        assert_eq!(credits(world, player), own_cr);
+        assert_eq!(
+            inventory(world, wreck),
+            loot,
+            "recycle sandbox: the wreck kept its loot"
+        );
+        assert_eq!(credits(world, wreck), loot_cr);
+        let note = world
+            .resource::<InventoryRuntime>()
+            .note()
+            .map(str::to_string);
+        assert_eq!(
+            note.as_deref(),
+            Some(format!("strip: {reason}").as_str()),
+            "recycle sandbox: the refused press names the same reason"
+        );
+        info!("recycle sandbox: PASS no room: Strip disabled ({reason}), nothing moved");
+    }
+
+    /// After Strip: the loot is in the hold, the wreck's hold and balance
+    /// are empty, and the strip runs.
+    fn assert_the_loot_is_taken(world: &mut World) {
+        let player = player(world);
+        let smoke = world.resource::<SmokeLoot>();
+        let (wreck, own, own_cr) = (smoke.wreck, smoke.own.clone(), smoke.own_cr);
+        let (loot, loot_cr) = (smoke.loot.clone(), smoke.loot_cr);
+        let hold = inventory(world, player);
+        for (item, count) in loot.stacks() {
+            assert_eq!(
+                hold.count(item),
+                own.count(item) + count,
+                "recycle sandbox: every {item} of the wreck is in the hold"
+            );
+        }
+        assert_eq!(credits(world, player), own_cr + loot_cr);
+        assert!(
+            inventory(world, wreck).is_empty(),
+            "recycle sandbox: the wreck's hold is empty"
+        );
+        assert_eq!(credits(world, wreck), 0);
+        assert!(job(world).is_some(), "recycle sandbox: the strip runs");
+        info!(
+            "recycle sandbox: PASS Strip took {:?} and {loot_cr} cr first; note {:?}",
+            loot.stacks().collect::<Vec<_>>(),
+            world.resource::<InventoryRuntime>().note()
+        );
+    }
+
+    /// The hold holds what it held, the loot and every part yielded so far.
+    fn assert_the_parts_are_yielded(world: &mut World) {
+        let player = player(world);
+        let smoke = world.resource::<SmokeLoot>();
+        let (own, loot) = (smoke.own.clone(), smoke.loot.clone());
+        let yielded = world.resource::<Sandbox>().yielded.clone();
+        assert!(!yielded.is_empty(), "recycle sandbox: a section gave parts");
+        let hold = inventory(world, player);
+        let mut seen: BTreeSet<ItemDesignId> = own.stacks().map(|(item, _)| item.clone()).collect();
+        seen.extend(loot.stacks().map(|(item, _)| item.clone()));
+        seen.extend(yielded.keys().map(|item| ItemDesignId::from(item.as_str())));
+        for item in seen {
+            let parts = yielded.get(&item.to_string()).copied().unwrap_or(0);
+            assert_eq!(
+                u64::from(hold.count(&item)),
+                u64::from(own.count(&item)) + u64::from(loot.count(&item)) + parts,
+                "recycle sandbox: the hold holds its own, the loot and the parts of {item}"
+            );
+        }
+        info!("recycle sandbox: PASS the hold holds the loot and the parts {yielded:?}");
+    }
 
     fn when(check: impl Fn(&World) -> bool + Send + Sync + 'static) -> Arc<Predicate> {
         Arc::new(check)
@@ -589,6 +813,48 @@ mod smoke {
         .step("recycle sandbox: settle the pane")
         .until(frames(SETTLE_FRAMES))
         .add()
+        .step("recycle sandbox: fill the hold past the loot")
+        .on_enter(stuff_the_hold)
+        .until(when(|world| {
+            strip_button(world).is_some_and(|(disabled, reason)| disabled && !reason.is_empty())
+        }))
+        .diagnose(|world| format!("strip button {:?}", strip_button(world)))
+        .deadline(BEAT_SECS)
+        .add()
+        .step("recycle sandbox: hover the disabled Strip for its reason")
+        .on_enter(hover_named(INVENTORY_STRIP_BUTTON))
+        .each(|world, _, _| keep_hovering_named(INVENTORY_STRIP_BUTTON)(world))
+        .until(Arc::new(strip_tooltip_shown))
+        .deadline(BEAT_SECS)
+        .add()
+        .step("recycle sandbox: settle the tooltip")
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("recycle sandbox: shoot the disabled Strip")
+        .on_enter(|world: &mut World| shoot(world, NO_ROOM_SHOT))
+        .until(shot_written(NO_ROOM_SHOT))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
+        .step("recycle sandbox: send a strip with no room")
+        .on_enter(|world: &mut World| {
+            world.write_message(HullStripCommand);
+        })
+        .until(frames(2))
+        .add()
+        .step("recycle sandbox: assert nothing moved")
+        .on_enter(assert_nothing_moved)
+        .add()
+        .step("recycle sandbox: take the ballast out")
+        .on_enter(|world: &mut World| {
+            let own = world.resource::<SmokeLoot>().own.clone();
+            let player = player(world);
+            world.entity_mut(player).insert(own);
+        })
+        .until(when(|world| {
+            strip_button(world).is_some_and(|(disabled, _)| !disabled)
+        }))
+        .deadline(BEAT_SECS)
+        .add()
         .click_named(
             "recycle sandbox: press Strip",
             INVENTORY_STRIP_BUTTON,
@@ -598,32 +864,44 @@ mod smoke {
                     .any(|entity| entity.contains::<HullStripJob>())
             }),
             BEAT_SECS,
-        );
+        )
+        .step("recycle sandbox: assert the loot is taken")
+        .on_enter(assert_the_loot_is_taken)
+        .add()
+        .step("recycle sandbox: settle the taken pane")
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("recycle sandbox: shoot the taken pane")
+        .on_enter(|world: &mut World| shoot(world, TAKEN_SHOT))
+        .until(shot_written(TAKEN_SHOT))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add();
         tap(
             script,
             "the interface key again",
             "interface_toggle",
             pause_is(PauseStates::Unpaused),
         )
-        .step("recycle sandbox: a section comes off")
+        .step("recycle sandbox: a section gives parts")
         .until(when(|world| {
             world
                 .get_resource::<Sandbox>()
-                .is_some_and(|sandbox| !sandbox.taken.is_empty())
+                .is_some_and(|sandbox| !sandbox.yielded.is_empty())
         }))
+        .diagnose(|world| format!("{:?}", world.get_resource::<Sandbox>()))
         .deadline(BEAT_SECS)
+        .add()
+        .step("recycle sandbox: assert the parts are yielded")
+        .on_enter(assert_the_parts_are_yielded)
         .add()
         .step("recycle sandbox: settle")
         .until(frames(SETTLE_FRAMES))
         .add()
-        .step("recycle sandbox: check the strip runs")
+        .step("recycle sandbox: check the strip ran")
         .on_enter(|world: &mut World| {
-            let job = job(world).expect("recycle sandbox: the strip still runs");
-            assert!(job.taken >= 1, "recycle sandbox: a section came off");
-            info!(
-                "recycle sandbox: PASS the strip runs with the interface shut, {} taken",
-                job.taken
-            );
+            let taken = world.resource::<Sandbox>().taken.len();
+            assert!(taken >= 1, "recycle sandbox: a section came off");
+            info!("recycle sandbox: PASS the strip runs with the interface shut, {taken} taken");
         })
         .add()
         .step("recycle sandbox: shoot the overlay")

@@ -1449,8 +1449,8 @@ pub(crate) struct InventoryShips<'w, 's> {
 /// [`ShipInventory`].
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct InventoryPair {
-    own: Entity,
-    partner: Option<Entity>,
+    pub(crate) own: Entity,
+    pub(crate) partner: Option<Entity>,
 }
 
 impl InventoryShips<'_, '_> {
@@ -1628,6 +1628,14 @@ impl InventoryShips<'_, '_> {
             .get(ship)
             .expect("InventoryShips::pair checked every ship it names");
         (name, inventory, neutralized || lootable, credits.0)
+    }
+
+    /// The Take all of `partner`'s hold and balance into `own`'s, by the
+    /// [`plan_loot_take`] rule.
+    pub(crate) fn loot(&self, items: &GameItems, own: Entity, partner: Entity) -> LootTake {
+        let (_, hold, _, own_cr) = self.ship(own);
+        let (_, theirs, _, partner_cr) = self.ship(partner);
+        plan_loot_take(items, hold, own_cr, theirs, partner_cr)
     }
 
     /// What the source ship of `draft` carries of its item, and never less than
@@ -2022,8 +2030,9 @@ pub(crate) fn apply_take_all_commands(
     }
 }
 
-/// Take what fits of every stack `partner` holds, then its credits, or say
-/// why nothing moved. Both texts are the note line.
+/// Take what fits of every stack `partner` holds, then its credits, by the
+/// [`plan_loot_take`] rule, or say why nothing moved. Both texts are the note
+/// line.
 fn take_all(
     items: &GameItems,
     ships: &mut InventoryShips,
@@ -2037,57 +2046,74 @@ fn take_all(
             "Refused: {partner_title} is not neutralized or lootable"
         ));
     }
-    let stacks: Vec<(ItemDesignId, u32)> = theirs
-        .stacks()
-        .map(|(item, count)| (item.clone(), count))
-        .collect();
-    if stacks.is_empty() && partner_cr == 0 {
+    if theirs.is_empty() && partner_cr == 0 {
         return Err(format!("Refused: {partner_title} holds nothing"));
     }
-    let mut took = Vec::new();
-    let mut stayed = Vec::new();
-    for (item, held) in stacks {
-        let label = &items.design(&item).name;
-        let free_g = ships.ship(pair.own).1.free_g(items);
-        let mass_g = items.design(&item).mass_g;
-        let fits = if mass_g == 0 {
-            held
-        } else {
-            held.min(free_g / mass_g)
-        };
-        if fits > 0 {
-            let command = InventoryActionCommand {
-                action: InventoryActionType::Take,
-                item: item.clone(),
-                quantity: Some(fits),
-            };
-            transfer_items(items, ships, pair, ItemTransferType::Take, command)
-                .expect("a Take of what fits passes the transfer rule");
-            took.push(format!("{fits} {label}"));
-        }
-        if fits < held {
-            stayed.push(format!("{} {label}", held - fits));
-        }
+    let loot = ships.loot(items, pair.own, partner);
+    if loot.is_empty() {
+        return Err(format!(
+            "Refused: no room for {}",
+            loot_text(items, &loot.stayed, loot.stayed_cr)
+        ));
     }
-    if partner_cr > 0 {
-        match take_credits(ships, pair.own, partner) {
-            Ok(amount) => took.push(cr_text(amount)),
-            // Eligible with a balance above zero: only an overflow refuses.
-            Err(_) => stayed.push(cr_text(partner_cr)),
-        }
-    }
-    if took.is_empty() {
-        return Err(format!("Refused: no room for {}", list_text(&stayed)));
-    }
-    let stayed = if stayed.is_empty() {
+    take_loot(items, ships, pair, partner, &loot);
+    let stayed = if loot.is_whole() {
         String::new()
     } else {
-        format!("; no room for {}", list_text(&stayed))
+        format!(
+            "; no room for {}",
+            loot_text(items, &loot.stayed, loot.stayed_cr)
+        )
     };
     Ok(format!(
         "Took {} from {partner_title}{stayed}",
-        list_text(&took)
+        loot_text(items, &loot.taken, loot.taken_cr)
     ))
+}
+
+/// Move a planned [`LootTake`] from `partner` into the player ship: each
+/// taken stack through the Take path a Confirm runs, then the credits.
+///
+/// # Panics
+///
+/// On a take the transfer or credit rule refuses: `loot` was planned from
+/// these holds this frame, with the partner checked lootable.
+pub(crate) fn take_loot(
+    items: &GameItems,
+    ships: &mut InventoryShips,
+    pair: InventoryPair,
+    partner: Entity,
+    loot: &LootTake,
+) {
+    for (item, &count) in &loot.taken {
+        let command = InventoryActionCommand {
+            action: InventoryActionType::Take,
+            item: item.clone(),
+            quantity: Some(count),
+        };
+        transfer_items(items, ships, pair, ItemTransferType::Take, command)
+            .expect("a Take of what fits passes the transfer rule");
+    }
+    if loot.taken_cr > 0 {
+        take_credits(ships, pair.own, partner)
+            .expect("a planned credit take passes the credit rule");
+    }
+}
+
+/// Stacks and credits as one list: `2 Hull plate and 50 cr`.
+pub(crate) fn loot_text(
+    items: &GameItems,
+    stacks: &BTreeMap<ItemDesignId, u32>,
+    credits_cr: u32,
+) -> String {
+    let mut parts: Vec<String> = stacks
+        .iter()
+        .map(|(item, count)| format!("{count} {}", items.design(item).name))
+        .collect();
+    if credits_cr > 0 {
+        parts.push(cr_text(credits_cr));
+    }
+    list_text(&parts)
 }
 
 /// `a`, `a and b`, or `a, b and c`.

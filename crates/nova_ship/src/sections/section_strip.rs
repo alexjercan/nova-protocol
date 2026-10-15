@@ -28,7 +28,8 @@ use std::collections::{BTreeMap, VecDeque};
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::{
-    ConnectedTo, Health, HullStripPauseType, SectionMarker, SpaceshipRootMarker,
+    ConnectedTo, Health, HullStripPauseType, ItemDesignId, LootTake, SectionMarker,
+    SpaceshipRootMarker,
 };
 
 /// The strip job, the strip order and the removal request.
@@ -57,6 +58,11 @@ pub struct HullStripJob {
     pub paused: Option<HullStripPauseType>,
     /// Sections taken so far.
     pub taken: u32,
+    /// What the strip took from the hull's hold and balance before its first
+    /// section, for the note that ends it.
+    pub looted: LootTake,
+    /// The parts every section taken so far put in the hold, summed.
+    pub yielded: BTreeMap<ItemDesignId, u32>,
 }
 
 /// The section a [`HullStripJob`] is taking off now.
@@ -75,8 +81,9 @@ pub struct HullStripStep {
 }
 
 impl HullStripJob {
-    /// A strip of `partner` planned to take `total_secs`, with nothing taken.
-    pub fn new(partner: Entity, total_secs: f32) -> Self {
+    /// A strip of `partner` planned to take `total_secs`, with no section
+    /// taken, after it `looted` the hull's hold and balance.
+    pub fn new(partner: Entity, total_secs: f32, looted: LootTake) -> Self {
         Self {
             partner,
             step: None,
@@ -84,6 +91,8 @@ impl HullStripJob {
             total_secs,
             paused: None,
             taken: 0,
+            looted,
+            yielded: BTreeMap::new(),
         }
     }
 

@@ -882,11 +882,26 @@ mod walk {
     }
 
     /// Plan the whole-hull strip of the docked wreck and record its sections,
-    /// its berth and the hold.
+    /// its berth and the hold as the press leaves it: a Strip first takes the
+    /// wreck's whole hold, so the strip's parts are counted from there.
     fn plan_the_strip(world: &mut World) {
         let wreck = wreck(world);
         let items = world.resource::<GameItems>().clone();
-        let own = hold(world);
+        let before = hold(world);
+        let loot = world
+            .get::<ShipInventory>(wreck)
+            .expect("station strip: a generated wreck has a hold")
+            .clone();
+        let mut stacks: BTreeMap<ItemDesignId, u32> = before
+            .stacks()
+            .map(|(item, count)| (item.clone(), count))
+            .collect();
+        for (item, count) in loot.stacks() {
+            *stacks.entry(item.clone()).or_default() += count;
+        }
+        // Panics when the loot does not fit: Strip would refuse, and the walk
+        // needs a seed whose wreck it strips.
+        let own = ShipInventory::new(&items, before.capacity_g(), stacks);
         let design = world
             .get::<ShipDesignSections>(wreck)
             .expect("station strip: a generated wreck keeps its design")
@@ -904,15 +919,13 @@ mod walk {
                 health_share: *share,
             })
             .collect();
-        let strip = plan_hull_strip(
-            Some(&HullStripPartner {
-                living_station: false,
-                lootable: true,
-                sections,
-            }),
-            false,
-        )
-        .expect("station strip: the docked wreck may be stripped");
+        let strip = HullStripPartner {
+            living_station: false,
+            lootable: true,
+            sections,
+            loot: LootTake::default(),
+        }
+        .plan();
         let mass_g: u64 = strip
             .parts
             .iter()
