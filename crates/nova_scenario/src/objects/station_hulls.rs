@@ -13,7 +13,9 @@
 //! scenario id) keeps its owner: it takes the parked hull's design, state
 //! and place and the start-role bindings for it, and [`redock_bought_hull`]
 //! docks it at the parked hull's port. The old hull is parked where it
-//! stood, its hold whole, for rebuy at the trade-in.
+//! stood, its hold whole, as the player's own ([`ParkedHullType::Owned`]).
+//! A board answers the same request: it swaps the player into an owned
+//! parked hull, and parks the hull it leaves the same way.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -74,7 +76,7 @@ impl Plugin for StationHullsPlugin {
 }
 
 /// Swap a ship's hull with a parked hull of the station it is docked at, as
-/// a Station pane buy asks once the buy rule moved the credits. The swap
+/// a Station pane buy asks once the buy rule moved the credits, or a board. The swap
 /// needs the whole world, so it runs as a queued command
 /// ([`swap_parked_hull`]).
 fn buy_station_hull(request: On<HullBuyRequest>, mut commands: Commands) {
@@ -90,8 +92,8 @@ fn buy_station_hull(request: On<HullBuyRequest>, mut commands: Commands) {
 /// station's motion, to dock at its port ([`redock_bought_hull`]). The old
 /// hull's record thaws as a parked hull of the station where the ship root
 /// stood ([`FrozenShip::parked`](crate::objects::spaceship::prelude::FrozenShip)),
-/// its hold whole, listed for rebuy at `trade_in_cr`, and docks at the port
-/// the ship held.
+/// its hold whole, as the player's own ([`ParkedHullType::Owned`]), and
+/// docks at the port the ship held.
 ///
 /// # Panics
 ///
@@ -104,7 +106,6 @@ fn swap_parked_hull(world: &mut World, request: HullBuyRequest) {
         entity: ship,
         station,
         hull,
-        trade_in_cr,
     } = request;
     assert_eq!(
         world.get::<ParkedHull>(hull).map(|parked| parked.0),
@@ -153,7 +154,7 @@ fn swap_parked_hull(world: &mut World, request: HullBuyRequest) {
         .unwrap_or_else(|| panic!("swap_parked_hull: ship {ship:?} has no controller"));
     let old_name = world
         .get::<Name>(ship)
-        .map_or_else(|| "Traded-in hull".to_string(), ToString::to_string);
+        .map_or_else(|| "Former hull".to_string(), ToString::to_string);
     let new_name = world
         .get::<Name>(hull)
         .map_or_else(String::new, ToString::to_string);
@@ -164,7 +165,7 @@ fn swap_parked_hull(world: &mut World, request: HullBuyRequest) {
     let old = freeze_ship(world, ship).unwrap_or_else(|reason| unsettled("ship", reason));
     info!(
         "swap_parked_hull: ship {ship:?} takes '{new_name}' at station {station:?}, its old hull \
-         parks for rebuy at {trade_in_cr} cr"
+         parks as the player's own"
     );
 
     world.entity_mut(hull).despawn();
@@ -179,8 +180,8 @@ fn swap_parked_hull(world: &mut World, request: HullBuyRequest) {
     rehull_ship(world, ship, bought, |resolved| {
         bought_hull_controller(&buyer, resolved)
     });
-    // The root takes the bought hull's name, so a later rebuy parks this
-    // hull under it.
+    // The root takes the bought hull's name, so a later buy or board parks
+    // this hull under it.
     world.entity_mut(ship).insert((
         Name::new(new_name),
         velocity,
@@ -203,9 +204,7 @@ fn swap_parked_hull(world: &mut World, request: HullBuyRequest) {
         &mut commands,
         station,
         &old_name,
-        ParkedHullType::Rebuy {
-            price_cr: trade_in_cr,
-        },
+        ParkedHullType::Owned,
         Transform::from_translation(old_at).with_rotation(old_turn),
     );
     thaw_ship(&mut parked, old.parked());

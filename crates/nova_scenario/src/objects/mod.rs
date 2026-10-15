@@ -25,7 +25,7 @@ pub mod fleet;
 /// Light scenario object: the authored directional and point lights a scene
 /// lights itself with.
 pub mod light;
-/// The hulls a station parks at its docking ports, for sale or for rebuy.
+/// The hulls a station parks at its docking ports, for sale or the player's own.
 pub mod parked_hulls;
 /// The authored planet OBJECT: the components a spawned world carries, the
 /// gravity well it becomes, and the plugin that draws it.

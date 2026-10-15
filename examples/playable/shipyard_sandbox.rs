@@ -1,5 +1,6 @@
 //! shipyard_sandbox: dock at a station that parks its hulls for sale at its
-//! ports, with the ship you traded in parked beside them for rebuy.
+//! ports, with the ship you flew before a buy parked beside them, still
+//! yours.
 //!
 //! Boots the shipped app and starts New Game on a pinned seed as the
 //! scavenger, as the Create World modal does, but without a save folder. When
@@ -14,21 +15,21 @@
 //! - the first hull for sale is bought through [`HullBuyCommand`], the
 //!   message the Station tab's Buy button writes;
 //! - the bought hull redocks with the station, and the old ship parks at the
-//!   port the player held, listed for rebuy with the hold it had.
+//!   port the player held, still the player's, with the hold it had.
 //!
 //! From there it is yours. Nothing ends the run.
 //!
 //! What to try:
 //!
 //! 1. open the interface (`TAB`), Station tab: **Ships for sale** shows a
-//!    card per parked hull and the old ship as `(rebuy)`, each with the
-//!    hull's own model turning, one line (name, length, price), what the
-//!    buy costs in plain words ("Your current ship is taken in for ...; you
-//!    pay ...") and Buy;
+//!    card per parked hull, each with the hull's own model turning and one
+//!    line (name, length, price) over Buy, and the old ship's card says
+//!    "your ship" over Board;
 //! 2. Inventory tab: the old ship's hold lists as storage while you are
 //!    docked;
-//! 3. buy another hull, or rebuy the old ship: you take its helm and the
-//!    hull you flew parks at its port;
+//! 3. buy another hull at its full price, or Board the old ship for free:
+//!    you take its helm and the hull you flew parks at its port, still
+//!    yours;
 //! 4. Station tab, **Escorts for hire**: a card per escort, the same way;
 //!    each escort coasts beside the station, undocked and Neutral; Hire one
 //!    and it joins your fleet and follows you;
@@ -43,19 +44,19 @@
 //!
 //! The diagnostics (`F3`) mark every docking port of the station, coloured
 //! and labelled by what holds it: free (green), the player (cyan), a hull for
-//! sale (yellow), a hull parked for rebuy (violet), anything else (red). A
+//! sale (yellow), a ship the player owns (violet), anything else (red). A
 //! line runs from each held port to the hull on it, and a ring with its price
 //! marks each parked hull. Each escort for hire gets a green ring (red if it
 //! docked) and a line from the station, labelled with its price and
-//! distance. The panel counts the ports, the hulls for sale and rebuy, the
+//! distance. The panel counts the ports, the hulls for sale and owned, the
 //! free ports, and the escorts for hire and hired. `Shift+F3` lists each
 //! port's holder, each hull's price, default keys and hold, each escort's
 //! price, distance, coasting or DOCKED and side, and the hired escorts.
 //!
 //! Under `NOVA_AUTOPILOT=1` a smoke walk waits for the fixture,
-//! checks the buy note says the trade-in in plain words, the station parks
-//! one hull per port but one with the old ship among them and escorts for
-//! hire coast undocked, and shoots
+//! checks the buy charged the full price, the station parks one hull per
+//! port but one with the old ship among them, owned, and escorts for hire
+//! coast undocked, and shoots
 //! `shipyard-sandbox.png` and the Station tab's cards as
 //! `shipyard-sandbox-cards.png`, then again as
 //! `shipyard-sandbox-cards-turned.png` once the hulls have turned. It then
@@ -63,7 +64,11 @@
 //! selects another section and closes, shooting `shipyard-sandbox-info.png`,
 //! `shipyard-sandbox-info-section.png` and
 //! `shipyard-sandbox-info-closed.png`, and checks the Ship tab shows the
-//! player ship with its Catalogue again (`shipyard-sandbox-ship-after-info.png`),
+//! player ship with its Catalogue again (`shipyard-sandbox-ship-after-info.png`).
+//! Last it Boards the old ship from its card: the credits do not move, the
+//! player flies the old ship again and the bought hull parks, owned. It
+//! shoots the old ship's card before (`shipyard-sandbox-board-before.png`)
+//! and the bought hull's card after (`shipyard-sandbox-board-after.png`),
 //! all with `NOVA_CAPTURE=1`.
 //! Unset, no walk and no deadline run.
 
@@ -93,7 +98,7 @@ use open_world_stage::{advance_station_dock, the_player, OpenWorldStartPlugin, S
 #[command(version = "1.0.0")]
 #[command(
     about = "Dock at a generated station that parks its hulls for sale at its ports, with your \
-             traded-in ship parked for rebuy",
+             old ship parked beside them to board for free",
     long_about = None
 )]
 struct Cli;
@@ -172,9 +177,10 @@ struct Sandbox {
     dock: StationDock,
     /// The connection the player held before the buy.
     released: Option<Entity>,
-    /// The Station pane's note after the buy: what the buy cost in plain
-    /// words.
+    /// The Station pane's note after the buy.
     buy_note: Option<String>,
+    /// The bought hull's price, as the buy plans it.
+    price_cr: Option<u32>,
 }
 
 /// The chosen station, once it stands.
@@ -185,7 +191,7 @@ fn chosen_station(world: &mut World) -> Option<Entity> {
 
 /// The hulls `station` lists of terms `hire` or not, in park order: the
 /// escorts for hire coasting beside it, or the hulls docked for sale or
-/// rebuy.
+/// owned.
 fn listed_hulls(world: &World, station: Entity, hire: bool) -> Vec<Entity> {
     world
         .get::<ParkedHulls>(station)
@@ -200,7 +206,8 @@ fn listed_hulls(world: &World, station: Entity, hire: bool) -> Vec<Entity> {
         .collect()
 }
 
-/// The hulls docked at `station` for sale or rebuy, in park order.
+/// The hulls docked at `station` for sale or owned, in park order: the
+/// Station tab's hull cards, in card order.
 fn parked_hulls(world: &World, station: Entity) -> Vec<Entity> {
     listed_hulls(world, station, false)
 }
@@ -259,13 +266,21 @@ fn drive_the_sandbox(world: &mut World) {
                 .get::<DockedShip>(player)
                 .expect("shipyard sandbox: the player is docked")
                 .connection;
+            let price_cr = world.get::<ShipDesignSections>(hull).map(|design| {
+                let price = hull_price_cr(
+                    world.resource::<GameItems>(),
+                    design.0.iter().map(|section| &section.config.base.build),
+                );
+                u32::try_from(price).expect("shipyard sandbox: the price fits")
+            });
             info!(
-                "shipyard sandbox: buying '{}'",
+                "shipyard sandbox: buying '{}' for {price_cr:?} cr",
                 world.get::<Name>(hull).map_or("?", Name::as_str)
             );
             world.write_message(HullBuyCommand { hull });
             let mut sandbox = world.resource_mut::<Sandbox>();
             sandbox.released = Some(released);
+            sandbox.price_cr = price_cr;
             sandbox.phase = SandboxPhaseType::Redocking;
         }
         SandboxPhaseType::Redocking => {
@@ -336,7 +351,7 @@ enum PortHolderType {
     Free,
     Player,
     Sale(String),
-    Rebuy(String),
+    Owned(String),
     Other(String),
 }
 
@@ -427,9 +442,7 @@ fn draw_the_shipyard(
                         match (player, terms) {
                             (true, _) => PortHolderType::Player,
                             (false, Some(ParkedHullType::Sale)) => PortHolderType::Sale(name),
-                            (false, Some(ParkedHullType::Rebuy { .. })) => {
-                                PortHolderType::Rebuy(name)
-                            }
+                            (false, Some(ParkedHullType::Owned)) => PortHolderType::Owned(name),
                             (false, Some(ParkedHullType::Hire { .. }) | None) => {
                                 PortHolderType::Other(name)
                             }
@@ -443,7 +456,7 @@ fn draw_the_shipyard(
             PortHolderType::Free => (palette::OK, "free".to_string()),
             PortHolderType::Player => (palette::VELOCITY, "you".to_string()),
             PortHolderType::Sale(_) => (palette::TARGET, "sale".to_string()),
-            PortHolderType::Rebuy(_) => (palette::ZONE, "rebuy".to_string()),
+            PortHolderType::Owned(_) => (palette::ZONE, "yours".to_string()),
             PortHolderType::Other(name) => (palette::ALERT, name.clone()),
         };
         diagnostics::sphere(&mut gizmos, at, PORT_MARK, color);
@@ -452,7 +465,7 @@ fn draw_the_shipyard(
             PortHolderType::Free => "free".to_string(),
             PortHolderType::Player => "you".to_string(),
             PortHolderType::Sale(name) => format!("for sale, {name}"),
-            PortHolderType::Rebuy(name) => format!("rebuy, {name}"),
+            PortHolderType::Owned(name) => format!("yours, {name}"),
             PortHolderType::Other(name) => name.clone(),
         };
         panel.detail(format!("port {}: {holder}", id.0));
@@ -467,7 +480,7 @@ fn draw_the_shipyard(
         })
         .count();
     panel.line(format!(
-        "ports {ports}: {sales} for sale, {} rebuy, {} free",
+        "ports {ports}: {sales} for sale, {} owned, {} free",
         parked.len() - sales,
         ports.saturating_sub(held),
     ));
@@ -485,7 +498,7 @@ fn draw_the_shipyard(
         };
         let centre = anchor(at, com);
         let color = match terms {
-            Some(ParkedHullType::Rebuy { .. }) => palette::ZONE,
+            Some(ParkedHullType::Owned) => palette::ZONE,
             _ => palette::TARGET,
         };
         let color = if docked.is_some() {
@@ -495,14 +508,12 @@ fn draw_the_shipyard(
         };
         let up = at.rotation() * Vec3::Y;
         diagnostics::ring(&mut gizmos, centre, up, radius.map_or(2.0, |r| r.0), color);
-        let price = match (terms, design) {
-            (Some(ParkedHullType::Rebuy { price_cr }), _) => u64::from(*price_cr),
-            (_, Some(design)) => hull_price_cr(
+        let price = design.map_or(0, |design| {
+            hull_price_cr(
                 &items,
                 design.0.iter().map(|section| &section.config.base.build),
-            ),
-            (_, None) => 0,
-        };
+            )
+        });
         let bindings = match source {
             Some(source) => keys
                 .entry(*hull)
@@ -512,7 +523,7 @@ fn draw_the_shipyard(
         };
         let docked = if docked.is_some() { "" } else { ", NOT DOCKED" };
         match terms {
-            Some(ParkedHullType::Rebuy { price_cr }) => {
+            Some(ParkedHullType::Owned) => {
                 let cargo: Vec<String> = hold
                     .map(|hold| {
                         hold.stacks()
@@ -521,17 +532,18 @@ fn draw_the_shipyard(
                     })
                     .unwrap_or_default();
                 panel.detail(format!(
-                    "rebuy {name}: {price_cr} cr, hold [{}]{docked}",
+                    "yours {name}: board free, hold [{}]{docked}",
                     cargo.join(", ")
                 ));
-                panel.detail(format!("    keys on rebuy: {bindings}"));
+                panel.detail(format!("    keys on board: {bindings}"));
+                panel.label_tinted(centre, "yours, board free", color);
             }
             _ => {
                 panel.detail(format!("for sale {name}: {price} cr{docked}"));
                 panel.detail(format!("    keys: {bindings}"));
+                panel.label_tinted(centre, format!("{price} cr"), color);
             }
         }
-        panel.label_tinted(centre, format!("{price} cr"), color);
     }
 
     let Ok((_, station_at, station_com, ..)) = q_ships.get(station) else {
@@ -577,7 +589,7 @@ fn draw_the_shipyard(
     ));
     panel.detail(format!("hired: {fleet:?}"));
     if q_player.iter().any(|docked| docked) {
-        panel.hint("TAB", "buy, rebuy or hire");
+        panel.hint("TAB", "buy, board or hire");
         panel.hint("D", "undock");
     }
 }
@@ -602,6 +614,12 @@ mod smoke {
     /// [`TURN_FRAMES`] after the first, so the hulls have turned.
     const CARDS_SHOT: &str = "shipyard-sandbox-cards.png";
     const CARDS_TURNED_SHOT: &str = "shipyard-sandbox-cards-turned.png";
+    /// The PNGs of the Station tab's owned card: the old ship's before the
+    /// board, the bought hull's after it.
+    const BOARD_BEFORE_SHOT: &str = "shipyard-sandbox-board-before.png";
+    const BOARD_AFTER_SHOT: &str = "shipyard-sandbox-board-after.png";
+    /// The Station pane's panel, which scrolls under the wheel.
+    const STATION_PANEL: &str = "StationPanel";
     /// Frames between the two card shots.
     const TURN_FRAMES: u32 = 30;
     /// The PNGs of Info on the first hull for sale: as it opens, with another
@@ -771,15 +789,260 @@ mod smoke {
         );
     }
 
+    /// The facts a board must keep or change.
+    #[derive(Resource, Clone, Debug)]
+    struct BeforeBoard {
+        /// The player's and the station's balances.
+        player_cr: u32,
+        station_cr: u32,
+        /// The owned hull boarded, its name and design.
+        hull: Entity,
+        name: String,
+        design: Vec<String>,
+        /// The name of the hull the player flew: the hull bought.
+        flown: String,
+        /// The connection the player held.
+        released: Entity,
+    }
+
+    /// The chosen station, read without a mutable world, for a predicate.
+    fn station_of(world: &World) -> Option<Entity> {
+        let id = world
+            .get_resource::<Sandbox>()?
+            .dock
+            .station
+            .as_ref()?
+            .id
+            .clone();
+        world
+            .try_query::<(Entity, &GeneratedBodyId)>()?
+            .iter(world)
+            .find(|(_, worn)| **worn == id)
+            .map(|(entity, _)| entity)
+    }
+
+    /// The player ship, read without a mutable world, for a predicate.
+    fn player_of(world: &World) -> Option<Entity> {
+        world
+            .try_query_filtered::<Entity, With<PlayerSpaceshipMarker>>()?
+            .iter(world)
+            .next()
+    }
+
+    /// The Board button of the first owned card, by card order.
+    fn board_button(world: &World) -> String {
+        let station = station_of(world).expect("shipyard sandbox: the station stands");
+        let row = parked_hulls(world, station)
+            .iter()
+            .position(|hull| world.get::<ParkedHullType>(*hull) == Some(&ParkedHullType::Owned))
+            .expect("shipyard sandbox: an owned ship is parked");
+        format!("HullBoard-{row}")
+    }
+
+    /// Whether the first owned card's Board button lies inside the Station
+    /// panel's box, where a shot shows it.
+    fn board_button_in_view(world: &World) -> bool {
+        let button = board_button(world);
+        match (
+            ui_node_rect(world, &button),
+            ui_node_rect(world, STATION_PANEL),
+        ) {
+            (Some(button), Some(panel)) => {
+                button.min.y >= panel.min.y && button.max.y <= panel.max.y
+            }
+            _ => false,
+        }
+    }
+
+    /// The design ids of `ship`, sorted.
+    fn design_ids(world: &World, ship: Entity) -> Vec<String> {
+        let mut ids: Vec<String> = world
+            .get::<ShipDesignSections>(ship)
+            .expect("shipyard sandbox: the ship has a design")
+            .0
+            .iter()
+            .map(|section| section.id.clone())
+            .collect();
+        ids.sort();
+        ids
+    }
+
+    /// Record the facts before the board, then click Board on the old
+    /// ship's card.
+    fn board_the_old_ship(world: &mut World) {
+        let player = the_player(world).expect("shipyard sandbox: one player ship");
+        let station = chosen_station(world).expect("shipyard sandbox: the station stands");
+        let hull = parked_hulls(world, station)
+            .into_iter()
+            .find(|hull| world.get::<ParkedHullType>(*hull) == Some(&ParkedHullType::Owned))
+            .expect("shipyard sandbox: an owned ship is parked");
+        let credits = |world: &World, ship: Entity| {
+            world
+                .get::<ShipCredits>(ship)
+                .expect("shipyard sandbox: a balance")
+                .0
+        };
+        let name = |world: &World, ship: Entity| {
+            world
+                .get::<Name>(ship)
+                .expect("shipyard sandbox: a named ship")
+                .to_string()
+        };
+        let before = BeforeBoard {
+            player_cr: credits(world, player),
+            station_cr: credits(world, station),
+            hull,
+            name: name(world, hull),
+            design: design_ids(world, hull),
+            flown: name(world, player),
+            released: world
+                .get::<DockedShip>(player)
+                .expect("shipyard sandbox: the player is docked")
+                .connection,
+        };
+        info!(
+            "shipyard sandbox: boarding '{}' with {} cr, flying '{}'",
+            before.name, before.player_cr, before.flown
+        );
+        world.insert_resource(before);
+        let button = board_button(world);
+        click(world, &button);
+    }
+
+    /// The board swapped the hulls: the player flies the old ship, docked
+    /// through a new connection, and every parked hull is docked.
+    fn boarded(world: &World) -> bool {
+        let Some(before) = world.get_resource::<BeforeBoard>() else {
+            return false;
+        };
+        let (Some(player), Some(station)) = (player_of(world), station_of(world)) else {
+            return false;
+        };
+        world.get::<Name>(player).map(Name::as_str) == Some(before.name.as_str())
+            && world
+                .get::<DockedShip>(player)
+                .is_some_and(|docked| docked.connection != before.released)
+            && all_parked_docked(world, station)
+    }
+
+    /// The board was free: neither balance moved, no buy was reported, the
+    /// player flies the old ship with its hold, and the hull bought parks in
+    /// its place, owned.
+    fn assert_the_board(world: &mut World) {
+        let before = world.resource::<BeforeBoard>().clone();
+        let player = the_player(world).expect("shipyard sandbox: one player ship");
+        let station = chosen_station(world).expect("shipyard sandbox: the station stands");
+        assert_eq!(
+            world.get::<ShipCredits>(player).map(|credits| credits.0),
+            Some(before.player_cr),
+            "shipyard sandbox: the board cost the player nothing"
+        );
+        assert_eq!(
+            world.get::<ShipCredits>(station).map(|credits| credits.0),
+            Some(before.station_cr),
+            "shipyard sandbox: the board paid the station nothing"
+        );
+        assert_eq!(
+            design_ids(world, player),
+            before.design,
+            "shipyard sandbox: the player flies the old ship again"
+        );
+        assert!(
+            world.get_entity(before.hull).is_err(),
+            "shipyard sandbox: the boarded hull is no longer parked"
+        );
+        let hold = world
+            .get::<ShipInventory>(player)
+            .expect("shipyard sandbox: the player has a hold");
+        assert!(
+            hold.stacks()
+                .any(|(item, count)| item.as_str() == HELD_ITEM && count >= HELD_COUNT),
+            "shipyard sandbox: the old ship's hold comes with it"
+        );
+        let left: Vec<Entity> = parked_hulls(world, station)
+            .into_iter()
+            .filter(|hull| {
+                world.get::<Name>(*hull).map(Name::as_str) == Some(before.flown.as_str())
+            })
+            .collect();
+        assert_eq!(
+            left.len(),
+            1,
+            "shipyard sandbox: the hull bought parks once, as '{}'",
+            before.flown
+        );
+        assert_eq!(
+            world.get::<ParkedHullType>(left[0]),
+            Some(&ParkedHullType::Owned),
+            "shipyard sandbox: the hull bought parks as the player's own"
+        );
+        assert!(
+            world.get::<OwnedShipMarker>(left[0]).is_some(),
+            "shipyard sandbox: the hull bought is the player's own"
+        );
+        let note = world
+            .resource::<StationRuntime>()
+            .note()
+            .map(str::to_string);
+        assert_eq!(
+            note.as_deref(),
+            Some(format!("boarded {}; your last ship is parked here.", before.name).as_str()),
+            "shipyard sandbox: the note says the board"
+        );
+        info!(
+            "shipyard sandbox: PASS boarded '{}' for 0 cr ({} cr before and after); '{}' parked, \
+             owned",
+            before.name, before.player_cr, before.flown
+        );
+    }
+
+    /// Open the Station tab and scroll the first owned card's Board button
+    /// into view, then shoot `shot`.
+    fn shoot_the_owned_card(
+        script: AutopilotPlugin<GameStates>,
+        label: &str,
+        shot: &'static str,
+    ) -> AutopilotPlugin<GameStates> {
+        script
+            .step(format!("shipyard sandbox: open the Station tab ({label})"))
+            .on_enter(|world: &mut World| {
+                *world.resource_mut::<InterfacePaneType>() = InterfacePaneType::Station;
+            })
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            // The owned card can stand past the bottom of the panel: the
+            // wheel over the panel scrolls it into view.
+            .step(format!(
+                "shipyard sandbox: scroll the Board card into view ({label})"
+            ))
+            .each(|world, _, frame| {
+                keep_hovering_named(STATION_PANEL)(world);
+                if frame % 2 == 1 && !board_button_in_view(world) {
+                    scroll_lines(-1.0)(world);
+                }
+            })
+            .until(Arc::new(board_button_in_view))
+            .deadline(SHOT_SECS)
+            .add()
+            .step(format!("shipyard sandbox: settle the scroll ({label})"))
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step(format!("shipyard sandbox: shoot the Board card ({label})"))
+            .on_enter(move |world: &mut World| shoot(world, shot))
+            .until(shot_written(shot))
+            .deadline(SHOT_SECS)
+            .add()
+    }
+
     fn ready(world: &World) -> bool {
         world
             .get_resource::<Sandbox>()
             .is_some_and(|sandbox| sandbox.phase == SandboxPhaseType::Ready)
     }
 
-    /// The station parks one hull per port but one, every one docked, the
-    /// old ship among them for rebuy with its hold, and escorts for hire
-    /// coast beside it, none docked.
+    /// The buy charged the full price, the station parks one hull per port
+    /// but one, every one docked, the old ship among them, owned, with its
+    /// hold, and escorts for hire coast beside it, none docked.
     fn assert_the_shipyard(world: &mut World) {
         let player = the_player(world).expect("shipyard sandbox: one player ship");
         let station = chosen_station(world).expect("shipyard sandbox: the station stands");
@@ -787,8 +1050,17 @@ mod smoke {
         assert!(
             note.as_deref()
                 .is_some_and(|note| note.starts_with("bought ")
-                    && note.contains("your old ship was taken in for")),
-            "shipyard sandbox: the buy note says the trade-in in plain words, got {note:?}"
+                    && note.ends_with("your last ship is parked here.")),
+            "shipyard sandbox: the buy note says the old ship is parked, got {note:?}"
+        );
+        let price_cr = world
+            .resource::<Sandbox>()
+            .price_cr
+            .expect("shipyard sandbox: the buy is priced");
+        assert_eq!(
+            world.get::<ShipCredits>(player).map(|credits| credits.0),
+            Some(PLAYER_CREDITS - price_cr),
+            "shipyard sandbox: the buy charged the full price, nothing for the old ship"
         );
         assert!(
             world.get::<DockedShip>(player).is_some(),
@@ -816,6 +1088,11 @@ mod smoke {
             .filter(|hull| world.get::<OwnedShipMarker>(*hull).is_some())
             .collect();
         assert_eq!(old.len(), 1, "shipyard sandbox: one old ship parked");
+        assert_eq!(
+            world.get::<ParkedHullType>(old[0]),
+            Some(&ParkedHullType::Owned),
+            "shipyard sandbox: the old ship is listed as the player's own"
+        );
         let hold = world
             .get::<ShipInventory>(old[0])
             .expect("shipyard sandbox: the old ship has a hold");
@@ -846,7 +1123,7 @@ mod smoke {
     /// The smoke walk: the fixture lands, and a frame of the station with the
     /// diagnostics up is shot.
     pub(super) fn script() -> AutopilotPlugin<GameStates> {
-        AutopilotPlugin::<GameStates>::new()
+        let script = AutopilotPlugin::<GameStates>::new()
             .step("shipyard sandbox: dock, buy a parked hull and redock")
             .until(Arc::new(ready))
             .diagnose(|world| format!("{:?}", world.get_resource::<Sandbox>()))
@@ -934,6 +1211,16 @@ mod smoke {
             .on_enter(|world: &mut World| shoot(world, SHIP_AFTER_INFO_SHOT))
             .until(shot_written(SHIP_AFTER_INFO_SHOT))
             .deadline(SHOT_SECS)
+            .add();
+        let script = shoot_the_owned_card(script, "before the board", BOARD_BEFORE_SHOT)
+            .step("shipyard sandbox: board the old ship")
+            .on_enter(board_the_old_ship)
+            .until(Arc::new(boarded))
+            .deadline(SETUP_SECS)
             .add()
+            .step("shipyard sandbox: check the board")
+            .on_enter(assert_the_board)
+            .add();
+        shoot_the_owned_card(script, "after the board", BOARD_AFTER_SHOT)
     }
 }

@@ -9,7 +9,7 @@
 //! frame until the dock takes. Then the fixture lands, once:
 //!
 //! - the player holds [`PLAYER_CREDITS`], enough to buy the station, and
-//!   the station holds [`STATION_CREDITS`], enough to pay a trade-in;
+//!   the station holds [`STATION_CREDITS`], a fixed balance its price counts;
 //! - the station's storage grows by the hold's mass, so a hull buy can store
 //!   the hold;
 //! - the hold carries up to [`PARTS_PER_ITEM`] of every part a catalogue
@@ -101,7 +101,7 @@ const SANDBOX_ROLE: &str = "scavenger";
 /// The player's balance once docked: above the station's own price, which
 /// counts the station's balance twice.
 const PLAYER_CREDITS: u32 = 50_000_000;
-/// The station's balance once docked, which pays a hull trade-in.
+/// The station's balance once docked, fixed so its price is too.
 const STATION_CREDITS: u32 = 1_000_000;
 /// The most of each recipe part the hold is given.
 const PARTS_PER_ITEM: u32 = 4;

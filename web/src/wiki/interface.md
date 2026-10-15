@@ -228,12 +228,12 @@ Docked at a living station, the **Station** pane shows what it sells: **This sta
 
 ### Buying a ship
 
-<!-- List and action: crates/nova_interface/src/station/shipyard.rs. Price,
-     trade-in and parking: crates/nova_ship/src/sections/hull_buy.rs. 3D view:
+<!-- List and action: crates/nova_interface/src/station/shipyard.rs. Price
+     and parking: crates/nova_ship/src/sections/hull_buy.rs. 3D view:
      crates/nova_interface/src/station/hull_preview.rs. Swap and
      bindings: crates/nova_scenario/src/objects/station_hulls.rs. -->
 
-Every ship a station sells is parked at one of its docking ports, and one port is always left free for you. Docked at a living station in an Open World that offers refit, open the Station pane: **Ships for sale** lists each parked ship. Each card shows the ship itself, turning slowly, then one line with its name, length and price, and over **Buy** what the buy costs you in plain words: `Your current ship is taken in for 4,665 cr; you pay 795 cr.` When your ship is worth more than the one you buy, the line ends `you get ... back` instead. Click **Buy** to take it. You take the controls of the parked ship and fly it away from its port. Your old ship is traded in: each section pays for its parts by its health, and a lost section pays nothing. It stays parked at its port with its hold, listed as **(rebuy)** for what the station paid you, and its hold shows in the Inventory pane as storage while you are docked at that station. The new ship has full health and an empty hold, and its keys are the default ones for its weapons, the same as a new game's. A price your credits and the trade-in cannot cover is refused. In a saved Open World your new ship and the parked ships stay across a Load.
+Every ship a station sells is parked at one of its docking ports, and one port is always left free for you. Docked at a living station in an Open World that offers refit, open the Station pane: **Ships for sale** lists each parked ship. Each card shows the ship itself, turning slowly, then one line with its name, length and price over **Buy**. Click **Buy** to take it: you pay the full price and take the controls of the parked ship. Your old ship stays yours. It stays parked at its port with its hold, and its hold shows in the Inventory pane as storage while you are docked at that station. Its card says `your ship` in place of a price, over **Board**: Board swaps you back into it for free, and the ship you leave parks in the same way. The new ship has full health and an empty hold, and its keys are the default ones for its weapons, the same as a new game's. A price your credits cannot cover is refused. In a saved Open World your new ship and the parked ships stay across a Load.
 
 **Info** on any card, a ship for sale or an escort for hire, opens that ship in the Ship pane to look at before you pay: turn it with the right mouse button, zoom with the wheel, and click a section to see its name and condition. Nothing can be changed there: no catalogue, no delete, no rebind, no repair. **Close** takes you back to the Station pane, and the Ship tab shows your own ship again.
 

@@ -1034,7 +1034,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "a buy hands the player the parked hull and parks the old one",
             "the retired record holds the parked hulls",
             "the thawed station parks the same hulls",
-            "a rebuy hands the player the old ship back",
+            "a board hands the player the old ship back for free",
             "the leave save holds the player's hull and the parked hulls",
             "a loaded world gives back the player's hull and the parked hulls",
         ],

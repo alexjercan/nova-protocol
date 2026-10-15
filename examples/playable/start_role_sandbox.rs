@@ -41,7 +41,7 @@
 //! intake labelled by its face and READY while a pickup is armed; and ring
 //! each drifting canister, labelled with its contents. `TAB` is hinted while
 //! nothing drifts and `W` while a canister does. Detail (`Shift+F3`) adds the
-//! kit, the hull's value at ask and its trade-in by health, the cell and the
+//! kit, the hull's value at ask and its sections live, the cell and the
 //! distance from the origin, the generated hulls in the window, and the last
 //! jettison and pickup (item, count).
 //!
@@ -207,30 +207,6 @@ fn drive_the_sandbox(world: &mut World) {
     }
 }
 
-/// The role's hull's value at ask, and what a station pays for it now: each
-/// live section's recipe at its health share.
-fn hull_values(
-    items: &GameItems,
-    design: &ShipDesignSections,
-    live: &[(String, f32)],
-) -> (u64, u64) {
-    let price = hull_price_cr(
-        items,
-        design.0.iter().map(|section| &section.config.base.build),
-    );
-    let trade_in = hull_trade_in_cr(
-        items,
-        live.iter().filter_map(|(id, share)| {
-            design
-                .0
-                .iter()
-                .find(|section| section.id == *id)
-                .map(|section| (&section.config.base.build, *share))
-        }),
-    );
-    (price, trade_in)
-}
-
 /// The role, the hull, the kit, the balance, the hold and the hull's value,
 /// where the player stands, and every generated hull in the window ringed
 /// and labelled with its span.
@@ -287,7 +263,10 @@ fn draw_the_start(
             .filter_map(|child| q_sections.get(child).ok())
             .map(|(id, health)| (id.0.clone(), health.current / health.max))
             .collect();
-        let (price, trade_in) = hull_values(items, design, &live);
+        let price = hull_price_cr(
+            items,
+            design.0.iter().map(|section| &section.config.base.build),
+        );
         panel.line(format!(
             "{} cr   hold {:.0}/{:.0} kg",
             credits.0,
@@ -296,7 +275,7 @@ fn draw_the_start(
         ));
         panel.detail(format!("ship id: {}", id.0));
         panel.detail(format!(
-            "hull value: {price} cr at ask, trade-in {trade_in} cr by health, {}/{} sections live",
+            "hull value: {price} cr at ask, {}/{} sections live",
             live.len(),
             design.0.len()
         ));

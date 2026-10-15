@@ -1,5 +1,5 @@
-//! The hulls a station holds: every hull it sells and every hull the player
-//! traded in there, parked at its docking ports, and every escort it hires
+//! The hulls a station holds: every hull it sells and every ship the player
+//! owns and left there, parked at its docking ports, and every escort it hires
 //! out, coasting beside it.
 //!
 //! A parked hull is a ship root of its own and inert: nobody drives it, it
@@ -15,7 +15,7 @@
 //! ([`parked_hull_clear_pose`]), one port always kept free for the player,
 //! a thawed docked hull where it froze relative to the station, and every
 //! escort for hire on a line through the station ([`hire_offer_offsets`]).
-//! [`dock_parked_hulls`] then docks each hull for sale or rebuy with the port
+//! [`dock_parked_hulls`] then docks each hull for sale or owned with the port
 //! it lies on.
 //!
 //! An escort for hire coasts: in a gravity well the line is the station's
@@ -205,7 +205,7 @@ pub(crate) fn spawn_parked_hull<'a>(
         ParkedHullType::Sale => {
             hull.insert(ParkedHullBerth::default());
         }
-        ParkedHullType::Rebuy { .. } => {
+        ParkedHullType::Owned => {
             hull.insert((ParkedHullBerth::default(), OwnedShipMarker));
         }
         ParkedHullType::Hire { .. } => {}

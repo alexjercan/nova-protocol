@@ -221,7 +221,7 @@ pub fn station_hull_terms(world: &World, station: Entity) -> (bool, bool) {
             match world.get::<ParkedHullType>(hull) {
                 Some(ParkedHullType::Sale) => take(true),
                 Some(ParkedHullType::Hire { .. }) => take(false),
-                Some(ParkedHullType::Rebuy { .. }) | None => {}
+                Some(ParkedHullType::Owned) | None => {}
             }
         }
     }
@@ -232,7 +232,7 @@ pub fn station_hull_terms(world: &World, station: Entity) -> (bool, bool) {
                 PendingParkedHull::Frozen(frozen) => match frozen.terms() {
                     ParkedHullType::Sale => take(true),
                     ParkedHullType::Hire { .. } => take(false),
-                    ParkedHullType::Rebuy { .. } => {}
+                    ParkedHullType::Owned => {}
                 },
             }
         }
@@ -490,7 +490,7 @@ pub fn advance_station_dock(
         }
         StationDockPhaseType::Jumped => {
             let chosen = dock.station.clone()?;
-            // Every hull the station parks for sale or rebuy takes its port
+            // Every hull the station parks for sale or owned takes its port
             // first, so the berth takes the port left free. An escort for
             // hire coasts beside the station and never docks.
             let stands = body_by_id(world, &chosen.id).is_some_and(|station| {

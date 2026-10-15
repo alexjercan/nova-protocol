@@ -13,8 +13,8 @@
 //! `shared/docking_pair.rs` with a second port, marked as the shipped
 //! `block_waystation` design so it trades and stores as that station does.
 //! The Hauler is a second tender marked as a hull the player owns but does
-//! not fly ([`OwnedShipMarker`]), as a traded-in hull parked for rebuy and
-//! a hired escort are. Neither hull is shipped content. The docks are made
+//! not fly ([`OwnedShipMarker`]), as an old hull parked after a buy and a
+//! hired escort are. Neither hull is shipped content. The docks are made
 //! by the docking verb itself, with each hull put on its berth until the
 //! dock takes.
 //!

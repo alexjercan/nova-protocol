@@ -201,8 +201,8 @@ scenario_events! {
     OnAdded => OnAddedEvent { label: "On Added" },
     /// A Ship pane buy at a docked station replaced the ship's hull with one
     /// from the station's catalogue (`id` = the ship; `hull` = the catalogue
-    /// name, `price_cr` = the new hull's price, `trade_in_cr` = what the
-    /// station paid for the old hull). Once per buy.
+    /// name, `price_cr` = the new hull's price). Once per buy; a free board
+    /// of a ship the player owns fires none.
     OnShipBought => OnShipBoughtEvent { label: "On Ship Bought" },
     /// A Ship pane hire at a docked station added an escort to the player's
     /// fleet (`id` = the hiring ship; `escort` = the escort's scenario id,

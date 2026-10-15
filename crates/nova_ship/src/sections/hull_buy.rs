@@ -1,18 +1,16 @@
-//! A whole hull bought from a station, the old hull traded in and parked.
+//! A whole hull bought from a station, the old hull kept and parked.
 //!
 //! A living generated station parks every hull it sells at its docking
 //! ports, one hull per port and one port kept free for the player: each is a
 //! [`ParkedHull`] of the station, docked, inert and listed in the station's
 //! [`ParkedHulls`]. A buy at a docked station that offers Refit swaps the
-//! player's hull with a parked one: the price of a hull for sale is every
-//! section's recipe at ask ([`hull_price_cr`]); the station pays for the old
-//! hull its strip value at bid, scaled by each live section's health
-//! ([`hull_trade_in_cr`]). The old hull stays docked where it was as a
-//! parked hull for rebuy ([`ParkedHullType::Rebuy`]) at the trade-in it was
-//! paid, its hold whole: the player's hold while it is parked
-//! ([`OwnedShipMarker`]). [`plan_hull_buy`] checks the station and both
-//! balances, and a [`HullBuyRequest`] asks the scenario crate to do the
-//! swap.
+//! player's hull with a parked one for its full price, every section's
+//! recipe at ask ([`hull_price_cr`]). The old hull stays the player's: it
+//! stays docked where it was as an owned parked hull
+//! ([`ParkedHullType::Owned`], [`OwnedShipMarker`]), its hold whole, and a
+//! board swaps the player back into it for free. [`plan_hull_buy`] checks
+//! the station and the balance, and a [`HullBuyRequest`] asks the scenario
+//! crate to do the swap.
 //!
 //! A station's escorts for hire are its hulls too: each coasts beside it,
 //! undocked, listed [`ParkedHullType::Hire`], where [`hire_offer_offsets`]
@@ -23,14 +21,14 @@ use nova_gameplay::prelude::{BuildRecipe, GameItems};
 
 use super::{docking_section::PORT_FACE, prelude::*};
 
-/// The parked hulls, the price and trade-in rules, the plan, the pose rules
+/// The parked hulls, the price rule, the plan, the pose rules
 /// and the buy request.
 pub mod prelude {
     pub use super::{
-        bought_hull_pose, design_reach, hire_offer_offsets, hull_price_cr, hull_trade_in_cr,
-        parked_hull_clear_pose, parked_hull_pose, plan_hull_buy, posed_colliders, HullBuyPartner,
-        HullBuyPlan, HullBuyRefusalType, HullBuyRequest, HullOfferType, ParkedHull, ParkedHullType,
-        ParkedHulls, HIRE_OFFER_CLEARANCE,
+        bought_hull_pose, design_reach, hire_offer_offsets, hull_price_cr, parked_hull_clear_pose,
+        parked_hull_pose, plan_hull_buy, posed_colliders, HullBuyPartner, HullBuyPlan,
+        HullBuyRefusalType, HullBuyRequest, HullOfferType, ParkedHull, ParkedHullType, ParkedHulls,
+        HIRE_OFFER_CLEARANCE,
     };
 }
 
@@ -60,11 +58,9 @@ pub enum HullOfferType {
 pub enum ParkedHullType {
     /// A new hull for sale at its recipes' price ([`hull_price_cr`]).
     Sale,
-    /// A hull the player traded in, for rebuy at the trade-in it was paid.
-    Rebuy {
-        /// The rebuy price: the trade-in the station paid for it.
-        price_cr: u32,
-    },
+    /// The player's own ship, parked after a buy or a board: a board swaps
+    /// the player into it for free. It carries [`OwnedShipMarker`].
+    Owned,
     /// An escort for hire, coasting beside the station, not docked.
     Hire {
         /// The escort's roster slot, see [`HullOfferType::Hire`].
@@ -73,14 +69,15 @@ pub enum ParkedHullType {
 }
 
 /// A ship root the station it names holds, listed by its
-/// [`ParkedHullType`]: for sale or for rebuy, docked at one of its ports, or
+/// [`ParkedHullType`]: for sale or the player's own, docked at one of its ports, or
 /// for hire, coasting beside it.
 ///
 /// A parked hull is inert: nobody drives it, it is Neutral, every
 /// capability is off, and it is neither lootable nor a body of any cell. It
 /// freezes and thaws inside the station's record, and it despawns with the
-/// station ([`ParkedHulls`]). A buy swaps a docked one with the player's
-/// hull ([`HullBuyRequest`]); a hire makes one for hire the player's escort.
+/// station ([`ParkedHulls`]). A buy or a board swaps a docked one with the
+/// player's hull ([`HullBuyRequest`]); a hire makes one for hire the
+/// player's escort.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Reflect)]
 #[relationship(relationship_target = ParkedHulls)]
 pub struct ParkedHull(pub Entity);
@@ -94,18 +91,17 @@ pub struct ParkedHulls(Vec<Entity>);
 /// Asks to swap ship `entity`'s hull with the parked hull `hull` of
 /// `station`: the ship root takes the parked hull's design, state and
 /// place, docked at its port, and the old hull stays docked where it was as
-/// a hull for rebuy at `trade_in_cr`. Raised by a Station pane buy after the
-/// buy rule moved the credits; the scenario crate observes it.
+/// the player's own ([`ParkedHullType::Owned`]). Raised by a Station pane
+/// buy after the buy rule moved the credits, or by a board, which moves
+/// none; the scenario crate observes it.
 #[derive(EntityEvent, Clone, Debug)]
 pub struct HullBuyRequest {
     /// The ship root.
     pub entity: Entity,
     /// The station root the hull is parked at.
     pub station: Entity,
-    /// The parked hull bought.
+    /// The parked hull bought or boarded.
     pub hull: Entity,
-    /// What the station paid for the old hull: its rebuy price.
-    pub trade_in_cr: u32,
 }
 
 /// A hull's price: every section's recipe at ask
@@ -117,24 +113,6 @@ pub fn hull_price_cr<'a>(
     recipes
         .into_iter()
         .map(|recipe| recipe.value_cr(items))
-        .sum()
-}
-
-/// What a station pays for a hull: each live section's strip value at bid
-/// ([`BuildRecipe::strip_value_cr`]) times its health share, rounded down
-/// per section. `live` lists every live section's recipe with its share,
-/// current over max health; a share outside `[0, 1]` is clamped. A lost
-/// section is not listed and pays nothing.
-pub fn hull_trade_in_cr<'a>(
-    items: &GameItems,
-    live: impl IntoIterator<Item = (&'a BuildRecipe, f32)>,
-) -> u64 {
-    live.into_iter()
-        .map(|(recipe, share)| {
-            let share = f64::from(share.clamp(0.0, 1.0));
-            // The share is at most one, so the product fits the strip value.
-            (recipe.strip_value_cr(items) as f64 * share).floor() as u64
-        })
         .sum()
 }
 
@@ -155,51 +133,37 @@ pub enum HullBuyRefusalType {
     NotDocked,
     /// The partner is not a living station that offers Refit.
     NoRefitService,
-    /// The ship's balance and the trade-in do not cover the price.
+    /// The ship's balance does not cover the price.
     InsufficientCredits {
         /// The price.
         need: u64,
-        /// The ship's balance plus the trade-in.
-        have: u64,
-    },
-    /// The trade-in is worth more than the price and the station cannot pay
-    /// the difference.
-    StationShortOfCredits {
-        /// The trade-in less the price.
-        need: u64,
-        /// What the station holds.
+        /// The ship's balance.
         have: u32,
     },
     /// A balance after the buy would not fit in a credit balance.
     CreditOverflow,
 }
 
-/// What an allowed buy does: the price, the trade-in and the balances after.
+/// What an allowed buy does: the price and the balances after.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HullBuyPlan {
     /// The new hull's price, see [`hull_price_cr`].
     pub price_cr: u32,
-    /// What the station pays for the old hull, see [`hull_trade_in_cr`].
-    pub trade_in_cr: u32,
-    /// The ship's balance after the buy: before, less the price, plus the
-    /// trade-in.
+    /// The ship's balance after the buy: before, less the price.
     pub own_cr: u32,
-    /// The station's balance after the buy: before, plus the price, less
-    /// the trade-in.
+    /// The station's balance after the buy: before, plus the price.
     pub station_cr: u32,
 }
 
-/// Plan buying a parked hull at `price` while docked with `partner`, trading
-/// in a hull worth `trade_in_cr` ([`hull_trade_in_cr`]). The price is
-/// [`hull_price_cr`] for a hull for sale and the rebuy price for a hull
-/// traded in ([`ParkedHullType`]).
+/// Plan buying a hull for sale at `price` ([`hull_price_cr`]) while docked
+/// with `partner`. The old hull stays the player's, so nothing is paid for
+/// it.
 ///
 /// `partner` is `None` while the ship is not docked. The old hold stays in
 /// the old hull. Checks run in [`HullBuyRefusalType`] order. A refusal
 /// changes nothing.
 pub fn plan_hull_buy(
     price: u64,
-    trade_in_cr: u64,
     partner: Option<HullBuyPartner>,
     own_cr: u32,
 ) -> Result<HullBuyPlan, HullBuyRefusalType> {
@@ -207,23 +171,17 @@ pub fn plan_hull_buy(
     if !partner.offers {
         return Err(HullBuyRefusalType::NoRefitService);
     }
-    let have = u64::from(own_cr) + trade_in_cr;
-    if price > have {
-        return Err(HullBuyRefusalType::InsufficientCredits { need: price, have });
-    }
-    let station_have = u64::from(partner.credits_cr) + price;
-    if trade_in_cr > station_have {
-        return Err(HullBuyRefusalType::StationShortOfCredits {
-            need: trade_in_cr - price,
-            have: partner.credits_cr,
+    let Some(own_after) = u64::from(own_cr).checked_sub(price) else {
+        return Err(HullBuyRefusalType::InsufficientCredits {
+            need: price,
+            have: own_cr,
         });
-    }
+    };
     let fit = |value: u64| u32::try_from(value).map_err(|_| HullBuyRefusalType::CreditOverflow);
     Ok(HullBuyPlan {
         price_cr: fit(price)?,
-        trade_in_cr: fit(trade_in_cr)?,
-        own_cr: fit(have - price)?,
-        station_cr: fit(station_have - trade_in_cr)?,
+        own_cr: fit(own_after)?,
+        station_cr: fit(u64::from(partner.credits_cr) + price)?,
     })
 }
 
@@ -475,10 +433,9 @@ pub(crate) mod tests {
         assert!(offsets[2] - reaches[2] - (offsets[0] + reaches[0]) >= HIRE_OFFER_CLEARANCE);
     }
 
-    /// The price is every recipe at ask, and the trade-in each live
-    /// section's strip at bid scaled by its health, rounded down apiece.
+    /// The price is every recipe at ask.
     #[test]
-    fn the_price_is_every_recipe_at_ask_and_the_trade_in_the_strip_scaled_by_health() {
+    fn the_price_is_every_recipe_at_ask() {
         let items = items();
         let offer = offer();
         // 100 + 4 * 10 and 50 + 2 * 10.
@@ -486,53 +443,41 @@ pub(crate) mod tests {
             hull_price_cr(&items, offer.iter().map(|s| &s.config.base.build)),
             210
         );
-        // Strips return 2 and 1 plates at 6: 12 whole and 6 at half health.
-        let (whole, damaged) = (recipe(100, 4), recipe(50, 2));
-        assert_eq!(
-            hull_trade_in_cr(&items, [(&whole, 1.0), (&damaged, 0.5)]),
-            15
-        );
-        assert_eq!(hull_trade_in_cr(&items, [(&whole, 0.49)]), 5);
     }
 
-    /// The credits move as balance less price plus trade-in, and the
-    /// station's as balance plus price less trade-in.
+    /// A buy charges the full price: nothing is paid for the old hull,
+    /// which stays the player's.
     #[test]
-    fn a_buy_charges_the_price_less_the_trade_in() {
+    fn a_buy_charges_the_full_price() {
         let partner = HullBuyPartner {
             offers: true,
             credits_cr: 1_000,
         };
-        let plan = plan_hull_buy(210, 40, Some(partner), 500).expect("the buy is allowed");
+        let plan = plan_hull_buy(210, Some(partner), 500).expect("the buy is allowed");
         assert_eq!(plan.price_cr, 210);
-        assert_eq!(plan.trade_in_cr, 40);
-        assert_eq!(plan.own_cr, 500 - 210 + 40);
-        assert_eq!(plan.station_cr, 1_000 + 210 - 40);
+        assert_eq!(plan.own_cr, 500 - 210);
+        assert_eq!(plan.station_cr, 1_000 + 210);
     }
 
     /// A buy is refused, in order, off a station, at one without Refit, and
-    /// when the credits fall short either way.
+    /// when the balance falls short of the price.
     #[test]
     fn a_buy_is_refused_for_the_station_or_the_credits() {
         let at = |offers, credits_cr| Some(HullBuyPartner { offers, credits_cr });
         assert_eq!(
-            plan_hull_buy(210, 0, None, 500),
+            plan_hull_buy(210, None, 500),
             Err(HullBuyRefusalType::NotDocked)
         );
         assert_eq!(
-            plan_hull_buy(210, 0, at(false, 0), 500),
+            plan_hull_buy(210, at(false, 0), 500),
             Err(HullBuyRefusalType::NoRefitService)
         );
         assert_eq!(
-            plan_hull_buy(210, 10, at(true, 0), 199),
+            plan_hull_buy(210, at(true, 0), 209),
             Err(HullBuyRefusalType::InsufficientCredits {
                 need: 210,
                 have: 209
             })
-        );
-        assert_eq!(
-            plan_hull_buy(210, 300, at(true, 5), 0),
-            Err(HullBuyRefusalType::StationShortOfCredits { need: 90, have: 5 })
         );
     }
 

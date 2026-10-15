@@ -56,7 +56,7 @@ The whole vocabulary at a glance:
 | [`OnRebuilt`](#hold-events) | `id`, `type_name`, `section`, `parts`, `price_cr` | the Ship pane rebuilds a lost section at a docked station |
 | [`OnSwapped`](#hold-events) | `id`, `type_name`, `section`, `from`, `to`, `parts`, `price_cr` | the Ship pane swaps a section for another part at a docked station |
 | [`OnAdded`](#hold-events) | `id`, `type_name`, `section`, `part`, `at`, `point`, `parts`, `price_cr` | the Ship pane adds a part at a free socket at a docked station |
-| [`OnShipBought`](#hold-events) | `id`, `type_name`, `hull`, `price_cr`, `trade_in_cr` | the Ship pane buys a whole hull from a docked station |
+| [`OnShipBought`](#hold-events) | `id`, `type_name`, `hull`, `price_cr` | the Station pane buys a whole hull from a docked station |
 | [`OnEscortHired`](#hold-events) | `id`, `type_name`, `escort`, `hull`, `price_cr` | the Ship pane hires an escort from a docked station into the fleet |
 | [`OnStationBought`](#hold-events) | `id`, `type_name`, `station`, `price_cr` | the Ship pane buys the docked station from its civilization |
 | [`OnStripped`](#hold-events) | `id`, `type_name`, `hull`, `section`, `parts` | an Inventory pane strip takes a section off a docked wreck, once per section, the berth port last; or a Ship pane delete takes a section off the ship itself |
@@ -816,7 +816,7 @@ inventory, so a handler counts occurrences, not frames.
 | `OnRebuilt` | the rebuilt ship | none | `section` (the code the lost section had, `PDC-1`), `parts` (every recipe part, item id to count), `price_cr` (work plus bought parts) |
 | `OnSwapped` | the refitted ship | none | `section` (the Ship pane code, `PDC-1`), `from` and `to` (the old and new section prototype ids), `parts` (every part of the new part's recipe), `price_cr` (work plus bought parts) |
 | `OnAdded` | the refitted ship | none | `section` (the new section's Ship pane code, `PDC-3`), `part` (its section prototype id), `at` and `point` (the code and socket id it mounts on), `parts` (every part of its recipe), `price_cr` (work plus bought parts) |
-| `OnShipBought` | the ship that bought | none | `hull` (the parked hull's name, `Vel civilian Mk 1`), `price_cr` (every section's recipe at ask, or for a rebuy the trade-in paid for it), `trade_in_cr` (what the station paid for the old hull) |
+| `OnShipBought` | the ship that bought | none | `hull` (the parked hull's name, `Vel civilian Mk 1`), `price_cr` (every section's recipe at ask, paid in full). A free Board of a ship the player owns fires none |
 | `OnEscortHired` | the ship that hired | none | `escort` (the escort's id, `sector_1_0_0_cluster_1_0_0_station_0_escort_0`), `hull` (the catalogue name, `Vel armored escort 1`), `price_cr` (the hull's price times 3/2) |
 | `OnStationBought` | the ship that bought | none | `station` (the station's id, `sector_0_n1_0_cluster_0_n1_0_station_0`), `price_cr` (its sections, hold and credits at ask, times 2) |
 | `OnStripped` | the ship that stripped | none | `hull` (the wreck's id, or the ship's own id for a delete), `section` (the stripped section's code on that hull, `PDC-1`; a strip's last is the port the player docked through), `parts` (every part the strip put in the hold, item id to count) |

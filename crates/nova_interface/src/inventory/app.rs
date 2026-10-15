@@ -1514,7 +1514,7 @@ impl InventoryShips<'_, '_> {
     /// any other ship.
     ///
     /// An own ship is one marked [`OwnedShipMarker`]: a fleet escort or a
-    /// hull the player traded in, parked for rebuy.
+    /// hull the player flew before a buy or a board, parked at a station.
     pub(crate) fn own_holds(&self, pair: InventoryPair) -> Vec<Entity> {
         let Some(partner) = pair.partner else {
             return Vec::new();

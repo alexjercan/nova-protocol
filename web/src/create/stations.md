@@ -229,29 +229,29 @@ parked hull is inert: nobody flies it, it is Neutral, it does not shoot, and
 it cannot be looted or stripped. Docked to a living station that offers
 `Refit`, the Station pane lists the parked hulls under **Ships for sale**:
 each a card with the real hull turning slowly, one line with its name,
-length and price, what the buy costs in plain words (the current ship taken
-in for its trade-in, the difference paid or paid back), and a Buy button or
-the reason it is refused, beside an Info button that shows the hull in the
-Ship pane, read-only.
+length and price, and a Buy button or the reason it is refused, beside an
+Info button that shows the hull in the Ship pane, read-only. A ship the
+player owns, parked there, says "your ship" in place of the price, over a
+Board button.
 
 | rule | what happens |
 |---|---|
 | the gate | docked to a living station whose `services` list `Refit`, with a hull parked |
-| the price | every section's [build recipe](../sections/#build-recipe) at ask: its `credits` plus its parts at the item's `ask_cr`. A rebuy costs the trade-in the station paid |
-| the trade-in | the station buys the old hull: each live section's `strip_yield` share of its recipe parts at the item's `bid_cr`, times its health share, rounded down per section. A lost section pays nothing |
-| the swap | the player takes the controls of the parked hull, which undocks and redocks with the station. The old ship parks where it stood, listed as `(rebuy)` at the trade-in |
+| the price | every section's [build recipe](../sections/#build-recipe) at ask: its `credits` plus its parts at the item's `ask_cr`, paid in full. The station pays nothing for the old ship |
+| the swap | the player takes the controls of the parked hull, which undocks and redocks with the station. The old ship parks where it stood, still the player's |
+| the board | Board on the card of a ship the player owns swaps the player into it the same way, for free. The ship left parks where it stood, still the player's |
 | the hold | the old hold stays in the old ship. While docked at that station, its hold lists as the player's storage. The new hold opens empty |
-| the credits | the ship pays the price less the trade-in. When the trade-in is worth more, the station pays the difference |
+| the credits | the ship pays the price and the station takes it. A board moves no credits |
 | the binding | the start-role keys for the new hull: turrets the trigger, railguns `R`, torpedoes `F`, mining emitters `V` then `B`, `N`, `C`. No old binding carries over |
-| refusals | in this order: not docked, no `Refit` service, too few credits with the trade-in, a station that cannot pay the trade-in |
+| refusals | in this order: not docked, no `Refit` service, too few credits |
 | the result | the new hull docks where it was parked, at full health. The ship and the parked hulls keep across a retire, a save and a Load |
-| events | `OnShipBought` and one `OnCreditsChanged` per party with `cause: ShipBuy`, see [Hold events](../events/#hold-events) |
+| events | a buy fires `OnShipBought` and one `OnCreditsChanged` per party with `cause: ShipBuy`, see [Hold events](../events/#hold-events). A board fires neither |
 
 The proof is `system_station_buy`: on a New Game, the station parks its hulls
-for sale; the player buys one through the pane, the old ship parks for
-rebuy, the station's cell retires and thaws, the player buys the old ship
-back, and the player's hull and the parked hulls come back after a save and
-a Load.
+for sale; the player buys one through the pane, the old ship parks as the
+player's own, the station's cell retires and thaws, the player boards the
+old ship for free, and the player's hull and the parked hulls come back
+after a save and a Load.
 
 ## Hire an escort
 

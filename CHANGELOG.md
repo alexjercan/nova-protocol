@@ -74,9 +74,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - At a `Refit` station the Ship pane's Catalogue opens the parts gallery,
   priced. Click a part's ghost on a free socket to add it; the view eases onto
   it. It takes its kind's key and fires `OnAdded`.
-- A `Refit` station parks a hull for sale at each port but one; its card shows
-  the hull turning. A buy hands you its helm with start-role keys and parks
-  your old ship for rebuy (`OnShipBought`).
+- A `Refit` station parks a hull for sale at each port but one, its card
+  turning the hull. A buy at full price hands you its helm (`OnShipBought`);
+  your old ship stays parked, yours to Board free.
 - Info on a Station pane card shows that hull or escort in the Ship view,
   read-only: turn, zoom and select a section; Close goes back to the Station.
 - A generated `Refit` station hires out one to three armed escorts that coast

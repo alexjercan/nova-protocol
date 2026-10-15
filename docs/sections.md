@@ -226,8 +226,7 @@ parts end the strip: the job triggers `DockingReleaseRequest` for the player
 and despawns the wreck, with its hold and credits; a retiring cell freezes
 only the bodies still live in it, so the wreck stays gone. An undock, or a
 dock with another hull, stops the job and keeps what it took; the job is not
-saved. The trade-in (`hull_trade_in_cr`) prices the same recipes at bid but
-keeps its own credit scaling, unfloored per part.
+saved.
 
 ### Buying a hull
 
@@ -253,7 +252,7 @@ another free port (`section_colliders_overlap`). A hull that fits nowhere is
 not parked, with a warning, so a station sells at most its ports less one.
 A parked hull is inert: no driver, Neutral, every capability off, not
 lootable, no credits. It carries `ParkedHull(station)` and `ParkedHullType`
-(`Sale`, `Rebuy { price_cr }` or `Hire { slot }`,
+(`Sale`, `Owned` or `Hire { slot }`,
 `nova_ship/src/sections/hull_buy.rs`); the
 station's `ParkedHulls` despawns them with it. A parked hull is no persistent
 body of its own: `freeze_station` records each in `FrozenStation.parked`
@@ -263,15 +262,14 @@ own parked hulls retires; the save format is 11.
 
 The Station pane's "Ships for sale" list
 (`nova_interface/src/station/shipyard.rs`) shows every hull parked at the
-docked station, a rebuy named "(rebuy)", as a card
-(`spawn_hull_card_head` in `station/mod.rs`): a view of the hull, one line
-with its name, length and price, then the terms (`buy_terms_text`: the
-current ship taken in for its trade-in, the difference paid or paid back)
-over a Buy button, or the refusal, and an Info button. The note after a buy
-says the same in the past tense. Info (`station/hull_info.rs`) sets
-`ShipViewSubject` to the card's hull and opens the Ship pane: `ShipSections`
-lists that hull's sections, `assign_section_codes` codes them, and the view
-turns, zooms and selects as for the player ship. Every edit is off while the
+docked station as a card (`spawn_hull_card_head` in `station/mod.rs`): a
+view of the hull and one line with its name, length and price, then a Buy
+button, or the refusal, and an Info button. A ship the player owns
+(`Owned`) says "your ship" in place of the price, over a Board button.
+Info (`station/hull_info.rs`) sets `ShipViewSubject` to the card's hull and
+opens the Ship pane: `ShipSections` lists that hull's sections,
+`assign_section_codes` codes them, and the view turns, zooms and selects as
+for the player ship. Every edit is off while the
 subject is set: Catalogue and the part in hand, Delete, Rebind, Repair, the
 rebuild list and the station outlines. A header over the Ship panel holds the
 card's line and Close, back to the Station pane; leaving the Ship pane any
@@ -282,25 +280,24 @@ slowly about its vertical axis and lit by a key and rim light on the card
 layers only. `mirror_hull_previews` follows the live hull, so damage and a
 changed part show; the cameras render, and the mirrors update, only while
 the Station pane is on screen.
-`plan_hull_buy` checks, in order: docked, `Refit`, the player's balance plus
-the trade-in against the price, and the station's balance plus the price
-against the trade-in. A hull for sale costs `hull_price_cr`, every section's
-recipe at ask; a rebuy costs the trade-in it was paid. The trade-in is
-`hull_trade_in_cr`, each live section's strip value at bid times its health
-share, rounded down per section. A confirmed buy moves both balances (cause
-`ShipBuy`), pushes `ShipInventoryReport::ShipBought` (`OnShipBought`), and
-triggers `HullBuyRequest`. `swap_parked_hull`
+`plan_hull_buy` checks, in order: docked, `Refit`, and the player's balance
+against the price. A hull for sale costs `hull_price_cr`, every section's
+recipe at ask, in full: the station pays nothing for the old ship, which
+stays the player's. A confirmed buy moves both balances (cause `ShipBuy`),
+pushes `ShipInventoryReport::ShipBought` (`OnShipBought`), and triggers
+`HullBuyRequest`. Board triggers the same request for an `Owned` hull and
+moves no credit and reports no buy. `swap_parked_hull`
 (`nova_scenario/src/objects/station_hulls.rs`) keeps the player's ship root,
 so the HUD, the camera and the scenario id keep their owner: it freezes both
 hulls, rebuilds the root as the parked hull (`rehull_ship`) at its pose with
 the start-role bindings for the new hull (`start_role_bindings`: turrets the
 trigger, railguns R, torpedoes F, the first emitter V and each later one the
 next `ADDED_MINING_KEYS` key; no old binding carries over), and parks the old
-ship where it stood as `Rebuy { price_cr: trade-in }` with `OwnedShipMarker`.
+ship where it stood as `Owned` with `OwnedShipMarker`.
 The old ship keeps its hold; the Inventory pane lists the hold of a docked
 `OwnedShipMarker` ship as storage. `OwnedShipMarker` (`nova_gameplay`) is
-the one record that a ship is the player's: a parked rebuy carries it, and
-`PlayerFleetMarker` requires it, so an escort does too; a neutralized escort
+the one record that a ship is the player's: an `Owned` parked hull carries
+it, and `PlayerFleetMarker` requires it, so an escort does too; a neutralized escort
 loses both. The root takes the bought hull's name. The old port's despawn
 releases the dock, and `redock_bought_hull` docks the new hull with the
 station, giving up with a warning after `REDOCK_FRAMES`. A docked ship
@@ -1794,8 +1791,7 @@ per contact. A symmetric rule - ram damage - wants both.
   `crates/nova_scenario/src/objects/spaceship.rs`; the pane:
   `crates/nova_interface/src/ship/delete.rs`; proof: its tests and
   `examples/playable/station_docked_sandbox.rs`.
-- Hull buy: `ParkedHullType`, `hull_price_cr`, `hull_trade_in_cr`,
-  `plan_hull_buy`, `bought_hull_pose`,
+- Hull buy: `ParkedHullType`, `hull_price_cr`, `plan_hull_buy`, `bought_hull_pose`,
   `HullBuyRequest` - `crates/nova_ship/src/sections/hull_buy.rs`; the
   catalogue, `buy_station_hull` and `redock_bought_hull` -
   `crates/nova_scenario/src/objects/station_hulls.rs`; the generator:

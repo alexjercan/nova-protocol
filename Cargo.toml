@@ -109,7 +109,7 @@ required-features = ["debug"]
 
 # Buying a parked hull by hand: New Game on a pinned seed, docked at a living
 # generated station with hulls for sale parked at its ports, after one buy so
-# the old ship is parked for rebuy too. The overlay marks each port and hull
+# the old ship is parked as the player's own too. The overlay marks each port and hull
 # and reads the prices and keys. No deadline ends it; under NOVA_AUTOPILOT a
 # smoke walk shoots the yard and ends.
 [[example]]
@@ -754,8 +754,9 @@ path = "examples/systems/system_station_add.rs"
 required-features = ["debug"]
 
 # A whole hull bought from a living generated station's catalogue through the
-# Ship pane: the old hull traded in, the hold stored, the new hull redocked,
-# and the hull and the catalogue kept through a save and a Load.
+# Station pane: the old hull parked as the player's own with its hold, the new
+# hull redocked, a free board back into the old one, and the hulls kept
+# through a save and a Load.
 [[example]]
 name = "system_station_buy"
 path = "examples/systems/system_station_buy.rs"

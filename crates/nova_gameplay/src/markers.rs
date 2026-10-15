@@ -79,11 +79,11 @@ pub struct PlayerSpaceshipMarker;
 pub struct PlayerFleetMarker;
 
 /// Marks a ship root the player owns but does not fly: a fleet escort
-/// ([`PlayerFleetMarker`] requires it) or a hull the player traded in,
-/// parked for rebuy. The one record that a ship is the player's: its hold
-/// lists as the player's storage while it is docked at the station the
-/// player is docked at. Removed with [`PlayerFleetMarker`] when an escort
-/// is neutralized.
+/// ([`PlayerFleetMarker`] requires it) or a hull the player flew before a
+/// buy or a board, parked at a station. The one record that a ship is the
+/// player's: its hold lists as the player's storage while it is docked at
+/// the station the player is docked at. Removed with [`PlayerFleetMarker`]
+/// when an escort is neutralized.
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 pub struct OwnedShipMarker;
 

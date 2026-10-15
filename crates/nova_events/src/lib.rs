@@ -925,8 +925,7 @@ pub enum CreditChangeCauseType {
     Swap,
     /// An add at a docked station paid for the new section's recipe.
     Add,
-    /// A whole ship bought at a docked station: the new hull's price less
-    /// the old hull's trade-in.
+    /// A whole ship bought at a docked station: the new hull's price.
     ShipBuy,
     /// An escort hired at a docked station: its price.
     EscortHire,
@@ -1301,17 +1300,17 @@ pub struct AddedEventInfo {
 /// A Ship pane buy at a docked station replaced the ship's whole hull with
 /// one from the station's catalogue (`onshipbought`).
 ///
-/// One event per buy the rule allows; a refused buy fires nothing. The
-/// credits it moved also raise one `OnCreditsChanged` per party, and each
-/// stack the old hold moved into the station's storage raises `OnStored`.
+/// One event per buy the rule allows; a refused buy and a free board of a
+/// ship the player owns fire nothing. The credits it moved also raise one
+/// `OnCreditsChanged` per party. The old hold stays in the old ship, parked
+/// as the player's own, so nothing is stored.
 #[derive(Debug, Clone, EventKind, Reflect)]
 #[event_name("onshipbought")]
 #[event_info(ShipBoughtEventInfo)]
 pub struct OnShipBoughtEvent;
 
 /// Payload for [`OnShipBoughtEvent`]: the ship (`id` / `type_name`), the
-/// catalogue name of the hull it bought, the hull's price and what the
-/// station paid for the old hull.
+/// catalogue name of the hull it bought and the hull's price.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
 pub struct ShipBoughtEventInfo {
     /// Scenario id of the ship.
@@ -1326,10 +1325,6 @@ pub struct ShipBoughtEventInfo {
     /// The new hull's price: every section's recipe at ask.
     #[serde(rename = "price_cr")]
     pub price_cr: u32,
-    /// What the station paid for the old hull: every live section's strip
-    /// value at bid, scaled by its health.
-    #[serde(rename = "trade_in_cr")]
-    pub trade_in_cr: u32,
 }
 
 /// A Ship pane hire at a docked station added an escort from the station's

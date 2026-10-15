@@ -1307,7 +1307,7 @@ fn dock_own_ship_at(
 
 /// An own ship docked at the same station is a section of the storage column,
 /// headed by its name and its load against its own capacity: a hired escort
-/// and a hull parked for rebuy alike. A double click
+/// and an own hull parked there alike. A double click
 /// on its row withdraws the stack into the player's hold, the `To Escort`
 /// chip stores into it, and a withdraw into a full hold refuses with no
 /// change. The station's own storage is not touched.

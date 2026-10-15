@@ -376,7 +376,7 @@ impl FrozenStation {
         &self.storage
     }
 
-    /// The hulls the station holds: for sale or for rebuy at its ports, and
+    /// The hulls the station holds: for sale or the player's own at its ports, and
     /// for hire beside it.
     pub fn parked(&self) -> &[FrozenParkedHull] {
         &self.parked
