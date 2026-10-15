@@ -863,13 +863,20 @@ pub(crate) fn ship_input(
         } else if runtime.selected != orbit.centered_on {
             // Selection changed: ease the center onto the newly selected section's
             // local position (same scene frame as the blips, so no reprojection).
-            if let Some(view) = runtime
+            // An added section is selected before `ShipSections` lists it.
+            // The selection stays unconsumed until it is listed, so the view
+            // still eases onto the placed part.
+            match runtime
                 .selected
-                .and_then(|sel| list.iter().find(|v| v.entity == sel))
+                .map(|sel| list.iter().find(|v| v.entity == sel))
             {
-                orbit.center_target = view.local.translation;
+                Some(Some(view)) => {
+                    orbit.center_target = view.local.translation;
+                    orbit.centered_on = runtime.selected;
+                }
+                None => orbit.centered_on = None,
+                Some(None) => {}
             }
-            orbit.centered_on = runtime.selected;
         }
     }
 

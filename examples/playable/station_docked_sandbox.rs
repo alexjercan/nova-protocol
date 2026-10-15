@@ -54,7 +54,8 @@
 //! places it in hand,
 //! points at free sockets until the ghost stands valid, rolls the part and
 //! steps its socket, steps the socket back and rolls until it fits, clicks the
-//! view, rebinds the new gun to `T` and checks the selection did not step,
+//! view and checks the view eases onto the placed section, rebinds the new
+//! gun to `T` and checks the selection did not step,
 //! checks the Delete button names the gun's yield, deletes the gun with
 //! Delete and checks the note names the parts that went to the hold, selects
 //! the port the dock holds by and checks its Delete is disabled with the
@@ -895,6 +896,57 @@ mod smoke {
         sections: usize,
     }
 
+    /// The Ship view's eye and facing when the walk pressed on the ghost.
+    #[derive(Resource, Clone, Copy, Debug)]
+    struct SmokePivot {
+        eye: Vec3,
+        look: Vec3,
+    }
+
+    /// The share of its offset at the press the view's line of sight may keep
+    /// from the placed section and count as eased onto it.
+    const PIVOT_EASED: f32 = 0.5;
+
+    /// The Ship view camera's position and facing, in the ship-local scene.
+    fn ship_view_pose(world: &World) -> Option<(Vec3, Vec3)> {
+        let mut cameras = world.try_query::<(&Name, &GlobalTransform)>()?;
+        cameras
+            .iter(world)
+            .find(|(name, _)| name.as_str() == "NovaOsShipCamera")
+            .map(|(_, pose)| (pose.translation(), *pose.forward()))
+    }
+
+    /// Where the live section `section` stands in the player's design.
+    fn design_position(world: &World, section: Entity) -> Option<Vec3> {
+        let id = world.get::<EntityId>(section)?;
+        let mut designs =
+            world.try_query_filtered::<&ShipDesignSections, With<PlayerSpaceshipMarker>>()?;
+        let design = designs.iter(world).next()?;
+        design.get(&id.0).map(|section| section.position)
+    }
+
+    /// Where the placed kinetic PDC stands, once the add selected it.
+    fn placed_position(world: &World) -> Option<Vec3> {
+        let section = world.resource::<ShipRuntime>().selected()?;
+        if built_part(world, section).as_deref() != Some(PDC_KINETIC_TURRET_SECTION_ID) {
+            return None;
+        }
+        design_position(world, section)
+    }
+
+    /// How far the placed section stands off the view's line of sight at the
+    /// press and now, in scene units.
+    fn pivot_offsets(world: &World) -> Option<(f32, f32)> {
+        let pivot = world.get_resource::<SmokePivot>()?;
+        let placed = placed_position(world)?;
+        let (eye, look) = ship_view_pose(world)?;
+        let off_sight = |eye: Vec3, look: Vec3| {
+            let to = placed - eye;
+            (to - look * to.dot(look)).length()
+        };
+        Some((off_sight(pivot.eye, pivot.look), off_sight(eye, look)))
+    }
+
     /// The Ship view's facing and selection when the rebind armed.
     #[derive(Resource, Clone, Copy, Debug)]
     struct SmokeArmed {
@@ -1470,7 +1522,12 @@ mod smoke {
             .until(frames(SETTLE_FRAMES))
             .add()
             .step("station sandbox: press on the ghost")
-            .on_enter(press_mouse(MouseButton::Left))
+            .on_enter(|world: &mut World| {
+                if let Some((eye, look)) = ship_view_pose(world) {
+                    world.insert_resource(SmokePivot { eye, look });
+                }
+                press_mouse(MouseButton::Left)(world);
+            })
             .until(pointer_pressed())
             .deadline(BEAT_SECS)
             .add()
@@ -1484,8 +1541,38 @@ mod smoke {
             .diagnose(|world| format!("{:?}", world.get_resource::<SmokeAdd>()))
             .deadline(BEAT_SECS)
             .add()
+            .step("station sandbox: the view eases onto the placed section")
+            .until(Arc::new(|world: &World| {
+                pivot_offsets(world).is_some_and(|(before, now)| now < before * PIVOT_EASED)
+            }))
+            .diagnose(|world| {
+                format!(
+                    "{:?}, offsets {:?}, placed {:?}",
+                    world.get_resource::<SmokePivot>(),
+                    pivot_offsets(world),
+                    placed_position(world)
+                )
+            })
+            .deadline(BEAT_SECS)
+            .add()
             .step("station sandbox: settle the placed section")
             .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station sandbox: report the pivot after the add")
+            .on_enter(|world: &mut World| {
+                // The ease moves the pivot only: the facing stays, and the
+                // eye stands off the placed section at the orbit radius.
+                let pivot = world.get_resource::<SmokePivot>().copied();
+                let pose = ship_view_pose(world);
+                let facing = pivot.zip(pose).map(|(pivot, (_, look))| pivot.look.dot(look));
+                let reach = pose
+                    .zip(placed_position(world))
+                    .map(|((eye, _), placed)| eye.distance(placed));
+                info!(
+                    "station sandbox: pivot offsets {:?}, facing kept {facing:?}, eye to placed {reach:?}",
+                    pivot_offsets(world)
+                );
+            })
             .add()
             .step("station sandbox: report the tabs after the add")
             .on_enter(report_the_tabs)

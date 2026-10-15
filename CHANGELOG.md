@@ -71,9 +71,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Docked at a station with `Refit`, the Ship pane swaps a section for a part
   of the same kind and size, paid by recipe, keeping its code and key, and
   fires `OnSwapped`.
-- At a `Refit` station the Ship pane's Catalogue opens the editor's parts
-  gallery, priced. Place a part and click its ghost on a free socket to add it;
-  it takes its kind's key and fires `OnAdded`.
+- At a `Refit` station the Ship pane's Catalogue opens the parts gallery,
+  priced. Click a part's ghost on a free socket to add it; the view eases onto
+  it. It takes its kind's key and fires `OnAdded`.
 - A `Refit` station parks a hull for sale at each port but one; its card shows
   the hull turning. A buy hands you its helm with start-role keys and parks
   your old ship for rebuy (`OnShipBought`).

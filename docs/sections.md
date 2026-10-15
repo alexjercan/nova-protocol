@@ -141,9 +141,13 @@ moving another. A confirmed add moves parts and credits (cause `Add`), pushes
 `add_design_section` (`nova_scenario/src/objects/spaceship.rs`) makes the
 design inline with the section appended, writes the binding into the player's
 `input_mapping`, grows the root's pinned health by the part's pool, and spawns
-the section at full health. The Ship side panel scrolls under the wheel while
-hovered (`scroll_ship_panel`), and the camera zoom yields to it. The pane
-footer names only the keys that apply now (`show_pane_input_hints`).
+the section at full health. `reselect_swapped_section` selects the new section
+once it is live, and `ship_input` eases the orbit pivot onto it at the same
+radius. `ship_input` consumes a selection only when the section is in the pane
+list, because an added section is selected before `ShipSections` lists it.
+The Ship side panel scrolls under the wheel while hovered
+(`scroll_ship_panel`), and the camera zoom yields to it. The pane footer names
+only the keys that apply now (`show_pane_input_hints`).
 
 ### Deleting a section
 

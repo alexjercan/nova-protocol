@@ -191,3 +191,12 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
   still picks. In the editor a hit on something that is not a section
   counts as empty space. Options were Q only, or a second key such as Esc
   (the gallery and the rebind own Esc); Q only, as asked.
+- Place ease (item 10). The ease already existed: `ship_input` eases the
+  orbit pivot onto every new selection at the same radius, and an add selects
+  the new section. It did not move after a place because `ship_input`
+  consumed the selection while `ShipSections` did not list the new section
+  yet. Now it consumes a selection only when the section is listed. Options
+  were that fix, or a separate place-only ease target set by the add. The fix
+  is one rule for all selections. Open: the request says only a place eases,
+  never a pick or a select. A pick never eases (it does not select). A select
+  still eases, as it did before this task; removing that is the owner's call.
