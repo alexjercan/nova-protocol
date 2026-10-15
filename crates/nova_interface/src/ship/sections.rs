@@ -24,6 +24,19 @@ use crate::terminal::section_kind_from_markers;
 #[derive(Component, Clone, Debug, PartialEq, Eq)]
 pub struct SectionCode(pub String);
 
+/// The hull the Ship view shows read-only in place of the player ship. The
+/// Station pane's Info sets it and clears it when the Ship pane closes. While
+/// it is set, the view turns, zooms and selects as usual, and every edit is
+/// off: no Catalogue, no part in hand, no Delete, Rebind or Repair, no rebuild
+/// list and no station outlines.
+#[derive(Resource, Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ShipViewSubject(pub Option<Entity>);
+
+/// Run condition: the Ship view shows the player ship, so its edits apply.
+pub(crate) fn ship_view_editable(subject: Res<ShipViewSubject>) -> bool {
+    subject.0.is_none()
+}
+
 /// The code prefix for a section kind (`HULL`, `THR`, `CTL`, `PDC` for turrets,
 /// `TRB` for torpedo bays, `RAIL` for railguns, `DOCK` for docking ports, `CGO`
 /// for cargo intakes, `MNG` for mining emitters).
@@ -70,7 +83,8 @@ pub fn design_section_code(design: &ShipDesignSections, id: &str) -> Option<Stri
         .map(|(class, index)| format!("{}-{index}", code_prefix(class)))
 }
 
-/// Assign a stable [`SectionCode`] to every player-ship section that lacks one.
+/// Assign a stable [`SectionCode`] to every section of the player ship, and of
+/// the [`ShipViewSubject`] while there is one, that lacks one.
 /// Runs as a system (not an `Add` observer) so it sees sections inserted by the
 /// deferred spawn inside the ship-root `Add` observer
 /// (`require-default-lands-after-root-add-observer`). Existing codes are never
@@ -88,6 +102,8 @@ pub(crate) fn assign_section_codes(
         (Entity, Option<&ShipDesignSections>),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
+    subject: Res<ShipViewSubject>,
+    q_subject: Query<(Entity, Option<&ShipDesignSections>), With<SpaceshipRootMarker>>,
     q_sections: Query<
         (
             Entity,
@@ -104,15 +120,45 @@ pub(crate) fn assign_section_codes(
         With<SectionMarker>,
     >,
 ) {
-    let Ok((ship, design)) = q_player.single() else {
-        return;
-    };
+    let player = q_player.single().ok();
+    let shown = subject.0.and_then(|hull| q_subject.get(hull).ok());
+    for (ship, design) in player.into_iter().chain(shown) {
+        assign_ship_codes(&mut commands, ship, design, &q_sections);
+    }
+}
+
+/// Assign the missing [`SectionCode`]s of `ship`'s sections, see
+/// [`assign_section_codes`].
+#[expect(
+    clippy::type_complexity,
+    reason = "one query term per section kind the code assignment reads"
+)]
+fn assign_ship_codes(
+    commands: &mut Commands,
+    ship: Entity,
+    design: Option<&ShipDesignSections>,
+    q_sections: &Query<
+        (
+            Entity,
+            &ChildOf,
+            Option<&SectionCode>,
+            Option<&EntityId>,
+            Option<&SectionClass>,
+            Has<HullSectionMarker>,
+            Has<ControllerSectionMarker>,
+            Has<ThrusterSectionMarker>,
+            Has<TurretSectionMarker>,
+            Has<TorpedoSectionMarker>,
+        ),
+        With<SectionMarker>,
+    >,
+) {
     // The highest index already handed out per kind, so new sections continue the
     // sequence rather than colliding.
     let mut next: [u32; KIND_COUNT] = [0; KIND_COUNT];
 
     let mut unassigned: Vec<(Entity, SectionClass, String)> = Vec::new();
-    for (entity, child, code, id, class, hull, controller, thruster, turret, torpedo) in &q_sections
+    for (entity, child, code, id, class, hull, controller, thruster, turret, torpedo) in q_sections
     {
         if child.0 != ship {
             continue;
@@ -235,12 +281,11 @@ impl ShipSectionView {
             _ => UiColor::Label,
         }
     }
-
 }
 
-/// System-param that enumerates the live player-ship sections into
-/// [`ShipSectionView`]s. Shared by the Ship pane's scene builder, panel and
-/// interaction systems.
+/// System-param that enumerates the live sections of the player ship, or of
+/// the [`ShipViewSubject`] while there is one, into [`ShipSectionView`]s.
+/// Shared by the Ship pane's scene builder, panel and interaction systems.
 #[derive(SystemParam)]
 pub struct ShipSections<'w, 's> {
     pub(crate) player: Query<
@@ -249,6 +294,8 @@ pub struct ShipSections<'w, 's> {
         (Entity, Option<&'static Name>),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
+    subject: Res<'w, ShipViewSubject>,
+    roots: Query<'w, 's, (Entity, Option<&'static Name>), With<SpaceshipRootMarker>>,
     pub(crate) sections: Query<
         'w,
         's,
@@ -295,10 +342,17 @@ pub(crate) type SectionKindQuery = (
 
 impl ShipSections<'_, '_> {
     pub(crate) fn ship(&self) -> Option<(Entity, Option<String>)> {
-        self.player
-            .single()
-            .ok()
-            .map(|(e, name)| (e, name.map(|n| n.as_str().to_string())))
+        let ship = match self.subject.0 {
+            Some(hull) => self.roots.get(hull).ok(),
+            None => self.player.single().ok(),
+        };
+        ship.map(|(e, name)| (e, name.map(|n| n.as_str().to_string())))
+    }
+
+    /// Whether the view shows the [`ShipViewSubject`] read-only rather than
+    /// the player ship.
+    pub fn read_only(&self) -> bool {
+        self.subject.0.is_some()
     }
 
     /// Collect the live sections, sorted by code for a stable order.

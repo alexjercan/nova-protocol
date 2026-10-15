@@ -27,6 +27,10 @@
 //! these keys type into it instead. The footer names only the keys that apply
 //! now.
 //!
+//! While [`ShipViewSubject`] names a hull (the Station pane's Info), the view
+//! draws that hull in place of the player ship, read-only: it turns, zooms
+//! and selects, and every edit above is off.
+//!
 //! Repair applies at once through a single `SectionRepairCommand` seam (pane
 //! key or panel button -> message), spending hull plates from the player
 //! ship's `ShipInventory`.
@@ -89,7 +93,7 @@ pub use self::{
     },
     refit::{SectionAddCommand, SectionSwapCommand},
     scene::{cuboid_edges, ease_orbit_center, ship_framing, ShipRuntime, SHIP_BLOCK_FILL_SCALE},
-    sections::{design_section_code, SectionCode, ShipSectionView, ShipSections},
+    sections::{design_section_code, SectionCode, ShipSectionView, ShipSections, ShipViewSubject},
 };
 
 /// Glob-import surface: `use nova_interface::ship::prelude::*`.
@@ -107,7 +111,9 @@ pub mod prelude {
         scene::{
             cuboid_edges, ease_orbit_center, ship_framing, ShipRuntime, SHIP_BLOCK_FILL_SCALE,
         },
-        sections::{design_section_code, SectionCode, ShipSectionView, ShipSections},
+        sections::{
+            design_section_code, SectionCode, ShipSectionView, ShipSections, ShipViewSubject,
+        },
         SHIP_RADIUS_MAX, SHIP_RADIUS_MIN,
     };
 }
@@ -139,6 +145,7 @@ impl Plugin for ShipPanePlugin {
             app.add_plugins(PartsGalleryPlugin);
         }
         app.init_resource::<ShipRuntime>();
+        app.init_resource::<ShipViewSubject>();
         app.init_resource::<ShipPlacementPreview>();
         app.add_message::<SectionRepairCommand>();
         app.add_message::<SectionRebuildCommand>();
@@ -159,7 +166,7 @@ impl Plugin for ShipPanePlugin {
                     apply_ship_delete_commands,
                     reselect_swapped_section,
                     manage_ship_scene,
-                    sync_ship_station_blocks,
+                    sync_ship_station_blocks.run_if(ship_view_editable),
                     reconcile_ship_target,
                     apply_ship_rebind,
                 )
@@ -174,13 +181,15 @@ impl Plugin for ShipPanePlugin {
                     update_ship_blocks,
                     update_ship_placement,
                     update_ship_delete_verdict,
-                    pick_ship_part.run_if(in_input_mode(InputMode::Normal)),
+                    pick_ship_part
+                        .run_if(in_input_mode(InputMode::Normal))
+                        .run_if(ship_view_editable),
                     sync_ship_ghost,
                     sync_ship_target_face,
                     project_ship_blips,
                     label_the_selected_section,
                     update_ship_panel,
-                    update_ship_rebuild_list,
+                    update_ship_rebuild_list.run_if(ship_view_editable),
                 )
                     .chain(),
             )

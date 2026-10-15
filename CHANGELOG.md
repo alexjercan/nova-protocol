@@ -77,6 +77,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A `Refit` station parks a hull for sale at each port but one; its card shows
   the hull turning. A buy hands you its helm with start-role keys and parks
   your old ship for rebuy (`OnShipBought`).
+- Info on a Station pane card shows that hull or escort in the Ship view,
+  read-only: turn, zoom and select a section; Close goes back to the Station.
 - A generated `Refit` station hires out one to three armed escorts that coast
   beside it (`OnEscortHired`). A hire follows on its own drive across sectors,
   holds for a dock and saves; a dead one leaves.

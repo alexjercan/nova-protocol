@@ -7,11 +7,11 @@
 //!   `StationBuyCommand`, while a civilization keeps it. Docked at a station
 //!   the player owns, it says so.
 //! - "Ships for sale": a card per hull the station sells, with its 3D view,
-//!   its name, length and price, and a Buy button that raises a
-//!   `HullBuyCommand`.
+//!   its name, length and price, what the buy costs, a Buy button that raises
+//!   a `HullBuyCommand`, and Info (`hull_info`).
 //! - "Escorts for hire": a card per escort the station hires out, with its
-//!   3D view, its name, length and price, and a Hire button that raises an
-//!   `EscortHireCommand`.
+//!   3D view, its name, length and price, a Hire button that raises an
+//!   `EscortHireCommand`, and Info.
 //!
 //! A line says so when the station offers none of the three. Refit (rebuild,
 //! swap, add) and the wreck strip stay in the Ship pane, beside the ship they
@@ -25,8 +25,10 @@
 //! | `shipyard` | The "Ships for sale" list and the buy action handler. |
 //! | `hull_preview` | The 3D view of each hull on a "Ships for sale" or "Escorts for hire" card. |
 //! | `escorts` | The "Escorts for hire" list and the hire action handler. |
+//! | `hull_info` | A card's Info: the hull in the Ship pane's view, read-only. |
 
 mod escorts;
+mod hull_info;
 mod hull_preview;
 mod shipyard;
 mod station_buy;
@@ -40,10 +42,11 @@ use nova_ui::{screen::drive_wheel_scroll, theme::UiColor};
 
 pub use self::{
     escorts::EscortHireCommand,
+    hull_info::HULL_INFO_CLOSE,
     shipyard::HullBuyCommand,
     station_buy::{StationBuyCommand, STATION_BUY_BUTTON},
 };
-pub(crate) use self::{escorts::*, hull_preview::*, shipyard::*, station_buy::*};
+pub(crate) use self::{escorts::*, hull_info::*, hull_preview::*, shipyard::*, station_buy::*};
 use crate::pane::{panel_paint, themed_label};
 
 /// Glob-import surface: `use nova_interface::station::prelude::*`.
@@ -51,6 +54,7 @@ pub mod prelude {
     // Named by module path, as in `ship::prelude`.
     pub use super::{
         escorts::EscortHireCommand,
+        hull_info::HULL_INFO_CLOSE,
         shipyard::HullBuyCommand,
         station_buy::{StationBuyCommand, STATION_BUY_BUTTON},
         StationRuntime, STATION_PANEL,
@@ -227,6 +231,15 @@ pub(crate) fn offer_cell() -> Node {
     }
 }
 
+/// The row of a card's buttons: Buy or Hire while allowed, then Info.
+pub(crate) fn card_actions() -> Node {
+    Node {
+        flex_direction: FlexDirection::Row,
+        column_gap: px(8),
+        ..default()
+    }
+}
+
 /// Width of one offer card, in logical px: a refusal line wraps in two.
 const OFFER_CELL_PX: f32 = 320.0;
 
@@ -304,12 +317,15 @@ impl Plugin for StationPanePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<StationRuntime>();
         app.init_resource::<HullPreviews>();
+        app.init_resource::<HullInfoLine>();
         app.add_message::<HullBuyCommand>();
         app.add_message::<EscortHireCommand>();
         app.add_message::<StationBuyCommand>();
         app.add_systems(
             Update,
             (
+                end_hull_info,
+                sync_hull_info_header,
                 apply_station_buy_commands,
                 apply_station_hull_buy_commands,
                 apply_station_escort_hire_commands,

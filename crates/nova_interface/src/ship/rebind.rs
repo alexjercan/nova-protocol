@@ -194,11 +194,12 @@ mod tests {
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
-    use crate::ship::SectionCode;
+    use crate::ship::{SectionCode, ShipViewSubject};
 
     fn rebind_world() -> (World, Entity) {
         let mut world = World::new();
         world.init_resource::<ShipRuntime>();
+        world.init_resource::<ShipViewSubject>();
         world.init_resource::<ButtonInput<KeyCode>>();
         world.init_resource::<ButtonInput<MouseButton>>();
         world.init_resource::<Messages<SectionInputBindingChanged>>();

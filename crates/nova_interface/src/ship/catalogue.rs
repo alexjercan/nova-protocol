@@ -35,7 +35,7 @@ use super::{
     rebuild::{payment_refusal_text, rebuild_price_text, StationSite},
     refit::{swap_refusal_text, SectionSwapCommand},
     scene::ShipRuntime,
-    sections::design_section_code,
+    sections::{design_section_code, ShipViewSubject},
 };
 
 /// The render layer of the catalogue's part tiles. Above the interface's own
@@ -140,10 +140,13 @@ fn station_listing(
 }
 
 /// Show the Catalogue button while the ship is docked at a living station
-/// that refits (cached as `ShipRuntime::refits` for the footer), and keep the open gallery's listing current: a price, a
-/// refusal, the stock or the selection's swap offers change it.
+/// that refits and the view shows the player ship, not a
+/// [`ShipViewSubject`] (cached as `ShipRuntime::refits` for the footer), and
+/// keep the open gallery's listing current: a price, a refusal, the stock or
+/// the selection's swap offers change it.
 pub(crate) fn update_ship_gallery_listing(
     mut runtime: ResMut<ShipRuntime>,
+    subject: Res<ShipViewSubject>,
     items: Option<Res<GameItems>>,
     sections: Option<Res<GameSections>>,
     site: StationSite,
@@ -151,7 +154,7 @@ pub(crate) fn update_ship_gallery_listing(
     mut q_button: Query<&mut Node, With<ShipCatalogueButton>>,
     mut q_host: Query<&mut GalleryListing, With<ShipGalleryHost>>,
 ) {
-    let refits = runtime.active && site.gate(StationServiceType::Refit);
+    let refits = runtime.active && subject.0.is_none() && site.gate(StationServiceType::Refit);
     if runtime.refits != refits {
         runtime.refits = refits;
     }
@@ -186,6 +189,7 @@ pub(crate) fn update_ship_gallery_listing(
 pub(crate) fn manage_ship_gallery(
     mut commands: Commands,
     runtime: Res<ShipRuntime>,
+    subject: Res<ShipViewSubject>,
     mut state: ResMut<GalleryState>,
     theme: Res<ActiveUiTheme>,
     site: StationSite,
@@ -196,7 +200,7 @@ pub(crate) fn manage_ship_gallery(
 ) {
     // The gallery state is shared with the editor's host, so only a gallery
     // this pane hosts is closed here: the editor's browse is not the pane's.
-    let refits = runtime.active && site.gate(StationServiceType::Refit);
+    let refits = runtime.active && subject.0.is_none() && site.gate(StationServiceType::Refit);
     if !q_host.is_empty() && (!state.open || !refits) {
         if state.open {
             state.open = false;

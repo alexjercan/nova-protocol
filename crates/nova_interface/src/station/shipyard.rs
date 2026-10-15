@@ -19,7 +19,10 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{theme::UiColor, widget::ButtonSpec};
 
-use super::{offer_cell, offer_rows, spawn_hull_card_head, StationRuntime};
+use super::{
+    card_actions, offer_cell, offer_rows, spawn_hull_card_head, spawn_hull_info_button,
+    StationRuntime,
+};
 use crate::{
     inventory::cr_text,
     pane::{compact_button, play_menu_select, themed_label},
@@ -291,18 +294,25 @@ pub(crate) fn update_station_hull_list(
             parent.spawn(offer_cell()).with_children(|cell| {
                 spawn_hull_card_head(cell, row.hull, &row.name, &row.detail);
                 match &row.terms {
-                    Err(refusal) => {
-                        cell.spawn(themed_label(refusal, 12.0, UiColor::Danger));
+                    Err(refusal) => cell.spawn(themed_label(refusal, 12.0, UiColor::Danger)),
+                    Ok(terms) => cell.spawn(themed_label(terms, 12.0, UiColor::Body)),
+                };
+                cell.spawn(card_actions()).with_children(|actions| {
+                    if row.terms.is_ok() {
+                        actions
+                            .spawn((
+                                Name::new(format!("HullBuy-{index}")),
+                                compact_button(ButtonSpec::new("Buy").fit().primary()),
+                            ))
+                            .observe(on_hull_buy_button(row.hull));
                     }
-                    Ok(terms) => {
-                        cell.spawn(themed_label(terms, 12.0, UiColor::Body));
-                        cell.spawn((
-                            Name::new(format!("HullBuy-{index}")),
-                            compact_button(ButtonSpec::new("Buy").fit().primary()),
-                        ))
-                        .observe(on_hull_buy_button(row.hull));
-                    }
-                }
+                    spawn_hull_info_button(
+                        actions,
+                        format!("HullInfo-{index}"),
+                        row.hull,
+                        format!("{}  {}", row.name, row.detail),
+                    );
+                });
             });
         }
     });

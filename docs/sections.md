@@ -256,8 +256,15 @@ docked station, a rebuy named "(rebuy)", as a card
 (`spawn_hull_card_head` in `station/mod.rs`): a view of the hull, one line
 with its name, length and price, then the terms (`buy_terms_text`: the
 current ship taken in for its trade-in, the difference paid or paid back)
-over a Buy button, or the refusal. The note after a buy says the same in
-the past tense. The view
+over a Buy button, or the refusal, and an Info button. The note after a buy
+says the same in the past tense. Info (`station/hull_info.rs`) sets
+`ShipViewSubject` to the card's hull and opens the Ship pane: `ShipSections`
+lists that hull's sections, `assign_section_codes` codes them, and the view
+turns, zooms and selects as for the player ship. Every edit is off while the
+subject is set: Catalogue and the part in hand, Delete, Rebind, Repair, the
+rebuild list and the station outlines. A header over the Ship panel holds the
+card's line and Close, back to the Station pane; leaving the Ship pane any
+other way clears the subject too. The view
 (`hull_preview.rs`) mirrors the parked hull's own meshes and materials,
 posed in the hull's frame, into a scene on the card's render layer, turned
 slowly about its vertical axis and lit by a key and rim light on the card

@@ -231,7 +231,8 @@ it cannot be looted or stripped. Docked to a living station that offers
 each a card with the real hull turning slowly, one line with its name,
 length and price, what the buy costs in plain words (the current ship taken
 in for its trade-in, the difference paid or paid back), and a Buy button or
-the reason it is refused.
+the reason it is refused, beside an Info button that shows the hull in the
+Ship pane, read-only.
 
 | rule | what happens |
 |---|---|

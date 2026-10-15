@@ -32,7 +32,10 @@
 //! 4. Station tab, **Escorts for hire**: a card per escort, the same way;
 //!    each escort coasts beside the station, undocked and Neutral; Hire one
 //!    and it joins your fleet and follows you;
-//! 5. undock (`D`) and fly clear: the parked hulls stay docked and inert.
+//! 5. Info on any card: the hull in the Ship view, read-only; right-drag
+//!    turns it, the wheel zooms, a click selects a section; Close goes back
+//!    to the Station tab;
+//! 6. undock (`D`) and fly clear: the parked hulls stay docked and inert.
 //!
 //! ```text
 //! nix develop --command cargo run --example shipyard_sandbox --features debug
@@ -55,8 +58,13 @@
 //! hire coast undocked, and shoots
 //! `shipyard-sandbox.png` and the Station tab's cards as
 //! `shipyard-sandbox-cards.png`, then again as
-//! `shipyard-sandbox-cards-turned.png` once the hulls have turned, with
-//! `NOVA_CAPTURE=1`.
+//! `shipyard-sandbox-cards-turned.png` once the hulls have turned. It then
+//! opens Info on the first hull for sale, checks no refit control shows,
+//! selects another section and closes, shooting `shipyard-sandbox-info.png`,
+//! `shipyard-sandbox-info-section.png` and
+//! `shipyard-sandbox-info-closed.png`, and checks the Ship tab shows the
+//! player ship with its Catalogue again (`shipyard-sandbox-ship-after-info.png`),
+//! all with `NOVA_CAPTURE=1`.
 //! Unset, no walk and no deadline run.
 
 #[path = "shared/open_world_stage.rs"]
@@ -73,7 +81,8 @@ use nova_protocol::{
     nova_debug::diagnostics,
     nova_interface::{
         pane::InterfacePaneType,
-        station::{HullBuyCommand, StationRuntime},
+        ship::{ShipRuntime, ShipViewSubject},
+        station::{HullBuyCommand, StationRuntime, HULL_INFO_CLOSE},
     },
     prelude::*,
 };
@@ -595,6 +604,172 @@ mod smoke {
     const CARDS_TURNED_SHOT: &str = "shipyard-sandbox-cards-turned.png";
     /// Frames between the two card shots.
     const TURN_FRAMES: u32 = 30;
+    /// The PNGs of Info on the first hull for sale: as it opens, with another
+    /// section selected, and back on the Station tab after Close.
+    const INFO_SHOT: &str = "shipyard-sandbox-info.png";
+    const INFO_SECTION_SHOT: &str = "shipyard-sandbox-info-section.png";
+    const INFO_CLOSED_SHOT: &str = "shipyard-sandbox-info-closed.png";
+    /// The PNG of the Ship tab after Info: the player ship, editable again.
+    const SHIP_AFTER_INFO_SHOT: &str = "shipyard-sandbox-ship-after-info.png";
+    /// The only buttons Info may show: the pane tabs, the view's Fit and
+    /// Reset, and Close. Anything else is an edit.
+    const INFO_BUTTONS: [&str; 7] = [
+        "Map",
+        "Ship",
+        "Inventory",
+        "Station",
+        "Fit",
+        "Reset",
+        "Close",
+    ];
+
+    /// Click the button named `name`, as a pointer click would.
+    fn click(world: &mut World, name: &str) {
+        let button = world
+            .query::<(Entity, &Name)>()
+            .iter(world)
+            .find(|(_, found)| found.as_str() == name)
+            .map(|(entity, _)| entity)
+            .unwrap_or_else(|| panic!("shipyard sandbox: no button named '{name}'"));
+        world.trigger(bevy::ui_widgets::Activate { entity: button });
+    }
+
+    /// The hull the first sale card's Info shows.
+    fn info_hull(world: &mut World) -> Entity {
+        let station = chosen_station(world).expect("shipyard sandbox: the station stands");
+        parked_hulls(world, station)
+            .into_iter()
+            .find(|hull| world.get::<ParkedHullType>(*hull) == Some(&ParkedHullType::Sale))
+            .expect("shipyard sandbox: a hull is for sale")
+    }
+
+    /// The labels of the buttons on screen.
+    fn shown_buttons(world: &mut World) -> Vec<String> {
+        let buttons: Vec<Entity> = world
+            .query_filtered::<(Entity, &ComputedNode, &InheritedVisibility), With<bevy::ui_widgets::Button>>()
+            .iter(world)
+            .filter(|(_, node, visible)| node.size().min_element() > 0.0 && visible.get())
+            .map(|(entity, ..)| entity)
+            .collect();
+        let mut labels: Vec<String> = world
+            .query::<(&Text, &ChildOf)>()
+            .iter(world)
+            .filter(|(_, parent)| buttons.contains(&parent.parent()))
+            .map(|(text, _)| text.0.clone())
+            .collect();
+        labels.sort();
+        labels
+    }
+
+    /// Info shows the first hull for sale read-only: the Ship pane draws it,
+    /// a section of it is selected, and no button but the view's and Close
+    /// is on screen.
+    fn assert_info_is_read_only(world: &mut World) {
+        let hull = info_hull(world);
+        assert_eq!(
+            *world.resource::<InterfacePaneType>(),
+            InterfacePaneType::Ship,
+            "shipyard sandbox: Info opens the Ship pane"
+        );
+        assert_eq!(
+            world.resource::<ShipViewSubject>().0,
+            Some(hull),
+            "shipyard sandbox: Info shows the hull of its card"
+        );
+        let selected = world
+            .resource::<ShipRuntime>()
+            .selected()
+            .expect("shipyard sandbox: Info selects a section");
+        assert_eq!(
+            world.get::<ChildOf>(selected).map(ChildOf::parent),
+            Some(hull),
+            "shipyard sandbox: the selection is a section of the shown hull"
+        );
+        assert!(
+            world.resource::<ShipRuntime>().delete_verdict().is_none(),
+            "shipyard sandbox: Info offers no Delete"
+        );
+        assert!(
+            world.resource::<HeldPart>().0.is_none(),
+            "shipyard sandbox: Info holds no part"
+        );
+        let buttons = shown_buttons(world);
+        info!("shipyard sandbox: Info shows the buttons {buttons:?}");
+        assert!(
+            buttons.contains(&"Close".to_string()),
+            "shipyard sandbox: Info shows Close, got {buttons:?}"
+        );
+        let edits: Vec<&String> = buttons
+            .iter()
+            .filter(|label| !INFO_BUTTONS.contains(&label.as_str()))
+            .collect();
+        assert!(
+            edits.is_empty(),
+            "shipyard sandbox: Info shows no refit control, got {edits:?}"
+        );
+    }
+
+    /// Click the last section badge of the shown hull: the selection moves to
+    /// it.
+    fn select_another_section(world: &mut World) {
+        let before = world.resource::<ShipRuntime>().selected();
+        let viewport = world
+            .query::<(Entity, &Name)>()
+            .iter(world)
+            .find(|(_, name)| name.as_str() == "ShipViewport")
+            .map(|(entity, _)| entity)
+            .expect("shipyard sandbox: the Ship view is on screen");
+        let badge = world
+            .get::<Children>(viewport)
+            .expect("shipyard sandbox: the Ship view has section badges")
+            .iter()
+            .filter(|child| world.get::<bevy::ui_widgets::Button>(*child).is_some())
+            .last()
+            .expect("shipyard sandbox: a section badge");
+        world.trigger(bevy::ui_widgets::Activate { entity: badge });
+        let after = world.resource::<ShipRuntime>().selected();
+        assert_ne!(
+            after, before,
+            "shipyard sandbox: a badge click selects its section"
+        );
+        info!("shipyard sandbox: Info selected {after:?}, was {before:?}");
+    }
+
+    /// The Ship tab after Info shows the player ship with its refit
+    /// controls.
+    fn assert_ship_tab_is_the_players(world: &mut World) {
+        let player = the_player(world).expect("shipyard sandbox: one player ship");
+        let selected = world
+            .resource::<ShipRuntime>()
+            .selected()
+            .expect("shipyard sandbox: the Ship tab selects a section");
+        assert_eq!(
+            world.get::<ChildOf>(selected).map(ChildOf::parent),
+            Some(player),
+            "shipyard sandbox: the Ship tab shows the player ship after Info"
+        );
+        let buttons = shown_buttons(world);
+        info!("shipyard sandbox: the Ship tab shows the buttons {buttons:?}");
+        assert!(
+            buttons.contains(&"Catalogue".to_string()),
+            "shipyard sandbox: the Ship tab offers the Catalogue again, got {buttons:?}"
+        );
+    }
+
+    /// Close went back to the Station tab and the Ship view shows the player
+    /// ship again.
+    fn assert_info_closed(world: &mut World) {
+        assert_eq!(
+            *world.resource::<InterfacePaneType>(),
+            InterfacePaneType::Station,
+            "shipyard sandbox: Close goes back to the Station tab"
+        );
+        assert_eq!(
+            world.resource::<ShipViewSubject>().0,
+            None,
+            "shipyard sandbox: Close ends Info"
+        );
+    }
 
     fn ready(world: &World) -> bool {
         world
@@ -708,6 +883,56 @@ mod smoke {
             .step("shipyard sandbox: shoot the turned cards")
             .on_enter(|world: &mut World| shoot(world, CARDS_TURNED_SHOT))
             .until(shot_written(CARDS_TURNED_SHOT))
+            .deadline(SHOT_SECS)
+            .add()
+            .step("shipyard sandbox: open Info on the first hull for sale")
+            .on_enter(|world: &mut World| click(world, "HullInfo-0"))
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("shipyard sandbox: check Info is read-only")
+            .on_enter(assert_info_is_read_only)
+            .add()
+            .step("shipyard sandbox: shoot Info")
+            .on_enter(|world: &mut World| shoot(world, INFO_SHOT))
+            .until(shot_written(INFO_SHOT))
+            .deadline(SHOT_SECS)
+            .add()
+            .step("shipyard sandbox: select another section in Info")
+            .on_enter(select_another_section)
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("shipyard sandbox: check Info is still read-only")
+            .on_enter(assert_info_is_read_only)
+            .add()
+            .step("shipyard sandbox: shoot the selected section")
+            .on_enter(|world: &mut World| shoot(world, INFO_SECTION_SHOT))
+            .until(shot_written(INFO_SECTION_SHOT))
+            .deadline(SHOT_SECS)
+            .add()
+            .step("shipyard sandbox: close Info")
+            .on_enter(|world: &mut World| click(world, HULL_INFO_CLOSE))
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("shipyard sandbox: check Info closed")
+            .on_enter(assert_info_closed)
+            .add()
+            .step("shipyard sandbox: shoot the Station tab after Info")
+            .on_enter(|world: &mut World| shoot(world, INFO_CLOSED_SHOT))
+            .until(shot_written(INFO_CLOSED_SHOT))
+            .deadline(SHOT_SECS)
+            .add()
+            .step("shipyard sandbox: open the Ship tab after Info")
+            .on_enter(|world: &mut World| {
+                *world.resource_mut::<InterfacePaneType>() = InterfacePaneType::Ship;
+            })
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("shipyard sandbox: check the Ship tab is the player's")
+            .on_enter(assert_ship_tab_is_the_players)
+            .add()
+            .step("shipyard sandbox: shoot the Ship tab after Info")
+            .on_enter(|world: &mut World| shoot(world, SHIP_AFTER_INFO_SHOT))
+            .until(shot_written(SHIP_AFTER_INFO_SHOT))
             .deadline(SHOT_SECS)
             .add()
     }

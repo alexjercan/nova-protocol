@@ -19,7 +19,8 @@ use nova_ship::prelude::*;
 use nova_ui::{theme::UiColor, widget::ButtonSpec};
 
 use super::{
-    offer_cell, offer_rows, shipyard::hull_length_text, spawn_hull_card_head, StationRuntime,
+    card_actions, offer_cell, offer_rows, shipyard::hull_length_text, spawn_hull_card_head,
+    spawn_hull_info_button, StationRuntime,
 };
 use crate::{
     inventory::cr_text,
@@ -221,18 +222,25 @@ pub(crate) fn update_station_escort_list(
         for (index, row) in rows.iter().enumerate() {
             parent.spawn(offer_cell()).with_children(|cell| {
                 spawn_hull_card_head(cell, row.hull, &row.name, &row.detail);
-                match &row.refusal {
-                    Some(refusal) => {
-                        cell.spawn(themed_label(refusal, 12.0, UiColor::Danger));
-                    }
-                    None => {
-                        cell.spawn((
-                            Name::new(format!("EscortHire-{index}")),
-                            compact_button(ButtonSpec::new("Hire").fit().primary()),
-                        ))
-                        .observe(on_escort_hire_button(row.hull));
-                    }
+                if let Some(refusal) = &row.refusal {
+                    cell.spawn(themed_label(refusal, 12.0, UiColor::Danger));
                 }
+                cell.spawn(card_actions()).with_children(|actions| {
+                    if row.refusal.is_none() {
+                        actions
+                            .spawn((
+                                Name::new(format!("EscortHire-{index}")),
+                                compact_button(ButtonSpec::new("Hire").fit().primary()),
+                            ))
+                            .observe(on_escort_hire_button(row.hull));
+                    }
+                    spawn_hull_info_button(
+                        actions,
+                        format!("EscortInfo-{index}"),
+                        row.hull,
+                        format!("{}  {}", row.name, row.detail),
+                    );
+                });
             });
         }
     });

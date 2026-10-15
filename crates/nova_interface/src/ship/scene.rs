@@ -899,7 +899,10 @@ pub(crate) fn ship_input(
         }
     }
     // What the app does to the section it has selected. Route mutation actions
-    // through their shared seams.
+    // through their shared seams. A hull shown read-only takes none.
+    if sections.read_only() {
+        return;
+    }
     if let Some(sel) = runtime.selected {
         if input.just_pressed("ship_rebind")
             && list
@@ -1503,8 +1506,11 @@ pub(crate) fn update_ship_panel(
     };
     // The form's stock line and summary, while the selection has repairable
     // damage. A refused summary is the same reason the handler would note.
+    // A hull shown read-only names its section and its condition, no more.
+    let read_only = sections.read_only();
     let form = selected
         .as_ref()
+        .filter(|_| !read_only)
         .filter(|view| plate_repair_limit(view.health.as_ref(), view.disabled, u32::MAX) > 0)
         .map(|view| {
             let summary = match requested {
@@ -1529,7 +1535,10 @@ pub(crate) fn update_ship_panel(
         Some(view) => format!("{}  {}", view.code, view.name),
         None => "No section selected".to_string(),
     };
-    let control = selected.as_ref().and_then(ShipSectionView::binding_text);
+    let control = selected
+        .as_ref()
+        .filter(|_| !read_only)
+        .and_then(ShipSectionView::binding_text);
     let (delete_label, delete_reason) = match runtime.delete_verdict() {
         Some(Ok(salvage)) => (format!("Delete: {salvage}"), None),
         Some(Err(reason)) => ("Delete".to_string(), Some(reason.to_string())),
@@ -1540,9 +1549,10 @@ pub(crate) fn update_ship_panel(
     runtime.panel_repairable = form.is_some();
     // An UNBOUND weapon is the one that most needs a key, so a section that
     // takes a binding offers Rebind with or without one.
-    runtime.panel_rebind_enabled = selected
-        .as_ref()
-        .is_some_and(|view| view.bindings.is_some());
+    runtime.panel_rebind_enabled = !read_only
+        && selected
+            .as_ref()
+            .is_some_and(|view| view.bindings.is_some());
 
     // The armed rebind names its section over the view; the note line keeps
     // a transient action result. A disabled Repair gives its reason in the

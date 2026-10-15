@@ -93,6 +93,7 @@ fn spawn_scripted_ship(world: &mut World) -> (Entity, Entity, Entity, Entity) {
 fn section_codes_assigned_and_resolve() {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
+    app.init_resource::<ShipViewSubject>();
     let (_ship, hull, turret, thruster) = spawn_scripted_ship(app.world_mut());
 
     app.world_mut()
@@ -127,6 +128,7 @@ fn ship_repair_spends_plates_only_on_a_damaged_player_section() {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<ShipViewSubject>();
     app.init_resource::<HeldPart>();
     app.add_message::<SectionRepairCommand>();
     app.add_message::<SectionDeleteCommand>();
@@ -266,6 +268,7 @@ fn ship_repair_spends_selected_quantity_and_refuses_stale_requests_atomically() 
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<ShipViewSubject>();
     app.init_resource::<HeldPart>();
     app.add_message::<SectionRepairCommand>();
     app.add_message::<SectionDeleteCommand>();
@@ -376,6 +379,7 @@ fn scene_blocks_use_local_space_when_ship_off_origin() {
     app.insert_state(PauseStates::Interface);
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<ShipViewSubject>();
     app.init_resource::<HeldPart>();
     app.init_resource::<ActiveUiTheme>();
     app.insert_resource(InterfaceIcons::blank());
@@ -439,6 +443,7 @@ fn ship_scene_follows_the_ship_pane() {
     app.insert_state(PauseStates::Interface);
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<ShipViewSubject>();
     app.init_resource::<HeldPart>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
@@ -468,6 +473,7 @@ fn ship_pane_renders_blocks_and_selects_section() {
     app.insert_state(PauseStates::Interface);
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<ShipViewSubject>();
     app.init_resource::<HeldPart>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
@@ -556,6 +562,7 @@ fn ship_orbit_drag_is_rmb_only() {
     app.insert_state(PauseStates::Interface);
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<ShipViewSubject>();
     app.init_resource::<HeldPart>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
@@ -628,6 +635,7 @@ fn the_desk_turn_keys_do_not_turn_the_ship_view() {
     app.insert_state(PauseStates::Interface);
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<ShipViewSubject>();
     app.init_resource::<HeldPart>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
@@ -675,6 +683,7 @@ fn the_map_wheel_does_not_zoom_the_ship_view() {
     app.insert_state(PauseStates::Interface);
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<ShipViewSubject>();
     app.init_resource::<HeldPart>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
@@ -736,6 +745,7 @@ fn a_captured_rebind_key_does_nothing_else() {
     app.insert_state(PauseStates::Interface);
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<ShipViewSubject>();
     app.init_resource::<HeldPart>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
@@ -880,6 +890,7 @@ fn offset_ship_app() -> (App, Entity, Entity, Entity) {
     app.insert_state(PauseStates::Interface);
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<ShipViewSubject>();
     app.init_resource::<HeldPart>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
@@ -1189,6 +1200,7 @@ fn block_fill_follows_family_not_status() {
     app.insert_state(PauseStates::Interface);
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<ShipViewSubject>();
     app.init_resource::<HeldPart>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
@@ -1530,6 +1542,7 @@ fn panel_buttons_raise_section_repair_command() {
     app.add_plugins((MinimalPlugins, StatesPlugin, AssetPlugin::default()));
     app.insert_state(PauseStates::Interface);
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<ShipViewSubject>();
     app.init_resource::<HeldPart>();
     app.add_message::<SectionRepairCommand>();
     app.add_message::<SectionDeleteCommand>();
@@ -1630,6 +1643,7 @@ fn update_ship_panel_reflects_selection() {
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
     app.init_asset::<Font>();
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<ShipViewSubject>();
     app.init_resource::<HeldPart>();
     app.insert_resource(InterfaceIcons::blank());
     app.add_systems(Update, update_ship_panel);
@@ -1817,6 +1831,7 @@ fn spawn_ship_panel_app_without_inventory() -> (App, Entity) {
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
     app.init_asset::<Font>();
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<ShipViewSubject>();
     app.init_resource::<HeldPart>();
     app.insert_resource(InterfaceIcons::blank());
     let (ship, hull, _turret, _thruster) = spawn_scripted_ship(app.world_mut());
@@ -1873,6 +1888,7 @@ fn update_ship_panel_preview_names_the_exact_repair_refusal() {
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
     app.init_asset::<Font>();
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<ShipViewSubject>();
     app.init_resource::<HeldPart>();
     app.insert_resource(InterfaceIcons::blank());
     let (ship, hull, _turret, thruster) = spawn_scripted_ship(app.world_mut());
@@ -1944,6 +1960,7 @@ fn update_ship_panel_hides_the_repair_form_after_a_full_repair() {
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
     app.init_asset::<Font>();
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<ShipViewSubject>();
     app.init_resource::<HeldPart>();
     app.insert_resource(InterfaceIcons::blank());
     app.add_message::<SectionRepairCommand>();
@@ -2080,6 +2097,7 @@ fn rig_rect(rig: &PanePointerRig, entity: Entity) -> Rect {
 fn ship_section_label_and_dot_are_one_unbroken_target() {
     let mut rig = pane_pointer_rig();
     rig.app.init_resource::<ShipRuntime>();
+    rig.app.init_resource::<ShipViewSubject>();
     rig.app.init_resource::<HeldPart>();
     rig.app.init_resource::<ShipPlacementPreview>();
     rig.app.add_message::<SectionAddCommand>();
@@ -2189,6 +2207,7 @@ fn only_the_selected_section_spells_out_its_code() {
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
     app.init_asset::<Font>();
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<ShipViewSubject>();
     app.init_resource::<HeldPart>();
 
     let viewport = app.world_mut().spawn_empty().id();
