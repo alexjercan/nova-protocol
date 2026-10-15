@@ -94,8 +94,9 @@ pub(crate) fn apply_ship_rebind(
     }
     // The shared capture, not a hand-rolled one: `ButtonInput` iterates a
     // `HashSet`, so picking the FIRST just-pressed key bound either of two keys
-    // pressed on one frame, run to run.
-    let Some(source) = sources.captured_desk() else {
+    // pressed on one frame, run to run. The desk wins a frame both devices
+    // press on.
+    let Some(source) = sources.captured_desk().or_else(|| sources.captured_pad()) else {
         return;
     };
     let Ok((_, parent, id, class, thruster, turret, torpedo, railgun, mining)) =
@@ -147,10 +148,9 @@ pub(crate) fn apply_ship_rebind(
         }
     }
 
-    // The captured key replaces the DESK half of the trigger and the pad half
-    // is kept. A player at this panel pressed a key, which says nothing about
-    // the controller trigger the same section is also on - and every section
-    // the editor places is written with one.
+    // The captured source replaces the half of its own device and the other
+    // half is kept: a key says nothing about the controller trigger the same
+    // section is also on, and a pad button says nothing about the key.
     let rebound = |current: &[InputSource]| captured_binds(current, source);
     let binds = if let Some(thruster) = or_unbound(
         class,
@@ -536,6 +536,80 @@ mod tests {
                 ),
                 ("engine".to_string(), Vec::new()),
             ]
+        );
+    }
+
+    /// Press `button` on a connected pad and run the capture.
+    fn press_pad(world: &mut World, button: GamepadButton) {
+        let mut pad = Gamepad::default();
+        pad.digital_mut().press(button);
+        world.spawn(pad);
+        world.run_system_once(apply_ship_rebind).unwrap();
+    }
+
+    /// A pad button pressed during a rebind sets the section's pad half and
+    /// keeps its key.
+    #[test]
+    fn a_pad_button_sets_the_pad_half_and_keeps_the_key() {
+        let (mut world, gun) = rebind_world();
+        let ship = world.get::<ChildOf>(gun).unwrap().parent();
+        let thruster = world
+            .spawn((
+                ChildOf(ship),
+                EntityId("engine".to_string()),
+                SectionClass::Thruster,
+                SpaceshipThrusterInputBinding(vec![KeyCode::KeyJ.into()]),
+            ))
+            .id();
+        world.resource_mut::<ShipRuntime>().rebinding = Some(thruster);
+
+        press_pad(&mut world, GamepadButton::RightTrigger2);
+
+        let binding = vec![
+            InputSource::Keyboard(KeyCode::KeyJ),
+            InputSource::Gamepad(GamepadButton::RightTrigger2),
+        ];
+        assert_eq!(
+            world
+                .get::<SpaceshipThrusterInputBinding>(thruster)
+                .unwrap()
+                .0,
+            binding
+        );
+        assert!(world.resource::<ShipRuntime>().rebinding.is_none());
+        let sent: Vec<Vec<InputSource>> = world
+            .resource::<Messages<SectionInputBindingChanged>>()
+            .iter_current_update_messages()
+            .map(|change| change.bindings.clone())
+            .collect();
+        assert_eq!(sent, [binding]);
+    }
+
+    /// A pad input the flight rig holds is refused like a reserved key: the
+    /// Main Drive's Right Trigger cannot become a thruster's own button.
+    #[test]
+    fn a_reserved_pad_input_is_refused() {
+        let (mut world, gun) = rebind_world();
+        let ship = world.get::<ChildOf>(gun).unwrap().parent();
+        let thruster = world
+            .spawn((
+                ChildOf(ship),
+                EntityId("engine".to_string()),
+                SectionClass::Thruster,
+            ))
+            .id();
+        world.resource_mut::<ShipRuntime>().rebinding = Some(thruster);
+
+        press_pad(&mut world, GamepadButton::RightTrigger);
+
+        assert!(world
+            .get::<SpaceshipThrusterInputBinding>(thruster)
+            .is_none());
+        let runtime = world.resource::<ShipRuntime>();
+        assert_eq!(runtime.rebinding, Some(thruster));
+        assert_eq!(
+            runtime.note.as_ref().map(|(note, _)| note.as_str()),
+            Some("Right Trigger is already bound to flight control: Main Drive")
         );
     }
 }

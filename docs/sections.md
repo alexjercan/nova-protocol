@@ -51,14 +51,20 @@ A thruster with no `SpaceshipThrusterInputBinding` fires on the Main Drive:
 `manual_burn_system` (`nova_ship/src/flight/manual.rs`) balances only thrusters
 without one. The Ship pane's Control line names the `main_drive` keys from
 `InputBindings` (`ShipSectionView::binding_text`). Rebind gives the thruster
-its own keyboard key, which fires it alone and takes it off the balance;
-reserved flight keys are refused. Backspace while rebinding a thruster
-removes the component (`apply_ship_rebind`), and
+its own key or pad button, which fires it alone and takes it off the balance;
+reserved flight sources, keys and pad buttons alike, are refused. Backspace
+while rebinding a thruster removes the component (`apply_ship_rebind`), and
 `on_thruster_input_binding_removed` despawns its action and zeroes its
 throttle. The save reads live components (`live_input_mapping`), so a load
 keeps an own key, and keeps the Main Drive for a thruster with none.
-The pad half stays empty: RightTrigger no longer fires a thruster with its
-own key. The autopilot still flies every thruster.
+The autopilot still flies every thruster.
+
+`apply_ship_rebind` captures a key or mouse button first
+(`InputSources::captured_desk`), else a pad button (`captured_pad`), and
+`captured_binds` replaces only the half of that device: a key keeps the pad
+half, a pad button keeps the key. Every common pad button but Right Trigger 2
+(the guns' trigger, which sections may share) belongs to a Flight or Always
+action and is refused.
 
 The Ship pane (`nova_interface/src/ship/rebuild.rs`)
 lists lost sections while docked to a station that offers `Rebuild`, by

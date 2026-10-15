@@ -1577,9 +1577,9 @@ pub(crate) fn update_ship_panel(
             // Backspace is the thruster's way back to the Main Drive
             // (`apply_ship_rebind`).
             if view.kind == SectionClass::Thruster {
-                format!("Press a key to bind {what}, Backspace for the Main Drive, Esc to cancel")
+                format!("Press a key or button to bind {what}, Backspace for the Main Drive, Esc to cancel")
             } else {
-                format!("Press a key to bind {what}, Esc to cancel")
+                format!("Press a key or button to bind {what}, Esc to cancel")
             }
         });
     let (note, note_color) = if prompt.is_some() {

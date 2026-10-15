@@ -174,9 +174,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
   while docked.
 - On the Ship pane a gun, torpedo bay, railgun or mining beam with no key
   reads UNBOUND, and B or Rebind gives it one.
-- On the Ship pane a thruster shows its Main Drive keys, and B or Rebind gives
-  it its own key, which fires it alone. Backspace while rebinding puts it back
-  on the Main Drive.
+- Ship pane Rebind takes a key or a pad button and sets that device's half
+  only. A thruster shows its Main Drive keys until it gets its own, which fire
+  it alone; Backspace puts it back.
 - With a part in hand on the Ship pane, R rolls it a quarter turn and F mates
   it by its next socket, as in the editor; the ghost, fit and price follow.
 - The Ship pane uses the editor's controls: Q picks the part under the

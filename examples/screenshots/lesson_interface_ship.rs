@@ -131,7 +131,7 @@ const REPAIR_CELLS: u32 = 4;
 /// Cells the armed rebind prompt holds before the new key arrives.
 ///
 /// The longest hold in either sheet, because this is the cell the lesson is
-/// about: the lit Rebind button and the `Press a key to bind ...` banner in
+/// about: the lit Rebind button and the `Press a key or button to bind ...` banner in
 /// amber across the view, with nothing else moving.
 #[cfg(feature = "debug")]
 const ARMED_CELLS: u32 = 5;

@@ -266,3 +266,14 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
   own key survives a load with no change; a weapon rebind uses the same
   path. Proof: `a_thruster_keeps_its_own_key_through_a_save_and_the_rest_stay_on_the_main_drive`,
   which fails if the thruster is dropped from `section_bindings`.
+- Pad rebind (item 17, owner: "if you press controller it binds
+  controller"). Weapons never took a pad press on the Ship pane: the capture
+  read `captured_desk` only, and `captured_binds` already replaced only the
+  pressed device's half. The capture now falls back to `captured_pad`; the
+  desk wins a frame both press on. The reserved check is unchanged and already
+  covers pad sources. Consequence: every common pad button but Right Trigger 2
+  belongs to a Flight or Always action, so a thruster's pad button is in
+  practice Right Trigger 2, shared with the guns. Labels stay the game's own
+  (South reads `A`), so a line reads `J / Right Trigger 2`. Proof:
+  `a_pad_button_sets_the_pad_half_and_keeps_the_key`,
+  `a_reserved_pad_input_is_refused`.

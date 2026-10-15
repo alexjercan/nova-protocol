@@ -181,7 +181,7 @@ There is no manual reload. A weapon's magazine refills on its own from your inve
      button, Esc cancels: ship/rebind.rs `apply_ship_rebind`. Refusal policy:
      `RebindSurface::ShipPanel` in crates/nova_input/src/registry.rs
      (`rebind_verdict`), against the LIVE table; the captured key replaces the
-     desk half and keeps the pad half: `captured_binds`. The command shell
+     half of its own device and keeps the other: `captured_binds`. The command shell
      will not open while a capture is armed: `open_command_shell` in
      crates/nova_menu/src/pause.rs; nor will TAB or M act:
      `toggle_interface` and `next_interface_pane` in
@@ -190,12 +190,12 @@ There is no manual reload. A weapon's magazine refills on its own from your inve
 Your weapon, thruster and mining beam sections answer rebindable keys, and the Ship pane is where you rebind them:
 
 1. Select a thruster, turret, torpedo bay, railgun or mining beam and press <kbd>B</kbd> (or click **Rebind**). A gun, bay, railgun or beam with no key reads `UNBOUND` and **Rebind** gives it one. A thruster with no key of its own reads `Main Drive: W / Space` (your Main Drive keys) and fires with the Main Drive.
-2. The **Rebind** button lights and a banner over the view reads `Press a key to bind PDC-1 PDC Turret (Kinetic), Esc to cancel`.
-3. The next key or mouse button you press takes over that section's keyboard-and-mouse trigger: `Bound engine_port to K`. A controller trigger on the same section is left alone, so rebinding at the desk never costs you the pad.
+2. The **Rebind** button lights and a banner over the view reads `Press a key or button to bind PDC-1 PDC Turret (Kinetic), Esc to cancel`.
+3. The next key, mouse button or controller button you press takes over that device's half of the section's trigger: `Bound engine_port to K`. The other half is left alone, so a key never costs you the pad and a pad button never costs you the key. With both set, the **Control** row shows both, for example `J / Right Trigger 2`.
 
 A reserved flight control is refused on the spot - `Space is already bound to flight control: Main Drive` - and the capture stays armed for another try. <kbd>LMB</kbd> is refused too, with `Left Mouse stays the pointer`: it is the button you click the blips with. Several sections may share one input (one key can fire every tube). <kbd>Esc</kbd> backs out with `Rebind cancelled` and leaves you on the pane.
 
-A thruster with its own key fires on that key only: the Main Drive no longer fires it, and neither does the controller trigger, until you put it back. To put it back, press <kbd>B</kbd> and then <kbd>Backspace</kbd>: `engine_port fires on the Main Drive`. The Main Drive keys stay reserved, so the thruster's own key is any other free key. While a capture is armed, <kbd>:</kbd> does not open the command shell, <kbd>Tab</kbd> is refused as the interface toggle and does not close the interface, and <kbd>M</kbd> binds like any other key instead of switching the pane. The key you bind does nothing else: binding <kbd>T</kbd> does not also reset the view.
+A thruster with its own key or button fires on that only: the Main Drive no longer fires it, from the keyboard or the controller, until you put it back. To put it back, press <kbd>B</kbd> and then <kbd>Backspace</kbd>: `engine_port fires on the Main Drive`, which clears both halves. The Main Drive inputs stay reserved, the controller's Right Trigger included, so the thruster's own input is any other free one. Every other common controller button already flies the ship or opens the interface, so a thruster's controller button is Right Trigger 2, which it then shares with your guns. While a capture is armed, <kbd>:</kbd> does not open the command shell, <kbd>Tab</kbd> is refused as the interface toggle and does not close the interface, and <kbd>M</kbd> binds like any other key instead of switching the pane. The key you bind does nothing else: binding <kbd>T</kbd> does not also reset the view.
 
 ## Swapping a section
 
