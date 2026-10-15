@@ -181,7 +181,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
   pointer or, over empty space, puts it away; right-drag turns the view. Q, E,
   R and F no longer turn it; the D-pad does.
 - With a part in hand, the Ship pane draws the section it aims at solid, lights
-  the face the part mounts on and hides that section's badge.
+  the face the part mounts on and hides that section's badge and Delete.
 - At a refit dock, Delete names and takes a selected section's strip
   yield; it is disabled, its reason in a tooltip, for a split hull, the last
   flight computer or the docked port; `OnStripped` fires.

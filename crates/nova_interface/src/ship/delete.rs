@@ -212,10 +212,11 @@ pub(crate) fn on_ship_delete_button(
 
 /// Cache [`plan_ship_delete`] for the selection, for the panel's Delete
 /// button, the `ship_delete` key and [`ShipRuntime::delete_verdict`]: the
-/// yield text, or the reason line. `None` while there is no selection or the
-/// pane is closed.
+/// yield text, or the reason. `None` while there is no selection, a part is
+/// in hand or the pane is closed: the button hides and the key does nothing.
 pub(crate) fn update_ship_delete_verdict(
     mut runtime: ResMut<ShipRuntime>,
+    held: Res<HeldPart>,
     items: Option<Res<GameItems>>,
     site: StationSite,
     q_health: Query<&Health, With<SectionMarker>>,
@@ -223,7 +224,7 @@ pub(crate) fn update_ship_delete_verdict(
 ) {
     let verdict = (|| {
         let target = runtime.selected?;
-        if !runtime.active {
+        if !runtime.active || held.0.is_some() {
             return None;
         }
         let resolved = site.resolve(StationServiceType::Refit)?;
@@ -367,6 +368,7 @@ mod tests {
             active: true,
             ..default()
         });
+        app.init_resource::<HeldPart>();
         app.init_resource::<Removed>();
         app.add_message::<SectionDeleteCommand>();
         app.add_observer(
@@ -534,6 +536,17 @@ mod tests {
             .get::<ShipInventoryReports>(player)
             .expect("the player keeps reports")
             .0
+    }
+
+    /// A part in hand takes Delete away: no verdict, so the button hides and
+    /// the key and the button do nothing. An empty hand gives it back.
+    #[test]
+    fn a_part_in_hand_takes_delete_away() {
+        let (mut app, ship) = docked_app(1_000_000, vec![StationServiceType::Refit]);
+        app.insert_resource(HeldPart(Some("pdc".to_string())));
+        assert_eq!(verdict(&mut app, ship.gun), None);
+        app.insert_resource(HeldPart(None));
+        assert!(matches!(verdict(&mut app, ship.gun), Some(Ok(_))));
     }
 
     /// A docked delete of a leaf gun names its strip yield before the press,
