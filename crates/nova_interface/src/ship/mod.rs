@@ -15,8 +15,9 @@
 //! projected clickable badges: the family icon, a status pip and the code.
 //! The section panel beside the view shows the selection's condition bar,
 //! description, labelled facts, the Rebind action and, while the selection has
-//! repairable damage, the repair form. Orbit the camera with the `viewer_orbit_*` actions +
-//! drag + wheel; `[`/`]` or Prev/Next cycle the selection; Fit frames the whole
+//! repairable damage, the repair form. Orbit the camera as the editor's
+//! looks, with the right-button drag (the pad's D-pad) + wheel; `Q` picks the
+//! part of the section under the pointer; `[`/`]` or Prev/Next cycle the selection; Fit frames the whole
 //! ship at the current angles, and Reset also restores the opening angles;
 //! `G` toggles structural mates; `P` repairs, and `B` replaces the selected
 //! bindable section's input. While the form's quantity field has the caret,
@@ -74,8 +75,8 @@ pub(crate) use self::{
 };
 pub use self::{
     ghost::{
-        ship_ghost_aim, ship_placement, ship_view_window_px, socket_lane_open, ShipPlacement,
-        SHIP_GHOST_CALLOUT,
+        ship_ghost_aim, ship_hovered_section, ship_placement, ship_view_window_px,
+        socket_lane_open, ShipPlacement, SHIP_GHOST_CALLOUT,
     },
     refit::{SectionAddCommand, SectionSwapCommand},
     scene::{cuboid_edges, ease_orbit_center, ship_framing, ShipRuntime, SHIP_BLOCK_FILL_SCALE},
@@ -89,8 +90,8 @@ pub mod prelude {
     // ambiguous import visibility through `super::`.
     pub use super::{
         ghost::{
-            ship_ghost_aim, ship_placement, ship_view_window_px, socket_lane_open, ShipPlacement,
-            SHIP_GHOST_CALLOUT,
+            ship_ghost_aim, ship_hovered_section, ship_placement, ship_view_window_px,
+            socket_lane_open, ShipPlacement, SHIP_GHOST_CALLOUT,
         },
         refit::{SectionAddCommand, SectionSwapCommand},
         scene::{
@@ -154,6 +155,7 @@ impl Plugin for ShipPanePlugin {
                     drive_ship_camera,
                     update_ship_blocks,
                     update_ship_placement,
+                    pick_ship_part,
                     sync_ship_ghost,
                     project_ship_blips,
                     label_the_selected_section,

@@ -750,8 +750,8 @@ pub(crate) fn ship_input(
     }
 
     if let Ok(mut orbit) = q_camera.single_mut() {
-        // Turn, tilt and RMB-drag are the shared viewer's feel, not the ship's.
-        let mut gesture = OrbitGesture::read(&input, motion_delta);
+        // The shared viewer's rates, the editor's controls.
+        let mut gesture = OrbitGesture::read_ship(&input, motion_delta);
         if held_sockets.is_some() {
             gesture.tilt_up = false;
             gesture.tilt_down = false;

@@ -175,6 +175,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
   reads UNBOUND, and B or Rebind gives it one.
 - With a part in hand on the Ship pane, R rolls it a quarter turn and F mates
   it by its next socket, as in the editor; the ghost, fit and price follow.
+- The Ship pane uses the editor's controls: Q picks the part of the section
+  under the pointer, and the view turns by right-drag. Q, E, R and F no longer
+  turn it; the D-pad still does.
 - The Ship pane shows the docked station and ships at its docks as dim
   outlines and refuses a part that would hit them. The add callout counts the
   parts bought at the station.
@@ -185,8 +188,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
   opens the command shell when the field loses focus.
 - The Map's mouse wheel no longer zooms the Ship pane when you switch to it.
 - An armed Ship pane rebind lights Rebind and names the section in a banner.
-  The captured key binds and does nothing else: binding R no longer tilts the
-  view.
+  The captured key binds and does nothing else.
 
 ### Web & Platform
 

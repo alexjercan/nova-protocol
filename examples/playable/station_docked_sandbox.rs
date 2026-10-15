@@ -23,10 +23,10 @@
 //!
 //! 1. the Ship tab: rebuild and swap sections, place a catalogue part with
 //!    the ghost (R rolls it, F cycles its mating socket; a click buys the
-//!    parts the hold lacks at the station's ask), turn the view (Q/E) to the
-//!    docked station (dim outlines, on the ship's -X side) and aim a Railgun
-//!    Lance end-on (F) at a plate facing it to see it refused, and rebind a
-//!    gun with B;
+//!    parts the hold lacks at the station's ask), pick a part off the ship
+//!    with Q, drag the view with the right button to the docked station (dim
+//!    outlines, on the ship's -X side) and aim a Railgun Lance end-on (F) at
+//!    a plate facing it to see it refused, and rebind a gun with B;
 //! 2. the Station tab: buy a hull, hire an escort, buy the station;
 //! 3. switch tabs after a change, and check the schematic, the plating and
 //!    the greebles follow it.
@@ -35,27 +35,31 @@
 //! nix develop --command cargo run --example station_docked_sandbox --features debug
 //! ```
 //!
-//! The diagnostics layer (`nova_debug::diagnostics`, F3, on at start)
-//! prints the keys, and in the Ship view draws the free sockets (green
-//! rings, a grey cross where the lane is closed), the target socket, the part
-//! in hand's bounds (green valid, red refused) with its roll as a cyan arrow,
+//! The diagnostics layer (`nova_debug::diagnostics`, F3, on at start) shows
+//! the key hints that apply now (Q over a section, R, F and the click while a
+//! part is in hand, B for a bindable selection, Esc while a rebind waits),
+//! and in the Ship view draws the free sockets near the target (green rings,
+//! a grey cross where the lane is closed), the target socket, the part in
+//! hand's bounds (green valid, red refused) with its roll as a cyan arrow,
 //! and the collision volume of the station and the ships at its docks
-//! (violet). Its panel lists the part, the
-//! target socket, the roll and socket step, the verdict, the parts the click
-//! buys and their cost, and the selected section's binding.
+//! (violet). Its panel names the part in hand and the verdict; Shift+F3 adds
+//! the target socket, the parts the click buys, the selected section's
+//! binding and the socket counts.
 //!
 //! It needs `--features debug`, which owns the diagnostics layer. Under
 //! `NOVA_AUTOPILOT=1` a smoke walk waits for
 //! the docked Ship tab, takes the kinetic PDC from the station catalogue,
 //! points at free sockets until the ghost stands valid, rolls the part and
 //! steps its socket, steps the socket back and rolls until it fits, clicks the
-//! view, rebinds the new gun to K, takes the Railgun Lance, turns the view to
-//! the station and points the lance at the sockets nearest it, through every
+//! view, rebinds the new gun to `]` and checks the selection did not step,
+//! picks a hull part off the ship with Q, takes the Railgun Lance, drags the
+//! view to the station and points the lance at the sockets nearest it, through every
 //! mating socket, until the station refuses it (or warns that none reaches),
 //! and switches tabs after it: a Map tab click, an Inventory tab click and the
 //! next-tab key, which steps on to the Station tab while docked. `NOVA_CAPTURE=1` shoots `sandbox-ship.png`,
 //! `sandbox-ghost.png`, `sandbox-mount.png`, `sandbox-placed.png`,
-//! `sandbox-rebind.png`, `sandbox-station-refusal.png`,
+//! `sandbox-rebind-armed.png`, `sandbox-rebind.png`, `sandbox-pick.png`,
+//! `sandbox-station-refusal.png`,
 //! `sandbox-map-after.png` and `sandbox-station.png`.
 //! Unset, no walk and no deadline run.
 
@@ -116,7 +120,7 @@ fn main() -> bevy::app::AppExit {
     let mut app = nova_protocol::prelude::editor_app(true, None);
     app.init_resource::<Sandbox>();
     app.add_plugins((
-        diagnostics::DiagnosticsHintPlugin::new(KEYS_HINT),
+        diagnostics::DiagnosticsHintPlugin::new(INTRO),
         ship_overlay::ShipOverlayPlugin,
     ));
     app.add_systems(OnEnter(GameStates::MainMenu), start_the_world);
@@ -476,29 +480,34 @@ fn open_the_ship_tab(world: &mut World) {
     info!("station sandbox: the Ship tab is open; TAB closes and reopens the interface");
 }
 
-/// The keys the sandbox's station features answer to, for the diagnostics
-/// hint line.
-const KEYS_HINT: &str = "Ship tab: Place a part, R roll, F socket, click the ghost to buy \
-    missing parts and place (red at the station: refused), B rebind (the key binds and does \
-    nothing else, Esc cancels), TAB close";
+/// What the sandbox is for, for the diagnostics intro.
+const INTRO: &str = "Docked at a Refit station: edit the ship on the Ship tab.";
 
-/// The Ship view's diagnostics on the shared layer: the free sockets, the
-/// target socket and its roll, the ghost's bounds and the station's collision
-/// volume as gizmos, and the placement, the quick buy and the selected
-/// section's binding as panel lines.
+/// The Ship view's diagnostics on the shared layer: the free sockets near the
+/// target, the target socket and its roll, the ghost's bounds and the
+/// station's collision volume as gizmos; the part in hand and the verdict as
+/// panel lines, the rest as detail lines; and the keys that apply now as
+/// hints.
 mod ship_overlay {
     use bevy::{camera::visibility::RenderLayers, ecs::system::SystemState};
     use nova_protocol::nova_interface::ship::{
-        ship_placement, socket_lane_open, ShipPlacement, ShipRuntime, ShipSectionView, ShipSections,
+        ship_hovered_section, ship_placement, socket_lane_open, ShipPlacement, ShipRuntime,
+        ShipSectionView, ShipSections,
     };
 
     use super::{diagnostics, diagnostics::palette, *};
 
+    /// How far from the target socket a free socket is still drawn, in
+    /// cells: the sockets of the target block and its neighbours, where the
+    /// part in hand moves next.
+    const NEAR_TARGET_CELLS: f32 = 1.0;
+
     /// What the gizmos draw this frame, read from the world.
     #[derive(Resource, Default)]
     struct ShipOverlay {
-        /// Each free socket of a live section, in ship-local space: where it
-        /// sits, which way it faces, and whether its lane is open.
+        /// The free sockets of live sections near the target socket, in
+        /// ship-local space: where each sits, which way it faces, and whether
+        /// its lane is open.
         free_points: Vec<(Vec3, Vec3, bool)>,
         /// The ghost's placement and its part's collider half extents.
         placement: Option<(ShipPlacement, Vec3)>,
@@ -587,6 +596,7 @@ mod ship_overlay {
         };
         let held = runtime.held().map(str::to_string);
         let rebind_armed = runtime.rebind_armed();
+        let docked = !runtime.station_colliders().is_empty();
         let mount = runtime.mount();
         let selected = runtime.selected();
         let station: Vec<(Vec3, Vec3)> = runtime
@@ -598,6 +608,8 @@ mod ship_overlay {
             .get(world)
             .map(|sections| sections.collect())
             .unwrap_or_default();
+        let hovered = ship_hovered_section(world)
+            .and_then(|hovered| views.iter().find(|view| view.entity == hovered));
         let free_points = free_points(world, &views);
         let placement = ship_placement(world).cloned().map(|placement| {
             let half = world
@@ -609,23 +621,40 @@ mod ship_overlay {
         });
 
         let mut lines = Vec::new();
-        match &held {
-            Some(part) => lines.push(format!(
-                "held: {part}  roll {}/4  socket step {}",
+        let mut details = Vec::new();
+        let mut hints: Vec<(&str, &str)> = Vec::new();
+        if rebind_armed {
+            lines.push("rebind: waiting for a key".to_string());
+            hints.push(("Esc", "cancel rebind"));
+        }
+        if let Some(part) = &held {
+            lines.push(format!(
+                "held: {part} roll {}/4 socket {}",
                 mount.roll, mount.source
-            )),
-            None => lines.push("held: nothing (Place a catalogue part)".to_string()),
+            ));
+            hints.push(("R", "roll part"));
+            hints.push(("F", "cycle socket"));
+        }
+        if let Some(view) = hovered.filter(|_| docked && !rebind_armed) {
+            hints.push(("Q", "pick part"));
+            details.push(format!("hovered: {}", view.code));
         }
         match &placement {
             Some((placement, _)) => {
-                lines.push(format!(
+                lines.push(match &placement.verdict {
+                    Ok(_) => "VALID".to_string(),
+                    Err(line) => format!("REFUSED: {line}"),
+                });
+                if placement.verdict.is_ok() {
+                    hints.push(("LMB", "place"));
+                }
+                details.push(format!(
                     "target: {} socket {}",
                     placement.section, placement.point
                 ));
-                lines.push(match &placement.verdict {
-                    Ok(line) => format!("VALID: {line}"),
-                    Err(line) => format!("REFUSED: {line}"),
-                });
+                if let Some(line) = placement.verdict.as_ref().ok() {
+                    details.push(line.clone());
+                }
                 if let (Some(payment), Some(items)) =
                     (&placement.payment, world.get_resource::<GameItems>())
                 {
@@ -639,44 +668,59 @@ mod ship_overlay {
                         .iter()
                         .map(|(item, count)| count * items.design(item).ask_cr)
                         .sum();
-                    lines.push(if bought.is_empty() {
-                        "quick buy: nothing, the hold covers the recipe".to_string()
+                    details.push(if bought.is_empty() {
+                        "quick buy: none".to_string()
                     } else {
-                        format!("quick buy: {} for {cost} cr at ask", bought.join(", "))
+                        format!("quick buy: {} = {cost} cr", bought.join(", "))
                     });
                 }
             }
-            None if held.is_some() => {
-                lines.push("target: none (point at an open socket)".to_string());
-            }
+            None if held.is_some() => details.push("target: none".to_string()),
             None => {}
         }
         if let Some(view) =
             selected.and_then(|selected| views.iter().find(|view| view.entity == selected))
         {
-            lines.push(format!(
-                "selected: {}  binding: {}",
+            let binding = view.binding_text();
+            if binding.is_some() && held.is_none() && !rebind_armed {
+                hints.push(("B", "rebind"));
+            }
+            details.push(format!(
+                "selected: {} bind {}",
                 view.code,
-                view.binding_text().unwrap_or_else(|| "none".to_string())
+                binding.unwrap_or_else(|| "none".to_string())
             ));
         }
-        if rebind_armed {
-            lines.push("rebind: owns the keys, view keys off".to_string());
-        }
         let open = free_points.iter().filter(|(.., open)| *open).count();
-        lines.push(format!(
-            "free sockets: {open} open (green), {} interior (grey X); station boxes: {} \
-             (violet)",
+        details.push(format!(
+            "sockets: {open} open, {} closed; station boxes {}",
             free_points.len() - open,
             station.len()
         ));
+        // Only the sockets the part in hand could move to next.
+        let near: Vec<(Vec3, Vec3, bool)> = placement
+            .as_ref()
+            .map(|(placement, _)| {
+                free_points
+                    .iter()
+                    .copied()
+                    .filter(|(anchor, ..)| anchor.distance(placement.anchor) <= NEAR_TARGET_CELLS)
+                    .collect()
+            })
+            .unwrap_or_default();
 
         let mut panel = world.resource_mut::<diagnostics::DiagnosticsPanel>();
         for line in lines {
             panel.line(line);
         }
+        for line in details {
+            panel.detail(line);
+        }
+        for (key, action) in hints {
+            panel.hint(key, action);
+        }
         *world.resource_mut::<ShipOverlay>() = ShipOverlay {
-            free_points,
+            free_points: near,
             placement,
             station,
         };
@@ -749,7 +793,9 @@ mod smoke {
     use nova_input::prelude::InputSource;
     use nova_protocol::{
         nova_debug::harness::{press_action, release_action, shoot, AutopilotPlugin, Predicate},
-        nova_interface::ship::{ship_ghost_aim, ship_placement, ship_view_window_px, ShipRuntime},
+        nova_interface::ship::{
+            ship_ghost_aim, ship_hovered_section, ship_placement, ship_view_window_px, ShipRuntime,
+        },
     };
 
     use super::*;
@@ -780,6 +826,11 @@ mod smoke {
     const REBIND_SHOT: &str = "sandbox-rebind.png";
     /// The PNG of the armed rebind: the lit button and the prompt banner.
     const REBIND_ARMED_SHOT: &str = "sandbox-rebind-armed.png";
+    /// The PNG of the hull part the pipette took off the ship.
+    const PICK_SHOT: &str = "sandbox-pick.png";
+    /// Mouse travel per frame while the walk drags the view, in pixels:
+    /// rightward, the short way round to the station side. About 35 frames.
+    const DRAG_PX: Vec2 = Vec2::new(16.0, 0.0);
     /// The PNG of the ghost refused against the docked station.
     const STATION_REFUSAL_SHOT: &str = "sandbox-station-refusal.png";
     /// How far from the station a free socket's aim may be for the walk to
@@ -790,10 +841,11 @@ mod smoke {
     const STATION_VIEW_FACING: f32 = 0.5;
     /// Seconds the walk gets to try every free socket against the station.
     const STATION_AIM_SECS: f32 = 600.0;
-    /// The key the walk binds the placed gun to: R, the view's tilt-up key,
-    /// so the walk also shows the capture swallows it.
-    const REBIND_KEY: KeyCode = KeyCode::KeyR;
-    /// How far the view's facing may drift over the rebind and still count
+    /// The key the walk binds the placed gun to: `T`, the view's reset key
+    /// and free of the flight table, so the panel binds it. `]` is the
+    /// flight lock-next key and the panel refuses it.
+    const REBIND_KEY: KeyCode = KeyCode::KeyT;
+    /// How far the view's facing may drift over a key press and still count
     /// as not turned.
     const FACING_EPSILON: f32 = 1e-4;
     /// The PNG of the Map tab a click opens after the add.
@@ -804,14 +856,27 @@ mod smoke {
     const BEAT_SECS: f32 = 60.0;
     /// The Ship pane's side panel, which scrolls under the wheel.
     const SHIP_PANEL: &str = "ShipPanel";
+    /// The Ship pane's 3D view.
+    const SHIP_VIEWPORT: &str = "ShipViewport";
+
+    /// The part in hand before the pipette, and the section it picked from
+    /// once Q is pressed.
+    #[derive(Resource, Clone, Debug)]
+    struct SmokePick {
+        before: Option<String>,
+        section: Option<Entity>,
+    }
+
+    /// The Ship view's facing and selection when the rebind armed.
+    #[derive(Resource, Clone, Copy, Debug)]
+    struct SmokeArmed {
+        facing: Vec3,
+        selected: Option<Entity>,
+    }
 
     /// The Place button the walk clicks, the player's section count before,
     /// the ship-local points it aims the ghost through, and the one it is on
     /// (`usize::MAX` before the first).
-    /// The Ship view's facing when the rebind armed.
-    #[derive(Resource, Clone, Copy, Debug)]
-    struct SmokeFacing(Vec3);
-
     #[derive(Resource, Clone, Debug)]
     struct SmokeAdd {
         button: String,
@@ -972,6 +1037,62 @@ mod smoke {
         };
         move_cursor(pixel)(world);
         world.resource_mut::<SmokeAdd>().aiming = aiming;
+    }
+
+    /// The catalogue part the live section `section` of the player ship was
+    /// built from.
+    fn built_part(world: &World, section: Entity) -> Option<String> {
+        let id = world.get::<EntityId>(section)?;
+        let mut designs =
+            world.try_query_filtered::<&ShipDesignSections, With<PlayerSpaceshipMarker>>()?;
+        let design = designs.iter(world).next()?;
+        design
+            .get(&id.0)
+            .map(|section| section.config.base.id.clone())
+    }
+
+    /// Point at the centre of a hull section whose part is not in hand, and
+    /// record the part in hand for the pipette.
+    fn point_at_a_hull(world: &mut World) {
+        let before = world.resource::<ShipRuntime>().held().map(str::to_string);
+        let Some(sections) = world
+            .query_filtered::<&ShipDesignSections, With<PlayerSpaceshipMarker>>()
+            .iter(world)
+            .next()
+            .map(|design| design.0.clone())
+        else {
+            return;
+        };
+        let pixel = sections.iter().find_map(|section| {
+            let part = &section.config.base;
+            if before.as_deref() == Some(part.id.as_str())
+                || section.config.kind.class() != SectionClass::Hull
+                || part.hide_in_editor
+            {
+                return None;
+            }
+            ship_view_window_px(world, section.position)
+        });
+        let Some(pixel) = pixel else {
+            return;
+        };
+        move_cursor(pixel)(world);
+        world.insert_resource(SmokePick {
+            before,
+            section: None,
+        });
+    }
+
+    /// Whether Q put the part of the section under the pointer in hand.
+    fn picked_the_hull(world: &World) -> bool {
+        let Some(pick) = world.get_resource::<SmokePick>() else {
+            return false;
+        };
+        let held = world
+            .get_resource::<ShipRuntime>()
+            .and_then(|runtime| runtime.held().map(str::to_string));
+        let built = pick.section.and_then(|section| built_part(world, section));
+        held.is_some() && held != pick.before && held == built
     }
 
     /// Which way the Ship view camera looks, in the ship-local scene.
@@ -1313,7 +1434,8 @@ mod smoke {
             .on_enter(|world: &mut World| {
                 release_action("ship_rebind")(world);
                 let facing = ship_view_facing(world);
-                world.insert_resource(SmokeFacing(facing));
+                let selected = world.resource::<ShipRuntime>().selected();
+                world.insert_resource(SmokeArmed { facing, selected });
                 // The lit Rebind button sits above the catalogue.
                 let mut panels = world.query::<(&Name, &mut bevy::ui::ScrollPosition)>();
                 for (name, mut scroll) in panels.iter_mut(world) {
@@ -1346,17 +1468,17 @@ mod smoke {
             .on_enter(release_key(REBIND_KEY))
             .until(frames(SETTLE_FRAMES))
             .add()
-            .step("station sandbox: the captured key did not turn the view")
+            .step("station sandbox: the captured key kept the selection")
             .until(Arc::new(|world: &World| {
-                world
-                    .get_resource::<SmokeFacing>()
-                    .is_some_and(|armed| ship_view_facing(world).distance(armed.0) < FACING_EPSILON)
+                world.get_resource::<SmokeArmed>().is_some_and(|armed| {
+                    world.resource::<ShipRuntime>().selected() == armed.selected
+                })
             }))
             .diagnose(|world| {
                 format!(
-                    "facing {:?}, armed {:?}",
-                    ship_view_facing(world),
-                    world.get_resource::<SmokeFacing>()
+                    "selected {:?}, armed {:?}",
+                    world.resource::<ShipRuntime>().selected(),
+                    world.get_resource::<SmokeArmed>()
                 )
             })
             .deadline(BEAT_SECS)
@@ -1377,22 +1499,89 @@ mod smoke {
             .until(shot_written(REBIND_SHOT))
             .deadline(SHOT_SECS)
             .add();
+        let script = script
+            .step("station sandbox: point at a hull section to pick")
+            .on_enter(point_at_a_hull)
+            .until(Arc::new(|world: &World| {
+                world.get_resource::<SmokePick>().is_some_and(|pick| {
+                    ship_hovered_section(world)
+                        .and_then(|hovered| built_part(world, hovered))
+                        .is_some_and(|part| Some(part) != pick.before)
+                })
+            }))
+            .diagnose(|world| {
+                format!(
+                    "{:?}, hovered {:?}",
+                    world.get_resource::<SmokePick>(),
+                    ship_hovered_section(world)
+                )
+            })
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: pick its part with Q")
+            .on_enter(|world: &mut World| {
+                let hovered = ship_hovered_section(world);
+                if let Some(mut pick) = world.get_resource_mut::<SmokePick>() {
+                    pick.section = hovered;
+                }
+                press_action("ship_pick")(world);
+            })
+            .until(Arc::new(picked_the_hull))
+            .diagnose(|world| {
+                format!(
+                    "{:?}, held {:?}",
+                    world.get_resource::<SmokePick>(),
+                    world
+                        .get_resource::<ShipRuntime>()
+                        .and_then(|runtime| runtime.held().map(str::to_string))
+                )
+            })
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: let the pick key up")
+            .on_enter(release_action("ship_pick"))
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station sandbox: the pick key did not turn the view")
+            .until(Arc::new(|world: &World| {
+                world.get_resource::<SmokeArmed>().is_some_and(|armed| {
+                    ship_view_facing(world).distance(armed.facing) < FACING_EPSILON
+                })
+            }))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: shoot the picked part")
+            .on_enter(|world: &mut World| shoot(world, PICK_SHOT))
+            .until(shot_written(PICK_SHOT))
+            .deadline(SHOT_SECS)
+            .add();
         // The three-cell railgun lance: the fixture's berth leaves 2.5 cells
         // between the station-facing plates and the station's boxes, so a
         // one- or two-cell part never reaches them. The station is on the
-        // ship's -X side, away from the opening view, so the view turns first.
+        // ship's -X side, away from the opening view, so the view turns
+        // first, by the right-button drag the editor's camera looks with.
         let script = take_the_part(script, RAILGUN_LANCE_SECTION_ID);
         script
-            .step("station sandbox: turn the view to the station")
-            .on_enter(press_action("viewer_orbit_left"))
+            // Off the panel first: a right click on its Put down button would
+            // drop the part the drag is for.
+            .step("station sandbox: point at the view to drag it")
+            .each(|world, _, _| keep_hovering_named(SHIP_VIEWPORT)(world))
+            .until(pointer_over_node(SHIP_VIEWPORT))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: drag the view to the station")
+            .on_enter(press_mouse(MouseButton::Right))
+            .each(|world, _, _| {
+                world.write_message(bevy::input::mouse::MouseMotion { delta: DRAG_PX });
+            })
             .until(Arc::new(|world: &World| {
                 ship_view_facing(world).x >= STATION_VIEW_FACING
             }))
             .diagnose(|world| format!("facing {:?}", ship_view_facing(world)))
             .deadline(BEAT_SECS)
             .add()
-            .step("station sandbox: let the turn key up")
-            .on_enter(release_action("viewer_orbit_left"))
+            .step("station sandbox: let the drag button up")
+            .on_enter(release_mouse(MouseButton::Right))
             .until(frames(SETTLE_FRAMES))
             .add()
             .step("station sandbox: aim from the sockets nearest the station")

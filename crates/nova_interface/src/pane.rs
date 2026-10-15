@@ -582,16 +582,13 @@ pub(crate) struct PaneInputHint {
 }
 
 /// When a footer hint shows, by whether the Ship pane has a catalogue part
-/// in hand: the tilt keys roll and cycle the part while one is, so the
-/// footer names what they do now.
+/// in hand: R and F roll and cycle the part only while one is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum HintWhenType {
     /// Shown always.
     Always,
     /// Shown only while a part is in hand.
     Placing,
-    /// Shown only while no part is in hand.
-    Viewing,
 }
 
 /// One footer hint: a verb, the actions whose keys it names, and when it
@@ -632,16 +629,7 @@ const MAP_KEY_HINTS: &[PaneKeyHint] = &[
 
 /// The keys the Ship pane answers to. Every name must be registered.
 const SHIP_KEY_HINTS: &[PaneKeyHint] = &[
-    (
-        "Turn",
-        &["viewer_orbit_left", "viewer_orbit_right"],
-        HintWhenType::Always,
-    ),
-    (
-        "Tilt",
-        &["viewer_orbit_up", "viewer_orbit_down"],
-        HintWhenType::Viewing,
-    ),
+    ("Pick part", &["ship_pick"], HintWhenType::Always),
     ("Roll part", &["ship_part_roll"], HintWhenType::Placing),
     ("Cycle socket", &["ship_part_socket"], HintWhenType::Placing),
     ("Reset", &["viewer_reframe"], HintWhenType::Always),
@@ -794,8 +782,8 @@ pub(crate) fn refresh_pane_input_hints(
     }
 }
 
-/// Show each footer hint by its [`HintWhenType`]: while the Ship pane has a
-/// part in hand the tilt hint gives way to the roll and socket hints.
+/// Show each footer hint by its [`HintWhenType`]: the roll and socket hints
+/// only while the Ship pane has a part in hand.
 pub(crate) fn show_placing_hints(
     ship: Option<Res<ShipRuntime>>,
     mut q_hint: Query<(&PaneInputHint, &mut Node)>,
@@ -805,7 +793,6 @@ pub(crate) fn show_placing_hints(
         let shown = match hint.when {
             HintWhenType::Always => true,
             HintWhenType::Placing => placing,
-            HintWhenType::Viewing => !placing,
         };
         let display = if shown { Display::Flex } else { Display::None };
         if node.display != display {

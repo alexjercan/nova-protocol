@@ -30,7 +30,8 @@ use bevy::{
     picking::events::{Click, Enter, Leave, Move, Pointer},
     prelude::*,
 };
-use nova_gameplay::prelude::*;
+use nova_gameplay::{prelude::*, PauseStates};
+use nova_input::prelude::{InputBindings, InputSources};
 use nova_ship::prelude::*;
 use nova_ui::{
     theme::UiColor,
@@ -46,7 +47,7 @@ use super::{
 };
 use crate::{
     icons::SectionIconType,
-    pane::{play_menu_select, themed_label},
+    pane::{play_menu_select, themed_label, InterfacePaneType},
 };
 
 /// What a click on the view would add, solved under the pointer. Read by
@@ -461,6 +462,65 @@ pub(crate) fn update_ship_placement(
     }
 }
 
+/// Put the part the section under the pointer was built from in hand on
+/// `ship_pick` (Q), as the editor's pipette does, at the default
+/// [`MountPose`]. Only at a Refit station, where a part in hand can be
+/// placed; elsewhere the note line says so. Read off the desk only: the pad
+/// has no pointer, and its half of the key turns the view.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one key read against the pane, the hovered block and the site"
+)]
+pub(crate) fn pick_ship_part(
+    pause: Res<State<PauseStates>>,
+    pane: Res<InterfacePaneType>,
+    bindings: Res<InputBindings>,
+    sources: InputSources,
+    preview: Res<ShipPlacementPreview>,
+    site: StationSite,
+    mut runtime: ResMut<ShipRuntime>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
+) {
+    if *pause.get() != PauseStates::Interface
+        || *pane != InterfacePaneType::Ship
+        || runtime.rebind_armed()
+        || !bindings
+            .get("ship_pick")
+            .is_some_and(|action| sources.just_pressed_desk(action))
+    {
+        return;
+    }
+    let Some(hovered) = preview.hovered else {
+        return;
+    };
+    let resolved = if site.gate(StationServiceType::Refit) {
+        site.resolve(StationServiceType::Refit)
+    } else {
+        None
+    };
+    let Some(resolved) = resolved else {
+        runtime.note = Some((
+            "Pick: dock at a Refit station to place parts".to_string(),
+            2.5,
+        ));
+        return;
+    };
+    let Some(section) = resolved.selected_section(Some(hovered)) else {
+        return;
+    };
+    let part = &section.config.base;
+    if part.hide_in_editor {
+        runtime.note = Some((format!("Pick: {} is not in the catalogue", part.name), 2.5));
+        return;
+    }
+    if runtime.held.as_deref() != Some(part.id.as_str()) {
+        runtime.held = Some(part.id.clone());
+        runtime.mount = MountPose::default();
+        play_menu_select(&mut commands, bank.as_deref());
+    }
+}
+
 /// Draw the solved placement: the part's block at its pose with a valid or
 /// refused outline, and the callout with its price or refusal beside it.
 #[expect(
@@ -651,6 +711,12 @@ pub fn ship_placement(world: &World) -> Option<&ShipPlacement> {
         .get_resource::<ShipPlacementPreview>()?
         .placement
         .as_ref()
+}
+
+/// The section block under the pointer this frame, while the pointer is over
+/// the view: what `ship_pick` takes the part of.
+pub fn ship_hovered_section(world: &World) -> Option<Entity> {
+    world.get_resource::<ShipPlacementPreview>()?.hovered
 }
 
 /// The design section id and socket id the ghost is aimed at, and whether a

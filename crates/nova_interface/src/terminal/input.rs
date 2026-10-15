@@ -351,6 +351,13 @@ impl NovaOsAppInput<'_, '_> {
             .get(action)
             .is_some_and(|action| self.sources.just_pressed(action))
     }
+
+    /// An action held on the pad only.
+    pub(crate) fn pressed_pad(&self, action: &str) -> bool {
+        self.bindings
+            .get(action)
+            .is_some_and(|action| self.sources.pressed_pad(action))
+    }
 }
 
 #[cfg(test)]

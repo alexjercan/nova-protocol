@@ -59,6 +59,17 @@ impl InputSources<'_, '_> {
             .any(|source| self.edge(source))
     }
 
+    /// Whether any GAMEPAD source `action` holds is down.
+    ///
+    /// A view whose desk keys mean something else still orbits on the pad,
+    /// which has no pointer to drag with.
+    pub fn pressed_pad(&self, action: &ActionBinding) -> bool {
+        action
+            .sources()
+            .filter(|source| matches!(source, InputSource::Gamepad(_)))
+            .any(|source| self.level(source))
+    }
+
     /// Whether any GAMEPAD source went down this frame.
     pub fn just_pressed_pad(&self, action: &ActionBinding) -> bool {
         action

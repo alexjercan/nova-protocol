@@ -97,6 +97,22 @@ impl OrbitGesture {
         }
     }
 
+    /// Read this frame's gesture for the Ship view, which turns as the
+    /// editor's camera looks: the right-button drag at the desk, where Q
+    /// picks a part and R and F roll and mate it. The pad keeps its D-pad
+    /// orbit.
+    pub(crate) fn read_ship(input: &NovaOsAppInput<'_, '_>, motion_delta: Vec2) -> Self {
+        Self {
+            turn_left: input.pressed_pad("viewer_orbit_left"),
+            turn_right: input.pressed_pad("viewer_orbit_right"),
+            tilt_up: input.pressed_pad("viewer_orbit_up"),
+            tilt_down: input.pressed_pad("viewer_orbit_down"),
+            drag: input
+                .mouse_pressed(MouseButton::Right)
+                .then_some(motion_delta),
+        }
+    }
+
     /// Whether the player touched the orbit at all this frame. An untouched
     /// orbit must not be written, so an idle frame leaves the camera's orbit
     /// component unchanged.

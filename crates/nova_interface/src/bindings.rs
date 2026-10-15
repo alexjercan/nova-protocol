@@ -135,6 +135,14 @@ pub fn interface_bindings() -> Vec<ActionBinding> {
             .context(ActionContext::InterfacePane("ship"))
             .keyboard([Keyboard(KeyCode::KeyF)])
             .gamepad([Gamepad(GamepadButton::DPadDown)]),
+        // The editor's pipette: the section under the pointer puts its part in
+        // hand. It follows the turn key the Ship pane leaves to the pad, and
+        // is read off the desk only, as the pad has no pointer to aim with.
+        ActionBinding::new("ship_pick", "SHIP", "Pick Part")
+            .follows("viewer_orbit_left")
+            .context(ActionContext::InterfacePane("ship"))
+            .keyboard([Keyboard(KeyCode::KeyQ)])
+            .gamepad([Gamepad(GamepadButton::DPadLeft)]),
         ActionBinding::new("inventory_details", "INVENTORY", "Item Details")
             .context(ActionContext::InterfacePane("inventory"))
             .keyboard([Keyboard(KeyCode::KeyI)]),

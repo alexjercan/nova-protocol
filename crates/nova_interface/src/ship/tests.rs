@@ -600,6 +600,45 @@ fn ship_orbit_drag_is_rmb_only() {
     );
 }
 
+/// The Ship view turns as the editor's camera looks, by the right-button
+/// drag: Q, E, R and F pick, roll and mate parts there, so held at the desk
+/// they leave the orbit alone.
+#[test]
+fn the_desk_turn_keys_do_not_turn_the_ship_view() {
+    let mut app = App::new();
+    app.add_plugins((
+        MinimalPlugins,
+        StatesPlugin,
+        AssetPlugin::default(),
+        InputPlugin,
+    ));
+    app.init_asset::<Image>();
+    app.init_asset::<Mesh>();
+    app.init_asset::<StandardMaterial>();
+    app.insert_state(PauseStates::Interface);
+    app.register_input_actions(crate::bindings::interface_bindings());
+    app.init_resource::<ShipRuntime>();
+    app.init_resource::<ActiveUiTheme>();
+    app.init_resource::<NovaOsCloseTransition>();
+    app.insert_resource(InterfacePaneType::Ship);
+    app.add_message::<SectionRepairCommand>();
+    spawn_scripted_ship(app.world_mut());
+    app.world_mut()
+        .run_system_once(assign_section_codes)
+        .unwrap();
+    app.world_mut().run_system_once(manage_ship_scene).unwrap();
+    let before = ship_orbit(&mut app);
+
+    let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+    for key in [KeyCode::KeyQ, KeyCode::KeyE, KeyCode::KeyR, KeyCode::KeyF] {
+        keys.press(key);
+    }
+    app.world_mut().run_system_once(ship_input).unwrap();
+
+    let after = ship_orbit(&mut app);
+    assert_eq!((after.theta, after.phi), (before.theta, before.phi));
+}
+
 /// The wheel that zooms the Map leaves the Ship view's zoom alone. The
 /// interface pauses `Time<Virtual>`, so the fixed step that ages messages
 /// stops, and wheel travel the Ship pane did not read under the Map would
@@ -659,11 +698,12 @@ fn the_map_wheel_does_not_zoom_the_ship_view() {
     );
 }
 
-/// A rebind owns the key it captures. R tilts the view, so binding a
-/// section to R must neither tilt on the capture frame nor while the key is
-/// still held after the capture closes.
+/// A rebind owns the key it captures. `T` resets the view, so binding a
+/// section to `T` must not reset a turned view on the capture frame, nor
+/// while the key is still held after the capture closes. `T` is free of the
+/// flight table, so the live panel binds it too.
 #[test]
-fn a_captured_rebind_key_does_not_turn_the_view() {
+fn a_captured_rebind_key_does_nothing_else() {
     use bevy::input::{
         keyboard::{Key, KeyboardInput},
         ButtonState,
@@ -694,13 +734,22 @@ fn a_captured_rebind_key_does_not_turn_the_view() {
         .unwrap();
     app.world_mut().run_system_once(manage_ship_scene).unwrap();
     app.update();
-    let before = ship_orbit(&mut app);
-    app.world_mut().resource_mut::<ShipRuntime>().rebinding = Some(turret);
+    {
+        let mut runtime = app.world_mut().resource_mut::<ShipRuntime>();
+        runtime.selected = Some(turret);
+        runtime.rebinding = Some(turret);
+    }
+    let turned = SHIP_THETA_DEFAULT + 1.0;
+    app.world_mut()
+        .query_filtered::<&mut ShipOrbit, With<ShipCameraMarker>>()
+        .single_mut(app.world_mut())
+        .unwrap()
+        .theta = turned;
 
-    // Pressed once and held: the input plugin keeps R down across frames.
+    // Pressed once and held: the input plugin keeps `T` down across frames.
     app.world_mut().write_message(KeyboardInput {
-        key_code: KeyCode::KeyR,
-        logical_key: Key::Character("r".into()),
+        key_code: KeyCode::KeyT,
+        logical_key: Key::Character("t".into()),
         state: ButtonState::Pressed,
         text: None,
         repeat: false,
@@ -715,14 +764,13 @@ fn a_captured_rebind_key_does_not_turn_the_view() {
             .get::<SpaceshipTurretInputBinding>(turret)
             .unwrap()
             .0[0],
-        InputSource::Keyboard(KeyCode::KeyR),
-        "R bound the section"
+        InputSource::Keyboard(KeyCode::KeyT),
+        "T bound the section"
     );
-    let after = ship_orbit(&mut app);
     assert_eq!(
-        (after.theta, after.phi),
-        (before.theta, before.phi),
-        "and did nothing else"
+        ship_orbit(&mut app).theta,
+        turned,
+        "and did not reset the view"
     );
 }
 

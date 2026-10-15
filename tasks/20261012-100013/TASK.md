@@ -92,3 +92,22 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
   until every button is up. Chosen (b): it also covers Esc, and other
   readers keep a true input state. The prompt is a banner over the view
   (the panel note line is empty while armed); Rebind wears `Selected`.
+- Editor controls in the Ship view. The editor binds RMB-hold look, WASD
+  fly, Space/Shift up/down, F frame, Q pipette, R roll and F socket while
+  armed. Options: (a) port the free-fly rig (loses the orbit around the
+  selection, which the read-only Info view reuses); (b) keep the orbit, turn
+  it by RMB drag as the editor looks, drop desk Q/E/R/F turning and keep the
+  pad's D-pad, which has no pointer; (c) move turning to other keys (no
+  editor precedent). Chosen (b). The Map keeps Q/E/R/F.
+- Pipette. `ship_pick` (Q) follows `viewer_orbit_left`, as `ship_part_roll`
+  follows tilt, so one rebind moves both and the table has no conflict; it
+  is read off the desk only. It takes the hovered section's catalogue part
+  (the editor's pipette takes the prototype, not the pose) at the default
+  mount, only at a Refit station; elsewhere the note line says why. A part
+  hidden from the catalogue is refused on the note line.
+- Diagnostics: the sandbox adopts the short layer (30421fa6e): an intro
+  sentence, 1-3 panel lines, the rest as Shift+F3 detail, hints only while
+  the key applies, and free sockets only within 1 cell of the target socket.
+- Rebind proof key. R no longer tilts, so the proof binds `T` (reset view),
+  which is free of the flight table. `]` is the flight lock-next key, and
+  the panel refuses it.
