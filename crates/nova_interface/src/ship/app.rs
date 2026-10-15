@@ -163,6 +163,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                         ));
                         fact.spawn((
                             ShipPanelField::Control,
+                            Name::new("ShipControl"),
                             themed_label("", 13.0, UiColor::Primary),
                             TextLayout::new(Justify::Right, LineBreak::NoWrap),
                             Node {

@@ -11,7 +11,7 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 use nova_command::prelude::*;
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::*;
-use nova_input::prelude::InputSource;
+use nova_input::prelude::{InputBindings, InputSource};
 use nova_ship::prelude::*;
 use nova_ui::theme::UiColor;
 
@@ -227,6 +227,9 @@ pub struct ShipSectionView {
     pub(crate) link_points: Vec<LinkPoint>,
     pub(crate) health: Option<Health>,
     pub(crate) bindings: Option<Vec<InputSource>>,
+    /// A thruster with no key of its own: the Main Drive fires it, through
+    /// the flight computer's allocation. Its `bindings` are empty.
+    pub(crate) main_drive: bool,
     pub(crate) inactive: bool,
     pub(crate) zero_health: bool,
     pub(crate) disabled: bool,
@@ -234,9 +237,17 @@ pub struct ShipSectionView {
 
 impl ShipSectionView {
     /// The section's player binding as the panel's Control row reads it:
-    /// its sources, `UNBOUND` for a weapon or tool with none, or `None`
-    /// for a section that takes no player input.
-    pub fn binding_text(&self) -> Option<String> {
+    /// its sources, the live Main Drive keys in `bindings` for a thruster
+    /// with no key of its own (`Main Drive: W / Space`), `UNBOUND` for a
+    /// weapon or tool with none, or `None` for a section that takes no
+    /// player input.
+    pub fn binding_text(&self, bindings: &InputBindings) -> Option<String> {
+        if self.main_drive {
+            return Some(match bindings.get(MAIN_DRIVE_ACTION) {
+                Some(drive) => format!("{}: {}", drive.label, drive.keyboard_display()),
+                None => panic!("the input table has no {MAIN_DRIVE_ACTION} action"),
+            });
+        }
         self.bindings.as_ref().map(|bindings| {
             if bindings.is_empty() {
                 return "UNBOUND".to_string();
@@ -400,6 +411,7 @@ impl ShipSections<'_, '_> {
                             .map(|points| points.0.clone())
                             .unwrap_or_default(),
                         health: health.cloned(),
+                        main_drive: kind == SectionClass::Thruster && thruster_bindings.is_none(),
                         bindings: thruster_bindings
                             .map(|bindings| bindings.0.clone())
                             .or_else(|| turret_bindings.map(|bindings| bindings.0.clone()))
@@ -407,7 +419,8 @@ impl ShipSections<'_, '_> {
                             .or_else(|| railgun_bindings.map(|bindings| bindings.0.clone()))
                             .or_else(|| mining_bindings.map(|bindings| bindings.0.clone()))
                             // A weapon or tool fires only on a binding, so one
-                            // with none reads UNBOUND and Rebind gives it one.
+                            // with none reads UNBOUND and Rebind gives it one;
+                            // a thruster with none fires on the Main Drive.
                             .or_else(|| takes_a_player_binding(kind).then(Vec::new)),
                         inactive,
                         zero_health,
@@ -430,12 +443,15 @@ impl ShipSections<'_, '_> {
     }
 }
 
-/// Whether a section of `kind` always takes a player binding: a weapon or a
-/// mining emitter, which do nothing without one. A thruster takes one only
-/// when its ship maps it; otherwise the flight computer drives it.
+/// Whether a section of `kind` takes a player binding, so Rebind offers it
+/// one: a weapon or a mining emitter, which do nothing without one, and a
+/// thruster, which fires on the Main Drive until it has a key of its own.
 pub(crate) fn takes_a_player_binding(kind: SectionClass) -> bool {
-    kind.is_weapon() || kind == SectionClass::Mining
+    kind.is_weapon() || matches!(kind, SectionClass::Mining | SectionClass::Thruster)
 }
+
+/// The flight rig action a thruster with no key of its own fires on.
+const MAIN_DRIVE_ACTION: &str = "main_drive";
 
 /// Whether Repair is valid for a section, plus a reason for a disabled
 /// action. Uses the same [`plan_plate_repair`] check as [`repair_section`], so

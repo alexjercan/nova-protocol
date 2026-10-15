@@ -29,7 +29,8 @@ pub struct SectionInputBindingChanged {
     pub section: Entity,
     /// Stable authored section id.
     pub section_id: String,
-    /// Complete replacement binding list.
+    /// Complete replacement binding list. Empty for a thruster sent back to
+    /// the Main Drive: its [`SpaceshipThrusterInputBinding`] is gone.
     pub bindings: Vec<InputSource>,
 }
 
@@ -40,11 +41,16 @@ pub(super) struct ThrusterInputMarker;
 #[action_output(bool)]
 pub(super) struct ThrusterInput;
 
+/// Give a thruster its own key: the action that fires it on that key. The
+/// flight computer leaves a bound thruster out of the Main Drive allocation
+/// (`manual_burn_system`), so the throttle it last spooled is let go here and
+/// the key alone drives it from now on.
 pub(super) fn on_thruster_input_binding(
     add: On<Insert, SpaceshipThrusterInputBinding>,
     mut commands: Commands,
     q_binding: Query<&SpaceshipThrusterInputBinding>,
     q_actions: Query<&Actions<ThrusterInputMarker>>,
+    mut q_input: Query<&mut ThrusterSectionInput>,
 ) {
     let entity = add.entity;
     trace!("on_thruster_input_binding: entity {:?}", entity);
@@ -62,6 +68,9 @@ pub(super) fn on_thruster_input_binding(
             commands.entity(action).despawn();
         }
     }
+    if let Ok(mut input) = q_input.get_mut(entity) {
+        **input = 0.0;
+    }
     commands.entity(entity).insert((
         ThrusterInputMarker,
         actions!(
@@ -76,6 +85,31 @@ pub(super) fn on_thruster_input_binding(
             )]
         ),
     ));
+}
+
+/// Take a thruster's own key away, back to the Main Drive: its key action
+/// goes, so the key fires it no more, and the throttle is let go for the
+/// flight computer's allocation to spool. Also runs as the section leaves
+/// the world, where the `try_` commands find nothing left to do.
+pub(super) fn on_thruster_input_binding_removed(
+    remove: On<Remove, SpaceshipThrusterInputBinding>,
+    mut commands: Commands,
+    mut q_input: Query<(
+        Option<&mut ThrusterSectionInput>,
+        Option<&Actions<ThrusterInputMarker>>,
+    )>,
+) {
+    let entity = remove.entity;
+    let Ok((input, actions)) = q_input.get_mut(entity) else {
+        return;
+    };
+    for action in actions.into_iter().flatten() {
+        commands.entity(action).try_despawn();
+    }
+    commands.entity(entity).try_remove::<ThrusterInputMarker>();
+    if let Some(mut input) = input {
+        **input = 0.0;
+    }
 }
 
 pub(super) fn on_thruster_input(

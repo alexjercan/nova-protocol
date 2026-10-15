@@ -41,10 +41,10 @@ use intent::{
 use weapons::{
     on_mining_input, on_mining_input_binding, on_mining_input_completed, on_railgun_input,
     on_railgun_input_binding, on_railgun_input_completed, on_thruster_input,
-    on_thruster_input_binding, on_thruster_input_completed, on_torpedo_input,
-    on_torpedo_input_binding, on_torpedo_input_completed, on_turret_input, on_turret_input_binding,
-    on_turret_input_completed, MiningInputMarker, RailgunInputMarker, ThrusterInputMarker,
-    TorpedoInputMarker, TurretInputMarker,
+    on_thruster_input_binding, on_thruster_input_binding_removed, on_thruster_input_completed,
+    on_torpedo_input, on_torpedo_input_binding, on_torpedo_input_completed, on_turret_input,
+    on_turret_input_binding, on_turret_input_completed, MiningInputMarker, RailgunInputMarker,
+    ThrusterInputMarker, TorpedoInputMarker, TurretInputMarker,
 };
 use wheel::{on_wheel_step, on_wheel_zoom, WheelDownInput, WheelUpInput};
 
@@ -134,6 +134,7 @@ impl Plugin for SpaceshipPlayerInputPlugin {
 
         app.add_input_context::<ThrusterInputMarker>();
         app.add_observer(on_thruster_input_binding);
+        app.add_observer(on_thruster_input_binding_removed);
         app.add_observer(on_thruster_input);
         app.add_observer(on_thruster_input_completed);
 

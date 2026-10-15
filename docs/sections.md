@@ -45,7 +45,21 @@ after a rebuild; a root with no design falls back to the live order.
 
 `remember_lost_section_binding` copies a lost section's live input binding
 into the root's `input_mapping` before it despawns, so a rebind the player made
-survives the loss and a save. The Ship pane (`nova_interface/src/ship/rebuild.rs`)
+survives the loss and a save.
+
+A thruster with no `SpaceshipThrusterInputBinding` fires on the Main Drive:
+`manual_burn_system` (`nova_ship/src/flight/manual.rs`) balances only thrusters
+without one. The Ship pane's Control line names the `main_drive` keys from
+`InputBindings` (`ShipSectionView::binding_text`). Rebind gives the thruster
+its own keyboard key, which fires it alone and takes it off the balance;
+reserved flight keys are refused. Backspace while rebinding a thruster
+removes the component (`apply_ship_rebind`), and
+`on_thruster_input_binding_removed` despawns its action and zeroes its
+throttle. The save reads live components, so a load keeps the Main Drive.
+The pad half stays empty: RightTrigger no longer fires a thruster with its
+own key. The autopilot still flies every thruster.
+
+The Ship pane (`nova_interface/src/ship/rebuild.rs`)
 lists lost sections while docked to a station that offers `Rebuild`, by
 `station_offers` (`nova_gameplay::markers`), the one gate the Inventory pane's
 Trade and Storage also read. Its plan
@@ -142,8 +156,8 @@ anything) puts the part away. `plan_section_add`
 checks the gate, the fit, the binding and the payment (`plan_recipe_payment`,
 the full recipe). The new section's binding is `added_section_binds`: the
 first live bound section of its class by id lends its binding; with none, a
-weapon takes an empty binding for Rebind, a thruster none (the flight computer
-drives it), and a mining emitter the first of `ADDED_MINING_KEYS` no emitter
+weapon takes an empty binding for Rebind, a thruster none (it fires on the
+Main Drive), and a mining emitter the first of `ADDED_MINING_KEYS` no emitter
 holds, refused when all are held. Its id is `added_section_id`: the greatest
 id of its class plus `+`, so it sorts last and takes the next code without
 moving another. A confirmed add moves parts and credits (cause `Add`), pushes

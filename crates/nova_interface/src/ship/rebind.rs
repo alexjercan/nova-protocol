@@ -73,6 +73,25 @@ pub(crate) fn apply_ship_rebind(
         }
         return;
     }
+    // Backspace takes a thruster's own key away, so the Main Drive fires it
+    // again. Every other section binds Backspace like any key.
+    if keys.just_pressed(KeyCode::Backspace) {
+        if let Ok((_, parent, id, Some(SectionClass::Thruster), ..)) = targets.get(target) {
+            commands
+                .entity(target)
+                .remove::<SpaceshipThrusterInputBinding>();
+            changed.write(SectionInputBindingChanged {
+                spaceship: parent.parent(),
+                section: target,
+                section_id: id.0.clone(),
+                bindings: Vec::new(),
+            });
+            runtime.rebinding = None;
+            runtime.rebind_swallow = true;
+            runtime.note = Some((format!("{} fires on the Main Drive", id.0), 2.5));
+            return;
+        }
+    }
     // The shared capture, not a hand-rolled one: `ButtonInput` iterates a
     // `HashSet`, so picking the FIRST just-pressed key bound either of two keys
     // pressed on one frame, run to run.
@@ -98,8 +117,9 @@ pub(crate) fn apply_ship_rebind(
     // Each mining section deploys on its own key, so a key another emitter on
     // this ship holds would deploy both on one press. The lint and the spawn
     // refuse the same. Other section kinds may still share a key on purpose.
-    // A weapon or emitter the ship never mapped has no binding component; it
-    // takes the kind's, empty, so the capture gives it its first key.
+    // A weapon, emitter or thruster the ship never mapped has no binding
+    // component; it takes the kind's, empty, so the capture gives it its
+    // first key. A thruster's own key takes it off the Main Drive.
     let class = class.copied();
     let mining = or_unbound(
         class,
@@ -132,8 +152,12 @@ pub(crate) fn apply_ship_rebind(
     // the controller trigger the same section is also on - and every section
     // the editor places is written with one.
     let rebound = |current: &[InputSource]| captured_binds(current, source);
-    let binds = if let Some(thruster) = thruster {
-        let binds = rebound(&thruster.0);
+    let binds = if let Some(thruster) = or_unbound(
+        class,
+        thruster.map(|binding| binding.0.as_slice()),
+        SectionClass::Thruster,
+    ) {
+        let binds = rebound(thruster);
         commands
             .entity(target)
             .insert(SpaceshipThrusterInputBinding(binds.clone()));
@@ -448,5 +472,70 @@ mod tests {
             .map(|change| change.section_id.clone())
             .collect();
         assert_eq!(sent, ["weapon_0+", "lance"]);
+    }
+
+    /// A thruster the ship never mapped fires on the Main Drive. A rebind
+    /// gives it a key of its own, a Main Drive key stays refused, and
+    /// Backspace takes the own key away, so the Main Drive fires it again.
+    #[test]
+    fn a_thruster_takes_its_own_key_and_backspace_puts_it_back_on_the_main_drive() {
+        let (mut world, gun) = rebind_world();
+        let ship = world.get::<ChildOf>(gun).unwrap().parent();
+        let thruster = world
+            .spawn((
+                ChildOf(ship),
+                EntityId("engine".to_string()),
+                SectionClass::Thruster,
+            ))
+            .id();
+        let press = |world: &mut World, key: KeyCode| {
+            world.resource_mut::<ShipRuntime>().rebinding = Some(thruster);
+            let mut keys = world.resource_mut::<ButtonInput<KeyCode>>();
+            keys.release_all();
+            keys.clear();
+            keys.press(key);
+            world.run_system_once(apply_ship_rebind).unwrap();
+        };
+
+        press(&mut world, KeyCode::KeyJ);
+        assert_eq!(
+            world
+                .get::<SpaceshipThrusterInputBinding>(thruster)
+                .unwrap()
+                .0,
+            vec![InputSource::Keyboard(KeyCode::KeyJ)]
+        );
+
+        press(&mut world, KeyCode::Space);
+        assert_eq!(
+            world
+                .get::<SpaceshipThrusterInputBinding>(thruster)
+                .unwrap()
+                .0,
+            vec![InputSource::Keyboard(KeyCode::KeyJ)],
+            "Space stays the Main Drive's"
+        );
+        assert!(world.resource::<ShipRuntime>().rebinding.is_some());
+
+        press(&mut world, KeyCode::Backspace);
+        assert!(world
+            .get::<SpaceshipThrusterInputBinding>(thruster)
+            .is_none());
+        assert!(world.resource::<ShipRuntime>().rebinding.is_none());
+        let sent: Vec<(String, Vec<InputSource>)> = world
+            .resource::<Messages<SectionInputBindingChanged>>()
+            .iter_current_update_messages()
+            .map(|change| (change.section_id.clone(), change.bindings.clone()))
+            .collect();
+        assert_eq!(
+            sent,
+            [
+                (
+                    "engine".to_string(),
+                    vec![InputSource::Keyboard(KeyCode::KeyJ)]
+                ),
+                ("engine".to_string(), Vec::new()),
+            ]
+        );
     }
 }

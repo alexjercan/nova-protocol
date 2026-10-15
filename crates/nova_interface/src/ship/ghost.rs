@@ -850,6 +850,7 @@ mod tests {
             link_points: Vec::new(),
             health: None,
             bindings: None,
+            main_drive: false,
             inactive: false,
             zero_health: false,
             disabled: false,

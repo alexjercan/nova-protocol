@@ -146,7 +146,7 @@ The Ship pane is a schematic 3D viewer of your own hull: one block per section, 
 | `MNG-1` | Mining beam | Mining |
 | `CGO-1` | Cargo intake | Cargo Intake |
 
-The footer legend shows all seven family icons: Weapon, Thruster, Controller, Hull, Docking, Mining and Cargo Intake. The Dock and Helm keys are in **Settings > Controls > FLIGHT**; their defaults are <kbd>D</kbd> and <kbd>H</kbd>. Each mining beam has its own key, which you rebind here like a weapon's.
+The footer legend shows all seven family icons: Weapon, Thruster, Controller, Hull, Docking, Mining and Cargo Intake. The Dock and Helm keys are in **Settings > Controls > FLIGHT**; their defaults are <kbd>D</kbd> and <kbd>H</kbd>. Each mining beam has its own key, which you rebind here like a weapon's. A thruster fires on the Main Drive until you give it its own key here.
 
 Select a section by clicking its badge or with <kbd>[</kbd> / <kbd>]</kbd>. The panel shows its family icon, code and name, condition bar and, for a section with a key, its **Control** row, then the actions that apply: **Rebind** and **Delete**. A damaged section that repair can restore also shows the repair form below them; a section at full integrity, destroyed or with no integrity to restore shows no form.
 
@@ -189,11 +189,13 @@ There is no manual reload. A weapon's magazine refills on its own from your inve
 
 Your weapon, thruster and mining beam sections answer rebindable keys, and the Ship pane is where you rebind them:
 
-1. Select a thruster, turret, torpedo bay, railgun or mining beam and press <kbd>B</kbd> (or click **Rebind**). A gun, bay, railgun or beam with no key reads `UNBOUND` and **Rebind** gives it one; a thruster the flight computer drives offers no **Rebind**.
+1. Select a thruster, turret, torpedo bay, railgun or mining beam and press <kbd>B</kbd> (or click **Rebind**). A gun, bay, railgun or beam with no key reads `UNBOUND` and **Rebind** gives it one. A thruster with no key of its own reads `Main Drive: W / Space` (your Main Drive keys) and fires with the Main Drive.
 2. The **Rebind** button lights and a banner over the view reads `Press a key to bind PDC-1 PDC Turret (Kinetic), Esc to cancel`.
 3. The next key or mouse button you press takes over that section's keyboard-and-mouse trigger: `Bound engine_port to K`. A controller trigger on the same section is left alone, so rebinding at the desk never costs you the pad.
 
-A reserved flight control is refused on the spot - `Space is already bound to flight control: Main Drive` - and the capture stays armed for another try. <kbd>LMB</kbd> is refused too, with `Left Mouse stays the pointer`: it is the button you click the blips with. Several sections may share one input (one key can fire every tube). <kbd>Esc</kbd> backs out with `Rebind cancelled` and leaves you on the pane. While a capture is armed, <kbd>:</kbd> does not open the command shell, <kbd>Tab</kbd> is refused as the interface toggle and does not close the interface, and <kbd>M</kbd> binds like any other key instead of switching the pane. The key you bind does nothing else: binding <kbd>T</kbd> does not also reset the view.
+A reserved flight control is refused on the spot - `Space is already bound to flight control: Main Drive` - and the capture stays armed for another try. <kbd>LMB</kbd> is refused too, with `Left Mouse stays the pointer`: it is the button you click the blips with. Several sections may share one input (one key can fire every tube). <kbd>Esc</kbd> backs out with `Rebind cancelled` and leaves you on the pane.
+
+A thruster with its own key fires on that key only: the Main Drive no longer fires it, and neither does the controller trigger, until you put it back. To put it back, press <kbd>B</kbd> and then <kbd>Backspace</kbd>: `engine_port fires on the Main Drive`. The Main Drive keys stay reserved, so the thruster's own key is any other free key. While a capture is armed, <kbd>:</kbd> does not open the command shell, <kbd>Tab</kbd> is refused as the interface toggle and does not close the interface, and <kbd>M</kbd> binds like any other key instead of switching the pane. The key you bind does nothing else: binding <kbd>T</kbd> does not also reset the view.
 
 ## Swapping a section
 

@@ -19,6 +19,7 @@ use bevy::{
     ui_widgets::{Activate, Button, SliderRange, SliderValue, ValueChange},
 };
 use nova_gameplay::prelude::*;
+use nova_input::prelude::InputBindings;
 use nova_ship::prelude::{
     derive_link_point_graph, GameSections, HeldPart, MountPose, PlacedSectionCollider,
     PlacedSectionLinkPoints,
@@ -1417,6 +1418,7 @@ pub(crate) fn update_ship_panel(
     mut runtime: ResMut<ShipRuntime>,
     sections: ShipSections,
     icons: Res<InterfaceIcons>,
+    input_bindings: Res<InputBindings>,
     mut q_text: Query<(&ShipPanelField, &mut Text, &mut ThemedText)>,
     mut q_label: Query<(&ChildOf, &mut Text), (With<ButtonLabel>, Without<ShipPanelField>)>,
     mut q_part: Query<
@@ -1544,7 +1546,7 @@ pub(crate) fn update_ship_panel(
     let control = selected
         .as_ref()
         .filter(|_| !read_only)
-        .and_then(ShipSectionView::binding_text);
+        .and_then(|view| view.binding_text(&input_bindings));
     let (delete_label, delete_reason) = match runtime.delete_verdict() {
         Some(Ok(salvage)) => (format!("Delete: {salvage}"), None),
         Some(Err(reason)) => ("Delete".to_string(), Some(reason.to_string())),
@@ -1572,7 +1574,13 @@ pub(crate) fn update_ship_panel(
             } else {
                 format!("{} {}", view.code, view.name)
             };
-            format!("Press a key to bind {what}, Esc to cancel")
+            // Backspace is the thruster's way back to the Main Drive
+            // (`apply_ship_rebind`).
+            if view.kind == SectionClass::Thruster {
+                format!("Press a key to bind {what}, Backspace for the Main Drive, Esc to cancel")
+            } else {
+                format!("Press a key to bind {what}, Esc to cancel")
+            }
         });
     let (note, note_color) = if prompt.is_some() {
         (String::new(), UiColor::Label)

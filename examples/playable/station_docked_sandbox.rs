@@ -27,7 +27,8 @@
 //!    station's ask), pick a part off the ship with Q, drag the view with the
 //!    right button to the docked station (dim outlines, on the ship's -X
 //!    side) and aim a Railgun Lance end-on (F) at a plate facing it to see it
-//!    refused, rebind a gun with B, and delete a selected section with Delete
+//!    refused, rebind a gun or a thruster with B (Backspace sends a
+//!    thruster back to the Main Drive), and delete a selected section with Delete
 //!    (the button names what goes back in the hold, or is disabled with the
 //!    reason in its hover tooltip);
 //! 2. the Station tab: buy a hull, hire an escort, buy the station;
@@ -68,14 +69,21 @@
 //! view to the station and points the lance at the sockets nearest it, through every
 //! mating socket, until the station refuses it (or warns that none reaches),
 //! and switches tabs after it: a Map tab click, an Inventory tab click and the
-//! next-tab key, which steps on to the Station tab while docked. `NOVA_CAPTURE=1` shoots `sandbox-ship.png`,
+//! next-tab key, which steps on to the Station tab while docked. Last it
+//! selects the first thruster and checks its Control line names the Main
+//! Drive keys, rebinds it to `J` and checks the binding, closes the
+//! interface, lets go of the dock with `dock`, holds `J` and checks the
+//! thruster's throttle reaches 1, then reopens the Ship tab, rebinds and
+//! presses Backspace and checks the Main Drive line is back. `NOVA_CAPTURE=1` shoots `sandbox-ship.png`,
 //! `sandbox-catalogue-all.png`, `sandbox-catalogue.png`, `sandbox-ghost.png`, `sandbox-mount.png`, `sandbox-placed.png`, `sandbox-esc-put-away.png`,
 //! `sandbox-rebind-armed.png`, `sandbox-rebind.png`, `sandbox-delete-yield.png`,
 //! `sandbox-delete.png`,
 //! `sandbox-delete-refused.png`,
 //! `sandbox-pick.png`, `sandbox-catalogue-lance.png`,
 //! `sandbox-station-refusal.png`,
-//! `sandbox-map-after.png` and `sandbox-station.png`.
+//! `sandbox-map-after.png`, `sandbox-station.png`,
+//! `sandbox-thruster-default.png`, `sandbox-thruster-own-key.png` and
+//! `sandbox-thruster-cleared.png`.
 //! Unset, no walk and no deadline run.
 
 use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
@@ -691,7 +699,7 @@ mod ship_overlay {
         if let Some(view) =
             selected.and_then(|selected| views.iter().find(|view| view.entity == selected))
         {
-            let binding = view.binding_text();
+            let binding = view.binding_text(world.resource::<nova_input::prelude::InputBindings>());
             if let Some(verdict) = &delete {
                 details.push(match verdict {
                     Ok(salvage) => format!("delete: {salvage}"),
@@ -804,8 +812,8 @@ mod smoke {
     use nova_protocol::{
         nova_debug::harness::{press_action, release_action, shoot, AutopilotPlugin, Predicate},
         nova_interface::ship::{
-            ship_ghost_aim, ship_hovered_section, ship_placement, ship_view_window_px, ShipRuntime,
-            SHIP_HELD_PANEL,
+            ship_ghost_aim, ship_hovered_section, ship_placement, ship_view_window_px, SectionCode,
+            ShipRuntime, SHIP_HELD_PANEL,
         },
     };
 
@@ -821,6 +829,14 @@ mod smoke {
     const WALK_CLOCK_SECS: f32 = 1.0;
     /// The PNG of the docked Ship tab.
     const SHIP_SHOT: &str = "sandbox-ship.png";
+    /// The PNG of a thruster on the Main Drive, its default.
+    const THRUSTER_DEFAULT_SHOT: &str = "sandbox-thruster-default.png";
+    /// The PNG of the thruster on its own key.
+    const THRUSTER_OWN_SHOT: &str = "sandbox-thruster-own-key.png";
+    /// The PNG of the thruster back on the Main Drive after Backspace.
+    const THRUSTER_CLEARED_SHOT: &str = "sandbox-thruster-cleared.png";
+    /// The thruster's own key: free on every rig.
+    const THRUSTER_KEY: KeyCode = KeyCode::KeyJ;
     /// The PNG of the valid ghost before the click.
     const GHOST_SHOT: &str = "sandbox-ghost.png";
     /// Frames the pointer rests on one free socket before the walk tries the
@@ -1367,6 +1383,102 @@ mod smoke {
     }
 
     /// The player's port the dock holds by, while it is docked.
+    /// The player ship's first thruster by code (`THR-1`).
+    fn first_thruster(world: &World) -> Option<Entity> {
+        let player = world
+            .try_query_filtered::<Entity, With<PlayerSpaceshipMarker>>()?
+            .single(world)
+            .ok()?;
+        let mut thrusters = world
+            .try_query_filtered::<(Entity, &ChildOf, &SectionCode), With<ThrusterSectionMarker>>(
+            )?;
+        thrusters
+            .iter(world)
+            .filter(|(_, parent, _)| parent.parent() == player)
+            .min_by(|(_, _, a), (_, _, b)| a.0.cmp(&b.0))
+            .map(|(thruster, ..)| thruster)
+    }
+
+    /// The first thruster's own key, or `None` while it fires on the Main
+    /// Drive.
+    fn thruster_own_binding(world: &World) -> Option<Vec<InputSource>> {
+        first_thruster(world)
+            .and_then(|thruster| world.get::<SpaceshipThrusterInputBinding>(thruster))
+            .map(|binding| binding.0.clone())
+    }
+
+    /// The first thruster's throttle.
+    fn thruster_throttle(world: &World) -> Option<f32> {
+        first_thruster(world)
+            .and_then(|thruster| world.get::<ThrusterSectionInput>(thruster))
+            .map(|input| input.0)
+    }
+
+    /// The Ship panel's Control row text.
+    fn control_text(world: &World) -> Option<String> {
+        let mut labels = world.try_query::<(&Name, &Text)>()?;
+        labels
+            .iter(world)
+            .find(|(name, _)| name.as_str() == "ShipControl")
+            .map(|(_, text)| text.0.clone())
+    }
+
+    /// Whether the player ship is docked.
+    fn player_docked(world: &World) -> bool {
+        world
+            .try_query_filtered::<(), (With<PlayerSpaceshipMarker>, With<DockedShip>)>()
+            .is_some_and(|mut docked| docked.iter(world).next().is_some())
+    }
+
+    /// The Control row names the Main Drive keys, read off the live table.
+    fn on_the_main_drive(world: &World) -> bool {
+        thruster_own_binding(world).is_none()
+            && control_text(world)
+                .is_some_and(|text| text.starts_with("Main Drive: ") && text.contains("Space"))
+    }
+
+    fn select_the_thruster(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
+        script
+            .step("station sandbox: select the first thruster")
+            .each(tap_while("viewer_next", |world| {
+                world.resource::<ShipRuntime>().selected() != first_thruster(world)
+            }))
+            .until(Arc::new(|world: &World| {
+                first_thruster(world).is_some()
+                    && world.resource::<ShipRuntime>().selected() == first_thruster(world)
+            }))
+            .diagnose(|world| {
+                format!(
+                    "selected {:?}, thruster {:?}",
+                    world.resource::<ShipRuntime>().selected(),
+                    first_thruster(world)
+                )
+            })
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: let the thruster select key up")
+            .on_enter(release_action("viewer_next"))
+            .until(frames(SETTLE_FRAMES))
+            .add()
+    }
+
+    fn arm_the_thruster_rebind(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
+        script
+            .step("station sandbox: arm a rebind on the thruster")
+            .on_enter(press_action("ship_rebind"))
+            .until(Arc::new(|world: &World| {
+                world
+                    .get_resource::<ShipRuntime>()
+                    .is_some_and(ShipRuntime::rebind_armed)
+            }))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: let the thruster rebind key up")
+            .on_enter(release_action("ship_rebind"))
+            .until(frames(SETTLE_FRAMES))
+            .add()
+    }
+
     fn docked_port(world: &World) -> Option<Entity> {
         let mut players =
             world.try_query_filtered::<(Entity, &DockedShip), With<PlayerSpaceshipMarker>>()?;
@@ -2053,7 +2165,7 @@ mod smoke {
         // ship's -X side, away from the opening view, so the view turns
         // first, by the right-button drag the editor's camera looks with.
         let script = take_the_part(script, RAILGUN_LANCE_SECTION_ID, None, CATALOGUE_LANCE_SHOT);
-        script
+        let script = script
             // Over the view first: the drag looks only while the pointer is
             // on it.
             .step("station sandbox: point at the view to drag it")
@@ -2142,6 +2254,187 @@ mod smoke {
             .step("station sandbox: shoot the Station tab")
             .on_enter(|world: &mut World| shoot(world, STATION_SHOT))
             .until(shot_written(STATION_SHOT))
+            .deadline(SHOT_SECS)
+            .add();
+        thruster_rebind_walk(script)
+    }
+
+    /// Rebind the first thruster to its own key, fire it on that key off
+    /// the dock, and send it back to the Main Drive with Backspace.
+    fn thruster_rebind_walk(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
+        let script = script
+            .click_named(
+                "station sandbox: back to the Ship tab",
+                "InterfaceTabShip",
+                the_interface_shows(InterfacePaneType::Ship),
+                BEAT_SECS,
+            )
+            .step("station sandbox: put away the part in hand before the thruster")
+            .on_enter(|world: &mut World| {
+                if world.resource::<HeldPart>().id().is_some() {
+                    press_key(KeyCode::Escape)(world);
+                }
+            })
+            .until(Arc::new(|world: &World| {
+                world.resource::<HeldPart>().id().is_none()
+            }))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: let Esc up before the thruster")
+            .on_enter(release_key(KeyCode::Escape))
+            .until(the_interface_shows(InterfacePaneType::Ship))
+            .deadline(BEAT_SECS)
+            .add();
+        let script = select_the_thruster(script)
+            .step("station sandbox: the thruster shows its Main Drive default")
+            .until(Arc::new(on_the_main_drive))
+            .diagnose(|world| {
+                format!(
+                    "control {:?}, own {:?}",
+                    control_text(world),
+                    thruster_own_binding(world)
+                )
+            })
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: shoot the thruster on the Main Drive")
+            .on_enter(|world: &mut World| {
+                info!(
+                    "station sandbox: thruster default, control {:?}",
+                    control_text(world)
+                );
+                shoot(world, THRUSTER_DEFAULT_SHOT);
+            })
+            .until(shot_written(THRUSTER_DEFAULT_SHOT))
+            .deadline(SHOT_SECS)
+            .add();
+        let script = arm_the_thruster_rebind(script)
+            .step("station sandbox: press the thruster's own key")
+            .on_enter(press_key(THRUSTER_KEY))
+            .until(Arc::new(|world: &World| {
+                thruster_own_binding(world) == Some(vec![InputSource::Keyboard(THRUSTER_KEY)])
+            }))
+            .diagnose(|world| format!("own {:?}", thruster_own_binding(world)))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: let the thruster's key up")
+            .on_enter(release_key(THRUSTER_KEY))
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station sandbox: the Control row names the own key")
+            .until(Arc::new(|world: &World| {
+                control_text(world).is_some_and(|text| text == "J")
+            }))
+            .diagnose(|world| format!("control {:?}", control_text(world)))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: shoot the thruster on its own key")
+            .on_enter(|world: &mut World| {
+                info!(
+                    "station sandbox: thruster own key {:?}, control {:?}",
+                    thruster_own_binding(world),
+                    control_text(world)
+                );
+                shoot(world, THRUSTER_OWN_SHOT);
+            })
+            .until(shot_written(THRUSTER_OWN_SHOT))
+            .deadline(SHOT_SECS)
+            .add()
+            // The world is frozen while the interface is open, and a docked
+            // hull's own throttle is inert without the helm, which a station
+            // keeps: the ship lets go of the dock to fly.
+            .step("station sandbox: close the interface to fly")
+            .on_enter(press_action("interface_toggle"))
+            .until(Arc::new(|world: &World| {
+                world
+                    .get_resource::<State<PauseStates>>()
+                    .is_some_and(|pause| *pause.get() == PauseStates::Unpaused)
+            }))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: let the close key up")
+            .on_enter(release_action("interface_toggle"))
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station sandbox: let go of the dock")
+            .on_enter(press_action("dock"))
+            .until(Arc::new(|world: &World| !player_docked(world)))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: let the dock key up")
+            .on_enter(release_action("dock"))
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station sandbox: the thruster's own key fires it")
+            .on_enter(press_key(THRUSTER_KEY))
+            .until(Arc::new(|world: &World| {
+                thruster_throttle(world).is_some_and(|throttle| throttle >= 1.0)
+            }))
+            .diagnose(|world| format!("throttle {:?}", thruster_throttle(world)))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: report the fired thruster")
+            .on_enter(|world: &mut World| {
+                info!(
+                    "station sandbox: thruster throttle on its key {:?}",
+                    thruster_throttle(world)
+                );
+            })
+            .add()
+            .step("station sandbox: let the thruster's key up in flight")
+            .on_enter(release_key(THRUSTER_KEY))
+            .until(Arc::new(|world: &World| {
+                thruster_throttle(world).is_some_and(|throttle| throttle == 0.0)
+            }))
+            .diagnose(|world| format!("throttle {:?}", thruster_throttle(world)))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: open the interface again")
+            .on_enter(press_action("interface_toggle"))
+            .until(Arc::new(|world: &World| {
+                world
+                    .get_resource::<State<PauseStates>>()
+                    .is_some_and(|pause| *pause.get() == PauseStates::Interface)
+            }))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: let the open key up")
+            .on_enter(release_action("interface_toggle"))
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .click_named(
+                "station sandbox: the Ship tab again",
+                "InterfaceTabShip",
+                the_interface_shows(InterfacePaneType::Ship),
+                BEAT_SECS,
+            );
+        arm_the_thruster_rebind(select_the_thruster(script))
+            .step("station sandbox: Backspace puts the thruster back on the Main Drive")
+            .on_enter(press_key(KeyCode::Backspace))
+            .until(Arc::new(on_the_main_drive))
+            .diagnose(|world| {
+                format!(
+                    "control {:?}, own {:?}",
+                    control_text(world),
+                    thruster_own_binding(world)
+                )
+            })
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: let Backspace up")
+            .on_enter(release_key(KeyCode::Backspace))
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station sandbox: shoot the thruster back on the Main Drive")
+            .on_enter(|world: &mut World| {
+                info!(
+                    "station sandbox: thruster cleared, own {:?}, control {:?}",
+                    thruster_own_binding(world),
+                    control_text(world)
+                );
+                shoot(world, THRUSTER_CLEARED_SHOT);
+            })
+            .until(shot_written(THRUSTER_CLEARED_SHOT))
             .deadline(SHOT_SECS)
             .add()
     }

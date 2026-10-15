@@ -1167,6 +1167,7 @@ fn view_fixture(kind: SectionClass, health: Option<Health>) -> ShipSectionView {
         link_points: Vec::new(),
         health,
         bindings: None,
+        main_drive: false,
         inactive: false,
         zero_health: false,
         disabled: false,
@@ -1647,6 +1648,9 @@ fn update_ship_panel_reflects_selection() {
     app.init_resource::<ShipViewSubject>();
     app.init_resource::<HeldPart>();
     app.insert_resource(InterfaceIcons::blank());
+    app.insert_resource(nova_input::prelude::InputBindings::from_actions(
+        flight_bindings(),
+    ));
     app.add_systems(Update, update_ship_panel);
     let (ship, hull, turret, thruster) = spawn_scripted_ship(app.world_mut());
     app.world_mut().entity_mut(ship).insert(ShipInventory::new(
@@ -1835,6 +1839,9 @@ fn spawn_ship_panel_app_without_inventory() -> (App, Entity) {
     app.init_resource::<ShipViewSubject>();
     app.init_resource::<HeldPart>();
     app.insert_resource(InterfaceIcons::blank());
+    app.insert_resource(nova_input::prelude::InputBindings::from_actions(
+        flight_bindings(),
+    ));
     let (ship, hull, _turret, _thruster) = spawn_scripted_ship(app.world_mut());
     app.world_mut()
         .entity_mut(ship)
@@ -1895,6 +1902,9 @@ fn update_ship_panel_preview_names_the_exact_repair_refusal() {
     app.init_resource::<ShipViewSubject>();
     app.init_resource::<HeldPart>();
     app.insert_resource(InterfaceIcons::blank());
+    app.insert_resource(nova_input::prelude::InputBindings::from_actions(
+        flight_bindings(),
+    ));
     let (ship, hull, _turret, thruster) = spawn_scripted_ship(app.world_mut());
     app.world_mut().entity_mut(ship).insert(ShipInventory::new(
         &items,
@@ -1967,6 +1977,9 @@ fn update_ship_panel_hides_the_repair_form_after_a_full_repair() {
     app.init_resource::<ShipViewSubject>();
     app.init_resource::<HeldPart>();
     app.insert_resource(InterfaceIcons::blank());
+    app.insert_resource(nova_input::prelude::InputBindings::from_actions(
+        flight_bindings(),
+    ));
     app.add_message::<SectionRepairCommand>();
     app.add_message::<SectionDeleteCommand>();
     app.add_systems(Update, apply_ship_section_commands);
@@ -2074,6 +2087,7 @@ fn rig_section_view(entity: Entity, code: &str) -> ShipSectionView {
         link_points: Vec::new(),
         health: None,
         bindings: None,
+        main_drive: false,
         inactive: false,
         zero_health: false,
         disabled: false,

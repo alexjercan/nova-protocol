@@ -246,3 +246,18 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
   reason in Danger. The block has its own note line, so an add's result
   shows while the part stays in hand. Frames: `sandbox-ghost.png`,
   `sandbox-placed.png`; `sandbox-esc-put-away.png` shows the selection back.
+- Thruster rebind (item 17). Owner: thrusters rebind in the Ship pane like
+  weapons. `manual_burn_system` (`flight/manual.rs`) already balances only
+  thrusters without `SpaceshipThrusterInputBinding`, and a bound thruster
+  fires from its own key and counts toward `MainDriveCommanded`. So an own
+  key cleanly takes the thruster off the Main Drive with no flight-computer
+  change; the balance runs on the rest. The autopilot still flies every
+  thruster. A thruster with no own key shows the live `main_drive` keys
+  ("Main Drive: W / Space"). Reserved flight keys stay refused. Way back:
+  Backspace while rebinding a thruster (smaller than a Clear button; other
+  sections still bind Backspace). It removes the component; a new observer
+  despawns the action and zeroes the throttle; the save then holds no entry.
+  Consequence: the own key has no pad half, so RightTrigger stops firing that
+  thruster. The proof undocks first: a station keeps the helm and a docked
+  hull's throttle stays inert. Frames: `sandbox-thruster-default.png`,
+  `sandbox-thruster-own-key.png`, `sandbox-thruster-cleared.png`.
