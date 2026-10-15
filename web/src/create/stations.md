@@ -406,7 +406,7 @@ every cell.
 
 Every generated station offers Rebuild, Refit, Trade and Storage. Its stock
 is half goods and half the parts its own sections are built from. It draws
-parts its advancement allows, those within 0.5 below it first, and carries
+parts its advancement allows, those within 0.25 below it first, and carries
 flight computers for its mass, as a generated ship does. A dead station keeps the same stock
 and credits as loot.
 

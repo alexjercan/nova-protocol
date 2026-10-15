@@ -1129,7 +1129,7 @@
             ]),
         ),
         kind: Thruster((
-            magnitude: 25.0,
+            magnitude: 75.0,
             render_mesh: Some("self://gltf/shell_capital.glb#Scene0"),
             loop_sound: Some("self://sounds/thruster_capital_loop.wav"),
             exhaust: Some((

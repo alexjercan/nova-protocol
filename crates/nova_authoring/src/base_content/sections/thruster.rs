@@ -188,7 +188,7 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                 cells: UVec3::new(5, 5, 3),
                 health: 1250.0,
                 build: recipes::capital_thruster(),
-                magnitude: 25.0,
+                magnitude: 75.0,
                 mesh: &meshes.thruster_capital,
                 loop_sound: &meshes.thruster_capital_loop_sound,
                 exhaust_offset: 1.51,
@@ -213,7 +213,7 @@ mod tests {
                 CAPITAL_THRUSTER_SECTION_ID,
                 UVec3::new(5, 5, 3),
                 1250.0,
-                25.0,
+                75.0,
             ),
         ] {
             let drive = catalog

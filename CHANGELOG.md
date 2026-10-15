@@ -54,6 +54,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Every open-world ship carries a cargo intake to jettison and take cargo:
   the six start hulls and every generated ship, whose intake sits on top or
   below, clear of its docking ports.
+- Generated ships are longer and thinner, reach their best parts by mid
+  advancement and fly capital drives. The capital drive pushes 75, up from 25.
 - A cargo intake's door now stays shut for a canister the hold has no room
   for. A canister that fits still opens it.
 - A destroyed ship drops its hold as cargo canisters, and a destroyed section

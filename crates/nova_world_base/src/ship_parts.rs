@@ -12,12 +12,13 @@
 //! Every usable part belongs to one [`ShipPartFamilyType`] and gets one
 //! capability score from its own stats. Scores are normalized log-linearly
 //! within a family, so the weakest usable part of a family needs advancement
-//! 0 and the strongest needs 1. A valid part that a generator cannot place is
-//! excluded before normalization, so it can never define a family's floor.
-//! A socketed part that fires or docks down a non-cardinal lane, or through a
-//! face that carries one of its own sockets, is not excluded: it is an
-//! authoring fault, as a bad stat is, because a hull built around it fires or
-//! docks into whatever stands in its lane.
+//! 0 and the strongest needs [`PART_TIER_TOP`]: a civilization reaches every
+//! part by mid advancement and grows its hulls above that. A valid part that a
+//! generator cannot place is excluded before normalization, so it can never
+//! define a family's floor. A socketed part that fires or docks down a
+//! non-cardinal lane, or through a face that carries one of its own sockets,
+//! is not excluded: it is an authoring fault, as a bad stat is, because a hull
+//! built around it fires or docks into whatever stands in its lane.
 //!
 //! PURE. The open world pins one to its generator when it arms, beside the
 //! digest of the loaded catalog it came from, and lays out every hull a cell
@@ -41,6 +42,11 @@ use crate::station_layout::StationArchetypeType;
 /// reads. Change it with any change to what the hash covers or how it is
 /// written, so an old pin cannot match a new form.
 const SHIP_PART_HASH_VERSION: u32 = 1;
+
+/// The advancement the strongest part of a family needs. Below 1, so a
+/// civilization from mid advancement up builds with its family's best parts;
+/// only the size ceiling still grows with advancement above it.
+pub(crate) const PART_TIER_TOP: f32 = 0.5;
 
 /// One content pack's sections as a snapshot reads them.
 #[derive(Clone, Debug)]
@@ -153,7 +159,8 @@ pub struct ShipPart {
     /// The raw score within its family, see [`ShipPartFamilyType`].
     pub capability: f32,
     /// The lowest civilization advancement that may build the part, in
-    /// `[0, 1]`: 0 for the weakest part of its family, 1 for the strongest.
+    /// `[0, PART_TIER_TOP]`: 0 for the weakest part of its family,
+    /// [`PART_TIER_TOP`] for the strongest.
     pub advancement: f32,
     /// The effective section prototype.
     pub config: SectionConfig,
@@ -475,7 +482,7 @@ impl ShipPartSnapshot {
             let span = (strongest / weakest).ln();
             for part in scored.iter_mut().filter(|part| part.family == family) {
                 part.advancement = if span > 0.0 {
-                    ((part.capability / weakest).ln() / span).clamp(0.0, 1.0)
+                    ((part.capability / weakest).ln() / span).clamp(0.0, 1.0) * PART_TIER_TOP
                 } else {
                     0.0
                 };
@@ -965,7 +972,10 @@ mod tests {
             .filter(|part| part.family == ShipPartFamilyType::Docking)
             .map(|part| (part.id(), part.capability, part.advancement))
             .collect();
-        assert_eq!(scores, [("dock", 1.0, 0.0), ("long_dock", 4.0, 1.0)]);
+        assert_eq!(
+            scores,
+            [("dock", 1.0, 0.0), ("long_dock", 4.0, PART_TIER_TOP)]
+        );
 
         let mut sections = floor();
         sections.push(dock("short_dock", reach(0.0)));

@@ -52,10 +52,10 @@ A hurt drive **looks** hurt. Past about a third of its health gone it cracks and
 
 ## Variants
 
-Three drive grades ship, and they are priced by the space they take: the basic drive is a unit cube pushing 1.0, the vector drive is a 3x3x2 block pushing 9.0, and the capital drive is 5x5x3 pushing 25.0. Thrust per unit of mass FALLS as they grow - 1.0, then 0.5, then 0.33 - so a large drive buys a large hull fewer mounts to defend and a shorter drive bay, not a better deal. All three bolt on by their forward face only, plume clear of the ship.
+Three drive grades ship, and they are priced by the space they take: the basic drive is a unit cube pushing 1.0, the vector drive is a 3x3x2 block pushing 9.0, and the capital drive is 5x5x3 pushing 75.0. Thrust per unit of mass is 1.0, then 0.5, then 1.0 again: the vector drive buys a hull fewer mounts to defend and a shorter drive bay, and the capital drive moves the largest hulls on one bell. All three bolt on by their forward face only, plume clear of the ship.
 
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/thruster.rs (basic_thruster_section health THRUSTER_BASE_HEALTH, magnitude 1.0, single forward socket, no authored collider so the unit cube; vector_thruster_section 3x3x2, health 480, magnitude 9.0 through large_thruster_prototype, which authors the cuboid collider; capital_thruster_section 5x5x3, health 1250, magnitude 25.0). -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/thruster.rs (basic_thruster_section health THRUSTER_BASE_HEALTH, magnitude 1.0, single forward socket, no authored collider so the unit cube; vector_thruster_section 3x3x2, health 480, magnitude 9.0 through large_thruster_prototype, which authors the cuboid collider; capital_thruster_section 5x5x3, health 1250, magnitude 75.0). -->
 <div class="catalog__head"><span class="catalog__kindicon"><span class="figure__placeholder"><span class="figure__placeholder-name">assets/icon-thruster.png</span></span></span><span class="catalog__title">Thruster - shipped prototypes</span></div>
 <table>
 <thead>
@@ -64,7 +64,7 @@ Three drive grades ship, and they are priced by the space they take: the basic d
 <tbody>
 <tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-basic-thruster-section.png</span></span></span></td><td><span class="catalog__name">Basic Thruster Section</span><span class="catalog__id">basic_thruster_section</span></td><td class="catalog__num">1x1x1</td><td class="catalog__num">1.0</td><td class="catalog__num">70</td></tr>
 <tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-vector-thruster-section.png</span></span></span></td><td><span class="catalog__name">Vector Thruster Section</span><span class="catalog__id">vector_thruster_section</span></td><td class="catalog__num">3x3x2</td><td class="catalog__num">9.0</td><td class="catalog__num">480</td></tr>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-capital-thruster-section.png</span></span></span></td><td><span class="catalog__name">Capital Thruster Section</span><span class="catalog__id">capital_thruster_section</span></td><td class="catalog__num">5x5x3</td><td class="catalog__num">25.0</td><td class="catalog__num">1250</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-capital-thruster-section.png</span></span></span></td><td><span class="catalog__name">Capital Thruster Section</span><span class="catalog__id">capital_thruster_section</span></td><td class="catalog__num">5x5x3</td><td class="catalog__num">75.0</td><td class="catalog__num">1250</td></tr>
 </tbody>
 </table>
 </div>

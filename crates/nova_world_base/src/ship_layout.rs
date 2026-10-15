@@ -84,15 +84,15 @@ use nova_world::prelude::{CivilizationId, ShipRoleType, SECTOR_SHIP_CLEARANCE_MA
 
 use crate::{
     role_style_id,
-    ship_parts::{ShipPart, ShipPartFamilyType, ShipPartSnapshot},
+    ship_parts::{ShipPart, ShipPartFamilyType, ShipPartSnapshot, PART_TIER_TOP},
 };
 
 /// How many seeded layouts a request draws before it fails.
 const MAX_LAYOUT_ATTEMPTS: u32 = 8;
 
 /// The largest hull clearance radius at advancement 0: room for the minimum
-/// flyable civilian and industrial ship.
-const MIN_HULL_CLEARANCE: Meters = Meters(80.0);
+/// flyable civilian and industrial ship at its role's least aspect.
+const MIN_HULL_CLEARANCE: Meters = Meters(100.0);
 
 /// The largest hull clearance radius at advancement 1: the most a sector
 /// manifest accepts.
@@ -105,9 +105,9 @@ const FITTING_REACH: i32 = 2;
 /// The most structural cube types one hull mixes.
 const STRUCTURAL_PALETTE: usize = 3;
 
-/// How far below a request's advancement a drive or weapon may score and still
-/// be drawn before the weaker parts of its source.
-pub(crate) const TIER_BAND: f32 = 0.5;
+/// How far below a request's advancement a drive or weapon may score and
+/// still be drawn before the weaker parts of its source, see [`tier_floor`].
+const TIER_BAND: f32 = 0.25;
 
 /// The fewest stations a spine has: a nose, a body and a stern.
 const MIN_STATIONS: i32 = 3;
@@ -797,6 +797,15 @@ fn joined(cells: &HashMap<IVec3, (usize, [bool; 6])>) -> bool {
     reached.len() == sections.len()
 }
 
+/// The lowest part tier a drive, weapon or mining beam at `advancement` may
+/// score and still be drawn before the weaker parts of its source:
+/// [`TIER_BAND`] below the advancement, but never above [`PART_TIER_TOP`],
+/// which no part scores past. A request from `PART_TIER_TOP + TIER_BAND` up
+/// draws its family's best parts first.
+pub(crate) fn tier_floor(advancement: f32) -> f32 {
+    (advancement - TIER_BAND).min(PART_TIER_TOP)
+}
+
 /// The hull clearance ceiling at `advancement`.
 pub(crate) fn ceiling(advancement: f32) -> Meters {
     let span = MAX_HULL_CLEARANCE.0 - MIN_HULL_CLEARANCE.0;
@@ -1059,18 +1068,38 @@ struct Section {
     high: i32,
 }
 
-/// The spine size a role reaches, as `(advancement 0, advancement 1)` pairs of
-/// cells: stations, half-width and half-height of the body.
-fn role_spine(role: ShipRoleType) -> [(f32, f32); 3] {
-    match role {
+/// The hull a role grows into.
+#[derive(Clone, Copy, Debug)]
+struct RoleShape {
+    /// The spine size, as `(advancement 0, advancement 1)` pairs of cells:
+    /// stations, half-width and half-height of the body.
+    spine: [(f32, f32); 3],
+    /// The fewest stations per cell of body width, read where the nose ends
+    /// and before the body's waist, shoulder or flare. A plan lengthens a
+    /// spine to it, so a hull reads long at every size its ceiling allows.
+    min_aspect: f32,
+    /// Whether a minority of hulls is drawn compact: shorter and a cell
+    /// wider.
+    compact: bool,
+}
+
+/// The hull `role` grows into. Every role is long and thin; the working and
+/// fighting roles are deeper, not wider.
+fn role_shape(role: ShipRoleType) -> RoleShape {
+    let (spine, min_aspect, compact) = match role {
         // A clean, narrow fuselage.
-        ShipRoleType::Civilian => [(6.0, 22.0), (1.0, 1.0), (0.0, 1.0)],
-        // Bulky working volume.
-        ShipRoleType::Industrial => [(5.0, 16.0), (1.0, 3.0), (1.0, 2.0)],
-        // Rough and small.
-        ShipRoleType::Scavenger => [(5.0, 14.0), (1.0, 2.0), (0.0, 1.0)],
-        // Dense and long.
-        ShipRoleType::Armored => [(6.0, 24.0), (1.0, 3.0), (1.0, 2.0)],
+        ShipRoleType::Civilian => ([(8.0, 40.0), (1.0, 1.5), (0.0, 1.0)], 2.5, true),
+        // A long working hull, a cell deep above and below its keel.
+        ShipRoleType::Industrial => ([(8.0, 44.0), (1.0, 2.0), (1.0, 2.0)], 2.5, false),
+        // Rough and short.
+        ShipRoleType::Scavenger => ([(6.0, 24.0), (1.0, 2.0), (0.0, 1.0)], 2.0, true),
+        // Dense and the longest.
+        ShipRoleType::Armored => ([(9.0, 52.0), (1.0, 2.0), (1.0, 2.0)], 3.0, false),
+    };
+    RoleShape {
+        spine,
+        min_aspect,
+        compact,
     }
 }
 
@@ -1322,8 +1351,8 @@ impl<'a> Draw<'a> {
     /// The eligible parts of `family` that pass `usable`, in the order this
     /// attempt tries them: the preferred source first for a coherent role,
     /// then the other sources, each source's parts shuffled. A drive, weapon or
-    /// mining beam within [`TIER_BAND`] of the request's advancement comes
-    /// before its source's weaker parts.
+    /// mining beam at or above the request's [`tier_floor`] comes before its
+    /// source's weaker parts.
     fn ranked(
         &self,
         family: ShipPartFamilyType,
@@ -1353,7 +1382,7 @@ impl<'a> Draw<'a> {
             family,
             ShipPartFamilyType::Thruster | ShipPartFamilyType::Weapon | ShipPartFamilyType::Mining
         );
-        let floor = self.request.advancement - TIER_BAND;
+        let floor = tier_floor(self.request.advancement);
         if coherent {
             if let Some(index) = sources
                 .iter()
@@ -1609,7 +1638,7 @@ impl<'a> Draw<'a> {
         // coherent role, then its tier's parts and, within a tier, the parts
         // no earlier slot mounted.
         let mut mounted: HashSet<&str> = HashSet::new();
-        let floor = request.advancement - TIER_BAND;
+        let floor = tier_floor(request.advancement);
         let coherent = request.role != ShipRoleType::Scavenger;
         for slot in 0..weapon_slots(request.role, request.advancement) {
             let aspect = format!("weapon_{slot}");
@@ -1742,9 +1771,10 @@ impl<'a> Draw<'a> {
 
     /// The spine's stations, bow first, ending in `stern`: a nose that widens
     /// from one cell, a body whose cross-section changes along its length,
-    /// and the stern the drive bank mates to. Shrunk until the spine and a
-    /// bank `drive_depth` cells deep fit the advancement's size ceiling with
-    /// room for fittings.
+    /// and the stern the drive bank mates to. Lengthened to its role's
+    /// [`RoleShape::min_aspect`], and shrunk, narrower and flatter first and
+    /// shorter last, until the spine and a bank `drive_depth` cells deep fit
+    /// the advancement's size ceiling with room for fittings.
     fn plan(
         &self,
         stern: Section,
@@ -1753,14 +1783,18 @@ impl<'a> Draw<'a> {
         let request = self.request;
         let mut stream = self.stream(b"shape");
         let advancement = request.advancement.clamp(0.0, 1.0);
-        let [length, width, height] =
-            role_spine(request.role).map(|(low, high)| low + (high - low) * advancement);
+        let shape = role_shape(request.role);
+        let [length, width, height] = shape
+            .spine
+            .map(|(low, high)| low + (high - low) * advancement);
         let scale = 0.8 + 0.4 * stream.unit();
-        // Most hulls are long; a minority are deliberately compact or broad.
+        // Most hulls are long; a minority are broad and, on a role that
+        // allows it, compact.
         let variant = stream.unit();
-        let (length, widen, heighten) = if variant < 0.7 {
+        let compact = shape.compact && (0.7..0.85).contains(&variant);
+        let (length, widen, heighten) = if variant < 0.85 && !compact {
             (length * scale, 0, 0)
-        } else if variant < 0.85 {
+        } else if compact {
             (length * scale * 0.65, 1, 0)
         } else {
             (length * scale * 0.85, 1, 1)
@@ -1774,6 +1808,9 @@ impl<'a> Draw<'a> {
         let aft = [stream.unit(), stream.unit()];
 
         let ceiling = ceiling(request.advancement);
+        // Once the ceiling has cut the length, the aspect no longer lengthens
+        // it: a stern as wide as its drive bank cannot narrow.
+        let mut cut = false;
         loop {
             let stations = stations(length, width, height, stern, middle, aft);
             let (low, high) = stations.iter().enumerate().fold(
@@ -1790,14 +1827,17 @@ impl<'a> Draw<'a> {
             let reach = IVec3::splat(FITTING_REACH);
             let planned = centred_clearance(low - reach, high + reach);
             if planned.0 <= ceiling.0 {
-                return Ok(stations);
-            }
-            if length > MIN_STATIONS {
-                length -= 1;
+                if cut || length as f32 >= shape.min_aspect * (2 * width + 1) as f32 {
+                    return Ok(stations);
+                }
+                length += 1;
             } else if width > 1 {
                 width -= 1;
             } else if height > 0 {
                 height -= 1;
+            } else if length > MIN_STATIONS {
+                length -= 1;
+                cut = true;
             } else {
                 return Err(ShipLayoutConstraintType::TooLarge {
                     clearance: planned,
@@ -2506,6 +2546,8 @@ pub(crate) mod fixture {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::collections::BTreeMap;
+
     use nova_ship::prelude::{CELLS_PER_CONTROLLER, MIN_THRUST_PER_CELL};
 
     use super::{fixture::*, *};
@@ -2877,7 +2919,7 @@ pub(crate) mod tests {
 
     #[test]
     fn a_layout_with_no_removable_outer_cube_is_refused_as_unruinable() {
-        // A drive six cells deep shrinks the hull to its three stations. On
+        // A drive ten cells deep shrinks the hull to its three stations. On
         // this seed one layout docks its ports off the body's flanks, so every
         // cube holds a bound, the drive or a port's back, and its wreck could
         // not lose even one. The ship is drawn again instead. The intake is
@@ -2889,7 +2931,7 @@ pub(crate) mod tests {
             vec![
                 cube("cube", 100.0),
                 controller("controller"),
-                drive("deep_drive", 1.0, UVec3::new(1, 1, 6)),
+                drive("deep_drive", 1.0, UVec3::new(1, 1, 10)),
                 block(
                     "intake",
                     100.0,
@@ -2961,6 +3003,56 @@ pub(crate) mod tests {
             most_controllers > 1,
             "no hull needed a second flight computer"
         );
+    }
+
+    /// Every role's hull reads long: across 32 seeds at advancement 0, 0.5
+    /// and 1, its spine of structural cubes is at least its role's least
+    /// aspect times as long as its body is wide where the nose ends, and the
+    /// hull stays inside its advancement's ceiling and the largest clearance
+    /// a sector accepts.
+    #[test]
+    fn every_generated_hull_is_long_for_its_role_and_inside_its_ceiling() {
+        let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
+        let parts: HashMap<&str, &ShipPart> = snapshot
+            .parts()
+            .iter()
+            .map(|part| (part.id(), part))
+            .collect();
+        for advancement in [0.0, 0.5, 1.0] {
+            for seed in 0..32 {
+                for role in ShipRoleType::ALL {
+                    let layout = generate_ship(&snapshot, request(seed, role, advancement))
+                        .expect("the ship generates");
+                    let context = format!("seed {seed}, {role:?}, advancement {advancement}");
+                    // Each spine station's (lowest, highest) cube across.
+                    let mut stations: BTreeMap<i32, (i32, i32)> = BTreeMap::new();
+                    for section in &layout.design.sections {
+                        if is_structural_cube(parts[prototype_of(section).expect("a prototype")]) {
+                            let cell = section.position.round().as_ivec3();
+                            let (low, high) = stations.entry(cell.z).or_insert((cell.x, cell.x));
+                            (*low, *high) = ((*low).min(cell.x), (*high).max(cell.x));
+                        }
+                    }
+                    // The body's planned width stands where the nose ends.
+                    let length = stations.len() as i32;
+                    let (low, high) = stations
+                        .values()
+                        .nth(nose_length(length) as usize)
+                        .expect("a body");
+                    let width = high - low + 1;
+                    assert!(
+                        length as f32 >= role_shape(role).min_aspect * width as f32,
+                        "{context}: {length} stations, {width} cells wide"
+                    );
+                    assert!(
+                        layout.clearance.0 <= ceiling(advancement).0
+                            && layout.clearance.0 <= SECTOR_SHIP_CLEARANCE_MAX.0,
+                        "{context}: {:?}",
+                        layout.clearance
+                    );
+                }
+            }
+        }
     }
 
     /// Every role takes cargo in: each generated ship carries an intake on
@@ -3239,7 +3331,7 @@ pub(crate) mod tests {
         // leave the rest holding its bounds or its socket graph.
         let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
         let request = ShipLayoutRequest {
-            seed: 245_497_317,
+            seed: 3_594_588_663,
             civilization: CivilizationId {
                 world_seed: 4,
                 node: [0, 0, 0],

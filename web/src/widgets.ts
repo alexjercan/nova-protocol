@@ -12411,11 +12411,11 @@ function initMiningBeamChecks(host: HTMLElement): void {
 // The four roles (nova_world/src/generation.rs:163 `ShipRoleType`, `label`)
 // and the base style each wears (nova_world_base/src/civilizations.rs:91
 // `role_style_id`, ids at nova_world_base/src/lib.rs:101-110). The outline is
-// the role's spine at advancement 1 (nova_world_base/src/ship_layout.rs:1017
-// `role_spine`): `length` stations by `2 * half_width + 1` cells, before
-// `plan` (ship_layout.rs:1701) resizes it by seed. Weapon slots
-// are `1 + round(advancement * k)` for the armed roles (ship_layout.rs:1051
-// `weapon_slots`); every role carries a controller and a drive, and an
+// the role's spine at advancement 1 (nova_world_base/src/ship_layout.rs
+// `role_shape`): `length` stations by `2 * half_width + 1` cells, before
+// `plan` resizes it by seed and lengthens it to the role's least aspect.
+// Weapon slots are `1 + round(advancement * k)` for the armed roles
+// (ship_layout.rs `weapon_slots`); every role carries a controller and a drive, and an
 // industrial a cargo intake (nova_world_base/src/ship_parts.rs:112
 // `required_by`).
 const GENERATED_SHIP_ROLES = [
@@ -12423,8 +12423,8 @@ const GENERATED_SHIP_ROLES = [
         label: "civilian",
         style: "civilian",
         build: "unarmed, narrow",
-        length: 22,
-        width: 3,
+        length: 40,
+        width: 5,
         weapon: false,
         intake: false,
     },
@@ -12432,8 +12432,8 @@ const GENERATED_SHIP_ROLES = [
         label: "industrial",
         style: "industrial",
         build: "unarmed, cargo intake, optional 1-2 mining beams",
-        length: 16,
-        width: 7,
+        length: 44,
+        width: 5,
         weapon: false,
         intake: true,
     },
@@ -12441,7 +12441,7 @@ const GENERATED_SHIP_ROLES = [
         label: "scavenger",
         style: "salvage",
         build: "1 weapon, up to 3",
-        length: 14,
+        length: 24,
         width: 5,
         weapon: true,
         intake: false,
@@ -12450,8 +12450,8 @@ const GENERATED_SHIP_ROLES = [
         label: "armored",
         style: "armoured",
         build: "1 weapon, up to 5",
-        length: 24,
-        width: 7,
+        length: 52,
+        width: 5,
         weapon: true,
         intake: false,
     },

@@ -66,7 +66,7 @@ use nova_world::prelude::CivilizationId;
 
 use crate::{
     civilizations::Civilization,
-    ship_layout::{placed_part, shuffled, signed, Grid, STEPS, TIER_BAND},
+    ship_layout::{placed_part, shuffled, signed, tier_floor, Grid, STEPS},
     ship_parts::{ShipPart, ShipPartFamilyType, ShipPartSnapshot},
     ARMOURED_STYLE_ID, INDUSTRIAL_STYLE_ID, STATION_STYLE_ID,
 };
@@ -647,8 +647,8 @@ impl<'a> StationDraw<'a> {
 
     /// The station parts of `family` that pass `usable`, in the order this
     /// attempt tries them: sources shuffled, each source's parts shuffled,
-    /// those within [`TIER_BAND`] of the request's advancement before the
-    /// weaker ones.
+    /// those at or above the request's [`tier_floor`] before the weaker
+    /// ones.
     fn ranked(
         &self,
         family: ShipPartFamilyType,
@@ -668,7 +668,7 @@ impl<'a> StationDraw<'a> {
             })
             .filter(|parts| !parts.is_empty())
             .collect();
-        let floor = self.request.advancement - TIER_BAND;
+        let floor = tier_floor(self.request.advancement);
         shuffled(sources, &mut stream)
             .into_iter()
             .flat_map(|parts| {
@@ -1574,7 +1574,8 @@ mod tests {
 
     /// The ship fixture plus a frame pack with a strut and a panel. As in
     /// the base parts, the strut is eligible above advancement 0 and the
-    /// panel only at 1, so advancement 0 builds blocks only.
+    /// panel only from the top part tier, so advancement 0 builds blocks
+    /// only.
     fn snapshot() -> ShipPartSnapshot {
         let mut packs = fixture::packs();
         packs.push(ShipPartPack {

@@ -6,7 +6,7 @@ use bevy::math::Vec3;
 use nova_authoring::lint_walk::repo_ship_part_packs;
 use nova_scenario::prelude::SpaceshipSectionConfig;
 use nova_ship::prelude::{intake_in_dock_approach, RefitPlacedSection, SectionKind, GRID_EPSILON};
-use nova_world::prelude::CivilizationId;
+use nova_world::prelude::{CivilizationId, ShipRoleType};
 use nova_world_base::prelude::{
     generate_ship, generate_wreck, ShipLayoutRequest, ShipPartSnapshot,
 };
@@ -93,5 +93,48 @@ fn every_base_ship_carries_an_intake_clear_of_its_ports() {
                 assert_eq!(intake_in_dock_approach(&placed), None, "{context}");
             }
         }
+    }
+}
+
+/// The base request every sweep below names, at `seed`, `role` and
+/// `advancement`.
+fn request(seed: u32, role: ShipRoleType, advancement: f32) -> ShipLayoutRequest {
+    ShipLayoutRequest {
+        seed,
+        civilization: CivilizationId {
+            world_seed: 3,
+            node: [0, 0, 0],
+        },
+        role,
+        advancement,
+    }
+}
+
+/// The base capital drive is a top-tier part: no ship below advancement 0.5
+/// mounts one, and from 0.6 up some ships of every sweep do.
+#[test]
+fn the_capital_drive_mounts_from_mid_advancement_only() {
+    let snapshot = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
+        .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
+    for advancement in [0.0, 0.25, 0.45, 0.6, 0.8, 1.0] {
+        let mut capital = 0;
+        for seed in 0..32 {
+            for role in snapshot.eligible_roles(advancement) {
+                let context = format!("seed {seed}, {role:?}, advancement {advancement}");
+                let ship = generate_ship(&snapshot, request(seed, role, advancement))
+                    .unwrap_or_else(|failure| panic!("{context}: {failure}"));
+                capital += ship
+                    .design
+                    .sections
+                    .iter()
+                    .filter(|section| section.source.prototype_id() == "capital_thruster_section")
+                    .count();
+            }
+        }
+        assert_eq!(
+            capital > 0,
+            advancement >= 0.6,
+            "advancement {advancement}: {capital} capital drives"
+        );
     }
 }
