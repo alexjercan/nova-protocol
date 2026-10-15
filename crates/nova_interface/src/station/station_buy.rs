@@ -20,7 +20,10 @@ use nova_ship::prelude::*;
 use nova_ui::{theme::UiColor, widget::ButtonSpec};
 
 use super::{offer_cell, StationRuntime};
-use crate::pane::{compact_button, play_menu_select, themed_label};
+use crate::{
+    inventory::cr_text,
+    pane::{compact_button, play_menu_select, themed_label},
+};
 
 /// The name of the station Buy button.
 pub const STATION_BUY_BUTTON: &str = "StationBuy";
@@ -135,7 +138,11 @@ fn station_refusal_text(name: &str, refusal: &StationBuyRefusalType) -> String {
         StationBuyRefusalType::NotForSale => format!("buy: no civilization sells {name}"),
         StationBuyRefusalType::AlreadyOwned => format!("buy: {name} is yours already"),
         StationBuyRefusalType::InsufficientCredits { need, have } => {
-            format!("buy: {name} costs {need} cr, the ship holds {have} cr")
+            format!(
+                "buy: {name} costs {}, the ship holds {}",
+                cr_text(*need),
+                cr_text(*have)
+            )
         }
     }
 }
@@ -189,8 +196,8 @@ pub(crate) fn update_station_sale_block(
             let own_cr = q_credits.get(docked.player).map_or(0, |credits| credits.0);
             Some(StationRow {
                 line: format!(
-                    "{} cr: twice its sections, stock and credits at ask",
-                    docked.price_cr
+                    "{}: twice its sections, stock and credits at ask",
+                    cr_text(docked.price_cr)
                 ),
                 refusal: plan_station_buy(docked.price_cr, Some(docked.sale), own_cr)
                     .err()
@@ -304,7 +311,11 @@ pub(crate) fn apply_station_buy_commands(
         price_cr: plan.price_cr,
     });
     commands.entity(docked.station).insert(owned_station());
-    runtime.say(format!("bought {} for {} cr", docked.name, plan.price_cr));
+    runtime.say(format!(
+        "bought {} for {}",
+        docked.name,
+        cr_text(plan.price_cr)
+    ));
     info!(
         "station buy: {} ({:?}) is the player's for {} cr",
         docked.name, docked.station, plan.price_cr
