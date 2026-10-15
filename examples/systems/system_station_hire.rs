@@ -38,7 +38,7 @@
 //! | - | - | - |
 //! | 0 | `outcome: escorts for hire coast beside the station` | before the hire, every escort for hire the station holds is undocked, Neutral and driven by nobody, and its hull keeps daylight to the station and to every other escort for hire |
 //! | 1 | `outcome: an escort is hired from a station's catalogue` | the first escort stands with the offer's name and the id its roster slot gives, Player-sided, in the fleet and following the player on the starboard slot, owned by no cell, and the second on the port slot; both hired hulls left the station's escorts for hire; the player paid both prices and the station took them, all as `EscortHire`; `OnEscortHired` fired once per escort with the escort, the hull and the price |
-//! | 1b | `outcome: two hired escorts spawn where their offers coasted, clear of each other and every hull` | each escort spawned within 10 m of where its offer coasted, in the station's frame, and at that pose its hull keeps daylight to the other escort, the player and the station, every hull measured by its `HullRadius` about its centre of mass |
+//! | 1b | `outcome: hired escorts spawn where their offers coasted, clear of every hull` | each escort spawned within 10 m of where its offer coasted, in the station's frame, and at that pose its hull keeps daylight to the other escort, the player and the station, every hull measured by its `HullRadius` about its centre of mass |
 //! | 2 | `outcome: an escort crosses sectors beside the player` | after the jump the station's cell is frozen, no frozen record holds the escort, the station's record holds the escorts for hire it kept, and the escort is live, owned by no cell, and back in formation after the player jumps on |
 //! | 2b | `outcome: escorts follow a start from rest on their own drive` | from the player at rest to the fleet back in formation on the coasting player, no physics step changed an escort's velocity by more than its own drive impulse over its mass plus its RCS push and its well's pull, its RCS delivered under 0.5 m/s while the player's drive was on and under a tenth of what its drive delivered in all, no escort moved before its drive fired, and no escort flew faster than the player by more than `AI_FOLLOW_CLOSING_SPEED` plus 5 m/s |
 //! | 3 | `outcome: an escort flies formation through a turn` | while the player burns to 50 m/s and turns its travel a right angle, the escort ends in formation behind and beside the new travel, matching the player's velocity; its drive took it from rest to the cruise; no physics step moved it more than 0.5 m past its own velocity; it never came within 50 m of the player's hull |
@@ -1166,8 +1166,7 @@ mod walk {
         );
         nova_probe::probe_marker(
             world,
-            "outcome: two hired escorts spawn where their offers coasted, clear of each other and \
-             every hull",
+            "outcome: hired escorts spawn where their offers coasted, clear of every hull",
             serde_json::json!({
                 "slip_m": slips,
                 "escort_to_escort_m": Meters::from_engine(gaps[0].1).get(),

@@ -1042,8 +1042,9 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
     (
         "system_station_hire",
         &[
+            "escorts for hire coast beside the station",
             "an escort is hired from a station's catalogue",
-            "two hired escorts spawn clear of each other and every hull",
+            "hired escorts spawn where their offers coasted, clear of every hull",
             "an escort crosses sectors beside the player",
             "escorts follow a start from rest on their own drive",
             "an escort flies formation through a turn",
@@ -1132,7 +1133,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 563;
+const SYSTEMS_INVARIANTS: usize = 564;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///
