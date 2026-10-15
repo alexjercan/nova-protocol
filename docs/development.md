@@ -120,12 +120,17 @@ Scene group. A ship's sections show under the ship's row.
 
 The overlays include the F3 diagnostics layer
 (`crates/nova_debug/src/diagnostics.rs`, `DiagnosticsPlugin`, added by
-`DebugPlugin`): a hint line, a panel of live values, labels over world points
-and the `DiagnosticsGizmos` group. **F3** or its checkbox flips
-`DebugOverlays::diagnostics`. A hand-played example adds
-`DiagnosticsHintPlugin::new(hint)`, which shows its hint and turns the layer
-on at start, and draws in `DiagnosticsSystems`; such an example needs the
-`debug` feature (`required-features` in the root `Cargo.toml`). Note the
+`DebugPlugin`): labels over world points, a short panel, a row of key
+hints and the `DiagnosticsGizmos` group. **F3** or its checkbox flips
+`DebugOverlays::diagnostics`; **Shift+F3** or the detail checkbox flips
+`DebugOverlays::diagnostics_detail`, which adds the full value list. An
+example writes `DiagnosticsPanel::label` next to the thing it measures,
+`line` for a few short facts, `detail` for the rest, and `hint(key, action)`
+each frame the action is possible. A hand-played example adds
+`DiagnosticsHintPlugin::new(intro)`, which turns the layer on at start and
+fades its intro and the toggle keys a few seconds into play, and draws in
+`DiagnosticsSystems`; such an example needs the `debug` feature
+(`required-features` in the root `Cargo.toml`). Note the
 feature is spelled `debug`, with `dev` as an alias for it (root `Cargo.toml`);
 `--features dev` and `--features debug` are interchangeable.
 

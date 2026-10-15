@@ -17,18 +17,24 @@ nix develop --command cargo run --example <name> --features debug [-- <args>]
 
 `nova_debug::diagnostics` is the overlay these examples draw on. Every debug
 build has it, and it boots off. An example turns it on at start with
-`DiagnosticsHintPlugin::new(hint)`, which also shows the hint line. `F3`, or
-the Diagnostics checkbox in the Nova Debug window (`F11`), shows and hides
-it. It has two parts:
+`DiagnosticsHintPlugin::new(intro)`, whose intro and toggle keys fade a few
+seconds into play. `F3`, or the Diagnostics checkbox in the Nova Debug window
+(`F11`), shows and hides it. It has four parts:
 
 - gizmos in the world: rings, spheres, arrows and lines in the palette
   colours (cyan velocity, yellow target, violet zone, green OK, red alert,
   orange push, grey muted);
-- a text panel of live values at the top left, and labels over world points.
+- labels over world points, which carry the numbers next to the thing they
+  measure;
+- a short panel at the top left;
+- a row of key hints above the HUD's key chips, each shown only while its
+  action is possible.
 
-While a surface is up (the TAB interface, the command modal, the pause menu
-or the Nova Debug window) the hint and the panel move to the bottom left,
-and the world labels hide. These examples need `--features debug`.
+`Shift+F3`, or the Diagnostics detail checkbox, adds the full value list to
+the panel. While a surface is up (the TAB interface, the command modal, the
+pause menu or the Nova Debug window) the panel moves to the bottom left, the
+hints drop to the bottom edge, and the world labels hide. These examples need
+`--features debug`.
 
 ## Features and examples
 

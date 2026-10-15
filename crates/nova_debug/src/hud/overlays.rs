@@ -34,9 +34,12 @@ pub struct DebugOverlays {
     /// The exact `rounds/capacity` under each ammo gauge. Only a `debug`
     /// build has the number; elsewhere the flag draws nothing.
     pub ammo_number: bool,
-    /// The F3 layer: an example's hint line, live-value panel, world labels
-    /// and [`DiagnosticsGizmos`]. F3 flips it too.
+    /// The F3 layer: an example's intro, short panel, key hints, world
+    /// labels and [`DiagnosticsGizmos`]. F3 flips it too.
     pub diagnostics: bool,
+    /// The F3 layer's full value list under its short panel. Shift+F3 flips
+    /// it too. It has no layer switch of its own: the panel reads it.
+    pub diagnostics_detail: bool,
 }
 
 /// The gizmo group the gravity overlay draws in.
@@ -94,6 +97,10 @@ pub(crate) fn overlays_ui(world: &mut World, ui: &mut egui::Ui) {
     ui.checkbox(
         &mut wanted.diagnostics,
         "Diagnostics (F3): an example's panel, labels and gizmos",
+    );
+    ui.checkbox(
+        &mut wanted.diagnostics_detail,
+        "Diagnostics detail (Shift+F3): the full value list",
     );
     if wanted != current {
         *world.resource_mut::<DebugOverlays>() = wanted;
