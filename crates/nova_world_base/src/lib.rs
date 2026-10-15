@@ -85,7 +85,7 @@ pub use crate::{
     sector_ships::{plan_ship, ship_stock, HullSlot, PlannedShip},
     ship_layout::{
         generate_ship, generate_wreck, ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType,
-        ShipLayoutFailure, ShipLayoutRequest,
+        ShipLayoutFailure, ShipLayoutRequest, MAX_SHIP_SECTIONS,
     },
     ship_parts::{
         ShipPart, ShipPartExclusionType, ShipPartFamilyType, ShipPartFault, ShipPartPack,
@@ -122,7 +122,7 @@ pub mod prelude {
         ShipPartExclusionType, ShipPartFamilyType, ShipPartFault, ShipPartPack, ShipPartSnapshot,
         StationArchetypeType, StationLayout, StationLayoutConstraintType, StationLayoutFailure,
         StationLayoutRequest, ARMOURED_STYLE_ID, BLOCK_WAYSTATION_STATION_ID, CIVILIAN_STYLE_ID,
-        CLEARANCE_MARGIN, INDUSTRIAL_STYLE_ID, OPEN_WORLD_BOUNDS_RADIUS_MAX,
+        CLEARANCE_MARGIN, INDUSTRIAL_STYLE_ID, MAX_SHIP_SECTIONS, OPEN_WORLD_BOUNDS_RADIUS_MAX,
         OPEN_WORLD_SCENARIO_ID, SALVAGE_STYLE_ID, STATION_STYLE_ID,
     };
 }

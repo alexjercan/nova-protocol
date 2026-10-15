@@ -17,7 +17,9 @@
 //! [`MIN_THRUST_PER_CELL`](nova_ship::prelude::MIN_THRUST_PER_CELL) per cell
 //! of the whole ship, and the ship carries one flight computer per
 //! [`CELLS_PER_CONTROLLER`](nova_ship::prelude::CELLS_PER_CONTROLLER) cells:
-//! the floors a section swap at a station also holds a ship to.
+//! the floors a section swap at a station also holds a ship to. A spine plan
+//! shrinks until its cubes leave room for the fittings under
+//! [`MAX_SHIP_SECTIONS`].
 //!
 //! A layout draws a preferred source per hull and keeps civilian, industrial
 //! and armored ships to it where that source has a usable part; scavengers mix
@@ -104,6 +106,17 @@ const FITTING_REACH: i32 = 2;
 
 /// The most structural cube types one hull mixes.
 const STRUCTURAL_PALETTE: usize = 3;
+
+/// The most sections a generated ship carries: every section is an entity
+/// with its own collider, and a hull past this many is the open world's
+/// costliest object to stream.
+pub const MAX_SHIP_SECTIONS: usize = 2000;
+
+/// Sections a spine plan leaves for the fittings under [`MAX_SHIP_SECTIONS`]:
+/// the drive bank, the flight computers, the weapons, the intake, the
+/// docking ports and the mining beams. The base parts fit at most about 80 on
+/// a full-advancement armored hull.
+const FITTING_SECTIONS: usize = 100;
 
 /// How far below a request's advancement a drive or weapon may score and
 /// still be drawn before the weaker parts of its source, see [`tier_floor`].
@@ -1789,7 +1802,8 @@ impl<'a> Draw<'a> {
     /// and the stern the drive bank mates to. Lengthened to its role's
     /// [`RoleShape::min_aspect`], and shrunk, narrower and flatter first and
     /// shorter last, until the spine and a bank `drive_depth` cells deep fit
-    /// the advancement's size ceiling with room for fittings.
+    /// the advancement's size ceiling with room for fittings, and its cubes
+    /// leave [`FITTING_SECTIONS`] under [`MAX_SHIP_SECTIONS`].
     fn plan(
         &self,
         stern: Section,
@@ -1823,8 +1837,9 @@ impl<'a> Draw<'a> {
         let aft = [stream.unit(), stream.unit()];
 
         let ceiling = ceiling(request.advancement);
-        // Once the ceiling has cut the length, the aspect no longer lengthens
-        // it: a stern as wide as its drive bank cannot narrow.
+        // Once the ceiling or the section budget has cut the length, the
+        // aspect no longer lengthens it: a stern as wide as its drive bank
+        // cannot narrow.
         let mut cut = false;
         loop {
             let stations = stations(length, width, height, stern, middle, aft);
@@ -1841,7 +1856,13 @@ impl<'a> Draw<'a> {
             let high = high.max(IVec3::new(high.x, high.y, length + drive_depth - 1));
             let reach = IVec3::splat(FITTING_REACH);
             let planned = centred_clearance(low - reach, high + reach);
-            if planned.0 <= ceiling.0 {
+            let cubes: usize = stations
+                .iter()
+                .map(|section| {
+                    ((2 * section.half_width + 1) * (section.high - section.low + 1)) as usize
+                })
+                .sum();
+            if planned.0 <= ceiling.0 && cubes + FITTING_SECTIONS <= MAX_SHIP_SECTIONS {
                 if cut || length as f32 >= shape.min_aspect * (2 * width + 1) as f32 {
                     return Ok(stations);
                 }

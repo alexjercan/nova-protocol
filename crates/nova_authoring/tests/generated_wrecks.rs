@@ -8,7 +8,7 @@ use nova_scenario::prelude::SpaceshipSectionConfig;
 use nova_ship::prelude::{intake_in_dock_approach, RefitPlacedSection, SectionKind, GRID_EPSILON};
 use nova_world::prelude::{CivilizationId, ShipRoleType};
 use nova_world_base::prelude::{
-    generate_ship, generate_wreck, ShipLayoutRequest, ShipPartSnapshot,
+    generate_ship, generate_wreck, ShipLayoutRequest, ShipPartSnapshot, MAX_SHIP_SECTIONS,
 };
 
 #[test]
@@ -176,5 +176,24 @@ fn every_armored_ship_at_full_advancement_mounts_turrets_and_torpedo_bays() {
             turrets > 0 && bays > 0,
             "seed {seed}: {turrets} turrets, {bays} torpedo bays"
         );
+    }
+}
+
+/// Every generated ship at full advancement, the largest it grows, stays
+/// within the per-ship section budget.
+#[test]
+fn generated_ships_at_full_advancement_stay_within_the_section_budget() {
+    let snapshot = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
+        .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
+    for role in snapshot.eligible_roles(1.0) {
+        for seed in 1..=32 {
+            let ship = generate_ship(&snapshot, request(seed, role, 1.0))
+                .unwrap_or_else(|failure| panic!("seed {seed}, {role:?}: {failure}"));
+            let sections = ship.design.sections.len();
+            assert!(
+                sections <= MAX_SHIP_SECTIONS,
+                "seed {seed}, {role:?}: {sections} sections"
+            );
+        }
     }
 }
