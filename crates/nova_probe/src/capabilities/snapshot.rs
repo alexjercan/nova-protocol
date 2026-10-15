@@ -1930,11 +1930,13 @@ mod tests {
     #[should_panic(expected = "has no runtime id")]
     fn a_live_canister_without_runtime_id_fails_snapshot_capture() {
         let mut app = rig();
-        app.world_mut().spawn(CargoCanister::new(
-            &test_items(),
-            &ItemRoleType::IronOre.into(),
-            1,
-        ));
+        // The spawn refuses a canister without an id, so the id is lost after.
+        app.world_mut()
+            .spawn((
+                CargoCanister::new(&test_items(), &ItemRoleType::IronOre.into(), 1),
+                CargoCanisterRuntimeId(3),
+            ))
+            .remove::<CargoCanisterRuntimeId>();
         capture_snapshot(app.world_mut(), "test");
     }
 

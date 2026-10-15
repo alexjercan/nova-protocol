@@ -255,6 +255,7 @@ mod tests {
 
         app.world_mut().spawn((
             CargoCanister::new(&catalog, &ItemDesignId::from("fixture_core"), 2),
+            CargoCanisterRuntimeId(0),
             GlobalTransform::default(),
         ));
 

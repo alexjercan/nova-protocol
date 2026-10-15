@@ -547,11 +547,14 @@ mod tests {
         let at = Transform::from_xyz(0.0, 0.0, -9.0);
         assert!(at.translation.length() > TargetingSettings::default().unsigned_lock_range);
         let canister = world
-            .spawn(cargo_canister(
-                CargoCanister::new(&test_items(), &ItemRoleType::HullPlate.into(), 1),
-                at,
-                Vec3::ZERO,
-                AssetRef::from("canister.glb#Scene0"),
+            .spawn((
+                cargo_canister(
+                    CargoCanister::new(&test_items(), &ItemRoleType::HullPlate.into(), 1),
+                    at,
+                    Vec3::ZERO,
+                    AssetRef::from("canister.glb#Scene0"),
+                ),
+                CargoCanisterRuntimeId(0),
             ))
             .id();
         let neutral = world

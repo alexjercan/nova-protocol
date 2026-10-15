@@ -1104,11 +1104,37 @@ pub const CARGO_CANISTER_MAX_MASS_G: u32 = 200_000;
 
 /// Item stacks drifting free in a canister. Every count is above zero and the
 /// total mass is at most [`CARGO_CANISTER_MAX_MASS_G`].
+///
+/// A canister entity is spawned with its [`CargoCanisterRuntimeId`] in the
+/// same bundle; adding this component to an entity without one panics. The
+/// intake pass, the save and the probe all key a canister by that id, and a
+/// canister without it would drift past every intake unseen.
 #[derive(Component, Clone, Debug, PartialEq, Eq, Reflect)]
+#[component(on_add = require_canister_runtime_id)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CargoCanister {
     stacks: BTreeMap<ItemDesignId, u32>,
+}
+
+/// Refuse a canister entity spawned without its runtime id.
+///
+/// # Panics
+///
+/// When the entity has no [`CargoCanisterRuntimeId`] once the bundle that
+/// added the canister is in.
+fn require_canister_runtime_id(
+    world: bevy::ecs::world::DeferredWorld,
+    context: bevy::ecs::lifecycle::HookContext,
+) {
+    assert!(
+        world
+            .get::<CargoCanisterRuntimeId>(context.entity)
+            .is_some(),
+        "cargo canister {:?} has no CargoCanisterRuntimeId: spawn it with a minted id in the \
+         same bundle",
+        context.entity
+    );
 }
 
 impl CargoCanister {
@@ -1943,6 +1969,29 @@ mod tests {
     fn cargo_canister_id_allocator_panics_rather_than_wrap_and_reuse_an_id() {
         let mut allocator = CargoCanisterIdAllocator(u64::MAX);
         allocator.mint();
+    }
+
+    /// A canister with no runtime id would drift past every intake unseen, so
+    /// the spawn that made it fails; one spawned with its id stands.
+    #[test]
+    fn a_canister_spawned_without_a_runtime_id_panics_at_the_spawn() {
+        let items = crate::test_support::test_items();
+        let canister = CargoCanister::new(&items, &ItemDesignId::from(ItemRoleType::HullPlate), 1);
+        let mut world = World::new();
+        let mut allocator = CargoCanisterIdAllocator::default();
+        world.spawn((canister.clone(), allocator.mint()));
+
+        let refused = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            world.spawn(canister);
+        }))
+        .expect_err("a canister without an id must not spawn");
+        let message = refused
+            .downcast::<String>()
+            .expect("a formatted panic message");
+        assert!(
+            message.contains("has no CargoCanisterRuntimeId"),
+            "{message}"
+        );
     }
 
     #[test]

@@ -388,10 +388,15 @@ mod tests {
                 max: 20.0,
             }
         };
+        let id = app
+            .world_mut()
+            .get_resource_or_init::<CargoCanisterIdAllocator>()
+            .mint();
         app.world_mut()
             .spawn((
                 Name::new("canister"),
                 CargoCanister::new(&test_items(), &ItemRoleType::HullPlate.into(), 1),
+                id,
                 health,
                 Transform::from_translation(at),
                 GlobalTransform::from_translation(at),
