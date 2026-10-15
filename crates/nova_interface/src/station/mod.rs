@@ -6,10 +6,12 @@
 //! - "This station": the station's price and a Buy button that raises a
 //!   `StationBuyCommand`, while a civilization keeps it. Docked at a station
 //!   the player owns, it says so.
-//! - "Ships for sale": each hull the station sells, with its price, the
-//!   trade-in and a Buy button that raises a `HullBuyCommand`.
-//! - "Escorts for hire": each escort the station hires out, with its price
-//!   and a Hire button that raises an `EscortHireCommand`.
+//! - "Ships for sale": a card per hull the station sells, with its 3D view,
+//!   its name, length and price, and a Buy button that raises a
+//!   `HullBuyCommand`.
+//! - "Escorts for hire": a card per escort the station hires out, with its
+//!   3D view, its name, length and price, and a Hire button that raises an
+//!   `EscortHireCommand`.
 //!
 //! A line says so when the station offers none of the three. Refit (rebuild,
 //! swap, add) and the wreck strip stay in the Ship pane, beside the ship they
@@ -21,7 +23,7 @@
 //! | --- | --- |
 //! | `station_buy` | The "This station" block and the station buy action handler. |
 //! | `shipyard` | The "Ships for sale" list and the buy action handler. |
-//! | `hull_preview` | The 3D view of each hull on a "Ships for sale" card. |
+//! | `hull_preview` | The 3D view of each hull on a "Ships for sale" or "Escorts for hire" card. |
 //! | `escorts` | The "Escorts for hire" list and the hire action handler. |
 
 mod escorts;
@@ -174,6 +176,47 @@ pub(crate) fn offer_rows() -> Node {
     }
 }
 
+/// Spawn the head of a hull card in `cell`: the 3D view of `hull` and one
+/// line, the hull's `name` then `detail`, wrapping only when the two do not
+/// fit the card.
+pub(crate) fn spawn_hull_card_head(
+    cell: &mut ChildSpawnerCommands,
+    hull: Entity,
+    name: &str,
+    detail: &str,
+) {
+    // `sync_hull_previews` hands the image its hull's view. The frame takes
+    // the card's width: a fixed width here makes taffy measure the labels at
+    // min-content width and grow the list by hundreds of px. The image is
+    // absolute so its measure cannot size the card either.
+    cell.spawn(Node {
+        height: px(HULL_PREVIEW_PX.y as f32),
+        flex_shrink: 0.0,
+        ..default()
+    })
+    .with_child((
+        HullPreviewSlot { hull },
+        ImageNode::default(),
+        Node {
+            position_type: PositionType::Absolute,
+            width: percent(100),
+            height: percent(100),
+            ..default()
+        },
+    ));
+    cell.spawn(Node {
+        flex_direction: FlexDirection::Row,
+        flex_wrap: FlexWrap::Wrap,
+        column_gap: px(10),
+        align_items: AlignItems::Baseline,
+        ..default()
+    })
+    .with_children(|line| {
+        line.spawn(themed_label(name, 13.0, UiColor::Primary));
+        line.spawn(themed_label(detail, 12.0, UiColor::Body));
+    });
+}
+
 /// One offer card in [`offer_rows`].
 pub(crate) fn offer_cell() -> Node {
     Node {
@@ -273,8 +316,9 @@ impl Plugin for StationPanePlugin {
                 scroll_station_panel,
                 update_station_sale_block,
                 update_station_hull_list,
-                sync_hull_previews,
                 update_station_escort_list,
+                sync_hull_previews,
+                mirror_hull_previews,
                 update_station_panel,
             )
                 .chain()

@@ -228,8 +228,8 @@ Every hull for sale is a real ship parked at one of the station's ports. A
 parked hull is inert: nobody flies it, it is Neutral, it does not shoot, and
 it cannot be looted or stripped. Docked to a living station that offers
 `Refit`, the Station pane lists the parked hulls under **Ships for sale**:
-each hull's name, length, section count and kinds, the price and the
-trade-in, and a Buy button or the reason it is refused.
+each a card with the real hull turning slowly, one line with its name,
+length and price, and a Buy button or the reason it is refused.
 
 | rule | what happens |
 |---|---|
@@ -259,8 +259,8 @@ civilization that builds no armed role hires none, and a station a scenario
 places hires none. Each escort waits outside the station, undocked and
 Neutral, coasting on the station's course a little ahead or behind it, clear
 of the station and of each other. The Station pane lists them under
-**Escorts for hire**: each escort's name, length, section count and kinds, the
-price, and a Hire button or the reason it is refused. The escorts stay with
+**Escorts for hire**, on the same cards as the hulls for sale, with a Hire
+button or the reason it is refused. The escorts stay with
 the station when its sector unloads, and in the world save.
 
 | rule | what happens |

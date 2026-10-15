@@ -219,11 +219,15 @@ own parked hulls retires; the save format is 11.
 
 The Station pane's "Ships for sale" list
 (`nova_interface/src/station/shipyard.rs`) shows every hull parked at the
-docked station, a rebuy named "(rebuy)": a 3D view, its length, section
-count, kind summary, price and trade-in, with a Buy button or the refusal.
-The view (`hull_preview.rs`) draws the hull's design as the Ship pane draws a
-ship, one tinted block per section, on its own render layer and camera; the
-cameras render only while the Station pane is on screen.
+docked station, a rebuy named "(rebuy)", as a card
+(`spawn_hull_card_head` in `station/mod.rs`): a view of the hull, one line
+with its name, length and price, and a Buy button or the refusal. The view
+(`hull_preview.rs`) mirrors the parked hull's own meshes and materials,
+posed in the hull's frame, into a scene on the card's render layer, turned
+slowly about its vertical axis and lit by a key and rim light on the card
+layers only. `mirror_hull_previews` follows the live hull, so damage and a
+changed part show; the cameras render, and the mirrors update, only while
+the Station pane is on screen.
 `plan_hull_buy` checks, in order: docked, `Refit`, the player's balance plus
 the trade-in against the price, and the station's balance plus the price
 against the trade-in. A hull for sale costs `hull_price_cr`, every section's
@@ -267,8 +271,8 @@ fighting role. Each keeps its roster slot, so `escort_id` (station id, stem
 `<stem>_<index>_escort`, the slot as index) gives one escort one id however
 the earlier ones were hired. The Station pane's "Escorts for hire" list
 (`nova_interface/src/station/escorts.rs`) shows each escort coasting beside
-the docked station: its length, kinds and price with a Hire button or the
-refusal. `plan_escort_hire`
+the docked station on the same card as a hull for sale, with a Hire button
+or the refusal. `plan_escort_hire`
 (`nova_ship/src/sections/escort_hire.rs`) checks, in order: docked, `Refit`,
 a free fleet slot (`FLEET_SIDES`, starboard then port, so the cap is two),
 the player's balance against the price, and the station's balance plus the

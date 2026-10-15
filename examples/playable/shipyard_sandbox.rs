@@ -20,15 +20,16 @@
 //!
 //! What to try:
 //!
-//! 1. open the interface (`TAB`), Station tab: **Ships for sale** lists the
-//!    parked hulls and the old ship as `(rebuy)`;
+//! 1. open the interface (`TAB`), Station tab: **Ships for sale** shows a
+//!    card per parked hull and the old ship as `(rebuy)`, each with the
+//!    hull's own model turning, one line (name, length, price) and Buy;
 //! 2. Inventory tab: the old ship's hold lists as storage while you are
 //!    docked;
 //! 3. buy another hull, or rebuy the old ship: you take its helm and the
 //!    hull you flew parks at its port;
-//! 4. Station tab, **Escorts for hire**: each escort coasts beside the
-//!    station, undocked and Neutral; Hire one and it joins your fleet and
-//!    follows you;
+//! 4. Station tab, **Escorts for hire**: a card per escort, the same way;
+//!    each escort coasts beside the station, undocked and Neutral; Hire one
+//!    and it joins your fleet and follows you;
 //! 5. undock (`D`) and fly clear: the parked hulls stay docked and inert.
 //!
 //! ```text
@@ -48,7 +49,11 @@
 //!
 //! Under `NOVA_AUTOPILOT=1` a smoke walk waits for the fixture,
 //! checks the station parks one hull per port but one with the old ship
-//! among them and escorts for hire coast undocked, and shoots `shipyard-sandbox.png` with `NOVA_CAPTURE=1`.
+//! among them and escorts for hire coast undocked, and shoots
+//! `shipyard-sandbox.png` and the Station tab's cards as
+//! `shipyard-sandbox-cards.png`, then again as
+//! `shipyard-sandbox-cards-turned.png` once the hulls have turned, with
+//! `NOVA_CAPTURE=1`.
 //! Unset, no walk and no deadline run.
 
 #[path = "shared/open_world_stage.rs"]
@@ -61,7 +66,11 @@ use bevy::prelude::*;
 use clap::Parser;
 use diagnostics::{palette, DiagnosticsGizmos, DiagnosticsPanel, DiagnosticsSystems};
 use nova_input::prelude::InputSource;
-use nova_protocol::{nova_debug::diagnostics, nova_interface::station::HullBuyCommand, prelude::*};
+use nova_protocol::{
+    nova_debug::diagnostics,
+    nova_interface::{pane::InterfacePaneType, station::HullBuyCommand},
+    prelude::*,
+};
 use open_world_stage::{advance_station_dock, the_player, OpenWorldStartPlugin, StationDock};
 
 #[derive(Parser)]
@@ -561,6 +570,12 @@ mod smoke {
     const SETTLE_FRAMES: u32 = 20;
     /// The PNG of the station with its parked hulls and the overlay.
     const SHOT: &str = "shipyard-sandbox.png";
+    /// The PNGs of the Station tab's hull and escort cards, the second
+    /// [`TURN_FRAMES`] after the first, so the hulls have turned.
+    const CARDS_SHOT: &str = "shipyard-sandbox-cards.png";
+    const CARDS_TURNED_SHOT: &str = "shipyard-sandbox-cards-turned.png";
+    /// Frames between the two card shots.
+    const TURN_FRAMES: u32 = 30;
 
     fn ready(world: &World) -> bool {
         world
@@ -645,6 +660,28 @@ mod smoke {
             .step("shipyard sandbox: shoot the shipyard")
             .on_enter(|world: &mut World| shoot(world, SHOT))
             .until(shot_written(SHOT))
+            .deadline(SHOT_SECS)
+            .add()
+            .step("shipyard sandbox: open the Station tab")
+            .on_enter(|world: &mut World| {
+                *world.resource_mut::<InterfacePaneType>() = InterfacePaneType::Station;
+                world
+                    .resource_mut::<NextState<PauseStates>>()
+                    .set(PauseStates::Interface);
+            })
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("shipyard sandbox: shoot the cards")
+            .on_enter(|world: &mut World| shoot(world, CARDS_SHOT))
+            .until(shot_written(CARDS_SHOT))
+            .deadline(SHOT_SECS)
+            .add()
+            .step("shipyard sandbox: let the hulls turn")
+            .until(frames(TURN_FRAMES))
+            .add()
+            .step("shipyard sandbox: shoot the turned cards")
+            .on_enter(|world: &mut World| shoot(world, CARDS_TURNED_SHOT))
+            .until(shot_written(CARDS_TURNED_SHOT))
             .deadline(SHOT_SECS)
             .add()
     }

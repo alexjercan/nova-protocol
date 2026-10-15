@@ -2,10 +2,9 @@
 //!
 //! While the ship is docked at a living station that offers Refit and has
 //! hulls parked at its ports ([`ParkedHulls`]), the pane lists every one, a
-//! hull for sale and a hull traded in for rebuy alike: a 3D view of the hull
-//! (`hull_preview`), its name, its length and section count, how many
-//! sections of each kind it carries, the price and the trade-in, and a Buy
-//! button or the reason the buy is refused. A
+//! hull for sale and a hull traded in for rebuy alike, as a card: the hull's
+//! own model turning (`hull_preview`), one line with its name, length and
+//! price, and a Buy button or the reason the buy is refused. A
 //! click raises a [`HullBuyCommand`]; [`apply_station_hull_buy_commands`]
 //! plans it with [`plan_hull_buy`], moves the credits both ways, and raises
 //! the [`HullBuyRequest`] the scenario crate swaps the hulls from. The old
@@ -19,10 +18,10 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{theme::UiColor, widget::ButtonSpec};
 
-use super::{offer_cell, offer_rows, HullPreviewSlot, StationRuntime, HULL_PREVIEW_PX};
+use super::{offer_cell, offer_rows, spawn_hull_card_head, StationRuntime};
 use crate::{
     pane::{compact_button, play_menu_select, themed_label},
-    ship::{code_prefix, ResolvedSite, ShipRuntime, StationSite},
+    ship::{ResolvedSite, ShipRuntime, StationSite},
 };
 
 /// A request to buy the hull parked at the docked station, raised by a
@@ -55,55 +54,21 @@ impl StationHullRows {
 struct HullRow {
     hull: Entity,
     name: String,
-    size: String,
-    kinds: String,
-    price: String,
+    /// The card line after the name: length and price.
+    detail: String,
     /// The refusal line, or `None` when the buy is allowed.
     refusal: Option<String>,
 }
 
-/// Every section kind in the order the kind summary lists them.
-const SUMMARY_ORDER: [SectionClass; 9] = [
-    SectionClass::Hull,
-    SectionClass::Controller,
-    SectionClass::Thruster,
-    SectionClass::Turret,
-    SectionClass::Torpedo,
-    SectionClass::Railgun,
-    SectionClass::Mining,
-    SectionClass::CargoIntake,
-    SectionClass::Docking,
-];
-
-/// The hull's length and section count: the span of its section centres
-/// along its longest axis, plus one cell, in metres.
-pub(crate) fn hull_size_text(sections: &[DesignSection]) -> String {
+/// The hull's length: the span of its section centres along its longest
+/// axis, plus one cell, in metres: `50 m`.
+pub(crate) fn hull_length_text(sections: &[DesignSection]) -> String {
     let (low, high) = sections.iter().fold(
         (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)),
         |(low, high), section| (low.min(section.position), high.max(section.position)),
     );
     let span = (high - low).max_element().max(0.0) + 1.0;
-    format!(
-        "{:.0} m long, {} sections",
-        Meters::from_engine(span).0,
-        sections.len()
-    )
-}
-
-/// How many sections of each kind the hull carries, by section code prefix:
-/// `4 HULL, 1 CTL, 2 THR, 1 DOCK`.
-pub(crate) fn hull_kinds_text(sections: &[DesignSection]) -> String {
-    SUMMARY_ORDER
-        .iter()
-        .filter_map(|&class| {
-            let count = sections
-                .iter()
-                .filter(|section| section.config.kind.class() == class)
-                .count();
-            (count > 0).then(|| format!("{count} {}", code_prefix(class)))
-        })
-        .collect::<Vec<_>>()
-        .join(", ")
+    format!("{:.0} m", Meters::from_engine(span).0)
 }
 
 /// Why a buy of the hull named `name` is refused; the list and the handler
@@ -272,9 +237,7 @@ pub(crate) fn update_station_hull_list(
                     Some(HullRow {
                         hull,
                         name: format!("{name}{listing}"),
-                        size: hull_size_text(&design.0),
-                        kinds: hull_kinds_text(&design.0),
-                        price: format!("{price_cr} cr, trade-in {trade_in_cr} cr"),
+                        detail: format!("{}, {price_cr} cr", hull_length_text(&design.0)),
                         refusal: planned
                             .err()
                             .map(|refusal| hull_refusal_text(name.as_str(), &refusal)),
@@ -298,30 +261,7 @@ pub(crate) fn update_station_hull_list(
     commands.entity(rows_entity).with_children(|parent| {
         for (index, row) in rows.iter().enumerate() {
             parent.spawn(offer_cell()).with_children(|cell| {
-                // `sync_hull_previews` hands the image its hull's view. The
-                // frame takes the card's width: a fixed width here makes
-                // taffy measure the labels at min-content width and grow the
-                // list by hundreds of px. The image is absolute so its
-                // measure cannot size the card either.
-                cell.spawn(Node {
-                    height: px(HULL_PREVIEW_PX.y as f32),
-                    flex_shrink: 0.0,
-                    ..default()
-                })
-                .with_child((
-                    HullPreviewSlot { hull: row.hull },
-                    ImageNode::default(),
-                    Node {
-                        position_type: PositionType::Absolute,
-                        width: percent(100),
-                        height: percent(100),
-                        ..default()
-                    },
-                ));
-                cell.spawn(themed_label(&row.name, 13.0, UiColor::Primary));
-                cell.spawn(themed_label(&row.size, 12.0, UiColor::Body));
-                cell.spawn(themed_label(&row.kinds, 12.0, UiColor::Body));
-                cell.spawn(themed_label(&row.price, 12.0, UiColor::Body));
+                spawn_hull_card_head(cell, row.hull, &row.name, &row.detail);
                 match &row.refusal {
                     Some(refusal) => {
                         cell.spawn(themed_label(refusal, 12.0, UiColor::Danger));

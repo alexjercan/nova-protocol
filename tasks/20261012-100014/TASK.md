@@ -84,3 +84,16 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
   - Spacing: `hire_offer_offsets` puts offers on one line, alternately ahead and behind, each past the station's reach (`design_reach`) and the one before it plus `HIRE_OFFER_CLEARANCE` (10 units, 100 m).
   - "AI idle": no driver (`SpaceshipController::None`), Neutral, capabilities off, the same as a parked hull for sale.
   - Hire: the offer hull freezes and despawns, and the record thaws as a new entity under `escort_id`, where the offer coasted and at its velocity: an AI driver leashed at `ESCORT_LEASH`, Player side, all capabilities on, with `PlayerFleetMarker` (so `OwnedShipMarker`) and `AIFollow`. Rejected: change the live hull in place. Consequence: every component that a parked hull has and an escort does not have would need a separate removal.
+
+- Agent decision 2026-10-15, item 2 (cards). The agent chose the marked options.
+  - How a card shows the hull:
+    - (A, chosen) Mirror the parked hull's own meshes. `mirror_hull_previews` (`nova_interface/src/station/hull_preview.rs`) gives each `Mesh3d` under the hull a twin with the same mesh and material handles (`StandardMaterial` or `SectionCracksMaterial`), posed in the hull's frame, on render layer 26 + slot under a turntable that turns at 0.2 rad/s of real time. Consequence: plating, greebles, damage and a changed part show as in the world; one entity per world mesh while the pane is open.
+    - (B) Add the card layer to the world hull's own meshes. Consequence: the card camera also draws the hull where it stands in the world, so the hull cannot turn or be framed alone, and the world camera's layer filter changes.
+    - (C) Point each card camera at the parked hull in the world. Consequence: the station, other hulls and rocks fill the frame; world lights and shadows decide what the card shows.
+    - (D) Keep the block diagram. Consequence: the owner's ask is not met.
+  - Light: one key light and one rim light on the union of the live card layers, shadows off, ambient 220 on each card camera. World directional lights stay on the world layer, so a card is lit the same at every station.
+  - Cost: the card cameras are active, and the mirrors update, only while the Station pane is on screen; the mirrors are not rebuilt when hidden.
+  - Card line: name (it carries civilization, role and Mk), length and price, for example `Fenhalka scavenger Mk 1  60 m, 4400 cr`. The section count, kind summary and trade-in left the card; item 3 puts the trade-in on the Buy action.
+  - Escort cards use the same head (`spawn_hull_card_head`) and preview.
+  - The Info button is not on the card yet. It comes with item 4, so no card has a button that does nothing.
+  - Proof: `shipyard_sandbox` opens the Station tab and shoots `shipyard-sandbox-cards.png`, then `shipyard-sandbox-cards-turned.png` 30 frames later: six lit hulls with plating and greebles, each turned between the shots.

@@ -2,10 +2,10 @@
 //!
 //! While the ship is docked at a living station that offers Refit and hires
 //! out escorts (hulls it holds listed [`ParkedHullType::Hire`], coasting
-//! beside it), the pane lists them under the hulls for sale: the name, the
-//! length and
-//! section count, how many sections of each kind, the price, and a Hire
-//! button or the reason the hire is refused. A click raises an
+//! beside it), the pane lists them under the hulls for sale, each as a card:
+//! the escort's own model turning (`hull_preview`), one line with its name,
+//! length and price, and a Hire button or the reason the hire is refused. A
+//! click raises an
 //! [`EscortHireCommand`]; [`apply_station_escort_hire_commands`] plans it with
 //! [`plan_escort_hire`], moves the credits, and raises the
 //! [`EscortHireRequest`] the scenario crate makes the escort from.
@@ -19,9 +19,7 @@ use nova_ship::prelude::*;
 use nova_ui::{theme::UiColor, widget::ButtonSpec};
 
 use super::{
-    offer_cell, offer_rows,
-    shipyard::{hull_kinds_text, hull_size_text},
-    StationRuntime,
+    offer_cell, offer_rows, shipyard::hull_length_text, spawn_hull_card_head, StationRuntime,
 };
 use crate::{
     pane::{compact_button, play_menu_select, themed_label},
@@ -47,14 +45,20 @@ pub(crate) struct StationEscortList;
 #[derive(Component, Default)]
 pub(crate) struct StationEscortRows(Vec<EscortRow>);
 
+impl StationEscortRows {
+    /// The escorts for hire the rows list, in list order.
+    pub(crate) fn hulls(&self) -> impl Iterator<Item = Entity> + '_ {
+        self.0.iter().map(|row| row.hull)
+    }
+}
+
 /// One escort for hire as the list shows it.
 #[derive(Clone, Debug, PartialEq)]
 struct EscortRow {
     hull: Entity,
     name: String,
-    size: String,
-    kinds: String,
-    price: String,
+    /// The card line after the name: length and price.
+    detail: String,
     /// The refusal line, or `None` when the hire is allowed.
     refusal: Option<String>,
 }
@@ -187,9 +191,7 @@ pub(crate) fn update_station_escort_list(
                     Some(EscortRow {
                         hull,
                         name: name.to_string(),
-                        size: hull_size_text(&design.0),
-                        kinds: hull_kinds_text(&design.0),
-                        price: format!("{price} cr"),
+                        detail: format!("{}, {price} cr", hull_length_text(&design.0)),
                         refusal: plan_offer(&resolved, price, &held, &q_credits)
                             .err()
                             .map(|refusal| escort_refusal_text(name.as_str(), &refusal)),
@@ -213,10 +215,7 @@ pub(crate) fn update_station_escort_list(
     commands.entity(rows_entity).with_children(|parent| {
         for (index, row) in rows.iter().enumerate() {
             parent.spawn(offer_cell()).with_children(|cell| {
-                cell.spawn(themed_label(&row.name, 13.0, UiColor::Primary));
-                cell.spawn(themed_label(&row.size, 12.0, UiColor::Body));
-                cell.spawn(themed_label(&row.kinds, 12.0, UiColor::Body));
-                cell.spawn(themed_label(&row.price, 12.0, UiColor::Body));
+                spawn_hull_card_head(cell, row.hull, &row.name, &row.detail);
                 match &row.refusal {
                     Some(refusal) => {
                         cell.spawn(themed_label(refusal, 12.0, UiColor::Danger));
