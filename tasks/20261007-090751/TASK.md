@@ -1,6 +1,6 @@
 # Map shipped features and player-experience priorities for v0.16.0
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.16.0,planning
 
