@@ -20,7 +20,7 @@ use std::{
     hash::{DefaultHasher, Hash, Hasher},
 };
 
-use bevy::{prelude::*, ui_widgets::Activate};
+use bevy::prelude::*;
 use nova_events::prelude::{CreditChangeCauseType, EntityId};
 use nova_gameplay::prelude::*;
 use nova_input::prelude::InputSource;
@@ -31,10 +31,9 @@ use super::{
     scene::ShipRuntime,
     sections::{code_prefix, design_section_code},
 };
-use crate::pane::play_menu_select;
 
 /// A request to swap one live section of the player ship for another
-/// catalogue part, raised by a catalogue row's Swap button.
+/// catalogue part, raised by the catalogue's Swap verb.
 #[derive(Message, Clone, Debug)]
 pub struct SectionSwapCommand {
     /// The design section id.
@@ -194,22 +193,6 @@ impl ResolvedSite<'_> {
             .position(|live| live.id == section.id)
             .expect("a swapped section is live");
         swap_build_fault(&placed, index, offered)
-    }
-}
-
-/// Raise a [`SectionSwapCommand`] swapping design section `section` for
-/// `prototype` when its Swap button is clicked.
-pub(crate) fn on_ship_swap_button(
-    section: String,
-    prototype: String,
-) -> impl FnMut(On<Activate>, MessageWriter<SectionSwapCommand>, Option<Res<SoundBank<UiSfx>>>, Commands)
-{
-    move |_activate, mut swaps, bank, mut commands| {
-        swaps.write(SectionSwapCommand {
-            section: section.clone(),
-            prototype: prototype.clone(),
-        });
-        play_menu_select(&mut commands, bank.as_deref());
     }
 }
 

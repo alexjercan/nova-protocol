@@ -49,10 +49,10 @@ use nova_wfc::prelude::{WfcPlan, WfcZone};
 use crate::{
     bundle::{ask_to_open, ask_to_save, ask_to_save_as},
     config::{
-        ContextBreadcrumb, CrumbSelection, CrumbStep, EditorFoot, EditorKeyLegend, EditorOverlays,
+        ContextBreadcrumb, EditorCamera, CrumbSelection, CrumbStep, EditorFoot, EditorKeyLegend, EditorOverlays,
         EditorRail, EditorStatus, HullPlanLine, InspectorHeader, PartChoice, PartList, PartTick,
         PartZoneChip, PlacementStatus, PlayButton, RailTab, RailTabButton, RebindButton, SceneList,
-        SceneRow, SectionChoice, SelectedNode, ShipReadout, ShipReadoutNote, ShipSettings,
+        SceneRow, SelectedNode, ShipReadout, ShipReadoutNote, ShipSettings,
         SkinToggleCheckbox, StyleChoice, StyleList, StyleSwatch,
     },
     event::{
@@ -63,7 +63,7 @@ use crate::{
         ask_for, on_frame_selection, on_view_preset, FrameRequest, FrameSelectionItem, ViewAngle,
         ViewPresetItem,
     },
-    gallery::{EditorCamera, EditorChrome, GalleryAction, GalleryCategory},
+    gallery::{gallery_host, EditorChrome},
     generate::{
         bow_gun, generate_ship, main_engine, reroll_seed, Drawn, GenerateButton, GenerateSettings,
         HullSeed, HullSeedField, UNAUTHORED_WEIGHT,
@@ -393,7 +393,7 @@ const GREYED_STYLE_ALPHA: f32 = 0.3;
 const READOUT_TEXT: f32 = 11.0;
 
 /// Register the UI's observers (button colours, selection). The per-state
-/// systems and the `SectionChoice` setting observer are wired by the plugin,
+/// systems and the `HeldPart` setting observer are wired by the plugin,
 /// which owns those types.
 pub(crate) fn register(app: &mut App) {
     // The menu and gameplay want the same app-global UI wiring; whoever gets
@@ -440,7 +440,7 @@ pub(crate) fn setup_editor_scene(
         Transform::from_xyz(5.0, -2.0, -7.0).looking_at(Vec3::ZERO, Vec3::Y),
     ));
 
-    commands.spawn((
+    let camera = commands.spawn((
         DespawnOnExit(ExampleStates::Editor),
         Name::new("WASD Camera"),
         Camera3d::default(),
@@ -473,7 +473,10 @@ pub(crate) fn setup_editor_scene(
             cubemap: game_assets.cubemap.clone(),
             brightness: 1000.0,
         },
-    ));
+    )).id();
+    // The parts gallery lays itself out over the whole window and draws its
+    // tiles through this camera, parked on the stage while it is up.
+    commands.spawn(gallery_host(camera));
 
     commands
         .spawn((
@@ -2890,7 +2893,7 @@ fn escape_rung(rebinding: bool, menu_open: bool, armed: bool, inside_ship: bool)
 /// it costs a few string compares, and turning the legend back on has to show
 /// what the editor is doing NOW.
 pub(crate) fn sync_key_legend(
-    selection: Res<SectionChoice>,
+    selection: Res<HeldPart>,
     context: Res<EditContext>,
     overlays: Res<EditorOverlays>,
     rebind: Res<EditorRebind>,
@@ -2906,7 +2909,7 @@ pub(crate) fn sync_key_legend(
     let escape = escape_rung(
         rebind.target.is_some(),
         open_menu.0.is_some(),
-        *selection != SectionChoice::None,
+        *selection != HeldPart(None),
         inside,
     );
     // The pointer and the rig, then the one key that changes meaning with the
@@ -2920,7 +2923,7 @@ pub(crate) fn sync_key_legend(
         ("REBINDING", &[("any key", "bind it")])
     } else {
         match (&*selection, inside) {
-            (SectionChoice::None, false) => (
+            (HeldPart(None), false) => (
                 "SELECT",
                 &[
                     ("LMB", "select"),
@@ -2931,7 +2934,7 @@ pub(crate) fn sync_key_legend(
                     ("Space/Shift", "up and down"),
                 ],
             ),
-            (SectionChoice::None, true) => (
+            (HeldPart(None), true) => (
                 "IN A SHIP",
                 &[
                     ("LMB", "select"),
@@ -2946,7 +2949,7 @@ pub(crate) fn sync_key_legend(
                     ("Space/Shift", "up and down"),
                 ],
             ),
-            (SectionChoice::Section(_), _) => (
+            (HeldPart(Some(_)), _) => (
                 "PART IN HAND",
                 &[
                     ("LMB", "place it"),
@@ -4900,11 +4903,11 @@ mod tests {
     fn every_mode_fits_in_the_cells_the_legend_has() {
         let mut app = legend_app();
         for (choice, inside) in [
-            (SectionChoice::None, false),
-            (SectionChoice::None, true),
-            (SectionChoice::Section("hull".to_string()), true),
+            (HeldPart(None), false),
+            (HeldPart(None), true),
+            (HeldPart(Some("hull".to_string())), true),
         ] {
-            *app.world_mut().resource_mut::<SectionChoice>() = choice.clone();
+            *app.world_mut().resource_mut::<HeldPart>() = choice.clone();
             enter_ship(app.world_mut(), inside);
             app.update();
             let shown = shown_hints(&mut app);
@@ -4930,7 +4933,7 @@ mod tests {
         app.update();
         assert_eq!(legend_mode(&mut app), "IN A SHIP");
 
-        *app.world_mut().resource_mut::<SectionChoice>() = SectionChoice::Section("hull".into());
+        *app.world_mut().resource_mut::<HeldPart>() = HeldPart(Some("hull".into()));
         app.update();
         assert_eq!(legend_mode(&mut app), "PART IN HAND");
     }
@@ -4967,7 +4970,7 @@ mod tests {
     /// A legend with the cells up and the sync running.
     fn legend_app() -> App {
         let mut app = App::new();
-        app.init_resource::<SectionChoice>();
+        app.init_resource::<HeldPart>();
         app.init_resource::<EditContext>();
         app.init_resource::<EditorOverlays>();
         app.init_resource::<EditorRebind>();

@@ -4953,6 +4953,7 @@ dependencies = [
  "nova_events",
  "nova_gameplay",
  "nova_input",
+ "nova_ui",
  "rand 0.10.2",
  "ron",
  "serde",

@@ -11,11 +11,10 @@
 //! written as an escape so this file stays ASCII.
 
 use nova_scenario::prelude::{ScenarioObjectKind, SpaceshipController};
-use nova_ship::prelude::{GameSections, SectionKind};
+use nova_ship::prelude::{GalleryCategory, GameSections, SectionKind};
 
 use crate::{
     event::ScriptAdd,
-    gallery::GalleryCategory,
     node::{ObjectChoice, ObjectNode, SectionNode, ShipDriver, ShipNode},
 };
 

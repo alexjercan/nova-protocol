@@ -1,5 +1,6 @@
-//! The gallery keyboard: opening, selection, paging, focus, the pick key and
-//! the filter field.
+//! The gallery keyboard: selection, paging, focus, the pick key and the
+//! filter field. Opening is the host's: a key or a button sets
+//! [`GalleryState::open`].
 //!
 //! Letters reach the FILTER only while the filter field itself is focused.
 //! Swallowing every keystroke made the field the only thing the keyboard could
@@ -8,58 +9,30 @@
 //! when the browse keys change.
 
 use bevy::{input::keyboard::KeyboardInput, picking::hover::Hovered, prelude::*};
-use nova_ship::prelude::*;
 
-use crate::{
-    config::SectionChoice,
-    gallery::{catalog, ui::GalleryCell, GalleryLayout, GalleryState},
+use super::{
+    catalog, ui::GalleryCell, GalleryHost, GalleryLayout, GalleryListing, GalleryState, HeldPart,
 };
+use crate::prelude::*;
 
-/// Opens and closes the gallery from the editor.
-///
-/// Tab, because that is already the game's "open the panel" key. It is free
-/// here: the interface it opens in flight needs a ship to show, and the
-/// editor's build mode has none (see `toggle_interface`).
-pub(crate) const GALLERY_TOGGLE_KEY: KeyCode = KeyCode::Tab;
-
-/// Arms whatever part is under the pointer - the same pipette the build view
+/// Takes whatever part is under the pointer - the same pipette the build view
 /// uses on a placed section.
-pub(crate) const GALLERY_PICK_KEY: KeyCode = KeyCode::KeyQ;
+pub const GALLERY_PICK_KEY: KeyCode = KeyCode::KeyQ;
 
 /// Puts the caret in the filter field, the way `/` does in every list that has
 /// ever had a search box.
-pub(crate) const GALLERY_FILTER_KEY: KeyCode = KeyCode::Slash;
-
-/// Open or close the gallery. Runs whether or not it is up, unlike the rest of
-/// this module.
-pub(crate) fn toggle_gallery(keys: Res<ButtonInput<KeyCode>>, mut state: ResMut<GalleryState>) {
-    if !keys.just_pressed(GALLERY_TOGGLE_KEY) {
-        return;
-    }
-    if state.open {
-        *state = GalleryState {
-            open: false,
-            ..state.clone()
-        };
-    } else {
-        // A fresh browse starts unfiltered, exactly as the rail row opens it.
-        *state = GalleryState {
-            open: true,
-            category: state.category,
-            ..default()
-        };
-    }
-}
+pub const GALLERY_FILTER_KEY: KeyCode = KeyCode::Slash;
 
 /// Drive the open gallery from the keyboard.
-pub(crate) fn gallery_keyboard(
+pub fn gallery_keyboard(
     keys: Res<ButtonInput<KeyCode>>,
     mut typed: MessageReader<KeyboardInput>,
     sections: Res<GameSections>,
     layout: Res<GalleryLayout>,
+    host: Query<Option<&GalleryListing>, With<GalleryHost>>,
     hovered: Query<(&GalleryCell, &Hovered)>,
     mut state: ResMut<GalleryState>,
-    mut choice: ResMut<SectionChoice>,
+    mut held: ResMut<HeldPart>,
 ) {
     if !state.open {
         // Drain, so a keypress made before the gallery opened is not replayed
@@ -68,7 +41,8 @@ pub(crate) fn gallery_keyboard(
         return;
     }
 
-    let listed = catalog::browsable(&sections, state.category, &state.filter);
+    let listing = host.single().ok().flatten();
+    let listed = catalog::browsable(&sections, listing, state.category, &state.filter);
     let mut next = state.clone();
 
     // Escape backs out one step at a time: out of the filter field, then out of
@@ -90,8 +64,8 @@ pub(crate) fn gallery_keyboard(
             next.filter_focused = false;
             next.focused = !listed.is_empty();
         } else if next.focused {
-            if let Some(id) = next.selected_id(&sections) {
-                *choice = SectionChoice::Section(id);
+            if let Some(id) = next.selected_id(&sections, listing) {
+                held.0 = Some(id);
             }
             next.open = false;
             next.focused = false;
@@ -110,8 +84,8 @@ pub(crate) fn gallery_keyboard(
             .map(|(cell, _)| cell.listed)
         {
             next.selected = cell;
-            if let Some(id) = next.selected_id(&sections) {
-                *choice = SectionChoice::Section(id);
+            if let Some(id) = next.selected_id(&sections, listing) {
+                held.0 = Some(id);
                 next.open = false;
                 next.focused = false;
             }
@@ -159,7 +133,7 @@ pub(crate) fn gallery_keyboard(
         let pressed = pressed.iter().map(|(key, text)| (*key, text.as_deref()));
         if edit_filter(&mut next, pressed) {
             // A narrower list can leave the selection past its end.
-            let listed = catalog::browsable(&sections, next.category, &next.filter);
+            let listed = catalog::browsable(&sections, listing, next.category, &next.filter);
             next.step(0, listed.len());
         }
     }
@@ -256,7 +230,7 @@ mod tests {
         app.add_message::<KeyboardInput>();
         app.insert_resource(state);
         app.init_resource::<GalleryLayout>();
-        app.insert_resource(SectionChoice::None);
+        app.init_resource::<HeldPart>();
         app.insert_resource(GameSections(vec![
             SectionConfig {
                 base: BaseSectionConfig {
@@ -275,7 +249,7 @@ mod tests {
                 kind: SectionKind::Thruster(ThrusterSectionConfig::default()),
             },
         ]));
-        app.add_systems(Update, (toggle_gallery, gallery_keyboard).chain());
+        app.add_systems(Update, gallery_keyboard);
         app
     }
 
@@ -349,20 +323,6 @@ mod tests {
         }
     }
 
-    /// Tab opens the gallery from the build view and closes it again. It is the
-    /// game's "open the panel" key, and it is free in the editor because the
-    /// interface it opens in flight needs a ship to show.
-    #[test]
-    fn tab_opens_and_closes_the_gallery() {
-        let mut app = gallery_app(GalleryState::default());
-
-        tap(&mut app, KeyCode::Tab, None);
-        assert!(app.world().resource::<GalleryState>().open);
-
-        tap(&mut app, KeyCode::Tab, None);
-        assert!(!app.world().resource::<GalleryState>().open);
-    }
-
     /// Letters are SHORTCUTS until the filter field is focused. Typing into a
     /// grid that swallows every keystroke leaves no room for a pick key, which
     /// is the whole reason the field takes focus at all.
@@ -420,9 +380,9 @@ mod tests {
         tap(&mut app, KeyCode::KeyQ, Some("q"));
 
         assert_eq!(
-            *app.world().resource::<SectionChoice>(),
-            SectionChoice::Section("thruster".to_string()),
-            "Q must arm the part under the pointer"
+            app.world().resource::<HeldPart>().id(),
+            Some("thruster"),
+            "Q must take the part under the pointer"
         );
         assert!(
             !app.world().resource::<GalleryState>().open,
@@ -445,10 +405,7 @@ mod tests {
         tap(&mut app, KeyCode::KeyQ, Some("q"));
 
         assert_eq!(app.world().resource::<GalleryState>().filter, "q");
-        assert_eq!(
-            *app.world().resource::<SectionChoice>(),
-            SectionChoice::None
-        );
+        assert_eq!(app.world().resource::<HeldPart>().id(), None);
         assert!(app.world().resource::<GalleryState>().open);
     }
 }

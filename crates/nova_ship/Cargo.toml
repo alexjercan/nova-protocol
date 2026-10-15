@@ -27,6 +27,10 @@ nova_events = { path = "../nova_events" }
 nova_gameplay = { path = "../nova_gameplay" }
 # The bindings registry the flight and camera rigs are built from.
 nova_input = { path = "../nova_input" }
+# The parts gallery's widgets, theme and keyboard modes. Already in the graph
+# through `nova_gameplay`; the gallery lives here because both of its hosts
+# (the editor and the interface) depend on this crate.
+nova_ui = { path = "../nova_ui" }
 
 [target.'cfg(all(target_family = "wasm", any(target_os = "unknown", target_os = "none")))'.dependencies]
 bevy_rand = { version = "0.15.0", features = ["wasm_js"] }

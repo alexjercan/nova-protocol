@@ -1,16 +1,7 @@
-//! The one place that knows how a [`SectionConfig`] or a
-//! [`ScenarioObjectKind`] becomes preview entities, so the build ship, the
-//! gallery tiles, the placement ghost and the world's objects cannot drift
-//! apart.
-//!
-//! Preview entities render and pick but never simulate, and they are inert by
-//! CONSTRUCTION: every section kind is built from its `preview_*_section` half,
-//! which carries the render mesh and the config the render observers read and
-//! leaves out the live state - thrust input and magnitude, turret aim and
-//! trigger, torpedo fire input, the controller's `PDController`. The simulation
-//! systems all demand one of those, so they match a preview against no query at
-//! all. Nothing here depends on the preview root being unmarked or on the
-//! scenario being dead.
+//! How a [`ScenarioObjectKind`] becomes preview entities, so the world's
+//! objects in the editor cannot drift from the flown ones. A SECTION's
+//! preview is `nova_ship`'s [`insert_preview_section`], shared with the parts
+//! gallery.
 //!
 //! An OBJECT preview is inert the same way and by a blunter route: it is a
 //! plain mesh the editor builds at the size the flown object draws at, and
@@ -23,7 +14,6 @@ use bevy::{
     ecs::system::{EntityCommands, SystemParam},
     prelude::*,
 };
-use nova_gameplay::markers::prelude::SectionMarker;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
 
@@ -45,68 +35,6 @@ pub(crate) struct PreviewArt<'w> {
     materials: ResMut<'w, Assets<StandardMaterial>>,
     planet_materials: ResMut<'w, Assets<PlanetSurfaceMaterial>>,
     asset_server: Res<'w, AssetServer>,
-}
-
-/// What a preview entity IS to the rest of the editor.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PreviewRole {
-    /// A section of the ship being built: picked, counted, placed against and
-    /// handed to the scenario.
-    Section,
-    /// Scenery that only has to render - a gallery tile, the placement ghost.
-    /// It must NOT read as a section: a display copy in a section query would
-    /// be one more part on a ship nobody built, and one more collider in the
-    /// pointer's way.
-    Display,
-}
-
-/// Turn `entity` into a preview of `section`: the shared preview bundle plus
-/// the kind-specific one that renders it.
-///
-/// No input bindings. A section's binds are DOCUMENT data
-/// ([`SectionNode::binds`](crate::node::SectionNode::binds)), and a preview is a
-/// picture of a section: a second copy of the binds out here would have to be
-/// kept in step across every despawn of the view that held it.
-pub(crate) fn insert_preview_section(
-    entity: &mut EntityCommands,
-    section: &SectionConfig,
-    role: PreviewRole,
-) {
-    entity.insert(preview_section(section.base.clone()));
-    match &section.kind {
-        SectionKind::Hull(hull) => {
-            entity.insert(preview_hull_section(hull.clone()));
-        }
-        SectionKind::Controller(controller) => {
-            entity.insert(preview_controller_section(controller.clone()));
-        }
-        SectionKind::Thruster(thruster) => {
-            entity.insert(preview_thruster_section(thruster.clone()));
-        }
-        SectionKind::Turret(turret) => {
-            entity.insert(preview_turret_section(turret.clone()));
-        }
-        SectionKind::Torpedo(torpedo) => {
-            entity.insert(preview_torpedo_section(torpedo.clone()));
-        }
-        SectionKind::Railgun(railgun) => {
-            entity.insert(preview_railgun_section(railgun.clone()));
-        }
-        SectionKind::Docking(docking) => {
-            entity.insert(preview_docking_section(docking.clone()));
-        }
-        SectionKind::CargoIntake(intake) => {
-            entity.insert(preview_cargo_intake_section(intake.clone()));
-        }
-        SectionKind::Mining(mining) => {
-            entity.insert(preview_mining_section(mining.clone()));
-        }
-    }
-    if role == PreviewRole::Display {
-        // Dropped rather than never inserted: the preview bundle is one shared
-        // recipe, and a display copy is that recipe minus its identity.
-        entity.remove::<(SectionMarker, Collider)>();
-    }
 }
 
 /// The stage's stand-in for a kind's surface: the kind's palette and its

@@ -730,7 +730,7 @@ mod tests {
 
     // `Resource` is component-backed in Bevy 0.19, so it also provides the
     // `Component` impl `button_on_setting` needs - deriving `Component` too would
-    // conflict. This mirrors the editor's `SectionChoice` (Resource-only).
+    // conflict.
     #[derive(Resource, Clone, PartialEq, Eq, Debug, Default)]
     enum Choice {
         #[default]

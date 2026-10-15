@@ -42,6 +42,7 @@ use bevy::{
 };
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
+use nova_ship::prelude::{gallery_open, GalleryState, HeldPart, PartsGallerySystems};
 use nova_ui::prelude::{
     in_input_mode, in_input_mode_at_most, owns_or_enters, ClaimKeyboard, DoubleClick, InputMode,
     InputModeSystems, TextFieldSystems,
@@ -78,7 +79,7 @@ mod ui;
 use bundle::{apply_file_request, save_key, DocumentSlot, FileRequest, FileWindowRequest};
 use config::{
     editor_gizmo_config, EditorGizmos, EditorOverlays, EditorStatus, HoveredNode, PlacementPose,
-    PlacementPreview, RailTab, SectionChoice, SelectedNode,
+    PlacementPreview, RailTab, SelectedNode,
 };
 use frame::{
     apply_frame_request, frame_key, hold_camera_above_normal, sync_frame_item, CameraFraming,
@@ -172,7 +173,7 @@ fn editor_plugin(app: &mut App) {
     if app.is_plugin_added::<GizmoPlugin>() {
         app.insert_gizmo_config(EditorGizmos, editor_gizmo_config());
     }
-    app.insert_resource(SectionChoice::None);
+    app.insert_resource(HeldPart(None));
     app.init_resource::<EditContext>();
     app.init_resource::<SelectedNode>();
     app.init_resource::<HoveredNode>();
@@ -298,8 +299,8 @@ fn editor_plugin(app: &mut App) {
         OnEnter(ExampleStates::Scenario),
         (
             setup_grab_cursor_scenario,
-            |mut selection: ResMut<SectionChoice>| {
-                *selection = SectionChoice::None;
+            |mut selection: ResMut<HeldPart>| {
+                *selection = HeldPart(None);
             },
         ),
     );
@@ -315,8 +316,8 @@ fn editor_plugin(app: &mut App) {
             // spawns the ship either way - it reads the document, not the view.
             rebuild_node_views,
             setup_grab_cursor_editor,
-            |mut selection: ResMut<SectionChoice>| {
-                *selection = SectionChoice::None;
+            |mut selection: ResMut<HeldPart>| {
+                *selection = HeldPart(None);
             },
         )
             .chain(),
@@ -327,8 +328,8 @@ fn editor_plugin(app: &mut App) {
             // Sandbox-only: in NewGame the menu already loaded its scenario and a
             // second LoadScenario here would tear it straight back down.
             setup_scenario.run_if(resource_equals(GameMode::Sandbox)),
-            |mut selection: ResMut<SectionChoice>| {
-                *selection = SectionChoice::None;
+            |mut selection: ResMut<HeldPart>| {
+                *selection = HeldPart(None);
             },
         ),
     );
@@ -583,8 +584,8 @@ fn editor_plugin(app: &mut App) {
             // gesture was AIMED at rather than the one it just changed - the
             // frame Q closes the gallery is not also a frame the pipette fires
             // on whatever the overlay was covering.
-            .before(gallery::gallery_keyboard)
-            .run_if(in_state(ExampleStates::Editor).and_then(not(gallery::gallery_open))),
+            .before(PartsGallerySystems)
+            .run_if(in_state(ExampleStates::Editor).and_then(not(gallery_open))),
     );
     // The wheel half of the pose control, split off so a headless rig with no
     // input plugin (and so no wheel message queue) still runs the rest.
@@ -627,7 +628,7 @@ fn editor_plugin(app: &mut App) {
     );
 
     // A stale rebind must not survive a scene change, so clear it on
-    // every state entry (like SectionChoice).
+    // every state entry (like HeldPart).
     app.add_systems(
         OnEnter(ExampleStates::Editor),
         |mut rebind: ResMut<EditorRebind>| *rebind = EditorRebind::default(),
@@ -645,10 +646,10 @@ fn editor_plugin(app: &mut App) {
         (
             sync_section_keybind_labels,
             apply_section_rebind.run_if(owns_or_enters(InputMode::Bind)),
-            position_section_keybind_labels.run_if(not(gallery::gallery_open)),
+            position_section_keybind_labels.run_if(not(gallery_open)),
             // The gallery covers the ship the chips label, so they go off with
             // the rest of the editor's chrome while it is up.
-            hide_section_keybind_labels.run_if(gallery::gallery_open),
+            hide_section_keybind_labels.run_if(gallery_open),
         )
             .run_if(in_state(ExampleStates::Editor)),
     );
@@ -690,7 +691,7 @@ fn editor_plugin(app: &mut App) {
         Update,
         lock_on_left_click
             .run_if(in_state(ExampleStates::Editor).and_then(in_state(PauseStates::Unpaused)))
-            .run_if(not(gallery::gallery_open)),
+            .run_if(not(gallery_open)),
     );
     app.add_systems(
         Update,
@@ -720,8 +721,8 @@ fn editor_plugin(app: &mut App) {
 /// to release it.
 fn declare_editor_escape_owner(
     editor: Res<State<ExampleStates>>,
-    gallery: Res<gallery::GalleryState>,
-    choice: Res<SectionChoice>,
+    gallery: Res<GalleryState>,
+    choice: Res<HeldPart>,
     rebind: Res<EditorRebind>,
     context: Res<EditContext>,
     menu: Res<OpenMenu>,
@@ -733,30 +734,26 @@ fn declare_editor_escape_owner(
             || menu.0.is_some()
             || gallery.open
             || rebind.target.is_some()
-            || *choice != SectionChoice::None
+            || *choice != HeldPart(None)
             || context.ship().is_some());
     if owner.0 != owned {
         owner.0 = owned;
     }
 }
 
-/// Claim the keyboard for the editor's two modes (see [`InputMode`]).
+/// Claim the keyboard for the editor's rebind (see [`InputMode`]).
 ///
-/// A gallery over the build area answers its own keys, and a rebind waiting for
-/// a key is entitled to every one of them. Written from the state that DEFINES
-/// each mode rather than latched on entry, so a mode that ends by having its
-/// state cleared - on a scene change, say - ends here too.
+/// A rebind waiting for a key is entitled to every one of them. Written from
+/// the state that DEFINES the mode rather than latched on entry, so a mode
+/// that ends by having its state cleared - on a scene change, say - ends here
+/// too. The gallery claims its own mode (`nova_ship::gallery`).
 fn declare_editor_keyboard_owner(
     editor: Res<State<ExampleStates>>,
-    gallery: Res<gallery::GalleryState>,
     rebind: Res<EditorRebind>,
     mut claims: MessageWriter<ClaimKeyboard>,
 ) {
     if *editor.get() != ExampleStates::Editor {
         return;
-    }
-    if gallery.open {
-        claims.write(ClaimKeyboard(InputMode::Browse));
     }
     if rebind.target.is_some() {
         claims.write(ClaimKeyboard(InputMode::Bind));
@@ -788,7 +785,7 @@ fn backspace_steps_out(keys: Res<ButtonInput<KeyCode>>, mut context: ResMut<Edit
 fn escape_backs_out(
     keys: Res<ButtonInput<KeyCode>>,
     mut menu: ResMut<OpenMenu>,
-    mut choice: ResMut<SectionChoice>,
+    mut choice: ResMut<HeldPart>,
     mut context: ResMut<EditContext>,
 ) {
     if !keys.just_pressed(KeyCode::Escape) {
@@ -799,8 +796,8 @@ fn escape_backs_out(
     if close_open_menu(&mut menu) {
         return;
     }
-    if *choice != SectionChoice::None {
-        *choice = SectionChoice::None;
+    if *choice != HeldPart(None) {
+        *choice = HeldPart(None);
         return;
     }
     context.exit();
@@ -879,21 +876,21 @@ mod tests {
             (
                 ExampleStates::Editor,
                 false,
-                SectionChoice::None,
+                HeldPart(None),
                 false,
                 false,
             ),
             (
                 ExampleStates::Editor,
                 true,
-                SectionChoice::None,
+                HeldPart(None),
                 false,
                 true,
             ),
             (
                 ExampleStates::Editor,
                 false,
-                SectionChoice::Section("hull".to_string()),
+                HeldPart(Some("hull".to_string())),
                 false,
                 true,
             ),
@@ -901,7 +898,7 @@ mod tests {
             (
                 ExampleStates::Editor,
                 false,
-                SectionChoice::None,
+                HeldPart(None),
                 true,
                 true,
             ),
@@ -909,7 +906,7 @@ mod tests {
             (
                 ExampleStates::Scenario,
                 true,
-                SectionChoice::Section("hull".to_string()),
+                HeldPart(Some("hull".to_string())),
                 true,
                 false,
             ),
@@ -918,7 +915,7 @@ mod tests {
         for (state, gallery_open, choice, rebinding, expected) in cases {
             let mut world = World::new();
             world.insert_resource(State::new(state.clone()));
-            world.insert_resource(gallery::GalleryState {
+            world.insert_resource(GalleryState {
                 open: gallery_open,
                 ..default()
             });
@@ -945,34 +942,19 @@ mod tests {
         }
     }
 
-    /// The editor declares its two modes from the state that defines them, and
+    /// The editor declares its rebind from the state that defines it, and
     /// declares nothing at all once it is out flying.
-    ///
-    /// Both at once is a real frame - a rebind armed and then the gallery
-    /// opened over it - and both are written; which one WINS is
-    /// `nova_ui::input_mode`'s to settle, not the claimant's.
     #[test]
-    fn the_editor_claims_the_keyboard_for_its_two_modes() {
+    fn the_editor_claims_the_keyboard_for_a_rebind() {
         let cases = [
-            (ExampleStates::Editor, false, false, vec![]),
-            (ExampleStates::Editor, true, false, vec![InputMode::Browse]),
-            (ExampleStates::Editor, false, true, vec![InputMode::Bind]),
-            (
-                ExampleStates::Editor,
-                true,
-                true,
-                vec![InputMode::Browse, InputMode::Bind],
-            ),
-            (ExampleStates::Scenario, true, true, vec![]),
+            (ExampleStates::Editor, false, vec![]),
+            (ExampleStates::Editor, true, vec![InputMode::Bind]),
+            (ExampleStates::Scenario, true, vec![]),
         ];
 
-        for (state, gallery_open, rebinding, expected) in cases {
+        for (state, rebinding, expected) in cases {
             let mut world = World::new();
             world.insert_resource(State::new(state.clone()));
-            world.insert_resource(gallery::GalleryState {
-                open: gallery_open,
-                ..default()
-            });
             world.insert_resource(EditorRebind {
                 target: rebinding.then_some(Entity::PLACEHOLDER),
                 awaiting_release: false,
@@ -988,10 +970,7 @@ mod tests {
                 .drain()
                 .map(|claim| claim.0)
                 .collect();
-            assert_eq!(
-                claimed, expected,
-                "{state:?} / gallery {gallery_open} / rebinding {rebinding}"
-            );
+            assert_eq!(claimed, expected, "{state:?} / rebinding {rebinding}");
         }
     }
 
@@ -1002,8 +981,8 @@ mod tests {
     fn an_open_menu_claims_escape() {
         let mut world = World::new();
         world.insert_resource(State::new(ExampleStates::Editor));
-        world.init_resource::<gallery::GalleryState>();
-        world.insert_resource(SectionChoice::None);
+        world.init_resource::<GalleryState>();
+        world.insert_resource(HeldPart(None));
         world.init_resource::<EditorRebind>();
         world.init_resource::<EditContext>();
         world.init_resource::<EscapeOwner>();
@@ -1031,8 +1010,8 @@ mod tests {
     ///
     /// The rungs ABOVE these are not here because they are not this system's:
     /// a gallery or a rebind holding the keyboard means Escape never reaches
-    /// it at all (`the_editor_claims_the_keyboard_for_its_two_modes`, and
-    /// `nova_ui::input_mode`).
+    /// it at all (`the_editor_claims_the_keyboard_for_a_rebind`, the gallery's own claim
+    /// and `nova_ui::input_mode`).
     #[test]
     fn escape_puts_the_part_down_first_and_leaves_the_ship_second() {
         let scenario = Entity::from_raw_u32(1).expect("a test entity id");
@@ -1042,7 +1021,7 @@ mod tests {
         let mut keys = ButtonInput::<KeyCode>::default();
         keys.press(KeyCode::Escape);
         world.insert_resource(keys);
-        world.insert_resource(SectionChoice::Section("hull".to_string()));
+        world.insert_resource(HeldPart(Some("hull".to_string())));
         world.insert_resource(OpenMenu(Some(MenuId::File)));
         world.insert_resource(EditContext {
             path: vec![scenario, ship],
@@ -1054,15 +1033,15 @@ mod tests {
             .expect("the back-out system runs");
         assert_eq!(world.resource::<OpenMenu>().0, None);
         assert_eq!(
-            *world.resource::<SectionChoice>(),
-            SectionChoice::Section("hull".to_string()),
+            *world.resource::<HeldPart>(),
+            HeldPart(Some("hull".to_string())),
             "closing the menu did not also put the part down"
         );
 
         world
             .run_system_once(escape_backs_out)
             .expect("the back-out system runs");
-        assert_eq!(*world.resource::<SectionChoice>(), SectionChoice::None);
+        assert_eq!(*world.resource::<HeldPart>(), HeldPart(None));
         assert_eq!(
             world.resource::<EditContext>().ship(),
             Some(ship),

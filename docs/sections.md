@@ -59,10 +59,12 @@ full health through the same per-section spawn the ship was built with.
 
 ### Swapping a section
 
-While docked to a station that offers `Refit`, the Ship pane's station
-catalogue (`nova_interface/src/ship/catalogue.rs`) lists each part the
-selected live section can be swapped for: a catalogue row gets a Swap line
-and button when `section_swap_family` accepts the part. The family rule is
+While docked to a station that offers `Refit`, the Ship panel's Catalogue
+button opens the parts gallery (`nova_ship::gallery`, the editor's picker)
+over the pane (`nova_interface/src/ship/catalogue.rs`). A part the selected
+live section can be swapped for gets a Swap line in its note and Swap as the
+focus card's second verb (`GalleryAlternate`) when `section_swap_family`
+accepts the part. The family rule is
 the same `SectionKind::class` and the same `SectionFootprint` read from the
 authored collider, and another prototype. `plan_section_swap` checks the
 gate, the family and the payment;
@@ -85,8 +87,8 @@ and a save keep the inline design, so the swap persists.
 The catalogue lists each part that is not `hide_in_editor` and whose recipe
 the player's hold and the station's stock together carry
 (`plan_recipe_payment` finds no missing part). Credits do not filter: a part
-the ship cannot pay for shows the credit refusal. Place puts a part in hand
-(`ShipRuntime::held`); Put down or a second Place drops it. While a part is in
+the ship cannot pay for shows the credit refusal. Place on the focus card puts
+a part in hand (`HeldPart`, shared with the editor). While a part is in
 hand, the placement ghost (`nova_interface/src/ship/ghost.rs`) casts the
 pointer's ray into the Ship view, takes the nearest block it enters
 (`pick_ship_block`), and snaps to the target of that section nearest the hit
@@ -140,7 +142,8 @@ moving another. A confirmed add moves parts and credits (cause `Add`), pushes
 design inline with the section appended, writes the binding into the player's
 `input_mapping`, grows the root's pinned health by the part's pool, and spawns
 the section at full health. The Ship side panel scrolls under the wheel while
-hovered (`scroll_ship_panel`), and the camera zoom yields to it.
+hovered (`scroll_ship_panel`), and the camera zoom yields to it. The pane
+footer names only the keys that apply now (`show_pane_input_hints`).
 
 ### Deleting a section
 
@@ -153,7 +156,8 @@ Refit, the player's port the dock holds by (`ResolvedSite::port`), a fault
 which can only open lanes, plus the last flight computer, refused even on a
 ship already short of its count), and a hold too full for the parts. The
 parts are the strip rule's: `plan_section_yield` at the section's health
-share. A confirmed delete puts them in the hold, pushes
+share. `plan_ship_delete` is the one rule the button and the act share. A
+confirmed delete puts them in the hold, pushes
 `ShipInventoryReport::Stripped` with the player ship's own id as `hull`
 (`OnStripped`), clears the selection and triggers `SectionRemoveRequest`.
 `remove_design_section` (`nova_scenario/src/objects/spaceship.rs`) makes the
@@ -164,9 +168,12 @@ mates, lowers the root's pinned health by its pool and despawns it.
 `reclad_round_removal` (`shell_skin.rs`) observes the same request and
 re-clads only the cells round the hole. No credits move. The per-frame
 `update_ship_delete_verdict` caches what a delete of the selection gives
-back or why it is refused (`ShipRuntime::delete_verdict`); the Delete button
-shows while there is a verdict and stays pressable when it refuses, so the
-press puts the reason on the note line.
+back or why it is refused (`ShipRuntime::delete_verdict`), with or without a
+Refit dock. The Delete button shows while there is a verdict. It names the
+yield (`Delete: +1 Section panel`, or `Delete: nothing to salvage`) when the
+delete can go, and is disabled with the reason under it when it refuses; the
+Delete key then does nothing. The note after a delete names the parts that
+went to the hold.
 
 ### Stripping a docked wreck
 

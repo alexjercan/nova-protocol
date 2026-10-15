@@ -1,6 +1,7 @@
-//! The editor's placement state and screen furniture: which tool is active
-//! (`SectionChoice`), what a click would build (`PlacementPreview`), and the
-//! markers the rail and the ghost are found by.
+//! The editor's placement state and screen furniture: what a click would
+//! build (`PlacementPreview`), and the markers the camera, the rail and the
+//! ghost are found by. The part in hand is `nova_ship`'s `HeldPart`, shared
+//! with the parts gallery and the Ship pane.
 //!
 //! The SHIP is not here. What the player is assembling lives in
 //! [`crate::node`] as a tree of node entities, one config component per node.
@@ -35,20 +36,11 @@ pub(crate) fn editor_gizmo_config() -> GizmoConfig {
     }
 }
 
-/// The active placement tool: what the next click on the ship does. Set by the
-/// gallery when a part is armed.
-///
-/// TWO states, because there is one tool. Delete acts on the SELECTION, so it
-/// is a verb rather than a mode and needs nothing in this enum.
-#[derive(Resource, Default, Debug, PartialEq, Eq, Clone, Reflect)]
-pub(crate) enum SectionChoice {
-    /// Select mode: clicking a node in the world selects it, exactly as its
-    /// tree row would.
-    #[default]
-    None,
-    /// Place the section with this catalog id.
-    Section(String),
-}
+/// The editor's free-fly camera. The gallery parks it and draws its tiles
+/// through it, so it needs a handle that does not depend on there being
+/// exactly one [`Camera3d`] in the scene.
+#[derive(Component)]
+pub(crate) struct EditorCamera;
 
 /// The node the Scene tree has selected, or `None`.
 ///

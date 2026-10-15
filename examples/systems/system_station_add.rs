@@ -8,9 +8,9 @@
 //! walk lists every free socket of a live section, in design order, that a
 //! kinetic PDC fits at, by the pane's own rule. An add at a mated socket of
 //! the first one's section is refused with its reason and changes nothing.
-//! Then the player clicks Place on the kinetic PDC in the Ship pane's station
-//! catalogue, points at the free sockets in turn until the ghost stands valid
-//! at one, and clicks the view. In the second round the scenario is swapped
+//! Then the player opens the Ship pane's Catalogue, clicks the kinetic PDC's
+//! tile and Place on its card, points at the free sockets in turn until the
+//! ghost stands valid at one, and clicks the view. In the second round the scenario is swapped
 //! for one where the player flies a generated armored hull whose turrets are
 //! bound to the left mouse button, and the add goes through the pane's add
 //! command. Each round undocks, freezes and thaws the hull the way a retiring
@@ -36,8 +36,8 @@
 //! #           `station add probe: added to the generated hull`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
-//! Add `NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=<dir>` to shoot the catalogue as
-//! `station-add-offer.png` and the ghost as `station-add-ghost.png`.
+//! Add `NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=<dir>` to shoot the catalogue gallery
+//! as `station-add-offer.png` and the ghost as `station-add-ghost.png`.
 
 use bevy::prelude::*;
 use clap::Parser;
@@ -82,7 +82,7 @@ const HOLD: [(&str, u32); 4] = [
 /// The kinetic PDC recipe's work; the hold covers its parts.
 const PRICE: u32 = 100;
 
-/// The PNG the capture path shoots of the add list.
+/// The PNG the capture path shoots of the catalogue gallery.
 const OFFER_SHOT: &str = "station-add-offer.png";
 
 /// One round of the walk.
@@ -289,9 +289,14 @@ mod walk {
     /// How far the aim sits from the socket toward its section's centre, as
     /// a share of the way: on the section's face, beside the socket.
     const AIM_INSET: f32 = 0.15;
-    /// The catalogue row button that puts the kinetic PDC in hand.
-    fn place_button() -> String {
-        format!("ShipPlace-{PDC_KINETIC_TURRET_SECTION_ID}")
+    /// The kinetic PDC's tile in the catalogue gallery, named by its
+    /// catalogue name.
+    fn pdc_tile(world: &World) -> String {
+        let sections = world.resource::<GameSections>();
+        let pdc = sections
+            .get_section(PDC_KINETIC_TURRET_SECTION_ID)
+            .expect("station add: the catalogue lists the kinetic PDC");
+        format!("Gallery Tile {}", pdc.base.name)
     }
     /// The PNG of the Map pane the tab click opens after the add.
     const MAP_AFTER_SHOT: &str = "station-add-map-after.png";
@@ -318,8 +323,6 @@ mod walk {
             .collect();
         info!("station add: tabs after the add, pane {pane:?}: {rows:?}");
     }
-    /// The Ship pane's side panel, which scrolls under the wheel.
-    const SHIP_PANEL: &str = "ShipPanel";
     /// Gap between the two port faces on the berth, engine units.
     const BERTH_GAP: f32 = 0.5;
     /// Where a port's face sits in its own frame, as the docking verb reads it.
@@ -818,22 +821,8 @@ mod walk {
         );
     }
 
-    /// Whether the kinetic PDC's Place button lies inside the Ship panel's
-    /// box, where a click lands on it.
-    fn place_button_in_view(world: &World) -> bool {
-        match (
-            ui_node_rect(world, &place_button()),
-            ui_node_rect(world, SHIP_PANEL),
-        ) {
-            (Some(button), Some(panel)) => {
-                button.min.y >= panel.min.y && button.max.y <= panel.max.y
-            }
-            _ => false,
-        }
-    }
-
     fn pdc_in_hand() -> Arc<Predicate> {
-        when(|world| world.resource::<ShipRuntime>().held() == Some(PDC_KINETIC_TURRET_SECTION_ID))
+        when(|world| world.resource::<HeldPart>().id() == Some(PDC_KINETIC_TURRET_SECTION_ID))
     }
 
     /// Point at the round's free sockets in turn, `AIM_FRAMES` frames each,
@@ -1249,34 +1238,34 @@ mod walk {
         .on_enter(assert_the_refusal)
         .until(frames(1))
         .add()
+        .click_named(
+            "station add: open the catalogue",
+            "ShipCatalogue",
+            ui_node_present("Gallery Grid"),
+            SESSION_SECS,
+        )
         .step("station add: settle the catalogue")
         .until(frames(SETTLE_FRAMES))
         .add();
         let script = script
-            // The catalogue stands under the lost list, and its kinetic PDC
-            // row can sit past the bottom of a 1080p panel: the wheel over
-            // the panel scrolls it into view.
-            .step("station add: scroll the catalogue into view")
-            .each(|world, _, frame| {
-                keep_hovering_named(SHIP_PANEL)(world);
-                if frame % 2 == 1 && !place_button_in_view(world) {
-                    scroll_lines(-1.0)(world);
-                }
-            })
-            .until(when(place_button_in_view))
-            .deadline(SESSION_SECS)
-            .add()
-            .step("station add: settle the scroll")
-            .until(frames(SETTLE_FRAMES))
-            .add()
             .step("station add: shoot the catalogue")
             .on_enter(|world: &mut World| shoot(world, OFFER_SHOT))
             .until(shot_written(OFFER_SHOT))
             .deadline(SHOT_DEADLINE_SECS)
             .add()
+            .step("station add: press the kinetic PDC's tile")
+            .on_enter(|world: &mut World| click_named(pdc_tile(world))(world))
+            .until(pointer_pressed())
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station add: release the kinetic PDC's tile")
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(ui_node_present("Gallery Place Button"))
+            .deadline(SESSION_SECS)
+            .add()
             .click_named(
                 "station add: take the kinetic PDC in hand",
-                &place_button(),
+                "Gallery Place Button",
                 pdc_in_hand(),
                 SESSION_SECS,
             )

@@ -15,7 +15,7 @@ use nova_input::prelude::InputSource;
 use nova_ship::prelude::*;
 use nova_ui::theme::UiColor;
 
-use crate::{icons::SectionIconType, terminal::section_kind_from_markers};
+use crate::terminal::section_kind_from_markers;
 
 /// A short, stable, human-readable handle for a ship section (`HULL-3`, `PDC-1`),
 /// the label identity the Ship pane uses.
@@ -38,21 +38,6 @@ pub(crate) fn code_prefix(kind: SectionClass) -> &'static str {
         SectionClass::Docking => "DOCK",
         SectionClass::CargoIntake => "CGO",
         SectionClass::Mining => "MNG",
-    }
-}
-
-/// A one-line "what it does" for a section kind, shown in the section panel.
-pub(crate) fn kind_description(kind: SectionClass) -> &'static str {
-    match kind {
-        SectionClass::Hull => "Structural armour plating.",
-        SectionClass::Thruster => "Main drive; provides thrust.",
-        SectionClass::Controller => "Command core; runs the ship.",
-        SectionClass::Turret => "Point-defence gun.",
-        SectionClass::Torpedo => "Torpedo launch tube.",
-        SectionClass::Railgun => "Spinal rail lance; the hull aims it.",
-        SectionClass::Docking => "Docking port; locks onto another hull.",
-        SectionClass::CargoIntake => "Cargo intake; receives drifting canisters.",
-        SectionClass::Mining => "Mining emitter; cuts ore from a locked rock.",
     }
 }
 
@@ -178,7 +163,7 @@ pub(crate) fn assign_section_codes(
 /// placement (its LOCAL transform relative to the ship root - the schematic scene
 /// is anchored at the origin, so blocks AND their projected blips both live in
 /// this local/scene space, independent of where the ship is flying in world
-/// space), authored half-extents, integrity and ammo.
+/// space), authored half-extents and integrity.
 #[derive(Clone)]
 pub struct ShipSectionView {
     /// The section's entity.
@@ -195,7 +180,6 @@ pub struct ShipSectionView {
     pub half_extents: Vec3,
     pub(crate) link_points: Vec<LinkPoint>,
     pub(crate) health: Option<Health>,
-    pub(crate) ammo: Option<SectionAmmo>,
     pub(crate) bindings: Option<Vec<InputSource>>,
     pub(crate) inactive: bool,
     pub(crate) zero_health: bool,
@@ -252,21 +236,6 @@ impl ShipSectionView {
         }
     }
 
-    /// The integrity text (`41/100 HP` / `HP unknown`).
-    pub(crate) fn health_text(&self) -> String {
-        match self.health.as_ref() {
-            Some(h) if h.max > 0.0 => format!("{:.0}/{:.0} HP", h.current.max(0.0), h.max),
-            Some(h) => format!("{:.0} HP", h.current.max(0.0)),
-            None => "HP unknown".to_string(),
-        }
-    }
-
-    /// The integrity percentage label (`41%`), or `--` when unknown.
-    pub(crate) fn integrity_pct(&self) -> String {
-        self.integrity()
-            .map(|f| format!("{:.0}%", f * 100.0))
-            .unwrap_or_else(|| "--".to_string())
-    }
 }
 
 /// System-param that enumerates the live player-ship sections into
@@ -292,7 +261,6 @@ pub struct ShipSections<'w, 's> {
             Option<&'static SectionCollider>,
             Option<&'static SectionLinkPoints>,
             Option<&'static Health>,
-            Option<&'static SectionAmmo>,
             // Nested so the whole row stays under the 15-item query-tuple cap.
             SectionKindQuery,
             SectionBindingQuery,
@@ -352,7 +320,6 @@ impl ShipSections<'_, '_> {
                     collider,
                     link_points,
                     health,
-                    ammo,
                     (class, hull, controller, thruster, turret, torpedo),
                     (
                         thruster_bindings,
@@ -379,7 +346,6 @@ impl ShipSections<'_, '_> {
                             .map(|points| points.0.clone())
                             .unwrap_or_default(),
                         health: health.cloned(),
-                        ammo: ammo.copied(),
                         bindings: thruster_bindings
                             .map(|bindings| bindings.0.clone())
                             .or_else(|| turret_bindings.map(|bindings| bindings.0.clone()))
@@ -415,17 +381,6 @@ impl ShipSections<'_, '_> {
 /// when its ship maps it; otherwise the flight computer drives it.
 pub(crate) fn takes_a_player_binding(kind: SectionClass) -> bool {
     kind.is_weapon() || kind == SectionClass::Mining
-}
-
-/// The line under the panel title: the section family, its integrity and its
-/// status, as `Weapon  Condition 20%  critical`.
-pub(crate) fn panel_status_text(view: &ShipSectionView) -> String {
-    format!(
-        "{}  Condition {}  {}",
-        SectionIconType::of(view.kind).label(),
-        view.integrity_pct(),
-        view.status(),
-    )
 }
 
 /// Whether Repair is valid for a section, plus a reason for a disabled

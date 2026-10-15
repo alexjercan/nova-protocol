@@ -14,7 +14,7 @@ use nova_ui::{
 
 use crate::{
     config::{Placement, PlacementPreview},
-    gallery::EditorCamera,
+    config::EditorCamera,
     node::{EditContext, SectionNode, ShipNode},
     ui::layer,
 };

@@ -25,10 +25,10 @@ use bevy::{
     prelude::*,
 };
 use nova_gameplay::prelude::subtree_bounding_sphere;
+use nova_ship::prelude::GalleryState;
 
 use crate::{
-    config::SelectedNode,
-    gallery::{EditorCamera, GalleryState},
+    config::{EditorCamera, SelectedNode},
     node::{EditContext, ObjectBodyStale, ObjectNode, ShipNode},
     palette, ExampleStates,
 };

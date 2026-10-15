@@ -18,6 +18,7 @@ use nova_gameplay::prelude::*;
 
 pub mod camera;
 pub mod flight;
+pub mod gallery;
 pub mod input;
 pub mod physics;
 pub mod sections;
@@ -32,7 +33,7 @@ pub mod prelude {
     // deliberately does NOT re-export `nova_gameplay`'s - a consumer that
     // needs both imports both, the precedent `nova_hud` set.
     pub use super::{
-        camera::prelude::*, flight::prelude::*, input::prelude::*, physics::prelude::*,
+        camera::prelude::*, flight::prelude::*, gallery::prelude::*, input::prelude::*, physics::prelude::*,
         sections::prelude::*, ship_audio::prelude::*, NovaShipPlugin,
     };
 }

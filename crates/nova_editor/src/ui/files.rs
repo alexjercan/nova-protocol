@@ -14,6 +14,7 @@ use bevy::{
     ui::InteractionDisabled,
     ui_widgets::{observe, Activate},
 };
+use nova_ship::prelude::GalleryState;
 use nova_ui::{
     prelude::{
         button, text_field, themed_button, ButtonSpec, TextFieldSpec, TextFieldValue, UiText,
@@ -29,7 +30,6 @@ use crate::{
         NameProblem, SaveSlot,
     },
     config::EditorSays,
-    gallery::GalleryState,
     node::{EditContext, ScenarioNode},
     ui::window::{window_frame, EditorWindowLayer, TOP_MARGIN, WINDOW_W},
 };

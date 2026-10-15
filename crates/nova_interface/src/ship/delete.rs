@@ -1,15 +1,20 @@
 //! The Ship pane's Delete action: take a selected section off the player
 //! ship for good while it is docked at a station that refits.
 //!
-//! The `ship_delete` key and the panel's Delete button raise a
-//! [`SectionDeleteCommand`]. [`apply_ship_delete_commands`] plans it with
-//! [`ResolvedSite::plan_delete`]: the dock must offer Refit, the section must
-//! not be the port the dock holds by, [`remove_build_fault`] must find no new
-//! fault, and the parts the strip rule gives back ([`plan_section_yield`] at
-//! the section's health share) must fit in the hold. The parts go in the
-//! hold, one `Stripped` report names the player ship as the hull, and the
-//! [`SectionRemoveRequest`] takes the section off and re-clads the hull round
-//! the hole. A refusal changes nothing and shows its reason on the note line.
+//! One rule, [`plan_ship_delete`], answers both the panel and the act: the
+//! dock must offer Refit, the section must not be the port the dock holds
+//! by, [`remove_build_fault`] must find no new fault, and the parts the strip
+//! rule gives back ([`plan_section_yield`] at the section's health share)
+//! must fit in the hold. [`update_ship_delete_verdict`] runs it for the
+//! selection every frame: the panel's Delete button names the yield while it
+//! holds, and is disabled with the reason under it while it refuses.
+//!
+//! The `ship_delete` key and the enabled button raise a
+//! [`SectionDeleteCommand`]; a refused selection raises none, and so shows no
+//! note. [`apply_ship_delete_commands`] plans it again: the parts go in the
+//! hold, one `Stripped` report names the player ship as the hull, the note
+//! line names the parts, and the [`SectionRemoveRequest`] takes the section
+//! off and re-clads the hull round the hole.
 //!
 //! Touch this module when changing what Delete gives back or refuses.
 
@@ -26,7 +31,7 @@ use super::{
     scene::ShipRuntime,
     sections::design_section_code,
 };
-use crate::{inventory::strip_parts_text, pane::play_menu_select};
+use crate::pane::play_menu_select;
 
 /// A request to delete one live section of the player ship, raised by the
 /// `ship_delete` key or the panel's Delete button.
@@ -108,8 +113,8 @@ impl ResolvedSite<'_> {
     }
 }
 
-/// The note line for a refused delete of section `code`, the part named
-/// `name`.
+/// The reason line under the disabled Delete button for a refused delete of
+/// section `code`, the part named `name`.
 pub(crate) fn delete_refusal_text(
     code: &str,
     name: &str,
@@ -147,8 +152,47 @@ fn health_share(health: Option<&Health>) -> f32 {
     }
 }
 
+/// The parts a delete gives back, as the Delete button and the note name
+/// them: `+1 Frame spar, +3 Section panel`, or `nothing to salvage`.
+pub(crate) fn delete_yield_text(items: &GameItems, parts: &BTreeMap<ItemDesignId, u32>) -> String {
+    if parts.values().all(|count| *count == 0) {
+        return "nothing to salvage".to_string();
+    }
+    parts
+        .iter()
+        .filter(|(_, count)| **count > 0)
+        .map(|(item, count)| format!("+{count} {}", items.design(item).name))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// What deleting live section `target` would do now: its design code and
+/// the planned delete, or the reason line it is refused with. `None` when
+/// `target` is not a live section of this ship. The one rule the panel's
+/// Delete button and [`apply_ship_delete_commands`] both read.
+pub(crate) fn plan_ship_delete(
+    resolved: &ResolvedSite<'_>,
+    items: &GameItems,
+    target: Entity,
+    health: Option<&Health>,
+    own: &ShipInventory,
+) -> Option<(String, Result<SectionDelete, String>)> {
+    let planned = resolved.plan_delete(items, target, health_share(health), own)?;
+    let live = resolved.live.iter().find(|live| live.entity == target)?;
+    let code = design_section_code(resolved.design, &live.id)?;
+    let planned = planned.map_err(|refusal| {
+        let name = resolved
+            .selected_section(Some(target))
+            .map_or(code.clone(), |section| section.config.base.name.clone());
+        delete_refusal_text(&code, &name, &refusal)
+    });
+    Some((code, planned))
+}
+
 /// Raise a [`SectionDeleteCommand`] for the selection when the panel's
-/// Delete button is clicked.
+/// Delete button is clicked while the delete holds. A refused delete
+/// disables the button, so this is the backstop for a click in the same
+/// frame the verdict turned.
 pub(crate) fn on_ship_delete_button(
     _activate: On<Activate>,
     runtime: Res<ShipRuntime>,
@@ -159,13 +203,17 @@ pub(crate) fn on_ship_delete_button(
     let Some(target) = runtime.selected else {
         return;
     };
+    if !matches!(runtime.delete_verdict(), Some(Ok(_))) {
+        return;
+    }
     deletes.write(SectionDeleteCommand { target });
     play_menu_select(&mut commands, bank.as_deref());
 }
 
-/// Cache whether the selection can be deleted now, for the panel's Delete
-/// button and [`ShipRuntime::delete_verdict`]: `None` while there is no
-/// selection or the ship is not docked at a station that refits.
+/// Cache [`plan_ship_delete`] for the selection, for the panel's Delete
+/// button, the `ship_delete` key and [`ShipRuntime::delete_verdict`]: the
+/// yield text, or the reason line. `None` while there is no selection or the
+/// pane is closed.
 pub(crate) fn update_ship_delete_verdict(
     mut runtime: ResMut<ShipRuntime>,
     items: Option<Res<GameItems>>,
@@ -175,42 +223,27 @@ pub(crate) fn update_ship_delete_verdict(
 ) {
     let verdict = (|| {
         let target = runtime.selected?;
-        if !runtime.active || !site.gate(StationServiceType::Refit) {
+        if !runtime.active {
             return None;
         }
         let resolved = site.resolve(StationServiceType::Refit)?;
         let items = items.as_deref()?;
         let own = q_hold.get(resolved.player).ok()?;
-        let share = health_share(q_health.get(target).ok());
-        let planned = resolved.plan_delete(items, target, share, own)?;
-        let code = resolved
-            .live
-            .iter()
-            .find(|live| live.entity == target)
-            .and_then(|live| design_section_code(resolved.design, &live.id))?;
-        Some(match planned {
-            Ok(delete) => Ok(format!(
-                "delete {code}: {}",
-                strip_parts_text(items, &delete.parts)
-            )),
-            Err(refusal) => {
-                let name = resolved
-                    .selected_section(Some(target))
-                    .map_or(code.clone(), |section| section.config.base.name.clone());
-                Err(delete_refusal_text(&code, &name, &refusal))
-            }
-        })
+        let (_, planned) =
+            plan_ship_delete(&resolved, items, target, q_health.get(target).ok(), own)?;
+        Some(planned.map(|delete| delete_yield_text(items, &delete.parts)))
     })();
     if runtime.delete_verdict != verdict {
         runtime.delete_verdict = verdict;
     }
 }
 
-/// Apply [`SectionDeleteCommand`]s by [`ResolvedSite::plan_delete`]: put the
-/// parts in the hold, queue one `Stripped` report with the player ship as
-/// the hull, raise the [`SectionRemoveRequest`] and clear the selection. A
-/// refusal changes nothing and shows its reason on the note line. A command
-/// for a section no longer live is dropped.
+/// Apply [`SectionDeleteCommand`]s by [`plan_ship_delete`]: put the parts in
+/// the hold, queue one `Stripped` report with the player ship as the hull,
+/// raise the [`SectionRemoveRequest`], clear the selection and name the parts
+/// on the note line. A refused command changes nothing and shows nothing: the
+/// panel already shows the reason. A command for a section no longer live is
+/// dropped.
 ///
 /// # Panics
 ///
@@ -247,32 +280,20 @@ pub(crate) fn apply_ship_delete_commands(
                 resolved.player
             );
         };
-        let share = health_share(q_health.get(command.target).ok());
-        let Some(planned) = resolved.plan_delete(&items, command.target, share, &own) else {
+        let Some((code, Ok(delete))) = plan_ship_delete(
+            &resolved,
+            &items,
+            command.target,
+            q_health.get(command.target).ok(),
+            &own,
+        ) else {
             continue;
-        };
-        let live_id = &resolved
-            .live
-            .iter()
-            .find(|live| live.entity == command.target)
-            .expect("a planned delete is of a live section")
-            .id;
-        let code =
-            design_section_code(resolved.design, live_id).expect("a design section has a code");
-        let delete = match planned {
-            Ok(delete) => delete,
-            Err(refusal) => {
-                let name = resolved
-                    .selected_section(Some(command.target))
-                    .map_or(code.clone(), |section| section.config.base.name.clone());
-                runtime.note = Some((delete_refusal_text(&code, &name, &refusal), 2.5));
-                continue;
-            }
         };
         for (item, &count) in &delete.parts {
             own.add(&items, item, count);
         }
-        let text = strip_parts_text(&items, &delete.parts);
+        let text = delete_yield_text(&items, &delete.parts);
+        let salvaged = delete.parts.values().any(|count| *count > 0);
         info!("delete: {code} ('{}') gave {text}", delete.section);
         reports.0.push(ShipInventoryReport::Stripped {
             hull: hull.0.clone(),
@@ -286,7 +307,12 @@ pub(crate) fn apply_ship_delete_commands(
         if runtime.selected == Some(command.target) {
             runtime.selected = None;
         }
-        runtime.note = Some((format!("deleted {code}: {text}"), 2.5));
+        let note = if salvaged {
+            format!("deleted {code}: {text} to the hold")
+        } else {
+            format!("deleted {code}: {text}")
+        };
+        runtime.note = Some((note, 2.5));
         deleted = true;
     }
 }
@@ -493,6 +519,16 @@ mod tests {
             .map(str::to_string)
     }
 
+    /// The cached verdict for `target` once it is selected.
+    fn verdict(app: &mut App, target: Entity) -> Option<Result<String, String>> {
+        app.world_mut().resource_mut::<ShipRuntime>().selected = Some(target);
+        app.update();
+        app.world()
+            .resource::<ShipRuntime>()
+            .delete_verdict()
+            .map(|verdict| verdict.map(str::to_string).map_err(str::to_string))
+    }
+
     fn reports(app: &App, player: Entity) -> &[ShipInventoryReport] {
         &app.world()
             .get::<ShipInventoryReports>(player)
@@ -500,9 +536,10 @@ mod tests {
             .0
     }
 
-    /// A docked delete of a leaf gun puts its strip yield in the hold,
-    /// reports it as stripped off the player's own hull, asks for its
-    /// removal and clears the selection.
+    /// A docked delete of a leaf gun names its strip yield before the press,
+    /// puts it in the hold, names it on the note line, reports it as stripped
+    /// off the player's own hull, asks for its removal and clears the
+    /// selection. A part that gives nothing back says so.
     #[test]
     fn a_deleted_section_puts_its_strip_yield_in_the_hold_and_reports_it_stripped() {
         let (mut app, ship) = docked_app(1_000_000, vec![StationServiceType::Refit]);
@@ -510,13 +547,17 @@ mod tests {
         app.update();
         assert_eq!(
             app.world().resource::<ShipRuntime>().delete_verdict(),
-            Some(Ok("delete PDC-1: 1 Frame spar, 3 Section panel"))
+            Some(Ok("+1 Frame spar, +3 Section panel"))
+        );
+        assert_eq!(
+            delete_yield_text(&test_items(), &BTreeMap::new()),
+            "nothing to salvage"
         );
 
         let note = delete(&mut app, ship.gun);
         assert_eq!(
             note.as_deref(),
-            Some("deleted PDC-1: 1 Frame spar, 3 Section panel")
+            Some("deleted PDC-1: +1 Frame spar, +3 Section panel to the hold")
         );
         let hold = app.world().get::<ShipInventory>(ship.player).unwrap();
         assert_eq!(hold.count(&"SectionPanel".into()), 3);
@@ -536,46 +577,47 @@ mod tests {
     }
 
     /// A delete that would split the ship, take its last computer, let go
-    /// of the dock, overfill the hold or happen away from a refit is
-    /// refused with its reason and changes nothing.
+    /// of the dock, overfill the hold or happen away from a refit is refused
+    /// with its reason before any press, and a command raised for it anyway
+    /// changes nothing and shows no note.
     #[test]
     fn a_delete_is_refused_with_its_reason_and_changes_nothing() {
         let (mut app, ship) = docked_app(1_000_000, vec![StationServiceType::Refit]);
         assert_eq!(
-            delete(&mut app, ship.hull).as_deref(),
-            Some("delete: taking HULL-1 off would split the ship")
+            verdict(&mut app, ship.hull),
+            Some(Err("delete: taking HULL-1 off would split the ship".to_string()))
         );
         assert!(matches!(
-            delete(&mut app, ship.computer).as_deref(),
-            Some(line) if line.starts_with("delete: the ship would carry 0 flight computers")
+            verdict(&mut app, ship.computer),
+            Some(Err(line)) if line.starts_with("delete: the ship would carry 0 flight computers")
         ));
         assert_eq!(
-            delete(&mut app, ship.port).as_deref(),
-            Some("delete: the dock holds the ship by DOCK-1")
+            verdict(&mut app, ship.port),
+            Some(Err("delete: the dock holds the ship by DOCK-1".to_string()))
         );
-        // Each refusal leaves its section selected, and the verdict says why.
+        assert_eq!(delete(&mut app, ship.port), None, "a refusal shows no note");
         assert_eq!(
-            app.world().resource::<ShipRuntime>().delete_verdict(),
-            Some(Err("delete: the dock holds the ship by DOCK-1"))
+            app.world().resource::<ShipRuntime>().selected(),
+            Some(ship.port),
+            "a refusal leaves its section selected"
         );
 
         // 30 kg of panels and 40 kg of spar, with room for 50.
         let (mut small, small_ship) = docked_app(50_000, vec![StationServiceType::Refit]);
         assert_eq!(
-            delete(&mut small, small_ship.gun).as_deref(),
-            Some("delete: PDC-1 gives 70 kg of parts, the hold has 50 kg free")
+            verdict(&mut small, small_ship.gun),
+            Some(Err(
+                "delete: PDC-1 gives 70 kg of parts, the hold has 50 kg free".to_string()
+            ))
         );
+        assert_eq!(delete(&mut small, small_ship.gun), None);
 
         let (mut storage, storage_ship) = docked_app(1_000_000, vec![StationServiceType::Storage]);
         assert_eq!(
-            delete(&mut storage, storage_ship.gun).as_deref(),
-            Some("delete: this dock offers no refit")
+            verdict(&mut storage, storage_ship.gun),
+            Some(Err("delete: this dock offers no refit".to_string()))
         );
-        // Away from a refit the panel offers no Delete at all.
-        assert_eq!(
-            storage.world().resource::<ShipRuntime>().delete_verdict(),
-            None
-        );
+        assert_eq!(delete(&mut storage, storage_ship.gun), None);
 
         for (app, player) in [
             (&app, ship.player),

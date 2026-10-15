@@ -13,16 +13,19 @@
 //! wireframe) with a gap, so adjacent sections read apart; an arrow past the
 //! foremost block marks the bow. The interactive SECTIONS ride on top as
 //! projected clickable badges: the family icon, a status pip and the code.
-//! The section panel beside the view shows the selection's condition bar,
-//! description, labelled facts, the Rebind action and, while the selection has
-//! repairable damage, the repair form. Orbit the camera as the editor's
-//! looks, with the right-button drag (the pad's D-pad) + wheel; `Q` picks the
-//! part of the section under the pointer; `[`/`]` or Prev/Next cycle the selection; Fit frames the whole
-//! ship at the current angles, and Reset also restores the opening angles;
-//! `G` toggles structural mates; `P` repairs, `B` replaces the selected
-//! bindable section's input, and Delete takes the selected section off while
-//! docked at a station that refits, its parts back in the hold. While the form's quantity field has the caret,
-//! these keys type into it instead.
+//! The section panel beside the view shows the selection's code, name and
+//! condition bar, its binding, the Rebind and Delete actions and, while the
+//! selection has repairable damage, the repair form. Orbit the camera as the
+//! editor's looks, with the right-button drag (the pad's D-pad) + wheel; `Q`
+//! picks the part of the section under the pointer; `[`/`]` cycle the
+//! selection; Fit frames the whole ship at the current angles, and Reset also
+//! restores the opening angles; `G` toggles structural mates; `P` repairs,
+//! `B` replaces the selected bindable section's input, and Delete takes the
+//! selected section off while docked at a station that refits, its parts back
+//! in the hold. The Delete button names what it gives back, or is disabled
+//! with the reason under it. While the form's quantity field has the caret,
+//! these keys type into it instead. The footer names only the keys that apply
+//! now.
 //!
 //! Repair applies at once through a single `SectionRepairCommand` seam (pane
 //! key or panel button -> message), spending hull plates from the player
@@ -31,17 +34,17 @@
 //! While the ship is docked at a living station that offers Rebuild, the
 //! panel lists the design sections the ship has lost, each under its design
 //! code, with a Rebuild button that raises a `SectionRebuildCommand`. While
-//! it is docked at a living station that offers Refit, the panel shows the
-//! station catalogue: the parts the station can build, each with its price,
-//! a Place button and, for a part of the selected section's kind and
-//! footprint, a Swap button that raises a `SectionSwapCommand`. Place puts
-//! the part in hand: a ghost block follows the pointer over the view,
-//! snapped to the free socket nearest it, with its price or refusal beside
-//! it, and a click on a valid ghost raises a `SectionAddCommand`. With no
-//! part in hand, a click on a block selects its section. What the station
-//! sells as a whole (ships, escorts and the station itself) is in the
-//! Station pane (`crate::station`); stripping a docked wreck is in the
-//! Inventory pane (`crate::inventory`).
+//! it is docked at a living station that offers Refit, the panel's Catalogue
+//! button opens the parts gallery over the pane: the parts the station can
+//! build, each with its price, and Swap on the focus card for a part of the
+//! selected section's kind and footprint, which raises a
+//! `SectionSwapCommand`. Place puts the part in hand (`HeldPart`): a ghost
+//! block follows the pointer over the view, snapped to the free socket
+//! nearest it, with its price or refusal beside it, and a click on a valid
+//! ghost raises a `SectionAddCommand`. With no part in hand, a click on a
+//! block selects its section. What the station sells as a whole (ships,
+//! escorts and the station itself) is in the Station pane (`crate::station`);
+//! stripping a docked wreck is in the Inventory pane (`crate::inventory`).
 //! The panel scrolls with the wheel while the pointer is over it.
 //!
 //! # Module layout
@@ -53,7 +56,7 @@
 //! | `rebuild` | The lost-section list and the rebuild action handler. |
 //! | `refit` | The Swap and Add action handlers and their refusal lines. |
 //! | `delete` | The Delete action: its rule, handler and refusal lines. |
-//! | `catalogue` | The station catalogue: listed parts, prices, Place and Swap. |
+//! | `catalogue` | The station catalogue: the gallery host, its listing and Swap. |
 //! | `ghost` | The placement ghost, its callout, and the view's pointer and click. |
 //! | `scene` | The schematic 3D scene, its camera, the projected badges, the button observers and the panel refresh. |
 
@@ -71,6 +74,7 @@ mod sections;
 mod tests;
 
 use bevy::prelude::*;
+use nova_ship::prelude::{PartsGalleryPlugin, PartsGallerySystems};
 use nova_ui::input_mode::prelude::{in_input_mode, InputMode};
 
 pub(crate) use self::{
@@ -131,6 +135,9 @@ pub(crate) struct ShipPanePlugin;
 
 impl Plugin for ShipPanePlugin {
     fn build(&self, app: &mut App) {
+        if !app.is_plugin_added::<PartsGalleryPlugin>() {
+            app.add_plugins(PartsGalleryPlugin);
+        }
         app.init_resource::<ShipRuntime>();
         app.init_resource::<ShipPlacementPreview>();
         app.add_message::<SectionRepairCommand>();
@@ -144,6 +151,7 @@ impl Plugin for ShipPanePlugin {
                 // Split in two: one tuple holds at most twenty systems.
                 (
                     assign_section_codes,
+                    apply_ship_gallery_alternates,
                     apply_ship_section_commands,
                     apply_ship_rebuild_commands,
                     apply_ship_swap_commands,
@@ -157,26 +165,37 @@ impl Plugin for ShipPanePlugin {
                 )
                     .chain(),
                 (
-                    // A focused repair field types P, B and the selection keys.
+                    reset_mount_for_new_part,
+                    // A focused repair field types P, B and the selection
+                    // keys, and the open catalogue the letters and arrows.
                     ship_input.run_if(in_input_mode(InputMode::Normal)),
                     scroll_ship_panel,
                     drive_ship_camera,
                     update_ship_blocks,
                     update_ship_placement,
                     update_ship_delete_verdict,
-                    pick_ship_part,
+                    pick_ship_part.run_if(in_input_mode(InputMode::Normal)),
                     sync_ship_ghost,
                     sync_ship_target_face,
                     project_ship_blips,
                     label_the_selected_section,
                     update_ship_panel,
                     update_ship_rebuild_list,
-                    update_ship_catalogue,
                 )
                     .chain(),
             )
                 .chain()
                 .in_set(ShipPaneSystems),
+        );
+        // The host and its listing are ready before the gallery lays out
+        // and draws its tiles in the same frame.
+        app.add_systems(
+            Update,
+            (manage_ship_gallery, update_ship_gallery_listing)
+                .chain()
+                .after(update_ship_panel)
+                .in_set(ShipPaneSystems)
+                .before(PartsGallerySystems),
         );
     }
 }

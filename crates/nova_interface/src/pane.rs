@@ -24,6 +24,7 @@ use nova_gameplay::{
     PauseStates,
 };
 use nova_input::prelude::{ActionContext, ActiveContexts, InputBindings, InputSources};
+use nova_ship::prelude::{GalleryState, HeldPart};
 use nova_ui::{
     prelude::*,
     theme::UiColor,
@@ -40,7 +41,7 @@ use crate::{
     ship::{
         on_ship_fit_button, on_ship_reset_button, on_ship_viewport_click, on_ship_viewport_enter,
         on_ship_viewport_leave, on_ship_viewport_move, spawn_ship_panel, spawn_ship_rebind_prompt,
-        ShipRuntime, ShipViewportMarker,
+        ShipRuntime, ShipSplitMarker, ShipViewportMarker,
     },
     station::{station_body, StationDock},
     terminal::NovaOsCloseTransition,
@@ -581,15 +582,31 @@ pub(crate) struct PaneInputHint {
     when: HintWhenType,
 }
 
-/// When a footer hint shows, by whether the Ship pane has a catalogue part
-/// in hand: R and F roll and cycle the part only while one is.
+/// When a footer hint shows: only while its key or gesture does something,
+/// so the footer is one short line of what applies now.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum HintWhenType {
     /// Shown always.
     Always,
     /// Shown only while a part is in hand.
     Placing,
+    /// Shown only while no part is in hand.
+    Selecting,
+    /// Shown only while the Ship pane's ship is docked at a station that
+    /// refits, where a picked part can be placed.
+    Refitting,
+    /// Shown only while the selected section has repairable damage.
+    Repairable,
+    /// Shown only while the selected section takes a binding.
+    Rebindable,
+    /// Shown only while the selected section can be deleted.
+    Deletable,
 }
+
+/// A pointer gesture in a footer: the raw left click, right drag and wheel
+/// both viewers read outside [`InputBindings`], with when it shows.
+#[derive(Component)]
+pub(crate) struct PanePointerHint(HintWhenType);
 
 /// One footer hint: a verb, the actions whose keys it names, and when it
 /// shows.
@@ -627,26 +644,34 @@ const MAP_KEY_HINTS: &[PaneKeyHint] = &[
     ("Chart", &["map_chart"], HintWhenType::Always),
 ];
 
-/// The keys the Ship pane answers to. Every name must be registered.
+/// The keys the Ship pane answers to. Every name must be registered. The
+/// view keys, the mate overlay and the reframe stay bound but unlisted: the
+/// footer names the keys that act on the selection or the part in hand, and
+/// the Fit and Reset buttons sit beside it.
 const SHIP_KEY_HINTS: &[PaneKeyHint] = &[
-    ("Pick part", &["ship_pick"], HintWhenType::Always),
+    ("Pick part", &["ship_pick"], HintWhenType::Refitting),
     ("Roll part", &["ship_part_roll"], HintWhenType::Placing),
     ("Cycle socket", &["ship_part_socket"], HintWhenType::Placing),
-    ("Reset", &["viewer_reframe"], HintWhenType::Always),
     (
         "Select",
         &["viewer_prev", "viewer_next"],
         HintWhenType::Always,
     ),
-    ("Mates", &["ship_mates"], HintWhenType::Always),
-    ("Repair", &["ship_repair"], HintWhenType::Always),
-    ("Rebind", &["ship_rebind"], HintWhenType::Always),
-    ("Remove", &["ship_delete"], HintWhenType::Always),
+    ("Repair", &["ship_repair"], HintWhenType::Repairable),
+    ("Rebind", &["ship_rebind"], HintWhenType::Rebindable),
+    // The keycap already reads `Delete`.
+    ("Remove", &["ship_delete"], HintWhenType::Deletable),
 ];
 
 /// The pointer gestures both viewers read raw, outside [`InputBindings`]:
-/// a left click picks, the right button drags the orbit and the wheel zooms.
-const POINTER_HINTS: [&str; 3] = ["Click select", "Right-drag look", "Wheel zoom"];
+/// a left click selects or places the part in hand, the right button drags
+/// the orbit and the wheel zooms.
+const POINTER_HINTS: [(&str, HintWhenType); 4] = [
+    ("Click select", HintWhenType::Selecting),
+    ("Click place", HintWhenType::Placing),
+    ("Right-drag look", HintWhenType::Always),
+    ("Wheel zoom", HintWhenType::Always),
+];
 
 /// The footer under a viewer pane: legend left, live key hints center, and
 /// clickable view controls right. Selection identity stays in the side panel.
@@ -708,14 +733,16 @@ fn pane_footer(
                         ..default()
                     })
                     .with_children(|hints| {
-                        for &(verb, actions, when) in keys {
-                            // A placing hint waits hidden until a part is in
-                            // hand ([`show_placing_hints`]).
-                            let display = if when == HintWhenType::Placing {
-                                Display::None
-                            } else {
+                        // A hint that waits for its state starts hidden
+                        // ([`show_pane_input_hints`]).
+                        let display = |when| {
+                            if when == HintWhenType::Always {
                                 Display::Flex
-                            };
+                            } else {
+                                Display::None
+                            }
+                        };
+                        for &(verb, actions, when) in keys {
                             hints.spawn((
                                 PaneInputHint {
                                     verb,
@@ -724,13 +751,20 @@ fn pane_footer(
                                 },
                                 themed_label("", 12.0, UiColor::Body),
                                 Node {
-                                    display,
+                                    display: display(when),
                                     ..default()
                                 },
                             ));
                         }
-                        for pointer in POINTER_HINTS {
-                            hints.spawn(themed_label(pointer, 12.0, UiColor::Label));
+                        for (pointer, when) in POINTER_HINTS {
+                            hints.spawn((
+                                PanePointerHint(when),
+                                themed_label(pointer, 12.0, UiColor::Label),
+                                Node {
+                                    display: display(when),
+                                    ..default()
+                                },
+                            ));
                         }
                     });
             });
@@ -783,19 +817,44 @@ pub(crate) fn refresh_pane_input_hints(
     }
 }
 
-/// Show each footer hint by its [`HintWhenType`]: the roll and socket hints
-/// only while the Ship pane has a part in hand.
-pub(crate) fn show_placing_hints(
+/// Show each footer hint by its [`HintWhenType`], from the part in hand and
+/// what the Ship pane cached for its selection and its dock. All hide while
+/// the parts gallery is open: it holds the keys and names its own.
+pub(crate) fn show_pane_input_hints(
+    held: Option<Res<HeldPart>>,
     ship: Option<Res<ShipRuntime>>,
-    mut q_hint: Query<(&PaneInputHint, &mut Node)>,
+    gallery: Option<Res<GalleryState>>,
+    mut q_key: Query<(&PaneInputHint, &mut Node), Without<PanePointerHint>>,
+    mut q_pointer: Query<(&PanePointerHint, &mut Node), Without<PaneInputHint>>,
 ) {
-    let placing = ship.is_some_and(|ship| ship.held().is_some());
-    for (hint, mut node) in &mut q_hint {
-        let shown = match hint.when {
-            HintWhenType::Always => true,
-            HintWhenType::Placing => placing,
+    let placing = held.is_some_and(|held| held.0.is_some());
+    // The open gallery holds the keys and names its own.
+    let browsing = gallery.is_some_and(|gallery| gallery.open);
+    let ship = ship.as_deref();
+    let shown = |when: HintWhenType| {
+        !browsing
+            && match when {
+                HintWhenType::Always => true,
+                HintWhenType::Placing => placing,
+                HintWhenType::Selecting => !placing,
+                HintWhenType::Refitting => ship.is_some_and(|ship| ship.refits),
+                HintWhenType::Repairable => ship.is_some_and(|ship| ship.panel_repairable),
+                HintWhenType::Rebindable => ship.is_some_and(|ship| ship.panel_rebind_enabled),
+                HintWhenType::Deletable => {
+                    ship.is_some_and(|ship| matches!(ship.delete_verdict(), Some(Ok(_))))
+                }
+            }
+    };
+    let nodes = q_key
+        .iter_mut()
+        .map(|(hint, node)| (hint.when, node))
+        .chain(q_pointer.iter_mut().map(|(hint, node)| (hint.0, node)));
+    for (when, mut node) in nodes {
+        let display = if shown(when) {
+            Display::Flex
+        } else {
+            Display::None
         };
-        let display = if shown { Display::Flex } else { Display::None };
         if node.display != display {
             node.display = display;
         }
@@ -841,21 +900,22 @@ fn map_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
 
 /// The ship: the scene and section panel beside it, then legend, hints and view controls.
 fn ship_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
-    body.spawn(view_split()).with_children(|split| {
-        split
-            .spawn((
-                ShipViewportMarker,
-                Name::new("ShipViewport"),
-                viewport_node(),
-                ImageNode::default(),
-            ))
-            .with_children(spawn_ship_rebind_prompt)
-            .observe(on_ship_viewport_enter)
-            .observe(on_ship_viewport_move)
-            .observe(on_ship_viewport_leave)
-            .observe(on_ship_viewport_click);
-        spawn_ship_panel(split, icons);
-    });
+    body.spawn((ShipSplitMarker, view_split()))
+        .with_children(|split| {
+            split
+                .spawn((
+                    ShipViewportMarker,
+                    Name::new("ShipViewport"),
+                    viewport_node(),
+                    ImageNode::default(),
+                ))
+                .with_children(spawn_ship_rebind_prompt)
+                .observe(on_ship_viewport_enter)
+                .observe(on_ship_viewport_move)
+                .observe(on_ship_viewport_leave)
+                .observe(on_ship_viewport_click);
+            spawn_ship_panel(split, icons);
+        });
     pane_footer(
         body,
         |legend| {

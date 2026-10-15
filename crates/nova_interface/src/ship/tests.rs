@@ -127,6 +127,7 @@ fn ship_repair_spends_plates_only_on_a_damaged_player_section() {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<HeldPart>();
     app.add_message::<SectionRepairCommand>();
     app.add_message::<SectionDeleteCommand>();
     // A scheduled system keeps one reader cursor, so each frame reads only its
@@ -265,6 +266,7 @@ fn ship_repair_spends_selected_quantity_and_refuses_stale_requests_atomically() 
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<HeldPart>();
     app.add_message::<SectionRepairCommand>();
     app.add_message::<SectionDeleteCommand>();
     app.add_systems(Update, apply_ship_section_commands);
@@ -374,6 +376,7 @@ fn scene_blocks_use_local_space_when_ship_off_origin() {
     app.insert_state(PauseStates::Interface);
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<HeldPart>();
     app.init_resource::<ActiveUiTheme>();
     app.insert_resource(InterfaceIcons::blank());
     app.init_resource::<NovaOsCloseTransition>();
@@ -436,6 +439,7 @@ fn ship_scene_follows_the_ship_pane() {
     app.insert_state(PauseStates::Interface);
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<HeldPart>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Ship);
@@ -464,6 +468,7 @@ fn ship_pane_renders_blocks_and_selects_section() {
     app.insert_state(PauseStates::Interface);
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<HeldPart>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Ship);
@@ -551,6 +556,7 @@ fn ship_orbit_drag_is_rmb_only() {
     app.insert_state(PauseStates::Interface);
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<HeldPart>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Ship);
@@ -622,6 +628,7 @@ fn the_desk_turn_keys_do_not_turn_the_ship_view() {
     app.insert_state(PauseStates::Interface);
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<HeldPart>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Ship);
@@ -668,6 +675,7 @@ fn the_map_wheel_does_not_zoom_the_ship_view() {
     app.insert_state(PauseStates::Interface);
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<HeldPart>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Ship);
@@ -728,6 +736,7 @@ fn a_captured_rebind_key_does_nothing_else() {
     app.insert_state(PauseStates::Interface);
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<HeldPart>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Ship);
@@ -871,6 +880,7 @@ fn offset_ship_app() -> (App, Entity, Entity, Entity) {
     app.insert_state(PauseStates::Interface);
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<HeldPart>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Ship);
@@ -1135,11 +1145,7 @@ fn ship_reset_reframes_whole_ship_and_sticks() {
 }
 
 /// A bare [`ShipSectionView`] for the pure-helper tests.
-fn view_fixture(
-    kind: SectionClass,
-    health: Option<Health>,
-    ammo: Option<SectionAmmo>,
-) -> ShipSectionView {
+fn view_fixture(kind: SectionClass, health: Option<Health>) -> ShipSectionView {
     ShipSectionView {
         entity: Entity::PLACEHOLDER,
         code: "PDC-1".to_string(),
@@ -1149,7 +1155,6 @@ fn view_fixture(
         half_extents: Vec3::ONE,
         link_points: Vec::new(),
         health,
-        ammo,
         bindings: None,
         inactive: false,
         zero_health: false,
@@ -1159,9 +1164,9 @@ fn view_fixture(
 
 #[test]
 fn mate_overlay_is_derived_from_live_section_link_points() {
-    let mut left = view_fixture(SectionClass::Hull, None, None);
+    let mut left = view_fixture(SectionClass::Hull, None);
     left.link_points = unit_cube_link_points();
-    let mut right = view_fixture(SectionClass::Hull, None, None);
+    let mut right = view_fixture(SectionClass::Hull, None);
     right.local.translation = Vec3::X;
     right.link_points = unit_cube_link_points();
 
@@ -1184,6 +1189,7 @@ fn block_fill_follows_family_not_status() {
     app.insert_state(PauseStates::Interface);
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<HeldPart>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Ship);
@@ -1287,7 +1293,7 @@ fn block_fill_follows_family_not_status() {
 fn a_held_part_draws_its_target_block_and_face_opaque() {
     let (mut app, hull, turret, _thruster) = offset_ship_app();
     app.world_mut().init_resource::<ShipPlacementPreview>();
-    app.world_mut().resource_mut::<ShipRuntime>().held = Some("pdc".to_string());
+    app.world_mut().insert_resource(HeldPart(Some("pdc".to_string())));
     *app.world_mut().resource_mut::<ShipPlacementPreview>() = ShipPlacementPreview {
         hovered: Some(hull),
         placement: Some(ShipPlacement {
@@ -1354,7 +1360,7 @@ fn a_held_part_draws_its_target_block_and_face_opaque() {
         "the plate is on the turned block's long axis: {plate:?}"
     );
 
-    app.world_mut().resource_mut::<ShipRuntime>().held = None;
+    app.world_mut().insert_resource(HeldPart(None));
     app.world_mut()
         .run_system_once(sync_ship_target_face)
         .unwrap();
@@ -1378,10 +1384,6 @@ fn badge_shows_family_icon_status_pip_and_code() {
         Some(Health {
             current: 12.0,
             max: 60.0,
-        }),
-        Some(SectionAmmo {
-            rounds: 2,
-            capacity: 6,
         }),
     );
     let blip = app
@@ -1451,7 +1453,7 @@ fn unknown_health_reads_nominal() {
     // A section with no `Health` reads nominal (green), never a misleading
     // damaged state; `status`/`status_color` drive the badge pip and the
     // panel condition bar.
-    let unknown = view_fixture(SectionClass::Thruster, None, None);
+    let unknown = view_fixture(SectionClass::Thruster, None);
     assert_eq!(unknown.status(), "nominal");
     assert_eq!(unknown.status_color(), UiColor::Nominal);
 }
@@ -1459,14 +1461,10 @@ fn unknown_health_reads_nominal() {
 #[test]
 fn panel_action_state_gates_repair() {
     let hp = |current, max| Some(Health { current, max });
-    let ammo = Some(SectionAmmo {
-        rounds: 2,
-        capacity: 6,
-    });
     let reason = |a: &PanelActions| a.reason.clone().unwrap_or_default();
 
     // Damaged hull with plates: repairable, no reason.
-    let hull = view_fixture(SectionClass::Hull, hp(80.0, 100.0), None);
+    let hull = view_fixture(SectionClass::Hull, hp(80.0, 100.0));
     let a = panel_action_state(&hull, 1, 12);
     assert!(a.repair_enabled, "a damaged hull with plates is repairable");
     assert!(a.reason.is_none(), "no disabled reason: {:?}", a.reason);
@@ -1477,13 +1475,13 @@ fn panel_action_state_gates_repair() {
     assert_eq!(reason(&a), "repair: no hull plates selected or in stock");
 
     // Full integrity refuses regardless of stock.
-    let full = view_fixture(SectionClass::Hull, hp(100.0, 100.0), None);
+    let full = view_fixture(SectionClass::Hull, hp(100.0, 100.0));
     let a = panel_action_state(&full, 1, 0);
     assert!(!a.repair_enabled);
     assert_eq!(reason(&a), "repair: PDC-1 is at full integrity");
 
     // Damaged turret with plates: repairable, no reason.
-    let turret = view_fixture(SectionClass::Turret, hp(12.0, 60.0), ammo);
+    let turret = view_fixture(SectionClass::Turret, hp(12.0, 60.0));
     let a = panel_action_state(&turret, 1, 12);
     assert!(
         a.repair_enabled,
@@ -1500,11 +1498,11 @@ fn panel_action_state_gates_repair() {
     );
 
     // Destroyed at 0 HP, or disabled by a collapse with HP left.
-    let dead = view_fixture(SectionClass::Turret, hp(0.0, 60.0), ammo);
+    let dead = view_fixture(SectionClass::Turret, hp(0.0, 60.0));
     let a = panel_action_state(&dead, 1, 12);
     assert!(!a.repair_enabled);
     assert_eq!(reason(&a), "repair: PDC-1 is destroyed");
-    let mut collapsed = view_fixture(SectionClass::Turret, hp(30.0, 60.0), ammo);
+    let mut collapsed = view_fixture(SectionClass::Turret, hp(30.0, 60.0));
     collapsed.disabled = true;
     assert_eq!(
         reason(&panel_action_state(&collapsed, 1, 12)),
@@ -1512,7 +1510,7 @@ fn panel_action_state_gates_repair() {
     );
 
     // A section with no health at all refuses with a reason.
-    let ghost = view_fixture(SectionClass::Turret, None, ammo);
+    let ghost = view_fixture(SectionClass::Turret, None);
     let a = panel_action_state(&ghost, 1, 12);
     assert!(!a.repair_enabled);
     assert_eq!(reason(&a), "repair: PDC-1 has no integrity to restore");
@@ -1532,6 +1530,7 @@ fn panel_buttons_raise_section_repair_command() {
     app.add_plugins((MinimalPlugins, StatesPlugin, AssetPlugin::default()));
     app.insert_state(PauseStates::Interface);
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<HeldPart>();
     app.add_message::<SectionRepairCommand>();
     app.add_message::<SectionDeleteCommand>();
     // A scheduled handler keeps one reader cursor, so a spent repair is never
@@ -1631,6 +1630,7 @@ fn update_ship_panel_reflects_selection() {
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
     app.init_asset::<Font>();
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<HeldPart>();
     app.insert_resource(InterfaceIcons::blank());
     app.add_systems(Update, update_ship_panel);
     let (ship, hull, turret, thruster) = spawn_scripted_ship(app.world_mut());
@@ -1684,19 +1684,8 @@ fn update_ship_panel_reflects_selection() {
             .map(|(_, node)| node.display != Display::None)
             .expect("panel part")
     };
-    let status = field_text(&mut app, ShipPanelField::Status);
-    assert!(
-        status.starts_with("Hull  Condition"),
-        "the status line names the family and condition: {status}"
-    );
     let title = field_text(&mut app, ShipPanelField::Title);
     assert!(title.contains("HULL-1"), "title reflects the code: {title}");
-    assert_eq!(field_text(&mut app, ShipPanelField::Integrity), "80/100 HP");
-    assert!(shown(&mut app, ShipPanelField::Integrity));
-    assert!(
-        !shown(&mut app, ShipPanelField::Ammo),
-        "a hull has no ammo row"
-    );
     assert!(
         !shown(&mut app, ShipPanelField::Control),
         "a hull has no control row"
@@ -1717,22 +1706,10 @@ fn update_ship_panel_reflects_selection() {
         "a damaged hull with plates is repairable -> repair enabled",
     );
 
-    // The turret's live facts each take their own labelled row.
+    // The turret's binding takes its labelled row.
     app.world_mut().resource_mut::<ShipRuntime>().selected = Some(turret);
     app.update();
-    assert_eq!(
-        field_text(&mut app, ShipPanelField::Status),
-        "Weapon  Condition 20%  critical",
-        "12/60 -> 20%"
-    );
-    assert_eq!(
-        field_text(&mut app, ShipPanelField::About),
-        kind_description(SectionClass::Turret)
-    );
-    assert_eq!(field_text(&mut app, ShipPanelField::Integrity), "12/60 HP");
-    assert_eq!(field_text(&mut app, ShipPanelField::Ammo), "2 / 6 rounds");
     assert_eq!(field_text(&mut app, ShipPanelField::Control), "K / LMB");
-    assert!(shown(&mut app, ShipPanelField::Ammo));
     assert!(shown(&mut app, ShipPanelField::Control));
 
     // Typed text that is not a whole number empties the draft, marks the
@@ -1840,6 +1817,7 @@ fn spawn_ship_panel_app_without_inventory() -> (App, Entity) {
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
     app.init_asset::<Font>();
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<HeldPart>();
     app.insert_resource(InterfaceIcons::blank());
     let (ship, hull, _turret, _thruster) = spawn_scripted_ship(app.world_mut());
     app.world_mut()
@@ -1882,7 +1860,7 @@ fn update_ship_panel_shows_no_section_without_a_player_inventory() {
             .map(|(_, text)| text.0.clone())
             .expect("panel field text")
     };
-    assert_eq!(field_text(&mut app, ShipPanelField::Title), "No section");
+    assert_eq!(field_text(&mut app, ShipPanelField::Title), "No section selected");
     assert!(!app.world().resource::<ShipRuntime>().panel_repair_enabled);
 }
 
@@ -1895,6 +1873,7 @@ fn update_ship_panel_preview_names_the_exact_repair_refusal() {
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
     app.init_asset::<Font>();
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<HeldPart>();
     app.insert_resource(InterfaceIcons::blank());
     let (ship, hull, _turret, thruster) = spawn_scripted_ship(app.world_mut());
     app.world_mut().entity_mut(ship).insert(ShipInventory::new(
@@ -1965,6 +1944,7 @@ fn update_ship_panel_hides_the_repair_form_after_a_full_repair() {
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
     app.init_asset::<Font>();
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<HeldPart>();
     app.insert_resource(InterfaceIcons::blank());
     app.add_message::<SectionRepairCommand>();
     app.add_message::<SectionDeleteCommand>();
@@ -2072,7 +2052,6 @@ fn rig_section_view(entity: Entity, code: &str) -> ShipSectionView {
         half_extents: Vec3::splat(0.5),
         link_points: Vec::new(),
         health: None,
-        ammo: None,
         bindings: None,
         inactive: false,
         zero_health: false,
@@ -2101,6 +2080,7 @@ fn rig_rect(rig: &PanePointerRig, entity: Entity) -> Rect {
 fn ship_section_label_and_dot_are_one_unbroken_target() {
     let mut rig = pane_pointer_rig();
     rig.app.init_resource::<ShipRuntime>();
+    rig.app.init_resource::<HeldPart>();
     rig.app.init_resource::<ShipPlacementPreview>();
     rig.app.add_message::<SectionAddCommand>();
     hear_ui_cues(&mut rig.app);
@@ -2209,6 +2189,7 @@ fn only_the_selected_section_spells_out_its_code() {
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
     app.init_asset::<Font>();
     app.init_resource::<ShipRuntime>();
+    app.init_resource::<HeldPart>();
 
     let viewport = app.world_mut().spawn_empty().id();
     let mut blips = Vec::new();
@@ -2220,7 +2201,7 @@ fn only_the_selected_section_spells_out_its_code() {
     .into_iter()
     .enumerate()
     {
-        let mut view = view_fixture(kind, None, None);
+        let mut view = view_fixture(kind, None);
         view.entity = app.world_mut().spawn_empty().id();
         view.code = format!("{}-{index}", code_prefix(kind));
         let spawned = view.clone();

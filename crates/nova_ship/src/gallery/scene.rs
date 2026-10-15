@@ -1,81 +1,24 @@
-//! The gallery's 3D half: parking the editor camera on an empty stage far from
-//! the build area, spawning one preview per tile, and keeping each preview
-//! centred in the UI cell that owns it.
+//! The gallery's 3D half: one preview per tile on the host's stage, kept
+//! centred in the UI cell that owns it, and the focus view's turntable.
 //!
 //! The previews follow the UI rather than the other way round: layout owns the
-//! grid, and a tile is placed by unprojecting its cell's centre. Change this
-//! module when the stage framing or the tile fitting changes.
+//! grid, and a tile is placed by unprojecting its cell's centre through the
+//! host's camera. Change this module when the tile fitting or the focus view
+//! changes.
 
-use avian3d::prelude::{ColliderAabb, Sensor};
 use bevy::{
+    app::Propagate,
     camera::primitives::Aabb,
-    core_pipeline::Skybox,
     input::mouse::{MouseMotion, MouseWheel},
     prelude::*,
     ui::{ComputedNode, UiGlobalTransform},
 };
-use nova_events::units::prelude::*;
-use nova_gameplay::prelude::subtree_collider_aabb;
-use nova_ship::prelude::*;
+use nova_ui::theme::{ActiveUiTheme, UiColor};
 
-use crate::{
-    config::EditorGizmos,
-    gallery::{catalog, GalleryState},
-    node::EditContext,
-    palette,
-    placement::draw_socket,
-    preview::{insert_preview_section, PreviewRole},
-    ExampleStates,
-};
+use super::{catalog, GalleryHost, GalleryState};
+use crate::prelude::*;
 
-/// How far above everything the document holds the gallery stage stands.
-///
-/// Clear of the build area so a tile's collider can never be picked as part of
-/// the ship, and so nothing the builder made wanders into frame behind the
-/// tiles.
-const STAGE_CLEARANCE: Meters = Meters(2_000.0);
-
-/// Where the gallery stage sits.
-///
-/// OFFSET from the document rather than fixed at 2 km: an object authored near
-/// y = 20 km drew straight through the tiles, because the stage assumed a
-/// bounded build area and the build area has no bound.
-#[derive(Resource, Clone, Copy, Debug, PartialEq)]
-pub(crate) struct GalleryStage(pub(crate) Vec3);
-
-impl Default for GalleryStage {
-    /// Clear of an empty document, which is what the editor opens on.
-    fn default() -> Self {
-        Self(Vec3::Y * STAGE_CLEARANCE.to_engine())
-    }
-}
-
-/// Stand the stage clear of everything the document holds.
-///
-/// Only while the gallery is CLOSED: the tiles are spawned on this and the
-/// parked camera is placed from it, and a stage that moved mid-browse would
-/// drag one out from under the other.
-pub(crate) fn sync_gallery_stage(
-    state: Res<GalleryState>,
-    context: Res<EditContext>,
-    q_children: Query<&Children>,
-    q_bounds: Query<&ColliderAabb, Without<Sensor>>,
-    mut stage: ResMut<GalleryStage>,
-) {
-    if state.open {
-        return;
-    }
-    let top = context
-        .scenario()
-        .and_then(|scenario| subtree_collider_aabb(scenario, &q_children, &q_bounds))
-        .map_or(0.0, |bounds| bounds.max.y);
-    let wanted = GalleryStage(Vec3::Y * (top + STAGE_CLEARANCE.to_engine()));
-    if *stage != wanted {
-        *stage = wanted;
-    }
-}
-
-/// Ray distance from the parked camera to every tile. Equal distances mean
+/// Ray distance from the host camera to every tile. Equal distances mean
 /// equal apparent size, so a part in a corner cell reads as large as the same
 /// part in the middle.
 const STAGE_DISTANCE: f32 = 8.0;
@@ -123,7 +66,7 @@ const SPIN_RATE: f32 = 0.5;
 /// The turntable and the drag share one yaw on purpose - the spin resumes from
 /// wherever the drag left the part rather than snapping back to a canned pose.
 #[derive(Resource, Debug, Clone, Copy, PartialEq)]
-pub(crate) struct FocusView {
+pub struct FocusView {
     /// Fraction of the stage's smaller side the part fills.
     fill: f32,
     /// Turntable angle, driven by the drag and then by the spin.
@@ -147,32 +90,21 @@ impl Default for FocusView {
     }
 }
 
-/// The editor's free-fly camera. The gallery parks it, so it needs a handle
-/// that does not depend on there being exactly one [`Camera3d`] in the scene.
-#[derive(Component)]
-pub(crate) struct EditorCamera;
+/// The UI cell a tile centres itself on. A relationship, so despawning the
+/// overlay (or the host it sits in) takes its tiles with it.
+#[derive(Component, Debug)]
+#[relationship(relationship_target = GalleryTiles)]
+pub struct GalleryTileOf(pub Entity);
 
-/// How the camera was set up when the gallery parked it, restored on close.
-///
-/// Stored on the camera rather than in a `Local` so it dies with the scene: a
-/// second visit to the editor spawns a fresh camera and must not inherit the
-/// previous visit's parked pose.
-#[derive(Component)]
-pub(crate) struct ParkedPose {
-    /// Where the builder had flown to.
-    transform: Transform,
-    /// The scenario's skybox, taken off the camera for as long as the gallery
-    /// is up. A cubemap draws behind everything, so one of its stars came
-    /// through the gallery's transparent tiles as a stray lit pixel under the
-    /// header. This stage is meant to be empty.
-    skybox: Option<Skybox>,
-}
+/// The tiles centred on a cell: one, or none for a cell still waiting for
+/// its preview.
+#[derive(Component, Debug, Default)]
+#[relationship_target(relationship = GalleryTileOf, linked_spawn)]
+pub struct GalleryTiles(Vec<Entity>);
 
-/// One 3D preview, bound to the UI cell it sits in.
+/// One 3D preview of a listed part.
 #[derive(Component)]
-pub(crate) struct GalleryItem {
-    /// The UI node this preview centres itself on.
-    cell: Entity,
+pub struct GalleryItem {
     /// The part's sockets, in its own unscaled local space. Carried only by the
     /// focused preview, which is the one that draws them.
     sockets: Vec<LinkPoint>,
@@ -195,14 +127,14 @@ pub(crate) fn spawn_tile(
     section: &SectionConfig,
     cell: Entity,
     focused: bool,
-    origin: Vec3,
+    host: &GalleryHost,
 ) {
     let extent = catalog::extent(section).max_element().max(f32::EPSILON);
     let mut entity = commands.spawn((
-        DespawnOnExit(ExampleStates::Editor),
         Name::new(format!("Gallery Preview {}", section.base.name)),
+        GalleryTileOf(cell),
+        Propagate(host.layers.clone()),
         GalleryItem {
-            cell,
             sockets: if focused {
                 section.base.link_points.clone()
             } else {
@@ -212,7 +144,7 @@ pub(crate) fn spawn_tile(
             radius: None,
             focused,
         },
-        Transform::from_translation(origin).with_rotation(Quat::from_rotation_y(PRESENT_YAW)),
+        Transform::from_translation(host.stage).with_rotation(Quat::from_rotation_y(PRESENT_YAW)),
         // A tile is scenery: the build observers must never see it as a
         // section of the ship under the pointer.
         Pickable {
@@ -227,50 +159,6 @@ pub(crate) fn spawn_tile(
     // category switch flashed its parts across the view before the grid caught
     // them.
     entity.insert(Visibility::Hidden);
-}
-
-/// Park the camera on the gallery stage while the gallery is open, and put it
-/// back where the player left it on close.
-///
-/// The free-fly rig is REMOVED rather than ignored: it writes the camera
-/// transform from its own input context, and gallery typing must not fly the
-/// camera. The pose is re-applied every frame for the same reason the
-/// scenario's cinematic camera does it - one stale input frame would drift the
-/// stage.
-pub(crate) fn park_camera_for_gallery(
-    mut commands: Commands,
-    state: Res<GalleryState>,
-    stage: Res<GalleryStage>,
-    camera: Option<
-        Single<(Entity, &mut Transform, Option<&Skybox>, Option<&ParkedPose>), With<EditorCamera>>,
-    >,
-) {
-    let Some(camera) = camera else {
-        return;
-    };
-    let (entity, mut transform, skybox, parked) = camera.into_inner();
-
-    if state.open {
-        if parked.is_none() {
-            commands
-                .entity(entity)
-                .insert(ParkedPose {
-                    transform: *transform,
-                    skybox: skybox.cloned(),
-                })
-                .remove::<Skybox>();
-        }
-        *transform = Transform::from_translation(stage.0 + Vec3::Z * STAGE_DISTANCE)
-            .looking_at(stage.0, Vec3::Y);
-    } else if let Some(parked) = parked {
-        *transform = parked.transform;
-        let sky = parked.skybox.clone();
-        let mut camera = commands.entity(entity);
-        camera.remove::<ParkedPose>();
-        if let Some(sky) = sky {
-            camera.insert(sky);
-        }
-    }
 }
 
 /// Measure what each tile actually DRAWS, so the fit is to the part on screen
@@ -340,28 +228,43 @@ const AABB_CORNERS: [Vec3; 8] = [
 /// Reads the PREVIOUS frame's layout (UI layout runs in `PostUpdate`), which
 /// is invisible on a static grid and keeps this out of the layout schedule.
 pub(crate) fn place_gallery_items(
-    camera: Option<Single<(&Camera, &GlobalTransform), With<EditorCamera>>>,
+    host: Single<(&GalleryHost, &ComputedNode, &UiGlobalTransform)>,
+    cameras: Query<(&Camera, &GlobalTransform)>,
     view: Res<FocusView>,
     cells: Query<(&ComputedNode, &UiGlobalTransform)>,
-    mut items: Query<(&GalleryItem, &mut Transform, &mut Visibility)>,
+    mut items: Query<(
+        &GalleryItem,
+        &GalleryTileOf,
+        &mut Transform,
+        &mut Visibility,
+    )>,
 ) {
-    let Some(camera) = camera else {
+    let (host, host_node, host_transform) = *host;
+    let Ok((camera, camera_transform)) = cameras.get(host.camera) else {
         return;
     };
-    let (camera, camera_transform) = *camera;
+    let Some(viewport) = camera.logical_viewport_size() else {
+        return;
+    };
+    // The camera's viewport shows the host node, so a point in the node is a
+    // point in the viewport scaled by the two sizes: the window for a
+    // full-screen host, an image for a node that shows one.
+    let host_size = host_node.size();
+    if host_size.cmple(Vec2::ZERO).any() {
+        return;
+    }
+    let host_corner = host_transform.translation - host_size * 0.5;
+    let to_viewport = viewport / host_size;
 
-    for (item, mut transform, mut visibility) in &mut items {
-        let Ok((node, cell_transform)) = cells.get(item.cell) else {
+    for (item, cell, mut transform, mut visibility) in &mut items {
+        let Ok((node, cell_transform)) = cells.get(cell.0) else {
             continue;
         };
-        // `ComputedNode` is physical pixels and the camera answers in logical
-        // ones; the conversion belongs here, not at the call site.
-        let scale = node.inverse_scale_factor();
-        let size = node.size() * scale;
+        let size = node.size() * to_viewport;
         if size.x <= 0.0 || size.y <= 0.0 {
             continue;
         }
-        let centre = cell_transform.translation * scale;
+        let centre = (cell_transform.translation - host_corner) * to_viewport;
         let (Ok(middle), Ok(top), Ok(bottom), Ok(left), Ok(right)) = (
             camera.viewport_to_world(camera_transform, centre),
             camera.viewport_to_world(camera_transform, centre - Vec2::new(0.0, size.y * 0.5)),
@@ -395,7 +298,7 @@ pub(crate) fn place_gallery_items(
 /// framing rather than at whatever the last one was left in.
 pub(crate) fn drive_focus_view(
     state: Res<GalleryState>,
-    time: Res<Time>,
+    time: Res<Time<Real>>,
     mouse: Res<ButtonInput<MouseButton>>,
     mut motion: MessageReader<MouseMotion>,
     mut wheel: MessageReader<MouseWheel>,
@@ -438,24 +341,50 @@ pub(crate) fn drive_focus_view(
     };
 }
 
+/// The group the focus view's socket marks draw in, on the host's layers.
+#[derive(Clone, Default, Reflect, GizmoConfigGroup)]
+pub struct GalleryGizmos;
+
+/// Put the socket marks on the host's layers at the editor's line weight, so
+/// the host's camera draws them and no other.
+pub(crate) fn sync_gallery_gizmo_layers(
+    host: Single<&GalleryHost>,
+    mut store: ResMut<GizmoConfigStore>,
+) {
+    let (config, _) = store.config_mut::<GalleryGizmos>();
+    if config.render_layers != host.layers {
+        config.render_layers = host.layers.clone();
+    }
+    if config.line.width != SOCKET_LINE_WIDTH {
+        config.line.width = SOCKET_LINE_WIDTH;
+    }
+}
+
+/// The socket marks' line width (px), the editor's: under Bevy's 2 px
+/// default, so the marks do not outweigh the part they sit on.
+const SOCKET_LINE_WIDTH: f32 = 1.0;
+
 /// Draw the focused part's sockets on the stage.
 ///
 /// Where a part can mate is the question the focus view exists to answer, and
-/// the stat block could only count them. Same marks as the build view's, from
-/// the same [`draw_socket`], so a socket looks the same wherever it is met.
+/// the stat block could only count them. The same [`draw_socket`] marks the
+/// editor's build view draws, so a socket looks the same wherever it is met.
 pub(crate) fn draw_focus_sockets(
     state: Res<GalleryState>,
-    camera: Option<Single<&GlobalTransform, With<EditorCamera>>>,
+    host: Single<&GalleryHost>,
+    theme: Res<ActiveUiTheme>,
+    cameras: Query<&GlobalTransform>,
     items: Query<(&GalleryItem, &GlobalTransform)>,
-    mut gizmos: Gizmos<EditorGizmos>,
+    mut gizmos: Gizmos<GalleryGizmos>,
 ) {
     if !state.open || !state.focused {
         return;
     }
-    let Some(camera) = camera else {
+    let Ok(camera) = cameras.get(host.camera) else {
         return;
     };
     let eye = camera.translation();
+    let colour = theme.color(UiColor::Nominal);
 
     for (item, pose) in &items {
         if !item.focused {
@@ -467,7 +396,7 @@ pub(crate) fn draw_focus_sockets(
                 eye,
                 pose.transform_point(socket.position),
                 (pose.rotation() * socket.normal).normalize_or(Vec3::Z),
-                palette::GO,
+                colour,
                 false,
             );
         }
@@ -477,7 +406,7 @@ pub(crate) fn draw_focus_sockets(
 /// Pose the focused preview: the builder's orbit, and the turntable once they
 /// have left it alone for [`FOCUS_IDLE_RESUME`].
 pub(crate) fn pose_focused_item(
-    time: Res<Time>,
+    time: Res<Time<Real>>,
     mut view: ResMut<FocusView>,
     mut items: Query<(&GalleryItem, &mut Transform)>,
 ) {
@@ -492,89 +421,57 @@ pub(crate) fn pose_focused_item(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use avian3d::prelude::{Collider, SimpleCollider};
-    use bevy::ecs::system::RunSystemOnce;
+/// A socket ring's radius as a fraction of its distance from the eye.
+///
+/// An ANGLE rather than a length: a world-space ring shrank to nothing the
+/// moment the camera pulled back far enough to see the whole ship, which is
+/// exactly when a builder is looking for somewhere to put a part.
+const SOCKET_SCREEN_SIZE: f32 = 0.018;
+/// The smallest and largest a ring is allowed to get in world units, so a
+/// socket under the nose does not swallow the ship and one across the range is
+/// still a mark rather than a pixel.
+const SOCKET_RADIUS_RANGE: (f32, f32) = (0.05, 0.5);
+/// The stub that shows which way a socket faces, as a multiple of the ring.
+const SOCKET_NORMAL_LENGTH: f32 = 4.0;
+/// How much wider the halo around the aimed socket is drawn.
+const SOCKET_HALO: f32 = 1.8;
+/// How far up the view ray a ring floats, as a multiple of its radius, to clear
+/// the hull it sits on.
+const SOCKET_LIFT: f32 = 2.0;
 
-    use super::*;
-    use crate::node::{found_empty_document, EditorNode, NodeId};
-
-    /// A document holding one body whose top stands at `top_y` engine units.
-    fn document_with_a_body_at(top_y: f32) -> App {
-        let mut app = App::new();
-        app.init_resource::<EditContext>();
-        app.init_resource::<GalleryState>();
-        app.init_resource::<GalleryStage>();
-        app.world_mut()
-            .run_system_once(|mut commands: Commands, mut context: ResMut<EditContext>| {
-                found_empty_document(&mut commands, &mut context);
-            })
-            .expect("the document is founded");
-        let scenario = app
-            .world()
-            .resource::<EditContext>()
-            .scenario()
-            .expect("a document");
-        let body = app
-            .world_mut()
-            .spawn((
-                EditorNode,
-                NodeId("body".to_string()),
-                Transform::default(),
-                ChildOf(scenario),
-            ))
-            .id();
-        app.world_mut().spawn((
-            ChildOf(body),
-            Collider::sphere(1.0).aabb(Vec3::Y * (top_y - 1.0), Quat::IDENTITY),
-        ));
-        app
+/// One socket marker: a ring facing the eye plus a stub along its normal, so
+/// both WHERE it is and which way it faces read at a glance.
+///
+/// Sized from the EYE, not from the ship: see [`SOCKET_SCREEN_SIZE`]. `halo`
+/// draws a second ring around the first - shape, not only colour, for the one
+/// socket the ghost is about to take.
+pub fn draw_socket<G: GizmoConfigGroup>(
+    gizmos: &mut Gizmos<G>,
+    eye: Vec3,
+    position: Vec3,
+    normal: Vec3,
+    colour: Color,
+    halo: bool,
+) {
+    let (near, far) = SOCKET_RADIUS_RANGE;
+    let radius = (eye.distance(position) * SOCKET_SCREEN_SIZE).clamp(near, far);
+    // The ring faces the EYE, not the socket's plane: a ring lying on the plane
+    // goes edge-on the moment you look along the hull, which is a socket you
+    // cannot see. The stub carries the facing instead.
+    //
+    // It also floats a little way up the view ray, because a ring drawn ON the
+    // hull is half buried in it. Sliding towards the eye leaves it over the
+    // same pixel and clear of the surface.
+    let towards_eye = (eye - position).normalize_or(Vec3::Z);
+    let centre = position + towards_eye * radius * SOCKET_LIFT;
+    let facing = Isometry3d::new(centre, Quat::from_rotation_arc(Vec3::Z, towards_eye));
+    gizmos.circle(facing, radius, colour);
+    if halo {
+        gizmos.circle(facing, radius * SOCKET_HALO, colour);
     }
-
-    fn stage_of(app: &mut App) -> Vec3 {
-        app.world_mut()
-            .run_system_once(sync_gallery_stage)
-            .expect("the stage is placed");
-        app.world().resource::<GalleryStage>().0
-    }
-
-    /// The fixed 2 km this replaced assumed a bounded build area. An object
-    /// authored near y = 20 km drew straight through the tiles.
-    #[test]
-    fn the_stage_stands_clear_of_whatever_the_document_holds() {
-        let tall = 20_000.0;
-        let mut app = document_with_a_body_at(tall);
-        assert_eq!(
-            stage_of(&mut app),
-            Vec3::Y * (tall + STAGE_CLEARANCE.to_engine()),
-            "the stage clears the top of the document, not a fixed altitude"
-        );
-    }
-
-    /// The tiles are spawned on the stage and the parked camera is placed from
-    /// it, so a stage that moved mid-browse would drag one out from under the
-    /// other.
-    #[test]
-    fn the_stage_holds_still_while_the_gallery_is_open() {
-        let mut app = document_with_a_body_at(0.0);
-        let parked = stage_of(&mut app);
-
-        app.world_mut().resource_mut::<GalleryState>().open = true;
-        let body = app
-            .world_mut()
-            .query_filtered::<Entity, With<NodeId>>()
-            .iter(app.world())
-            .next()
-            .expect("the body is there");
-        app.world_mut()
-            .entity_mut(body)
-            .insert(Transform::from_xyz(0.0, 5_000.0, 0.0));
-
-        assert_eq!(
-            stage_of(&mut app),
-            parked,
-            "the stage the tiles stand on does not move mid-browse"
-        );
-    }
+    gizmos.line(
+        position,
+        position + normal * radius * SOCKET_NORMAL_LENGTH,
+        colour,
+    );
 }

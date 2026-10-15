@@ -335,6 +335,7 @@ pub(crate) fn apply_station_hull_buy_commands(
     mut messages: MessageReader<HullBuyCommand>,
     mut runtime: ResMut<StationRuntime>,
     mut ship: ResMut<ShipRuntime>,
+    mut held: ResMut<HeldPart>,
     mut commands: Commands,
     items: Option<Res<GameItems>>,
     site: StationSite,
@@ -406,7 +407,7 @@ pub(crate) fn apply_station_hull_buy_commands(
     ship.selected = None;
     ship.rebinding = None;
     ship.repair_target = None;
-    ship.held = None;
+    held.0 = None;
     ship.reselect = None;
     runtime.say(format!(
         "bought {name} for {}: {}",

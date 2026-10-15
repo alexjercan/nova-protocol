@@ -9,13 +9,12 @@
 
 use bevy::prelude::*;
 use nova_scenario::prelude::SectionSource;
-use nova_ship::prelude::GameSections;
+use nova_ship::prelude::{GalleryState, GameSections, HeldPart};
 use nova_ui::prelude::TextFieldFocused;
 
 use crate::{
-    config::{EditorStatus, HoveredNode, PlacementPreview, SectionChoice, SelectedNode},
+    config::{EditorStatus, HoveredNode, PlacementPreview, SelectedNode},
     frame::CameraFraming,
-    gallery::GalleryState,
     gizmo::GizmoRig,
     inspect::framed_step,
     node::{
@@ -208,7 +207,7 @@ pub struct EditorProbe {
 /// build that is no longer on screen.
 pub(crate) fn sync_editor_probe(
     editor: Res<State<ExampleStates>>,
-    choice: Res<SectionChoice>,
+    choice: Res<HeldPart>,
     preview: Res<PlacementPreview>,
     gallery: Res<GalleryState>,
     sections: Option<Res<GameSections>>,
@@ -347,14 +346,14 @@ fn edited_ship(context: &EditContext, nodes: &SectionNodes) -> Vec<EditorSection
 
 /// The snapshot for one frame of the live editor.
 fn snapshot(
-    choice: &SectionChoice,
+    choice: &HeldPart,
     preview: &PlacementPreview,
     gallery: &GalleryState,
     sections: Option<&GameSections>,
 ) -> EditorProbe {
     let tool = match choice {
-        SectionChoice::None => EditorTool::Select,
-        SectionChoice::Section(id) => EditorTool::Place(id.clone()),
+        HeldPart(None) => EditorTool::Select,
+        HeldPart(Some(id)) => EditorTool::Place(id.clone()),
     };
     EditorProbe {
         // A placement is always FOR the tool in hand. The solver only ever
@@ -384,7 +383,7 @@ fn snapshot(
         filter_focused: gallery.open && gallery.filter_focused,
         selected: gallery
             .open
-            .then(|| sections.and_then(|sections| gallery.selected_id(sections)))
+            .then(|| sections.and_then(|sections| gallery.selected_id(sections, None)))
             .flatten(),
         // Filled in by the caller, which has the document; this half of the
         // snapshot is a pure function of the tool and the gallery.
@@ -472,7 +471,7 @@ mod tests {
     fn world(state: ExampleStates) -> World {
         let mut world = World::new();
         world.insert_resource(State::new(state));
-        world.insert_resource(SectionChoice::None);
+        world.insert_resource(HeldPart(None));
         world.insert_resource(CameraFraming::on(Vec3::ZERO, RIG_EYE));
         world.init_resource::<PlacementPreview>();
         world.init_resource::<GalleryState>();
@@ -854,7 +853,7 @@ mod tests {
         );
 
         let target = world.spawn_empty().id();
-        world.insert_resource(SectionChoice::Section("hull".to_string()));
+        world.insert_resource(HeldPart(Some("hull".to_string())));
         world.insert_resource(solved("hull", target, None));
 
         assert_eq!(
@@ -923,15 +922,15 @@ mod tests {
         world.insert_resource(solved("hull_a", target, None));
 
         // Escape put the part down after the solve.
-        world.insert_resource(SectionChoice::None);
+        world.insert_resource(HeldPart(None));
         assert_eq!(sync(&mut world).placement, EditorPlacement::None);
 
         // A DIFFERENT part in hand: the solve belongs to the one just put down.
-        world.insert_resource(SectionChoice::Section("hull_b".to_string()));
+        world.insert_resource(HeldPart(Some("hull_b".to_string())));
         assert_eq!(sync(&mut world).placement, EditorPlacement::None);
 
         // Delivery guard: the same solve with its own part in hand publishes.
-        world.insert_resource(SectionChoice::Section("hull_a".to_string()));
+        world.insert_resource(HeldPart(Some("hull_a".to_string())));
         assert!(matches!(
             sync(&mut world).placement,
             EditorPlacement::Solved { .. }
@@ -945,8 +944,8 @@ mod tests {
     /// below turns on: it writes a FRESH solve for the armed part, and it is
     /// registered with the same gate and the same order against the gallery's
     /// keyboard.
-    fn stage_a_solve(choice: Res<SectionChoice>, mut preview: ResMut<PlacementPreview>) {
-        let SectionChoice::Section(id) = &*choice else {
+    fn stage_a_solve(choice: Res<HeldPart>, mut preview: ResMut<PlacementPreview>) {
+        let HeldPart(Some(id)) = &*choice else {
             return;
         };
         preview.placement = Some(Placement {
@@ -971,10 +970,10 @@ mod tests {
         app.init_resource::<ButtonInput<KeyCode>>();
         app.add_message::<bevy::input::keyboard::KeyboardInput>();
         app.insert_resource(catalog(&["hull"]));
-        app.insert_resource(SectionChoice::None);
+        app.insert_resource(HeldPart(None));
         app.init_resource::<PlacementPreview>();
         app.init_resource::<GalleryState>();
-        app.init_resource::<crate::gallery::GalleryLayout>();
+        app.init_resource::<nova_ship::prelude::GalleryLayout>();
         app.init_resource::<EditContext>();
         app.init_resource::<SelectedNode>();
         app.init_resource::<HoveredNode>();
@@ -987,13 +986,13 @@ mod tests {
             Update,
             (
                 crate::placement::clear_placement_preview,
-                stage_a_solve.run_if(not(crate::gallery::gallery_open)),
+                stage_a_solve.run_if(not(nova_ship::prelude::gallery_open)),
             )
                 .chain()
-                .before(crate::gallery::gallery_keyboard)
+                .before(nova_ship::gallery::gallery_keyboard)
                 .run_if(in_state(ExampleStates::Editor)),
         );
-        app.add_systems(Update, crate::gallery::gallery_keyboard);
+        app.add_systems(Update, nova_ship::gallery::gallery_keyboard);
         app.add_systems(PostUpdate, sync_editor_probe);
         app
     }
@@ -1027,7 +1026,7 @@ mod tests {
         // Delivery guard: with the gallery down and a part in hand, this rig
         // DOES publish a placement - so the assertion below is not vacuous.
         app.world_mut()
-            .insert_resource(SectionChoice::Section("hull".to_string()));
+            .insert_resource(HeldPart(Some("hull".to_string())));
         app.update();
         assert!(
             matches!(
@@ -1089,7 +1088,7 @@ mod tests {
     fn leaving_the_editor_clears_the_probe() {
         let mut world = world(ExampleStates::Scenario);
         let target = world.spawn_empty().id();
-        world.insert_resource(SectionChoice::Section("hull".to_string()));
+        world.insert_resource(HeldPart(Some("hull".to_string())));
         world.insert_resource(solved("hull", target, None));
         world.insert_resource(GalleryState {
             open: true,

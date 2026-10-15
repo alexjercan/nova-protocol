@@ -21,13 +21,15 @@
 //!
 //! What to try:
 //!
-//! 1. the Ship tab: rebuild and swap sections, place a catalogue part with
-//!    the ghost (R rolls it, F cycles its mating socket; a click buys the
-//!    parts the hold lacks at the station's ask), pick a part off the ship
-//!    with Q, drag the view with the right button to the docked station (dim
-//!    outlines, on the ship's -X side) and aim a Railgun Lance end-on (F) at
-//!    a plate facing it to see it refused, rebind a gun with B, and delete
-//!    a selected section with Delete (its parts go back in the hold);
+//! 1. the Ship tab: rebuild sections, open the Catalogue to swap the
+//!    selected section or place a part with the ghost (R rolls it, F cycles
+//!    its mating socket; a click buys the parts the hold lacks at the
+//!    station's ask), pick a part off the ship with Q, drag the view with the
+//!    right button to the docked station (dim outlines, on the ship's -X
+//!    side) and aim a Railgun Lance end-on (F) at a plate facing it to see it
+//!    refused, rebind a gun with B, and delete a selected section with Delete
+//!    (the button names what goes back in the hold, or is disabled with the
+//!    reason under it);
 //! 2. the Station tab: buy a hull, hire an escort, buy the station;
 //! 3. switch tabs after a change, and check the schematic, the plating and
 //!    the greebles follow it.
@@ -36,11 +38,8 @@
 //! nix develop --command cargo run --example station_docked_sandbox --features debug
 //! ```
 //!
-//! The diagnostics layer (`nova_debug::diagnostics`, F3, on at start) shows
-//! the key hints that apply now (Q over a section, R, F and the click while a
-//! part is in hand, B for a bindable selection, Del for a selection that can
-//! come off, Esc while a rebind waits),
-//! and in the Ship view draws the free sockets near the target (green rings,
+//! The Ship pane's footer names the keys that apply now. The diagnostics
+//! layer (`nova_debug::diagnostics`, F3, on at start) in the Ship view draws the free sockets near the target (green rings,
 //! a grey cross where the lane is closed), the target socket, the part in
 //! hand's bounds (green valid, red refused) with its roll as a cyan arrow,
 //! and the collision volume of the station and the ships at its docks
@@ -51,21 +50,25 @@
 //!
 //! It needs `--features debug`, which owns the diagnostics layer. Under
 //! `NOVA_AUTOPILOT=1` a smoke walk waits for
-//! the docked Ship tab, takes the kinetic PDC from the station catalogue,
+//! the docked Ship tab, opens the Catalogue on the kinetic PDC's category and
+//! places it in hand,
 //! points at free sockets until the ghost stands valid, rolls the part and
 //! steps its socket, steps the socket back and rolls until it fits, clicks the
 //! view, rebinds the new gun to `T` and checks the selection did not step,
-//! deletes the gun again with Delete and checks its parts came back, selects
-//! the port the dock holds by and sees its delete refused, picks a
-//! hull part off the ship with Q, takes the Railgun Lance, drags the
+//! checks the Delete button names the gun's yield, deletes the gun with
+//! Delete and checks the note names the parts that went to the hold, selects
+//! the port the dock holds by and checks its Delete is disabled with the
+//! reason under it and that the Delete key leaves it on, picks a
+//! hull part off the ship with Q, takes the Railgun Lance from the Catalogue, drags the
 //! view to the station and points the lance at the sockets nearest it, through every
 //! mating socket, until the station refuses it (or warns that none reaches),
 //! and switches tabs after it: a Map tab click, an Inventory tab click and the
 //! next-tab key, which steps on to the Station tab while docked. `NOVA_CAPTURE=1` shoots `sandbox-ship.png`,
-//! `sandbox-ghost.png`, `sandbox-mount.png`, `sandbox-placed.png`,
-//! `sandbox-rebind-armed.png`, `sandbox-rebind.png`, `sandbox-delete.png`,
+//! `sandbox-catalogue.png`, `sandbox-ghost.png`, `sandbox-mount.png`, `sandbox-placed.png`,
+//! `sandbox-rebind-armed.png`, `sandbox-rebind.png`, `sandbox-delete-yield.png`,
+//! `sandbox-delete.png`,
 //! `sandbox-delete-refused.png`,
-//! `sandbox-pick.png`,
+//! `sandbox-pick.png`, `sandbox-catalogue-lance.png`,
 //! `sandbox-station-refusal.png`,
 //! `sandbox-map-after.png` and `sandbox-station.png`.
 //! Unset, no walk and no deadline run.
@@ -601,7 +604,7 @@ mod ship_overlay {
             *world.resource_mut::<ShipOverlay>() = ShipOverlay::default();
             return;
         };
-        let held = runtime.held().map(str::to_string);
+        let held = world.resource::<HeldPart>().0.clone();
         let rebind_armed = runtime.rebind_armed();
         let docked = !runtime.station_colliders().is_empty();
         let mount = runtime.mount();
@@ -632,21 +635,16 @@ mod ship_overlay {
 
         let mut lines = Vec::new();
         let mut details = Vec::new();
-        let mut hints: Vec<(&str, &str)> = Vec::new();
         if rebind_armed {
             lines.push("rebind: waiting for a key".to_string());
-            hints.push(("Esc", "cancel rebind"));
         }
         if let Some(part) = &held {
             lines.push(format!(
                 "held: {part} roll {}/4 socket {}",
                 mount.roll, mount.source
             ));
-            hints.push(("R", "roll part"));
-            hints.push(("F", "cycle socket"));
         }
         if let Some(view) = hovered.filter(|_| docked && !rebind_armed) {
-            hints.push(("Q", "pick part"));
             details.push(format!("hovered: {}", view.code));
         }
         match &placement {
@@ -655,9 +653,6 @@ mod ship_overlay {
                     Ok(_) => "VALID".to_string(),
                     Err(line) => format!("REFUSED: {line}"),
                 });
-                if placement.verdict.is_ok() {
-                    hints.push(("LMB", "place"));
-                }
                 details.push(format!(
                     "target: {} socket {}",
                     placement.section, placement.point
@@ -692,16 +687,10 @@ mod ship_overlay {
             selected.and_then(|selected| views.iter().find(|view| view.entity == selected))
         {
             let binding = view.binding_text();
-            if binding.is_some() && held.is_none() && !rebind_armed {
-                hints.push(("B", "rebind"));
-            }
-            match delete {
-                Some(Ok(_)) if !rebind_armed => hints.push(("Del", "delete")),
-                _ => {}
-            }
             if let Some(verdict) = &delete {
                 details.push(match verdict {
-                    Ok(line) | Err(line) => line.clone(),
+                    Ok(salvage) => format!("delete: {salvage}"),
+                    Err(line) => line.clone(),
                 });
             }
             details.push(format!(
@@ -734,9 +723,6 @@ mod ship_overlay {
         }
         for line in details {
             panel.detail(line);
-        }
-        for (key, action) in hints {
-            panel.hint(key, action);
         }
         *world.resource_mut::<ShipOverlay>() = ShipOverlay {
             free_points: near,
@@ -845,12 +831,19 @@ mod smoke {
     const REBIND_SHOT: &str = "sandbox-rebind.png";
     /// The PNG of the armed rebind: the lit button and the prompt banner.
     const REBIND_ARMED_SHOT: &str = "sandbox-rebind-armed.png";
+    /// The PNG of the rebound gun's enabled Delete, its label naming the
+    /// parts it gives back.
+    const DELETE_YIELD_SHOT: &str = "sandbox-delete-yield.png";
     /// The PNG of the Ship tab once the rebound gun is deleted: the gun gone,
-    /// the note naming the parts it gave back.
+    /// the note naming the parts that went to the hold.
     const DELETE_SHOT: &str = "sandbox-delete.png";
-    /// The PNG of the docked port's delete refused, its reason on the note
-    /// line.
+    /// The PNG of the docked port's disabled Delete, its reason line under
+    /// it.
     const DELETE_REFUSED_SHOT: &str = "sandbox-delete-refused.png";
+    /// The PNG of the Catalogue open on the kinetic PDC's category.
+    const CATALOGUE_SHOT: &str = "sandbox-catalogue.png";
+    /// The PNG of the Catalogue open on the Railgun Lance's category.
+    const CATALOGUE_LANCE_SHOT: &str = "sandbox-catalogue-lance.png";
     /// The PNG of the hull part the pipette took off the ship.
     const PICK_SHOT: &str = "sandbox-pick.png";
     /// Mouse travel per frame while the walk drags the view, in pixels:
@@ -879,8 +872,6 @@ mod smoke {
     const STATION_SHOT: &str = "sandbox-station.png";
     /// Seconds a click or a key gets to land.
     const BEAT_SECS: f32 = 60.0;
-    /// The Ship pane's side panel, which scrolls under the wheel.
-    const SHIP_PANEL: &str = "ShipPanel";
     /// The Ship pane's 3D view.
     const SHIP_VIEWPORT: &str = "ShipViewport";
 
@@ -906,12 +897,11 @@ mod smoke {
         selected: Option<Entity>,
     }
 
-    /// The Place button the walk clicks, the player's section count before,
-    /// the ship-local points it aims the ghost through, and the one it is on
-    /// (`usize::MAX` before the first).
+    /// The player's section count before the add, the ship-local points the
+    /// walk aims the ghost through, and the one it is on (`usize::MAX` before
+    /// the first).
     #[derive(Resource, Clone, Debug)]
     struct SmokeAdd {
-        button: String,
         sections: usize,
         aims: Vec<Vec3>,
         aiming: usize,
@@ -930,81 +920,111 @@ mod smoke {
             .is_some_and(|binding| binding.0.contains(&InputSource::from(REBIND_KEY)))
     }
 
-    /// A catalogue part's Place button. Every refit catalogue the fixture's
-    /// hold stocks lists the kinetic PDC and the two-cell torpedo bay.
-    fn place_button(part: &str) -> String {
-        format!("ShipPlace-{part}")
+    /// The Ship panel's Catalogue button, which opens the parts gallery.
+    const CATALOGUE_BUTTON: &str = "ShipCatalogue";
+
+    /// The gallery tile of `part`, named by its display name.
+    fn part_tile(world: &World, part: &str) -> String {
+        let name = &world
+            .resource::<GameSections>()
+            .get_section(part)
+            .expect("the walk's parts are in the catalog")
+            .base
+            .name;
+        format!("Gallery Tile {name}")
     }
 
-    /// Scroll the catalogue to the Place button of `part` and click it, so
-    /// `part` is in hand.
+    /// The category chip `part` lives under: the station lists more parts
+    /// than the All page shows on a small window.
+    fn part_category(world: &World, part: &str) -> GalleryCategory {
+        GalleryCategory::of(
+            &world
+                .resource::<GameSections>()
+                .get_section(part)
+                .expect("the walk's parts are in the catalog")
+                .kind,
+        )
+    }
+
+    /// Open the Catalogue, narrow it to the category of `part`, shoot it as
+    /// `shot`, focus the tile of `part` and press Place, so `part` is in
+    /// hand. Records the section count and the free socket aims the first
+    /// time.
     fn take_the_part(
         script: AutopilotPlugin<GameStates>,
         part: &'static str,
+        shot: &'static str,
     ) -> AutopilotPlugin<GameStates> {
         script
-            .step(format!("station sandbox: find the Place button of {part}"))
-            .each(move |world, _, _| {
-                if ui_node_rect(world, &place_button(part)).is_none() {
+            .step(format!("station sandbox: note the ship before {part}"))
+            .on_enter(|world: &mut World| {
+                if world.get_resource::<SmokeAdd>().is_some() {
                     return;
                 }
                 let sections = player_sections(world);
                 let aims = free_socket_aims(world);
-                match world.get_resource_mut::<SmokeAdd>() {
-                    Some(mut add) => add.button = place_button(part),
-                    None => world.insert_resource(SmokeAdd {
-                        button: place_button(part),
-                        sections,
-                        aims,
-                        aiming: usize::MAX,
-                        steps: 0,
-                    }),
-                }
+                world.insert_resource(SmokeAdd {
+                    sections,
+                    aims,
+                    aiming: usize::MAX,
+                    steps: 0,
+                });
             })
-            .until(Arc::new(move |world: &World| {
-                smoke_button(world) == Some(place_button(part))
-            }))
-            .deadline(BEAT_SECS)
+            .until(frames(1))
             .add()
-            .step(format!(
-                "station sandbox: scroll the Place button of {part} into view"
-            ))
-            .each(|world, _, frame| {
-                keep_hovering_named(SHIP_PANEL)(world);
-                if frame % 2 == 1 && !button_in_view(world) {
-                    scroll_lines(-1.0)(world);
-                }
+            .click_named(
+                &format!("station sandbox: open the Catalogue for {part}"),
+                CATALOGUE_BUTTON,
+                ui_node_present("Gallery Grid"),
+                BEAT_SECS,
+            )
+            .step(format!("station sandbox: narrow the Catalogue to {part}"))
+            .on_enter(move |world: &mut World| {
+                let chip = format!("Gallery Category {}", part_category(world, part).label());
+                click_named(chip)(world);
             })
-            .until(Arc::new(button_in_view))
-            .deadline(BEAT_SECS)
-            .add()
-            .step(format!(
-                "station sandbox: aim at the Place button of {part}"
-            ))
-            .each(|world, _, _| {
-                if let Some(button) = smoke_button(world) {
-                    keep_hovering_named(button)(world);
-                }
-            })
-            .until(Arc::new(|world: &World| {
-                smoke_button(world).is_some_and(|button| pointer_over_node(button)(world))
-            }))
-            .deadline(BEAT_SECS)
-            .add()
-            .step(format!("station sandbox: press the Place button of {part}"))
-            .on_enter(press_mouse(MouseButton::Left))
             .until(pointer_pressed())
             .deadline(BEAT_SECS)
             .add()
-            .step(format!(
-                "station sandbox: release the Place button of {part}"
-            ))
+            .step(format!("station sandbox: let the {part} chip up"))
             .on_enter(release_mouse(MouseButton::Left))
             .until(Arc::new(move |world: &World| {
-                world.resource::<ShipRuntime>().held() == Some(part)
+                world.resource::<GalleryState>().category == part_category(world, part)
+                    && ui_node_present(part_tile(world, part))(world)
             }))
+            .diagnose(move |world| {
+                format!(
+                    "{:?}, tile {}",
+                    world.resource::<GalleryState>(),
+                    part_tile(world, part)
+                )
+            })
             .deadline(BEAT_SECS)
             .add()
+            .step(format!("station sandbox: settle the Catalogue for {part}"))
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step(format!("station sandbox: shoot the Catalogue for {part}"))
+            .on_enter(move |world: &mut World| shoot(world, shot))
+            .until(shot_written(shot))
+            .deadline(SHOT_SECS)
+            .add()
+            .step(format!("station sandbox: press the {part} tile"))
+            .on_enter(move |world: &mut World| click_named(part_tile(world, part))(world))
+            .until(pointer_pressed())
+            .deadline(BEAT_SECS)
+            .add()
+            .step(format!("station sandbox: let the {part} tile up"))
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(ui_node_present("Gallery Place Button"))
+            .deadline(BEAT_SECS)
+            .add()
+            .click_named(
+                &format!("station sandbox: place {part}"),
+                "Gallery Place Button",
+                Arc::new(move |world: &World| world.resource::<HeldPart>().id() == Some(part)),
+                BEAT_SECS,
+            )
     }
 
     /// A point beside each free socket of each live design section, in
@@ -1086,7 +1106,7 @@ mod smoke {
     /// Point at the centre of a hull section whose part is not in hand, and
     /// record the part in hand for the pipette.
     fn point_at_a_hull(world: &mut World) {
-        let before = world.resource::<ShipRuntime>().held().map(str::to_string);
+        let before = world.resource::<HeldPart>().0.clone();
         let Some(sections) = world
             .query_filtered::<&ShipDesignSections, With<PlayerSpaceshipMarker>>()
             .iter(world)
@@ -1121,8 +1141,8 @@ mod smoke {
             return false;
         };
         let held = world
-            .get_resource::<ShipRuntime>()
-            .and_then(|runtime| runtime.held().map(str::to_string));
+            .get_resource::<HeldPart>()
+            .and_then(|held| held.0.clone());
         let built = pick.section.and_then(|section| built_part(world, section));
         held.is_some() && held != pick.before && held == built
     }
@@ -1204,8 +1224,8 @@ mod smoke {
         );
         // Every socket of the part in hand gets a turn at each aim.
         let tries = world
-            .resource::<ShipRuntime>()
-            .held()
+            .resource::<HeldPart>()
+            .id()
             .and_then(|part| world.resource::<GameSections>().get_section(part))
             .map_or(0, |part| part.base.link_points.len());
         if add.aiming < add.aims.len() && (add.steps as usize) < tries {
@@ -1287,25 +1307,29 @@ mod smoke {
         })
     }
 
-    fn smoke_button(world: &World) -> Option<String> {
-        world
-            .get_resource::<SmokeAdd>()
-            .map(|add| add.button.clone())
+    /// The Delete button's label and whether it takes a click.
+    fn delete_button(world: &World) -> Option<(String, bool)> {
+        let mut buttons =
+            world.try_query::<(Entity, &Name, Has<bevy::ui::InteractionDisabled>)>()?;
+        let (button, enabled) = buttons
+            .iter(world)
+            .find(|(_, name, _)| name.as_str() == "ShipDelete")
+            .map(|(button, _, disabled)| (button, !disabled))?;
+        let mut labels = world.try_query::<(&ChildOf, &Text)>()?;
+        let label = labels
+            .iter(world)
+            .find(|(parent, _)| parent.parent() == button)
+            .map(|(_, text)| text.0.clone())?;
+        Some((label, enabled))
     }
 
-    fn button_in_view(world: &World) -> bool {
-        let Some(button) = smoke_button(world) else {
-            return false;
-        };
-        match (
-            ui_node_rect(world, &button),
-            ui_node_rect(world, SHIP_PANEL),
-        ) {
-            (Some(button), Some(panel)) => {
-                button.min.y >= panel.min.y && button.max.y <= panel.max.y
-            }
-            _ => false,
-        }
+    /// The reason line under the Delete button.
+    fn delete_reason(world: &World) -> Option<String> {
+        let mut labels = world.try_query::<(&Name, &Text)>()?;
+        labels
+            .iter(world)
+            .find(|(name, _)| name.as_str() == "ShipDeleteReason")
+            .map(|(_, text)| text.0.clone())
     }
 
     fn the_interface_shows(pane: InterfacePaneType) -> Arc<Predicate> {
@@ -1374,7 +1398,7 @@ mod smoke {
             .until(shot_written(SHIP_SHOT))
             .deadline(SHOT_SECS)
             .add();
-        let script = take_the_part(script, PDC_KINETIC_TURRET_SECTION_ID);
+        let script = take_the_part(script, PDC_KINETIC_TURRET_SECTION_ID, CATALOGUE_SHOT);
         let script = script
             .step("station sandbox: aim the ghost at a free socket")
             .each(aim_the_ghost)
@@ -1481,13 +1505,6 @@ mod smoke {
                 let facing = ship_view_facing(world);
                 let selected = world.resource::<ShipRuntime>().selected();
                 world.insert_resource(SmokeArmed { facing, selected });
-                // The lit Rebind button sits above the catalogue.
-                let mut panels = world.query::<(&Name, &mut bevy::ui::ScrollPosition)>();
-                for (name, mut scroll) in panels.iter_mut(world) {
-                    if name.as_str() == SHIP_PANEL {
-                        *scroll = bevy::ui::ScrollPosition::default();
-                    }
-                }
             })
             .until(frames(SETTLE_FRAMES))
             .add()
@@ -1528,17 +1545,6 @@ mod smoke {
             })
             .deadline(BEAT_SECS)
             .add()
-            .step("station sandbox: scroll the panel to the gun's Control row")
-            .on_enter(|world: &mut World| {
-                let mut panels = world.query::<(&Name, &mut bevy::ui::ScrollPosition)>();
-                for (name, mut scroll) in panels.iter_mut(world) {
-                    if name.as_str() == SHIP_PANEL {
-                        *scroll = bevy::ui::ScrollPosition::default();
-                    }
-                }
-            })
-            .until(frames(SETTLE_FRAMES))
-            .add()
             .step("station sandbox: shoot the rebound gun")
             .on_enter(|world: &mut World| shoot(world, REBIND_SHOT))
             .until(shot_written(REBIND_SHOT))
@@ -1561,6 +1567,32 @@ mod smoke {
             })
             .deadline(BEAT_SECS)
             .add()
+            .step("station sandbox: the Delete button names the yield")
+            .until(Arc::new(|world: &World| {
+                delete_button(world)
+                    .is_some_and(|(label, enabled)| enabled && label.starts_with("Delete: +"))
+                    && delete_reason(world).is_some_and(|reason| reason.is_empty())
+            }))
+            .diagnose(|world| {
+                format!(
+                    "button {:?}, reason {:?}",
+                    delete_button(world),
+                    delete_reason(world)
+                )
+            })
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: settle the enabled Delete")
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station sandbox: shoot the enabled Delete")
+            .on_enter(|world: &mut World| {
+                info!("station sandbox: delete button {:?}", delete_button(world));
+                shoot(world, DELETE_YIELD_SHOT);
+            })
+            .until(shot_written(DELETE_YIELD_SHOT))
+            .deadline(SHOT_SECS)
+            .add()
             .step("station sandbox: delete the rebound gun")
             .on_enter(|world: &mut World| {
                 let gun = world.resource::<ShipRuntime>().selected();
@@ -1572,7 +1604,12 @@ mod smoke {
                 world.get_resource::<SmokeDelete>().is_some_and(|delete| {
                     player_sections(world) < delete.sections
                         && delete.gun.is_some_and(|gun| world.get_entity(gun).is_err())
-                })
+                }) && world
+                    .get_resource::<ShipRuntime>()
+                    .and_then(ShipRuntime::note)
+                    .is_some_and(|note| {
+                        note.starts_with("deleted ") && note.ends_with(" to the hold")
+                    })
             }))
             .diagnose(|world| {
                 format!(
@@ -1623,22 +1660,67 @@ mod smoke {
             .on_enter(release_action("viewer_next"))
             .until(frames(SETTLE_FRAMES))
             .add()
-            .step("station sandbox: try to delete the docked port")
-            .on_enter(press_action("ship_delete"))
+            .step("station sandbox: the docked port's Delete is disabled")
             .until(Arc::new(|world: &World| {
-                world
-                    .get_resource::<ShipRuntime>()
-                    .and_then(ShipRuntime::note)
-                    .is_some_and(|note| note.starts_with("delete: the dock holds"))
+                delete_button(world).is_some_and(|(label, enabled)| !enabled && label == "Delete")
+                    && delete_reason(world)
+                        .is_some_and(|reason| reason.starts_with("delete: the dock holds"))
             }))
+            .diagnose(|world| {
+                format!(
+                    "button {:?}, reason {:?}",
+                    delete_button(world),
+                    delete_reason(world)
+                )
+            })
             .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: press Delete on the docked port")
+            .on_enter(|world: &mut World| {
+                let port = docked_port(world);
+                let sections = player_sections(world);
+                world.insert_resource(SmokeDelete {
+                    gun: port,
+                    sections,
+                });
+                press_action("ship_delete")(world);
+            })
+            .until(frames(SETTLE_FRAMES))
             .add()
             .step("station sandbox: let the refused delete key up")
             .on_enter(release_action("ship_delete"))
-            .until(frames(1))
+            .until(frames(SETTLE_FRAMES))
             .add()
-            .step("station sandbox: shoot the refused delete")
-            .on_enter(|world: &mut World| shoot(world, DELETE_REFUSED_SHOT))
+            .step("station sandbox: the Delete key left the docked port on")
+            .until(Arc::new(|world: &World| {
+                world.get_resource::<SmokeDelete>().is_some_and(|kept| {
+                    player_sections(world) == kept.sections
+                        && kept.gun.is_some_and(|port| world.get_entity(port).is_ok())
+                        && !world
+                            .resource::<ShipRuntime>()
+                            .note()
+                            .is_some_and(|note| note.starts_with("delete:"))
+                })
+            }))
+            .diagnose(|world| {
+                format!(
+                    "{:?}, sections {}, note {:?}",
+                    world.get_resource::<SmokeDelete>(),
+                    player_sections(world),
+                    world.resource::<ShipRuntime>().note()
+                )
+            })
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: shoot the disabled Delete")
+            .on_enter(|world: &mut World| {
+                info!(
+                    "station sandbox: delete button {:?}, reason {:?}",
+                    delete_button(world),
+                    delete_reason(world)
+                );
+                shoot(world, DELETE_REFUSED_SHOT);
+            })
             .until(shot_written(DELETE_REFUSED_SHOT))
             .deadline(SHOT_SECS)
             .add();
@@ -1675,8 +1757,8 @@ mod smoke {
                     "{:?}, held {:?}",
                     world.get_resource::<SmokePick>(),
                     world
-                        .get_resource::<ShipRuntime>()
-                        .and_then(|runtime| runtime.held().map(str::to_string))
+                        .get_resource::<HeldPart>()
+                        .and_then(|held| held.0.clone())
                 )
             })
             .deadline(BEAT_SECS)
@@ -1703,10 +1785,10 @@ mod smoke {
         // one- or two-cell part never reaches them. The station is on the
         // ship's -X side, away from the opening view, so the view turns
         // first, by the right-button drag the editor's camera looks with.
-        let script = take_the_part(script, RAILGUN_LANCE_SECTION_ID);
+        let script = take_the_part(script, RAILGUN_LANCE_SECTION_ID, CATALOGUE_LANCE_SHOT);
         script
-            // Off the panel first: a right click on its Put down button would
-            // drop the part the drag is for.
+            // Over the view first: the drag looks only while the pointer is
+            // on it.
             .step("station sandbox: point at the view to drag it")
             .each(|world, _, _| keep_hovering_named(SHIP_VIEWPORT)(world))
             .until(pointer_over_node(SHIP_VIEWPORT))

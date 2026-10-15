@@ -136,3 +136,52 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
   screen once it scrolls) to under the action buttons, so a refusal shows
   where the press was. The footer names the key `Remove`, as its keycap
   already reads `Delete`.
+- Catalogue mode (item 5). Home: options (a) a new crate; (b) `nova_hud`
+  (the editor does not depend on it); (c) `nova_ship`, the lowest crate both
+  `nova_editor` and `nova_interface` depend on that holds `GameSections`.
+  Chosen (c): `nova_ship::gallery`, plus a direct `nova_ui` dependency that
+  was already in its graph through `nova_gameplay`. The editor's
+  `gallery/` moves there (catalog, state, layout, overlay, tiles, focus
+  view, keyboard); `insert_preview_section`, `PreviewRole` and
+  `draw_socket` move with it. The editor keeps its host parts: the Tab
+  toggle, the camera park, the stage clearance and the chrome hide.
+- Seams. A `GalleryHost` component on a UI node: the camera that draws the
+  tiles, the stage they stand on, their render layers and the close hint.
+  The overlay lays itself out in that node, and a cell maps to the camera
+  viewport by its place in the node, so a window host and an image host
+  use one path. An optional `GalleryListing` on the host limits the parts
+  and gives each a note line and an optional second verb
+  (`GalleryAlternate`). The part in hand is one resource, `HeldPart`:
+  `SectionChoice` and `ShipRuntime::held` both go. The gallery claims
+  `InputMode::Browse` while open, so a host's Normal-only keys (the
+  interface close, Tab, the Ship keys) stay quiet. The turntable counts real
+  seconds, as the interface pauses virtual time.
+- Ship pane. A Catalogue button (refit dock only) opens the gallery over the
+  view and the panel, drawn by its own camera on render layer 24 into an
+  image the host node shows. The listing is the old catalogue rule; the note
+  is the price or the refusal; Swap is the second verb when the part fits
+  the selection. Place puts the part in hand and closes. The panel keeps
+  the name, the condition bar, the binding with Rebind, Delete and the note
+  line; Repair and Rebuild show only when they apply. Prev, Next, the
+  description, the integrity and ammunition rows and the list go.
+- Footer. One line: each key shows only while it applies (Pick on a hovered
+  section, Roll and Socket while holding, Repair, Rebind and Remove when
+  the panel would allow them), and the click verb reads place or select.
+  Mates and Reset leave the line (Reset has its button). The sandbox stops
+  writing its own key hints, which repeated the footer.
+- Shared gallery state. `GalleryState` and `HeldPart` are one resource for
+  every host, so the Ship pane closes only a gallery it hosts. It first
+  closed any open gallery each frame it was not docked, which shut the
+  editor's browse.
+- Delete state (item 7). Options: (a) keep the press and put the refusal on
+  the note; (b) one rule, `plan_ship_delete`, read each frame for the button
+  and again at the act. Chosen (b). The verdict no longer waits for a Refit
+  dock, so a dock with no refit also shows its reason. While it refuses, the
+  button carries `InteractionDisabled` (grey, no hover, no click), the
+  reason sits under it in Danger, and the Delete key writes nothing. A
+  refused command still re-checks and changes nothing, with no note. The
+  reason keeps its `delete:` prefix, as the swap and repair lines do.
+- Delete yield (item 8). The label is `Delete: +1 Frame spar, +3 Section
+  panel`, or `Delete: nothing to salvage`; items, not credits, from
+  `delete_yield_text`. The note after the act is `deleted PDC-1: ... to the
+  hold`, without "to the hold" when nothing was salvaged.

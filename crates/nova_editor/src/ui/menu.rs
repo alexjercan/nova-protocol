@@ -754,10 +754,10 @@ pub(crate) struct ArmedMenuItem;
 /// wheel do anything in, so the menu is also where that state is reported.
 pub(crate) fn sync_armed_menu(
     mut commands: Commands,
-    choice: Res<crate::config::SectionChoice>,
+    choice: Res<nova_ship::prelude::HeldPart>,
     items: Query<(Entity, Has<InteractionDisabled>), With<ArmedMenuItem>>,
 ) {
-    let armed = matches!(*choice, crate::config::SectionChoice::Section(_));
+    let armed = matches!(*choice, nova_ship::prelude::HeldPart(Some(_)));
     for (entity, marked) in &items {
         match (armed, marked) {
             (false, false) => {

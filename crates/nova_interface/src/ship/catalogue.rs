@@ -1,269 +1,326 @@
-//! The Ship pane's station catalogue: the parts a docked refit station can
-//! build, each with its price, a Place button and, for a part that can
-//! replace the selected section, a Swap button.
+//! The Ship pane's station catalogue: the parts gallery (`nova_ship::gallery`)
+//! over the pane while the ship is docked at a station that refits.
 //!
-//! A part is listed when it is not hidden from the editor palette and the
-//! player's hold and the station's stock together carry every part of its
-//! recipe ([`plan_recipe_payment`] finds no missing part). Credits do not
-//! filter: a part the ship cannot pay for shows the credit refusal.
+//! The panel's Catalogue button opens it. [`manage_ship_gallery`] then puts a
+//! [`GalleryHost`] node over the view and the panel, with its own camera on
+//! [`GALLERY_LAYER`] rendering the part tiles into an image the node shows
+//! 1:1, and takes both away when the gallery closes or the pane goes.
 //!
-//! Place puts the part in hand ([`ShipRuntime::held`]); the placement ghost
-//! (`super::ghost`) shows where a click adds it. Place on the held row puts it
-//! down. Swap raises a [`SectionSwapCommand`] for the selected section.
+//! [`update_ship_gallery_listing`] lists the parts the station can build: a
+//! part not hidden from the editor palette whose recipe the player's hold and
+//! the station's stock together carry ([`plan_recipe_payment`] finds no
+//! missing part). Credits do not filter: a part the ship cannot pay for shows
+//! the credit refusal as its note. A part that can replace the selected
+//! section offers Swap as the focus card's second verb, and the note names
+//! the swap price or why the swap is refused.
 //!
-//! Touch this module when changing what the catalogue lists or how a row
-//! reads.
+//! Place puts the part in hand ([`HeldPart`]); the placement ghost
+//! (`super::ghost`) shows where a click adds it. Swap raises a
+//! [`SectionSwapCommand`] for the selected section
+//! ([`apply_ship_gallery_alternates`]).
+//!
+//! Touch this module when changing what the catalogue lists or how the Ship
+//! pane hosts the gallery.
 
-use bevy::{prelude::*, ui_widgets::Activate};
+use bevy::{
+    camera::{visibility::RenderLayers, ImageRenderTarget, RenderTarget},
+    prelude::*,
+    ui::ComputedNode,
+};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
-use nova_ui::{theme::UiColor, widget::ButtonSpec};
+use nova_ui::theme::{ActiveUiTheme, UiColor};
 
 use super::{
     rebuild::{payment_refusal_text, rebuild_price_text, StationSite},
-    refit::{on_ship_swap_button, swap_refusal_text},
+    refit::{swap_refusal_text, SectionSwapCommand},
     scene::ShipRuntime,
     sections::design_section_code,
 };
-use crate::pane::{compact_button, play_menu_select, themed_label};
 
-/// The catalogue container, hidden while the refit gate does not hold.
+/// The render layer of the catalogue's part tiles. Above the interface's own
+/// layers (20 to 22) and the menu's (23), below the hull cards' (26 on).
+const GALLERY_LAYER: usize = 24;
+
+/// The catalogue camera's order: before the interface's render-to-texture
+/// pass (-20), and apart from the ship camera (-31) and the map's (-30).
+const GALLERY_CAMERA_ORDER: isize = -32;
+
+/// How far in front of the catalogue camera its tiles stand, in scene units.
+const GALLERY_STAGE_DISTANCE: f32 = 8.0;
+
+/// The key and rim lights' bearings and illuminance (lux) and the camera's
+/// ambient brightness: the editor's part turntable rig, which the hull cards
+/// use too, so a tile reads as the part does on the editor's stage.
+const GALLERY_KEY: (Vec3, f32) = (Vec3::new(-6.0, 8.0, 6.0), 9_000.0);
+const GALLERY_RIM: (Vec3, f32) = (Vec3::new(5.0, -2.0, -7.0), 2_500.0);
+const GALLERY_AMBIENT: f32 = 220.0;
+
+/// Marks the pane's split, the node the catalogue covers while it is open.
 #[derive(Component)]
-pub(crate) struct ShipCatalogue;
+pub(crate) struct ShipSplitMarker;
 
-/// The catalogue's header text: what it is, or which part is in hand.
+/// Marks the panel's Catalogue button, shown while the station builds parts.
 #[derive(Component)]
-pub(crate) struct ShipCatalogueHeader;
+pub(crate) struct ShipCatalogueButton;
 
-/// The rows inside [`ShipCatalogue`], and the row texts they were built
-/// from, so the rows respawn only when one changes.
-#[derive(Component, Default)]
-pub(crate) struct ShipCatalogueRows(Vec<CatalogueRow>);
-
-/// One listed part as the catalogue shows it, or the line saying nothing is
-/// listed when `prototype` is empty.
-#[derive(Clone, Debug, PartialEq)]
-struct CatalogueRow {
-    prototype: String,
-    name: String,
-    line: String,
-    held: bool,
-    /// The selected design section and the swap line, when the part can
-    /// replace it.
-    swap: Option<(String, String)>,
+/// The catalogue's own camera, which holds its lights, and the image it
+/// renders the tiles into. Worn by the host node, which takes the camera
+/// with it.
+#[derive(Component)]
+pub(crate) struct ShipGalleryHost {
+    camera: Entity,
+    image: Handle<Image>,
 }
 
-/// The line shown when the station builds nothing from the two holds.
-const EMPTY_LINE: &str = "This station stocks the parts for no section.";
-
-/// Build the catalogue under the lost list: a header and the rows
-/// [`update_ship_catalogue`] fills.
-pub(crate) fn spawn_ship_catalogue(panel: &mut ChildSpawnerCommands) {
-    panel
-        .spawn((
-            ShipCatalogue,
-            Node {
-                display: Display::None,
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(8.0),
-                flex_shrink: 0.0,
-                ..default()
-            },
-        ))
-        .with_children(|list| {
-            list.spawn(crate::pane::divider());
-            list.spawn((
-                ShipCatalogueHeader,
-                themed_label("Station catalogue", 13.0, UiColor::Accent),
-            ));
-            list.spawn((
-                ShipCatalogueRows::default(),
-                Node {
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(6.0),
-                    ..default()
-                },
-            ));
+/// The listing for the docked refit station: each listed part with its price
+/// or refusal, and Swap when it can replace the selected section. `None`
+/// while the ship is not docked at a living station that refits.
+fn station_listing(
+    runtime: &ShipRuntime,
+    items: &GameItems,
+    sections: &GameSections,
+    site: &StationSite,
+    q_holds: &Query<(&ShipInventory, &ShipCredits)>,
+) -> Option<GalleryListing> {
+    if !site.gate(StationServiceType::Refit) {
+        return None;
+    }
+    let resolved = site.resolve(StationServiceType::Refit)?;
+    let (own, own_cr) = q_holds
+        .get(resolved.player)
+        .expect("the player ship carries a ShipInventory and ShipCredits");
+    let partner = resolved
+        .partner
+        .and_then(|(partner, _)| q_holds.get(partner).ok())
+        .map(|(stock, credits)| (stock, credits.0));
+    let (stock, stock_cr) = partner?;
+    let selected = resolved.selected_section(runtime.selected);
+    let mut entries = Vec::new();
+    for offered in sections
+        .iter()
+        .filter(|offered| !offered.base.hide_in_editor)
+    {
+        let recipe = &offered.base.build;
+        if matches!(
+            plan_recipe_payment(items, recipe, stock, stock_cr, own, u32::MAX),
+            Err(RecipePaymentRefusalType::MissingParts { .. })
+        ) {
+            continue;
+        }
+        let name = &offered.base.name;
+        let mut note = match plan_recipe_payment(items, recipe, stock, stock_cr, own, own_cr.0) {
+            Ok(payment) => rebuild_price_text(&payment),
+            Err(refusal) => payment_refusal_text(items, name, &refusal),
+        };
+        let mut alternate = None;
+        if let Some(section) =
+            selected.filter(|section| section_swap_family(&section.config, offered).is_ok())
+        {
+            let code = design_section_code(resolved.design, &section.id)
+                .expect("a live design section has a code");
+            match resolved.plan_swap(items, section, offered, own, own_cr.0, partner) {
+                Ok(payment) => {
+                    note.push_str(&format!("\nSwap {code}: {}", rebuild_price_text(&payment)));
+                    alternate = Some(format!("Swap {code}"));
+                }
+                Err(refusal) => {
+                    note.push('\n');
+                    note.push_str(&swap_refusal_text(items, &code, name, &refusal));
+                }
+            }
+        }
+        entries.push(GalleryEntry {
+            id: offered.base.id.clone(),
+            note,
+            alternate,
         });
+    }
+    Some(GalleryListing(entries))
 }
 
-/// Show the catalogue while the refit gate holds, and respawn its rows when a
-/// listed part, a price, a refusal, the part in hand or the selection's swap
-/// offers change.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "one system reading the selection, the catalogue, both holds and the list"
-)]
-pub(crate) fn update_ship_catalogue(
-    mut commands: Commands,
-    runtime: Res<ShipRuntime>,
+/// Show the Catalogue button while the ship is docked at a living station
+/// that refits (cached as `ShipRuntime::refits` for the footer), and keep the open gallery's listing current: a price, a
+/// refusal, the stock or the selection's swap offers change it.
+pub(crate) fn update_ship_gallery_listing(
+    mut runtime: ResMut<ShipRuntime>,
     items: Option<Res<GameItems>>,
     sections: Option<Res<GameSections>>,
     site: StationSite,
     q_holds: Query<(&ShipInventory, &ShipCredits)>,
-    mut q_list: Query<&mut Node, With<ShipCatalogue>>,
-    mut q_header: Query<&mut Text, With<ShipCatalogueHeader>>,
-    mut q_rows: Query<(Entity, &mut ShipCatalogueRows)>,
+    mut q_button: Query<&mut Node, With<ShipCatalogueButton>>,
+    mut q_host: Query<&mut GalleryListing, With<ShipGalleryHost>>,
 ) {
-    let Ok(mut list) = q_list.single_mut() else {
-        return;
-    };
-    let Ok((rows_entity, mut shown)) = q_rows.single_mut() else {
-        return;
-    };
-    let resolved = if site.gate(StationServiceType::Refit) {
-        site.resolve(StationServiceType::Refit)
-    } else {
-        None
-    };
-    let mut header = "Station catalogue".to_string();
-    let mut rows = Vec::new();
-    let mut open = false;
-    if let (Some(resolved), Some(items), Some(sections)) = (resolved, items, sections) {
-        let (own, own_cr) = q_holds
-            .get(resolved.player)
-            .expect("the player ship carries a ShipInventory and ShipCredits");
-        let partner = resolved
-            .partner
-            .and_then(|(partner, _)| q_holds.get(partner).ok())
-            .map(|(stock, credits)| (stock, credits.0));
-        if let Some((stock, stock_cr)) = partner {
-            open = true;
-            let selected = resolved.selected_section(runtime.selected);
-            for offered in sections
-                .iter()
-                .filter(|offered| !offered.base.hide_in_editor)
-            {
-                let recipe = &offered.base.build;
-                let stocked = !matches!(
-                    plan_recipe_payment(&items, recipe, stock, stock_cr, own, u32::MAX),
-                    Err(RecipePaymentRefusalType::MissingParts { .. })
-                );
-                if !stocked {
-                    continue;
-                }
-                let name = offered.base.name.clone();
-                let line = match plan_recipe_payment(&items, recipe, stock, stock_cr, own, own_cr.0)
-                {
-                    Ok(payment) => rebuild_price_text(&payment),
-                    Err(refusal) => payment_refusal_text(&items, &name, &refusal),
-                };
-                let swap = selected
-                    .filter(|section| section_swap_family(&section.config, offered).is_ok())
-                    .map(|section| {
-                        let code = design_section_code(resolved.design, &section.id)
-                            .expect("a live design section has a code");
-                        let line = match resolved
-                            .plan_swap(&items, section, offered, own, own_cr.0, partner)
-                        {
-                            Ok(payment) => {
-                                format!("Swap {code}: {}", rebuild_price_text(&payment))
-                            }
-                            Err(refusal) => swap_refusal_text(&items, &code, &name, &refusal),
-                        };
-                        (section.id.clone(), line)
-                    });
-                let held = runtime.held.as_deref() == Some(offered.base.id.as_str());
-                if held {
-                    header = format!("Holding {name}: click the ship to place it");
-                }
-                rows.push(CatalogueRow {
-                    prototype: offered.base.id.clone(),
-                    name,
-                    line,
-                    held,
-                    swap,
-                });
-            }
-            if rows.is_empty() {
-                rows.push(CatalogueRow {
-                    prototype: String::new(),
-                    name: String::new(),
-                    line: EMPTY_LINE.to_string(),
-                    held: false,
-                    swap: None,
-                });
-            }
+    let refits = runtime.active && site.gate(StationServiceType::Refit);
+    if runtime.refits != refits {
+        runtime.refits = refits;
+    }
+    let display = if refits { Display::Flex } else { Display::None };
+    for mut node in &mut q_button {
+        if node.display != display {
+            node.display = display;
         }
     }
-    let display = if open { Display::Flex } else { Display::None };
-    if list.display != display {
-        list.display = display;
-    }
-    if let Ok(mut text) = q_header.single_mut() {
-        if text.0 != header {
-            text.0 = header;
-        }
-    }
-    if shown.0 == rows {
+    let Ok(mut shown) = q_host.single_mut() else {
         return;
+    };
+    let (Some(items), Some(sections)) = (items, sections) else {
+        return;
+    };
+    let Some(listing) = station_listing(&runtime, &items, &sections, &site, &q_holds) else {
+        return;
+    };
+    if *shown != listing {
+        *shown = listing;
     }
-    commands.entity(rows_entity).despawn_children();
-    commands.entity(rows_entity).with_children(|parent| {
-        for row in &rows {
-            parent
-                .spawn(Node {
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(4.0),
-                    ..default()
-                })
-                .with_children(|cell| {
-                    if row.prototype.is_empty() {
-                        cell.spawn(themed_label(&row.line, 12.0, UiColor::Body));
-                        return;
-                    }
-                    cell.spawn(themed_label(&row.name, 13.0, UiColor::Primary));
-                    cell.spawn(themed_label(&row.line, 12.0, UiColor::Body));
-                    if let Some((_, line)) = &row.swap {
-                        cell.spawn(themed_label(line, 12.0, UiColor::Body));
-                    }
-                    cell.spawn(Node {
-                        flex_direction: FlexDirection::Row,
-                        column_gap: Val::Px(6.0),
-                        ..default()
-                    })
-                    .with_children(|buttons| {
-                        let place = if row.held {
-                            ButtonSpec::new("Put down").fit()
-                        } else {
-                            ButtonSpec::new("Place").fit().primary()
-                        };
-                        buttons
-                            .spawn((
-                                Name::new(format!("ShipPlace-{}", row.prototype)),
-                                compact_button(place),
-                            ))
-                            .observe(on_ship_place_button(row.prototype.clone()));
-                        if let Some((section, _)) = &row.swap {
-                            buttons
-                                .spawn((
-                                    Name::new(format!("ShipSwap-{}", row.prototype)),
-                                    compact_button(ButtonSpec::new("Swap").fit().primary()),
-                                ))
-                                .observe(on_ship_swap_button(
-                                    section.clone(),
-                                    row.prototype.clone(),
-                                ));
-                        }
-                    });
-                });
-        }
-    });
-    shown.0 = rows;
 }
 
-/// Put catalogue part `prototype` in hand when its Place button is clicked,
-/// or put it down when it already is.
-fn on_ship_place_button(
-    prototype: String,
-) -> impl FnMut(On<Activate>, ResMut<ShipRuntime>, Option<Res<SoundBank<UiSfx>>>, Commands) {
-    move |_activate, mut runtime, bank, mut commands| {
-        runtime.held = if runtime.held.as_deref() == Some(prototype.as_str()) {
-            None
-        } else {
-            Some(prototype.clone())
+/// Put the gallery over the pane while it is open and the ship is docked at
+/// a station that refits, and take it away otherwise: the host node over the
+/// split, showing the image its camera renders the tiles into. A gallery this
+/// pane left open when the pane went away, or the dock ended, is closed.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one system owning the host node, its camera and its image"
+)]
+pub(crate) fn manage_ship_gallery(
+    mut commands: Commands,
+    runtime: Res<ShipRuntime>,
+    mut state: ResMut<GalleryState>,
+    theme: Res<ActiveUiTheme>,
+    site: StationSite,
+    images: Option<ResMut<Assets<Image>>>,
+    q_split: Query<Entity, With<ShipSplitMarker>>,
+    mut q_host: Query<(Entity, &ShipGalleryHost, &ComputedNode, &mut ImageNode)>,
+    mut q_camera: Query<&mut Projection>,
+) {
+    // The gallery state is shared with the editor's host, so only a gallery
+    // this pane hosts is closed here: the editor's browse is not the pane's.
+    let refits = runtime.active && site.gate(StationServiceType::Refit);
+    if !q_host.is_empty() && (!state.open || !refits) {
+        if state.open {
+            state.open = false;
+            state.focused = false;
+        }
+        for (host, owned, _, _) in &q_host {
+            commands.entity(owned.camera).despawn();
+            commands.entity(host).despawn();
+        }
+        return;
+    }
+    if !state.open || !refits {
+        return;
+    }
+    let Some(mut images) = images else {
+        return;
+    };
+    if let Ok((_, owned, computed, mut node)) = q_host.single_mut() {
+        // A node not laid out yet measures zero; the image keeps its size.
+        let desired = computed.size().round().as_uvec2();
+        if desired.cmpeq(UVec2::ZERO).any() {
+            return;
+        }
+        if node.image != owned.image {
+            node.image = owned.image.clone();
+        }
+        resize_render_target(
+            &mut images,
+            &owned.image,
+            desired,
+            q_camera.get_mut(owned.camera).ok(),
+        );
+        return;
+    }
+    let Ok(split) = q_split.single() else {
+        return;
+    };
+    let image = images.add(new_render_target_image(UVec2::splat(64)));
+    let layers = RenderLayers::layer(GALLERY_LAYER);
+    let eye = Transform::default();
+    let camera = commands
+        .spawn((
+            Name::new("ShipCatalogueCamera"),
+            Camera3d::default(),
+            Camera {
+                order: GALLERY_CAMERA_ORDER,
+                clear_color: ClearColorConfig::Custom(theme.color(UiColor::Surface)),
+                ..default()
+            },
+            RenderTarget::Image(ImageRenderTarget {
+                handle: image.clone(),
+                scale_factor: 1.0,
+            }),
+            AmbientLight {
+                brightness: GALLERY_AMBIENT,
+                ..default()
+            },
+            eye,
+            layers.clone(),
+        ))
+        .with_children(|camera| {
+            for (name, (bearing, illuminance)) in [
+                ("ShipCatalogueKeyLight", GALLERY_KEY),
+                ("ShipCatalogueRimLight", GALLERY_RIM),
+            ] {
+                camera.spawn((
+                    Name::new(name),
+                    DirectionalLight {
+                        illuminance,
+                        shadow_maps_enabled: false,
+                        ..default()
+                    },
+                    Transform::from_translation(bearing).looking_at(Vec3::ZERO, Vec3::Y),
+                    layers.clone(),
+                ));
+            }
+        })
+        .id();
+    commands.spawn((
+        Name::new("ShipCatalogueGallery"),
+        ShipGalleryHost {
+            camera,
+            image: image.clone(),
+        },
+        GalleryHost {
+            camera,
+            stage: eye.translation + eye.forward() * GALLERY_STAGE_DISTANCE,
+            layers,
+            close_keys: "Esc",
+        },
+        GalleryListing::default(),
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(0.0),
+            right: Val::Px(0.0),
+            top: Val::Px(0.0),
+            bottom: Val::Px(0.0),
+            ..default()
+        },
+        ImageNode::new(image),
+        // Above the view's badges and the panel, its siblings.
+        ZIndex(10),
+        ChildOf(split),
+    ));
+}
+
+/// Raise a [`SectionSwapCommand`] for the selected section when the
+/// gallery's Swap verb is pressed for a part.
+pub(crate) fn apply_ship_gallery_alternates(
+    mut alternates: MessageReader<GalleryAlternate>,
+    runtime: Res<ShipRuntime>,
+    site: StationSite,
+    mut swaps: MessageWriter<SectionSwapCommand>,
+) {
+    for alternate in alternates.read() {
+        let Some(section) = site
+            .resolve(StationServiceType::Refit)
+            .and_then(|resolved| resolved.selected_section(runtime.selected).cloned())
+        else {
+            continue;
         };
-        runtime.mount = MountPose::default();
-        play_menu_select(&mut commands, bank.as_deref());
+        swaps.write(SectionSwapCommand {
+            section: section.id,
+            prototype: alternate.id.clone(),
+        });
     }
 }

@@ -27,7 +27,7 @@ use nova_scenario::prelude::{LightConfig, ScenarioObjectKind};
 
 use crate::{
     config::{EditorGizmos, EditorOverlays, HoveredNode, SelectedNode},
-    gallery::EditorCamera,
+    config::EditorCamera,
     gizmo::GizmoAxis,
     node::{objects_of, EditContext, ObjectNodes},
     palette,

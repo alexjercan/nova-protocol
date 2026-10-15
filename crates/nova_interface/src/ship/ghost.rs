@@ -148,6 +148,7 @@ pub(crate) fn on_ship_viewport_leave(_leave: On<Pointer<Leave>>, mut runtime: Re
 pub(crate) fn on_ship_viewport_click(
     click: On<Pointer<Click>>,
     preview: Res<ShipPlacementPreview>,
+    held: Res<HeldPart>,
     mut runtime: ResMut<ShipRuntime>,
     mut adds: MessageWriter<SectionAddCommand>,
     bank: Option<Res<SoundBank<UiSfx>>>,
@@ -156,7 +157,7 @@ pub(crate) fn on_ship_viewport_click(
     if click.button != PointerButton::Primary {
         return;
     }
-    if runtime.held.is_some() {
+    if held.0.is_some() {
         commit_placement(
             &preview,
             &mut runtime,
@@ -328,6 +329,7 @@ pub fn socket_lane_open(
 )]
 pub(crate) fn update_ship_placement(
     runtime: Res<ShipRuntime>,
+    held: Res<HeldPart>,
     items: Option<Res<GameItems>>,
     sections: Option<Res<GameSections>>,
     site: StationSite,
@@ -366,7 +368,7 @@ pub(crate) fn update_ship_placement(
             None
         };
         if let (Some(prototype), Some(resolved), Some(items), Some(sections)) =
-            (runtime.held.as_ref(), resolved, items, sections)
+            (held.0.as_ref(), resolved, items, sections)
         {
             let offered = sections.get_section(prototype).unwrap_or_else(|| {
                 panic!("place: the section catalogue has no part '{prototype}'")
@@ -465,6 +467,15 @@ pub(crate) fn update_ship_placement(
     }
 }
 
+/// Turn a new part in hand to its default [`MountPose`]: the part as drawn,
+/// on its first socket. The gallery's Place, the pick key and a close all
+/// change the part in hand.
+pub(crate) fn reset_mount_for_new_part(held: Res<HeldPart>, mut runtime: ResMut<ShipRuntime>) {
+    if held.is_changed() && runtime.mount != MountPose::default() {
+        runtime.mount = MountPose::default();
+    }
+}
+
 /// Put the part the section under the pointer was built from in hand on
 /// `ship_pick` (Q), as the editor's pipette does, at the default
 /// [`MountPose`]. Only at a Refit station, where a part in hand can be
@@ -482,6 +493,7 @@ pub(crate) fn pick_ship_part(
     preview: Res<ShipPlacementPreview>,
     site: StationSite,
     mut runtime: ResMut<ShipRuntime>,
+    mut held: ResMut<HeldPart>,
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
 ) {
@@ -517,9 +529,8 @@ pub(crate) fn pick_ship_part(
         runtime.note = Some((format!("Pick: {} is not in the catalogue", part.name), 2.5));
         return;
     }
-    if runtime.held.as_deref() != Some(part.id.as_str()) {
-        runtime.held = Some(part.id.clone());
-        runtime.mount = MountPose::default();
+    if held.id() != Some(part.id.as_str()) {
+        held.0 = Some(part.id.clone());
         play_menu_select(&mut commands, bank.as_deref());
     }
 }
@@ -533,6 +544,7 @@ const TARGET_FACE_DEPTH: f32 = 0.04;
 /// socket's normal. Every other block keeps its translucent fill.
 pub(crate) fn sync_ship_target_face(
     runtime: Res<ShipRuntime>,
+    held: Res<HeldPart>,
     preview: Res<ShipPlacementPreview>,
     mut q_block: Query<
         (
@@ -547,7 +559,7 @@ pub(crate) fn sync_ship_target_face(
     if !runtime.active {
         return;
     }
-    let target = runtime.held.as_ref().and(preview.hovered);
+    let target = held.0.as_ref().and(preview.hovered);
     let mut plate = None;
     for (block, pose, mut material) in &mut q_block {
         let aimed = target == Some(block.section);
@@ -832,7 +844,6 @@ mod tests {
             half_extents: half,
             link_points: Vec::new(),
             health: None,
-            ammo: None,
             bindings: None,
             inactive: false,
             zero_health: false,

@@ -20,7 +20,7 @@ use nova_ui::{prelude::DoubleClick, theme::UiColor};
 use crate::{
     config::{
         EditorGizmos, EditorOverlays, EditorSays, EditorStatus, Placement, PlacementPose,
-        PlacementPreview, SectionChoice, SectionGhost, SectionPreviewMarker, SelectedNode,
+        PlacementPreview, SectionGhost, SectionPreviewMarker, SelectedNode,
     },
     cues::EditorCues,
     event::{ActionNode, EventNode, FilterNode, GateNode, StepNode},
@@ -32,7 +32,6 @@ use crate::{
         SectionNodes, ShipDriver, ShipNode,
     },
     palette,
-    preview::{insert_preview_section, PreviewRole},
     scenario::lower_fleet,
     snap::{self, PlacedSection},
     station::{short_fault, StationCatalogs},
@@ -45,24 +44,6 @@ const PLACEMENT_ROLL_KEY: KeyCode = KeyCode::KeyR;
 const PLACEMENT_SOCKET_KEY: KeyCode = KeyCode::KeyF;
 /// Arms whatever section is under the pointer, Factorio-pipette style.
 const PLACEMENT_PICK_KEY: KeyCode = KeyCode::KeyQ;
-
-/// A socket ring's radius as a fraction of its distance from the eye.
-///
-/// An ANGLE rather than a length: a world-space ring shrank to nothing the
-/// moment the camera pulled back far enough to see the whole ship, which is
-/// exactly when a builder is looking for somewhere to put a part.
-const SOCKET_SCREEN_SIZE: f32 = 0.018;
-/// The smallest and largest a ring is allowed to get in world units, so a
-/// socket under the nose does not swallow the ship and one across the range is
-/// still a mark rather than a pixel.
-const SOCKET_RADIUS_RANGE: (f32, f32) = (0.05, 0.5);
-/// The stub that shows which way a socket faces, as a multiple of the ring.
-const SOCKET_NORMAL_LENGTH: f32 = 4.0;
-/// How much wider the halo around the aimed socket is drawn.
-const SOCKET_HALO: f32 = 1.8;
-/// How far up the view ray a ring floats, as a multiple of its radius, to clear
-/// the hull it sits on.
-const SOCKET_LIFT: f32 = 2.0;
 
 /// Keys the editor's own WASD camera drives (`wasd_controller`). Binding one to
 /// a section makes that section fire on every camera move once the ship flies,
@@ -306,7 +287,7 @@ pub(crate) fn create_scenario_object(
     activate: On<Activate>,
     mut commands: Commands,
     choices: Query<&ObjectChoice>,
-    camera: Query<&GlobalTransform, With<crate::gallery::EditorCamera>>,
+    camera: Query<&GlobalTransform, With<crate::config::EditorCamera>>,
     mut ordinals: Query<&mut NextChildOrdinal>,
     context: Res<EditContext>,
     framing: Res<CameraFraming>,
@@ -452,7 +433,7 @@ fn delete_selection(
 /// in hand, which is also when [`crate::ui::menu::sync_armed_menu`] greys it.
 pub(crate) fn roll_armed_part(
     _activate: On<Activate>,
-    selection: Res<SectionChoice>,
+    selection: Res<HeldPart>,
     sections: Res<GameSections>,
     mut pose: ResMut<PlacementPose>,
 ) {
@@ -465,7 +446,7 @@ pub(crate) fn roll_armed_part(
 /// Ship > Cycle the Socket: one step of what the F key and Ctrl+wheel take.
 pub(crate) fn cycle_armed_socket(
     _activate: On<Activate>,
-    selection: Res<SectionChoice>,
+    selection: Res<HeldPart>,
     sections: Res<GameSections>,
     mut pose: ResMut<PlacementPose>,
 ) {
@@ -478,8 +459,8 @@ pub(crate) fn cycle_armed_socket(
 }
 
 /// Ship > Put the Part Down: the same rung Escape takes with a part in hand.
-pub(crate) fn put_armed_part_down(_activate: On<Activate>, mut choice: ResMut<SectionChoice>) {
-    *choice = SectionChoice::None;
+pub(crate) fn put_armed_part_down(_activate: On<Activate>, mut choice: ResMut<HeldPart>) {
+    *choice = HeldPart(None);
 }
 
 /// FOUND an empty ship: with a part armed and nothing under the pointer, a
@@ -496,7 +477,7 @@ pub(crate) fn found_empty_ship(
     gamepads: Query<&Gamepad>,
     q_pointer: Query<&PointerInteraction>,
     q_windows: Query<(), With<bevy::window::Window>>,
-    selection: Res<SectionChoice>,
+    selection: Res<HeldPart>,
     sections: Res<GameSections>,
     context: Res<EditContext>,
     nodes: SectionNodes,
@@ -506,7 +487,7 @@ pub(crate) fn found_empty_ship(
     if !mouse.just_pressed(MouseButton::Left) {
         return;
     }
-    let SectionChoice::Section(id) = &*selection else {
+    let HeldPart(Some(id)) = &*selection else {
         return;
     };
     let Some(ship) = context.ship() else {
@@ -588,8 +569,8 @@ pub(crate) fn continue_to_simulation(
 
 /// The number of sockets the armed part carries, or `None` when nothing is
 /// armed.
-fn armed_socket_count(selection: &SectionChoice, sections: &GameSections) -> Option<usize> {
-    let SectionChoice::Section(id) = selection else {
+fn armed_socket_count(selection: &HeldPart, sections: &GameSections) -> Option<usize> {
+    let HeldPart(Some(id)) = selection else {
         return None;
     };
     Some(sections.get_section(id)?.base.link_points.len())
@@ -609,7 +590,7 @@ fn armed_socket_count(selection: &SectionChoice, sections: &GameSections) -> Opt
 /// forward.
 pub(crate) fn cycle_placement_pose(
     keys: Res<ButtonInput<KeyCode>>,
-    selection: Res<SectionChoice>,
+    selection: Res<HeldPart>,
     sections: Res<GameSections>,
     mut pose: ResMut<PlacementPose>,
 ) {
@@ -634,7 +615,7 @@ pub(crate) fn cycle_placement_pose(
 pub(crate) fn wheel_placement_pose(
     mut wheel: MessageReader<MouseWheel>,
     keys: Res<ButtonInput<KeyCode>>,
-    selection: Res<SectionChoice>,
+    selection: Res<HeldPart>,
     sections: Res<GameSections>,
     mut pose: ResMut<PlacementPose>,
 ) {
@@ -673,7 +654,7 @@ pub(crate) fn pick_section_under_pointer(
     q_pointer: Query<&PointerInteraction>,
     q_views: Query<&ChildOf, With<NodeView>>,
     q_nodes: Query<&SectionNode>,
-    mut selection: ResMut<SectionChoice>,
+    mut selection: ResMut<HeldPart>,
 ) {
     if !keys.just_pressed(PLACEMENT_PICK_KEY) {
         return;
@@ -686,7 +667,7 @@ pub(crate) fn pick_section_under_pointer(
     else {
         return;
     };
-    let picked = SectionChoice::Section(section.prototype().to_string());
+    let picked = HeldPart(Some(section.prototype().to_string()));
     if *selection != picked {
         *selection = picked;
     }
@@ -722,7 +703,7 @@ pub(crate) fn update_placement_preview(
     // inside is not something a click can build on.
     context: Res<EditContext>,
     nodes: SectionNodes,
-    selection: Res<SectionChoice>,
+    selection: Res<HeldPart>,
     pose: Res<PlacementPose>,
     sections: Res<GameSections>,
     q_ships: Query<&GlobalTransform, With<ShipNode>>,
@@ -730,7 +711,7 @@ pub(crate) fn update_placement_preview(
 ) {
     preview.placement = None;
 
-    let SectionChoice::Section(id) = &*selection else {
+    let HeldPart(Some(id)) = &*selection else {
         return;
     };
     let (Some(edited), Some(part)) = (context.ship(), sections.get_section(id)) else {
@@ -806,7 +787,7 @@ pub(crate) fn sync_placement_ghost(
     preview: Res<PlacementPreview>,
     sections: Res<GameSections>,
     context: Res<EditContext>,
-    selection: Res<SectionChoice>,
+    selection: Res<HeldPart>,
     // `&ChildOf` only: the ghost query below writes `Transform`, so reading the
     // section nodes through `SectionNodes` here would be a B0001 conflict.
     q_owners: Query<&ChildOf, With<SectionNode>>,
@@ -848,7 +829,7 @@ pub(crate) fn sync_placement_ghost(
         // A part in hand over an EMPTY ship has no view to solve against, so
         // the status line carries the founding rule instead of going dark -
         // without it, a blank Add Ship reads as an editor that stopped placing.
-        let founding = matches!(*selection, SectionChoice::Section(_))
+        let founding = matches!(*selection, HeldPart(Some(_)))
             && edited.is_some_and(|ship| !q_owners.iter().any(|owner| owner.parent() == ship));
         status.report(founding.then(|| {
             (
@@ -938,7 +919,7 @@ pub(crate) fn on_click_spaceship_section(
     mut commands: Commands,
     mut cues: EditorCues,
     context: Res<EditContext>,
-    selection: Res<SectionChoice>,
+    selection: Res<HeldPart>,
     held: HeldBind,
     sections: Res<GameSections>,
     preview: Res<PlacementPreview>,
@@ -1001,13 +982,13 @@ pub(crate) fn on_click_spaceship_section(
     }
 
     match *selection {
-        SectionChoice::None => {
+        HeldPart(None) => {
             // No tool in hand = select mode: the clicked section takes the
             // mark, exactly as its tree row would. Rebinding is the top bar's
             // Rebind action on this selection.
             selected.0 = Some(node);
         }
-        SectionChoice::Section(_) => {
+        HeldPart(Some(_)) => {
             let Some(placement) = preview.placement.as_ref() else {
                 return;
             };
@@ -1080,11 +1061,11 @@ pub(crate) fn on_click_spaceship_section(
 /// screen.
 pub(crate) fn disarm_outside_ship(
     context: Res<EditContext>,
-    mut choice: ResMut<SectionChoice>,
+    mut choice: ResMut<HeldPart>,
     mut says: EditorSays,
 ) {
-    if context.ship().is_none() && *choice != SectionChoice::None {
-        *choice = SectionChoice::None;
+    if context.ship().is_none() && *choice != HeldPart(None) {
+        *choice = HeldPart(None);
         says.note("the part went back on the rack - parts belong to a ship");
     }
 }
@@ -1151,8 +1132,8 @@ fn staged_node_of_view(
 pub(crate) fn on_stage_drag_start(
     drag: On<Pointer<DragStart>>,
     context: Res<EditContext>,
-    selection: Res<SectionChoice>,
-    camera: Option<Single<(&Camera, &GlobalTransform), With<crate::gallery::EditorCamera>>>,
+    selection: Res<HeldPart>,
+    camera: Option<Single<(&Camera, &GlobalTransform), With<crate::config::EditorCamera>>>,
     q_views: Query<&ChildOf, With<NodeView>>,
     q_sections: Query<&ChildOf, With<SectionNode>>,
     q_staged: Query<&Transform, Or<(With<ShipNode>, With<ObjectNode>)>>,
@@ -1160,7 +1141,7 @@ pub(crate) fn on_stage_drag_start(
     mut state: ResMut<StageDrag>,
     mut says: EditorSays,
 ) {
-    if drag.button != PointerButton::Primary || *selection != SectionChoice::None {
+    if drag.button != PointerButton::Primary || *selection != HeldPart(None) {
         return;
     }
     let Some(node) = staged_node_of_view(drag.entity, &q_views, &q_sections) else {
@@ -1197,7 +1178,7 @@ pub(crate) fn on_stage_drag_start(
 /// position on the stage is a layout choice, the Y axis is not.
 pub(crate) fn on_stage_drag(
     drag: On<Pointer<Drag>>,
-    camera: Option<Single<(&Camera, &GlobalTransform), With<crate::gallery::EditorCamera>>>,
+    camera: Option<Single<(&Camera, &GlobalTransform), With<crate::config::EditorCamera>>>,
     state: Res<StageDrag>,
     mut q_staged: Query<&mut Transform, Or<(With<ShipNode>, With<ObjectNode>)>>,
 ) {
@@ -1251,19 +1232,19 @@ pub(crate) fn on_stage_drag_end(drag: On<Pointer<DragEnd>>, mut state: ResMut<St
 pub(crate) fn draw_link_points(
     preview: Res<PlacementPreview>,
     overlays: Res<EditorOverlays>,
-    selection: Res<SectionChoice>,
+    selection: Res<HeldPart>,
     sections: Res<GameSections>,
     context: Res<EditContext>,
     nodes: SectionNodes,
     q_ships: Query<&GlobalTransform, With<ShipNode>>,
     // The eye, because a socket is sized by how far away it is.
-    cameras: Query<&GlobalTransform, With<crate::gallery::EditorCamera>>,
+    cameras: Query<&GlobalTransform, With<crate::config::EditorCamera>>,
     mut gizmos: Gizmos<EditorGizmos>,
 ) {
     if !overlays.link_points {
         return;
     }
-    let (SectionChoice::Section(armed), Some(edited)) = (&*selection, context.ship()) else {
+    let (HeldPart(Some(armed)), Some(edited)) = (&*selection, context.ship()) else {
         return;
     };
     // Sockets are solved in ship-local space and drawn in world space.
@@ -1372,43 +1353,6 @@ pub(crate) fn draw_link_points(
             Some(_) => palette::NO,
         },
         true,
-    );
-}
-
-/// One socket marker: a ring facing the eye plus a stub along its normal, so
-/// both WHERE it is and which way it faces read at a glance.
-///
-/// Sized from the EYE, not from the ship: see [`SOCKET_SCREEN_SIZE`]. `halo`
-/// draws a second ring around the first - shape, not only colour, for the one
-/// socket the ghost is about to take.
-pub(crate) fn draw_socket(
-    gizmos: &mut Gizmos<EditorGizmos>,
-    eye: Vec3,
-    position: Vec3,
-    normal: Vec3,
-    colour: Color,
-    halo: bool,
-) {
-    let (near, far) = SOCKET_RADIUS_RANGE;
-    let radius = (eye.distance(position) * SOCKET_SCREEN_SIZE).clamp(near, far);
-    // The ring faces the EYE, not the socket's plane: a ring lying on the plane
-    // goes edge-on the moment you look along the hull, which is a socket you
-    // cannot see. The stub carries the facing instead.
-    //
-    // It also floats a little way up the view ray, because a ring drawn ON the
-    // hull is half buried in it. Sliding towards the eye leaves it over the
-    // same pixel and clear of the surface.
-    let towards_eye = (eye - position).normalize_or(Vec3::Z);
-    let centre = position + towards_eye * radius * SOCKET_LIFT;
-    let facing = Isometry3d::new(centre, Quat::from_rotation_arc(Vec3::Z, towards_eye));
-    gizmos.circle(facing, radius, colour);
-    if halo {
-        gizmos.circle(facing, radius * SOCKET_HALO, colour);
-    }
-    gizmos.line(
-        position,
-        position + normal * radius * SOCKET_NORMAL_LENGTH,
-        colour,
     );
 }
 
@@ -1639,8 +1583,8 @@ mod tests {
             path: vec![Entity::PLACEHOLDER, ship],
         });
         world.insert_resource(match armed {
-            Some(id) => SectionChoice::Section(id.to_string()),
-            None => SectionChoice::None,
+            Some(id) => HeldPart(Some(id.to_string())),
+            None => HeldPart(None),
         });
         let mut mouse = ButtonInput::<MouseButton>::default();
         mouse.press(MouseButton::Left);
@@ -1688,7 +1632,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<EditorStatus>();
         world.init_resource::<Time>();
-        world.insert_resource(SectionChoice::Section("hull".to_string()));
+        world.insert_resource(HeldPart(Some("hull".to_string())));
         let ship = world.spawn_empty().id();
         world.insert_resource(EditContext {
             path: vec![Entity::PLACEHOLDER, ship],
@@ -1696,14 +1640,14 @@ mod tests {
 
         world.run_system_once(disarm_outside_ship).unwrap();
         assert_eq!(
-            *world.resource::<SectionChoice>(),
-            SectionChoice::Section("hull".to_string()),
+            *world.resource::<HeldPart>(),
+            HeldPart(Some("hull".to_string())),
             "inside a ship the tool stays in hand"
         );
 
         world.resource_mut::<EditContext>().exit();
         world.run_system_once(disarm_outside_ship).unwrap();
-        assert_eq!(*world.resource::<SectionChoice>(), SectionChoice::None);
+        assert_eq!(*world.resource::<HeldPart>(), HeldPart(None));
         assert!(
             world
                 .resource::<EditorStatus>()
@@ -1870,7 +1814,7 @@ mod tests {
 
         let eye = Vec3::new(0.0, 0.0, 400.0);
         app.world_mut().spawn((
-            crate::gallery::EditorCamera,
+            crate::config::EditorCamera,
             GlobalTransform::from(Transform::from_translation(eye).looking_at(Vec3::ZERO, Vec3::Y)),
         ));
 
@@ -1927,7 +1871,7 @@ mod tests {
         app.init_resource::<DoubleClick<Entity>>();
         app.init_resource::<FrameRequest>();
         app.init_resource::<EditorRebind>();
-        app.init_resource::<SectionChoice>();
+        app.init_resource::<HeldPart>();
         app.init_resource::<PlacementPreview>();
         app.insert_resource(Time::<Real>::default());
         app.add_observer(on_click_spaceship_section);
@@ -2014,7 +1958,7 @@ mod tests {
 
         let mut app = document_only(vec![]);
         app.init_resource::<SelectedNode>();
-        app.init_resource::<SectionChoice>();
+        app.init_resource::<HeldPart>();
         app.init_resource::<StageDrag>();
         app.add_observer(on_stage_drag_start);
         let scenario = app
@@ -2290,7 +2234,7 @@ mod tests {
         app.init_resource::<DoubleClick<Entity>>();
         app.init_resource::<FrameRequest>();
         app.init_resource::<EditorRebind>();
-        app.insert_resource(SectionChoice::Section("miner".to_string()));
+        app.insert_resource(HeldPart(Some("miner".to_string())));
         app.insert_resource(Time::<Real>::default());
         app.add_observer(on_click_spaceship_section);
 

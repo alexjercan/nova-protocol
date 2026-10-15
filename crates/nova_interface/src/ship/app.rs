@@ -16,6 +16,7 @@ use bevy::{
     ui_widgets::{Slider, SliderPrecision, SliderRange, SliderStep, SliderValue, TrackClick},
 };
 use nova_gameplay::prelude::*;
+use nova_ship::prelude::GalleryAction;
 use nova_ui::{
     screen::drive_wheel_scroll,
     theme::UiColor,
@@ -23,7 +24,7 @@ use nova_ui::{
 };
 
 use super::{
-    catalogue::spawn_ship_catalogue, delete::on_ship_delete_button,
+    catalogue::ShipCatalogueButton, delete::on_ship_delete_button,
     rebuild::spawn_ship_rebuild_list, scene::*, sections::*,
 };
 use crate::{
@@ -54,18 +55,19 @@ pub(crate) fn scroll_ship_panel(
     drive_wheel_scroll(wheel, q_panel);
 }
 
-/// Build the section panel: the selected section's icon over its code, name,
-/// status and condition bar; its description; its labelled facts; Prev,
-/// Next, Rebind and Delete; the note line; the repair form; the lost-section
-/// list; and the station catalogue, beside the view.
+/// Build the section panel: the selected section's icon over its code, name
+/// and condition bar; its binding; Rebind, Delete and Catalogue, with the
+/// reason Delete is refused under them; the note line; the repair form; and
+/// the lost-section list, beside the view. The parts a station builds are in
+/// the gallery the Catalogue button opens (`super::catalogue`).
 /// [`update_ship_panel`] fills it. The texts carry a [`ShipPanelField`] so one
-/// system refreshes them, and a fact row or the form carries the field it
-/// holds so the same system hides it. The buttons carry a [`ShipPanelButton`]
-/// and route through the [`SectionRepairCommand`] seam via `Activate`
+/// system refreshes them, and the binding row or the form carries the field
+/// it holds so the same system hides it. The buttons carry a
+/// [`ShipPanelButton`] and route through their command seams via `Activate`
 /// observers.
 pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     parent
-        // Scrolls: the station catalogue runs past a 1080p panel.
+        // Scrolls: a ship with many lost sections runs past a 1080p panel.
         .spawn((
             ShipPanelMarker,
             Name::new("ShipPanel"),
@@ -103,10 +105,6 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                             ShipPanelField::Title,
                             themed_label("", 16.0, UiColor::Primary),
                         ));
-                        detail.spawn((
-                            ShipPanelField::Status,
-                            themed_label("", 12.0, UiColor::Body),
-                        ));
                         detail
                             .spawn((
                                 Node {
@@ -134,37 +132,32 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                     });
                 });
             panel.spawn(divider());
-            panel.spawn((ShipPanelField::About, themed_label("", 12.0, UiColor::Body)));
-            panel.spawn(divider());
-            // The Inventory inspector's fact rows: the word on the left and
+            // The Inventory inspector's fact row: the word on the left and
             // the value, clipped on one line, on the right.
-            for (label, field) in [
-                ("Integrity", ShipPanelField::Integrity),
-                ("Ammunition", ShipPanelField::Ammo),
-                ("Control", ShipPanelField::Control),
-            ] {
-                panel
-                    .spawn((field, control_row(JustifyContent::SpaceBetween)))
-                    .with_children(|fact| {
-                        fact.spawn((
-                            themed_label(label, 12.0, UiColor::Label),
-                            Node {
-                                flex_shrink: 0.0,
-                                ..default()
-                            },
-                        ));
-                        fact.spawn((
-                            field,
-                            themed_label("", 13.0, UiColor::Primary),
-                            TextLayout::new(Justify::Right, LineBreak::NoWrap),
-                            Node {
-                                min_width: Val::Px(0.0),
-                                overflow: Overflow::clip(),
-                                ..default()
-                            },
-                        ));
-                    });
-            }
+            panel
+                .spawn((
+                    ShipPanelField::Control,
+                    control_row(JustifyContent::SpaceBetween),
+                ))
+                .with_children(|fact| {
+                    fact.spawn((
+                        themed_label("Control", 12.0, UiColor::Label),
+                        Node {
+                            flex_shrink: 0.0,
+                            ..default()
+                        },
+                    ));
+                    fact.spawn((
+                        ShipPanelField::Control,
+                        themed_label("", 13.0, UiColor::Primary),
+                        TextLayout::new(Justify::Right, LineBreak::NoWrap),
+                        Node {
+                            min_width: Val::Px(0.0),
+                            overflow: Overflow::clip(),
+                            ..default()
+                        },
+                    ));
+                });
             panel
                 .spawn(Node {
                     flex_direction: FlexDirection::Row,
@@ -174,13 +167,6 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                     ..default()
                 })
                 .with_children(|row| {
-                    for (label, step) in [("Prev", -1), ("Next", 1)] {
-                        row.spawn((
-                            button(ButtonSpec::new(label).fit()),
-                            Name::new(format!("Ship{label}")),
-                        ))
-                        .observe(on_ship_step_button(step));
-                    }
                     row.spawn((
                         ShipPanelButton::Rebind,
                         button(ButtonSpec::new("Rebind").fit()),
@@ -192,9 +178,19 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                         Name::new("ShipDelete"),
                     ))
                     .observe(on_ship_delete_button);
+                    row.spawn((
+                        ShipCatalogueButton,
+                        GalleryAction::Open,
+                        button(ButtonSpec::new("Catalogue").fit().primary()),
+                        Name::new("ShipCatalogue"),
+                    ));
                 });
-            // Under the actions, not after the catalogue: a refusal shows
-            // where the press was, even with the catalogue scrolled.
+            panel.spawn((
+                Name::new("ShipDeleteReason"),
+                ShipPanelField::DeleteReason,
+                themed_label("", 12.0, UiColor::Danger),
+            ));
+            // Under the actions: a result shows where the press was.
             panel.spawn((ShipPanelField::Note, themed_label("", 12.0, UiColor::Label)));
             panel
                 .spawn((
@@ -274,7 +270,6 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                         });
                 });
             spawn_ship_rebuild_list(panel);
-            spawn_ship_catalogue(panel);
         });
 }
 

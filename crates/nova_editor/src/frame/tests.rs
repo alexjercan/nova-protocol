@@ -17,7 +17,7 @@ fn frame_app() -> App {
     app.init_resource::<CameraFraming>();
     app.init_resource::<SelectedNode>();
     app.init_resource::<EditContext>();
-    app.insert_resource(SectionChoice::None);
+    app.insert_resource(HeldPart(None));
     app
 }
 
@@ -229,7 +229,7 @@ fn the_key_stays_out_of_the_way_of_an_armed_part() {
     let node = rock(&mut app, Vec3::ZERO, 1.0);
     app.world_mut().resource_mut::<SelectedNode>().0 = Some(node);
     app.world_mut()
-        .insert_resource(SectionChoice::Section("thruster".to_string()));
+        .insert_resource(HeldPart(Some("thruster".to_string())));
     let mut keys = ButtonInput::<KeyCode>::default();
     keys.press(FRAME_KEY);
     app.world_mut().insert_resource(keys);

@@ -11,7 +11,6 @@ use bevy::{
     prelude::*,
     ui_widgets::{Activate, Button},
 };
-use nova_ship::prelude::*;
 use nova_ui::{
     prelude::{button, panel, ButtonSpec, UiText},
     theme,
@@ -19,68 +18,42 @@ use nova_ui::{
     widget::{ThemedBorder, ThemedFill, ThemedRadius, ThemedText},
 };
 
-use crate::{
-    config::SectionChoice,
-    gallery::{
-        catalog::{self, GalleryCategory},
-        scene::{spawn_tile, GalleryItem},
-        GalleryLayout, GalleryState,
-    },
-    ui::layer,
-    ExampleStates,
+use super::{
+    catalog::{self, GalleryCategory},
+    scene::{spawn_tile, GalleryItem},
+    GalleryAlternate, GalleryHost, GalleryLayout, GalleryListing, GalleryState, HeldPart,
 };
+use crate::prelude::*;
 
 /// The overlay root, despawned and rebuilt on every state change.
 #[derive(Component)]
-pub(crate) struct GalleryRoot;
-
-/// The editor's own rail + drawer root, hidden while the gallery is up.
-///
-/// The gallery is a MODE, not a panel: its tile grid has to stay transparent
-/// for the 3D previews to show through, so the chrome behind it cannot simply
-/// be covered - it has to go away.
-#[derive(Component)]
-pub(crate) struct EditorChrome;
-
-/// Show the editor chrome only while the gallery is closed.
-pub(crate) fn sync_editor_chrome(
-    state: Res<GalleryState>,
-    mut chrome: Query<&mut Visibility, With<EditorChrome>>,
-) {
-    let wanted = if state.open {
-        Visibility::Hidden
-    } else {
-        Visibility::Inherited
-    };
-    for mut visibility in &mut chrome {
-        // Compared before writing: an unconditional write dirties the whole UI
-        // tree's visibility every frame.
-        if *visibility != wanted {
-            *visibility = wanted;
-        }
-    }
-}
+pub struct GalleryRoot;
 
 /// One tile, carrying its position in the filtered list so the painter can tell
 /// the selected cell from its neighbours.
 #[derive(Component)]
-pub(crate) struct GalleryCell {
+pub struct GalleryCell {
     /// Index into the filtered list, not the catalog.
-    pub(crate) listed: usize,
+    pub listed: usize,
 }
 
 /// What pressing a gallery widget does. One component + one observer, so a new
 /// control is a new variant rather than a new observer.
 #[derive(Component, Clone, Debug)]
-pub(crate) enum GalleryAction {
-    /// Open the gallery (the editor rail's category row).
+pub enum GalleryAction {
+    /// Open the gallery (the editor rail's category row, the Ship pane's
+    /// Catalogue button).
     Open,
     /// Close it, keeping the current selection for the next visit.
     Close,
     /// Leave the focus card for the grid.
     Back,
-    /// Arm the selected prototype as the placement tool and close.
+    /// Put the selected prototype in hand and close.
     Place,
+    /// The host's second verb for the selected prototype
+    /// ([`GalleryEntry::alternate`](super::GalleryEntry::alternate)), then
+    /// close.
+    Alternate,
     /// Select a tile and open its focus card.
     Focus(usize),
     /// Narrow the list to one section kind.
@@ -117,18 +90,26 @@ fn part_count(listed: usize, stocked: usize) -> String {
 /// tint the 3D behind it.
 const LABEL_H: f32 = 34.0;
 
+/// The label strip's height with a listing's note line under the kind.
+const LABEL_NOTE_H: f32 = 48.0;
+
 /// Rebuild the overlay (and its previews) whenever the gallery state or the
 /// catalog changes.
 pub(crate) fn rebuild_gallery(
     mut commands: Commands,
     state: Res<GalleryState>,
     layout: Res<GalleryLayout>,
-    stage: Res<crate::gallery::scene::GalleryStage>,
+    host: Single<(Entity, Ref<GalleryHost>, Option<Ref<GalleryListing>>)>,
     sections: Res<GameSections>,
     existing: Query<Entity, Or<(With<GalleryRoot>, With<GalleryItem>)>>,
     mut last: Local<Option<GalleryState>>,
 ) {
-    let dirty = last.as_ref() != Some(&*state) || sections.is_changed() || layout.is_changed();
+    let (host_entity, host, listing) = host.into_inner();
+    let dirty = last.as_ref() != Some(&*state)
+        || sections.is_changed()
+        || layout.is_changed()
+        || host.is_changed()
+        || listing.as_ref().is_some_and(Ref::is_changed);
     if !dirty {
         return;
     }
@@ -141,12 +122,13 @@ pub(crate) fn rebuild_gallery(
         return;
     }
 
-    let listed = catalog::browsable(&sections, state.category, &state.filter);
+    let listing = listing.as_deref();
+    let listed = catalog::browsable(&sections, listing, state.category, &state.filter);
     let per_page = layout.page();
     let pages = listed.len().div_ceil(per_page).max(1);
     let page = state.selected / per_page;
     let start = page * per_page;
-    let stocked = catalog::browsable(&sections, GalleryCategory::All, "").len();
+    let stocked = catalog::browsable(&sections, listing, GalleryCategory::All, "").len();
     let narrowed = listed.len() != stocked;
     let count = part_count(listed.len(), stocked);
 
@@ -158,9 +140,8 @@ pub(crate) fn rebuild_gallery(
     commands
         .spawn((
             GalleryRoot,
-            DespawnOnExit(ExampleStates::Editor),
             Name::new("Parts Gallery"),
-            GlobalZIndex(layer::GALLERY_Z),
+            ChildOf(host_entity),
             Node {
                 position_type: PositionType::Absolute,
                 left: px(0),
@@ -296,9 +277,24 @@ pub(crate) fn rebuild_gallery(
             });
 
             if state.focused {
-                focus_body(root, &sections, &listed, state.selected, &mut stages);
+                focus_body(
+                    root,
+                    &sections,
+                    listing,
+                    &listed,
+                    state.selected,
+                    &mut stages,
+                );
             } else {
-                grid_body(root, &sections, &listed, start, *layout, &mut stages);
+                grid_body(
+                    root,
+                    &sections,
+                    listing,
+                    &listed,
+                    start,
+                    *layout,
+                    &mut stages,
+                );
             }
 
             root.spawn((
@@ -312,11 +308,15 @@ pub(crate) fn rebuild_gallery(
                 // gesture.
                 Text::new(if state.focused {
                     "drag turn it   wheel zoom   arrows next part   Enter place it   Esc back"
+                        .to_string()
                 } else if state.filter_focused {
-                    "type filter   Enter the top hit   Esc leave the field"
+                    "type filter   Enter the top hit   Esc leave the field".to_string()
                 } else {
-                    "Q pick the hovered part   arrows select   Enter focus   / filter   \
-                     Esc/Tab close"
+                    format!(
+                        "Q pick the hovered part   arrows select   Enter focus   / filter   {} \
+                         close",
+                        host.close_keys
+                    )
                 }),
                 TextFont {
                     font_size: FontSize::Px(12.0),
@@ -333,7 +333,7 @@ pub(crate) fn rebuild_gallery(
 
     for (cell, index, spin) in stages {
         if let Some(section) = sections.get(index) {
-            spawn_tile(&mut commands, section, cell, spin, stage.0);
+            spawn_tile(&mut commands, section, cell, spin, &host);
         }
     }
 }
@@ -343,6 +343,7 @@ pub(crate) fn rebuild_gallery(
 fn grid_body(
     root: &mut ChildSpawnerCommands,
     sections: &GameSections,
+    listing: Option<&GalleryListing>,
     listed: &[usize],
     start: usize,
     layout: GalleryLayout,
@@ -376,7 +377,10 @@ fn grid_body(
                             .and_then(|index| sections.get(*index).map(|section| (*index, section)))
                         {
                             Some((index, section)) => {
-                                let stage = spawn_cell(row_node, section, slot);
+                                let note = listing
+                                    .and_then(|listing| listing.entry(&section.base.id))
+                                    .map(|entry| entry.note.as_str());
+                                let stage = spawn_cell(row_node, section, note, slot);
                                 stages.push((stage, index, false));
                             }
                             // An empty slot still takes its share of the row, so a
@@ -398,7 +402,12 @@ fn grid_body(
 /// One tile: a transparent preview area (the 3D shows through it) over an
 /// opaque name strip. Returns the preview area, which is what a preview
 /// centres itself on.
-fn spawn_cell(row: &mut ChildSpawnerCommands, section: &SectionConfig, listed: usize) -> Entity {
+fn spawn_cell(
+    row: &mut ChildSpawnerCommands,
+    section: &SectionConfig,
+    note: Option<&str>,
+    listed: usize,
+) -> Entity {
     let mut stage = Entity::PLACEHOLDER;
     row.spawn((
         Name::new(format!("Gallery Tile {}", section.base.name)),
@@ -439,10 +448,14 @@ fn spawn_cell(row: &mut ChildSpawnerCommands, section: &SectionConfig, listed: u
             ))
             .id();
 
-        cell.spawn((
+        let mut strip = cell.spawn((
             Node {
                 width: percent(100),
-                height: px(LABEL_H),
+                height: px(if note.is_some() {
+                    LABEL_NOTE_H
+                } else {
+                    LABEL_H
+                }),
                 flex_direction: FlexDirection::Column,
                 justify_content: JustifyContent::Center,
                 padding: UiRect::horizontal(px(6)),
@@ -477,6 +490,18 @@ fn spawn_cell(row: &mut ChildSpawnerCommands, section: &SectionConfig, listed: u
                 ),
             ],
         ));
+        if let Some(note) = note {
+            strip.with_child((
+                UiText,
+                Text::new(note.to_string()),
+                TextFont {
+                    font_size: FontSize::Px(11.0),
+                    ..default()
+                },
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Accent),
+            ));
+        }
     });
     stage
 }
@@ -485,6 +510,7 @@ fn spawn_cell(row: &mut ChildSpawnerCommands, section: &SectionConfig, listed: u
 fn focus_body(
     root: &mut ChildSpawnerCommands,
     sections: &GameSections,
+    listing: Option<&GalleryListing>,
     listed: &[usize],
     selected: usize,
     stages: &mut Vec<(Entity, usize, bool)>,
@@ -496,6 +522,7 @@ fn focus_body(
         return;
     };
 
+    let entry = listing.and_then(|listing| listing.entry(&section.base.id));
     let mut stage = Entity::PLACEHOLDER;
     root.spawn((
         Name::new("Gallery Focus"),
@@ -605,11 +632,31 @@ fn focus_body(
                     flex_grow: 1.0,
                     ..default()
                 });
+                if let Some(entry) = entry {
+                    card.spawn((
+                        Name::new("Gallery Note"),
+                        UiText,
+                        Text::new(entry.note.clone()),
+                        TextFont {
+                            font_size: FontSize::Px(12.0),
+                            ..default()
+                        },
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColor::Accent),
+                    ));
+                }
                 card.spawn((
                     Name::new("Gallery Place Button"),
                     button(ButtonSpec::new("Place This Part").primary().key("Enter")),
                     GalleryAction::Place,
                 ));
+                if let Some(label) = entry.and_then(|entry| entry.alternate.as_deref()) {
+                    card.spawn((
+                        Name::new("Gallery Alternate Button"),
+                        button(ButtonSpec::new(label).primary()),
+                        GalleryAction::Alternate,
+                    ));
+                }
                 card.spawn((
                     Name::new("Gallery Back Button"),
                     button(ButtonSpec::new("Back").ghost()),
@@ -712,14 +759,17 @@ fn cell_fill(theme: &ActiveUiTheme, selected: bool, hovered: bool) -> Color {
 pub(crate) fn on_gallery_action(
     activate: On<Activate>,
     actions: Query<&GalleryAction>,
+    host: Query<Option<&GalleryListing>, With<GalleryHost>>,
     sections: Res<GameSections>,
     layout: Res<GalleryLayout>,
     mut state: ResMut<GalleryState>,
-    mut choice: ResMut<SectionChoice>,
+    mut held: ResMut<HeldPart>,
+    mut alternates: MessageWriter<GalleryAlternate>,
 ) {
     let Ok(action) = actions.get(activate.entity) else {
         return;
     };
+    let listing = host.single().ok().flatten();
 
     match action {
         GalleryAction::Open => {
@@ -749,8 +799,15 @@ pub(crate) fn on_gallery_action(
             state.filter_focused = false;
         }
         GalleryAction::Place => {
-            if let Some(id) = state.selected_id(&sections) {
-                *choice = SectionChoice::Section(id);
+            if let Some(id) = state.selected_id(&sections, listing) {
+                held.0 = Some(id);
+            }
+            state.open = false;
+            state.focused = false;
+        }
+        GalleryAction::Alternate => {
+            if let Some(id) = state.selected_id(&sections, listing) {
+                alternates.write(GalleryAlternate { id });
             }
             state.open = false;
             state.focused = false;
@@ -770,7 +827,7 @@ pub(crate) fn on_gallery_action(
             state.open = true;
         }
         GalleryAction::Page(step) => {
-            let listed = catalog::browsable(&sections, state.category, &state.filter);
+            let listed = catalog::browsable(&sections, listing, state.category, &state.filter);
             state.step(step * layout.page() as isize, listed.len());
         }
     }

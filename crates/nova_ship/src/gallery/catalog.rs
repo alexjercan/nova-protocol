@@ -5,14 +5,16 @@
 //! the focus card.
 
 use bevy::prelude::*;
-use nova_ship::prelude::*;
 use nova_ui::prelude::*;
+
+use super::GalleryListing;
+use crate::prelude::*;
 
 /// The category filter across the top of the gallery. One entry per section
 /// kind plus [`GalleryCategory::All`]; the kinds are named for what the part
 /// DOES, which is how a builder looks for it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) enum GalleryCategory {
+pub enum GalleryCategory {
     /// Every browsable prototype.
     #[default]
     All,
@@ -32,7 +34,7 @@ pub(crate) enum GalleryCategory {
 
 impl GalleryCategory {
     /// Every category, in the order the filter row shows them.
-    pub(crate) const ROW: [Self; 7] = [
+    pub const ROW: [Self; 7] = [
         Self::All,
         Self::Structure,
         Self::Propulsion,
@@ -43,7 +45,7 @@ impl GalleryCategory {
     ];
 
     /// The button label.
-    pub(crate) fn label(self) -> &'static str {
+    pub fn label(self) -> &'static str {
         match self {
             Self::All => "All",
             Self::Structure => "Structure",
@@ -56,7 +58,7 @@ impl GalleryCategory {
     }
 
     /// The category a prototype of this kind lives under.
-    pub(crate) fn of(kind: &SectionKind) -> Self {
+    pub fn of(kind: &SectionKind) -> Self {
         match kind {
             SectionKind::Hull(_) | SectionKind::CargoIntake(_) | SectionKind::Mining(_) => {
                 Self::Structure
@@ -70,7 +72,7 @@ impl GalleryCategory {
     }
 
     /// Whether a prototype of this kind belongs in the category.
-    pub(crate) fn accepts(self, kind: &SectionKind) -> bool {
+    pub fn accepts(self, kind: &SectionKind) -> bool {
         self == Self::All || self == Self::of(kind)
     }
 }
@@ -78,13 +80,15 @@ impl GalleryCategory {
 /// The catalog indices the gallery lists, in catalog order.
 ///
 /// `hide_in_editor` is honoured exactly as the drawer honours it, so a
-/// prototype hidden from one picker is hidden from both. The text filter is a
-/// case-insensitive substring of the display name or the catalog id. A mod
-/// whose ids carry a ship family (The Ledger's `cargoa_nose`) therefore
-/// narrows to one craft by typing the family; base's block prototypes are
-/// generic and carry none.
-pub(crate) fn browsable(
+/// prototype hidden from one picker is hidden from both. A host's `listing`
+/// narrows the list to its parts, as a station sells only what it can build.
+/// The text filter is a case-insensitive substring of the display name or the
+/// catalog id. A mod whose ids carry a ship family (The Ledger's
+/// `cargoa_nose`) therefore narrows to one craft by typing the family; base's
+/// block prototypes are generic and carry none.
+pub fn browsable(
     sections: &GameSections,
+    listing: Option<&GalleryListing>,
     category: GalleryCategory,
     filter: &str,
 ) -> Vec<usize> {
@@ -93,6 +97,9 @@ pub(crate) fn browsable(
         .iter()
         .enumerate()
         .filter(|(_, section)| !section.base.hide_in_editor)
+        .filter(|(_, section)| {
+            listing.is_none_or(|listing| listing.entry(&section.base.id).is_some())
+        })
         .filter(|(_, section)| category.accepts(&section.kind))
         .filter(|(_, section)| {
             needle.is_empty()
@@ -106,7 +113,7 @@ pub(crate) fn browsable(
 /// The part's authored extent, used to fit its preview into a tile. The
 /// collider is the only authored size a section carries; an unset one resolves
 /// to the unit cube, exactly as it does in physics.
-pub(crate) fn extent(section: &SectionConfig) -> Vec3 {
+pub fn extent(section: &SectionConfig) -> Vec3 {
     section
         .base
         .collider
@@ -119,7 +126,7 @@ pub(crate) fn extent(section: &SectionConfig) -> Vec3 {
 /// turret reads "weapons" both in the row that filters to it and on its own
 /// tile. Two words for one group made the row look like a different axis from
 /// the tiles.
-pub(crate) fn kind_label(kind: &SectionKind) -> &'static str {
+pub fn kind_label(kind: &SectionKind) -> &'static str {
     GalleryCategory::of(kind).label()
 }
 
@@ -129,7 +136,7 @@ pub(crate) fn kind_label(kind: &SectionKind) -> &'static str {
 ///
 /// Keys are Title Case, as the inspector's field labels are: one screen said
 /// `hp` and the next said `Health`, which reads as two different readouts.
-pub(crate) fn stats(section: &SectionConfig) -> Vec<(String, String)> {
+pub fn stats(section: &SectionConfig) -> Vec<(String, String)> {
     let size = extent(section);
     let mut lines = vec![
         ("Kind".to_string(), kind_label(&section.kind).to_string()),
@@ -285,6 +292,7 @@ fn behaviour(kind: &SectionKind) -> Vec<(String, String)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::gallery::GalleryEntry;
 
     fn section(id: &str, name: &str, kind: SectionKind, hidden: bool) -> SectionConfig {
         SectionConfig {
@@ -331,22 +339,52 @@ mod tests {
     /// scene dressing, and it must not be offered by either picker.
     #[test]
     fn hidden_prototypes_never_reach_the_gallery() {
-        let listed = browsable(&catalog(), GalleryCategory::All, "");
+        let listed = browsable(&catalog(), None, GalleryCategory::All, "");
         assert_eq!(listed, vec![0, 1, 2]);
         assert!(
-            browsable(&catalog(), GalleryCategory::Ordnance, "").is_empty(),
+            browsable(&catalog(), None, GalleryCategory::Ordnance, "").is_empty(),
             "the only ordnance in this catalog is hidden"
         );
+    }
+
+    /// A host's listing is the whole stock: a station's catalogue shows only
+    /// the parts it can build, and the category row and the filter narrow
+    /// inside it.
+    #[test]
+    fn a_listing_limits_the_grid_to_its_parts() {
+        let listing = GalleryListing(vec![
+            GalleryEntry {
+                id: "basic_thruster_section".to_string(),
+                note: "40 cr".to_string(),
+                alternate: None,
+            },
+            GalleryEntry {
+                id: "hauler_nose".to_string(),
+                note: "12 cr".to_string(),
+                alternate: None,
+            },
+        ]);
+        let listed = Some(&listing);
+        assert_eq!(
+            browsable(&catalog(), listed, GalleryCategory::All, ""),
+            vec![1, 2],
+            "catalog order, listed parts only"
+        );
+        assert_eq!(
+            browsable(&catalog(), listed, GalleryCategory::Structure, ""),
+            vec![1]
+        );
+        assert!(browsable(&catalog(), listed, GalleryCategory::All, "reinforced").is_empty());
     }
 
     #[test]
     fn the_category_row_narrows_to_one_kind() {
         assert_eq!(
-            browsable(&catalog(), GalleryCategory::Structure, ""),
+            browsable(&catalog(), None, GalleryCategory::Structure, ""),
             vec![0, 1]
         );
         assert_eq!(
-            browsable(&catalog(), GalleryCategory::Propulsion, ""),
+            browsable(&catalog(), None, GalleryCategory::Propulsion, ""),
             vec![2]
         );
     }
@@ -357,16 +395,16 @@ mod tests {
     #[test]
     fn the_text_filter_matches_name_or_id_case_insensitively() {
         assert_eq!(
-            browsable(&catalog(), GalleryCategory::All, "HAULER"),
+            browsable(&catalog(), None, GalleryCategory::All, "HAULER"),
             vec![1]
         );
         assert_eq!(
-            browsable(&catalog(), GalleryCategory::All, "thruster"),
+            browsable(&catalog(), None, GalleryCategory::All, "thruster"),
             vec![2]
         );
-        assert!(browsable(&catalog(), GalleryCategory::All, "zzz").is_empty());
+        assert!(browsable(&catalog(), None, GalleryCategory::All, "zzz").is_empty());
         // Category and filter compose.
-        assert!(browsable(&catalog(), GalleryCategory::Propulsion, "hauler").is_empty());
+        assert!(browsable(&catalog(), None, GalleryCategory::Propulsion, "hauler").is_empty());
     }
 
     /// Every kind the gallery can list, one of each.

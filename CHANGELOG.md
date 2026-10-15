@@ -71,9 +71,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Docked at a station with `Refit`, the Ship pane swaps a section for a part
   of the same kind and size, paid by recipe, keeping its code and key, and
   fires `OnSwapped`.
-- At a `Refit` station the Ship pane lists the parts it builds, with prices.
-  Place one, aim its ghost at a free socket and click to add it, paid by
-  recipe; it takes its kind's key and fires `OnAdded`.
+- At a `Refit` station the Ship pane's Catalogue opens the editor's parts
+  gallery, priced. Place a part and click its ghost on a free socket to add it;
+  it takes its kind's key and fires `OnAdded`.
 - A `Refit` station parks a hull for sale at each port but one; its card shows
   the hull turning. A buy hands you its helm with start-role keys and parks
   your old ship for rebuy (`OnShipBought`).
@@ -180,9 +180,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
   turn it; the D-pad still does.
 - With a part in hand, the Ship pane draws the section it aims at solid, lights
   the face the part mounts on and hides that section's badge.
-- Docked at a station that refits, Delete takes the selected section off for
-  its strip yield; it refuses a split hull, the last flight computer or the
-  docked port. `OnStripped` fires.
+- At a refit dock, Delete names and takes the selected section's strip
+  yield; it is disabled, with the reason, for a split hull, the last flight
+  computer or the docked port. `OnStripped` fires.
 - The Ship pane shows the docked station and ships at its docks as dim
   outlines and refuses a part that would hit them. The add callout counts the
   parts bought at the station.

@@ -15,12 +15,12 @@ use avian3d::prelude::{ColliderAabb, Sensor};
 use bevy::{prelude::*, ui::InteractionDisabled, ui_widgets::Activate};
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::subtree_bounding_sphere;
-use nova_ship::prelude::WASDCameraController;
+use nova_ship::prelude::{HeldPart, WASDCameraController};
 use nova_ui::prelude::InputMode;
 
 use crate::{
-    config::{SectionChoice, SelectedNode},
-    gallery::EditorCamera,
+    config::{SelectedNode},
+    config::EditorCamera,
     node::{frame_stage, EditContext},
 };
 
@@ -144,12 +144,12 @@ impl ViewAngle {
 /// is selected - which is the answer to "I have flown away, put me back".
 pub(crate) fn frame_key(
     keys: Res<ButtonInput<KeyCode>>,
-    selection: Res<SectionChoice>,
+    selection: Res<HeldPart>,
     selected: Res<SelectedNode>,
     context: Res<EditContext>,
     mut request: ResMut<FrameRequest>,
 ) {
-    if *selection != SectionChoice::None || !keys.just_pressed(FRAME_KEY) {
+    if *selection != HeldPart(None) || !keys.just_pressed(FRAME_KEY) {
         return;
     }
     ask_for(&mut request, selected.0.or_else(|| context.current()));

@@ -20,14 +20,14 @@ use bevy::{
 };
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::{
-    derive_link_point_graph, GameSections, MountPose, PlacedSectionCollider,
+    derive_link_point_graph, GameSections, HeldPart, MountPose, PlacedSectionCollider,
     PlacedSectionLinkPoints,
 };
 use nova_ui::{
     theme::{ActiveUiTheme, UiColor},
     widget::{
-        Selected, TextFieldError, TextFieldFocused, TextFieldValue, ThemedBorder, ThemedFill,
-        ThemedImageTint, ThemedText,
+        ButtonLabel, Selected, TextFieldError, TextFieldFocused, TextFieldValue, ThemedBorder,
+        ThemedFill, ThemedImageTint, ThemedText,
     },
 };
 
@@ -55,13 +55,10 @@ pub(crate) struct ShipPanelMarker;
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ShipPanelField {
     Title,
-    Status,
-    /// What the section kind does.
-    About,
-    Integrity,
-    Ammo,
     /// The section's input binding.
     Control,
+    /// Why Delete is refused, under the disabled button.
+    DeleteReason,
     /// The repair form, shown only while the selection has repairable damage.
     RepairForm,
     /// The live hull plate stock beside the typed quantity.
@@ -196,10 +193,16 @@ pub struct ShipRuntime {
     /// disabled action without re-deriving the section's validity.
     pub(crate) panel_repair_enabled: bool,
     pub(crate) panel_rebind_enabled: bool,
+    /// Whether the selection has repairable damage, so the repair form and
+    /// the repair key apply. Cached by `update_ship_panel` for the footer.
+    pub(crate) panel_repairable: bool,
+    /// Whether the ship is docked at a living station that refits, so the
+    /// Catalogue opens and a picked part can be placed. Cached by
+    /// `update_ship_gallery_listing` for the footer.
+    pub(crate) refits: bool,
     /// Whether the selection can be deleted now, cached by
-    /// `update_ship_delete_verdict`: `None` while there is no selection or
-    /// the ship is not docked at a station that refits, else what a delete
-    /// gives back or why it is refused.
+    /// `update_ship_delete_verdict`: `None` while there is no selection,
+    /// else the parts a delete gives back or why it is refused.
     pub(crate) delete_verdict: Option<Result<String, String>>,
     /// Draft quantity belongs to this section; changing selection starts at All.
     /// A full section, or any section before the player ship's inventory
@@ -222,12 +225,9 @@ pub struct ShipRuntime {
     /// The design section id a swap replaced or an add made, selected once
     /// its new entity is live.
     pub(crate) reselect: Option<String>,
-    /// The catalogue part in hand, which the placement ghost shows and a
-    /// click on the view adds. Set by a catalogue row's Place button.
-    pub(crate) held: Option<String>,
-    /// How the part in hand mates its socket, stepped by `ship_part_roll`
-    /// and `ship_part_socket`. Back to the part as drawn whenever the part
-    /// in hand changes.
+    /// How the part in hand ([`HeldPart`]) mates its socket, stepped by
+    /// `ship_part_roll` and `ship_part_socket`. Back to the part as drawn
+    /// whenever the part in hand changes.
     pub(crate) mount: MountPose,
     /// The pointer over the view, in logical window pixels, while it is
     /// there; the ghost is solved under it.
@@ -259,11 +259,6 @@ impl ShipRuntime {
         self.selected
     }
 
-    /// The catalogue part in hand, which a click on the view adds.
-    pub fn held(&self) -> Option<&str> {
-        self.held.as_deref()
-    }
-
     /// How the part in hand mates its socket.
     pub fn mount(&self) -> MountPose {
         self.mount
@@ -277,8 +272,8 @@ impl ShipRuntime {
     }
 
     /// Whether the selection can be deleted now: `None` while there is no
-    /// selection or the ship is not docked at a station that refits, else
-    /// the parts a delete gives back or why it is refused.
+    /// selection, else the parts a delete gives back (`+1 Section panel`, or
+    /// `nothing to salvage`) or the reason line it is refused with.
     pub fn delete_verdict(&self) -> Option<Result<&str, &str>> {
         self.delete_verdict
             .as_ref()
@@ -309,6 +304,7 @@ pub(crate) fn manage_ship_scene(
     pane: Res<InterfacePaneType>,
     theme: Res<ActiveUiTheme>,
     mut runtime: ResMut<ShipRuntime>,
+    mut held: ResMut<HeldPart>,
     images: Option<ResMut<Assets<Image>>>,
     meshes: Option<ResMut<Assets<Mesh>>>,
     materials: Option<ResMut<Assets<StandardMaterial>>>,
@@ -331,6 +327,10 @@ pub(crate) fn manage_ship_scene(
         return;
     }
     runtime.active = active;
+    // A part in hand belongs to one visit: the pane opens and closes empty.
+    if held.0.is_some() {
+        held.0 = None;
+    }
 
     if !active {
         if let Some(root) = runtime.scene_root.take() {
@@ -352,7 +352,6 @@ pub(crate) fn manage_ship_scene(
         runtime.rebind_awaiting_release = false;
         runtime.rebind_swallow = false;
         runtime.show_mates = false;
-        runtime.held = None;
         runtime.mount = MountPose::default();
         runtime.pointer = None;
         // The outlines went with the scene root.
@@ -767,6 +766,7 @@ pub fn ease_orbit_center(center: Vec3, target: Vec3, dt: f32) -> Vec3 {
 pub(crate) fn ship_input(
     mut input: NovaOsAppInput,
     mut runtime: ResMut<ShipRuntime>,
+    held: Res<HeldPart>,
     sections: ShipSections,
     catalogue: Option<Res<GameSections>>,
     mut commands: MessageWriter<SectionRepairCommand>,
@@ -791,7 +791,7 @@ pub(crate) fn ship_input(
         return;
     }
 
-    let held_sockets = runtime.held.as_deref().map(|prototype| {
+    let held_sockets = held.id().map(|prototype| {
         catalogue
             .as_deref()
             .and_then(|catalogue| catalogue.get_section(prototype))
@@ -912,7 +912,8 @@ pub(crate) fn ship_input(
             runtime.note = None;
             return;
         }
-        if input.just_pressed("ship_delete") {
+        // A refused delete does nothing: the panel already shows why.
+        if input.just_pressed("ship_delete") && matches!(runtime.delete_verdict, Some(Ok(_))) {
             deletes.write(SectionDeleteCommand { target: sel });
         }
         if input.just_pressed("ship_repair") {
@@ -987,6 +988,7 @@ pub(crate) fn project_ship_blips(
     mut q_blip: Query<(&mut Node, &mut Visibility, &mut ThemedBorder, &Children), With<ShipBlip>>,
     mut q_pip: Query<&mut ThemedFill, With<ShipStatusPip>>,
     preview: Res<ShipPlacementPreview>,
+    held: Res<HeldPart>,
 ) {
     if !runtime.active {
         return;
@@ -1011,7 +1013,7 @@ pub(crate) fn project_ship_blips(
     let list = sections.collect();
     // The badge of the block a held part aims at would sit on the face the
     // part mounts on, so it hides while the part is aimed there.
-    let aimed = runtime.held.as_ref().and(preview.hovered);
+    let aimed = held.id().and(preview.hovered);
     let mut seen = bevy::platform::collections::HashSet::new();
     for view in &list {
         seen.insert(view.entity);
@@ -1196,6 +1198,7 @@ pub(crate) fn on_ship_blip_click(
     activate: On<Activate>,
     q_blip: Query<&ShipBlip>,
     preview: Res<ShipPlacementPreview>,
+    held: Res<HeldPart>,
     mut runtime: ResMut<ShipRuntime>,
     mut adds: MessageWriter<SectionAddCommand>,
     bank: Option<Res<SoundBank<UiSfx>>>,
@@ -1204,7 +1207,7 @@ pub(crate) fn on_ship_blip_click(
     // The badge's button stops the click, so the view's observer never sees
     // it. With a part in hand the click places it, as on the view, and does
     // not move the selection.
-    if runtime.held.is_some() {
+    if held.0.is_some() {
         commit_placement(
             &preview,
             &mut runtime,
@@ -1218,40 +1221,6 @@ pub(crate) fn on_ship_blip_click(
         if runtime.selected != Some(blip.section) {
             runtime.selected = Some(blip.section);
             play_menu_select(&mut commands, bank.as_deref());
-        }
-    }
-}
-
-/// Step the selection `step` sections along the list when Prev or Next is
-/// clicked, the same cycle as the `[` and `]` keys. Clicks if the selection
-/// moves.
-#[expect(
-    clippy::type_complexity,
-    reason = "the observer's system parameters, spelled out for the closure"
-)]
-pub(crate) fn on_ship_step_button(
-    step: isize,
-) -> impl FnMut(
-    On<Activate>,
-    Res<State<PauseStates>>,
-    ResMut<ShipRuntime>,
-    ShipSections,
-    Option<Res<SoundBank<UiSfx>>>,
-    Commands,
-) {
-    move |_activate, pause, mut runtime, sections, bank, mut commands| {
-        if *pause.get() != PauseStates::Interface || runtime.rebind_armed() {
-            return;
-        }
-        let list = sections.collect();
-        let current = runtime
-            .selected
-            .and_then(|sel| list.iter().position(|v| v.entity == sel));
-        if let Some(next) = cycle_index(current, list.len(), step > 0) {
-            if runtime.selected != Some(list[next].entity) {
-                runtime.selected = Some(list[next].entity);
-                play_menu_select(&mut commands, bank.as_deref());
-            }
         }
     }
 }
@@ -1414,10 +1383,15 @@ pub(crate) fn on_ship_rebind_button(
     }
 }
 
-/// Refresh the section panel from the current selection: title, status line,
-/// family icon, condition bar, description, fact rows, the repair form,
-/// button enabled-state, and the note line (the rebind prompt or a transient
-/// action result). Caches the enabled flags for the observers.
+/// Refresh the section panel from the current selection: title, family icon,
+/// condition bar, binding row, the repair form, button state, the Delete
+/// label and reason, and the note line (the rebind prompt or a transient
+/// action result). Caches the enabled flags for the observers and the footer.
+///
+/// Delete shows while a section is selected. While
+/// [`plan_ship_delete`](super::delete::plan_ship_delete) holds, its label
+/// names the yield; while it refuses, it is disabled with the reason under
+/// it.
 ///
 /// The repair form shows only while the selection has repairable damage, and
 /// disables Repair with the reason in its summary while the draft is refused.
@@ -1436,6 +1410,7 @@ pub(crate) fn update_ship_panel(
     sections: ShipSections,
     icons: Res<InterfaceIcons>,
     mut q_text: Query<(&ShipPanelField, &mut Text, &mut ThemedText)>,
+    mut q_label: Query<(&ChildOf, &mut Text), (With<ButtonLabel>, Without<ShipPanelField>)>,
     mut q_part: Query<
         (&ShipPanelField, &mut Node),
         (
@@ -1455,7 +1430,10 @@ pub(crate) fn update_ship_panel(
         ),
         (Without<ShipConditionFill>, Without<ShipRepairQuantity>),
     >,
-    mut q_preview: Query<(&mut ImageNode, &mut ThemedImageTint), With<ShipPreviewIcon>>,
+    mut q_preview: Query<
+        (&mut ImageNode, &mut ThemedImageTint, &mut Visibility),
+        With<ShipPreviewIcon>,
+    >,
     mut q_bar: Query<
         (&mut Node, &mut ThemedFill),
         (
@@ -1547,28 +1525,19 @@ pub(crate) fn update_ship_panel(
             let noun = if stock == 1 { "plate" } else { "plates" };
             (format!("{stock} {noun} in stock"), summary)
         });
-    let (title, status, about, about_color) = match &selected {
-        Some(view) => (
-            format!("{}  {}", view.code, view.name),
-            panel_status_text(view),
-            kind_description(view.kind).to_string(),
-            UiColor::Body,
-        ),
-        None => (
-            "No section".to_string(),
-            String::new(),
-            "Select a section:\nclick a badge or use Prev / Next.".to_string(),
-            UiColor::Label,
-        ),
+    let title = match &selected {
+        Some(view) => format!("{}  {}", view.code, view.name),
+        None => "No section selected".to_string(),
     };
-    let integrity = selected.as_ref().map(ShipSectionView::health_text);
-    let ammo = selected
-        .as_ref()
-        .and_then(|view| view.ammo)
-        .map(|ammo| format!("{} / {} rounds", ammo.rounds, ammo.capacity));
     let control = selected.as_ref().and_then(ShipSectionView::binding_text);
+    let (delete_label, delete_reason) = match runtime.delete_verdict() {
+        Some(Ok(salvage)) => (format!("Delete: {salvage}"), None),
+        Some(Err(reason)) => ("Delete".to_string(), Some(reason.to_string())),
+        None => ("Delete".to_string(), None),
+    };
 
     runtime.panel_repair_enabled = actions.repair_enabled;
+    runtime.panel_repairable = form.is_some();
     // An UNBOUND weapon is the one that most needs a key, so a section that
     // takes a binding offers Rebind with or without one.
     runtime.panel_rebind_enabled = selected
@@ -1599,8 +1568,6 @@ pub(crate) fn update_ship_panel(
 
     for (field, mut node) in &mut q_part {
         let shown = match field {
-            ShipPanelField::Integrity => integrity.is_some(),
-            ShipPanelField::Ammo => ammo.is_some(),
             ShipPanelField::Control => control.is_some(),
             ShipPanelField::RepairForm => form.is_some(),
             ShipPanelField::RebindPrompt => prompt.is_some(),
@@ -1615,12 +1582,10 @@ pub(crate) fn update_ship_panel(
     for (field, mut text, mut themed) in &mut q_text {
         let (value, tint) = match field {
             ShipPanelField::Title => (title.as_str(), UiColor::Primary),
-            ShipPanelField::Status => (status.as_str(), UiColor::Body),
-            ShipPanelField::About => (about.as_str(), about_color),
-            ShipPanelField::Integrity => {
-                (integrity.as_deref().unwrap_or_default(), UiColor::Primary)
-            }
-            ShipPanelField::Ammo => (ammo.as_deref().unwrap_or_default(), UiColor::Primary),
+            ShipPanelField::DeleteReason => (
+                delete_reason.as_deref().unwrap_or_default(),
+                UiColor::Danger,
+            ),
             ShipPanelField::Control => (control.as_deref().unwrap_or_default(), UiColor::Primary),
             ShipPanelField::RepairStock => (
                 form.as_ref().map_or("", |(stock, _)| stock.as_str()),
@@ -1649,18 +1614,22 @@ pub(crate) fn update_ship_panel(
         let enabled = match button {
             ShipPanelButton::Repair => actions.repair_enabled,
             ShipPanelButton::Rebind => runtime.panel_rebind_enabled,
-            // A refused delete stays pressable: the press puts the reason
-            // on the note line.
-            ShipPanelButton::Delete => runtime.delete_verdict.is_some(),
+            // A refused delete is disabled: its reason is the line under it.
+            ShipPanelButton::Delete => matches!(runtime.delete_verdict, Some(Ok(_))),
         };
         if *button == ShipPanelButton::Delete {
-            let wanted = if enabled {
+            let wanted = if runtime.delete_verdict.is_some() {
                 Display::Flex
             } else {
                 Display::None
             };
             if node.display != wanted {
                 node.display = wanted;
+            }
+            for (parent, mut text) in &mut q_label {
+                if parent.parent() == entity && text.0 != delete_label {
+                    text.0 = delete_label.clone();
+                }
             }
         }
         if *button == ShipPanelButton::Rebind {
@@ -1740,11 +1709,27 @@ pub(crate) fn update_ship_panel(
         }
     }
 
+    // With no selection the head shows no family icon and an empty bar.
+    let wanted = if selected.is_some() {
+        Visibility::Inherited
+    } else {
+        Visibility::Hidden
+    };
+    for (_, _, mut visibility) in &mut q_preview {
+        if *visibility != wanted {
+            *visibility = wanted;
+        }
+    }
     let Some(view) = selected else {
+        for (mut node, _) in &mut q_bar {
+            if node.width != Val::Percent(0.0) {
+                node.width = Val::Percent(0.0);
+            }
+        }
         return;
     };
     let icon = SectionIconType::of(view.kind);
-    for (mut image, mut tint) in &mut q_preview {
+    for (mut image, mut tint, _) in &mut q_preview {
         let wanted = icons.section(icon);
         if image.image != wanted {
             image.image = wanted;

@@ -34,6 +34,7 @@ pub mod placeholder_art;
 pub mod railgun_section;
 pub mod section_add;
 pub mod section_animation;
+pub mod section_preview;
 pub mod section_strip;
 pub mod shell_shape;
 pub mod shell_skin;
@@ -63,7 +64,8 @@ pub mod prelude {
         hull_section::prelude::*, integrity::prelude::*, link_points::prelude::*,
         live_structure_anchor, mining_section::prelude::*, patch::prelude::*,
         placeholder_art::prelude::*, railgun_section::prelude::*, section_add::prelude::*,
-        section_animation::prelude::*, section_strip::prelude::*, shell_shape::prelude::*,
+        section_animation::prelude::*, section_preview::prelude::*,
+        section_strip::prelude::*, shell_shape::prelude::*,
         shell_skin::prelude::*, ship_measure::prelude::*, signature::prelude::*,
         skin_decor::prelude::*, skin_reading::prelude::*, skin_report::prelude::*,
         skin_style::prelude::*, skin_surface::prelude::*, station_buy::prelude::*,

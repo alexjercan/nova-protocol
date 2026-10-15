@@ -25,7 +25,10 @@ use nova_gameplay::{
     PauseStates,
 };
 use nova_input::prelude::*;
-use nova_ui::screen::{drive_wheel_scroll, max_scroll_y, page_step};
+use nova_ui::{
+    input_mode::prelude::InputMode,
+    screen::{drive_wheel_scroll, max_scroll_y, page_step},
+};
 
 use super::{components::*, sound::*};
 use crate::pane::InterfacePaneType;
@@ -38,8 +41,10 @@ pub(crate) fn control_held(keys: &ButtonInput<KeyCode>) -> bool {
 
 /// The ONE owner of the back-out gesture for both surfaces (per the
 /// `context-key-handled-in-one-owner` lesson), so one press never closes two
-/// layers. Precedence: an armed rebind capture keeps the key, then the modal
-/// closes to the state it covered, then the pane closes to flight. The pause
+/// layers. Precedence: an armed rebind capture keeps the key, then a browse
+/// surface over a pane (the Ship pane's catalogue, in [`InputMode::Browse`])
+/// closes itself, then the modal closes to the state it covered, then the
+/// pane closes to flight. The pause
 /// menu's own toggle ignores both surfaces, so it comes last.
 ///
 /// Escape is the one gesture that stays off the registry: it is the universal
@@ -53,6 +58,7 @@ pub(crate) fn close_surface_from_menu_keys(
     mut next: ResMut<NextState<PauseStates>>,
     mut close: ResMut<NovaOsCloseTransition>,
     ship: Option<Res<crate::ship::ShipRuntime>>,
+    mode: Option<Res<InputMode>>,
 ) {
     let start = gamepads
         .iter()
@@ -60,7 +66,9 @@ pub(crate) fn close_surface_from_menu_keys(
     if !(keys.just_pressed(KeyCode::Escape) || start) {
         return;
     }
-    if ship.is_some_and(|ship| ship.rebind_armed()) {
+    if ship.is_some_and(|ship| ship.rebind_armed())
+        || mode.is_some_and(|mode| *mode == InputMode::Browse)
+    {
         return;
     }
     match current.get() {

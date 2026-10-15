@@ -1111,11 +1111,12 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .step("editor: the gallery opened narrowed to one kind")
         .on_enter(|world: &mut World| {
             // The grid shows one PAGE, so a count says nothing about the
-            // filter. WHAT is listed does: every tile up must be a hull.
+            // filter. WHAT is listed does: every tile up must be a part the
+            // Structure chip accepts (hulls, cargo intakes, mining beams).
             let hulls: Vec<String> = world
                 .resource::<GameSections>()
                 .iter()
-                .filter(|section| matches!(section.kind, SectionKind::Hull(_)))
+                .filter(|section| GalleryCategory::Structure.accepts(&section.kind))
                 .map(|section| section.base.name.clone())
                 .collect();
             let listed = visible_names_with_prefix(world, GALLERY_TILE);
