@@ -112,12 +112,27 @@
 
           if [ "$sub" = run ] || [ "$sub" = r ]; then
             # A running game must not hold the lock. Build the same target
-            # under the lock (program args after `--` dropped), release the
-            # lock, then run unlocked; its compile step is then a no-op.
+            # under the lock, release the lock, then run unlocked; its compile
+            # step is then a no-op. The build gets cargo's options only. The
+            # program args start at `--` or at the first positional that is
+            # not an option value, as in `cargo run content lint`.
             build=("''${args[@]:0:i}" build)
-            for a in "''${args[@]:i+1}"; do
-              [ "$a" = -- ] && break
-              build+=("$a")
+            j=$((i + 1))
+            while [ "$j" -lt "''${#args[@]}" ]; do
+              a=''${args[$j]}
+              case $a in
+                --) break ;;
+                -p | --package | --bin | --example | -F | --features | --profile | --target | \
+                  --manifest-path | --config | -Z | --color | -j | --jobs | --message-format | \
+                  --target-dir | --lockfile-path | -C)
+                  build+=("$a")
+                  j=$((j + 1))
+                  [ "$j" -lt "''${#args[@]}" ] && build+=("''${args[$j]}")
+                  ;;
+                -*) build+=("$a") ;;
+                *) break ;;
+              esac
+              j=$((j + 1))
             done
             take_lock
             NOVA_CARGO_LOCKED=1 "''${scope[@]}" "$real" "''${build[@]}" 9>&- || exit
