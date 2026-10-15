@@ -8,8 +8,12 @@
 //! layers, so a sensor in the ship's compound would join it for mass, bullets,
 //! locks and overlap reads. Weapons and sight lines already pass through every
 //! `Sensor`. The fixed pass writes the trigger's pose from the ship's
-//! physics pose before physics steps, and the intake's despawn takes the
-//! trigger with it.
+//! physics pose before physics steps, so a take reads the pose the step
+//! detects with, and again after avian's writeback, so the step ends with the
+//! trigger on the ship's new pose. The trigger carries
+//! `TransformInterpolation`, as a ship root does, so both ease between the
+//! same two step poses and the rendered trigger stays on the rendered door
+//! face. The intake's despawn takes the trigger with it.
 //!
 //! - detection: the canister centre is in front of the face and within
 //!   `detection_range` of its centre. A canister here that fits the hold's
@@ -408,8 +412,15 @@ fn cargo_intake_trigger_pose(
 }
 
 /// Keep one trigger on every live intake on a spaceship root, posed from the
-/// ship's physics pose before physics steps; despawn the trigger of an
-/// intake that is inactive or off a ship.
+/// ship's physics pose; despawn the trigger of an intake that is inactive or
+/// off a ship.
+///
+/// Runs before physics steps and again after avian's writeback. The pose is
+/// written to `Transform` as well as `Position` and `Rotation`: writeback
+/// has already run when the second pass does, and the interpolation's end
+/// state is read from `Transform` in `FixedLast`. Posed only before the
+/// step, the trigger ended each step one step behind the ship and, with no
+/// easing, jumped there once per step while the ship eased.
 fn sync_cargo_intake_triggers(
     mut commands: Commands,
     q_ships: Query<(&Position, &Rotation), With<SpaceshipRootMarker>>,
@@ -425,10 +436,10 @@ fn sync_cargo_intake_triggers(
         With<CargoIntakeSectionMarker>,
     >,
     mut q_triggers: Query<
-        (&mut Position, &mut Rotation),
+        (&mut Position, &mut Rotation, &mut Transform),
         (With<CargoIntakeTriggerOf>, Without<SpaceshipRootMarker>),
     >,
-    q_chain: Query<(&Transform, &ChildOf)>,
+    q_chain: Query<(&Transform, &ChildOf), Without<CargoIntakeTriggerOf>>,
 ) {
     for (intake, child_of, config, collider, inactive, trigger) in &q_intakes {
         let pose = child_of.filter(|_| !inactive).and_then(|&ChildOf(ship)| {
@@ -443,7 +454,9 @@ fn sync_cargo_intake_triggers(
         });
         match (pose, trigger) {
             (Some((translation, rotation)), Some(&CargoIntakeTrigger(trigger))) => {
-                let Ok((mut position, mut trigger_rotation)) = q_triggers.get_mut(trigger) else {
+                let Ok((mut position, mut trigger_rotation, mut transform)) =
+                    q_triggers.get_mut(trigger)
+                else {
                     error!(
                         "sync_cargo_intake_triggers: trigger {trigger:?} of intake {intake:?} \
                          has no pose"
@@ -452,6 +465,8 @@ fn sync_cargo_intake_triggers(
                 };
                 position.0 = translation;
                 trigger_rotation.0 = rotation;
+                transform.translation = translation;
+                transform.rotation = rotation;
             }
             (Some((translation, rotation)), None) => {
                 commands.spawn((
@@ -464,6 +479,7 @@ fn sync_cargo_intake_triggers(
                         config.capture_gap.to_engine(),
                     ),
                     Sensor,
+                    TransformInterpolation,
                     Transform::from_translation(translation).with_rotation(rotation),
                 ));
             }
@@ -753,6 +769,11 @@ impl Plugin for CargoIntakeSectionPlugin {
             (sync_cargo_intake_triggers, run_cargo_intakes)
                 .chain()
                 .in_set(CargoIntakeSystems),
+        );
+        // The step's end pose, which the trigger's interpolation eases to.
+        app.add_systems(
+            FixedPostUpdate,
+            sync_cargo_intake_triggers.after(PhysicsSystems::Writeback),
         );
 
         if self.render {

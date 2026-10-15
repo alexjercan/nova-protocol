@@ -838,3 +838,43 @@ fn a_despawned_intake_loses_its_waiting_canisters() {
         "the trigger outlived its intake"
     );
 }
+
+/// A moving, turning ship renders its trigger where its rendered intake's
+/// face is, on every frame: the trigger eases on the render clock as the
+/// interpolated ship does, rather than jumping once per fixed step behind
+/// it. Frames are 1/60 s against the 64 Hz fixed step, so each frame lands
+/// at a different point between two steps.
+#[test]
+fn a_moving_ship_renders_its_trigger_on_its_rendered_intake_face() {
+    let (mut app, ship, intake) = intake_app(1);
+    app.world_mut().entity_mut(ship).insert((
+        TransformInterpolation,
+        LinearVelocity(Vec3::new(20.0, 0.0, 5.0)),
+        AngularVelocity(Vec3::new(0.0, 0.3, 0.0)),
+    ));
+    let gap = CAPTURE_GAP.to_engine();
+    let mut worst = 0.0_f32;
+    for _ in 0..90 {
+        app.update();
+        let world = app.world();
+        let (_, rotation, translation) = world
+            .get::<GlobalTransform>(intake)
+            .expect("the intake renders")
+            .to_scale_rotation_translation();
+        let collider = *world.get::<SectionCollider>(intake).expect("a collider");
+        let (face, normal) = cargo_intake_face(translation, rotation, collider);
+        let trigger = world
+            .get::<CargoIntakeTrigger>(intake)
+            .expect("a live intake keeps a trigger")
+            .0;
+        let rendered = world
+            .get::<GlobalTransform>(trigger)
+            .expect("the trigger renders")
+            .translation();
+        worst = worst.max(rendered.distance(face + normal * (gap * 0.5)));
+    }
+    assert!(
+        worst < 1e-3,
+        "the trigger renders {worst} units off the rendered intake face"
+    );
+}

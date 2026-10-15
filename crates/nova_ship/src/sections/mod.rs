@@ -103,10 +103,10 @@ pub fn live_structure_anchor(
 /// FixedUpdate spawner composes the mount chain onto the root's avian
 /// `Position`/`Rotation` instead of sampling `GlobalTransform`, which inside
 /// FixedUpdate still holds the previous frame's EASED render pose.
-pub(crate) fn local_pose_in_root(
+pub(crate) fn local_pose_in_root<F: bevy::ecs::query::QueryFilter>(
     descendant: Entity,
     root: Entity,
-    q_chain: &Query<(&Transform, &ChildOf)>,
+    q_chain: &Query<(&Transform, &ChildOf), F>,
 ) -> Option<(Vec3, Quat)> {
     let mut position = Vec3::ZERO;
     let mut rotation = Quat::IDENTITY;
