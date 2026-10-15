@@ -39,7 +39,7 @@
 
 use std::collections::HashMap;
 
-use avian3d::prelude::{Collisions, LinearVelocity, PhysicsSystems};
+use avian3d::prelude::{Collisions, LinearVelocity, PhysicsSystems, Sensor};
 use bevy::{prelude::*, reflect::GetPath};
 use clap::Parser;
 use diagnostics::{palette, DiagnosticsGizmos, DiagnosticsPanel, DiagnosticsSystems};
@@ -287,9 +287,13 @@ fn record_damage(
 
 /// Read the solver's contacts between the player and any other ship root
 /// after the physics step: the peak approach speed along the contact normal,
-/// which is the speed the ram rule judges.
+/// which is the speed the ram rule judges. A pair with a `Sensor` side is
+/// skipped: no solver impulse crosses it, so the ram rule never judges it.
+/// A cargo intake's trigger is one, a detached body of its own beside the
+/// ship.
 fn read_the_contacts(
     collisions: Collisions,
+    q_sensors: Query<(), With<Sensor>>,
     q_player: Query<Entity, With<PlayerSpaceshipMarker>>,
     q_parent: Query<&ChildOf>,
     mut read: ResMut<ContactRead>,
@@ -302,6 +306,9 @@ fn read_the_contacts(
         let (Some(body1), Some(body2)) = (pair.body1, pair.body2) else {
             continue;
         };
+        if q_sensors.contains(pair.collider1) || q_sensors.contains(pair.collider2) {
+            continue;
+        }
         let (root1, root2) = (root_of(body1, &q_parent), root_of(body2, &q_parent));
         let other = match (root1 == player, root2 == player) {
             (true, false) => root2,
