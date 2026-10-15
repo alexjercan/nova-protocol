@@ -54,8 +54,17 @@
 //! (`nova_world::freeze_body` under `DockPolicy::Refuse`), and so is a station
 //! hub with a hull docked.
 
-use avian3d::prelude::*;
-use bevy::prelude::*;
+use avian3d::{
+    collision::contact_types::ContactId,
+    data_structures::pair_key::PairKey,
+    dynamics::solver::{
+        constraint_graph::ConstraintGraph,
+        islands::{BodyIslandNode, PhysicsIslands, WakeIslands},
+        joint_graph::JointGraph,
+    },
+    prelude::*,
+};
+use bevy::{ecs::entity_disabling::Disabled, prelude::*};
 use nova_gameplay::prelude::*;
 
 use super::{DockAdmission, DockingPorts, DockingSectionMarker, DockingSectionState};
@@ -336,6 +345,15 @@ pub(super) fn on_docking_connection_request(
         (false, false) => None,
     };
     let helm = pair_helm_on_capture([first_ship, second_ship], &q_roots);
+    // Queued ahead of the joint spawn so the pair holds no contact when
+    // avian's own `JointCollisionDisabled` observer runs.
+    commands.queue(move |world: &mut World| {
+        if let Err(error) =
+            world.run_system_cached_with(drop_pair_contacts, (first_ship, second_ship))
+        {
+            error!("on_docking_connection_request: dropping the pair's contacts failed: {error}");
+        }
+    });
     let record = DockingConnection {
         first_ship,
         first_section: candidate.first_section,
@@ -381,6 +399,90 @@ pub(super) fn on_docking_connection_request(
                 drives: false,
             });
         }
+    }
+}
+
+/// Drop every contact between two bodies that are about to be joined with
+/// [`JointCollisionDisabled`], unlinking each one from its simulation island
+/// first.
+///
+/// TODO(avian#1076): avian3d 0.7's `on_disable_joint_collision` removes the
+/// pair's contacts from the contact and constraint graphs but not from their
+/// island. A dock captured while the hulls touch then leaves the island
+/// pointing at a dead `ContactId`; the next contact that joins the island
+/// reuses that id and avian panics with "Head contact .. has no island". It
+/// also removes the pair key built from the BODY indices, where the narrow
+/// phase keys by COLLIDER, so the broad phase would never recreate the pair
+/// after undock. Delete this function and its call when avian unlinks the
+/// island itself.
+fn drop_pair_contacts(
+    In((body1, body2)): In<(Entity, Entity)>,
+    q_colliders: Query<&RigidBodyColliders>,
+    joint_graph: Res<JointGraph>,
+    mut contact_graph: ResMut<ContactGraph>,
+    mut constraint_graph: ResMut<ConstraintGraph>,
+    mut islands: Option<ResMut<PhysicsIslands>>,
+    mut body_islands: Query<&mut BodyIslandNode, Or<(With<Disabled>, Without<Disabled>)>>,
+    mut colliding: Query<&mut CollidingEntities, Or<(With<Disabled>, Without<Disabled>)>>,
+    mut collision_ended: MessageWriter<CollisionEnd>,
+    mut commands: Commands,
+) {
+    let Ok(colliders) = q_colliders.get(body1) else {
+        return;
+    };
+    let contacts: Vec<ContactId> = colliders
+        .iter()
+        .flat_map(|collider| contact_graph.contact_edges_with(collider))
+        .filter(|edge| edge.body1 == Some(body2) || edge.body2 == Some(body2))
+        .map(|edge| edge.id)
+        .collect();
+
+    let mut to_wake = Vec::new();
+    for contact_id in contacts {
+        let Some(edge) = contact_graph.get_edge_mut_by_id(contact_id) else {
+            continue;
+        };
+        let (collider1, collider2) = (edge.collider1, edge.collider2);
+        let (edge_body1, edge_body2) = (edge.body1, edge.body2);
+        let manifolds = edge.constraint_handles.len();
+        let linked = edge.island.is_some();
+        let touching = edge.is_touching();
+        let events = edge.events_enabled();
+
+        if touching {
+            if events {
+                collision_ended.write(CollisionEnd {
+                    collider1,
+                    collider2,
+                    body1: edge_body1,
+                    body2: edge_body2,
+                });
+            }
+            for (entity, other) in [(collider1, collider2), (collider2, collider1)] {
+                if let Ok(mut entities) = colliding.get_mut(entity) {
+                    entities.remove(&other);
+                }
+            }
+        }
+        for _ in 0..manifolds {
+            constraint_graph.pop_manifold(&mut contact_graph.edges, contact_id, body1, body2);
+        }
+        if let (true, Some(islands)) = (linked, islands.as_deref_mut()) {
+            let island = islands.remove_contact(
+                contact_id,
+                &mut body_islands,
+                &mut contact_graph.edges,
+                &joint_graph,
+            );
+            if island.is_sleeping() {
+                to_wake.push(island.id());
+            }
+        }
+        let pair_key = PairKey::new(collider1.index_u32(), collider2.index_u32());
+        contact_graph.remove_edge_by_id(&pair_key, contact_id);
+    }
+    if !to_wake.is_empty() {
+        commands.queue(WakeIslands(to_wake));
     }
 }
 

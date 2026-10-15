@@ -1632,3 +1632,52 @@ fn losing_the_station_port_while_docked_releases_the_dock() {
         );
     }
 }
+
+/// Whether any collider of `first` holds a touching contact with any collider
+/// of `second` that avian has linked into a simulation island.
+fn island_linked_contact(app: &App, first: Entity, second: Entity) -> bool {
+    let world = app.world();
+    let graph = world.resource::<ContactGraph>();
+    let colliders = |body: Entity| {
+        world
+            .get::<RigidBodyColliders>(body)
+            .expect("a settled body lists its colliders")
+            .iter()
+            .collect::<Vec<_>>()
+    };
+    let others = colliders(second);
+    colliders(first).into_iter().any(|a| {
+        others.iter().any(|&b| {
+            graph
+                .get(a, b)
+                .is_some_and(|(edge, pair)| pair.is_touching() && edge.island.is_some())
+        })
+    })
+}
+
+#[test]
+fn docking_two_touching_hulls_leaves_their_island_sound_for_the_next_contact() {
+    let mut app = docking_app();
+    let (first, _, second, _) = facing_pair(&mut app, 0.0);
+    for _ in 0..10 {
+        app.update();
+    }
+    assert!(
+        island_linked_contact(&app, first, second),
+        "the hulls touch face to face before the dock"
+    );
+
+    request_dock(&mut app, first, second);
+    assert_eq!(connections(&mut app).len(), 1, "the touching pair docks");
+
+    // A third hull meets the docked pair. Its contact joins the pair's island,
+    // which reads the island's contact list.
+    let third = spawn_hull(&mut app, Vec3::NEG_Z * 2.0, Quat::IDENTITY);
+    for _ in 0..30 {
+        app.update();
+    }
+    assert!(
+        island_linked_contact(&app, second, third),
+        "the third hull's contact is linked into the docked pair's island"
+    );
+}
