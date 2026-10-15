@@ -1305,7 +1305,8 @@ fn block_fill_follows_family_not_status() {
 fn a_held_part_draws_its_target_block_and_face_opaque() {
     let (mut app, hull, turret, _thruster) = offset_ship_app();
     app.world_mut().init_resource::<ShipPlacementPreview>();
-    app.world_mut().insert_resource(HeldPart(Some("pdc".to_string())));
+    app.world_mut()
+        .insert_resource(HeldPart(Some("pdc".to_string())));
     *app.world_mut().resource_mut::<ShipPlacementPreview>() = ShipPlacementPreview {
         hovered: Some(hull),
         placement: Some(ShipPlacement {
@@ -1875,7 +1876,10 @@ fn update_ship_panel_shows_no_section_without_a_player_inventory() {
             .map(|(_, text)| text.0.clone())
             .expect("panel field text")
     };
-    assert_eq!(field_text(&mut app, ShipPanelField::Title), "No section selected");
+    assert_eq!(
+        field_text(&mut app, ShipPanelField::Title),
+        "No section selected"
+    );
     assert!(!app.world().resource::<ShipRuntime>().panel_repair_enabled);
 }
 

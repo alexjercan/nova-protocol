@@ -585,7 +585,9 @@ mod tests {
         let (mut app, ship) = docked_app(1_000_000, vec![StationServiceType::Refit]);
         assert_eq!(
             verdict(&mut app, ship.hull),
-            Some(Err("delete: taking HULL-1 off would split the ship".to_string()))
+            Some(Err(
+                "delete: taking HULL-1 off would split the ship".to_string()
+            ))
         );
         assert!(matches!(
             verdict(&mut app, ship.computer),
