@@ -41,7 +41,7 @@ use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
     pane::{interface_shown, play_menu_select, themed_label, InterfacePaneType},
     terminal::{NovaOsAppInput, NovaOsCloseTransition},
-    viewer::{cycle_index, orbit_eye, unlit, zoom_radius, OrbitGesture},
+    viewer::{cycle_index, orbit_eye, solid, unlit, zoom_radius, OrbitGesture},
 };
 
 #[derive(Component)]
@@ -106,7 +106,17 @@ pub(crate) struct ShipMateOverlay;
 #[derive(Component)]
 pub(crate) struct ShipBlock {
     pub(crate) section: Entity,
+    /// The section's family, which picks its translucent or solid fill.
+    pub(crate) family: SectionIconType,
+    /// The section's full collider size; the fill is this times
+    /// [`SHIP_BLOCK_FILL_SCALE`].
+    pub(crate) full: Vec3,
 }
+
+/// The opaque plate on the face of the hovered block that the held part
+/// mounts on. One per scene, hidden while no part is aimed.
+#[derive(Component)]
+pub(crate) struct ShipTargetFace;
 
 /// The bright box outline riding on a [`ShipBlock`] (a `LineList` of the cuboid's
 /// 12 edges) - the separation cue that keeps adjacent sections from merging. Its
@@ -165,6 +175,12 @@ pub struct ShipRuntime {
     /// The fill per section family, the outline edge mesh and the mate
     /// overlay material, made at open and shared by every block.
     pub(crate) mat_blocks: Vec<Handle<StandardMaterial>>,
+    /// The opaque fill per family, worn by the block a held part aims at so
+    /// the faces behind it do not show through.
+    pub(crate) mat_blocks_solid: Vec<Handle<StandardMaterial>>,
+    /// The target face plate and its material.
+    pub(crate) target_face: Option<Entity>,
+    pub(crate) mat_target_face: Option<Handle<StandardMaterial>>,
     pub(crate) mat_mates: Option<Handle<StandardMaterial>>,
     pub(crate) edge_mesh: Option<Handle<Mesh>>,
     /// The box outline, and its accent variant for the selected section;
@@ -311,6 +327,7 @@ pub(crate) fn manage_ship_scene(
         // The blocks and the overlay went with the scene root.
         runtime.blocks.clear();
         runtime.mate_overlay = None;
+        runtime.target_face = None;
         runtime.image = None;
         runtime.selected = None;
         runtime.repair_target = None;
@@ -349,6 +366,13 @@ pub(crate) fn manage_ship_scene(
     runtime.mat_blocks = SectionIconType::ALL
         .map(|icon| materials.add(unlit(theme.color_alpha(icon.color(), icon.block_alpha()))))
         .to_vec();
+    // Darker than the family tint, so the accent plate on the target face
+    // reads against it.
+    let surface = theme.color(UiColor::Surface);
+    runtime.mat_blocks_solid = SectionIconType::ALL
+        .map(|icon| materials.add(solid(theme.color(icon.color()).mix(&surface, 0.45))))
+        .to_vec();
+    runtime.mat_target_face = Some(materials.add(solid(theme.color(UiColor::Accent))));
     runtime.mat_mates = Some(materials.add(unlit(theme.color(UiColor::Accent))));
     runtime.mat_outline = Some(materials.add(unlit(theme.color_alpha(UiColor::Primary, 0.95))));
     runtime.mat_outline_selected = Some(materials.add(unlit(theme.color(UiColor::Accent))));
@@ -406,6 +430,21 @@ pub(crate) fn manage_ship_scene(
         runtime.blocks.insert(view.entity, block);
     }
     runtime.mate_overlay = spawn_mate_overlay(&mut commands, &runtime, &mut meshes, &views);
+    if let Some(material) = runtime.mat_target_face.clone() {
+        let face = commands
+            .spawn((
+                ShipTargetFace,
+                Name::new("ShipTargetFace"),
+                Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
+                MeshMaterial3d(material),
+                Transform::default(),
+                Visibility::Hidden,
+                RenderLayers::layer(SHIP_LAYER),
+                ChildOf(scene_root),
+            ))
+            .id();
+        runtime.target_face = Some(face);
+    }
 
     // Bow is ship-local -Z. The arrow starts clear of the foremost block and
     // points away from the hull, so the view reads fore and aft.
@@ -562,6 +601,8 @@ fn spawn_ship_block(
     let mut block = commands.spawn((
         ShipBlock {
             section: view.entity,
+            family: SectionIconType::of(view.kind),
+            full,
         },
         Mesh3d(meshes.add(Cuboid::new(fill.x, fill.y, fill.z))),
         Transform {
@@ -926,6 +967,7 @@ pub(crate) fn project_ship_blips(
     q_viewport: Query<(Entity, &ComputedNode), With<ShipViewportMarker>>,
     mut q_blip: Query<(&mut Node, &mut Visibility, &mut ThemedBorder, &Children), With<ShipBlip>>,
     mut q_pip: Query<&mut ThemedFill, With<ShipStatusPip>>,
+    preview: Res<ShipPlacementPreview>,
 ) {
     if !runtime.active {
         return;
@@ -948,7 +990,9 @@ pub(crate) fn project_ship_blips(
     let to_logical = computed.inverse_scale_factor();
     let size = computed.size() * to_logical;
     let list = sections.collect();
-
+    // The badge of the block a held part aims at would sit on the face the
+    // part mounts on, so it hides while the part is aimed there.
+    let aimed = runtime.held.as_ref().and(preview.hovered);
     let mut seen = bevy::platform::collections::HashSet::new();
     for view in &list {
         seen.insert(view.entity);
@@ -981,8 +1025,8 @@ pub(crate) fn project_ship_blips(
                 }
             }
             visibility.set_if_neq(match projected {
-                Some(_) => Visibility::Inherited,
-                None => Visibility::Hidden,
+                Some(_) if aimed != Some(view.entity) => Visibility::Inherited,
+                _ => Visibility::Hidden,
             });
         }
         let selected = runtime.selected == Some(view.entity);

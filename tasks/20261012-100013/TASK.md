@@ -111,3 +111,10 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
 - Rebind proof key. R no longer tilts, so the proof binds `T` (reset view),
   which is free of the flight table. `]` is the flight lock-next key, and
   the panel refuses it.
+- Opaque target face. Options: (a) draw the target section's real model in
+  the schematic (a second scene per section on the Ship layer); (b) an
+  opaque fill on the target block plus an opaque accent plate on the face
+  whose axis is nearest the target socket's normal. Chosen (b): the
+  schematic stays one material family, and the plate marks the face where a
+  flat opaque cube cannot. The target section's badge hides while aimed, as
+  it sat on that face. Other blocks keep the translucent tint.

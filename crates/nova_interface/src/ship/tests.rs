@@ -1271,6 +1271,90 @@ fn block_fill_follows_family_not_status() {
     assert_ne!(hull_fill, turret_fill, "a turret's fill is not the hull's");
 }
 
+/// While a part is held, the block it aims at wears an opaque fill and an
+/// opaque plate sits on the face it mounts on; every other block stays
+/// translucent. With the part put down, the aimed block goes back to its
+/// translucent fill and the plate hides.
+#[test]
+fn a_held_part_draws_its_target_block_and_face_opaque() {
+    let (mut app, hull, turret, _thruster) = offset_ship_app();
+    app.world_mut().init_resource::<ShipPlacementPreview>();
+    app.world_mut().resource_mut::<ShipRuntime>().held = Some("pdc".to_string());
+    *app.world_mut().resource_mut::<ShipPlacementPreview>() = ShipPlacementPreview {
+        hovered: Some(hull),
+        placement: Some(ShipPlacement {
+            section: "cube_a".to_string(),
+            point: "east".to_string(),
+            prototype: "pdc".to_string(),
+            mount: MountPose::default(),
+            pose: None,
+            anchor: Vec3::new(3.5, 2.0, -1.0),
+            normal: Vec3::X,
+            verdict: Ok(String::new()),
+            payment: None,
+        }),
+    };
+    app.world_mut()
+        .run_system_once(sync_ship_target_face)
+        .unwrap();
+
+    let fill_of = |app: &mut App, section: Entity| {
+        app.world_mut()
+            .query::<(&ShipBlock, &MeshMaterial3d<StandardMaterial>)>()
+            .iter(app.world())
+            .find(|(block, _)| block.section == section)
+            .map(|(_, material)| material.0.clone())
+            .expect("a block per section")
+    };
+    let alpha_mode = |app: &App, handle: &Handle<StandardMaterial>| {
+        app.world()
+            .resource::<Assets<StandardMaterial>>()
+            .get(handle)
+            .expect("the fill is loaded")
+            .alpha_mode
+    };
+    let face = |app: &mut App| {
+        app.world_mut()
+            .query_filtered::<(&Transform, &Visibility), With<ShipTargetFace>>()
+            .single(app.world())
+            .map(|(pose, visibility)| (*pose, *visibility))
+            .expect("one target face plate")
+    };
+
+    let hull_fill = fill_of(&mut app, hull);
+    assert_eq!(alpha_mode(&app, &hull_fill), AlphaMode::Opaque);
+    let turret_fill = fill_of(&mut app, turret);
+    assert_eq!(alpha_mode(&app, &turret_fill), AlphaMode::Blend);
+    let (pose, visibility) = face(&mut app);
+    assert_eq!(visibility, Visibility::Inherited, "the plate shows");
+    // The hull's unit block, east face: flush on the fill, half a plate out.
+    let east = 3.0 + (SHIP_BLOCK_FILL_SCALE + 0.04) * 0.5;
+    assert!(
+        pose.translation.distance(Vec3::new(east, 2.0, -1.0)) < 1e-4,
+        "the plate is on the east face: {pose:?}"
+    );
+    assert!(pose.scale.x < 0.1 && pose.scale.y > 0.8 && pose.scale.z > 0.8);
+
+    // A turned block: its local -Z faces ship-local +X.
+    let turned = Transform::from_rotation(Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2));
+    let plate = target_face_pose(turned, Vec3::new(1.0, 1.0, 2.0), Vec3::X);
+    assert!(
+        plate
+            .translation
+            .distance(Vec3::X * (2.0 * SHIP_BLOCK_FILL_SCALE + 0.04) * 0.5)
+            < 1e-4,
+        "the plate is on the turned block's long axis: {plate:?}"
+    );
+
+    app.world_mut().resource_mut::<ShipRuntime>().held = None;
+    app.world_mut()
+        .run_system_once(sync_ship_target_face)
+        .unwrap();
+    let hull_fill = fill_of(&mut app, hull);
+    assert_eq!(alpha_mode(&app, &hull_fill), AlphaMode::Blend);
+    assert_eq!(face(&mut app).1, Visibility::Hidden, "the plate hides");
+}
+
 #[test]
 fn badge_shows_family_icon_status_pip_and_code() {
     // A section badge is its family icon, a pip in its status colour and a

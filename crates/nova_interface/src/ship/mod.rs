@@ -157,6 +157,7 @@ impl Plugin for ShipPanePlugin {
                     update_ship_placement,
                     pick_ship_part,
                     sync_ship_ghost,
+                    sync_ship_target_face,
                     project_ship_blips,
                     label_the_selected_section,
                     update_ship_panel,

@@ -198,6 +198,17 @@ pub(crate) fn unlit(color: Color) -> StandardMaterial {
     }
 }
 
+/// An opaque flat material: it hides what is behind it, where [`unlit`]
+/// blends.
+pub(crate) fn solid(color: Color) -> StandardMaterial {
+    StandardMaterial {
+        base_color: color.with_alpha(1.0),
+        unlit: true,
+        alpha_mode: AlphaMode::Opaque,
+        ..default()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

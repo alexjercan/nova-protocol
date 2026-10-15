@@ -41,7 +41,10 @@ use nova_ui::{
 use super::{
     rebuild::{rebuild_price_text, StationSite},
     refit::{add_refusal_text, live_bindings, SectionAddCommand, SectionBindingRow},
-    scene::{ShipCameraMarker, ShipRuntime, ShipViewportMarker, SHIP_BLOCK_FILL_SCALE},
+    scene::{
+        ShipBlock, ShipCameraMarker, ShipRuntime, ShipTargetFace, ShipViewportMarker,
+        SHIP_BLOCK_FILL_SCALE,
+    },
     sections::{design_section_code, ShipSectionView, ShipSections},
     SHIP_LAYER,
 };
@@ -518,6 +521,86 @@ pub(crate) fn pick_ship_part(
         runtime.held = Some(part.id.clone());
         runtime.mount = MountPose::default();
         play_menu_select(&mut commands, bank.as_deref());
+    }
+}
+
+/// The target face plate's thickness, in scene units (one unit is one cell).
+const TARGET_FACE_DEPTH: f32 = 0.04;
+
+/// While a part is held, draw the block under the pointer opaque, so the
+/// faces behind it do not show through, and put an opaque plate on the face
+/// the part mounts on: the face whose outward axis is nearest the target
+/// socket's normal. Every other block keeps its translucent fill.
+pub(crate) fn sync_ship_target_face(
+    runtime: Res<ShipRuntime>,
+    preview: Res<ShipPlacementPreview>,
+    mut q_block: Query<
+        (
+            &ShipBlock,
+            &Transform,
+            &mut MeshMaterial3d<StandardMaterial>,
+        ),
+        Without<ShipTargetFace>,
+    >,
+    mut q_face: Query<(&mut Transform, &mut Visibility), With<ShipTargetFace>>,
+) {
+    if !runtime.active {
+        return;
+    }
+    let target = runtime.held.as_ref().and(preview.hovered);
+    let mut plate = None;
+    for (block, pose, mut material) in &mut q_block {
+        let aimed = target == Some(block.section);
+        let fills = if aimed {
+            &runtime.mat_blocks_solid
+        } else {
+            &runtime.mat_blocks
+        };
+        if let Some(want) = fills.get(block.family as usize) {
+            if material.0 != *want {
+                material.0 = want.clone();
+            }
+        }
+        if let (true, Some(placement)) = (aimed, preview.placement.as_ref()) {
+            plate = Some(target_face_pose(*pose, block.full, placement.normal));
+        }
+    }
+    let Some(face) = runtime.target_face else {
+        return;
+    };
+    let Ok((mut pose, mut visibility)) = q_face.get_mut(face) else {
+        return;
+    };
+    let shown = if plate.is_some() {
+        Visibility::Inherited
+    } else {
+        Visibility::Hidden
+    };
+    if *visibility != shown {
+        *visibility = shown;
+    }
+    if let Some(plate) = plate {
+        if *pose != plate {
+            *pose = plate;
+        }
+    }
+}
+
+/// The plate on the face of a block at `block` with full size `full` whose
+/// outward axis is nearest `normal` (ship-local): flush on the fill, the
+/// fill's width and height, [`TARGET_FACE_DEPTH`] deep.
+pub(crate) fn target_face_pose(block: Transform, full: Vec3, normal: Vec3) -> Transform {
+    let local = block.rotation.inverse() * normal;
+    let axis = local.abs().max_position();
+    let fill = full * SHIP_BLOCK_FILL_SCALE;
+    let mut offset = Vec3::ZERO;
+    offset[axis] = local[axis].signum() * (fill[axis] + TARGET_FACE_DEPTH) * 0.5;
+    let mut scale = fill;
+    scale[axis] = TARGET_FACE_DEPTH;
+    Transform {
+        translation: block.translation + block.rotation * offset,
+        rotation: block.rotation,
+        scale,
     }
 }
 

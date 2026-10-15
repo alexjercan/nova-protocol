@@ -178,6 +178,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The Ship pane uses the editor's controls: Q picks the part of the section
   under the pointer, and the view turns by right-drag. Q, E, R and F no longer
   turn it; the D-pad still does.
+- With a part in hand, the Ship pane draws the section it aims at solid, lights
+  the face the part mounts on and hides that section's badge.
 - The Ship pane shows the docked station and ships at its docks as dim
   outlines and refuses a part that would hit them. The add callout counts the
   parts bought at the station.
