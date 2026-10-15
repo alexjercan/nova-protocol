@@ -87,10 +87,13 @@ and a save keep the inline design, so the swap persists.
 The catalogue lists each part that is not `hide_in_editor` and whose recipe
 the player's hold and the station's stock together carry
 (`plan_recipe_payment` finds no missing part). Credits do not filter: a part
-the ship cannot pay for shows the credit refusal. Place on the focus card puts
-a part in hand (`HeldPart`, shared with the editor). While a part is in
-hand, the placement ghost (`nova_interface/src/ship/ghost.rs`) casts the
-pointer's ray into the Ship view, takes the nearest block it enters
+the ship cannot pay for shows the credit refusal. Each `GalleryEntry` carries
+a short `tile` line (`180 cr, 2 bought`, or `Needs 400 cr`) that wraps inside
+its tile, and the whole price or refusal as the focus card's `note`. Place on
+the focus card puts a part in hand (`HeldPart`, shared with the editor).
+While a part is in hand, the placement ghost
+(`nova_interface/src/ship/ghost.rs`) casts the pointer's ray into the Ship
+view, takes the nearest block it enters
 (`pick_ship_block`), and snaps to the target of that section nearest the hit
 (`nearest_link_point` over `ghost_targets`). A target is a free socket whose
 outward lane leaves the ship without entering another block and where

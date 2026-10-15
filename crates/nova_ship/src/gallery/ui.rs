@@ -85,13 +85,11 @@ fn part_count(listed: usize, stocked: usize) -> String {
     format!("{listed} of {stocked} parts")
 }
 
-/// Height of the tile's label strip. The strip is opaque so the name stays
-/// readable over the skybox; the preview area above it must NOT be, or it would
-/// tint the 3D behind it.
+/// Least height of the tile's label strip. The strip is opaque so the name
+/// stays readable over the skybox; the preview area above it must NOT be, or
+/// it would tint the 3D behind it. A name or a listing's tile line that wraps
+/// grows the strip, and the preview area gives up the height.
 const LABEL_H: f32 = 34.0;
-
-/// The label strip's height with a listing's note line under the kind.
-const LABEL_NOTE_H: f32 = 48.0;
 
 /// Rebuild the overlay (and its previews) whenever the gallery state or the
 /// catalog changes.
@@ -379,7 +377,7 @@ fn grid_body(
                             Some((index, section)) => {
                                 let note = listing
                                     .and_then(|listing| listing.entry(&section.base.id))
-                                    .map(|entry| entry.note.as_str());
+                                    .map(|entry| entry.tile.as_str());
                                 let stage = spawn_cell(row_node, section, note, slot);
                                 stages.push((stage, index, false));
                             }
@@ -418,6 +416,8 @@ fn spawn_cell(
         Node {
             flex_grow: 1.0,
             flex_basis: px(0),
+            // Every tile takes an equal share of the row, whatever its text.
+            min_width: px(0),
             flex_direction: FlexDirection::Column,
             border: UiRect::all(px(theme::BORDER_W)),
             ..default()
@@ -451,14 +451,14 @@ fn spawn_cell(
         let mut strip = cell.spawn((
             Node {
                 width: percent(100),
-                height: px(if note.is_some() {
-                    LABEL_NOTE_H
-                } else {
-                    LABEL_H
-                }),
+                min_height: px(LABEL_H),
+                flex_shrink: 0.0,
                 flex_direction: FlexDirection::Column,
                 justify_content: JustifyContent::Center,
-                padding: UiRect::horizontal(px(6)),
+                padding: UiRect::axes(px(6), px(3)),
+                // A word longer than the tile is cut at the tile's edge,
+                // never drawn over its neighbour.
+                overflow: Overflow::clip(),
                 ..default()
             },
             BackgroundColor(Color::NONE),

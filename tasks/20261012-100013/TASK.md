@@ -213,3 +213,11 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
   were a global panel positioned from the hovered node (needs a camera per
   surface), or the editor's per-surface panels (one more copy). The width is
   fixed at 240 px: an absolute child wraps in its node's width otherwise.
+- Tile lines (item 12). `GalleryEntry` gains `tile`, a short line for the
+  tile (`180 cr, 2 bought`, `Short of parts`, `Needs 400 cr`, `Price too
+  high`); `note` keeps the whole price, the swap line and the reason for the
+  focus card. The label strip grows with a wrapped name or tile line from a
+  34 px floor and clips at the tile edge; tiles take equal row shares
+  (`min_width: 0`). Bevy 0.19 text has no ellipsis, so wrap and clip it is.
+  Frames: `sandbox-catalogue-all.png` at 1920x1080 (18 tiles, 6 columns)
+  and at 1280x720 (5 columns), all lines inside their tiles.

@@ -125,7 +125,10 @@ impl GalleryListing {
 pub struct GalleryEntry {
     /// The catalog id.
     pub id: String,
-    /// One line under the part's name: a price or a refusal.
+    /// The short line on the part's tile, under its name: a price or a
+    /// refusal in a few words. It wraps inside the tile.
+    pub tile: String,
+    /// The whole price or refusal, on the focus card.
     pub note: String,
     /// A second verb on the focus card beside Place, as its button label;
     /// pressing it writes [`GalleryAlternate`].

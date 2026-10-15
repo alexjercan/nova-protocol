@@ -109,10 +109,14 @@ fn station_listing(
             continue;
         }
         let name = &offered.base.name;
-        let mut note = match plan_recipe_payment(items, recipe, stock, stock_cr, own, own_cr.0) {
-            Ok(payment) => rebuild_price_text(&payment),
-            Err(refusal) => payment_refusal_text(items, name, &refusal),
-        };
+        let (tile, mut note) =
+            match plan_recipe_payment(items, recipe, stock, stock_cr, own, own_cr.0) {
+                Ok(payment) => (tile_price_text(&payment), rebuild_price_text(&payment)),
+                Err(refusal) => (
+                    tile_refusal_text(&refusal),
+                    payment_refusal_text(items, name, &refusal),
+                ),
+            };
         let mut alternate = None;
         if let Some(section) =
             selected.filter(|section| section_swap_family(&section.config, offered).is_ok())
@@ -132,11 +136,29 @@ fn station_listing(
         }
         entries.push(GalleryEntry {
             id: offered.base.id.clone(),
+            tile,
             note,
             alternate,
         });
     }
     Some(GalleryListing(entries))
+}
+
+/// A part's price on its gallery tile: the credits and how many parts the
+/// station sells into it. The focus card names the parts from the hold.
+fn tile_price_text(payment: &RecipePayment) -> String {
+    let bought: u32 = payment.bought.values().sum();
+    format!("{} cr, {bought} bought", payment.price_cr)
+}
+
+/// Why a part cannot be paid, in the few words its gallery tile has room for.
+/// The focus card gives the whole reason.
+fn tile_refusal_text(refusal: &RecipePaymentRefusalType) -> String {
+    match refusal {
+        RecipePaymentRefusalType::MissingParts { .. } => "Short of parts".to_string(),
+        RecipePaymentRefusalType::InsufficientCredits { need, .. } => format!("Needs {need} cr"),
+        RecipePaymentRefusalType::CreditOverflow => "Price too high".to_string(),
+    }
 }
 
 /// Show the Catalogue button while the ship is docked at a living station

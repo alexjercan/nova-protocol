@@ -67,7 +67,7 @@
 //! mating socket, until the station refuses it (or warns that none reaches),
 //! and switches tabs after it: a Map tab click, an Inventory tab click and the
 //! next-tab key, which steps on to the Station tab while docked. `NOVA_CAPTURE=1` shoots `sandbox-ship.png`,
-//! `sandbox-catalogue.png`, `sandbox-ghost.png`, `sandbox-mount.png`, `sandbox-placed.png`,
+//! `sandbox-catalogue-all.png`, `sandbox-catalogue.png`, `sandbox-ghost.png`, `sandbox-mount.png`, `sandbox-placed.png`,
 //! `sandbox-rebind-armed.png`, `sandbox-rebind.png`, `sandbox-delete-yield.png`,
 //! `sandbox-delete.png`,
 //! `sandbox-delete-refused.png`,
@@ -847,6 +847,9 @@ mod smoke {
     const DELETE_BUTTON: &str = "ShipDelete";
     /// The PNG of the Catalogue open on the kinetic PDC's category.
     const CATALOGUE_SHOT: &str = "sandbox-catalogue.png";
+    /// The PNG of the Catalogue as it opens, on every part the station
+    /// builds: each tile's name, kind and price line inside the tile.
+    const CATALOGUE_ALL_SHOT: &str = "sandbox-catalogue-all.png";
     /// The PNG of the Catalogue open on the Railgun Lance's category.
     const CATALOGUE_LANCE_SHOT: &str = "sandbox-catalogue-lance.png";
     /// The PNG of the hull part the pipette took off the ship.
@@ -1013,9 +1016,10 @@ mod smoke {
     fn take_the_part(
         script: AutopilotPlugin<GameStates>,
         part: &'static str,
+        opened_shot: Option<&'static str>,
         shot: &'static str,
     ) -> AutopilotPlugin<GameStates> {
-        script
+        let script = script
             .step(format!("station sandbox: note the ship before {part}"))
             .on_enter(|world: &mut World| {
                 if world.get_resource::<SmokeAdd>().is_some() {
@@ -1037,7 +1041,24 @@ mod smoke {
                 CATALOGUE_BUTTON,
                 ui_node_present("Gallery Grid"),
                 BEAT_SECS,
-            )
+            );
+        let script = match opened_shot {
+            Some(opened_shot) => script
+                .step(format!(
+                    "station sandbox: settle the opened Catalogue for {part}"
+                ))
+                .until(frames(SETTLE_FRAMES))
+                .add()
+                .step(format!(
+                    "station sandbox: shoot the opened Catalogue for {part}"
+                ))
+                .on_enter(move |world: &mut World| shoot(world, opened_shot))
+                .until(shot_written(opened_shot))
+                .deadline(SHOT_SECS)
+                .add(),
+            None => script,
+        };
+        script
             .step(format!("station sandbox: narrow the Catalogue to {part}"))
             .on_enter(move |world: &mut World| {
                 let chip = format!("Gallery Category {}", part_category(world, part).label());
@@ -1479,7 +1500,12 @@ mod smoke {
             .until(shot_written(SHIP_SHOT))
             .deadline(SHOT_SECS)
             .add();
-        let script = take_the_part(script, PDC_KINETIC_TURRET_SECTION_ID, CATALOGUE_SHOT);
+        let script = take_the_part(
+            script,
+            PDC_KINETIC_TURRET_SECTION_ID,
+            Some(CATALOGUE_ALL_SHOT),
+            CATALOGUE_SHOT,
+        );
         let script = script
             .step("station sandbox: aim the ghost at a free socket")
             .each(aim_the_ghost)
@@ -1944,7 +1970,7 @@ mod smoke {
         // one- or two-cell part never reaches them. The station is on the
         // ship's -X side, away from the opening view, so the view turns
         // first, by the right-button drag the editor's camera looks with.
-        let script = take_the_part(script, RAILGUN_LANCE_SECTION_ID, CATALOGUE_LANCE_SHOT);
+        let script = take_the_part(script, RAILGUN_LANCE_SECTION_ID, None, CATALOGUE_LANCE_SHOT);
         script
             // Over the view first: the drag looks only while the pointer is
             // on it.

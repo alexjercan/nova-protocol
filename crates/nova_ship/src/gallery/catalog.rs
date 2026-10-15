@@ -355,11 +355,13 @@ mod tests {
         let listing = GalleryListing(vec![
             GalleryEntry {
                 id: "basic_thruster_section".to_string(),
+                tile: "40 cr".to_string(),
                 note: "40 cr".to_string(),
                 alternate: None,
             },
             GalleryEntry {
                 id: "hauler_nose".to_string(),
+                tile: "12 cr".to_string(),
                 note: "12 cr".to_string(),
                 alternate: None,
             },
