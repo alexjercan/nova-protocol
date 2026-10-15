@@ -17,8 +17,9 @@
 //! only neighbours lie along one axis, and a wing or an arm is panels. A cell
 //! takes the next sturdier part where its own is not eligible or would press a
 //! blind face against a socket: a panel falls back to a strut, a strut to a
-//! block. A blocks-only station is valid, and it is what advancement 0 builds
-//! from the base parts.
+//! block. No station stands a panel below [`PANEL_ADVANCEMENT`], whatever its
+//! part's tier. A blocks-only station is valid, and it is what advancement 0
+//! builds from the base parts.
 //!
 //! FITTINGS. Flight computers replace solid cells inside the frame, one per
 //! [`CELLS_PER_CONTROLLER`](nova_ship::prelude::CELLS_PER_CONTROLLER) cells of
@@ -86,6 +87,11 @@ const MAX_STATION_ATTEMPTS: u32 = 8;
 
 /// The largest station clearance radius at advancement 0.
 const MIN_STATION_CLEARANCE: Meters = Meters(100.0);
+
+/// The advancement from which a station stands panels, such as the base
+/// solar panel, in its wings and arms. Below it those cells fall back to
+/// struts, so a young civilization's station is all structure.
+const PANEL_ADVANCEMENT: f32 = 0.5;
 
 /// The largest station clearance radius at advancement 1.
 const MAX_STATION_CLEARANCE: Meters = Meters(300.0);
@@ -680,8 +686,9 @@ impl<'a> StationDraw<'a> {
             .collect()
     }
 
-    /// The structure parts: the two first blocks, and a strut and a panel
-    /// where one is eligible.
+    /// The structure parts: the two first blocks, a strut where one is
+    /// eligible, and a panel where one is eligible from
+    /// [`PANEL_ADVANCEMENT`].
     fn structure(&self) -> Result<Structure<'a>, StationLayoutConstraintType> {
         let of = |kind: StructureType, aspect: &[u8]| {
             self.ranked(ShipPartFamilyType::Hull, aspect, |part| {
@@ -707,7 +714,12 @@ impl<'a> StationDraw<'a> {
             }
             (*part, turned)
         });
-        let panel = of(StructureType::Panel, b"panel").first().map(|part| {
+        let panels = if self.request.advancement >= PANEL_ADVANCEMENT {
+            of(StructureType::Panel, b"panel")
+        } else {
+            Vec::new()
+        };
+        let panel = panels.first().map(|part| {
             let mut turned = HashMap::new();
             for rotation in cube_rotations() {
                 let Ok(oriented) = oriented_part(&part.config, rotation) else {
@@ -1611,6 +1623,56 @@ mod tests {
     }
 
     const ADVANCEMENTS: [f32; 5] = [0.0, 0.25, 0.5, 0.75, 1.0];
+
+    /// No station stands a panel below advancement 0.5, even with a panel
+    /// part open from advancement 0, and from 0.5 the spire's wings and the
+    /// yard's arms are panels.
+    #[test]
+    fn a_station_stands_panels_from_mid_advancement_only() {
+        let mut packs = fixture::packs();
+        packs.push(ShipPartPack {
+            id: "frame".to_string(),
+            dependencies: vec!["base".to_string()],
+            sections: vec![
+                frame_part("strut", 150.0, &[Vec3::Z, Vec3::NEG_Z], Vec3::ONE),
+                // As sturdy per volume as the weakest cube, so its tier is 0.
+                frame_part(
+                    "panel",
+                    10.0,
+                    &[Vec3::X, Vec3::NEG_X],
+                    Vec3::new(1.0, 0.1, 1.0),
+                ),
+            ],
+        });
+        let parts = ShipPartSnapshot::build(&packs).expect("the panel fixture builds");
+        assert!(parts
+            .parts()
+            .iter()
+            .any(|part| part.id() == "panel" && part.advancement == 0.0));
+        for archetype in StationArchetypeType::ALL {
+            for advancement in [0.0, 0.25, 0.45, 0.5, 0.75, 1.0] {
+                let mut panels = 0;
+                for seed in 0..8 {
+                    let station = generate_station(&parts, request(seed, archetype, advancement))
+                        .unwrap_or_else(|failure| {
+                            panic!("{archetype} a {advancement} seed {seed}: {failure}")
+                        });
+                    panels += station
+                        .design
+                        .sections
+                        .iter()
+                        .filter(|section| section.source.prototype_id() == "panel")
+                        .count();
+                }
+                let context = format!("{archetype} a {advancement}: {panels} panels");
+                if advancement < 0.5 {
+                    assert_eq!(panels, 0, "{context}");
+                } else if archetype != StationArchetypeType::Ring {
+                    assert!(panels > 0, "{context}");
+                }
+            }
+        }
+    }
 
     /// The same request gives the same station, and another seed another.
     #[test]

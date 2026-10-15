@@ -114,8 +114,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 ### Modding & Mod Portal
 
 - Generated worlds place stations: each civilization builds a ring, spire or
-  yard sized, armed and stocked by its advancement. An extinct one leaves one
-  dead, lootable station.
+  yard sized, armed and stocked by its advancement, solar panels from mid
+  level. An extinct one leaves a dead lootable station.
 - **(breaking)** A scenario object id or a ship section id may not contain
   '/', and two sections of one ship may not share an id. Both fail at lint and
   at load.

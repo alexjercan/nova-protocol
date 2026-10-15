@@ -392,8 +392,8 @@ every cell.
 | archetype | shape | style |
 |---|---|---|
 | ring | a solid hub, one to three rings round it and four spokes, eight from `a` 0.5 | `station` |
-| spire | two to five solid decks on columns, with panel wings | `armoured` |
-| yard | a spine between two end blocks, with rows of panel arms | `industrial` |
+| spire | two to five solid decks on columns, with wings: struts below `a` 0.5, solar panels from it | `armoured` |
+| yard | a spine between two end blocks, with rows of arms: struts below `a` 0.5, solar panels from it | `industrial` |
 
 | what | at `a` 0 | at `a` 1 |
 |---|---|---|
