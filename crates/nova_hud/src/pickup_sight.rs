@@ -855,13 +855,22 @@ mod tests {
             ))
             .id();
         nova_gameplay::test_support::settle(&mut app);
+        // Every spawned canister carries a minted runtime id, as production's
+        // drops do: the intake pass reads no canister without one.
+        let id = app
+            .world_mut()
+            .resource_mut::<CargoCanisterIdAllocator>()
+            .mint();
         let canister = app
             .world_mut()
-            .spawn(cargo_canister(
-                CargoCanister::new(&test_items(), &ItemRoleType::HullPlate.into(), 4),
-                Transform::from_xyz(0.0, 0.0, -2.85),
-                Vec3::ZERO,
-                AssetRef::from("canister.glb#Scene0"),
+            .spawn((
+                cargo_canister(
+                    CargoCanister::new(&test_items(), &ItemRoleType::HullPlate.into(), 4),
+                    Transform::from_xyz(0.0, 0.0, -2.85),
+                    Vec3::ZERO,
+                    AssetRef::from("canister.glb#Scene0"),
+                ),
+                id,
             ))
             .id();
         let takes = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
