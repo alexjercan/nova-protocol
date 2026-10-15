@@ -1602,6 +1602,178 @@ fn take_credits_button_shows_only_for_an_eligible_nonzero_balance() {
     assert!(!shown(&mut rig.app));
 }
 
+/// A Take all app: the handler alone, with a player carrying `plates` hull
+/// plates and 100 cr docked with "Derelict", which carries `stacks` and
+/// `credits`.
+fn take_all_app(
+    plates: u32,
+    stacks: &[(ItemDesignId, u32)],
+    credits: u32,
+) -> (App, Entity, Entity) {
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+    app.insert_resource(test_items());
+    app.init_resource::<InventoryRuntime>();
+    app.add_message::<TakeAllCommand>();
+    app.add_systems(Update, apply_take_all_commands);
+    hear_ui_cues(&mut app);
+    let player = spawn_player(app.world_mut(), plates);
+    // The stand-in hold is replaced by `stacks` at once.
+    let partner = dock_partner(app.world_mut(), player, "Derelict", 1);
+    app.world_mut().entity_mut(player).insert(ShipCredits(100));
+    app.world_mut().entity_mut(partner).insert((
+        ShipCredits(credits),
+        ShipInventory::new(&test_items(), 400_000, stacks.iter().cloned()),
+    ));
+    (app, player, partner)
+}
+
+/// Press Take all once: the note and the cues it left.
+fn take_all(app: &mut App) -> (Option<String>, Vec<UiSfx>) {
+    app.world_mut().write_message(TakeAllCommand);
+    app.update();
+    (note(app), take_cues(app))
+}
+
+/// What `ship` holds: its stacks and its credits.
+fn holds(app: &App, ship: Entity) -> (Vec<(ItemDesignId, u32)>, u32) {
+    let world = app.world();
+    (
+        world
+            .get::<ShipInventory>(ship)
+            .unwrap()
+            .stacks()
+            .map(|(item, count)| (item.clone(), count))
+            .collect(),
+        world.get::<ShipCredits>(ship).unwrap().0,
+    )
+}
+
+/// Take all moves every stack and the whole balance of a lootable partner in
+/// one press, leaving it empty; a partner that is not neutralized or lootable
+/// is never robbed, and an emptied one refuses a second press.
+#[test]
+fn take_all_moves_every_stack_and_the_credits_from_a_lootable_partner() {
+    let plate = ItemDesignId::from(ItemRoleType::HullPlate);
+    let rations = ItemDesignId::from(ItemRoleType::Rations);
+    let (mut app, player, partner) =
+        take_all_app(12, &[(plate.clone(), 8), (rations.clone(), 5)], 500);
+
+    assert_eq!(
+        take_all(&mut app),
+        (
+            Some("Refused: Derelict is not neutralized or lootable".to_string()),
+            vec![UiSfx::EditorDeny]
+        )
+    );
+    assert_eq!(holds(&app, player), (vec![(plate.clone(), 12)], 100));
+
+    app.world_mut()
+        .entity_mut(partner)
+        .insert(LootableShipMarker);
+    assert_eq!(
+        take_all(&mut app),
+        (
+            Some("Took 8 Hull plate, 5 Rations and 500 cr from Derelict".to_string()),
+            vec![UiSfx::MenuSelect]
+        )
+    );
+    assert_eq!(holds(&app, player), (vec![(plate, 20), (rations, 5)], 600));
+    assert_eq!(holds(&app, partner), (vec![], 0));
+
+    assert_eq!(
+        take_all(&mut app),
+        (
+            Some("Refused: Derelict holds nothing".to_string()),
+            vec![UiSfx::EditorDeny]
+        )
+    );
+}
+
+/// With room for only part of the wreck's hold, Take all takes what fits and
+/// the credits and names what stayed; pressed again with the hold full, it
+/// refuses and moves nothing.
+#[test]
+fn take_all_with_a_nearly_full_hold_takes_what_fits_and_names_what_stayed() {
+    let plate = ItemDesignId::from(ItemRoleType::HullPlate);
+    // 380 of 400 kg: room for two 10 kg plates.
+    let (mut app, player, partner) = take_all_app(38, &[(plate.clone(), 8)], 50);
+    app.world_mut()
+        .entity_mut(partner)
+        .insert(LootableShipMarker);
+
+    assert_eq!(
+        take_all(&mut app),
+        (
+            Some("Took 2 Hull plate and 50 cr from Derelict; no room for 6 Hull plate".to_string()),
+            vec![UiSfx::MenuSelect]
+        )
+    );
+    assert_eq!(holds(&app, player), (vec![(plate.clone(), 40)], 150));
+    assert_eq!(holds(&app, partner), (vec![(plate.clone(), 6)], 0));
+
+    assert_eq!(
+        take_all(&mut app),
+        (
+            Some("Refused: no room for 6 Hull plate".to_string()),
+            vec![UiSfx::EditorDeny]
+        )
+    );
+    assert_eq!(holds(&app, player), (vec![(plate.clone(), 40)], 150));
+    assert_eq!(holds(&app, partner), (vec![(plate, 6)], 0));
+}
+
+/// The strip block over the partner column and the header's Take all show
+/// only while docked with a wreck the player may loot: never at an intact
+/// ship or a living station, and again once that station is derelict.
+#[test]
+fn the_strip_block_and_take_all_show_only_at_a_wreck() {
+    let (mut rig, player) = inventory_rig();
+    let shown = |app: &mut App| {
+        let world = app.world_mut();
+        let block = world
+            .query_filtered::<&Node, With<StripBlock>>()
+            .single(world)
+            .expect("the partner column has one strip block")
+            .display
+            != Display::None;
+        let take_all = world
+            .query_filtered::<&Node, With<InventoryTakeAllButton>>()
+            .single(world)
+            .expect("the partner column has one Take all button")
+            .display
+            != Display::None;
+        (block, take_all)
+    };
+    assert_eq!(shown(&mut rig.app), (false, false), "undocked");
+
+    let partner = dock_partner(rig.app.world_mut(), player, "Derelict", 8);
+    settle(&mut rig.app);
+    assert_eq!(shown(&mut rig.app), (false, false), "an intact ship");
+
+    rig.app
+        .world_mut()
+        .entity_mut(partner)
+        .insert(LootableShipMarker);
+    settle(&mut rig.app);
+    assert_eq!(shown(&mut rig.app), (true, true), "a lootable wreck");
+
+    // A living station is never salvage, even carrying the loot marker.
+    rig.app
+        .world_mut()
+        .entity_mut(partner)
+        .insert(StationMarker(StationDesignId::from("waystation")));
+    settle(&mut rig.app);
+    assert!(!shown(&mut rig.app).0, "a living station");
+
+    rig.app
+        .world_mut()
+        .entity_mut(partner)
+        .insert(DerelictShipMarker);
+    settle(&mut rig.app);
+    assert_eq!(shown(&mut rig.app), (true, true), "a dead station");
+}
+
 /// Confirm follows the live plan: disabled on each refusal the summary shows,
 /// so neither a click nor a triggered `Activate` sends it, and enabled again
 /// once the quantity, room or credits allow the trade. A Buy that fills the

@@ -1,8 +1,8 @@
-//! system_station_strip: the Recycle tab strips a whole docked generated
-//! derelict on the game clock, one section at a time with the berth port
+//! system_station_strip: the Inventory pane's strip block strips a whole
+//! docked generated derelict on the game clock, one section at a time with the berth port
 //! last, then the wreck is gone and the player is free. An undock part-way
 //! stops the strip and keeps what it took, across a retire and a thaw; a
-//! living station shows the Station tab and refuses a strip.
+//! living station shows the Station tab, no strip block, and refuses a strip.
 //!
 //! Boots the shipped app (via [`editor_app`]), starts New Game on a pinned
 //! seed the way the Create World modal does, and lets the window stream in.
@@ -11,7 +11,7 @@
 //! beside each and is put on a berth at its collar each frame until the dock
 //! takes; the walk never flies an approach (`system_station_docking` does).
 //!
-//! Both strips start from the Recycle tab's Strip button, the code path a
+//! Both strips start from the Inventory pane's Strip button, the code path a
 //! player clicks, and run with the TAB interface shut. The first is stopped
 //! by an undock once it has taken a section; the second, after a retire and
 //! a thaw and a new dock, runs to the end. The strip at the living station is
@@ -30,7 +30,7 @@
 //! | 4 | `outcome: a finished strip demolishes the wreck and releases the player` | the wreck is gone, the player has no dock and no connection names it, and no strip runs |
 //! | 5 | `outcome: a finished strip's yield is in the hold` | the hold gained the whole-hull plan's parts, the sum of every `OnStripped` |
 //! | 6 | `outcome: a wreck a strip demolished stays gone across a retire` | the retired cell's frozen record holds no wreck, and none stands when the cell streams back |
-//! | 7 | `outcome: a living station shows the Station tab and refuses a strip` | docked at a living station, the Station tab shows and the Recycle tab does not; a strip command shows the living-station reason, starts no strip and moves nothing |
+//! | 7 | `outcome: a living station shows the Station tab and refuses a strip` | docked at a living station, the Station tab shows and the Inventory pane shows no strip block; a strip command shows the living-station reason, starts no strip and moves nothing |
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
@@ -39,11 +39,11 @@
 //! # look for: `station strip: PASS a living station shows the Station tab`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
-//! Add `NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=<dir>` to shoot the Recycle tab
-//! before the strip as `recycle-tab-plan.png`, the wreck early and late in
-//! the strip as `recycle-wreck-early.png` and `recycle-wreck-late.png`, the
-//! HUD chip as `recycle-strip-hud.png` and the Recycle tab mid-strip as
-//! `recycle-tab-mid-strip.png`.
+//! Add `NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=<dir>` to shoot the Inventory pane
+//! before the strip as `strip-plan.png`, the wreck early and late in the
+//! strip as `strip-wreck-early.png` and `strip-wreck-late.png`, the HUD chip
+//! as `strip-hud.png` and the Inventory pane mid-strip as
+//! `strip-inventory-mid.png`.
 
 use bevy::prelude::*;
 use clap::Parser;
@@ -53,7 +53,7 @@ use clap::Parser;
 #[command(version = "1.0.0")]
 #[command(
     about = "New Game on a pinned seed: dock at a generated derelict, start a whole-ship strip \
-             from the Recycle tab, undock part-way, leave the wreck's cell and come back, strip \
+             from the Inventory pane, undock part-way, leave the wreck's cell and come back, strip \
              the rest with the port last until the wreck is gone, then refuse a strip at a \
              living station. Autopilot-only correctness range",
     long_about = None
@@ -114,8 +114,10 @@ mod walk {
         },
         nova_events::engine::GameEvent,
         nova_interface::{
+            inventory::{
+                HullStripCommand, InventoryRuntime, INVENTORY_STRIP_BLOCK, INVENTORY_STRIP_BUTTON,
+            },
             pane::InterfacePaneType,
-            recycle::{HullStripCommand, RecycleRuntime, RECYCLE_STRIP_BUTTON},
             ship::design_section_code,
         },
         prelude::*,
@@ -143,15 +145,15 @@ mod walk {
     const START_ROLE_BUTTON: &str = "Start Role Button: scavenger";
 
     /// The interface tabs, named `InterfaceTab<label>`.
-    const RECYCLE_TAB: &str = "InterfaceTabRecycle";
+    const INVENTORY_TAB: &str = "InterfaceTabInventory";
     const STATION_TAB: &str = "InterfaceTabStation";
 
     /// The PNGs the capture path shoots.
-    const PLAN_SHOT: &str = "recycle-tab-plan.png";
-    const WRECK_EARLY_SHOT: &str = "recycle-wreck-early.png";
-    const HUD_SHOT: &str = "recycle-strip-hud.png";
-    const TAB_SHOT: &str = "recycle-tab-mid-strip.png";
-    const WRECK_LATE_SHOT: &str = "recycle-wreck-late.png";
+    const PLAN_SHOT: &str = "strip-plan.png";
+    const WRECK_EARLY_SHOT: &str = "strip-wreck-early.png";
+    const HUD_SHOT: &str = "strip-hud.png";
+    const TAB_SHOT: &str = "strip-inventory-mid.png";
+    const WRECK_LATE_SHOT: &str = "strip-wreck-late.png";
 
     /// How far from a target the player parks before the berth.
     const PARK_DISTANCE: Meters = Meters(2_000.0);
@@ -168,7 +170,7 @@ mod walk {
     const SESSION_SECS: f32 = 240.0;
     /// Seconds the whole rest of the wreck gets to come off.
     const STRIP_SECS: f32 = 1_200.0;
-    /// Frames the Recycle pane gets to build its panel.
+    /// Frames the Inventory pane gets to build its columns.
     const SETTLE_FRAMES: u32 = 10;
     /// The virtual clock's clamp on the software rasterizer.
     const WALK_CLOCK_SECS: f32 = 1.0;
@@ -178,7 +180,7 @@ mod walk {
     const MID_SHOT_PROGRESS: f32 = 0.4;
     const LATE_SHOT_PROGRESS: f32 = 0.7;
 
-    /// The living-station refusal line, as the Recycle pane writes it.
+    /// The living-station refusal line, as the strip handler writes it.
     const LIVING_STATION_NOTE: &str = "strip: a living station is not salvage";
 
     /// One target the walk docks at.
@@ -821,7 +823,7 @@ mod walk {
     }
 
     fn note(world: &World) -> Option<&str> {
-        world.get_resource::<RecycleRuntime>()?.note()
+        world.get_resource::<InventoryRuntime>()?.note()
     }
 
     fn start_hold(world: &World) -> ShipInventory {
@@ -982,20 +984,20 @@ mod walk {
         .add()
     }
 
-    /// Open the Recycle pane, press Strip and shut the interface.
+    /// Open the Inventory pane, press Strip and shut the interface.
     fn start_the_strip(
         script: AutopilotPlugin<GameStates>,
         label: &str,
         plan_shot: Option<&'static str>,
     ) -> AutopilotPlugin<GameStates> {
-        let script = open_the_pane(script, label, RECYCLE_TAB, InterfacePaneType::Recycle);
+        let script = open_the_pane(script, label, INVENTORY_TAB, InterfacePaneType::Inventory);
         let script = match plan_shot {
             Some(shot) => shoot_step(script, shot),
             None => script,
         };
         let script = script.click_named(
             &format!("station strip: press Strip {label}"),
-            RECYCLE_STRIP_BUTTON,
+            INVENTORY_STRIP_BUTTON,
             when(|world| job(world).is_some()),
             SESSION_SECS,
         );
@@ -1297,16 +1299,16 @@ mod walk {
         world.write_message(HullStripCommand);
     }
 
-    /// Claim 7: the Station tab shows, the Recycle tab does not, and the
-    /// strip refused with nothing moved.
+    /// Claim 7: the Station tab shows, the Inventory pane shows no strip
+    /// block, and the strip refused with nothing moved.
     fn assert_the_station_refusal(world: &mut World) {
         assert!(
             tab_shows(world, STATION_TAB),
             "station strip: the Station tab shows at a living station"
         );
         assert!(
-            !tab_shows(world, RECYCLE_TAB),
-            "station strip: the Recycle tab hides at a living station"
+            !tab_shows(world, INVENTORY_STRIP_BLOCK),
+            "station strip: the Inventory pane shows no strip block at a living station"
         );
         assert!(job(world).is_none(), "station strip: no strip started");
         assert_eq!(
@@ -1441,8 +1443,8 @@ mod walk {
         let script = open_the_pane(
             script,
             "to watch the strip",
-            RECYCLE_TAB,
-            InterfacePaneType::Recycle,
+            INVENTORY_TAB,
+            InterfacePaneType::Inventory,
         );
         let script = shoot_step(script, TAB_SHOT);
         let script = close_the_interface(script, "to finish the strip")
@@ -1493,8 +1495,8 @@ mod walk {
         open_the_pane(
             script,
             "at the station",
-            STATION_TAB,
-            InterfacePaneType::Station,
+            INVENTORY_TAB,
+            InterfacePaneType::Inventory,
         )
         .step("station strip: strip the station")
         .on_enter(send_strip)

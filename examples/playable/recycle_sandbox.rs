@@ -1,5 +1,5 @@
-//! recycle_sandbox: start docked at a generated wreck with the Recycle tab
-//! up, strip the whole hull by hand, port last, and loot its hold.
+//! recycle_sandbox: start docked at a generated wreck, strip the whole hull
+//! by hand from the Inventory pane, port last, and loot its hold.
 //!
 //! Boots the shipped app and starts New Game on a pinned seed as the
 //! scavenger, as the Create World modal does after the role page, but
@@ -11,9 +11,10 @@
 //!
 //! What to try:
 //!
-//! 1. TAB opens the interface; the Recycle tab shows (the Station tab does
-//!    not: this is no living station). It names the parts the whole hull is
-//!    expected to give and the time it takes, and lists the wreck's hold;
+//! 1. TAB opens the interface; on the Inventory pane the strip block sits
+//!    over the wreck's column (the Station tab does not show: this is no
+//!    living station). It names the sections left, the parts the whole hull
+//!    is expected to give and the time it takes;
 //! 2. Strip starts the strip; shut the interface and fly on docked: one
 //!    section comes off about every few seconds, the farthest from the port
 //!    first, and the HUD chip reads `STRIP n%`;
@@ -21,22 +22,23 @@
 //!    free;
 //! 4. on another run, undock part-way (the docking key): the strip stops and
 //!    what it took stays taken; dock again and Strip takes the rest;
-//! 5. Take all and Take credits in the wreck's hold move its loot.
+//! 5. Take all in the wreck's column header takes every stack that fits and
+//!    the credits, and names what stayed; Take credits takes the credits.
 //!
 //! ```text
 //! nix develop --command cargo run --example recycle_sandbox --features debug
 //! ```
 //!
-//! The diagnostics panel (`F3`, on at start) shows the strip's progress
-//! (sections left of the total), the section coming off and the time to it,
-//! the parts yielded so far, the player's hold against its capacity, and the
-//! wreck's state: docked, standing or demolished, and whether the player is
-//! released. The gizmos mark each section still on the wreck by its place in
-//! the strip order, from green (first off) to violet (late); the next one
-//! is ringed in yellow and the berth port in red, labelled `last`.
+//! The diagnostics panel (`F3`, on at start) shows three lines: the strip's
+//! progress and time left, the wreck's state with its sections left, and the
+//! player's hold. `Shift+F3` adds the full list: the section coming off and
+//! the time to it, the parts yielded, the last section off and the free hold.
+//! The gizmos mark each section still on the wreck by its place in the strip
+//! order, from green (first off) to violet (late); the next one is ringed in
+//! yellow with its seconds left, and the berth port in red, labelled `last`.
 //!
 //! Under `NOVA_AUTOPILOT=1` a smoke walk waits for the dock,
-//! opens the Recycle tab, presses Strip, shuts the interface, waits for the
+//! opens the Inventory pane, presses Strip, shuts the interface, waits for the
 //! first section to come off and shoots `recycle-sandbox.png` with
 //! `NOVA_CAPTURE=1`. Unset, no walk and no deadline run.
 
@@ -62,7 +64,7 @@ use open_world_stage::{
 #[command(name = "recycle_sandbox")]
 #[command(version = "1.0.0")]
 #[command(
-    about = "Start docked at a generated wreck with the Recycle tab up: strip the whole hull, \
+    about = "Start docked at a generated wreck: strip the whole hull from the Inventory pane, \
              port last, and loot its hold",
     long_about = None
 )]
@@ -90,7 +92,7 @@ fn main() -> bevy::app::AppExit {
     });
     app.init_resource::<Sandbox>();
     app.add_plugins(diagnostics::DiagnosticsHintPlugin::new(
-        "[TAB] interface: Recycle tab, Strip, Take   [M] next tab   undock to stop a strip",
+        "Docked at a wreck: strip it and loot it from the Inventory pane.",
     ));
     app.add_observer(count_the_strip);
     app.add_systems(
@@ -266,7 +268,7 @@ fn code_order(code: &str) -> (String, u32) {
 }
 
 /// The order a strip takes `live` in, by [`next_strip_section`] over what
-/// is left after each, ties in pane code order: the Recycle pane's rule.
+/// is left after each, ties in pane code order: the strip block's rule.
 fn strip_order(berth: Entity, live: &[(Entity, String, Vec<Entity>)]) -> Vec<Entity> {
     let mut left: BTreeSet<Entity> = live.iter().map(|(entity, ..)| *entity).collect();
     let mut ranked: Vec<&(Entity, String, Vec<Entity>)> = live.iter().collect();
@@ -352,11 +354,6 @@ fn draw_the_strip(
         (true, false) => "docked elsewhere",
         (false, _) => "released",
     };
-    panel.line(format!(
-        "wreck: {wreck_id} {wreck_state}   player: {player_state}   setup: {:?}",
-        sandbox.phase
-    ));
-
     let live: Vec<(Entity, String, Vec<Entity>)> = wreck
         .map(|(_, _, design, children)| {
             children
@@ -372,32 +369,55 @@ fn draw_the_strip(
         })
         .unwrap_or_default();
     let total = sandbox.sections.max(live.len());
+
+    // The short panel: the strip, the wreck, the hold.
+    panel.line(match job {
+        Some(job) if job.paused.is_some() => "strip HELD: hold full".to_string(),
+        Some(job) => format!(
+            "strip {:.0}%, {:.0} s left",
+            job.progress() * 100.0,
+            job.remaining_secs()
+        ),
+        None => "strip idle".to_string(),
+    });
     panel.line(format!(
-        "sections left: {} of {total}   taken: {}",
-        live.len(),
-        sandbox.taken.len()
+        "wreck {wreck_state}, {} of {total} sections",
+        live.len()
     ));
-    let strip = match job {
-        Some(job) => {
-            let next = job.step.as_ref().map_or("choosing".to_string(), |step| {
-                format!(
-                    "{} in {:.1} s",
-                    step.code,
-                    (step.duration_secs - step.elapsed_secs).max(0.0)
-                )
-            });
-            let held = job
-                .paused
-                .map_or(String::new(), |pause| format!("   HELD: {pause:?}"));
+    if let Some(items) = items.as_deref() {
+        panel.line(format!(
+            "hold {:.1} / {:.1} t",
+            f64::from(hold.used_g(items)) / 1.0e6,
+            f64::from(hold.capacity_g()) / 1.0e6,
+        ));
+    }
+    if berth.is_some() && job.is_none() {
+        panel.hint("TAB", "Inventory: Strip or Take all");
+    }
+
+    // The full value list, behind Shift+F3.
+    panel.detail(format!("wreck: {wreck_id}"));
+    panel.detail(format!(
+        "player: {player_state}   setup: {:?}",
+        sandbox.phase
+    ));
+    if let Some(job) = job {
+        let next = job.step.as_ref().map_or("choosing".to_string(), |step| {
             format!(
-                "strip: {:.0}%, {:.0} s left   next off: {next}{held}",
-                job.progress() * 100.0,
-                job.remaining_secs()
+                "{} in {:.1} s",
+                step.code,
+                (step.duration_secs - step.elapsed_secs).max(0.0)
             )
+        });
+        panel.detail(format!("next off: {next}"));
+        if let Some(pause) = job.paused {
+            panel.detail(format!("held: {pause:?}"));
         }
-        None => "strip: idle (Recycle tab, Strip)".to_string(),
-    };
-    panel.line(strip);
+    }
+    panel.detail(format!("taken: {}", sandbox.taken.len()));
+    if let Some(last) = sandbox.taken.last() {
+        panel.detail(format!("last off: {last}"));
+    }
     let yielded = if sandbox.yielded.is_empty() {
         "nothing yet".to_string()
     } else {
@@ -408,15 +428,10 @@ fn draw_the_strip(
             .collect::<Vec<_>>()
             .join(", ")
     };
-    panel.line(format!("yielded: {yielded}"));
-    if let Some(last) = sandbox.taken.last() {
-        panel.line(format!("last off: {last}"));
-    }
+    panel.detail(format!("yielded: {yielded}"));
     if let Some(items) = items.as_deref() {
-        panel.line(format!(
-            "hold: {:.1} of {:.1} t used, {:.1} t free",
-            f64::from(hold.used_g(items)) / 1.0e6,
-            f64::from(hold.capacity_g()) / 1.0e6,
+        panel.detail(format!(
+            "hold free: {:.1} t",
             f64::from(hold.free_g(items)) / 1.0e6
         ));
     }
@@ -454,9 +469,18 @@ fn draw_the_strip(
         diagnostics::sphere(&mut gizmos, at, radius, color);
         let code = codes.get(section).copied().unwrap_or("?");
         if *section == berth {
-            panel.label(at, format!("{code} last"));
+            panel.label_tinted(at, format!("{code} last"), palette::ALERT);
         } else if Some(*section) == next {
-            panel.label(at, format!("{code} next"));
+            let secs = job
+                .and_then(|job| job.step.as_ref())
+                .filter(|step| step.section == *section)
+                .map_or(String::new(), |step| {
+                    format!(
+                        " {:.1} s",
+                        (step.duration_secs - step.elapsed_secs).max(0.0)
+                    )
+                });
+            panel.label_tinted(at, format!("{code} next{secs}"), palette::TARGET);
         } else {
             panel.label(at, format!("{}", rank + 1));
         }
@@ -468,7 +492,7 @@ mod smoke {
 
     use nova_protocol::{
         nova_debug::harness::{shoot, AutopilotPlugin, Predicate, SHOT_DEADLINE_SECS},
-        nova_interface::{pane::InterfacePaneType, recycle::RECYCLE_STRIP_BUTTON},
+        nova_interface::{inventory::INVENTORY_STRIP_BUTTON, pane::InterfacePaneType},
     };
 
     use super::*;
@@ -538,7 +562,7 @@ mod smoke {
             .add()
     }
 
-    /// The smoke walk: dock, Strip from the Recycle tab, shut the interface,
+    /// The smoke walk: dock, Strip from the Inventory pane, shut the interface,
     /// wait for a section to come off and shoot the overlay.
     pub(super) fn script() -> AutopilotPlugin<GameStates> {
         let script = AutopilotPlugin::<GameStates>::new()
@@ -557,17 +581,17 @@ mod smoke {
             pause_is(PauseStates::Interface),
         )
         .click_named(
-            "recycle sandbox: open the Recycle tab",
-            "InterfaceTabRecycle",
-            the_interface_shows(InterfacePaneType::Recycle),
+            "recycle sandbox: open the Inventory pane",
+            "InterfaceTabInventory",
+            the_interface_shows(InterfacePaneType::Inventory),
             BEAT_SECS,
         )
-        .step("recycle sandbox: settle the tab")
+        .step("recycle sandbox: settle the pane")
         .until(frames(SETTLE_FRAMES))
         .add()
         .click_named(
             "recycle sandbox: press Strip",
-            RECYCLE_STRIP_BUTTON,
+            INVENTORY_STRIP_BUTTON,
             Arc::new(|world: &World| {
                 world
                     .iter_entities()

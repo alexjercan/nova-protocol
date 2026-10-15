@@ -1393,7 +1393,7 @@ pub struct StationBoughtEventInfo {
     pub price_cr: u32,
 }
 
-/// A Recycle tab strip took one section off the docked lootable partner and
+/// An Inventory pane strip took one section off the docked lootable partner and
 /// put its parts in the ship's hold (`onstripped`).
 ///
 /// One event per section a whole-hull strip takes, the berth port last; a

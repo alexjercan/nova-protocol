@@ -47,13 +47,23 @@
 //! step through the shown rows as a click would, and `inventory_details`
 //! opens the full description the inspector clips to four lines.
 //!
+//! Docked with a wreck the player may loot (neutralized, or a derelict
+//! carrying `LootableShipMarker`) that is not a living station, the partner
+//! column carries two more controls. Take all, in its header, writes a
+//! [`TakeAllCommand`]: [`apply_take_all_commands`] takes as much of every
+//! stack as the hold has room for through the Take path, then the credits,
+//! and names on the note line what stayed. Over the column, the strip block
+//! strips the whole hull (see the `strip` module).
+//!
 //! # Module layout
 //!
 //! | Module | Concern |
 //! | --- | --- |
 //! | `app` | The pane body, its refresh, the action form and its handler. |
+//! | `strip` | The strip block, the strip action handler and the strip timer. |
 
 mod app;
+mod strip;
 
 #[cfg(test)]
 mod tests;
@@ -67,7 +77,25 @@ use nova_ui::{
     widget::DoubleClick,
 };
 
-pub(crate) use self::app::*;
+pub use self::{
+    app::INVENTORY_TAKE_ALL,
+    strip::{
+        HullStripCommand, INVENTORY_STRIP_BLOCK, INVENTORY_STRIP_BUTTON, INVENTORY_STRIP_PROGRESS,
+    },
+};
+pub(crate) use self::{app::*, strip::*};
+
+/// Glob-import surface: `use nova_interface::inventory::prelude::*`.
+pub mod prelude {
+    pub use super::{
+        app::INVENTORY_TAKE_ALL,
+        strip::{
+            HullStripCommand, INVENTORY_STRIP_BLOCK, INVENTORY_STRIP_BUTTON,
+            INVENTORY_STRIP_PROGRESS,
+        },
+        InventoryRuntime,
+    };
+}
 
 /// Drives the Inventory pane's columns and inspector.
 pub(crate) struct InventoryPanePlugin;
@@ -77,6 +105,8 @@ impl Plugin for InventoryPanePlugin {
         app.init_resource::<InventoryRuntime>();
         app.add_message::<InventoryActionCommand>();
         app.add_message::<CreditTakeCommand>();
+        app.add_message::<TakeAllCommand>();
+        app.add_message::<HullStripCommand>();
         // Every pane system reads the item catalog, which lands only at the mod
         // merge and never on a refused base game; the set runs from boot.
         app.configure_sets(
@@ -89,8 +119,13 @@ impl Plugin for InventoryPanePlugin {
                 inventory_keys.run_if(in_input_mode(InputMode::Normal)),
                 apply_inventory_action_commands,
                 apply_credit_take_commands,
+                apply_take_all_commands,
+                apply_hull_strip_commands,
+                // Runs with the pane shut too: a strip goes on in flight.
+                advance_hull_strip,
                 type_inventory_draft,
                 update_inventory_panel,
+                update_strip_block,
                 update_inventory_about,
                 sync_inventory_draft_controls,
             )
@@ -135,7 +170,7 @@ pub(crate) enum InventoryStoreType {
 /// no longer names a shown row, and a draft the selection no longer offers, are
 /// cleared by [`update_inventory_panel`].
 #[derive(Resource, Clone, PartialEq, Debug, Default)]
-pub(crate) struct InventoryRuntime {
+pub struct InventoryRuntime {
     /// The one category the rows show; `None` shows every category.
     pub(crate) filter: Option<ItemCategoryType>,
     /// The row the inspector shows.
@@ -152,6 +187,19 @@ pub(crate) struct InventoryRuntime {
     pub(crate) own_action: Option<InventoryActionType>,
     /// The row the last click landed on, for a double click.
     pub(crate) click: DoubleClick<(InventorySideType, ItemDesignId)>,
+}
+
+impl InventoryRuntime {
+    /// The last action result on the note line, while it shows: a take, a
+    /// trade, or why a strip was refused or stopped.
+    pub fn note(&self) -> Option<&str> {
+        self.note.as_ref().map(|(note, _)| note.as_str())
+    }
+
+    /// Show `note` on the note line for [`NOTE_SECONDS`].
+    pub(crate) fn say(&mut self, note: String) {
+        self.note = Some((note, NOTE_SECONDS));
+    }
 }
 
 /// What an Inventory pane form does with its items.
@@ -236,3 +284,10 @@ pub(crate) struct InventoryActionCommand {
 /// whole on one click, unlike an item Take or Give.
 #[derive(Message, Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) struct CreditTakeCommand;
+
+/// Take everything the docked lootable partner holds, written only by the
+/// partner column header's Take all button and applied by
+/// [`apply_take_all_commands`]: as much of each stack as fits, then the
+/// credits.
+#[derive(Message, Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) struct TakeAllCommand;

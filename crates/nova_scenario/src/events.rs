@@ -213,7 +213,7 @@ scenario_events! {
     /// (`id` = the buying ship; `station` = the station's scenario id,
     /// `price_cr` = the price). Once per buy.
     OnStationBought => OnStationBoughtEvent { label: "On Station Bought" },
-    /// A Recycle tab strip took one section off the docked lootable partner
+    /// An Inventory pane strip took one section off the docked lootable partner
     /// (`id` = the ship that stripped; `hull` = the stripped hull's scenario
     /// id, `section` = its pane code such as `PDC-1`, `parts` = every part
     /// put in the hold). Once per section as a whole-hull strip takes it; the

@@ -4,7 +4,7 @@
 //! The rules that plan a strip are [`plan_hull_strip`] and
 //! [`plan_section_yield`]; this module adds the order and the two ship-side
 //! pieces a strip needs. [`HullStripJob`] sits on the stripping ship while
-//! the strip runs, so the Recycle tab and the HUD can show its progress.
+//! the strip runs, so the Inventory pane and the HUD can show its progress.
 //! [`next_strip_section`] picks the section that comes off next: the one
 //! farthest from the berth port, so the rest of the hull stays joined to the
 //! berth at every step, and the berth last. When a section's timer ends, a
@@ -38,7 +38,7 @@ pub mod prelude {
 
 /// A whole-hull strip in progress, on the root of the ship that strips.
 ///
-/// Inserted by the Recycle tab when a strip is planned and removed when the
+/// Inserted by the Inventory pane when a strip is planned and removed when the
 /// hull is gone or the strip stops. Not saved: a save mid-strip loses the
 /// running section's timer, and every section already taken stays taken.
 #[derive(Component, Clone, Debug, PartialEq, Reflect)]
@@ -111,7 +111,7 @@ impl HullStripStep {
 }
 
 /// Asks to take section `entity` off its hull after a strip: raised by the
-/// Recycle tab once the section's parts are in the stripping ship's hold.
+/// Inventory pane once the section's parts are in the stripping ship's hold.
 #[derive(EntityEvent, Clone, Copy, Debug)]
 pub struct SectionStripRequest {
     /// The section to take off.
@@ -163,7 +163,7 @@ pub fn next_strip_section<'a, K: Ord + Copy>(
 ///
 /// # Panics
 ///
-/// On an entity that is not a live section of a ship root: the Recycle tab
+/// On an entity that is not a live section of a ship root: the Inventory pane
 /// raises the request only for a live section of the docked partner.
 pub(crate) fn strip_section(
     request: On<SectionStripRequest>,

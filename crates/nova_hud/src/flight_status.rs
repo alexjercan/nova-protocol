@@ -557,7 +557,7 @@ fn emphasize_speed_on_burn(
 /// maneuver: the lock is the question and the refusal is the answer. A hull
 /// stripping a docked wreck reads `STRIP <percent>%` from its
 /// [`HullStripJob`], or `STRIP HELD: HOLD FULL` while a full hold holds it,
-/// so the strip shows in flight with the Recycle tab shut.
+/// so the strip shows in flight with the interface shut.
 fn drive_mode_chip(
     q_hud: Query<&FlightStatusHudTargetEntity, With<FlightStatusHudMarker>>,
     mut q_ui: Query<(&mut ScreenIndicatorAnchor, &mut Text, &ChildOf), With<ModeChipUIMarker>>,

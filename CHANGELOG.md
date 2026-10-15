@@ -83,9 +83,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Buy a living generated station on the Station pane for twice its worth at
   ask (`OnStationBought`). It leaves its civilization for your side, admits you
   on any side and sells its hold at bid.
-- Docked with a wreck, a Recycle tab loots its hold and strips the whole hull
-  on the game clock into recipe parts, port last (`OnStripped`); the wreck is
-  then gone.
+- Docked with a wreck, the Inventory pane strips the whole hull on the game
+  clock into recipe parts, port last (`OnStripped`), and Take all loots its
+  hold; the wreck is then gone.
 
 ### Scenarios & Objectives
 

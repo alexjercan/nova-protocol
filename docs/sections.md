@@ -145,13 +145,12 @@ hovered (`scroll_ship_panel`), and the camera zoom yields to it.
 ### Stripping a docked wreck
 
 Docked with a hull the player may loot (neutralized, or a derelict with
-`LootableShipMarker`) that is not a living station, the TAB interface shows
-the Recycle tab (`nova_interface/src/recycle/`) where Station would be
-(`DockedTab` in `pane.rs`; the two never show together). Its strip block shows
-the parts the whole hull is expected to give and the time it takes, and a
-Strip button that raises `HullStripCommand`. Its loot list shows the wreck's
-hold and credits; each take button writes the Inventory pane's own
-`InventoryActionCommand` or `CreditTakeCommand`. `plan_hull_strip`
+`LootableShipMarker`) that is not a living station, the Inventory pane shows a
+strip block over the partner column (`nova_interface/src/inventory/strip/`):
+the Strip button that raises `HullStripCommand`, the progress bar, the time,
+the sections left and the parts the whole hull is expected to give. The
+column header's Take all writes `TakeAllCommand`: what fits of every stack
+through the Take rule, then the credits. `plan_hull_strip`
 (`nova_gameplay/src/inventory.rs`) refuses, in order: not docked, a strip
 already running, a living station, a partner the player may not loot. The
 plan sums each live section's `StripTarget::parts`
@@ -161,7 +160,7 @@ recipe part, at least `STRIP_MIN_SECS` (3 s). A small hold is no refusal:
 the strip holds at the first section that does not fit.
 
 A planned strip inserts `HullStripJob` (`nova_ship/src/sections/section_strip.rs`)
-on the player root. `advance_hull_strip` (`recycle/strip.rs`) runs it on the
+on the player root. `advance_hull_strip` (`inventory/strip/mod.rs`) runs it on the
 virtual clock with the pane open or shut, so it holds while the TAB
 interface is open; the block's progress line and the HUD mode chip
 (`STRIP <percent>%`, or `STRIP HELD: HOLD FULL`) show it. It takes one live
@@ -1746,7 +1745,7 @@ per contact. A symmetric rule - ram damage - wants both.
   `BuildRecipe::strip_parts_at` - `crates/nova_gameplay/src/inventory.rs`;
   `HullStripJob`, `next_strip_section`, `SectionStripRequest`,
   `strip_section` - `crates/nova_ship/src/sections/section_strip.rs`; the
-  Recycle pane and the timer: `crates/nova_interface/src/recycle/`; proof:
+  strip block and the timer: `crates/nova_interface/src/inventory/strip/`; proof:
   `examples/systems/system_station_strip.rs`.
 - Integrity core: `NovaIntegrityPlugin` -
   `crates/nova_gameplay/src/integrity/mod.rs`; graph, sever and collapse:

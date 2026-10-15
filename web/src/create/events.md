@@ -59,7 +59,7 @@ The whole vocabulary at a glance:
 | [`OnShipBought`](#hold-events) | `id`, `type_name`, `hull`, `price_cr`, `trade_in_cr` | the Ship pane buys a whole hull from a docked station |
 | [`OnEscortHired`](#hold-events) | `id`, `type_name`, `escort`, `hull`, `price_cr` | the Ship pane hires an escort from a docked station into the fleet |
 | [`OnStationBought`](#hold-events) | `id`, `type_name`, `station`, `price_cr` | the Ship pane buys the docked station from its civilization |
-| [`OnStripped`](#hold-events) | `id`, `type_name`, `hull`, `section`, `parts` | a Recycle tab strip takes a section off a docked wreck, once per section, the berth port last |
+| [`OnStripped`](#hold-events) | `id`, `type_name`, `hull`, `section`, `parts` | an Inventory pane strip takes a section off a docked wreck, once per section, the berth port last |
 | [`OnStored`](#hold-events) | `id`, `other_id`, `other_type_name`, `item`, `count` | the player stores a stack in a docked station's storage |
 | [`OnWithdrawn`](#hold-events) | `id`, `other_id`, `other_type_name`, `item`, `count` | the player withdraws a stack from a docked station's storage |
 

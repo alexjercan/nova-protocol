@@ -39,7 +39,7 @@
 //! part in hand, a click on a block selects its section. What the station
 //! sells as a whole (ships, escorts and the station itself) is in the
 //! Station pane (`crate::station`); stripping a docked wreck is in the
-//! Recycle pane (`crate::recycle`).
+//! Inventory pane (`crate::inventory`).
 //! The panel scrolls with the wheel while the pointer is over it.
 //!
 //! # Module layout

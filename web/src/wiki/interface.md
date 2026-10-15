@@ -28,15 +28,15 @@ Every ship carries a second seat of control: the **interface**. Press <kbd>Tab</
      (interface_toggle Tab / Right Thumb, interface_next_tab M / Y).
      Back-out owner (Escape, Start): crates/nova_interface/src/terminal/input.rs
      `close_surface_from_menu_keys`. First open shows Map, later opens the last
-     pane: `InterfacePaneType` in pane.rs. Station and Recycle tab gate: `DockedTab`,
-     `show_docked_tabs` and `leave_docked_pane` in pane.rs. -->
+     pane: `InterfacePaneType` in pane.rs. Station tab gate: `show_station_tab`
+     and `leave_station_pane` in pane.rs. -->
 
 | You do | What happens |
 | --- | --- |
 | <kbd>Tab</kbd> (or click the right stick) | The interface opens on the Map pane, or on the pane you last used. It needs a live ship, and it does not open over the pause menu. |
 | <kbd>Tab</kbd> again, <kbd>Esc</kbd>, or gamepad Start | Close it and return to flight. |
-| <kbd>M</kbd> (or gamepad <kbd>Y</kbd>) | Step to the next pane: Map, Ship, Inventory, then Station while you are docked at a living station or Recycle while you are docked with a wreck, then Map again. While a text field has the caret, such as the Inventory quantity, <kbd>M</kbd> types instead. |
-| Click **Map**, **Ship**, **Inventory**, **Station** or **Recycle** | Switch to that pane. The **Station** tab shows only while you are docked at a living station, and the **Recycle** tab only while you are docked with a wreck you may loot; undock and the interface opens on Ship instead. |
+| <kbd>M</kbd> (or gamepad <kbd>Y</kbd>) | Step to the next pane: Map, Ship, Inventory, Station while you are docked at a living station, then Map again. While a text field has the caret, such as the Inventory quantity, <kbd>M</kbd> types instead. |
+| Click **Map**, **Ship**, **Inventory** or **Station** | Switch to that pane. The **Station** tab shows only while you are docked at a living station; undock and the interface opens on Ship instead. |
 | <kbd>:</kbd> | Open the [command shell](../commands/) over the pane. Close it and you are back on the same pane, with its camera and selection as you left them. |
 
 <details class="explain">
@@ -240,12 +240,12 @@ Docked at a living station in an Open World, the Station pane shows **This stati
 
 ## Stripping a wreck
 
-<!-- Pane, timer and action: crates/nova_interface/src/recycle/strip.rs. Loot
-     list: recycle/loot.rs. Rule: crates/nova_gameplay/src/inventory.rs
-     `plan_hull_strip`, `plan_section_yield`. Order and removal:
+<!-- Block, timer and action: crates/nova_interface/src/inventory/strip/mod.rs.
+     Rule: crates/nova_gameplay/src/inventory.rs `plan_hull_strip`,
+     `plan_section_yield`. Order and removal:
      crates/nova_ship/src/sections/section_strip.rs. -->
 
-Docked with a derelict wreck or a neutralized ship, the interface shows the **Recycle** tab where **Station** would be. It shows what the whole wreck is expected to give and how long stripping it takes, a **Strip the wreck** button, and the wreck's hold, each stack with **Take all** and its credits with **Take credits**. A strip takes the wreck apart one section at a time, the section farthest from your port first, and the port you are docked through last. Each section takes 1 s per part of its build recipe, at least 3 s, and runs only while the game runs: close the interface and fly on docked, and the HUD chip over your ship reads `STRIP 40%`. As each section comes off, its parts go into your hold: each part of its recipe times its strip yield times its health, rounded down. When the port comes off, the wreck is gone, along with anything left in its hold, and your ship floats free. A hold without room holds the strip at that section (`STRIP HELD: HOLD FULL`) until you make room. Undock and the strip stops; what it took stays taken, when its sector streams away and back and across a Load. A strip is refused at a living station, while one is already running and at a hull that is not a wreck you may loot.
+Docked with a derelict wreck or a neutralized ship, the Inventory pane shows a strip block over the wreck's column: a **Strip** button, a progress bar, the time the strip takes, the sections left and the parts the whole wreck is expected to give, with their mass. Loot its hold first with **Take all** (see [The inventory](#the-inventory)). A strip takes the wreck apart one section at a time, the section farthest from your port first, and the port you are docked through last. Each section takes 1 s per part of its build recipe, at least 3 s, and runs only while the game runs: close the interface and fly on docked, and the HUD chip over your ship reads `STRIP 40%`. As each section comes off, its parts go into your hold: each part of its recipe times its strip yield times its health, rounded down. When the port comes off, the wreck is gone, along with anything left in its hold, and your ship floats free. A hold without room holds the strip at that section (`STRIP HELD: HOLD FULL`) until you make room. Undock and the strip stops; what it took stays taken, when its sector streams away and back and across a Load. A strip is refused at a living station, while one is already running and at a hull that is not a wreck you may loot.
 
 ## The inventory
 
@@ -283,7 +283,7 @@ Docked with a derelict wreck or a neutralized ship, the interface shows the **Re
      in crates/nova_scenario/src/objects/ship_design.rs.
      Take and Give: crates/nova_gameplay/src/inventory.rs `plan_item_transfer`;
      Take credits: `plan_credit_take`, applied by
-     `apply_credit_take_commands`; Buy and Sell: `plan_item_trade`, prices
+     `apply_credit_take_commands`; Take all: `apply_take_all_commands`; Buy and Sell: `plan_item_trade`, prices
      `ItemDesign::ask_cr` and `ItemDesign::bid_cr`, balance `ShipCredits` from
      `SpaceshipConfig::credits`; Jettison: `plan_item_jettison`; all but Take
      credits applied by crates/nova_interface/src/inventory/app.rs
@@ -318,6 +318,8 @@ Docked, a click on an item opens a transfer form in the inspector at a quantity 
 Set the quantity with the mouse wheel over the quantity row, the slider, the number field, or **All** for the whole stack. The slider hides when the stack holds one item. **Confirm** moves the items at once and the note line reads `Took 3 Hull plate from <ship>` or `Gave 3 Hull plate to <ship>`, where `<ship>` is the docked ship's name. A refused move changes nothing and keeps the form open so you can fix the quantity: `Refused: enter a quantity`, `Refused: quantity is zero`, `Refused: only 2 Hull plate in <ship>`, `Refused: <ship> has room for 30 kg more`, `Refused: <ship> is not neutralized or lootable`, or `Refused: not docked`. A move never splits to fit: with room for 30 kg, a move of 5 hull plates is refused whole. Take and Give have no price. Items you give a ship stay with it even if the open world streams it away, and a wreck you emptied stays empty when its sector streams back in.
 
 The partner column's header also carries a **Take credits** button, shown only while the partner is neutralized or lootable and holds a credit above zero. One click moves its whole balance into your ship and leaves the partner at zero, and the note line reads `Took 500 cr from <ship>`. Repeating it against the now-empty balance refuses with `Refused: <ship> holds no credits`, an intact, non-neutralized partner refuses with `Refused: <ship> is not neutralized or lootable`, and a take that would overflow your own balance refuses with `Refused: your ship cannot hold more credits` - every refusal changes nothing. Take credits has no form and no quantity: it always moves the whole balance in one click.
+The partner column's header carries a **Take all** button while the partner is neutralized or lootable and holds a stack or a credit. One click takes as much of every stack as your hold has room for, then the whole credit balance, and the note line names what was taken and what stayed, for example `Took 2 Hull plate and 50 cr from <ship>; no room for 6 Hull plate`. With no room for any of it, it refuses with `Refused: no room for 6 Hull plate` and changes nothing.
+
 
 ### Buy and sell
 

@@ -112,9 +112,9 @@ fn card_rig() -> PanePointerRig {
     app.add_systems(
         Update,
         (
-            leave_docked_pane,
+            leave_station_pane,
             rebuild_interface_body,
-            show_docked_tabs,
+            show_station_tab,
             refresh_pane_input_hints,
         )
             .chain(),
@@ -346,7 +346,7 @@ fn a_focused_text_field_types_m_instead_of_switching_panes() {
     press_m(&mut app);
     assert_eq!(
         *app.world().resource::<InterfacePaneType>(),
-        InterfacePaneType::Inventory.next(None),
+        InterfacePaneType::Inventory.next(false),
         "with the field let go, M switches panes again"
     );
 }
@@ -583,75 +583,17 @@ fn the_station_tab_shows_only_while_docked_at_a_living_station() {
 }
 
 #[test]
-fn the_next_tab_key_steps_through_the_docked_tab_only_while_docked() {
+fn the_next_tab_key_steps_through_station_only_while_docked() {
     assert_eq!(
-        InterfacePaneType::Inventory.next(None),
+        InterfacePaneType::Inventory.next(false),
         InterfacePaneType::Map
     );
-    for docked in [InterfacePaneType::Station, InterfacePaneType::Recycle] {
-        assert_eq!(InterfacePaneType::Inventory.next(Some(docked)), docked);
-        assert_eq!(docked.next(Some(docked)), InterfacePaneType::Map);
-    }
-}
-
-/// The display of the tab of `pane`.
-fn tab_display(world: &mut World, pane: InterfacePaneType) -> Display {
-    world
-        .query::<(&ButtonValue<InterfacePaneType>, &Node)>()
-        .iter(world)
-        .find(|(value, _)| value.0 == pane)
-        .map(|(_, node)| node.display)
-        .expect("the card has the tab")
-}
-
-#[test]
-fn the_recycle_tab_shows_at_a_wreck_or_a_dead_station_and_never_beside_station() {
-    use nova_gameplay::prelude::{
-        DerelictShipMarker, LootableShipMarker, StationDesignId, StationMarker,
-    };
-
-    let mut rig = card_rig();
-    let tabs = |world: &mut World| {
-        (
-            tab_display(world, InterfacePaneType::Station),
-            tab_display(world, InterfacePaneType::Recycle),
-        )
-    };
-    assert_eq!(tabs(rig.app.world_mut()), (Display::None, Display::None));
-
-    // Docked with a lootable wreck: Recycle shows and a click opens it.
-    let partner = dock_the_player(rig.app.world_mut(), false);
-    rig.app
-        .world_mut()
-        .entity_mut(partner)
-        .insert(LootableShipMarker);
-    settle(&mut rig.app);
-    assert_eq!(tabs(rig.app.world_mut()), (Display::None, Display::Flex));
-    let recycle = tab_centre(rig.app.world_mut(), InterfacePaneType::Recycle);
-    click_at(&mut rig, recycle);
     assert_eq!(
-        shown(rig.app.world_mut()),
-        ("RECYCLE".to_string(), vec![InterfacePaneType::Recycle])
+        InterfacePaneType::Inventory.next(true),
+        InterfacePaneType::Station
     );
-
-    // A living station that somehow carries the loot marker is still a
-    // living station: Station shows, Recycle hides and the pane falls back.
-    rig.app
-        .world_mut()
-        .entity_mut(partner)
-        .insert(StationMarker(StationDesignId::from("waystation")));
-    settle(&mut rig.app);
-    assert_eq!(tabs(rig.app.world_mut()), (Display::Flex, Display::None));
     assert_eq!(
-        *rig.app.world().resource::<InterfacePaneType>(),
-        InterfacePaneType::Ship
+        InterfacePaneType::Station.next(true),
+        InterfacePaneType::Map
     );
-
-    // The station dies: Recycle takes the slot.
-    rig.app
-        .world_mut()
-        .entity_mut(partner)
-        .insert(DerelictShipMarker);
-    settle(&mut rig.app);
-    assert_eq!(tabs(rig.app.world_mut()), (Display::None, Display::Flex));
 }

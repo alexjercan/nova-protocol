@@ -15,7 +15,7 @@
 //! Touch this module when changing how the interface opens, which pane shows,
 //! or the layout around the panes.
 
-use bevy::{ecs::system::SystemParam, prelude::*, ui_widgets::Activate};
+use bevy::{prelude::*, ui_widgets::Activate};
 use nova_gameplay::{
     prelude::{
         AudioRoute, PlayerSpaceshipMarker, SfxCommandsExt, SoundBank, UiSfx, MENU_SELECT_VOLUME,
@@ -37,7 +37,6 @@ use crate::{
         map_chart_button, on_map_chart_button, on_map_reframe_button, spawn_map_panel,
         MapLegendMarker, MapViewportMarker,
     },
-    recycle::{recycle_body, RecycleDock},
     ship::{
         on_ship_fit_button, on_ship_reset_button, on_ship_viewport_click, on_ship_viewport_enter,
         on_ship_viewport_leave, on_ship_viewport_move, spawn_ship_panel, spawn_ship_rebind_prompt,
@@ -63,20 +62,15 @@ pub enum InterfacePaneType {
     /// What the docked station sells: ships, escorts and the station itself.
     /// Its tab shows only while the player ship is docked at a living station.
     Station,
-    /// Strip and loot the docked wreck. Its tab shows only while the player
-    /// ship is docked with a hull it may loot that is not a living station,
-    /// so it never shows beside Station.
-    Recycle,
 }
 
 impl InterfacePaneType {
     /// Every pane, in title-row order, with its button label.
-    const ALL: [(Self, &'static str); 5] = [
+    const ALL: [(Self, &'static str); 4] = [
         (Self::Map, "Map"),
         (Self::Ship, "Ship"),
         (Self::Inventory, "Inventory"),
         (Self::Station, "Station"),
-        (Self::Recycle, "Recycle"),
     ];
 
     /// The per-pane action context id its verbs are bound under.
@@ -86,24 +80,18 @@ impl InterfacePaneType {
             Self::Ship => "ship",
             Self::Inventory => "inventory",
             Self::Station => "station",
-            Self::Recycle => "recycle",
         }
     }
 
     /// The pane `interface_next_tab` steps to: Map -> Ship -> Inventory ->
-    /// the `docked` tab, if one shows, -> Map.
-    fn next(self, docked: Option<Self>) -> Self {
+    /// Station -> Map, skipping Station while `docked` is false.
+    fn next(self, docked: bool) -> Self {
         match self {
             Self::Map => Self::Ship,
             Self::Ship => Self::Inventory,
-            Self::Inventory => docked.unwrap_or(Self::Map),
-            Self::Station | Self::Recycle => Self::Map,
+            Self::Inventory if docked => Self::Station,
+            Self::Inventory | Self::Station => Self::Map,
         }
-    }
-
-    /// Whether the pane's tab shows only while docked.
-    fn docked_only(self) -> bool {
-        matches!(self, Self::Station | Self::Recycle)
     }
 
     /// The pane's title and button label.
@@ -185,7 +173,7 @@ pub(crate) fn next_interface_pane(
     current: Res<State<PauseStates>>,
     mut pane: ResMut<InterfacePaneType>,
     ship: Option<Res<ShipRuntime>>,
-    dock: DockedTab,
+    dock: StationDock,
 ) {
     if *current.get() != PauseStates::Interface {
         return;
@@ -199,57 +187,32 @@ pub(crate) fn next_interface_pane(
     if !sources.just_pressed(action) {
         return;
     }
-    *pane = pane.next(dock.tab());
+    *pane = pane.next(dock.docked());
 }
 
-/// The docked-only tab that shows now: Station at a living station, Recycle
-/// at a hull the player may loot, or none.
-#[derive(SystemParam)]
-pub(crate) struct DockedTab<'w, 's> {
-    station: StationDock<'w, 's>,
-    recycle: RecycleDock<'w, 's>,
-}
-
-impl DockedTab<'_, '_> {
-    /// The docked-only pane whose tab shows, if any. The two conditions never
-    /// hold together; a living station wins if they ever did.
-    pub(crate) fn tab(&self) -> Option<InterfacePaneType> {
-        if self.station.docked() {
-            Some(InterfacePaneType::Station)
-        } else if self.recycle.docked() {
-            Some(InterfacePaneType::Recycle)
-        } else {
-            None
-        }
-    }
-}
-
-/// Leave a docked-only pane whose tab no longer shows for the Ship pane.
-/// Runs before the body is built, so the card never opens on a pane it
-/// cannot fill.
-pub(crate) fn leave_docked_pane(dock: DockedTab, mut pane: ResMut<InterfacePaneType>) {
-    if pane.docked_only() && dock.tab() != Some(*pane) {
+/// Leave the Station pane for the Ship pane while the player ship is not
+/// docked at a living station. Runs before the body is built, so the card
+/// never opens on a Station pane it cannot fill.
+pub(crate) fn leave_station_pane(dock: StationDock, mut pane: ResMut<InterfacePaneType>) {
+    if *pane == InterfacePaneType::Station && !dock.docked() {
         *pane = InterfacePaneType::Ship;
     }
 }
 
-/// Show a docked-only tab only while [`DockedTab`] names it. Runs after the
-/// card is built, so a new card's tabs are right on its first frame.
-pub(crate) fn show_docked_tabs(
-    dock: DockedTab,
+/// Show the Station tab only while the player ship is docked at a living
+/// station. Runs after the card is built, so a new card's tab is right on its
+/// first frame.
+pub(crate) fn show_station_tab(
+    dock: StationDock,
     mut q_tab: Query<(&ButtonValue<InterfacePaneType>, &mut Node)>,
 ) {
-    let shown = dock.tab();
+    let display = if dock.docked() {
+        Display::Flex
+    } else {
+        Display::None
+    };
     for (value, mut node) in &mut q_tab {
-        if !value.0.docked_only() {
-            continue;
-        }
-        let display = if shown == Some(value.0) {
-            Display::Flex
-        } else {
-            Display::None
-        };
-        if node.display != display {
+        if value.0 == InterfacePaneType::Station && node.display != display {
             node.display = display;
         }
     }
@@ -445,7 +408,6 @@ fn pane_body(body: &mut ChildSpawnerCommands, pane: InterfacePaneType, icons: &I
         InterfacePaneType::Ship => ship_body(body, icons),
         InterfacePaneType::Inventory => inventory_body(body, icons),
         InterfacePaneType::Station => station_body(body),
-        InterfacePaneType::Recycle => recycle_body(body),
     }
 }
 

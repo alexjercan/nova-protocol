@@ -114,7 +114,7 @@ build: (
 | `parts` | map of item id to count | Part items the build spends. Keys are quoted item ids in the `Parts` category; each count is above zero. |
 | `strip_yield` | number | The share of each part count a strip or the section's destruction gives back, rounded down per part. In `(0, 1]`. |
 
-A strip is the Recycle tab's salvage of a whole docked wreck (a derelict
+A strip is the Inventory pane's salvage of a whole docked wreck (a derelict
 or a neutralized ship). It takes the sections off one at a time, the port
 that holds the dock last, and each part of a section's recipe goes into the
 player's hold as `count * strip_yield * health share`, rounded down. Each

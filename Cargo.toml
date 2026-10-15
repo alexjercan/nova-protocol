@@ -118,8 +118,9 @@ path = "examples/playable/shipyard_sandbox.rs"
 required-features = ["debug"]
 
 # The whole-ship strip by hand: New Game on a pinned seed, docked at a
-# lootable generated wreck with the Recycle tab up. The overlay marks each
-# section by strip order, the port last, and reads the strip and the hold.
+# lootable generated wreck, stripped from the Inventory pane. The overlay
+# marks each section by strip order, the port last, and reads the strip and
+# the hold.
 # Nothing ends it; under NOVA_AUTOPILOT a smoke walk strips and shoots it.
 [[example]]
 name = "recycle_sandbox"
@@ -776,9 +777,9 @@ name = "system_station_own"
 path = "examples/systems/system_station_own.rs"
 required-features = ["debug"]
 
-# A docked generated derelict stripped whole from the Recycle tab with the HUD
-# shut: an undock part-way keeps what it took across a retire and a thaw, the
-# port comes off last, the wreck is gone and the parts are in the hold.
+# A docked generated derelict stripped whole from the Inventory pane with the
+# HUD shut: an undock part-way keeps what it took across a retire and a thaw,
+# the port comes off last, the wreck is gone and the parts are in the hold.
 [[example]]
 name = "system_station_strip"
 path = "examples/systems/system_station_strip.rs"

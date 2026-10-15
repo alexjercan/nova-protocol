@@ -32,8 +32,8 @@ use nova_ui::{
 };
 
 use super::{
-    CreditTakeCommand, InventoryActionCommand, InventoryActionType, InventoryDraft,
-    InventoryRuntime, InventorySideType, InventoryStoreType,
+    spawn_strip_block, CreditTakeCommand, InventoryActionCommand, InventoryActionType,
+    InventoryDraft, InventoryRuntime, InventorySideType, InventoryStoreType, TakeAllCommand,
 };
 use crate::{
     icons::{icon_node, InterfaceIcons},
@@ -50,7 +50,7 @@ const ROW_PX: f32 = 28.0;
 /// Width of the quantity column, in logical px.
 const QTY_PX: f32 = 64.0;
 /// Seconds a transfer result stays on the note line, as on the Ship pane.
-const NOTE_SECONDS: f32 = 2.5;
+pub(crate) const NOTE_SECONDS: f32 = 2.5;
 /// Font size of the item description, in logical px.
 const ABOUT_FONT_PX: f32 = 12.0;
 /// Lines of description the inspector reserves. A longer text is clipped, so
@@ -112,6 +112,15 @@ pub(crate) enum InventoryColumnFactType {
 /// zero, so it offers the action even with an empty hold.
 #[derive(Component, Clone, Copy, Debug)]
 pub(crate) struct InventoryTakeCreditsButton;
+
+/// The name of the partner column header's Take all button.
+pub const INVENTORY_TAKE_ALL: &str = "InventoryTakeAll";
+
+/// The partner column header's Take all button: one click takes every stack
+/// and the credits. Shown only while the partner is eligible (neutralized or
+/// lootable) and holds a stack or a credit.
+#[derive(Component, Clone, Copy, Debug)]
+pub(crate) struct InventoryTakeAllButton;
 
 /// One side's whole panel: border, title, headings and rows. The partner's is
 /// hidden, not removed, while the player is undocked, so its slot keeps the
@@ -419,6 +428,9 @@ fn inventory_column(columns: &mut ChildSpawnerCommands, side: InventorySideType)
             ThemedBorder::alpha(UiColor::Secondary, 0.35),
         ))
         .with_children(|panel| {
+            if side == InventorySideType::Partner {
+                spawn_strip_block(panel);
+            }
             panel
                 .spawn(control_row(JustifyContent::SpaceBetween))
                 .with_children(|head| {
@@ -434,6 +446,12 @@ fn inventory_column(columns: &mut ChildSpawnerCommands, side: InventorySideType)
                         },
                     ));
                     if side == InventorySideType::Partner {
+                        head.spawn((
+                            Name::new(INVENTORY_TAKE_ALL),
+                            InventoryTakeAllButton,
+                            compact_button(ButtonSpec::new("Take all").fit()),
+                        ))
+                        .observe(on_take_all_button);
                         head.spawn((
                             Name::new("InventoryTakeCredits"),
                             InventoryTakeCreditsButton,
@@ -1372,6 +1390,11 @@ fn on_take_credits_button(
     actions.write(CreditTakeCommand);
 }
 
+/// Send one Take all command, with one click.
+fn on_take_all_button(_activate: On<Activate>, mut actions: MessageWriter<TakeAllCommand>) {
+    actions.write(TakeAllCommand);
+}
+
 /// The player ship, the ship it is docked with, that partner's station storage
 /// and the player's cargo intake, as the Inventory pane reads and moves them. One resolver for the panel, the
 /// row click, the form and the action handler, so all four fail the same way
@@ -1923,31 +1946,156 @@ pub(crate) fn apply_credit_take_commands(
     };
     for _ in actions.read() {
         let partner_title = ships.title(partner, InventorySideType::Partner);
-        let (_, _, _, own_cr) = ships.ship(pair.own);
-        let (_, _, eligible, partner_cr) = ships.ship(partner);
-        let result = plan_credit_take(eligible, own_cr, partner_cr)
-            .map_err(|refusal| credit_take_refusal_text(refusal, &partner_title));
-        let (note, cue, volume) = match result {
-            Ok(amount) => {
-                let [
-                    (_, _, _, _, mut own_cr, mut own_reports),
-                    (_, _, _, _, mut partner_cr, mut partner_reports),
-                ] = ships.ships.get_many_mut([pair.own, partner]).expect(
-                    "InventoryShips::pair checked both ships, and a ship does not dock with itself",
-                );
-                let taken_cr = own_cr.0 + amount;
-                own_reports.change_credits(&mut own_cr, taken_cr, CreditChangeCauseType::Take);
-                partner_reports.change_credits(&mut partner_cr, 0, CreditChangeCauseType::Take);
-                (
-                    format!("Took {} from {partner_title}", cr_text(amount)),
-                    UiSfx::MenuSelect,
-                    MENU_SELECT_VOLUME,
-                )
+        let (note, cue, volume) = match take_credits(&mut ships, pair.own, partner) {
+            Ok(amount) => (
+                format!("Took {} from {partner_title}", cr_text(amount)),
+                UiSfx::MenuSelect,
+                MENU_SELECT_VOLUME,
+            ),
+            Err(refusal) => (
+                credit_take_refusal_text(refusal, &partner_title),
+                UiSfx::EditorDeny,
+                EDITOR_DENY_VOLUME,
+            ),
+        };
+        runtime.note = Some((note, NOTE_SECONDS));
+        play_cue(&mut commands, bank.as_deref(), cue, volume);
+    }
+}
+
+/// Move `partner`'s whole credit balance into `own`'s by the
+/// [`plan_credit_take`] rule, leaving the partner at zero, and return the
+/// amount; a refusal changes nothing.
+fn take_credits(
+    ships: &mut InventoryShips,
+    own: Entity,
+    partner: Entity,
+) -> Result<u32, CreditTakeRefusalType> {
+    let (_, _, _, own_cr) = ships.ship(own);
+    let (_, _, eligible, partner_cr) = ships.ship(partner);
+    let amount = plan_credit_take(eligible, own_cr, partner_cr)?;
+    let [(_, _, _, _, mut own_cr, mut own_reports), (_, _, _, _, mut partner_cr, mut partner_reports)] =
+        ships
+            .ships
+            .get_many_mut([own, partner])
+            .expect("InventoryShips::pair checked both ships, and a ship does not dock with itself");
+    let taken_cr = own_cr.0 + amount;
+    own_reports.change_credits(&mut own_cr, taken_cr, CreditChangeCauseType::Take);
+    partner_reports.change_credits(&mut partner_cr, 0, CreditChangeCauseType::Take);
+    Ok(amount)
+}
+
+/// Apply each [`TakeAllCommand`]: take every stack the docked partner holds,
+/// as much of each as the player's hold has room for, through the same
+/// [`plan_item_transfer`] Take a Confirm runs, then its credits by
+/// [`plan_credit_take`]. The note line names what was taken and what stayed.
+/// A command that moves nothing refuses and buzzes: the partner is not
+/// neutralized or lootable, holds nothing, or the hold has no room for any of
+/// it. With no docked partner the commands are dropped, as the panel offers
+/// no such button then.
+pub(crate) fn apply_take_all_commands(
+    mut actions: MessageReader<TakeAllCommand>,
+    mut ships: InventoryShips,
+    items: Res<GameItems>,
+    mut runtime: ResMut<InventoryRuntime>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
+) {
+    let Some(pair) = ships.pair() else {
+        actions.clear();
+        return;
+    };
+    let Some(partner) = pair.partner else {
+        actions.clear();
+        return;
+    };
+    for _ in actions.read() {
+        let (note, cue, volume) = match take_all(&items, &mut ships, pair, partner) {
+            Ok(note) => {
+                runtime.draft = None;
+                (note, UiSfx::MenuSelect, MENU_SELECT_VOLUME)
             }
             Err(note) => (note, UiSfx::EditorDeny, EDITOR_DENY_VOLUME),
         };
         runtime.note = Some((note, NOTE_SECONDS));
         play_cue(&mut commands, bank.as_deref(), cue, volume);
+    }
+}
+
+/// Take what fits of every stack `partner` holds, then its credits, or say
+/// why nothing moved. Both texts are the note line.
+fn take_all(
+    items: &GameItems,
+    ships: &mut InventoryShips,
+    pair: InventoryPair,
+    partner: Entity,
+) -> Result<String, String> {
+    let partner_title = ships.title(partner, InventorySideType::Partner);
+    let (_, theirs, lootable, partner_cr) = ships.ship(partner);
+    if !lootable {
+        return Err(format!(
+            "Refused: {partner_title} is not neutralized or lootable"
+        ));
+    }
+    let stacks: Vec<(ItemDesignId, u32)> = theirs
+        .stacks()
+        .map(|(item, count)| (item.clone(), count))
+        .collect();
+    if stacks.is_empty() && partner_cr == 0 {
+        return Err(format!("Refused: {partner_title} holds nothing"));
+    }
+    let mut took = Vec::new();
+    let mut stayed = Vec::new();
+    for (item, held) in stacks {
+        let label = &items.design(&item).name;
+        let free_g = ships.ship(pair.own).1.free_g(items);
+        let mass_g = items.design(&item).mass_g;
+        let fits = if mass_g == 0 {
+            held
+        } else {
+            held.min(free_g / mass_g)
+        };
+        if fits > 0 {
+            let command = InventoryActionCommand {
+                action: InventoryActionType::Take,
+                item: item.clone(),
+                quantity: Some(fits),
+            };
+            transfer_items(items, ships, pair, ItemTransferType::Take, command)
+                .expect("a Take of what fits passes the transfer rule");
+            took.push(format!("{fits} {label}"));
+        }
+        if fits < held {
+            stayed.push(format!("{} {label}", held - fits));
+        }
+    }
+    if partner_cr > 0 {
+        match take_credits(ships, pair.own, partner) {
+            Ok(amount) => took.push(cr_text(amount)),
+            // Eligible with a balance above zero: only an overflow refuses.
+            Err(_) => stayed.push(cr_text(partner_cr)),
+        }
+    }
+    if took.is_empty() {
+        return Err(format!("Refused: no room for {}", list_text(&stayed)));
+    }
+    let stayed = if stayed.is_empty() {
+        String::new()
+    } else {
+        format!("; no room for {}", list_text(&stayed))
+    };
+    Ok(format!(
+        "Took {} from {partner_title}{stayed}",
+        list_text(&took)
+    ))
+}
+
+/// `a`, `a and b`, or `a, b and c`.
+fn list_text(parts: &[String]) -> String {
+    match parts {
+        [] => String::new(),
+        [one] => one.clone(),
+        [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
     }
 }
 
@@ -2436,10 +2584,13 @@ pub(crate) fn update_inventory_panel(
         Query<(Entity, &mut InventoryActionChips)>,
     ),
     mut q_part: Query<(&InspectorPart, &mut Node, &mut Visibility)>,
-    mut q_take_credits: Query<
-        &mut Node,
+    mut q_take: Query<
+        (&mut Node, Has<InventoryTakeAllButton>),
         (
-            With<InventoryTakeCreditsButton>,
+            Or<(
+                With<InventoryTakeCreditsButton>,
+                With<InventoryTakeAllButton>,
+            )>,
             Without<InspectorPart>,
             Without<InventoryColumnPanel>,
         ),
@@ -2541,8 +2692,14 @@ pub(crate) fn update_inventory_panel(
         stacks: ships.side_stacks(pair, InventorySideType::Storage),
     };
     let has_intake = ships.intake(pair.own).is_some();
-    let take_credits_shown =
-        terms.as_ref().is_some_and(|terms| terms.lootable) && partner_credits.unwrap_or(0) > 0;
+    let lootable = terms.as_ref().is_some_and(|terms| terms.lootable);
+    let take_credits_shown = lootable && partner_credits.unwrap_or(0) > 0;
+    let take_all_shown = take_credits_shown
+        || lootable
+            && partner
+                .stacks
+                .as_ref()
+                .is_some_and(|stacks| !stacks.is_empty());
     let side = |which: InventorySideType| match which {
         InventorySideType::Own => Some(&own),
         InventorySideType::Partner => Some(&partner),
@@ -2816,12 +2973,13 @@ pub(crate) fn update_inventory_panel(
         }
     }
 
-    for mut node in &mut q_take_credits {
-        let display = if take_credits_shown {
-            Display::Flex
+    for (mut node, take_all) in &mut q_take {
+        let shown = if take_all {
+            take_all_shown
         } else {
-            Display::None
+            take_credits_shown
         };
+        let display = if shown { Display::Flex } else { Display::None };
         if node.display != display {
             node.display = display;
         }

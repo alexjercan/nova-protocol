@@ -1,13 +1,15 @@
-//! The Recycle pane's whole-hull strip: its block, its command and its timer.
+//! The Inventory pane's whole-hull strip: its block, its command and its
+//! timer.
 //!
 //! While the player ship is docked with a partner it may loot (neutralized,
 //! or a derelict carrying [`LootableShipMarker`]) that is not a living
-//! station, the block shows the parts the whole hull is expected to give, the
-//! time it takes and a Strip button. A click raises a [`HullStripCommand`];
-//! [`apply_hull_strip_commands`] plans it with [`plan_hull_strip`] and starts
-//! a [`HullStripJob`] on the player ship. [`advance_hull_strip`] runs the job
-//! on the game clock, with the pane open or shut, so the player starts it and
-//! flies on; the TAB interface's pause holds it like any other game work.
+//! station, a compact block above the partner column shows the Strip button,
+//! the progress bar, the sections left, the time and the expected parts. A
+//! click raises a [`HullStripCommand`]; [`apply_hull_strip_commands`] plans
+//! it with [`plan_hull_strip`] and starts a [`HullStripJob`] on the player
+//! ship. [`advance_hull_strip`] runs the job on the game clock, with the pane
+//! open or shut, so the player starts it and flies on; the TAB interface's
+//! pause holds it like any other game work.
 //!
 //! The job takes one live section at a time, the one [`next_strip_section`]
 //! names: the farthest from the berth, the berth port last. When a section's
@@ -22,6 +24,9 @@
 //! Touch this module when changing what the strip block shows or what Strip
 //! does.
 
+#[cfg(test)]
+mod tests;
+
 use std::collections::BTreeMap;
 
 use bevy::{ecs::system::SystemParam, prelude::*, ui_widgets::Activate};
@@ -30,42 +35,51 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
     theme::UiColor,
-    widget::{ButtonSpec, ThemedFill},
+    widget::{ButtonSpec, ThemedBorder, ThemedFill},
 };
 
-use super::RecycleRuntime;
+use super::InventoryRuntime;
 use crate::{
     pane::{compact_button, play_menu_select, themed_label},
     ship::design_section_code,
 };
 
+/// The name of the strip block, shown only while docked with a wreck.
+pub const INVENTORY_STRIP_BLOCK: &str = "InventoryStripBlock";
+
 /// The name of the Strip button.
-pub const RECYCLE_STRIP_BUTTON: &str = "RecycleStripButton";
+pub const INVENTORY_STRIP_BUTTON: &str = "InventoryStripButton";
 
 /// The name of the strip block's progress line.
-pub const RECYCLE_STRIP_PROGRESS: &str = "RecycleStripProgress";
+pub const INVENTORY_STRIP_PROGRESS: &str = "InventoryStripProgress";
 
-/// A request to strip the whole docked partner, raised by the Recycle pane's
+/// A request to strip the whole docked partner, raised by the strip block's
 /// Strip button.
 #[derive(Message, Clone, Copy, Debug, Default)]
 pub struct HullStripCommand;
 
-/// A text of the strip block that [`update_recycle_strip`] refreshes.
+/// The strip block over the partner column, shown only while
+/// [`StripPartner::recyclable`] holds.
+#[derive(Component)]
+pub(crate) struct StripBlock;
+
+/// A text of the strip block that [`update_strip_block`] refreshes.
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
-pub(crate) enum RecycleStripField {
-    /// What the strip gives and how long it takes, or why it cannot start.
+pub(crate) enum StripBlockField {
+    /// The sections left and the expected parts, or a held strip's reason.
     Plan,
-    /// The running strip's share, the section coming off and the time left.
+    /// The time a strip takes, or the running strip's share, section and
+    /// time left.
     Progress,
 }
 
 /// The progress bar's fill.
 #[derive(Component)]
-pub(crate) struct RecycleStripFill;
+pub(crate) struct StripBlockFill;
 
-/// The Strip button's row, hidden while a strip runs or one cannot start.
+/// The Strip button, hidden while a strip runs or one cannot start.
 #[derive(Component)]
-pub(crate) struct RecycleStripButtonRow;
+pub(crate) struct StripBlockButton;
 
 /// The recipe of a live section its hull's design does not list: a
 /// hand-built hull has no design. It gives no part and takes the shortest
@@ -96,7 +110,7 @@ pub(crate) struct StripPartner<'a> {
 }
 
 impl StripPartner<'_> {
-    /// Whether the Recycle pane serves this partner: one the player may loot
+    /// Whether the strip block serves this partner: one the player may loot
     /// that is not a living station.
     pub(crate) fn recyclable(&self) -> bool {
         self.lootable && !self.living_station
@@ -287,7 +301,7 @@ fn code_order(code: &str) -> (String, u32) {
 }
 
 /// Parts by item name: `3 Section Panel, 1 Frame Spar`, or `nothing`.
-pub(crate) fn strip_parts_text(items: &GameItems, parts: &BTreeMap<ItemDesignId, u32>) -> String {
+fn strip_parts_text(items: &GameItems, parts: &BTreeMap<ItemDesignId, u32>) -> String {
     if parts.is_empty() {
         return "nothing".to_string();
     }
@@ -307,8 +321,8 @@ fn duration_text(secs: f32) -> String {
     format!("{} min {:02} s", secs / 60, secs % 60)
 }
 
-/// The plan line: the sections, the expected parts and their mass, and the
-/// time.
+/// The plan line: the sections left and the parts they are expected to give,
+/// with their mass.
 fn strip_plan_text(items: &GameItems, partner: &StripPartner<'_>, strip: &HullStrip) -> String {
     let mass_g: u64 = strip
         .parts
@@ -316,151 +330,177 @@ fn strip_plan_text(items: &GameItems, partner: &StripPartner<'_>, strip: &HullSt
         .map(|(item, &count)| items.design(item).stack_mass_g(count))
         .sum();
     format!(
-        "{} section{} left. Expected yield: {} ({}). Takes {} of game time; the berth port comes \
-         off last and the wreck is gone.",
+        "{} section{} left, port last. Expected yield: {} ({})",
         partner.live.len(),
         if partner.live.len() == 1 { "" } else { "s" },
         strip_parts_text(items, &strip.parts),
         kg_text(mass_g),
-        duration_text(strip.duration_secs),
     )
 }
 
-/// Build the strip block: a header, the plan line, the Strip button, the
-/// progress line and bar.
-pub(crate) fn spawn_recycle_strip(panel: &mut ChildSpawnerCommands) {
-    panel.spawn(themed_label("Strip the wreck", 13.0, UiColor::Accent));
-    panel.spawn((
-        RecycleStripField::Plan,
-        themed_label("", 12.0, UiColor::Body),
-    ));
+/// Build the strip block, hidden until [`update_strip_block`] finds a wreck:
+/// the Strip button, the progress bar and the time on one row, and the plan
+/// line under them.
+pub(crate) fn spawn_strip_block(panel: &mut ChildSpawnerCommands) {
     panel
         .spawn((
-            RecycleStripButtonRow,
+            StripBlock,
+            Name::new(INVENTORY_STRIP_BLOCK),
             Node {
-                flex_direction: FlexDirection::Row,
                 display: Display::None,
-                ..default()
-            },
-        ))
-        .with_children(|row| {
-            row.spawn((
-                Name::new(RECYCLE_STRIP_BUTTON),
-                compact_button(ButtonSpec::new("Strip the wreck").fit().primary()),
-            ))
-            .observe(on_recycle_strip_button);
-        });
-    panel.spawn((
-        RecycleStripField::Progress,
-        Name::new(RECYCLE_STRIP_PROGRESS),
-        themed_label("", 12.0, UiColor::Primary),
-    ));
-    panel
-        .spawn((
-            Node {
-                height: Val::Px(6.0),
+                flex_direction: FlexDirection::Column,
                 flex_shrink: 0.0,
-                border_radius: BorderRadius::all(Val::Px(3.0)),
-                overflow: Overflow::clip(),
+                row_gap: Val::Px(4.0),
+                padding: UiRect::all(Val::Px(6.0)),
+                border: UiRect::all(Val::Px(1.0)),
+                border_radius: BorderRadius::all(Val::Px(4.0)),
                 ..default()
             },
-            BackgroundColor(Color::NONE),
-            ThemedFill::alpha(UiColor::Secondary, 0.25),
+            BorderColor::all(Color::NONE),
+            ThemedBorder::alpha(UiColor::Accent, 0.45),
         ))
-        .with_children(|track| {
-            track.spawn((
-                RecycleStripFill,
-                Node {
-                    width: Val::Percent(0.0),
-                    height: Val::Percent(100.0),
+        .with_children(|block| {
+            block
+                .spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(8.0),
                     ..default()
-                },
-                BackgroundColor(Color::NONE),
-                ThemedFill::new(UiColor::Accent),
-            ));
+                })
+                .with_children(|row| {
+                    row.spawn((
+                        StripBlockButton,
+                        Name::new(INVENTORY_STRIP_BUTTON),
+                        compact_button(ButtonSpec::new("Strip").fit().primary()),
+                    ))
+                    .observe(on_strip_button);
+                    row.spawn((
+                        Node {
+                            flex_grow: 1.0,
+                            min_width: Val::Px(24.0),
+                            height: Val::Px(6.0),
+                            border_radius: BorderRadius::all(Val::Px(3.0)),
+                            overflow: Overflow::clip(),
+                            ..default()
+                        },
+                        BackgroundColor(Color::NONE),
+                        ThemedFill::alpha(UiColor::Secondary, 0.25),
+                    ))
+                    .with_children(|track| {
+                        track.spawn((
+                            StripBlockFill,
+                            Node {
+                                width: Val::Percent(0.0),
+                                height: Val::Percent(100.0),
+                                ..default()
+                            },
+                            BackgroundColor(Color::NONE),
+                            ThemedFill::new(UiColor::Accent),
+                        ));
+                    });
+                    row.spawn((
+                        StripBlockField::Progress,
+                        Name::new(INVENTORY_STRIP_PROGRESS),
+                        themed_label("", 12.0, UiColor::Primary),
+                        TextLayout::new(Justify::Right, LineBreak::NoWrap),
+                    ));
+                });
+            block.spawn((StripBlockField::Plan, themed_label("", 12.0, UiColor::Body)));
         });
 }
 
-/// Keep the strip block on the docked partner and the running job: the plan
-/// line, the Strip button while a strip can start, and the progress line and
-/// bar.
+/// Keep the strip block on the docked partner and the running job: shown only
+/// at a wreck, the Strip button while a strip can start, the time or the
+/// running strip's progress, the bar, and the plan line, which a held strip
+/// replaces with its reason.
 #[expect(
     clippy::type_complexity,
-    reason = "the block's texts, its button row and its bar fill"
+    reason = "the block, its texts, its button and its bar fill"
 )]
-pub(crate) fn update_recycle_strip(
+pub(crate) fn update_strip_block(
     items: Option<Res<GameItems>>,
     site: StripSite,
     q_job: Query<&HullStripJob, With<PlayerSpaceshipMarker>>,
-    mut q_field: Query<(&RecycleStripField, &mut Text)>,
-    mut q_row: Query<&mut Node, (With<RecycleStripButtonRow>, Without<RecycleStripFill>)>,
-    mut q_fill: Query<&mut Node, (With<RecycleStripFill>, Without<RecycleStripButtonRow>)>,
+    mut q_field: Query<(&StripBlockField, &mut Text)>,
+    mut q_nodes: Query<
+        (
+            &mut Node,
+            Has<StripBlock>,
+            Has<StripBlockButton>,
+            Has<StripBlockFill>,
+        ),
+        Or<(
+            With<StripBlock>,
+            With<StripBlockButton>,
+            With<StripBlockFill>,
+        )>,
+    >,
 ) {
     let Some(items) = items else {
         return;
     };
     let job = site.player().and_then(|player| q_job.get(player).ok());
-    let partner = site.partner();
-    let plan = plan_hull_strip(
-        partner.as_ref().map(StripPartner::hull).as_ref(),
-        job.is_some(),
-    );
-    let plan_line = match (&partner, &plan) {
-        (Some(partner), Ok(strip)) => strip_plan_text(&items, partner, strip),
-        (Some(partner), Err(HullStripRefusalType::Busy)) => format!(
-            "{} section{} left.",
-            partner.live.len(),
-            if partner.live.len() == 1 { "" } else { "s" }
-        ),
-        (_, Err(refusal)) => strip_refusal_text(*refusal).to_string(),
-        (None, Ok(_)) => unreachable!("a strip plans only with a docked partner"),
-    };
-    let progress_line = match job {
-        Some(job) => {
-            let step = job.step.as_ref();
-            match (job.paused, step) {
-                (Some(pause), Some(step)) => strip_pause_text(&step.code, pause),
-                _ => format!(
-                    "Stripping{}: {:.0}%, {} taken, {} left",
-                    step.map(|step| format!(" {}", step.code))
-                        .unwrap_or_default(),
-                    job.progress() * 100.0,
-                    job.taken,
-                    duration_text(job.remaining_secs())
+    let partner = site.partner().filter(StripPartner::recyclable);
+    let hull = partner.as_ref().map(StripPartner::hull);
+    let startable = plan_hull_strip(hull.as_ref(), job.is_some()).is_ok();
+    let (progress_line, plan_line) = match (&partner, plan_hull_strip(hull.as_ref(), false)) {
+        (Some(partner), Ok(strip)) => {
+            let plan = strip_plan_text(&items, partner, &strip);
+            match job {
+                None => (
+                    format!("{} to strip", duration_text(strip.duration_secs)),
+                    plan,
                 ),
+                Some(job) => match (job.paused, job.step.as_ref()) {
+                    (Some(pause), Some(step)) => (
+                        "Held: hold full".to_string(),
+                        strip_pause_text(&step.code, pause),
+                    ),
+                    (_, step) => (
+                        format!(
+                            "{:.0}%{}, {} left",
+                            job.progress() * 100.0,
+                            step.map(|step| format!(" {}", step.code))
+                                .unwrap_or_default(),
+                            duration_text(job.remaining_secs())
+                        ),
+                        plan,
+                    ),
+                },
             }
         }
-        None => "No strip running".to_string(),
+        _ => (String::new(), String::new()),
     };
     for (field, mut text) in &mut q_field {
         let line = match field {
-            RecycleStripField::Plan => &plan_line,
-            RecycleStripField::Progress => &progress_line,
+            StripBlockField::Plan => &plan_line,
+            StripBlockField::Progress => &progress_line,
         };
         if text.0 != *line {
             text.0.clone_from(line);
         }
     }
-    let display = if plan.is_ok() {
-        Display::Flex
-    } else {
-        Display::None
-    };
-    for mut row in &mut q_row {
-        if row.display != display {
-            row.display = display;
-        }
-    }
+    let flex = |shown: bool| if shown { Display::Flex } else { Display::None };
     let width = Val::Percent(job.map_or(0.0, HullStripJob::progress) * 100.0);
-    for mut fill in &mut q_fill {
-        if fill.width != width {
-            fill.width = width;
+    for (mut node, block, button, fill) in &mut q_nodes {
+        if block {
+            let display = flex(partner.is_some());
+            if node.display != display {
+                node.display = display;
+            }
+        } else if button {
+            let display = flex(startable);
+            if node.display != display {
+                node.display = display;
+            }
+        } else if fill && node.width != width {
+            node.width = width;
         }
     }
 }
 
 /// Raise a [`HullStripCommand`] when the Strip button is clicked.
-fn on_recycle_strip_button(
+fn on_strip_button(
     _activate: On<Activate>,
     mut strips: MessageWriter<HullStripCommand>,
     bank: Option<Res<SoundBank<UiSfx>>>,
@@ -475,7 +515,7 @@ fn on_recycle_strip_button(
 /// ends. A refusal starts nothing and shows its reason on the note line.
 pub(crate) fn apply_hull_strip_commands(
     mut messages: MessageReader<HullStripCommand>,
-    mut runtime: ResMut<RecycleRuntime>,
+    mut runtime: ResMut<InventoryRuntime>,
     mut commands: Commands,
     items: Option<Res<GameItems>>,
     site: StripSite,
@@ -533,7 +573,7 @@ pub(crate) fn apply_hull_strip_commands(
 /// ship and station wears one.
 pub(crate) fn advance_hull_strip(
     time: Res<Time>,
-    mut runtime: ResMut<RecycleRuntime>,
+    mut runtime: ResMut<InventoryRuntime>,
     mut commands: Commands,
     items: Option<Res<GameItems>>,
     site: StripSite,

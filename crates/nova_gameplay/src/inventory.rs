@@ -710,7 +710,7 @@ pub enum ShipInventoryReport {
         /// Credits the ship paid the station.
         price_cr: u32,
     },
-    /// A Recycle tab strip took one section off the docked partner and put
+    /// An Inventory pane strip took one section off the docked partner and put
     /// its parts in this ship's hold.
     Stripped {
         /// The stripped hull's scenario id.

@@ -24,7 +24,7 @@ fn strip_app() -> App {
         STEP_SECS,
     )));
     app.insert_resource(test_items());
-    app.init_resource::<RecycleRuntime>();
+    app.init_resource::<InventoryRuntime>();
     app.init_resource::<TakenOrder>();
     app.add_message::<HullStripCommand>();
     app.add_plugins(DockingSectionPlugin { render: false });
@@ -311,7 +311,7 @@ fn an_undock_stops_the_strip_and_keeps_what_it_took() {
         assert!(app.world().get_entity(kept).is_ok());
     }
     assert_eq!(
-        app.world().resource::<RecycleRuntime>().note(),
+        app.world().resource::<InventoryRuntime>().note(),
         Some("strip stopped: you undocked; 1 section taken")
     );
 }
