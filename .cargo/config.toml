@@ -12,7 +12,8 @@
 # changes or this repo goes private.
 # At 4, `cargo test --workspace --features debug` (the heaviest config here)
 # measures 8.19 GiB peak summed toolchain RSS. Raise only if you know the box
-# has the headroom. See the profile notes in ../Cargo.toml.
+# has the headroom. See the profile notes in ../Cargo.toml. The nix dev shell
+# lowers this to 2 with CARGO_BUILD_JOBS (see ../flake.nix).
 jobs = 4
 
 [target.wasm32-unknown-unknown]

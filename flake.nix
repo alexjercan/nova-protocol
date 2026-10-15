@@ -247,6 +247,11 @@
           RUSTC_WRAPPER = "sccache";
           CARGO_INCREMENTAL = "0";
 
+          # Overrides `jobs = 4` in .cargo/config.toml, which CI reads. The dev
+          # box shares 31 GB between agent lanes, other Bevy repos and running
+          # games; at 4 per build it went 24 GB into swap (2026-10-15).
+          CARGO_BUILD_JOBS = "2";
+
           RUST_SRC_PATH = "${rustNightly}/lib/rustlib/src/rust/library";
         };
       };
