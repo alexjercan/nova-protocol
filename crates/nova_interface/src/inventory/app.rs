@@ -274,9 +274,9 @@ fn category_color(category: ItemCategoryType) -> UiColor {
     }
 }
 
-/// Credits as the pane shows them, grouped by thousands: `2,000 cr`.
-fn cr_text(credits: u32) -> String {
-    let digits = credits.to_string();
+/// Credits as the panes show them, grouped by thousands: `2,000 cr`.
+pub(crate) fn cr_text(credits: impl Into<u64>) -> String {
+    let digits = credits.into().to_string();
     let mut grouped = String::new();
     for (index, digit) in digits.chars().enumerate() {
         if index > 0 && (digits.len() - index).is_multiple_of(3) {

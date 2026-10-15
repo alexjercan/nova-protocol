@@ -97,3 +97,15 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
   - Escort cards use the same head (`spawn_hull_card_head`) and preview.
   - The Info button is not on the card yet. It comes with item 4, so no card has a button that does nothing.
   - Proof: `shipyard_sandbox` opens the Station tab and shoots `shipyard-sandbox-cards.png`, then `shipyard-sandbox-cards-turned.png` 30 frames later: six lit hulls with plating and greebles, each turned between the shots.
+
+- Agent decision 2026-10-15, item 3 (trade-in in plain words). The agent chose the marked options.
+  - Where the words go:
+    - (A, chosen) A line over the Buy button (`buy_terms_text` in `nova_interface/src/station/shipyard.rs`): `Your current ship is taken in for 4,665 cr; you pay 795 cr.`, `you get 3,075 cr back.` when the current ship is worth more, `you pay nothing.` when the two are equal. A refused buy shows the refusal in its place. Consequence: a card carries a second line, but only while Buy is shown.
+    - (B) In the button label (`Buy: pay 795 cr`). Consequence: the trade-in value is not shown and the button gets long.
+    - (C) A confirm step after Buy. Consequence: one more click for every buy.
+  - The note after a buy says the same in the past tense: `bought Fenhalka industrial Mk 1 for 5,460 cr: your old ship was taken in for 4,665 cr; you paid 795 cr.`
+  - Refusals say it the same way: `buy: X costs 9,540 cr; with your current ship taken in you have 8,000 cr` and `buy: the station would owe you 3,075 cr for your current ship and holds 1,000 cr`.
+  - Credits on the cards, the terms, the refusals and the notes, escorts included, are grouped by thousands through the Inventory pane's `cr_text`, now `pub(crate)`.
+  - The scripting event keeps `trade_in_cr`: it is a field name for authors, not text for the player.
+  - Proof: `shipyard_sandbox` asserts the buy note says the trade-in in plain words; the run logged the note above, and `shipyard-sandbox-cards.png` shows the terms line on each card.
+  - For the owner: a just-bought hull trades back in for much less than it cost (the Fenhalka industrial Mk 1 bought for 5,460 cr is taken in for 510 cr), because the trade-in pays strip value at bid. The cards now make that visible.

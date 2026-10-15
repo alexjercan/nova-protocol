@@ -22,6 +22,7 @@ use super::{
     offer_cell, offer_rows, shipyard::hull_length_text, spawn_hull_card_head, StationRuntime,
 };
 use crate::{
+    inventory::cr_text,
     pane::{compact_button, play_menu_select, themed_label},
     ship::{ResolvedSite, StationSite},
 };
@@ -73,7 +74,11 @@ fn escort_refusal_text(name: &str, refusal: &EscortHireRefusalType) -> String {
             format!("hire: the fleet holds its {cap} escorts")
         }
         EscortHireRefusalType::InsufficientCredits { need, have } => {
-            format!("hire: {name} costs {need} cr, the ship holds {have} cr")
+            format!(
+                "hire: {name} costs {}, the ship holds {}",
+                cr_text(*need),
+                cr_text(*have)
+            )
         }
         EscortHireRefusalType::CreditOverflow => {
             format!("hire: the station's balance after hiring {name} does not fit")
@@ -191,7 +196,7 @@ pub(crate) fn update_station_escort_list(
                     Some(EscortRow {
                         hull,
                         name: name.to_string(),
-                        detail: format!("{}, {price} cr", hull_length_text(&design.0)),
+                        detail: format!("{}, {}", hull_length_text(&design.0), cr_text(price)),
                         refusal: plan_offer(&resolved, price, &held, &q_credits)
                             .err()
                             .map(|refusal| escort_refusal_text(name.as_str(), &refusal)),
@@ -334,7 +339,7 @@ pub(crate) fn apply_station_escort_hire_commands(
         hull: name.clone(),
         price_cr: plan.price_cr,
     });
-    runtime.say(format!("hired {name} for {} cr", plan.price_cr));
+    runtime.say(format!("hired {name} for {}", cr_text(plan.price_cr)));
     commands.trigger(EscortHireRequest {
         entity: resolved.player,
         station,

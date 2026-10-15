@@ -229,7 +229,9 @@ parked hull is inert: nobody flies it, it is Neutral, it does not shoot, and
 it cannot be looted or stripped. Docked to a living station that offers
 `Refit`, the Station pane lists the parked hulls under **Ships for sale**:
 each a card with the real hull turning slowly, one line with its name,
-length and price, and a Buy button or the reason it is refused.
+length and price, what the buy costs in plain words (the current ship taken
+in for its trade-in, the difference paid or paid back), and a Buy button or
+the reason it is refused.
 
 | rule | what happens |
 |---|---|

@@ -22,7 +22,9 @@
 //!
 //! 1. open the interface (`TAB`), Station tab: **Ships for sale** shows a
 //!    card per parked hull and the old ship as `(rebuy)`, each with the
-//!    hull's own model turning, one line (name, length, price) and Buy;
+//!    hull's own model turning, one line (name, length, price), what the
+//!    buy costs in plain words ("Your current ship is taken in for ...; you
+//!    pay ...") and Buy;
 //! 2. Inventory tab: the old ship's hold lists as storage while you are
 //!    docked;
 //! 3. buy another hull, or rebuy the old ship: you take its helm and the
@@ -48,8 +50,9 @@
 //! price, distance, coasting or DOCKED and side, and the hired escorts.
 //!
 //! Under `NOVA_AUTOPILOT=1` a smoke walk waits for the fixture,
-//! checks the station parks one hull per port but one with the old ship
-//! among them and escorts for hire coast undocked, and shoots
+//! checks the buy note says the trade-in in plain words, the station parks
+//! one hull per port but one with the old ship among them and escorts for
+//! hire coast undocked, and shoots
 //! `shipyard-sandbox.png` and the Station tab's cards as
 //! `shipyard-sandbox-cards.png`, then again as
 //! `shipyard-sandbox-cards-turned.png` once the hulls have turned, with
@@ -68,7 +71,10 @@ use diagnostics::{palette, DiagnosticsGizmos, DiagnosticsPanel, DiagnosticsSyste
 use nova_input::prelude::InputSource;
 use nova_protocol::{
     nova_debug::diagnostics,
-    nova_interface::{pane::InterfacePaneType, station::HullBuyCommand},
+    nova_interface::{
+        pane::InterfacePaneType,
+        station::{HullBuyCommand, StationRuntime},
+    },
     prelude::*,
 };
 use open_world_stage::{advance_station_dock, the_player, OpenWorldStartPlugin, StationDock};
@@ -157,6 +163,9 @@ struct Sandbox {
     dock: StationDock,
     /// The connection the player held before the buy.
     released: Option<Entity>,
+    /// The Station pane's note after the buy: what the buy cost in plain
+    /// words.
+    buy_note: Option<String>,
 }
 
 /// The chosen station, once it stands.
@@ -254,6 +263,16 @@ fn drive_the_sandbox(world: &mut World) {
             let (Some(player), Some(station)) = (the_player(world), chosen_station(world)) else {
                 return;
             };
+            if world.resource::<Sandbox>().buy_note.is_none() {
+                let note = world
+                    .resource::<StationRuntime>()
+                    .note()
+                    .map(str::to_string);
+                if let Some(note) = note {
+                    info!("shipyard sandbox: the note line reads '{note}'");
+                    world.resource_mut::<Sandbox>().buy_note = Some(note);
+                }
+            }
             let released = world.resource::<Sandbox>().released;
             let redocked = world
                 .get::<DockedShip>(player)
@@ -589,6 +608,13 @@ mod smoke {
     fn assert_the_shipyard(world: &mut World) {
         let player = the_player(world).expect("shipyard sandbox: one player ship");
         let station = chosen_station(world).expect("shipyard sandbox: the station stands");
+        let note = world.resource::<Sandbox>().buy_note.clone();
+        assert!(
+            note.as_deref()
+                .is_some_and(|note| note.starts_with("bought ")
+                    && note.contains("your old ship was taken in for")),
+            "shipyard sandbox: the buy note says the trade-in in plain words, got {note:?}"
+        );
         assert!(
             world.get::<DockedShip>(player).is_some(),
             "shipyard sandbox: the player is docked"

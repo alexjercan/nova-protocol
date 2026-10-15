@@ -221,7 +221,10 @@ The Station pane's "Ships for sale" list
 (`nova_interface/src/station/shipyard.rs`) shows every hull parked at the
 docked station, a rebuy named "(rebuy)", as a card
 (`spawn_hull_card_head` in `station/mod.rs`): a view of the hull, one line
-with its name, length and price, and a Buy button or the refusal. The view
+with its name, length and price, then the terms (`buy_terms_text`: the
+current ship taken in for its trade-in, the difference paid or paid back)
+over a Buy button, or the refusal. The note after a buy says the same in
+the past tense. The view
 (`hull_preview.rs`) mirrors the parked hull's own meshes and materials,
 posed in the hull's frame, into a scene on the card's render layer, turned
 slowly about its vertical axis and lit by a key and rim light on the card

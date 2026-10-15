@@ -4,8 +4,9 @@
 //! hulls parked at its ports ([`ParkedHulls`]), the pane lists every one, a
 //! hull for sale and a hull traded in for rebuy alike, as a card: the hull's
 //! own model turning (`hull_preview`), one line with its name, length and
-//! price, and a Buy button or the reason the buy is refused. A
-//! click raises a [`HullBuyCommand`]; [`apply_station_hull_buy_commands`]
+//! price, then what the buy costs in plain words (the current ship taken in
+//! for its trade-in, the difference paid or paid back) over a Buy button, or
+//! the reason the buy is refused. A click raises a [`HullBuyCommand`]; [`apply_station_hull_buy_commands`]
 //! plans it with [`plan_hull_buy`], moves the credits both ways, and raises
 //! the [`HullBuyRequest`] the scenario crate swaps the hulls from. The old
 //! hold stays in the old hull.
@@ -20,6 +21,7 @@ use nova_ui::{theme::UiColor, widget::ButtonSpec};
 
 use super::{offer_cell, offer_rows, spawn_hull_card_head, StationRuntime};
 use crate::{
+    inventory::cr_text,
     pane::{compact_button, play_menu_select, themed_label},
     ship::{ResolvedSite, ShipRuntime, StationSite},
 };
@@ -56,8 +58,8 @@ struct HullRow {
     name: String,
     /// The card line after the name: length and price.
     detail: String,
-    /// The refusal line, or `None` when the buy is allowed.
-    refusal: Option<String>,
+    /// What the buy costs in plain words, or the refusal line.
+    terms: Result<String, String>,
 }
 
 /// The hull's length: the span of its section centres along its longest
@@ -77,16 +79,42 @@ fn hull_refusal_text(name: &str, refusal: &HullBuyRefusalType) -> String {
     match refusal {
         HullBuyRefusalType::NotDocked => "buy: dock at a station that refits".to_string(),
         HullBuyRefusalType::NoRefitService => "buy: this dock offers no refit".to_string(),
-        HullBuyRefusalType::InsufficientCredits { need, have } => {
-            format!("buy: {name} costs {need} cr, the ship and the trade-in make {have} cr")
-        }
-        HullBuyRefusalType::StationShortOfCredits { need, have } => {
-            format!("buy: the station owes {need} cr for the trade-in and holds {have} cr")
-        }
+        HullBuyRefusalType::InsufficientCredits { need, have } => format!(
+            "buy: {name} costs {}; with your current ship taken in you have {}",
+            cr_text(*need),
+            cr_text(*have)
+        ),
+        HullBuyRefusalType::StationShortOfCredits { need, have } => format!(
+            "buy: the station would owe you {} for your current ship and holds {}",
+            cr_text(*need),
+            cr_text(*have)
+        ),
         HullBuyRefusalType::CreditOverflow => {
             format!("buy: a balance after buying {name} does not fit")
         }
     }
+}
+
+/// What a buy at `price_cr` costs once the current ship is taken in for
+/// `trade_in_cr`, as the card says it before the buy (`done` false):
+/// "Your current ship is taken in for 4,665 cr; you pay 795 cr.", and the
+/// note line after it: "your old ship was taken in for 4,665 cr; you paid
+/// 795 cr."
+fn buy_terms_text(price_cr: u32, trade_in_cr: u32, done: bool) -> String {
+    let (ship, taken, pay, get) = if done {
+        ("your old ship", "was", "you paid", "you got")
+    } else {
+        ("Your current ship", "is", "you pay", "you get")
+    };
+    let net = match price_cr.cmp(&trade_in_cr) {
+        std::cmp::Ordering::Greater => format!("{pay} {}", cr_text(price_cr - trade_in_cr)),
+        std::cmp::Ordering::Less => format!("{get} {} back", cr_text(trade_in_cr - price_cr)),
+        std::cmp::Ordering::Equal => format!("{pay} nothing"),
+    };
+    format!(
+        "{ship} {taken} taken in for {}; {net}.",
+        cr_text(trade_in_cr)
+    )
 }
 
 /// The player ship's trade-in value: each live section's design recipe, see
@@ -237,10 +265,10 @@ pub(crate) fn update_station_hull_list(
                     Some(HullRow {
                         hull,
                         name: format!("{name}{listing}"),
-                        detail: format!("{}, {price_cr} cr", hull_length_text(&design.0)),
-                        refusal: planned
-                            .err()
-                            .map(|refusal| hull_refusal_text(name.as_str(), &refusal)),
+                        detail: format!("{}, {}", hull_length_text(&design.0), cr_text(price_cr)),
+                        terms: planned
+                            .map(|plan| buy_terms_text(plan.price_cr, plan.trade_in_cr, false))
+                            .map_err(|refusal| hull_refusal_text(name.as_str(), &refusal)),
                     })
                 })
                 .collect();
@@ -262,11 +290,12 @@ pub(crate) fn update_station_hull_list(
         for (index, row) in rows.iter().enumerate() {
             parent.spawn(offer_cell()).with_children(|cell| {
                 spawn_hull_card_head(cell, row.hull, &row.name, &row.detail);
-                match &row.refusal {
-                    Some(refusal) => {
+                match &row.terms {
+                    Err(refusal) => {
                         cell.spawn(themed_label(refusal, 12.0, UiColor::Danger));
                     }
-                    None => {
+                    Ok(terms) => {
+                        cell.spawn(themed_label(terms, 12.0, UiColor::Body));
                         cell.spawn((
                             Name::new(format!("HullBuy-{index}")),
                             compact_button(ButtonSpec::new("Buy").fit().primary()),
@@ -380,7 +409,8 @@ pub(crate) fn apply_station_hull_buy_commands(
     ship.held = None;
     ship.reselect = None;
     runtime.say(format!(
-        "bought {name} for {} cr, {} cr for the old hull",
-        plan.price_cr, plan.trade_in_cr
+        "bought {name} for {}: {}",
+        cr_text(plan.price_cr),
+        buy_terms_text(plan.price_cr, plan.trade_in_cr, true)
     ));
 }
