@@ -11,8 +11,8 @@
 //! `--start-km <km>` (or `NOVA_START_KM`) jumps the player that far out
 //! along +X once the spawn's window is in, to fly where the advancement curve
 //! fields larger hulls: small hulls only in the inner rings, medium ones near
-//! 2,000 km, the largest past 3,000 km. The panel lists the generated hulls
-//! in the window with their spans.
+//! 2,000 km, the largest past 3,000 km. Each generated hull is labelled with
+//! its span.
 //!
 //! What to try:
 //!
@@ -21,27 +21,29 @@
 //! 2. TAB opens the interface: the Ship tab shows the hull, `M` steps to the
 //!    Map, and `C` there draws the chart of the cells entered;
 //! 3. `:` opens the shell: `cheats enable`, then `credits give <ship-id>
-//!    1000` or `credits set <ship-id> 0`, with the ship id from the panel;
+//!    1000` or `credits set <ship-id> 0`, with the ship id from the detail
+//!    list (`Shift+F3`);
 //! 4. Esc opens the pause menu; Settings > Graphics has Pause when
 //!    unfocused;
 //! 5. jettison and take back: TAB, Inventory, click a hold row, Jettison,
 //!    pick the quantity, Confirm; the canister leaves the intake door. Then
-//!    fly the intake door (top or bottom face, per the panel) onto the
+//!    fly the intake door (top or bottom face, per its label) onto the
 //!    canister: the box in front of the door is the pickup area.
 //!
 //! ```text
 //! nix develop --command cargo run --example start_role_sandbox --features debug -- --role pirate
 //! ```
 //!
-//! The diagnostics panel (`F3`) shows the role, the hull, the kit, the live
-//! balance and hold, the hull's value at ask and its trade-in by health, the
-//! cell and the distance from the origin, and the generated hulls in the
-//! window, whether the player hull has an intake and which face it is on,
-//! the pickups ready now, and the last jettison and pickup (item, count).
-//! The gizmos ring each generated hull at its containment radius, labelled
-//! with its span; draw each ship's intake face, its pickup area (the
-//! trigger box), its detection range and its normal; and ring each drifting
-//! canister, labelled with its contents.
+//! The diagnostics panel (`F3`) shows the role, the hull, the live balance
+//! and hold. The gizmos ring each generated hull at its containment radius,
+//! labelled with its span; draw each ship's intake face, its pickup area
+//! (the trigger box), its detection range and its normal, with the player's
+//! intake labelled by its face and READY while a pickup is armed; and ring
+//! each drifting canister, labelled with its contents. `TAB` is hinted while
+//! nothing drifts and `W` while a canister does. Detail (`Shift+F3`) adds the
+//! kit, the hull's value at ask and its trade-in by health, the cell and the
+//! distance from the origin, the generated hulls in the window, and the last
+//! jettison and pickup (item, count).
 //!
 //! Under `NOVA_AUTOPILOT=1` a smoke walk waits for the window,
 //! checks the player is the role's hull with the role's kit and an intake,
@@ -112,8 +114,7 @@ fn main() -> bevy::app::AppExit {
         phase: SandboxPhaseType::Streaming,
     });
     app.add_plugins(diagnostics::DiagnosticsHintPlugin::new(
-        "fly the role's hull   [TAB] interface, [M] next tab, [C] chart on Map   TAB Inventory: \
-         Jettison, then fly the intake box onto the canister   [:] shell: cheats enable",
+        "fly the role's hull; jettison from the hold and scoop it back with the intake",
     ));
     app.add_systems(
         Update,
@@ -264,23 +265,20 @@ fn draw_the_start(
     let role = roles.get_role(&StartRoleDesignId::from(sandbox.role.as_str()));
     match role {
         Some(role) => {
-            panel.line(format!("role: {} ({})", role.name, role.id));
+            panel.line(format!("{} ({})   hull {}", role.name, role.id, role.hull));
             let kit: Vec<String> = role
                 .kit
                 .stock
                 .stacks()
                 .map(|(item, count)| format!("{count} {item}"))
                 .collect();
-            panel.line(format!(
-                "hull: {}   kit: {} cr, {}",
-                role.hull,
-                role.kit.credits,
-                kit.join(", ")
-            ));
+            panel.detail(format!("kit: {} cr, {}", role.kit.credits, kit.join(", ")));
         }
         None => panel.line(format!("role: '{}' is not loaded", sandbox.role)),
     }
-    panel.line(format!("setup: {:?}", sandbox.phase));
+    if sandbox.phase != SandboxPhaseType::Ready {
+        panel.line(format!("setup: {:?}", sandbox.phase));
+    }
     if let (Ok((position, id, design, credits, hold, children)), Some(items)) =
         (q_player.single(), items.as_deref())
     {
@@ -291,13 +289,13 @@ fn draw_the_start(
             .collect();
         let (price, trade_in) = hull_values(items, design, &live);
         panel.line(format!(
-            "ship id: {}   credits: {} cr   hold: {:.0}/{:.0} kg",
-            id.0,
+            "{} cr   hold {:.0}/{:.0} kg",
             credits.0,
             hold.used_g(items) as f32 / 1_000.0,
             (u64::from(hold.used_g(items)) + u64::from(hold.free_g(items))) as f32 / 1_000.0,
         ));
-        panel.line(format!(
+        panel.detail(format!("ship id: {}", id.0));
+        panel.detail(format!(
             "hull value: {price} cr at ask, trade-in {trade_in} cr by health, {}/{} sections live",
             live.len(),
             design.0.len()
@@ -306,7 +304,7 @@ fn draw_the_start(
         let cell = config
             .as_deref()
             .map(|config| SectorCoord::containing(at, config.sector_edge).to_string());
-        panel.line(format!(
+        panel.detail(format!(
             "cell {}   {:.1} km from the origin",
             cell.unwrap_or_else(|| "-".to_string()),
             at.distance(Meters3::ZERO).get() / 1_000.0
@@ -328,7 +326,7 @@ fn draw_the_start(
         }
     }
     spans.sort_by(|a, b| b.total_cmp(a));
-    panel.line(format!(
+    panel.detail(format!(
         "generated hulls in the window: {} ships, {stations} stations; longest spans {:?} m",
         spans.len(),
         spans
@@ -491,7 +489,15 @@ fn draw_the_intakes(
                 "side"
             };
             faces.push(side);
-            panel.label(face + normal * range, format!("intake ({side})"));
+            if ready(intake) {
+                panel.label_tinted(
+                    face + normal * range,
+                    format!("intake ({side}) READY"),
+                    palette::PUSH,
+                );
+            } else {
+                panel.label_tinted(face + normal * range, format!("intake ({side})"), color);
+            }
         }
     }
     let size = CARGO_CANISTER_SIZE.length() * 0.5;
@@ -516,10 +522,17 @@ fn draw_the_intakes(
     } else {
         format!("yes ({})", faces.join(", "))
     };
-    panel.line(format!(
+    if drifting > 0 {
+        if !faces.is_empty() {
+            panel.hint("W", "fly the intake box onto the canister");
+        }
+    } else {
+        panel.hint("TAB", "Inventory > Jettison");
+    }
+    panel.detail(format!(
         "intake: {intake}   canisters drifting: {drifting}   pickups ready: {ready_now}"
     ));
-    panel.line(format!(
+    panel.detail(format!(
         "last jettison: {}   last pickup: {}",
         show_contents(log.last_jettison.as_ref()),
         show_contents(log.last_pickup.as_ref())

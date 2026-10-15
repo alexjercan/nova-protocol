@@ -32,9 +32,11 @@
 //! 6. a move that does not fit is refused whole, on the note line.
 //!
 //! The diagnostics layer (F3) is on at start: a line from your ship to each
-//! own ship whose hold is offered as storage, labeled with its name, and a
-//! panel with each hold's load and item count and the last quick action, the
-//! item, the quantity moved and the credit change.
+//! own ship whose hold is offered as storage, labelled with its name and its
+//! hold's load, and a panel line with the last quick action, the item, the
+//! quantity moved and the credit change. The double-click gestures are
+//! hinted while the interface is up, `TAB` otherwise. Detail (`Shift+F3`)
+//! lists each hold's load and item count.
 //!
 //! ```text
 //! nix develop --command cargo run --example storage_quick_loop --features debug
@@ -110,7 +112,7 @@ fn main() -> bevy::app::AppExit {
     let mut app = AppBuilder::new().with_game_plugins(storage_plugin).build();
     app.add_plugins((
         diagnostics::DiagnosticsHintPlugin::new(
-            "double-click an item: move its stack   Shift+double-click: one",
+            "move stacks between your holds, the station's storage and its market",
         ),
         QuickMoveDiagnosticsPlugin,
     ));
@@ -542,6 +544,7 @@ fn draw_the_holds(
     mut panel: ResMut<DiagnosticsPanel>,
     items: Res<GameItems>,
     log: Res<QuickMoveLog>,
+    pause: Option<Res<State<PauseStates>>>,
     q_player: Query<
         (
             &GlobalTransform,
@@ -558,7 +561,13 @@ fn draw_the_holds(
     let Ok((at, hold, credits, docked)) = q_player.single() else {
         return;
     };
-    panel.line(format!(
+    if pause.is_some_and(|pause| *pause.get() == PauseStates::Interface) {
+        panel.hint("double-click", "move the stack");
+        panel.hint("Shift+double-click", "move one");
+    } else {
+        panel.hint("TAB", "Inventory");
+    }
+    panel.detail(format!(
         "{}, {} cr",
         hold_line("Your hold", hold, &items),
         credits.0
@@ -572,7 +581,7 @@ fn draw_the_holds(
         });
     if let Some((name, storage)) = station.and_then(|station| q_stations.get(station).ok()) {
         let units: u32 = storage.stacks().map(|(_, count)| count).sum();
-        panel.line(format!(
+        panel.detail(format!(
             "{name} storage: {} / {}, {}",
             kg_text(u64::from(storage.used_g(&items))),
             kg_text(u64::from(storage.cap_g())),
@@ -590,13 +599,16 @@ fn draw_the_holds(
         }
         let (from, to) = (at.translation(), ship_at.translation());
         gizmos.line(from, to, palette::OK);
-        panel.label(to, format!("{name} (own hold, storage)"));
-        panel.line(hold_line(&format!("{name} (own)"), ship_hold, &items));
+        panel.label_tinted(
+            to,
+            format!("{name}: storage\n{}", hold_line("hold", ship_hold, &items)),
+            palette::OK,
+        );
+        panel.detail(hold_line(&format!("{name} (own)"), ship_hold, &items));
     }
-    panel.line(format!(
-        "Last quick move: {}",
-        log.last.as_deref().unwrap_or("none yet")
-    ));
+    if let Some(last) = log.last.as_deref() {
+        panel.line(format!("Last quick move: {last}"));
+    }
 }
 
 mod smoke {

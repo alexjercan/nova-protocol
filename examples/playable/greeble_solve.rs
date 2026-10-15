@@ -25,9 +25,11 @@
 //! fixture labelled with its greeble id. Each cell draws its four link points
 //! as ticks toward its edges, coloured by the link type the placed greeble
 //! shows there. A line joins two linked edges, green where the two link types
-//! connect and red where they do not; a red tick is an edge with no neighbour.
-//! The panel names the hull and style, counts cells, links and border edges,
-//! reports restarts and the fallback, and lists the cells each greeble took.
+//! connect and red where they do not, labelled "no fit"; a red tick is an
+//! edge with no neighbour. The panel names the hull and style, and the links
+//! that do not connect or the fallback when there are any; `N` is hinted.
+//! Detail (`Shift+F3`) counts cells, links and border edges, reports restarts,
+//! and lists the cells each greeble took.
 //!
 //! Under `NOVA_AUTOPILOT=1` a smoke walk waits for the hull, checks that every
 //! fixture cell of the solve has one spawned piece, and shoots
@@ -115,7 +117,7 @@ fn main() -> bevy::app::AppExit {
         })
         .build();
     app.add_plugins(diagnostics::DiagnosticsHintPlugin::new(
-        "[N] next hull   [WASD] fly   mouse look",
+        "one base hull with its greeble solve drawn over it",
     ));
     app.add_systems(
         PostUpdate,
@@ -401,9 +403,9 @@ fn draw_the_solve(
     mut gizmos: Gizmos<DiagnosticsGizmos>,
     mut panel: ResMut<DiagnosticsPanel>,
 ) {
-    panel.line(format!("hull {}", FLEET[focus.0]));
+    panel.hint("N", "next hull");
     let Some((root, _)) = solved.source else {
-        panel.line("waiting for the hull");
+        panel.line(format!("hull {}: waiting for it", FLEET[focus.0]));
         return;
     };
     let Ok(ship) = q_root.get(root) else {
@@ -461,21 +463,34 @@ fn draw_the_solve(
             }
             let colour = if fits { palette::OK } else { palette::ALERT };
             gizmos.line(world(end), world(tick(far, back)), colour);
+            if !fits {
+                panel.label_tinted(
+                    world(end.midpoint(tick(far, back))),
+                    "no fit",
+                    palette::ALERT,
+                );
+            }
         }
     }
 
-    panel.line(format!("style {}", solved.style));
-    panel.line(format!(
+    panel.line(format!("hull {}   style {}", FLEET[focus.0], solved.style));
+    if clashes > 0 {
+        panel.line(format!("{clashes} links do not connect"));
+    }
+    if solved.fallback {
+        panel.line("the solve fell back");
+    }
+    panel.detail(format!(
         "{} cells, {links} links, {borders} border edges, {clashes} links that do not connect",
         solved.cells.len()
     ));
-    panel.line(format!(
+    panel.detail(format!(
         "restarts {}, fallback {}",
         solved.restarts,
         if solved.fallback { "yes" } else { "no" }
     ));
     for (id, count) in &solved.taken {
-        panel.line(format!("  {id}: {count}"));
+        panel.detail(format!("  {id}: {count}"));
     }
 }
 

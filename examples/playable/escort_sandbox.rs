@@ -34,9 +34,10 @@
 //! it, the 60 m trim zone round the slot, each escort's velocity and the
 //! leader's velocity as arrows, the dock-hold radius round the leader, every
 //! hull's containment radius (red where two overlap), and every RCS push as
-//! an arrow. The panel lists, per escort, the distance to its slot, its
-//! closing speed on it, its speed, and whether its drive or its RCS is
-//! pushing.
+//! an arrow. Each slot line carries its distance (green inside the trim
+//! zone), a locked escort reads LOCKED, and `Ctrl` is hinted while no escort
+//! is locked. Detail (`Shift+F3`) lists, per escort, its closing speed, its
+//! speed, its drive and RCS, and its dock-hold distance.
 //!
 //! Under `NOVA_AUTOPILOT=1` a smoke walk waits for both escorts
 //! in the fleet in open space, checks them, lets the formation settle, and
@@ -99,8 +100,7 @@ fn main() -> bevy::app::AppExit {
     });
     app.init_resource::<Sandbox>();
     app.add_plugins(diagnostics::DiagnosticsHintPlugin::new(
-        "[W] burn, [X] stop, mouse turns   [Shift]+mouse RCS   hold [Ctrl] on an escort to lock \
-         it, then fly port to port to dock",
+        "fly with your escorts; lock one and dock port to port",
     ));
     app.add_systems(
         Update,
@@ -162,13 +162,13 @@ fn fleet(world: &mut World) -> Vec<Entity> {
     fleet
 }
 
-/// The first hire offer of `station`'s catalogue.
-fn hire_offer(world: &World, station: Entity) -> Option<usize> {
-    world.get::<HullOffers>(station).and_then(|offers| {
-        offers
-            .0
-            .iter()
-            .position(|offer| matches!(offer.terms, HullOfferType::Hire { .. }))
+/// The first escort for hire coasting beside `station`.
+fn hire_offer(world: &World, station: Entity) -> Option<Entity> {
+    world.get::<ParkedHulls>(station)?.iter().find(|hull| {
+        matches!(
+            world.get::<ParkedHullType>(*hull),
+            Some(ParkedHullType::Hire { .. })
+        )
     })
 }
 
@@ -185,12 +185,7 @@ fn drive_the_sandbox(world: &mut World) {
                 |station: &StationCandidate<'_>| {
                     station.offers_service(StationServiceType::Refit)
                         && station.not_enemy()
-                        && station.offers.is_some_and(|offers| {
-                            offers
-                                .0
-                                .iter()
-                                .any(|offer| matches!(offer.terms, HullOfferType::Hire { .. }))
-                        })
+                        && station.hires_escorts
                 },
             );
             world.resource_mut::<Sandbox>().dock = dock;
@@ -218,8 +213,8 @@ fn drive_the_sandbox(world: &mut World) {
             // One hire at a time, each once the last escort stands: a hire
             // before the last escort spawns plans the same fleet slot.
             if hired == world.resource::<Sandbox>().asked {
-                if let Some(offer) = hire_offer(world, station) {
-                    world.write_message(EscortHireCommand { offer });
+                if let Some(hull) = hire_offer(world, station) {
+                    world.write_message(EscortHireCommand { hull });
                     world.resource_mut::<Sandbox>().asked += 1;
                 }
             }
@@ -315,7 +310,9 @@ fn draw_the_fleet(
         With<SpaceshipRootMarker>,
     >,
 ) {
-    panel.line(format!("setup: {:?}", sandbox.phase));
+    if sandbox.phase != SandboxPhaseType::Ready {
+        panel.line(format!("setup: {:?}", sandbox.phase));
+    }
     let Ok((leader, leader_at, leader_com, leader_velocity, leader_radius, lock)) =
         q_leader.single()
     else {
@@ -331,7 +328,14 @@ fn draw_the_fleet(
         VELOCITY_ARROW_SECS,
         palette::VELOCITY,
     );
-    panel.line(format!(
+    if sandbox.phase == SandboxPhaseType::Ready {
+        if lock.and_then(|lock| lock.0).is_none() {
+            panel.hint("Ctrl", "hold on an escort to lock it");
+        } else {
+            panel.hint("X", "stop, then fly port to port");
+        }
+    }
+    panel.detail(format!(
         "leader: {:.1} m/s, locked on {}",
         Meters::from_engine(leader_velocity.length()).get(),
         lock.and_then(|lock| lock.0)
@@ -399,8 +403,19 @@ fn draw_the_fleet(
         } else {
             "port"
         };
-        panel.label(slot, format!("{name} slot"));
-        panel.line(format!(
+        panel.label_tinted(
+            from.midpoint(slot),
+            format!("{:.0} m", Meters::from_engine(distance).get()),
+            if in_trim {
+                palette::OK
+            } else {
+                palette::TARGET
+            },
+        );
+        if locked {
+            panel.label_tinted(from, "LOCKED", palette::OK);
+        }
+        panel.detail(format!(
             "{name} ({side}): {:.0} m to slot{}, closing {:+.1} m/s, speed {:.1} m/s, drive {}, \
              RCS {:.0}%",
             Meters::from_engine(distance).get(),
@@ -414,7 +429,7 @@ fn draw_the_fleet(
             },
             rcs * 100.0,
         ));
-        panel.line(format!(
+        panel.detail(format!(
             "    dock hold: {:.0} m from you of {:.0} m{}",
             Meters::from_engine((from - leader_anchor).length()).get(),
             Meters::from_engine(hold).get(),
@@ -441,6 +456,9 @@ fn draw_the_fleet(
             other != hull && centre.distance(*other_centre) < radius + other_radius
         });
         overlaps += usize::from(touching);
+        if touching {
+            panel.label_tinted(*centre, "overlap", palette::ALERT);
+        }
         diagnostics::sphere(
             &mut gizmos,
             *centre,
@@ -452,7 +470,7 @@ fn draw_the_fleet(
             },
         );
     }
-    panel.line(format!(
+    panel.detail(format!(
         "hull radii within 3 km: {overlaps} overlapping (red)"
     ));
 }
@@ -484,7 +502,7 @@ fn draw_the_rcs(
             palette::PUSH,
         );
     }
-    panel.line(format!(
+    panel.detail(format!(
         "RCS: {pushing} ships pushing (orange arrows), {} puffs in flight",
         q_puffs.iter().count()
     ));

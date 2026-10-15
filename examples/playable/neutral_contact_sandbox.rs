@@ -21,13 +21,15 @@
 //! nix develop --command cargo run --example neutral_contact_sandbox --features debug
 //! ```
 //!
-//! The diagnostics (`F3`) list, per Neutral, each attacker's tally against
-//! [`NEUTRAL_RETALIATION_THRESHOLD`] with the drain applied to now, and the
-//! ship it is answering; the closing speed on the raider and the peak
-//! approach speed of the last contact against the 10 m/s floor; and the
-//! damage each hull took. In the world they draw the closing velocity (green
-//! under the floor, red over it), a ring round each Neutral (red while it
-//! answers someone) and a line to the ship it answers.
+//! The diagnostics (`F3`) put your tally against
+//! [`NEUTRAL_RETALIATION_THRESHOLD`], drained to now, above each Neutral,
+//! and your closing speed at the tip of the closing-velocity arrow (green
+//! under the 10 m/s floor, red over it) while you are within 1 km. A ring
+//! round each Neutral turns red while it answers someone, with a line to the
+//! ship it answers. The panel keeps the last contact's peak approach speed,
+//! and `LMB` is hinted near a Neutral. Detail (`Shift+F3`) lists every
+//! attacker's tally, whom each Neutral answers, and the damage each hull
+//! took.
 //!
 //! Under `NOVA_AUTOPILOT=1` a smoke walk waits for the cast,
 //! checks the Neutral sides and the clean tallies, lands one staged 25 HP hit
@@ -76,17 +78,19 @@ const CONTACT_FLOOR_MPS: f32 = 10.0;
 /// Hit points per second each tally drains. Mirrors nova_ship's
 /// `pub(crate)` `NEUTRAL_PROVOCATION_DRAIN`.
 const PROVOCATION_DRAIN: f32 = 10.0;
+/// Distance (m) inside which the closing speed is labelled and the gun
+/// hinted.
+const NEAR_M: f32 = 1_000.0;
 /// Seconds of closing velocity the arrow draws.
 const VELOCITY_ARROW_SECS: f32 = 2.0;
 /// Characters in a tally bar.
-const BAR_WIDTH: usize = 20;
+const BAR_WIDTH: usize = 10;
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(sandbox_plugin).build();
     app.add_plugins(diagnostics::DiagnosticsHintPlugin::new(
-        "[W] burn, [X] stop, mouse turns   [LMB] PDC   drift in under 10 m/s, ram faster, or \
-         fire a burst at the raider or the station",
+        "drift into a Neutral under 10 m/s, ram it faster, or shoot it",
     ));
 
     if std::env::var_os("NOVA_AUTOPILOT").is_some() {
@@ -417,20 +421,20 @@ fn draw_the_neutrals(
     let now = time.elapsed_secs();
 
     match &read.touching {
-        Some((peak, other)) => panel.line(format!(
+        Some((peak, other)) => panel.detail(format!(
             "contact: touching {} now, peak approach {peak:.1} m/s -> {} (floor {CONTACT_FLOOR_MPS} m/s)",
             name_of(*other, player_entity),
             against_floor(*peak),
         )),
-        None => panel.line("contact: none now"),
+        None => panel.detail("contact: none now"),
     }
     match &read.last {
         Some((peak, other)) => panel.line(format!(
-            "last contact: {} at peak {peak:.1} m/s -> {}",
+            "last contact: {} at {peak:.1} m/s, {}",
             name_of(*other, player_entity),
             against_floor(*peak),
         )),
-        None => panel.line("last contact: none yet"),
+        None => {}
     }
 
     for (entity, name, transform, allegiance, provocation, retaliation, radius, velocity) in
@@ -458,7 +462,16 @@ fn draw_the_neutrals(
                 VELOCITY_ARROW_SECS,
                 colour,
             );
-            panel.line(format!(
+            let off = Meters::from_engine(offset.length()).0;
+            if off < NEAR_M {
+                panel.label_tinted(
+                    player_transform.translation() + relative * VELOCITY_ARROW_SECS,
+                    format!("{closing:+.1} m/s {}", against_floor(closing)),
+                    colour,
+                );
+                panel.hint("LMB", "fire the PDC");
+            }
+            panel.detail(format!(
                 "{name}: {:.0} m off, you close at {closing:+.1} m/s ({})",
                 Meters::from_engine(offset.length()).0,
                 if closing > CONTACT_FLOOR_MPS {
@@ -488,18 +501,26 @@ fn draw_the_neutrals(
             .iter()
             .find(|tally| Some(tally.attacker) == player_entity)
             .map_or(0.0, |tally| drained(tally, now));
-        panel.label(
-            centre,
+        panel.label_tinted(
+            centre + Vec3::Y * ring,
             format!(
-                "{name}: your tally {mine:.0}/{NEUTRAL_RETALIATION_THRESHOLD:.0} HP{}",
+                "{} {mine:.0}/{NEUTRAL_RETALIATION_THRESHOLD:.0} HP{}",
+                bar(mine, NEUTRAL_RETALIATION_THRESHOLD),
                 if answering.is_some() {
-                    ", ANSWERING"
+                    " ANSWERING"
                 } else {
                     ""
                 }
             ),
+            if answering.is_some() {
+                palette::ALERT
+            } else if mine > 0.0 {
+                palette::TARGET
+            } else {
+                palette::MUTED
+            },
         );
-        panel.line(format!(
+        panel.detail(format!(
             "    answers: {}",
             answering.map_or("nobody".to_string(), |target| name_of(
                 target,
@@ -507,13 +528,13 @@ fn draw_the_neutrals(
             )),
         ));
         if list.is_empty() {
-            panel.line(format!(
+            panel.detail(format!(
                 "    tally: none (threshold {NEUTRAL_RETALIATION_THRESHOLD:.0} HP, drains {PROVOCATION_DRAIN:.0} HP/s)"
             ));
         }
         for tally in &list {
             let left = drained(tally, now);
-            panel.line(format!(
+            panel.detail(format!(
                 "    tally from {}: {left:.1} / {NEUTRAL_RETALIATION_THRESHOLD:.0} HP {} ({:.1} at the last hit, drains {PROVOCATION_DRAIN:.0} HP/s)",
                 name_of(tally.attacker, player_entity),
                 bar(left, NEUTRAL_RETALIATION_THRESHOLD),
@@ -521,14 +542,14 @@ fn draw_the_neutrals(
             ));
         }
         let (total, last) = read.damage.get(&entity).copied().unwrap_or_default();
-        panel.line(format!(
+        panel.detail(format!(
             "    damage taken: {total:.1} HP, last hit {last:.1} HP"
         ));
     }
 
     if let Some(player) = player_entity {
         let (total, last) = read.damage.get(&player).copied().unwrap_or_default();
-        panel.line(format!(
+        panel.detail(format!(
             "you: damage taken {total:.1} HP, last hit {last:.1} HP"
         ));
     }

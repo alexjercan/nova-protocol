@@ -15,8 +15,8 @@
 //!
 //! 1. TAB opens the interface; the Station tab's station block names the
 //!    price, and Buy station buys it from its civilization;
-//! 2. the panel then reads the Player side, the owned name, no civilization
-//!    and the marker, and the ring turns the player's colour;
+//! 2. the station's label then reads the owned name, the Player side and
+//!    OWNED, and the ring turns the player's colour;
 //! 3. the Inventory tab: a Buy from the bought station pays bid, not ask;
 //! 4. `M` steps to the Map, and `C` there draws the chart: the station's
 //!    mark reads OWNED STATION once the chart records it;
@@ -27,13 +27,14 @@
 //! nix develop --command cargo run --example station_own_sandbox --features debug
 //! ```
 //!
-//! The diagnostics panel (`F3`, on at start) shows the station's name, side,
-//! civilization, marker, its chart entry, its admission answer for the player
-//! and for an Enemy-flagged ship, its price, the player's balance and what a
-//! Buy of one unit of its first stock item pays. The gizmos ring the station
-//! in its side's colour and draw a line to each ship within
-//! [`NEARBY_RANGE`], coloured by how the station's guns read it: red hostile,
-//! green own, grey neutral.
+//! The diagnostics (`F3`, on at start) label the station with its name, its
+//! side and its price or OWNED, ring it in its side's colour and draw a line
+//! to each ship within [`NEARBY_RANGE`], coloured by how the station's guns
+//! read it: red hostile, green own, grey neutral. The panel keeps the
+//! player's balance, and the next key is hinted. Detail (`Shift+F3`) lists
+//! the station's civilization, marker, chart entry, its admission answer for
+//! the player and for an Enemy-flagged ship, and what a Buy of one unit of
+//! its first stock item pays.
 //!
 //! Under `NOVA_AUTOPILOT=1` a smoke walk waits for the dock,
 //! buys the station from the Station tab, checks it is owned, on the Player
@@ -82,7 +83,7 @@ fn main() -> bevy::app::AppExit {
     });
     app.init_resource::<Sandbox>();
     app.add_plugins(diagnostics::DiagnosticsHintPlugin::new(
-        "[TAB] interface: Station tab, Buy station   [M] next tab, [C] chart on Map",
+        "buy the docked station, then trade with it and chart it",
     ));
     app.add_systems(
         Update,
@@ -274,7 +275,6 @@ fn draw_the_station(
         radius.0 * 1.1,
         side_color(side),
     );
-    panel.label(centre, format!("{} ({})", name.as_str(), side_text(side)));
     for (ship, at, ship_side, ship_retaliation) in &q_ships {
         let at = at.translation();
         if ship == station || at.distance(centre) > NEARBY_RANGE {
@@ -299,8 +299,8 @@ fn draw_the_station(
             .unwrap_or("-")
             .to_string()
     };
-    panel.line(format!("station: {} ({id})", name.as_str()));
-    panel.line(format!(
+    panel.detail(format!("station: {} ({id})", name.as_str()));
+    panel.detail(format!(
         "side: {}   civilization: {civilization}   OwnedStationMarker: {}",
         side_text(side),
         if owned { "yes" } else { "no" }
@@ -311,7 +311,7 @@ fn draw_the_station(
         .map_or("not charted".to_string(), |entry| {
             format!("owned {}, derelict {}", entry.owned, entry.derelict)
         });
-    panel.line(format!("chart: {charted}"));
+    panel.detail(format!("chart: {charted}"));
 
     let enemy_hostile = ship_relation(
         station_party,
@@ -324,14 +324,25 @@ fn draw_the_station(
     let enemy_flagged =
         station_admission(side.copied(), derelict, false, owned, enemy_hostile).err();
     let for_player = player.and_then(|(player, _)| admission.refusal(player, station));
-    panel.line(format!(
+    panel.detail(format!(
         "admission: the player {}   an Enemy-flagged ship at a free port {}",
         admits(for_player),
         admits(enemy_flagged)
     ));
 
     let player_cr = player.map_or(0, |(_, credits)| credits.0);
+    panel.line(format!("you: {player_cr} cr"));
+    if owned {
+        panel.hint("M", "the Map, then C for the chart");
+    } else {
+        panel.hint("TAB", "Station tab > Buy station");
+    }
     let Some(items) = items.as_deref() else {
+        panel.label_tinted(
+            centre,
+            format!("{}\n{}", name.as_str(), side_text(side)),
+            side_color(side),
+        );
         return;
     };
     let recipes: Vec<BuildRecipe> = children
@@ -340,7 +351,21 @@ fn draw_the_station(
         .map(|config| config.0.base.build.clone())
         .collect();
     let price = station_price_cr(items, &recipes, stock, station_cr.0);
-    panel.line(format!(
+    panel.label_tinted(
+        centre,
+        format!(
+            "{}\n{}   {}",
+            name.as_str(),
+            side_text(side),
+            if owned {
+                "OWNED".to_string()
+            } else {
+                format!("{price} cr")
+            }
+        ),
+        side_color(side),
+    );
+    panel.detail(format!(
         "price: {price} cr ({})   player: {player_cr} cr   station: {} cr",
         if owned { "owned" } else { "for sale" },
         station_cr.0
@@ -364,7 +389,7 @@ fn draw_the_station(
                 design.ask_cr, design.bid_cr
             )
         });
-    panel.line(format!("trade prices: {prices:?}   {sample}"));
+    panel.detail(format!("trade prices: {prices:?}   {sample}"));
 }
 
 /// An admission answer as the panel reads it.
