@@ -138,3 +138,43 @@ fn the_capital_drive_mounts_from_mid_advancement_only() {
         );
     }
 }
+
+/// An armored hull at full advancement fights with both weapon kinds: every
+/// one mounts turrets beside its torpedo bays, though the base torpedo bays
+/// alone reach the top part tier.
+#[test]
+fn every_armored_ship_at_full_advancement_mounts_turrets_and_torpedo_bays() {
+    let snapshot = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
+        .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
+    let kind = |id: &str| {
+        &snapshot
+            .parts()
+            .iter()
+            .find(|part| part.id() == id)
+            .unwrap_or_else(|| panic!("'{id}' is a base part"))
+            .config
+            .kind
+    };
+    for seed in 0..12 {
+        let ship = generate_ship(&snapshot, request(seed, ShipRoleType::Armored, 1.0))
+            .unwrap_or_else(|failure| panic!("seed {seed}: {failure}"));
+        let kinds: Vec<&SectionKind> = ship
+            .design
+            .sections
+            .iter()
+            .map(|section| kind(section.source.prototype_id()))
+            .collect();
+        let turrets = kinds
+            .iter()
+            .filter(|kind| matches!(kind, SectionKind::Turret(_)))
+            .count();
+        let bays = kinds
+            .iter()
+            .filter(|kind| matches!(kind, SectionKind::Torpedo(_)))
+            .count();
+        assert!(
+            turrets > 0 && bays > 0,
+            "seed {seed}: {turrets} turrets, {bays} torpedo bays"
+        );
+    }
+}

@@ -12440,7 +12440,7 @@ const GENERATED_SHIP_ROLES = [
     {
         label: "scavenger",
         style: "salvage",
-        build: "1 weapon, up to 3",
+        build: "1 weapon slot, up to 4",
         length: 24,
         width: 5,
         weapon: true,
@@ -12449,7 +12449,7 @@ const GENERATED_SHIP_ROLES = [
     {
         label: "armored",
         style: "armoured",
-        build: "1 weapon, up to 5",
+        build: "1 weapon slot, up to 9",
         length: 52,
         width: 5,
         weapon: true,

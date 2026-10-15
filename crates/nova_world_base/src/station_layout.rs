@@ -67,7 +67,7 @@ use nova_world::prelude::CivilizationId;
 
 use crate::{
     civilizations::Civilization,
-    ship_layout::{placed_part, shuffled, signed, tier_floor, Grid, STEPS},
+    ship_layout::{armament_tier_floor, placed_part, shuffled, signed, tier_floor, Grid, STEPS},
     ship_parts::{ShipPart, ShipPartFamilyType, ShipPartSnapshot},
     ARMOURED_STYLE_ID, INDUSTRIAL_STYLE_ID, STATION_STYLE_ID,
 };
@@ -654,7 +654,7 @@ impl<'a> StationDraw<'a> {
     /// The station parts of `family` that pass `usable`, in the order this
     /// attempt tries them: sources shuffled, each source's parts shuffled,
     /// those at or above the request's [`tier_floor`] before the weaker
-    /// ones.
+    /// ones. A turret's floor is the request's [`armament_tier_floor`].
     fn ranked(
         &self,
         family: ShipPartFamilyType,
@@ -674,7 +674,10 @@ impl<'a> StationDraw<'a> {
             })
             .filter(|parts| !parts.is_empty())
             .collect();
-        let floor = tier_floor(self.request.advancement);
+        let floor = match family {
+            ShipPartFamilyType::Weapon => armament_tier_floor(self.request.advancement),
+            _ => tier_floor(self.request.advancement),
+        };
         shuffled(sources, &mut stream)
             .into_iter()
             .flat_map(|parts| {

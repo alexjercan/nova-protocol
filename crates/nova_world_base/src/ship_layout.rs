@@ -797,13 +797,23 @@ fn joined(cells: &HashMap<IVec3, (usize, [bool; 6])>) -> bool {
     reached.len() == sections.len()
 }
 
-/// The lowest part tier a drive, weapon or mining beam at `advancement` may
-/// score and still be drawn before the weaker parts of its source:
-/// [`TIER_BAND`] below the advancement, but never above [`PART_TIER_TOP`],
-/// which no part scores past. A request from `PART_TIER_TOP + TIER_BAND` up
-/// draws its family's best parts first.
+/// The lowest part tier a drive at `advancement` may score and still be
+/// drawn before the weaker parts of its source: [`TIER_BAND`] below the
+/// advancement, but never above [`PART_TIER_TOP`], which no part scores past.
+/// A request from `PART_TIER_TOP + TIER_BAND` up draws its family's best
+/// parts first.
 pub(crate) fn tier_floor(advancement: f32) -> f32 {
     (advancement - TIER_BAND).min(PART_TIER_TOP)
+}
+
+/// The lowest part tier a weapon or mining beam at `advancement` may score
+/// and still be drawn before the weaker parts of its source: the
+/// [`tier_floor`] of the advancement held at [`PART_TIER_TOP`], never below
+/// 0. The weapon family scores turrets and fixed bores on one scale, and the
+/// base torpedo bays alone reach the top tier, so a floor that kept rising
+/// past the band would arm a high hull with torpedo bays and no turret.
+pub(crate) fn armament_tier_floor(advancement: f32) -> f32 {
+    tier_floor(advancement.min(PART_TIER_TOP)).max(0.0)
 }
 
 /// The hull clearance ceiling at `advancement`.
@@ -1144,14 +1154,16 @@ fn mining_aim(_: &SectionKind, aims: Option<usize>) -> Option<u32> {
     }
 }
 
-/// How many weapon slots a role fills at `advancement`. The first is
-/// required; a later slot that finds no room is left out.
+/// How many weapon slots a role fills at `advancement`, each a centred
+/// weapon or a mirrored pair. The first is required; a later slot that finds
+/// no room is left out. An armored hull's slots grow with its length, which
+/// keeps growing past [`PART_TIER_TOP`].
 fn weapon_slots(role: ShipRoleType, advancement: f32) -> u32 {
     let advancement = advancement.clamp(0.0, 1.0);
     match role {
         ShipRoleType::Civilian | ShipRoleType::Industrial => 0,
-        ShipRoleType::Scavenger => 1 + (advancement * 2.0).round() as u32,
-        ShipRoleType::Armored => 1 + (advancement * 4.0).round() as u32,
+        ShipRoleType::Scavenger => 1 + (advancement * 3.0).round() as u32,
+        ShipRoleType::Armored => 1 + (advancement * 8.0).round() as u32,
     }
 }
 
@@ -1350,9 +1362,10 @@ impl<'a> Draw<'a> {
 
     /// The eligible parts of `family` that pass `usable`, in the order this
     /// attempt tries them: the preferred source first for a coherent role,
-    /// then the other sources, each source's parts shuffled. A drive, weapon or
-    /// mining beam at or above the request's [`tier_floor`] comes before its
-    /// source's weaker parts.
+    /// then the other sources, each source's parts shuffled. A drive at or
+    /// above the request's [`tier_floor`], or a weapon or mining beam at or
+    /// above its [`armament_tier_floor`], comes before its source's weaker
+    /// parts.
     fn ranked(
         &self,
         family: ShipPartFamilyType,
@@ -1378,11 +1391,13 @@ impl<'a> Draw<'a> {
             .filter(|(_, parts)| !parts.is_empty())
             .collect();
         let mut sources = shuffled(sources, &mut stream);
-        let banded = matches!(
-            family,
-            ShipPartFamilyType::Thruster | ShipPartFamilyType::Weapon | ShipPartFamilyType::Mining
-        );
-        let floor = tier_floor(self.request.advancement);
+        let floor = match family {
+            ShipPartFamilyType::Thruster => Some(tier_floor(self.request.advancement)),
+            ShipPartFamilyType::Weapon | ShipPartFamilyType::Mining => {
+                Some(armament_tier_floor(self.request.advancement))
+            }
+            _ => None,
+        };
         if coherent {
             if let Some(index) = sources
                 .iter()
@@ -1397,7 +1412,7 @@ impl<'a> Draw<'a> {
             .flat_map(|(_, parts)| {
                 let (tier, weaker): (Vec<_>, Vec<_>) = shuffled(parts, &mut stream)
                     .into_iter()
-                    .partition(|part| !banded || part.advancement >= floor);
+                    .partition(|part| floor.is_none_or(|floor| part.advancement >= floor));
                 tier.into_iter().chain(weaker)
             })
             .collect()
@@ -1638,7 +1653,7 @@ impl<'a> Draw<'a> {
         // coherent role, then its tier's parts and, within a tier, the parts
         // no earlier slot mounted.
         let mut mounted: HashSet<&str> = HashSet::new();
-        let floor = tier_floor(request.advancement);
+        let floor = armament_tier_floor(request.advancement);
         let coherent = request.role != ShipRoleType::Scavenger;
         for slot in 0..weapon_slots(request.role, request.advancement) {
             let aspect = format!("weapon_{slot}");
