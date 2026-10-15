@@ -1163,7 +1163,7 @@ fn scenario(
                 .flown()
                 .nth(index)
                 .expect("a pilot scene names a matrix ship");
-            let bindings = weapon_bindings(&ship.layout.design, sections);
+            let bindings = player_bindings(&ship.layout.design, sections);
             let scale = ship.layout.clearance.to_engine() * 0.5;
             std::iter::once(ship_action(
                 &ship.name(),
@@ -1222,13 +1222,16 @@ fn ship_action(
     })
 }
 
-/// The player's fire keys for every weapon section of `design`, by kind:
-/// turrets on the left mouse button, bays on `F`, rails on `R`, as the
-/// `wfc_arena` player slot binds them.
-fn weapon_bindings(
+/// The player's keys for every weapon and mining section of `design`, by
+/// kind: turrets on the left mouse button, bays on `F`, rails on `R`, as the
+/// `wfc_arena` player slot binds them, and each mining beam its own key of
+/// [`ADDED_MINING_KEYS`], since the lint refuses an unbound player emitter
+/// and two emitters on one key.
+fn player_bindings(
     design: &ShipDesign,
     sections: &GameSections,
 ) -> std::collections::BTreeMap<String, Vec<InputSource>> {
+    let mut emitters = ADDED_MINING_KEYS.iter();
     design
         .sections
         .iter()
@@ -1243,6 +1246,15 @@ fn weapon_bindings(
                 SectionKind::Turret(_) => vec![MouseButton::Left.into()],
                 SectionKind::Torpedo(_) => vec![KeyCode::KeyF.into()],
                 SectionKind::Railgun(_) => vec![KeyCode::KeyR.into()],
+                SectionKind::Mining(_) => {
+                    let key = emitters.next().unwrap_or_else(|| {
+                        panic!(
+                            "world_ships: mining section '{}' is past the mining keys",
+                            section.id
+                        )
+                    });
+                    vec![(*key).into()]
+                }
                 _ => return None,
             };
             Some((section.id.clone(), bindings))
@@ -1331,7 +1343,7 @@ fn update_readout(
             let ship = stage.matrix.flown().nth(index);
             format!(
                 "pilot {} seed {}, {skin}\n[W] main drive  mouse turns  hold raise weapons: \
-                 [LMB] turrets [F] bays [R] rails",
+                 [LMB] turrets [F] bays [R] rails [V] [B] beams",
                 ship.map(MatrixShip::name).unwrap_or_default(),
                 ship.map(|ship| ship.seed).unwrap_or_default(),
             )
