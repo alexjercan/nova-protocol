@@ -183,6 +183,10 @@ does NOT get an entry. Another page that states a different rule is wrong.
   as storage sections.
 - A `:` typed into a text field, such as an Inventory quantity, no longer
   opens the command shell when the field loses focus.
+- The Map's mouse wheel no longer zooms the Ship pane when you switch to it.
+- An armed Ship pane rebind lights Rebind and names the section in a banner.
+  The captured key binds and does nothing else: binding R no longer tilts the
+  view.
 
 ### Web & Platform
 

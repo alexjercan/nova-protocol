@@ -86,3 +86,9 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
   the travel. Options: (a) a zoom resource per pane; (b) drain the pointer
   readers every frame at the input owner. Chosen (b), `active_pointer`:
   the orbits were already per pane, only the reader leaked.
+- Rebind swallow. Cause: the capture closed on the press frame and the view
+  read the still-held key the frames after. Options: (a) consume the key in
+  `ButtonInput`; (b) a `rebind_swallow` flag that keeps `rebind_armed()` true
+  until every button is up. Chosen (b): it also covers Esc, and other
+  readers keep a true input state. The prompt is a banner over the view
+  (the panel note line is empty while armed); Rebind wears `Selected`.

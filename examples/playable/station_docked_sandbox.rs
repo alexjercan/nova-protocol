@@ -476,7 +476,8 @@ fn open_the_ship_tab(world: &mut World) {
 /// The keys the sandbox's station features answer to, for the diagnostics
 /// hint line.
 const KEYS_HINT: &str = "Ship tab: Place a part, R roll, F socket, click the ghost to buy \
-    missing parts and place (red at the station: refused), B rebind, TAB close";
+    missing parts and place (red at the station: refused), B rebind (the key binds and does \
+    nothing else, Esc cancels), TAB close";
 
 /// The Ship view's diagnostics on the shared layer: the free sockets, the
 /// target socket and its roll, the ghost's bounds and the station's collision
@@ -582,6 +583,7 @@ mod ship_overlay {
             return;
         };
         let held = runtime.held().map(str::to_string);
+        let rebind_armed = runtime.rebind_armed();
         let mount = runtime.mount();
         let selected = runtime.selected();
         let station: Vec<(Vec3, Vec3)> = runtime
@@ -654,6 +656,9 @@ mod ship_overlay {
                 view.code,
                 view.binding_text().unwrap_or_else(|| "none".to_string())
             ));
+        }
+        if rebind_armed {
+            lines.push("rebind: owns the keys, view keys off".to_string());
         }
         let open = free_points.iter().filter(|(.., open)| *open).count();
         lines.push(format!(
@@ -770,6 +775,8 @@ mod smoke {
     const PLACED_SHOT: &str = "sandbox-placed.png";
     /// The PNG of the placed section after its rebind.
     const REBIND_SHOT: &str = "sandbox-rebind.png";
+    /// The PNG of the armed rebind: the lit button and the prompt banner.
+    const REBIND_ARMED_SHOT: &str = "sandbox-rebind-armed.png";
     /// The PNG of the ghost refused against the docked station.
     const STATION_REFUSAL_SHOT: &str = "sandbox-station-refusal.png";
     /// How far from the station a free socket's aim may be for the walk to
@@ -780,8 +787,12 @@ mod smoke {
     const STATION_VIEW_FACING: f32 = 0.5;
     /// Seconds the walk gets to try every free socket against the station.
     const STATION_AIM_SECS: f32 = 600.0;
-    /// The key the walk binds the placed gun to.
-    const REBIND_KEY: KeyCode = KeyCode::KeyK;
+    /// The key the walk binds the placed gun to: R, the view's tilt-up key,
+    /// so the walk also shows the capture swallows it.
+    const REBIND_KEY: KeyCode = KeyCode::KeyR;
+    /// How far the view's facing may drift over the rebind and still count
+    /// as not turned.
+    const FACING_EPSILON: f32 = 1e-4;
     /// The PNG of the Map tab a click opens after the add.
     const MAP_AFTER_SHOT: &str = "sandbox-map-after.png";
     /// The Station tab, reached with the next-tab key from Inventory.
@@ -794,6 +805,10 @@ mod smoke {
     /// The Place button the walk clicks, the player's section count before,
     /// the ship-local points it aims the ghost through, and the one it is on
     /// (`usize::MAX` before the first).
+    /// The Ship view's facing when the rebind armed.
+    #[derive(Resource, Clone, Copy, Debug)]
+    struct SmokeFacing(Vec3);
+
     #[derive(Resource, Clone, Debug)]
     struct SmokeAdd {
         button: String,
@@ -1292,8 +1307,24 @@ mod smoke {
             .deadline(BEAT_SECS)
             .add()
             .step("station sandbox: let the rebind key up")
-            .on_enter(release_action("ship_rebind"))
-            .until(frames(2))
+            .on_enter(|world: &mut World| {
+                release_action("ship_rebind")(world);
+                let facing = ship_view_facing(world);
+                world.insert_resource(SmokeFacing(facing));
+                // The lit Rebind button sits above the catalogue.
+                let mut panels = world.query::<(&Name, &mut bevy::ui::ScrollPosition)>();
+                for (name, mut scroll) in panels.iter_mut(world) {
+                    if name.as_str() == SHIP_PANEL {
+                        *scroll = bevy::ui::ScrollPosition::default();
+                    }
+                }
+            })
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station sandbox: shoot the armed rebind")
+            .on_enter(|world: &mut World| shoot(world, REBIND_ARMED_SHOT))
+            .until(shot_written(REBIND_ARMED_SHOT))
+            .deadline(SHOT_SECS)
             .add()
             .step("station sandbox: press the new key")
             .on_enter(press_key(REBIND_KEY))
@@ -1311,6 +1342,21 @@ mod smoke {
             .step("station sandbox: let the new key up")
             .on_enter(release_key(REBIND_KEY))
             .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station sandbox: the captured key did not turn the view")
+            .until(Arc::new(|world: &World| {
+                world
+                    .get_resource::<SmokeFacing>()
+                    .is_some_and(|armed| ship_view_facing(world).distance(armed.0) < FACING_EPSILON)
+            }))
+            .diagnose(|world| {
+                format!(
+                    "facing {:?}, armed {:?}",
+                    ship_view_facing(world),
+                    world.get_resource::<SmokeFacing>()
+                )
+            })
+            .deadline(BEAT_SECS)
             .add()
             .step("station sandbox: scroll the panel to the gun's Control row")
             .on_enter(|world: &mut World| {

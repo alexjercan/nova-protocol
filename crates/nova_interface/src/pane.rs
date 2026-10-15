@@ -40,8 +40,8 @@ use crate::{
     recycle::{recycle_body, RecycleDock},
     ship::{
         on_ship_fit_button, on_ship_reset_button, on_ship_viewport_click, on_ship_viewport_enter,
-        on_ship_viewport_leave, on_ship_viewport_move, spawn_ship_panel, ShipRuntime,
-        ShipViewportMarker,
+        on_ship_viewport_leave, on_ship_viewport_move, spawn_ship_panel, spawn_ship_rebind_prompt,
+        ShipRuntime, ShipViewportMarker,
     },
     station::{station_body, StationDock},
     terminal::NovaOsCloseTransition,
@@ -899,6 +899,7 @@ fn ship_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                 viewport_node(),
                 ImageNode::default(),
             ))
+            .with_children(spawn_ship_rebind_prompt)
             .observe(on_ship_viewport_enter)
             .observe(on_ship_viewport_move)
             .observe(on_ship_viewport_leave)

@@ -11,7 +11,7 @@ use bevy::{
 };
 use nova_events::prelude::EntityId;
 use nova_gameplay::{prelude::*, test_support::test_items, PauseStates};
-use nova_input::prelude::RegisterInputActions;
+use nova_input::prelude::{InputSource, RegisterInputActions};
 use nova_ship::prelude::*;
 use nova_ui::{
     theme::{ActiveUiTheme, UiColor},
@@ -656,6 +656,73 @@ fn the_map_wheel_does_not_zoom_the_ship_view() {
         ship_orbit(&mut app).radius,
         before,
         "the Map's wheel must not zoom the Ship view"
+    );
+}
+
+/// A rebind owns the key it captures. R tilts the view, so binding a
+/// section to R must neither tilt on the capture frame nor while the key is
+/// still held after the capture closes.
+#[test]
+fn a_captured_rebind_key_does_not_turn_the_view() {
+    use bevy::input::{
+        keyboard::{Key, KeyboardInput},
+        ButtonState,
+    };
+
+    let mut app = App::new();
+    app.add_plugins((
+        MinimalPlugins,
+        StatesPlugin,
+        AssetPlugin::default(),
+        InputPlugin,
+    ));
+    app.init_asset::<Image>();
+    app.init_asset::<Mesh>();
+    app.init_asset::<StandardMaterial>();
+    app.insert_state(PauseStates::Interface);
+    app.register_input_actions(crate::bindings::interface_bindings());
+    app.init_resource::<ShipRuntime>();
+    app.init_resource::<ActiveUiTheme>();
+    app.init_resource::<NovaOsCloseTransition>();
+    app.insert_resource(InterfacePaneType::Ship);
+    app.add_message::<SectionRepairCommand>();
+    app.add_message::<SectionInputBindingChanged>();
+    app.add_systems(Update, (apply_ship_rebind, ship_input).chain());
+    let (_, _, turret, _) = spawn_scripted_ship(app.world_mut());
+    app.world_mut()
+        .run_system_once(assign_section_codes)
+        .unwrap();
+    app.world_mut().run_system_once(manage_ship_scene).unwrap();
+    app.update();
+    let before = ship_orbit(&mut app);
+    app.world_mut().resource_mut::<ShipRuntime>().rebinding = Some(turret);
+
+    // Pressed once and held: the input plugin keeps R down across frames.
+    app.world_mut().write_message(KeyboardInput {
+        key_code: KeyCode::KeyR,
+        logical_key: Key::Character("r".into()),
+        state: ButtonState::Pressed,
+        text: None,
+        repeat: false,
+        window: Entity::PLACEHOLDER,
+    });
+    for _ in 0..4 {
+        app.update();
+    }
+
+    assert_eq!(
+        app.world()
+            .get::<SpaceshipTurretInputBinding>(turret)
+            .unwrap()
+            .0[0],
+        InputSource::Keyboard(KeyCode::KeyR),
+        "R bound the section"
+    );
+    let after = ship_orbit(&mut app);
+    assert_eq!(
+        (after.theta, after.phi),
+        (before.theta, before.phi),
+        "and did nothing else"
     );
 }
 

@@ -26,7 +26,7 @@ use nova_ship::prelude::{
 use nova_ui::{
     theme::{ActiveUiTheme, UiColor},
     widget::{
-        TextFieldError, TextFieldFocused, TextFieldValue, ThemedBorder, ThemedFill,
+        Selected, TextFieldError, TextFieldFocused, TextFieldValue, ThemedBorder, ThemedFill,
         ThemedImageTint, ThemedText,
     },
 };
@@ -69,6 +69,9 @@ pub(crate) enum ShipPanelField {
     /// The predicted integrity, or why the repair is refused.
     RepairPreview,
     Note,
+    /// The banner over the view while a rebind is armed. The banner row and
+    /// its text both carry it: the row is shown or hidden, the text is set.
+    RebindPrompt,
 }
 /// The selected section's family icon in the panel head.
 #[derive(Component)]
@@ -189,6 +192,9 @@ pub struct ShipRuntime {
     /// Holds the capture until every button is up, so the key or click that
     /// ARMED it is not the one captured.
     pub(crate) rebind_awaiting_release: bool,
+    /// Set when a capture binds or cancels, cleared once every button is up:
+    /// the captured key is still held, and it must not also turn the view.
+    pub(crate) rebind_swallow: bool,
     /// Whether the structural mate overlay is visible.
     pub(crate) show_mates: bool,
     /// The design section id a swap replaced or an add made, selected once
@@ -219,11 +225,11 @@ pub struct ShipRuntime {
 }
 
 impl ShipRuntime {
-    /// Whether a section rebind capture is waiting for its key. While it is,
-    /// the next key belongs to the capture, so global keys such as `:` must
-    /// refuse it.
+    /// Whether a section rebind capture owns the keys: waiting for its key,
+    /// or holding the key it just took until it is released. While it does,
+    /// global keys such as `:` and the view's own keys must refuse it.
     pub fn rebind_armed(&self) -> bool {
-        self.rebinding.is_some()
+        self.rebinding.is_some() || self.rebind_swallow
     }
 
     /// The selected section, if any.
@@ -312,6 +318,7 @@ pub(crate) fn manage_ship_scene(
         runtime.note = None;
         runtime.rebinding = None;
         runtime.rebind_awaiting_release = false;
+        runtime.rebind_swallow = false;
         runtime.show_mates = false;
         runtime.held = None;
         runtime.mount = MountPose::default();
@@ -723,7 +730,7 @@ pub(crate) fn ship_input(
             runtime.note = None;
         }
     }
-    if runtime.rebinding.is_some() {
+    if runtime.rebind_armed() {
         return;
     }
 
@@ -1170,7 +1177,7 @@ pub(crate) fn on_ship_step_button(
     Commands,
 ) {
     move |_activate, pause, mut runtime, sections, bank, mut commands| {
-        if *pause.get() != PauseStates::Interface || runtime.rebinding.is_some() {
+        if *pause.get() != PauseStates::Interface || runtime.rebind_armed() {
             return;
         }
         let list = sections.collect();
@@ -1380,6 +1387,7 @@ pub(crate) fn update_ship_panel(
             Entity,
             &ShipPanelButton,
             Has<InteractionDisabled>,
+            Has<Selected>,
             &mut Node,
         ),
         (Without<ShipConditionFill>, Without<ShipRepairQuantity>),
@@ -1504,13 +1512,22 @@ pub(crate) fn update_ship_panel(
         .as_ref()
         .is_some_and(|view| view.bindings.is_some());
 
-    // Note line: the rebind prompt, else a transient action result. A
-    // disabled Repair gives its reason in the form summary.
-    let (note, note_color) = if runtime.rebinding.is_some() {
-        (
-            "PRESS A KEY OR MOUSE BUTTON - ESC CANCELS".to_string(),
-            UiColor::Accent,
-        )
+    // The armed rebind names its section over the view; the note line keeps
+    // a transient action result. A disabled Repair gives its reason in the
+    // form summary.
+    let prompt = runtime
+        .rebinding
+        .and_then(|target| sections.collect().into_iter().find(|v| v.entity == target))
+        .map(|view| {
+            let what = if view.name == view.code {
+                view.code
+            } else {
+                format!("{} {}", view.code, view.name)
+            };
+            format!("Press a key to bind {what}, Esc to cancel")
+        });
+    let (note, note_color) = if prompt.is_some() {
+        (String::new(), UiColor::Label)
     } else if let Some((note, _)) = &runtime.note {
         (note.clone(), UiColor::Accent)
     } else {
@@ -1523,6 +1540,7 @@ pub(crate) fn update_ship_panel(
             ShipPanelField::Ammo => ammo.is_some(),
             ShipPanelField::Control => control.is_some(),
             ShipPanelField::RepairForm => form.is_some(),
+            ShipPanelField::RebindPrompt => prompt.is_some(),
             _ => true,
         };
         let display = if shown { Display::Flex } else { Display::None };
@@ -1551,6 +1569,9 @@ pub(crate) fn update_ship_panel(
                 None => ("", UiColor::Body),
             },
             ShipPanelField::Note => (note.as_str(), note_color),
+            ShipPanelField::RebindPrompt => {
+                (prompt.as_deref().unwrap_or_default(), UiColor::Accent)
+            }
             ShipPanelField::RepairForm => continue,
         };
         if text.0 != value {
@@ -1561,7 +1582,7 @@ pub(crate) fn update_ship_panel(
         }
     }
 
-    for (entity, button, disabled, mut node) in &mut q_button {
+    for (entity, button, disabled, lit, mut node) in &mut q_button {
         let enabled = match button {
             ShipPanelButton::Repair => actions.repair_enabled,
             ShipPanelButton::Rebind => runtime.panel_rebind_enabled,
@@ -1574,6 +1595,13 @@ pub(crate) fn update_ship_panel(
             };
             if node.display != wanted {
                 node.display = wanted;
+            }
+            // Lit while the capture waits, so the panel shows what owns the keys.
+            let armed = runtime.rebinding.is_some();
+            if armed && !lit {
+                commands.entity(entity).insert(Selected);
+            } else if !armed && lit {
+                commands.entity(entity).remove::<Selected>();
             }
         }
         // Runs every frame the pane owns the screen, so only a change in the

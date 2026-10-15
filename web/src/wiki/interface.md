@@ -188,10 +188,10 @@ There is no manual reload. A weapon's magazine refills on its own from your inve
 Your weapon, thruster and mining beam sections answer rebindable keys, and the Ship pane is where you rebind them:
 
 1. Select a thruster, turret, torpedo bay, railgun or mining beam and press <kbd>B</kbd> (or click **Rebind**). A gun, bay, railgun or beam with no key reads `UNBOUND` and **Rebind** gives it one; a thruster the flight computer drives offers no **Rebind**.
-2. The panel arms: `PRESS A KEY OR MOUSE BUTTON - ESC CANCELS`.
+2. The **Rebind** button lights and a banner over the view reads `Press a key to bind PDC-1 PDC Turret (Kinetic), Esc to cancel`.
 3. The next key or mouse button you press takes over that section's keyboard-and-mouse trigger: `Bound engine_port to K`. A controller trigger on the same section is left alone, so rebinding at the desk never costs you the pad.
 
-A reserved flight control is refused on the spot - `Space is already bound to flight control: Main Drive` - and the capture stays armed for another try. <kbd>LMB</kbd> is refused too, with `Left Mouse stays the pointer`: it is the button you click the blips with. Several sections may share one input (one key can fire every tube). <kbd>Esc</kbd> backs out with `Rebind cancelled` and leaves you on the pane. While a capture is armed, <kbd>:</kbd> does not open the command shell, <kbd>Tab</kbd> is refused as the interface toggle and does not close the interface, and <kbd>M</kbd> binds like any other key instead of switching the pane.
+A reserved flight control is refused on the spot - `Space is already bound to flight control: Main Drive` - and the capture stays armed for another try. <kbd>LMB</kbd> is refused too, with `Left Mouse stays the pointer`: it is the button you click the blips with. Several sections may share one input (one key can fire every tube). <kbd>Esc</kbd> backs out with `Rebind cancelled` and leaves you on the pane. While a capture is armed, <kbd>:</kbd> does not open the command shell, <kbd>Tab</kbd> is refused as the interface toggle and does not close the interface, and <kbd>M</kbd> binds like any other key instead of switching the pane. The key you bind does nothing else: binding <kbd>R</kbd> does not also tilt the view.
 
 ## Swapping a section
 

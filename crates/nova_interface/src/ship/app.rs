@@ -10,7 +10,8 @@ use bevy::{
     prelude::{
         default, BackgroundColor, BorderRadius, ChildOf, ChildSpawnerCommands, Color, ComputedNode,
         Display, Entity, FlexDirection, FlexWrap, Has, Justify, JustifyContent, LineBreak,
-        MessageReader, Name, Node, Overflow, Query, ResMut, ScrollPosition, TextLayout, Val, With,
+        MessageReader, Name, Node, Overflow, Pickable, PositionType, Query, ResMut, ScrollPosition,
+        TextLayout, UiRect, Val, With, ZIndex,
     },
     ui_widgets::{Slider, SliderPrecision, SliderRange, SliderStep, SliderValue, TrackClick},
 };
@@ -266,6 +267,40 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
             spawn_ship_catalogue(panel);
             panel.spawn((ShipPanelField::Note, themed_label("", 12.0, UiColor::Label)));
         });
+}
+
+/// The banner across the top of the view while a rebind is armed, hidden
+/// until then. [`update_ship_panel`] names the section in it.
+pub(crate) fn spawn_ship_rebind_prompt(view: &mut ChildSpawnerCommands) {
+    view.spawn((
+        ShipPanelField::RebindPrompt,
+        Name::new("ShipRebindPrompt"),
+        Node {
+            display: Display::None,
+            position_type: PositionType::Absolute,
+            top: Val::Px(10.0),
+            left: Val::Px(0.0),
+            right: Val::Px(0.0),
+            justify_content: JustifyContent::Center,
+            ..default()
+        },
+        Pickable::IGNORE,
+        // Above the section badges, its siblings.
+        ZIndex(2),
+    ))
+    .with_children(|row| {
+        row.spawn((
+            ShipPanelField::RebindPrompt,
+            themed_label("", 14.0, UiColor::Accent),
+            Node {
+                padding: UiRect::axes(Val::Px(10.0), Val::Px(4.0)),
+                ..default()
+            },
+            BackgroundColor(Color::NONE),
+            ThemedFill::alpha(UiColor::Void, 0.85),
+            Pickable::IGNORE,
+        ));
+    });
 }
 
 /// Apply in-app [`SectionRepairCommand`] messages (the `P` action key and the

@@ -51,12 +51,16 @@ pub(crate) fn apply_ship_rebind(
     )>,
     mut changed: MessageWriter<SectionInputBindingChanged>,
 ) {
+    if runtime.rebind_swallow && sources.all_released() {
+        runtime.rebind_swallow = false;
+    }
     let Some(target) = runtime.rebinding else {
         return;
     };
     if keys.just_pressed(KeyCode::Escape) {
         runtime.rebinding = None;
         runtime.rebind_awaiting_release = false;
+        runtime.rebind_swallow = true;
         runtime.note = Some(("Rebind cancelled".to_string(), 2.5));
         return;
     }
@@ -181,6 +185,7 @@ pub(crate) fn apply_ship_rebind(
         bindings: binds,
     });
     runtime.rebinding = None;
+    runtime.rebind_swallow = true;
     runtime.note = Some((format!("Bound {} to {}", id.0, source.readout_label()), 2.5));
 }
 
