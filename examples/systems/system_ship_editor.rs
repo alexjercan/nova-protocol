@@ -1412,9 +1412,9 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
             let rows = probe.inspector.clone();
             // The rest of the config is still listed beside it: the panel walks
-            // the WHOLE config, not the one field that was typed - `Mass` is
+            // the WHOLE config, not the one field that was typed - `Seed` is
             // there and empty, which is an `Option` the rock never set.
-            for label in ["Name", "Position", "Radius", "Mass"] {
+            for label in ["Name", "Position", "Radius", "Seed"] {
                 assert!(
                     rows.iter().any(|(row, _)| row == label),
                     "the rock's panel lists {label}: {rows:?}"
