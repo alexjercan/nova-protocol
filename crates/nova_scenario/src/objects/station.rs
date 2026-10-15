@@ -59,7 +59,6 @@ use crate::objects::{
             SpaceshipConfig, SpaceshipController,
         },
     },
-    station_hulls::prelude::{StationHullCatalogue, StationHullOffer},
 };
 
 /// Glob-import surface for the station content kind and object.
@@ -344,8 +343,8 @@ fn station_capabilities(living: bool) -> ShipCapabilities {
 }
 
 /// A station frozen with its cell: the design it was built from, the hull
-/// record a ship freezes to, its storage, its escort catalogue, the hulls
-/// parked at its ports and whether the player owns it.
+/// record a ship freezes to, its storage, the hulls it holds (parked at its
+/// ports or coasting beside it for hire) and whether the player owns it.
 ///
 /// `owned` is the one record of ownership: the live [`OwnedStationMarker`]
 /// is frozen into it and thawed out of it, so a bought station stays the
@@ -357,7 +356,6 @@ pub struct FrozenStation {
     design: StationDesignId,
     ship: FrozenShip,
     storage: StationStorage,
-    hulls: Vec<StationHullOffer>,
     parked: Vec<FrozenParkedHull>,
     owned: bool,
 }
@@ -378,12 +376,8 @@ impl FrozenStation {
         &self.storage
     }
 
-    /// The escorts the station hires out; empty for one that hires none.
-    pub fn hulls(&self) -> &[StationHullOffer] {
-        &self.hulls
-    }
-
-    /// The hulls parked at the station's ports, for sale or for rebuy.
+    /// The hulls the station holds: for sale or for rebuy at its ports, and
+    /// for hire beside it.
     pub fn parked(&self) -> &[FrozenParkedHull] {
         &self.parked
     }
@@ -404,8 +398,8 @@ impl FrozenStation {
 }
 
 /// Freeze a station: its hull as [`freeze_ship`] records it, with its design
-/// id, storage, escort catalogue, parked hulls ([`freeze_parked_hulls`]) and
-/// whether it carries [`OwnedStationMarker`].
+/// id, storage, parked hulls ([`freeze_parked_hulls`]) and whether it carries
+/// [`OwnedStationMarker`].
 ///
 /// # Errors
 ///
@@ -428,11 +422,6 @@ pub fn freeze_station(world: &World, station: Entity) -> Result<FrozenStation, U
         design: marker.0.clone(),
         ship: freeze_ship(world, station)?,
         storage: storage.clone(),
-        // No catalogue: a station that sells no hull.
-        hulls: root
-            .get::<StationHullCatalogue>()
-            .map(|catalogue| catalogue.0.clone())
-            .unwrap_or_default(),
         parked: freeze_parked_hulls(world, station)?,
         owned: root.contains::<OwnedStationMarker>(),
     })
@@ -440,8 +429,8 @@ pub fn freeze_station(world: &World, station: Entity) -> Result<FrozenStation, U
 
 /// Rebuild a frozen station on `entity`, which the caller spawned with its
 /// pose, identity and parent. The hull thaws through [`thaw_ship`]; the
-/// marker, the storage, a non-empty escort catalogue, the parked hulls to
-/// park again ([`PendingParkedHulls`]) and, for an owned station,
+/// marker, the storage, the parked hulls to park again
+/// ([`PendingParkedHulls`]) and, for an owned station,
 /// [`OwnedStationMarker`] land beside it. The caller inserts the
 /// velocity after this.
 pub fn thaw_station(entity: &mut EntityCommands, frozen: FrozenStation) {
@@ -449,15 +438,11 @@ pub fn thaw_station(entity: &mut EntityCommands, frozen: FrozenStation) {
         design,
         ship,
         storage,
-        hulls,
         parked,
         owned,
     } = frozen;
     thaw_ship(entity, ship);
     entity.insert((StationMarker(design), storage));
-    if !hulls.is_empty() {
-        entity.insert(StationHullCatalogue(hulls));
-    }
     if !parked.is_empty() {
         entity.insert(PendingParkedHulls(
             parked.into_iter().map(PendingParkedHull::Frozen).collect(),

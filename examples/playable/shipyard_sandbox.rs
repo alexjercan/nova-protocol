@@ -4,7 +4,8 @@
 //! Boots the shipped app and starts New Game on a pinned seed as the
 //! scavenger, as the Create World modal does, but without a save folder. When
 //! the window has streamed in, it picks the nearest generated station that
-//! is living, not on the Enemy side, offers Refit and parks hulls for sale,
+//! is living, not on the Enemy side, offers Refit, parks hulls for sale and
+//! has escorts for hire,
 //! waits for every parked hull to dock, and berths the player at the port
 //! left free until the dock takes. Then the fixture lands, once:
 //!
@@ -25,24 +26,29 @@
 //!    docked;
 //! 3. buy another hull, or rebuy the old ship: you take its helm and the
 //!    hull you flew parks at its port;
-//! 4. undock (`D`) and fly clear: the parked hulls stay docked and inert.
+//! 4. Station tab, **Escorts for hire**: each escort coasts beside the
+//!    station, undocked and Neutral; Hire one and it joins your fleet and
+//!    follows you;
+//! 5. undock (`D`) and fly clear: the parked hulls stay docked and inert.
 //!
 //! ```text
 //! nix develop --command cargo run --example shipyard_sandbox --features debug
 //! ```
 //!
-//! The diagnostics (`F3`) draw every docking port of the station, coloured
+//! The diagnostics (`F3`) mark every docking port of the station, coloured
 //! and labelled by what holds it: free (green), the player (cyan), a hull for
 //! sale (yellow), a hull parked for rebuy (violet), anything else (red). A
-//! line runs from each held port to the hull on it, and a ring marks where
-//! each parked hull sits. The panel counts the ports, the hulls for sale
-//! against ports less one, and the connections held, and lists each parked
-//! hull's price and default keys, and the rebuy price and hold of each hull
-//! parked for rebuy.
+//! line runs from each held port to the hull on it, and a ring with its price
+//! marks each parked hull. Each escort for hire gets a green ring (red if it
+//! docked) and a line from the station, labelled with its price and
+//! distance. The panel counts the ports, the hulls for sale and rebuy, the
+//! free ports, and the escorts for hire and hired. `Shift+F3` lists each
+//! port's holder, each hull's price, default keys and hold, each escort's
+//! price, distance, coasting or DOCKED and side, and the hired escorts.
 //!
 //! Under `NOVA_AUTOPILOT=1` a smoke walk waits for the fixture,
 //! checks the station parks one hull per port but one with the old ship
-//! among them, and shoots `shipyard-sandbox.png` with `NOVA_CAPTURE=1`.
+//! among them and escorts for hire coast undocked, and shoots `shipyard-sandbox.png` with `NOVA_CAPTURE=1`.
 //! Unset, no walk and no deadline run.
 
 #[path = "shared/open_world_stage.rs"]
@@ -92,8 +98,7 @@ fn main() -> bevy::app::AppExit {
     });
     app.init_resource::<Sandbox>();
     app.add_plugins(diagnostics::DiagnosticsHintPlugin::new(
-        "[TAB] interface: Station tab buys a parked hull or rebuys yours   [D] undock   [W] \
-         burn, [X] stop",
+        "A shipyard station: hulls for sale dock at its ports, escorts for hire coast beside it.",
     ));
     app.add_systems(
         Update,
@@ -151,11 +156,26 @@ fn chosen_station(world: &mut World) -> Option<Entity> {
     open_world_stage::body_by_id(world, &chosen.id)
 }
 
-/// The hulls parked at `station`, in park order.
-fn parked_hulls(world: &World, station: Entity) -> Vec<Entity> {
+/// The hulls `station` lists of terms `hire` or not, in park order: the
+/// escorts for hire coasting beside it, or the hulls docked for sale or
+/// rebuy.
+fn listed_hulls(world: &World, station: Entity, hire: bool) -> Vec<Entity> {
     world
         .get::<ParkedHulls>(station)
         .map_or_else(Vec::new, |parked| parked.iter().collect())
+        .into_iter()
+        .filter(|hull| {
+            matches!(
+                world.get::<ParkedHullType>(*hull),
+                Some(ParkedHullType::Hire { .. })
+            ) == hire
+        })
+        .collect()
+}
+
+/// The hulls docked at `station` for sale or rebuy, in park order.
+fn parked_hulls(world: &World, station: Entity) -> Vec<Entity> {
+    listed_hulls(world, station, false)
 }
 
 /// Every hull parked at `station` is docked.
@@ -174,11 +194,12 @@ fn drive_the_sandbox(world: &mut World) {
             let docked = advance_station_dock(
                 world,
                 &mut dock,
-                "living, non-Enemy station with Refit that parks hulls for sale",
+                "living, non-Enemy station with Refit that sells hulls and hires escorts",
                 |station| {
                     station.offers_service(StationServiceType::Refit)
                         && station.not_enemy()
                         && station.sells_hulls
+                        && station.hires_escorts
                 },
             );
             world.resource_mut::<Sandbox>().dock = dock;
@@ -317,8 +338,13 @@ fn draw_the_shipyard(
         Has<PlayerSpaceshipMarker>,
         Option<&DockedShip>,
     )>,
+    q_sides: Query<Option<&Allegiance>>,
+    q_fleet: Query<&Name, With<PlayerFleetMarker>>,
+    q_player: Query<Has<DockedShip>, With<PlayerSpaceshipMarker>>,
 ) {
-    panel.line(format!("setup: {:?}", sandbox.phase));
+    if sandbox.phase != SandboxPhaseType::Ready {
+        panel.line(format!("setup: {:?}", sandbox.phase));
+    }
     let Some(chosen) = sandbox.dock.station.as_ref() else {
         return;
     };
@@ -327,8 +353,13 @@ fn draw_the_shipyard(
     else {
         return;
     };
-    let parked: Vec<Entity> = parked.map_or_else(Vec::new, |parked| parked.iter().collect());
-    keys.retain(|hull, _| parked.contains(hull));
+    let listed: Vec<Entity> = parked.map_or_else(Vec::new, |parked| parked.iter().collect());
+    keys.retain(|hull, _| listed.contains(hull));
+    let (hires, parked): (Vec<Entity>, Vec<Entity>) = listed.into_iter().partition(|hull| {
+        q_ships.get(*hull).is_ok_and(|(.., terms, _, _, _, _, _)| {
+            matches!(terms, Some(ParkedHullType::Hire { .. }))
+        })
+    });
 
     let mut ports = 0usize;
     let mut held = 0;
@@ -362,7 +393,9 @@ fn draw_the_shipyard(
                             (false, Some(ParkedHullType::Rebuy { .. })) => {
                                 PortHolderType::Rebuy(name)
                             }
-                            (false, None) => PortHolderType::Other(name),
+                            (false, Some(ParkedHullType::Hire { .. }) | None) => {
+                                PortHolderType::Other(name)
+                            }
                         }
                     }
                     Err(_) => PortHolderType::Other(format!("{ship:?}")),
@@ -370,14 +403,22 @@ fn draw_the_shipyard(
             }
         };
         let (color, label) = match &state {
-            PortHolderType::Free => (palette::OK, format!("{}: free", id.0)),
-            PortHolderType::Player => (palette::VELOCITY, format!("{}: you", id.0)),
-            PortHolderType::Sale(name) => (palette::TARGET, format!("{}: for sale, {name}", id.0)),
-            PortHolderType::Rebuy(name) => (palette::ZONE, format!("{}: rebuy, {name}", id.0)),
-            PortHolderType::Other(name) => (palette::ALERT, format!("{}: {name}", id.0)),
+            PortHolderType::Free => (palette::OK, "free".to_string()),
+            PortHolderType::Player => (palette::VELOCITY, "you".to_string()),
+            PortHolderType::Sale(_) => (palette::TARGET, "sale".to_string()),
+            PortHolderType::Rebuy(_) => (palette::ZONE, "rebuy".to_string()),
+            PortHolderType::Other(name) => (palette::ALERT, name.clone()),
         };
         diagnostics::sphere(&mut gizmos, at, PORT_MARK, color);
-        panel.label(at, label);
+        panel.label_tinted(at, label, color);
+        let holder = match &state {
+            PortHolderType::Free => "free".to_string(),
+            PortHolderType::Player => "you".to_string(),
+            PortHolderType::Sale(name) => format!("for sale, {name}"),
+            PortHolderType::Rebuy(name) => format!("rebuy, {name}"),
+            PortHolderType::Other(name) => name.clone(),
+        };
+        panel.detail(format!("port {}: {holder}", id.0));
     }
 
     let sales = parked
@@ -389,8 +430,12 @@ fn draw_the_shipyard(
         })
         .count();
     panel.line(format!(
-        "ports {ports}, parked {} of ports less one ({}), for sale {sales}, connections held \
-         {held}",
+        "ports {ports}: {sales} for sale, {} rebuy, {} free",
+        parked.len() - sales,
+        ports.saturating_sub(held),
+    ));
+    panel.detail(format!(
+        "parked {} of ports less one ({}), connections held {held}",
         parked.len(),
         ports.saturating_sub(1),
     ));
@@ -438,18 +483,65 @@ fn draw_the_shipyard(
                             .collect()
                     })
                     .unwrap_or_default();
-                panel.line(format!(
+                panel.detail(format!(
                     "rebuy {name}: {price_cr} cr, hold [{}]{docked}",
                     cargo.join(", ")
                 ));
-                panel.line(format!("    keys on rebuy: {bindings}"));
+                panel.detail(format!("    keys on rebuy: {bindings}"));
             }
             _ => {
-                panel.line(format!("for sale {name}: {price} cr{docked}"));
-                panel.line(format!("    keys: {bindings}"));
+                panel.detail(format!("for sale {name}: {price} cr{docked}"));
+                panel.detail(format!("    keys: {bindings}"));
             }
         }
-        panel.label(centre, format!("{name}, {price} cr"));
+        panel.label_tinted(centre, format!("{price} cr"), color);
+    }
+
+    let Ok((_, station_at, station_com, ..)) = q_ships.get(station) else {
+        return;
+    };
+    let station_centre = anchor(station_at, station_com);
+    for hull in &hires {
+        let Ok((name, at, com, radius, _, design, _, _, _, docked)) = q_ships.get(*hull) else {
+            continue;
+        };
+        let centre = anchor(at, com);
+        let state = if docked.is_some() {
+            "DOCKED"
+        } else {
+            "coasting"
+        };
+        let side = match q_sides.get(*hull) {
+            Ok(Some(side)) => format!("{side:?}"),
+            _ => "no side".to_string(),
+        };
+        let price = design.map_or(0, |design| escort_price_cr(&items, &design.0));
+        let away = Meters3::from_engine(centre)
+            .distance(Meters3::from_engine(station_centre))
+            .get();
+        gizmos.line(station_centre, centre, palette::MUTED);
+        let up = at.rotation() * Vec3::Y;
+        let color = if docked.is_some() {
+            palette::ALERT
+        } else {
+            palette::OK
+        };
+        diagnostics::ring(&mut gizmos, centre, up, radius.map_or(2.0, |r| r.0), color);
+        panel.detail(format!(
+            "hire {name}: {price} cr, {away:.0} m, {state}, {side}"
+        ));
+        panel.label_tinted(centre, format!("hire {price} cr, {away:.0} m"), color);
+    }
+    let fleet: Vec<&str> = q_fleet.iter().map(Name::as_str).collect();
+    panel.line(format!(
+        "escorts: {} for hire, {} hired",
+        hires.len(),
+        fleet.len()
+    ));
+    panel.detail(format!("hired: {fleet:?}"));
+    if q_player.iter().any(|docked| docked) {
+        panel.hint("TAB", "buy, rebuy or hire");
+        panel.hint("D", "undock");
     }
 }
 
@@ -477,7 +569,8 @@ mod smoke {
     }
 
     /// The station parks one hull per port but one, every one docked, the
-    /// old ship among them for rebuy with its hold.
+    /// old ship among them for rebuy with its hold, and escorts for hire
+    /// coast beside it, none docked.
     fn assert_the_shipyard(world: &mut World) {
         let player = the_player(world).expect("shipyard sandbox: one player ship");
         let station = chosen_station(world).expect("shipyard sandbox: the station stands");
@@ -515,9 +608,22 @@ mod smoke {
                 .any(|(item, count)| item.as_str() == HELD_ITEM && count >= HELD_COUNT),
             "shipyard sandbox: the old ship keeps the hold"
         );
+        let hires = listed_hulls(world, station, true);
+        assert!(
+            !hires.is_empty(),
+            "shipyard sandbox: escorts for hire coast"
+        );
+        assert!(
+            hires
+                .iter()
+                .all(|hull| world.get::<DockedShip>(*hull).is_none()),
+            "shipyard sandbox: no escort for hire is docked"
+        );
         info!(
-            "shipyard sandbox: PASS {ports} ports, {} parked, the old ship among them",
-            parked.len()
+            "shipyard sandbox: PASS {ports} ports, {} parked, the old ship among them, {} \
+             escorts for hire coasting",
+            parked.len(),
+            hires.len()
         );
     }
 

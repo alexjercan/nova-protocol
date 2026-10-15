@@ -77,9 +77,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A `Refit` station parks a hull for sale, shown in 3D, at each port it fits,
   one kept free. A buy hands you its helm with start-role keys and parks your
   old ship for rebuy (`OnShipBought`).
-- A generated `Refit` station hires out one to three armed escorts
-  (`OnEscortHired`). Each spawns clear, follows on its own drive across
-  sectors, holds for a dock and saves; a neutralized one leaves.
+- A generated `Refit` station hires out one to three armed escorts that coast
+  beside it (`OnEscortHired`). A hire follows on its own drive across sectors,
+  holds for a dock and saves; a dead one leaves.
 - Buy a living generated station on the Station pane for twice its worth at
   ask (`OnStationBought`). It leaves its civilization for your side, admits you
   on any side and sells its hold at bid.

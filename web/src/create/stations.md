@@ -256,9 +256,12 @@ After its hulls for sale, a living station that a generated world places
 hires out one to three armed escorts: scavenger and armored hulls its
 civilization can build, laid out from the world seed and the station's id. A
 civilization that builds no armed role hires none, and a station a scenario
-places hires none. The Station pane lists them under **Escorts for hire**: each
-escort's name, length, section count and kinds, the price, and a Hire button
-or the reason it is refused.
+places hires none. Each escort waits outside the station, undocked and
+Neutral, coasting on the station's course a little ahead or behind it, clear
+of the station and of each other. The Station pane lists them under
+**Escorts for hire**: each escort's name, length, section count and kinds, the
+price, and a Hire button or the reason it is refused. The escorts stay with
+the station when its sector unloads, and in the world save.
 
 | rule | what happens |
 |---|---|
@@ -267,7 +270,7 @@ or the reason it is refused.
 | the fleet | two slots, starboard then port. A third hire is refused |
 | the credits | the ship pays the price and the station takes it |
 | refusals | in this order: not docked, no `Refit` service, a full fleet, too few credits, a station balance that would overflow |
-| the result | the escort leaves the station's list and spawns on your side, beside your ship, with an empty hold. It flies on its own drive to its place off your side and behind your travel, matches your speed, holds where it is while you stop, and fights what attacks you |
+| the result | the escort leaves the station's list and joins your fleet where it waited, with an empty hold. It flies on its own drive to its place off your side and behind your travel, matches your speed, holds where it is while you stop, and fights what attacks you |
 | sectors and saves | an escort flies with you across sectors and the world save keeps it in your fleet. A neutralized escort leaves the fleet and stays in its sector as a wreck |
 | events | `OnEscortHired` and one `OnCreditsChanged` per party with `cause: EscortHire`, see [Hold events](../events/#hold-events) |
 

@@ -24,11 +24,11 @@
 //! | - | - | - |
 //! | 1 | `outcome: a station parks its hulls for sale at its ports` | the station parks one hull for sale per docking port but one, each docked with it and inert: no driver, Neutral, not lootable; one port stays free |
 //! | 2 | `outcome: a buy hands the player the parked hull and parks the old one` | the player's design is the parked hull's, every section live, its hold empty and docked with the station through a new connection; the old ship is parked for rebuy at the trade-in, owned, docked, with its design and the hold it had; the player paid the price less the trade-in and the station took it, both as `ShipBuy`; `OnShipBought` fired once; storage did not change and nothing was stored; the bought hull then undocks |
-//! | 3 | `outcome: the retired record holds the parked hulls` | the cell is not live and the station's record lists every parked hull by name and listing, the old ship with its sections and its hold |
-//! | 4 | `outcome: the thawed station parks the same hulls` | the thawed station parks the same hulls in the same order, each docked with it, the old ship owned with its hold |
+//! | 3 | `outcome: the retired record holds the parked hulls` | the cell is not live and the station's record lists every parked hull and escort for hire by name and listing, the old ship with its sections and its hold |
+//! | 4 | `outcome: the thawed station parks the same hulls` | the thawed station lists the same hulls and escorts for hire in the same order, each hull for sale or rebuy docked with it, the old ship owned with its hold |
 //! | 5 | `outcome: a rebuy hands the player the old ship back` | the Station pane lists the old ship for rebuy; after the rebuy the player's design and hold are the old ship's, the hull it flew is parked for rebuy at its trade-in, and the player paid the rebuy price less that trade-in |
-//! | 6 | `outcome: the leave save holds the player's hull and the parked hulls` | the saved player carries the old ship's sections and none the bought hull adds; the saved station lists the same parked hulls |
-//! | 7 | `outcome: a loaded world gives back the player's hull and the parked hulls` | after Load the player's live sections and hold are the old ship's, and the station parks the same hulls, each docked |
+//! | 6 | `outcome: the leave save holds the player's hull and the parked hulls` | the saved player carries the old ship's sections and none the bought hull adds; the saved station lists the same parked hulls and escorts for hire |
+//! | 7 | `outcome: a loaded world gives back the player's hull and the parked hulls` | after Load the player's live sections and hold are the old ship's, and the station lists the same parked hulls and escorts for hire |
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
@@ -375,11 +375,36 @@ mod walk {
             })
     }
 
-    /// The hulls parked at `station`, in park order.
-    fn parked_hulls(world: &World, station: Entity) -> Vec<Entity> {
+    /// Every hull `station` lists, in park order: the docked hulls and the
+    /// escorts for hire coasting beside it.
+    fn listed_hulls(world: &World, station: Entity) -> Vec<Entity> {
         world
             .get::<ParkedHulls>(station)
             .map_or_else(Vec::new, |parked| parked.iter().collect())
+    }
+
+    /// The hulls docked at `station` for sale or rebuy, in park order: the
+    /// Station pane's hull rows.
+    fn parked_hulls(world: &World, station: Entity) -> Vec<Entity> {
+        listed_hulls(world, station)
+            .into_iter()
+            .filter(|hull| {
+                !matches!(
+                    world.get::<ParkedHullType>(*hull),
+                    Some(ParkedHullType::Hire { .. })
+                )
+            })
+            .collect()
+    }
+
+    /// The names of the escorts for hire coasting beside `station`.
+    fn hire_names(world: &World, station: Entity) -> Vec<String> {
+        listed_hulls(world, station)
+            .into_iter()
+            .map(|hull| parked_view(world, hull))
+            .filter(|view| matches!(view.terms, ParkedHullType::Hire { .. }))
+            .map(|view| view.name)
+            .collect()
     }
 
     fn parked_view(world: &World, hull: Entity) -> ParkedView {
@@ -396,8 +421,10 @@ mod walk {
         }
     }
 
+    /// Every hull `station` lists, escorts for hire included, as the walk
+    /// compares them.
     fn parked_views(world: &World, station: Entity) -> Vec<ParkedView> {
-        parked_hulls(world, station)
+        listed_hulls(world, station)
             .into_iter()
             .map(|hull| parked_view(world, hull))
             .collect()
@@ -882,6 +909,7 @@ mod walk {
             .iter()
             .map(|hull| parked_view(world, *hull).name)
             .collect();
+        let hires = hire_names(world, station);
         world.resource_mut::<BuyWatch>().ports = ports;
         nova_probe::probe_marker(
             world,
@@ -890,9 +918,13 @@ mod walk {
                 "station": station_id(world).to_string(),
                 "ports": ports,
                 "parked": names,
+                "hires": hires,
             }),
         );
-        info!("station buy: {ports} ports, parked for sale {names:?}, one port free");
+        info!(
+            "station buy: {ports} ports, parked for sale {names:?}, one port free, escorts for \
+             hire {hires:?}"
+        );
     }
 
     /// The trade-in `ship`'s live sections fetch, each at its health share.
@@ -945,6 +977,9 @@ mod walk {
                 .expect("the price fits")
             }
             ParkedHullType::Rebuy { price_cr } => price_cr,
+            ParkedHullType::Hire { .. } => {
+                panic!("station buy: '{}' is for hire, not for sale", view.name)
+            }
         };
         world.resource_mut::<BuyWatch>().button = Some(format!("HullBuy-{row}"));
         BeforeBuy {

@@ -1,14 +1,11 @@
-//! The escorts a station hires out, and the buy that swaps a ship's hull
-//! with a hull parked at the station.
+//! A station's hull offers, and the buy that swaps a ship's hull with a hull
+//! parked at the station.
 //!
-//! A generated living station carries a [`StationHullCatalogue`]: the
-//! escorts for hire the world generator laid out for its civilization, as
-//! whole inline designs. Its hulls for sale are parked at its ports instead
-//! (`crate::objects::parked_hulls`). The catalogue rides the station's
-//! frozen record, so a station keeps it across a retire, a thaw and a save.
-//! Whenever it lands, [`insert_hull_offers`] resolves it into the ship
-//! crate's [`HullOffers`], which the hire rule and the Station pane read. A
-//! station with no catalogue hires none out.
+//! A generated living station's offers are [`StationHullOffer`]s: the hulls
+//! for sale and the escorts for hire the world generator laid out for its
+//! civilization, as whole inline designs. Its first spawn hands them to
+//! `crate::objects::parked_hulls`, which parks each hull for sale at a port
+//! and lets each escort for hire coast beside it.
 //!
 //! [`buy_station_hull`] answers a [`HullBuyRequest`] once the buy rule moved
 //! the credits, by a swap ([`swap_parked_hull`]). The ship root stays, so
@@ -25,16 +22,14 @@ use nova_ship::prelude::*;
 
 use crate::objects::{
     parked_hulls::spawn_parked_hull,
-    ship_design::prelude::{
-        resolve_ship_design, GameShipDesigns, ResolvedShipDesign, ShipDesign, ShipDesignSource,
-    },
+    ship_design::prelude::{ResolvedShipDesign, ShipDesign},
     spaceship::{freeze_ship, prelude::SpaceshipController, rehull_ship, thaw_ship},
     start_role::prelude::start_role_bindings,
 };
 
-/// The station hull catalogue.
+/// The station hull offer and the buy.
 pub mod prelude {
-    pub use super::{StationHullCatalogue, StationHullOffer, StationHullsPlugin};
+    pub use super::{StationHullOffer, StationHullsPlugin};
 }
 
 /// How many frames a bought hull tries to dock at its port before it gives
@@ -44,8 +39,8 @@ const REDOCK_FRAMES: u32 = 30;
 
 /// One hull a generated station offers: the name its list shows, its terms
 /// and the whole design, inline, every section a prototype of the loaded
-/// catalog. A hull for sale is parked at the station's first spawn; an
-/// escort for hire stays in the [`StationHullCatalogue`].
+/// catalog. The station's first spawn parks a hull for sale at a port and
+/// lets an escort for hire coast beside it.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
@@ -58,12 +53,6 @@ pub struct StationHullOffer {
     pub design: ShipDesign,
 }
 
-/// The escorts a station hires out, in list order, every one
-/// [`HullOfferType::Hire`]. Inserted on a station root by the world's spawn
-/// and thaw; a station with none hires none out.
-#[derive(Component, Clone, Debug, Default, Reflect)]
-pub struct StationHullCatalogue(pub Vec<StationHullOffer>);
-
 /// Marks a ship whose hull was just swapped and whose new port has yet to
 /// dock with `station`. `released` is the connection the old port held,
 /// which the old port's despawn lets go.
@@ -74,82 +63,14 @@ struct HullBuyRedock {
     frames: u32,
 }
 
-/// Registers the catalogue observer, the buy and the redock.
+/// Registers the buy and the redock.
 pub struct StationHullsPlugin;
 
 impl Plugin for StationHullsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_observer(insert_hull_offers);
         app.add_observer(buy_station_hull);
         app.add_systems(Update, redock_bought_hull);
     }
-}
-
-/// The resolved sections of `design`.
-///
-/// # Panics
-///
-/// On a design that does not resolve: the manifest check and the catalog
-/// digest refuse one before a station carries it.
-fn resolve_offer(
-    design: &ShipDesign,
-    designs: &GameShipDesigns,
-    sections: &GameSections,
-) -> Vec<DesignSection> {
-    let (resolved, errors) =
-        resolve_ship_design(&ShipDesignSource::Inline(design.clone()), designs, sections);
-    assert!(
-        errors.is_empty(),
-        "station hull catalogue: a hull does not resolve: {errors:?}"
-    );
-    resolved
-        .sections
-        .iter()
-        .map(|section| DesignSection {
-            id: section.id.clone(),
-            position: section.position,
-            rotation: section.rotation,
-            config: section.config.clone(),
-        })
-        .collect()
-}
-
-/// Resolve a station's catalogue into the [`HullOffers`] the hire rule and
-/// the Station pane read, whenever the catalogue lands.
-///
-/// # Panics
-///
-/// On a hull for sale in the catalogue: the world parks those. And on a
-/// hull that does not resolve, see [`resolve_offer`].
-fn insert_hull_offers(
-    insert: On<Insert, StationHullCatalogue>,
-    mut commands: Commands,
-    q_catalogue: Query<&StationHullCatalogue>,
-    designs: Res<GameShipDesigns>,
-    sections: Res<GameSections>,
-) {
-    let Ok(catalogue) = q_catalogue.get(insert.entity) else {
-        return;
-    };
-    let offers = catalogue
-        .0
-        .iter()
-        .map(|offer| {
-            assert!(
-                matches!(offer.terms, HullOfferType::Hire { .. }),
-                "insert_hull_offers: station {:?} lists hull '{}' for sale; hulls for sale are \
-                 parked",
-                insert.entity,
-                offer.name
-            );
-            HullOffer {
-                name: offer.name.clone(),
-                terms: offer.terms,
-                sections: resolve_offer(&offer.design, &designs, &sections),
-            }
-        })
-        .collect();
-    commands.entity(insert.entity).insert(HullOffers(offers));
 }
 
 /// Swap a ship's hull with a parked hull of the station it is docked at, as
@@ -189,6 +110,13 @@ fn swap_parked_hull(world: &mut World, request: HullBuyRequest) {
         world.get::<ParkedHull>(hull).map(|parked| parked.0),
         Some(station),
         "swap_parked_hull: {hull:?} is not parked at station {station:?}"
+    );
+    assert!(
+        !matches!(
+            world.get::<ParkedHullType>(hull),
+            Some(ParkedHullType::Hire { .. })
+        ),
+        "swap_parked_hull: {hull:?} is for hire, not for sale"
     );
     let Some(docked) = world.get::<DockedShip>(ship).copied() else {
         panic!("swap_parked_hull: ship {ship:?} is not docked");

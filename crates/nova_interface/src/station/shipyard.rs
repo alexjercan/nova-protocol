@@ -166,6 +166,10 @@ type ParkedHullQuery<'w, 's> = Query<
 
 /// A parked hull's price: its recipes at ask for sale, the trade-in it was
 /// paid for rebuy.
+///
+/// # Panics
+///
+/// On an escort for hire: the list shows those apart (`escorts`).
 fn parked_price_cr(items: &GameItems, terms: ParkedHullType, design: &ShipDesignSections) -> u64 {
     match terms {
         ParkedHullType::Sale => hull_price_cr(
@@ -173,6 +177,7 @@ fn parked_price_cr(items: &GameItems, terms: ParkedHullType, design: &ShipDesign
             design.0.iter().map(|section| &section.config.base.build),
         ),
         ParkedHullType::Rebuy { price_cr } => u64::from(price_cr),
+        ParkedHullType::Hire { .. } => panic!("buy: an escort for hire is not for sale"),
     }
 }
 
@@ -257,12 +262,13 @@ pub(crate) fn update_station_hull_list(
                 .iter()
                 .filter_map(|hull| {
                     let (name, terms, design) = q_hulls.get(hull).ok()?;
-                    let price_cr = parked_price_cr(&items, *terms, design);
-                    let planned = plan_offer(&resolved, price_cr, trade_in_cr, &q_credits);
                     let listing = match terms {
                         ParkedHullType::Sale => "",
                         ParkedHullType::Rebuy { .. } => " (rebuy)",
+                        ParkedHullType::Hire { .. } => return None,
                     };
+                    let price_cr = parked_price_cr(&items, *terms, design);
+                    let planned = plan_offer(&resolved, price_cr, trade_in_cr, &q_credits);
                     Some(HullRow {
                         hull,
                         name: format!("{name}{listing}"),

@@ -6,8 +6,8 @@
 //! Boots the shipped app (via [`editor_app`]), starts New Game on a pinned
 //! seed the way the Create World modal does, and lets the window stream in.
 //! It picks the nearest generated station that is living, not on the Enemy
-//! side, offers Refit, and hires out an escort at [`walk::HIRE_OFFER`], and
-//! stands outside the spawn's cell. The player jumps beside it and is put on
+//! side, offers Refit, and hires out two escorts or more, and stands outside
+//! the spawn's cell. The player jumps beside it and is put on
 //! a berth at its collar each frame until the dock takes; the walk never
 //! flies the approach (`system_station_docking` does). It hires two escorts,
 //! one per fleet slot, through the same button.
@@ -36,9 +36,10 @@
 //!
 //! | # | marker | claim |
 //! | - | - | - |
-//! | 1 | `outcome: an escort is hired from a station's catalogue` | the first escort stands with the offer's name and the id its roster slot gives, Player-sided, in the fleet and following the player on the starboard slot, owned by no cell, and the second on the port slot; both offers left the catalogue; the player paid both prices and the station took them, all as `EscortHire`; `OnEscortHired` fired once per escort with the escort, the hull and the price |
-//! | 1b | `outcome: two hired escorts spawn clear of each other and every hull` | at the pose each escort spawned in, its hull keeps daylight to the other escort, the player and the station, every hull measured by its `HullRadius` about its centre of mass |
-//! | 2 | `outcome: an escort crosses sectors beside the player` | after the jump the station's cell is frozen, no frozen record holds the escort, and the escort is live, owned by no cell, and back in formation after the player jumps on |
+//! | 0 | `outcome: escorts for hire coast beside the station` | before the hire, every escort for hire the station holds is undocked, Neutral and driven by nobody, and its hull keeps daylight to the station and to every other escort for hire |
+//! | 1 | `outcome: an escort is hired from a station's catalogue` | the first escort stands with the offer's name and the id its roster slot gives, Player-sided, in the fleet and following the player on the starboard slot, owned by no cell, and the second on the port slot; both hired hulls left the station's escorts for hire; the player paid both prices and the station took them, all as `EscortHire`; `OnEscortHired` fired once per escort with the escort, the hull and the price |
+//! | 1b | `outcome: two hired escorts spawn where their offers coasted, clear of each other and every hull` | each escort spawned within 10 m of where its offer coasted, in the station's frame, and at that pose its hull keeps daylight to the other escort, the player and the station, every hull measured by its `HullRadius` about its centre of mass |
+//! | 2 | `outcome: an escort crosses sectors beside the player` | after the jump the station's cell is frozen, no frozen record holds the escort, the station's record holds the escorts for hire it kept, and the escort is live, owned by no cell, and back in formation after the player jumps on |
 //! | 2b | `outcome: escorts follow a start from rest on their own drive` | from the player at rest to the fleet back in formation on the coasting player, no physics step changed an escort's velocity by more than its own drive impulse over its mass plus its RCS push and its well's pull, its RCS delivered under 0.5 m/s while the player's drive was on and under a tenth of what its drive delivered in all, no escort moved before its drive fired, and no escort flew faster than the player by more than `AI_FOLLOW_CLOSING_SPEED` plus 5 m/s |
 //! | 3 | `outcome: an escort flies formation through a turn` | while the player burns to 50 m/s and turns its travel a right angle, the escort ends in formation behind and beside the new travel, matching the player's velocity; its drive took it from rest to the cruise; no physics step moved it more than 0.5 m past its own velocity; it never came within 50 m of the player's hull |
 //! | 4 | `outcome: the leave save holds the escort in the player's fleet` | the saved player's fleet is the two escorts, on the starboard and port slots, and no saved sector holds either |
@@ -159,11 +160,13 @@ mod walk {
     const LOAD_BUTTON: &str = "Load Button";
     const LOAD_WORLD_BUTTON: &str = "Load World Button";
 
-    /// The offer the walk hires: the station's first escort, after its five
-    /// hulls for sale. Checked against the catalogue when the station is
-    /// chosen.
-    pub(super) const HIRE_OFFER: usize = 5;
-    const HIRE_BUTTON: &str = "EscortHire-5";
+    /// The escort for hire the walk hires, twice: the first the station
+    /// holds, which the second takes the place of once hired.
+    const HIRE_OFFER: usize = 0;
+    const HIRE_BUTTON: &str = "EscortHire-0";
+    /// Where a hired escort may spawn from where its offer coasted, in the
+    /// station's frame, engine units (10 m).
+    const SPAWN_SLIP: f32 = 1.0;
     /// The Station pane's panel, which scrolls under the wheel.
     const STATION_PANEL: &str = "StationPanel";
 
@@ -222,7 +225,10 @@ mod walk {
         price_cr: u32,
         name: String,
         escort: GeneratedBodyId,
-        catalogue: Vec<String>,
+        /// The names of the escorts for hire the station held.
+        hires: Vec<String>,
+        /// Where the offer coasted, in the station's frame.
+        offer: Vec3,
     }
 
     /// What the run saw and recorded between beats.
@@ -240,8 +246,9 @@ mod walk {
         before: Option<BeforeHire>,
         /// The cell the crossing landed in.
         crossed: Option<SectorCoord>,
-        /// The second escort's id and price.
-        second: Option<(GeneratedBodyId, u32)>,
+        /// The second escort's id, price and where its offer coasted, in
+        /// the station's frame.
+        second: Option<(GeneratedBodyId, u32, Vec3)>,
         /// Each hired escort's spawn, in hire order.
         spawns: Vec<EscortSpawn>,
     }
@@ -414,13 +421,61 @@ mod walk {
             .0
     }
 
-    /// The names of the hulls `station` offers.
-    fn catalogue_names(world: &World, station: Entity) -> Vec<String> {
+    /// The escorts for hire `station` holds, in the order the list shows
+    /// them.
+    fn hire_hulls(world: &World, station: Entity) -> Vec<Entity> {
         world
-            .get::<StationHullCatalogue>(station)
-            .map_or_else(Vec::new, |catalogue| {
-                catalogue.0.iter().map(|offer| offer.name.clone()).collect()
+            .get::<ParkedHulls>(station)
+            .map_or_else(Vec::new, |parked| {
+                parked
+                    .iter()
+                    .filter(|hull| {
+                        matches!(
+                            world.get::<ParkedHullType>(*hull),
+                            Some(ParkedHullType::Hire { .. })
+                        )
+                    })
+                    .collect()
             })
+    }
+
+    /// The names of the escorts for hire `station` holds.
+    fn hire_names(world: &World, station: Entity) -> Vec<String> {
+        hire_hulls(world, station)
+            .into_iter()
+            .filter_map(|hull| world.get::<Name>(hull).map(ToString::to_string))
+            .collect()
+    }
+
+    /// How many escorts for hire `station` holds or is about to.
+    fn hires_offered(world: &World, station: Entity) -> usize {
+        let pending = world
+            .get::<PendingParkedHulls>(station)
+            .map_or(0, |pending| {
+                pending
+                    .0
+                    .iter()
+                    .filter(|hull| match hull {
+                        PendingParkedHull::Offer(offer) => offer.terms != HullOfferType::Sale,
+                        PendingParkedHull::Frozen(frozen) => {
+                            matches!(frozen.terms(), ParkedHullType::Hire { .. })
+                        }
+                    })
+                    .count()
+            });
+        pending + hire_hulls(world, station).len()
+    }
+
+    /// Where `body` stands in the station's frame.
+    fn in_station_frame(world: &World, station: Entity, body: Entity) -> Vec3 {
+        let pose = |entity: Entity| {
+            (
+                world.get::<Position>(entity).expect("a body stands").0,
+                world.get::<Rotation>(entity).expect("a body stands").0,
+            )
+        };
+        let (at, turn) = pose(station);
+        turn.inverse() * (pose(body).0 - at)
     }
 
     /// Every ship in the player's fleet.
@@ -476,7 +531,8 @@ mod walk {
         when(|world| {
             station_root(world).is_some_and(|station| {
                 world.get::<Position>(station).is_some()
-                    && world.get::<HullOffers>(station).is_some()
+                    && world.get::<PendingParkedHulls>(station).is_none()
+                    && !hire_hulls(world, station).is_empty()
             })
         })
     }
@@ -592,6 +648,21 @@ mod walk {
                         .is_some_and(|(distance, speed)| {
                             distance < FORMATION_REACH && speed < FORMATION_SPEED
                         })
+                })
+        })
+    }
+
+    /// Every escort has stopped: an escort still braking from its last
+    /// formation move would spend RCS that the start trace counts against
+    /// the start.
+    fn fleet_at_rest() -> Arc<Predicate> {
+        when(|world| {
+            [escort_root(world), second_root(world)]
+                .into_iter()
+                .all(|escort| {
+                    escort
+                        .and_then(|escort| world.get::<LinearVelocity>(escort))
+                        .is_some_and(|velocity| velocity.length() < 0.05)
                 })
         })
     }
@@ -820,29 +891,24 @@ mod walk {
     }
 
     /// Pick the nearest station that is living, not on the Enemy side,
-    /// offers Refit, hires out an escort at [`HIRE_OFFER`], and stands
-    /// outside the spawn's cell.
+    /// offers Refit, hires out two escorts or more, and stands outside the
+    /// spawn's cell.
     fn choose_the_station(world: &mut World) {
         let (edge, _) = world_shape(world);
-        let mut stations: Vec<(f32, GeneratedBodyId, Entity, Vec3)> = world
-            .query_filtered::<(
-                Entity,
-                &GeneratedBodyId,
-                &Position,
-                Option<&StationServices>,
-                Has<DerelictShipMarker>,
-                Option<&Allegiance>,
-                Option<&HullOffers>,
-            ), With<StationMarker>>()
-            .iter(world)
-            .filter(|(_, _, position, services, derelict, allegiance, offers)| {
+        let mut q_stations = world.query_filtered::<(
+            Entity,
+            &GeneratedBodyId,
+            &Position,
+            Option<&StationServices>,
+            Has<DerelictShipMarker>,
+            Option<&Allegiance>,
+        ), With<StationMarker>>();
+        let view: &World = world;
+        let mut stations: Vec<(f32, GeneratedBodyId, Entity, Vec3)> = q_stations
+            .iter(view)
+            .filter(|(station, _, position, services, derelict, allegiance)| {
                 station_offers(*services, *derelict, StationServiceType::Refit)
-                    && offers.is_some_and(|offers| {
-                        offers
-                            .0
-                            .get(HIRE_OFFER)
-                            .is_some_and(|offer| matches!(offer.terms, HullOfferType::Hire { .. }))
-                    })
+                    && hires_offered(view, *station) >= 2
                     && *allegiance != Some(&Allegiance::Enemy)
                     && SectorCoord::containing(Meters3::from_engine(position.0), edge)
                         != SectorCoord::ORIGIN
@@ -862,14 +928,15 @@ mod walk {
         let Some((distance, id, entity, at)) = stations.into_iter().next() else {
             panic!(
                 "station hire: the window on seed {STATION_SEED} holds no living, non-Enemy \
-                 station with Refit and an escort at offer {HIRE_OFFER} outside the spawn's cell"
+                 station with Refit and two escorts for hire outside the spawn's cell"
             );
         };
         let position = Meters3::from_engine(at);
         let cell = SectorCoord::containing(position, edge);
         info!(
-            "station hire: chose '{id}' in cell {cell}, {distance:.0} m out, offering {:?}",
-            catalogue_names(world, entity)
+            "station hire: chose '{id}' in cell {cell}, {distance:.0} m out, hiring out {} \
+             escorts",
+            hires_offered(world, entity)
         );
         let mut watch = world.resource_mut::<HireWatch>();
         watch.id = Some(id);
@@ -878,80 +945,151 @@ mod walk {
     }
 
     /// Disclosed fixture state: the player's balance set to
-    /// [`FIXTURE_CREDITS`]. Then record both balances, the offer, its price
-    /// and the id the escort will wear.
+    /// [`FIXTURE_CREDITS`]. Then record both balances, the offer, its price,
+    /// where it coasts and the id the escort will wear.
     fn record_before_hire(world: &mut World) {
         let player = player(world);
         let station = station(world);
         world.get_mut::<ShipCredits>(player).expect("a balance").0 = FIXTURE_CREDITS;
         info!("station hire: fixture sets the player's balance to {FIXTURE_CREDITS} cr");
-        let items = world.resource::<GameItems>().clone();
-        let offer = world
-            .get::<HullOffers>(station)
-            .expect("station hire: the chosen station hires out escorts")
-            .0[HIRE_OFFER]
-            .clone();
-        let HullOfferType::Hire { slot } = offer.terms else {
-            panic!("station hire: offer {HIRE_OFFER} is for sale");
-        };
-        let price_cr = escort_price_cr(&items, &offer);
+        let (hull, slot, price_cr) = hire_offer(world, station);
         let before = BeforeHire {
             player_cr: credits(world, player),
             station_cr: credits(world, station),
             price_cr: u32::try_from(price_cr).expect("the price fits"),
-            name: offer.name.clone(),
+            name: world
+                .get::<Name>(hull)
+                .expect("an escort for hire is named")
+                .to_string(),
             escort: escort_id(&station_id(world), slot),
-            catalogue: catalogue_names(world, station),
+            hires: hire_names(world, station),
+            offer: in_station_frame(world, station, hull),
         };
         info!(
-            "station hire: offer {HIRE_OFFER} '{}' hires for {} cr as '{}'",
+            "station hire: '{}' hires for {} cr as '{}'",
             before.name, before.price_cr, before.escort
         );
         world.resource_mut::<HireWatch>().before = Some(before);
     }
 
+    /// The escort for hire at [`HIRE_OFFER`] of `station`: the hull, its
+    /// roster slot and its price.
+    fn hire_offer(world: &World, station: Entity) -> (Entity, u32, u64) {
+        let hull = *hire_hulls(world, station)
+            .get(HIRE_OFFER)
+            .expect("station hire: the station holds an escort for hire");
+        let Some(&ParkedHullType::Hire { slot }) = world.get::<ParkedHullType>(hull) else {
+            panic!("station hire: {hull:?} is not for hire");
+        };
+        let design = world
+            .get::<ShipDesignSections>(hull)
+            .expect("an escort for hire has its design");
+        let price = escort_price_cr(world.resource::<GameItems>(), &design.0);
+        (hull, slot, price)
+    }
+
+    /// Claim 0: every escort for hire coasts beside the station, undocked,
+    /// Neutral and driven by nobody, its hull clear of the station's and of
+    /// every other's.
+    fn assert_the_offers(world: &mut World) {
+        let station = station(world);
+        let hulls = hire_hulls(world, station);
+        // The centre of mass and arm of `root`, where it stands.
+        let hull = |root: Entity| {
+            let at = world.get::<Position>(root).expect("a body stands").0;
+            let turn = world.get::<Rotation>(root).expect("a body stands").0;
+            let com = world
+                .get::<ComputedCenterOfMass>(root)
+                .map_or(Vec3::ZERO, |com| com.0);
+            let arm = world.get::<HullRadius>(root).map_or(0.0, |arm| **arm);
+            (at + turn * com, arm)
+        };
+        let daylight =
+            |(a, arm_a): (Vec3, f32), (b, arm_b): (Vec3, f32)| a.distance(b) - arm_a - arm_b;
+        let mut gaps = Vec::new();
+        for (index, &offer) in hulls.iter().enumerate() {
+            let name = world.get::<Name>(offer).map_or("", Name::as_str);
+            assert!(
+                world.get::<DockedShip>(offer).is_none(),
+                "station hire: '{name}' for hire is not docked"
+            );
+            assert_eq!(
+                world.get::<Allegiance>(offer),
+                Some(&Allegiance::Neutral),
+                "station hire: '{name}' for hire is Neutral"
+            );
+            assert!(
+                world.get::<AISpaceshipMarker>(offer).is_none()
+                    && world.get::<PlayerSpaceshipMarker>(offer).is_none(),
+                "station hire: nobody drives '{name}' for hire"
+            );
+            gaps.push(("offer to station", daylight(hull(offer), hull(station))));
+            for &other in &hulls[index + 1..] {
+                gaps.push(("offer to offer", daylight(hull(offer), hull(other))));
+            }
+        }
+        let worst = gaps
+            .iter()
+            .copied()
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .expect("station hire: the station holds escorts for hire");
+        info!(
+            "station hire: {} escorts for hire coast, least daylight {} {:.0} m",
+            hulls.len(),
+            worst.0,
+            Meters::from_engine(worst.1).get()
+        );
+        assert!(
+            worst.1 > 0.0,
+            "station hire: an escort for hire overlaps a hull ({}: {:.0} m)",
+            worst.0,
+            Meters::from_engine(worst.1).get()
+        );
+        nova_probe::probe_marker(
+            world,
+            "outcome: escorts for hire coast beside the station",
+            serde_json::json!({
+                "offers": hulls.len(),
+                "least_m": Meters::from_engine(worst.1).get(),
+            }),
+        );
+    }
+
     /// The next escort stands at [`HIRE_OFFER`] once the first left the
-    /// catalogue, and its Hire button is in view.
+    /// station, and its Hire button is in view.
     fn next_escort_offered() -> Arc<Predicate> {
         when(|world| {
             let Some(station) = station_root(world) else {
                 return false;
             };
             let first = &world.resource::<HireWatch>().before().escort;
-            world
-                .get::<HullOffers>(station)
-                .and_then(|offers| offers.0.get(HIRE_OFFER))
-                .is_some_and(|offer| match offer.terms {
-                    HullOfferType::Hire { slot } => escort_id(&station_id(world), slot) != *first,
-                    HullOfferType::Sale => false,
+            hire_hulls(world, station)
+                .get(HIRE_OFFER)
+                .and_then(|hull| world.get::<ParkedHullType>(*hull))
+                .is_some_and(|terms| match terms {
+                    ParkedHullType::Hire { slot } => escort_id(&station_id(world), *slot) != *first,
+                    _ => false,
                 })
                 && hire_button_in_view(world)
         })
     }
 
-    /// Record the second escort's id and price.
+    /// Record the second escort's id, price and where its offer coasts.
     fn record_second_hire(world: &mut World) {
         let station = station(world);
-        let items = world.resource::<GameItems>().clone();
-        let offer = world
-            .get::<HullOffers>(station)
-            .expect("station hire: the station still hires out escorts")
-            .0[HIRE_OFFER]
-            .clone();
-        let HullOfferType::Hire { slot } = offer.terms else {
-            panic!("station hire: offer {HIRE_OFFER} is for sale");
-        };
+        let (hull, slot, price) = hire_offer(world, station);
         let id = escort_id(&station_id(world), slot);
-        let price = u32::try_from(escort_price_cr(&items, &offer)).expect("the price fits");
+        let price = u32::try_from(price).expect("the price fits");
         info!(
             "station hire: second escort '{}' hires for {price} cr as '{id}'",
-            offer.name
+            world.get::<Name>(hull).map_or("", Name::as_str)
         );
-        world.resource_mut::<HireWatch>().second = Some((id, price));
+        let offer = in_station_frame(world, station, hull);
+        world.resource_mut::<HireWatch>().second = Some((id, price, offer));
     }
 
-    /// Claim 1b: each escort spawned clear of the other escort, the player
-    /// and the station.
+    /// Claim 1b: each escort spawned where its offer coasted, clear of the
+    /// other escort, the player and the station.
     fn assert_the_spawns(world: &mut World) {
         let watch = world.resource::<HireWatch>();
         assert_eq!(
@@ -960,6 +1098,29 @@ mod walk {
             "station hire: two escort spawns recorded"
         );
         let spawns = [watch.spawns[0], watch.spawns[1]];
+        let offers = [
+            watch.before().offer,
+            watch
+                .second
+                .as_ref()
+                .expect("station hire: the second hire is recorded")
+                .2,
+        ];
+        let mut slips = Vec::new();
+        for (spawn, offer) in spawns.iter().zip(offers) {
+            let (at, turn) = spawn.station;
+            let slip = (turn.inverse() * (spawn.pose.0 - at)).distance(offer);
+            info!(
+                "station hire: an escort spawned {:.1} m from where its offer coasted",
+                Meters::from_engine(slip).get()
+            );
+            assert!(
+                slip < SPAWN_SLIP,
+                "station hire: an escort spawned {:.1} m from where its offer coasted",
+                Meters::from_engine(slip).get()
+            );
+            slips.push(Meters::from_engine(slip).get());
+        }
         let player = player(world);
         let station = station(world);
         // The centre of mass and arm of `root`, at a recorded root pose.
@@ -1005,8 +1166,10 @@ mod walk {
         );
         nova_probe::probe_marker(
             world,
-            "outcome: two hired escorts spawn clear of each other and every hull",
+            "outcome: two hired escorts spawn where their offers coasted, clear of each other and \
+             every hull",
             serde_json::json!({
+                "slip_m": slips,
                 "escort_to_escort_m": Meters::from_engine(gaps[0].1).get(),
                 "least_m": Meters::from_engine(worst.1).get(),
             }),
@@ -1064,13 +1227,13 @@ mod walk {
             .as_ref()
             .expect("station hire: the second hire is recorded")
             .1;
-        let mut catalogue = before.catalogue.clone();
-        catalogue.remove(HIRE_OFFER);
-        catalogue.remove(HIRE_OFFER);
+        let mut hires = before.hires.clone();
+        hires.remove(HIRE_OFFER);
+        hires.remove(HIRE_OFFER);
         assert_eq!(
-            catalogue_names(world, station),
-            catalogue,
-            "station hire: both hired offers left the catalogue"
+            hire_names(world, station),
+            hires,
+            "station hire: both hired hulls left the station's escorts for hire"
         );
         assert_eq!(
             credits(world, player),
@@ -1240,14 +1403,41 @@ mod walk {
         })
     }
 
-    /// Claim 2, first half: the station's cell froze without the escort, and
-    /// the escort is live and owned by no cell.
+    /// The names of the escorts for hire the frozen station `id` holds.
+    fn frozen_hires(sectors: &FrozenSectors, id: &str) -> Option<Vec<String>> {
+        sectors.iter().find_map(|(_, record)| {
+            record.bodies().iter().find_map(|body| match body.body() {
+                FrozenBodyType::Station(station) if body.id() == Some(id) => Some(
+                    station
+                        .parked()
+                        .iter()
+                        .filter(|hull| matches!(hull.terms(), ParkedHullType::Hire { .. }))
+                        .map(|hull| hull.name().to_string())
+                        .collect(),
+                ),
+                _ => None,
+            })
+        })
+    }
+
+    /// Claim 2, first half: the station's cell froze without the escort and
+    /// with the escorts for hire it kept, and the escort is live and owned
+    /// by no cell.
     fn assert_the_crossing(world: &mut World) {
         let escort = escort(world);
         let id = escort_name(world);
         assert!(
             !frozen_holds(world.resource::<FrozenSectors>(), &id),
             "station hire: no frozen record holds the escort"
+        );
+        let mut kept = world.resource::<HireWatch>().before().hires.clone();
+        kept.remove(HIRE_OFFER);
+        kept.remove(HIRE_OFFER);
+        let station_id = station_id(world).to_string();
+        assert_eq!(
+            frozen_hires(world.resource::<FrozenSectors>(), &station_id),
+            Some(kept),
+            "station hire: the station's record holds the escorts for hire it kept"
         );
         assert!(
             world.get::<PlayerFleetMarker>(escort).is_some()
@@ -2235,6 +2425,9 @@ mod walk {
             .until(player_docked())
             .deadline(SESSION_SECS)
             .add()
+            .step("station hire: assert the escorts for hire")
+            .on_enter(assert_the_offers)
+            .add()
             .step("station hire: set the fixture and record the balances")
             .on_enter(record_before_hire)
             .until(frames(1))
@@ -2352,7 +2545,10 @@ mod walk {
             .on_enter(mark_the_crossing)
             .add()
             .step("station hire: the fleet holds round the player at rest")
-            .until(and(fleet_in_formation(), player_at_rest()))
+            .until(and(
+                fleet_in_formation(),
+                and(fleet_at_rest(), player_at_rest()),
+            ))
             .deadline(SESSION_SECS)
             .add()
             .step("station hire: the player starts on its main drive")

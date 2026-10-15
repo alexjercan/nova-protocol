@@ -1,12 +1,13 @@
 //! An escort hired from a station's catalogue into the player's fleet.
 //!
 //! A living generated station hires out a few crewed hulls beside the ones it
-//! sells ([`HullOfferType::Hire`]). A hire at a docked station that offers
-//! Refit charges [`escort_price_cr`] and, while the fleet has a free slot
-//! ([`FLEET_SIDES`]), raises an [`EscortHireRequest`]: the scenario crate
-//! takes the offer off the catalogue and spawns the escort beside the player,
-//! following it. The escort's id is [`escort_id`], derived from the station's
-//! id and the offer's roster slot, so it is the same whenever it is hired.
+//! sells ([`HullOfferType::Hire`]). Each coasts beside the station, inert,
+//! until hired ([`ParkedHullType::Hire`]). A hire at a docked station that
+//! offers Refit charges [`escort_price_cr`] and, while the fleet has a free
+//! slot ([`FLEET_SIDES`]), raises an [`EscortHireRequest`]: the scenario
+//! crate makes the hull the player's escort where it coasts, following the
+//! player. The escort's id is [`escort_id`], derived from the station's id
+//! and the offer's roster slot, so it is the same whenever it is hired.
 
 use bevy::prelude::*;
 use nova_events::prelude::GeneratedBodyId;
@@ -32,17 +33,18 @@ pub mod prelude {
     };
 }
 
-/// Asks to hire offer `offer` of the station `station` into the fleet of the
-/// ship `entity`, on side `side`. Raised by a Ship pane hire after the hire
-/// rule moved the credits; the scenario crate observes it.
+/// Asks to hire the escort for hire `hull` of the station `station` into the
+/// fleet of the ship `entity`, on side `side`. Raised by a Station pane hire
+/// after the hire rule moved the credits; the scenario crate observes it.
 #[derive(EntityEvent, Clone, Debug)]
 pub struct EscortHireRequest {
     /// The hiring ship root, which the escort follows.
     pub entity: Entity,
     /// The station root that hires the escort out.
     pub station: Entity,
-    /// The offer's index in the station's [`HullOffers`].
-    pub offer: usize,
+    /// The escort for hire: a [`ParkedHull`] of the station listed
+    /// [`ParkedHullType::Hire`].
+    pub hull: Entity,
     /// The escort's scenario id, see [`escort_id`].
     pub escort: GeneratedBodyId,
     /// The fleet slot the escort takes, one of [`FLEET_SIDES`].
@@ -62,14 +64,11 @@ pub fn escort_id(station: &GeneratedBodyId, slot: u32) -> GeneratedBodyId {
 
 /// An escort's hire price: every section's recipe at ask
 /// ([`hull_price_cr`]) times [`ESCORT_HIRE_FACTOR`], rounded down.
-pub fn escort_price_cr(items: &GameItems, offer: &HullOffer) -> u64 {
+pub fn escort_price_cr(items: &GameItems, sections: &[DesignSection]) -> u64 {
     let (numerator, denominator) = ESCORT_HIRE_FACTOR;
     hull_price_cr(
         items,
-        offer
-            .sections
-            .iter()
-            .map(|section| &section.config.base.build),
+        sections.iter().map(|section| &section.config.base.build),
     )
     .saturating_mul(numerator)
         / denominator
@@ -108,8 +107,8 @@ pub enum EscortHireRefusalType {
     CreditOverflow,
 }
 
-/// What an allowed hire does: the price, both balances after, and the slot
-/// the escort takes.
+/// What an allowed hire does: the price, both balances after, and the fleet
+/// slot the escort takes.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EscortHirePlan {
     /// The hire price, see [`escort_price_cr`].
@@ -118,34 +117,21 @@ pub struct EscortHirePlan {
     pub own_cr: u32,
     /// The station's balance after the hire.
     pub station_cr: u32,
-    /// The roster slot of the offer, see [`escort_id`].
-    pub slot: u32,
     /// The fleet slot the escort takes: the first of [`FLEET_SIDES`] no
     /// escort holds.
     pub side: Vec3,
 }
 
-/// Plan hiring `offer` while docked with `partner`, with escorts already on
-/// the sides `held`. `partner` is `None` while the ship is not docked. Checks
-/// run in [`EscortHireRefusalType`] order. A refusal changes nothing.
-///
-/// # Panics
-///
-/// On an offer for sale: the Ship pane lists those apart, so a hire of one is
-/// an assembly fault.
+/// Plan hiring an escort at `price` ([`escort_price_cr`]) while docked with
+/// `partner`, with escorts already on the sides `held`. `partner` is `None`
+/// while the ship is not docked. Checks run in [`EscortHireRefusalType`]
+/// order. A refusal changes nothing.
 pub fn plan_escort_hire(
-    items: &GameItems,
-    offer: &HullOffer,
+    price: u64,
     partner: Option<EscortHirePartner>,
     held: &[Vec3],
     own_cr: u32,
 ) -> Result<EscortHirePlan, EscortHireRefusalType> {
-    let HullOfferType::Hire { slot } = offer.terms else {
-        panic!(
-            "plan_escort_hire: '{}' is for sale, not for hire",
-            offer.name
-        );
-    };
     let partner = partner.ok_or(EscortHireRefusalType::NotDocked)?;
     if !partner.offers {
         return Err(EscortHireRefusalType::NoRefitService);
@@ -156,7 +142,6 @@ pub fn plan_escort_hire(
         .ok_or(EscortHireRefusalType::FleetFull {
             cap: FLEET_SIDES.len(),
         })?;
-    let price = escort_price_cr(items, offer);
     if price > u64::from(own_cr) {
         return Err(EscortHireRefusalType::InsufficientCredits {
             need: price,
@@ -168,7 +153,6 @@ pub fn plan_escort_hire(
         price_cr: fit(price)?,
         own_cr: fit(u64::from(own_cr) - price)?,
         station_cr: fit(u64::from(partner.credits_cr) + price)?,
-        slot,
         side,
     })
 }
@@ -185,33 +169,29 @@ mod tests {
     #[test]
     fn a_hire_pays_half_again_the_hull_and_fills_starboard_then_port() {
         let items = items();
-        let escort = HullOffer {
-            terms: HullOfferType::Hire { slot: 1 },
-            ..offer()
-        };
+        let escort = offer();
         let recipes = hull_price_cr(
             &items,
-            escort
-                .sections
-                .iter()
-                .map(|section| &section.config.base.build),
+            escort.iter().map(|section| &section.config.base.build),
         );
+        let price = escort_price_cr(&items, &escort);
+        assert_eq!(price, recipes * 3 / 2);
         let partner = Some(EscortHirePartner {
             offers: true,
             credits_cr: 100,
         });
-        let plan = plan_escort_hire(&items, &escort, partner, &[Vec3::X], 10_000)
+        let plan = plan_escort_hire(price, partner, &[Vec3::X], 10_000)
             .expect("one side is free and the balance covers the price");
-        assert_eq!(u64::from(plan.price_cr), recipes * 3 / 2);
+        assert_eq!(u64::from(plan.price_cr), price);
         assert_eq!(plan.own_cr, 10_000 - plan.price_cr);
         assert_eq!(plan.station_cr, 100 + plan.price_cr);
-        assert_eq!((plan.slot, plan.side), (1, Vec3::NEG_X));
+        assert_eq!(plan.side, Vec3::NEG_X);
         assert_eq!(
-            plan_escort_hire(&items, &escort, partner, &FLEET_SIDES, 10_000),
+            plan_escort_hire(price, partner, &FLEET_SIDES, 10_000),
             Err(EscortHireRefusalType::FleetFull { cap: 2 })
         );
         assert_eq!(
-            plan_escort_hire(&items, &escort, partner, &[], 1),
+            plan_escort_hire(price, partner, &[], 1),
             Err(EscortHireRefusalType::InsufficientCredits {
                 need: recipes * 3 / 2,
                 have: 1

@@ -14,22 +14,23 @@
 //! balances, and a [`HullBuyRequest`] asks the scenario crate to do the
 //! swap.
 //!
-//! The station's hire list ([`HullOffers`]) is the escorts it hires out
-//! (`crate::sections::escort_hire`); no hull for sale is on it.
+//! A station's escorts for hire are its hulls too: each coasts beside it,
+//! undocked, listed [`ParkedHullType::Hire`], where [`hire_offer_offsets`]
+//! puts it (`crate::sections::escort_hire`).
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::{BuildRecipe, GameItems};
 
 use super::{docking_section::PORT_FACE, prelude::*};
 
-/// The parked hulls, the hire list, the price and trade-in rules, the plan,
-/// the pose rules and the buy request.
+/// The parked hulls, the price and trade-in rules, the plan, the pose rules
+/// and the buy request.
 pub mod prelude {
     pub use super::{
-        bought_hull_pose, hull_price_cr, hull_trade_in_cr, parked_hull_clear_pose,
-        parked_hull_pose, plan_hull_buy, posed_colliders, HullBuyPartner, HullBuyPlan,
-        HullBuyRefusalType, HullBuyRequest, HullOffer, HullOfferType, HullOffers, ParkedHull,
-        ParkedHullType, ParkedHulls,
+        bought_hull_pose, design_reach, hire_offer_offsets, hull_price_cr, hull_trade_in_cr,
+        parked_hull_clear_pose, parked_hull_pose, plan_hull_buy, posed_colliders, HullBuyPartner,
+        HullBuyPlan, HullBuyRefusalType, HullBuyRequest, HullOfferType, ParkedHull, ParkedHullType,
+        ParkedHulls, HIRE_OFFER_CLEARANCE,
     };
 }
 
@@ -42,7 +43,8 @@ pub enum HullOfferType {
     /// ports ([`ParkedHull`]) and a buy swaps it for the player's own.
     Sale,
     /// The player hires the hull, crewed, as an escort that joins the fleet
-    /// (`crate::sections::escort_hire`). A hire consumes the offer.
+    /// (`crate::sections::escort_hire`). It coasts beside the station until
+    /// then ([`ParkedHullType::Hire`]).
     Hire {
         /// The escort's slot in the station's roster: the index of its
         /// generated id, so a hired escort keeps one id whatever was hired
@@ -50,24 +52,6 @@ pub enum HullOfferType {
         slot: u32,
     },
 }
-
-/// One escort a station hires out, as the hire rule and the Station pane
-/// read it.
-#[derive(Clone, Debug)]
-pub struct HullOffer {
-    /// The catalogue name the list shows (`Vel scavenger escort 1`).
-    pub name: String,
-    /// The hire terms, see [`HullOfferType::Hire`].
-    pub terms: HullOfferType,
-    /// Every section the hull places, resolved, in design order.
-    pub sections: Vec<DesignSection>,
-}
-
-/// The escorts a station hires out, in catalogue order. Inserted on a
-/// station root by the scenario crate from the station's catalogue; a
-/// station with none hires none out.
-#[derive(Component, Clone, Debug, Default)]
-pub struct HullOffers(pub Vec<HullOffer>);
 
 /// How a parked hull is listed: a component of every [`ParkedHull`].
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Reflect)]
@@ -81,16 +65,22 @@ pub enum ParkedHullType {
         /// The rebuy price: the trade-in the station paid for it.
         price_cr: u32,
     },
+    /// An escort for hire, coasting beside the station, not docked.
+    Hire {
+        /// The escort's roster slot, see [`HullOfferType::Hire`].
+        slot: u32,
+    },
 }
 
-/// A ship root parked at a docking port of the station it names, listed
-/// for sale or for rebuy by its [`ParkedHullType`].
+/// A ship root the station it names holds, listed by its
+/// [`ParkedHullType`]: for sale or for rebuy, docked at one of its ports, or
+/// for hire, coasting beside it.
 ///
 /// A parked hull is inert: nobody drives it, it is Neutral, every
 /// capability is off, and it is neither lootable nor a body of any cell. It
-/// is docked with the station, it freezes and thaws inside the station's
-/// record, and it despawns with the station ([`ParkedHulls`]). A buy swaps
-/// it with the player's hull ([`HullBuyRequest`]).
+/// freezes and thaws inside the station's record, and it despawns with the
+/// station ([`ParkedHulls`]). A buy swaps a docked one with the player's
+/// hull ([`HullBuyRequest`]); a hire makes one for hire the player's escort.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Reflect)]
 #[relationship(relationship_target = ParkedHulls)]
 pub struct ParkedHull(pub Entity);
@@ -334,6 +324,54 @@ pub fn parked_hull_clear_pose(
         })
 }
 
+/// The daylight (world units, 100 m) an escort for hire keeps to its
+/// station's reach and to the escort before it on its side of the line.
+pub const HIRE_OFFER_CLEARANCE: f32 = 10.0;
+
+/// The reach (world units) of a design from its root: the furthest corner of
+/// any section's collider box.
+pub fn design_reach(sections: &[DesignSection]) -> f32 {
+    sections
+        .iter()
+        .map(|section| {
+            section.position.length()
+                + section
+                    .config
+                    .base
+                    .collider
+                    .unwrap_or_default()
+                    .aabb_half_extents()
+                    .length()
+        })
+        .fold(0.0, f32::max)
+}
+
+/// Where each escort for hire coasts beside its station, as a signed
+/// distance (world units) from the station root along one line: the first
+/// ahead, the second behind, the third ahead past the first, and so on.
+///
+/// `station_reach` is the station's [`design_reach`] and `reaches` each
+/// escort's, in list order. Each keeps [`HIRE_OFFER_CLEARANCE`] between its
+/// reach and the station's, and between its reach and the escort's before
+/// it on its side.
+pub fn hire_offer_offsets(station_reach: f32, reaches: &[f32]) -> Vec<f32> {
+    let mut edges = [station_reach; 2];
+    reaches
+        .iter()
+        .enumerate()
+        .map(|(index, &reach)| {
+            let side = index % 2;
+            let centre = edges[side] + HIRE_OFFER_CLEARANCE + reach;
+            edges[side] = centre + reach;
+            if side == 0 {
+                centre
+            } else {
+                -centre
+            }
+        })
+        .collect()
+}
+
 /// Every section of `sections` posed by a root at `(position, rotation)`,
 /// in design order.
 pub fn posed_colliders(
@@ -409,23 +447,32 @@ pub(crate) mod tests {
         }
     }
 
-    pub(crate) fn offer() -> HullOffer {
-        HullOffer {
-            name: "Test hull".to_string(),
-            terms: HullOfferType::Sale,
-            sections: vec![
-                section(
-                    "hull",
-                    SectionKind::Hull(HullSectionConfig::default()),
-                    recipe(100, 4),
-                ),
-                section(
-                    "pdc",
-                    SectionKind::Turret(TurretSectionConfig::default()),
-                    recipe(50, 2),
-                ),
-            ],
+    pub(crate) fn offer() -> Vec<DesignSection> {
+        vec![
+            section(
+                "hull",
+                SectionKind::Hull(HullSectionConfig::default()),
+                recipe(100, 4),
+            ),
+            section(
+                "pdc",
+                SectionKind::Turret(TurretSectionConfig::default()),
+                recipe(50, 2),
+            ),
+        ]
+    }
+
+    /// Escorts for hire alternate ahead and behind, each clear of the
+    /// station's reach and of the escort before it on its side.
+    #[test]
+    fn escorts_for_hire_coast_on_both_sides_clear_of_the_station_and_each_other() {
+        let reaches = [2.0, 3.0, 2.0];
+        let offsets = hire_offer_offsets(10.0, &reaches);
+        assert_eq!(offsets, vec![22.0, -23.0, 36.0]);
+        for (offset, reach) in offsets.iter().zip(reaches) {
+            assert!(offset.abs() - reach >= 10.0 + HIRE_OFFER_CLEARANCE);
         }
+        assert!(offsets[2] - reaches[2] - (offsets[0] + reaches[0]) >= HIRE_OFFER_CLEARANCE);
     }
 
     /// The price is every recipe at ask, and the trade-in each live
@@ -436,7 +483,7 @@ pub(crate) mod tests {
         let offer = offer();
         // 100 + 4 * 10 and 50 + 2 * 10.
         assert_eq!(
-            hull_price_cr(&items, offer.sections.iter().map(|s| &s.config.base.build)),
+            hull_price_cr(&items, offer.iter().map(|s| &s.config.base.build)),
             210
         );
         // Strips return 2 and 1 plates at 6: 12 whole and 6 at half health.

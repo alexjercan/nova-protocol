@@ -30,9 +30,9 @@ use nova_scenario::prelude::{
     asteroid_scenario_object_prepared, base_scenario_object, planet_scenario_object_prepared,
     resolve_ship_design, spaceship_scenario_object, station_scenario_object,
     BaseScenarioObjectConfig, GameShipDesigns, PendingParkedHull, PendingParkedHulls, PlanetMarker,
-    ShipDesignSource, StationHullCatalogue, StationMarker,
+    ShipDesignSource, StationMarker,
 };
-use nova_ship::prelude::{GameSections, HullOfferType};
+use nova_ship::prelude::GameSections;
 
 use crate::{
     bodies_clear,
@@ -368,8 +368,8 @@ fn require_resolved(id: &GeneratedBodyId, design: &ShipDesignSource, sections: &
 /// Spawn one generated station under `root`, where and as its manifest
 /// entry says: the entry's `design`, `spawn` and `hulls` are the whole
 /// station, and this adds only the pose and the identity. The hulls for
-/// sale park at its ports ([`PendingParkedHulls`]) and the escorts for hire
-/// are its catalogue. A dead station is the same
+/// sale park at its ports and the escorts for hire coast beside it
+/// ([`PendingParkedHulls`]). A dead station is the same
 /// design spawned `derelict`: the factory marks it, so its hull spawns
 /// inactive and lootable, and no service is offered on it.
 fn spawn_sector_station(commands: &mut Commands, root: Entity, station: SectorStation) {
@@ -395,16 +395,10 @@ fn spawn_sector_station(commands: &mut Commands, root: Entity, station: SectorSt
         ChildOf(root),
     ));
     station_scenario_object(&mut entity, &design, &spawn);
-    let (sales, hires): (Vec<_>, Vec<_>) = hulls
-        .into_iter()
-        .partition(|offer| offer.terms == HullOfferType::Sale);
-    if !sales.is_empty() {
+    if !hulls.is_empty() {
         entity.insert(PendingParkedHulls(
-            sales.into_iter().map(PendingParkedHull::Sale).collect(),
+            hulls.into_iter().map(PendingParkedHull::Offer).collect(),
         ));
-    }
-    if !hires.is_empty() {
-        entity.insert(StationHullCatalogue(hires));
     }
 }
 

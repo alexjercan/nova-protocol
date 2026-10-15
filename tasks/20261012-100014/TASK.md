@@ -71,3 +71,16 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
 - Cards: an image of the ship plus a short line (name, type, Mk, size, price) and two buttons, Buy (or Hire) and Info. Drop the long section-count text from the card.
 - Info opens the ship in a read-only Ship-style view: rotate it, select and inspect sections, no editing.
 - "Trade-in" is unclear to the owner: say what the player gets for the current ship in plain words.
+
+- Agent decision 2026-10-15, item 1 (escorts for hire in the world). The owner said to work the list; the agent chose the marked options.
+  - Owner of an offer:
+    - (A, chosen) Reuse `ParkedHull` / `ParkedHulls` with a new `ParkedHullType::Hire { slot }`. Consequence: an offer freezes and thaws inside `FrozenStation.parked`, despawns with the station and stays out of the cells (`PersistentBody` is `Without<ParkedHull>`) with no new code; `StationHullCatalogue`, `HullOffers` and `FrozenStation.hulls` die, so the save format goes from 10 to 11.
+    - (B) A separate `HireOffer` relationship. Consequence: a second copy of the freeze, thaw, despawn and save paths.
+    - (C) Rename the relationship to a neutral name first. Consequence: a wide rename across lanes that edit the same files now.
+  - Where an offer stays:
+    - (A, chosen) Same orbit, phase shift. In the gravity well that holds the station, `hire_offer_place` rotates the station's pose and velocity about the orbit pole by offset / radius, so the offer has the station's orbit a little ahead or behind and does not drift. In flat space it stands on the station's +X with the station's velocity plus spin x arm. A thaw places the offers again by the same rule. Consequence: an elliptic orbit gives a bounded oscillation; offers are not checked against asteroids or the far approach of a port.
+    - (B) Pure coast from the spawn velocity. Consequence: in a well, offers drift away from an orbiting station.
+    - (C) `AIFollow` station-keeping on the station. Consequence: an AI driver, fuel and formation code on inert offers.
+  - Spacing: `hire_offer_offsets` puts offers on one line, alternately ahead and behind, each past the station's reach (`design_reach`) and the one before it plus `HIRE_OFFER_CLEARANCE` (10 units, 100 m).
+  - "AI idle": no driver (`SpaceshipController::None`), Neutral, capabilities off, the same as a parked hull for sale.
+  - Hire: the offer hull freezes and despawns, and the record thaws as a new entity under `escort_id`, where the offer coasted and at its velocity: an AI driver leashed at `ESCORT_LEASH`, Player side, all capabilities on, with `PlayerFleetMarker` (so `OwnedShipMarker`) and `AIFollow`. Rejected: change the live hull in place. Consequence: every component that a parked hull has and an escort does not have would need a separate removal.

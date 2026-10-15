@@ -209,7 +209,7 @@ fn drive_the_sandbox(world: &mut World) {
                 .map(|(_, cell, _)| *cell);
             let stands = station_root(world).is_some_and(|station| {
                 world.get::<Position>(station).is_some()
-                    && world.get::<HullOffers>(station).is_some()
+                    && world.get::<PendingParkedHulls>(station).is_none()
             });
             if window_is(world, cell) && stands {
                 world.resource_mut::<Sandbox>().phase = SandboxPhaseType::Docking;
@@ -284,16 +284,19 @@ fn choose_the_station(world: &mut World) {
             Option<&StationServices>,
             Has<DerelictShipMarker>,
             Option<&Allegiance>,
-            Option<&HullOffers>,
+            Option<&ParkedHulls>,
+            Option<&PendingParkedHulls>,
         ), With<StationMarker>>()
         .iter(world)
-        .filter(|(_, position, services, derelict, allegiance, offers)| {
-            station_offers(*services, *derelict, StationServiceType::Refit)
-                && offers.is_some_and(|offers| !offers.0.is_empty())
-                && *allegiance != Some(&Allegiance::Enemy)
-                && SectorCoord::containing(Meters3::from_engine(position.0), edge)
-                    != SectorCoord::ORIGIN
-        })
+        .filter(
+            |(_, position, services, derelict, allegiance, parked, pending)| {
+                station_offers(*services, *derelict, StationServiceType::Refit)
+                    && (parked.is_some() || pending.is_some())
+                    && *allegiance != Some(&Allegiance::Enemy)
+                    && SectorCoord::containing(Meters3::from_engine(position.0), edge)
+                        != SectorCoord::ORIGIN
+            },
+        )
         .map(|(id, position, ..)| {
             (
                 Meters3::from_engine(position.0)

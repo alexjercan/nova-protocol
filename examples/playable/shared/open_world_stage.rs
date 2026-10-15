@@ -176,10 +176,10 @@ pub struct StationCandidate<'a> {
     pub derelict: bool,
     /// Its side.
     pub allegiance: Option<&'a Allegiance>,
-    /// Its escort catalogue.
-    pub offers: Option<&'a HullOffers>,
     /// It parks hulls for sale, or is about to.
     pub sells_hulls: bool,
+    /// It has escorts for hire coasting beside it, or is about to.
+    pub hires_escorts: bool,
 }
 
 impl StationCandidate<'_> {
@@ -205,6 +205,41 @@ pub struct ChosenStation {
     pub position: Meters3,
 }
 
+/// Whether `station` holds, or is about to hold, a hull for sale and an
+/// escort for hire.
+pub fn station_hull_terms(world: &World, station: Entity) -> (bool, bool) {
+    let mut terms = (false, false);
+    let mut take = |sale: bool| {
+        if sale {
+            terms.0 = true;
+        } else {
+            terms.1 = true;
+        }
+    };
+    if let Some(parked) = world.get::<ParkedHulls>(station) {
+        for hull in parked.iter() {
+            match world.get::<ParkedHullType>(hull) {
+                Some(ParkedHullType::Sale) => take(true),
+                Some(ParkedHullType::Hire { .. }) => take(false),
+                Some(ParkedHullType::Rebuy { .. }) | None => {}
+            }
+        }
+    }
+    if let Some(pending) = world.get::<PendingParkedHulls>(station) {
+        for hull in &pending.0 {
+            match hull {
+                PendingParkedHull::Offer(offer) => take(offer.terms == HullOfferType::Sale),
+                PendingParkedHull::Frozen(frozen) => match frozen.terms() {
+                    ParkedHullType::Sale => take(true),
+                    ParkedHullType::Hire { .. } => take(false),
+                    ParkedHullType::Rebuy { .. } => {}
+                },
+            }
+        }
+    }
+    terms
+}
+
 /// The station nearest the origin that `accept` takes, outside the spawn's
 /// cell, with ties broken by id.
 pub fn nearest_station(
@@ -212,33 +247,31 @@ pub fn nearest_station(
     accept: impl Fn(&StationCandidate<'_>) -> bool,
 ) -> Option<ChosenStation> {
     let edge = sector_edge(world)?;
-    let mut stations: Vec<(f32, GeneratedBodyId, Vec3)> = world
-        .query_filtered::<(
-            &GeneratedBodyId,
-            &Position,
-            Option<&StationServices>,
-            Has<DerelictShipMarker>,
-            Option<&Allegiance>,
-            Option<&HullOffers>,
-            Has<ParkedHulls>,
-            Has<PendingParkedHulls>,
-        ), With<StationMarker>>()
+    let mut q_stations = world.query_filtered::<(
+        Entity,
+        &GeneratedBodyId,
+        &Position,
+        Option<&StationServices>,
+        Has<DerelictShipMarker>,
+        Option<&Allegiance>,
+    ), With<StationMarker>>();
+    let world: &World = world;
+    let mut stations: Vec<(f32, GeneratedBodyId, Vec3)> = q_stations
         .iter(world)
-        .filter(
-            |(id, position, services, derelict, allegiance, offers, parked, pending)| {
-                accept(&StationCandidate {
-                    id,
-                    position: position.0,
-                    services: *services,
-                    derelict: *derelict,
-                    allegiance: *allegiance,
-                    offers: *offers,
-                    sells_hulls: *parked || *pending,
-                }) && SectorCoord::containing(Meters3::from_engine(position.0), edge)
-                    != SectorCoord::ORIGIN
-            },
-        )
-        .map(|(id, position, ..)| {
+        .filter(|(station, id, position, services, derelict, allegiance)| {
+            let (sells_hulls, hires_escorts) = station_hull_terms(world, *station);
+            accept(&StationCandidate {
+                id,
+                position: position.0,
+                services: *services,
+                derelict: *derelict,
+                allegiance: *allegiance,
+                sells_hulls,
+                hires_escorts,
+            }) && SectorCoord::containing(Meters3::from_engine(position.0), edge)
+                != SectorCoord::ORIGIN
+        })
+        .map(|(_, id, position, ..)| {
             (
                 Meters3::from_engine(position.0)
                     .distance(Meters3::ZERO)
@@ -457,15 +490,19 @@ pub fn advance_station_dock(
         }
         StationDockPhaseType::Jumped => {
             let chosen = dock.station.clone()?;
-            // Every hull the station parks takes its port first, so the
-            // berth takes the port left free.
+            // Every hull the station parks for sale or rebuy takes its port
+            // first, so the berth takes the port left free. An escort for
+            // hire coasts beside the station and never docks.
             let stands = body_by_id(world, &chosen.id).is_some_and(|station| {
                 world.get::<Position>(station).is_some()
                     && world.get::<PendingParkedHulls>(station).is_none()
                     && world.get::<ParkedHulls>(station).is_none_or(|parked| {
-                        parked
-                            .iter()
-                            .all(|hull| world.get::<DockedShip>(hull).is_some())
+                        parked.iter().all(|hull| {
+                            matches!(
+                                world.get::<ParkedHullType>(hull),
+                                Some(ParkedHullType::Hire { .. })
+                            ) || world.get::<DockedShip>(hull).is_some()
+                        })
                     })
             });
             if window_is(world, chosen.cell) && stands {

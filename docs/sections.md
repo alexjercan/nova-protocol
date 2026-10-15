@@ -196,10 +196,10 @@ civilization's advancement can build, and each hull is `generate_ship` at
 that advancement, so the size ceiling tiers the list: a first-ring station
 sells small hulls only. They ride `SectorStation.hulls` in the manifest
 (checked by `check_ship_design`, refused on a dead station).
-`spawn_sector_station` hands the hulls for sale to `PendingParkedHulls`, and
+`spawn_sector_station` hands every offer to `PendingParkedHulls`, and
 `park_pending_hulls` (`nova_scenario/src/objects/parked_hulls.rs`) spawns each
-as a real ship once the station's sections are live, in catalogue order,
-while two ports are free, and docks it by `dock_parked_hulls`. A hull takes
+as a real ship once the station's sections are live, in list order: a hull
+for sale while two ports are free, docked by `dock_parked_hulls`. A hull takes
 the first free port in design order where it stands clear:
 `parked_hull_clear_pose` (`nova_ship/src/sections/hull_buy.rs`) poses it by
 `parked_hull_pose`, the hull's first port facing the station's, and rolls it
@@ -209,12 +209,13 @@ another free port (`section_colliders_overlap`). A hull that fits nowhere is
 not parked, with a warning, so a station sells at most its ports less one.
 A parked hull is inert: no driver, Neutral, every capability off, not
 lootable, no credits. It carries `ParkedHull(station)` and `ParkedHullType`
-(`Sale` or `Rebuy { price_cr }`, `nova_ship/src/sections/hull_buy.rs`); the
+(`Sale`, `Rebuy { price_cr }` or `Hire { slot }`,
+`nova_ship/src/sections/hull_buy.rs`); the
 station's `ParkedHulls` despawns them with it. A parked hull is no persistent
 body of its own: `freeze_station` records each in `FrozenStation.parked`
 (`FrozenParkedHull`: name, listing, pose relative to the station, ship), and a
 thaw parks them again where they froze. A station whose only docks are its
-own parked hulls retires; the save format is 10.
+own parked hulls retires; the save format is 11.
 
 The Station pane's "Ships for sale" list
 (`nova_interface/src/station/shipyard.rs`) shows every hull parked at the
@@ -249,13 +250,25 @@ that is not the station's own parked hull keeps the station from retiring,
 so the player undocks the bought hull normally.
 
 After its hulls for sale the station lists one to three escorts for hire
-(`HullOfferType::Hire { slot }`): fighting roles (scavenger, armored) the
+(`HullOfferType::Hire { slot }`), each parked as `ParkedHullType::Hire` but
+not docked: it coasts beside the station, inert like a hull for sale. The
+escorts stand on a line through the station, alternately ahead and behind,
+`hire_offer_offsets` (`nova_ship/src/sections/hull_buy.rs`) spacing each past
+the station's reach and the one before it plus `HIRE_OFFER_CLEARANCE`
+(100 m); a reach is the farthest section's centre plus its collider's
+half-diagonal (`design_reach`). In a gravity well that holds the station,
+`hire_offer_place` rotates the station's pose and velocity about the orbit
+pole by the offset over the orbit radius, so an escort shares the station's
+orbit a little ahead or behind and does not drift; in flat space it stands
+along the station's +X with the station's velocity and spin. A thaw places
+the escorts again by the same rule. Fighting roles (scavenger, armored) the
 civilization can build, cycled from a seeded start, none where it builds no
 fighting role. Each keeps its roster slot, so `escort_id` (station id, stem
 `<stem>_<index>_escort`, the slot as index) gives one escort one id however
 the earlier ones were hired. The Station pane's "Escorts for hire" list
-(`nova_interface/src/station/escorts.rs`) shows each escort's length, kinds and
-price with a Hire button or the refusal. `plan_escort_hire`
+(`nova_interface/src/station/escorts.rs`) shows each escort coasting beside
+the docked station: its length, kinds and price with a Hire button or the
+refusal. `plan_escort_hire`
 (`nova_ship/src/sections/escort_hire.rs`) checks, in order: docked, `Refit`,
 a free fleet slot (`FLEET_SIDES`, starboard then port, so the cap is two),
 the player's balance against the price, and the station's balance plus the
@@ -263,12 +276,11 @@ price. The price is `escort_price_cr`, `hull_price_cr` times
 `ESCORT_HIRE_FACTOR` (3/2). A confirmed hire moves both balances (cause
 `EscortHire`), pushes `ShipInventoryReport::EscortHired` (`OnEscortHired`)
 and triggers `EscortHireRequest`. `hire_station_escort`
-(`nova_scenario/src/objects/fleet.rs`) takes the offer off the catalogue and
-spawns the escort Player-sided, with an empty hold and no credits, then adds
-`PlayerFleetMarker` and `AIFollow`. `escort_spawn_position` puts it on its
-slot side, away from the station, past both arms plus `AI_FOLLOW_GAP`, and
-steps it further out until it stands `ESCORT_SPAWN_CLEARANCE` (5 u) clear of
-every hull and sized body, so a second hire never lands on the first.
+(`nova_scenario/src/objects/fleet.rs`) freezes the offer, despawns it and
+thaws the record as the escort under `escort_id`, where the offer coasted
+and at its velocity: an AI driver leashed at `ESCORT_LEASH`, Player-sided,
+every capability on, with an empty hold and no credits, then adds
+`PlayerFleetMarker` and `AIFollow`.
 `update_follow_flight` (`nova_ship/src/input/ai/follow.rs`) flies the escort
 as the combat pilot flies: a held `MatchVelocity` of the leader's heading at
 a lagged speed plus a closing speed the hull can brake from (`ai_radial_speed`,
@@ -1718,7 +1730,7 @@ per contact. A symmetric rule - ram damage - wants both.
   pane: `crates/nova_interface/src/ship/catalogue.rs`, `ghost.rs` and
   `refit.rs`; proof:
   `examples/systems/system_station_add.rs`.
-- Hull buy: `HullOffers`, `hull_price_cr`, `hull_trade_in_cr`,
+- Hull buy: `ParkedHullType`, `hull_price_cr`, `hull_trade_in_cr`,
   `plan_hull_buy`, `bought_hull_pose`,
   `HullBuyRequest` - `crates/nova_ship/src/sections/hull_buy.rs`; the
   catalogue, `buy_station_hull` and `redock_bought_hull` -
@@ -1728,7 +1740,9 @@ per contact. A symmetric rule - ram damage - wants both.
   `examples/systems/system_station_buy.rs`.
 - Escort hire: `escort_id`, `escort_price_cr`, `plan_escort_hire`,
   `FLEET_SIDES`, `EscortHireRequest` -
-  `crates/nova_ship/src/sections/escort_hire.rs`; `AIFollow` -
+  `crates/nova_ship/src/sections/escort_hire.rs`; `hire_offer_offsets` -
+  `crates/nova_ship/src/sections/hull_buy.rs`; `hire_offer_place` -
+  `crates/nova_scenario/src/objects/parked_hulls.rs`; `AIFollow` -
   `crates/nova_ship/src/input/ai/follow.rs`; the spawn, `freeze_fleet` and
   `thaw_fleet_escort` - `crates/nova_scenario/src/objects/fleet.rs`; the pane:
   `crates/nova_interface/src/station/escorts.rs`; proof:

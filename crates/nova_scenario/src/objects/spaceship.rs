@@ -674,6 +674,19 @@ impl FrozenShip {
             ..self
         }
     }
+
+    /// This parked record as a hired escort keeps it: driven by
+    /// `controller`, on the player's side, every capability on. Its
+    /// sections, hold, damage and outcome markers stay.
+    #[must_use]
+    pub(crate) fn hired(self, controller: SpaceshipController) -> Self {
+        Self {
+            controller,
+            capabilities: ShipCapabilities::default(),
+            allegiance: Some(Allegiance::Player),
+            ..self
+        }
+    }
 }
 
 /// What a parked hull is permitted to do: nothing.

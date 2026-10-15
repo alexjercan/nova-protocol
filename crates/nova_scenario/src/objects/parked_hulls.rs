@@ -1,20 +1,28 @@
-//! The hulls a station parks at its docking ports: every hull it sells, and
-//! every hull the player traded in there.
+//! The hulls a station holds: every hull it sells and every hull the player
+//! traded in there, parked at its docking ports, and every escort it hires
+//! out, coasting beside it.
 //!
-//! A parked hull is a ship root of its own, docked with the station through
-//! one of its ports, and inert: nobody drives it, it is Neutral, every
-//! capability is off and it is not lootable ([`FrozenShip::parked`]). It is
-//! no body of any cell: it freezes into the station's record
-//! ([`freeze_parked_hulls`]) and despawns with the station
+//! A parked hull is a ship root of its own and inert: nobody drives it, it
+//! is Neutral, every capability is off and it is not lootable
+//! ([`FrozenShip::parked`]). It is no body of any cell: it freezes into the
+//! station's record ([`freeze_parked_hulls`]) and despawns with the station
 //! ([`ParkedHulls`]).
 //!
-//! A station's hulls arrive as [`PendingParkedHulls`]: the hulls for sale of
-//! a generated station's first spawn, or the records of a thaw.
+//! A station's hulls arrive as [`PendingParkedHulls`]: the offers of a
+//! generated station's first spawn, or the records of a thaw.
 //! [`park_pending_hulls`] spawns them once the station's ports are live: a
 //! hull for sale at the first free station port where it stands clear
 //! ([`parked_hull_clear_pose`]), one port always kept free for the player,
-//! and a thawed hull where it froze relative to the station.
-//! [`dock_parked_hulls`] then docks each with the port it lies on.
+//! a thawed docked hull where it froze relative to the station, and every
+//! escort for hire on a line through the station ([`hire_offer_offsets`]).
+//! [`dock_parked_hulls`] then docks each hull for sale or rebuy with the port
+//! it lies on.
+//!
+//! An escort for hire coasts: in a gravity well the line is the station's
+//! orbit, each escort on it ahead or behind with the station's speed, so it
+//! keeps its distance; in flat space the line is the station's +X. A thawed
+//! escort is placed again the same way, so it never comes back off the
+//! orbit it froze beside.
 //!
 //! A hull for sale that fits at no free port is not parked, with a warning:
 //! the catalogue offers what the station's ports hold. A hull for sale with
@@ -83,9 +91,11 @@ impl FrozenParkedHull {
 /// One hull a station has yet to park.
 #[derive(Clone, Debug)]
 pub enum PendingParkedHull {
-    /// A new hull for sale, parked at the next free port in design order.
-    Sale(StationHullOffer),
-    /// A hull thawed with its station, parked where it froze.
+    /// A new offer: a hull for sale, parked at the next free port in design
+    /// order, or an escort for hire, coasting beside the station.
+    Offer(StationHullOffer),
+    /// A hull thawed with its station: a docked one parks where it froze,
+    /// an escort for hire coasts where a new one would.
     Frozen(FrozenParkedHull),
 }
 
@@ -173,9 +183,9 @@ pub fn freeze_parked_hulls(
         .collect()
 }
 
-/// Spawn one parked hull of `station` at `pose`, moving as the station
-/// moves, with the berth that docks it. The caller builds the ship on the
-/// returned commands.
+/// Spawn one parked hull of `station` at `pose`, with the berth that docks
+/// it unless it is for hire. The caller builds the ship and sets its motion
+/// on the returned commands.
 pub(crate) fn spawn_parked_hull<'a>(
     commands: &'a mut Commands,
     station: Entity,
@@ -190,17 +200,22 @@ pub(crate) fn spawn_parked_hull<'a>(
         Visibility::Visible,
         ParkedHull(station),
         terms,
-        ParkedHullBerth::default(),
     ));
-    if matches!(terms, ParkedHullType::Rebuy { .. }) {
-        hull.insert(OwnedShipMarker);
+    match terms {
+        ParkedHullType::Sale => {
+            hull.insert(ParkedHullBerth::default());
+        }
+        ParkedHullType::Rebuy { .. } => {
+            hull.insert((ParkedHullBerth::default(), OwnedShipMarker));
+        }
+        ParkedHullType::Hire { .. } => {}
     }
     hull
 }
 
-/// The ship a new hull for sale spawns as: its design, inline, with no
-/// driver, Neutral, every capability off, an empty hold and no credits.
-fn sale_hull(offer: &StationHullOffer) -> impl Bundle {
+/// The ship a new offer spawns as: its design, inline, with no driver,
+/// Neutral, every capability off, an empty hold and no credits.
+fn offer_hull(offer: &StationHullOffer) -> impl Bundle {
     spaceship_scenario_object(SpaceshipConfig {
         design: ShipDesignSource::Inline(offer.design.clone()),
         controller: SpaceshipController::None,
@@ -213,23 +228,53 @@ fn sale_hull(offer: &StationHullOffer) -> impl Bundle {
     })
 }
 
+/// The resolved sections of the design `source`, for the hull `name`.
+///
+/// # Panics
+///
+/// On a design that does not resolve: the manifest check and the catalog
+/// digest refuse one before a station carries it.
+fn resolve_hull(
+    source: &ShipDesignSource,
+    name: &str,
+    game_designs: &GameShipDesigns,
+    game_sections: &GameSections,
+) -> Vec<DesignSection> {
+    let (resolved, errors) = resolve_ship_design(source, game_designs, game_sections);
+    assert!(
+        errors.is_empty(),
+        "park_pending_hulls: hull '{name}' does not resolve: {errors:?}"
+    );
+    resolved
+        .sections
+        .into_iter()
+        .map(|section| DesignSection {
+            id: section.id,
+            position: section.position,
+            rotation: section.rotation,
+            config: section.config,
+        })
+        .collect()
+}
+
 /// Park every station's pending hulls once its sections are live: a hull
 /// for sale, in catalogue order, on its first docking port at the first free
 /// station port in design order where it stands clear of the station, of
 /// the hulls parked before it and of the other free ports' approach lanes
 /// ([`parked_hull_clear_pose`]), while two ports are still free, so one
 /// stays free for the player; a hull that fits nowhere is dropped with a
-/// warning. A thawed hull parks where it froze relative to the station.
-/// Each moves as the station moves.
+/// warning. A thawed docked hull parks where it froze relative to the
+/// station, moving as the station moves. Every escort for hire, new or
+/// thawed, coasts where [`hire_offer_place`] puts it.
 ///
 /// The station's pose is its `Transform`: a station spawned this frame has
 /// no avian pose yet, and the spawn and the thaw both set the `Transform`.
 ///
 /// # Panics
 ///
-/// On hulls for sale beside thawed ones (a thawed station carries no new
-/// hulls for sale), and on a hull for sale whose design does not
-/// resolve or has no docking port.
+/// On new offers beside thawed hulls (a thawed station carries no new
+/// offers), and on an offer whose design does not resolve or a hull for sale
+/// with no docking port.
 #[expect(
     clippy::type_complexity,
     reason = "the station's pending list, pose, motion and design in one query"
@@ -246,6 +291,7 @@ fn park_pending_hulls(
         Option<&AngularVelocity>,
         Option<&ShipDesignSections>,
     )>,
+    q_wells: Query<(&Transform, &GravityWell)>,
 ) {
     for (station, pending, transform, velocity, spin, design) in &q_stations {
         // The section spawn has yet to run.
@@ -257,19 +303,53 @@ fn park_pending_hulls(
         let mut free: Vec<usize> = (0..design.0.len())
             .filter(|&index| design.0[index].config.kind.class() == SectionClass::Docking)
             .collect();
-        let sales = pending
+        let offers = pending
             .0
             .iter()
-            .filter(|hull| matches!(hull, PendingParkedHull::Sale(_)))
+            .filter(|hull| matches!(hull, PendingParkedHull::Offer(_)))
             .count();
         assert!(
-            sales == 0 || sales == pending.0.len(),
-            "park_pending_hulls: station {station:?} parks hulls for sale beside thawed ones"
+            offers == 0 || offers == pending.0.len(),
+            "park_pending_hulls: station {station:?} parks new offers beside thawed hulls"
         );
+        let mut places = hire_places(
+            pending,
+            transform,
+            velocity.0,
+            spin.0,
+            station_well(transform.translation, &q_wells),
+            design_reach(&design.0),
+            (&game_designs, &game_sections),
+        )
+        .into_iter();
         let mut parked: Vec<PlacedSectionCollider> = Vec::new();
         for hull in &pending.0 {
             match hull {
-                PendingParkedHull::Sale(offer) => {
+                PendingParkedHull::Offer(offer) if offer.terms != HullOfferType::Sale => {
+                    let HullOfferType::Hire { slot } = offer.terms else {
+                        unreachable!("the guard takes every offer but a sale");
+                    };
+                    let (pose, motion) = places.next().expect("one place per escort for hire");
+                    spawn_parked_hull(
+                        &mut commands,
+                        station,
+                        &offer.name,
+                        ParkedHullType::Hire { slot },
+                        pose,
+                    )
+                    .insert(offer_hull(offer))
+                    .insert((LinearVelocity(motion), AngularVelocity::ZERO));
+                }
+                PendingParkedHull::Frozen(frozen)
+                    if matches!(frozen.terms, ParkedHullType::Hire { .. }) =>
+                {
+                    let (pose, motion) = places.next().expect("one place per escort for hire");
+                    let mut hull =
+                        spawn_parked_hull(&mut commands, station, &frozen.name, frozen.terms, pose);
+                    thaw_ship(&mut hull, frozen.ship.clone());
+                    hull.insert((LinearVelocity(motion), AngularVelocity::ZERO));
+                }
+                PendingParkedHull::Offer(offer) => {
                     if free.len() < 2 {
                         warn!(
                             "park_pending_hulls: station {station:?} keeps its last free port; \
@@ -278,26 +358,12 @@ fn park_pending_hulls(
                         );
                         continue;
                     }
-                    let (resolved, errors) = resolve_ship_design(
+                    let sections = resolve_hull(
                         &ShipDesignSource::Inline(offer.design.clone()),
+                        &offer.name,
                         &game_designs,
                         &game_sections,
                     );
-                    assert!(
-                        errors.is_empty(),
-                        "park_pending_hulls: hull '{}' does not resolve: {errors:?}",
-                        offer.name
-                    );
-                    let sections: Vec<DesignSection> = resolved
-                        .sections
-                        .into_iter()
-                        .map(|section| DesignSection {
-                            id: section.id,
-                            position: section.position,
-                            rotation: section.rotation,
-                            config: section.config,
-                        })
-                        .collect();
                     let port = sections
                         .iter()
                         .position(|section| section.config.kind.class() == SectionClass::Docking)
@@ -339,7 +405,7 @@ fn park_pending_hulls(
                         ParkedHullType::Sale,
                         pose,
                     )
-                    .insert(sale_hull(offer))
+                    .insert(offer_hull(offer))
                     // After the spawn bundle, which holds a zero velocity.
                     .insert((velocity, spin));
                 }
@@ -353,6 +419,100 @@ fn park_pending_hulls(
             }
         }
         commands.entity(station).remove::<PendingParkedHulls>();
+    }
+}
+
+/// Where each escort for hire of `pending` coasts, in list order, and its
+/// velocity: the station at `station` moving at `velocity` and `spin`, in
+/// the well centred on `well` if any, with reach `station_reach`. Each
+/// stands at its [`hire_offer_offsets`] place on the line
+/// ([`hire_offer_place`]).
+fn hire_places(
+    pending: &PendingParkedHulls,
+    station: &Transform,
+    velocity: Vec3,
+    spin: Vec3,
+    well: Option<Vec3>,
+    station_reach: f32,
+    (game_designs, game_sections): (&GameShipDesigns, &GameSections),
+) -> Vec<(Transform, Vec3)> {
+    let reaches: Vec<f32> = pending
+        .0
+        .iter()
+        .filter_map(|hull| match hull {
+            PendingParkedHull::Offer(offer) if offer.terms != HullOfferType::Sale => {
+                Some((ShipDesignSource::Inline(offer.design.clone()), &offer.name))
+            }
+            PendingParkedHull::Frozen(frozen)
+                if matches!(frozen.terms, ParkedHullType::Hire { .. }) =>
+            {
+                Some((frozen.ship.design().clone(), &frozen.name))
+            }
+            _ => None,
+        })
+        .map(|(source, name)| {
+            design_reach(&resolve_hull(&source, name, game_designs, game_sections))
+        })
+        .collect();
+    hire_offer_offsets(station_reach, &reaches)
+        .into_iter()
+        .map(|offset| hire_offer_place(station, velocity, spin, well, offset))
+        .collect()
+}
+
+/// The centre of the well that holds a station at `at`, if any: of the
+/// wells whose reach covers it, the one that pulls hardest.
+fn station_well(at: Vec3, q_wells: &Query<(&Transform, &GravityWell)>) -> Option<Vec3> {
+    q_wells
+        .iter()
+        .filter(|(transform, well)| transform.translation.distance(at) < well.soi_radius)
+        .max_by(|(a, a_well), (b, b_well)| {
+            let pull = |transform: &Transform, well: &GravityWell| {
+                well.mu / transform.translation.distance_squared(at).max(f32::EPSILON)
+            };
+            pull(a, a_well).total_cmp(&pull(b, b_well))
+        })
+        .map(|(transform, _)| transform.translation)
+}
+
+/// Where an escort for hire `offset` world units along its station's line
+/// coasts, and its velocity.
+///
+/// In the well centred on `well`, the station's orbit turned about its pole
+/// by the angle `offset` spans on it carries the station's pose and
+/// velocity to the escort's: the escort flies the station's orbit, shifted
+/// along it, and keeps its distance. In flat space, or for a station at rest
+/// in the well, the escort stands `offset` along the station's +X, at the
+/// station's velocity plus its spin about the station.
+fn hire_offer_place(
+    station: &Transform,
+    velocity: Vec3,
+    spin: Vec3,
+    well: Option<Vec3>,
+    offset: f32,
+) -> (Transform, Vec3) {
+    let orbit = well.and_then(|centre| {
+        let radius = station.translation - centre;
+        let pole = radius.cross(velocity).try_normalize()?;
+        Some((centre, radius, pole))
+    });
+    match orbit {
+        Some((centre, radius, pole)) => {
+            let turn = Quat::from_axis_angle(pole, offset / radius.length());
+            (
+                Transform::from_translation(centre + turn * radius)
+                    .with_rotation((turn * station.rotation).normalize()),
+                turn * velocity,
+            )
+        }
+        None => {
+            let arm = station.rotation * Vec3::X * offset;
+            (
+                Transform::from_translation(station.translation + arm)
+                    .with_rotation(station.rotation),
+                velocity + spin.cross(arm),
+            )
+        }
     }
 }
 
@@ -414,5 +574,46 @@ fn dock_parked_hulls(
             entity: hull,
             target: parked.0,
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_escort_for_hire_shares_the_station_orbit_a_phase_ahead() {
+        let centre = Vec3::new(5.0, -3.0, 2.0);
+        let station = Transform::from_translation(centre + Vec3::new(400.0, 0.0, 0.0))
+            .with_rotation(Quat::from_rotation_y(0.3));
+        let velocity = Vec3::new(0.0, 0.0, -2.0);
+        let (pose, motion) = hire_offer_place(&station, velocity, Vec3::ZERO, Some(centre), 40.0);
+        let radius = pose.translation - centre;
+        assert!((radius.length() - 400.0).abs() < 1e-3, "same orbit radius");
+        assert!((motion.length() - 2.0).abs() < 1e-5, "same orbit speed");
+        assert!(radius.dot(motion).abs() < 1e-3, "still a circular orbit");
+        let arc = (station.translation - centre).angle_between(radius) * 400.0;
+        assert!(
+            (arc - 40.0).abs() < 1e-2,
+            "40 units along the orbit, got {arc}"
+        );
+        assert!(
+            (pose.translation - station.translation).dot(velocity) > 0.0,
+            "a positive offset stands ahead of the station"
+        );
+    }
+
+    #[test]
+    fn an_escort_for_hire_in_flat_space_stands_on_the_station_x_axis_and_turns_with_it() {
+        let station = Transform::from_translation(Vec3::new(1.0, 2.0, 3.0))
+            .with_rotation(Quat::from_rotation_z(std::f32::consts::FRAC_PI_2));
+        let velocity = Vec3::new(1.0, 0.0, 0.0);
+        let spin = Vec3::new(0.0, 0.0, 0.1);
+        let (pose, motion) = hire_offer_place(&station, velocity, spin, None, -20.0);
+        assert!(pose
+            .translation
+            .abs_diff_eq(Vec3::new(1.0, -18.0, 3.0), 1e-4));
+        assert_eq!(pose.rotation, station.rotation);
+        assert!(motion.abs_diff_eq(Vec3::new(3.0, 0.0, 0.0), 1e-4));
     }
 }
