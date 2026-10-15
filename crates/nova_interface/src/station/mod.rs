@@ -6,23 +6,26 @@
 //! - "This station": the station's price and a Buy button that raises a
 //!   `StationBuyCommand`, while a civilization keeps it. Docked at a station
 //!   the player owns, it says so.
+//! - "Your ships": a card per ship the player owns parked at the station,
+//!   with its 3D view, its name and length, a Board button that raises a
+//!   `HullBuyCommand`, and Info (`hull_info`). Shown only while it has a card.
 //! - "Ships for sale": a card per hull the station sells, with its 3D view,
-//!   its name, length and price, what the buy costs, a Buy button that raises
-//!   a `HullBuyCommand`, and Info (`hull_info`).
+//!   its name, length and price, a Buy button that raises a `HullBuyCommand`,
+//!   and Info.
 //! - "Escorts for hire": a card per escort the station hires out, with its
 //!   3D view, its name, length and price, a Hire button that raises an
 //!   `EscortHireCommand`, and Info.
 //!
-//! A line says so when the station offers none of the three. Refit (rebuild,
-//! swap, add) and the wreck strip stay in the Ship pane, beside the ship they
-//! change.
+//! A line says so when the station offers none of the three and parks none
+//! of the player's ships. Refit (rebuild, swap, add) stays in the Ship pane,
+//! beside the ship it changes; the wreck strip is in the Inventory pane.
 //!
 //! # Module layout
 //!
 //! | Module | Concern |
 //! | --- | --- |
 //! | `station_buy` | The "This station" block and the station buy action handler. |
-//! | `shipyard` | The "Ships for sale" list and the buy action handler. |
+//! | `shipyard` | The "Your ships" and "Ships for sale" lists and the buy and board action handler. |
 //! | `hull_preview` | The 3D view of each hull on a "Ships for sale" or "Escorts for hire" card. |
 //! | `escorts` | The "Escorts for hire" list and the hire action handler. |
 //! | `hull_info` | A card's Info: the hull in the Ship pane's view, read-only. |

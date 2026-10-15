@@ -264,12 +264,15 @@ body of its own: `freeze_station` records each in `FrozenStation.parked`
 thaw parks them again where they froze. A station whose only docks are its
 own parked hulls retires; the save format is 11.
 
-The Station pane's "Ships for sale" list
-(`nova_interface/src/station/shipyard.rs`) shows every hull parked at the
+The Station pane's "Your ships" and "Ships for sale" lists
+(`nova_interface/src/station/shipyard.rs`) show every hull parked at the
 docked station as a card (`spawn_hull_card_head` in `station/mod.rs`): a
 view of the hull and one line with its name, length and price, then a Buy
 button, or the refusal, and an Info button. A ship the player owns
-(`Owned`) says "your ship" in place of the price, over a Board button.
+(`Owned`) lists under "Your ships", above the hulls for sale, and says "your
+ship" in place of the price, over a Board button. Each list shows only while
+it has a card; a button is named by the hull's place among the station's
+owned and for-sale hulls (`HullBuy-{i}`, `HullBoard-{i}`, `HullInfo-{i}`).
 Info (`station/hull_info.rs`) sets `ShipViewSubject` to the card's hull and
 opens the Ship pane: `ShipSections` lists that hull's sections,
 `assign_section_codes` codes them, and the view turns, zooms and selects as

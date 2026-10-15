@@ -23,8 +23,8 @@
 //!
 //! 1. open the interface (`TAB`), Station tab: **Ships for sale** shows a
 //!    card per parked hull, each with the hull's own model turning and one
-//!    line (name, length, price) over Buy, and the old ship's card says
-//!    "your ship" over Board;
+//!    line (name, length, price) over Buy; after a buy, **Your ships** lists
+//!    above it the old ship's card, "your ship" over Board;
 //! 2. Inventory tab: the old ship's hold lists as storage while you are
 //!    docked;
 //! 3. buy another hull at its full price, or Board the old ship for free:
@@ -998,6 +998,36 @@ mod smoke {
 
     /// Open the Station tab and scroll the first owned card's Board button
     /// into view, then shoot `shot`.
+    /// Assert the owned card's Board button sits above every Buy button: the
+    /// "Your ships" list stands above "Ships for sale".
+    fn assert_owned_above_sale(world: &mut World) {
+        let board = board_button(world);
+        let board_rect =
+            ui_node_rect(world, &board).expect("shipyard sandbox: the Board button is laid out");
+        let buys: Vec<String> = world
+            .query::<&Name>()
+            .iter(world)
+            .map(|name| name.as_str().to_owned())
+            .filter(|name| name.starts_with("HullBuy-"))
+            .collect();
+        assert!(
+            !buys.is_empty(),
+            "shipyard sandbox: a hull for sale is listed beside the owned ship"
+        );
+        for buy in &buys {
+            let buy_rect =
+                ui_node_rect(world, buy).expect("shipyard sandbox: a Buy button is laid out");
+            assert!(
+                board_rect.max.y <= buy_rect.min.y,
+                "shipyard sandbox: {board} ({board_rect:?}) lists below {buy} ({buy_rect:?})"
+            );
+        }
+        info!(
+            "PASS {board} lists under Your ships, above {} Buy buttons",
+            buys.len()
+        );
+    }
+
     fn shoot_the_owned_card(
         script: AutopilotPlugin<GameStates>,
         label: &str,
@@ -1026,6 +1056,11 @@ mod smoke {
             .add()
             .step(format!("shipyard sandbox: settle the scroll ({label})"))
             .until(frames(SETTLE_FRAMES))
+            .add()
+            .step(format!(
+                "shipyard sandbox: check Your ships lists above Ships for sale ({label})"
+            ))
+            .on_enter(assert_owned_above_sale)
             .add()
             .step(format!("shipyard sandbox: shoot the Board card ({label})"))
             .on_enter(move |world: &mut World| shoot(world, shot))

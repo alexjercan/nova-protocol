@@ -1,11 +1,14 @@
-//! The Station pane's "Ships for sale" list and the Buy action.
+//! The Station pane's "Your ships" and "Ships for sale" lists, and the Buy
+//! and Board actions.
 //!
 //! While the ship is docked at a living station that offers Refit and has
 //! hulls parked at its ports ([`ParkedHulls`]), the pane lists every one as
 //! a card: the hull's own model turning (`hull_preview`) and one line with
-//! its name, length and price, or "your ship" for a ship the player owns
-//! ([`ParkedHullType::Owned`]). A hull for sale has a Buy button, or the
-//! reason the buy is refused; an owned ship has a Board button. A click
+//! its name, length and price. A ship the player owns
+//! ([`ParkedHullType::Owned`]) lists under "Your ships", above the hulls for
+//! sale, and says "your ship" in place of a price. Each list shows only
+//! while it has a card. A hull for sale has a Buy button, or the reason the
+//! buy is refused; an owned ship has a Board button. A click
 //! raises a [`HullBuyCommand`]; [`apply_station_hull_buy_commands`] plans a
 //! buy with [`plan_hull_buy`] and moves the price, or boards for free, and
 //! raises the [`HullBuyRequest`] the scenario crate swaps the hulls from.
@@ -31,8 +34,8 @@ use crate::{
 };
 
 /// A request to buy a hull for sale, or to board a ship the player owns,
-/// parked at the docked station, raised by a "Ships for sale" Buy or Board
-/// button.
+/// parked at the docked station, raised by a "Ships for sale" Buy or a
+/// "Your ships" Board button.
 #[derive(Message, Clone, Debug)]
 pub struct HullBuyCommand {
     /// The parked hull.
@@ -43,19 +46,29 @@ pub struct HullBuyCommand {
 const OWNED_DETAIL: &str = "your ship";
 
 /// The hull list container, hidden while the refit gate does not hold or
-/// the docked station sells no hull.
+/// the docked station has no hull parked for sale or owned.
 #[derive(Component)]
 pub(crate) struct StationHullList;
 
-/// The rows inside [`StationHullList`], and the row texts they were built from,
-/// so the rows respawn only when one changes.
-#[derive(Component, Default)]
-pub(crate) struct StationHullRows(Vec<HullRow>);
+/// One list inside [`StationHullList`], its header and its rows, hidden while
+/// it has no card.
+#[derive(Component)]
+pub(crate) struct StationHullSection;
+
+/// The rows of one [`StationHullSection`], and the row texts they were built
+/// from, so the rows respawn only when one changes.
+#[derive(Component)]
+pub(crate) struct StationHullRows {
+    /// The listing these rows show: [`ParkedHullType::Owned`] or
+    /// [`ParkedHullType::Sale`].
+    terms: ParkedHullType,
+    rows: Vec<HullRow>,
+}
 
 impl StationHullRows {
     /// The hulls the rows list, in list order.
     pub(crate) fn hulls(&self) -> impl Iterator<Item = Entity> + '_ {
-        self.0.iter().map(|row| row.hull)
+        self.rows.iter().map(|row| row.hull)
     }
 }
 
@@ -63,6 +76,11 @@ impl StationHullRows {
 #[derive(Clone, Debug, PartialEq)]
 struct HullRow {
     hull: Entity,
+    /// The hull's place among the station's owned and for-sale hulls, in
+    /// parked order, which names its buttons, so a name stays put when a
+    /// hull moves between the two lists.
+    index: usize,
+    terms: ParkedHullType,
     name: String,
     /// The card line after the name: length and price, or "your ship".
     detail: String,
@@ -137,8 +155,8 @@ fn plan_offer(
     plan_hull_buy(price, partner, own_cr.0)
 }
 
-/// Build the hull list: a header and the rows
-/// [`update_station_hull_list`] fills.
+/// Build the hull list: a "Your ships" and a "Ships for sale" section, each a
+/// header and the rows [`update_station_hull_list`] fills.
 pub(crate) fn spawn_station_hull_list(panel: &mut ChildSpawnerCommands) {
     panel
         .spawn((
@@ -153,14 +171,37 @@ pub(crate) fn spawn_station_hull_list(panel: &mut ChildSpawnerCommands) {
         ))
         .with_children(|list| {
             list.spawn(crate::pane::divider());
-            list.spawn(themed_label("Ships for sale", 13.0, UiColor::Accent));
-            list.spawn((StationHullRows::default(), offer_rows()));
+            for (header, terms) in [
+                ("Your ships", ParkedHullType::Owned),
+                ("Ships for sale", ParkedHullType::Sale),
+            ] {
+                list.spawn((
+                    StationHullSection,
+                    Node {
+                        display: Display::None,
+                        flex_direction: FlexDirection::Column,
+                        row_gap: Val::Px(8.0),
+                        flex_shrink: 0.0,
+                        ..default()
+                    },
+                ))
+                .with_children(|section| {
+                    section.spawn(themed_label(header, 13.0, UiColor::Accent));
+                    section.spawn((
+                        StationHullRows {
+                            terms,
+                            rows: Vec::new(),
+                        },
+                        offer_rows(),
+                    ));
+                });
+            }
         });
 }
 
 /// Show the hull list while the refit gate holds and the docked station
-/// has hulls parked, and respawn its rows when a hull, a price or a refusal
-/// changes.
+/// has hulls parked, each section while it has a card, and respawn a
+/// section's rows when a hull, a price or a refusal changes.
 #[expect(
     clippy::too_many_arguments,
     reason = "one system reading the parked hulls, the site, both balances and the list"
@@ -172,13 +213,11 @@ pub(crate) fn update_station_hull_list(
     q_parked: Query<&ParkedHulls>,
     q_hulls: ParkedHullQuery,
     q_credits: Query<&ShipCredits>,
-    mut q_list: Query<&mut Node, With<StationHullList>>,
-    mut q_rows: Query<(Entity, &mut StationHullRows)>,
+    mut q_list: Query<&mut Node, (With<StationHullList>, Without<StationHullSection>)>,
+    mut q_sections: Query<&mut Node, (With<StationHullSection>, Without<StationHullList>)>,
+    mut q_rows: Query<(Entity, &ChildOf, &mut StationHullRows)>,
 ) {
     let Ok(mut list) = q_list.single_mut() else {
-        return;
-    };
-    let Ok((rows_entity, mut shown)) = q_rows.single_mut() else {
         return;
     };
     let resolved = if site.gate(StationServiceType::Refit) {
@@ -196,6 +235,11 @@ pub(crate) fn update_station_hull_list(
                 .iter()
                 .filter_map(|hull| {
                     let (name, terms, design) = q_hulls.get(hull).ok()?;
+                    Some((hull, name, *terms, design))
+                })
+                .filter(|(_, _, terms, _)| !matches!(terms, ParkedHullType::Hire { .. }))
+                .enumerate()
+                .map(|(index, (hull, name, terms, design))| {
                     let length = hull_length_text(&design.0);
                     let (detail, action) = match terms {
                         ParkedHullType::Sale => {
@@ -209,57 +253,77 @@ pub(crate) fn update_station_hull_list(
                             )
                         }
                         ParkedHullType::Owned => (format!("{length}, {OWNED_DETAIL}"), Ok("Board")),
-                        ParkedHullType::Hire { .. } => return None,
+                        ParkedHullType::Hire { .. } => unreachable!("hires are filtered out above"),
                     };
-                    Some(HullRow {
+                    HullRow {
                         hull,
+                        index,
+                        terms,
                         name: name.to_string(),
                         detail,
                         action,
-                    })
+                    }
                 })
                 .collect();
         }
     }
-    let display = if rows.is_empty() {
-        Display::None
-    } else {
-        Display::Flex
-    };
-    if list.display != display {
-        list.display = display;
-    }
-    if shown.0 == rows {
-        return;
-    }
-    commands.entity(rows_entity).despawn_children();
-    commands.entity(rows_entity).with_children(|parent| {
-        for (index, row) in rows.iter().enumerate() {
-            parent.spawn(offer_cell()).with_children(|cell| {
-                spawn_hull_card_head(cell, row.hull, &row.name, &row.detail);
-                if let Err(refusal) = &row.action {
-                    cell.spawn(themed_label(refusal, 12.0, UiColor::Danger));
-                }
-                cell.spawn(card_actions()).with_children(|actions| {
-                    if let Ok(label) = row.action {
-                        actions
-                            .spawn((
-                                Name::new(format!("Hull{label}-{index}")),
-                                compact_button(ButtonSpec::new(label).fit().primary()),
-                            ))
-                            .observe(on_hull_buy_button(row.hull));
-                    }
-                    spawn_hull_info_button(
-                        actions,
-                        format!("HullInfo-{index}"),
-                        row.hull,
-                        format!("{}  {}", row.name, row.detail),
-                    );
-                });
-            });
+    show(&mut list, !rows.is_empty());
+    for (rows_entity, section, mut shown) in &mut q_rows {
+        let section_rows: Vec<HullRow> = rows
+            .iter()
+            .filter(|row| row.terms == shown.terms)
+            .cloned()
+            .collect();
+        if let Ok(mut node) = q_sections.get_mut(section.parent()) {
+            show(&mut node, !section_rows.is_empty());
         }
+        if shown.rows == section_rows {
+            continue;
+        }
+        commands.entity(rows_entity).despawn_children();
+        commands.entity(rows_entity).with_children(|parent| {
+            for row in &section_rows {
+                spawn_hull_card(parent, row);
+            }
+        });
+        shown.rows = section_rows;
+    }
+}
+
+/// Show `node` when `shown` holds, else hide it, writing only on a change.
+fn show(node: &mut Node, shown: bool) {
+    let display = if shown { Display::Flex } else { Display::None };
+    if node.display != display {
+        node.display = display;
+    }
+}
+
+/// One hull card: the head, the refusal line if any, and the Buy or Board
+/// button beside Info, named by the row's index.
+fn spawn_hull_card(parent: &mut ChildSpawnerCommands, row: &HullRow) {
+    let index = row.index;
+    parent.spawn(offer_cell()).with_children(|cell| {
+        spawn_hull_card_head(cell, row.hull, &row.name, &row.detail);
+        if let Err(refusal) = &row.action {
+            cell.spawn(themed_label(refusal, 12.0, UiColor::Danger));
+        }
+        cell.spawn(card_actions()).with_children(|actions| {
+            if let Ok(label) = row.action {
+                actions
+                    .spawn((
+                        Name::new(format!("Hull{label}-{index}")),
+                        compact_button(ButtonSpec::new(label).fit().primary()),
+                    ))
+                    .observe(on_hull_buy_button(row.hull));
+            }
+            spawn_hull_info_button(
+                actions,
+                format!("HullInfo-{index}"),
+                row.hull,
+                format!("{}  {}", row.name, row.detail),
+            );
+        });
     });
-    shown.0 = rows;
 }
 
 /// Raise a [`HullBuyCommand`] for the parked hull `hull` when its Buy or
