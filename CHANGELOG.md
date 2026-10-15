@@ -125,12 +125,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
   item ids the game uses, each in a fixed category.
 - **(breaking)** An asteroid `lock_signature` override must be finite and above
   zero. Any other value fails at lint and at load.
-- **(breaking)** `Station` content spawns by id as `kind: Station` with a
-  required side and `collapse_threshold`. Save format 10 (chart, plates,
-  fleet, owned stations, role, parked hulls) refuses old saves.
-- **(breaking)** A `Station` item nests its hull, services, stock and credits
-  in `design`. A `Station` spawn takes `design: Prototype(id)` or a whole
-  `Inline((..))` station.
+- **(breaking)** `Station` content holds its hull, services, stock and credits
+  under `design` and spawns from `Prototype(id)` or `Inline`, with a side.
+  Save format 10 refuses old saves.
 - A station is a dynamic body: gravity and rams move it, its bridge levels it
   and it orbits in a well. At its `collapse_threshold` share of hull it
   collapses like a ship and drops its hold and storage.
