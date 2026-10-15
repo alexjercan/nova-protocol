@@ -560,6 +560,38 @@ impl ShipPartSnapshot {
         sources
     }
 
+    /// The parts of `family` a generated station may carry at `advancement`,
+    /// grouped by source as [`eligible`](Self::eligible) groups them. A
+    /// station never flies, mines or takes cargo in through an intake, so
+    /// those families are empty. Its only weapon is a turret: a turret
+    /// traverses, so it covers the station from any face, and a fixed bore
+    /// on a hull that never turns to aim cannot.
+    pub fn station_parts(
+        &self,
+        family: ShipPartFamilyType,
+        advancement: f32,
+    ) -> BTreeMap<&str, Vec<&ShipPart>> {
+        let mut sources: BTreeMap<&str, Vec<&ShipPart>> = BTreeMap::new();
+        let carried = matches!(
+            family,
+            ShipPartFamilyType::Hull
+                | ShipPartFamilyType::Controller
+                | ShipPartFamilyType::Docking
+                | ShipPartFamilyType::Weapon
+        );
+        if !carried {
+            return sources;
+        }
+        for part in &self.parts {
+            let turret_only = family != ShipPartFamilyType::Weapon
+                || matches!(part.config.kind, SectionKind::Turret(_));
+            if part.family == family && part.advancement <= advancement && turret_only {
+                sources.entry(part.source.as_str()).or_default().push(part);
+            }
+        }
+        sources
+    }
+
     /// The roles whose every required family has an eligible part at
     /// `advancement`. Civilian and industrial are always among them: a
     /// snapshot without their floor parts does not build. A fighting role is

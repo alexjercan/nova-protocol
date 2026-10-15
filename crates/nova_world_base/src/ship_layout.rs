@@ -107,7 +107,7 @@ const STRUCTURAL_PALETTE: usize = 3;
 
 /// How far below a request's advancement a drive or weapon may score and still
 /// be drawn before the weaker parts of its source.
-const TIER_BAND: f32 = 0.5;
+pub(crate) const TIER_BAND: f32 = 0.5;
 
 /// The fewest stations a spine has: a nose, a body and a stern.
 const MIN_STATIONS: i32 = 3;
@@ -137,7 +137,7 @@ const MINING_CHANCE: (f32, f32) = (0.25, 0.75);
 const MINING_PAIR_ADVANCEMENT: f32 = 0.5;
 
 /// The six cardinal steps, in [`CELL_FACES`](nova_ship::prelude::CELL_FACES) order.
-const STEPS: [IVec3; 6] = [
+pub(crate) const STEPS: [IVec3; 6] = [
     IVec3::X,
     IVec3::NEG_X,
     IVec3::Y,
@@ -837,7 +837,7 @@ fn stream(request: ShipLayoutRequest, attempt: u32, aspect: &[u8]) -> SeedStream
 }
 
 /// `items` in a seeded order.
-fn shuffled<T>(mut items: Vec<T>, stream: &mut SeedStream) -> Vec<T> {
+pub(crate) fn shuffled<T>(mut items: Vec<T>, stream: &mut SeedStream) -> Vec<T> {
     for index in (1..items.len()).rev() {
         let pick = ((stream.unit() * (index + 1) as f32) as usize).min(index);
         items.swap(index, pick);
@@ -846,7 +846,7 @@ fn shuffled<T>(mut items: Vec<T>, stream: &mut SeedStream) -> Vec<T> {
 }
 
 /// A signed index as a section id writes it: `n<abs>` when negative.
-fn signed(value: i32) -> String {
+pub(crate) fn signed(value: i32) -> String {
     if value < 0 {
         format!("n{}", value.unsigned_abs())
     } else {
@@ -878,16 +878,16 @@ fn reflects(starboard: &OrientedPart, port: &OrientedPart) -> bool {
 }
 
 /// One part mounted in a layout under construction.
-struct Placement<'a> {
-    id: String,
-    part: &'a ShipPart,
-    oriented: OrientedPart,
+pub(crate) struct Placement<'a> {
+    pub(crate) id: String,
+    pub(crate) part: &'a ShipPart,
+    pub(crate) oriented: OrientedPart,
     /// The grid cell of the block's minimum corner.
-    anchor: IVec3,
+    pub(crate) anchor: IVec3,
 }
 
 impl Placement<'_> {
-    fn position(&self) -> Vec3 {
+    pub(crate) fn position(&self) -> Vec3 {
         self.anchor.as_vec3() + self.oriented.origin
     }
 
@@ -897,7 +897,11 @@ impl Placement<'_> {
 }
 
 /// A section as the skin and lane rule read it.
-fn placed_part(config: &SectionConfig, position: Vec3, rotation: Quat) -> PlacedPart<'_> {
+pub(crate) fn placed_part(
+    config: &SectionConfig,
+    position: Vec3,
+    rotation: Quat,
+) -> PlacedPart<'_> {
     PlacedPart {
         position,
         rotation,
@@ -909,25 +913,25 @@ fn placed_part(config: &SectionConfig, position: Vec3, rotation: Quat) -> Placed
 
 /// One filled grid cell.
 #[derive(Clone, Copy)]
-struct Filled {
-    faces: [bool; 6],
-    exit: Option<usize>,
+pub(crate) struct Filled {
+    pub(crate) faces: [bool; 6],
+    pub(crate) exit: Option<usize>,
     /// Whether a structural cube fills it.
     structural: bool,
 }
 
 /// A layout's cells while it is built.
 #[derive(Default)]
-struct Grid<'a> {
-    filled: HashMap<IVec3, Filled>,
-    placements: Vec<Placement<'a>>,
+pub(crate) struct Grid<'a> {
+    pub(crate) filled: HashMap<IVec3, Filled>,
+    pub(crate) placements: Vec<Placement<'a>>,
 }
 
 impl<'a> Grid<'a> {
     /// Whether `oriented` may stand at `anchor`: every cell empty, every
     /// contact socket against socket or blind against blind, nothing fired
     /// into a neighbour, and at least one socket mated.
-    fn fits(&self, oriented: &OrientedPart, anchor: IVec3) -> bool {
+    pub(crate) fn fits(&self, oriented: &OrientedPart, anchor: IVec3) -> bool {
         let own: HashSet<IVec3> = oriented
             .cells
             .iter()
@@ -961,7 +965,7 @@ impl<'a> Grid<'a> {
 
     /// Whether `oriented` at `anchor` has a structural cube behind every
     /// cell of its back, the face opposite its exit.
-    fn backed(&self, oriented: &OrientedPart, anchor: IVec3) -> bool {
+    pub(crate) fn backed(&self, oriented: &OrientedPart, anchor: IVec3) -> bool {
         let Some(exit) = oriented.aims else {
             return false;
         };
@@ -982,7 +986,7 @@ impl<'a> Grid<'a> {
 
     /// Put `part` at `anchor`. `structural` marks a structural cube, which a
     /// backed part may stand against.
-    fn insert(
+    pub(crate) fn insert(
         &mut self,
         id: String,
         part: &'a ShipPart,
@@ -1009,7 +1013,7 @@ impl<'a> Grid<'a> {
     }
 
     /// Take the last placement back out.
-    fn pop(&mut self) {
+    pub(crate) fn pop(&mut self) {
         let placement = self.placements.pop().expect("a placement to take back");
         for cell in &placement.oriented.cells {
             self.filled
@@ -1018,7 +1022,7 @@ impl<'a> Grid<'a> {
     }
 
     /// Whether the last placement blocks an exit lane, its own included.
-    fn last_blocks_an_exit(&self) -> bool {
+    pub(crate) fn last_blocks_an_exit(&self) -> bool {
         let (last, ship) = self.placements.split_last().expect("a placement to check");
         let ship: Vec<PlacedPart> = ship.iter().map(Placement::placed).collect();
         placement_blocks_an_exit(&ship, &last.placed())

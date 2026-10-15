@@ -62,6 +62,7 @@ mod sector_stations;
 mod ship_layout;
 mod ship_parts;
 mod station_hulls;
+mod station_layout;
 
 #[cfg(all(not(target_arch = "wasm32"), any(test, feature = "test-support")))]
 pub mod test_support;
@@ -93,6 +94,11 @@ pub use crate::{
         ShipPart, ShipPartExclusionType, ShipPartFamilyType, ShipPartFault, ShipPartPack,
         ShipPartSnapshot,
     },
+    station_layout::{
+        generate_station, generated_station, station_archetype, station_ceiling,
+        StationArchetypeType, StationLayout, StationLayoutConstraintType, StationLayoutFailure,
+        StationLayoutRequest,
+    },
 };
 
 /// Glob-import surface: `use nova_world_base::prelude::*` brings the plugin,
@@ -110,16 +116,18 @@ pub mod prelude {
         WorldSaveStatus, WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_FORMAT,
     };
     pub use super::{
-        generate_ship, generate_wreck, plan_ship, role_style_id, sector_clusters, ship_stock,
+        generate_ship, generate_station, generate_wreck, generated_station, plan_ship,
+        role_style_id, sector_clusters, ship_stock, station_archetype, station_ceiling,
         Civilization, CivilizationField, CivilizationReach, CivilizationStatusType, ClusterSummary,
         Environment, EnvironmentFieldType, EnvironmentFields, HullSlot, NovaLayeredWorld,
         NovaWorldBasePlugin, PinnedStation, PlannedShip, SectorClusters, ShipDriveLayoutType,
         ShipLayout, ShipLayoutConstraintType, ShipLayoutFailure, ShipLayoutRequest, ShipPart,
         ShipPartExclusionType, ShipPartFamilyType, ShipPartFault, ShipPartPack, ShipPartSnapshot,
-        ARMOURED_STYLE_ID, BLOCK_WAYSTATION_STATION_ID, CIVILIAN_STYLE_ID, CLEARANCE_MARGIN,
-        GENERATED_STATION_DESIGN_IDS, INDUSTRIAL_STYLE_ID, OPEN_WORLD_BOUNDS_RADIUS_MAX,
-        OPEN_WORLD_SCENARIO_ID, RING_STATION_STATION_ID, SALVAGE_STYLE_ID,
-        SPIRE_STATION_STATION_ID, STATION_STYLE_ID, YARD_STATION_STATION_ID,
+        StationArchetypeType, StationLayout, StationLayoutConstraintType, StationLayoutFailure,
+        StationLayoutRequest, ARMOURED_STYLE_ID, BLOCK_WAYSTATION_STATION_ID, CIVILIAN_STYLE_ID,
+        CLEARANCE_MARGIN, GENERATED_STATION_DESIGN_IDS, INDUSTRIAL_STYLE_ID,
+        OPEN_WORLD_BOUNDS_RADIUS_MAX, OPEN_WORLD_SCENARIO_ID, RING_STATION_STATION_ID,
+        SALVAGE_STYLE_ID, SPIRE_STATION_STATION_ID, STATION_STYLE_ID, YARD_STATION_STATION_ID,
     };
 }
 
