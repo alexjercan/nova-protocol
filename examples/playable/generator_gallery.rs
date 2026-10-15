@@ -17,7 +17,10 @@
 //! and greebles are the real ones.
 //!
 //! Camera: drag with the left or right mouse button to orbit the rows, scroll
-//! to zoom, `F` to fit both rows in view again. A new row fits itself.
+//! to zoom, `F` to fit both rows in view again. A new row fits itself. Click a
+//! hull to orbit it alone, fitted to its clearance sphere; `F` goes back to
+//! the rows. A new row keeps the focus on the hull in the same slot, and drops
+//! it when that slot is gone.
 //!
 //! ```text
 //! nix develop --command cargo run --example generator_gallery --features debug
@@ -31,12 +34,16 @@
 //! Under `NOVA_AUTOPILOT=1` a smoke walk stands five ships and five ring
 //! stations across advancement 0 to 1, checks each one was generated and
 //! passed the lint, shoots `generator-gallery.png` with `NOVA_CAPTURE=1`,
-//! asks for the ships as wrecks and checks them the same way, then shoots the
-//! spire and the yard rows. Unset, no walk and no deadline run.
+//! clicks the last ship through the click's own pick and shoots
+//! `generator-gallery-focus.png`, asks for the ships as wrecks, checks them the
+//! same way and that the focus stayed on the last ship, goes back to the rows,
+//! then shoots the spire and the yard rows. Unset, no walk and no deadline
+//! run.
 
 use bevy::{
     input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll, MouseScrollUnit},
     prelude::*,
+    window::PrimaryWindow,
 };
 use diagnostics::{palette, DiagnosticsGizmos, DiagnosticsPanel, DiagnosticsSystems};
 use nova_protocol::{
@@ -89,6 +96,10 @@ const ZOOM_PER_LINE: f32 = 0.9;
 /// Pixels a pixel-unit scroll counts as one line.
 const PIXELS_PER_LINE: f32 = 40.0;
 
+/// The most pixels the mouse may travel between a left press and its release
+/// for the release to count as a click, not an orbit drag.
+const CLICK_SLOP_PX: f32 = 4.0;
+
 fn main() -> bevy::app::AppExit {
     let mut app = AppBuilder::new()
         .with_game_plugins(|app: &mut App| {
@@ -106,7 +117,7 @@ fn main() -> bevy::app::AppExit {
         })
         .build();
     app.add_plugins(diagnostics::DiagnosticsHintPlugin::new(
-        "the world's generated hulls in one row",
+        "the world's generated hulls: click a hull to orbit it, F for all",
     ));
     app.add_systems(
         PostUpdate,
@@ -257,8 +268,14 @@ struct Orbit {
     yaw: f32,
     pitch: f32,
     distance: f32,
-    /// Every standing hull's centre and clearance radius, in engine units.
+    /// Every standing hull's centre and clearance radius, in engine units:
+    /// the ships first, then the stations.
     stands: Vec<(Vec3, f32)>,
+    /// How many of `stands` are ships.
+    ships: usize,
+    /// The stand a fit holds alone, by index into `stands`. `None` fits
+    /// every stand.
+    focus: Option<usize>,
     /// Fit the stands in view on the next frame.
     fit: bool,
 }
@@ -271,6 +288,8 @@ impl Default for Orbit {
             pitch: 0.35,
             distance: 100.0,
             stands: Vec::new(),
+            ships: 0,
+            focus: None,
             fit: false,
         }
     }
@@ -287,12 +306,16 @@ impl Orbit {
         self.target + self.back() * self.distance
     }
 
-    /// Look at the centre of the stands' bounds from the distance that holds
-    /// every stand inside a perspective view of vertical field of view `fov`
-    /// and width over height `aspect`, with [`FIT_MARGIN`].
+    /// Look at the centre of the fitted stands' bounds from the distance that
+    /// holds each of them inside a perspective view of vertical field of view
+    /// `fov` and width over height `aspect`, with [`FIT_MARGIN`]. The fitted
+    /// stands are the focused one, or every stand when none is focused.
     fn fit_to(&mut self, fov: f32, aspect: f32) {
-        let Some((low, high)) = self
-            .stands
+        let spheres = match self.focus.and_then(|index| self.stands.get(index..=index)) {
+            Some(focused) => focused,
+            None => &self.stands,
+        };
+        let Some((low, high)) = spheres
             .iter()
             .map(|(centre, radius)| {
                 (
@@ -315,7 +338,7 @@ impl Orbit {
         // A sphere fits when its offset across the view plus its radius,
         // widened for the view's slant, stays inside the frustum at its depth.
         let mut distance: f32 = 1.0;
-        for (centre, radius) in &self.stands {
+        for (centre, radius) in spheres {
             let offset = *centre - self.target;
             let nearer = offset.dot(back);
             for (across, half) in [(offset.dot(right), half_wide), (offset.dot(up), half_tall)] {
@@ -324,6 +347,39 @@ impl Orbit {
             }
         }
         self.distance = distance * FIT_MARGIN;
+    }
+
+    /// The stand whose clearance sphere `ray` enters first, by index.
+    fn pick(&self, ray: Ray3d) -> Option<usize> {
+        self.stands
+            .iter()
+            .enumerate()
+            .filter_map(|(index, (centre, radius))| {
+                let offset = *centre - ray.origin;
+                let along = offset.dot(*ray.direction);
+                let miss_squared = offset.length_squared() - along * along;
+                let half_chord_squared = radius * radius - miss_squared;
+                if half_chord_squared < 0.0 {
+                    return None;
+                }
+                let exit = along + half_chord_squared.sqrt();
+                (exit > 0.0).then_some((index, along - half_chord_squared.sqrt()))
+            })
+            .min_by(|(_, near), (_, other)| near.total_cmp(other))
+            .map(|(index, _)| index)
+    }
+
+    /// Focus the stand under `cursor`, a point of `camera`'s viewport, and fit
+    /// it on the next frame. A click on no stand keeps the focus. Returns the
+    /// stand picked.
+    fn click(&mut self, camera: &Camera, eye: &GlobalTransform, cursor: Vec2) -> Option<usize> {
+        let picked = camera
+            .viewport_to_world(eye, cursor)
+            .ok()
+            .and_then(|ray| self.pick(ray))?;
+        self.focus = Some(picked);
+        self.fit = true;
+        Some(picked)
     }
 }
 
@@ -408,6 +464,18 @@ fn load_row(
         .copied()
         .zip(ships.iter().chain(&stations).copied())
         .collect();
+    // The focus stays on the same slot, the ship or the station of its
+    // column, while the new rows still stand one there.
+    let old_ships = orbit.ships;
+    orbit.focus = orbit.focus.and_then(|index| {
+        if index < old_ships {
+            (index < ships.len()).then_some(index)
+        } else {
+            let column = index - old_ships;
+            (column < stations.len()).then_some(ships.len() + column)
+        }
+    });
+    orbit.ships = ships.len();
     orbit.fit = true;
     let reach = orbit
         .stands
@@ -702,8 +770,9 @@ fn reroll(seed: u32) -> u32 {
 }
 
 /// Orbit the scenario camera round the rows: drag to turn, scroll to zoom,
-/// `F` to fit the rows in view again. A new row fits itself. The pose is
-/// pinned on the camera, so the free-fly rig never moves it.
+/// click a hull to orbit it alone, `F` to fit the rows in view again. A new
+/// row fits itself. A press that starts over the egui window never picks. The
+/// pose is pinned on the camera, so the free-fly rig never moves it.
 #[expect(
     clippy::too_many_arguments,
     reason = "one system reads every camera input"
@@ -716,18 +785,51 @@ fn orbit_camera(
     motion: Res<AccumulatedMouseMotion>,
     scroll: Res<AccumulatedMouseScroll>,
     egui_input: Option<Res<EguiWantsInput>>,
+    q_window: Query<&Window, With<PrimaryWindow>>,
     q_camera: Query<
-        (Entity, Option<&ScriptedCameraPose>, Option<&Projection>),
+        (
+            Entity,
+            &Camera,
+            &GlobalTransform,
+            Option<&ScriptedCameraPose>,
+            Option<&Projection>,
+        ),
         With<ScenarioCameraMarker>,
     >,
+    mut press_travel: Local<Option<f32>>,
 ) {
     let typing = egui_input
         .as_ref()
         .is_some_and(|input| input.wants_keyboard_input());
-    if orbit.fit || (!typing && keys.just_pressed(KeyCode::KeyF)) {
+    let free = egui_input
+        .as_ref()
+        .is_none_or(|input| !input.wants_pointer_input());
+    // A left press that ends within the slop is a click; the travel counts
+    // only presses that started off the egui window.
+    if buttons.just_pressed(MouseButton::Left) {
+        *press_travel = free.then_some(0.0);
+    }
+    if let Some(travel) = press_travel.as_mut() {
+        *travel += motion.delta.length();
+    }
+    if buttons.just_released(MouseButton::Left)
+        && press_travel
+            .take()
+            .is_some_and(|travel| travel <= CLICK_SLOP_PX)
+    {
+        let cursor = q_window.single().ok().and_then(Window::cursor_position);
+        if let (Some(cursor), Some((_, camera, eye, _, _))) = (cursor, q_camera.iter().next()) {
+            orbit.click(camera, eye, cursor);
+        }
+    }
+    if !typing && keys.just_pressed(KeyCode::KeyF) {
+        orbit.focus = None;
+        orbit.fit = true;
+    }
+    if orbit.fit {
         let view = q_camera
             .iter()
-            .find_map(|(_, _, projection)| match projection {
+            .find_map(|(_, _, _, _, projection)| match projection {
                 Some(Projection::Perspective(perspective)) => {
                     Some((perspective.fov, perspective.aspect_ratio))
                 }
@@ -738,7 +840,6 @@ fn orbit_camera(
             orbit.fit = false;
         }
     }
-    let free = egui_input.is_none_or(|input| !input.wants_pointer_input());
     if free && (buttons.pressed(MouseButton::Left) || buttons.pressed(MouseButton::Right)) {
         orbit.yaw -= motion.delta.x * ORBIT_RADIANS_PER_PIXEL;
         orbit.pitch = (orbit.pitch + motion.delta.y * ORBIT_RADIANS_PER_PIXEL).clamp(-1.4, 1.4);
@@ -754,7 +855,7 @@ fn orbit_camera(
         position: Meters3::from_engine(orbit.eye()),
         look_at: Meters3::from_engine(orbit.target),
     };
-    for (camera, worn, _) in &q_camera {
+    for (camera, _, _, worn, _) in &q_camera {
         if worn.is_none_or(|worn| worn.position != pose.position || worn.look_at != pose.look_at) {
             commands
                 .entity(camera)
@@ -850,6 +951,8 @@ mod smoke {
     const SETTLE_FRAMES: u32 = 20;
     /// The PNG of the ships above the ring stations.
     const SHOT: &str = "generator-gallery.png";
+    /// The PNG of the last ship alone, after a click on it.
+    const FOCUS_SHOT: &str = "generator-gallery-focus.png";
     /// The PNG of the wrecks above the spire stations.
     const SPIRE_SHOT: &str = "generator-gallery-spire.png";
     /// The PNG of the wrecks above the yard stations.
@@ -880,6 +983,48 @@ mod smoke {
                 row.controls.condition == condition && row.controls.archetype == archetype
             }) && row_standing(world)
         })
+    }
+
+    /// Click the last ship where the camera shows its centre, through the
+    /// click's own pick, and check the pick names it.
+    fn click_last_ship(world: &mut World) {
+        let last = world.resource::<Orbit>().ships - 1;
+        let centre = world.resource::<Orbit>().stands[last].0;
+        let mut q_camera =
+            world.query_filtered::<(&Camera, &GlobalTransform), With<ScenarioCameraMarker>>();
+        let (camera, eye) = q_camera
+            .iter(world)
+            .next()
+            .expect("generator gallery: no scenario camera to click through");
+        let (camera, eye) = (camera.clone(), *eye);
+        let cursor = camera
+            .world_to_viewport(&eye, centre)
+            .expect("generator gallery: the last ship is off screen");
+        let picked = world.resource_mut::<Orbit>().click(&camera, &eye, cursor);
+        assert_eq!(
+            picked,
+            Some(last),
+            "generator gallery: a click on the last ship at {cursor} picks it"
+        );
+        info!("generator gallery: PASS the click at {cursor} focuses ship {last}");
+    }
+
+    /// The focus stayed on the last ship through the new rows.
+    fn assert_focus_kept(world: &mut World) {
+        let orbit = world.resource::<Orbit>();
+        assert_eq!(
+            orbit.focus,
+            Some(orbit.ships - 1),
+            "generator gallery: the new rows keep the focus on the last ship"
+        );
+        info!("generator gallery: PASS the wrecks keep the focus on the last ship");
+    }
+
+    /// Fit the rows again, as `F` does.
+    fn back_to_rows(world: &mut World) {
+        let mut orbit = world.resource_mut::<Orbit>();
+        orbit.focus = None;
+        orbit.fit = true;
     }
 
     /// Both rows: five ships and five stations across advancement 0 to 1,
@@ -929,6 +1074,15 @@ mod smoke {
             .until(shot_written(SHOT))
             .deadline(SHOT_SECS)
             .add()
+            .step("generator gallery: click the last ship")
+            .on_enter(click_last_ship)
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("generator gallery: shoot the last ship")
+            .on_enter(|world: &mut World| shoot(world, FOCUS_SHOT))
+            .until(shot_written(FOCUS_SHOT))
+            .deadline(SHOT_SECS)
+            .add()
             .step("generator gallery: ask for the wrecks")
             .on_enter(|world: &mut World| {
                 world.resource_mut::<Controls>().condition = ConditionType::Wreck;
@@ -940,7 +1094,11 @@ mod smoke {
             .deadline(SETUP_SECS)
             .add()
             .step("generator gallery: check the wrecks")
-            .on_enter(assert_the_rows)
+            .on_enter(|world: &mut World| {
+                assert_the_rows(world);
+                assert_focus_kept(world);
+                back_to_rows(world);
+            })
             .add()
             .step("generator gallery: ask for the spires")
             .on_enter(|world: &mut World| {
