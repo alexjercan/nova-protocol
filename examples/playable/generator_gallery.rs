@@ -564,11 +564,13 @@ fn generate_row(
         if let Some(style) = &controls.style {
             station.hull.presentation.style = Some(style.clone());
         }
-        let errors: Vec<String> = lint_station_design(&station, &known, items, "generator_gallery")
-            .into_iter()
-            .filter(|issue| issue.severity == LintSeverity::Error)
-            .map(|issue| issue.message)
-            .collect();
+        let name = format!("station_{generation}_{index}");
+        let errors: Vec<String> =
+            lint_station_design(&name, &station, &known, items, "generator_gallery")
+                .into_iter()
+                .filter(|issue| issue.severity == LintSeverity::Error)
+                .map(|issue| issue.message)
+                .collect();
         if !errors.is_empty() {
             failures.push(format!(
                 "{} station at advancement {advancement:.2}, seed {}: the lint refuses it: {}",
@@ -578,7 +580,6 @@ fn generate_row(
             ));
             continue;
         }
-        let name = format!("station_{generation}_{index}");
         stations.push(hull(name, advancement, station.hull, layout.clearance));
     }
     Row {

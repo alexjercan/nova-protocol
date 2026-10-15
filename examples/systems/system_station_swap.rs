@@ -150,7 +150,7 @@ fn station_void(game_assets: &GameAssets) -> ScenarioConfig {
             rotation: Quat::from_rotation_y(STATION_TURN),
         },
         kind: ScenarioObjectKind::Station(StationConfig {
-            design: BLOCK_WAYSTATION_STATION_ID.into(),
+            design: StationDesignSource::Prototype(BLOCK_WAYSTATION_STATION_ID.into()),
             allegiance: Allegiance::Neutral,
             derelict: false,
             initial_velocity: MetersPerSecond3::ZERO,

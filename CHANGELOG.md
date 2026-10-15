@@ -59,9 +59,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A destroyed ship drops its hold as cargo canisters, and a destroyed section
   drops its `strip_yield` share of each recipe part, rounded down. Both freeze
   and save.
-- Station parts: `truss_hull_section` and `solar_panel_section` hulls, a
-  `station` style with six `station_*` greebles, and the armed `ring_station`,
-  `spire_station` and `yard_station` designs.
+- Station parts: `truss_hull_section` and `solar_panel_section` hulls and a
+  `station` style with six `station_*` greebles.
 - The hull skin is rebuilt: flat plates at half or a whole cell with chamfered
   rims, folds and skirts that close each hull corner, and stairs clad as one
   ramp. No spikes, tents or saddles.
@@ -112,9 +111,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Modding & Mod Portal
 
-- Generated worlds place stations: a living civilization keeps one to three of
-  its station look (ring, spire or yard) at its nearest clusters; an extinct
-  one leaves one dead, lootable station.
+- Generated worlds place stations: each civilization builds a ring, spire or
+  yard sized, armed and stocked by its advancement. An extinct one leaves one
+  dead, lootable station.
 - **(breaking)** A scenario object id or a ship section id may not contain
   '/', and two sections of one ship may not share an id. Both fail at lint and
   at load.
@@ -129,6 +128,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** `Station` content spawns by id as `kind: Station` with a
   required side and `collapse_threshold`. Save format 10 (chart, plates,
   fleet, owned stations, role, parked hulls) refuses old saves.
+- **(breaking)** A `Station` item nests its hull, services, stock and credits
+  in `design`. A `Station` spawn takes `design: Prototype(id)` or a whole
+  `Inline((..))` station.
 - A station is a dynamic body: gravity and rams move it, its bridge levels it
   and it orbits in a well. At its `collapse_threshold` share of hull it
   collapses like a ship and drops its hold and storage.
@@ -226,8 +228,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Debug builds: F11 opens the Nova Debug window and freezes flight. It has
   overlay checkboxes (F3 diagnostics too), cheats, a command prompt, entities
   by sector and by type, and the raw inspector.
-- `screenshot_station_showcase` parks every loaded station design in a row and
-  shoots the row and each design, framed by its own hull.
+- `screenshot_station_showcase` parks every catalog station design and a
+  generated ring, spire and yard in a row and shoots the row and each, framed
+  by its own hull.
 - `wfc_arena` fighters lose infinite ammo. Holds carry up to two spare
   magazines per mounted ammo, PDC/torpedo/slug at 50/40/10% of hold. Old
   infinite-ammo perf baselines are not directly comparable.

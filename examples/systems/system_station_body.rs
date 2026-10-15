@@ -11,8 +11,8 @@
 //! | 1 | `outcome: station spawns from content` | the catalog station is up with a Docking and a Controller section and no Thruster |
 //! | 2 | `outcome: station stands and is seen` | it stands at rest where it was placed and the player's sensors hold it |
 //! | 3 | `outcome: station holds its attitude` | a nudged hull comes to rest back on its spawn attitude |
-//! | 4 | `outcome: station freezes as a station` | `freeze_body` yields `FrozenBodyType::Station` carrying the design id |
-//! | 5 | `outcome: station thaws whole` | the thawed station keeps its design, pose, motion, section set and storage |
+//! | 4 | `outcome: station freezes as a station` | `freeze_body` yields `FrozenBodyType::Station` carrying the catalog design's services |
+//! | 5 | `outcome: station thaws whole` | the thawed station keeps its services, pose, motion, section set and storage |
 //!
 //! The settle beat waits on the angular SPEED alone; whether the hull came
 //! back to its spawn attitude is the assertion's question, so a dead computer
@@ -138,7 +138,7 @@ fn station_void(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Station(StationConfig {
-            design: BLOCK_WAYSTATION_STATION_ID.into(),
+            design: StationDesignSource::Prototype(BLOCK_WAYSTATION_STATION_ID.into()),
             allegiance: Allegiance::Neutral,
             derelict: false,
             initial_velocity: MetersPerSecond3::ZERO,
@@ -326,20 +326,30 @@ fn section_kinds(world: &World, root: Entity) -> (bool, bool, bool) {
     found
 }
 
+/// The services the catalog waystation design offers.
+#[cfg(feature = "debug")]
+fn waystation_services(world: &World) -> Vec<StationServiceType> {
+    world
+        .resource::<GameStationDesigns>()
+        .get_design(&BLOCK_WAYSTATION_STATION_ID.into())
+        .expect("station probe: the catalog holds the waystation")
+        .design
+        .services
+        .clone()
+}
+
 /// Invariants 1 and 2: the catalog station is up with the right section
 /// kinds, at rest where it was placed, and the player's sensors hold it.
 #[cfg(feature = "debug")]
 fn assert_station_stands(world: &mut World) {
     let station = live_station(world).expect("station probe: the station must be up");
-    let marker = world
-        .entity(station)
-        .get::<StationMarker>()
-        .expect("station probe: the station root carries its marker")
-        .clone();
     assert_eq!(
-        marker.0.as_str(),
-        BLOCK_WAYSTATION_STATION_ID,
-        "station probe: the spawned station carries the catalog design id"
+        world
+            .entity(station)
+            .get::<StationServices>()
+            .map(|services| services.0.clone()),
+        Some(waystation_services(world)),
+        "station probe: the spawned station carries the catalog design's services"
     );
     let (docking, controller, thruster) = section_kinds(world, station);
     assert!(
@@ -462,7 +472,7 @@ fn assert_station_holds(world: &mut World) {
 }
 
 /// Invariant 4, then the thaw: freeze the live station as a retiring cell
-/// would, check the record is a station carrying the design id, despawn the
+/// would, check the record is a station carrying the services, despawn the
 /// live one and thaw the record under a fresh root.
 #[cfg(feature = "debug")]
 fn freeze_and_thaw_station(world: &mut World) {
@@ -476,9 +486,9 @@ fn freeze_and_thaw_station(world: &mut World) {
         );
     };
     assert_eq!(
-        record.design().as_str(),
-        BLOCK_WAYSTATION_STATION_ID,
-        "station probe: the frozen record carries the design id"
+        record.services(),
+        waystation_services(world).as_slice(),
+        "station probe: the frozen record carries the design's services"
     );
     assert_eq!(
         frozen.id(),
@@ -498,7 +508,7 @@ fn freeze_and_thaw_station(world: &mut World) {
     nova_probe::probe_marker(
         world,
         "outcome: station freezes as a station",
-        serde_json::json!({ "t": elapsed, "design": record.design().as_str() }),
+        serde_json::json!({ "t": elapsed, "services": record.services().len() }),
     );
 
     world.entity_mut(station).despawn();
@@ -554,9 +564,10 @@ fn assert_thawed_station(world: &mut World) {
     );
     let root = world.entity(station);
     assert_eq!(
-        root.get::<StationMarker>().map(|marker| marker.0.as_str()),
-        Some(BLOCK_WAYSTATION_STATION_ID),
-        "station probe: the thawed station carries the design id"
+        root.get::<StationServices>()
+            .map(|services| services.0.clone()),
+        Some(waystation_services(world)),
+        "station probe: the thawed station carries the design's services"
     );
     assert_eq!(
         root.get::<EntityId>().map(|id| id.0.as_str()),

@@ -885,7 +885,7 @@ fn a_living_station_stores_and_withdraws_and_a_derelict_one_only_loots() {
     app.world_mut().entity_mut(player).insert(ShipCredits(100));
     app.world_mut().entity_mut(station).insert((
         ShipCredits(1_000),
-        StationMarker(StationDesignId::from("waystation")),
+        StationMarker,
         StationServices(vec![StationServiceType::Storage]),
         StationStorage::new(100_000),
     ));
@@ -1032,7 +1032,7 @@ fn dock_station(
     world.entity_mut(player).insert(ShipCredits(100));
     world.entity_mut(station).insert((
         ShipCredits(1_000),
-        StationMarker(StationDesignId::from("waystation")),
+        StationMarker,
         StationServices(services),
         StationStorage::new(cap_g),
     ));
@@ -1762,7 +1762,7 @@ fn the_strip_block_and_take_all_show_only_at_a_wreck() {
     rig.app
         .world_mut()
         .entity_mut(partner)
-        .insert(StationMarker(StationDesignId::from("waystation")));
+        .insert(StationMarker);
     settle(&mut rig.app);
     assert!(!shown(&mut rig.app).0, "a living station");
 

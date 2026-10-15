@@ -18,7 +18,6 @@ use serde::Deserialize;
 
 use crate::prelude::*;
 
-const STATION: &str = "test_hub";
 const TENDER: &str = "test_tender";
 /// The station core: a solid box of hull cells.
 const CORE: IVec3 = IVec3::new(5, 3, 5);
@@ -101,9 +100,6 @@ fn station_design() -> StationDesign {
         sections.push(section(id, position, rotation, DOCKING_PORT_SECTION_ID));
     }
     StationDesign {
-        id: STATION.into(),
-        name: "Test hub".to_string(),
-        about: String::new(),
         hull: ShipDesign {
             sections,
             integrity: ShipIntegrityConfig {
@@ -164,7 +160,6 @@ fn app() -> App {
             .collect(),
     ));
     app.insert_resource(GameShipDesigns(vec![tender_design()]));
-    app.insert_resource(GameStationDesigns(vec![station_design()]));
     app.init_resource::<CargoCanisterIdAllocator>();
     app.insert_resource(test_items());
     app.finish();
@@ -179,7 +174,7 @@ fn spawn_station(app: &mut App) -> Entity {
         &mut entity,
         &station_design(),
         &StationConfig {
-            design: STATION.into(),
+            design: StationDesignSource::Inline(station_design()),
             allegiance: Allegiance::Neutral,
             derelict: false,
             initial_velocity: MetersPerSecond3::ZERO,

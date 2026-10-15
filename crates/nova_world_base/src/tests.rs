@@ -5,10 +5,10 @@ use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack};
 use nova_events::prelude::{Meters, Meters3};
 use nova_gameplay::prelude::{Allegiance, Fnv64, ItemDesignId, ItemRoleType};
 use nova_scenario::prelude::{
-    resolve_ship_design, GameShipDesigns, GameStationDesigns, GeneratedWorldConfig, ScenarioConfig,
-    ScenarioRole, SectionSource, ShipDesign, SpaceshipController, SpaceshipSectionConfig,
+    resolve_ship_design, GameShipDesigns, GeneratedWorldConfig, ScenarioConfig, ScenarioRole,
+    SectionSource, ShipDesign, SpaceshipController, SpaceshipSectionConfig,
 };
-use nova_ship::prelude::{GameSections, ShipStyleConfig};
+use nova_ship::prelude::GameSections;
 
 use super::*;
 
@@ -35,34 +35,19 @@ fn loaded() -> LoadedSectionPacks {
     loaded_with(1)
 }
 
-/// One style for each role's [`role_style_id`].
+/// The fixture styles.
 fn styles() -> GameStyles {
-    GameStyles(
-        ShipRoleType::ALL
-            .into_iter()
-            .map(|role| ShipStyleConfig {
-                id: role_style_id(role).to_string(),
-                ..default()
-            })
-            .collect(),
-    )
+    crate::test_support::fixture_styles()
 }
 
-/// The one station design the generator places.
-pub(crate) fn stations() -> GameStationDesigns {
-    crate::test_support::fixture_stations()
-}
-
-/// A generator pinned to [`loaded`] and [`stations`] and checked against
-/// [`styles`].
+/// A generator pinned to [`loaded`] and checked against [`styles`].
 pub(crate) fn fixture_world() -> NovaLayeredWorld {
     NovaLayeredWorld::from_loaded(
         &loaded(),
         &styles(),
         &nova_gameplay::test_support::test_items(),
-        &stations(),
     )
-    .expect("the fixture packs build a snapshot, every role has a style and the station pins")
+    .expect("the fixture packs build a snapshot and every role and archetype has a style")
 }
 
 /// A generated world that takes its seed from the session.
@@ -101,7 +86,6 @@ fn world(on: ScenarioWorldType) -> World {
     world.insert_resource(loaded());
     world.insert_resource(styles());
     world.insert_resource(nova_gameplay::test_support::test_items());
-    world.insert_resource(stations());
     world
 }
 
@@ -367,7 +351,7 @@ fn a_pinned_window_generates_the_recorded_bodies() {
         .collect();
     assert_eq!(
         Fnv64::new().write(canonical.as_bytes()).finish(),
-        0xc8b0_68c7_8682_ae14,
+        0xebe9_3465_3689_8908,
         "the pinned window's bodies changed"
     );
 }

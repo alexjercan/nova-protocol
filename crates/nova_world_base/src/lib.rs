@@ -44,9 +44,7 @@ use bevy::prelude::*;
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_events::prelude::Meters;
 use nova_gameplay::prelude::{Chart, GameItems, PlayerSpaceshipMarker};
-use nova_scenario::prelude::{
-    CurrentScenario, GameStationDesigns, OpenWorldSession, ScenarioWorldType,
-};
+use nova_scenario::prelude::{CurrentScenario, OpenWorldSession, ScenarioWorldType};
 use nova_ship::prelude::GameStyles;
 use nova_world::prelude::*;
 
@@ -83,9 +81,8 @@ pub use crate::{
     },
     clusters::{sector_clusters, ClusterSummary, SectorClusters},
     environment::{Environment, EnvironmentFieldType, EnvironmentFields},
-    layered::{NovaLayeredWorld, PinnedStation, CLEARANCE_MARGIN},
+    layered::{NovaLayeredWorld, CLEARANCE_MARGIN},
     sector_ships::{plan_ship, ship_stock, HullSlot, PlannedShip},
-    sector_stations::GENERATED_STATION_DESIGN_IDS,
     ship_layout::{
         generate_ship, generate_wreck, ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType,
         ShipLayoutFailure, ShipLayoutRequest,
@@ -120,14 +117,13 @@ pub mod prelude {
         role_style_id, sector_clusters, ship_stock, station_archetype, station_ceiling,
         Civilization, CivilizationField, CivilizationReach, CivilizationStatusType, ClusterSummary,
         Environment, EnvironmentFieldType, EnvironmentFields, HullSlot, NovaLayeredWorld,
-        NovaWorldBasePlugin, PinnedStation, PlannedShip, SectorClusters, ShipDriveLayoutType,
-        ShipLayout, ShipLayoutConstraintType, ShipLayoutFailure, ShipLayoutRequest, ShipPart,
+        NovaWorldBasePlugin, PlannedShip, SectorClusters, ShipDriveLayoutType, ShipLayout,
+        ShipLayoutConstraintType, ShipLayoutFailure, ShipLayoutRequest, ShipPart,
         ShipPartExclusionType, ShipPartFamilyType, ShipPartFault, ShipPartPack, ShipPartSnapshot,
         StationArchetypeType, StationLayout, StationLayoutConstraintType, StationLayoutFailure,
         StationLayoutRequest, ARMOURED_STYLE_ID, BLOCK_WAYSTATION_STATION_ID, CIVILIAN_STYLE_ID,
-        CLEARANCE_MARGIN, GENERATED_STATION_DESIGN_IDS, INDUSTRIAL_STYLE_ID,
-        OPEN_WORLD_BOUNDS_RADIUS_MAX, OPEN_WORLD_SCENARIO_ID, RING_STATION_STATION_ID,
-        SALVAGE_STYLE_ID, SPIRE_STATION_STATION_ID, STATION_STYLE_ID, YARD_STATION_STATION_ID,
+        CLEARANCE_MARGIN, INDUSTRIAL_STYLE_ID, OPEN_WORLD_BOUNDS_RADIUS_MAX,
+        OPEN_WORLD_SCENARIO_ID, SALVAGE_STYLE_ID, STATION_STYLE_ID,
     };
 }
 
@@ -137,23 +133,8 @@ pub const OPEN_WORLD_SCENARIO_ID: &str = "open_world";
 
 /// The id the block-built waystation is spawned by: an unarmed plated block
 /// with a bridge on top and a docking collar off its port flank, no drive.
-/// Scenarios place it; generated worlds place the ring station.
+/// Scenarios place it; generated worlds generate their own stations.
 pub const BLOCK_WAYSTATION_STATION_ID: &str = "block_waystation";
-
-/// The id the ring station is spawned by: a hub on four truss spokes inside a
-/// plated ring, armed with point-defense mounts, with a docking collar at the
-/// end of every spoke. One of the designs generated worlds place.
-pub const RING_STATION_STATION_ID: &str = "ring_station";
-
-/// The id the spire station is spawned by: three armoured decks stacked on
-/// truss columns, armed, with solar wings. One of the designs generated
-/// worlds place.
-pub const SPIRE_STATION_STATION_ID: &str = "spire_station";
-
-/// The id the yard station is spawned by: an industrial spine between two
-/// end blocks with rows of solar panels, armed. One of the designs generated
-/// worlds place.
-pub const YARD_STATION_STATION_ID: &str = "yard_station";
 
 /// The id the industrial look is named by. Industrial world ships wear it.
 pub const INDUSTRIAL_STYLE_ID: &str = "industrial";
@@ -389,12 +370,6 @@ fn sync_open_world(world: &mut World) {
              content merge refused the catalog and logged why"
         );
     };
-    let Some(stations) = world.get_resource::<GameStationDesigns>() else {
-        panic!(
-            "nova_world_base: a generated-world scenario is live with no GameStationDesigns; \
-             the content merge refused the catalog and logged why"
-        );
-    };
     let armed = world.get_resource::<WorldConfig<NovaLayeredWorld>>();
     let generator = match armed {
         Some(armed) if armed.generator.catalog() != loaded.digest => panic!(
@@ -404,18 +379,16 @@ fn sync_open_world(world: &mut World) {
             loaded.digest.0
         ),
         Some(armed) => armed.generator.clone(),
-        None => NovaLayeredWorld::from_loaded(loaded, styles, items, stations).unwrap_or_else(
-            |faults| {
-                panic!(
-                    "nova_world_base: the loaded content does not arm the open world:\n  {}",
-                    faults
-                        .iter()
-                        .map(ToString::to_string)
-                        .collect::<Vec<_>>()
-                        .join("\n  ")
-                )
-            },
-        ),
+        None => NovaLayeredWorld::from_loaded(loaded, styles, items).unwrap_or_else(|faults| {
+            panic!(
+                "nova_world_base: the loaded content does not arm the open world:\n  {}",
+                faults
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n  ")
+            )
+        }),
     };
     let config = WorldConfig {
         seed,

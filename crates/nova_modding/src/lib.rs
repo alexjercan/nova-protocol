@@ -16,7 +16,7 @@
 //! - [`Content::Lesson`] - a [`Lesson`], one screen of the training handbook,
 //! - [`Content::UiTheme`] - a [`UiThemeConfig`], one look the whole UI paints in,
 //! - [`Content::Item`] - an [`ItemDesign`], a thing a ship carries and trades,
-//! - [`Content::Station`] - a [`StationDesign`], a parked hull a scenario spawns by id,
+//! - [`Content::Station`] - a [`StationDesignPrototype`], a parked hull a scenario spawns by id,
 //!   and
 //! - [`Content::StartRole`] - a [`StartRole`], one New Game start: a hull and a kit.
 //!
@@ -54,7 +54,7 @@ use nova_gameplay::prelude::ItemDesign;
 // code keeps importing them from nova_modding.
 pub use nova_mod_format::{BundleManifest, CatalogManifest, ModEntry, ModMeta, BASE_MOD_ID};
 use nova_scenario::prelude::{
-    CampaignConfig, ScenarioConfig, ShipDesignPrototype, StartRole, StationDesign,
+    CampaignConfig, ScenarioConfig, ShipDesignPrototype, StartRole, StationDesignPrototype,
 };
 use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
 use nova_training::prelude::Lesson;
@@ -136,7 +136,7 @@ pub enum Content {
     /// (`nova_assets::items`). Stock, cargo and saves name the id, so an id
     /// is a promise.
     Item(ItemDesign),
-    /// A [`StationDesign`] - registers into `GameStationDesigns` keyed by its
+    /// A [`StationDesignPrototype`] - registers into `GameStationDesigns` keyed by its
     /// id. A parked hull with a docking port, what it offers, what it holds
     /// and what it pays with, authored once and spawned by id through a
     /// `Station` scenario object.
@@ -144,7 +144,7 @@ pub enum Content {
     /// A mod adds a station by declaring a new id and rebuilds a base one by
     /// declaring its id. A spawn naming an id no bundle declares fails at
     /// lint and at load.
-    Station(StationDesign),
+    Station(StationDesignPrototype),
     /// A [`StartRole`] - registers into `GameStartRoles` keyed by its id. One
     /// New Game start: the catalog hull the player flies and the kit of
     /// credits and items it starts with.

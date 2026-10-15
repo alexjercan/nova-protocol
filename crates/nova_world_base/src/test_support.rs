@@ -16,10 +16,8 @@ use nova_gameplay::prelude::{
     PointRotationOutput, ShipInventory, ShipInventoryStock,
 };
 use nova_scenario::prelude::{
-    spaceship_scenario_object, CurrentScenario, GameStartRoles, GameStationDesigns, GeneratedMarks,
-    NovaEventWorld, ScenarioConfig, SectionSource, ShipDesign, ShipIntegrityConfig,
-    SpaceshipConfig, SpaceshipSectionConfig, SpentHandlers, StartKit, StartRole, StationDesign,
-    StationServiceType,
+    spaceship_scenario_object, CurrentScenario, GameStartRoles, GeneratedMarks, NovaEventWorld,
+    ScenarioConfig, SpaceshipConfig, SpentHandlers, StartKit, StartRole,
 };
 use nova_ship::prelude::{
     ChaseCameraPlugin, ChaseZoom, ShipStyleConfig, SpaceshipCameraController,
@@ -28,7 +26,7 @@ use nova_ship::prelude::{
 use nova_world::prelude::{CurrentSector, FrozenSectors, SectorCoord, WorldConfig, WorldObserver};
 
 use crate::{
-    role_style_id, save, GameStyles, NovaLayeredWorld, ShipRoleType, GENERATED_STATION_DESIGN_IDS,
+    role_style_id, save, GameStyles, NovaLayeredWorld, ShipRoleType, StationArchetypeType,
     OPEN_WORLD_ACTIVE_RADIUS, OPEN_WORLD_SECTOR_EDGE,
 };
 
@@ -54,48 +52,22 @@ pub fn fixture_roles() -> GameStartRoles {
     }])
 }
 
-/// The station designs the generator places, built from the fixture packs'
-/// `dock`, `controller` and `cube` prototypes: a docking collar, a flight
-/// computer and plates, no drive. Each design is one plate longer than the
-/// one before, so the three measure to different clearances.
-pub fn fixture_stations() -> GameStationDesigns {
-    let section = |id: String, position: Vec3, prototype: &str| SpaceshipSectionConfig {
-        id,
-        position,
-        rotation: Quat::IDENTITY,
-        source: SectionSource::prototype(prototype),
-    };
-    GameStationDesigns(
-        GENERATED_STATION_DESIGN_IDS
-            .iter()
-            .enumerate()
-            .map(|(length, id)| {
-                let mut sections = vec![
-                    section("collar".into(), Vec3::NEG_X, "dock"),
-                    section("bridge".into(), Vec3::Y, "controller"),
-                    section("plate".into(), Vec3::ZERO, "cube"),
-                ];
-                sections.extend(
-                    (1..=length).map(|step| {
-                        section(format!("plate_{step}"), Vec3::X * step as f32, "cube")
-                    }),
-                );
-                StationDesign {
-                    id: (*id).into(),
-                    name: "Fixture Waystation".to_string(),
-                    about: "A collar, a bridge and plates.".to_string(),
-                    hull: ShipDesign {
-                        sections,
-                        integrity: ShipIntegrityConfig {
-                            collapse_threshold: Some(0.5),
-                        },
-                        ..default()
-                    },
-                    services: vec![StationServiceType::Trade],
-                    storage_cap_g: 0,
-                    stock: ShipInventoryStock::default(),
-                    credits: 100,
-                }
+/// One style for each role's [`role_style_id`] and each station archetype's
+/// [`StationArchetypeType::style_id`].
+pub fn fixture_styles() -> GameStyles {
+    let mut ids: Vec<&str> = ShipRoleType::ALL.into_iter().map(role_style_id).collect();
+    ids.extend(
+        StationArchetypeType::ALL
+            .into_iter()
+            .map(StationArchetypeType::style_id),
+    );
+    ids.sort_unstable();
+    ids.dedup();
+    GameStyles(
+        ids.into_iter()
+            .map(|id| ShipStyleConfig {
+                id: id.to_string(),
+                ..default()
             })
             .collect(),
     )
@@ -141,19 +113,10 @@ pub fn arm_save_fixture(world: &mut World) -> Entity {
             .collect(),
         digest: ContentCatalogDigest(1),
     };
-    let styles = GameStyles(
-        ShipRoleType::ALL
-            .into_iter()
-            .map(|role| ShipStyleConfig {
-                id: role_style_id(role).to_string(),
-                ..default()
-            })
-            .collect(),
-    );
     let items = nova_gameplay::test_support::test_items();
-    let stations = fixture_stations();
-    let generator = NovaLayeredWorld::from_loaded(&loaded, &styles, &items, &stations)
-        .expect("the fixture packs build a snapshot, every role has a style and the station pins");
+    let generator = NovaLayeredWorld::from_loaded(&loaded, &fixture_styles(), &items).expect(
+        "the fixture packs build a snapshot and every role and station archetype has a style",
+    );
     world.insert_resource(loaded);
     world.insert_resource(items);
     world.insert_resource(fixture_roles());

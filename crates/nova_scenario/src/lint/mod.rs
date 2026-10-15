@@ -120,10 +120,10 @@ pub struct KnownStationDesigns {
 impl KnownStationDesigns {
     /// Resolve full station designs in iterator order; later duplicate ids
     /// replace earlier ones.
-    pub fn from_configs<'a>(configs: impl IntoIterator<Item = &'a StationDesign>) -> Self {
+    pub fn from_configs<'a>(configs: impl IntoIterator<Item = &'a StationDesignPrototype>) -> Self {
         let mut entries = HashMap::new();
         for config in configs {
-            entries.insert(config.id.clone(), config.clone());
+            entries.insert(config.id.clone(), config.design.clone());
         }
         Self { entries }
     }

@@ -130,7 +130,7 @@ impl std::fmt::Display for StationDesignId {
     }
 }
 
-/// Marks a station root, carrying the design it was built from.
+/// Marks a station root.
 ///
 /// Sits beside [`SpaceshipRootMarker`] on the same root: a station is built
 /// as a ship (sections, dock, hold, freeze) and this is what tells the two
@@ -138,8 +138,8 @@ impl std::fmt::Display for StationDesignId {
 /// What the marker changes: a living station that is neutralized turns into
 /// a dead (derelict) station rather than a drifting wreck, and a sever
 /// anchors on it so a cut never moves it off its orbit.
-#[derive(Component, Clone, Debug, PartialEq, Eq, Reflect)]
-pub struct StationMarker(pub StationDesignId);
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+pub struct StationMarker;
 
 /// Marks a station root the player owns: bought from its civilization with
 /// the Station pane's station buy.
@@ -182,10 +182,10 @@ pub enum StationServiceType {
     Roster,
 }
 
-/// The services a station root's design offers, inserted beside its
-/// [`StationMarker`] whenever one lands, by spawn or thaw, from the loaded
-/// station catalog. A derelict station keeps the list; a service reader
-/// asks [`station_offers`], which checks [`DerelictShipMarker`] too.
+/// The services a station root offers, inserted beside its
+/// [`StationMarker`] by the spawn from its design and by the thaw from its
+/// frozen record. A derelict station keeps the list; a service reader asks
+/// [`station_offers`], which checks [`DerelictShipMarker`] too.
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq, Reflect)]
 pub struct StationServices(pub Vec<StationServiceType>);
 

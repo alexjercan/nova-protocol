@@ -249,7 +249,7 @@ fn a_destroyed_station_drops_the_players_storage_with_its_stock() {
     storage.add(&items, &ItemDesignId::from(ItemRoleType::IronOre), 3);
     app.world_mut()
         .entity_mut(root)
-        .insert((StationMarker("rig_station".into()), storage));
+        .insert((StationMarker, storage));
 
     for section in &sections {
         hit(&mut app, *section, 100.0);

@@ -7,7 +7,7 @@
 
 use nova_gameplay::prelude::ItemDesign;
 use nova_scenario::prelude::{
-    CampaignConfig, ScenarioConfig, ShipDesignPrototype, StartRole, StationDesign,
+    CampaignConfig, ScenarioConfig, ShipDesignPrototype, StartRole, StationDesignPrototype,
 };
 use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
 use nova_training::prelude::Lesson;
@@ -30,7 +30,7 @@ pub(crate) struct BaseContent {
     pub(crate) items: Vec<ItemDesign>,
     pub(crate) sections: Vec<SectionConfig>,
     pub(crate) ships: Vec<ShipDesignPrototype>,
-    pub(crate) stations: Vec<StationDesign>,
+    pub(crate) stations: Vec<StationDesignPrototype>,
     pub(crate) start_roles: Vec<StartRole>,
     pub(crate) scenarios: Vec<ScenarioConfig>,
     pub(crate) campaigns: Vec<CampaignConfig>,

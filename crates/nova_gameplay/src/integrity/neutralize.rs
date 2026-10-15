@@ -578,9 +578,7 @@ mod tests {
         let mut app = neutralize_app();
         let (station, _weapons, _thrusters, station_controllers, _hull) =
             spawn_ship(&mut app, 0, 0, 2);
-        app.world_mut()
-            .entity_mut(station)
-            .insert(StationMarker("rig_station".into()));
+        app.world_mut().entity_mut(station).insert(StationMarker);
         let (hull, _weapons, _thrusters, hull_controllers, _plate) = spawn_ship(&mut app, 0, 0, 1);
         app.update();
 

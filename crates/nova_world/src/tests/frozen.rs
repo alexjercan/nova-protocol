@@ -21,9 +21,9 @@ use nova_gameplay::{
 };
 use nova_scenario::prelude::{
     freeze_ship, AsteroidCarvePlugin, AsteroidField, AsteroidMarker, AsteroidPlugin,
-    GameStationDesigns, MinedCanisterQueue, MinedOreDrop, MiningPlugin, SectionSource, ShipDesign,
-    ShipDesignSource, SpaceshipController, SpaceshipDesign, SpaceshipPlugin,
-    SpaceshipSectionConfig, StationMarker, StationStorage, WreckCargoPlugin,
+    MinedCanisterQueue, MinedOreDrop, MiningPlugin, SectionSource, ShipDesign, ShipDesignSource,
+    SpaceshipController, SpaceshipDesign, SpaceshipPlugin, SpaceshipSectionConfig, StationMarker,
+    StationServices, StationStorage, WreckCargoPlugin,
 };
 use nova_ship::prelude::{
     cargo_canister, docking_section, thruster_section, AINonCombatant, BaseSectionConfig,
@@ -938,19 +938,12 @@ fn station_home(input: SectorGenerationInput) -> SectorManifest {
 /// A generated station leaves and returns with its cell like a generated
 /// ship: it spawns from the manifest with its typed id and no address, it
 /// freezes as a station record under that id when its cell retires, and it
-/// thaws from the record with the same id, pose, design and storage, with
+/// thaws from the record with the same id, pose, services and storage, with
 /// the generator's copy not spawned beside it. A station the observer stands
 /// on freezes as a held station and comes back held.
 #[test]
 fn a_generated_station_retires_and_thaws_with_its_cell() {
     let mut app = ship_app();
-    let design = station(
-        sector_id(SectorCoord::ORIGIN, "cluster_a_station", 0),
-        Meters3::ZERO,
-        TEST_HULL_SECTION_ID,
-    )
-    .design;
-    app.insert_resource(GameStationDesigns(vec![design]));
     let home = SectorCoord::ORIGIN;
     let config = answering(station_home);
     let edge = config.sector_edge;
@@ -983,7 +976,7 @@ fn a_generated_station_retires_and_thaws_with_its_cell() {
         "a living station spawns intact"
     );
     let transform = *root.get::<Transform>().expect("a station has a pose");
-    let design = root.get::<StationMarker>().unwrap().0.clone();
+    let services = root.get::<StationServices>().cloned().expect("services");
     let storage = root.get::<StationStorage>().cloned().expect("storage");
     let held: Vec<String> = world
         .query::<&PendingSectorStation>()
@@ -1055,7 +1048,10 @@ fn a_generated_station_retires_and_thaws_with_its_cell() {
         !thawed_root.contains::<ScenarioAddressableMarker>(),
         "a thawed generated station stays unaddressable"
     );
-    assert_eq!(thawed_root.get::<StationMarker>().unwrap().0, design);
+    assert_eq!(
+        thawed_root.get::<StationServices>().cloned(),
+        Some(services)
+    );
     assert_eq!(thawed_root.get::<StationStorage>().cloned(), Some(storage));
     let thawed_transform = *thawed_root.get::<Transform>().unwrap();
     assert!(

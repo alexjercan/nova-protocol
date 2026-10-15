@@ -31,7 +31,8 @@ use nova_scenario::prelude::{
     AIControllerConfig, AsteroidConfig, AsteroidMarker, AsteroidPlugin, PlanetConfig, PlanetType,
     PlayerControllerConfig, SectionSource, ShipDesign, ShipDesignSource, ShipIntegrityConfig,
     SpaceshipConfig, SpaceshipController, SpaceshipPlugin, SpaceshipSectionConfig, StationConfig,
-    StationDesign, StationServiceType, ASTEROID_GEOMETRIC_FACTOR_MAX, KIND_ROCK,
+    StationDesign, StationDesignSource, StationServiceType, ASTEROID_GEOMETRIC_FACTOR_MAX,
+    KIND_ROCK,
 };
 use nova_ship::prelude::{
     BaseSectionConfig, GameSections, HullSectionConfig, SectionConfig, SectionKind,
@@ -193,9 +194,6 @@ fn ship(id: GeneratedBodyId, position: Meters3, prototype: &str) -> SectorShip {
 /// and no credits, kept by a Neutral civilization. `stem` names its cluster.
 fn station(id: GeneratedBodyId, position: Meters3, prototype: &str) -> SectorStation {
     let design = StationDesign {
-        id: "waystation".into(),
-        name: "Waystation".to_string(),
-        about: String::new(),
         hull: ShipDesign {
             sections: vec![SpaceshipSectionConfig {
                 id: "hull".into(),
@@ -223,12 +221,11 @@ fn station(id: GeneratedBodyId, position: Meters3, prototype: &str) -> SectorSta
             node: [0, 0, 0],
         },
         spawn: StationConfig {
-            design: design.id.clone(),
+            design: StationDesignSource::Inline(design),
             allegiance: Allegiance::Neutral,
             derelict: false,
             initial_velocity: MetersPerSecond3::ZERO,
         },
-        design,
         hulls: Vec::new(),
     }
 }

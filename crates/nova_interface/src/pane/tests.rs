@@ -501,7 +501,7 @@ fn station_tab_display(world: &mut World) -> Display {
 /// Dock a player ship with a new partner, a station when `station`, and
 /// return the partner.
 fn dock_the_player(world: &mut World, station: bool) -> Entity {
-    use nova_gameplay::prelude::{SpaceshipRootMarker, StationDesignId, StationMarker};
+    use nova_gameplay::prelude::{SpaceshipRootMarker, StationMarker};
     use nova_ship::prelude::{DockedHelmType, DockedShip, DockingConnection};
 
     let player = world
@@ -509,9 +509,7 @@ fn dock_the_player(world: &mut World, station: bool) -> Entity {
         .id();
     let partner = world.spawn(SpaceshipRootMarker).id();
     if station {
-        world
-            .entity_mut(partner)
-            .insert(StationMarker(StationDesignId::from("waystation")));
+        world.entity_mut(partner).insert(StationMarker);
     }
     let connection = world
         .spawn(DockingConnection {
@@ -533,7 +531,7 @@ fn dock_the_player(world: &mut World, station: bool) -> Entity {
 
 #[test]
 fn the_station_tab_shows_only_while_docked_at_a_living_station() {
-    use nova_gameplay::prelude::{DerelictShipMarker, StationDesignId, StationMarker};
+    use nova_gameplay::prelude::{DerelictShipMarker, StationMarker};
 
     let mut rig = card_rig();
     assert_eq!(station_tab_display(rig.app.world_mut()), Display::None);
@@ -550,10 +548,7 @@ fn the_station_tab_shows_only_while_docked_at_a_living_station() {
     let ship = dock_the_player(rig.app.world_mut(), false);
     settle(&mut rig.app);
     assert_eq!(station_tab_display(rig.app.world_mut()), Display::None);
-    rig.app
-        .world_mut()
-        .entity_mut(ship)
-        .insert(StationMarker(StationDesignId::from("waystation")));
+    rig.app.world_mut().entity_mut(ship).insert(StationMarker);
 
     // Docked with a living station: the tab shows and a click opens it.
     settle(&mut rig.app);

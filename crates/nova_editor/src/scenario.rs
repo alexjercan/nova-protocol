@@ -1020,7 +1020,7 @@ fn standing_station(ship: &LoweredShip, form: HullForm) -> ScenarioObjectConfig 
             rotation: ship.rotation,
         },
         kind: ScenarioObjectKind::Station(StationConfig {
-            design: station_design_id(ship, form),
+            design: StationDesignSource::Prototype(station_design_id(ship, form)),
             allegiance: ship.allegiance.unwrap_or(Allegiance::Neutral),
             derelict: ship.driver == ShipDriver::Adrift,
             initial_velocity: MetersPerSecond3::ZERO,

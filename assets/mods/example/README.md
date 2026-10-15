@@ -55,8 +55,8 @@ binary assets it ships).
   its hull pool below which it takes no more damage
   (`integrity: (collapse_threshold: Some(0.5))`, required on a station), the
   services it offers (`Trade`, `Storage`), its storage cap, the stock its hold
-  opens with and the credits it trades with. A scenario spawns it with
-  `kind: Station((design: "example_outpost", ..))`.
+  opens with and the credits it trades with, all under `design`. A scenario
+  spawns it with `kind: Station((design: Prototype("example_outpost"), ..))`.
 - **A start role** - `example_surveyor` is a `StartRole`: a row in the New
   Game wizard that starts the player in the base `light_freighter` with a kit
   of credits, this mod's survey cores and rations. The wizard binds the

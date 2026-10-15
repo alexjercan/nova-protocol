@@ -354,11 +354,11 @@ fn start_role_ship(
 }
 
 /// Build the scenario station `id` on a fresh root spawned from `base`, from
-/// the catalog design `config` names.
+/// the catalog design `config` names or its inline design.
 ///
 /// # Panics
 ///
-/// `config.design` names no loaded [`StationDesign`], or one whose hull
+/// `config.design` names no loaded [`StationDesign`], or a design whose hull
 /// carries a [`ShipDesignError::ReservedSectionId`] or
 /// [`ShipDesignError::DuplicateSectionId`]: the content gate (`lint_scenario`
 /// and `lint_station_design`) refuses both before a load, so nothing should
@@ -371,12 +371,12 @@ fn spawn_scenario_station(
 ) {
     let Some(design) = world
         .resource::<GameStationDesigns>()
-        .get_design(&config.design)
+        .resolve(&config.design)
         .cloned()
     else {
         panic!(
-            "spawn_scenario_station: object '{id}' names the station design '{}', which no loaded \
-             content declares; the content gate should have refused it",
+            "spawn_scenario_station: object '{id}' names a station design no loaded content \
+             declares; the content gate should have refused it: {:?}",
             config.design
         );
     };
@@ -388,9 +388,8 @@ fn spawn_scenario_station(
             .collect::<Vec<_>>()
             .join("; ");
         panic!(
-            "spawn_scenario_station: object '{id}' names the station design '{}' the content \
-             gate should have refused: {errors}",
-            config.design
+            "spawn_scenario_station: object '{id}' has a station design the content gate should \
+             have refused: {errors}"
         );
     }
     let mut commands = world.commands();

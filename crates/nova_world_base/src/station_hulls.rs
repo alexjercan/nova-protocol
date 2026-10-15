@@ -165,7 +165,7 @@ mod tests {
         CivilizationField,
     };
 
-    /// The ports of a shipped ring station.
+    /// The ports of a generated station at advancement 1/3.
     const PORTS: usize = 4;
 
     /// A station in the first ring around the origin sells only small hulls:

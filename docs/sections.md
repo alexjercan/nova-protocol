@@ -258,8 +258,8 @@ saved.
 A generated living station sells whole inline designs that `station_hulls`
 (`nova_world_base/src/station_hulls.rs`) lays out for its civilization from
 the world seed and the station id: one per docking port but one, the count
-`station_clearance` reads off the station design, so the last port stays
-free for the player. Roles cycle from a seeded start through the roles the
+the station's generated layout carries, so the last port stays free for the
+player. Roles cycle from a seeded start through the roles the
 civilization's advancement can build, and each hull is `generate_ship` at
 that advancement, so the size ceiling tiers the list: a first-ring station
 sells small hulls only. They ride `SectorStation.hulls` in the manifest
@@ -1099,12 +1099,9 @@ catalogue hulls and stations, per ship:
 | `training_picket` | 40 | 5 | 12 | 4 | 0 | 3 | 16 |
 | `line_warship` | 178 | 22 | 72 | 25 | 0 | 32 | 27 |
 | `debris_plate` | 33 | 3 | 5 | 2 | 2 | 6 | 15 |
-| `ring_station` | 206 | 0 | 36 | 0 | 14 | 24 | 132 |
-| `spire_station` | 122 | 10 | 16 | 0 | 0 | 48 | 48 |
-| `yard_station` | 122 | 10 | 12 | 0 | 10 | 24 | 66 |
 
-Nearly three quarters of the plate falls, a fifth is step and under a tenth is
-flat. A plate on a run one cell wide falls on both sides, so a hand-built frame
+Nearly two thirds of the plate falls, a quarter is step and an eighth is flat.
+A plate on a run one cell wide falls on both sides, so a frame of one-cell runs
 is ridges, peaks and spurs with almost no flat plate. The surface graph does not
 care: every plate is a cell, and a greeble's link points decide where it goes.
 

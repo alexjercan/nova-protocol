@@ -1,12 +1,14 @@
-//! screenshot_station_showcase: every loaded station design, side by side.
+//! screenshot_station_showcase: every catalog station design and one
+//! generated station per archetype, side by side.
 //!
-//! Reads the merged station catalog after load and parks one living Neutral
-//! copy of every design in a row along X, each in a slot as wide as its own
-//! hull, under the three-point rig. The roster is RESOLVED, never listed, so
-//! a mod's station joins the row with no code change.
+//! Reads the merged station catalog after load, generates a ring, a spire and
+//! a yard at advancement 0.5 from the loaded parts, and parks one living
+//! Neutral copy of each in a row along X, each in a slot as wide as its own
+//! hull, under the three-point rig. The catalog roster is RESOLVED, never
+//! listed, so a mod's station joins the row with no code change.
 //!
 //! Every shot is framed by the hull it shows: the camera stands back by a
-//! multiple of the design's longest extent, so a 30 m block and a 270 m yard
+//! multiple of the design's longest extent, so a 30 m block and a 300 m yard
 //! fill the frame alike.
 //!
 //! Two harnessed modes, the fleet's capture idiom:
@@ -27,11 +29,15 @@
 
 use bevy::prelude::*;
 use clap::Parser;
+use generated_station::generated_station_design;
 // Direct, not through `nova_protocol::nova_debug`: that path only exists under
 // the `debug` feature, and `capturing()` gates the body freeze in EVERY build.
 #[cfg(feature = "debug")]
 use nova_debug::prelude::capturing;
 use nova_protocol::prelude::*;
+
+#[path = "../shared/generated_station.rs"]
+mod generated_station;
 
 #[derive(Parser)]
 #[command(name = "screenshot_station_showcase")]
@@ -44,6 +50,12 @@ const SCENARIO_ID: &str = "station_showcase";
 
 /// The gap between two neighbouring hulls' bounding boxes.
 const SLOT_GAP: Meters = Meters(120.0);
+
+/// The advancement the generated stations are built at.
+const GENERATED_ADVANCEMENT: f32 = 0.5;
+
+/// The seed the generated stations are built from.
+const GENERATED_SEED: u32 = 3;
 
 /// One build-grid cell, in meters.
 const CELL_M: f32 = 10.0;
@@ -132,14 +144,43 @@ fn load_row(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
     stations: Res<GameStationDesigns>,
+    loaded: Res<LoadedSectionPacks>,
+    items: Res<GameItems>,
 ) {
-    let mut designs: Vec<&StationDesign> = stations.0.iter().collect();
-    designs.sort_by(|a, b| a.id.cmp(&b.id));
+    let mut catalog: Vec<&StationDesignPrototype> = stations.0.iter().collect();
+    catalog.sort_by(|a, b| a.id.cmp(&b.id));
+    // (id, name, design, source) for every station in the row.
+    let mut roster: Vec<(String, String, StationDesign, StationDesignSource)> = catalog
+        .into_iter()
+        .map(|prototype| {
+            (
+                prototype.id.to_string(),
+                prototype.name.clone(),
+                prototype.design.clone(),
+                StationDesignSource::Prototype(prototype.id.clone()),
+            )
+        })
+        .collect();
+    for archetype in StationArchetypeType::ALL {
+        let (_, design) = generated_station_design(
+            &loaded,
+            &items,
+            archetype,
+            GENERATED_ADVANCEMENT,
+            GENERATED_SEED,
+        );
+        roster.push((
+            format!("generated_{archetype}"),
+            format!("Generated {archetype}"),
+            design.clone(),
+            StationDesignSource::Inline(design),
+        ));
+    }
     let mut cursor = 0.0;
     let mut slots = Vec::new();
     let mut objects = Vec::new();
-    for design in designs {
-        let (min, max) = hull_box(design);
+    for (id, name, design, source) in roster {
+        let (min, max) = hull_box(&design);
         let size = max - min;
         let root = Vec3::new(
             cursor - min.x,
@@ -150,27 +191,27 @@ fn load_row(
         cursor += size.x + SLOT_GAP.get();
         info!(
             "station showcase: '{}' has {} section(s), {:.0} x {:.0} x {:.0} m",
-            design.id,
+            id,
             design.hull.sections.len(),
             size.x,
             size.y,
             size.z
         );
         slots.push(Slot {
-            design: design.id.to_string(),
+            design: id.clone(),
             centre: Meters3(centre),
             length: Meters(size.max_element()),
         });
         objects.push(EventActionConfig::SpawnScenarioObject(
             ScenarioObjectConfig {
                 base: BaseScenarioObjectConfig {
-                    id: format!("showcase_{}", design.id),
-                    name: design.name.to_uppercase(),
+                    id: format!("showcase_{id}"),
+                    name: name.to_uppercase(),
                     position: Meters3(root),
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Station(StationConfig {
-                    design: design.id.clone(),
+                    design: source,
                     allegiance: Allegiance::Neutral,
                     derelict: false,
                     initial_velocity: MetersPerSecond3::ZERO,

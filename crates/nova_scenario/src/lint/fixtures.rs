@@ -110,23 +110,25 @@ pub(crate) fn ships(ids: &[&str]) -> KnownShipDesigns {
 pub(crate) fn stations(ids: &[&str]) -> KnownStationDesigns {
     let configs: Vec<_> = ids
         .iter()
-        .map(|id| StationDesign {
+        .map(|id| StationDesignPrototype {
             id: (*id).into(),
             name: (*id).to_string(),
             about: String::new(),
-            hull: ShipDesign {
-                sections: vec![SpaceshipSectionConfig {
-                    id: "hull".to_string(),
-                    position: Vec3::ZERO,
-                    rotation: Quat::IDENTITY,
-                    source: SectionSource::prototype("hull"),
-                }],
-                ..default()
+            design: StationDesign {
+                hull: ShipDesign {
+                    sections: vec![SpaceshipSectionConfig {
+                        id: "hull".to_string(),
+                        position: Vec3::ZERO,
+                        rotation: Quat::IDENTITY,
+                        source: SectionSource::prototype("hull"),
+                    }],
+                    ..default()
+                },
+                services: vec![StationServiceType::Trade],
+                storage_cap_g: 0,
+                stock: ShipInventoryStock::default(),
+                credits: 0,
             },
-            services: vec![StationServiceType::Trade],
-            storage_cap_g: 0,
-            stock: ShipInventoryStock::default(),
-            credits: 0,
         })
         .collect();
     KnownStationDesigns::from_configs(&configs)

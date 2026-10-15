@@ -67,7 +67,6 @@ hints drop to the bottom edge, and the world labels hide. These examples need
 
 | Feature | Why, and where to try it |
 |---|---|
-| Station design viewer (`ring_station`, `spire_station`, `yard_station`) | No playable viewer. `screenshot_station_showcase` stays open but is not framed for flying. |
 | Sandbox ship Station box | Editor flow: main menu Sandbox, tick Station. Only the autopilot range `system_sandbox_station` exists. |
 | Save, Load, DEFEAT and Load last save | Main menu flow: `nix develop --command cargo run`, New Game, then Load. Saves go under `$NOVA_CONFIG_ROOT/worlds`. |
 | Hold events and `example_prospect` | Enable the example mod under Mods, then Scenarios, or `cargo run -- --scenario example_prospect`. |

@@ -19,7 +19,8 @@ use crate::prelude::*;
 /// the design it names, the section prototypes that design is built from, and
 /// the sections its spawn-time patches aim at. Its inventory stock must name
 /// only items `items` holds and fit the resolved design's hold. A station
-/// spawn must name a design `stations` holds.
+/// spawn must name a design `stations` holds, or write one inline that
+/// passes [`lint_station_design`](super::lint_station_design).
 ///
 /// A `Prototype` design's own geometry is NOT re-checked here - it is linted
 /// where the design catalog is walked ([`lint_ship_design_config`]), the same
@@ -35,14 +36,25 @@ pub(super) fn check_object_prototypes(
     issues: &mut Vec<LintIssue>,
 ) {
     if let ScenarioObjectKind::Station(station) = &config.kind {
-        if stations.get(&station.design).is_none() {
-            issues.push(LintIssue::error(
+        match &station.design {
+            StationDesignSource::Prototype(id) => {
+                if stations.get(id).is_none() {
+                    issues.push(LintIssue::error(
+                        scenario,
+                        format!(
+                            "station '{}': unknown station design '{id}'",
+                            config.base.id
+                        ),
+                    ));
+                }
+            }
+            StationDesignSource::Inline(design) => issues.extend(super::lint_station_design(
+                config.base.id.as_str(),
+                design,
+                sections,
+                items,
                 scenario,
-                format!(
-                    "station '{}': unknown station design '{}'",
-                    config.base.id, station.design
-                ),
-            ));
+            )),
         }
         return;
     }

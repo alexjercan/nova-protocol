@@ -21,7 +21,7 @@ use nova_scenario::prelude::{
     lint_campaign, lint_scenario, lint_ship_design_config, lint_start_role, lint_station_design,
     CampaignConfig, EventActionConfig, GeneratedWorldConfig, KnownSections, KnownShipDesigns,
     KnownStationDesigns, LintIssue, LintSeverity, ScenarioConfig, ScenarioObjectKind,
-    ScenarioWorldType, ShipDesignPrototype, SpaceshipController, StartRole, StationDesign,
+    ScenarioWorldType, ShipDesignPrototype, SpaceshipController, StartRole, StationDesignPrototype,
 };
 use nova_ship::prelude::{flight_rig_reserved_sources, SectionConfig};
 use nova_training::prelude::{
@@ -29,8 +29,7 @@ use nova_training::prelude::{
 };
 use nova_ui::theme::{lint_theme, UiThemeConfig};
 use nova_world_base::prelude::{
-    ShipPartFault, ShipPartPack, ShipPartSnapshot, GENERATED_STATION_DESIGN_IDS,
-    OPEN_WORLD_BOUNDS_RADIUS_MAX,
+    ShipPartFault, ShipPartPack, ShipPartSnapshot, OPEN_WORLD_BOUNDS_RADIUS_MAX,
 };
 
 use crate::{
@@ -58,7 +57,7 @@ struct WalkedBundle {
     items: Vec<ItemDesign>,
     sections: Vec<SectionConfig>,
     ships: Vec<ShipDesignPrototype>,
-    stations: Vec<StationDesign>,
+    stations: Vec<StationDesignPrototype>,
     start_roles: Vec<StartRole>,
     scenarios: Vec<ScenarioConfig>,
     campaigns: Vec<CampaignConfig>,
@@ -291,11 +290,11 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
     let known_ships = KnownShipDesigns::from_configs(visible_ships);
 
     // Visible stations, the same overlay again.
-    let stations_by_bundle: HashMap<&str, &[StationDesign]> = all
+    let stations_by_bundle: HashMap<&str, &[StationDesignPrototype]> = all
         .iter()
         .map(|b| (b.id.as_str(), b.stations.as_slice()))
         .collect();
-    let mut visible_stations: Vec<&StationDesign> = stations_by_bundle
+    let mut visible_stations: Vec<&StationDesignPrototype> = stations_by_bundle
         .get(BASE_MOD_ID)
         .map(|s| s.iter().collect())
         .unwrap_or_default();
@@ -341,9 +340,13 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
     // Station well-formedness, the same rule: every station THIS bundle
     // ships, whether or not a scenario spawns it.
     for station in &bundle.stations {
-        for issue in
-            lint_station_design(station, &known_sections, &known_items, station.id.as_str())
-        {
+        for issue in lint_station_design(
+            station.id.as_str(),
+            &station.design,
+            &known_sections,
+            &known_items,
+            station.id.as_str(),
+        ) {
             issues.push((bundle.id.clone(), issue));
         }
     }
@@ -386,31 +389,6 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
                     ),
                 },
             ));
-        }
-    }
-
-    // The generator pins every station design it places from the catalog when
-    // the open world arms, and a missing one panics the New Game start. Base
-    // authors those designs, so a base bundle that drops one fails here.
-    if bundle.id == BASE_MOD_ID {
-        for id in GENERATED_STATION_DESIGN_IDS {
-            if !bundle
-                .stations
-                .iter()
-                .any(|station| station.id == (*id).into())
-            {
-                issues.push((
-                    bundle.id.clone(),
-                    LintIssue {
-                        severity: LintSeverity::Error,
-                        scenario: (*id).to_string(),
-                        message: format!(
-                            "base authors no station design '{id}', which the open world \
-                             generator places at civilization clusters"
-                        ),
-                    },
-                ));
-            }
         }
     }
 
@@ -940,11 +918,10 @@ fn build_report(
                 }
                 ShipPartFault::MissingFamily(_) => (&bundle.id, "ship parts"),
                 ShipPartFault::MissingRoleStyle { .. }
-                | ShipPartFault::MissingStationDesign { .. }
-                | ShipPartFault::UnresolvedStationSection { .. }
-                | ShipPartFault::StationTooWide { .. } => {
+                | ShipPartFault::MissingStationStyle { .. }
+                | ShipPartFault::MissingStationPart { .. } => {
                     unreachable!(
-                        "only arming the open world checks role styles and station pins, not a \
+                        "only arming the open world checks styles and station parts, not a \
                          snapshot"
                     )
                 }

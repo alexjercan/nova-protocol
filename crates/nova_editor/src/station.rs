@@ -2,7 +2,7 @@
 //! it, and the faults that keep it from spawning as one.
 //!
 //! The builder authors only the hull and the mark. Everything else a
-//! [`StationDesign`] states is a sandbox default, chosen to match what the
+//! [`StationDesignPrototype`] states is a sandbox default, chosen to match what the
 //! generated stations offer: the four dock services, the waystation's storage
 //! cap and credits, and the waystation's role goods cut to the hull's hold.
 //! The editor has no panel for those; a save rewrites them from these
@@ -17,7 +17,7 @@ use nova_gameplay::prelude::{GameItems, ItemDesignId, ItemRoleType, ShipInventor
 use nova_scenario::prelude::{
     lint_station_design, resolve_ship_design, GameShipDesigns, KnownSections, LintSeverity,
     ShipDesign, ShipDesignSource, ShipIntegrityConfig, StationDesign, StationDesignId,
-    StationServiceType, STATION_COLLAPSE_THRESHOLD,
+    StationDesignPrototype, StationServiceType, STATION_COLLAPSE_THRESHOLD,
 };
 use nova_ship::prelude::GameSections;
 
@@ -81,7 +81,7 @@ pub(crate) fn station_design(
     form: HullForm,
     sections: &GameSections,
     items: &GameItems,
-) -> StationDesign {
+) -> StationDesignPrototype {
     let hull = ShipDesign {
         integrity: ShipIntegrityConfig {
             collapse_threshold: Some(STATION_COLLAPSE_THRESHOLD),
@@ -93,15 +93,17 @@ pub(crate) fn station_design(
         &GameShipDesigns::default(),
         sections,
     );
-    StationDesign {
+    StationDesignPrototype {
         id: station_design_id(ship, form),
         name: ship.station_name(),
         about: ABOUT.to_string(),
-        hull,
-        services: SERVICES.to_vec(),
-        storage_cap_g: STORAGE_CAP_G,
-        stock: stock_within(u64::from(resolved.cargo_capacity_g()), items),
-        credits: CREDITS,
+        design: StationDesign {
+            hull,
+            services: SERVICES.to_vec(),
+            storage_cap_g: STORAGE_CAP_G,
+            stock: stock_within(u64::from(resolved.cargo_capacity_g()), items),
+            credits: CREDITS,
+        },
     }
 }
 
@@ -129,13 +131,14 @@ fn stock_within(capacity_g: u64, items: &GameItems) -> ShipInventoryStock {
 /// it can. The station lint's errors, with the `station '<id>': ` lead it
 /// writes taken off: the reader already knows which station they are on.
 pub(crate) fn station_faults(
-    design: &StationDesign,
+    design: &StationDesignPrototype,
     sections: &GameSections,
     items: &GameItems,
 ) -> Vec<String> {
     let lead = format!("station '{}': ", design.id);
     lint_station_design(
-        design,
+        design.id.as_str(),
+        &design.design,
         &KnownSections::from_configs(&sections.0),
         items,
         LINT_SOURCE,
@@ -185,7 +188,7 @@ impl StationCatalogs<'_> {
         &self,
         fleet: &LoweredFleet,
         form: HullForm,
-    ) -> Vec<(StationDesign, Vec<String>)> {
+    ) -> Vec<(StationDesignPrototype, Vec<String>)> {
         self.with(|sections, items| {
             fleet
                 .stations()

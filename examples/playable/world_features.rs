@@ -166,14 +166,13 @@ fn boot_observer(
     loaded: Res<LoadedSectionPacks>,
     styles: Res<GameStyles>,
     items: Res<GameItems>,
-    stations: Res<GameStationDesigns>,
 ) {
     commands.trigger(LoadScenario(free_play_scenario(
         &game_assets,
         SCENARIO_ID,
         "World Features Observer",
     )));
-    commands.insert_resource(featured_world_config(&loaded, &styles, &items, &stations));
+    commands.insert_resource(featured_world_config(&loaded, &styles, &items));
 
     commands.spawn((
         Name::new("Observer Key Light"),

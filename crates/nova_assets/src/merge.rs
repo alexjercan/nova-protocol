@@ -22,7 +22,7 @@ use nova_gameplay::prelude::{Fnv64, GameItems, GameStates, ItemDesign};
 use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog, BASE_MOD_ID};
 use nova_scenario::prelude::{
     GameCampaigns, GameScenarios, GameShipDesigns, GameStartRoles, GameStationDesigns,
-    NewGameStart, ScenarioConfig, ShipDesignPrototype, StartRole, StationDesign,
+    NewGameStart, ScenarioConfig, ShipDesignPrototype, StartRole, StationDesignPrototype,
 };
 use nova_ship::prelude::*;
 use nova_training::prelude::{Lesson, LessonSeverity, TrainingCatalog};
@@ -594,7 +594,8 @@ pub fn register_bundles(
     // Every MERGED station, checked where it is authored, like the ships.
     for station in &outcome.stations {
         let found = nova_scenario::prelude::lint_station_design(
-            station,
+            station.id.as_str(),
+            &station.design,
             &merged_sections,
             &merged_items,
             station.id.as_str(),
@@ -781,7 +782,7 @@ fn section_errors(
                 }
             }
             Content::Station(design) => {
-                for error in nova_scenario::prelude::section_id_errors(&design.hull) {
+                for error in nova_scenario::prelude::section_id_errors(&design.design.hull) {
                     errors.push(nova_scenario::prelude::LintIssue {
                         severity: nova_scenario::prelude::LintSeverity::Error,
                         scenario: mod_id.to_string(),
@@ -970,7 +971,7 @@ pub struct MergeOutcome {
     pub items: Vec<ItemDesign>,
     /// Stations in registration order, overlaid last-wins by id - so a mod
     /// rebuilds a base station by declaring the same id.
-    pub stations: Vec<StationDesign>,
+    pub stations: Vec<StationDesignPrototype>,
     /// Start roles in registration order, overlaid last-wins by id - so a mod
     /// replaces a base role by declaring the same id. The order is what a
     /// role picker lists.

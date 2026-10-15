@@ -30,39 +30,43 @@ capability set) off it.
         id: "my_outpost",
         name: "My Outpost",
         about: "A collar, a bridge and four plates. Dock to trade.",
-        hull: (
-            sections: [
-                (
-                    id: "collar",
-                    position: (-1.0, 0.0, 0.0),
-                    rotation: (0.0, 0.70710677, 0.0, 0.70710677),
-                    source: Prototype(id: "docking_port_section"),
-                ),
-                (
-                    id: "bridge",
-                    position: (0.0, 1.0, 0.0),
-                    rotation: (0.0, 0.0, 0.0, 1.0),
-                    source: Prototype(id: "basic_controller_section"),
-                ),
-                // ... hull plates ...
-            ],
-            integrity: (collapse_threshold: Some(0.5)),
+        design: (
+            hull: (
+                sections: [
+                    (
+                        id: "collar",
+                        position: (-1.0, 0.0, 0.0),
+                        rotation: (0.0, 0.70710677, 0.0, 0.70710677),
+                        source: Prototype(id: "docking_port_section"),
+                    ),
+                    (
+                        id: "bridge",
+                        position: (0.0, 1.0, 0.0),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                        source: Prototype(id: "basic_controller_section"),
+                    ),
+                    // ... hull plates ...
+                ],
+                integrity: (collapse_threshold: Some(0.5)),
+            ),
+            services: [Trade, Storage],
+            storage_cap_g: 50000,
+            stock: {"HullPlate": 4},
+            credits: 1000,
         ),
-        services: [Trade, Storage],
-        storage_cap_g: 50000,
-        stock: {"HullPlate": 4},
-        credits: 1000,
     )),
 ]
 ```
 
-Every field is required.
+Every field is required. `id`, `name` and `about` name the catalog entry;
+`design` holds the station.
 
 | field | type | meaning |
 |---|---|---|
 | `id` | string | what a spawn names this design by. A mod reusing a base id REPLACES that station everywhere |
 | `name` | string | the name a picker shows. A parked station is named by the scenario object that placed it |
 | `about` | string | what this station is, for a reader |
+| `design` | station | the station itself: the five fields below. A spawn can also carry one inline, see [Spawning one](#spawning-one) |
 | `hull` | design | the same fields a [ship design](../ships/#the-design) takes: `sections`, `integrity`, `presentation`. It must hold a `Docking` section and a `Controller` section and no `Thruster` section, and author `integrity.collapse_threshold`: the share of its hull a station collapses at, see below |
 | `services` | list | what a docked ship may do here, from the closed set `Rebuild`, `Refit`, `Trade`, `Storage`, `Jobs`, `Roster`. At least one |
 | `storage_cap_g` | whole number | how many grams the station's storage takes. Above zero exactly when `services` lists `Storage` |
@@ -95,7 +99,7 @@ where it stays, and a world save keeps that pose and motion.
 | orbit tolerance | over three orbits, with a hit, the radius stays within `STATION_ORBIT_TOLERANCE` (15 percent) of where it started. The pull is held constant over each physics step, so every orbit widens a little (about 1.5 percent of its energy per orbit on the proof's fast 30 s orbit, less on a real planetoid's), and a kick of one percent of orbital speed swings the radius about four percent; past the tolerance the orbit is walking out of the well or down onto the planet |
 
 The proofs are `system_station_body` (a nudged station in a void) and
-`system_station_orbit` (the yard station with a tender docked at each port
+`system_station_orbit` (a generated yard with a tender docked at each port
 but one: a hit that damages it without collapsing it, a shove and three
 orbits of a small planet).
 
@@ -310,14 +314,14 @@ Enemy-flagged ship, which its Player side would refuse, is admitted.
 
 ## Spawning one
 
-A scenario parks a station with a [Station](../objects/#station) object,
-naming the design by id:
+A scenario parks a station with a [Station](../objects/#station) object.
+Its `design` names a catalog station with `Prototype(id)`:
 
 ```ron
 SpawnScenarioObject((
     base: (id: "outpost", name: "OUTPOST", position: (0.0, 0.0, -1500.0), rotation: (0.0, 0.0, 0.0, 1.0)),
     kind: Station((
-        design: "my_outpost",
+        design: Prototype("my_outpost"),
         allegiance: Neutral,
         derelict: false,
         initial_velocity: (0.0, 0.0, 0.0),
@@ -325,8 +329,10 @@ SpawnScenarioObject((
 )),
 ```
 
-A station spawn takes no section patches and no inline design: a station is
-the design, and a one-off station is one more `Station` item.
+Or it carries a one-off station whole with `Inline((hull: .., services: ..,
+storage_cap_g: .., stock: .., credits: ..))`, the fields of `design` above.
+The lint checks an inline station as it checks a `Station` item. A station
+spawn takes no section patches.
 
 The Sandbox editor writes the same pair. A ship marked **Station** in its
 inspector saves as a `Station` item under the ship's node id and a `Station`
@@ -377,22 +383,39 @@ clear of it, on the anchor-facing side when that side is free. A station is
 never placed inside another body, never across a cell face, and never
 where its cluster placed no rock or planetoid in its cell.
 
-A living station's hold and credits scale with its civilization's
-advancement: every stock line and the credits are multiplied by a share that
-runs from 0.5 at advancement 0 to 1.0 at advancement 1. A line floors but
-never below one, so every item the design stocks is still stocked, and the
-credits round. The share never passes 1, so the stock always fits the hold
-the lint checked. A dead station keeps the design's stock and credits as
-loot.
+The generator builds every station from the loaded parts; no catalog
+station is placed. Each civilization draws one archetype, with an even
+chance each, and builds one design from it at its advancement `a`. All of
+its stations share that design, so a cluster shows the same station from
+every cell.
 
-Each civilization builds one of `ring_station`, `spire_station` and
-`yard_station`, drawn from the world seed and the civilization alone, so all
-of its stations share a look and a cluster shows the same station from every
-cell. The generator pins those designs from the loaded catalog when the open
-world arms; a base bundle that authors none of those ids fails
-`content -- lint`, and a mod that redefines one rebuilds every generated
-station drawn as it. `block_waystation` is for scenarios; the generator never
-places it.
+| archetype | shape | style |
+|---|---|---|
+| ring | a solid hub, one to three rings round it and four spokes, eight from `a` 0.5 | `station` |
+| spire | two to five solid decks on columns, with panel wings | `armoured` |
+| yard | a spine between two end blocks, with rows of panel arms | `industrial` |
+
+| what | at `a` 0 | at `a` 1 |
+|---|---|---|
+| clearance radius, at most | 100 m | 300 m |
+| docking ports, `2 + floor(6a)` | 2 | 8 |
+| turrets, `4 + floor(12a)` | 4 | 16 |
+| storage cap | 100 kg | 400 kg |
+| credits | 10000 | 40000 |
+| opening stock, share of the hold | 4% | 8% |
+
+Every generated station offers Rebuild, Refit, Trade and Storage. Its stock
+is half goods and half the parts its own sections are built from. It draws
+parts its advancement allows, those within 0.5 below it first, and carries
+flight computers for its mass, as a generated ship does. A dead station keeps the same stock
+and credits as loot.
+
+The open world refuses to arm when no loaded style authors an archetype's
+style, or when no station hull, flight computer, docking port or turret part
+is open at advancement 0. A station that no layout fits fails its sector
+with the seed, civilization, archetype, advancement and failed constraint.
+`block_waystation` is for scenarios; the generator never places it. A
+mod's `Station` items are for its scenarios too.
 
 A generated station spawns with a typed generated id and no scenario
 address, freezes as a station record when its cell retires, and thaws from
@@ -419,10 +442,6 @@ one.
 | id | what it is |
 |---|---|
 | `block_waystation` | Waystation - a plated two-deck block about 40 m across, unarmed, with a bridge set into the top deck, a second flight computer (`lower_bridge`) in the far corner of the lower deck and a docking collar off the port flank (`port_collar`). Offers Rebuild, Refit, Trade and Storage; its hold opens with hull plates, rations, salvaged parts and a few of each hull, drive, controller and PDC part |
-| `ring_station` | Ring Station - a plated hub on four truss spokes inside a ring, about 230 m across, in the `station` style: 12 PDC turrets, 5 flight computers, 4 docking collars, solar masts |
-| `spire_station` | Spire Station - three armoured decks on truss columns, about 205 m tall, in the `armoured` style: 8 PDC turrets, 3 flight computers, 4 collars round the middle deck, solar wings |
-| `yard_station` | Yard Station - a truss spine between two end blocks, about 270 m long, rows of solar panels either side, in the `industrial` style: 8 PDC turrets, 3 flight computers, 4 collars |
 
-The three armed stations offer the waystation's services with about four
-times its stock, plus 1000 PDC rounds for their own guns, and 20000 credits.
-Every base station collapses at half its hull pool.
+The waystation collapses at half its hull pool, as every generated station
+does.

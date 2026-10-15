@@ -251,7 +251,7 @@ pub fn materialize_sector(
     for station in &stations {
         require_resolved(
             &station.id,
-            &ShipDesignSource::Inline(station.design.hull.clone()),
+            &ShipDesignSource::Inline(station.design().hull.clone()),
             sections,
         );
         for hull in &station.hulls {
@@ -366,20 +366,19 @@ fn require_resolved(id: &GeneratedBodyId, design: &ShipDesignSource, sections: &
 }
 
 /// Spawn one generated station under `root`, where and as its manifest
-/// entry says: the entry's `design`, `spawn` and `hulls` are the whole
-/// station, and this adds only the pose and the identity. The hulls for
+/// entry says: the entry's `spawn` and `hulls` are the whole station, and this adds only the pose and the identity. The hulls for
 /// sale park at its ports and the escorts for hire coast beside it
 /// ([`PendingParkedHulls`]). A dead station is the same
 /// design spawned `derelict`: the factory marks it, so its hull spawns
 /// inactive and lootable, and no service is offered on it.
 fn spawn_sector_station(commands: &mut Commands, root: Entity, station: SectorStation) {
+    let design = station.design().clone();
     let SectorStation {
         id,
         position,
         rotation,
         clearance: _,
         civilization,
-        design,
         spawn,
         hulls,
     } = station;

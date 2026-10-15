@@ -4,8 +4,9 @@
 //! The player flies the bounty hunter's interceptor with its kit, spawned as
 //! New Game spawns a start role: the catalog hull, the role's bindings and
 //! the role's credits and stock. A Neutral raider, armed and stocked with the
-//! pirate kit, holds station about 160 m ahead. A Neutral ring station stands about
-//! 1.5 km off. Nothing ends the run.
+//! pirate kit, holds station about 160 m ahead. A Neutral ring station, built
+//! by the station generator at mid advancement, stands about 1.5 km off.
+//! Nothing ends the run.
 //!
 //! What to try:
 //!
@@ -43,7 +44,11 @@ use avian3d::prelude::{Collisions, LinearVelocity, PhysicsSystems, Sensor};
 use bevy::{prelude::*, reflect::GetPath};
 use clap::Parser;
 use diagnostics::{palette, DiagnosticsGizmos, DiagnosticsPanel, DiagnosticsSystems};
+use generated_station::generated_station_design;
 use nova_protocol::{nova_debug::diagnostics, prelude::*};
+
+#[path = "../shared/generated_station.rs"]
+mod generated_station;
 
 #[derive(Parser)]
 #[command(name = "neutral_contact_sandbox")]
@@ -85,6 +90,10 @@ const NEAR_M: f32 = 1_000.0;
 const VELOCITY_ARROW_SECS: f32 = 2.0;
 /// Characters in a tally bar.
 const BAR_WIDTH: usize = 10;
+/// The seed of the generated ring station.
+const STATION_SEED: u32 = 7;
+/// The advancement the ring station is generated at.
+const STATION_ADVANCEMENT: f32 = 0.5;
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
@@ -198,7 +207,16 @@ fn sandbox(world: &World) -> ScenarioConfig {
         ..raider
     };
     let station = StationConfig {
-        design: RING_STATION_STATION_ID.into(),
+        design: StationDesignSource::Inline(
+            generated_station_design(
+                world.resource::<LoadedSectionPacks>(),
+                world.resource::<GameItems>(),
+                StationArchetypeType::Ring,
+                STATION_ADVANCEMENT,
+                STATION_SEED,
+            )
+            .1,
+        ),
         allegiance: Allegiance::Neutral,
         derelict: false,
         initial_velocity: MetersPerSecond3::ZERO,

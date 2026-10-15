@@ -12,8 +12,6 @@ use serde::Deserialize;
 
 use crate::prelude::*;
 
-const STATION: &str = "test_outpost";
-
 #[derive(Deserialize)]
 #[expect(
     clippy::large_enum_variant,
@@ -34,9 +32,6 @@ fn design() -> StationDesign {
             source: SectionSource::prototype(prototype),
         };
     StationDesign {
-        id: STATION.into(),
-        name: "Test outpost".to_string(),
-        about: String::new(),
         hull: ShipDesign {
             sections: vec![
                 section(
@@ -96,7 +91,6 @@ fn app() -> App {
             .collect(),
     ));
     app.init_resource::<GameShipDesigns>();
-    app.insert_resource(GameStationDesigns(vec![design()]));
     app.init_resource::<CargoCanisterIdAllocator>();
     app.insert_resource(test_items());
     app.finish();
@@ -146,7 +140,7 @@ fn a_station_that_loses_its_last_turret_turns_into_a_dead_station() {
             &mut entity,
             &design(),
             &StationConfig {
-                design: STATION.into(),
+                design: StationDesignSource::Inline(design()),
                 allegiance: Allegiance::Enemy,
                 derelict: false,
                 initial_velocity: MetersPerSecond3::ZERO,

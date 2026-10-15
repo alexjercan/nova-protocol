@@ -56,7 +56,7 @@ fn every_base_station_passes_the_station_lint_at_every_advancement() {
                 );
                 let design = generated_station(&parts, &items, &layout, &civilization);
                 let errors: Vec<String> =
-                    lint_station_design(&design, &sections, &items, "generated")
+                    lint_station_design(&context, &design, &sections, &items, "generated")
                         .into_iter()
                         .filter(|issue| issue.severity == LintSeverity::Error)
                         .map(|issue| issue.message)

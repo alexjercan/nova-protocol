@@ -73,17 +73,16 @@ use nova_gameplay::prelude::{
 };
 use nova_scenario::prelude::{
     asteroid_seed_from_id, station_orbit_velocity, AsteroidConfig, PlanetConfig, PlanetType,
-    SpaceshipConfig, SpaceshipController, StationConfig, StationDesign, StationHullOffer,
-    ASTEROID_GEOMETRIC_FACTOR_MAX, KIND_CARBON, KIND_ICE, KIND_METAL, KIND_ROCK,
+    SpaceshipConfig, SpaceshipController, StationConfig, StationDesign, StationDesignSource,
+    StationHullOffer, ASTEROID_GEOMETRIC_FACTOR_MAX, KIND_CARBON, KIND_ICE, KIND_METAL, KIND_ROCK,
 };
 use nova_world::prelude::*;
 
 use crate::{
-    civilizations::{Civilization, CivilizationField, CivilizationStatusType},
+    civilizations::{CivilizationField, CivilizationStatusType},
     environment::{Environment, EnvironmentFields},
-    layered::PinnedStation,
     sector_ships::{plan_patrol, plan_ship, HullSlot, PlannedShip},
-    sector_stations::{generated_station_design, station_design_id, StationClaims},
+    sector_stations::StationClaims,
     ship_parts::ShipPartSnapshot,
     station_hulls::station_hulls,
     NovaLayeredWorld, CLEARANCE_MARGIN,
@@ -347,7 +346,6 @@ pub fn sector_clusters(
         &EnvironmentFields::new(input.seed),
         world.parts(),
         world.items(),
-        world.stations(),
         input,
     )?
     .summary())
@@ -1048,9 +1046,8 @@ impl SectorPlan {
                         rotation: station.rotation,
                         clearance: station.clearance,
                         civilization: station.civilization,
-                        design: station.design.clone(),
                         spawn: StationConfig {
-                            design: station.design.id.clone(),
+                            design: StationDesignSource::Inline(station.design.clone()),
                             allegiance: station.allegiance,
                             derelict: station.dead,
                             initial_velocity,
@@ -1727,48 +1724,35 @@ fn halo_nodes(coord: SectorCoord, edge: Meters) -> Vec<[i32; 3]> {
 }
 
 /// Plan one cell: replay every cluster in its halo, keep the bodies it owns,
-/// lay out the hulls it owns from `parts`, pose the station a civilization
-/// keeps at each cluster from `stations`, draw a background scatter if it
-/// owns none, and resolve them all.
+/// lay out the hulls it owns from `parts`, lay out and pose the station a
+/// civilization keeps at each cluster, draw a background scatter if it owns
+/// none, and resolve them all.
 ///
 /// Every owned hull is laid out BEFORE the cell checks where it fits: the
 /// check needs the hull's own clearance, and a hull whose layout fails fails
 /// the cell even where it would have been skipped.
 ///
-/// PURE: the same fields, parts, stations and input give the same plan, on
-/// any call, in any order.
+/// PURE: the same fields, parts, items and input give the same plan, on any
+/// call, in any order.
 ///
 /// # Errors
 ///
 /// Whatever the environment refuses, [`SectorFault::InvalidGeometry`] for a
 /// body with no finite position, [`SectorFault::Generation`] for a parent
-/// that could not be placed, for a civilization whose station design is not
-/// pinned or whose stations have no cluster to stand in, and whatever
-/// [`plan_ship`] refuses for an owned hull.
+/// that could not be placed, for a civilization whose station cannot be laid
+/// out or has no cluster to stand in, and whatever [`plan_ship`] refuses for
+/// an owned hull.
 pub(crate) fn plan_sector(
     fields: &EnvironmentFields,
     parts: &ShipPartSnapshot,
     items: &GameItems,
-    stations: &[PinnedStation],
     input: SectorGenerationInput,
 ) -> Result<SectorPlan, SectorFault> {
     let coord = input.coord;
     let edge = input.geometry.sector_edge;
     let civilizations = CivilizationField::new(input.seed);
-    let pinned = |civilization: &Civilization| {
-        let id = station_design_id(civilization);
-        stations
-            .iter()
-            .find(|station| station.design.id == id.into())
-            .ok_or_else(|| SectorFault::Generation {
-                id: civilization.id.to_string(),
-                field: "station_design",
-                value: format!("'{id}' is not pinned; arming pins every generated design"),
-            })
-    };
-    let mut claims = StationClaims::new();
-    let mut hosts = |civilization: &Civilization, node: [i32; 3]| {
-        let clearance = pinned(civilization)?.clearance;
+    let mut claims = StationClaims::new(parts, items);
+    let mut hosts = |clearance: Meters, node: [i32; 3]| {
         Ok(cluster_at(fields, input.seed, edge, node)?
             .is_some_and(|cluster| station_pose(&cluster, edge, clearance, input.seed).is_some()))
     };
@@ -1861,8 +1845,10 @@ pub(crate) fn plan_sector(
         if let Some(civilization) =
             claims.claim(&civilizations, cluster.anchor, node, &mut hosts)?
         {
-            let station = pinned(&civilization)?;
-            let Some(pose) = station_pose(&cluster, edge, station.clearance, input.seed) else {
+            let station = claims.station(&civilization)?;
+            let (clearance, ports) = (station.clearance, station.ports);
+            let design = station.design.clone();
+            let Some(pose) = station_pose(&cluster, edge, clearance, input.seed) else {
                 unreachable!("a claimed node hosts a station: the claim checked its pose")
             };
             if SectorCoord::containing(pose.position, edge) == coord {
@@ -1874,30 +1860,24 @@ pub(crate) fn plan_sector(
                 let hulls = if dead {
                     Vec::new()
                 } else {
-                    station_hulls(
-                        parts,
-                        input.seed,
-                        &id.to_string(),
-                        &civilization,
-                        station.ports,
-                    )
-                    .map_err(|failure| SectorFault::Generation {
-                        id: id.to_string(),
-                        field: "hulls",
-                        value: failure.to_string(),
-                    })?
+                    station_hulls(parts, input.seed, &id.to_string(), &civilization, ports)
+                        .map_err(|failure| SectorFault::Generation {
+                            id: id.to_string(),
+                            field: "hulls",
+                            value: failure.to_string(),
+                        })?
                 };
                 stations_owned.push(Candidate {
                     id,
                     source: BodySource::Station(node),
                     body: ClusterBody::Station(Box::new(PlannedStation {
-                        clearance: station.clearance,
+                        clearance,
                         rotation: pose.rotation,
                         orbit: pose.orbit,
                         civilization: civilization.id,
                         dead,
                         allegiance,
-                        design: generated_station_design(&station.design, &civilization),
+                        design,
                         hulls,
                     })),
                     position: pose.position,
@@ -2175,7 +2155,6 @@ mod tests {
                     &fields,
                     config.generator.parts(),
                     config.generator.items(),
-                    config.generator.stations(),
                     config.input(coord),
                 )
                 .unwrap_or_else(|fault| panic!("{coord}: {fault}"));
@@ -2236,7 +2215,6 @@ mod tests {
             &EnvironmentFields::new(SEED),
             &unbuildable,
             config().generator.items(),
-            config().generator.stations(),
             config().input(owner),
         )
         .expect_err("a hull no layout fits must fail its cell");
@@ -2561,7 +2539,6 @@ mod tests {
                     &fields,
                     config.generator.parts(),
                     config.generator.items(),
-                    config.generator.stations(),
                     config.input(coord),
                 )
                 .unwrap_or_else(|fault| panic!("{seed} {coord}: {fault}"));
@@ -2811,7 +2788,6 @@ mod tests {
                     &fields,
                     config.generator.parts(),
                     config.generator.items(),
-                    config.generator.stations(),
                     config.input(SectorCoord::new(x, 0, z)),
                 )
                 .unwrap_or_else(|fault| panic!("[{x}, 0, {z}]: {fault}"));
@@ -2897,7 +2873,6 @@ mod tests {
             &fields,
             world.generator.parts(),
             world.generator.items(),
-            world.generator.stations(),
             world.input(coord),
         )
         .unwrap();
@@ -2979,7 +2954,6 @@ mod tests {
             &fields,
             world.generator.parts(),
             world.generator.items(),
-            world.generator.stations(),
             world.input(coord),
         )
         .unwrap();
@@ -2987,7 +2961,6 @@ mod tests {
             &fields,
             world.generator.parts(),
             world.generator.items(),
-            world.generator.stations(),
             world.input(coord),
         )
         .unwrap();
@@ -3105,7 +3078,6 @@ mod tests {
                     &fields,
                     world.generator.parts(),
                     world.generator.items(),
-                    world.generator.stations(),
                     world.input(coord),
                 )
                 .unwrap();

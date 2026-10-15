@@ -49,8 +49,8 @@ use nova_modding::prelude::{BundleManifest, ModMeta};
 use nova_scenario::prelude::{
     AIControllerConfig, EventActionConfig, EventConfig, ScenarioConfig, ScenarioEventConfig,
     ScenarioObjectConfig, ScenarioObjectKind, SectionId, ShipDesignId, ShipDesignPrototype,
-    ShipDesignSource, SpaceshipController, SpaceshipSectionConfig, StationConfig, StationDesign,
-    StationDesignId,
+    ShipDesignSource, SpaceshipController, SpaceshipSectionConfig, StationConfig, StationDesignId,
+    StationDesignPrototype, StationDesignSource,
 };
 use nova_ship::prelude::{GameSections, TargetingSettings};
 use nova_ui::theme::UiColor;
@@ -175,7 +175,7 @@ pub(crate) fn document_content(
     id: &str,
     world: Vec<ScenarioObjectConfig>,
     fleet: &LoweredFleet,
-    stations: Vec<StationDesign>,
+    stations: Vec<StationDesignPrototype>,
     script: Vec<ScenarioEventConfig>,
     targeting: &TargetingSettings,
 ) -> Vec<Content> {
@@ -324,7 +324,7 @@ pub(crate) struct FileDesigns<'a> {
     /// Its ship prototypes.
     pub(crate) ships: BTreeMap<&'a ShipDesignId, &'a ShipDesignPrototype>,
     /// Its station designs.
-    pub(crate) stations: BTreeMap<&'a StationDesignId, &'a StationDesign>,
+    pub(crate) stations: BTreeMap<&'a StationDesignId, &'a StationDesignPrototype>,
 }
 
 /// Split authored spawns into the two things a document is made of.
@@ -437,8 +437,8 @@ fn lift_ship(object: &ScenarioObjectConfig, designs: &FileDesigns) -> Option<Lif
     })
 }
 
-/// The ship node a station spawn stands for, when its design is one the same
-/// file carries: the hull lifts like a ship's, the node takes the design's id
+/// The ship node a station spawn stands for, when its design is a catalog
+/// design the same file carries: the hull lifts like a ship's, the node takes the design's id
 /// (which a save writes as the node id), and the station's life is its
 /// driver - AI for a living station, none for a dead one.
 fn lift_station(
@@ -446,7 +446,10 @@ fn lift_station(
     station: &StationConfig,
     designs: &FileDesigns,
 ) -> Option<LiftedShip> {
-    let design = designs.stations.get(&station.design)?;
+    let StationDesignSource::Prototype(id) = &station.design else {
+        return None;
+    };
+    let design = designs.stations.get(id)?;
     let driver = if station.derelict {
         ShipDriver::Adrift
     } else {
@@ -460,9 +463,9 @@ fn lift_station(
         pilot: AIControllerConfig::default(),
         pose: Transform::from_translation(object.base.position.to_engine())
             .with_rotation(object.base.rotation),
-        skin: design.hull.presentation.skin,
-        style: design.hull.presentation.style.clone(),
-        sections: design.hull.sections.clone(),
+        skin: design.design.hull.presentation.skin,
+        style: design.design.hull.presentation.style.clone(),
+        sections: design.design.hull.sections.clone(),
         binds: BTreeMap::new(),
         station: true,
     })

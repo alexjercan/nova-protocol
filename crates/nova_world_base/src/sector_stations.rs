@@ -18,35 +18,31 @@
 //! lattice stands centroids at least 160 km apart, and a nearest cluster node
 //! is within 44 km of its centroid.
 //!
-//! A living station's stock and credits scale with its civilization's
-//! advancement, from half its design's at advancement 0 to all of it at 1; a
-//! dead station keeps the design's stock and credits as loot. See
-//! [`generated_station_design`].
+//! Every station of one civilization is built from one generated design:
+//! [`station_archetype`] picks its archetype off the civilization's stream,
+//! [`generate_station`] lays the hull out at the civilization's advancement
+//! from a seed off that stream too, and [`generated_station`] stocks it. A
+//! dead station is that design spawned derelict, its stock and credits left
+//! as loot.
 //!
 //! Every chance here is provisional until generated stations are reviewed in
 //! travel.
 
 use std::collections::BTreeMap;
 
-use nova_events::prelude::Meters3;
-use nova_gameplay::prelude::ShipInventoryStock;
+use nova_events::prelude::{Meters, Meters3};
+use nova_gameplay::prelude::GameItems;
 use nova_scenario::prelude::StationDesign;
 use nova_world::prelude::*;
 
 use crate::{
     civilizations::{Civilization, CivilizationField, CivilizationStatusType},
     clusters::CLUSTER_LATTICE,
-    RING_STATION_STATION_ID, SPIRE_STATION_STATION_ID, YARD_STATION_STATION_ID,
+    ship_parts::ShipPartSnapshot,
+    station_layout::{
+        generate_station, generated_station, station_archetype, StationLayoutRequest,
+    },
 };
-
-/// Every station design id the generator places, the list a civilization
-/// draws its design from. Arming pins each from the loaded catalog, and the
-/// base lint refuses a base bundle that lacks one of them.
-pub const GENERATED_STATION_DESIGN_IDS: &[&str] = &[
-    RING_STATION_STATION_ID,
-    SPIRE_STATION_STATION_ID,
-    YARD_STATION_STATION_ID,
-];
 
 /// How many stations a living civilization keeps past its first at full
 /// advancement: one per tier, a tier being an equal share of `[0, 1]`
@@ -60,51 +56,48 @@ const STATION_ADVANCEMENT_TIERS: f32 = 2.0;
 /// within 125 km of the centroid, inside the 320 km influence reach.
 const STATION_NODE_SEARCH: i32 = 2;
 
-/// The station design `civilization` builds: one even draw over
-/// [`GENERATED_STATION_DESIGN_IDS`] off the civilization's own stream, so
-/// every station of one civilization shares a look and neighbours differ.
-pub fn station_design_id(civilization: &Civilization) -> &'static str {
-    let count = GENERATED_STATION_DESIGN_IDS.len();
-    let draw = civilization.id.stream(b"station_design").unit();
-    GENERATED_STATION_DESIGN_IDS[((draw * count as f32) as usize).min(count - 1)]
+/// The station every station of one civilization is built from.
+pub(crate) struct CivilizationStation {
+    /// The design, stocked for the civilization's advancement.
+    pub(crate) design: StationDesign,
+    /// The radius around the root that holds the hull in any orientation.
+    pub(crate) clearance: Meters,
+    /// How many docking ports the hull carries: the station parks one hull
+    /// for sale at each but one.
+    pub(crate) ports: usize,
 }
 
-/// The share of its design's stock and credits a living station is generated
-/// with, at advancement 0 and at advancement 1, read linearly between. Never
-/// above 1, so the scaled stock always fits the hull hold that content lint
-/// checked the authored stock against; at least a half, so a frontier
-/// station still trades enough to be worth the dock.
-const STATION_STOCK_SHARE: (f32, f32) = (0.5, 1.0);
-
-/// The design a generated station of `civilization` is built from.
+/// Lay out and stock the station `civilization` builds from `parts`: its
+/// [`station_archetype`], at its advancement, from a seed off its own
+/// stream.
 ///
-/// A living civilization's station takes `design` with every stock line and
-/// the credits scaled by [`STATION_STOCK_SHARE`] read at its advancement: a
-/// stack floors, but never below one, so every line the design stocks is
-/// still stocked; the credits round to the nearest. An extinct
-/// civilization's dead station keeps the authored stock and credits: it is
-/// loot a docked ship takes, as a derelict hull's hold is. Every other field
-/// is the design's.
+/// # Errors
 ///
-/// PURE: the same design and civilization give the same result.
-pub fn generated_station_design(
-    design: &StationDesign,
+/// [`SectorFault::Generation`] naming the seed, the civilization, the
+/// archetype, the advancement and the constraint the last layout failed:
+/// the parts cannot build this civilization a station, and that is a bug
+/// in the generator or the catalog, not a world to quietly generate.
+fn civilization_station(
+    parts: &ShipPartSnapshot,
+    items: &GameItems,
     civilization: &Civilization,
-) -> StationDesign {
-    if civilization.status == CivilizationStatusType::Extinct {
-        return design.clone();
-    }
-    let (least, most) = STATION_STOCK_SHARE;
-    let share = least + (most - least) * civilization.advancement.clamp(0.0, 1.0);
-    StationDesign {
-        stock: ShipInventoryStock::new(
-            design.stock.stacks().map(|(item, count)| {
-                (item.clone(), ((count as f32 * share).floor() as u32).max(1))
-            }),
-        ),
-        credits: (design.credits as f32 * share).round() as u32,
-        ..design.clone()
-    }
+) -> Result<CivilizationStation, SectorFault> {
+    let request = StationLayoutRequest {
+        seed: civilization.id.stream(b"station_layout").next_u32(),
+        civilization: civilization.id,
+        archetype: station_archetype(civilization),
+        advancement: civilization.advancement,
+    };
+    let layout = generate_station(parts, request).map_err(|failure| SectorFault::Generation {
+        id: civilization.id.to_string(),
+        field: "station",
+        value: failure.to_string(),
+    })?;
+    Ok(CivilizationStation {
+        design: generated_station(parts, items, &layout, civilization),
+        clearance: layout.clearance,
+        ports: layout.ports,
+    })
 }
 
 /// How many stations `civilization` keeps: one plus a tier per
@@ -147,42 +140,69 @@ fn nodes_by_distance(centroid: Meters3) -> Vec<[i32; 3]> {
     nodes
 }
 
-/// The station claims one cell's plan resolves, memoized per civilization so
-/// the halo's clusters share each civilization's node walk.
-pub(crate) struct StationClaims {
+/// The station claims one cell's plan resolves, and the station each
+/// claiming civilization builds, memoized per civilization so the halo's
+/// clusters share each civilization's layout and node walk.
+pub(crate) struct StationClaims<'a> {
+    parts: &'a ShipPartSnapshot,
+    items: &'a GameItems,
+    stations: BTreeMap<CivilizationId, CivilizationStation>,
     nodes: BTreeMap<CivilizationId, Vec<[i32; 3]>>,
 }
 
-impl StationClaims {
-    pub(crate) fn new() -> Self {
+impl<'a> StationClaims<'a> {
+    /// Claims whose stations are laid out from `parts` and stocked from
+    /// `items`.
+    pub(crate) fn new(parts: &'a ShipPartSnapshot, items: &'a GameItems) -> Self {
         Self {
+            parts,
+            items,
+            stations: BTreeMap::new(),
             nodes: BTreeMap::new(),
         }
     }
 
-    /// The nodes `civilization` keeps stations at: the first
-    /// [`station_count`] nodes by centroid distance for which `hosts` says
-    /// a cluster grows there that can hold a station.
+    /// The station `civilization` builds, laid out once.
     ///
     /// # Errors
     ///
-    /// Whatever `hosts` refuses, and [`SectorFault::Generation`] when fewer
-    /// than [`station_count`] nodes of the search block host: a civilization
-    /// that cannot place its stations is a bug in the bands, not a world to
-    /// quietly generate.
+    /// Whatever [`civilization_station`] refuses.
+    pub(crate) fn station(
+        &mut self,
+        civilization: &Civilization,
+    ) -> Result<&CivilizationStation, SectorFault> {
+        if !self.stations.contains_key(&civilization.id) {
+            let station = civilization_station(self.parts, self.items, civilization)?;
+            self.stations.insert(civilization.id, station);
+        }
+        Ok(&self.stations[&civilization.id])
+    }
+
+    /// The nodes `civilization` keeps stations at: the first
+    /// [`station_count`] nodes by centroid distance for which `hosts` says
+    /// a cluster grows there that can hold a station of the clearance it is
+    /// given, the clearance of the civilization's own station.
+    ///
+    /// # Errors
+    ///
+    /// Whatever [`Self::station`] or `hosts` refuses, and
+    /// [`SectorFault::Generation`] when fewer than [`station_count`] nodes of
+    /// the search block host: a civilization that cannot place its stations
+    /// is a bug in the bands, not a world to quietly generate.
     pub(crate) fn nodes(
         &mut self,
         civilization: &Civilization,
-        hosts: &mut dyn FnMut(&Civilization, [i32; 3]) -> Result<bool, SectorFault>,
+        hosts: &mut dyn FnMut(Meters, [i32; 3]) -> Result<bool, SectorFault>,
     ) -> Result<&[[i32; 3]], SectorFault> {
         if !self.nodes.contains_key(&civilization.id) {
+            let clearance = self.station(civilization)?.clearance;
             let wanted = station_count(civilization);
             let mut found = Vec::with_capacity(wanted);
             for node in nodes_by_distance(civilization.centroid) {
                 if found.len() == wanted {
                     break;
                 }
-                if hosts(civilization, node)? {
+                if hosts(clearance, node)? {
                     found.push(node);
                 }
             }
@@ -217,7 +237,7 @@ impl StationClaims {
         civilizations: &CivilizationField,
         anchor: Meters3,
         node: [i32; 3],
-        hosts: &mut dyn FnMut(&Civilization, [i32; 3]) -> Result<bool, SectorFault>,
+        hosts: &mut dyn FnMut(Meters, [i32; 3]) -> Result<bool, SectorFault>,
     ) -> Result<Option<Civilization>, SectorFault> {
         let mut reach = civilizations.in_reach(anchor)?;
         reach.sort_by(|a, b| {
@@ -239,7 +259,6 @@ impl StationClaims {
 mod tests {
     use std::collections::{BTreeMap, BTreeSet};
 
-    use nova_events::prelude::Meters;
     use nova_gameplay::prelude::Allegiance;
     use nova_scenario::prelude::ASTEROID_GEOMETRIC_FACTOR_MAX;
 
@@ -261,100 +280,32 @@ mod tests {
         }
     }
 
-    /// A living station is generated with half its design's stock and
-    /// credits at advancement 0 and all of it at 1, every stocked line kept
-    /// at one at least; an extinct civilization's dead station keeps the
-    /// design's stock and credits as loot.
-    #[test]
-    fn a_living_station_scales_its_stock_by_advancement_and_a_dead_one_keeps_it() {
-        use nova_gameplay::prelude::{ItemDesignId, ItemRoleType};
-
-        let plate = ItemDesignId::from(ItemRoleType::HullPlate);
-        let rations = ItemDesignId::from(ItemRoleType::Rations);
-        let core = ItemDesignId::from(ItemRoleType::SalvagedParts);
-        let design = StationDesign {
-            stock: ShipInventoryStock::new([
-                (plate.clone(), 8),
-                (rations.clone(), 21),
-                (core.clone(), 1),
-            ]),
-            credits: 5_001,
-            ..crate::test_support::fixture_stations().0.remove(0)
-        };
-        let base = CivilizationField::new(20_260_922).civilization([0, 0, 0]);
-        let at = |status, advancement| {
-            let generated = generated_station_design(
-                &design,
-                &Civilization {
-                    status,
-                    advancement,
-                    ..base
-                },
-            );
-            assert_eq!(
-                (&generated.id, &generated.services, generated.storage_cap_g),
-                (&design.id, &design.services, design.storage_cap_g),
-                "only the stock and credits scale"
-            );
-            let stock: Vec<(ItemDesignId, u32)> = generated
-                .stock
-                .stacks()
-                .map(|(item, count)| (item.clone(), count))
-                .collect();
-            (stock, generated.credits)
-        };
-        let living = CivilizationStatusType::Living;
-        assert_eq!(
-            at(living, 0.0),
-            (
-                vec![(plate.clone(), 4), (rations.clone(), 10), (core.clone(), 1)],
-                2_501
-            )
-        );
-        assert_eq!(
-            at(living, 0.5),
-            (
-                vec![(plate.clone(), 6), (rations.clone(), 15), (core.clone(), 1)],
-                3_751
-            )
-        );
-        let authored = (
-            vec![(plate.clone(), 8), (rations.clone(), 21), (core.clone(), 1)],
-            5_001,
-        );
-        assert_eq!(at(living, 1.0), authored);
-        assert_eq!(at(CivilizationStatusType::Extinct, 0.0), authored);
-    }
-
     /// Across three seeds, every civilization of the 27 nodes around the
     /// origin keeps the stations its status and advancement promise: a
     /// living one at least one, an extinct one exactly one and dead, each at
     /// a cluster whose anchor is in its reach, the first at the nearest
     /// hosting cluster; every one of them is in the manifest of the cell it
     /// stands in, once per cluster, keeping the civilization that claimed it,
-    /// standing clear of every other body of its cell; and the sweep sees
-    /// both a living and a dead station and more than one design, so it is
-    /// not vacuous and the per-civilization draw varies.
+    /// standing clear of every other body of its cell, its hull the one its
+    /// civilization's station was laid out to; and the sweep sees both a
+    /// living and a dead station and more than one archetype, so it is not
+    /// vacuous and the per-civilization draw varies.
     #[test]
     fn every_civilization_keeps_its_stations_at_distinct_clear_clusters() {
         let (mut living, mut dead) = (0, 0);
-        let mut designs = BTreeSet::new();
+        let mut archetypes = BTreeSet::new();
         for seed in [20_260_922, 12_345, 4_000_000_000, 6, 10] {
             let config = config(seed);
             let edge = config.sector_edge;
             let fields = EnvironmentFields::new(seed);
             let civilizations = CivilizationField::new(seed);
-            let pinned = config.generator.stations();
-            let mut hosts = |civilization: &Civilization, node: [i32; 3]| {
-                let clearance = pinned
-                    .iter()
-                    .find(|station| station.design.id == station_design_id(civilization).into())
-                    .expect("the fixture pins the design")
-                    .clearance;
+            let parts = config.generator.parts();
+            let items = config.generator.items();
+            let mut hosts = |clearance: Meters, node: [i32; 3]| {
                 Ok(cluster_at(&fields, seed, edge, node)?
                     .is_some_and(|cluster| station_pose(&cluster, edge, clearance, seed).is_some()))
             };
-            let mut claims = StationClaims::new();
+            let mut claims = StationClaims::new(parts, items);
             let mut manifests: BTreeMap<SectorCoord, SectorManifest> = BTreeMap::new();
             let mut stems: BTreeSet<String> = BTreeSet::new();
             for x in -1..=1 {
@@ -394,25 +345,18 @@ mod tests {
                                 stems.insert(stem.clone()),
                                 "{seed}: cluster {stem} is claimed by two civilizations"
                             );
-                            let design = pinned
-                                .iter()
-                                .find(|station| {
-                                    station.design.id == station_design_id(&civilization).into()
-                                })
-                                .expect("the fixture pins the design");
-                            let pose = station_pose(&cluster, edge, design.clearance, seed)
+                            let built = claims
+                                .station(&civilization)
+                                .expect("the claim laid it out");
+                            let (clearance, hull) =
+                                (built.clearance, format!("{:?}", built.design.hull));
+                            let pose = station_pose(&cluster, edge, clearance, seed)
                                 .expect("a claimed node hosts a station");
                             let coord = SectorCoord::containing(pose.position, edge);
                             let manifest = manifests.entry(coord).or_insert_with(|| {
-                                plan_sector(
-                                    &fields,
-                                    config.generator.parts(),
-                                    config.generator.items(),
-                                    pinned,
-                                    config.input(coord),
-                                )
-                                .and_then(|plan| plan.manifest())
-                                .unwrap_or_else(|fault| panic!("{seed} {coord}: {fault}"))
+                                plan_sector(&fields, parts, items, config.input(coord))
+                                    .and_then(|plan| plan.manifest())
+                                    .unwrap_or_else(|fault| panic!("{seed} {coord}: {fault}"))
                             });
                             let placed: Vec<&SectorStation> = manifest
                                 .stations
@@ -438,8 +382,13 @@ mod tests {
                                     dead += 1;
                                 }
                             }
-                            assert_eq!(station.spawn.design, station.design.id);
-                            designs.insert(station.design.id.clone());
+                            assert_eq!(station.clearance, clearance, "{seed} {stem}");
+                            assert_eq!(
+                                format!("{:?}", station.design().hull),
+                                hull,
+                                "{seed} {stem}: the station is its civilization's"
+                            );
+                            archetypes.insert(station_archetype(&civilization));
                             let clear = |other: Meters3, reach: f32, what: &str| {
                                 let gap = station.position.distance(other).get();
                                 assert!(
@@ -481,8 +430,8 @@ mod tests {
             "{living} living and {dead} dead stations seen"
         );
         assert!(
-            designs.len() > 1,
-            "every station drew one design: {designs:?}"
+            archetypes.len() > 1,
+            "every station drew one archetype: {archetypes:?}"
         );
     }
 }

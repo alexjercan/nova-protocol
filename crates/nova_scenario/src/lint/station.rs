@@ -9,9 +9,11 @@ use nova_ship::prelude::SectionKind;
 use super::{ship::check_design_sections, KnownSections, LintIssue};
 use crate::prelude::*;
 
-/// Static well-formedness of one CATALOG station design, run where the
-/// catalog is walked so a design is checked once however many scenarios spawn
-/// it. Pure over the config, like [`lint_ship_design_config`] beside it.
+/// Static well-formedness of one station design, labelled `id` in its
+/// findings: a catalog design, run where the catalog is walked so it is
+/// checked once however many scenarios spawn it, or an inline one, run where
+/// it is spawned. Pure over the config, like [`lint_ship_design_config`]
+/// beside it.
 ///
 /// Errors:
 /// - the hull's section list fails the ship design checks: an unknown
@@ -30,13 +32,13 @@ use crate::prelude::*;
 ///
 /// Warns on a service listed twice.
 pub fn lint_station_design(
+    id: &str,
     design: &StationDesign,
     sections: &KnownSections,
     items: &GameItems,
     source: &str,
 ) -> Vec<LintIssue> {
     let mut issues = Vec::new();
-    let id = design.id.as_str();
     check_design_sections(
         "station",
         id,
@@ -227,9 +229,6 @@ mod tests {
     /// Storage with a cap, one crate in a 200 kg hold.
     fn sound() -> StationDesign {
         StationDesign {
-            id: "post".into(),
-            name: "Post".to_string(),
-            about: String::new(),
             hull: ShipDesign {
                 sections: vec![
                     placed("port", DOCK, 0.0),
@@ -250,7 +249,7 @@ mod tests {
     }
 
     fn errors(design: &StationDesign) -> Vec<String> {
-        lint_station_design(design, &sections(), &items(), "test")
+        lint_station_design("post", design, &sections(), &items(), "test")
             .into_iter()
             .filter(|issue| issue.severity == LintSeverity::Error)
             .map(|issue| issue.message)
@@ -260,7 +259,7 @@ mod tests {
     #[test]
     fn a_sound_station_design_lints_clean() {
         assert!(
-            lint_station_design(&sound(), &sections(), &items(), "test").is_empty(),
+            lint_station_design("post", &sound(), &sections(), &items(), "test").is_empty(),
             "{:?}",
             errors(&sound())
         );
@@ -394,7 +393,7 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Station(StationConfig {
-                    design: design.into(),
+                    design: StationDesignSource::Prototype(design.into()),
                     allegiance: Allegiance::Neutral,
                     derelict: false,
                     initial_velocity: nova_events::prelude::MetersPerSecond3::ZERO,
@@ -425,7 +424,7 @@ mod tests {
     fn a_service_listed_twice_warns_without_refusing() {
         let mut design = sound();
         design.services.push(StationServiceType::Trade);
-        let issues = lint_station_design(&design, &sections(), &items(), "test");
+        let issues = lint_station_design("post", &design, &sections(), &items(), "test");
         assert!(issues
             .iter()
             .all(|issue| issue.severity == LintSeverity::Warn));

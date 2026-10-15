@@ -477,7 +477,7 @@ mod tests {
         let station = world
             .spawn((
                 SpaceshipRootMarker,
-                StationMarker(StationDesignId::from("waystation")),
+                StationMarker,
                 StationServices(services),
             ))
             .id();

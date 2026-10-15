@@ -236,7 +236,7 @@ fn station(
             rotation: Quat::from_rotation_y(STATION_TURN),
         },
         kind: ScenarioObjectKind::Station(StationConfig {
-            design: BLOCK_WAYSTATION_STATION_ID.into(),
+            design: StationDesignSource::Prototype(BLOCK_WAYSTATION_STATION_ID.into()),
             allegiance,
             derelict,
             initial_velocity: MetersPerSecond3::ZERO,

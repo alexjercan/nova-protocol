@@ -1567,9 +1567,10 @@
     // -- 9. STATION ---------------------------------------------------------
     // A `Station` is a hull that never flies: a docking port, a flight
     // computer and plating, NO thruster (lint refuses one), authored once and
-    // spawned by id with `kind: Station((design: "example_outpost", ..))`.
-    // Every field is required. `services` is the closed set Rebuild, Refit,
-    // Trade, Storage, Jobs, Roster; at least one, each once. `storage_cap_g`
+    // spawned by id with `kind: Station((design: Prototype("example_outpost"),
+    // ..))`. `design` holds the station, and every field is required.
+    // `services` is the closed set Rebuild, Refit, Trade, Storage, Jobs,
+    // Roster; at least one, each once. `storage_cap_g`
     // is above zero exactly when Storage is listed. `stock` seeds the hull's
     // own hold (four plates here = 400 kg) and `credits` is what it trades
     // with. The hull takes the same fields a `Ship` design does, and on a
@@ -1581,51 +1582,53 @@
         id: "example_outpost",
         name: "Outpost (Example Mod)",
         about: "A four-plate block with a bridge and one collar. Dock to trade survey cores and leave cargo in its store.",
-        hull: (
-            sections: [
-                (
-                    id: "plate_0",
-                    position: (0.0, 0.0, 0.0),
-                    rotation: (0.0, 0.0, 0.0, 1.0),
-                    source: Prototype(id: "reinforced_hull_section"),
-                ),
-                (
-                    id: "plate_1",
-                    position: (1.0, 0.0, 0.0),
-                    rotation: (0.0, 0.0, 0.0, 1.0),
-                    source: Prototype(id: "reinforced_hull_section"),
-                ),
-                (
-                    id: "plate_2",
-                    position: (0.0, 0.0, 1.0),
-                    rotation: (0.0, 0.0, 0.0, 1.0),
-                    source: Prototype(id: "reinforced_hull_section"),
-                ),
-                (
-                    id: "plate_3",
-                    position: (1.0, 0.0, 1.0),
-                    rotation: (0.0, 0.0, 0.0, 1.0),
-                    source: Prototype(id: "reinforced_hull_section"),
-                ),
-                (
-                    id: "bridge",
-                    position: (0.0, 1.0, 0.0),
-                    rotation: (0.0, 0.0, 0.0, 1.0),
-                    source: Prototype(id: "basic_controller_section"),
-                ),
-                (
-                    id: "collar",
-                    position: (-1.0, 0.0, 0.0),
-                    rotation: (0.0, 0.70710677, 0.0, 0.70710677),
-                    source: Prototype(id: "docking_port_section"),
-                ),
-            ],
-            integrity: (collapse_threshold: Some(0.5)),
+        design: (
+            hull: (
+                sections: [
+                    (
+                        id: "plate_0",
+                        position: (0.0, 0.0, 0.0),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                        source: Prototype(id: "reinforced_hull_section"),
+                    ),
+                    (
+                        id: "plate_1",
+                        position: (1.0, 0.0, 0.0),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                        source: Prototype(id: "reinforced_hull_section"),
+                    ),
+                    (
+                        id: "plate_2",
+                        position: (0.0, 0.0, 1.0),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                        source: Prototype(id: "reinforced_hull_section"),
+                    ),
+                    (
+                        id: "plate_3",
+                        position: (1.0, 0.0, 1.0),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                        source: Prototype(id: "reinforced_hull_section"),
+                    ),
+                    (
+                        id: "bridge",
+                        position: (0.0, 1.0, 0.0),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                        source: Prototype(id: "basic_controller_section"),
+                    ),
+                    (
+                        id: "collar",
+                        position: (-1.0, 0.0, 0.0),
+                        rotation: (0.0, 0.70710677, 0.0, 0.70710677),
+                        source: Prototype(id: "docking_port_section"),
+                    ),
+                ],
+                integrity: (collapse_threshold: Some(0.5)),
+            ),
+            services: [Trade, Storage],
+            storage_cap_g: 50000,
+            stock: {"example_survey_core": 4},
+            credits: 1000,
         ),
-        services: [Trade, Storage],
-        storage_cap_g: 50000,
-        stock: {"example_survey_core": 4},
-        credits: 1000,
     )),
     // -- 10. START ROLE -----------------------------------------------------
     // A `StartRole` is one row in the New Game wizard's role list: the catalog

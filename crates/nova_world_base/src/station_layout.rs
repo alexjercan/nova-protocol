@@ -71,6 +71,16 @@ use crate::{
     ARMOURED_STYLE_ID, INDUSTRIAL_STYLE_ID, STATION_STYLE_ID,
 };
 
+/// The families every generated station carries: structure, flight
+/// computers, docking ports and turrets. Arming refuses a catalog with no
+/// part of one of them at advancement 0.
+pub(crate) const STATION_FAMILIES: [ShipPartFamilyType; 4] = [
+    ShipPartFamilyType::Hull,
+    ShipPartFamilyType::Controller,
+    ShipPartFamilyType::Docking,
+    ShipPartFamilyType::Weapon,
+];
+
 /// How many seeded layouts a request draws before it fails.
 const MAX_STATION_ATTEMPTS: u32 = 8;
 
@@ -144,15 +154,6 @@ impl StationArchetypeType {
             Self::Ring => STATION_STYLE_ID,
             Self::Spire => ARMOURED_STYLE_ID,
             Self::Yard => INDUSTRIAL_STYLE_ID,
-        }
-    }
-
-    /// The name a picker shows for a station of this archetype.
-    fn name(self) -> &'static str {
-        match self {
-            Self::Ring => "Ring Station",
-            Self::Spire => "Spire Station",
-            Self::Yard => "Yard Station",
         }
     }
 }
@@ -379,12 +380,7 @@ pub fn generate_station(
         attempts,
         constraint,
     };
-    for family in [
-        ShipPartFamilyType::Hull,
-        ShipPartFamilyType::Controller,
-        ShipPartFamilyType::Docking,
-        ShipPartFamilyType::Weapon,
-    ] {
+    for family in STATION_FAMILIES {
         if parts.station_parts(family, request.advancement).is_empty() {
             return Err(fail(0, StationLayoutConstraintType::NoEligiblePart(family)));
         }
@@ -474,15 +470,7 @@ pub fn generated_station(
         }
     }
 
-    let archetype = layout.archetype;
     StationDesign {
-        id: format!("generated_{archetype}_station").as_str().into(),
-        name: archetype.name().to_string(),
-        about: format!(
-            "A generated {archetype} station with {} docking ports and {} turrets. Ships dock \
-             to rebuild, refit, trade and leave cargo in its store.",
-            layout.ports, layout.turrets
-        ),
         hull: layout.design.clone(),
         services: SERVICES.to_vec(),
         storage_cap_g: lerp(STORAGE_CAP_G, advancement).round() as u32,

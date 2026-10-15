@@ -35,6 +35,8 @@ use nova_ship::prelude::{
 };
 use nova_world::prelude::ShipRoleType;
 
+use crate::station_layout::StationArchetypeType;
+
 /// The version of the canonical form [`ShipPartSnapshot::content_hash`]
 /// reads. Change it with any change to what the hash covers or how it is
 /// written, so an old pin cannot match a new form.
@@ -244,31 +246,19 @@ pub enum ShipPartFault {
         /// Its [`role_style_id`].
         style: &'static str,
     },
-    /// No loaded station design has an id the generator places.
-    MissingStationDesign {
-        /// The design id, one of `GENERATED_STATION_DESIGN_IDS`.
-        id: &'static str,
+    /// No loaded style has the id an archetype's generated stations wear.
+    MissingStationStyle {
+        /// The archetype.
+        archetype: StationArchetypeType,
+        /// Its [`StationArchetypeType::style_id`].
+        style: &'static str,
     },
-    /// A hull section of a station design the generator places names a
-    /// section prototype no loaded pack declares, so its clearance cannot be
-    /// measured.
-    UnresolvedStationSection {
-        /// The station design id.
-        design: String,
-        /// The hull section id.
-        section: String,
-        /// The prototype it names.
-        prototype: String,
-    },
-    /// A station design the generator places is wider than the clearance a
-    /// generated body may declare.
-    StationTooWide {
-        /// The station design id.
-        design: String,
-        /// Its measured clearance, in meters.
-        clearance: f32,
-        /// The limit, in meters.
-        limit: f32,
+    /// No part of a family every generated station carries is usable at
+    /// advancement 0, so the least advanced civilization could not build
+    /// one.
+    MissingStationPart {
+        /// The family: hull, flight computer, docking port or turret.
+        family: ShipPartFamilyType,
     },
 }
 
@@ -311,27 +301,14 @@ impl fmt::Display for ShipPartFault {
                 "{} ships wear style '{style}', and no loaded content authors it",
                 role.label()
             ),
-            Self::MissingStationDesign { id } => write!(
+            Self::MissingStationStyle { archetype, style } => write!(
                 f,
-                "the generator places station design '{id}', and no loaded content authors it"
+                "{archetype} stations wear style '{style}', and no loaded content authors it"
             ),
-            Self::UnresolvedStationSection {
-                design,
-                section,
-                prototype,
-            } => write!(
+            Self::MissingStationPart { family } => write!(
                 f,
-                "station design '{design}' section '{section}' names the prototype \
-                 '{prototype}', which no loaded pack declares"
-            ),
-            Self::StationTooWide {
-                design,
-                clearance,
-                limit,
-            } => write!(
-                f,
-                "station design '{design}' reaches {clearance} m from its root, past the {limit} \
-                 m a generated body may declare"
+                "no {family} part a station may carry at advancement 0: every generated \
+                 station needs one"
             ),
         }
     }

@@ -352,7 +352,6 @@ fn request_paint(
     loaded: Res<LoadedSectionPacks>,
     styles: Res<GameStyles>,
     items: Res<GameItems>,
-    stations: Res<GameStationDesigns>,
 ) {
     let Some(painting) = painting else {
         return;
@@ -361,7 +360,7 @@ fn request_paint(
         return;
     }
     let wanted = *view;
-    let config = featured_world_config(&loaded, &styles, &items, &stations);
+    let config = featured_world_config(&loaded, &styles, &items);
     let task = AsyncComputeTaskPool::get().spawn(async move { paint_slice(&config, wanted) });
     commands.insert_resource(SliceJob { view: wanted, task });
 }

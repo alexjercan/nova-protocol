@@ -1,6 +1,6 @@
 //! system_station_orbit: a station is a body in a planet's well.
 //!
-//! The base yard station is spawned in a circular orbit of a small planet
+//! A generated yard station is spawned in a circular orbit of a small planet
 //! with the velocity `station_orbit_velocity` gives it, with a player ship
 //! parked outside the well. It sells a tender at each docking port but one,
 //! so three hulls ride the orbit docked to it, as a generated station's
@@ -23,9 +23,10 @@
 //! cap, which puts a 450 m orbit at a 30 s period so three orbits fit a
 //! software-rendered run. The tolerances are the shipped constants, unscaled.
 //!
-//! The station is 260 m long and a docked tender reaches 45 m past its
-//! port, so at the 450 m orbit the assembly passes no closer than about
-//! 270 m to the planet's centre, 60 m over its outer surface.
+//! The yard is generated at advancement 0.35, which gives it four docking
+//! ports and a clearance of at most 170 m. A docked tender reaches 45 m past
+//! its port, so at the 450 m orbit the assembly passes no closer than 235 m
+//! to the planet's centre, over its 211 m outer surface.
 //!
 //! The hit is scripted, half of one section's pool, because a station
 //! collapses as a ship does: one Serpent torpedo takes a station under its
@@ -66,8 +67,12 @@ use avian3d::prelude::{
 };
 use bevy::prelude::*;
 use clap::Parser;
+use generated_station::generated_station_design;
 use nova_probe::fixtures::{self, prelude::*};
 use nova_protocol::prelude::*;
+
+#[path = "../shared/generated_station.rs"]
+mod generated_station;
 
 #[path = "../playable/shared/docking_pair.rs"]
 #[expect(
@@ -107,6 +112,13 @@ const ORBIT_RADIUS: Meters = Meters(450.0);
 /// Where the player ship is parked: above the orbit plane, outside the
 /// sphere of influence so it neither falls nor orbits.
 const PLAYER_POSITION: Meters3 = Meters3::new(0.0, 1500.0, 0.0);
+
+/// The advancement the yard is generated at: `2 + floor(6 * 0.35)` is four
+/// docking ports, and its clearance ceiling is 170 m.
+const STATION_ADVANCEMENT: f32 = 0.35;
+
+/// The seed the yard is generated from.
+const STATION_SEED: u32 = 11;
 
 /// The script type, named once so the step list and its helpers agree.
 #[cfg(feature = "debug")]
@@ -189,8 +201,25 @@ fn custom_plugin(app: &mut App) {
     }
 }
 
-fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, sections: Res<GameSections>) {
-    commands.trigger(LoadScenario(orbit_range(&game_assets, &sections)));
+fn setup_range(
+    mut commands: Commands,
+    game_assets: Res<GameAssets>,
+    sections: Res<GameSections>,
+    loaded: Res<LoadedSectionPacks>,
+    items: Res<GameItems>,
+) {
+    let (layout, yard) = generated_station_design(
+        &loaded,
+        &items,
+        StationArchetypeType::Yard,
+        STATION_ADVANCEMENT,
+        STATION_SEED,
+    );
+    info!(
+        "station probe: the yard has {} port(s) and a {:.0} m clearance",
+        layout.ports, layout.clearance.0
+    );
+    commands.trigger(LoadScenario(orbit_range(&game_assets, &sections, yard)));
 }
 
 /// The hulls the station sells: one tender per docking port but one, the
@@ -220,10 +249,14 @@ fn station_start() -> Vec3 {
     Vec3::new(ORBIT_RADIUS.to_engine(), 0.0, 0.0)
 }
 
-/// The range: the planet at the origin, the catalog yard station on its orbit
-/// and the player ship above, lit by a three-point rig because the engine
-/// spawns no light.
-fn orbit_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
+/// The range: the planet at the origin, the generated `yard` on its orbit and
+/// the player ship above, lit by a three-point rig because the engine spawns
+/// no light.
+fn orbit_range(
+    game_assets: &GameAssets,
+    sections: &GameSections,
+    yard: StationDesign,
+) -> ScenarioConfig {
     let planet = ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: "planet".to_string(),
@@ -249,7 +282,7 @@ fn orbit_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Station(StationConfig {
-            design: YARD_STATION_STATION_ID.into(),
+            design: StationDesignSource::Inline(yard),
             allegiance: Allegiance::Neutral,
             derelict: false,
             initial_velocity,

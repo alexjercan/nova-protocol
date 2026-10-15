@@ -96,14 +96,15 @@ fn a_marked_hull_writes_the_sandbox_station_defaults_cut_to_its_hold() {
         "a save writes the design under the node's own id"
     );
     assert_eq!(design.name, "Outpost");
-    assert_eq!(design.services, SERVICES.to_vec());
-    assert_eq!(design.storage_cap_g, STORAGE_CAP_G);
-    assert_eq!(design.credits, CREDITS);
+    assert_eq!(design.design.services, SERVICES.to_vec());
+    assert_eq!(design.design.storage_cap_g, STORAGE_CAP_G);
+    assert_eq!(design.design.credits, CREDITS);
     assert_eq!(
-        design.hull.integrity.collapse_threshold,
+        design.design.hull.integrity.collapse_threshold,
         Some(STATION_COLLAPSE_THRESHOLD)
     );
     let stock: Vec<(String, u32)> = design
+        .design
         .stock
         .stacks()
         .map(|(item, count)| (item.to_string(), count))
@@ -133,7 +134,7 @@ fn a_marked_hull_with_no_hold_opens_with_no_stock() {
         &items(),
     );
 
-    assert_eq!(design.stock.stacks().count(), 0);
+    assert_eq!(design.design.stock.stacks().count(), 0);
     assert!(station_faults(&design, &sections(), &items()).is_empty());
 }
 

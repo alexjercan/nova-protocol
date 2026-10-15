@@ -2,11 +2,13 @@
 //!
 //! A station is a hull that never flies: a [`ShipDesign`] with a docking port
 //! and a flight computer, no thruster, parked where the scenario placed it.
-//! It is authored once as a [`StationDesign`] and spawned by id through
-//! [`StationConfig`]. The spawn builds the same root a spaceship gets - the
-//! dock, the trade, the sever and the freeze all query `SpaceshipRootMarker` -
-//! and adds [`StationMarker`] and [`StationStorage`] over it; the marker
-//! brings the design's [`StationServices`] with it. A living station is
+//! It is authored as a [`StationDesign`], either once in the catalog as a
+//! [`StationDesignPrototype`] spawned by id or inline in the spawn, as the
+//! open world writes its generated stations ([`StationDesignSource`]). The
+//! spawn builds the same root a spaceship gets - the dock, the trade, the
+//! sever and the freeze all query `SpaceshipRootMarker` - and adds
+//! [`StationMarker`], the design's [`StationServices`] and
+//! [`StationStorage`] over it. A living station is
 //! AI-driven: its turrets aim, defend and answer fire, and with no thruster
 //! the AI never flies it. A dead station has no driver.
 //!
@@ -66,8 +68,9 @@ pub mod prelude {
     pub use super::{
         freeze_station, station_orbit_velocity, station_scenario_object, thaw_station,
         FrozenStation, GameStationDesigns, StationConfig, StationDesign, StationDesignId,
-        StationMarker, StationServiceType, StationServices, StationStorage,
-        STATION_COLLAPSE_THRESHOLD, STATION_LEVEL_TOLERANCE_RAD, STATION_ORBIT_TOLERANCE,
+        StationDesignPrototype, StationDesignSource, StationMarker, StationServiceType,
+        StationServices, StationStorage, STATION_COLLAPSE_THRESHOLD, STATION_LEVEL_TOLERANCE_RAD,
+        STATION_ORBIT_TOLERANCE,
     };
 }
 
@@ -141,13 +144,6 @@ pub fn station_orbit_velocity(
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct StationDesign {
-    /// The id a scenario spawns this design by.
-    pub id: StationDesignId,
-    /// The name a picker shows. A spawned station is named by the scenario
-    /// object that placed it.
-    pub name: String,
-    /// What this station is, for a reader.
-    pub about: String,
     /// The hull: a docking port, a flight computer and plating, no thruster.
     pub hull: ShipDesign,
     /// The services a docked ship may use here. At least one.
@@ -161,17 +157,67 @@ pub struct StationDesign {
     pub credits: u32,
 }
 
-/// The loaded station-design catalog: every [`StationDesign`] the enabled mods
-/// registered, in merge order. Filled by the mod merge (`nova_assets`'s
-/// `register_bundles`) and read through
+/// One authored station design in the catalog: an id, a name, what it is,
+/// and the design it is.
+///
+/// Resolved by [`id`](StationDesignPrototype::id) out of
+/// [`GameStationDesigns`], which the mod merge fills as it fills the ship
+/// design catalog, so a mod's design with the id of a base one replaces it.
+#[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct StationDesignPrototype {
+    /// The id a scenario spawns this design by.
+    pub id: StationDesignId,
+    /// The name a picker shows. A spawned station is named by the scenario
+    /// object that placed it.
+    pub name: String,
+    /// What this station is, for a reader.
+    pub about: String,
+    /// The design itself.
+    pub design: StationDesign,
+}
+
+/// Where a spawned station's [`StationDesign`] comes from.
+#[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+// Inline carries a whole hull next to Prototype's small id, and boxing it
+// cannot compile here because the enum derives Reflect and bevy_reflect 0.19
+// has no Reflect impl for Box<T>: the trade `ShipDesignSource` makes.
+#[expect(
+    clippy::large_enum_variant,
+    reason = "spawn-time config, and bevy_reflect 0.19 cannot box the variant"
+)]
+pub enum StationDesignSource {
+    /// A catalog design, by id, resolved against [`GameStationDesigns`].
+    Prototype(StationDesignId),
+    /// The design, whole: the open world's generated stations spawn this
+    /// way, and a save keeps what the spawn built.
+    Inline(StationDesign),
+}
+
+/// The loaded station-design catalog: every [`StationDesignPrototype`] the
+/// enabled mods registered, in merge order. Filled by the mod merge
+/// (`nova_assets`'s `register_bundles`) and read through
 /// [`get_design`](GameStationDesigns::get_design).
 #[derive(Resource, Clone, Debug, Deref, DerefMut, Default)]
-pub struct GameStationDesigns(pub Vec<StationDesign>);
+pub struct GameStationDesigns(pub Vec<StationDesignPrototype>);
 
 impl GameStationDesigns {
     /// The design `id` names, or `None` if nothing authored it.
-    pub fn get_design(&self, id: &StationDesignId) -> Option<&StationDesign> {
+    pub fn get_design(&self, id: &StationDesignId) -> Option<&StationDesignPrototype> {
         self.0.iter().find(|design| design.id == *id)
+    }
+
+    /// The design `source` spawns: the catalog design it names, or its
+    /// inline design. `None` when it names an id nothing authored.
+    pub fn resolve<'a>(&'a self, source: &'a StationDesignSource) -> Option<&'a StationDesign> {
+        match source {
+            StationDesignSource::Prototype(id) => {
+                self.get_design(id).map(|prototype| &prototype.design)
+            }
+            StationDesignSource::Inline(design) => Some(design),
+        }
     }
 }
 
@@ -181,8 +227,8 @@ impl GameStationDesigns {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct StationConfig {
-    /// The catalog design, by id.
-    pub design: StationDesignId,
+    /// The design: a catalog design by id, or one written inline.
+    pub design: StationDesignSource,
     /// Which side the station belongs to. An Enemy or Player station fires
     /// on the sides hostile to it; a Neutral one only answers fire. A dead
     /// station is Neutral whatever this says.
@@ -196,8 +242,9 @@ pub struct StationConfig {
 }
 
 /// Build the station `design` on `entity` as `config` spawns it: the ship
-/// root with the design's stock and credits, plus [`StationMarker`] and an
-/// empty [`StationStorage`]. A living station is AI-driven and defends
+/// root with the design's stock and credits, plus [`StationMarker`], the
+/// design's [`StationServices`] and an empty [`StationStorage`]. The caller
+/// resolves `config.design` to `design`. A living station is AI-driven and defends
 /// itself; a dead one has no driver, takes its loot marker and is Neutral.
 ///
 /// A derelict's marker lands before the root marker, so the section spawn
@@ -215,9 +262,8 @@ pub fn station_scenario_object(
 ) {
     assert!(
         design.hull.integrity.collapse_threshold.is_some(),
-        "station_scenario_object: station design '{}' authors no hull \
-         integrity.collapse_threshold, the share it collapses at",
-        design.id
+        "station_scenario_object: a station design authors no hull \
+         integrity.collapse_threshold, the share it collapses at"
     );
     if config.derelict {
         entity.insert(DerelictShipMarker);
@@ -242,7 +288,8 @@ pub fn station_scenario_object(
             lootable: config.derelict,
             credits: design.credits,
         }),
-        StationMarker(design.id.clone()),
+        StationMarker,
+        StationServices(design.services.clone()),
         StationStorage::new(design.storage_cap_g),
     ));
 }
@@ -270,17 +317,14 @@ fn station_ai() -> SpaceshipController {
 pub(crate) fn on_station_neutralized_turn_derelict(
     add: On<Add, NeutralizedMarker>,
     mut commands: Commands,
-    q_station: Query<(Option<&Children>, &StationMarker), Without<DerelictShipMarker>>,
+    q_station: Query<Option<&Children>, (With<StationMarker>, Without<DerelictShipMarker>)>,
     q_section: Query<&SectionBuildConfig, (With<SectionMarker>, Without<SectionInactiveMarker>)>,
 ) {
     let station = add.entity;
-    let Ok((children, marker)) = q_station.get(station) else {
+    let Ok(children) = q_station.get(station) else {
         return;
     };
-    info!(
-        "on_station_neutralized_turn_derelict: station {station:?} ({}) is dead",
-        marker.0
-    );
+    info!("on_station_neutralized_turn_derelict: station {station:?} is dead");
     for child in children.into_iter().flatten() {
         if let Ok(config) = q_section.get(*child) {
             if !derelict_keeps_live(&config.0.kind) {
@@ -300,34 +344,6 @@ pub(crate) fn on_station_neutralized_turn_derelict(
         ));
 }
 
-/// Insert a station root's [`StationServices`] from its design whenever a
-/// [`StationMarker`] lands, so a fresh spawn and a thaw read the same list.
-///
-/// # Panics
-///
-/// On a marker naming a design the catalog lacks: lint and the save load
-/// refuse such an id before anything spawns it.
-pub(crate) fn insert_station_services(
-    add: On<Add, StationMarker>,
-    q_marker: Query<&StationMarker>,
-    designs: Res<GameStationDesigns>,
-    mut commands: Commands,
-) {
-    let Ok(marker) = q_marker.get(add.entity) else {
-        return;
-    };
-    let Some(design) = designs.get_design(&marker.0) else {
-        panic!(
-            "insert_station_services: station {:?} names design '{}', which the station \
-             catalog lacks",
-            add.entity, marker.0
-        );
-    };
-    commands
-        .entity(add.entity)
-        .insert(StationServices(design.services.clone()));
-}
-
 /// What a station is permitted to do: receive a dock, defend itself while
 /// it is `living`, and nothing a hull under way does.
 fn station_capabilities(living: bool) -> ShipCapabilities {
@@ -342,8 +358,8 @@ fn station_capabilities(living: bool) -> ShipCapabilities {
     }
 }
 
-/// A station frozen with its cell: the design it was built from, the hull
-/// record a ship freezes to, its storage, the hulls it holds (parked at its
+/// A station frozen with its cell: the services it offers, the hull record
+/// a ship freezes to, its storage, the hulls it holds (parked at its
 /// ports or coasting beside it for hire) and whether the player owns it.
 ///
 /// `owned` is the one record of ownership: the live [`OwnedStationMarker`]
@@ -353,7 +369,7 @@ fn station_capabilities(living: bool) -> ShipCapabilities {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct FrozenStation {
-    design: StationDesignId,
+    services: Vec<StationServiceType>,
     ship: FrozenShip,
     storage: StationStorage,
     parked: Vec<FrozenParkedHull>,
@@ -361,9 +377,9 @@ pub struct FrozenStation {
 }
 
 impl FrozenStation {
-    /// The design the station was built from.
-    pub fn design(&self) -> &StationDesignId {
-        &self.design
+    /// The services the station offers.
+    pub fn services(&self) -> &[StationServiceType] {
+        &self.services
     }
 
     /// The hull record: sections, hold, damage and balance.
@@ -397,8 +413,8 @@ impl FrozenStation {
     }
 }
 
-/// Freeze a station: its hull as [`freeze_ship`] records it, with its design
-/// id, storage, parked hulls ([`freeze_parked_hulls`]) and whether it carries
+/// Freeze a station: its hull as [`freeze_ship`] records it, with its
+/// services, storage, parked hulls ([`freeze_parked_hulls`]) and whether it carries
 /// [`OwnedStationMarker`].
 ///
 /// # Errors
@@ -408,18 +424,21 @@ impl FrozenStation {
 ///
 /// # Panics
 ///
-/// On an entity that carries no [`StationMarker`] or no [`StationStorage`]:
-/// not a station root this module spawned.
+/// On an entity that carries no [`StationMarker`], no [`StationServices`] or
+/// no [`StationStorage`]: not a station root this module spawned.
 pub fn freeze_station(world: &World, station: Entity) -> Result<FrozenStation, UnsettledBody> {
     let root = world.entity(station);
-    let Some(marker) = root.get::<StationMarker>() else {
+    if !root.contains::<StationMarker>() {
         panic!("freeze_station: {station} is not a station root");
+    }
+    let Some(services) = root.get::<StationServices>() else {
+        panic!("freeze_station: station {station} has no services");
     };
     let Some(storage) = root.get::<StationStorage>() else {
         panic!("freeze_station: station {station} has no storage");
     };
     Ok(FrozenStation {
-        design: marker.0.clone(),
+        services: services.0.clone(),
         ship: freeze_ship(world, station)?,
         storage: storage.clone(),
         parked: freeze_parked_hulls(world, station)?,
@@ -429,20 +448,20 @@ pub fn freeze_station(world: &World, station: Entity) -> Result<FrozenStation, U
 
 /// Rebuild a frozen station on `entity`, which the caller spawned with its
 /// pose, identity and parent. The hull thaws through [`thaw_ship`]; the
-/// marker, the storage, the parked hulls to park again
+/// marker, the services, the storage, the parked hulls to park again
 /// ([`PendingParkedHulls`]) and, for an owned station,
 /// [`OwnedStationMarker`] land beside it. The caller inserts the
 /// velocity after this.
 pub fn thaw_station(entity: &mut EntityCommands, frozen: FrozenStation) {
     let FrozenStation {
-        design,
+        services,
         ship,
         storage,
         parked,
         owned,
     } = frozen;
     thaw_ship(entity, ship);
-    entity.insert((StationMarker(design), storage));
+    entity.insert((StationMarker, StationServices(services), storage));
     if !parked.is_empty() {
         entity.insert(PendingParkedHulls(
             parked.into_iter().map(PendingParkedHull::Frozen).collect(),

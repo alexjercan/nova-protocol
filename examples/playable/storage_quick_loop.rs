@@ -267,8 +267,16 @@ fn stage_the_docks(world: &mut World) {
         return;
     };
     if !world.entity(depot).contains::<StationMarker>() {
+        let Some(waystation) = world
+            .resource::<GameStationDesigns>()
+            .get_design(&StationDesignId::from(DEPOT_DESIGN))
+        else {
+            panic!("storage_quick_loop: the catalog has no '{DEPOT_DESIGN}' station");
+        };
+        let services = StationServices(waystation.design.services.clone());
         world.entity_mut(depot).insert((
-            StationMarker(StationDesignId::from(DEPOT_DESIGN)),
+            StationMarker,
+            services,
             StationStorage::new(STORAGE_CAP_G),
         ));
         world.entity_mut(hauler).insert(OwnedShipMarker);

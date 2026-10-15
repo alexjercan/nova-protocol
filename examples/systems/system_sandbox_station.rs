@@ -15,7 +15,7 @@
 //! | 1 | `outcome: a marked hull with no port reads as no station` | the Station box takes the mark and the Station Check row names the missing Docking section |
 //! | 2 | `outcome: Play refuses a hull the station lint refuses` | Play leaves the editor up and the status line says the hull cannot be a station, naming the missing port and the thruster |
 //! | 3 | `outcome: a marked hull with a port and a controller reads ready` | the Station Check row reads `ready` once the thruster is off and the port is on |
-//! | 4 | `outcome: the marked hull spawns as a station` | the root carries the editor's station design, services, a port, a controller and no thruster, on the pose it was authored with |
+//! | 4 | `outcome: the marked hull spawns as a station` | the root carries the station marker, services, a port, a controller and no thruster, on the pose it was authored with |
 //! | 5 | `outcome: the sandbox station holds still with no thrust` | no throttle under the root, and it stands at rest where it spawned |
 //! | 6 | `outcome: the sandbox station levels` | nudged off its attitude, its own computer turns it back within the station tolerance |
 //! | 7 | `outcome: the sandbox station admits a dock` | the flown ship docks at its port and the living station holds the helm |
@@ -84,11 +84,6 @@ const LOAD_DEADLINE_SECS: f32 = 120.0;
 /// The node id the second Add Ship mints: the ship the walk marks.
 #[cfg(feature = "debug")]
 const STATION_NODE: &str = "ship_2";
-
-/// The design id Play registers the marked ship under: the node id, under
-/// the sandbox's namespace.
-#[cfg(feature = "debug")]
-const STATION_DESIGN: &str = "editor_sandbox_ship_2";
 
 /// The centre of a unit section's +Z face, in ship space, a hair inside it so
 /// the aim lands on the face and not on its edge. The stage camera stands
@@ -833,19 +828,14 @@ fn section_kinds(world: &World, root: Entity) -> (bool, bool, bool) {
     found
 }
 
-/// Claim 4: the root is a station of the editor's design, on the pose the
-/// hull was authored with.
+/// Claim 4: the root is a station with services, on the pose the hull was
+/// authored with.
 #[cfg(feature = "debug")]
 fn assert_spawned_as_station(world: &mut World) {
     let station = station_root(world).expect("sandbox station: the station is up");
-    let design = world
-        .get::<StationMarker>(station)
-        .expect("sandbox station: the root carries its marker")
-        .0
-        .to_string();
-    assert_eq!(
-        design, STATION_DESIGN,
-        "sandbox station: the root spawned from the design the editor registered"
+    assert!(
+        world.get::<StationMarker>(station).is_some(),
+        "sandbox station: the root carries its marker"
     );
     let services = world
         .get::<StationServices>(station)
@@ -880,12 +870,12 @@ fn assert_spawned_as_station(world: &mut World) {
     );
     let elapsed = world.resource::<Time>().elapsed_secs();
     info!(
-        "sandbox station: {STATION_NODE} spawned as a station of '{design}' at {position}, services {services:?}"
+        "sandbox station: {STATION_NODE} spawned as a station at {position}, services {services:?}"
     );
     nova_probe::probe_marker(
         world,
         "outcome: the marked hull spawns as a station",
-        serde_json::json!({ "t": elapsed, "design": design, "services": services.len() }),
+        serde_json::json!({ "t": elapsed, "services": services.len() }),
     );
     let mut epoch = world.resource_mut::<StationEpoch>();
     epoch.station = Some(station);

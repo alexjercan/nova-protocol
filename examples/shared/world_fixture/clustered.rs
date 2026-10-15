@@ -1088,7 +1088,6 @@ mod tests {
             },
             &GameStyles(nova_authoring::generation::build_styles()),
             &GameItems::new(nova_authoring::generation::build_items()),
-            &GameStationDesigns(nova_authoring::generation::build_stations()),
         )
     }
 

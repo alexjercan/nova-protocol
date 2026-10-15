@@ -1874,7 +1874,7 @@ mod physics_tests {
                 RigidBody::Dynamic,
                 Transform::default(),
                 SpaceshipRootMarker,
-                StationMarker("rig_station".into()),
+                StationMarker,
                 LinearVelocity(old_linear),
                 AngularVelocity(Vec3::ZERO),
             ))
@@ -2065,9 +2065,7 @@ mod physics_tests {
     /// the ship rule now.
     #[test]
     fn a_station_severed_above_its_threshold_takes_damage_on_both_halves() {
-        a_hull_severed_above_its_threshold_takes_damage_on_both_halves(StationMarker(
-            "rig_station".into(),
-        ));
+        a_hull_severed_above_its_threshold_takes_damage_on_both_halves(StationMarker);
     }
 
     #[test]
@@ -2077,9 +2075,7 @@ mod physics_tests {
 
     #[test]
     fn a_station_severed_below_its_threshold_collapses_and_is_destroyed() {
-        a_hull_severed_below_its_threshold_collapses_and_is_destroyed(StationMarker(
-            "rig_station".into(),
-        ));
+        a_hull_severed_below_its_threshold_collapses_and_is_destroyed(StationMarker);
     }
 
     /// A dead station is still shot apart: neither the dead marker nor the
@@ -2087,7 +2083,7 @@ mod physics_tests {
     #[test]
     fn a_dead_station_severed_below_its_threshold_collapses_and_is_destroyed() {
         a_hull_severed_below_its_threshold_collapses_and_is_destroyed((
-            StationMarker("rig_station".into()),
+            StationMarker,
             DerelictShipMarker,
             NeutralizedMarker,
         ));

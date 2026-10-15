@@ -27,10 +27,7 @@ use crate::{
         ship_design::prelude::{
             resolve_ship_design, GameShipDesigns, ResolvedShipDesign, ShipDesign, ShipDesignSource,
         },
-        station::{
-            insert_station_services, on_station_neutralized_turn_derelict,
-            prelude::GameStationDesigns,
-        },
+        station::{on_station_neutralized_turn_derelict, prelude::GameStationDesigns},
     },
 };
 
@@ -1110,7 +1107,6 @@ impl Plugin for SpaceshipPlugin {
         app.add_observer(add_design_section);
         app.add_observer(remove_design_section);
         app.add_observer(remember_lost_section_binding);
-        app.add_observer(insert_station_services);
         app.add_observer(on_station_neutralized_turn_derelict);
     }
 }

@@ -15,7 +15,7 @@ use nova_gameplay::prelude::ItemDesign;
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::{
     CampaignConfig, ScenarioConfig, ShipDesignPrototype, ShipDesignSource, SpaceshipConfig,
-    SpaceshipSectionConfig, StartRole, StationDesign,
+    SpaceshipSectionConfig, StartRole, StationDesignPrototype,
 };
 use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
 use nova_training::prelude::Lesson;
@@ -142,7 +142,7 @@ pub fn build_ship_content() -> Vec<Content> {
 }
 
 /// The base game's station designs, in the order the file carries them.
-pub fn build_stations() -> Vec<StationDesign> {
+pub fn build_stations() -> Vec<StationDesignPrototype> {
     base_content::build().stations
 }
 

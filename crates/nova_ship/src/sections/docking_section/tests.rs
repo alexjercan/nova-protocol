@@ -1344,7 +1344,7 @@ fn a_living_station_holds_the_helm_and_a_dead_one_hands_it_to_the_player() {
 /// only once every port is held.
 #[test]
 fn a_station_root_is_admitted_through_the_station_rule() {
-    let station_marker = || StationMarker("waystation".into());
+    let station_marker = || StationMarker;
     for (case, side, derelict, owned, player_side, admitted) in [
         (
             "living enemy",
@@ -1500,7 +1500,7 @@ fn a_station_dock_opens_on_the_station_helm_rule() {
         .insert(PlayerSpaceshipMarker);
     app.world_mut()
         .entity_mut(station)
-        .insert((StationMarker("waystation".into()), Allegiance::Neutral));
+        .insert((StationMarker, Allegiance::Neutral));
     request_dock(&mut app, player, station);
     assert_eq!(
         connections(&mut app)[0].helm,
@@ -1527,7 +1527,7 @@ fn a_station_dock_opens_on_the_station_helm_rule() {
         .entity_mut(player)
         .insert(PlayerSpaceshipMarker);
     app.world_mut().entity_mut(station).insert((
-        StationMarker("waystation".into()),
+        StationMarker,
         Allegiance::Enemy,
         DerelictShipMarker,
     ));
@@ -1558,7 +1558,7 @@ fn a_station_that_dies_while_docked_hands_the_player_the_helm() {
         .insert(PlayerSpaceshipMarker);
     app.world_mut()
         .entity_mut(station)
-        .insert((StationMarker("waystation".into()), Allegiance::Neutral));
+        .insert((StationMarker, Allegiance::Neutral));
     request_dock(&mut app, player, station);
     assert_eq!(
         connections(&mut app)[0].helm,
@@ -1594,7 +1594,7 @@ fn losing_the_station_port_while_docked_releases_the_dock() {
             .insert(PlayerSpaceshipMarker);
         app.world_mut()
             .entity_mut(station)
-            .insert((StationMarker("waystation".into()), Allegiance::Neutral));
+            .insert((StationMarker, Allegiance::Neutral));
         request_dock(&mut app, player, station);
         assert_eq!(connections(&mut app).len(), 1);
 

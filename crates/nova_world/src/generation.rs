@@ -12,7 +12,7 @@
 //! placement and the whole scenario spawn config the object is built from:
 //! [`SectorAsteroid`] carries an [`AsteroidConfig`], [`SectorPlanet`] a
 //! [`PlanetConfig`], [`SectorShip`] a [`SpaceshipConfig`], [`SectorStation`]
-//! a [`StationConfig`] beside the [`StationDesign`] it names. Facts only the
+//! a [`StationConfig`] with its [`StationDesign`] inline. Facts only the
 //! generator knows (a ship's rotation, clearance, condition, civilization and
 //! role; a station's rotation, clearance and civilization) sit beside the
 //! config, never inside a hidden default. Materialization adds only the pose,
@@ -43,7 +43,7 @@ use nova_scenario::prelude::{
     is_asteroid_kind, patrol_stops_fault, prepare_asteroid_geometry, prepare_planet,
     AIControllerConfig, AsteroidConfig, PlanetConfig, PreparedAsteroid, PreparedPlanet,
     SectionSource, ShipDesign, ShipDesignSource, ShipPresentationConfig, SpaceshipConfig,
-    SpaceshipController, StationConfig, StationDesign, StationHullOffer,
+    SpaceshipController, StationConfig, StationDesign, StationDesignSource, StationHullOffer,
     ASTEROID_GEOMETRIC_FACTOR_MAX,
 };
 
@@ -303,14 +303,10 @@ pub struct SectorStation {
     pub clearance: Meters,
     /// The civilization that keeps it, or kept it as a dead station.
     pub civilization: CivilizationId,
-    /// The design the spawn builds, whole: the generator pins the catalog
-    /// design it names, so the record carries it and a worker resolves
-    /// nothing. Its hull is checked like a ship's inline design.
-    pub design: StationDesign,
-    /// The spawn: `design` names `design.id`, `allegiance` is `Some`, and
-    /// `derelict` marks a dead station, whose hull spawns inactive and
-    /// lootable with no service. [`validate_manifest`] refuses a mismatch
-    /// and a `None` side.
+    /// The spawn: the design inline and whole, so a worker resolves nothing,
+    /// its hull checked like a ship's inline design; `derelict` marks a dead
+    /// station, whose hull spawns inactive and lootable with no service.
+    /// [`validate_manifest`] refuses a catalog design.
     pub spawn: StationConfig,
     /// The hulls a living station sells, each a whole inline design checked
     /// like a ship's. Empty on a dead station, which sells nothing;
@@ -319,6 +315,23 @@ pub struct SectorStation {
 }
 
 impl SectorStation {
+    /// The inline design.
+    ///
+    /// # Panics
+    ///
+    /// On a design that names a catalog prototype. [`validate_manifest`]
+    /// refuses one, so a description never panics here.
+    pub fn design(&self) -> &StationDesign {
+        match &self.spawn.design {
+            StationDesignSource::Inline(design) => design,
+            StationDesignSource::Prototype(id) => panic!(
+                "nova_world: station '{}' names the catalog design '{id}'; validate_manifest \
+                 refuses one",
+                self.id
+            ),
+        }
+    }
+
     /// Whether the station is dead: the spawn-time strip of a living
     /// design, never a second design.
     pub fn is_dead(&self) -> bool {
@@ -525,9 +538,9 @@ impl SectorDescription {
         }
         for station in &self.stations {
             let spawn = &station.spawn;
-            let design = &station.design;
+            let design = station.design();
             out.push_str(&format!(
-                "station {} {} {} velocity {:?} c{:.2} {} {} design {} side {:?} services {:?} \
+                "station {} {} {} velocity {:?} c{:.2} {} {} side {:?} services {:?} \
                  storage_cap_g {} stock {:?} credits {} integrity {:?} presentation {:?}\n",
                 station.id,
                 point(station.position),
@@ -536,7 +549,6 @@ impl SectorDescription {
                 station.clearance.get(),
                 station.condition_label(),
                 station.civilization,
-                design.id,
                 spawn.allegiance,
                 design.services,
                 design.storage_cap_g,
@@ -965,18 +977,17 @@ pub fn validate_manifest(
                 ),
             ));
         }
-        if spawn.design != station.design.id {
-            return Err(refuse(
-                &station.id,
-                "design",
-                format!(
-                    "the spawn names '{}' and the record carries '{}'",
-                    spawn.design, station.design.id
-                ),
-            ));
-        }
-        check_ship_design(&station.design.hull)
-            .map_err(|value| refuse(&station.id, "design", value))?;
+        let design = match &spawn.design {
+            StationDesignSource::Inline(design) => design,
+            StationDesignSource::Prototype(id) => {
+                return Err(refuse(
+                    &station.id,
+                    "design",
+                    format!("the catalog design '{id}', not an inline design"),
+                ));
+            }
+        };
+        check_ship_design(&design.hull).map_err(|value| refuse(&station.id, "design", value))?;
         if station.is_dead() && !station.hulls.is_empty() {
             return Err(refuse(
                 &station.id,

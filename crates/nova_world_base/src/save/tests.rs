@@ -21,7 +21,7 @@ use nova_scenario::prelude::{
     freeze_asteroid, freeze_fleet, freeze_ore_drop, freeze_ship, freeze_station,
     spaceship_scenario_object, AsteroidKind, AsteroidKindId, AsteroidMarker, AsteroidRadius,
     AsteroidSeed, AsteroidTexture, CurrentScenario, GameStartRoles, MinedCanisterQueue, MinedOre,
-    MinedOreDrop, SpaceshipConfig, StationMarker, StationStorage,
+    MinedOreDrop, SpaceshipConfig, StationMarker, StationServices, StationStorage,
 };
 use nova_ship::prelude::{
     cargo_canister, freeze_canister, freeze_wreck_fragment, thaw_round, thaw_torpedo, AIFollow,
@@ -2549,7 +2549,8 @@ fn frozen_item_holders(item: &ItemDesignId) -> Vec<(Option<&'static str>, Frozen
             spaceship_scenario_object(SpaceshipConfig::default()),
             ShipInventory::new(&extended, 10_000, []),
             DamageMarks::default(),
-            StationMarker("post".into()),
+            StationMarker,
+            StationServices(vec![StationServiceType::Storage]),
             ron::from_str::<StationStorage>(&format!(
                 "(cap_g: 10000, items: {{{}: 1}})",
                 ron::to_string(item).unwrap()
@@ -2873,7 +2874,8 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
                 spaceship_scenario_object(SpaceshipConfig::default()),
                 ShipInventory::new(&items(), 10_000, []),
                 DamageMarks::default(),
-                StationMarker("post".into()),
+                StationMarker,
+                StationServices(vec![StationServiceType::Storage]),
                 ron::from_str::<StationStorage>(&format!(
                     "(cap_g: {cap_g}, items: {{{iron}: {ore}}})"
                 ))
@@ -2946,6 +2948,23 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
         )
         .unwrap();
         assert_eq!(saved.generation, generation, "stock within its caps opens");
+        // A saved station keeps the services it was built with: nothing
+        // looks them up again on load.
+        let services: Vec<&[StationServiceType]> = saved
+            .sectors
+            .iter()
+            .flat_map(|(_, sector)| sector.bodies())
+            .filter_map(|body| match body.body() {
+                FrozenBodyType::Station(station) => Some(station.services()),
+                _ => None,
+            })
+            .collect();
+        let expected: &[&[StationServiceType]] = if generation == 5 {
+            &[&[StationServiceType::Storage]]
+        } else {
+            &[]
+        };
+        assert_eq!(services, expected, "generation {generation}");
         drop(lock);
     }
 }
