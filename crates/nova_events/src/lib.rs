@@ -1394,11 +1394,13 @@ pub struct StationBoughtEventInfo {
 }
 
 /// An Inventory pane strip took one section off the docked lootable partner and
-/// put its parts in the ship's hold (`onstripped`).
+/// put its parts in the ship's hold, or a Ship pane delete took one section
+/// off the ship itself while docked at a station that refits (`onstripped`).
 ///
-/// One event per section a whole-hull strip takes, the berth port last; a
-/// refused strip, a section held by a full hold and an undock fire nothing.
-/// No credits move.
+/// One event per section a whole-hull strip takes, the berth port last, and
+/// one per delete, whose `hull` is the ship's own id; a refused strip or
+/// delete, a section held by a full hold and an undock fire nothing. No
+/// credits move.
 #[derive(Debug, Clone, EventKind, Reflect)]
 #[event_name("onstripped")]
 #[event_info(StrippedEventInfo)]
@@ -1415,7 +1417,8 @@ pub struct StrippedEventInfo {
     /// Type name of that ship.
     #[serde(rename = "type_name")]
     pub type_name: String,
-    /// Scenario id of the stripped hull.
+    /// Scenario id of the stripped hull: the docked partner, or for a delete
+    /// the ship itself.
     #[serde(rename = "hull")]
     pub hull: String,
     /// Pane section code of the stripped section on that hull.

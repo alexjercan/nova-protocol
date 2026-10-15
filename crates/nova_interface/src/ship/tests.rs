@@ -128,6 +128,7 @@ fn ship_repair_spends_plates_only_on_a_damaged_player_section() {
     app.add_plugins(MinimalPlugins);
     app.init_resource::<ShipRuntime>();
     app.add_message::<SectionRepairCommand>();
+    app.add_message::<SectionDeleteCommand>();
     // A scheduled system keeps one reader cursor, so each frame reads only its
     // own commands; a `run_system_once` reader would replay older ones.
     app.add_systems(Update, apply_ship_section_commands);
@@ -265,6 +266,7 @@ fn ship_repair_spends_selected_quantity_and_refuses_stale_requests_atomically() 
     app.add_plugins(MinimalPlugins);
     app.init_resource::<ShipRuntime>();
     app.add_message::<SectionRepairCommand>();
+    app.add_message::<SectionDeleteCommand>();
     app.add_systems(Update, apply_ship_section_commands);
     let (ship, _hull, turret, _thruster) = spawn_scripted_ship(app.world_mut());
     app.world_mut()
@@ -466,6 +468,7 @@ fn ship_pane_renders_blocks_and_selects_section() {
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Ship);
     app.add_message::<SectionRepairCommand>();
+    app.add_message::<SectionDeleteCommand>();
 
     let (_ship, hull, _turret, _thruster) = spawn_scripted_ship(app.world_mut());
     app.world_mut()
@@ -552,6 +555,7 @@ fn ship_orbit_drag_is_rmb_only() {
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Ship);
     app.add_message::<SectionRepairCommand>();
+    app.add_message::<SectionDeleteCommand>();
 
     spawn_scripted_ship(app.world_mut());
     app.world_mut()
@@ -622,6 +626,7 @@ fn the_desk_turn_keys_do_not_turn_the_ship_view() {
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Ship);
     app.add_message::<SectionRepairCommand>();
+    app.add_message::<SectionDeleteCommand>();
     spawn_scripted_ship(app.world_mut());
     app.world_mut()
         .run_system_once(assign_section_codes)
@@ -667,6 +672,7 @@ fn the_map_wheel_does_not_zoom_the_ship_view() {
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Ship);
     app.add_message::<SectionRepairCommand>();
+    app.add_message::<SectionDeleteCommand>();
     app.add_systems(Update, ship_input);
     spawn_scripted_ship(app.world_mut());
     app.world_mut()
@@ -726,6 +732,7 @@ fn a_captured_rebind_key_does_nothing_else() {
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Ship);
     app.add_message::<SectionRepairCommand>();
+    app.add_message::<SectionDeleteCommand>();
     app.add_message::<SectionInputBindingChanged>();
     app.add_systems(Update, (apply_ship_rebind, ship_input).chain());
     let (_, _, turret, _) = spawn_scripted_ship(app.world_mut());
@@ -868,6 +875,7 @@ fn offset_ship_app() -> (App, Entity, Entity, Entity) {
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Ship);
     app.add_message::<SectionRepairCommand>();
+    app.add_message::<SectionDeleteCommand>();
 
     let (hull, turret, thruster) = spawn_offset_ship(app.world_mut());
     app.world_mut()
@@ -1525,6 +1533,7 @@ fn panel_buttons_raise_section_repair_command() {
     app.insert_state(PauseStates::Interface);
     app.init_resource::<ShipRuntime>();
     app.add_message::<SectionRepairCommand>();
+    app.add_message::<SectionDeleteCommand>();
     // A scheduled handler keeps one reader cursor, so a spent repair is never
     // replayed by a later step.
     app.add_systems(Update, apply_ship_section_commands);
@@ -1958,6 +1967,7 @@ fn update_ship_panel_hides_the_repair_form_after_a_full_repair() {
     app.init_resource::<ShipRuntime>();
     app.insert_resource(InterfaceIcons::blank());
     app.add_message::<SectionRepairCommand>();
+    app.add_message::<SectionDeleteCommand>();
     app.add_systems(Update, apply_ship_section_commands);
     let (ship, hull, _turret, _thruster) = spawn_scripted_ship(app.world_mut());
     app.world_mut().entity_mut(ship).insert(ShipInventory::new(

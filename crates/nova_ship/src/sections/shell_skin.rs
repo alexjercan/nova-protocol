@@ -47,6 +47,7 @@ use nova_gameplay::prelude::{
 use crate::sections::{
     base_section::prelude::SectionFootprint,
     clearance::prelude::SectionExit,
+    design_sections::SectionRemoveRequest,
     fixture::{
         prelude::{SectionFixture, ShedFixtureMarker},
         refill_shed_budget, shed_dead_fixtures, ShedBudget,
@@ -861,6 +862,44 @@ pub(crate) fn frozen_plate_body(shape: ShellShape, pose: Transform, health: Heal
     )
 }
 
+/// The live sections a root clads: each one's entity beside its
+/// [`PlacedPart`], in child order.
+type SkinSectionQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static Transform,
+        &'static SectionLinkPoints,
+        Option<&'static SectionExit>,
+        Option<&'static SectionFootprint>,
+    ),
+    With<SectionMarker>,
+>;
+
+/// Every live section of `root`, as the skin reads it.
+fn skin_parts<'a>(
+    root: Entity,
+    q_children: &Query<&Children>,
+    q_sections: &'a SkinSectionQuery,
+) -> (Vec<Entity>, Vec<PlacedPart<'a>>) {
+    let mut entities: Vec<Entity> = Vec::new();
+    let mut placed: Vec<PlacedPart> = Vec::new();
+    for section in q_children.get(root).into_iter().flatten() {
+        let Ok((transform, link_points, exit, footprint)) = q_sections.get(*section) else {
+            continue;
+        };
+        entities.push(*section);
+        placed.push(PlacedPart {
+            position: transform.translation,
+            rotation: transform.rotation,
+            link_points: link_points.as_slice(),
+            footprint: footprint.map_or(UVec3::ONE, |footprint| **footprint),
+            exit: exit.map(|exit| exit.0),
+        });
+    }
+    (entities, placed)
+}
+
 /// Derive a ship's skin and bolt it on: the whole skin for a freshly spawned
 /// ship, and the plates round the new sections when a live ship grows.
 ///
@@ -879,12 +918,7 @@ pub(crate) fn frozen_plate_body(shape: ShellShape, pose: Transform, health: Heal
 /// for free, and it is why the pose has to be turned into the section's frame
 /// here: the derivation works in cells of the ship.
 ///
-/// Decoration is solved in the same pass, from the ship's [`ShipStyle`]. It
-/// hangs off the PLATE rather than the section, one level further out for the
-/// same reason: a plate shot off takes its greebles with it, which is what makes
-/// stripping a patch of skin read as stripping a patch of skin. The solve runs
-/// over the whole skin, and a re-clad spawns its answers on the plates it lays
-/// only.
+/// Decoration is laid in the same pass, see [`lay_skin`].
 ///
 /// A whole batch on a root carrying [`ShipSkinRestored`] is skipped: a thaw
 /// already spawned its exact plates (and their decor) from a frozen record in
@@ -903,15 +937,7 @@ fn spawn_ship_skin(
         With<SpaceshipRootMarker>,
     >,
     q_children: Query<&Children>,
-    q_sections: Query<
-        (
-            &Transform,
-            &SectionLinkPoints,
-            Option<&SectionExit>,
-            Option<&SectionFootprint>,
-        ),
-        With<SectionMarker>,
-    >,
+    q_sections: SkinSectionQuery,
     q_plates: Query<&Transform, With<ShipSkinMarker>>,
     styles: Option<Res<GameStyles>>,
 ) {
@@ -926,23 +952,9 @@ fn spawn_ship_skin(
         let Ok((_, worn, restored)) = q_clad.get(root) else {
             continue;
         };
-        let Ok(children) = q_children.get(root) else {
+        let (entities, placed) = skin_parts(root, &q_children, &q_sections);
+        if entities.is_empty() {
             continue;
-        };
-        let mut entities: Vec<Entity> = Vec::new();
-        let mut placed: Vec<PlacedPart> = Vec::new();
-        for section in children.iter() {
-            let Ok((transform, link_points, exit, footprint)) = q_sections.get(section) else {
-                continue;
-            };
-            entities.push(section);
-            placed.push(PlacedPart {
-                position: transform.translation,
-                rotation: transform.rotation,
-                link_points: link_points.as_slice(),
-                footprint: footprint.map_or(UVec3::ONE, |footprint| **footprint),
-                exit: exit.map(|exit| exit.0),
-            });
         }
         let whole = entities.iter().all(|section| new.contains(section));
         if whole && restored {
@@ -950,24 +962,142 @@ fn spawn_ship_skin(
             continue;
         }
         let phase = lattice_phase(placed.iter().map(|part| part.position));
-        let (structure, cells) = read_cells(&placed, phase);
-        if structure.is_empty() {
-            continue;
-        }
-        let plates = derive_skin(&structure);
-        // Index-aligned with `plates`: whether this pass lays that plate.
-        let relaid: Vec<bool> = if whole {
-            vec![true; plates.len()]
-        } else {
-            let kept: Vec<PlacedPart> = placed
+        let before: Option<Vec<PlacedPart>> = (!whole).then(|| {
+            placed
                 .iter()
                 .zip(&entities)
                 .filter(|(_, section)| !new.contains(*section))
                 .map(|(part, _)| part.clone())
-                .collect();
-            let (before, _) = read_cells(&kept, phase);
+                .collect()
+        });
+        let style = worn
+            .zip(styles.as_deref())
+            .and_then(|(worn, styles)| worn.resolve(styles));
+        lay_skin(
+            &mut commands,
+            SkinLayout {
+                root,
+                entities: &entities,
+                placed: &placed,
+                before: before.as_deref(),
+                phase,
+                style,
+            },
+            &q_children,
+            &q_sections,
+            &q_plates,
+        );
+    }
+}
+
+/// Re-clad a clad ship round a section a [`SectionRemoveRequest`] takes
+/// off: the cells whose plate the smaller hull changes lose their plates
+/// and take the new ones, the rest stay as they are. The section's own
+/// plates leave with it.
+///
+/// Runs while the section is still live, so the hull before the removal is
+/// read off the ship as it stands; the lattice phase is that hull's, so the
+/// plates that stay keep their cells.
+#[expect(
+    clippy::type_complexity,
+    reason = "the root, its sections and their plates, each one filtered query"
+)]
+pub(crate) fn reclad_round_removal(
+    request: On<SectionRemoveRequest>,
+    mut commands: Commands,
+    q_clad: Query<(&ShipSkin, Option<&ShipStyle>), With<SpaceshipRootMarker>>,
+    q_children: Query<&Children>,
+    q_sections: SkinSectionQuery,
+    q_plates: Query<&Transform, With<ShipSkinMarker>>,
+    styles: Option<Res<GameStyles>>,
+) {
+    let root = request.entity;
+    let Ok((skin, worn)) = q_clad.get(root) else {
+        return;
+    };
+    if !skin.0 {
+        return;
+    }
+    let (entities, placed) = skin_parts(root, &q_children, &q_sections);
+    let phase = lattice_phase(placed.iter().map(|part| part.position));
+    let (kept, kept_placed): (Vec<Entity>, Vec<PlacedPart>) = entities
+        .iter()
+        .zip(&placed)
+        .filter(|(section, _)| **section != request.section)
+        .map(|(section, part)| (*section, part.clone()))
+        .unzip();
+    if kept.is_empty() {
+        return;
+    }
+    let style = worn
+        .zip(styles.as_deref())
+        .and_then(|(worn, styles)| worn.resolve(styles));
+    lay_skin(
+        &mut commands,
+        SkinLayout {
+            root,
+            entities: &kept,
+            placed: &kept_placed,
+            before: Some(&placed),
+            phase,
+            style,
+        },
+        &q_children,
+        &q_sections,
+        &q_plates,
+    );
+}
+
+/// What [`lay_skin`] clads: the root, its live sections (each entity beside
+/// its part), the hull it wore before when only the change is re-clad, the
+/// lattice phase and the decoration style.
+struct SkinLayout<'a> {
+    root: Entity,
+    entities: &'a [Entity],
+    placed: &'a [PlacedPart<'a>],
+    /// The hull before a change, or `None` to clad the whole ship.
+    before: Option<&'a [PlacedPart<'a>]>,
+    phase: Vec3,
+    style: Option<&'a ShipStyleConfig>,
+}
+
+/// Lay the skin of `layout.placed`: every plate, or with a `before` hull
+/// only the plates of the cells the change reshaped, despawning the plates
+/// that stood there.
+///
+/// Decoration is solved in the same pass, from the ship's [`ShipStyle`]. It
+/// hangs off the PLATE rather than the section, one level further out for the
+/// same reason: a plate shot off takes its greebles with it, which is what makes
+/// stripping a patch of skin read as stripping a patch of skin. The solve runs
+/// over the whole skin, and a re-clad spawns its answers on the plates it lays
+/// only.
+fn lay_skin(
+    commands: &mut Commands,
+    layout: SkinLayout,
+    q_children: &Query<&Children>,
+    q_sections: &SkinSectionQuery,
+    q_plates: &Query<&Transform, With<ShipSkinMarker>>,
+) {
+    let SkinLayout {
+        root,
+        entities,
+        placed,
+        before,
+        phase,
+        style,
+    } = layout;
+    let (structure, cells) = read_cells(placed, phase);
+    if structure.is_empty() {
+        return;
+    }
+    let plates = derive_skin(&structure);
+    // Index-aligned with `plates`: whether this pass lays that plate.
+    let relaid: Vec<bool> = match before {
+        None => vec![true; plates.len()],
+        Some(before) => {
+            let (before, _) = read_cells(before, phase);
             let changed = changed_cells(&derive_skin(&before), &plates);
-            for section in &entities {
+            for section in entities {
                 let Ok((pose, ..)) = q_sections.get(*section) else {
                     continue;
                 };
@@ -985,88 +1115,89 @@ fn spawn_ship_skin(
                 .iter()
                 .map(|plate| changed.contains(&plate.cell))
                 .collect()
+        }
+    };
+
+    let sections: HashMap<IVec3, (Entity, Transform)> = cells
+        .into_iter()
+        .zip(entities.iter().copied())
+        .zip(placed)
+        .flat_map(|((cells, entity), part)| {
+            let pose = Transform::from_translation(part.position).with_rotation(part.rotation);
+            cells.into_iter().map(move |cell| (cell, (entity, pose)))
+        })
+        .collect();
+
+    let mut shapes: HashSet<ShellShape> = HashSet::new();
+    // Index-aligned with `plates`, so the solve's answers can be looked
+    // up by the index it gives them back. `None` where a plate was skipped.
+    let mut laid: Vec<Option<Entity>> = Vec::with_capacity(plates.len());
+    for (plate, relay) in plates.iter().zip(&relaid) {
+        if !relay {
+            laid.push(None);
+            continue;
+        }
+        // The anchor is filled by construction, so a miss means two
+        // sections shared a cell and only one of them is on record.
+        let Some((section, pose)) = sections.get(&plate.anchor) else {
+            laid.push(None);
+            continue;
         };
+        let turn = pose.rotation.inverse();
+        let centre = plate.cell.as_vec3() + phase;
+        let local = Transform::from_translation(turn * (centre - pose.translation))
+            .with_rotation(turn * plate.rotation);
+        let entity = commands
+            .spawn((plate_body(plate, local), ChildOf(*section)))
+            .id();
+        shapes.insert(plate.shape);
+        laid.push(Some(entity));
+    }
 
-        let sections: HashMap<IVec3, (Entity, Transform)> = cells
-            .into_iter()
-            .zip(entities)
-            .zip(&placed)
-            .flat_map(|((cells, entity), part)| {
-                let pose = Transform::from_translation(part.position).with_rotation(part.rotation);
-                cells.into_iter().map(move |cell| (cell, (entity, pose)))
-            })
-            .collect();
-
-        let mut shapes: HashSet<ShellShape> = HashSet::new();
-        // Index-aligned with `plates`, so the solve's answers can be looked
-        // up by the index it gives them back. `None` where a plate was skipped.
-        let mut laid: Vec<Option<Entity>> = Vec::with_capacity(plates.len());
-        for (plate, relay) in plates.iter().zip(&relaid) {
-            if !relay {
-                laid.push(None);
-                continue;
-            }
-            // The anchor is filled by construction, so a miss means two
-            // sections shared a cell and only one of them is on record.
-            let Some((section, pose)) = sections.get(&plate.anchor) else {
-                laid.push(None);
+    // The root already remembers where the ship was hit - `DamageMarks` is
+    // a requirement of `SpaceshipRootMarker`. Not inserted here: hull
+    // sections carve too, so an unclad ship has a shape to carve after all.
+    let readings = read_plates(&structure, &plates);
+    let mut taken: Vec<usize> = vec![0; style.map_or(0, |style| style.fixtures.len())];
+    if let Some(style) = style {
+        for placement in solve_decor(&structure, &plates, style) {
+            let Some(plate) = laid[placement.plate] else {
                 continue;
             };
-            let turn = pose.rotation.inverse();
-            let centre = plate.cell.as_vec3() + phase;
-            let local = Transform::from_translation(turn * (centre - pose.translation))
-                .with_rotation(turn * plate.rotation);
-            let entity = commands
-                .spawn((plate_body(plate, local), ChildOf(*section)))
-                .id();
-            shapes.insert(plate.shape);
-            laid.push(Some(entity));
+            let fixture = &style.fixtures[placement.fixture];
+            let pose = decor_pose(&plates[placement.plate], placement.turns);
+            commands.spawn((decor_body(fixture, pose), ChildOf(plate)));
+            taken[placement.fixture] += 1;
         }
-
-        // The root already remembers where the ship was hit - `DamageMarks` is
-        // a requirement of `SpaceshipRootMarker`. Not inserted here: hull
-        // sections carve too, so an unclad ship has a shape to carve after all.
-        let style = worn
-            .zip(styles.as_ref())
-            .and_then(|(worn, styles)| worn.resolve(styles));
-        let readings = read_plates(&structure, &plates);
-        let mut taken: Vec<usize> = vec![0; style.map_or(0, |style| style.fixtures.len())];
-        if let Some(style) = style {
-            for placement in solve_decor(&structure, &plates, style) {
-                let Some(plate) = laid[placement.plate] else {
-                    continue;
-                };
-                let fixture = &style.fixtures[placement.fixture];
-                let pose = decor_pose(&plates[placement.plate], placement.turns);
-                commands.spawn((decor_body(fixture, pose), ChildOf(plate)));
-                taken[placement.fixture] += 1;
-            }
-        }
-
-        // The shape count is the interesting half of the skin: it is how many
-        // meshes the ship costs, and the shape space it is drawn from is
-        // unbounded. The RELIEF histogram and the per-fixture tally are the
-        // interesting half of the look - a style author tuning greeble weights
-        // needs to know what a real hull actually took.
-        debug!(
-            "spawn_ship_skin: ship {root} {} {} plate(s) over {} shape(s); \
-             relief {}; decoration {}; {}",
-            if whole { "clad in" } else { "re-clad" },
-            laid.iter().flatten().count(),
-            shapes.len(),
-            relief_tally(&readings),
-            style.map_or_else(
-                || "none (no style)".to_string(),
-                |style| decor_tally(style, &taken),
-            ),
-            // The SHAPE half of the same picture: how much of this hull is
-            // creased, how much of it is the saddle, how many hull faces are
-            // bare, and how much of the decoration landed somewhere a
-            // flat-bottomed piece actually fits. None of it is legible in a
-            // screenshot and all of it decides a style.
-            skin_summary(&skin_report(&structure, &plates, &readings, style)),
-        );
     }
+
+    // The shape count is the interesting half of the skin: it is how many
+    // meshes the ship costs, and the shape space it is drawn from is
+    // unbounded. The RELIEF histogram and the per-fixture tally are the
+    // interesting half of the look - a style author tuning greeble weights
+    // needs to know what a real hull actually took.
+    debug!(
+        "spawn_ship_skin: ship {root} {} {} plate(s) over {} shape(s); \
+         relief {}; decoration {}; {}",
+        if before.is_none() {
+            "clad in"
+        } else {
+            "re-clad"
+        },
+        laid.iter().flatten().count(),
+        shapes.len(),
+        relief_tally(&readings),
+        style.map_or_else(
+            || "none (no style)".to_string(),
+            |style| decor_tally(style, &taken),
+        ),
+        // The SHAPE half of the same picture: how much of this hull is
+        // creased, how much of it is the saddle, how many hull faces are
+        // bare, and how much of the decoration landed somewhere a
+        // flat-bottomed piece actually fits. None of it is legible in a
+        // screenshot and all of it decides a style.
+        skin_summary(&skin_report(&structure, &plates, &readings, style)),
+    );
 }
 
 /// The cells whose plate differs between the skin `before` a ship grew and
@@ -1439,6 +1570,7 @@ impl Plugin for ShipSkinPlugin {
                 .after(build_ship_integrity_graph)
                 .before(IntegritySystems),
         );
+        app.add_observer(reclad_round_removal);
         // On the fixed step, AFTER the physics phase the damage that empties a
         // plate's health resolves in - see `shed_dead_fixtures`, which owns the
         // reasoning for both the clock and the phase. `IntegritySystems` is an
@@ -2463,6 +2595,53 @@ mod tests {
             plate_cells(&app, ship),
             expected,
             "the grown ship must wear the grown hull's skin once, less the plate shot off",
+        );
+    }
+
+    /// A section taken off a clad ship re-clads the hull round the hole, and
+    /// only there: the faces it bared take plates, and a plate combat took
+    /// off away from it stays off.
+    #[test]
+    fn a_section_removed_from_a_clad_ship_reclads_round_it_and_nowhere_else() {
+        let mut app = skin_app();
+        app.add_observer(reclad_round_removal);
+        let line: Vec<(Vec3, Quat)> = (0..4)
+            .map(|x| (Vec3::new(x as f32, 0.0, 0.0), Quat::IDENTITY))
+            .collect();
+        let ship = spawn_ship(&mut app, true, &line);
+        app.update();
+        let at = |app: &App, cell: IVec3| {
+            plates_of(app, ship).into_iter().find(|(plate, section)| {
+                let world = app.world();
+                let pose = world.get::<Transform>(*section).unwrap();
+                let local = world.get::<Transform>(*plate).unwrap();
+                (pose.translation + pose.rotation * local.translation)
+                    .round()
+                    .as_ivec3()
+                    == cell
+            })
+        };
+        let (shot, _) = at(&app, IVec3::new(-1, 0, 0)).expect("the aft end of the line is clad");
+        app.world_mut().entity_mut(shot).despawn();
+        let (_, end) = at(&app, IVec3::new(4, 0, 0)).expect("the bow end of the line is clad");
+
+        app.world_mut().trigger(SectionRemoveRequest {
+            entity: ship,
+            section: end,
+        });
+        app.world_mut().entity_mut(end).despawn();
+        app.update();
+
+        let mut expected: std::collections::BTreeMap<[i32; 3], usize> =
+            derive_skin(&hull(&[0, 1, 2].map(|x| IVec3::new(x, 0, 0))))
+                .iter()
+                .map(|plate| (plate.cell.to_array(), 1))
+                .collect();
+        expected.remove(&[-1, 0, 0]);
+        assert_eq!(
+            plate_cells(&app, ship),
+            expected,
+            "the shorter ship must wear the shorter hull's skin once, less the plate shot off",
         );
     }
 

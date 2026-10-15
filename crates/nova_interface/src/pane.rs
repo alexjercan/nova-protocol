@@ -641,6 +641,7 @@ const SHIP_KEY_HINTS: &[PaneKeyHint] = &[
     ("Mates", &["ship_mates"], HintWhenType::Always),
     ("Repair", &["ship_repair"], HintWhenType::Always),
     ("Rebind", &["ship_rebind"], HintWhenType::Always),
+    ("Remove", &["ship_delete"], HintWhenType::Always),
 ];
 
 /// The pointer gestures both viewers read raw, outside [`InputBindings`]:

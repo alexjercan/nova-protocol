@@ -40,8 +40,8 @@ use nova_input::prelude::*;
 /// A pad runs out before the pane verbs do. `InterfacePane` overlaps `Viewer`, so
 /// only the two face buttons the camera does not use are left: Y switches the
 /// pane, and A goes to what each pane does MOST. `map_chart`, `ship_repair`,
-/// `ship_rebind` and `inventory_details` stay keyboard-only rather than take a
-/// camera verb's button away.
+/// `ship_rebind`, `ship_delete` and `inventory_details` stay keyboard-only
+/// rather than take a camera verb's button away.
 pub fn interface_bindings() -> Vec<ActionBinding> {
     use InputSource::{Gamepad, Keyboard};
     vec![
@@ -121,6 +121,9 @@ pub fn interface_bindings() -> Vec<ActionBinding> {
         ActionBinding::new("ship_rebind", "SHIP", "Rebind Section Key")
             .context(ActionContext::InterfacePane("ship"))
             .keyboard([Keyboard(KeyCode::KeyB)]),
+        ActionBinding::new("ship_delete", "SHIP", "Delete Section")
+            .context(ActionContext::InterfacePane("ship"))
+            .keyboard([Keyboard(KeyCode::Delete)]),
         // With a part in hand the tilt keys roll it and cycle its mating
         // socket, as the editor's R and F do. They FOLLOW the tilt keys: the
         // Ship pane reads one or the other by whether a part is in hand, so

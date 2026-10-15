@@ -26,7 +26,8 @@
 //!    parts the hold lacks at the station's ask), pick a part off the ship
 //!    with Q, drag the view with the right button to the docked station (dim
 //!    outlines, on the ship's -X side) and aim a Railgun Lance end-on (F) at
-//!    a plate facing it to see it refused, and rebind a gun with B;
+//!    a plate facing it to see it refused, rebind a gun with B, and delete
+//!    a selected section with Delete (its parts go back in the hold);
 //! 2. the Station tab: buy a hull, hire an escort, buy the station;
 //! 3. switch tabs after a change, and check the schematic, the plating and
 //!    the greebles follow it.
@@ -37,28 +38,34 @@
 //!
 //! The diagnostics layer (`nova_debug::diagnostics`, F3, on at start) shows
 //! the key hints that apply now (Q over a section, R, F and the click while a
-//! part is in hand, B for a bindable selection, Esc while a rebind waits),
+//! part is in hand, B for a bindable selection, Del for a selection that can
+//! come off, Esc while a rebind waits),
 //! and in the Ship view draws the free sockets near the target (green rings,
 //! a grey cross where the lane is closed), the target socket, the part in
 //! hand's bounds (green valid, red refused) with its roll as a cyan arrow,
 //! and the collision volume of the station and the ships at its docks
 //! (violet). Its panel names the part in hand and the verdict; Shift+F3 adds
 //! the target socket, the parts the click buys, the selected section's
-//! binding and the socket counts.
+//! binding, what a delete gives back or why it is refused, and the socket
+//! counts.
 //!
 //! It needs `--features debug`, which owns the diagnostics layer. Under
 //! `NOVA_AUTOPILOT=1` a smoke walk waits for
 //! the docked Ship tab, takes the kinetic PDC from the station catalogue,
 //! points at free sockets until the ghost stands valid, rolls the part and
 //! steps its socket, steps the socket back and rolls until it fits, clicks the
-//! view, rebinds the new gun to `]` and checks the selection did not step,
-//! picks a hull part off the ship with Q, takes the Railgun Lance, drags the
+//! view, rebinds the new gun to `T` and checks the selection did not step,
+//! deletes the gun again with Delete and checks its parts came back, selects
+//! the port the dock holds by and sees its delete refused, picks a
+//! hull part off the ship with Q, takes the Railgun Lance, drags the
 //! view to the station and points the lance at the sockets nearest it, through every
 //! mating socket, until the station refuses it (or warns that none reaches),
 //! and switches tabs after it: a Map tab click, an Inventory tab click and the
 //! next-tab key, which steps on to the Station tab while docked. `NOVA_CAPTURE=1` shoots `sandbox-ship.png`,
 //! `sandbox-ghost.png`, `sandbox-mount.png`, `sandbox-placed.png`,
-//! `sandbox-rebind-armed.png`, `sandbox-rebind.png`, `sandbox-pick.png`,
+//! `sandbox-rebind-armed.png`, `sandbox-rebind.png`, `sandbox-delete.png`,
+//! `sandbox-delete-refused.png`,
+//! `sandbox-pick.png`,
 //! `sandbox-station-refusal.png`,
 //! `sandbox-map-after.png` and `sandbox-station.png`.
 //! Unset, no walk and no deadline run.
@@ -599,6 +606,9 @@ mod ship_overlay {
         let docked = !runtime.station_colliders().is_empty();
         let mount = runtime.mount();
         let selected = runtime.selected();
+        let delete = runtime
+            .delete_verdict()
+            .map(|verdict| verdict.map(str::to_string).map_err(str::to_string));
         let station: Vec<(Vec3, Vec3)> = runtime
             .station_colliders()
             .iter()
@@ -684,6 +694,15 @@ mod ship_overlay {
             let binding = view.binding_text();
             if binding.is_some() && held.is_none() && !rebind_armed {
                 hints.push(("B", "rebind"));
+            }
+            match delete {
+                Some(Ok(_)) if !rebind_armed => hints.push(("Del", "delete")),
+                _ => {}
+            }
+            if let Some(verdict) = &delete {
+                details.push(match verdict {
+                    Ok(line) | Err(line) => line.clone(),
+                });
             }
             details.push(format!(
                 "selected: {} bind {}",
@@ -826,6 +845,12 @@ mod smoke {
     const REBIND_SHOT: &str = "sandbox-rebind.png";
     /// The PNG of the armed rebind: the lit button and the prompt banner.
     const REBIND_ARMED_SHOT: &str = "sandbox-rebind-armed.png";
+    /// The PNG of the Ship tab once the rebound gun is deleted: the gun gone,
+    /// the note naming the parts it gave back.
+    const DELETE_SHOT: &str = "sandbox-delete.png";
+    /// The PNG of the docked port's delete refused, its reason on the note
+    /// line.
+    const DELETE_REFUSED_SHOT: &str = "sandbox-delete-refused.png";
     /// The PNG of the hull part the pipette took off the ship.
     const PICK_SHOT: &str = "sandbox-pick.png";
     /// Mouse travel per frame while the walk drags the view, in pixels:
@@ -865,6 +890,13 @@ mod smoke {
     struct SmokePick {
         before: Option<String>,
         section: Option<Entity>,
+    }
+
+    /// The gun the delete takes off and the player's section count before.
+    #[derive(Resource, Clone, Copy, Debug)]
+    struct SmokeDelete {
+        gun: Option<Entity>,
+        sections: usize,
     }
 
     /// The Ship view's facing and selection when the rebind armed.
@@ -1227,6 +1259,19 @@ mod smoke {
         }
     }
 
+    /// The player's port the dock holds by, while it is docked.
+    fn docked_port(world: &World) -> Option<Entity> {
+        let mut players =
+            world.try_query_filtered::<(Entity, &DockedShip), With<PlayerSpaceshipMarker>>()?;
+        let (player, docked) = players.single(world).ok()?;
+        let connection = world.get::<DockingConnection>(docked.connection)?;
+        Some(if connection.first_ship == player {
+            connection.first_section
+        } else {
+            connection.second_section
+        })
+    }
+
     /// How many live sections the player ship has.
     fn player_sections(world: &World) -> usize {
         let Some(mut players) =
@@ -1497,6 +1542,104 @@ mod smoke {
             .step("station sandbox: shoot the rebound gun")
             .on_enter(|world: &mut World| shoot(world, REBIND_SHOT))
             .until(shot_written(REBIND_SHOT))
+            .deadline(SHOT_SECS)
+            .add()
+            .step("station sandbox: the rebound gun can come off")
+            .until(Arc::new(|world: &World| {
+                world
+                    .get_resource::<ShipRuntime>()
+                    .and_then(ShipRuntime::delete_verdict)
+                    .is_some_and(|verdict| verdict.is_ok())
+            }))
+            .diagnose(|world| {
+                format!(
+                    "verdict {:?}",
+                    world
+                        .get_resource::<ShipRuntime>()
+                        .and_then(ShipRuntime::delete_verdict)
+                )
+            })
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: delete the rebound gun")
+            .on_enter(|world: &mut World| {
+                let gun = world.resource::<ShipRuntime>().selected();
+                let sections = player_sections(world);
+                world.insert_resource(SmokeDelete { gun, sections });
+                press_action("ship_delete")(world);
+            })
+            .until(Arc::new(|world: &World| {
+                world.get_resource::<SmokeDelete>().is_some_and(|delete| {
+                    player_sections(world) < delete.sections
+                        && delete.gun.is_some_and(|gun| world.get_entity(gun).is_err())
+                })
+            }))
+            .diagnose(|world| {
+                format!(
+                    "{:?}, sections {}, note {:?}",
+                    world.get_resource::<SmokeDelete>(),
+                    player_sections(world),
+                    world
+                        .get_resource::<ShipRuntime>()
+                        .and_then(|runtime| runtime.note().map(str::to_string))
+                )
+            })
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: let the delete key up")
+            .on_enter(|world: &mut World| {
+                release_action("ship_delete")(world);
+                let note = world
+                    .get_resource::<ShipRuntime>()
+                    .and_then(|runtime| runtime.note().map(str::to_string));
+                info!("station sandbox: delete note {note:?}");
+            })
+            // Shot at once: the note line lasts 2.5 s.
+            .until(frames(1))
+            .add()
+            .step("station sandbox: shoot the deleted gun")
+            .on_enter(|world: &mut World| shoot(world, DELETE_SHOT))
+            .until(shot_written(DELETE_SHOT))
+            .deadline(SHOT_SECS)
+            .add()
+            .step("station sandbox: select the port the dock holds by")
+            .each(tap_while("viewer_next", |world| {
+                world.resource::<ShipRuntime>().selected() != docked_port(world)
+            }))
+            .until(Arc::new(|world: &World| {
+                docked_port(world).is_some()
+                    && world.resource::<ShipRuntime>().selected() == docked_port(world)
+            }))
+            .diagnose(|world| {
+                format!(
+                    "selected {:?}, port {:?}",
+                    world.resource::<ShipRuntime>().selected(),
+                    docked_port(world)
+                )
+            })
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: let the select key up")
+            .on_enter(release_action("viewer_next"))
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station sandbox: try to delete the docked port")
+            .on_enter(press_action("ship_delete"))
+            .until(Arc::new(|world: &World| {
+                world
+                    .get_resource::<ShipRuntime>()
+                    .and_then(ShipRuntime::note)
+                    .is_some_and(|note| note.starts_with("delete: the dock holds"))
+            }))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: let the refused delete key up")
+            .on_enter(release_action("ship_delete"))
+            .until(frames(1))
+            .add()
+            .step("station sandbox: shoot the refused delete")
+            .on_enter(|world: &mut World| shoot(world, DELETE_REFUSED_SHOT))
+            .until(shot_written(DELETE_REFUSED_SHOT))
             .deadline(SHOT_SECS)
             .add();
         let script = script

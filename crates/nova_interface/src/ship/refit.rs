@@ -95,7 +95,12 @@ pub(crate) fn swap_refusal_text(
 
 /// The note line for a refit that would leave the ship with the post-build
 /// `fault`, after the action's prefix: part `name` at section `code`.
-fn build_fault_text(action: &str, name: &str, code: &str, fault: &RefitBuildFaultType) -> String {
+pub(crate) fn build_fault_text(
+    action: &str,
+    name: &str,
+    code: &str,
+    fault: &RefitBuildFaultType,
+) -> String {
     match fault {
         RefitBuildFaultType::Disconnected => {
             format!("{action}: {name} would split the ship at {code}")
@@ -149,20 +154,20 @@ impl ResolvedSite<'_> {
         plan_section_swap(items, &section.config, offered, partner, own, own_cr)
     }
 
-    /// The post-build fault swapping design section `section` for `offered`
-    /// adds to the ship its live sections make, at their design mounts.
-    pub(crate) fn swap_fault(
-        &self,
-        section: &DesignSection,
-        offered: &SectionConfig,
-    ) -> Option<RefitBuildFaultType> {
-        let placed: Vec<RefitPlacedSection<'_>> = self
-            .live
+    /// The ship the live sections make, at their design mounts, in
+    /// [`ResolvedSite::live`] order: what the refit checks read.
+    ///
+    /// # Panics
+    ///
+    /// On a live section the design lacks: every live section of an
+    /// authored ship spawned from a design section.
+    pub(crate) fn placed(&self) -> Vec<RefitPlacedSection<'_>> {
+        self.live
             .iter()
             .map(|live| {
                 let design = self.design.get(&live.id).unwrap_or_else(|| {
                     panic!(
-                        "swap: live section '{}' is not in the ship's design",
+                        "refit: live section '{}' is not in the ship's design",
                         live.id
                     )
                 });
@@ -172,7 +177,17 @@ impl ResolvedSite<'_> {
                     config: &design.config,
                 }
             })
-            .collect();
+            .collect()
+    }
+
+    /// The post-build fault swapping design section `section` for `offered`
+    /// adds to the ship its live sections make, at their design mounts.
+    pub(crate) fn swap_fault(
+        &self,
+        section: &DesignSection,
+        offered: &SectionConfig,
+    ) -> Option<RefitBuildFaultType> {
+        let placed = self.placed();
         let index = self
             .live
             .iter()

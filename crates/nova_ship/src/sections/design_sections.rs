@@ -27,10 +27,10 @@ use super::prelude::*;
 /// and the swap rules.
 pub mod prelude {
     pub use super::{
-        intake_in_dock_approach, plan_section_swap, rebuild_anchored, section_swap_family,
-        ship_build_fault, swap_build_fault, DesignSection, RefitBuildFaultType, RefitPlacedSection,
-        SectionFamilyFaultType, SectionRebuildRequest, SectionSwapRefusalType, SectionSwapRequest,
-        ShipDesignSections,
+        intake_in_dock_approach, plan_section_swap, rebuild_anchored, remove_build_fault,
+        section_swap_family, ship_build_fault, swap_build_fault, DesignSection,
+        RefitBuildFaultType, RefitPlacedSection, SectionFamilyFaultType, SectionRebuildRequest,
+        SectionRemoveRequest, SectionSwapRefusalType, SectionSwapRequest, ShipDesignSections,
     };
 }
 
@@ -126,6 +126,19 @@ pub struct SectionSwapRequest {
     pub section: String,
     /// The section prototype id, in [`GameSections`], to put in its place.
     pub prototype: String,
+}
+
+/// Asks to take live section `section` off ship `entity` for good. Raised
+/// by a Ship pane delete after the delete rule put the section's parts in
+/// the hold; the scenario crate observes it, saves the ship's design inline
+/// without the section and takes the section off, and the skin re-clads
+/// round the hole.
+#[derive(EntityEvent, Clone, Copy, Debug)]
+pub struct SectionRemoveRequest {
+    /// The ship root.
+    pub entity: Entity,
+    /// The live section to take off, a child of the root.
+    pub section: Entity,
 }
 
 /// Why a part is not of a section's family, in check order.
@@ -316,6 +329,35 @@ pub fn swap_build_fault(
         blocked_exits(&structure, &ship_exits(&placed, &occupied)).len()
     };
     refit_build_fault(live, &after, || blocked(&after) > blocked(live))
+}
+
+/// The first post-build check the ship `live` fails once section `index` is
+/// taken off and passed before, or `None` when the removal adds no fault.
+///
+/// The checks are [`refit_build_fault`]'s. A removal opens lanes and never
+/// blocks one. On top of them, the last flight computer never comes off,
+/// even from a ship that was already short of its count.
+///
+/// # Panics
+///
+/// When `index` is not in `live`.
+pub fn remove_build_fault(
+    live: &[RefitPlacedSection<'_>],
+    index: usize,
+) -> Option<RefitBuildFaultType> {
+    let mut after = live.to_vec();
+    after.remove(index);
+    if let Some(fault) = refit_build_fault(live, &after, || false) {
+        return Some(fault);
+    }
+    let measure = ShipMeasure::of(after.iter().map(|section| section.config));
+    let before = ShipMeasure::of(live.iter().map(|section| section.config));
+    (before.controllers > 0 && measure.controllers == 0).then(|| {
+        RefitBuildFaultType::Undercontrolled {
+            controllers: 0,
+            needed: measure.needed_controllers(),
+        }
+    })
 }
 
 /// The first post-build check a whole built ship fails, or `None` when it
@@ -624,6 +666,54 @@ mod tests {
 
         let already_short = [at(0.0, &hull), at(1.0, &gun), at(-1.0, &weak)];
         assert_eq!(swap_build_fault(&already_short, 2, &weak), None);
+    }
+
+    /// A removal is refused when it would split the ship or take off its last
+    /// flight computer, and a leaf gun comes off.
+    #[test]
+    fn a_removal_is_refused_when_it_splits_the_ship_or_takes_the_last_computer() {
+        let one = Vec3::ONE;
+        let hull = part(
+            "hull",
+            SectionKind::Hull(HullSectionConfig::default()),
+            one,
+            cube_points(),
+        );
+        let computer = part(
+            "computer",
+            SectionKind::Controller(ControllerSectionConfig {
+                steering_lag: 0.2,
+                max_torque: 1.0,
+                render_mesh: None,
+                render_mesh_transform: None,
+            }),
+            one,
+            cube_points(),
+        );
+        let gun = part("gun", turret(), one, cube_points());
+        let drive = part("drive", thruster(10.0), one, cube_points());
+        let at = |x: f32, config| RefitPlacedSection {
+            position: Vec3::new(x, 0.0, 0.0),
+            rotation: Quat::IDENTITY,
+            config,
+        };
+        // gun - hull - computer - drive, in a line.
+        let ship = [
+            at(1.0, &gun),
+            at(0.0, &hull),
+            at(-1.0, &computer),
+            at(-2.0, &drive),
+        ];
+        assert_eq!(remove_build_fault(&ship, 0), None);
+        assert_eq!(
+            remove_build_fault(&ship, 1),
+            Some(RefitBuildFaultType::Disconnected)
+        );
+        let tail = [at(1.0, &gun), at(0.0, &hull), at(-1.0, &computer)];
+        assert!(matches!(
+            remove_build_fault(&tail, 2),
+            Some(RefitBuildFaultType::Undercontrolled { controllers: 0, .. })
+        ));
     }
 
     /// The armored wreck a berth failed at: an intake on the starboard flank

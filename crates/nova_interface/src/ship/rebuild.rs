@@ -123,6 +123,8 @@ pub(crate) struct ResolvedSite<'a> {
     pub(crate) design: &'a ShipDesignSections,
     pub(crate) live: Vec<LiveSection>,
     pub(crate) partner: Option<(Entity, bool)>,
+    /// The player ship's port the dock holds by, while it is docked.
+    pub(crate) port: Option<Entity>,
 }
 
 impl StationSite<'_, '_> {
@@ -181,11 +183,21 @@ impl StationSite<'_, '_> {
             })
             .collect();
         let partner = docked.map(|docked| self.partner(player, docked, service));
+        let port = docked
+            .and_then(|docked| self.connections.get(docked.connection).ok())
+            .map(|connection| {
+                if connection.first_ship == player {
+                    connection.first_section
+                } else {
+                    connection.second_section
+                }
+            });
         Some(ResolvedSite {
             player,
             design,
             live,
             partner,
+            port,
         })
     }
 }

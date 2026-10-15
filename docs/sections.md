@@ -142,6 +142,32 @@ design inline with the section appended, writes the binding into the player's
 the section at full health. The Ship side panel scrolls under the wheel while
 hovered (`scroll_ship_panel`), and the camera zoom yields to it.
 
+### Deleting a section
+
+While docked to a station that offers `Refit`, the Ship pane's `ship_delete`
+key (Delete) and the panel's Delete button raise `SectionDeleteCommand` for
+the selected live section (`nova_interface/src/ship/delete.rs`).
+`ResolvedSite::plan_delete` refuses, in order: no dock, a dock with no
+Refit, the player's port the dock holds by (`ResolvedSite::port`), a fault
+`remove_build_fault` finds (the swap's checks through `refit_build_fault`,
+which can only open lanes, plus the last flight computer, refused even on a
+ship already short of its count), and a hold too full for the parts. The
+parts are the strip rule's: `plan_section_yield` at the section's health
+share. A confirmed delete puts them in the hold, pushes
+`ShipInventoryReport::Stripped` with the player ship's own id as `hull`
+(`OnStripped`), clears the selection and triggers `SectionRemoveRequest`.
+`remove_design_section` (`nova_scenario/src/objects/spaceship.rs`) makes the
+design inline without the section and drops its `input_mapping` entry
+(`remember_lost_section_binding` keeps no binding for an id the design no
+longer holds), then triggers `SectionStripRequest`, which prunes the section's
+mates, lowers the root's pinned health by its pool and despawns it.
+`reclad_round_removal` (`shell_skin.rs`) observes the same request and
+re-clads only the cells round the hole. No credits move. The per-frame
+`update_ship_delete_verdict` caches what a delete of the selection gives
+back or why it is refused (`ShipRuntime::delete_verdict`); the Delete button
+shows while there is a verdict and stays pressable when it refuses, so the
+press puts the reason on the note line.
+
 ### Stripping a docked wreck
 
 Docked with a hull the player may loot (neutralized, or a derelict with
@@ -1737,6 +1763,12 @@ per contact. A symmetric rule - ram damage - wants both.
   pane: `crates/nova_interface/src/ship/catalogue.rs`, `ghost.rs` and
   `refit.rs`; proof:
   `examples/systems/system_station_add.rs`.
+- Section delete: `remove_build_fault`, `SectionRemoveRequest` -
+  `crates/nova_ship/src/sections/design_sections.rs`; `reclad_round_removal`
+  - `crates/nova_ship/src/sections/shell_skin.rs`; `remove_design_section` -
+  `crates/nova_scenario/src/objects/spaceship.rs`; the pane:
+  `crates/nova_interface/src/ship/delete.rs`; proof: its tests and
+  `examples/playable/station_docked_sandbox.rs`.
 - Hull buy: `ParkedHullType`, `hull_price_cr`, `hull_trade_in_cr`,
   `plan_hull_buy`, `bought_hull_pose`,
   `HullBuyRequest` - `crates/nova_ship/src/sections/hull_buy.rs`; the

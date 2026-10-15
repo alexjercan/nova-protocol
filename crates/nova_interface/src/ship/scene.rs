@@ -92,6 +92,7 @@ pub(crate) struct ShipStatusPip;
 pub(crate) enum ShipPanelButton {
     Repair,
     Rebind,
+    Delete,
 }
 #[derive(Component)]
 pub(crate) struct ShipCameraMarker;
@@ -195,6 +196,11 @@ pub struct ShipRuntime {
     /// disabled action without re-deriving the section's validity.
     pub(crate) panel_repair_enabled: bool,
     pub(crate) panel_rebind_enabled: bool,
+    /// Whether the selection can be deleted now, cached by
+    /// `update_ship_delete_verdict`: `None` while there is no selection or
+    /// the ship is not docked at a station that refits, else what a delete
+    /// gives back or why it is refused.
+    pub(crate) delete_verdict: Option<Result<String, String>>,
     /// Draft quantity belongs to this section; changing selection starts at All.
     /// A full section, or any section before the player ship's inventory
     /// exists, does not take the draft, so damage or arriving stock starts it
@@ -268,6 +274,15 @@ impl ShipRuntime {
     /// Empty while undocked or while the pane is closed.
     pub fn station_colliders(&self) -> &[PlacedSectionCollider] {
         &self.station_colliders
+    }
+
+    /// Whether the selection can be deleted now: `None` while there is no
+    /// selection or the ship is not docked at a station that refits, else
+    /// the parts a delete gives back or why it is refused.
+    pub fn delete_verdict(&self) -> Option<Result<&str, &str>> {
+        self.delete_verdict
+            .as_ref()
+            .map(|verdict| verdict.as_deref().map_err(String::as_str))
     }
 
     /// The transient note the panel shows, such as why an action was
@@ -755,6 +770,7 @@ pub(crate) fn ship_input(
     sections: ShipSections,
     catalogue: Option<Res<GameSections>>,
     mut commands: MessageWriter<SectionRepairCommand>,
+    mut deletes: MessageWriter<SectionDeleteCommand>,
     q_inventory: Query<&ShipInventory, With<PlayerSpaceshipMarker>>,
     mut q_camera: Query<&mut ShipOrbit, With<ShipCameraMarker>>,
     mut q_mates: Query<&mut Visibility, With<ShipMateOverlay>>,
@@ -895,6 +911,9 @@ pub(crate) fn ship_input(
             runtime.rebind_awaiting_release = true;
             runtime.note = None;
             return;
+        }
+        if input.just_pressed("ship_delete") {
+            deletes.write(SectionDeleteCommand { target: sel });
         }
         if input.just_pressed("ship_repair") {
             let repairable = list
@@ -1630,7 +1649,20 @@ pub(crate) fn update_ship_panel(
         let enabled = match button {
             ShipPanelButton::Repair => actions.repair_enabled,
             ShipPanelButton::Rebind => runtime.panel_rebind_enabled,
+            // A refused delete stays pressable: the press puts the reason
+            // on the note line.
+            ShipPanelButton::Delete => runtime.delete_verdict.is_some(),
         };
+        if *button == ShipPanelButton::Delete {
+            let wanted = if enabled {
+                Display::Flex
+            } else {
+                Display::None
+            };
+            if node.display != wanted {
+                node.display = wanted;
+            }
+        }
         if *button == ShipPanelButton::Rebind {
             let wanted = if enabled {
                 Display::Flex

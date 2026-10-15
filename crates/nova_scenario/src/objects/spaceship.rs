@@ -1014,11 +1014,12 @@ fn keep_lost_bindings<'a>(
 
 /// Write a player section's binding into its ship's controller table as the
 /// section leaves the world, so a rebind made before the loss is the key a
-/// save keeps and a rebuild restores.
+/// save keeps and a rebuild restores. A section its ship's design no longer
+/// holds (a Ship pane delete took it out first) keeps no binding.
 fn remember_lost_section_binding(
     remove: On<Remove, SectionMarker>,
     q_section: Query<(&ChildOf, &EntityId, SectionBindingQuery)>,
-    mut q_controller: Query<&mut SpaceshipController>,
+    mut q_controller: Query<(&mut SpaceshipController, Option<&ShipDesignSections>)>,
 ) {
     let Ok((parent, id, bindings)) = q_section.get(remove.entity) else {
         return;
@@ -1026,9 +1027,12 @@ fn remember_lost_section_binding(
     let Some(bindings) = first_binding(bindings) else {
         return;
     };
-    let Ok(mut controller) = q_controller.get_mut(parent.0) else {
+    let Ok((mut controller, design)) = q_controller.get_mut(parent.0) else {
         return;
     };
+    if design.is_some_and(|design| design.get(&id.0).is_none()) {
+        return;
+    }
     let SpaceshipController::Player(config) = controller.as_mut() else {
         return;
     };
@@ -1104,6 +1108,7 @@ impl Plugin for SpaceshipPlugin {
         app.add_observer(rebuild_design_section);
         app.add_observer(swap_design_section);
         app.add_observer(add_design_section);
+        app.add_observer(remove_design_section);
         app.add_observer(remember_lost_section_binding);
         app.add_observer(insert_station_services);
         app.add_observer(on_station_neutralized_turn_derelict);
@@ -1546,6 +1551,70 @@ fn add_design_section(
             &mut Vec::new(),
             None,
         );
+    });
+}
+
+/// Take a live design section off a ship for good, as a Ship pane delete
+/// asks once the delete rule put the section's parts in the hold.
+///
+/// The ship's design becomes inline (see [`owned_ship_design`]) without the
+/// section, so a freeze and a save keep it gone and a rebuild does not list
+/// it. Its binding leaves the player controller's table. The section comes
+/// off by a [`SectionStripRequest`], which prunes it from its neighbours,
+/// lowers the root's pinned health by its pool and despawns it.
+///
+/// # Panics
+///
+/// On a root with no authored design, or a section that is not a live
+/// design section of it: the pane deletes only a live section of the
+/// player's ship.
+fn remove_design_section(
+    request: On<SectionRemoveRequest>,
+    mut commands: Commands,
+    game_designs: Res<GameShipDesigns>,
+    mut q_ship: Query<
+        (
+            &SpaceshipDesign,
+            &mut ShipDesignSections,
+            &mut SpaceshipController,
+        ),
+        (With<SpaceshipRootMarker>, Without<SectionMarker>),
+    >,
+    q_sections: Query<(&ChildOf, &EntityId), With<SectionMarker>>,
+) {
+    let ship = request.entity;
+    let Ok((source, mut design, mut controller)) = q_ship.get_mut(ship) else {
+        panic!("remove_design_section: {ship:?} is not an authored ship root");
+    };
+    let Ok((&ChildOf(root), id)) = q_sections.get(request.section) else {
+        panic!(
+            "remove_design_section: {:?} is not a live section",
+            request.section
+        );
+    };
+    assert_eq!(
+        root, ship,
+        "remove_design_section: section {:?} hangs off {root:?}, not ship {ship:?}",
+        request.section
+    );
+    let Some(index) = design.0.iter().position(|section| section.id == id.0) else {
+        panic!(
+            "remove_design_section: ship {ship:?} has no design section '{}'",
+            id.0
+        );
+    };
+    let mut owned = owned_ship_design(&source.0, &game_designs, &design);
+    owned.sections.retain(|section| section.id != id.0);
+    design.0.remove(index);
+    if let SpaceshipController::Player(config) = controller.as_mut() {
+        config.input_mapping.remove(&id.0);
+    }
+    debug!("remove_design_section: ship {ship:?} loses '{}'", id.0);
+    commands
+        .entity(ship)
+        .insert(SpaceshipDesign(ShipDesignSource::Inline(owned)));
+    commands.trigger(SectionStripRequest {
+        entity: request.section,
     });
 }
 
@@ -2813,6 +2882,81 @@ mod tests {
             .id();
         world.flush();
         (world, entity)
+    }
+
+    /// A removal takes the section out of the ship's design for good: the
+    /// saved design turns inline without it, its binding leaves the player's
+    /// table and stays out as the section leaves, and the section goes to
+    /// the strip removal.
+    #[test]
+    fn a_removed_section_leaves_the_saved_design_and_its_binding() {
+        #[derive(Resource, Default)]
+        struct Stripped(Vec<Entity>);
+        let (mut world, ship) = spawn_stocked_two_hull_ship(1);
+        world.init_resource::<Stripped>();
+        world.add_observer(remove_design_section);
+        world.add_observer(remember_lost_section_binding);
+        world.add_observer(
+            |request: On<SectionStripRequest>,
+             mut stripped: ResMut<Stripped>,
+             mut commands: Commands| {
+                stripped.0.push(request.entity);
+                commands.entity(request.entity).despawn();
+            },
+        );
+        let key = vec![InputSource::Keyboard(KeyCode::KeyT)];
+        world
+            .entity_mut(ship)
+            .insert(SpaceshipController::Player(PlayerControllerConfig {
+                input_mapping: BTreeMap::from([
+                    ("bow".to_string(), key.clone()),
+                    ("stern".to_string(), key.clone()),
+                ]),
+            }));
+        let stern = world
+            .entity(ship)
+            .get::<Children>()
+            .expect("the ship has sections")
+            .iter()
+            .find(|child| {
+                world
+                    .entity(*child)
+                    .get::<EntityId>()
+                    .is_some_and(|id| id.0 == "stern")
+            })
+            .expect("the stern is live");
+        // The stern flies a binding, which the loss path would write back.
+        world
+            .entity_mut(stern)
+            .insert(SpaceshipThrusterInputBinding(key.clone()));
+
+        world.trigger(SectionRemoveRequest {
+            entity: ship,
+            section: stern,
+        });
+        world.flush();
+
+        let SpaceshipDesign(ShipDesignSource::Inline(owned)) =
+            world.entity(ship).get::<SpaceshipDesign>().unwrap()
+        else {
+            panic!("a removal saves the design inline");
+        };
+        let ids: Vec<&str> = owned.sections.iter().map(|s| s.id.as_str()).collect();
+        assert_eq!(ids, ["bow"]);
+        let resolved = world.entity(ship).get::<ShipDesignSections>().unwrap();
+        let ids: Vec<&str> = resolved.0.iter().map(|s| s.id.as_str()).collect();
+        assert_eq!(ids, ["bow"]);
+        let SpaceshipController::Player(config) =
+            world.entity(ship).get::<SpaceshipController>().unwrap()
+        else {
+            panic!("the controller stays the player's");
+        };
+        assert_eq!(
+            config.input_mapping,
+            BTreeMap::from([("bow".to_string(), key)])
+        );
+        assert_eq!(world.resource::<Stripped>().0, [stern]);
+        assert!(world.get_entity(stern).is_err());
     }
 
     /// The spawn consumes the authored stock into an inventory whose hold the

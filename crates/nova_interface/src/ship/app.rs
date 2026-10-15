@@ -23,7 +23,8 @@ use nova_ui::{
 };
 
 use super::{
-    catalogue::spawn_ship_catalogue, rebuild::spawn_ship_rebuild_list, scene::*, sections::*,
+    catalogue::spawn_ship_catalogue, delete::on_ship_delete_button,
+    rebuild::spawn_ship_rebuild_list, scene::*, sections::*,
 };
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
@@ -54,9 +55,9 @@ pub(crate) fn scroll_ship_panel(
 }
 
 /// Build the section panel: the selected section's icon over its code, name,
-/// status and condition bar; its description; its labelled facts; Prev, Next
-/// and Rebind; the repair form; the lost-section list; and the note line,
-/// beside the view.
+/// status and condition bar; its description; its labelled facts; Prev,
+/// Next, Rebind and Delete; the note line; the repair form; the lost-section
+/// list; and the station catalogue, beside the view.
 /// [`update_ship_panel`] fills it. The texts carry a [`ShipPanelField`] so one
 /// system refreshes them, and a fact row or the form carries the field it
 /// holds so the same system hides it. The buttons carry a [`ShipPanelButton`]
@@ -185,7 +186,16 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                         button(ButtonSpec::new("Rebind").fit()),
                     ))
                     .observe(on_ship_rebind_button);
+                    row.spawn((
+                        ShipPanelButton::Delete,
+                        button(ButtonSpec::new("Delete").fit()),
+                        Name::new("ShipDelete"),
+                    ))
+                    .observe(on_ship_delete_button);
                 });
+            // Under the actions, not after the catalogue: a refusal shows
+            // where the press was, even with the catalogue scrolled.
+            panel.spawn((ShipPanelField::Note, themed_label("", 12.0, UiColor::Label)));
             panel
                 .spawn((
                     ShipPanelField::RepairForm,
@@ -265,7 +275,6 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                 });
             spawn_ship_rebuild_list(panel);
             spawn_ship_catalogue(panel);
-            panel.spawn((ShipPanelField::Note, themed_label("", 12.0, UiColor::Label)));
         });
 }
 

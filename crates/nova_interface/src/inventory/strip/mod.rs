@@ -301,7 +301,7 @@ fn code_order(code: &str) -> (String, u32) {
 }
 
 /// Parts by item name: `3 Section Panel, 1 Frame Spar`, or `nothing`.
-fn strip_parts_text(items: &GameItems, parts: &BTreeMap<ItemDesignId, u32>) -> String {
+pub(crate) fn strip_parts_text(items: &GameItems, parts: &BTreeMap<ItemDesignId, u32>) -> String {
     if parts.is_empty() {
         return "nothing".to_string();
     }

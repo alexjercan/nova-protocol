@@ -118,3 +118,21 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
   schematic stays one material family, and the plate marks the face where a
   flat opaque cube cannot. The target section's badge hides while aimed, as
   it sat on that face. Other blocks keep the translucent tint.
+- Delete. Gate: options (a) anywhere; (b) docked at any station; (c) docked
+  at a living station that offers Refit, as Swap and Add. Chosen (c). Rule:
+  the refit build checks the add and the swap run (a removal can only fail
+  the graph, the sockets, the thrust floor and the computer count), plus
+  the last computer refused even on a ship already short, plus the port the
+  dock holds by. Yield: options (a) the full recipe back; (b) the strip
+  rule at the section's health share; chosen (b), so a delete never pays
+  more than a wreck strip. A hold too full refuses (a strip pauses; a
+  delete has no job to pause). Event: the existing `OnStripped`, `hull` the
+  ship's own id; no new event. The design turns inline without the section
+  and its binding leaves the table, so a rebuild does not list it and a
+  save keeps it gone. The skin re-clads only the cells round the hole. The
+  Delete button stays pressable when refused so the reason reaches the
+  note line; the panel shows it only while docked at a Refit station.
+- The note line moved from the panel's end (after the catalogue, off
+  screen once it scrolls) to under the action buttons, so a refusal shows
+  where the press was. The footer names the key `Remove`, as its keycap
+  already reads `Delete`.

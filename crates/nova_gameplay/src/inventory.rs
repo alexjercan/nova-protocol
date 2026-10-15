@@ -710,10 +710,11 @@ pub enum ShipInventoryReport {
         /// Credits the ship paid the station.
         price_cr: u32,
     },
-    /// An Inventory pane strip took one section off the docked partner and put
-    /// its parts in this ship's hold.
+    /// An Inventory pane strip took one section off the docked partner, or a
+    /// Ship pane delete took one off this ship, and put its parts in this
+    /// ship's hold.
     Stripped {
-        /// The stripped hull's scenario id.
+        /// The stripped hull's scenario id: this ship's own for a delete.
         hull: String,
         /// Pane code of the stripped section on that hull (`PDC-1`).
         section: String,

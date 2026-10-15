@@ -155,6 +155,7 @@ Select a section by clicking its badge, with <kbd>[</kbd> / <kbd>]</kbd>, or wit
 | <kbd>P</kbd> | **Repair** | Spend the selected number of hull plates to restore the section's integrity, up to 20 HP per plate. |
 | - | number field, slider, **All** | Choose how many hull plates the repair spends: type a count, drag the slider, or press **All**. The slider hides when only one plate can be spent. |
 | <kbd>B</kbd> | **Rebind** | [Rebind](#rebinding-a-section) the section's key. Shown only for a section that has one. |
+| <kbd>Delete</kbd> | **Delete** | [Delete](#deleting-a-section) the section, its parts back in your hold. Shown only while docked at a station that refits. |
 | <kbd>G</kbd> (gamepad <kbd>A</kbd>) | - | Overlay the structural mates: which sections hold which. |
 | - | **Fit** | Frame the whole ship at its current angle. |
 | right-drag (gamepad D-pad), <kbd>T</kbd> | **Reset** | Turn and tilt the view, as the editor's camera looks; drag down past the hull to see its underside. The wheel zooms. Reset restores the opening angle, zoom and centre. |
@@ -209,6 +210,15 @@ Docked at a living station that offers refit, the Ship panel shows the **Station
      pose, fit and binding: crates/nova_ship/src/sections/section_add.rs. -->
 
 Click **Place** on a catalogue row to take that part in hand. Move the pointer over the ship: a ghost of the part snaps to the open point nearest the pointer on the section under it. Only a free point on the hull's surface, with room for the part, takes a ghost; a section inside the hull shows none. A green outline and its price beside the pointer mean it fits; a red outline and the reason mean it does not, such as a part that would block a gun or a drive. The section the ghost aims at turns solid, its badge hides, and the face the part mounts on is lit. <kbd>Q</kbd> over a section of your ship takes that section's part in hand instead. With a part in hand <kbd>R</kbd> rolls it a quarter turn and <kbd>F</kbd> mates it by its next socket; the ghost, the fit and the price follow. The callout counts the parts your hold gives and the parts the click buys from the station at its ask. The docked station and the ships at its other docks show as dim outlines, and a part that would hit them is refused. Click to fit it. The new part spawns at full health under the next code of its kind. A gun takes the key of your other guns of its kind, or none until you **Rebind** it; a drive is flown by the computer. The part stays in hand for the next one; click **Put down** to drop it. With nothing in hand, a click on a section selects it. In a saved Open World the new part stays across a Load. The panel scrolls with the wheel while the pointer is over it.
+
+## Deleting a section
+
+<!-- Rule and handler: crates/nova_interface/src/ship/delete.rs. Build
+     checks: crates/nova_ship/src/sections/design_sections.rs
+     (`remove_build_fault`). Design and binding:
+     crates/nova_scenario/src/objects/spaceship.rs (`remove_design_section`). -->
+
+Docked at a living station that offers refit, select a section and press <kbd>Delete</kbd> (or click **Delete**) to take it off for good. Its parts go back in your hold as a strip of a wreck gives them: the recipe's strip share, less for a damaged section. The note line names them, such as `deleted PDC-2: 1 Frame spar, 3 Section panel`, and the plating closes over the hole. A rebuild does not list a deleted section, and in a saved Open World it stays gone across a Load. A delete is refused, and changes nothing, when it would split the ship (`delete: taking HULL-1 off would split the ship`), take off the last flight computer, take off the port the dock holds you by, leave the drives too weak or overfill the hold.
 
 ## The station
 

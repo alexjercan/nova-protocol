@@ -19,8 +19,9 @@
 //! looks, with the right-button drag (the pad's D-pad) + wheel; `Q` picks the
 //! part of the section under the pointer; `[`/`]` or Prev/Next cycle the selection; Fit frames the whole
 //! ship at the current angles, and Reset also restores the opening angles;
-//! `G` toggles structural mates; `P` repairs, and `B` replaces the selected
-//! bindable section's input. While the form's quantity field has the caret,
+//! `G` toggles structural mates; `P` repairs, `B` replaces the selected
+//! bindable section's input, and Delete takes the selected section off while
+//! docked at a station that refits, its parts back in the hold. While the form's quantity field has the caret,
 //! these keys type into it instead.
 //!
 //! Repair applies at once through a single `SectionRepairCommand` seam (pane
@@ -51,12 +52,14 @@
 //! | `app` | The side panel layout and the repair action handler. |
 //! | `rebuild` | The lost-section list and the rebuild action handler. |
 //! | `refit` | The Swap and Add action handlers and their refusal lines. |
+//! | `delete` | The Delete action: its rule, handler and refusal lines. |
 //! | `catalogue` | The station catalogue: listed parts, prices, Place and Swap. |
 //! | `ghost` | The placement ghost, its callout, and the view's pointer and click. |
 //! | `scene` | The schematic 3D scene, its camera, the projected badges, the button observers and the panel refresh. |
 
 mod app;
 mod catalogue;
+mod delete;
 mod ghost;
 mod rebind;
 mod rebuild;
@@ -71,9 +74,11 @@ use bevy::prelude::*;
 use nova_ui::input_mode::prelude::{in_input_mode, InputMode};
 
 pub(crate) use self::{
-    app::*, catalogue::*, ghost::*, rebind::*, rebuild::*, refit::*, scene::*, sections::*,
+    app::*, catalogue::*, delete::*, ghost::*, rebind::*, rebuild::*, refit::*, scene::*,
+    sections::*,
 };
 pub use self::{
+    delete::SectionDeleteCommand,
     ghost::{
         ship_ghost_aim, ship_hovered_section, ship_placement, ship_view_window_px,
         socket_lane_open, ShipPlacement, SHIP_GHOST_CALLOUT,
@@ -89,6 +94,7 @@ pub mod prelude {
     // `pub(crate)` (the module glob above), which rustc rejects as an
     // ambiguous import visibility through `super::`.
     pub use super::{
+        delete::SectionDeleteCommand,
         ghost::{
             ship_ghost_aim, ship_hovered_section, ship_placement, ship_view_window_px,
             socket_lane_open, ShipPlacement, SHIP_GHOST_CALLOUT,
@@ -131,6 +137,7 @@ impl Plugin for ShipPanePlugin {
         app.add_message::<SectionRebuildCommand>();
         app.add_message::<SectionSwapCommand>();
         app.add_message::<SectionAddCommand>();
+        app.add_message::<SectionDeleteCommand>();
         app.add_systems(
             Update,
             (
@@ -141,6 +148,7 @@ impl Plugin for ShipPanePlugin {
                     apply_ship_rebuild_commands,
                     apply_ship_swap_commands,
                     apply_ship_add_commands,
+                    apply_ship_delete_commands,
                     reselect_swapped_section,
                     manage_ship_scene,
                     sync_ship_station_blocks,
@@ -155,6 +163,7 @@ impl Plugin for ShipPanePlugin {
                     drive_ship_camera,
                     update_ship_blocks,
                     update_ship_placement,
+                    update_ship_delete_verdict,
                     pick_ship_part,
                     sync_ship_ghost,
                     sync_ship_target_face,
