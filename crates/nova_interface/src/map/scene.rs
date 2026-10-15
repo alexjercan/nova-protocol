@@ -311,11 +311,9 @@ pub(crate) fn map_input(
     }
     // Only touch input while the map owns the screen; at the terminal the mouse
     // and keys belong to the prompt (history scroll, PageUp/PageDown, etc.).
-    if !input.app_is_active(InterfacePaneType::Map) {
+    let Some((motion_delta, wheel_delta)) = input.active_pointer(InterfacePaneType::Map) else {
         return;
-    }
-    let motion_delta = input.motion_delta();
-    let wheel_delta = input.wheel_delta();
+    };
     let dt = input.dt();
 
     // Decay the transient GOTO note.

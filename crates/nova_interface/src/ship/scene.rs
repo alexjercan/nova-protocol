@@ -712,11 +712,9 @@ pub(crate) fn ship_input(
     mut q_mates: Query<&mut Visibility, With<ShipMateOverlay>>,
     q_panel: Query<&bevy::picking::hover::Hovered, With<ShipPanelMarker>>,
 ) {
-    if !input.app_is_active(InterfacePaneType::Ship) {
+    let Some((motion_delta, wheel_delta)) = input.active_pointer(InterfacePaneType::Ship) else {
         return;
-    }
-    let motion_delta = input.motion_delta();
-    let wheel_delta = input.wheel_delta();
+    };
     let dt = input.dt();
 
     if let Some((_, remaining)) = runtime.note.as_mut() {

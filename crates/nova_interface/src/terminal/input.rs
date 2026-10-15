@@ -310,14 +310,15 @@ impl NovaOsAppInput<'_, '_> {
         *self.pause.get() == PauseStates::Interface && *self.pane == pane
     }
 
-    /// This frame's accumulated mouse motion. Drains the reader.
-    pub(crate) fn motion_delta(&mut self) -> Vec2 {
-        self.motion.read().map(|m| m.delta).sum()
-    }
-
-    /// This frame's accumulated vertical wheel travel. Drains the reader.
-    pub(crate) fn wheel_delta(&mut self) -> f32 {
-        self.wheel.read().map(|w| w.y).sum()
+    /// This frame's mouse motion and vertical wheel travel for `pane`, or
+    /// `None` while `pane` is not the active app. It drains both readers
+    /// either way: the interface pauses `Time<Virtual>`, which stops the
+    /// fixed step that ages messages, so travel left unread under another
+    /// pane would land on this one when its tab opens.
+    pub(crate) fn active_pointer(&mut self, pane: InterfacePaneType) -> Option<(Vec2, f32)> {
+        let motion: Vec2 = self.motion.read().map(|m| m.delta).sum();
+        let wheel: f32 = self.wheel.read().map(|w| w.y).sum();
+        self.app_is_active(pane).then_some((motion, wheel))
     }
 
     /// Real frame delta, capped at 0.25 s so one stalled frame cannot swing an

@@ -600,6 +600,65 @@ fn ship_orbit_drag_is_rmb_only() {
     );
 }
 
+/// The wheel that zooms the Map leaves the Ship view's zoom alone. The
+/// interface pauses `Time<Virtual>`, so the fixed step that ages messages
+/// stops, and wheel travel the Ship pane did not read under the Map would
+/// zoom it the moment its tab opens.
+#[test]
+fn the_map_wheel_does_not_zoom_the_ship_view() {
+    use bevy::input::{
+        mouse::{MouseScrollUnit, MouseWheel},
+        touch::TouchPhase,
+    };
+
+    let mut app = App::new();
+    app.add_plugins((
+        MinimalPlugins,
+        StatesPlugin,
+        AssetPlugin::default(),
+        InputPlugin,
+    ));
+    app.init_asset::<Image>();
+    app.init_asset::<Mesh>();
+    app.init_asset::<StandardMaterial>();
+    app.insert_state(PauseStates::Interface);
+    app.register_input_actions(crate::bindings::interface_bindings());
+    app.init_resource::<ShipRuntime>();
+    app.init_resource::<ActiveUiTheme>();
+    app.init_resource::<NovaOsCloseTransition>();
+    app.insert_resource(InterfacePaneType::Ship);
+    app.add_message::<SectionRepairCommand>();
+    app.add_systems(Update, ship_input);
+    spawn_scripted_ship(app.world_mut());
+    app.world_mut()
+        .run_system_once(assign_section_codes)
+        .unwrap();
+    app.world_mut().run_system_once(manage_ship_scene).unwrap();
+    app.world_mut().resource_mut::<Time<Virtual>>().pause();
+    app.update();
+    let before = ship_orbit(&mut app).radius;
+
+    *app.world_mut().resource_mut::<InterfacePaneType>() = InterfacePaneType::Map;
+    for _ in 0..4 {
+        app.world_mut().write_message(MouseWheel {
+            unit: MouseScrollUnit::Line,
+            x: 0.0,
+            y: 3.0,
+            window: Entity::PLACEHOLDER,
+            phase: TouchPhase::Moved,
+        });
+        app.update();
+    }
+    *app.world_mut().resource_mut::<InterfacePaneType>() = InterfacePaneType::Ship;
+    app.update();
+
+    assert_eq!(
+        ship_orbit(&mut app).radius,
+        before,
+        "the Map's wheel must not zoom the Ship view"
+    );
+}
+
 /// Spawn a player ship whose root is OFF-origin and rotated, with each
 /// section's world pose (`GlobalTransform`) deliberately DIFFERENT from its
 /// local `Transform`. The orbit recenter reads the LOCAL frame (the scene is

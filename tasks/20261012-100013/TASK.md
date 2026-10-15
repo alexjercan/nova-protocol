@@ -79,3 +79,10 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
 - `Q` picks the hovered section like the editor pipette and holds it for placing. Q/E no longer turn the camera; use the editor's camera controls.
 - While a part is held, the hovered face of the ship is drawn opaque (the real surface), not the transparent green tint, so the exact placement face is visible.
 - Bug: the Map tab's zoom leaks into the Ship view; zooming the map zooms the Ship view too.
+
+## Fourth-round choices (2026-10-15)
+- Map zoom leak. Cause: the interface pauses `Time<Virtual>`, so the fixed
+  step that ages messages stops and an inactive pane's wheel reader keeps
+  the travel. Options: (a) a zoom resource per pane; (b) drain the pointer
+  readers every frame at the input owner. Chosen (b), `active_pointer`:
+  the orbits were already per pane, only the reader leaked.
