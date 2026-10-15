@@ -65,3 +65,9 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
 
 ## Done when
 - Buy works in a live run and the catalogue tiers are a permanent test.
+
+## Owner feedback (2026-10-15)
+- Show escorts for hire in the Station tab like the ships for sale. Spawn the hire offers in the world near the station, not docked, coasting; on hire they become the player's and follow.
+- Cards: an image of the ship plus a short line (name, type, Mk, size, price) and two buttons, Buy (or Hire) and Info. Drop the long section-count text from the card.
+- Info opens the ship in a read-only Ship-style view: rotate it, select and inspect sections, no editing.
+- "Trade-in" is unclear to the owner: say what the player gets for the current ship in plain words.

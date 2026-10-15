@@ -1,6 +1,6 @@
 # Salvage: strip a docked lootable hull into recipe parts
 
-- STATUS: CLOSED
+- STATUS: OPEN
 - PRIORITY: 68
 - TAGS: v0.16.0, salvage
 
@@ -62,3 +62,7 @@
 - Playable: `nix develop --command cargo run --example recycle_sandbox --features debug`.
 - Orchestrator re-ran `content lint` on the working tree: 0 errors, 0 warnings, 0 findings.
 - Owner review values: 3 s minimum per section, no demolition event, unlooted hold lost on demolition, strip pauses on a full hold instead of refusing.
+
+## Owner feedback (2026-10-15, reopens the task)
+- Move the recycle controls into the Inventory pane: a compact strip block above the wreck's column (the partner column, for example "former scavenger"), and remove the separate Recycle tab.
+- Add "Take all": loot every item and the credits from the wreck in one press.

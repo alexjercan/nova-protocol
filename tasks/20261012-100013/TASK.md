@@ -71,3 +71,11 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
 
 ## Done when
 - Add works in a live docked run on one base hull and one generated hull.
+
+## Owner feedback (2026-10-15, fourth round)
+- Rebind mode must swallow key presses: rebinding `R` must not tilt the camera. Show that rebind mode is active (the button lit, a prompt on screen).
+- The refit catalogue must look and work like the editor's section catalogue. A button switches the Ship view into an editor-style catalogue mode (sections list, editor layout). The Ship view's right panel stays clean and minimal, with a Delete button for the selected section.
+- Delete a section: select one of the player's sections and recycle it (parts back by the recipe rules).
+- `Q` picks the hovered section like the editor pipette and holds it for placing. Q/E no longer turn the camera; use the editor's camera controls.
+- While a part is held, the hovered face of the ship is drawn opaque (the real surface), not the transparent green tint, so the exact placement face is visible.
+- Bug: the Map tab's zoom leaks into the Ship view; zooming the map zooms the Ship view too.
