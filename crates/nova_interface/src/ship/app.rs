@@ -16,7 +16,6 @@ use bevy::{
     ui_widgets::{Slider, SliderPrecision, SliderRange, SliderStep, SliderValue, TrackClick},
 };
 use nova_gameplay::prelude::*;
-use nova_ship::prelude::GalleryAction;
 use nova_ui::{
     screen::drive_wheel_scroll,
     theme::UiColor,
@@ -24,8 +23,7 @@ use nova_ui::{
 };
 
 use super::{
-    catalogue::ShipCatalogueButton, delete::on_ship_delete_button,
-    rebuild::spawn_ship_rebuild_list, scene::*, sections::*,
+    delete::on_ship_delete_button, rebuild::spawn_ship_rebuild_list, scene::*, sections::*,
 };
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
@@ -56,10 +54,10 @@ pub(crate) fn scroll_ship_panel(
 }
 
 /// Build the section panel: the selected section's icon over its code, name
-/// and condition bar; its binding; Rebind, Delete and Catalogue, with the
-/// reason Delete is refused in the Delete button's tooltip; the note line;
-/// the repair form; and the lost-section list, beside the view. The parts a station builds are in
-/// the gallery the Catalogue button opens (`super::catalogue`).
+/// and condition bar; its binding; Rebind and Delete, with the reason Delete
+/// is refused in the Delete button's tooltip; the note line; the repair form;
+/// and the lost-section list, beside the view. The parts a station builds are
+/// in the gallery the footer's Catalogue button opens (`super::catalogue`).
 /// [`update_ship_panel`] fills it. The texts carry a [`ShipPanelField`] so one
 /// system refreshes them, and the binding row or the form carries the field
 /// it holds so the same system hides it. The buttons carry a
@@ -179,12 +177,6 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                         Tooltip::default(),
                     ))
                     .observe(on_ship_delete_button);
-                    row.spawn((
-                        ShipCatalogueButton,
-                        GalleryAction::Open,
-                        button(ButtonSpec::new("Catalogue").fit().primary()),
-                        Name::new("ShipCatalogue"),
-                    ));
                 });
             // Under the actions: a result shows where the press was.
             panel.spawn((ShipPanelField::Note, themed_label("", 12.0, UiColor::Label)));

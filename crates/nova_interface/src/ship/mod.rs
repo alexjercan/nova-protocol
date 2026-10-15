@@ -38,7 +38,7 @@
 //! While the ship is docked at a living station that offers Rebuild, the
 //! panel lists the design sections the ship has lost, each under its design
 //! code, with a Rebuild button that raises a `SectionRebuildCommand`. While
-//! it is docked at a living station that offers Refit, the panel's Catalogue
+//! it is docked at a living station that offers Refit, the footer's Catalogue
 //! button opens the parts gallery over the pane: the parts the station can
 //! build, each with its price, and Swap on the focus card for a part of the
 //! selected section's kind and footprint, which raises a

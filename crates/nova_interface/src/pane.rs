@@ -24,7 +24,7 @@ use nova_gameplay::{
     PauseStates,
 };
 use nova_input::prelude::{ActionContext, ActiveContexts, InputBindings, InputSources};
-use nova_ship::prelude::{GalleryState, HeldPart};
+use nova_ship::prelude::{GalleryAction, GalleryState, HeldPart};
 use nova_ui::{
     prelude::*,
     theme::UiColor,
@@ -41,7 +41,7 @@ use crate::{
     ship::{
         on_ship_fit_button, on_ship_reset_button, on_ship_viewport_click, on_ship_viewport_enter,
         on_ship_viewport_leave, on_ship_viewport_move, spawn_ship_panel, spawn_ship_rebind_prompt,
-        ShipRuntime, ShipSplitMarker, ShipViewportMarker,
+        ShipCatalogueButton, ShipRuntime, ShipSplitMarker, ShipViewportMarker,
     },
     station::{station_body, StationDock},
     terminal::NovaOsCloseTransition,
@@ -898,7 +898,8 @@ fn map_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     );
 }
 
-/// The ship: the scene and section panel beside it, then legend, hints and view controls.
+/// The ship: the scene and section panel beside it, then legend, hints, the
+/// Catalogue and the view controls.
 fn ship_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     body.spawn((ShipSplitMarker, view_split()))
         .with_children(|split| {
@@ -945,6 +946,14 @@ fn ship_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                 });
         },
         |controls| {
+            // First of the three: it shows only at a refit dock, and Fit and
+            // Reset keep their places at the right edge with or without it.
+            controls.spawn((
+                ShipCatalogueButton,
+                GalleryAction::Open,
+                button(ButtonSpec::new("Catalogue").fit()),
+                Name::new("ShipCatalogue"),
+            ));
             controls
                 .spawn((button(ButtonSpec::new("Fit").fit()), Name::new("ShipFit")))
                 .observe(on_ship_fit_button);

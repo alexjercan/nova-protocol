@@ -132,7 +132,7 @@ Docked, GOTO refuses while the game cannot measure the pair (`GOTO REFUSED: HELM
      own idle timer instead: crates/nova_ship/src/sections/ammo.rs
      `SectionReload::advance`. -->
 
-The Ship pane is a schematic 3D viewer of your own hull: one block per section, a badge on each, and a section panel beside it. The footer under the view holds the section legend on the left, one line of the keys that apply now in the middle and **Fit** and **Reset** on the right. The section panel is where the selection is named. Sections carry short codes, stable for the whole session, and a family icon:
+The Ship pane is a schematic 3D viewer of your own hull: one block per section, a badge on each, and a section panel beside it. The footer under the view holds the section legend on the left, one line of the keys that apply now in the middle and, on the right, **Catalogue** at a refit dock, **Fit** and **Reset**. The section panel is where the selection is named. Sections carry short codes, stable for the whole session, and a family icon:
 
 | Code | Section | Family |
 | --- | --- | --- |
@@ -148,7 +148,7 @@ The Ship pane is a schematic 3D viewer of your own hull: one block per section, 
 
 The footer legend shows all seven family icons: Weapon, Thruster, Controller, Hull, Docking, Mining and Cargo Intake. The Dock and Helm keys are in **Settings > Controls > FLIGHT**; their defaults are <kbd>D</kbd> and <kbd>H</kbd>. Each mining beam has its own key, which you rebind here like a weapon's.
 
-Select a section by clicking its badge or with <kbd>[</kbd> / <kbd>]</kbd>. The panel shows its family icon, code and name, condition bar and, for a section with a key, its **Control** row, then the actions that apply: **Rebind**, **Delete** and, at a refit dock, **Catalogue**. A damaged section that repair can restore also shows the repair form below them; a section at full integrity, destroyed or with no integrity to restore shows no form.
+Select a section by clicking its badge or with <kbd>[</kbd> / <kbd>]</kbd>. The panel shows its family icon, code and name, condition bar and, for a section with a key, its **Control** row, then the actions that apply: **Rebind** and **Delete**. A damaged section that repair can restore also shows the repair form below them; a section at full integrity, destroyed or with no integrity to restore shows no form.
 
 | Key | Button | Does |
 | --- | --- | --- |
@@ -202,7 +202,7 @@ A reserved flight control is refused on the spot - `Space is already bound to fl
      crates/nova_ship/src/sections/design_sections.rs
      (`section_swap_family`, `swap_build_fault`). -->
 
-Docked at a living station that offers refit, the Ship panel shows a **Catalogue** button. It opens the parts gallery over the pane, the same gallery the editor picks parts from: every part the station can build from its stock and your hold, each with its price. The price is the part's build recipe, with parts taken from your hold first and the rest bought from the station. Select a section first, and each part of the same kind and size gets a **Swap** line with its price. Click a part, then **Swap** on its card to fit it. The new part stands where the old one stood, at full health, with the same code and key. The old part is gone; nothing is refunded. A swap that would split the ship, block a gun or drive, or leave it short of thrust or flight computers is refused on the note line, as is a part of another kind: `swap: PDC-1 is a turret, Basic Thruster Section is a thruster`. In a saved Open World the new part stays across a Load.
+Docked at a living station that offers refit, the Ship pane footer shows a **Catalogue** button beside **Fit** and **Reset**. It opens the parts gallery over the pane, the same gallery the editor picks parts from: every part the station can build from its stock and your hold, each with its price. The price is the part's build recipe, with parts taken from your hold first and the rest bought from the station. Select a section first, and each part of the same kind and size gets a **Swap** line with its price. Click a part, then **Swap** on its card to fit it. The new part stands where the old one stood, at full health, with the same code and key. The old part is gone; nothing is refunded. A swap that would split the ship, block a gun or drive, or leave it short of thrust or flight computers is refused on the note line, as is a part of another kind: `swap: PDC-1 is a turret, Basic Thruster Section is a thruster`. In a saved Open World the new part stays across a Load.
 
 ## Adding a section
 

@@ -1,7 +1,7 @@
 //! The Ship pane's station catalogue: the parts gallery (`nova_ship::gallery`)
 //! over the pane while the ship is docked at a station that refits.
 //!
-//! The panel's Catalogue button opens it. [`manage_ship_gallery`] then puts a
+//! The footer's Catalogue button opens it. [`manage_ship_gallery`] then puts a
 //! [`GalleryHost`] node over the view and the panel, with its own camera on
 //! [`GALLERY_LAYER`] rendering the part tiles into an image the node shows
 //! 1:1, and takes both away when the gallery closes or the pane goes.
@@ -60,7 +60,7 @@ const GALLERY_AMBIENT: f32 = 220.0;
 #[derive(Component)]
 pub(crate) struct ShipSplitMarker;
 
-/// Marks the panel's Catalogue button, shown while the station builds parts.
+/// Marks the footer's Catalogue button, shown while the station builds parts.
 #[derive(Component)]
 pub(crate) struct ShipCatalogueButton;
 

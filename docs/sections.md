@@ -59,9 +59,10 @@ full health through the same per-section spawn the ship was built with.
 
 ### Swapping a section
 
-While docked to a station that offers `Refit`, the Ship panel's Catalogue
-button opens the parts gallery (`nova_ship::gallery`, the editor's picker)
-over the pane (`nova_interface/src/ship/catalogue.rs`). A part the selected
+While docked to a station that offers `Refit`, the Ship pane footer's
+Catalogue button, left of Fit and Reset, opens the parts gallery
+(`nova_ship::gallery`, the editor's picker) over the pane
+(`nova_interface/src/ship/catalogue.rs`). A part the selected
 live section can be swapped for gets a Swap line in its note and Swap as the
 focus card's second verb (`GalleryAlternate`) when `section_swap_family`
 accepts the part. The family rule is
