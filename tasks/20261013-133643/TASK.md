@@ -1,8 +1,8 @@
 # Greebles: plating reshapes to fit the greeble placed on it
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 94
-- TAGS: v0.16.0,skin
+- TAGS: v0.16.0, skin
 
 ## User facts
 - Owner feedback 2026-10-13: small square greebles (vents etc.) sometimes land on "pointy" plating. "would be nice if we can somehow detect that a greeble is being placed somewhere and we make the pointy thing adapt to the greeble that will be placed on top, so the plating will basically take into account what/where it is placed on (like in terms of sections it is placed on and where) and also what greeble goes on top of it, so it can actually accommodate for that shape to make sense".
@@ -117,8 +117,10 @@
     rim can jog at a seam beside a dressed plate (visible on the raider nose). Feet and corners still meet.
   - Frames (not committed): /tmp/claude-1000/-home-alex-personal-nova-protocol/216d5d00-66e8-4958-a2e4-e285d6d0793a/scratchpad/plate-fit/
     (`before/`, `after/`, `gallery/`, sheet `plate-fit-sheet.png`).
-  - Not done: `web/src/create/styles.md` still says nothing of the one-cell lint or the reshaping (owner file); no
-    armoured generated close-up (the gallery walk shows industrial only); no before frames for generated hulls.
+  - Docs landed in 8b7911115 and 7682ea916 (`web/src/create/styles.md`: plate fit and the one-cell fixture lint).
+  - Not captured: an armoured generated close-up and before frames for generated hulls.
+- Owner accepted the look 2026-10-16 (plate-fit sheet, raider pair, base fleet before/after). The raider nose rim
+  jog is accepted as is. Closed.
 
 ## Delivery gate
 - After the research note is accepted: propose how a plate learns which greeble sits on it and reshapes (flattened pad, footprint), show before/after frames, then implement. Regenerate base content.
