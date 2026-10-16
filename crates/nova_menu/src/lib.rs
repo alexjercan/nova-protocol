@@ -25,6 +25,7 @@ use nova_assets::prelude::{GameAssets, ModQuarantine, ReloadContent};
 use nova_command::prelude::CommandTerminal;
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::HudVisibility;
+use nova_input::prelude::MouseInvertY;
 use nova_interface::prelude::NovaOsCloseTransition;
 use nova_scenario::prelude::{CurrentOutcome, ScenarioStartFailure, UnloadScenario};
 use nova_ui::{
@@ -39,13 +40,13 @@ pub mod prelude {
         ambience::MENU_BACKDROP_ENV,
         pause::FocusPause,
         settings::{
-            FieldNoteSetting, FocusPauseSetting, TrainingPromptSetting, WindowModeSetting,
-            SETTINGS_PANEL_H, SETTINGS_PANEL_MAX_H_PCT, SETTINGS_PANEL_MAX_W,
-            SETTINGS_PANEL_WIDTH_PCT,
+            FieldNoteSetting, FocusPauseSetting, TrainingPromptSetting, UiScaleSetting,
+            VsyncSetting, WindowModeSetting, SETTINGS_PANEL_H, SETTINGS_PANEL_MAX_H_PCT,
+            SETTINGS_PANEL_MAX_W, SETTINGS_PANEL_WIDTH_PCT,
         },
         settings_store::{
-            load_settings, save_settings, PersistedSettings, SettingsStoreAccess,
-            SettingsStorePlugin, SettingsStoreRoot,
+            load_settings, save_settings, GraphicsPresetSetting, PersistedSettings,
+            SettingsStoreAccess, SettingsStorePlugin, SettingsStoreRoot,
         },
         training_store::{
             allow_training_saves, load_training, save_training, PersistedTraining,
@@ -119,10 +120,10 @@ use scenarios::{
     SelectedScenarioId,
 };
 use settings::{
-    apply_settings_rebind, on_sensitivity_slider_change, on_volume_slider_change,
-    refresh_settings_tab, settings_tab_dirty, sync_sensitivity_slider, sync_volume_slider,
-    FieldNoteSetting, FocusPauseSetting, PendingRebind, SettingsActiveTab, SettingsControlsGroup,
-    TrainingPromptSetting, WindowModeSetting,
+    apply_settings_rebind, on_graphics_field, on_graphics_preset, on_sensitivity_slider_change,
+    on_volume_slider_change, refresh_settings_tab, settings_tab_dirty, sync_sensitivity_slider,
+    sync_volume_slider, FieldNoteSetting, FocusPauseSetting, PendingRebind, SettingsActiveTab,
+    SettingsControlsGroup, TrainingPromptSetting, UiScaleSetting, VsyncSetting, WindowModeSetting,
 };
 use settings_store::SettingsStorePlugin;
 use training::{
@@ -252,12 +253,16 @@ impl Plugin for NovaMenuPlugin {
         app.init_resource::<PendingRebind>();
         app.add_observer(on_volume_slider_change);
         app.add_observer(on_sensitivity_slider_change);
-        app.add_observer(button_on_setting::<GraphicsQuality>);
+        app.add_observer(on_graphics_preset);
+        app.add_observer(on_graphics_field);
         app.add_observer(button_on_setting::<SelectedUiTheme>);
         app.add_observer(button_on_setting::<WindowModeSetting>);
+        app.add_observer(button_on_setting::<VsyncSetting>);
         app.add_observer(button_on_setting::<TrainingPromptSetting>);
         app.add_observer(button_on_setting::<FieldNoteSetting>);
         app.add_observer(button_on_setting::<FocusPauseSetting>);
+        app.add_observer(button_on_setting::<UiScaleSetting>);
+        app.add_observer(button_on_setting::<MouseInvertY>);
         app.add_systems(Update, (sync_volume_slider, sync_sensitivity_slider));
         // Ungated by menu state: the SAME body is the pause overlay's, which
         // only exists while playing.

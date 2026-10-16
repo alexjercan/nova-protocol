@@ -55,7 +55,7 @@ fn main() {
         .build();
 
     if let Some(quality) = probe_param("quality").and_then(parse_quality) {
-        app.insert_resource(quality);
+        app.insert_resource(GraphicsBudget::for_quality(quality));
     }
 
     let capture = if probe_param("combat").is_some() {

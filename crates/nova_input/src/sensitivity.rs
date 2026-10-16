@@ -23,7 +23,7 @@ use bevy_enhanced_input::prelude::{EnhancedInputSystems, Scale};
 /// Glob-import surface: `use nova_input::sensitivity::prelude::*`.
 pub mod prelude {
     pub use super::{
-        apply_mouse_sensitivity, mouse_sensitivity, MousePath, MouseSensitivity,
+        apply_mouse_sensitivity, mouse_sensitivity, MouseInvertY, MousePath, MouseSensitivity,
         MouseSensitivityPlugin, MouseSensitivityRange, MouseSensitivitySystems,
     };
 }
@@ -238,6 +238,56 @@ impl MouseSensitivity {
     }
 }
 
+/// Whether mouse look pitches the other way: push the mouse forward to look
+/// down.
+///
+/// Only [`MousePath::Look`] - ship steering, free look and turret aim. The
+/// free camera and RCS translation keep their direction: a camera a player
+/// flies with WASD is not the nose they steer, and a translation has no
+/// pitch to invert.
+///
+/// `Resource`-only on purpose: on Bevy 0.19 a `#[derive(Resource)]` type is
+/// component-backed, so this doubles as the `Component` the settings row's
+/// `button_on_setting::<MouseInvertY>` needs, and deriving `Component` too
+/// would conflict.
+#[derive(Resource, Clone, Copy, PartialEq, Eq, Debug, Default, Reflect)]
+#[reflect(Resource)]
+pub enum MouseInvertY {
+    /// Forward looks up.
+    #[default]
+    Off,
+    /// Forward looks down.
+    On,
+}
+
+impl MouseInvertY {
+    /// The options, in row order.
+    pub const ALL: [Self; 2] = [Self::Off, Self::On];
+
+    /// What the option reads.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Off => "Off",
+            Self::On => "On",
+        }
+    }
+
+    /// Whether look pitch is inverted.
+    pub fn inverted(self) -> bool {
+        matches!(self, Self::On)
+    }
+
+    /// The per-axis sign `path`'s gain is multiplied by: `-1` on the pitch
+    /// axis of [`MousePath::Look`] when inverted, `+1` everywhere else.
+    pub fn axis_signs(self, path: MousePath) -> Vec3 {
+        if path == MousePath::Look && self.inverted() {
+            Vec3::new(1.0, -1.0, 1.0)
+        } else {
+            Vec3::ONE
+        }
+    }
+}
+
 /// The gain components a mouse-motion binding wears: the live [`Scale`] and the
 /// [`MousePath`] tag [`apply_mouse_sensitivity`] finds it by.
 ///
@@ -254,7 +304,8 @@ pub fn mouse_sensitivity(path: MousePath) -> impl Bundle {
 #[derive(SystemSet, Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct MouseSensitivitySystems;
 
-/// Push the live gains onto every tagged mouse-motion binding.
+/// Push the live gains, signed by [`MouseInvertY`], onto every tagged
+/// mouse-motion binding.
 ///
 /// Unconditional rather than change-gated: the set is three entities at most,
 /// and the two events that must both reach it - the player moving a slider, and
@@ -263,10 +314,11 @@ pub struct MouseSensitivitySystems;
 /// difference, so it arms no change detection of its own.
 pub fn apply_mouse_sensitivity(
     sensitivity: Res<MouseSensitivity>,
+    invert_y: Res<MouseInvertY>,
     mut bindings: Query<(&MousePath, &mut Scale)>,
 ) {
     for (path, mut scale) in &mut bindings {
-        let factor = Vec3::splat(sensitivity.raw(*path));
+        let factor = invert_y.axis_signs(*path) * sensitivity.raw(*path);
         if scale.factor != factor {
             scale.factor = factor;
         }
@@ -280,7 +332,9 @@ pub struct MouseSensitivityPlugin;
 impl Plugin for MouseSensitivityPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MouseSensitivity>();
+        app.init_resource::<MouseInvertY>();
         app.register_type::<MouseSensitivity>();
+        app.register_type::<MouseInvertY>();
         app.register_type::<MousePath>();
         app.configure_sets(
             PreUpdate,
@@ -400,6 +454,47 @@ mod tests {
             app.world().get::<Scale>(stick).unwrap().factor,
             Vec3::splat(2.0),
             "an untagged binding - every gamepad stick - is never scaled by these"
+        );
+    }
+
+    /// Invert Y flips the pitch axis of the LOOK binding and nothing else: the
+    /// free camera keeps its direction and the look gain keeps its size.
+    #[test]
+    fn inverting_y_flips_only_the_look_pitch() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(MouseSensitivityPlugin);
+        let look = app
+            .world_mut()
+            .spawn(mouse_sensitivity(MousePath::Look))
+            .id();
+        let free = app
+            .world_mut()
+            .spawn(mouse_sensitivity(MousePath::FreeCamera))
+            .id();
+        app.update();
+
+        *app.world_mut().resource_mut::<MouseInvertY>() = MouseInvertY::On;
+        app.update();
+
+        let gain = MousePath::Look.default_raw();
+        assert_eq!(
+            app.world().get::<Scale>(look).unwrap().factor,
+            Vec3::new(gain, -gain, gain),
+            "look pitch runs the other way at the same gain"
+        );
+        assert_eq!(
+            app.world().get::<Scale>(free).unwrap().factor,
+            Vec3::splat(MousePath::FreeCamera.default_raw()),
+            "the free camera is not a nose to steer"
+        );
+
+        *app.world_mut().resource_mut::<MouseInvertY>() = MouseInvertY::Off;
+        app.update();
+        assert_eq!(
+            app.world().get::<Scale>(look).unwrap().factor,
+            Vec3::splat(gain),
+            "and switching it off puts the sign back"
         );
     }
 }

@@ -17,8 +17,8 @@ use nova_ui::{
     theme,
     theme::UiColor,
     widget::{
-        panel, panel_head, themed_button, ButtonVariant, Selected, ThemedFill, ThemedRadius,
-        ThemedText, ThemedTextShadow, UiText,
+        panel, panel_head, segmented_container, segmented_option_fit, ButtonVariant, Selected,
+        ThemedFill, ThemedRadius, ThemedText, ThemedTextShadow, UiText,
     },
 };
 #[cfg(not(target_arch = "wasm32"))]
@@ -44,7 +44,7 @@ use crate::{
         SETTINGS_PANEL_WIDTH_PCT,
     },
     training::{on_training, spawn_menu_aside, spawn_training_panel},
-    widgets::{back_button, button, button_variant},
+    widgets::{back_button, button, button_variant, MenuSfxButton},
     world_setup::on_new_game,
 };
 
@@ -204,23 +204,13 @@ pub(crate) fn setup_menu_ui(
                         border: UiRect::all(px(theme::BORDER_W)),
                         ..default()
                     },
-                    ThemedRadius::control(),
+                    ThemedRadius::panel(),
                     panel(),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
                         Name::new("Settings Title"),
-                        Text::new("Settings"),
-                        TextFont {
-                            font_size: FontSize::Px(24.0),
-                            ..default()
-                        },
-                        TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Body),
-                        Node {
-                            margin: UiRect::bottom(px(12)),
-                            ..default()
-                        },
+                        panel_head("Settings", Some("SAVED ON CHANGE")),
                     ));
                     build_settings_tabs(parent, active_settings_tab.0);
                     parent
@@ -249,11 +239,17 @@ pub(crate) fn setup_menu_ui(
                             ));
                             row.spawn((Name::new("Settings Scroll Bar"), scroll_bar()));
                         });
-                    parent.spawn((
-                        Name::new("Settings Back Button"),
-                        back_button("Back"),
-                        observe(on_settings_back),
-                    ));
+                    parent
+                        .spawn((
+                            Name::new("Settings Footer"),
+                            footer_back_slot((
+                                Name::new("Settings Back Button"),
+                                back_button("Back"),
+                                observe(on_settings_back),
+                            )),
+                        ))
+                        .entry::<Node>()
+                        .and_modify(|mut node| node.margin = UiRect::top(px(12)));
                 });
         });
 
@@ -312,26 +308,27 @@ pub(crate) fn setup_menu_ui(
                                 children![
                                     (
                                         Name::new("Mods Tab Row"),
-                                        Node {
-                                            flex_direction: FlexDirection::Row,
-                                            align_self: AlignSelf::Stretch,
-                                            column_gap: px(8),
-                                            ..default()
-                                        },
-                                        // setup resets ModsActiveTab to
+                                        // The same segmented bar the Settings
+                                        // tabs use, with fit options: a
+                                        // full-width option in a content-sized
+                                        // bar wraps "Explore online" onto two
+                                        // lines. setup resets ModsActiveTab to
                                         // Installed above, so the static
                                         // Selected marker matches it.
+                                        segmented_container(),
                                         children![
                                             (
                                                 Name::new("Installed Tab"),
-                                                themed_button("Installed"),
+                                                segmented_option_fit("Installed"),
+                                                MenuSfxButton,
                                                 ModsTab(ModsTabKind::Installed),
                                                 Selected,
                                                 observe(on_mods_tab),
                                             ),
                                             (
                                                 Name::new("Explore Online Tab"),
-                                                themed_button("Explore online"),
+                                                segmented_option_fit("Explore online"),
+                                                MenuSfxButton,
                                                 ModsTab(ModsTabKind::Explore),
                                                 observe(on_mods_tab),
                                             ),
@@ -391,19 +388,13 @@ pub(crate) fn setup_menu_ui(
                         border: UiRect::all(px(theme::BORDER_W)),
                         ..default()
                     },
-                    ThemedRadius::control(),
+                    ThemedRadius::panel(),
                     panel(),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
                         Name::new("Scenarios Title"),
-                        Text::new("Scenarios"),
-                        TextFont {
-                            font_size: FontSize::Px(24.0),
-                            ..default()
-                        },
-                        TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Body),
+                        panel_head("Scenarios", Some("PICK ONE")),
                     ));
                     parent.spawn((
                         Name::new("Scenarios Subtitle"),

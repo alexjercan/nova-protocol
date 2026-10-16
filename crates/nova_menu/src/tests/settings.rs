@@ -948,6 +948,50 @@ fn the_window_row_drives_the_primary_window() {
     );
 }
 
+/// A lever moved off a preset turns the preset row to Custom, and a preset
+/// pressed afterwards puts its whole budget back: the budget is the truth and
+/// every row only reads it.
+#[test]
+fn moving_a_graphics_lever_turns_the_preset_to_custom_and_a_preset_puts_it_back() {
+    let mut app = mods_app();
+    open_tab(&mut app, SettingsTabKind::Graphics);
+    let selected = |app: &mut App, name: &str| {
+        let entity = entity_by_name(app, name).unwrap_or_else(|| panic!("{name} is on the tab"));
+        app.world().entity(entity).contains::<Selected>()
+    };
+    assert!(selected(&mut app, "Graphics High"), "a fresh store is High");
+    assert!(!selected(&mut app, "Graphics Custom"));
+
+    let shake_off = entity_by_name(&mut app, "Camera Shake Off").expect("the shake lever");
+    app.world_mut()
+        .trigger(bevy::ui_widgets::Activate { entity: shake_off });
+    app.update();
+    let budget = *app.world().resource::<GraphicsBudget>();
+    assert!(!budget.shake, "the lever moved the budget");
+    assert_eq!(budget.preset(), None, "High without shake is no tier");
+    assert!(
+        selected(&mut app, "Graphics Custom"),
+        "so the preset row reads Custom"
+    );
+    assert!(!selected(&mut app, "Graphics High"));
+    assert!(selected(&mut app, "Camera Shake Off"));
+
+    let medium = entity_by_name(&mut app, "Graphics Medium").expect("the Medium preset");
+    app.world_mut()
+        .trigger(bevy::ui_widgets::Activate { entity: medium });
+    app.update();
+    assert_eq!(
+        *app.world().resource::<GraphicsBudget>(),
+        GraphicsBudget::for_quality(GraphicsQuality::Medium),
+        "a preset is its whole budget"
+    );
+    assert!(selected(&mut app, "Graphics Medium"));
+    assert!(
+        selected(&mut app, "Flash Lights 3") && selected(&mut app, "Camera Shake Off"),
+        "and the lever rows read the tier's values"
+    );
+}
+
 /// The pointer's own button is refused. Found live: an armed chip ate the next
 /// click a walk made on another control, and `main_drive` came out bound to
 /// Left Mouse - which then made the row that would undo it unclickable.

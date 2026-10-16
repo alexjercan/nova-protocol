@@ -22,10 +22,10 @@ use nova_scenario::prelude::*;
 use nova_ui::{
     input_mode::prelude::InputMode,
     prelude::{PAUSE_SETTINGS_Z, PAUSE_Z},
-    screen::{scroll_bar, scroll_column, scroll_viewport},
+    screen::{footer_back_slot, scroll_bar, scroll_column, scroll_viewport},
     theme,
     theme::UiColor,
-    widget::{panel, ButtonVariant, ThemedRadius, ThemedText, UiText},
+    widget::{panel, panel_head, ButtonVariant, ThemedRadius, ThemedText, UiText},
 };
 #[cfg(not(target_arch = "wasm32"))]
 use nova_world_base::prelude::WorldSaveSession;
@@ -582,24 +582,13 @@ pub(crate) fn reconcile_pause_overlay(
                         border: UiRect::all(px(theme::BORDER_W)),
                         ..default()
                     },
-                    ThemedRadius::control(),
+                    ThemedRadius::panel(),
                     panel(),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
                         Name::new("Pause Settings Title"),
-                        UiText,
-                        Text::new("Settings"),
-                        TextFont {
-                            font_size: FontSize::Px(24.0),
-                            ..default()
-                        },
-                        TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Body),
-                        Node {
-                            margin: UiRect::bottom(px(12)),
-                            ..default()
-                        },
+                        panel_head("Settings", Some("SAVED ON CHANGE")),
                     ));
                     build_settings_tabs(parent, active_settings_tab.0);
                     parent
@@ -627,11 +616,17 @@ pub(crate) fn reconcile_pause_overlay(
                             ));
                             row.spawn((Name::new("Pause Settings Scroll Bar"), scroll_bar()));
                         });
-                    parent.spawn((
-                        Name::new("Pause Settings Back Button"),
-                        back_button("Back"),
-                        observe(on_pause_settings_back),
-                    ));
+                    parent
+                        .spawn((
+                            Name::new("Pause Settings Footer"),
+                            footer_back_slot((
+                                Name::new("Pause Settings Back Button"),
+                                back_button("Back"),
+                                observe(on_pause_settings_back),
+                            )),
+                        ))
+                        .entry::<Node>()
+                        .and_modify(|mut node| node.margin = UiRect::top(px(12)));
                 });
         });
 }

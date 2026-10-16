@@ -24,11 +24,13 @@ use nova_ui::{
     theme::{GameUiThemes, SelectedUiTheme, UiColor, UiThemeDiagnostic},
     widget::{
         panel_header, segmented_container, segmented_container_wrapping, segmented_option,
-        segmented_option_fit, separator, slider_track, ButtonValue, Selected, ThemedImageTint,
-        ThemedText, UiText,
+        segmented_option_compact, segmented_option_fit, separator, slider_track, ButtonValue,
+        Selected, ThemedImageTint, ThemedText, UiText,
     },
 };
 use serde::{Deserialize, Serialize};
+
+use crate::widgets::MenuSfxButton;
 
 /// How wide the Settings panel grows, as a percentage of the window.
 ///
@@ -48,10 +50,15 @@ pub const SETTINGS_PANEL_WIDTH_PCT: f32 = 92.0;
 
 /// The widest the Settings panel is allowed to become, in logical pixels.
 ///
-/// Wide enough for a keybind label plus its two chip columns, and a cap rather
-/// than a target: on a desk monitor [`SETTINGS_PANEL_WIDTH_PCT`] of the window
+/// Wide enough for the ten Controls groups to sit on one line of compact
+/// chips, and for a keybind label plus its two chip columns. A cap rather than
+/// a target: on a desk monitor [`SETTINGS_PANEL_WIDTH_PCT`] of the window
 /// would be a settings panel most of a screen wide.
-pub const SETTINGS_PANEL_MAX_W: f32 = 620.0;
+pub const SETTINGS_PANEL_MAX_W: f32 = 680.0;
+
+/// The label column every row on every tab shares, so the controls down a tab
+/// start on one vertical line.
+pub(crate) const SETTING_LABEL_W: f32 = 140.0;
 
 /// How tall the Settings panel is, in logical pixels.
 ///
@@ -494,6 +501,182 @@ impl FocusPauseSetting {
     }
 }
 
+/// Whether presentation waits for the display's refresh. Native only, like
+/// [`WindowModeSetting`]: a browser presents on its own schedule.
+///
+/// `On` is the default, and bevy's own (`PresentMode::AutoVsync`): a torn
+/// frame is the worse first impression. Off is for a player measuring frame
+/// times or chasing input latency.
+///
+/// `Resource`-only on purpose, like its neighbours: on Bevy 0.19 a
+/// `#[derive(Resource)]` type is component-backed, so this doubles as the
+/// `Component` that `button_on_setting::<VsyncSetting>` needs.
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum VsyncSetting {
+    /// Present as soon as a frame is drawn.
+    Off,
+    /// Present on the display's refresh.
+    #[default]
+    On,
+}
+
+impl VsyncSetting {
+    /// The options, in row order.
+    #[cfg_attr(
+        target_arch = "wasm32",
+        expect(
+            dead_code,
+            reason = "the row is native-only; the value still persists on the web"
+        )
+    )]
+    const ALL: [Self; 2] = [Self::Off, Self::On];
+
+    /// What the option reads.
+    #[cfg_attr(
+        target_arch = "wasm32",
+        expect(
+            dead_code,
+            reason = "the row is native-only; the value still persists on the web"
+        )
+    )]
+    fn label(self) -> &'static str {
+        match self {
+            Self::Off => "Off",
+            Self::On => "On",
+        }
+    }
+
+    /// The present mode this setting asks the window for.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn present_mode(self) -> bevy::window::PresentMode {
+        match self {
+            Self::Off => bevy::window::PresentMode::AutoNoVsync,
+            Self::On => bevy::window::PresentMode::AutoVsync,
+        }
+    }
+}
+
+/// How large the interface draws: a factor on bevy's `UiScale`. Every panel
+/// is laid out in logical pixels and capped at a share of the window, so one
+/// factor grows all of them and they still stay on screen.
+///
+/// `Resource`-only on purpose, like its neighbours: on Bevy 0.19 a
+/// `#[derive(Resource)]` type is component-backed, so this doubles as the
+/// `Component` that `button_on_setting::<UiScaleSetting>` needs.
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UiScaleSetting {
+    /// Three quarters.
+    Small,
+    /// As designed.
+    #[default]
+    Normal,
+    /// A quarter larger.
+    Large,
+    /// Half again.
+    Huge,
+}
+
+impl UiScaleSetting {
+    /// The options, in row order.
+    const ALL: [Self; 4] = [Self::Small, Self::Normal, Self::Large, Self::Huge];
+
+    /// What the option reads.
+    fn label(self) -> &'static str {
+        match self {
+            Self::Small => "75%",
+            Self::Normal => "100%",
+            Self::Large => "125%",
+            Self::Huge => "150%",
+        }
+    }
+
+    /// The `UiScale` factor.
+    pub(crate) fn factor(self) -> f32 {
+        match self {
+            Self::Small => 0.75,
+            Self::Normal => 1.0,
+            Self::Large => 1.25,
+            Self::Huge => 1.5,
+        }
+    }
+}
+
+/// One graphics lever the Graphics tab moves on its own. Moving one is what
+/// takes the [`GraphicsBudget`] off its preset: the preset row then reads
+/// Custom, because no tier matches any more.
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+pub(crate) enum GraphicsField {
+    /// [`GraphicsBudget::particles`].
+    Particles(bool),
+    /// [`GraphicsBudget::render_scale`].
+    RenderScale(f32),
+    /// [`GraphicsBudget::transient_lights`].
+    TransientLights(usize),
+    /// [`GraphicsBudget::shake`].
+    Shake(bool),
+}
+
+impl GraphicsField {
+    /// The Off/On pair a boolean lever offers, in row order.
+    const SWITCH: [(bool, &'static str); 2] = [(false, "Off"), (true, "On")];
+
+    /// The render-scale steps, in row order. `0.7` is the Low preset's value,
+    /// so Low is reachable lever by lever as well as by name.
+    const RENDER_SCALES: [(f32, &'static str); 4] =
+        [(0.5, "50%"), (0.7, "70%"), (0.85, "85%"), (1.0, "100%")];
+
+    /// The flash-light budgets, in row order: none, Medium's, High's.
+    const TRANSIENT_LIGHTS: [(usize, &'static str); 3] = [(0, "Off"), (3, "3"), (6, "6")];
+
+    /// Whether `budget` already holds this value.
+    fn is_set(self, budget: GraphicsBudget) -> bool {
+        match self {
+            Self::Particles(on) => budget.particles == on,
+            Self::RenderScale(scale) => budget.render_scale == scale,
+            Self::TransientLights(count) => budget.transient_lights == count,
+            Self::Shake(on) => budget.shake == on,
+        }
+    }
+
+    /// Put this value on `budget`.
+    fn write(self, budget: &mut GraphicsBudget) {
+        match self {
+            Self::Particles(on) => budget.particles = on,
+            Self::RenderScale(scale) => budget.render_scale = scale,
+            Self::TransientLights(count) => budget.transient_lights = count,
+            Self::Shake(on) => budget.shake = on,
+        }
+    }
+}
+
+/// A preset button puts its whole budget on.
+pub(crate) fn on_graphics_preset(
+    activate: On<Activate>,
+    buttons: Query<&ButtonValue<GraphicsQuality>>,
+    mut budget: ResMut<GraphicsBudget>,
+) {
+    let Ok(tier) = buttons.get(activate.entity) else {
+        return;
+    };
+    budget.set_if_neq(GraphicsBudget::for_quality(tier.0));
+}
+
+/// A lever button moves its one field. The tab rebuilds from the budget
+/// ([`settings_tab_dirty`]), which is what moves the preset row to Custom, or
+/// back onto a tier, as the levers land on one.
+pub(crate) fn on_graphics_field(
+    activate: On<Activate>,
+    buttons: Query<&ButtonValue<GraphicsField>>,
+    mut budget: ResMut<GraphicsBudget>,
+) {
+    let Ok(field) = buttons.get(activate.entity) else {
+        return;
+    };
+    if !field.0.is_set(*budget) {
+        field.0.write(&mut budget);
+    }
+}
+
 /// The tab bar: one segmented row above the scrolling body. Spawned by each
 /// entry point beside its own [`SettingsTabBody`], so a tab press reaches both.
 pub(crate) fn build_settings_tabs(parent: &mut ChildSpawnerCommands, active: SettingsTabKind) {
@@ -501,7 +684,7 @@ pub(crate) fn build_settings_tabs(parent: &mut ChildSpawnerCommands, active: Set
         .spawn((
             Name::new("Settings Tab Bar"),
             Node {
-                margin: UiRect::bottom(px(10)),
+                margin: UiRect::vertical(px(10)),
                 ..default()
             },
         ))
@@ -581,12 +764,15 @@ pub(crate) fn on_controls_group_tab(
 /// Deliberately NOT armed by `MasterVolume`: the slider mutates it every frame
 /// of a drag, and rebuilding the body under the pointer would drop the drag.
 /// The other settings move their own `Selected` highlight through
-/// `button_on_setting`, so they need no rebuild either.
+/// `button_on_setting`, so they need no rebuild either. The graphics budget
+/// IS here: its preset row depends on every lever row, so one click redraws
+/// them all from the resource.
 pub(crate) fn settings_tab_dirty(
     active: Res<SettingsActiveTab>,
     group: Res<SettingsControlsGroup>,
     bindings: Res<InputBindings>,
     rebind: Res<PendingRebind>,
+    budget: Res<GraphicsBudget>,
     // The theme ROW is rebuilt from the registry, and the sentence under it
     // from the diagnostic; neither moves under the pointer the way a slider
     // does. The SELECTION is not here - `button_on_setting` moves `Selected`
@@ -599,6 +785,7 @@ pub(crate) fn settings_tab_dirty(
         || group.is_changed()
         || bindings.is_changed()
         || rebind.is_changed()
+        || budget.is_changed()
         || themes.is_changed()
         || diagnostic.is_changed()
         || !spawned.is_empty()
@@ -616,12 +803,15 @@ pub(crate) struct SettingsValues<'w> {
     world_volume: Res<'w, WorldVolume>,
     music_volume: Res<'w, MusicVolume>,
     sensitivity: Res<'w, MouseSensitivity>,
-    quality: Res<'w, GraphicsQuality>,
+    invert_y: Res<'w, MouseInvertY>,
+    budget: Res<'w, GraphicsBudget>,
     themes: Res<'w, GameUiThemes>,
     theme_selection: Res<'w, SelectedUiTheme>,
     theme_diagnostic: Res<'w, UiThemeDiagnostic>,
     window_mode: Res<'w, WindowModeSetting>,
+    vsync: Res<'w, VsyncSetting>,
     focus_pause: Res<'w, FocusPauseSetting>,
+    ui_scale: Res<'w, UiScaleSetting>,
     prompt: Res<'w, TrainingPromptSetting>,
     field_note: Res<'w, FieldNoteSetting>,
 }
@@ -664,8 +854,9 @@ pub(crate) fn refresh_settings_tab(
             SettingsTabKind::Graphics => {
                 build_graphics_tab(
                     list,
-                    *values.quality,
+                    *values.budget,
                     *values.window_mode,
+                    *values.vsync,
                     *values.focus_pause,
                 );
             }
@@ -677,6 +868,7 @@ pub(crate) fn refresh_settings_tab(
                     group.0,
                     glyphs,
                     *values.sensitivity,
+                    *values.invert_y,
                 );
             }
             SettingsTabKind::Interface => {
@@ -685,6 +877,7 @@ pub(crate) fn refresh_settings_tab(
                     &values.themes,
                     &values.theme_selection,
                     &values.theme_diagnostic,
+                    *values.ui_scale,
                     *values.prompt,
                     *values.field_note,
                 );
@@ -768,21 +961,7 @@ fn build_slider_row(
         },
     ))
     .with_children(|parent| {
-        parent.spawn((
-            Name::new(format!("{name} Label")),
-            UiText,
-            Text::new(row.label),
-            TextFont {
-                font_size: FontSize::Px(13.0),
-                ..default()
-            },
-            TextColor(Color::NONE),
-            ThemedText::new(UiColor::Body),
-            Node {
-                min_width: px(70),
-                ..default()
-            },
-        ));
+        parent.spawn(setting_label(format!("{name} Label"), &row.label));
         // The slider: a `bevy_ui_widgets::Slider` wearing the shared
         // `slider_track` (shown by nova_ui's `sync_slider_tracks`, which lights
         // the phosphor block-meter and moves the hardware fill).
@@ -826,77 +1005,187 @@ fn build_slider_row(
     });
 }
 
-/// GRAPHICS - the quality preset (each tier drives the combat juice; the
-/// low-end mode extends what Low/Medium skip), on native the window mode, and
-/// whether losing the window pauses play.
+/// One row's label: the same type and colour on every tab, in the shared
+/// [`SETTING_LABEL_W`] column.
+fn setting_label(name: String, text: &str) -> impl Bundle {
+    (
+        Name::new(name),
+        UiText,
+        Text::new(text),
+        TextFont {
+            font_size: FontSize::Px(13.0),
+            ..default()
+        },
+        TextColor(Color::NONE),
+        ThemedText::new(UiColor::Body),
+        // Without this a two-word label measures as two lines and sits above
+        // the row's centre, although it renders on one.
+        TextLayout::no_wrap(),
+        Node {
+            width: px(SETTING_LABEL_W),
+            flex_shrink: 0.0,
+            ..default()
+        },
+    )
+}
+
+/// One option of a settings row: a segmented option that clicks like the
+/// menu's other buttons.
+fn option(label: &str) -> impl Bundle {
+    (segmented_option(label), MenuSfxButton)
+}
+
+/// One settings row: its label down the left column, then `options` inside
+/// `container`. Named `{name} Row`, `{name} Label` and `{name} Options`.
+fn build_option_row(
+    list: &mut ChildSpawnerCommands,
+    name: &str,
+    label: &str,
+    container: impl Bundle,
+    options: impl FnOnce(&mut ChildSpawnerCommands),
+) {
+    list.spawn((
+        Name::new(format!("{name} Row")),
+        Node {
+            width: percent(100),
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::Center,
+            column_gap: px(12),
+            margin: UiRect::vertical(px(3)),
+            ..default()
+        },
+    ))
+    .with_children(|row| {
+        row.spawn(setting_label(format!("{name} Label"), label));
+        row.spawn((Name::new(format!("{name} Options")), container))
+            .with_children(options);
+    });
+}
+
+/// One row of choices: a [`build_option_row`] with one `ButtonValue` option
+/// per `(value, label, selected)`, named `{name} {label}`.
+fn build_choice_row<T: Send + Sync + 'static>(
+    list: &mut ChildSpawnerCommands,
+    name: &str,
+    label: &str,
+    choices: impl IntoIterator<Item = (T, &'static str, bool)>,
+) {
+    build_option_row(list, name, label, segmented_container(), |row| {
+        for (value, text, selected) in choices {
+            let mut button = row.spawn((
+                Name::new(format!("{name} {text}")),
+                option(text),
+                ButtonValue(value),
+            ));
+            if selected {
+                button.insert(Selected);
+            }
+        }
+    });
+}
+
+/// GRAPHICS - the budget as a preset row over its four levers (a lever moved
+/// off a tier turns the preset row to Custom), on native the window mode and
+/// VSync, and whether losing the window pauses play.
 fn build_graphics_tab(
     list: &mut ChildSpawnerCommands,
-    quality: GraphicsQuality,
+    budget: GraphicsBudget,
     window_mode: WindowModeSetting,
+    vsync: VsyncSetting,
     focus_pause: FocusPauseSetting,
 ) {
     list.spawn(panel_header("Quality"));
-    list.spawn((Name::new("Graphics Row"), segmented_container()))
-        .with_children(|row| {
-            for tier in GraphicsQuality::ALL {
-                let mut button = row.spawn((
-                    Name::new(format!("Graphics {}", tier.label())),
-                    segmented_option(tier.label()),
-                    ButtonValue(tier),
-                ));
-                if tier == quality {
-                    button.insert(Selected);
-                }
+    let preset = budget.preset();
+    build_option_row(list, "Graphics", "Preset", segmented_container(), |row| {
+        for tier in GraphicsQuality::ALL {
+            let mut button = row.spawn((
+                Name::new(format!("Graphics {}", tier.label())),
+                option(tier.label()),
+                ButtonValue(tier),
+            ));
+            if preset == Some(tier) {
+                button.insert(Selected);
             }
-        });
+        }
+        // Not a choice: a budget becomes Custom by moving a lever below, so
+        // this option only shows that the row is off every tier.
+        let mut custom = row.spawn((Name::new("Graphics Custom"), segmented_option("Custom")));
+        if preset.is_none() {
+            custom.insert(Selected);
+        }
+    });
+    let switch = |lever: fn(bool) -> GraphicsField| {
+        GraphicsField::SWITCH.map(|(on, text)| (lever(on), text, lever(on).is_set(budget)))
+    };
+    build_choice_row(
+        list,
+        "Particles",
+        "Particles",
+        switch(GraphicsField::Particles),
+    );
+    build_choice_row(
+        list,
+        "Render Scale",
+        "Resolution",
+        GraphicsField::RENDER_SCALES.map(|(scale, text)| {
+            let lever = GraphicsField::RenderScale(scale);
+            (lever, text, lever.is_set(budget))
+        }),
+    );
+    build_choice_row(
+        list,
+        "Flash Lights",
+        "Flash lights",
+        GraphicsField::TRANSIENT_LIGHTS.map(|(count, text)| {
+            let lever = GraphicsField::TransientLights(count);
+            (lever, text, lever.is_set(budget))
+        }),
+    );
+    build_choice_row(
+        list,
+        "Camera Shake",
+        "Camera shake",
+        switch(GraphicsField::Shake),
+    );
 
     // The web build fits its canvas already, and a browser will not go
-    // fullscreen without a user gesture this row cannot supply - so the row is
-    // absent there rather than present and inert.
+    // fullscreen without a user gesture this row cannot supply - so the rows
+    // are absent there rather than present and inert.
     #[cfg(not(target_arch = "wasm32"))]
     {
         list.spawn(separator());
         list.spawn(panel_header("Window"));
-        list.spawn((Name::new("Window Mode Row"), segmented_container()))
-            .with_children(|row| {
-                for mode in WindowModeSetting::ALL {
-                    let mut button = row.spawn((
-                        Name::new(format!("Window {}", mode.label())),
-                        segmented_option(mode.label()),
-                        ButtonValue(mode),
-                    ));
-                    if mode == window_mode {
-                        button.insert(Selected);
-                    }
-                }
-            });
+        build_choice_row(
+            list,
+            "Window",
+            "Mode",
+            WindowModeSetting::ALL.map(|mode| (mode, mode.label(), mode == window_mode)),
+        );
+        build_choice_row(
+            list,
+            "Vsync",
+            "VSync",
+            VsyncSetting::ALL.map(|choice| (choice, choice.label(), choice == vsync)),
+        );
     }
     #[cfg(target_arch = "wasm32")]
-    let _ = window_mode;
+    let _ = (window_mode, vsync);
 
-    // Beside the window row because it answers what alt-tab does to the
+    // Beside the window rows because it answers what alt-tab does to the
     // window. Not native-only: a browser tab losing focus is the same gesture.
     list.spawn(separator());
-    list.spawn(panel_header("Pause when unfocused"));
-    list.spawn((Name::new("Focus Pause Row"), segmented_container()))
-        .with_children(|row| {
-            for option in FocusPauseSetting::ALL {
-                let mut button = row.spawn((
-                    Name::new(format!("Focus Pause {}", option.label())),
-                    segmented_option(option.label()),
-                    ButtonValue(option),
-                ));
-                if option == focus_pause {
-                    button.insert(Selected);
-                }
-            }
-        });
+    list.spawn(panel_header("Focus"));
+    build_choice_row(
+        list,
+        "Focus Pause",
+        "Pause when unfocused",
+        FocusPauseSetting::ALL.map(|choice| (choice, choice.label(), choice == focus_pause)),
+    );
 }
 
-/// INTERFACE - the UI theme choice and the two cards the menu's corner can
-/// carry. All three are segmented controls wired through `ButtonValue<T>` +
-/// the app-global `button_on_setting::<T>` observer, exactly like the graphics
-/// preset.
+/// INTERFACE - the UI theme choice, the interface scale and the two cards the
+/// menu's corner can carry. All of them are segmented controls wired through
+/// `ButtonValue<T>` + the app-global `button_on_setting::<T>` observer.
 ///
 /// The theme row is built from [`GameUiThemes`], not from a list this crate
 /// knows: the two base looks and every theme an enabled mod declares are the
@@ -907,23 +1196,30 @@ fn build_interface_tab(
     themes: &GameUiThemes,
     selected: &SelectedUiTheme,
     diagnostic: &UiThemeDiagnostic,
+    ui_scale: UiScaleSetting,
     prompt: TrainingPromptSetting,
     field_note: FieldNoteSetting,
 ) {
     list.spawn(panel_header("Theme"));
-    list.spawn((Name::new("UI Theme Row"), segmented_container_wrapping()))
-        .with_children(|row| {
+    build_option_row(
+        list,
+        "UI Theme",
+        "Theme",
+        segmented_container_wrapping(),
+        |row| {
             for (id, name) in themes.listed() {
                 let mut button = row.spawn((
                     Name::new(format!("UI Theme {id}")),
                     segmented_option_fit(name),
+                    MenuSfxButton,
                     ButtonValue(SelectedUiTheme(id.to_string())),
                 ));
                 if id == selected.0 {
                     button.insert(Selected);
                 }
             }
-        });
+        },
+    );
     // A player whose theme silently reverted - they disabled the mod that
     // declared it, or the mod shipped a broken one - has no way to tell that
     // from a forgotten setting. Say which theme failed and why, beside the row
@@ -947,36 +1243,28 @@ fn build_interface_tab(
     }
 
     list.spawn(separator());
-    list.spawn(panel_header("Training prompt"));
-    list.spawn((Name::new("Training Prompt Row"), segmented_container()))
-        .with_children(|row| {
-            for option in TrainingPromptSetting::ALL {
-                let mut button = row.spawn((
-                    Name::new(format!("Training Prompt {}", option.label())),
-                    segmented_option(option.label()),
-                    ButtonValue(option),
-                ));
-                if option == prompt {
-                    button.insert(Selected);
-                }
-            }
-        });
+    list.spawn(panel_header("Display"));
+    build_choice_row(
+        list,
+        "UI Scale",
+        "UI scale",
+        UiScaleSetting::ALL.map(|choice| (choice, choice.label(), choice == ui_scale)),
+    );
 
     list.spawn(separator());
-    list.spawn(panel_header("Field notes"));
-    list.spawn((Name::new("Field Notes Row"), segmented_container()))
-        .with_children(|row| {
-            for option in FieldNoteSetting::ALL {
-                let mut button = row.spawn((
-                    Name::new(format!("Field Notes {}", option.label())),
-                    segmented_option(option.label()),
-                    ButtonValue(option),
-                ));
-                if option == field_note {
-                    button.insert(Selected);
-                }
-            }
-        });
+    list.spawn(panel_header("Menu"));
+    build_choice_row(
+        list,
+        "Training Prompt",
+        "Training prompt",
+        TrainingPromptSetting::ALL.map(|choice| (choice, choice.label(), choice == prompt)),
+    );
+    build_choice_row(
+        list,
+        "Field Notes",
+        "Field notes",
+        FieldNoteSetting::ALL.map(|choice| (choice, choice.label(), choice == field_note)),
+    );
 }
 
 /// The group bar and the refusal, in the strip that does NOT scroll.
@@ -1003,7 +1291,8 @@ fn build_controls_header(
             for group in &groups {
                 let mut button = bar.spawn((
                     Name::new(format!("Controls Group: {group}")),
-                    segmented_option_fit(group),
+                    segmented_option_compact(group),
+                    MenuSfxButton,
                     ControlsGroupTab(group),
                     observe(on_controls_group_tab),
                 ));
@@ -1069,9 +1358,9 @@ fn open_group_of(groups: &[&'static str], open_group: &str) -> Option<&'static s
 /// follows, so showing it would offer a second way to break one gesture.
 ///
 /// [`MOUSE_GROUP`] is the one page with no bindings on it: three sensitivity
-/// sliders, and NO reset button. Reset Defaults is a keybinding operation, and
-/// a page with nothing to rebind must not offer it - it would read as "put the
-/// sensitivities back", which is not what it does.
+/// sliders and the Invert Y switch, and NO reset button. Reset Defaults is a
+/// keybinding operation, and a page with nothing to rebind must not offer it -
+/// it would read as "put the sensitivities back", which is not what it does.
 fn build_controls_tab(
     list: &mut ChildSpawnerCommands,
     bindings: &InputBindings,
@@ -1079,6 +1368,7 @@ fn build_controls_tab(
     open_group: &str,
     glyphs: Option<&KeyGlyphs>,
     sensitivity: MouseSensitivity,
+    invert_y: MouseInvertY,
 ) {
     let groups = controls_groups(bindings);
     let Some(open) = open_group_of(&groups, open_group) else {
@@ -1089,6 +1379,13 @@ fn build_controls_tab(
         for path in MousePath::ALL {
             build_sensitivity_row(list, path, sensitivity.percent(path));
         }
+        list.spawn(separator());
+        build_choice_row(
+            list,
+            "Invert Y",
+            "Invert Y",
+            MouseInvertY::ALL.map(|choice| (choice, choice.label(), choice == invert_y)),
+        );
         return;
     }
 

@@ -14,15 +14,17 @@ use std::collections::BTreeMap;
 use bevy::prelude::*;
 use nova_assets::persist;
 use nova_gameplay::prelude::{
-    harness_env_active, GraphicsQuality, InterfaceVolume, MasterVolume, MusicVolume, WorldVolume,
+    harness_env_active, GraphicsBudget, GraphicsQuality, InterfaceVolume, MasterVolume,
+    MusicVolume, WorldVolume,
 };
-use nova_input::prelude::{BindingSpec, InputBindings, MousePath, MouseSensitivity};
+use nova_input::prelude::{BindingSpec, InputBindings, MouseInvertY, MousePath, MouseSensitivity};
 use nova_interface::prelude::NovaOsMonitorSettings;
 use nova_ui::theme::{SelectedUiTheme, PHOSPHOR_THEME_ID};
 use serde::{Deserialize, Serialize};
 
 use crate::settings::{
-    FieldNoteSetting, FocusPauseSetting, TrainingPromptSetting, WindowModeSetting,
+    FieldNoteSetting, FocusPauseSetting, TrainingPromptSetting, UiScaleSetting, VsyncSetting,
+    WindowModeSetting,
 };
 
 /// The persisted form of the settings: plain, versionable data decoupled from
@@ -55,9 +57,27 @@ pub struct PersistedSettings {
     /// Raw gain of free-camera mouse look.
     #[serde(default = "default_free_camera_sensitivity")]
     pub mouse_free_camera_sensitivity: f32,
-    /// The graphics-quality preset.
+    /// Whether mouse look pitches the other way.
     #[serde(default)]
-    pub graphics_quality: GraphicsQuality,
+    pub mouse_invert_y: bool,
+    /// The graphics preset, or `Custom` when the four `graphics_*` levers
+    /// below are the budget. A tier here wins over the levers, so a store
+    /// written before the levers existed still loads as its tier.
+    #[serde(default)]
+    pub graphics_quality: GraphicsPresetSetting,
+    /// [`GraphicsBudget::particles`], read under `Custom`.
+    #[serde(default = "default_particles")]
+    pub graphics_particles: bool,
+    /// [`GraphicsBudget::render_scale`], read under `Custom` and clamped on
+    /// load like the sensitivities.
+    #[serde(default = "default_render_scale")]
+    pub graphics_render_scale: f32,
+    /// [`GraphicsBudget::transient_lights`], read under `Custom`.
+    #[serde(default = "default_transient_lights")]
+    pub graphics_transient_lights: usize,
+    /// [`GraphicsBudget::shake`], read under `Custom`.
+    #[serde(default = "default_shake")]
+    pub graphics_shake: bool,
     /// The selected UI theme, by stable id (`base/phosphor`, `base/hardware`,
     /// or a theme a mod declares). A string, not an enum: the set of themes is
     /// open, and a mod's theme has to survive a restart.
@@ -76,6 +96,13 @@ pub struct PersistedSettings {
     /// native build has a row that moves it.
     #[serde(default)]
     pub window_mode: WindowModeSetting,
+    /// Whether presentation waits for the display's refresh. Written on every
+    /// platform; only the native build has a row that moves it.
+    #[serde(default)]
+    pub vsync: VsyncSetting,
+    /// How large the interface draws.
+    #[serde(default)]
+    pub ui_scale: UiScaleSetting,
     /// Whether losing the window pauses play. An older store with no field
     /// takes the default, which keeps the run going.
     #[serde(default)]
@@ -113,6 +140,60 @@ fn default_free_camera_sensitivity() -> f32 {
     MousePath::FreeCamera.default_raw()
 }
 
+fn default_particles() -> bool {
+    GraphicsBudget::default().particles
+}
+
+fn default_render_scale() -> f32 {
+    GraphicsBudget::default().render_scale
+}
+
+fn default_transient_lights() -> usize {
+    GraphicsBudget::default().transient_lights
+}
+
+fn default_shake() -> bool {
+    GraphicsBudget::default().shake
+}
+
+/// The persisted graphics preset: [`GraphicsQuality`]'s three tiers, plus the
+/// `Custom` a hand-assembled budget saves as. A store word only: live, a
+/// custom budget is one whose [`GraphicsBudget::preset`] is `None`.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum GraphicsPresetSetting {
+    /// [`GraphicsQuality::Low`].
+    Low,
+    /// [`GraphicsQuality::Medium`].
+    Medium,
+    /// [`GraphicsQuality::High`].
+    #[default]
+    High,
+    /// None of the tiers: the `graphics_*` levers are the budget.
+    Custom,
+}
+
+impl GraphicsPresetSetting {
+    /// The word a live budget saves as.
+    pub fn of(budget: GraphicsBudget) -> Self {
+        match budget.preset() {
+            Some(GraphicsQuality::Low) => Self::Low,
+            Some(GraphicsQuality::Medium) => Self::Medium,
+            Some(GraphicsQuality::High) => Self::High,
+            None => Self::Custom,
+        }
+    }
+
+    /// The tier this word names, `None` for `Custom`.
+    pub fn tier(self) -> Option<GraphicsQuality> {
+        match self {
+            Self::Low => Some(GraphicsQuality::Low),
+            Self::Medium => Some(GraphicsQuality::Medium),
+            Self::High => Some(GraphicsQuality::High),
+            Self::Custom => None,
+        }
+    }
+}
+
 /// The theme a store written before this field, or by a player who never
 /// opened Settings, comes back as: the base terminal look.
 fn default_ui_theme() -> String {
@@ -144,12 +225,19 @@ impl Default for PersistedSettings {
             mouse_look_sensitivity: default_look_sensitivity(),
             mouse_rcs_sensitivity: default_rcs_sensitivity(),
             mouse_free_camera_sensitivity: default_free_camera_sensitivity(),
-            graphics_quality: GraphicsQuality::default(),
+            mouse_invert_y: false,
+            graphics_quality: GraphicsPresetSetting::default(),
+            graphics_particles: default_particles(),
+            graphics_render_scale: default_render_scale(),
+            graphics_transient_lights: default_transient_lights(),
+            graphics_shake: default_shake(),
             ui_theme: default_ui_theme(),
             nova_os_bright_detent: default_bright_detent(),
             nova_os_scan_detent: default_scan_detent(),
             nova_os_sound_enabled: default_sound_enabled(),
             window_mode: WindowModeSetting::default(),
+            vsync: VsyncSetting::default(),
+            ui_scale: UiScaleSetting::default(),
             focus_pause: FocusPauseSetting::default(),
             training_prompt: TrainingPromptSetting::default(),
             field_note: FieldNoteSetting::default(),
@@ -159,40 +247,30 @@ impl Default for PersistedSettings {
 }
 
 impl PersistedSettings {
-    /// Snapshot the live resources into a persistable value.
-    pub fn from_resources(
-        volume: MasterVolume,
-        interface_volume: InterfaceVolume,
-        world_volume: WorldVolume,
-        music_volume: MusicVolume,
-        sensitivity: MouseSensitivity,
-        quality: GraphicsQuality,
-        theme: SelectedUiTheme,
-        monitor: NovaOsMonitorSettings,
-        window_mode: WindowModeSetting,
-        focus_pause: FocusPauseSetting,
-        training_prompt: TrainingPromptSetting,
-        field_note: FieldNoteSetting,
-        bindings: &InputBindings,
-    ) -> Self {
-        Self {
-            master_volume: volume.factor(),
-            interface_volume: interface_volume.factor(),
-            world_volume: world_volume.factor(),
-            music_volume: music_volume.factor(),
-            mouse_look_sensitivity: sensitivity.raw(MousePath::Look),
-            mouse_rcs_sensitivity: sensitivity.raw(MousePath::Rcs),
-            mouse_free_camera_sensitivity: sensitivity.raw(MousePath::FreeCamera),
-            graphics_quality: quality,
-            ui_theme: theme.0,
-            nova_os_bright_detent: monitor.bright_detent,
-            nova_os_scan_detent: monitor.scan_detent,
-            nova_os_sound_enabled: monitor.sound_enabled,
-            window_mode,
-            focus_pause,
-            training_prompt,
-            field_note,
-            keybinds: bindings.overrides(),
+    /// The persisted graphics budget as the live resource: the tier's budget
+    /// under a tier, the four levers under `Custom`, with the render scale
+    /// clamped so a hand-edited fraction can only load as one the row could
+    /// have produced.
+    pub fn graphics_budget(&self) -> GraphicsBudget {
+        match self.graphics_quality.tier() {
+            Some(tier) => GraphicsBudget::for_quality(tier),
+            None => GraphicsBudget {
+                particles: self.graphics_particles,
+                render_scale: self
+                    .graphics_render_scale
+                    .clamp(GraphicsBudget::MIN_RENDER_SCALE, 1.0),
+                transient_lights: self.graphics_transient_lights,
+                shake: self.graphics_shake,
+            },
+        }
+    }
+
+    /// The persisted Invert Y switch as the live resource.
+    pub fn mouse_invert_y(&self) -> MouseInvertY {
+        if self.mouse_invert_y {
+            MouseInvertY::On
+        } else {
+            MouseInvertY::Off
         }
     }
 
@@ -399,10 +477,13 @@ impl Plugin for SettingsStorePlugin {
         app.init_resource::<WorldVolume>();
         app.init_resource::<MusicVolume>();
         app.init_resource::<MouseSensitivity>();
-        app.init_resource::<GraphicsQuality>();
+        app.init_resource::<MouseInvertY>();
+        app.init_resource::<GraphicsBudget>();
         app.init_resource::<SelectedUiTheme>();
         app.init_resource::<NovaOsMonitorSettings>();
         app.init_resource::<WindowModeSetting>();
+        app.init_resource::<VsyncSetting>();
+        app.init_resource::<UiScaleSetting>();
         app.init_resource::<FocusPauseSetting>();
         app.init_resource::<TrainingPromptSetting>();
         app.init_resource::<FieldNoteSetting>();
@@ -427,7 +508,8 @@ impl Plugin for SettingsStorePlugin {
         // the store, so an inert run has no mode to apply and must leave the
         // harness's window alone.
         #[cfg(not(target_arch = "wasm32"))]
-        app.add_systems(Update, apply_window_mode);
+        app.add_systems(Update, (apply_window_mode, apply_vsync));
+        app.add_systems(Update, apply_ui_scale);
     }
 }
 
@@ -454,37 +536,25 @@ const RENAMED_ACTIONS: [(&str, &str); 12] = [
 /// defaults). Runs before the first `Update`, so nova_gameplay's apply systems
 /// (gated on `resource_changed`) push the loaded values onto the engine on the
 /// first frame.
-pub(crate) fn load_persisted_settings(
-    mut volume: ResMut<MasterVolume>,
-    mut interface_volume: ResMut<InterfaceVolume>,
-    mut world_volume: ResMut<WorldVolume>,
-    mut music_volume: ResMut<MusicVolume>,
-    mut sensitivity: ResMut<MouseSensitivity>,
-    mut quality: ResMut<GraphicsQuality>,
-    mut theme: ResMut<SelectedUiTheme>,
-    mut monitor: ResMut<NovaOsMonitorSettings>,
-    mut window_mode: ResMut<WindowModeSetting>,
-    mut focus_pause: ResMut<FocusPauseSetting>,
-    mut training_prompt: ResMut<TrainingPromptSetting>,
-    mut field_note: ResMut<FieldNoteSetting>,
-    mut bindings: ResMut<InputBindings>,
-    root: Res<SettingsStoreRoot>,
-) {
+pub(crate) fn load_persisted_settings(mut live: LiveSettingsMut, root: Res<SettingsStoreRoot>) {
     let Some(saved) = load_settings(&root) else {
         return;
     };
-    *volume = MasterVolume(saved.master_volume.clamp(0.0, 1.0));
-    *interface_volume = InterfaceVolume(saved.interface_volume.clamp(0.0, 1.0));
-    *world_volume = WorldVolume(saved.world_volume.clamp(0.0, 1.0));
-    *music_volume = MusicVolume(saved.music_volume.clamp(0.0, 1.0));
-    *sensitivity = saved.mouse_sensitivity();
-    *quality = saved.graphics_quality;
-    *theme = SelectedUiTheme(saved.ui_theme.clone());
-    *monitor = saved.nova_os_monitor();
-    *window_mode = saved.window_mode;
-    *focus_pause = saved.focus_pause;
-    *training_prompt = saved.training_prompt;
-    *field_note = saved.field_note;
+    *live.volume = MasterVolume(saved.master_volume.clamp(0.0, 1.0));
+    *live.interface_volume = InterfaceVolume(saved.interface_volume.clamp(0.0, 1.0));
+    *live.world_volume = WorldVolume(saved.world_volume.clamp(0.0, 1.0));
+    *live.music_volume = MusicVolume(saved.music_volume.clamp(0.0, 1.0));
+    *live.sensitivity = saved.mouse_sensitivity();
+    *live.invert_y = saved.mouse_invert_y();
+    *live.budget = saved.graphics_budget();
+    *live.theme = SelectedUiTheme(saved.ui_theme.clone());
+    *live.monitor = saved.nova_os_monitor();
+    *live.window_mode = saved.window_mode;
+    *live.vsync = saved.vsync;
+    *live.ui_scale = saved.ui_scale;
+    *live.focus_pause = saved.focus_pause;
+    *live.training_prompt = saved.training_prompt;
+    *live.field_note = saved.field_note;
     // Before the first rig is built: the flight rig spawns with the player
     // ship, which is a scenario away, so a saved keybind is on the table by
     // the time anything reads it.
@@ -495,7 +565,29 @@ pub(crate) fn load_persisted_settings(
             keybinds.entry(new.to_string()).or_insert(spec);
         }
     }
-    bindings.apply_overrides(&keybinds);
+    live.bindings.apply_overrides(&keybinds);
+}
+
+/// Every resource the store fills, as one parameter: the startup load writes
+/// all of them, and bevy caps a system at sixteen parameters.
+#[derive(bevy::ecs::system::SystemParam)]
+pub(crate) struct LiveSettingsMut<'w> {
+    volume: ResMut<'w, MasterVolume>,
+    interface_volume: ResMut<'w, InterfaceVolume>,
+    world_volume: ResMut<'w, WorldVolume>,
+    music_volume: ResMut<'w, MusicVolume>,
+    sensitivity: ResMut<'w, MouseSensitivity>,
+    invert_y: ResMut<'w, MouseInvertY>,
+    budget: ResMut<'w, GraphicsBudget>,
+    theme: ResMut<'w, SelectedUiTheme>,
+    monitor: ResMut<'w, NovaOsMonitorSettings>,
+    window_mode: ResMut<'w, WindowModeSetting>,
+    vsync: ResMut<'w, VsyncSetting>,
+    ui_scale: ResMut<'w, UiScaleSetting>,
+    focus_pause: ResMut<'w, FocusPauseSetting>,
+    training_prompt: ResMut<'w, TrainingPromptSetting>,
+    field_note: ResMut<'w, FieldNoteSetting>,
+    bindings: ResMut<'w, InputBindings>,
 }
 
 /// Put the chosen window mode on the primary window. Native only - see
@@ -520,6 +612,40 @@ pub(crate) fn apply_window_mode(
         if window.mode != mode {
             window.mode = mode;
         }
+    }
+}
+
+/// Put the chosen present mode on the primary window. Native only - see
+/// [`VsyncSetting`].
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn apply_vsync(
+    setting: Res<VsyncSetting>,
+    mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>,
+) {
+    if !setting.is_changed() {
+        return;
+    }
+    let mode = setting.present_mode();
+    for mut window in &mut windows {
+        if window.present_mode != mode {
+            window.present_mode = mode;
+        }
+    }
+}
+
+/// Put the chosen interface scale on bevy's [`UiScale`]. `Option` on the
+/// target: a headless rig without bevy's `UiPlugin` has none, and this must
+/// not panic it.
+pub(crate) fn apply_ui_scale(setting: Res<UiScaleSetting>, scale: Option<ResMut<UiScale>>) {
+    if !setting.is_changed() {
+        return;
+    }
+    let Some(mut scale) = scale else {
+        return;
+    };
+    let factor = setting.factor();
+    if scale.0 != factor {
+        scale.0 = factor;
     }
 }
 
@@ -572,10 +698,13 @@ pub(crate) struct LiveSettings<'w> {
     world_volume: Res<'w, WorldVolume>,
     music_volume: Res<'w, MusicVolume>,
     sensitivity: Res<'w, MouseSensitivity>,
-    quality: Res<'w, GraphicsQuality>,
+    invert_y: Res<'w, MouseInvertY>,
+    budget: Res<'w, GraphicsBudget>,
     theme: Res<'w, SelectedUiTheme>,
     monitor: Res<'w, NovaOsMonitorSettings>,
     window_mode: Res<'w, WindowModeSetting>,
+    vsync: Res<'w, VsyncSetting>,
+    ui_scale: Res<'w, UiScaleSetting>,
     focus_pause: Res<'w, FocusPauseSetting>,
     training_prompt: Res<'w, TrainingPromptSetting>,
     field_note: Res<'w, FieldNoteSetting>,
@@ -596,10 +725,13 @@ impl LiveSettings<'_> {
             || moved(self.world_volume.is_changed(), self.world_volume.is_added())
             || moved(self.music_volume.is_changed(), self.music_volume.is_added())
             || moved(self.sensitivity.is_changed(), self.sensitivity.is_added())
-            || moved(self.quality.is_changed(), self.quality.is_added())
+            || moved(self.invert_y.is_changed(), self.invert_y.is_added())
+            || moved(self.budget.is_changed(), self.budget.is_added())
             || moved(self.theme.is_changed(), self.theme.is_added())
             || moved(self.monitor.is_changed(), self.monitor.is_added())
             || moved(self.window_mode.is_changed(), self.window_mode.is_added())
+            || moved(self.vsync.is_changed(), self.vsync.is_added())
+            || moved(self.ui_scale.is_changed(), self.ui_scale.is_added())
             || moved(self.focus_pause.is_changed(), self.focus_pause.is_added())
             || moved(
                 self.training_prompt.is_changed(),
@@ -611,21 +743,32 @@ impl LiveSettings<'_> {
 
     /// The persistable form of what is live right now.
     fn snapshot(&self) -> PersistedSettings {
-        PersistedSettings::from_resources(
-            *self.volume,
-            *self.interface_volume,
-            *self.world_volume,
-            *self.music_volume,
-            *self.sensitivity,
-            *self.quality,
-            self.theme.clone(),
-            *self.monitor,
-            *self.window_mode,
-            *self.focus_pause,
-            *self.training_prompt,
-            *self.field_note,
-            &self.bindings,
-        )
+        PersistedSettings {
+            master_volume: self.volume.factor(),
+            interface_volume: self.interface_volume.factor(),
+            world_volume: self.world_volume.factor(),
+            music_volume: self.music_volume.factor(),
+            mouse_look_sensitivity: self.sensitivity.raw(MousePath::Look),
+            mouse_rcs_sensitivity: self.sensitivity.raw(MousePath::Rcs),
+            mouse_free_camera_sensitivity: self.sensitivity.raw(MousePath::FreeCamera),
+            mouse_invert_y: self.invert_y.inverted(),
+            graphics_quality: GraphicsPresetSetting::of(*self.budget),
+            graphics_particles: self.budget.particles,
+            graphics_render_scale: self.budget.render_scale,
+            graphics_transient_lights: self.budget.transient_lights,
+            graphics_shake: self.budget.shake,
+            ui_theme: self.theme.0.clone(),
+            nova_os_bright_detent: self.monitor.bright_detent,
+            nova_os_scan_detent: self.monitor.scan_detent,
+            nova_os_sound_enabled: self.monitor.sound_enabled,
+            window_mode: *self.window_mode,
+            vsync: *self.vsync,
+            ui_scale: *self.ui_scale,
+            focus_pause: *self.focus_pause,
+            training_prompt: *self.training_prompt,
+            field_note: *self.field_note,
+            keybinds: self.bindings.overrides(),
+        }
     }
 }
 
@@ -669,14 +812,17 @@ mod tests {
         persist::{load_from, save_to},
         storage::NativeStorage,
     };
-    use nova_gameplay::prelude::{GraphicsQuality, InterfaceVolume, MusicVolume, WorldVolume};
+    use nova_gameplay::prelude::{
+        GraphicsBudget, GraphicsQuality, InterfaceVolume, MusicVolume, WorldVolume,
+    };
     use nova_input::prelude::{MousePath, MouseSensitivity};
     use nova_interface::prelude::NovaOsMonitorSettings;
     use nova_ui::theme::{HARDWARE_THEME_ID, PHOSPHOR_THEME_ID};
 
-    use super::{PersistedSettings, KEY};
+    use super::{GraphicsPresetSetting, PersistedSettings, KEY};
     use crate::settings::{
-        FieldNoteSetting, FocusPauseSetting, TrainingPromptSetting, WindowModeSetting,
+        FieldNoteSetting, FocusPauseSetting, TrainingPromptSetting, UiScaleSetting, VsyncSetting,
+        WindowModeSetting,
     };
 
     fn temp_store(name: &str) -> NativeStorage {
@@ -709,12 +855,19 @@ mod tests {
             mouse_look_sensitivity: MousePath::Look.range().raw(150.0),
             mouse_rcs_sensitivity: MousePath::Rcs.range().raw(300.0),
             mouse_free_camera_sensitivity: MousePath::FreeCamera.range().raw(250.0),
-            graphics_quality: GraphicsQuality::Low,
+            mouse_invert_y: true,
+            graphics_quality: GraphicsPresetSetting::Custom,
+            graphics_particles: true,
+            graphics_render_scale: 0.85,
+            graphics_transient_lights: 3,
+            graphics_shake: false,
             ui_theme: HARDWARE_THEME_ID.to_string(),
             nova_os_bright_detent: 3,
             nova_os_scan_detent: 0,
             nova_os_sound_enabled: false,
             window_mode: WindowModeSetting::Borderless,
+            vsync: VsyncSetting::Off,
+            ui_scale: UiScaleSetting::Large,
             focus_pause: FocusPauseSetting::Pause,
             training_prompt: TrainingPromptSetting::Hidden,
             field_note: FieldNoteSetting::Hidden,
@@ -787,12 +940,19 @@ mod tests {
                 mouse_look_sensitivity: MousePath::Look.default_raw(),
                 mouse_rcs_sensitivity: MousePath::Rcs.default_raw(),
                 mouse_free_camera_sensitivity: MousePath::FreeCamera.default_raw(),
-                graphics_quality: GraphicsQuality::default(),
+                mouse_invert_y: false,
+                graphics_quality: GraphicsPresetSetting::default(),
+                graphics_particles: true,
+                graphics_render_scale: 1.0,
+                graphics_transient_lights: 6,
+                graphics_shake: true,
                 ui_theme: PHOSPHOR_THEME_ID.to_string(),
                 nova_os_bright_detent: NovaOsMonitorSettings::default().bright_detent,
                 nova_os_scan_detent: NovaOsMonitorSettings::default().scan_detent,
                 nova_os_sound_enabled: NovaOsMonitorSettings::default().sound_enabled,
                 window_mode: WindowModeSetting::default(),
+                vsync: VsyncSetting::default(),
+                ui_scale: UiScaleSetting::default(),
                 focus_pause: FocusPauseSetting::default(),
                 training_prompt: TrainingPromptSetting::default(),
                 field_note: FieldNoteSetting::default(),
@@ -800,6 +960,42 @@ mod tests {
             }),
             "a missing field falls back to its serde default"
         );
+        clear(&store);
+    }
+
+    /// A store written by a build with the three-tier preset and no levers
+    /// loads as that tier's whole budget; a `Custom` store loads its levers,
+    /// with a hand-edited render scale clamped to what the row can produce.
+    #[test]
+    fn a_tier_loads_its_budget_and_custom_loads_the_levers() {
+        let store = temp_store("graphics_budget");
+        clear(&store);
+        write_raw(&store, b"(graphics_quality: Low)");
+        assert_eq!(
+            load_from::<PersistedSettings>(&store, KEY)
+                .unwrap()
+                .graphics_budget(),
+            GraphicsBudget::for_quality(GraphicsQuality::Low),
+            "an older Low store is still the Low budget"
+        );
+
+        write_raw(
+            &store,
+            b"(graphics_quality: Custom, graphics_shake: false, graphics_render_scale: 0.1)",
+        );
+        let budget = load_from::<PersistedSettings>(&store, KEY)
+            .unwrap()
+            .graphics_budget();
+        assert_eq!(
+            budget,
+            GraphicsBudget {
+                shake: false,
+                render_scale: GraphicsBudget::MIN_RENDER_SCALE,
+                ..GraphicsBudget::for_quality(GraphicsQuality::High)
+            },
+            "Custom reads the levers, the missing ones at High, the scale clamped"
+        );
+        assert_eq!(budget.preset(), None, "and it is no tier");
         clear(&store);
     }
 

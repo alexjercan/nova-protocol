@@ -105,6 +105,17 @@ pub fn segmented_option_fit(label: &str) -> impl Bundle {
     button(spec)
 }
 
+/// One option of a segmented bar that seats MANY short labels on one line: a
+/// [`segmented_option_fit`] a size down, with tighter side padding.
+pub fn segmented_option_compact(label: &str) -> impl Bundle {
+    let mut spec = ButtonSpec::new(label).fit();
+    spec.variant = ButtonVariant::Ghost;
+    spec.compact = true;
+    spec.min_height = 26.0;
+    spec.font_size = 11.0;
+    button(spec)
+}
+
 /// A display-only segmented control: a [`segmented_container`] of
 /// [`segmented_option`]s with `active` selected. For a FUNCTIONAL settings row,
 /// build the container yourself and add `ButtonValue<T>` to each option.

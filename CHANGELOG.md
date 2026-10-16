@@ -25,9 +25,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
   Death keeps the last save.
 - Dying in New Game shows DEFEAT with Main Menu. On desktop it also offers
   Load last save, which reopens the world from its last save.
-- New Game asks for a name and seed, then a start role beside its hull's card:
+- New Game asks for a name and seed, then a start role beside its hull card:
   length, sections, weapons, drives and kit. The default name counts past saved
-  worlds. Create spawns the role's hull with its kit.
+  worlds. Create spawns the role's hull and kit.
 - Open-world ships now grow slowly with distance: the first four civilization
   rings field small hulls only, medium hulls appear near 2,000 km out and the
   largest past 3,000 km.
@@ -210,6 +210,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - An armed Ship pane rebind lights Rebind and names the section in a banner.
   The captured key binds and does nothing else.
 
+- Settings: Graphics has a Low/Medium/High/Custom preset over particle,
+  resolution, flash-light and shake levers (a moved lever reads Custom), plus
+  VSync, UI scale and Invert Y. Panels share one look.
 ### Web & Platform
 
 - The web build keeps no saved worlds: New Game stays a one-off session
@@ -241,8 +244,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   magazines per mounted ammo, PDC/torpedo/slug at 50/40/10% of hold. Old
   infinite-ammo perf baselines are not directly comparable.
 - Debug log: an autopilot maneuver that keeps ending the same way on one hull
-  (a wreck its AI re-engages, a patrol closing legs) logs at the first ending
-  and every tenfold (x10, x100), not once per engagement.
+  (a wreck its AI re-engages) logs at the first ending and at every tenfold
+  (x10, x100), not once per engagement.
 
 ## [0.15.0] - 2026-10-06
 

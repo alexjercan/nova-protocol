@@ -134,9 +134,10 @@ fn main() -> bevy::app::AppExit {
 }
 
 fn bench_plugin(app: &mut App) {
-    // A measurement tool owns its own tier. G cycles `GraphicsQuality` from
-    // whatever the store loaded, so a reading taken here would otherwise depend
-    // on the preset the developer happens to play at. Inert, not merely
+    // A measurement tool owns its own tier. G cycles the `GraphicsBudget`
+    // through the presets from whatever the store loaded, so a reading taken
+    // here would otherwise depend on the preset the developer happens to play
+    // at. Inert, not merely
     // read-only: the bench has to start from the DEFAULT tier every run.
     app.add_plugins(SettingsStorePlugin {
         access: SettingsStoreAccess::Inert,
@@ -673,7 +674,7 @@ fn read_keys(
     keys: Res<ButtonInput<KeyCode>>,
     mut bench: ResMut<Bench>,
     mut clock: ResMut<VolleyClock>,
-    mut quality: ResMut<GraphicsQuality>,
+    mut budget: ResMut<GraphicsBudget>,
 ) {
     if keys.get_just_pressed().next().is_none() {
         return;
@@ -716,11 +717,12 @@ fn read_keys(
         bench.spread = !bench.spread;
     }
     if keys.just_pressed(KeyCode::KeyG) {
-        let index = GraphicsQuality::ALL
-            .iter()
-            .position(|tier| *tier == *quality)
-            .unwrap_or(0);
-        *quality = GraphicsQuality::ALL[(index + 1) % GraphicsQuality::ALL.len()];
+        // A custom budget steps onto the first preset.
+        let next = budget
+            .preset()
+            .and_then(|tier| GraphicsQuality::ALL.iter().position(|t| *t == tier))
+            .map_or(0, |index| (index + 1) % GraphicsQuality::ALL.len());
+        *budget = GraphicsBudget::for_quality(GraphicsQuality::ALL[next]);
     }
     if keys.just_pressed(KeyCode::KeyC) {
         let index = CameraPose::ALL
@@ -886,7 +888,6 @@ fn lane_line(bench: &Bench, speed: f32) -> String {
 /// Rewrite the readout from the settings.
 fn update_readout(
     bench: Res<Bench>,
-    quality: Res<GraphicsQuality>,
     budget: Res<GraphicsBudget>,
     q_lit: Query<(), LitSlots>,
     mut q_readout: Query<&mut Text, With<Readout>>,
@@ -899,7 +900,7 @@ fn update_readout(
         format!(
             "RAILGUN WAKE BENCH   policy {}   quality {}   lights {}/{}   time {}x{}",
             bench.policy.label(),
-            quality.label(),
+            budget.preset().map_or("Custom", GraphicsQuality::label),
             q_lit.iter().count(),
             budget.transient_lights,
             TIME_SCALES[bench.speed_step],
@@ -1234,8 +1235,8 @@ fn wake_loop(
             bench.filaments = true;
             bench.speed_step = 0;
             world
-                .resource_mut::<GraphicsQuality>()
-                .set_if_neq(GraphicsQuality::High);
+                .resource_mut::<GraphicsBudget>()
+                .set_if_neq(GraphicsBudget::for_quality(GraphicsQuality::High));
         })
         .until(budget_follows(GraphicsQuality::High))
         .deadline(STEP_DEADLINE_SECS)
@@ -1320,7 +1321,9 @@ fn bench_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
                 bench.haze = haze;
                 bench.filaments = filaments;
                 bench.speed_step = CAPTURE_SPEED_STEP;
-                world.resource_mut::<GraphicsQuality>().set_if_neq(quality);
+                world
+                    .resource_mut::<GraphicsBudget>()
+                    .set_if_neq(GraphicsBudget::for_quality(quality));
             })
             .until(budget_follows(quality))
             .deadline(STEP_DEADLINE_SECS)

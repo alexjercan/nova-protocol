@@ -273,7 +273,9 @@ fn editing_app(root: &std::path::Path) -> App {
             .click_named(
                 "settings persist: choose the Low preset",
                 LOW_PRESET,
-                resource_where::<GraphicsQuality>(|quality| *quality == GraphicsQuality::Low),
+                resource_where::<GraphicsBudget>(|budget| {
+                    *budget == GraphicsBudget::for_quality(GraphicsQuality::Low)
+                }),
                 BEAT_DEADLINE_SECS,
             )
             // The DEBOUNCE, not a hand-called save: waiting on the file is what
@@ -391,7 +393,7 @@ fn the_store_carries_the_fixtures(
     std::sync::Arc::new(move |_: &World| {
         stored(&root).is_some_and(|saved| {
             (saved.master_volume - FIXTURE_VOLUME).abs() < VOLUME_EPSILON
-                && saved.graphics_quality == GraphicsQuality::Low
+                && saved.graphics_quality == GraphicsPresetSetting::Low
                 && saved.keybinds.get("main_drive")
                     == Some(&BindingSpec {
                         keyboard: vec![InputSource::Keyboard(FIXTURE_KEY)],
@@ -427,7 +429,7 @@ fn assert_the_store_was_written(world: &mut World) {
     );
     assert_eq!(
         saved.graphics_quality,
-        GraphicsQuality::Low,
+        GraphicsPresetSetting::Low,
         "the store must carry the preset the panel selected"
     );
     let spec = saved
@@ -577,8 +579,8 @@ fn assert_the_relaunch_loaded_the_store(world: &mut World) {
         "a new app must come up on the SAVED master volume ({volume} vs {FIXTURE_VOLUME})"
     );
     assert_eq!(
-        *world.resource::<GraphicsQuality>(),
-        GraphicsQuality::Low,
+        *world.resource::<GraphicsBudget>(),
+        GraphicsBudget::for_quality(GraphicsQuality::Low),
         "a new app must come up on the saved graphics preset"
     );
     assert_eq!(
@@ -770,7 +772,7 @@ fn assert_only_the_keybind_was_reset(world: &mut World) {
     );
     assert_eq!(
         saved.graphics_quality,
-        GraphicsQuality::Low,
+        GraphicsPresetSetting::Low,
         "a keybind reset must not touch the saved graphics preset"
     );
     assert_eq!(
@@ -845,8 +847,8 @@ fn assert_the_older_store_defaults(world: &mut World) {
         "the authored field must load ({volume} vs {AUTHORED_VOLUME})"
     );
     assert_eq!(
-        *world.resource::<GraphicsQuality>(),
-        GraphicsQuality::Low,
+        *world.resource::<GraphicsBudget>(),
+        GraphicsBudget::for_quality(GraphicsQuality::Low),
         "the other authored field must load"
     );
     let defaults = PersistedSettings::default();

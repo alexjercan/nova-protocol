@@ -15,13 +15,14 @@ use nova_menu::prelude::WindowModeSetting;
 
 const CLASS: CommandClass = CommandClass::Setting;
 
-/// `graphics [low|medium|high]`.
+/// `graphics [low|medium|high]`. Reads `custom` when the budget matches no
+/// preset; a preset is the only thing the word sets.
 pub fn graphics(world: &mut World, value: Option<&str>) -> CommandResult {
-    let Some(current) = world.get_resource::<GraphicsQuality>().copied() else {
+    let Some(current) = world.get_resource::<GraphicsBudget>().copied() else {
         return CommandResult::error("graphics", Some(CLASS), "no graphics setting is loaded");
     };
     let Some(word) = value else {
-        return read("graphics", format!("quality is {}", current.label()));
+        return read("graphics", format!("quality is {}", quality_label(current)));
     };
     let Some(wanted) = GraphicsQuality::ALL
         .into_iter()
@@ -40,8 +41,13 @@ pub fn graphics(world: &mut World, value: Option<&str>) -> CommandResult {
             ),
         );
     };
-    *world.resource_mut::<GraphicsQuality>() = wanted;
+    *world.resource_mut::<GraphicsBudget>() = GraphicsBudget::for_quality(wanted);
     changed("graphics", format!("quality is {}", wanted.label()))
+}
+
+/// The preset a budget reads as, `Custom` when it is none of them.
+fn quality_label(budget: GraphicsBudget) -> &'static str {
+    budget.preset().map_or("Custom", GraphicsQuality::label)
 }
 
 /// `window [windowed|borderless]`.
@@ -186,7 +192,7 @@ pub fn bind_reset(world: &mut World, action: &str) -> CommandResult {
 /// `settings`: every setting a command can read, in one block.
 pub fn settings(world: &mut World) -> CommandResult {
     let quality = world
-        .get_resource::<GraphicsQuality>()
+        .get_resource::<GraphicsBudget>()
         .copied()
         .unwrap_or_default();
     let mode = world
@@ -197,7 +203,7 @@ pub fn settings(world: &mut World) -> CommandResult {
         .get_resource::<InputBindings>()
         .map_or(0, |table| table.overrides().len());
     let mut rows = vec![
-        TerminalRow::info(format!("GRAPHICS ..... {}", quality.label())),
+        TerminalRow::info(format!("GRAPHICS ..... {}", quality_label(quality))),
         TerminalRow::output(format!("WINDOW ....... {}", window_label(mode))),
     ];
     rows.extend(CHANNELS.iter().map(|channel| {

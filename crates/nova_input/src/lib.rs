@@ -103,7 +103,7 @@ pub mod prelude {
             RebindSurface, RebindVerdict, WheelDirection,
         },
         sensitivity::{
-            apply_mouse_sensitivity, mouse_sensitivity, MousePath, MouseSensitivity,
+            apply_mouse_sensitivity, mouse_sensitivity, MouseInvertY, MousePath, MouseSensitivity,
             MouseSensitivityPlugin, MouseSensitivityRange, MouseSensitivitySystems,
         },
         source::{

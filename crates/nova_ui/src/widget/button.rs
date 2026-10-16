@@ -316,6 +316,9 @@ pub struct ButtonSpec {
     pub key: Option<String>,
     /// Size to the label instead of filling the row.
     pub fit: bool,
+    /// Tighter side padding, for a bar that has to seat many short labels on
+    /// one line.
+    pub compact: bool,
     /// Minimum height in px.
     pub min_height: f32,
     /// Label font size in px.
@@ -331,6 +334,7 @@ impl ButtonSpec {
             block: false,
             key: None,
             fit: false,
+            compact: false,
             min_height: 34.0,
             font_size: 14.0,
         }
@@ -397,9 +401,15 @@ pub fn button(spec: ButtonSpec) -> impl Bundle {
         block,
         key,
         fit,
+        compact,
         min_height,
         font_size,
     } = spec;
+    let padding = if compact {
+        UiRect::axes(px(7), px(4))
+    } else {
+        UiRect::axes(px(12), px(6))
+    };
 
     let justify = if block {
         JustifyContent::FlexStart
@@ -412,7 +422,7 @@ pub fn button(spec: ButtonSpec) -> impl Bundle {
             width: if fit { Val::Auto } else { percent(100) },
             min_height: px(min_height),
             margin: UiRect::vertical(px(4)),
-            padding: UiRect::axes(px(12), px(6)),
+            padding,
             // The border WIDTH is layout, so it is set here; its colour, the
             // fill and the radius are the theme's and land on the reconciler's
             // first pass.

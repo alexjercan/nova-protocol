@@ -32,27 +32,37 @@ when you raise Master.
 
 ## Graphics quality
 
-A single **Low / Medium / High** preset trades visual richness for performance.
-It does two things at once: it tunes the combat *juice*, and on the lower tiers
-it drops the heavier effects for weak machines.
+The **Preset** row offers **Low / Medium / High**; the four lever rows under
+it are what a preset sets. Move any lever on its own and the preset row reads
+**Custom**; land the levers back on a tier's values and it reads that tier
+again. Every row applies live.
 
-| Preset | Camera shake | Hit flashes | Particle bursts | 3D world resolution |
+| Row | Choices | What it moves |
+| --- | --- | --- |
+| Preset | Low, Medium, High, Custom | All four levers at once. Custom is read-only: it means the levers match no tier. |
+| Particles | Off, On | Torpedo and muzzle bursts, hit sparks and the railgun wake. Off spawns none of them. |
+| Resolution | 50%, 70%, 85%, 100% | The internal resolution the 3D world is drawn at before it is upscaled to the window. The HUD and menus stay crisp. |
+| Flash lights | Off, 3, 6 | How many detonations and slugs may light the hull at once. |
+| Camera shake | Off, On | The shake on hits and detonations. |
+
+| Preset | Camera shake | Flash lights | Particles | Resolution |
 | --- | --- | --- | --- | --- |
-| High | on | on | full | native |
-| Medium | off | on | full | native |
-| Low | off | off | not spawned | reduced, upscaled |
+| High | on | 6 | on | 100% |
+| Medium | off | 3 | on | 100% |
+| Low | off | off | off | 70% |
 
 <details class="explain">
 <summary>Show explanation</summary>
 
-Low is **spawn-less**: torpedo and muzzle particle bursts and the railgun wake
-are not created at all, rather than created and hidden. Low also takes no
-transient lights, so the light a railgun slug carries with it is one of the
-things it does not draw. It also renders the world at a **reduced
-internal resolution** and upscales it to fill the window - a lever aimed at
-fill-bound hardware (laptop iGPUs, phones). The HUD and menus stay crisp and
-fully clickable; only the 3D world softens. On a strong discrete GPU the speed
-win is small, so Low is a knob for the low end rather than a general speed-up.
+Particles Off is **spawn-less**: the bursts and the wake are not created at
+all, rather than created and hidden, which is the cut the frame-time baseline
+measures as a real combat cost. A lower **Resolution** renders the world
+smaller and upscales it to fill the window - a lever aimed at fill-bound
+hardware (laptop iGPUs, phones). The HUD and menus stay crisp and fully
+clickable; only the 3D world softens. On a strong discrete GPU the win is
+small, so it is a knob for the low end rather than a general speed-up. **Flash
+lights** are paid per pixel they touch, so the step from six to three is a
+real one on a busy salvo and costs nothing on a single hit.
 
 </details>
 
@@ -67,16 +77,22 @@ A window will not be dragged narrower than **640x600**. The Settings panel is
 the widest thing the game draws, and below that size there is no layout left to
 read it in.
 
-The web build has no such row: the game fits the canvas the page gives it. The
-panels themselves are sized as a share of the window, so a narrow browser column
-still gets a readable Settings modal with its Back button on screen.
+**VSync** sits under the same heading. On, the default, presents each frame
+on the display's refresh; Off presents as soon as a frame is drawn, for a
+player measuring frame times or chasing input latency, at the cost of tearing.
+
+The web build has neither row: the game fits the canvas the page gives it and
+the browser presents on its own schedule. The panels themselves are sized as a
+share of the window, so a narrow browser column still gets a readable Settings
+modal with its Back button on screen.
 
 ## Pause when unfocused
 
 Alt-tab, or clicking away from the game, leaves the run **going**: the fight
-does not wait. Switch **Pause when unfocused** to **On** on the Graphics tab
-and losing the window opens the ordinary pause menu instead. Coming back never
-resumes by itself; **Resume** is yours. It works the same in a browser tab.
+does not wait. Switch **Pause when unfocused** to **On** under **Focus** on the
+Graphics tab and losing the window opens the ordinary pause menu instead.
+Coming back never resumes by itself; **Resume** is yours. It works the same in
+a browser tab.
 
 ## Controls
 
@@ -119,8 +135,8 @@ menu, a flight row cannot take a key that a section of your ship holds:
 ### Mouse
 
 **MOUSE** is a group in the same list, and the one page with nothing to rebind
-on it: three sliders, and no **Reset Defaults** - that button is a keybinding
-operation and would not put a sensitivity back.
+on it: three sliders and the **Invert Y** switch, and no **Reset Defaults** -
+that button is a keybinding operation and would not put a sensitivity back.
 
 | Slider | Range | Default | What it scales |
 | --- | --- | --- | --- |
@@ -133,8 +149,12 @@ behind them differ by two orders of magnitude, so a single scale would be
 unreadable. Only the mouse is affected; the gamepad sticks and the keyboard have
 their own curves and are untouched.
 
-A slider moved from the PAUSE menu takes effect on the ship you are already
-flying - there is no reload and no ship to respawn.
+**Invert Y** turns mouse look's pitch the other way: push the mouse forward to
+look down. It applies to the Look path only - ship steering, free look and
+turret aim. The free (WASD) camera and RCS translation keep their direction.
+
+A slider or switch moved from the PAUSE menu takes effect on the ship you are
+already flying - there is no reload and no ship to respawn.
 
 <details class="explain">
 <summary>Why Look 200% is the new default</summary>
@@ -145,3 +165,12 @@ of it and the default sits at `200%`, about two thirds of what mouse look used
 to feel like. If the old speed was right for you, put Look at `300%`.
 
 </details>
+
+## Interface
+
+| Row | Choices | What it moves |
+| --- | --- | --- |
+| Theme | Phosphor, Hardware, and any theme an enabled mod declares | The look of every panel, button and readout. A theme that fails to load says so under the row and the game falls back to Phosphor. |
+| UI scale | 75%, 100%, 125%, 150% | How large the interface draws. Panels are capped at a share of the window, so a larger scale still keeps them on screen. |
+| Training prompt | On, Off | The Basic Training offer in the main menu's corner. |
+| Field notes | On, Off | The handbook hint card beside it. |

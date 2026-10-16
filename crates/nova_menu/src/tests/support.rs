@@ -73,8 +73,9 @@ pub(crate) fn scratch_store(what: &str) -> std::path::PathBuf {
 /// It has to be SOME explicit root: without one the fixture reads the
 /// DEVELOPER's real `settings.ron`, so a keybind saved by playing the game (or
 /// by a screenshot run) silently rewrites the table these tests assert on -
-/// which is exactly how it was found. Nothing writes it, because no fixture
-/// here edits a setting it did not also assert on.
+/// which is exactly how it was found. Nothing writes it: [`app`] takes the
+/// write direction back, so one test's edit never loads into the next test's
+/// app.
 fn shared_config_root() -> std::path::PathBuf {
     std::env::temp_dir().join("nova_menu_test_config")
 }
@@ -84,7 +85,13 @@ fn shared_config_root() -> std::path::PathBuf {
 /// systems (setup_menu_ui spawns plain components; the HUD level is a plain resource
 /// write), so insert `dummy_scenarios()` first - load_menu_ambience reads GameScenarios.
 pub(crate) fn app() -> App {
-    app_storing_settings_at(shared_config_root())
+    let mut app = app_storing_settings_at(shared_config_root());
+    // `NovaMenuPlugin` granted the write direction on build. On the SHARED
+    // root a write is a leak between tests: Start Basic Training hides the
+    // prompt, the exit flush wrote that store the same frame, and the next
+    // test's startup load overwrote the setting its arrange step inserted.
+    app.insert_resource(SettingsStoreAccess::Read);
+    app
 }
 
 /// [`app`] with the settings store pointed at a root of the caller's own, for

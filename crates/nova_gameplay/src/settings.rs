@@ -11,20 +11,20 @@
 //!   [`MasterVolume::output_gain`], which [`HarnessMute`] masks to silence in
 //!   scripted runs (probe sweeps, screenshot captures) - the SETTING
 //!   stays untouched, so persistence and the menu never see the mute.
-//! - [`GraphicsQuality`] is a three-tier preset. It maps onto two things through
-//!   the single `apply_graphics_quality` seam: the combat juice
-//!   ([`crate::juice::JuiceSettings`]) and the derived [`GraphicsBudget`] gate
-//!   (the low-end spawn-less mode). `GraphicsBudget` is what the expensive
-//!   effect systems actually read - whether hanabi particles spawn (torpedo
-//!   blast/launch, turret muzzle) and the render-scale fraction the scenario
-//!   view is drawn at before upscaling (the fill lever for the web target;
-//!   applied by `nova_scenario::render_scale`) - so the tier->cost policy lives
-//!   in one place instead of being re-derived at every spawn site. Each tier
-//!   stays genuinely distinct and observable across juice, particles and
-//!   resolution. The particle cut is the one the frame-time
-//!   baseline validates as a real combat cost. Scatter/object counts are
-//!   deliberately NOT a preset lever: asteroids, rocks and debris are gameplay
-//!   content, so no quality tier thins them.
+//! - [`GraphicsBudget`] is the graphics setting: the per-frame cost gates the
+//!   expensive effect systems read - whether hanabi particles spawn (torpedo
+//!   blast/launch, turret muzzle), the render-scale fraction the scenario view
+//!   is drawn at before upscaling (the fill lever for the web target; applied
+//!   by `nova_scenario::render_scale`), how many transient lights may burn and
+//!   whether the camera shakes. [`GraphicsQuality`] names the three budgets
+//!   the menu offers as presets; a budget that matches none is the menu's
+//!   Custom. `apply_graphics_budget` pushes the shake and particle gates onto
+//!   the combat juice ([`crate::juice::JuiceSettings`]), so the budget->cost
+//!   policy lives in one place instead of being re-derived at every spawn
+//!   site. The particle cut is the one the frame-time baseline validates as a
+//!   real combat cost. Scatter/object counts are deliberately NOT a lever:
+//!   asteroids, rocks and debris are gameplay content, so no budget thins
+//!   them.
 //!
 //! Persistence (native RON + web localStorage) lives in `nova_menu`, which owns
 //! the load-at-startup and save-on-change wiring; this module only defines the
@@ -170,21 +170,21 @@ fn harness_muted_from(nova_mute: Option<&str>, harness_env_active: bool) -> bool
     }
 }
 
-/// The graphics-quality preset the settings menu exposes.
+/// A graphics preset: one named [`GraphicsBudget`] the settings menu offers
+/// beside the individual levers.
 ///
-/// `Resource`-only on purpose: on Bevy 0.19 a `#[derive(Resource)]` type is
-/// component-backed, so this doubles as the `Component` that
-/// `nova_ui::widget::button_on_setting::<GraphicsQuality>` needs to drive the
-/// segmented quality buttons - deriving `Component` too would conflict (mirrors
-/// the editor's `SectionChoice` and nova_ui's own `Choice` test type).
-#[derive(Resource, Clone, Copy, PartialEq, Eq, Debug, Default, Reflect)]
-#[reflect(Resource)]
+/// Not a resource. The live setting is the budget; a preset is the budget it
+/// names, and the menu's preset row reads which one that is back through
+/// [`GraphicsBudget::preset`], so a lever moved by hand turns the row to
+/// Custom instead of leaving a stale tier beside the real values.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum GraphicsQuality {
-    /// Cheapest: all combat juice off (no camera shake, no impact sparks) and
-    /// no particles.
+    /// Cheapest: all combat juice off (no camera shake, no impact sparks), no
+    /// particles, no flash lights, a reduced render scale.
     Low,
-    /// Middle: impact sparks stay, camera shake off.
+    /// Middle: impact sparks and particles stay, camera shake off, half the
+    /// flash lights.
     Medium,
     /// Everything on (the default look).
     #[default]
@@ -210,18 +210,17 @@ impl GraphicsQuality {
     ];
 }
 
-/// The applied per-frame visual-cost gates a [`GraphicsQuality`] preset
-/// produces (the low-end spawn-less mode). `GraphicsQuality` is the player's
-/// *choice*; this is the *derived budget* the expensive effect systems read, so
-/// the tier->cost policy lives only in [`GraphicsBudget::for_quality`] (driven
-/// by `apply_graphics_quality`) instead of being re-derived at every spawn
-/// site. Mirrors how [`crate::juice::JuiceSettings`] is the resource the juice
-/// systems read while the preset just flips its toggles.
+/// The graphics setting: the per-frame visual-cost gates the expensive effect
+/// systems read. Written by the settings menu (a preset through
+/// [`GraphicsBudget::for_quality`], or one lever at a time), the console and
+/// the startup store load; [`apply_graphics_budget`] pushes the two juice
+/// gates onto [`crate::juice::JuiceSettings`], which is the resource the juice
+/// systems read.
 ///
 /// A settings-less app (examples, headless tools) never inserts this; those
 /// systems read it through `Option`/`get_resource` and fall back to
 /// [`GraphicsBudget::default`] (full quality), so particles render normally
-/// when the preset is absent.
+/// when the setting is absent.
 #[derive(Resource, Clone, Copy, PartialEq, Debug, Reflect)]
 #[reflect(Resource)]
 pub struct GraphicsBudget {
@@ -247,6 +246,11 @@ pub struct GraphicsBudget {
     /// cost of one. `Low` takes none at all, which is the same spawn-less rule
     /// [`particles`](Self::particles) states.
     pub transient_lights: usize,
+    /// Whether the camera shakes on hits and detonations
+    /// ([`crate::juice::JuiceSettings::shake`]). Off on `Medium` as well as
+    /// `Low`: it is the one juice effect a player turns off for comfort rather
+    /// than for frame time, so the middle tier is where it goes first.
+    pub shake: bool,
 }
 
 impl GraphicsBudget {
@@ -261,6 +265,7 @@ impl GraphicsBudget {
                 particles: true,
                 render_scale: 1.0,
                 transient_lights: 6,
+                shake: true,
             },
             GraphicsQuality::Medium => Self {
                 particles: true,
@@ -270,6 +275,7 @@ impl GraphicsBudget {
                 // cheapest real step down between the two tiers that keeps
                 // every single event looking the same as it does on High.
                 transient_lights: 3,
+                shake: false,
             },
             GraphicsQuality::Low => Self {
                 particles: false,
@@ -283,8 +289,18 @@ impl GraphicsBudget {
                 // with the `render_scale` perf override if such a rig appears.
                 render_scale: 0.7,
                 transient_lights: 0,
+                shake: false,
             },
         }
+    }
+
+    /// The preset this budget is, or `None` for a budget that matches no tier:
+    /// one the player assembled lever by lever, which the menu shows as
+    /// Custom.
+    pub fn preset(self) -> Option<GraphicsQuality> {
+        GraphicsQuality::ALL
+            .into_iter()
+            .find(|tier| Self::for_quality(*tier) == self)
     }
 
     /// The lowest render-scale a persisted or authored value may take, so a
@@ -346,25 +362,21 @@ impl Plugin for NovaSettingsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MasterVolume>();
         app.insert_resource(HarnessMute::from_env());
-        app.init_resource::<GraphicsQuality>();
         app.init_resource::<GraphicsBudget>();
         app.register_type::<MasterVolume>();
         app.register_type::<GraphicsQuality>();
         app.register_type::<GraphicsBudget>();
 
-        // `PostStartup` and not `Startup`: the persisted preset is loaded by
+        // `PostStartup` and not `Startup`: the persisted budget is loaded by
         // one of `nova_menu`'s own `Startup` systems, and two systems in the
         // same schedule have no order between them. `PostStartup` runs after
         // every `Startup` system, so this is the first point at which the
-        // quality the run will actually use is known - and it is still before
-        // the first `Update`, which is what makes the derived
-        // `GraphicsBudget` true for anything that reads it in frame one. A
-        // budget that only settles on the first `Update` reads as full quality
-        // until then, so a Low-tier run builds the effect graphs it exists to
-        // skip.
+        // budget the run will actually use is known - and it is still before
+        // the first `Update`, which is what makes the juice gates true for
+        // anything that reads them in frame one.
         app.add_systems(
             PostStartup,
-            (apply_master_volume, apply_graphics_quality).in_set(SettingsSystems),
+            (apply_master_volume, apply_graphics_budget).in_set(SettingsSystems),
         );
         // Then on change, for as long as the run lasts. `resource_changed` is
         // true on the first frame too (a freshly-inserted resource counts as
@@ -374,7 +386,7 @@ impl Plugin for NovaSettingsPlugin {
             Update,
             (
                 apply_master_volume.run_if(resource_changed::<MasterVolume>),
-                apply_graphics_quality.run_if(resource_changed::<GraphicsQuality>),
+                apply_graphics_budget.run_if(resource_changed::<GraphicsBudget>),
             )
                 .in_set(SettingsSystems),
         );
@@ -413,39 +425,19 @@ fn apply_master_volume(
     }
 }
 
-/// Map the [`GraphicsQuality`] preset onto the two things it drives: the
-/// derived [`GraphicsBudget`] gate (particle cost, read by the effect systems)
-/// and the combat-juice toggles. This is the single seam - the low-end
-/// spawn-less mode hooks the budget half here rather than re-deriving the tier
-/// at every spawn site. The budget is written unconditionally (this plugin owns
-/// it); the juice half is `Option`-guarded for headless juice-less rigs and
-/// only touches the fields it owns (the master switch and the two per-effect
-/// enables), leaving juice tunables like the distance falloff alone.
-fn apply_graphics_quality(
-    quality: Res<GraphicsQuality>,
-    mut budget: ResMut<GraphicsBudget>,
-    juice: Option<ResMut<JuiceSettings>>,
-) {
-    *budget = GraphicsBudget::for_quality(*quality);
-
+/// Push the [`GraphicsBudget`]'s shake and particle gates onto the combat
+/// juice. Impact sparks are particles, so they follow the particle gate; the
+/// master switch is off only when both are. `Option`-guarded for headless
+/// juice-less rigs, and it touches only the fields it owns (the master switch
+/// and the two per-effect enables), leaving juice tunables like the distance
+/// falloff alone.
+fn apply_graphics_budget(budget: Res<GraphicsBudget>, juice: Option<ResMut<JuiceSettings>>) {
     let Some(mut juice) = juice else {
         return;
     };
-    match *quality {
-        GraphicsQuality::High => {
-            juice.master_enabled = true;
-            juice.shake.enabled = true;
-            juice.sparks.enabled = true;
-        }
-        GraphicsQuality::Medium => {
-            juice.master_enabled = true;
-            juice.shake.enabled = false;
-            juice.sparks.enabled = true;
-        }
-        GraphicsQuality::Low => {
-            juice.master_enabled = false;
-        }
-    }
+    juice.shake.enabled = budget.shake;
+    juice.sparks.enabled = budget.particles;
+    juice.master_enabled = budget.shake || budget.particles;
 }
 
 #[cfg(test)]
@@ -484,38 +476,6 @@ mod tests {
             app.world().resource::<GlobalVolume>().volume,
             bevy::audio::Volume::Linear(0.3),
             "changing MasterVolume pushes onto GlobalVolume"
-        );
-    }
-
-    /// The derived budget has to be true before anything reads it IN a frame,
-    /// not after the first `Update` has been through. The Low tier is
-    /// spawn-less, and a warm-up reading the budget a frame early builds the
-    /// effect graphs the tier exists to skip. The persisted preset arrives in
-    /// one of `nova_menu`'s `Startup` systems, which the `Startup` writer here
-    /// stands in for.
-    #[test]
-    fn the_derived_budget_is_settled_before_the_first_update_reads_it() {
-        #[derive(Resource, Default)]
-        struct SeenInFrameOne(Option<bool>);
-
-        let mut app = app();
-        app.init_resource::<SeenInFrameOne>();
-        app.add_systems(Startup, |mut quality: ResMut<GraphicsQuality>| {
-            *quality = GraphicsQuality::Low;
-        });
-        app.add_systems(
-            Update,
-            (|budget: Res<GraphicsBudget>, mut seen: ResMut<SeenInFrameOne>| {
-                seen.0.get_or_insert(budget.particles);
-            })
-            .before(SettingsSystems),
-        );
-        app.update();
-
-        assert_eq!(
-            app.world().resource::<SeenInFrameOne>().0,
-            Some(false),
-            "frame one read full quality, so the spawn-less tier's gate was never false",
         );
     }
 
@@ -576,7 +536,7 @@ mod tests {
     fn each_quality_tier_maps_to_a_distinct_juice_config() {
         let mut app = app();
 
-        app.insert_resource(GraphicsQuality::High);
+        app.insert_resource(GraphicsBudget::for_quality(GraphicsQuality::High));
         app.update();
         let j = app.world().resource::<JuiceSettings>();
         assert!(
@@ -584,7 +544,7 @@ mod tests {
             "High: all on"
         );
 
-        app.insert_resource(GraphicsQuality::Medium);
+        app.insert_resource(GraphicsBudget::for_quality(GraphicsQuality::Medium));
         app.update();
         let j = app.world().resource::<JuiceSettings>();
         assert!(
@@ -592,10 +552,35 @@ mod tests {
             "Medium: sparks on, shake off - a real, observable step down from High"
         );
 
-        app.insert_resource(GraphicsQuality::Low);
+        app.insert_resource(GraphicsBudget::for_quality(GraphicsQuality::Low));
         app.update();
         let j = app.world().resource::<JuiceSettings>();
         assert!(!j.master_enabled, "Low: juice master switch off");
+    }
+
+    /// The menu's Custom option is not a stored choice: it is what a budget
+    /// that matches no tier reads as, so moving one lever off a preset and
+    /// back must land on the preset again.
+    #[test]
+    fn a_budget_is_its_preset_until_one_lever_moves() {
+        let high = GraphicsBudget::for_quality(GraphicsQuality::High);
+        for tier in GraphicsQuality::ALL {
+            assert_eq!(GraphicsBudget::for_quality(tier).preset(), Some(tier));
+        }
+        let custom = GraphicsBudget {
+            shake: false,
+            ..high
+        };
+        assert_eq!(custom.preset(), None, "High without shake is no tier");
+        assert_eq!(
+            GraphicsBudget {
+                shake: true,
+                ..custom
+            }
+            .preset(),
+            Some(GraphicsQuality::High),
+            "and moving the lever back is High again"
+        );
     }
 
     #[test]
@@ -636,6 +621,10 @@ mod tests {
             "High must afford more live flashes than Medium"
         );
         assert_eq!(low.transient_lights, 0, "Low casts no dynamic light at all");
+        assert!(
+            high.shake && !medium.shake && !low.shake,
+            "camera shake is the first thing the middle tier gives up"
+        );
 
         // The default matches the default preset (full quality), so a
         // settings-less app renders everything.
@@ -690,29 +679,6 @@ mod tests {
             low.render_target_size(UVec2::new(1, 1)),
             UVec2::new(1, 1),
             "a tiny window never rounds an axis to zero"
-        );
-    }
-
-    #[test]
-    fn changing_quality_pushes_onto_the_graphics_budget() {
-        // The apply seam writes the budget even on a juice-less rig (the `app()`
-        // here has JuiceSettings, but the write happens before that Option guard).
-        let mut app = app();
-
-        app.insert_resource(GraphicsQuality::Low);
-        app.update();
-        assert_eq!(
-            *app.world().resource::<GraphicsBudget>(),
-            GraphicsBudget::for_quality(GraphicsQuality::Low),
-            "selecting Low pushes the Low budget onto the resource"
-        );
-
-        app.insert_resource(GraphicsQuality::High);
-        app.update();
-        assert_eq!(
-            *app.world().resource::<GraphicsBudget>(),
-            GraphicsBudget::for_quality(GraphicsQuality::High),
-            "selecting High pushes the High budget back on"
         );
     }
 }

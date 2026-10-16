@@ -11,13 +11,13 @@
 //! what is running beside it.
 
 use bevy::prelude::*;
-use nova_gameplay::prelude::{GraphicsQuality, MasterVolume};
+use nova_gameplay::prelude::{GraphicsBudget, GraphicsQuality, MasterVolume};
 use nova_input::prelude::{MousePath, MouseSensitivity};
 
 use crate::{
     settings_store::{
-        allow_settings_saves, PersistedSettings, SettingsStoreAccess, SettingsStorePlugin, KEY,
-        SETTINGS_SAVE_DEBOUNCE_FRAMES,
+        allow_settings_saves, GraphicsPresetSetting, PersistedSettings, SettingsStoreAccess,
+        SettingsStorePlugin, KEY, SETTINGS_SAVE_DEBOUNCE_FRAMES,
     },
     tests::support::scratch_store,
 };
@@ -29,7 +29,7 @@ fn store_a_played_in_settings(root: &std::path::Path) -> PersistedSettings {
     let saved = PersistedSettings {
         master_volume: 0.42,
         mouse_look_sensitivity: MousePath::Look.range().raw(300.0),
-        graphics_quality: GraphicsQuality::Low,
+        graphics_quality: GraphicsPresetSetting::Low,
         ..Default::default()
     };
     nova_assets::persist::save_to(&nova_assets::storage::NativeStorage::at(root), KEY, &saved);
@@ -92,8 +92,8 @@ fn a_menuless_app_boots_on_the_saved_settings() {
         "the rest of the settings load with it"
     );
     assert_eq!(
-        *app.world().resource::<GraphicsQuality>(),
-        GraphicsQuality::Low,
+        *app.world().resource::<GraphicsBudget>(),
+        GraphicsBudget::for_quality(GraphicsQuality::Low),
         "including the ones an example never had before"
     );
 
@@ -126,8 +126,8 @@ fn an_inert_store_neither_loads_nor_saves() {
         "a scripted run flies on the defaults, whatever is in the store"
     );
     assert_eq!(
-        *app.world().resource::<GraphicsQuality>(),
-        GraphicsQuality::default(),
+        *app.world().resource::<GraphicsBudget>(),
+        GraphicsBudget::default(),
         "so a capture is the same picture on every machine"
     );
 

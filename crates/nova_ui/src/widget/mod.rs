@@ -31,14 +31,15 @@ pub mod prelude {
         badge, button, button_on_setting, checkbox, checkbox_glyph, key_chip, list_row,
         list_row_colors, menu_button, panel, panel_head, panel_header, panel_node, panel_radius,
         segmented, segmented_container, segmented_container_wrapping, segmented_option,
-        segmented_option_fit, separator, slider_meter_color, slider_track, swatch, text_field,
-        themed_button, toggle, BadgeKind, ButtonLabel, ButtonSpec, ButtonValue, ButtonVariant,
-        DoubleClick, KeyChip, KeyChipLabel, ListRow, PanelHeadTag, PanelHeadTitle, SegmentedSkin,
-        Selected, SliderBlock, SliderFill, SliderTrack, TextField, TextFieldError,
-        TextFieldFocused, TextFieldSpec, TextFieldSubmitted, TextFieldSystems, TextFieldValue,
-        ThemedBadge, ThemedBorder, ThemedButton, ThemedCheckbox, ThemedFill, ThemedImageTint,
-        ThemedPanel, ThemedPanelHead, ThemedRadius, ThemedSeparator, ThemedSwatch, ThemedText,
-        ThemedTextShadow, ThemedToggle, Tooltip, TooltipPanel, UiText, DOUBLE_CLICK_SECS,
+        segmented_option_compact, segmented_option_fit, separator, slider_meter_color,
+        slider_track, swatch, text_field, themed_button, toggle, BadgeKind, ButtonLabel,
+        ButtonSpec, ButtonValue, ButtonVariant, DoubleClick, KeyChip, KeyChipLabel, ListRow,
+        PanelHeadTag, PanelHeadTitle, SegmentedSkin, Selected, SliderBlock, SliderFill,
+        SliderTrack, TextField, TextFieldError, TextFieldFocused, TextFieldSpec,
+        TextFieldSubmitted, TextFieldSystems, TextFieldValue, ThemedBadge, ThemedBorder,
+        ThemedButton, ThemedCheckbox, ThemedFill, ThemedImageTint, ThemedPanel, ThemedPanelHead,
+        ThemedRadius, ThemedSeparator, ThemedSwatch, ThemedText, ThemedTextShadow, ThemedToggle,
+        Tooltip, TooltipPanel, UiText, DOUBLE_CLICK_SECS,
     };
 }
 
