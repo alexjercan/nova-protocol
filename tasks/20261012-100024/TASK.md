@@ -1,8 +1,8 @@
 # Jobs: recover, escort, distress call and neutralize a named hull
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 62
-- TAGS: v0.16.0,jobs
+- TAGS: v0.16.0, jobs
 
 ## User facts
 - Epic `20261012-100022`. Four job types from the design page: recover a marked item from a wreck; escort a hauler to the next cluster with pirates scaling with its cargo value; answer a distress call, some fake; neutralize a named hull.
