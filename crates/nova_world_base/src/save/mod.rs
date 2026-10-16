@@ -76,7 +76,7 @@ pub use transients::{
 /// nobody held live is recorded as an arrival there. Every cell the player
 /// never visited regenerates from the seed on Load, so another generator
 /// would change it silently.
-pub const WORLD_SAVE_FORMAT: u32 = 12;
+pub const WORLD_SAVE_FORMAT: u32 = 13;
 
 /// The most characters a world name has, after trimming.
 const WORLD_NAME_MAX: usize = 32;
@@ -137,7 +137,7 @@ pub struct WorldSaveState {
     pub scenario: SavedScenario,
     /// The player's chart of the world.
     pub chart: Chart,
-    /// The jobs the player holds and has completed.
+    /// The jobs the player holds, has done and has completed.
     pub jobs: Jobs,
 }
 

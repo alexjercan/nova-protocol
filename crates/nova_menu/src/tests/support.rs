@@ -50,6 +50,7 @@ pub(crate) fn dummy_roles() -> GameStartRoles {
                     credits: 1_000,
                     stock: ShipInventoryStock::default(),
                 },
+                jobs: JobMixType::Trade,
                 lore: String::new(),
             })
             .collect(),

@@ -26,6 +26,7 @@ spelling rules, see
                 "WaterIce": 50,
             },
         ),
+        jobs: Trade,
         lore: "Stations need what they cannot make. Couriers carry it.",
     )),
 ]
@@ -40,6 +41,7 @@ Every field is required.
 | `about` | string | how the role plays, for a reader |
 | `hull` | string | the id of a [ship design](../ships/) the player starts in: a base ship id, one of your mod's own, or one from a mod you depend on |
 | `kit` | kit | what the ship starts with, see below |
+| `jobs` | `Trade`, `Salvage` or `Combat` | the job mix every station board leans to for this start, see [Jobs](../stations/#jobs) |
 | `lore` | string | background text for the role |
 
 A `kit` has two fields, both required:

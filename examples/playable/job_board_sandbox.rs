@@ -11,15 +11,23 @@
 //! board.
 //!
 //! Try: Accept a job, close the interface with TAB, undock, open TAB > Map
-//! and press the chart key: the held job is marked `JOB-1` in the station's
-//! cell. Dock again and Hand in: the goods leave the hold and the reward
-//! lands on the balance. The diagnostics panel (`F3`) lists the board, the
-//! jobs held and completed, and the balance.
+//! and press the chart key: the held job is marked `JOB-1` in the cell of
+//! the body it is about. A procurement hands in at once: dock again and Hand
+//! in, the goods leave the hold and the reward lands on the balance. A
+//! located job (recover, escort, distress, neutralize) refuses the hand-in
+//! until the world marks it done: fly to the mark, do the work and come
+//! back. The diagnostics panel (`F3`) lists the board with each job's task
+//! and state, the jobs held and completed, and the balance.
 //!
-//! With `NOVA_AUTOPILOT=1` a smoke walk accepts the first job, undocks,
-//! reads it in the chart view, docks again and hands it in. `NOVA_CAPTURE=1`
-//! shoots `sandbox-jobs-board.png`, `sandbox-jobs-map.png` and
-//! `sandbox-jobs-done.png`. Unset, no walk and no deadline run.
+//! `NOVA_SANDBOX_ROLE=<start role id>` picks the start role, whose job mix
+//! the boards lean to: the default `transport` posts procurements and
+//! escorts, `scavenger` recoveries, `bounty_hunter` distress calls and
+//! neutralizations.
+//!
+//! With `NOVA_AUTOPILOT=1` a smoke walk accepts the first procurement,
+//! undocks, reads it in the chart view, docks again and hands it in.
+//! `NOVA_CAPTURE=1` shoots `sandbox-jobs-board.png`, `sandbox-jobs-map.png`
+//! and `sandbox-jobs-done.png`. Unset, no walk and no deadline run.
 
 use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
 use bevy::prelude::*;
@@ -40,9 +48,14 @@ struct Cli;
 /// The world seed: `system_station_jobs`'s, whose window around the spawn
 /// holds a living Neutral station.
 const SANDBOX_SEED: u32 = 10;
-/// The start role the player spawns as: the scavenger's salvage hauler has
-/// the largest start hold, so it takes the most goods.
-const SANDBOX_ROLE: &str = "scavenger";
+/// The start role the player spawns as when `NOVA_SANDBOX_ROLE` is unset:
+/// the transport's boards lean to procurements, which the smoke walk needs.
+const SANDBOX_ROLE: &str = "transport";
+
+/// The start role this run plays: `NOVA_SANDBOX_ROLE`, else [`SANDBOX_ROLE`].
+fn sandbox_role() -> String {
+    std::env::var("NOVA_SANDBOX_ROLE").unwrap_or_else(|_| SANDBOX_ROLE.to_string())
+}
 /// How far from the station the player parks before the berth.
 const PARK_DISTANCE: Meters = Meters(2_000.0);
 /// The gap the berth leaves between the two port faces, engine units: half a
@@ -135,7 +148,7 @@ fn start_the_world(
     }
     commands.insert_resource(OpenWorldSession {
         seed: SANDBOX_SEED,
-        role: SANDBOX_ROLE.into(),
+        role: sandbox_role().as_str().into(),
     });
     pick.0 = None;
     *mode = GameMode::NewGame;
@@ -395,7 +408,9 @@ fn set_the_fixture(world: &mut World, player: Entity) {
     let mut given: Vec<(ItemDesignId, u32)> = Vec::new();
     if let Some(mut hold) = world.get_mut::<ShipInventory>(player) {
         for job in &board.0 {
-            let JobType::Procure { item, count } = &job.kind;
+            let JobType::Procure { item, count } = &job.kind else {
+                continue;
+            };
             let short = count.saturating_sub(hold.count(item));
             if short == 0 {
                 continue;
@@ -461,17 +476,20 @@ mod jobs_overlay {
         if let Some(board) = board {
             panel.line(format!("Board: {} posted", board.0.len()));
             for job in &board.0 {
-                let state = if jobs.holds(&job.id) {
+                let state = if jobs.is_done(&job.id) {
+                    "held, done"
+                } else if jobs.holds(&job.id) {
                     "held"
                 } else if jobs.is_completed(&job.id) {
-                    "done"
+                    "completed"
                 } else {
                     "posted"
                 };
                 panel.detail(format!(
-                    "{} - {} cr - {state}",
+                    "{} - {} cr - {state} - {}",
                     job.title(&items),
-                    job.reward_cr
+                    job.reward_cr,
+                    job.task()
                 ));
             }
         }
@@ -624,8 +642,18 @@ mod smoke {
             .add()
             // The job rows can sit below the panel's fold on a 1080p frame,
             // out of the pointer's reach: the buttons are activated by name.
-            .step("job sandbox: accept the first job")
-            .on_enter(|world: &mut World| activate_named(world, "JobAccept-0"))
+            .step("job sandbox: accept the first procurement")
+            .on_enter(|world: &mut World| {
+                let board = station_root(world)
+                    .and_then(|station| world.get::<JobBoard>(station).cloned())
+                    .expect("job sandbox: the station posts a board");
+                let row = board
+                    .0
+                    .iter()
+                    .position(|job| job.kind.is_procurement())
+                    .expect("job sandbox: the board posts a procurement");
+                activate_named(world, &format!("JobAccept-{row}"));
+            })
             .until(and(held_count(1), frames(SETTLE_FRAMES)))
             .deadline(BEAT_SECS)
             .add();

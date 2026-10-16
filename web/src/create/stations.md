@@ -440,15 +440,38 @@ one.
 
 ## Jobs
 
-<!-- Board: crates/nova_gameplay/src/jobs.rs (`station_job_board`). Posting: crates/nova_world_base/src/jobs.rs. -->
+<!-- Board: crates/nova_gameplay/src/jobs.rs (`station_job_board`). Posting, spawn and completion: crates/nova_world_base/src/jobs.rs. -->
 
-A living station that offers `Jobs` posts a board of three procurements
-(`JOBS_PER_BOARD`), put on its root as `JobBoard` the first frame it stands
-under its sector root. The board is a pure function of the world seed, the
-station's generated id and the cluster types of its sector, drawn off one
-`WyRand` seeded from FNV-64 of `(seed, "station_jobs", station id)`: the same
-station posts the same board in every process and after a Load, and nothing
-on a board changes. The sector's clusters pick the item categories:
+A living station that offers `Jobs` posts a board of three jobs
+(`JOBS_PER_BOARD`), put on its root as `JobBoard` once every sector in the
+cube of 27 around its own is live and settled. The board is a pure function
+of the world seed, the station's generated id, the cluster types of its
+sector, the start role's job mix and the field around the station, drawn off
+one `WyRand` seeded from FNV-64 of `(seed, "station_jobs", station id)`: the
+same station posts the same board in every process and after a Load, and
+nothing on a board changes. A job's id is the posting station's id and its
+board slot.
+
+Each slot draws its kind by the start role's `jobs` mix (see
+[start roles](../start-roles/)), as weights over `Procure`, `Recover`,
+`Escort`, `Distress` and `Neutralize`:
+
+| mix | roles | Procure | Recover | Escort | Distress | Neutralize |
+|---|---|---|---|---|---|---|
+| `Trade` | industrial, transport; no session | 4 | 1 | 4 | 1 | 1 |
+| `Salvage` | scavenger | 1 | 5 | 1 | 2 | 1 |
+| `Combat` | bounty hunter, military, pirate | 1 | 1 | 1 | 3 | 4 |
+
+| kind | title | what it asks | reward |
+|---|---|---|---|
+| `Procure` | `Bring 4 Iron ore` | bring that many units of the item to the poster | the goods at the ask plus half, plus a fee |
+| `Recover` | `Recover 2 Hull plate from <wreck>` | take that many off the named derelict in the cube and undock with them aboard, the wreck's stack gone | twice the ask, plus a fee |
+| `Escort` | `Escort a hauler carrying 1200 cr` | a civilian hauler spawns at the poster on a 10 km leg; see it reach its mark. `1 + cargo / 700` raiders, at most 3, lie in wait 60 % along the leg | half the cargo value, plus a fee |
+| `Distress` | `Answer a distress call` | a caller spawns 10 km out: dock with the drifting hull, or neutralize the raider waiting there instead (one call in three is a trap) | 200 cr plus twice a fee |
+| `Neutralize` | `Neutralize <hull>` | neutralize the named Enemy hull standing in the cube | 400 cr plus twice a fee |
+
+The fee is 50 to 250 cr. The sector's clusters pick the item categories a
+`Procure` or `Recover` asks for:
 
 | clusters | asks for |
 |---|---|
@@ -457,21 +480,36 @@ on a board changes. The sector's clusters pick the item categories:
 | `DerelictField` | `Parts`, `Repair` |
 | none | every category but `Ammo` |
 
-Each job draws a distinct item from those categories while the pool allows
-(a catalog with none of them draws from every item), a count of 2 to 8, and a
-reward of the goods at the item's ask plus half, plus a flat fee of 50 to
-250 cr. A job's id is the posting station's id and its board slot.
+A `Procure` draws a distinct item from those categories while the pool
+allows (a catalog with none of them draws from every item) and a count of 2
+to 8. A `Recover` names a derelict with a non-empty hold in the cube and one
+of its stacks; a `Neutralize` names an intact, un-neutralized Enemy hull in
+the cube; each wreck or hull is named once per board, and a slot with no
+candidate posts a `Procure` instead.
 
 The player accepts and hands in only while docked at a living station that
-offers `Jobs` (`plan_job_accept`, `plan_job_hand_in`): a hand-in needs the
-posting station, the goods in the hold and a station balance that covers the
-reward; it removes the goods, pays `OnCreditsChanged` with cause `JobReward`
-on both sides and lists the job completed. Held and completed jobs are the
-`Jobs` session resource, saved in the world state's `jobs` field (save format
-12) and checked on load: a job held twice, held and completed, with a zero
-count or reward, or naming an item the catalog lacks refuses the world.
-Authored `Station` content with `Jobs` in its services posts no board yet:
-only generated stations have the id and sector the board is seeded from.
+offers `Jobs` (`plan_job_accept`, `plan_job_hand_in`). An accept is refused
+while the job is held or completed, and for a `Recover` or `Neutralize`
+whose target is gone. An accept raises `JobAccepted`: an `Escort` spawns its
+hauler, under a `Move` helm order to its mark, and its raiders; a `Distress`
+spawns its caller. A job is DONE when the open world sees its completion
+over the shipped event kinds: `onundocked` naming the wreck with the stack
+aboard and the wreck's stack gone (`Recover`), `onshipordercomplete` for the
+hauler's `Move` (`Escort`; the hauler neutralized or destroyed drops the job
+and its bodies), `ondocked` with the caller or the raider neutralized or
+destroyed (`Distress`), `onneutralized` or `ondestroyed` naming the hull
+(`Neutralize`). A hand-in needs the posting station, the job done (a
+`Procure` is done with the goods in the hold), and a station balance that
+covers the reward; it removes a `Procure`'s goods, pays `OnCreditsChanged`
+with cause `JobReward` on both sides and lists the job completed. Held, done
+and completed jobs are the `Jobs` session resource, saved in the world
+state's `jobs` field (save format 13) and checked on load: a job held twice,
+held and completed, done but not held, with a zero count or reward, or
+naming an item the catalog lacks refuses the world. A frozen sector keeps a
+spawned hauler, caller or raider as any ship, but not the hauler's helm
+order: a hauler left mid-leg stands where it was thawed. Authored `Station`
+content with `Jobs` in its services posts no board: only generated stations
+have the id and sector the board is seeded from.
 
 ## Base stations
 

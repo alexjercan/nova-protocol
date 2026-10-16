@@ -40,9 +40,12 @@ does NOT get an entry. Another page that states a different rule is wrong.
   the camera behind it while it moves.
 - Two docked hulls no longer collide, so skin plates and greebles past a
   port face no longer wear both hulls down while they sit docked.
-- **(breaking)** Living generated stations post three seeded Bring-items
-  jobs. Accept and Hand in on the Station pane while docked; held jobs mark
-  the Map's chart as `JOB-n` and save. Save format 12.
+- **(breaking)** Living generated stations post three seeded jobs, weighted
+  by the start role: bring items, recover a stack from a named wreck, escort
+  a hauler past raiders, answer a distress call, neutralize a named hull.
+  Accept and Hand in on the Station pane while docked; a job hands in once
+  the world marks it done. Held jobs mark the Map's chart as `JOB-n` and
+  save. Save format 13.
 
 ### Combat & Weapons
 

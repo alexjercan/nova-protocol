@@ -100,13 +100,28 @@ pub(crate) fn chart_mark_code(
     }
 }
 
+/// The cell a held job is marked in: the cell of the body it is about, or
+/// the poster's for a procurement, which is done at the hand-in.
+pub(crate) fn job_cell(job: &Job) -> SectorCoord {
+    job.located_body()
+        .map_or(job.target.origin, |body| body.origin)
+}
+
 /// The one line a job is called by: its title from the catalog, or by its
-/// item id while no catalog is loaded.
+/// kind and its item id while no catalog is loaded.
 pub(crate) fn job_title(job: &Job, items: Option<&GameItems>) -> String {
     items.map_or_else(
-        || {
-            let JobType::Procure { item, count } = &job.kind;
-            format!("Bring {count} {item}")
+        || match &job.kind {
+            JobType::Procure { item, count } => format!("Bring {count} {item}"),
+            JobType::Recover {
+                wreck_name,
+                item,
+                count,
+                ..
+            } => format!("Recover {count} {item} from {wreck_name}"),
+            JobType::Escort { .. } | JobType::Distress { .. } | JobType::Neutralize { .. } => {
+                job.title(&GameItems::default())
+            }
         },
         |items| job.title(items),
     )
@@ -341,7 +356,7 @@ pub(crate) fn manage_map_chart(
         .chain(jobs.held().iter().map(|job| {
             (
                 MapChartMarkType::Job(job.id.clone()),
-                job.target.origin,
+                job_cell(job),
                 MAP_CHART_JOB_COLOR,
             )
         }))
@@ -605,7 +620,7 @@ pub(crate) fn chart_panel_field(
         }
         (Some(MapChartMarkType::Job(id)), MapPanelField::Range) => (
             jobs.job(id)
-                .map_or_else(String::new, |job| format!("Cell {}", job.target.origin)),
+                .map_or_else(String::new, |job| format!("Cell {}", job_cell(job))),
             UiColor::Primary,
         ),
         (Some(MapChartMarkType::Job(id)), MapPanelField::Bearing) => (
@@ -616,8 +631,13 @@ pub(crate) fn chart_panel_field(
         ),
         (Some(MapChartMarkType::Job(id)), MapPanelField::Note) => (
             jobs.job(id).map_or_else(String::new, |job| {
+                let state = if jobs.is_done(id) {
+                    "Done".to_string()
+                } else {
+                    format!("To do: {}", job.task())
+                };
                 format!(
-                    "Posted by {}.\nHand in at {} while docked.",
+                    "Posted by {}.\n{state}.\nHand in at {} while docked.",
                     station_name(job.posted_by()),
                     station_name(&job.target)
                 )

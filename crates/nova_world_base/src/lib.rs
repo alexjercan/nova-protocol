@@ -37,9 +37,11 @@
 //! While a world streams, this crate also feeds the player's
 //! [`Chart`]: the cells the player enters, the stations and derelict hulls
 //! the player's sensors find, and what the player sees at a docked station,
-//! and posts a [`nova_gameplay::prelude::JobBoard`] on every living generated station, seeded from
-//! the world seed and the station. A world save carries the chart and the
-//! player's [`Jobs`]; on the web they last one session.
+//! and posts a [`nova_gameplay::prelude::JobBoard`] on every living generated
+//! station, seeded from the world seed, the station and what stands around
+//! it, puts an accepted job's bodies in the world and marks a held job done.
+//! A world save carries the chart and the player's [`Jobs`]; on the web they
+//! last one session.
 #![warn(missing_docs)]
 
 use bevy::prelude::*;
@@ -192,6 +194,13 @@ impl Plugin for NovaWorldBasePlugin {
         app.add_plugins(NovaWorldPlugin::<NovaLayeredWorld>::default());
         app.init_resource::<Chart>();
         app.init_resource::<Jobs>();
+        // An accepted job puts its bodies in the world; one observer per
+        // located kind marks the held job done off the existing event kinds.
+        app.add_observer(jobs::spawn_job_bodies);
+        app.add_observer(jobs::recover_on_undock);
+        app.add_observer(jobs::escort_on_arrival);
+        app.add_observer(jobs::distress_on_answer);
+        app.add_observer(jobs::neutralize_on_kill);
         // In `Update`, not `PreUpdate`: a menu entry swaps the scenario in
         // `StateTransition`, and a ship destroyed in `FixedUpdate` leaves the
         // world. Both land after `PreUpdate`, and the streaming stages would

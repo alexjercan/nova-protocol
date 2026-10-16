@@ -12,8 +12,8 @@ use bevy::prelude::*;
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack, LoadedSectionPacks};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
-    CargoCanisterIdAllocator, Chart, ClockFreeze, DamageMarks, Jobs, PlayerSpaceshipMarker,
-    PointRotationOutput, ShipInventory, ShipInventoryStock,
+    CargoCanisterIdAllocator, Chart, ClockFreeze, DamageMarks, JobMixType, Jobs,
+    PlayerSpaceshipMarker, PointRotationOutput, ShipInventory, ShipInventoryStock,
 };
 use nova_scenario::prelude::{
     spaceship_scenario_object, CurrentScenario, GameStartRoles, GeneratedMarks, NovaEventWorld,
@@ -48,6 +48,7 @@ pub fn fixture_roles() -> GameStartRoles {
             credits: 300,
             stock: ShipInventoryStock::default(),
         },
+        jobs: JobMixType::Trade,
         lore: String::new(),
     }])
 }

@@ -107,7 +107,7 @@ fn check_intake(
 
 #[cfg(test)]
 mod tests {
-    use nova_gameplay::prelude::ShipInventoryStock;
+    use nova_gameplay::prelude::{JobMixType, ShipInventoryStock};
 
     use super::*;
     use crate::lint::{
@@ -125,6 +125,7 @@ mod tests {
                 credits: 0,
                 stock: ShipInventoryStock::default(),
             },
+            jobs: JobMixType::Trade,
             lore: String::new(),
         }
     }
@@ -161,6 +162,7 @@ mod tests {
                 credits: 0,
                 stock: ShipInventoryStock::default(),
             },
+            jobs: JobMixType::Trade,
             lore: String::new(),
         };
         let found = lint_start_role(

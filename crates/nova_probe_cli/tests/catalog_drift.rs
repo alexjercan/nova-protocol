@@ -34,8 +34,9 @@ fn catalog_matches_disk() {
 
     // Example roots on disk: every .rs file DIRECTLY under a category dir.
     // Deeper files (e.g. systems/system_turret_gunnery/slider.rs,
-    // screenshots/shared/) are modules of a sibling root, and data/ holds no
-    // code.
+    // screenshots/shared/) are modules of a sibling root, data/ holds no
+    // code, and examples/shared/ holds modules that examples of several
+    // categories include by `#[path]`.
     let mut on_disk = BTreeSet::new();
     for category in std::fs::read_dir(root.join("examples")).unwrap() {
         let category = category.unwrap().path();
@@ -45,6 +46,9 @@ fn catalog_matches_disk() {
                  category dirs): {}",
                 category.display()
             );
+        }
+        if category.file_name().is_some_and(|name| name == "shared") {
+            continue;
         }
         for entry in std::fs::read_dir(&category).unwrap() {
             let path = entry.unwrap().path();
@@ -1133,6 +1137,42 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_job_recover",
+        &[
+            "a recover job is posted and accepted",
+            "the hand-in is refused until the recover job is done",
+            "the world marks the recover job done",
+            "the hand-in pays the recover job",
+        ],
+    ),
+    (
+        "system_job_escort",
+        &[
+            "a escort job is posted and accepted",
+            "the hand-in is refused until the escort job is done",
+            "the world marks the escort job done",
+            "the hand-in pays the escort job",
+        ],
+    ),
+    (
+        "system_job_distress",
+        &[
+            "a distress job is posted and accepted",
+            "the hand-in is refused until the distress job is done",
+            "the world marks the distress job done",
+            "the hand-in pays the distress job",
+        ],
+    ),
+    (
+        "system_job_neutralize",
+        &[
+            "a neutralize job is posted and accepted",
+            "the hand-in is refused until the neutralize job is done",
+            "the world marks the neutralize job done",
+            "the hand-in pays the neutralize job",
+        ],
+    ),
+    (
         "system_station_orbit",
         &[
             "station rides its orbit",
@@ -1144,7 +1184,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 570;
+const SYSTEMS_INVARIANTS: usize = 586;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

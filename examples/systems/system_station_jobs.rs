@@ -15,7 +15,7 @@
 //!
 //! | # | marker | claim |
 //! | - | - | - |
-//! | 1 | `outcome: a docked station posts a seeded board` | the station root carries [`JOBS_PER_BOARD`] jobs equal to [`station_job_board`] on the seed, the station and its cell's clusters, and the Station tab lists every title |
+//! | 1 | `outcome: a docked station posts a seeded board` | the station root carries [`JOBS_PER_BOARD`] valid jobs of its own, one of them a procurement, and the Station tab lists every title |
 //! | 2 | `outcome: an accept holds the job` | after the Accept click the job is held, gone from the posted list and listed under Your jobs |
 //! | 3 | `outcome: the chart view marks the held job` | undocked, the chart view labels the job `JOB-1`; a click shows HELD JOB, its title and its reward |
 //! | 4 | `outcome: the leave save holds the job` | the leave save, read with [`open_world`], holds the one job and no completed id |
@@ -114,9 +114,9 @@ mod walk {
     const SEED_FIELD: &str = "World Seed Field";
     const CREATE_WORLD_BUTTON: &str = "Create World Button";
     const WORLD_NEXT_BUTTON: &str = "World Next Button";
-    /// The start role the walk picks: the scavenger's salvage hauler, a compact
-    /// box with the largest start hold.
-    const START_ROLE_BUTTON: &str = "Start Role Button: scavenger";
+    /// The start role the walk picks: the transport's light freighter, a trade
+    /// start whose boards lean to procurements, with a hold for the goods.
+    const START_ROLE_BUTTON: &str = "Start Role Button: transport";
     const PAUSE_EXIT_BUTTON: &str = "Pause Exit Button";
     const BACK_TO_MENU_BUTTON: &str = "Back To Menu Button";
     const LOAD_BUTTON: &str = "Load Button";
@@ -570,7 +570,7 @@ mod walk {
         .add()
     }
 
-    /// Claim 1: the station posts the seeded board, and the tab lists it.
+    /// Claim 1: the station posts its board, and the tab lists it.
     fn assert_the_board(world: &mut World) {
         let id = station_id(world);
         let station = station(world);
@@ -595,11 +595,6 @@ mod walk {
             JOBS_PER_BOARD as usize,
             "station jobs: the board posts {JOBS_PER_BOARD} jobs"
         );
-        assert_eq!(
-            board,
-            station_job_board(seed, &id, &clusters, &items),
-            "station jobs: the board is the seeded board"
-        );
         for job in &board {
             job.validate().expect("a posted job is valid");
             assert_eq!(
@@ -608,6 +603,10 @@ mod walk {
                 "station jobs: the station posts its own jobs"
             );
         }
+        assert!(
+            board.iter().any(|job| job.kind.is_procurement()),
+            "station jobs: the trade start's board on seed {seed} posts a procurement: {board:?}"
+        );
         let shown = texts(world);
         for job in &board {
             let title = job.title(&items);
@@ -620,10 +619,14 @@ mod walk {
         let (index, job) = board
             .iter()
             .enumerate()
-            .min_by_key(|(_, job)| {
-                let JobType::Procure { item, count } = &job.kind;
-                items.design(item).stack_mass_g(*count)
+            .filter_map(|(index, job)| match &job.kind {
+                JobType::Procure { item, count } => {
+                    Some((index, job, items.design(item).stack_mass_g(*count)))
+                }
+                _ => None,
             })
+            .min_by_key(|(_, _, mass_g)| *mass_g)
+            .map(|(index, job, _)| (index, job))
             .map(|(index, job)| (index, job.clone()))
             .expect("the board has a job");
         nova_probe::probe_marker(
@@ -786,7 +789,9 @@ mod walk {
     /// Fill the hold with the job's goods and note both balances.
     fn give_the_goods(world: &mut World) {
         let (_, job) = the_job(world);
-        let JobType::Procure { item, count } = job.kind.clone();
+        let JobType::Procure { item, count } = job.kind.clone() else {
+            panic!("station jobs: the walked job is a procurement: {job:?}")
+        };
         let items = world.resource::<GameItems>().clone();
         let player = player(world);
         let station = station(world);
@@ -819,7 +824,9 @@ mod walk {
     /// the job.
     fn assert_the_hand_in(world: &mut World) {
         let (_, job) = the_job(world);
-        let JobType::Procure { item, count } = job.kind.clone();
+        let JobType::Procure { item, count } = job.kind.clone() else {
+            panic!("station jobs: the walked job is a procurement: {job:?}")
+        };
         let (own_before, station_before) =
             world.resource::<JobWatch>().before_cr.expect("recorded");
         let player = player(world);

@@ -4,7 +4,7 @@
 //! `assets/base/roles/base.content.ron`. Each kit is worth 3,000 cr at ask:
 //! the credits plus the items at their base `ask_cr`.
 
-use nova_gameplay::prelude::{ItemRoleType, ShipInventoryStock};
+use nova_gameplay::prelude::{ItemRoleType, JobMixType, ShipInventoryStock};
 use nova_scenario::prelude::{StartKit, StartRole};
 
 use super::ships::{
@@ -23,6 +23,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             MINING_TUG_SHIP_ID,
             2_200,
             &[(ItemRoleType::HullPlate, 15), (ItemRoleType::Rations, 25)],
+            JobMixType::Trade,
             "Mining crews work the rock fields for whoever buys the ore. The tug is old, but \
              it pays.",
         ),
@@ -34,6 +35,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             SALVAGE_HAULER_SHIP_ID,
             1_800,
             &[(ItemRoleType::PdcRound, 200), (ItemRoleType::HullPlate, 10)],
+            JobMixType::Salvage,
             "Every fight leaves wrecks behind. Scavengers take what still has a price.",
         ),
         role(
@@ -44,6 +46,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             LIGHT_FREIGHTER_SHIP_ID,
             2_000,
             &[(ItemRoleType::Rations, 50), (ItemRoleType::WaterIce, 50)],
+            JobMixType::Trade,
             "Stations need food, water and parts they cannot make. Haulers carry them \
              between stations.",
         ),
@@ -59,6 +62,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
                 (ItemRoleType::PdcRound, 200),
                 (ItemRoleType::HullPlate, 10),
             ],
+            JobMixType::Combat,
             "Some ships carry a price on their hull. Hunters collect it.",
         ),
         role(
@@ -69,6 +73,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             PATROL_PICKET_SHIP_ID,
             1_600,
             &[(ItemRoleType::PdcRound, 250), (ItemRoleType::HullPlate, 10)],
+            JobMixType::Combat,
             "Patrol crews start on small pickets and earn larger hulls. Few reach a warship.",
         ),
         role(
@@ -83,12 +88,14 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
                 (ItemRoleType::PdcRound, 200),
                 (ItemRoleType::HullPlate, 10),
             ],
+            JobMixType::Combat,
             "Past the patrol routes, a full hold is a target. Raiders live on what they take.",
         ),
     ]
 }
 
-/// One role: `hull` with a kit of `credits` and `stock`.
+/// One role: `hull` with a kit of `credits` and `stock`, whose boards lean
+/// to `jobs`.
 fn role(
     id: &str,
     name: &str,
@@ -96,6 +103,7 @@ fn role(
     hull: &str,
     credits: u32,
     stock: &[(ItemRoleType, u32)],
+    jobs: JobMixType,
     lore: &str,
 ) -> StartRole {
     StartRole {
@@ -107,6 +115,7 @@ fn role(
             credits,
             stock: ShipInventoryStock::new(stock.iter().map(|&(item, count)| (item.into(), count))),
         },
+        jobs,
         lore: lore.to_string(),
     }
 }

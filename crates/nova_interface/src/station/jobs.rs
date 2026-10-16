@@ -5,11 +5,13 @@
 //! lists the station's [`JobBoard`] less the jobs the player holds or
 //! completed, each with its title, its reward and an Accept button, and
 //! under it every job the player holds, from any station, with a Hand in
-//! button while this station is its target and the hold carries the goods,
+//! button while this station is its target and the job is done, by the
+//! goods in the hold for a procurement and by the world for a located job,
 //! else the reason. A click raises a [`JobAcceptCommand`] or a
 //! [`JobHandInCommand`]; [`apply_station_job_commands`] plans it with
 //! [`plan_job_accept`] or [`plan_job_hand_in`], moves the goods and the
-//! credits, and moves the job in [`Jobs`].
+//! credits, moves the job in [`Jobs`] and raises [`JobAccepted`] so the open
+//! world puts the job's bodies in place.
 //!
 //! Touch this module when changing what the lists show or what a hand-in
 //! moves.
@@ -87,6 +89,7 @@ fn hand_in_refusal_text(
         JobHandInRefusalType::ShortItems { item, need, have } => {
             format!("the hold carries {have} of {need} {item}")
         }
+        JobHandInRefusalType::NotDone => format!("{title}: not done yet"),
         JobHandInRefusalType::StationCannotPay { need, have } => format!(
             "hand in: {title} pays {}, the station holds {}",
             cr_text(*need),
@@ -105,6 +108,36 @@ fn accept_refusal_text(refusal: &JobAcceptRefusalType) -> String {
         JobAcceptRefusalType::NotPostedHere => "accept: this station did not post it".to_string(),
         JobAcceptRefusalType::AlreadyHeld => "accept: you hold it already".to_string(),
         JobAcceptRefusalType::AlreadyDone => "accept: you completed it already".to_string(),
+        JobAcceptRefusalType::TargetGone => "accept: its target is gone".to_string(),
+    }
+}
+
+/// Whether the body a recovery or a neutralize names still qualifies: the
+/// wreck carries the whole stack, or the hull stands un-neutralized. Read
+/// for those two kinds only; every other kind reads `true`.
+/// The bodies a located job can name, read where they stand.
+type JobTargets<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static GeneratedBodyId,
+        Option<&'static ShipInventory>,
+        Has<NeutralizedMarker>,
+    ),
+>;
+
+fn target_standing(job: &Job, q_targets: &JobTargets) -> bool {
+    let standing = |body: &GeneratedBodyId| q_targets.iter().find(|(id, _, _)| *id == body);
+    match &job.kind {
+        JobType::Recover {
+            wreck, item, count, ..
+        } => standing(wreck)
+            .and_then(|(_, hold, _)| hold)
+            .is_some_and(|hold| hold.count(item) >= *count),
+        JobType::Neutralize { hull, .. } => {
+            standing(hull).is_some_and(|(_, _, neutralized)| !neutralized)
+        }
+        JobType::Procure { .. } | JobType::Escort { .. } | JobType::Distress { .. } => true,
     }
 }
 
@@ -171,7 +204,7 @@ fn job_row() -> Node {
 /// and respawn their rows when a job, a reward or a refusal changes.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one system reading the board, the jobs, the site, the hold, both balances and the lists"
+    reason = "one system reading the board, the jobs, the site, the targets, the hold, both balances and the lists"
 )]
 pub(crate) fn update_station_job_lists(
     mut commands: Commands,
@@ -180,6 +213,7 @@ pub(crate) fn update_station_job_lists(
     jobs: Res<Jobs>,
     site: StationSite,
     q_ids: Query<&GeneratedBodyId>,
+    q_targets: JobTargets,
     q_boards: Query<&JobBoard>,
     q_credits: Query<&ShipCredits>,
     q_holds: Query<&ShipInventory>,
@@ -211,9 +245,14 @@ pub(crate) fn update_station_job_lists(
                     id: job.id.clone(),
                     title: job.title(&items),
                     detail: format!("Reward {}", cr_text(job.reward_cr)),
-                    refusal: plan_job_accept(job, Some(station_id), &jobs)
-                        .err()
-                        .map(|refusal| accept_refusal_text(&refusal)),
+                    refusal: plan_job_accept(
+                        job,
+                        Some(station_id),
+                        &jobs,
+                        target_standing(job, &q_targets),
+                    )
+                    .err()
+                    .map(|refusal| accept_refusal_text(&refusal)),
                 })
                 .collect();
         }
@@ -231,9 +270,15 @@ pub(crate) fn update_station_job_lists(
             .map(|job| {
                 let title = job.title(&items);
                 let refusal = q_holds.get(*player).ok().and_then(|hold| {
-                    plan_job_hand_in(job, hand_in_partner.as_ref(), hold, own_cr)
-                        .err()
-                        .map(|refusal| hand_in_refusal_text(&title, &refusal, &station_name))
+                    plan_job_hand_in(
+                        job,
+                        hand_in_partner.as_ref(),
+                        hold,
+                        own_cr,
+                        jobs.is_done(&job.id),
+                    )
+                    .err()
+                    .map(|refusal| hand_in_refusal_text(&title, &refusal, &station_name))
                 });
                 JobRow {
                     id: job.id.clone(),
@@ -312,9 +357,10 @@ fn on_job_button(
 
 /// Apply [`JobAcceptCommand`]s by the [`plan_job_accept`] rule and
 /// [`JobHandInCommand`]s by the [`plan_job_hand_in`] rule: an accept holds
-/// the job; a hand-in takes the goods out of the hold, pays the reward with
-/// `JobReward` credit changes on both sides and completes the job. A
-/// refusal changes nothing and shows its reason on the note line.
+/// the job and raises [`JobAccepted`]; a hand-in takes a procurement's goods
+/// out of the hold, pays the reward with `JobReward` credit changes on both
+/// sides and completes the job. A refusal changes nothing and shows its
+/// reason on the note line.
 ///
 /// # Panics
 ///
@@ -323,13 +369,14 @@ fn on_job_button(
 /// for a job they list.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one system reading both commands, the board, the jobs, the site, the hold and both balances"
+    reason = "one system reading both commands, the board, the jobs, the site, the targets, the hold and both balances"
 )]
 #[expect(
     clippy::type_complexity,
     reason = "both balances and report queues in one query"
 )]
 pub(crate) fn apply_station_job_commands(
+    mut commands: Commands,
     mut accepts: MessageReader<JobAcceptCommand>,
     mut hand_ins: MessageReader<JobHandInCommand>,
     mut runtime: ResMut<StationRuntime>,
@@ -339,7 +386,7 @@ pub(crate) fn apply_station_job_commands(
     site: StationSite,
     q_ids: Query<&GeneratedBodyId>,
     q_boards: Query<&JobBoard>,
-    mut q_holds: Query<&mut ShipInventory>,
+    mut q_holds: ParamSet<(JobTargets, Query<&mut ShipInventory>)>,
     mut q_credits: ParamSet<(
         Query<&ShipCredits>,
         Query<(&mut ShipCredits, &mut ShipInventoryReports)>,
@@ -371,10 +418,16 @@ pub(crate) fn apply_station_job_commands(
         let job = board
             .job(&command.id)
             .unwrap_or_else(|| panic!("accept: the docked station posts no job '{}'", command.id));
-        match plan_job_accept(job, Some(station_id), &jobs) {
+        match plan_job_accept(
+            job,
+            Some(station_id),
+            &jobs,
+            target_standing(job, &q_holds.p0()),
+        ) {
             Ok(()) => {
                 let title = job.title(&items);
                 jobs.accept(job.clone());
+                commands.trigger(JobAccepted { job: job.clone() });
                 info!("nova_interface: accepted the job '{}' ({title})", job.id);
                 runtime.say(format!("accepted: {title}"));
             }
@@ -406,20 +459,24 @@ pub(crate) fn apply_station_job_commands(
             .get(*player)
             .expect("the player ship carries ShipCredits")
             .0;
-        let Ok(hold) = q_holds.get(*player) else {
+        let mut holds = q_holds.p1();
+        let Ok(hold) = holds.get(*player) else {
             panic!("hand in: the player ship {player:?} has no hold");
         };
-        let plan = match plan_job_hand_in(&job, hand_in_partner.as_ref(), hold, own_cr) {
+        let done = jobs.is_done(&job.id);
+        let plan = match plan_job_hand_in(&job, hand_in_partner.as_ref(), hold, own_cr, done) {
             Ok(plan) => plan,
             Err(refusal) => {
                 runtime.say(hand_in_refusal_text(&title, &refusal, &station_name));
                 continue;
             }
         };
-        let mut hold = q_holds
-            .get_mut(*player)
-            .expect("the player ship's hold was read above");
-        hold.remove(&plan.item, plan.count);
+        if let Some((item, count)) = &plan.goods {
+            let mut hold = holds
+                .get_mut(*player)
+                .expect("the player ship's hold was read above");
+            hold.remove(item, *count);
+        }
         let mut balances = q_credits.p1();
         let Ok([(mut own_cr, mut own_reports), (mut station_cr, mut station_reports)]) =
             balances.get_many_mut([*player, *station])

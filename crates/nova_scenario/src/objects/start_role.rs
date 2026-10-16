@@ -14,7 +14,7 @@
 use std::collections::BTreeMap;
 
 use bevy::prelude::*;
-use nova_gameplay::prelude::ShipInventoryStock;
+use nova_gameplay::prelude::{JobMixType, ShipInventoryStock};
 use nova_input::prelude::InputSource;
 use nova_ship::prelude::{SectionKind, ADDED_MINING_KEYS};
 
@@ -143,6 +143,8 @@ pub struct StartRole {
     pub hull: ShipDesignId,
     /// What the ship starts with.
     pub kit: StartKit,
+    /// Which job kinds the station boards lean to for this start.
+    pub jobs: JobMixType,
     /// Background text for the role.
     pub lore: String,
 }

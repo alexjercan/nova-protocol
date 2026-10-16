@@ -1647,6 +1647,7 @@
             credits: 1500,
             stock: {"example_survey_core": 10, "Rations": 20},
         ),
+        jobs: Trade,
         lore: "Survey crews map the rock fields and sell the data cores to any station that pays.",
     )),
 ]
