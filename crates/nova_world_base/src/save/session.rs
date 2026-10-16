@@ -29,7 +29,7 @@ use nova_scenario::prelude::{
 };
 use nova_ship::prelude::{CameraView, ResumedCameraView};
 use nova_world::prelude::{
-    snapshot_sectors, CurrentSector, FrozenSectors, SectorSnapshotError, WorldConfig,
+    snapshot_sectors, CurrentSector, FrozenSectors, SectorSnapshotError, WorldClock, WorldConfig,
 };
 
 use super::{
@@ -245,6 +245,8 @@ pub struct ResumedWorld {
     pub chart: Chart,
     /// The player's jobs the save holds.
     pub jobs: Jobs,
+    /// The play-time clock the save holds.
+    pub clock: WorldClock,
 }
 
 /// Seed `world` with everything a Load resumes: the session, the saved
@@ -271,6 +273,7 @@ pub fn resume_world(
         scenario,
         chart,
         jobs,
+        clock,
         ..
     } = state;
     world.insert_resource(WorldSaveSession::opened(folder, lock, header));
@@ -278,6 +281,7 @@ pub fn resume_world(
         sectors,
         chart,
         jobs,
+        clock,
     });
     world.insert_resource(ResumedScenario(scenario));
     world.insert_resource(ResumedCameraView {
@@ -310,8 +314,8 @@ pub(crate) fn save_systems() -> ScheduleConfigs<ScheduleSystem> {
         .run_if(resource_exists::<WorldSaveSession>)
 }
 
-/// Seed the ledger, the chart and the jobs `Cleanup` just cleared with the
-/// save's, on the frame the world arms.
+/// Seed the ledger, the chart, the jobs and the clock `Cleanup` just cleared
+/// with the save's, on the frame the world arms.
 ///
 /// # Panics
 ///
@@ -330,12 +334,14 @@ pub(crate) fn restore_resumed_world(world: &mut World) {
         sectors,
         chart,
         jobs,
+        clock,
     } = world
         .remove_resource::<ResumedWorld>()
         .expect("run only with a ResumedWorld");
     world.resource_mut::<FrozenSectors>().restore(sectors);
     *world.resource_mut::<Chart>() = chart;
     *world.resource_mut::<Jobs>() = jobs;
+    *world.resource_mut::<WorldClock>() = clock;
 }
 
 /// Want a save when the world first arms and when the player crosses into
@@ -516,6 +522,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
     let player_sector = world.resource::<CurrentSector>().0;
     let chart = world.resource::<Chart>().clone();
     let jobs = world.resource::<Jobs>().clone();
+    let clock = *world.resource::<WorldClock>();
     let saved_at_unix = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |since| since.as_secs());
@@ -552,6 +559,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
         scenario,
         chart,
         jobs,
+        clock,
     };
     let checked = check_saved_ids(&state)
         .map_err(|fault| match fault {

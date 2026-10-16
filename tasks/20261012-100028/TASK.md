@@ -18,3 +18,23 @@
 
 ## Done when
 - The clock is in the save and one consumer (restock) reads it.
+
+## Agent decisions 2026-10-16
+- `WorldClock { play_seconds: f64 }` lives in `nova_world` (`crates/nova_world/src/clock.rs`), beside the ledger it stamps. `NovaWorldPlugin` owns it: advanced by `advance_world_clock` in `NovaWorldSystems::Observe` from `Time<Virtual>` delta (zero under every `ClockFreeze` hold), reset by `clear_sector_work` with the ledger, restored by `restore_resumed_world` on the arming frame.
+- `freeze_body` takes `&WorldClock` and stamps `FrozenBody.frozen_at` (play seconds). `thaw_record` and `materialize_sector` take `&WorldClock`.
+- The thaw hook is a component: every body thawed from a record spawns with `ThawedAfter { play_seconds }` (clock less `frozen_at`). A held ship or station regenerates from its entry and carries none; a generated body carries none. The restock consumer reads `Added<ThawedAfter>` per owner type.
+- `elapsed_since` panics on a stamp ahead of the clock: no save or session produces one.
+- Save format 14 -> 15; `WorldSaveState.clock`; the header does not show play time.
+- Job expiry is not in this task. The design has only the D1 pitch line "some offers expire" (`DESIGN.html:347`) and `jobs.rs:57` "no job expires until the clock lands"; no decision names a window, what expires or where it is recorded. Not implemented, not invented.
+- No restock consumer here. Task `20261012-100029` is the first consumer; this task stays OPEN until it reads `ThawedAfter`.
+
+## Proof 2026-10-16
+- `nova_world` clock tests: `the_clock_counts_unpaused_time_only` (0.2 s after two 100 ms frames, unchanged over five paused frames, 0.3 s after the unpause), `elapsed_is_the_clock_less_the_freeze_stamp`.
+- `nova_world` frozen tests: `a_thawed_body_carries_the_play_time_it_stood_frozen` (frozen at 10 s, thawed at 25 s, each rock `ThawedAfter { 15.0 }`, fresh rocks none); `ending_the_session_forgets_every_frozen_cell` also asserts the clock resets.
+- `nova_world_base` save tests: `a_saved_clock_resumes_at_the_play_time_it_was_written_with` (leave save writes 123.5 s, `open_world` reads it, `load` restores the resource); the 35 save tests pass.
+- Live (proof lane, Xvfb + lavapipe): `system_world_resume --features debug` create phase crossed (0,0,0) -> (1,0,0); `world.ron` format 15; `state.2.ron` holds `clock: (play_seconds: 0.942221343)` and 27 `frozen_at: 0.942221343` stamps on the 25 retired cells' bodies. Observed once, unrelated to the clock: the example's `inject_fixture` can run before any sector streamed (`system_world_resume.rs:845` panic); a retry passed.
+- `cargo check --workspace --tests` and `cargo check -p nova-protocol --examples --features debug` clean; `cargo fmt` clean.
+
+## Handoff to 20261012-100029
+- Read `ThawedAfter` on thawed stations and ships (`Added<ThawedAfter>` after `NovaWorldSystems::Materialize`) and apply the restock curve; that is the consumer this task's Done when names.
+- `thaw_station` (`crates/nova_scenario/src/objects/station.rs`) still carries a `TODO(20261012-100028)` for owned-station income; retarget or remove it with the first consumer.

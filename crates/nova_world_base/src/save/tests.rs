@@ -35,7 +35,7 @@ use nova_ship::prelude::{
     TorpedoWeave,
 };
 use nova_world::{
-    prelude::{CurrentSector, FrozenBodyType, FrozenSectors, SectorCoord, WorldConfig},
+    prelude::{CurrentSector, FrozenBodyType, FrozenSectors, SectorCoord, WorldClock, WorldConfig},
     SectorRoot,
 };
 
@@ -143,6 +143,7 @@ fn state(generation: u64, credits: u32) -> WorldSaveState {
         scenario: saved_scenario(),
         chart: Chart::default(),
         jobs: Jobs::default(),
+        clock: WorldClock::default(),
     }
 }
 
@@ -736,6 +737,55 @@ fn the_first_frame_and_a_leave_each_write_a_save() {
     .unwrap();
     assert_eq!((header.generation, header.credits), (2, 410));
     assert_eq!(state.player.id.0, "player");
+}
+
+/// The play-time clock a session has seen is written with a leave save and
+/// comes back on a Load: a world resumed after 123.5 s of play reads 123.5 s.
+#[test]
+fn a_saved_clock_resumes_at_the_play_time_it_was_written_with() {
+    let root = tempfile::tempdir().unwrap();
+    let (mut world, _player) = armed_session(root.path());
+    frame(&mut world);
+    frame(&mut world);
+    run_until_idle(&mut world);
+
+    world.insert_resource(WorldClock {
+        play_seconds: 123.5,
+    });
+    world.resource_mut::<WorldSaveSession>().request_leave();
+    run_until_idle(&mut world);
+    assert_eq!(
+        world.resource::<WorldSaveSession>().status(),
+        &WorldSaveStatus::Saved { generation: 2 }
+    );
+    let digest = world.resource::<LoadedSectionPacks>().digest.0;
+    world.remove_resource::<WorldSaveSession>();
+    let (_, lock, _, state) = open_world(
+        root.path(),
+        "session",
+        &catalog(digest),
+        &roles(),
+        &items(),
+        &scenarios(),
+    )
+    .unwrap();
+    assert_eq!(
+        state.clock,
+        WorldClock {
+            play_seconds: 123.5
+        },
+        "the leave save wrote the clock"
+    );
+    drop(lock);
+
+    let resumed = load(root.path(), digest);
+    assert_eq!(
+        *resumed.resource::<WorldClock>(),
+        WorldClock {
+            play_seconds: 123.5
+        },
+        "the Load restored the clock on the arming frame"
+    );
 }
 
 /// Once the world it armed with arms again from the seed - disarmed and
@@ -1877,7 +1927,7 @@ fn ledger(cells: &[(SectorCoord, &[&str])]) -> FrozenSectors {
                 .map(|id| {
                     format!(
                         "(id: Some({id:?}), name: None, transform: {transform}, \
-                         visibility: None, motion: None, body: Ship({ship}))"
+                         visibility: None, motion: None, body: Ship({ship}), frozen_at: 0.0)"
                     )
                 })
                 .collect();
@@ -2214,7 +2264,7 @@ fn canister_ledger(cells: &[(SectorCoord, &[u64])]) -> FrozenSectors {
                     let frozen = freeze_canister(&world, canister).expect("a whole canister");
                     format!(
                         "(id: None, name: None, transform: {transform}, \
-                         visibility: None, motion: None, body: Canister({}))",
+                         visibility: None, motion: None, body: Canister({}), frozen_at: 0.0)",
                         ron::to_string(&frozen).unwrap()
                     )
                 })
@@ -2390,7 +2440,7 @@ fn ledger_with_item(id: &str, coord: SectorCoord, item: &ItemDesignId) -> Frozen
     let transform = ron::to_string(&Transform::IDENTITY).unwrap();
     ron::from_str(&format!(
         "{{{}: Visited([(id: Some({id:?}), name: None, transform: {transform}, \
-         visibility: None, motion: None, body: Ship({}))])}}",
+         visibility: None, motion: None, body: Ship({}), frozen_at: 0.0)])}}",
         ron::to_string(&coord).unwrap(),
         ron::to_string(&frozen).unwrap()
     ))
@@ -2418,7 +2468,7 @@ fn canister_ledger_with_item(coord: SectorCoord, id: u64, item: &ItemDesignId) -
     let frozen = freeze_canister(&world, canister).expect("a whole canister");
     ron::from_str(&format!(
         "{{{}: Visited([(id: None, name: None, transform: {transform}, \
-         visibility: None, motion: None, body: Canister({}))])}}",
+         visibility: None, motion: None, body: Canister({}), frozen_at: 0.0)])}}",
         ron::to_string(&coord).unwrap(),
         ron::to_string(&frozen).unwrap()
     ))
@@ -2431,7 +2481,7 @@ fn ledger_holding(coord: SectorCoord, id: Option<&str>, body: &FrozenBodyType) -
     let transform = ron::to_string(&Transform::IDENTITY).unwrap();
     ron::from_str(&format!(
         "{{{}: Visited([(id: {}, name: None, transform: {transform}, visibility: None, \
-         motion: None, body: {})])}}",
+         motion: None, body: {}, frozen_at: 0.0)])}}",
         ron::to_string(&coord).unwrap(),
         ron::to_string(&id).unwrap(),
         ron::to_string(body).unwrap()

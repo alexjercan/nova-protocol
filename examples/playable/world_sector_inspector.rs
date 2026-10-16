@@ -489,7 +489,15 @@ fn collect_sector(
         debug!("inspector: retiring {old}");
         commands.entity(root).despawn();
     }
-    let root = materialize_sector(&mut commands, prepared, &sections, observer);
+    // The inspector spawns fresh cells only and never thaws a record, so no
+    // body reads the clock.
+    let root = materialize_sector(
+        &mut commands,
+        prepared,
+        &sections,
+        observer,
+        &WorldClock::default(),
+    );
     info!(
         "inspector: live {coord} of seed {}: {rocks} rocks, {planets} planetoids, {ships} ships",
         world.0.seed

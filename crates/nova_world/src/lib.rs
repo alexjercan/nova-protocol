@@ -121,6 +121,11 @@
 //!   A record never holds a transient (a projectile or debris); retirement
 //!   despawns it. [`NovaWorldSystems::Cleanup`] drops the records with the
 //!   work. A saved world writes the ledger to disk through `nova_world_base`.
+//! - [`WorldClock`] counts the play seconds the virtual clock ran while a
+//!   world was armed. A body freezes with the clock's reading, and a thawed
+//!   body carries [`ThawedAfter`], the play time it stood frozen, for its
+//!   owner's catch-up rule. [`NovaWorldSystems::Cleanup`] resets the clock
+//!   with the records; a saved world carries it.
 //! - the plugin owns the WORK. A pending [`SectorJob`] and a prepared
 //!   [`ReadySectors`] payload are not scenario objects and the scenario sweep
 //!   cannot see them, so [`NovaWorldSystems::Cleanup`] drops them the moment
@@ -179,6 +184,7 @@ pub use nova_events::prelude::{GeneratedBodyId, SectorCoord};
 use nova_gameplay::prelude::{Fnv32, SeedStream};
 use nova_scenario::prelude::{scenario_is_live, AsteroidKindId, CurrentScenario, ShipDesignError};
 
+mod clock;
 mod frozen;
 mod generation;
 mod streaming;
@@ -187,6 +193,7 @@ mod streaming;
 mod tests;
 
 pub use crate::{
+    clock::{advance_world_clock, ThawedAfter, WorldClock},
     frozen::{
         adopt_moving_bodies, freeze_body, snapshot_sectors, thaw_record, DockPolicy, FrozenBody,
         FrozenBodyType, FrozenSector, FrozenSectors, PreparedFrozenBody, SectorSnapshotError,
@@ -219,6 +226,7 @@ pub mod prelude {
         SECTOR_SHIP_CLEARANCE_MAX,
     };
     pub use crate::{
+        clock::{ThawedAfter, WorldClock},
         frozen::{
             freeze_body, snapshot_sectors, thaw_record, DockPolicy, FrozenBody, FrozenBodyType,
             FrozenSector, FrozenSectors, PreparedFrozenBody, SectorSnapshotError,
@@ -735,6 +743,7 @@ impl<G: SectorGenerator> Plugin for NovaWorldPlugin<G> {
         app.init_resource::<ReadySectors>();
         app.init_resource::<SectorJobStats>();
         app.init_resource::<FrozenSectors>();
+        app.init_resource::<WorldClock>();
         app.init_resource::<crate::frozen::SettlingBodies>();
         app.init_resource::<crate::streaming::ClearedConfig>();
         app.add_observer(crate::streaming::rename_dead_generated_station);
@@ -788,7 +797,7 @@ impl<G: SectorGenerator> Plugin for NovaWorldPlugin<G> {
             Update,
             (
                 clear_sector_work::<G>.in_set(NovaWorldSystems::Cleanup),
-                track_current_sector::<G>.in_set(NovaWorldSystems::Observe),
+                (advance_world_clock, track_current_sector::<G>).in_set(NovaWorldSystems::Observe),
                 request_sectors::<G>.in_set(NovaWorldSystems::Request),
                 collect_sector_jobs::<G>.in_set(NovaWorldSystems::Collect),
                 (materialize_ready_sector::<G>, materialize_pending_bodies)

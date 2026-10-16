@@ -38,11 +38,12 @@ use super::{
     Answers, Rocks, TEST_HULL_SECTION_ID,
 };
 use crate::{
-    adopt_moving_bodies, clear_sector_work, frozen::SettlingBodies, generation::prepare_cell,
-    materialize_sector, retire_sectors, sector_id, streaming::ClearedConfig, CurrentSector,
-    FrozenBodyType, FrozenSector, FrozenSectors, GeneratedBodyId, ObserverBody, PendingSectorShip,
-    PendingSectorStation, ReadySectors, SectorAsteroid, SectorCoord, SectorGenerationInput,
-    SectorGenerator, SectorJobStats, SectorManifest, SectorRoot, WorldConfig, WorldObserver,
+    adopt_moving_bodies, clear_sector_work, clock::WorldClock, frozen::SettlingBodies,
+    generation::prepare_cell, materialize_sector, retire_sectors, sector_id,
+    streaming::ClearedConfig, CurrentSector, FrozenBody, FrozenBodyType, FrozenSector,
+    FrozenSectors, GeneratedBodyId, ObserverBody, PendingSectorShip, PendingSectorStation,
+    ReadySectors, SectorAsteroid, SectorCoord, SectorGenerationInput, SectorGenerator,
+    SectorJobStats, SectorManifest, SectorRoot, ThawedAfter, WorldConfig, WorldObserver,
 };
 
 /// Arm `config` around `centre` with nothing live yet, so the arming frame's
@@ -53,6 +54,7 @@ fn arm<G: SectorGenerator>(world: &mut World, config: WorldConfig<G>, centre: Se
     world.init_resource::<SectorJobStats>();
     world.init_resource::<ClearedConfig>();
     world.init_resource::<FrozenSectors>();
+    world.init_resource::<WorldClock>();
     world.init_resource::<SettlingBodies>();
     world.init_resource::<Time<Virtual>>();
     world
@@ -87,7 +89,8 @@ fn materialize<G: SectorGenerator>(
         .get_resource::<GameSections>()
         .cloned()
         .unwrap_or_default();
-    let root = materialize_sector(&mut world.commands(), prepared, &sections, observer);
+    let clock = *world.resource::<WorldClock>();
+    let root = materialize_sector(&mut world.commands(), prepared, &sections, observer, &clock);
     world.flush();
     root
 }
@@ -585,6 +588,7 @@ fn ending_the_session_forgets_every_frozen_cell() {
         "home froze without the rock"
     );
 
+    world.resource_mut::<WorldClock>().play_seconds = 40.0;
     world.remove_resource::<WorldConfig<Rocks>>();
     world
         .run_system_once(clear_sector_work::<Rocks>)
@@ -592,6 +596,11 @@ fn ending_the_session_forgets_every_frozen_cell() {
     assert!(
         world.resource::<FrozenSectors>().is_empty(),
         "the session's records are gone"
+    );
+    assert_eq!(
+        *world.resource::<WorldClock>(),
+        WorldClock::default(),
+        "the session's play time is gone with its records"
     );
 
     arm(world, rocks(), home);
@@ -608,6 +617,63 @@ fn ending_the_session_forgets_every_frozen_cell() {
         ids.len(),
         4,
         "a forgotten cell generates whole again: {ids:?}"
+    );
+}
+
+/// A body thawed from a record carries the play time it stood frozen: the
+/// clock at its thaw less the clock at its freeze. A body the generator
+/// spawns fresh has stood frozen for no time and carries nothing.
+#[test]
+fn a_thawed_body_carries_the_play_time_it_stood_frozen() {
+    let mut app = App::new();
+    app.add_plugins(AsteroidPlugin { render: false });
+    let world = app.world_mut();
+    let home = SectorCoord::ORIGIN;
+    let away = home.offset(5, 0, 0);
+    arm(world, rocks(), home);
+    let fresh = materialize::<Rocks>(world, home, far());
+    app.update();
+
+    let world = app.world_mut();
+    let thawed_after = |world: &mut World, root: Entity| -> Vec<Option<f64>> {
+        world
+            .query_filtered::<(&ChildOf, Option<&ThawedAfter>), With<AsteroidMarker>>()
+            .iter(world)
+            .filter(|(child_of, _)| child_of.parent() == root)
+            .map(|(_, after)| after.map(|after| after.play_seconds))
+            .collect()
+    };
+    assert_eq!(
+        thawed_after(world, fresh),
+        vec![None; 4],
+        "a generated rock was never frozen"
+    );
+
+    world.resource_mut::<WorldClock>().play_seconds = 10.0;
+    walk_to::<Rocks>(world, away);
+    let stamps: Vec<f64> = world
+        .resource::<FrozenSectors>()
+        .get(home)
+        .expect("home froze")
+        .bodies()
+        .iter()
+        .map(FrozenBody::frozen_at)
+        .collect();
+    assert_eq!(
+        stamps,
+        vec![10.0; 4],
+        "every rock froze at the clock's reading"
+    );
+
+    world.resource_mut::<WorldClock>().play_seconds = 25.0;
+    walk_to::<Rocks>(world, home);
+    let root = materialize::<Rocks>(world, home, far());
+    app.update();
+    let world = app.world_mut();
+    assert_eq!(
+        thawed_after(world, root),
+        vec![Some(15.0); 4],
+        "each rock stood frozen for the play time between its freeze and its thaw"
     );
 }
 

@@ -40,8 +40,8 @@
 //! and posts a [`nova_gameplay::prelude::JobBoard`] on every living generated
 //! station, seeded from the world seed, the station and what stands around
 //! it, puts an accepted job's bodies in the world and marks a held job done.
-//! A world save carries the chart and the player's [`Jobs`]; on the web they
-//! last one session.
+//! A world save carries the chart, the player's [`Jobs`] and the
+//! [`WorldClock`]; on the web they last one session.
 #![warn(missing_docs)]
 
 use bevy::prelude::*;

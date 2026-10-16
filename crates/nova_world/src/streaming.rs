@@ -36,6 +36,7 @@ use nova_ship::prelude::GameSections;
 
 use crate::{
     bodies_clear,
+    clock::WorldClock,
     frozen::{
         freeze_body, hold_unsettled, thaw_record, DockPolicy, FrozenBody, FrozenSector,
         FrozenSectors, PersistentBody, SettlingBodies,
@@ -229,6 +230,7 @@ pub fn materialize_sector(
     prepared: PreparedSector,
     sections: &GameSections,
     observer: ObserverBody,
+    clock: &WorldClock,
 ) -> Entity {
     let PreparedSector {
         coord,
@@ -339,7 +341,7 @@ pub fn materialize_sector(
             "nova_world: thawing {} frozen body(ies) into {coord}",
             frozen.len()
         );
-        thaw_record(commands, root, frozen);
+        thaw_record(commands, root, frozen, clock);
     }
 
     trace!("nova_world: materialized {coord} with {objects} object(s)");
@@ -876,6 +878,7 @@ pub fn materialize_ready_sector<G: SectorGenerator>(
     mut frozen: ResMut<FrozenSectors>,
     mut stats: ResMut<SectorJobStats>,
     sections: Res<GameSections>,
+    clock: Res<WorldClock>,
     observer: Query<(&GlobalTransform, Option<&IntegrityEnvelope>), With<WorldObserver>>,
 ) {
     assert_world_was_cleared(config.last_changed(), &cleared);
@@ -903,7 +906,7 @@ pub fn materialize_ready_sector<G: SectorGenerator>(
     let observer = ObserverBody::read(transform, envelope);
     // The job carried the record's bodies; the ledger's copy is spent.
     frozen.consume(coord);
-    materialize_sector(&mut commands, prepared, &sections, observer);
+    materialize_sector(&mut commands, prepared, &sections, observer, &clock);
     stats.materialized += 1;
 
     if desired
@@ -1083,6 +1086,7 @@ pub(crate) fn freeze_sector_bodies(
     let Some(children) = world.get::<Children>(root) else {
         return (frozen, unsettled);
     };
+    let clock = world.resource::<WorldClock>();
     for &child in children {
         let entity = world.entity(child);
         // The description spawns a planetoid again unchanged, and a transient
@@ -1090,7 +1094,7 @@ pub(crate) fn freeze_sector_bodies(
         if entity.contains::<PlanetMarker>() || entity.contains::<TempEntity>() {
             continue;
         }
-        match freeze_body(world, child, docked) {
+        match freeze_body(world, child, docked, clock) {
             Ok(body) => {
                 trace!("nova_world: freezing {child} with {coord}");
                 frozen.push((child, body));
@@ -1130,9 +1134,9 @@ pub(crate) fn freeze_sector_bodies(
 ///   belongs to the player's record, and a Load thaws it with the player
 ///   before the world arms.
 ///
-/// Every [`FrozenSectors`] record and every unsettled-body wait goes on each
-/// of those frames too: a record is the state of the world that froze it, and
-/// the session is the most it outlives.
+/// Every [`FrozenSectors`] record, the [`WorldClock`] and every
+/// unsettled-body wait go on each of those frames too: a record is the state
+/// of the world that froze it, and the session is the most it outlives.
 ///
 /// It runs before the streaming stages, so a world that is replaced and
 /// re-armed in one frame cannot spawn the old world's prepared sectors into
@@ -1159,6 +1163,7 @@ pub fn clear_sector_work<G: SectorGenerator>(
     jobs: Query<Entity, With<SectorJob>>,
     mut ready: ResMut<ReadySectors>,
     mut frozen: ResMut<FrozenSectors>,
+    mut clock: ResMut<WorldClock>,
     mut settling: ResMut<SettlingBodies>,
     mut stats: ResMut<SectorJobStats>,
     mut cleared: ResMut<ClearedConfig>,
@@ -1179,8 +1184,12 @@ pub fn clear_sector_work<G: SectorGenerator>(
         (0, 0)
     };
     // Every frame this runs on, the session or the world that froze a record
-    // is gone: an unload, a replaced scenario, a Retry, a swapped config.
+    // is gone: an unload, a replaced scenario, a Retry, a swapped config. The
+    // clock goes with the records; a Load restores both after this.
     let forgotten = frozen.clear();
+    if *clock != WorldClock::default() {
+        *clock = WorldClock::default();
+    }
     let waits = settling.clear();
     if jobs.is_empty()
         && ready.0.is_empty()

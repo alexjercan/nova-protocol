@@ -2606,6 +2606,7 @@ mod generated_wreck {
                 position: centre + Meters3::new(0.0, 0.0, 10_000.0),
                 reach: Meters::ZERO,
             },
+            &WorldClock::default(),
         );
         world.flush();
         let wreck = world

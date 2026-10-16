@@ -44,12 +44,12 @@ use nova_ship::prelude::{
 mod frozen;
 
 use crate::{
-    generate_sector, materialize_pending_bodies, materialize_sector, prepare_sector, sector_id,
-    validate_manifest, CivilizationId, GeneratedBodyId, NovaWorldPlugin, ObserverBody,
-    PendingSectorShip, SectorAsteroid, SectorCoord, SectorFault, SectorGenerationInput,
-    SectorGenerator, SectorManifest, SectorPlanet, SectorShip, SectorShipConditionType,
-    SectorStation, WorldConfig, WorldGeometry, WorldObserver, ACTIVE_WINDOW_SECTORS_MAX,
-    SECTOR_SHIP_CLEARANCE_MAX,
+    clock::WorldClock, generate_sector, materialize_pending_bodies, materialize_sector,
+    prepare_sector, sector_id, validate_manifest, CivilizationId, GeneratedBodyId, NovaWorldPlugin,
+    ObserverBody, PendingSectorShip, SectorAsteroid, SectorCoord, SectorFault,
+    SectorGenerationInput, SectorGenerator, SectorManifest, SectorPlanet, SectorShip,
+    SectorShipConditionType, SectorStation, WorldConfig, WorldGeometry, WorldObserver,
+    ACTIVE_WINDOW_SECTORS_MAX, SECTOR_SHIP_CLEARANCE_MAX,
 };
 
 /// The texture path every test rock names. Never loaded: no test here renders.
@@ -980,6 +980,7 @@ fn a_materialized_asteroid_opts_into_gravity() {
             position: Meters3::new(0.0, 0.0, 0.0),
             reach: Meters::ZERO,
         },
+        &WorldClock::default(),
     );
     world.flush();
     app.update();
@@ -1133,6 +1134,7 @@ fn materialize_one_ship(world: &mut World, offset: f32) -> Entity {
         prepared,
         &test_sections(),
         observer_at(config.input(SectorCoord::ORIGIN), offset),
+        &WorldClock::default(),
     );
     world.flush();
     root
@@ -1259,6 +1261,7 @@ fn a_materialized_derelict_is_lootable_and_unflown_and_an_intact_ship_is_flown_b
         prepared,
         &test_sections(),
         observer_at(config.input(SectorCoord::ORIGIN), 5_000.0),
+        &WorldClock::default(),
     );
     world.flush();
 
@@ -1361,6 +1364,7 @@ fn a_ship_design_the_loaded_sections_do_not_resolve_is_refused_at_spawn() {
             position: Meters3::new(0.0, 0.0, 0.0),
             reach: Meters::ZERO,
         },
+        &WorldClock::default(),
     );
 }
 

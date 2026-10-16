@@ -23,7 +23,9 @@ use nova_ship::prelude::{
     ChaseCameraPlugin, ChaseZoom, ShipStyleConfig, SpaceshipCameraController,
     SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker,
 };
-use nova_world::prelude::{CurrentSector, FrozenSectors, SectorCoord, WorldConfig, WorldObserver};
+use nova_world::prelude::{
+    CurrentSector, FrozenSectors, SectorCoord, WorldClock, WorldConfig, WorldObserver,
+};
 
 use crate::{
     role_style_id, save, GameStyles, NovaLayeredWorld, StationArchetypeType,
@@ -128,6 +130,7 @@ pub fn arm_save_fixture(world: &mut World) -> Entity {
         generator,
     });
     world.init_resource::<FrozenSectors>();
+    world.init_resource::<WorldClock>();
     world.init_resource::<CargoCanisterIdAllocator>();
     world.init_resource::<Time<Virtual>>();
     world.init_resource::<Time<Real>>();

@@ -282,6 +282,7 @@ mod walk {
     };
     use nova_world::prelude::{
         freeze_body, thaw_record, DockPolicy, FrozenBodyType, PreparedFrozenBody, SectorCoord,
+        WorldClock,
     };
 
     use super::*;
@@ -797,8 +798,13 @@ mod walk {
         world
             .entity_mut(player)
             .insert((LinearVelocity(Vec3::ZERO), AngularVelocity(Vec3::ZERO)));
-        let frozen = freeze_body(world, player, DockPolicy::Refuse)
-            .expect("station swap probe: an undocked hull at rest is settled");
+        let frozen = freeze_body(
+            world,
+            player,
+            DockPolicy::Refuse,
+            world.resource::<WorldClock>(),
+        )
+        .expect("station swap probe: an undocked hull at rest is settled");
         let FrozenBodyType::Ship(record) = frozen.body() else {
             panic!(
                 "station swap probe: the player froze as {:?}, not a ship",
@@ -818,8 +824,9 @@ mod walk {
             ))
             .id();
         let prepared = PreparedFrozenBody::prepare(SectorCoord::new(0, 0, 0), frozen, &[], &[]);
+        let clock = *world.resource::<WorldClock>();
         let mut commands = world.commands();
-        thaw_record(&mut commands, root, vec![prepared]);
+        thaw_record(&mut commands, root, vec![prepared], &clock);
         world.flush();
         world.resource_mut::<SwapWatch>().frozen_root = Some(player);
     }

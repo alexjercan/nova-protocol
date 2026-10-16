@@ -31,7 +31,8 @@
 //! It also carries the player's [`Chart`]: the cells the player entered, the
 //! stations and wrecks found, and each station's last-seen summary, whose
 //! item ids pass the same check as every saved hold, and the player's
-//! [`Jobs`]: the jobs held and the ids completed, checked the same way.
+//! [`Jobs`]: the jobs held and the ids completed, checked the same way, and
+//! the [`WorldClock`], the play time every frozen body's stamp reads against.
 
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
@@ -52,7 +53,7 @@ use nova_scenario::prelude::{
     StartRoleDesignId,
 };
 use nova_ship::prelude::{CameraView, SavedTorpedoTarget, FLEET_SIDES};
-use nova_world::prelude::{FrozenBody, FrozenBodyType, FrozenSectors, SectorCoord};
+use nova_world::prelude::{FrozenBody, FrozenBodyType, FrozenSectors, SectorCoord, WorldClock};
 use serde::{Deserialize, Serialize};
 
 mod session;
@@ -76,7 +77,7 @@ pub use transients::{
 /// nobody held live is recorded as an arrival there. Every cell the player
 /// never visited regenerates from the seed on Load, so another generator
 /// would change it silently.
-pub const WORLD_SAVE_FORMAT: u32 = 14;
+pub const WORLD_SAVE_FORMAT: u32 = 15;
 
 /// The most characters a world name has, after trimming.
 const WORLD_NAME_MAX: usize = 32;
@@ -139,6 +140,9 @@ pub struct WorldSaveState {
     pub chart: Chart,
     /// The jobs the player holds, has done and has completed.
     pub jobs: Jobs,
+    /// The play-time clock: the seconds of unpaused, armed play the world
+    /// has seen. Every frozen body's `frozen_at` reads against it.
+    pub clock: WorldClock,
 }
 
 /// The player ship as it was saved.

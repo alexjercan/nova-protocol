@@ -39,7 +39,7 @@ use nova_protocol::prelude::*;
 #[cfg(feature = "debug")]
 use nova_world::prelude::{
     freeze_body, thaw_record, DockPolicy, FrozenBody, FrozenBodyType, PreparedFrozenBody,
-    SectorCoord,
+    SectorCoord, WorldClock,
 };
 
 #[derive(Parser)]
@@ -477,8 +477,13 @@ fn assert_station_holds(world: &mut World) {
 #[cfg(feature = "debug")]
 fn freeze_and_thaw_station(world: &mut World) {
     let station = live_station(world).expect("station probe: the station must be up");
-    let frozen = freeze_body(world, station, DockPolicy::Refuse)
-        .expect("station probe: a parked station is settled");
+    let frozen = freeze_body(
+        world,
+        station,
+        DockPolicy::Refuse,
+        world.resource::<WorldClock>(),
+    )
+    .expect("station probe: a parked station is settled");
     let FrozenBodyType::Station(record) = frozen.body() else {
         panic!(
             "station probe: the station froze as {:?}, not a station",
@@ -520,8 +525,9 @@ fn freeze_and_thaw_station(world: &mut World) {
         ))
         .id();
     let prepared = PreparedFrozenBody::prepare(SectorCoord::new(0, 0, 0), frozen.clone(), &[], &[]);
+    let clock = *world.resource::<WorldClock>();
     let mut commands = world.commands();
-    thaw_record(&mut commands, root, vec![prepared]);
+    thaw_record(&mut commands, root, vec![prepared], &clock);
     world.flush();
     world.resource_mut::<StationEpoch>().frozen = Some(frozen);
 }

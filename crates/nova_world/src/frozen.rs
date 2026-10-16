@@ -45,6 +45,7 @@ use nova_ship::prelude::{
 };
 
 use crate::{
+    clock::{ThawedAfter, WorldClock},
     desired_sectors, live_sectors,
     streaming::{assert_world_was_cleared, freeze_sector_bodies, ClearedConfig},
     CurrentSector, PendingSectorShip, PendingSectorStation, SectorCoord, SectorGenerator,
@@ -378,6 +379,8 @@ pub struct FrozenBody {
     /// Linear and angular velocity, in engine units.
     motion: Option<(Vec3, Vec3)>,
     body: FrozenBodyType,
+    /// The [`WorldClock`] reading when the body froze, in play seconds.
+    frozen_at: f64,
 }
 
 /// [`Visibility`] has no serde form of its own; a record writes its variant
@@ -434,6 +437,11 @@ impl FrozenBody {
     /// What the body is.
     pub fn body(&self) -> &FrozenBodyType {
         &self.body
+    }
+
+    /// The play seconds the world clock read when the body froze.
+    pub fn frozen_at(&self) -> f64 {
+        self.frozen_at
     }
 }
 
@@ -496,6 +504,9 @@ pub enum DockPolicy {
 /// The owner's [`UnsettledBody`] while a multi-frame process runs on it. The
 /// caller keeps the body live and asks again on a later frame.
 ///
+/// The record is stamped with `clock`, so its thaw knows how much play
+/// passed while it stood frozen.
+///
 /// # Panics
 ///
 /// On a docked ship under [`DockPolicy::Refuse`]. And on an entity that is no
@@ -504,7 +515,9 @@ pub fn freeze_body(
     world: &World,
     entity: Entity,
     docked: DockPolicy,
+    clock: &WorldClock,
 ) -> Result<FrozenBody, UnsettledBody> {
+    let frozen_at = clock.play_seconds;
     let body = world.entity(entity);
     if let Some(held) = body.get::<PendingSectorShip>() {
         let id = held.ship().id.to_string();
@@ -515,6 +528,7 @@ pub fn freeze_body(
             visibility: None,
             motion: None,
             body: FrozenBodyType::PendingShip { id },
+            frozen_at,
         });
     }
     if let Some(held) = body.get::<PendingSectorStation>() {
@@ -526,6 +540,7 @@ pub fn freeze_body(
             visibility: None,
             motion: None,
             body: FrozenBodyType::PendingStation { id },
+            frozen_at,
         });
     }
     let name = body.get::<Name>().map(ToString::to_string);
@@ -576,6 +591,7 @@ pub fn freeze_body(
             .map(|linear| linear.0)
             .zip(body.get::<AngularVelocity>().map(|angular| angular.0)),
         body: frozen,
+        frozen_at,
     })
 }
 
@@ -601,8 +617,16 @@ fn only_parked_docks(world: &World, station: Entity) -> bool {
 }
 
 /// Spawn frozen `bodies` under `root`, each where and as it froze, with the
-/// geometry the cell's worker prepared for it.
-pub fn thaw_record(commands: &mut Commands, root: Entity, bodies: Vec<PreparedFrozenBody>) {
+/// geometry the cell's worker prepared for it. Each thawed body carries
+/// [`ThawedAfter`]: the play seconds between its freeze and `clock`, for its
+/// owner's catch-up rule. A held ship or station regenerates from its entry
+/// unchanged and carries none.
+pub fn thaw_record(
+    commands: &mut Commands,
+    root: Entity,
+    bodies: Vec<PreparedFrozenBody>,
+    clock: &WorldClock,
+) {
     for prepared in bodies {
         let (
             FrozenBody {
@@ -612,6 +636,7 @@ pub fn thaw_record(commands: &mut Commands, root: Entity, bodies: Vec<PreparedFr
                 visibility,
                 motion,
                 body,
+                frozen_at,
             },
             geometry,
         ) = match prepared {
@@ -630,6 +655,9 @@ pub fn thaw_record(commands: &mut Commands, root: Entity, bodies: Vec<PreparedFr
             transform,
             GlobalTransform::from(transform),
             ChildOf(root),
+            ThawedAfter {
+                play_seconds: clock.elapsed_since(frozen_at),
+            },
         ));
         if let Some(id) = id {
             // A generated body thaws with its typed id beside the string, as
@@ -773,7 +801,12 @@ pub fn adopt_moving_bodies<G: SectorGenerator>(world: &mut World) {
                     world.entity_mut(entity).remove::<ChildOf>();
                 }
             }
-            _ => match freeze_body(world, entity, DockPolicy::Refuse) {
+            _ => match freeze_body(
+                world,
+                entity,
+                DockPolicy::Refuse,
+                world.resource::<WorldClock>(),
+            ) {
                 Ok(body) => {
                     debug!("nova_world: froze {entity} into off-window {coord}");
                     world.resource_mut::<FrozenSectors>().arrive(coord, body);
@@ -957,7 +990,12 @@ pub fn snapshot_sectors<G: SectorGenerator>(
     for (entity, translation) in waiting {
         // Engine boundary: a pose counts world units, a cell meters.
         let coord = SectorCoord::containing(Meters3::from_engine(translation), edge);
-        match freeze_body(world, entity, DockPolicy::Undock) {
+        match freeze_body(
+            world,
+            entity,
+            DockPolicy::Undock,
+            world.resource::<WorldClock>(),
+        ) {
             Ok(body) => ledger.arrive(coord, body),
             Err(reason) => {
                 return Err(SectorSnapshotError::Unsettled {

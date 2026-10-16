@@ -48,7 +48,10 @@ does NOT get an entry. Another page that states a different rule is wrong.
   save.
 - **(breaking)** Generated stations and ships now price each item by their
   stock, cluster type and civilization; the Inventory pane shows the factors.
-  `PriceTable` content sets them. Save format 14.
+  `PriceTable` content sets them. Save format 15.
+- **(breaking)** A saved world now keeps a play-time clock that runs only
+  while you fly unpaused, and each sector you leave records when it froze.
+  Nothing reads it yet. Save format 15.
 
 ### Combat & Weapons
 
