@@ -162,8 +162,8 @@ fn the_same_surface_rules_and_seed_give_the_same_placements() {
     assert_eq!(seed, greeble_seed("industrial"));
 
     for offset in 0..4 {
-        let first = solve_greebles(&surface, &rules, seed + offset);
-        let second = solve_greebles(&surface, &rules, seed + offset);
+        let first = solve_greebles(&surface, &rules, seed + offset, |_, _| true);
+        let second = solve_greebles(&surface, &rules, seed + offset, |_, _| true);
         assert_eq!(first, second);
         assert!(!first.fallback);
     }
@@ -215,8 +215,8 @@ fn kept_outside(
         link_keys(&old_plates, &old_surface),
         link_keys(&new_plates, &new_surface),
     );
-    let old = solve_greebles(&old_surface, rules, seed);
-    let new = solve_greebles(&new_surface, rules, seed);
+    let old = solve_greebles(&old_surface, rules, seed, |_, _| true);
+    let new = solve_greebles(&new_surface, rules, seed, |_, _| true);
     let old_at: BTreeMap<PlateKey, usize> = old_plates
         .iter()
         .enumerate()
@@ -301,7 +301,7 @@ fn a_line_greeble_runs_to_a_border_or_ends_in_a_line_end_greeble() {
 
     let mut lines = 0;
     for seed in 0..32 {
-        let solution = solve_greebles(&surface, &rules, seed);
+        let solution = solve_greebles(&surface, &rules, seed, |_, _| true);
         assert_links_connect(&surface, &rules, &solution);
         for start in 0..surface.len() {
             let placement = placed(&solution, start);
@@ -355,7 +355,7 @@ fn a_greeble_whose_link_points_connect_only_to_empty_has_only_empty_neighbours()
 
     let mut cranes = 0;
     for seed in 0..32 {
-        let solution = solve_greebles(&surface, &rules, seed);
+        let solution = solve_greebles(&surface, &rules, seed, |_, _| true);
         for cell in (0..surface.len()).filter(|cell| placed(&solution, *cell).greeble == crane) {
             cranes += 1;
             for link in surface.cells()[cell].links.iter().flatten() {
@@ -391,7 +391,7 @@ fn a_factor_zero_near_term_is_never_violated() {
 
     let mut most = 0;
     for seed in 0..32 {
-        let solution = solve_greebles(&surface, &rules, seed);
+        let solution = solve_greebles(&surface, &rules, seed, |_, _| true);
         let vents: Vec<usize> = (0..surface.len())
             .filter(|cell| placed(&solution, *cell).greeble == vent)
             .collect();
@@ -430,7 +430,7 @@ fn max_count_is_never_exceeded() {
 
     let mut reached = false;
     for seed in 0..16 {
-        let solution = solve_greebles(&surface, &rules, seed);
+        let solution = solve_greebles(&surface, &rules, seed, |_, _| true);
         let count = solution
             .cells
             .iter()

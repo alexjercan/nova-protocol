@@ -32,7 +32,7 @@ use bevy::{platform::collections::HashSet, prelude::*};
 use crate::sections::{
     shell_shape::ShellShape,
     shell_skin::{cladding_cells, exit_pocket, SkinPlate, SkinStructure, FACES},
-    skin_decor::solve_decor,
+    skin_decor::{decor_footprint, DecorPlacement},
     skin_reading::{fallen_corners, PlateReading, PlateRelief, RELIEFS},
     skin_style::ShipStyleConfig,
 };
@@ -87,14 +87,16 @@ pub struct SkinReport {
     /// How many of those stand on a plate that is NOT
     /// [`Flat`](PlateRelief::Flat) - the placement complaint, counted.
     pub decor_off_flat: usize,
-    /// How many stand on a plate with no seat: a crease or a cap under the
-    /// middle, where the piece stands.
-    pub decor_on_creased: usize,
+    /// How many stand on a plate whose top under the piece's turned
+    /// footprint is not one plane ([`ShellShape::seats`]): the piece overhangs
+    /// a chamfer, a cap or a crease. The plate fit claims this is zero, so
+    /// anything else is a defect.
+    pub decor_unseated: usize,
     /// The mean [`tilt`](ShellShape::tilt) of the plates carrying a piece, in
     /// radians - how raked the ground under the decoration is.
     ///
     /// The number the placement work is judged on, next to
-    /// [`decor_on_creased`](SkinReport::decor_on_creased): a piece is bedded
+    /// [`decor_unseated`](SkinReport::decor_unseated): a piece is bedded
     /// onto its plate, so this is no longer how far the piece leans off its
     /// own footing, but it is still how far the FOOTING leans off the ship.
     pub decor_tilt: f32,
@@ -129,7 +131,8 @@ pub struct PlateReport {
     pub anchor: IVec3,
     /// The face it shows to space, in the ship's cells.
     pub out: IVec3,
-    /// The shape it wears, canonical, in its own frame.
+    /// The shape it wears in its own frame, seated for its piece when it
+    /// carries one.
     pub shape: ShellShape,
     /// The neighbourhood the plate stands in.
     pub reading: PlateReading,
@@ -153,6 +156,9 @@ pub struct DecorReport {
     pub id: String,
     /// Quarter turns about the plate's out axis.
     pub turns: u8,
+    /// Whether the plate's top is one plane under the whole turned footprint
+    /// of the piece - see [`ShellShape::seats`].
+    pub seated: bool,
 }
 
 /// Why a cell that touches the hull carries no plate.
@@ -202,19 +208,24 @@ pub struct BareCell {
 
 /// Read a derived skin back as facts.
 ///
-/// `plates` and `readings` are the derivation's own answers, index-aligned, so
-/// the report cannot drift from the skin it describes. `style` is the look the
-/// ship wears, or `None` for a ship wearing none - the decoration half is then
-/// empty rather than absent.
+/// `plates`, `readings` and `decor` are the derivation's own answers: the
+/// plates as [`solve_decor`] seated them, their readings index-aligned, and
+/// the placements it returned. So the report cannot drift from the skin it
+/// describes. `style` is the look the ship wears, or `None` for a ship
+/// wearing none - `decor` is then empty and the decoration half is empty
+/// rather than absent.
 ///
 /// A pure function of its arguments, and deterministic in every part: the
 /// plates arrive sorted, the bare cells are sorted here, and nothing is
 /// sampled. Two reports of one structure are equal.
+///
+/// [`solve_decor`]: super::skin_decor::solve_decor
 pub fn skin_report(
     structure: &SkinStructure,
     plates: &[SkinPlate],
     readings: &[PlateReading],
     style: Option<&ShipStyleConfig>,
+    decor: &[DecorPlacement],
 ) -> SkinReport {
     let clad: HashSet<IVec3> = plates.iter().map(|plate| plate.cell).collect();
     let mut rows: Vec<PlateReport> = plates
@@ -237,11 +248,13 @@ pub fn skin_report(
     let mut rules: Vec<RuleCount> = Vec::new();
     if let Some(style) = style {
         let mut taken = vec![0usize; style.fixtures.len()];
-        for placement in solve_decor(structure, plates, style) {
+        for placement in decor {
             let fixture = &style.fixtures[placement.fixture];
+            let half = decor_footprint(fixture, placement.turns);
             rows[placement.plate].decor.push(DecorReport {
                 id: fixture.id.clone(),
                 turns: placement.turns,
+                seated: plates[placement.plate].shape.seats(half),
             });
             taken[placement.fixture] += 1;
         }
@@ -288,10 +301,11 @@ pub fn skin_report(
             .filter(|row| row.reading.relief != PlateRelief::Flat)
             .map(|row| row.decor.len())
             .sum(),
-        decor_on_creased: decorated()
-            .filter(|row| !row.reading.seat)
-            .map(|row| row.decor.len())
-            .sum(),
+        decor_unseated: rows
+            .iter()
+            .flat_map(|row| &row.decor)
+            .filter(|piece| !piece.seated)
+            .count(),
         decor_tilt: match decorated().map(|row| row.decor.len()).sum::<usize>() {
             0 => 0.0,
             placed => {
@@ -383,8 +397,8 @@ pub fn skin_summary(report: &SkinReport) -> String {
     format!(
         "{} plate(s): {} flat-topped ({:.0}%), {} leaning; \
          mean flat area {:.3} cell^2; {} bare hull face(s) over {} bare cell(s); \
-         {} piece(s), {} off flat ({:.0}%), {} on a creased top, mean tilt under \
-         a piece {:.3} rad",
+         {} piece(s), {} off flat ({:.0}%), {} unseated, mean tilt under a piece \
+         {:.3} rad",
         report.plates.len(),
         report.coplanar,
         100.0 * report.coplanar as f32 / plates,
@@ -395,7 +409,7 @@ pub fn skin_summary(report: &SkinReport) -> String {
         report.decor,
         report.decor_off_flat,
         100.0 * report.decor_off_flat as f32 / decor,
-        report.decor_on_creased,
+        report.decor_unseated,
         report.decor_tilt,
     )
 }
@@ -406,6 +420,7 @@ mod tests {
     use crate::sections::{
         shell_shape::{ShellEdgeType, FULL},
         shell_skin::derive_skin,
+        skin_decor::solve_decor,
         skin_reading::read_plates,
         skin_style::block_style,
     };
@@ -430,9 +445,10 @@ mod tests {
     }
 
     fn report(structure: &SkinStructure, style: Option<&ShipStyleConfig>) -> SkinReport {
-        let plates = derive_skin(structure);
+        let mut plates = derive_skin(structure);
+        let decor = style.map_or_else(Vec::new, |style| solve_decor(structure, &mut plates, style));
         let readings = read_plates(structure, &plates);
-        skin_report(structure, &plates, &readings, style)
+        skin_report(structure, &plates, &readings, style, &decor)
     }
 
     /// The row for the plate standing in `cell`.

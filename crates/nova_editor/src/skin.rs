@@ -144,7 +144,14 @@ pub(crate) fn sync_editor_skin(
         .insert(ShipStyle(style.map(|style| style.id.clone())));
 
     let (structure, phase, _) = read_structure(&placed);
-    let plates = derive_skin(&structure);
+    let mut plates = derive_skin(&structure);
+    // Decoration, from the SAME greeble solve the flown ship runs - it is a
+    // pure function of the structure and the style, so the build view can
+    // show it without a gameplay half. Solved before the plates are drawn,
+    // because a plate that takes a piece is reshaped to seat it.
+    let decor = style.map_or_else(Vec::new, |style| {
+        solve_decor(&structure, &mut plates, style)
+    });
     let mut laid: Vec<Entity> = Vec::with_capacity(plates.len());
     for plate in &plates {
         laid.push(
@@ -171,15 +178,13 @@ pub(crate) fn sync_editor_skin(
         );
     }
 
-    // Decoration, from the SAME greeble solve the flown ship runs - it is a
-    // pure function of the structure and the style, so the build view can
-    // show it without a gameplay half. A preview greeble is a marker, a pose and a visibility and
-    // nothing else: no collider for the pointer to hit, no health, and no
+    // A preview greeble is a marker, a pose and a visibility and nothing
+    // else: no collider for the pointer to hit, no health, and no
     // `EditorSkinPlate` of its own, since it goes when its plate does.
     let readings = read_plates(&structure, &plates);
     let mut taken: Vec<usize> = vec![0; style.map_or(0, |style| style.fixtures.len())];
     if let Some(style) = style {
-        for placement in solve_decor(&structure, &plates, style) {
+        for placement in decor {
             commands.spawn((
                 DespawnOnExit(ExampleStates::Editor),
                 Name::new("Editor Skin Decor"),

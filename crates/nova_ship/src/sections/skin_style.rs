@@ -179,7 +179,17 @@ impl ShipStyleConfig {
                 continue;
             };
             match self.fixtures.iter().position(|fixture| fixture.id == id) {
-                Some(index) => fixtures.push(Some(index)),
+                Some(index) => {
+                    let collider = self.fixtures[index].collider;
+                    if collider.x.max(collider.z) > 1.0 {
+                        faults.push(StyleGreebleError::OversizeFixture {
+                            greeble: greeble.id.clone(),
+                            fixture: id.to_string(),
+                            collider,
+                        });
+                    }
+                    fixtures.push(Some(index));
+                }
                 None => faults.push(StyleGreebleError::UnknownFixture {
                     greeble: greeble.id.clone(),
                     fixture: id.to_string(),
@@ -234,6 +244,17 @@ pub enum StyleGreebleError {
         /// The fixture id it names.
         fixture: String,
     },
+    /// A greeble places a fixture whose collider is wider than one cell
+    /// across the plate, so no plate can seat it and the solve could never
+    /// place it.
+    OversizeFixture {
+        /// The greeble.
+        greeble: GreebleDesignId,
+        /// The fixture id it names.
+        fixture: String,
+        /// The fixture's collider, in cells.
+        collider: Vec3,
+    },
 }
 
 impl std::fmt::Display for StyleGreebleError {
@@ -243,6 +264,16 @@ impl std::fmt::Display for StyleGreebleError {
             Self::UnknownFixture { greeble, fixture } => write!(
                 f,
                 "greeble '{greeble}' names fixture '{fixture}', which the style does not list"
+            ),
+            Self::OversizeFixture {
+                greeble,
+                fixture,
+                collider,
+            } => write!(
+                f,
+                "greeble '{greeble}' places fixture '{fixture}', whose collider is {} x {} cells \
+                 across the plate; no plate is wider than 1 cell, so none can seat it",
+                collider.x, collider.z
             ),
         }
     }

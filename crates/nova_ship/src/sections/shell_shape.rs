@@ -80,10 +80,9 @@ const MIN_PIECE_AREA: f32 = 1e-7;
 /// half a cell of drop takes a quarter of the plate.
 const CHAMFER_SLOPE: f32 = 2.0;
 
-/// How far from the middle of a plate, each way along both axes, a
-/// decoration needs one plane under it: a generated piece is at most half a
-/// cell across.
-const SEAT_REACH: f32 = REACH / 2.0;
+/// How many steps a seat's reach is counted in per cell: a seat digit `d`
+/// reaches `d / SEAT_STEPS` of a cell from the plate's middle.
+pub const SEAT_STEPS: u8 = 64;
 
 /// The slope of a diagonal stair's ramp: one cell of height per cell of run,
 /// so a whole-cell plate falls to the floor across its full width.
@@ -93,6 +92,15 @@ const RAMP_SLOPE: f32 = 1.0;
 /// wall corner the cover closes the wall's face with a thin web against it
 /// instead of a tooth across the plate.
 const WALL_SLOPE: f32 = 8.0;
+
+/// The steepest a plate steepens a chamfer, a ramp end or a corner cap to seat
+/// a decoration: a whole cell of drop over one [`SEAT_STEPS`] step. So a
+/// plateau may reach to within the drop over this slope of an edge it falls
+/// at - a 128th of a cell for half a cell of drop - and a piece that reaches
+/// past that does not fit that plate. Near vertical on purpose: a line greeble
+/// is authored nearly a cell long so it meets the next plate's, and the plate
+/// at the end of its run has to seat it.
+const STEEPEST_SLOPE: f32 = SEAT_STEPS as f32;
 
 /// The four corners of the outward face, as signs on x and z, in the order an
 /// id reads them. A quarter turn about the out axis is one step along this
@@ -203,6 +211,12 @@ pub struct ShellShape {
     /// between [`HALF`] and the level. A corner below the level caps a
     /// whole-cell plate with a bevel; a half-cell plate always reads `HALF`.
     pub soft_corners: [u8; 4],
+    /// How far the plateau must reach from the middle toward each edge, in
+    /// [`SEAT_STEPS`] of a cell: the seat of the decoration the plate
+    /// carries. A chamfer, a ramp end or a corner cap that would cut into
+    /// that rectangle is steepened until it clears it; the feet do not move.
+    /// All zero on a plate that steepens nothing. See [`ShellShape::seated`].
+    pub seat: [u8; 4],
 }
 
 impl ShellShape {
@@ -244,18 +258,24 @@ impl ShellShape {
             feet,
             edges,
             soft_corners,
+            seat: [0; 4],
         })
     }
 
     /// The id that spells this shape: the level, the four feet, the four edge
-    /// letters and the four soft corners. Names a plate in a dump and a probe
-    /// snapshot; nothing keys on it.
+    /// letters and the four soft corners, then the four seat reaches as two
+    /// digits each where the plate seats a piece. Names a plate in a dump and
+    /// a probe snapshot; nothing keys on it.
     pub fn id(&self) -> String {
         let digits =
             |round: [u8; 4]| -> String { round.map(|h| char::from(b'0' + h)).iter().collect() };
         let letters: String = self.edges.map(ShellEdgeType::letter).iter().collect();
+        let seat = match self.seat {
+            [0, 0, 0, 0] => String::new(),
+            [a, b, c, d] => format!("_{a:02}{b:02}{c:02}{d:02}"),
+        };
         format!(
-            "{SHELL_ID_PREFIX}{}_{}_{letters}_{}",
+            "{SHELL_ID_PREFIX}{}_{}_{letters}_{}{seat}",
             self.level,
             digits(self.feet),
             digits(self.soft_corners),
@@ -270,6 +290,7 @@ impl ShellShape {
             feet: std::array::from_fn(|i| self.feet[(i + steps) % 4]),
             edges: std::array::from_fn(|i| self.edges[(i + steps) % 4]),
             soft_corners: std::array::from_fn(|i| self.soft_corners[(i + steps) % 4]),
+            seat: std::array::from_fn(|i| self.seat[(i + steps) % 4]),
         }
     }
 
@@ -314,28 +335,61 @@ impl ShellShape {
         self.flat_area() >= 1.0 - EPSILON
     }
 
-    /// Whether a piece stood on the middle of the plate has ONE PLANE under
-    /// it, level or raked: the top is a single plane over the middle half of
-    /// the cell, [`SEAT_REACH`] each way along both axes.
+    /// Whether a piece stood on the middle of the plate, `half` cells each way
+    /// along `x` and `z` in the tile's own frame, has ONE PLANE under its
+    /// whole footprint: the plane under the middle, the one
+    /// [`seat_normal`](Self::seat_normal) beds it on.
     ///
-    /// The seat a flat-bottomed decoration needs. A plateau chamfered at its
-    /// rim still has one, since a chamfer never reaches past a quarter cell
-    /// into the plate; a ridge or a cap running under the middle does not.
-    pub fn has_seat(&self) -> bool {
+    /// The seat a flat-bottomed decoration needs. Exact rather than sampled:
+    /// the seat plane is the top over the rectangle when every lower plane of
+    /// the top stands above it, and every wall cover below it, at the four
+    /// corners, and each of those differences is linear. A footprint wider
+    /// than the cell has no seat.
+    pub fn seats(&self, half: Vec2) -> bool {
+        if half.max_element() > REACH + EPSILON {
+            return false;
+        }
         let top = self.top_planes();
-        let points = [
-            Vec2::ZERO,
-            Vec2::splat(SEAT_REACH),
-            Vec2::new(SEAT_REACH, -SEAT_REACH),
-            Vec2::splat(-SEAT_REACH),
-            Vec2::new(-SEAT_REACH, SEAT_REACH),
-        ];
-        let seated = top.all().any(|plane| {
-            points
+        let seat = top.seat_plane();
+        let corners = rectangle(half);
+        let above = |plane: &Plane| {
+            corners
                 .iter()
-                .all(|p| (plane.at(*p) - top.height(*p)).abs() < EPSILON)
-        });
-        seated
+                .all(|c| plane.at(*c) >= seat.at(*c) - EPSILON)
+        };
+        let below = |plane: &Plane| {
+            corners
+                .iter()
+                .all(|c| plane.at(*c) <= seat.at(*c) + EPSILON)
+        };
+        top.envelope.iter().chain(&top.caps).all(above) && top.walls.iter().all(below)
+    }
+
+    /// This shape reshaped to seat a piece `half` cells each way along `x`
+    /// and `z` in the tile's own frame, or `None` when it cannot.
+    ///
+    /// The plateau grows to cover the footprint, rounded up to a
+    /// [`SEAT_STEPS`] step, by steepening every chamfer, ramp end and corner
+    /// cap that cuts into it, up to [`STEEPEST_SLOPE`]. The feet stay where
+    /// they are, so the plate still meets its neighbours at the same heights
+    /// along its edges. A shape that already seats the piece comes back as it
+    /// is, so a piece that fits changes nothing. `None` when the footprint is
+    /// wider than the cell or even the steepest slope leaves it on more than
+    /// one plane.
+    pub fn seated(&self, half: Vec2) -> Option<Self> {
+        if self.seats(half) {
+            return Some(*self);
+        }
+        if half.max_element() > REACH + EPSILON {
+            return None;
+        }
+        let steps = |reach: f32| (reach * f32::from(SEAT_STEPS) - EPSILON).ceil().max(0.0) as u8;
+        let (x, z) = (steps(half.x), steps(half.y));
+        let shape = Self {
+            seat: [z, x, z, x],
+            ..*self
+        };
+        shape.seats(half).then_some(shape)
     }
 
     /// How much of the cell footprint the LARGEST flat piece of the top covers,
@@ -364,12 +418,7 @@ impl ShellShape {
     ///
     /// [`decor_pose`]: super::skin_decor::decor_pose
     pub fn seat_normal(&self) -> Vec3 {
-        let top = self.top_planes();
-        let centre = top.height(Vec2::ZERO);
-        top.all()
-            .filter(|plane| (plane.at(Vec2::ZERO) - centre).abs() < EPSILON)
-            .min_by(|a, b| a.slope.length().total_cmp(&b.slope.length()))
-            .map_or(Vec3::Y, Plane::normal)
+        self.top_planes().seat_plane().normal()
     }
 
     /// How far the largest flat piece of the top LEANS off the cell's own out
@@ -548,14 +597,38 @@ impl ShellShape {
         faces.build()
     }
 
-    /// The planes the top is made of. See [`TopPlanes`].
+    /// The planes the top is made of, with every fall steepened to clear the
+    /// seat where the plate carries one. See [`TopPlanes`].
+    ///
+    /// The seat plane is read off the top before any steepening, and
+    /// steepening never changes it: a fall only rises inside the cell, so the
+    /// plane under the middle stays the lowest there.
     fn top_planes(&self) -> TopPlanes {
+        let falls = self.falls();
+        let derived = falls.top();
+        if self.seat == [0; 4] {
+            return derived;
+        }
+        let reach = |edge: usize| f32::from(self.seat[edge]) / f32::from(SEAT_STEPS);
+        let corners = [
+            Vec2::new(reach(3), reach(0)),
+            Vec2::new(-reach(1), reach(0)),
+            Vec2::new(-reach(1), -reach(2)),
+            Vec2::new(reach(3), -reach(2)),
+        ];
+        falls.steepened(&derived.seat_plane(), &corners).top()
+    }
+
+    /// The top as derived: the plateau, the wall covers, and every plane that
+    /// falls from the plateau to an edge or a corner, at its own slope.
+    fn falls(&self) -> Falls {
         let level = SAMPLE_HEIGHTS[self.level as usize];
-        let mut top = TopPlanes {
-            envelope: vec![Plane {
+        let mut falls = Falls {
+            plateau: Plane {
                 offset: level,
                 slope: Vec2::ZERO,
-            }],
+            },
+            envelope: Vec::new(),
             walls: Vec::new(),
             caps: Vec::new(),
         };
@@ -566,7 +639,7 @@ impl ShellShape {
                 // The cover keeps the level along the wall, so the plate
                 // closes against the whole face of the structure there.
                 ShellEdgeType::Wall => {
-                    top.walls.push(Plane {
+                    falls.walls.push(Plane {
                         offset: level - WALL_SLOPE * REACH,
                         slope: out * WALL_SLOPE,
                     });
@@ -577,9 +650,16 @@ impl ShellShape {
                 ShellEdgeType::Plain | ShellEdgeType::Fold | ShellEdgeType::Skirt => CHAMFER_SLOPE,
             };
             if foot < level - EPSILON {
-                top.envelope.push(Plane {
-                    offset: foot + slope * REACH,
-                    slope: -out * slope,
+                falls.envelope.push(Fall {
+                    base: Plane {
+                        offset: foot,
+                        slope: Vec2::ZERO,
+                    },
+                    run: Plane {
+                        offset: REACH,
+                        slope: -out,
+                    },
+                    slope,
                 });
             }
         }
@@ -588,9 +668,16 @@ impl ShellShape {
         // the floor at the ramp corner, rising into the plate at slope two.
         for edge in (0..4).filter(|edge| self.edges[*edge] == ShellEdgeType::RampEnd) {
             if let Some(ramp) = ramp_beside(&self.edges, edge) {
-                top.envelope.push(Plane {
-                    offset: level + REACH,
-                    slope: -(edge_out(ramp) + edge_out(edge) * CHAMFER_SLOPE),
+                falls.envelope.push(Fall {
+                    base: Plane {
+                        offset: level - REACH,
+                        slope: -edge_out(ramp),
+                    },
+                    run: Plane {
+                        offset: REACH,
+                        slope: -edge_out(edge),
+                    },
+                    slope: CHAMFER_SLOPE,
                 });
             }
         }
@@ -598,18 +685,26 @@ impl ShellShape {
         // holds lower: a straight bevel, never a point, and never into the
         // plateau. Nothing is RAISED to a corner held higher - that stood
         // shards off the ramp corners.
+        let uncapped = falls.top();
         for corner in 0..4 {
             let at = corner_point(corner);
             let soft = SAMPLE_HEIGHTS[self.soft_corners[corner] as usize];
-            if soft < top.height(at) - EPSILON {
+            if soft < uncapped.height(at) - EPSILON {
                 let (x, z) = FACE_CORNERS[corner];
-                top.caps.push(Plane {
-                    offset: soft + 4.0 * REACH,
-                    slope: Vec2::new(x, z) * -CHAMFER_SLOPE,
+                falls.caps.push(Fall {
+                    base: Plane {
+                        offset: soft,
+                        slope: Vec2::ZERO,
+                    },
+                    run: Plane {
+                        offset: 2.0 * REACH,
+                        slope: -Vec2::new(x, z),
+                    },
+                    slope: CHAMFER_SLOPE,
                 });
             }
         }
-        top
+        falls
     }
 
     /// The top cut into flat pieces: the square, split along every line where
@@ -688,6 +783,91 @@ impl Plane {
     }
 }
 
+/// A plane of the top that rises `slope` per unit of `run` above `base`: a
+/// chamfer, a ramp, a ramp end or a corner cap.
+///
+/// `run` is zero along the edge or at the corner the plane falls to, so a
+/// steeper slope raises the plane inside the cell and leaves its foot where
+/// it was.
+#[derive(Clone, Copy, Debug)]
+struct Fall {
+    base: Plane,
+    run: Plane,
+    slope: f32,
+}
+
+impl Fall {
+    fn plane(&self) -> Plane {
+        Plane {
+            offset: self.base.offset + self.run.offset * self.slope,
+            slope: self.base.slope + self.run.slope * self.slope,
+        }
+    }
+
+    /// This fall steepened until it stands on or above `seat` at each of
+    /// `corners`, up to [`STEEPEST_SLOPE`], and never made shallower. A corner
+    /// with no run left that the seat still stands above cannot be cleared;
+    /// the slope goes to the steepest and [`ShellShape::seats`] refuses it.
+    fn clearing(self, seat: &Plane, corners: &[Vec2; 4]) -> Self {
+        let needed = corners
+            .iter()
+            .map(|corner| {
+                let (run, rise) = (
+                    self.run.at(*corner),
+                    seat.at(*corner) - self.base.at(*corner),
+                );
+                if run > EPSILON {
+                    rise / run
+                } else if rise > EPSILON {
+                    STEEPEST_SLOPE
+                } else {
+                    self.slope
+                }
+            })
+            .fold(self.slope, f32::max);
+        Self {
+            slope: needed.min(STEEPEST_SLOPE).max(self.slope),
+            ..self
+        }
+    }
+}
+
+/// The top of a shape before it is planes: the plateau, every [`Fall`] off
+/// it, the wall covers, and the corner caps.
+struct Falls {
+    plateau: Plane,
+    envelope: Vec<Fall>,
+    walls: Vec<Plane>,
+    caps: Vec<Fall>,
+}
+
+impl Falls {
+    fn top(&self) -> TopPlanes {
+        TopPlanes {
+            envelope: std::iter::once(self.plateau)
+                .chain(self.envelope.iter().map(Fall::plane))
+                .collect(),
+            walls: self.walls.clone(),
+            caps: self.caps.iter().map(Fall::plane).collect(),
+        }
+    }
+
+    /// Every fall but `seat` itself steepened to clear `seat` over the
+    /// rectangle `corners` span.
+    fn steepened(&self, seat: &Plane, corners: &[Vec2; 4]) -> Self {
+        let clear = |fall: &Fall| match fall.plane().same(seat) {
+            true => *fall,
+            false => fall.clearing(seat, corners),
+        };
+        Self {
+            plateau: self.plateau,
+            envelope: self.envelope.iter().map(clear).collect(),
+            walls: self.walls.clone(),
+            caps: self.caps.iter().map(clear).collect(),
+        }
+    }
+}
+
 /// The top of a shape as three sets of planes: the lower ENVELOPE of the
 /// plateau and its chamfers, raised to any WALL cover, and then lowered to any
 /// corner CAP.
@@ -715,6 +895,17 @@ impl TopPlanes {
 
     fn all(&self) -> impl Iterator<Item = &Plane> {
         self.envelope.iter().chain(&self.walls).chain(&self.caps)
+    }
+
+    /// The plane under the middle of the cell, where a decoration stands.
+    /// Where two planes meet under the middle, the flatter one.
+    fn seat_plane(&self) -> Plane {
+        let centre = self.height(Vec2::ZERO);
+        self.all()
+            .filter(|plane| (plane.at(Vec2::ZERO) - centre).abs() < EPSILON)
+            .min_by(|a, b| a.slope.length().total_cmp(&b.slope.length()))
+            .copied()
+            .expect("the top at the middle is one of its own planes")
     }
 
     /// Whether the top lies on `plane` somewhere along the line `c + k . p =
@@ -753,6 +944,12 @@ impl TopPlanes {
 struct TopPiece {
     footprint: Vec<Vec2>,
     plane: Plane,
+}
+
+/// The corners of the rectangle `half` each way along `x` and `z` round the
+/// middle of the cell.
+fn rectangle(half: Vec2) -> [Vec2; 4] {
+    FACE_CORNERS.map(|(x, z)| Vec2::new(x, z) * half)
 }
 
 /// Where the line `base + t * along` runs inside the cell's footprint, as the
@@ -962,6 +1159,14 @@ mod tests {
     /// How far off a height or a plane a reading may be and still count.
     const MESH_EPSILON: f32 = 1e-4;
 
+    /// Footprints the sweep seats every shape for, as half extents: a long
+    /// piece each way round and a wide square one.
+    const SEAT_SAMPLES: [Vec2; 3] = [
+        Vec2::new(0.44, 0.17),
+        Vec2::new(0.2, 0.48),
+        Vec2::new(0.34, 0.34),
+    ];
+
     fn shape(level: u8, feet: [u8; 4], edges: [ShellEdgeType; 4], soft: [u8; 4]) -> ShellShape {
         ShellShape::new(level, feet, edges, soft).expect("a legal shape")
     }
@@ -1048,8 +1253,86 @@ mod tests {
                 }
             }
         }
+        // Every shape again seated for each sample footprint it can take: the
+        // steepened falls are new facets, and they owe the same closed,
+        // in-cell, spike-free solid.
+        let seated: Vec<ShellShape> = shapes
+            .iter()
+            .flat_map(|shape| SEAT_SAMPLES.map(|half| shape.seated(half)))
+            .flatten()
+            .filter(|shape| shape.seat != [0; 4] && seen.insert(*shape))
+            .collect();
+        shapes.extend(seated);
         shapes.sort_unstable();
         shapes
+    }
+
+    /// A plate seated for a piece has ONE PLANE under the whole footprint, and
+    /// gets there only by rising: no point of its top sinks and every corner
+    /// keeps its height, so the feet the neighbours meet do not move. A piece
+    /// that would need a fall steeper than [`STEEPEST_SLOPE`] does not fit.
+    #[test]
+    fn a_seated_plate_seats_the_piece_and_only_rises() {
+        const SAMPLES: usize = 21;
+        let grid: Vec<Vec2> = (0..SAMPLES * SAMPLES)
+            .map(|index| {
+                let at = |i: usize| -REACH + 2.0 * REACH * i as f32 / (SAMPLES - 1) as f32;
+                Vec2::new(at(index % SAMPLES), at(index / SAMPLES))
+            })
+            .collect();
+        let mut seated = 0;
+        for shape in sample_shapes()
+            .into_iter()
+            .filter(|shape| shape.seat == [0; 4])
+        {
+            for half in SEAT_SAMPLES {
+                let Some(fitted) = shape.seated(half) else {
+                    continue;
+                };
+                seated += usize::from(fitted.seat != [0; 4]);
+                assert!(fitted.seats(half), "`{}` for {half}", fitted.id());
+                let (before, after) = (shape.top_planes(), fitted.top_planes());
+                for p in &grid {
+                    assert!(
+                        after.height(*p) >= before.height(*p) - MESH_EPSILON,
+                        "`{}` sank at {p}",
+                        fitted.id(),
+                    );
+                }
+                for corner in 0..4 {
+                    let at = corner_point(corner);
+                    assert!(
+                        (after.height(at) - before.height(at)).abs() < MESH_EPSILON,
+                        "`{}` moved corner {corner}",
+                        fitted.id(),
+                    );
+                }
+            }
+        }
+        assert!(seated > 0, "the sweep steepens some shape");
+
+        // A run of skin falling to open space on both sides along z keeps a
+        // plateau a quarter cell each way. Seated, it reaches to within a
+        // 128th of a cell of the falling edges - half a cell of drop at the
+        // steepest slope - and no further; along x, where it does not fall,
+        // the plateau already runs the whole cell.
+        let spar = shape(HALF, [0, HALF, 0, HALF], [Plain; 4], [HALF; 4]);
+        assert!(spar.seats(Vec2::new(0.5, 0.25)));
+        assert!(!spar.seats(Vec2::new(0.4, 0.4)));
+        let fitted = spar
+            .seated(Vec2::new(0.4, 0.49))
+            .expect("fits under the steepest slope");
+        assert!(fitted.seats(Vec2::new(0.4, 0.49)), "`{}`", fitted.id());
+        assert_eq!(
+            spar.seated(Vec2::new(0.4, 0.495)),
+            None,
+            "past the steepest slope"
+        );
+        assert_eq!(
+            spar.seated(Vec2::new(0.51, 0.1)),
+            None,
+            "wider than the cell"
+        );
     }
 
     /// Every generated tile is a CLOSED SOLID: every edge shared by exactly
@@ -1057,8 +1340,11 @@ mod tests {
     /// is lit, and a skirt or a capped corner is where one would hide.
     #[test]
     fn every_generated_tile_is_a_closed_solid() {
+        // Snapped to a 1e-4 grid shifted off the half step: a seat reach is a
+        // 64th of a cell, which lands a coordinate exactly halfway between two
+        // unshifted grid points, where one ulp of noise picks the side.
         let key = |point: Vec3| -> [i64; 3] {
-            std::array::from_fn(|axis| (point[axis] * 1e4).round() as i64)
+            std::array::from_fn(|axis| (point[axis] * 1e4 + 0.3183).round() as i64)
         };
         for shape in sample_shapes() {
             let mut edges: HashMap<([i64; 3], [i64; 3]), usize> = HashMap::new();

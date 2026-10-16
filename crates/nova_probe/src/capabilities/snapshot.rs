@@ -156,9 +156,9 @@ use nova_scenario::{
 };
 use nova_ship::prelude::{
     derive_skin, muzzle_aim_error, on_target_cone, read_plates, read_structure, section_cell,
-    skin_report, skin_summary, AITarget, Autopilot, AutopilotAction, BodyRadius, CombatLock,
-    DockedHelmType, DockedShip, DockingConnection, DockingPair, DockingPorts, GameStyles,
-    PlacedPart, PlateReport, PlayerAutopilotCompleted, PointDefenseMount, RadarState,
+    skin_report, skin_summary, solve_decor, AITarget, Autopilot, AutopilotAction, BodyRadius,
+    CombatLock, DockedHelmType, DockedShip, DockingConnection, DockingPair, DockingPorts,
+    GameStyles, PlacedPart, PlateReport, PlayerAutopilotCompleted, PointDefenseMount, RadarState,
     RailgunCharge, RailgunSectionInput, SectionAmmo, SectionExit, SectionFixture, SectionFootprint,
     SectionLinkPoints, SectionReload, ShipCapabilities, ShipDecorMarker, ShipSkin, ShipSkinMarker,
     ShipStyle, SkinReport, StructuralCollapseMarker, TorpedoArming, TorpedoBlast,
@@ -1202,13 +1202,16 @@ fn skin_index(world: &World, root: Entity) -> Option<SkinIndex> {
     if structure.is_empty() {
         return None;
     }
-    let plates = derive_skin(&structure);
-    let readings = read_plates(&structure, &plates);
     let style = world
         .get::<ShipStyle>(root)
         .zip(world.get_resource::<GameStyles>())
         .and_then(|(worn, styles)| worn.resolve(styles));
-    let report = skin_report(&structure, &plates, &readings, style);
+    let mut plates = derive_skin(&structure);
+    let decor = style.map_or_else(Vec::new, |style| {
+        solve_decor(&structure, &mut plates, style)
+    });
+    let readings = read_plates(&structure, &plates);
+    let report = skin_report(&structure, &plates, &readings, style, &decor);
 
     Some(SkinIndex {
         phase,
@@ -1260,7 +1263,7 @@ fn skin_record(report: &SkinReport) -> serde_json::Value {
         "decor": {
             "placed": report.decor,
             "off_flat": report.decor_off_flat,
-            "on_creased": report.decor_on_creased,
+            "unseated": report.decor_unseated,
             // How raked the ground under the decoration is, in radians. A piece
             // is bedded onto its plate's own top normal, so this reads the HULL
             // the pieces landed on rather than how far any of them leans off
@@ -1289,6 +1292,7 @@ fn plate_record(row: &PlateReport) -> serde_json::Value {
         "feet": row.shape.feet,
         "edges": row.shape.edges.map(|edge| format!("{edge:?}")),
         "soft_corners": row.shape.soft_corners,
+        "seat": row.shape.seat,
         "relief": reading.relief.name(),
         // Which corner slots stand beside an edge the hull falls away
         // across. The derivation falls an edge for exactly one reason - open

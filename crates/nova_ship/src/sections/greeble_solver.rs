@@ -677,6 +677,11 @@ pub fn greeble_seed(style: &str) -> u64 {
 
 /// Places one greeble variant on every cell of `surface`.
 ///
+/// `fits` says whether a placement can stand on a cell at all: a variant it
+/// refuses is out of that cell's domain before the solve starts, so
+/// propagation already steers the links away from it. A greeble with no
+/// fixture should always fit, or a cell may be left with nothing.
+///
 /// Arc-consistent propagation over the slot links keeps every pair of facing
 /// link types connected; a slot with no neighbour accepts any link type. The
 /// next cell is the one with the fewest variants left, ties broken by a hash
@@ -694,9 +699,34 @@ pub fn solve_greebles(
     surface: &SkinSurface,
     rules: &CompiledGreebleRules,
     seed: u64,
+    fits: impl Fn(usize, GreeblePlacement) -> bool,
 ) -> GreebleSolution {
+    // Per cell, the variants that fit it, as one run of variant sets.
+    let fitting: Vec<u64> = (0..surface.len())
+        .flat_map(|cell| {
+            let mut set = vec![0u64; rules.words];
+            for (index, variant) in rules.variants.iter().enumerate() {
+                let placement = GreeblePlacement {
+                    greeble: variant.greeble,
+                    turns: variant.turns,
+                };
+                if fits(cell, placement) {
+                    set[index / 64] |= 1 << (index % 64);
+                }
+            }
+            set
+        })
+        .collect();
+    let start = |within: &[u64]| -> Vec<u64> {
+        fitting
+            .iter()
+            .enumerate()
+            .map(|(index, word)| word & within[index % rules.words])
+            .collect()
+    };
+    let all = start(&rules.all);
     for attempt in 0..=GREEBLE_RESTARTS {
-        if let Ok(cells) = Collapse::new(surface, rules, seed, attempt, &rules.all, false).run() {
+        if let Ok(cells) = Collapse::new(surface, rules, seed, attempt, all.clone(), false).run() {
             return GreebleSolution {
                 cells,
                 restarts: attempt,
@@ -714,7 +744,7 @@ pub fn solve_greebles(
         rules,
         seed,
         GREEBLE_RESTARTS + 1,
-        &rules.unforced,
+        start(&rules.unforced),
         true,
     )
     .run()
@@ -754,22 +784,25 @@ struct Collapse<'a> {
 }
 
 impl<'a> Collapse<'a> {
+    /// One attempt from `domains`: every cell's starting variant set, one
+    /// after another.
     fn new(
         surface: &'a SkinSurface,
         rules: &'a CompiledGreebleRules,
         seed: u64,
         attempt: u32,
-        start: &[u64],
+        domains: Vec<u64>,
         lenient: bool,
     ) -> Self {
         let count = surface.len();
+        debug_assert_eq!(domains.len(), count * rules.words);
         Self {
             surface,
             rules,
             seed,
             attempt,
             lenient,
-            domains: start.repeat(count),
+            domains,
             decided: vec![false; count],
             cells: vec![None; count],
             counts: vec![0; rules.greebles.len()],

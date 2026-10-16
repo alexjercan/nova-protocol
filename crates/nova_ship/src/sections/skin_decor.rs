@@ -15,6 +15,18 @@
 //! stream: every draw hashes the seed and the plate's key, so the same hull
 //! wearing the same style always wears the same greebles, and the editor can
 //! re-solve on every structure change without a flicker.
+//!
+//! # The plate fits the piece
+//!
+//! The solve runs BEFORE the plates are meshed. A plate that takes a piece is
+//! reshaped so its plateau covers the piece's turned footprint
+//! ([`ShellShape::seated`]): its chamfers, ramp ends and corner caps steepen,
+//! and its feet stay put, so its seams with the neighbours keep their heights.
+//! A piece no slope can seat on a plate is not a candidate for that plate: the
+//! solve never draws it there. A piece wider than a cell seats nowhere, and
+//! content lint refuses the style that names it.
+//!
+//! [`ShellShape::seated`]: super::shell_shape::ShellShape::seated
 
 use std::f32::consts::FRAC_PI_2;
 
@@ -35,7 +47,8 @@ use crate::sections::{
 /// per-fixture tally a style author tunes against.
 pub mod prelude {
     pub use super::{
-        decor_body, decor_pose, decor_tally, solve_decor, DecorPlacement, ShipDecorMarker,
+        decor_body, decor_footprint, decor_pose, decor_tally, solve_decor, solve_seated_greebles,
+        DecorPlacement, ShipDecorMarker,
     };
 }
 
@@ -64,14 +77,17 @@ pub struct DecorPlacement {
     pub turns: u8,
 }
 
-/// Every decoration `style` places on the skin `plates` of `structure`.
+/// Every decoration `style` places on the skin `plates` of `structure`, with
+/// each plate that takes a piece reshaped to seat it.
 ///
-/// Empty when the style has no greebles. A style whose rules do not compile
-/// places nothing and logs an error: content lint and the mod merge refuse such
-/// a style first, so this is reached only by a style built in code.
+/// Run it before the plates are meshed or spawned: a plate's shape is only
+/// final once this has seated its piece. Empty, and no plate changed, when
+/// the style has no greebles. A style whose rules do not compile places
+/// nothing and logs an error: content lint and the mod merge refuse such a
+/// style first, so this is reached only by a style built in code.
 pub fn solve_decor(
     structure: &SkinStructure,
-    plates: &[SkinPlate],
+    plates: &mut [SkinPlate],
     style: &ShipStyleConfig,
 ) -> Vec<DecorPlacement> {
     let greebles = match style.compile_greebles() {
@@ -85,8 +101,43 @@ pub fn solve_decor(
         }
     };
     let surface = skin_surface(structure, plates);
-    let solution = solve_greebles(&surface, &greebles.rules, greeble_seed(&style.id));
-    decor_placements(plates, &surface, &greebles, &solution)
+    let solution = solve_seated_greebles(plates, &surface, style, &greebles);
+    let placements = decor_placements(plates, &surface, &greebles, &solution);
+    for placement in &placements {
+        let half = decor_footprint(&style.fixtures[placement.fixture], placement.turns);
+        let plate = &mut plates[placement.plate];
+        plate.shape = plate
+            .shape
+            .seated(half)
+            .expect("the solve places a piece only on a plate that can seat it");
+    }
+    placements
+}
+
+/// The greeble solve of `surface` under `style`'s rules, drawing each piece
+/// only on a plate of `plates` that can seat its turned footprint.
+///
+/// The solve [`solve_decor`] runs, for a caller that wants the solution itself
+/// - a diagnostic drawing of the cells and links.
+pub fn solve_seated_greebles(
+    plates: &[SkinPlate],
+    surface: &SkinSurface,
+    style: &ShipStyleConfig,
+    greebles: &StyleGreebles,
+) -> GreebleSolution {
+    solve_greebles(
+        surface,
+        &greebles.rules,
+        greeble_seed(&style.id),
+        |cell, placed| {
+            greebles.fixture(placed.greeble).is_none_or(|fixture| {
+                let plate = &plates[cell];
+                let turns = plate_turns(plate, usize::from(placed.turns));
+                let half = decor_footprint(&style.fixtures[fixture], turns);
+                plate.shape.seated(half).is_some()
+            })
+        },
+    )
 }
 
 /// The placements a solved surface holds: one per cell whose greeble has a
@@ -142,6 +193,22 @@ pub fn decor_tally(style: &ShipStyleConfig, taken: &[usize]) -> String {
         .map(|(fixture, taken)| format!("{} {taken}", fixture.id))
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+/// The half extents, in cells along the plate's own `x` and `z`, of the
+/// footprint `fixture` covers at `turns` quarter turns: its collider box,
+/// turned as [`decor_pose`] turns the piece. An odd turn swaps the two.
+///
+/// The plate's own axes and not the bedded piece's: on a raked plate the
+/// piece's footprint seen from the plate's out axis is shorter than this,
+/// never longer, so a plateau that covers this covers the piece.
+pub fn decor_footprint(fixture: &StyleFixtureConfig, turns: u8) -> Vec2 {
+    let size = fixture.collider.max(Vec3::splat(MIN_COLLIDER));
+    let half = Vec2::new(size.x, size.z) * 0.5;
+    match turns % 2 {
+        0 => half,
+        _ => half.yx(),
+    }
 }
 
 /// `turns` quarter turns as an angle.
@@ -306,8 +373,8 @@ mod tests {
         structure.insert(IVec3::new(2, 1, 2), OPEN);
         let plates = derive_skin(&structure);
         let style = block_style(Vec3::splat(0.2));
-        let first = solve_decor(&structure, &plates, &style);
-        assert_eq!(first, solve_decor(&structure, &plates, &style));
+        let first = solve_decor(&structure, &mut plates.clone(), &style);
+        assert_eq!(first, solve_decor(&structure, &mut plates.clone(), &style));
         assert!(
             first.len() * 10 >= plates.len() * 9,
             "{} of {} plates dressed",

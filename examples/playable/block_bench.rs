@@ -748,7 +748,7 @@ fn report_skins(
         let (structure, _, _) = read_structure(&placed);
         let plates = derive_skin(&structure);
         let readings = read_plates(&structure, &plates);
-        let bare = skin_report(&structure, &plates, &readings, None);
+        let bare = skin_report(&structure, &plates, &readings, None, &[]);
 
         let creased_total: usize = bare.plates.iter().filter(|row| !row.coplanar).count();
         let by_relief: Vec<String> = RELIEFS
@@ -781,7 +781,11 @@ fn report_skins(
         );
 
         for style in styles.iter() {
-            let report = skin_report(&structure, &plates, &readings, Some(style));
+            // Each style seats its own pieces, so it reads its own plates.
+            let mut seated = plates.clone();
+            let decor = solve_decor(&structure, &mut seated, style);
+            let readings = read_plates(&structure, &seated);
+            let report = skin_report(&structure, &seated, &readings, Some(style), &decor);
             let taken: Vec<usize> = report.rules.iter().map(|rule| rule.taken).collect();
             info!(
                 "block_bench: subject `{}` style `{}`: {} piece(s); {}",

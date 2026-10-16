@@ -1065,12 +1065,15 @@ struct SkinLayout<'a> {
 /// only the plates of the cells the change reshaped, despawning the plates
 /// that stood there.
 ///
-/// Decoration is solved in the same pass, from the ship's [`ShipStyle`]. It
-/// hangs off the PLATE rather than the section, one level further out for the
-/// same reason: a plate shot off takes its greebles with it, which is what makes
-/// stripping a patch of skin read as stripping a patch of skin. The solve runs
-/// over the whole skin, and a re-clad spawns its answers on the plates it lays
-/// only.
+/// Decoration is solved in the same pass, from the ship's [`ShipStyle`], and
+/// BEFORE any plate is spawned: a plate that takes a piece is reshaped to seat
+/// it ([`solve_decor`]). It hangs off the PLATE rather than the section, one
+/// level further out for the same reason: a plate shot off takes its greebles
+/// with it, which is what makes stripping a patch of skin read as stripping a
+/// patch of skin. The solve runs over the whole skin, and a re-clad spawns its
+/// answers on the plates it lays only. The hull before a re-clad is seated the
+/// same way before it is compared, so a plate whose piece, and with it its
+/// shape, changed is re-laid with its new piece.
 fn lay_skin(
     commands: &mut Commands,
     layout: SkinLayout,
@@ -1090,13 +1093,20 @@ fn lay_skin(
     if structure.is_empty() {
         return;
     }
-    let plates = derive_skin(&structure);
+    let mut plates = derive_skin(&structure);
+    let decor = style.map_or_else(Vec::new, |style| {
+        solve_decor(&structure, &mut plates, style)
+    });
     // Index-aligned with `plates`: whether this pass lays that plate.
     let relaid: Vec<bool> = match before {
         None => vec![true; plates.len()],
         Some(before) => {
             let (before, _) = read_cells(before, phase);
-            let changed = changed_cells(&derive_skin(&before), &plates);
+            let mut worn = derive_skin(&before);
+            if let Some(style) = style {
+                solve_decor(&before, &mut worn, style);
+            }
+            let changed = changed_cells(&worn, &plates);
             for section in entities {
                 let Ok((pose, ..)) = q_sections.get(*section) else {
                     continue;
@@ -1160,7 +1170,7 @@ fn lay_skin(
     let readings = read_plates(&structure, &plates);
     let mut taken: Vec<usize> = vec![0; style.map_or(0, |style| style.fixtures.len())];
     if let Some(style) = style {
-        for placement in solve_decor(&structure, &plates, style) {
+        for placement in &decor {
             let Some(plate) = laid[placement.plate] else {
                 continue;
             };
@@ -1196,7 +1206,7 @@ fn lay_skin(
         // bare, and how much of the decoration landed somewhere a
         // flat-bottomed piece actually fits. None of it is legible in a
         // screenshot and all of it decides a style.
-        skin_summary(&skin_report(&structure, &plates, &readings, style)),
+        skin_summary(&skin_report(&structure, &plates, &readings, style, &decor)),
     );
 }
 

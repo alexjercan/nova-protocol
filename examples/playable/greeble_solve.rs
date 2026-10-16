@@ -318,7 +318,8 @@ fn solve_the_hull(
     let (structure, phase, _) = read_structure(&placed);
     let plates = derive_skin(&structure);
     let surface = skin_surface(&structure, &plates);
-    let solution = solve_greebles(&surface, &greebles.rules, greeble_seed(&style.id));
+    // The spawn path's own solve: a piece only where its plate can seat it.
+    let solution = solve_seated_greebles(&plates, &surface, style, &greebles);
 
     let rules = &style.greeble_rules;
     let link_index = |id: &GreebleLinkDesignId| {

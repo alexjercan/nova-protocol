@@ -166,21 +166,6 @@ pub struct PlateReading {
     pub fall: IVec3,
     /// What the top of the plate is shaped like.
     pub relief: PlateRelief,
-    /// Whether a piece stood on the middle of the plate has one plane under
-    /// it - [`ShellShape::has_seat`], read here so a report reads it from the
-    /// vocabulary like everything else.
-    ///
-    /// The seat a flat-bottomed piece needs, and NOT what [`relief`] says. A
-    /// plateau chamfered at its rim keeps a seat in the middle whatever its
-    /// relief; a crease or a cap running under the middle takes it away.
-    ///
-    /// TILTED counts, and has to: a ramp is one flat surface with as much
-    /// material under a piece as a level panel has, and
-    /// [`decor_pose`](super::skin_decor::decor_pose) beds the piece onto it.
-    ///
-    /// [`ShellShape::has_seat`]: super::shell_shape::ShellShape::has_seat
-    /// [`relief`]: PlateReading::relief
-    pub seat: bool,
     /// How many of the eight cells around this one IN THE PLANE the surface
     /// carries on into, rather than ending against vacuum: 8 is the middle of a
     /// field of plate, 0 is a lone stud.
@@ -297,7 +282,7 @@ pub fn read_plates(structure: &SkinStructure, plates: &[SkinPlate]) -> Vec<Plate
                 along,
                 fall: fall_of(plate),
                 relief,
-                seat: plate.shape.has_seat(),
+
                 enclosure: enclosure(structure, &clad, plate.cell, u, v),
                 run: (reach + 1).min(RUN_REACH),
                 border: *alike.iter().min().unwrap_or(&0),
