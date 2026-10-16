@@ -1310,9 +1310,10 @@ fn an_owned_station_refuses_nobody_and_a_hostile_one_refuses_the_ship() {
 }
 
 /// The helm a capture opens with, pure: a living station holds its pair, a
-/// dead one hands it to the docked player, and two ships start neutral.
+/// dead hull (station or ship) hands it to the docked player, and two living
+/// ships start neutral.
 #[test]
-fn a_living_station_holds_the_helm_and_a_dead_one_hands_it_to_the_player() {
+fn a_living_station_holds_the_helm_and_a_dead_hull_hands_it_to_the_player() {
     let station = Entity::from_raw_u32(7).unwrap();
     let player = Entity::from_raw_u32(8).unwrap();
     assert_eq!(
@@ -1320,13 +1321,18 @@ fn a_living_station_holds_the_helm_and_a_dead_one_hands_it_to_the_player() {
         DockedHelmType::Station(station)
     );
     assert_eq!(
-        helm_on_capture(DockPartnerType::DeadStation, station, Some(player)),
+        helm_on_capture(DockPartnerType::Dead, station, Some(player)),
         DockedHelmType::Held(player)
     );
     assert_eq!(
-        helm_on_capture(DockPartnerType::DeadStation, station, None),
+        helm_on_capture(DockPartnerType::Dead, Entity::PLACEHOLDER, Some(player)),
+        DockedHelmType::Held(player),
+        "a dead ship pair names no station and still hands the player the helm"
+    );
+    assert_eq!(
+        helm_on_capture(DockPartnerType::Dead, station, None),
         DockedHelmType::Neutral,
-        "a dead station with no player in the pair is flown by no one in particular"
+        "a dead hull with no player in the pair is flown by no one in particular"
     );
     assert_eq!(
         helm_on_capture(DockPartnerType::Ship, Entity::PLACEHOLDER, Some(player)),
@@ -1339,16 +1345,17 @@ fn a_living_station_holds_the_helm_and_a_dead_one_hands_it_to_the_player() {
 
 /// The station facts reach the one admission point: a facing pair with a
 /// station root on the far end docks or not by the station rule (its side,
-/// its death, the ship's side against it and whether the player owns it).
-/// A station is a hub: it admits a hull while any port is free, and refuses
-/// only once every port is held.
+/// its death as a derelict or as a neutralized hull, the ship's side against
+/// it and whether the player owns it). A station is a hub: it admits a hull
+/// while any port is free, and refuses only once every port is held.
 #[test]
 fn a_station_root_is_admitted_through_the_station_rule() {
     let station_marker = || StationMarker;
-    for (case, side, derelict, owned, player_side, admitted) in [
+    for (case, side, derelict, neutralized, owned, player_side, admitted) in [
         (
             "living enemy",
             Allegiance::Enemy,
+            false,
             false,
             false,
             Allegiance::Player,
@@ -1359,12 +1366,23 @@ fn a_station_root_is_admitted_through_the_station_rule() {
             Allegiance::Neutral,
             false,
             false,
+            false,
             Allegiance::Player,
             true,
         ),
         (
             "dead enemy",
             Allegiance::Enemy,
+            true,
+            false,
+            false,
+            Allegiance::Player,
+            true,
+        ),
+        (
+            "neutralized enemy",
+            Allegiance::Enemy,
+            false,
             true,
             false,
             Allegiance::Player,
@@ -1375,12 +1393,14 @@ fn a_station_root_is_admitted_through_the_station_rule() {
             Allegiance::Player,
             false,
             false,
+            false,
             Allegiance::Enemy,
             false,
         ),
         (
             "owned player, enemy ship",
             Allegiance::Player,
+            false,
             false,
             true,
             Allegiance::Enemy,
@@ -1396,6 +1416,9 @@ fn a_station_root_is_admitted_through_the_station_rule() {
         station.insert((station_marker(), side));
         if derelict {
             station.insert(DerelictShipMarker);
+        }
+        if neutralized {
+            station.insert(NeutralizedMarker);
         }
         if owned {
             station.insert(OwnedStationMarker);
@@ -1545,6 +1568,66 @@ fn a_station_dock_opens_on_the_station_helm_rule() {
         DockedHelmType::Neutral,
         "a dead station's helm is an ordinary held helm: HELM hands it back"
     );
+
+    // A station neutralized in combat carries `NeutralizedMarker` and no
+    // `DerelictShipMarker` until the scenario layer turns it derelict; the
+    // helm rule and the admission read it as dead on their own.
+    let mut app = docking_app();
+    let (player, _, station, _) = facing_pair(&mut app, NOMINAL_GAP);
+    app.world_mut()
+        .entity_mut(player)
+        .insert(PlayerSpaceshipMarker);
+    app.world_mut().entity_mut(station).insert((
+        StationMarker,
+        Allegiance::Enemy,
+        NeutralizedMarker,
+    ));
+    request_dock(&mut app, player, station);
+    assert_eq!(
+        connections(&mut app)[0].helm,
+        DockedHelmType::Held(player),
+        "a neutralized station hands the player the helm at capture"
+    );
+    assert!(
+        drives(&app, player) && !drives(&app, station),
+        "the player drives the pair from the capture at a neutralized station"
+    );
+}
+
+/// A ship neutralized in combat has nobody at its helm: the docked player
+/// holds the pair from the capture, as at a dead station, and `HELM` hands
+/// it back to neutral as on any held helm.
+#[test]
+fn a_neutralized_ship_hands_the_docked_player_the_helm_at_capture() {
+    let mut app = docking_app();
+    let (player, _, partner, _) = facing_pair(&mut app, NOMINAL_GAP);
+    app.world_mut()
+        .entity_mut(player)
+        .insert((PlayerSpaceshipMarker, Allegiance::Player));
+    app.world_mut()
+        .entity_mut(partner)
+        .insert((Allegiance::Enemy, NeutralizedMarker));
+
+    request_dock(&mut app, player, partner);
+
+    assert_eq!(connections(&mut app)[0].helm, DockedHelmType::Held(player));
+    assert!(
+        app.world().get::<DockedShip>(player).unwrap().drives,
+        "the player drives the pair from the capture"
+    );
+    assert!(
+        !app.world().get::<DockedShip>(partner).unwrap().drives,
+        "the neutralized partner is held"
+    );
+    app.world_mut()
+        .trigger(DockingHelmRequest { entity: player });
+    app.update();
+    assert_eq!(
+        connections(&mut app)[0].helm,
+        DockedHelmType::Neutral,
+        "HELM hands a dead ship's helm back as it does any held helm"
+    );
+    assert_eq!(joints(&mut app), 1, "the dock holds");
 }
 
 /// A living station that dies with the player docked hands the player the

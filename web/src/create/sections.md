@@ -1131,17 +1131,18 @@ outward face - that face is the hatch. Docking is spent through the `DOCK`
 verb, which the ship must also be PERMITTED to use: see the `dock`
 [capability](../objects/#capabilities).
 
-A docked pair flies as one body, driven by ONE hull. A dock starts NEUTRAL:
-the partner's autopilot and orders fly the pair and the player's hull stands
-down. `HELM` hands the pair to the player and pauses the partner's orders
-until the helm goes back. The hull that is not driving makes no thrust, no RCS
+A docked pair flies as one body, driven by ONE hull. A dock with a living
+ship starts NEUTRAL: the partner's autopilot and orders fly the pair and the
+player's hull stands down. `HELM` hands the pair to the player and pauses the
+partner's orders until the helm goes back. A derelict or neutralized partner
+has nobody at its helm, so the player holds it from the capture. The hull that is not driving makes no thrust, no RCS
 trim and no attitude torque, on a player hull and an AI one alike, because the
 gate is read at the forces rather than at the input. `DOCK` again from either
 hull is the way out, and it is ungated - a capability withdrawn mid-dock can
 never strand a hull clamped to something. A maneuver (ORBIT, GOTO, STOP) flies
 the pair and leaves the dock in place. A [station](../stations/#docking-at-a-station)
 is the exception to the helm rule: a living one owns the pair's helm and
-refuses `HELM`, a dead one hands the helm to the docked player at capture, and
+refuses `HELM`, a dead one (derelict or neutralized) hands the helm to the docked player at capture, and
 a living station on the Enemy side, or one hostile to the ship, refuses the
 dock with a line on the HUD, unless the player owns it.
 

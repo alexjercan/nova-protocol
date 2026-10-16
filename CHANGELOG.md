@@ -17,6 +17,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Gameplay & Flight
 
+- Docking with a neutralized ship or station now gives you the helm at once,
+  as a derelict does, instead of waiting for HELM; a neutralized station also
+  admits the dock on any side.
 - Open-world sectors you leave now freeze as you left them and come back that
   way: mined rocks, owed ore, damaged and looted ships, canisters and wrecks.
   A docked partner is no longer lost.

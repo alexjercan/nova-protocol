@@ -769,7 +769,9 @@ hull docked at it are ONE assembly. A dock between two stations is refused.
 `Held(player)`, toggled by `DockingHelmRequest` from the `dock_helm` binding
 (H), or `Station(station)`, set at capture when the partner is a living
 station and never toggled: `helm_on_capture` gives a living station its own
-helm, a dead station `Held(player)`, and two ships `Neutral`. A request to
+helm, a dead partner `Held(player)` (`DockPartnerType::Dead`: a derelict or
+neutralized hull, ship or station, read from `DerelictShipMarker` and
+`NeutralizedMarker`), and two living ships `Neutral`. A request to
 take the helm of a pair with `measurement_fault` is refused, and
 `helm_request_admitted` refuses every request on a station-held pair;
 handing a held helm back is not refused. For a ship pair the driver is the

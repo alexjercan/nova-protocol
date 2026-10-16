@@ -8,7 +8,7 @@
 //! [`station_admission`]: a station with every port held refuses the next
 //! hull; a hull parked at the station ([`ParkedHull`]) is let in whatever
 //! the sides; a station the player owns ([`OwnedStationMarker`]) refuses nobody
-//! else; a derelict admits whoever comes to loot it; a living station refuses
+//! else; a derelict or neutralized station admits whoever comes to loot it; a living station refuses
 //! while it is on the Enemy side or hostile to the ship asking (by side, or
 //! answering its fire). A ship holds one connection: the port search names no
 //! pair for a docked ship. A station holds one per port: a held port is no
@@ -42,19 +42,20 @@ pub enum DockRefusalType {
 
 /// The station branch of admission: what a station on `allegiance`'s side
 /// answers, dead or alive, owned or not, with or without a free port, to a
-/// ship that is `hostile` to it ([`ship_relation`]).
+/// ship that is `hostile` to it ([`ship_relation`]). `dead` is a derelict or
+/// a neutralized station.
 ///
 /// # Errors
 ///
 /// [`DockRefusalType::StationOccupied`] while every port is held (`occupied`),
-/// whatever the station is. An `owned` station then admits: it refuses nobody. A derelict
-/// admits on any side: it is a hull to loot, and a `None` side is hostile to
-/// no one. A living station refuses with [`DockRefusalType::EnemyStation`]
+/// whatever the station is. An `owned` station then admits: it refuses nobody. A `dead`
+/// station admits on any side: it is a hull to loot, and a `None` side is
+/// hostile to no one. A living station refuses with [`DockRefusalType::EnemyStation`]
 /// on the Enemy side, then with [`DockRefusalType::HostileStation`] while it
 /// and the ship are hostile.
 pub fn station_admission(
     allegiance: Option<Allegiance>,
-    derelict: bool,
+    dead: bool,
     occupied: bool,
     owned: bool,
     hostile: bool,
@@ -62,7 +63,7 @@ pub fn station_admission(
     if occupied {
         return Err(DockRefusalType::StationOccupied);
     }
-    if owned || derelict {
+    if owned || dead {
         return Ok(());
     }
     if allegiance == Some(Allegiance::Enemy) {
@@ -153,7 +154,7 @@ impl DockAdmission<'_, '_> {
             let berth = self.parked.get(ship).is_ok_and(|parked| parked.0 == target);
             return station_admission(
                 allegiance.copied(),
-                derelict,
+                derelict || neutralized,
                 occupied,
                 owned || berth,
                 hostile,

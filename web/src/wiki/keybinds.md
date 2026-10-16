@@ -113,7 +113,7 @@ A dash means the action has no binding on that device.
     </tbody>
 </table>
 
-DOCK needs a docking port on both hulls, so it is offered only on a ship built with one: build a hull with a docking port in the editor, or fly the `docking_approach` example. A dock starts neutral: the other ship flies the pair until <kbd>H</kbd> takes the helm, and <kbd>D</kbd> again lets go. See [Docking port](../sections/docking/).
+DOCK needs a docking port on both hulls, so it is offered only on a ship built with one: build a hull with a docking port in the editor, or fly the `docking_approach` example. A dock starts neutral: the other ship flies the pair until <kbd>H</kbd> takes the helm, and <kbd>D</kbd> again lets go. A dock with a derelict or neutralized hull, ship or station, gives you the helm at once; a living station keeps it and refuses <kbd>H</kbd>. See [Docking port](../sections/docking/).
 
 Dock and Helm appear in **Settings > Controls > FLIGHT** with <kbd>D</kbd> and <kbd>H</kbd> as rebindable defaults.
 

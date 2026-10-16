@@ -30,17 +30,19 @@
 //! retired. `HELM` again hands it back. Neither touches the joint; `DOCK`
 //! pressed again is still what ends a dock, from either side.
 //!
-//! A station partner decides the helm at capture ([`helm_on_capture`]) and the
+//! The partner decides the helm at capture ([`helm_on_capture`]) and the
 //! joint is the same one. A LIVING station owns every connection to it
 //! ([`DockedHelmType::Station`]): `HELM` is refused, every docked hull is
 //! held, and the station's own flight computer drives the whole assembly. A
 //! station has no thruster, so the assembly never translates; the computer's
 //! attitude torque, spread over every root as the helm wrench, is all that
 //! acts, and it holds the assembly level on the station's parked attitude. A
-//! DEAD station (a derelict) hands the docked player the helm of the player's
-//! own connection the instant the dock is made, as `HELM` would on a ship,
-//! because its computer is inactive; the player then flies the whole
-//! assembly.
+//! DEAD hull, ship or station ([`DerelictShipMarker`] or
+//! [`NeutralizedMarker`]), hands the docked player the helm of the player's
+//! own connection the instant the dock is made, as `HELM` would on a living
+//! ship, because nobody is left at its helm; the player then flies the whole
+//! assembly. Neutralization never inserts [`DerelictShipMarker`] on a ship,
+//! so the helm rule reads both markers.
 //!
 //! Exactly one root drives an assembly ([`DockedShip::drives`],
 //! [`DockedStation::drives`]) and every actuator skips the others. The
@@ -101,20 +103,21 @@ pub enum DockedHelmType {
 /// What the hull on the other end of a dock is, for the helm rule.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DockPartnerType {
-    /// Another ship: the helm starts neutral and `HELM` toggles it.
+    /// A living ship: the helm starts neutral and `HELM` toggles it.
     Ship,
-    /// A station that is not a derelict: it owns the helm.
+    /// A station that is neither derelict nor neutralized: it owns the helm.
     LivingStation,
-    /// A derelict station: the docked player takes the helm at capture.
-    DeadStation,
+    /// A derelict or neutralized hull, ship or station: the docked player
+    /// takes the helm at capture.
+    Dead,
 }
 
 /// The helm a new connection opens with.
 ///
-/// `player` is the player ship in the pair, if either endpoint is one. A
-/// living station holds its own pair; a dead station hands it to the player,
-/// or leaves it neutral when no player is in the pair; two ships start
-/// neutral.
+/// `player` is the player ship in the pair, if either endpoint is one.
+/// `station` is read only for a living station, which holds its own pair. A
+/// dead hull hands it to the player, or leaves it neutral when no player is
+/// in the pair; two living ships start neutral.
 pub fn helm_on_capture(
     partner: DockPartnerType,
     station: Entity,
@@ -122,8 +125,8 @@ pub fn helm_on_capture(
 ) -> DockedHelmType {
     match (partner, player) {
         (DockPartnerType::LivingStation, _) => DockedHelmType::Station(station),
-        (DockPartnerType::DeadStation, Some(player)) => DockedHelmType::Held(player),
-        (DockPartnerType::DeadStation | DockPartnerType::Ship, _) => DockedHelmType::Neutral,
+        (DockPartnerType::Dead, Some(player)) => DockedHelmType::Held(player),
+        (DockPartnerType::Dead | DockPartnerType::Ship, _) => DockedHelmType::Neutral,
     }
 }
 
@@ -299,6 +302,7 @@ pub(super) fn on_docking_connection_request(
     q_roots: Query<(
         Has<StationMarker>,
         Has<DerelictShipMarker>,
+        Has<NeutralizedMarker>,
         Has<PlayerSpaceshipMarker>,
     )>,
     mut q_states: Query<&mut DockingSectionState>,
@@ -640,7 +644,7 @@ pub(super) fn on_station_derelict_release_helm(
         let player = [connection.first_ship, connection.second_ship]
             .into_iter()
             .find(|ship| q_player.contains(*ship));
-        connection.helm = helm_on_capture(DockPartnerType::DeadStation, station, player);
+        connection.helm = helm_on_capture(DockPartnerType::Dead, station, player);
         debug!(
             "on_station_derelict_release_helm: station {station:?} died, {entity:?} is now {:?}",
             connection.helm
@@ -688,13 +692,15 @@ pub(super) fn park_suppressed_docked_helms(
     }
 }
 
-/// The helm a pair of `ships` opens with: the station endpoint, if there is
-/// one, decides through [`helm_on_capture`]; two ships start neutral.
+/// The helm a pair of `ships` opens with, through [`helm_on_capture`]: a
+/// station endpoint decides, living or dead; otherwise a dead ship endpoint
+/// (the one that is not the player) decides; two living ships start neutral.
 fn pair_helm_on_capture(
     ships: [Entity; 2],
     q_roots: &Query<(
         Has<StationMarker>,
         Has<DerelictShipMarker>,
+        Has<NeutralizedMarker>,
         Has<PlayerSpaceshipMarker>,
     )>,
 ) -> DockedHelmType {
@@ -702,20 +708,31 @@ fn pair_helm_on_capture(
         .into_iter()
         .find(|ship| q_roots.get(*ship).is_ok_and(|(.., player)| player));
     let station = ships.into_iter().find_map(|ship| {
-        let (station, derelict, _) = q_roots.get(ship).ok()?;
+        let (station, derelict, neutralized, _) = q_roots.get(ship).ok()?;
         station.then_some((
             ship,
-            if derelict {
-                DockPartnerType::DeadStation
+            if derelict || neutralized {
+                DockPartnerType::Dead
             } else {
                 DockPartnerType::LivingStation
             },
         ))
     });
-    match station {
-        Some((station, partner)) => helm_on_capture(partner, station, player),
-        None => helm_on_capture(DockPartnerType::Ship, Entity::PLACEHOLDER, player),
+    if let Some((station, partner)) = station {
+        return helm_on_capture(partner, station, player);
     }
+    let dead_partner = ships.into_iter().any(|ship| {
+        Some(ship) != player
+            && q_roots
+                .get(ship)
+                .is_ok_and(|(_, derelict, neutralized, _)| derelict || neutralized)
+    });
+    let partner = if dead_partner {
+        DockPartnerType::Dead
+    } else {
+        DockPartnerType::Ship
+    };
+    helm_on_capture(partner, Entity::PLACEHOLDER, player)
 }
 
 /// The attitude command `ship` is holding, from its first live controller.

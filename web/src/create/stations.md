@@ -116,7 +116,7 @@ differs is who the station lets in and who flies the pair.
 | the refusal | while the travel lock is on a station that refuses, the HUD mode chip reads `<NAME> REFUSES DOCKING` with the station object's `name`, the DOCK chip reads `DOCK REFUSED`, and `DOCK` builds nothing |
 | one ship per port | a ship holds one connection; a station holds one per docking port. A ship docks while any port is free; once every port is held the next ship meets `<NAME> DOCK OCCUPIED` until one lets go. The station and every ship docked at it move as one body |
 | a living station's helm | the station owns the helm of everything docked at it. `HELM` is refused, the HUD reads `STATION HELM`, and each docked ship's drive, RCS and maneuvers are held. The station has no thruster, so the assembly never moves; its bridge holds it level on the station's parked attitude |
-| a dead station's helm | the docked player holds the helm from the capture, as after `HELM` on a ship, because the derelict's bridge is inactive, and gets it the moment a living station it is docked to turns dead. The player's burn tows the station and every ship docked at it |
+| a dead station's helm | the docked player holds the helm from the capture, as after `HELM` on a ship, because the dead station's bridge is inactive (derelict or neutralized alike), and gets it the moment a living station it is docked to turns dead. The player's burn tows the station and every ship docked at it |
 | losing the port | a docking port destroyed while a ship is docked to it releases the dock |
 | leaving | `DOCK` again, from the ship, as always |
 
