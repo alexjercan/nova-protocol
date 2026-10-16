@@ -139,6 +139,7 @@ pub(crate) fn app_storing_settings_at(root: impl Into<std::path::PathBuf>) -> Ap
     // hulls from; the content merge publishes both in production.
     app.insert_resource(dummy_roles());
     app.init_resource::<GameShipDesigns>();
+    app.init_resource::<nova_ship::prelude::GameSections>();
     // Headless: no TimePlugin, so provide the clocks the pause systems and the
     // handbook's looping demonstrations touch. Nothing advances them, so a test
     // that wants time to pass moves the clock itself.

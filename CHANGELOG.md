@@ -25,8 +25,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
   Death keeps the last save.
 - Dying in New Game shows DEFEAT with Main Menu. On desktop it also offers
   Load last save, which reopens the world from its last save.
-- New Game asks for a name and seed, then a start role. Create spawns the
-  role's hull with its kit and its weapons bound.
+- New Game asks for a name and seed, then a start role beside its hull's card:
+  length, sections, weapons, drives and kit. The default name counts past saved
+  worlds. Create spawns the role's hull with its kit.
 - Open-world ships now grow slowly with distance: the first four civilization
   rings field small hulls only, medium hulls appear near 2,000 km out and the
   largest past 3,000 km.

@@ -9,7 +9,10 @@
 
 use bevy::{picking::hover::Hovered, prelude::*, ui_widgets::Activate};
 use nova_gameplay::prelude::*;
-use nova_ui::widget::{menu_button, ButtonSpec, ButtonVariant};
+use nova_ui::{
+    theme::UiColor,
+    widget::{menu_button, ButtonSpec, ButtonVariant, ThemedText, UiText},
+};
 
 /// Marks menu-family buttons (main menu, pause, outcome, mods checkbox) so the
 /// press-cue observer plays the click only for them, leaving the editor's
@@ -134,4 +137,89 @@ pub(crate) fn danger_button(text: &str) -> impl Bundle {
 /// [`MenuSfxBack`] marker that swaps its voice.
 pub(crate) fn back_button(text: &str) -> impl Bundle {
     (button(text), MenuSfxBack)
+}
+
+/// A details pane's button row. `justify` puts the slots at the pane's start
+/// (a list's details) or its end (a modal's commit row).
+pub(crate) fn actions_row(name: &'static str, justify: JustifyContent) -> impl Bundle {
+    (
+        Name::new(name),
+        Node {
+            flex_direction: FlexDirection::Row,
+            justify_content: justify,
+            column_gap: px(8),
+            margin: UiRect::top(px(12)),
+            ..default()
+        },
+    )
+}
+
+/// A fixed-width slot for one button: a themed button fills its parent, so
+/// without the slot it spans the whole pane.
+pub(crate) fn button_slot(name: &'static str, width: f32) -> impl Bundle {
+    (
+        Name::new(name),
+        Node {
+            width: px(width),
+            flex_shrink: 0.0,
+            ..default()
+        },
+    )
+}
+
+/// The main action's slot width: Load, Create, the Mods Enable/Disable slot.
+pub(crate) const MAIN_SLOT_W: f32 = 180.0;
+/// A side action's slot width: Delete, Back, Cancel, the Mods portal slots.
+pub(crate) const SIDE_SLOT_W: f32 = 140.0;
+
+/// The label column width of a [`detail_row`], so every value in a pane
+/// starts on one vertical line.
+pub(crate) const DETAIL_LABEL_W: f32 = 110.0;
+
+/// One `LABEL  value` line of a details pane: an uppercase label in a fixed
+/// column beside its value.
+pub(crate) fn detail_row(
+    name: &'static str,
+    label: &str,
+    value: String,
+    color: UiColor,
+) -> impl Bundle {
+    let label = label.to_uppercase();
+    (
+        Name::new(name),
+        Node {
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::Center,
+            column_gap: px(12),
+            min_height: px(24),
+            ..default()
+        },
+        children![
+            (
+                UiText,
+                Text::new(label),
+                TextFont {
+                    font_size: FontSize::Px(11.0),
+                    ..default()
+                },
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Label),
+                Node {
+                    width: px(DETAIL_LABEL_W),
+                    flex_shrink: 0.0,
+                    ..default()
+                },
+            ),
+            (
+                UiText,
+                Text::new(value),
+                TextFont {
+                    font_size: FontSize::Px(13.0),
+                    ..default()
+                },
+                TextColor(Color::NONE),
+                ThemedText::new(color),
+            ),
+        ],
+    )
 }

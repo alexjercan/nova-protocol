@@ -20,17 +20,20 @@ use bevy::{
     ui_widgets::{observe, Activate, Button},
 };
 use bevy_rand::prelude::*;
+use nova_events::prelude::Meters;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::{
-    GameShipDesigns, GameStartRoles, OpenWorldSession, StartRoleDesignId,
+    GameShipDesigns, GameStartRoles, OpenWorldSession, SectionSource, ShipDesignId,
+    StartRoleDesignId,
 };
+use nova_ship::prelude::{GameSections, SectionConfig, SectionKind};
 use nova_ui::{
     prelude::REPORT_Z,
     theme,
     theme::UiColor,
     widget::{
-        list_row, panel, text_field, ButtonVariant, Selected, TextFieldError, TextFieldSpec,
-        TextFieldValue, ThemedRadius, ThemedText, UiText,
+        list_row, panel, separator, text_field, ButtonVariant, Selected, TextFieldError,
+        TextFieldSpec, TextFieldValue, ThemedRadius, ThemedText, UiText,
     },
 };
 #[cfg(not(target_arch = "wasm32"))]
@@ -39,7 +42,10 @@ use rand::Rng as _;
 
 use crate::{
     scenarios::NewGameScenario,
-    widgets::{back_button, button, button_variant},
+    widgets::{
+        actions_row, back_button, button, button_slot, button_variant, detail_row, MenuSfxButton,
+        MAIN_SLOT_W, SIDE_SLOT_W,
+    },
 };
 
 /// The panel width on the world step.
@@ -62,10 +68,16 @@ const SEED_REFUSAL: &str = "Enter a whole number from 0 to 4294967295";
 #[cfg(not(target_arch = "wasm32"))]
 const NAME_CHARS: usize = 32;
 
-/// The name the name field opens on. A taken name is refused like a typed
-/// one: the player renames the world, nothing numbers it.
+/// The name the name field opens on when no world has it yet; see
+/// [`unique_world_name`] for the one it opens on otherwise.
 #[cfg(not(target_arch = "wasm32"))]
 const DEFAULT_WORLD_NAME: &str = "New World";
+
+/// The Randomize slot beside the seed field.
+const RANDOMIZE_SLOT_W: f32 = 130.0;
+
+/// The one line over the fields: what a world is, in brief.
+const PROFILE_TEXT: &str = "A seeded open world of asteroid clusters, planetoids and derelicts.";
 
 /// The refusal under the name field when there is no worlds folder.
 #[cfg(not(target_arch = "wasm32"))]
@@ -165,8 +177,17 @@ pub(crate) fn on_new_game(
     mut commands: Commands,
     mut rng: Single<&mut WyRand, With<GlobalRng>>,
     roles: Res<GameStartRoles>,
+    #[cfg(not(target_arch = "wasm32"))] root: Res<WorldsRoot>,
 ) {
     let seed = rng.next_u32().to_string();
+    #[cfg(not(target_arch = "wasm32"))]
+    let name = unique_world_name(DEFAULT_WORLD_NAME, |slug| {
+        root.0
+            .as_deref()
+            .is_some_and(|root| root.join(slug).exists())
+    });
+    #[cfg(target_arch = "wasm32")]
+    let name = String::new();
     let first_role = roles.first().map(|role| role.id.clone());
     commands
         .spawn((
@@ -226,7 +247,7 @@ pub(crate) fn on_new_game(
                     ));
                     parent
                         .spawn((Name::new("World Step"), WorldStep, step_node(Display::Flex)))
-                        .with_children(spawn_world_step(seed));
+                        .with_children(spawn_world_step(seed, name));
                     parent
                         .spawn((Name::new("Role Step"), RoleStep, step_node(Display::None)))
                         .with_children(spawn_role_step(&roles, first_role.as_ref()));
@@ -245,23 +266,37 @@ fn step_node(display: Display) -> Node {
     }
 }
 
-/// The world step: the profile, the name (desktop) or the web note, the seed,
-/// Randomize, Next and Cancel.
-fn spawn_world_step(seed: String) -> impl FnOnce(&mut ChildSpawnerCommands) {
+/// The first free name in the series `base`, `base 2`, `base 3`, ...: the
+/// first whose slug `taken` does not hold. A name that is no world name at
+/// all ends the series as it is, and Create refuses it under the field.
+///
+/// A number, not `(1)`: a world name takes letters, digits, space, `_` and
+/// `-` only, so a bracket would be refused by [`world_slug`].
+#[cfg(not(target_arch = "wasm32"))]
+fn unique_world_name(base: &str, taken: impl Fn(&str) -> bool) -> String {
+    let mut candidate = base.to_string();
+    let mut n = 2u32;
+    while world_slug(&candidate).is_ok_and(|slug| taken(&slug)) {
+        candidate = format!("{base} {n}");
+        n += 1;
+    }
+    candidate
+}
+
+/// The world step: one line on what a world is, the name (desktop) or the
+/// web note, the seed with Randomize beside it, then Cancel and Next.
+fn spawn_world_step(seed: String, name: String) -> impl FnOnce(&mut ChildSpawnerCommands) {
+    #[cfg(target_arch = "wasm32")]
+    let _ = name;
     move |parent| {
-        parent.spawn((label(
-            "New Game Profile",
-            "World: sparse asteroid clusters, planetoids and derelicts, generated from the \
-                 seed and streamed in as you fly. The same seed gives the same world on the \
-                 same build.",
-        ),));
+        parent.spawn(label("New Game Profile", PROFILE_TEXT));
         #[cfg(not(target_arch = "wasm32"))]
         {
             parent.spawn(label("World Name Label", "World name"));
             parent.spawn((
                 Name::new("World Name Field"),
                 WorldNameField,
-                text_field(TextFieldSpec::new(DEFAULT_WORLD_NAME).max_chars(NAME_CHARS)),
+                text_field(TextFieldSpec::new(name).max_chars(NAME_CHARS)),
             ));
         }
         #[cfg(target_arch = "wasm32")]
@@ -270,32 +305,62 @@ fn spawn_world_step(seed: String) -> impl FnOnce(&mut ChildSpawnerCommands) {
             "Saved worlds need the desktop build.",
         ));
         parent.spawn(label("World Seed Label", "World seed"));
-        parent.spawn((
-            Name::new("World Seed Field"),
-            WorldSeedField,
-            text_field(TextFieldSpec::new(seed).max_chars(SEED_DIGITS)),
-        ));
-        parent.spawn((
-            Name::new("Randomize Seed Button"),
-            button("Randomize"),
-            observe(on_randomize_seed),
-        ));
-        parent.spawn((
-            Name::new("World Next Button"),
-            WorldNextButton,
-            button_variant("Next", ButtonVariant::Primary, None),
-            observe(on_world_next),
-        ));
-        parent.spawn((
-            Name::new("Cancel New Game Button"),
-            back_button("Cancel"),
-            observe(on_cancel_new_game),
-        ));
+        parent
+            .spawn((
+                Name::new("World Seed Row"),
+                Node {
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    column_gap: px(8),
+                    ..default()
+                },
+            ))
+            .with_children(|row| {
+                row.spawn((
+                    Name::new("World Seed Field Slot"),
+                    Node {
+                        flex_grow: 1.0,
+                        min_width: px(0),
+                        ..default()
+                    },
+                ))
+                .with_child((
+                    Name::new("World Seed Field"),
+                    WorldSeedField,
+                    text_field(TextFieldSpec::new(seed).max_chars(SEED_DIGITS)),
+                ));
+                row.spawn(button_slot("Randomize Seed Button Slot", RANDOMIZE_SLOT_W))
+                    .with_child((
+                        Name::new("Randomize Seed Button"),
+                        button("Randomize"),
+                        observe(on_randomize_seed),
+                    ));
+            });
+        parent
+            .spawn(actions_row("World Step Actions", JustifyContent::FlexEnd))
+            .with_children(|actions| {
+                actions
+                    .spawn(button_slot("Cancel New Game Button Slot", SIDE_SLOT_W))
+                    .with_child((
+                        Name::new("Cancel New Game Button"),
+                        back_button("Cancel"),
+                        observe(on_cancel_new_game),
+                    ));
+                actions
+                    .spawn(button_slot("World Next Button Slot", MAIN_SLOT_W))
+                    .with_child((
+                        Name::new("World Next Button"),
+                        WorldNextButton,
+                        button_variant("Next", ButtonVariant::Primary, None),
+                        observe(on_world_next),
+                    ));
+            });
     }
 }
 
-/// The role step: one button per role beside the selected role's details,
-/// then Create, Back and Cancel. Create is greyed when there is no role.
+/// The role step: one row per role beside the selected role's details, then
+/// Back, Cancel and Create in fixed slots. Create is greyed when there is no
+/// role.
 fn spawn_role_step(
     roles: &GameStartRoles,
     selected: Option<&StartRoleDesignId>,
@@ -329,12 +394,15 @@ fn spawn_role_step(
                 .with_children(|list| {
                     list.spawn(label("Start Role Label", "Start role"));
                     for (id, name) in rows {
+                        // `MenuSfxButton` gives the row the menu click and
+                        // hover cues, as the Mods checkbox row has them.
                         let mut row = list.spawn((
                             Name::new(format!("Start Role Button: {id}")),
                             StartRoleButton(id.clone()),
                             list_row(),
                             Button,
                             Hovered::default(),
+                            MenuSfxButton,
                             observe(on_start_role_select),
                         ));
                         if selected.as_ref() == Some(&id) {
@@ -365,24 +433,36 @@ fn spawn_role_step(
                     },
                 ));
             });
-        let mut create = parent.spawn((
-            Name::new("Create World Button"),
-            button_variant("Create", ButtonVariant::Primary, None),
-            observe(on_create_world),
-        ));
-        if selected.is_none() {
-            create.insert(InteractionDisabled);
-        }
-        parent.spawn((
-            Name::new("World Back Button"),
-            back_button("Back"),
-            observe(on_world_back),
-        ));
-        parent.spawn((
-            Name::new("Cancel Role Step Button"),
-            back_button("Cancel"),
-            observe(on_cancel_new_game),
-        ));
+        parent
+            .spawn(actions_row("Role Step Actions", JustifyContent::FlexEnd))
+            .with_children(|actions| {
+                actions
+                    .spawn(button_slot("World Back Button Slot", SIDE_SLOT_W))
+                    .with_child((
+                        Name::new("World Back Button"),
+                        back_button("Back"),
+                        observe(on_world_back),
+                    ));
+                actions
+                    .spawn(button_slot("Cancel Role Step Button Slot", SIDE_SLOT_W))
+                    .with_child((
+                        Name::new("Cancel Role Step Button"),
+                        back_button("Cancel"),
+                        observe(on_cancel_new_game),
+                    ));
+                actions
+                    .spawn(button_slot("Create World Button Slot", MAIN_SLOT_W))
+                    .with_children(|slot| {
+                        let mut create = slot.spawn((
+                            Name::new("Create World Button"),
+                            button_variant("Create", ButtonVariant::Primary, None),
+                            observe(on_create_world),
+                        ));
+                        if selected.is_none() {
+                            create.insert(InteractionDisabled);
+                        }
+                    });
+            });
     }
 }
 
@@ -462,14 +542,78 @@ pub(crate) fn on_start_role_select(
     selection.0 = Some(button.0.clone());
 }
 
+/// What a role's hull adds up to, as `LABEL, value` lines: its catalog name,
+/// its length, its sections, its weapons and its drives.
+///
+/// The lint refuses a role whose hull is not in the catalog; the id alone
+/// stands in only if a mod reload dropped the hull since. A placed section
+/// whose prototype the catalog lacks is skipped the way the spawn skips it.
+fn hull_card(
+    hull: &ShipDesignId,
+    designs: &GameShipDesigns,
+    sections: &GameSections,
+) -> Vec<(&'static str, String)> {
+    let Some(design) = designs.get_design(hull) else {
+        return vec![("Hull", hull.to_string())];
+    };
+    let placed = &design.design.sections;
+    let configs: Vec<&SectionConfig> = placed
+        .iter()
+        .filter_map(|section| match &section.source {
+            SectionSource::Inline(config) => Some(config),
+            SectionSource::Prototype { id, .. } => sections.get_section(id),
+        })
+        .collect();
+    let (low, high) = placed.iter().fold(
+        (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)),
+        |(low, high), section| (low.min(section.position), high.max(section.position)),
+    );
+    // The span of the mount cells along the longest axis, plus the one cell
+    // the last section fills; a cell is one engine unit.
+    let span_cells = (high - low).max_element().max(0.0) + 1.0;
+    let length = Meters::from_engine(span_cells).0;
+    let count = |pick: fn(&SectionKind) -> bool| configs.iter().filter(|c| pick(&c.kind)).count();
+    let turrets = count(|kind| matches!(kind, SectionKind::Turret(_)));
+    let bays = count(|kind| matches!(kind, SectionKind::Torpedo(_)));
+    let railguns = count(|kind| matches!(kind, SectionKind::Railgun(_)));
+    let beams = count(|kind| matches!(kind, SectionKind::Mining(_)));
+    let drives = count(|kind| matches!(kind, SectionKind::Thruster(_)));
+    let mut arms: Vec<String> = Vec::new();
+    for (n, one, many) in [
+        (turrets, "turret", "turrets"),
+        (bays, "torpedo bay", "torpedo bays"),
+        (railguns, "railgun", "railguns"),
+        (beams, "mining beam", "mining beams"),
+    ] {
+        match n {
+            0 => {}
+            1 => arms.push(format!("1 {one}")),
+            n => arms.push(format!("{n} {many}")),
+        }
+    }
+    let weapons = if arms.is_empty() {
+        "unarmed".to_string()
+    } else {
+        arms.join(", ")
+    };
+    vec![
+        ("Hull", design.name.clone()),
+        ("Length", format!("{length:.0} m")),
+        ("Sections", placed.len().to_string()),
+        ("Weapons", weapons),
+        ("Drives", drives.to_string()),
+    ]
+}
+
 /// Rebuild the details pane from the selected role: its name, how it plays,
-/// its hull's catalog name, its kit and its lore.
+/// its hull's card ([`hull_card`]), its kit and its lore.
 pub(crate) fn refresh_start_role_details(
     mut commands: Commands,
     selections: Query<&SelectedStartRole, Changed<SelectedStartRole>>,
     panes: Query<Entity, With<StartRoleDetails>>,
     roles: Res<GameStartRoles>,
     designs: Res<GameShipDesigns>,
+    sections: Res<GameSections>,
     items: Res<GameItems>,
 ) {
     let Some(selection) = selections.iter().next() else {
@@ -486,58 +630,84 @@ pub(crate) fn refresh_start_role_details(
         ));
         return;
     };
-    // The lint refuses a role whose hull or kit item is not in the catalog;
-    // the id stands in only if a mod reload dropped one since.
-    let hull = designs
-        .get_design(&role.hull)
-        .map_or_else(|| role.hull.to_string(), |design| design.name.clone());
-    let mut kit = vec![format!("{} cr", role.kit.credits)];
-    kit.extend(role.kit.stock.stacks().map(|(item, count)| {
-        let name = items
-            .get(item)
-            .map_or_else(|| item.to_string(), |design| design.name.clone());
-        format!("{count} {name}")
-    }));
+    let card = hull_card(&role.hull, &designs, &sections);
+    // The lint refuses a kit item the catalog lacks; the id stands in only
+    // if a mod reload dropped it since.
+    let stock: Vec<String> = role
+        .kit
+        .stock
+        .stacks()
+        .map(|(item, count)| {
+            let name = items
+                .get(item)
+                .map_or_else(|| item.to_string(), |design| design.name.clone());
+            format!("{count} {name}")
+        })
+        .collect();
+    let cargo = if stock.is_empty() {
+        "empty hold".to_string()
+    } else {
+        stock.join(", ")
+    };
     commands.entity(pane).with_children(|details| {
         details.spawn((
             Name::new("Start Role Details Name"),
+            UiText,
             Text::new(role.name.clone()),
             TextFont {
                 font_size: FontSize::Px(18.0),
                 ..default()
             },
             TextColor(Color::NONE),
+            ThemedText::new(UiColor::Primary),
+        ));
+        details.spawn((
+            Name::new("Start Role Details About"),
+            UiText,
+            Text::new(role.about.clone()),
+            TextFont {
+                font_size: FontSize::Px(13.0),
+                ..default()
+            },
+            TextColor(Color::NONE),
             ThemedText::new(UiColor::Body),
         ));
-        for (name, text, color) in [
-            (
-                "Start Role Details About",
-                role.about.clone(),
+        details.spawn((Name::new("Start Role Details Separator"), separator()));
+        for (label, value) in card {
+            details.spawn(detail_row(
+                "Start Role Details Hull Line",
+                label,
+                value,
                 UiColor::Body,
-            ),
-            (
-                "Start Role Details Hull",
-                format!("Hull: {hull}"),
-                UiColor::Body,
-            ),
-            (
-                "Start Role Details Kit",
-                format!("Kit: {}", kit.join(", ")),
-                UiColor::Body,
-            ),
-            ("Start Role Details Lore", role.lore.clone(), UiColor::Label),
-        ] {
-            details.spawn((
-                Name::new(name),
-                Text::new(text),
-                TextFont {
-                    font_size: FontSize::Px(13.0),
-                    ..default()
-                },
-                TextColor(Color::NONE),
-                ThemedText::new(color),
             ));
         }
+        details.spawn(detail_row(
+            "Start Role Details Credits",
+            "Credits",
+            format!("{} cr", role.kit.credits),
+            UiColor::Body,
+        ));
+        details.spawn(detail_row(
+            "Start Role Details Kit",
+            "Cargo",
+            cargo,
+            UiColor::Body,
+        ));
+        details.spawn((
+            Name::new("Start Role Details Lore"),
+            UiText,
+            Text::new(role.lore.clone()),
+            TextFont {
+                font_size: FontSize::Px(12.0),
+                ..default()
+            },
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Label),
+            Node {
+                margin: UiRect::top(px(8)),
+                ..default()
+            },
+        ));
     });
 }
 
@@ -692,5 +862,26 @@ pub(crate) fn on_cancel_new_game(
 ) {
     for overlay in &overlays {
         commands.entity(overlay).despawn();
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::unique_world_name;
+
+    /// The default name counts up past the worlds that exist: a fresh root
+    /// opens on the base name, a root holding it opens on `base 2`, and the
+    /// first free number wins over a gap.
+    #[test]
+    fn the_default_world_name_counts_past_taken_names() {
+        let free = |_: &str| false;
+        assert_eq!(unique_world_name("New World", free), "New World");
+
+        let one = |slug: &str| slug == "new-world";
+        assert_eq!(unique_world_name("New World", one), "New World 2");
+
+        let taken = ["new-world", "new-world-2", "new-world-4"];
+        let several = |slug: &str| taken.contains(&slug);
+        assert_eq!(unique_world_name("New World", several), "New World 3");
     }
 }

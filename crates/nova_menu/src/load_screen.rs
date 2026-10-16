@@ -32,7 +32,11 @@ use nova_world_base::prelude::{
     WorldSaveSession, WorldSaveState,
 };
 
-use crate::{scenarios::NewGameScenario, widgets::danger_button, world_setup::WorldsRoot};
+use crate::{
+    scenarios::NewGameScenario,
+    widgets::{actions_row, button_slot, danger_button, detail_row, MAIN_SLOT_W, SIDE_SLOT_W},
+    world_setup::WorldsRoot,
+};
 
 /// Marker for the Load panel root, toggled by the Load button.
 #[derive(Component)]
@@ -611,84 +615,6 @@ fn row_line(name: &'static str, text: String) -> impl Bundle {
     )
 }
 
-/// The details pane's button row, spaced like the Mods details actions.
-fn actions_row(name: &'static str) -> impl Bundle {
-    (
-        Name::new(name),
-        Node {
-            flex_direction: FlexDirection::Row,
-            column_gap: px(8),
-            margin: UiRect::top(px(12)),
-            ..default()
-        },
-    )
-}
-
-/// A fixed-width slot for one details button: a themed button fills its
-/// parent, so without the slot it spans the whole details pane. The widths
-/// are the Mods details pane's: its main action and its portal buttons.
-fn button_slot(name: &'static str, width: f32) -> impl Bundle {
-    (
-        Name::new(name),
-        Node {
-            width: px(width),
-            ..default()
-        },
-    )
-}
-
-/// The Load button's slot width, the Mods Enable/Disable slot.
-const MAIN_SLOT_W: f32 = 180.0;
-/// The Delete, Delete world and Cancel slot width, the Mods portal slots.
-const SIDE_SLOT_W: f32 = 140.0;
-
-/// The label column width of a details row, so every value starts on one
-/// vertical line.
-const DETAIL_LABEL_W: f32 = 110.0;
-
-/// One `LABEL  value` line of the details pane: an uppercase label in a fixed
-/// column beside its value, the catalogue's label-over-value read laid flat.
-fn detail_row(name: &'static str, label: &str, value: String, color: UiColor) -> impl Bundle {
-    let label = label.to_uppercase();
-    (
-        Name::new(name),
-        Node {
-            flex_direction: FlexDirection::Row,
-            align_items: AlignItems::Center,
-            column_gap: px(12),
-            min_height: px(24),
-            ..default()
-        },
-        children![
-            (
-                UiText,
-                Text::new(label),
-                TextFont {
-                    font_size: FontSize::Px(11.0),
-                    ..default()
-                },
-                TextColor(Color::NONE),
-                ThemedText::new(UiColor::Label),
-                Node {
-                    width: px(DETAIL_LABEL_W),
-                    flex_shrink: 0.0,
-                    ..default()
-                },
-            ),
-            (
-                UiText,
-                Text::new(value),
-                TextFont {
-                    font_size: FontSize::Px(13.0),
-                    ..default()
-                },
-                TextColor(Color::NONE),
-                ThemedText::new(color),
-            ),
-        ],
-    )
-}
-
 /// A one-line note in the details pane at `color`: the refusal of a world,
 /// the reason a delete refused, or the delete prompt.
 fn details_note(name: &'static str, text: String, color: UiColor) -> impl Bundle {
@@ -829,7 +755,7 @@ pub(crate) fn refresh_load_details(
         let loadable = listing.header.is_ok() && !checking;
 
         details
-            .spawn(actions_row("Load World Actions"))
+            .spawn(actions_row("Load World Actions", JustifyContent::FlexStart))
             .with_children(|actions| {
                 actions
                     .spawn(button_slot("Load World Button Slot", MAIN_SLOT_W))
@@ -864,7 +790,10 @@ pub(crate) fn refresh_load_details(
                 UiColor::Body,
             ));
             details
-                .spawn(actions_row("Load World Delete Confirm Actions"))
+                .spawn(actions_row(
+                    "Load World Delete Confirm Actions",
+                    JustifyContent::FlexStart,
+                ))
                 .with_children(|actions| {
                     actions
                         .spawn(button_slot(
