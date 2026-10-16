@@ -158,9 +158,11 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - GOTO's predicted path now curves for a coasting or tumbling target, gravity
   included. It hides while the target changes course or spin; the guide stays.
-- Create names worlds; New World is the default. Load checks saves, reports
-  refusals, and deletes on confirm. Save notices show progress, success or
-  failure; `~` hides them. Leaving offers a retry.
+- Create names worlds; New World is the default. Load lists saved worlds with
+  role and date, marks one it cannot open INVALID with the reason, and
+  deletes on confirm.
+- Save notices show progress, success or failure; `~` hides them. Leaving
+  offers a retry.
 - The Map's chart view (`C`) draws the cells you entered by cluster type and
   the stations and wrecks you found by code. A station shows the services and
   stock seen on your last dock.

@@ -475,16 +475,9 @@ pub(crate) fn setup_menu_ui(
                     panel(),
                 ))
                 .with_children(|parent| {
-                    parent.spawn((Name::new("Load Title"), panel_head("Load", None)));
                     parent.spawn((
-                        Name::new("Load Subtitle"),
-                        Text::new("Pick a saved world to resume."),
-                        TextFont {
-                            font_size: FontSize::Px(13.0),
-                            ..default()
-                        },
-                        TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Label),
+                        Name::new("Load Title"),
+                        panel_head("Load", Some("SAVED WORLDS")),
                     ));
 
                     parent.spawn((

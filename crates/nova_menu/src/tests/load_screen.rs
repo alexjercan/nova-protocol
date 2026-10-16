@@ -276,8 +276,8 @@ fn load_greys_a_world_while_its_check_runs_and_refuses_one_holding_an_unknown_it
     app.update();
     let reason = "unknown item 'HullPlate' held by the player ship";
     assert!(
-        text_of(&mut app, "Load World Row Refusal").contains(reason),
-        "the row names the unknown item"
+        has_named(&mut app, "Load World Row Invalid"),
+        "the row wears the Invalid badge"
     );
     assert!(
         text_of(&mut app, "Load World Details Refusal").contains(reason),
@@ -330,8 +330,8 @@ fn load_greys_a_world_while_its_check_runs_and_refuses_one_holding_an_unknown_it
         "Load does not start a world whose item left the catalog after the check"
     );
     assert!(
-        text_of(&mut app, "Load World Row Refusal").contains(reason),
-        "the row names the unknown item after a refused Load"
+        has_named(&mut app, "Load World Row Invalid"),
+        "the row wears the Invalid badge after a refused Load"
     );
     assert!(
         text_of(&mut app, "Load World Details Refusal").contains(reason),

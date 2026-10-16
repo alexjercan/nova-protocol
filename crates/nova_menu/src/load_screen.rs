@@ -24,7 +24,7 @@ use nova_gameplay::prelude::*;
 use nova_scenario::prelude::{GameScenarios, GameStartRoles};
 use nova_ui::{
     theme::UiColor,
-    widget::{list_row, separator, themed_button, Selected, ThemedText, UiText},
+    widget::{badge, list_row, separator, themed_button, BadgeKind, Selected, ThemedText, UiText},
 };
 use nova_world_base::prelude::{
     check_world, delete_world, list_worlds, open_world, resume_world, RegisteredScenarios,
@@ -72,7 +72,7 @@ type OpenedWorld = Result<(WorldFolder, WorldLock, WorldSaveHeader, WorldSaveSta
 #[derive(Resource, Default)]
 pub(crate) struct WorldOpen(pub(crate) Option<(String, Task<OpenedWorld>)>);
 
-/// The text a row and the details pane show while the world is checked.
+/// The text the details pane shows while the world is checked.
 const CHECKING_TEXT: &str = "Checking saved state";
 
 /// The slug the details pane renders. `None` until the list populates;
@@ -469,7 +469,8 @@ pub(crate) fn refresh_load_list(
 }
 
 /// One explanatory line in place of the row list: no root, a refused root, or
-/// an empty one.
+/// an empty one. The only text the screen shows in that state: the details
+/// pane stays empty rather than explaining the empty list a second time.
 fn spawn_load_note(commands: &mut Commands, list: Entity, text: &str) {
     commands.entity(list).with_children(|list| {
         list.spawn((
@@ -481,14 +482,30 @@ fn spawn_load_note(commands: &mut Commands, list: Entity, text: &str) {
             },
             TextColor(Color::NONE),
             ThemedText::new(UiColor::Label),
+            Node {
+                padding: UiRect::axes(px(13), px(10)),
+                ..default()
+            },
         ));
     });
 }
 
-/// Spawn one clickable world row in the Mods row layout: an info column with
-/// the world's name (or slug, when the header did not read) over its status
-/// lines - the start role's name when the header read, [`CHECKING_TEXT`]
-/// while it is `checking`, the refusal when it has one.
+/// Every world row's height. Fixed, so a row never grows with its state:
+/// the name sits over one status line, and the state reads as a badge in a
+/// fixed trailing slot.
+const ROW_H: f32 = 58.0;
+
+/// The trailing badge slot width, sized for the longest badge (`CHECKING`).
+const ROW_BADGE_SLOT_W: f32 = 84.0;
+
+/// The status line of a row whose header or check refused. The reason itself
+/// is one line in the details pane, not in the row.
+const ROW_INVALID_TEXT: &str = "Cannot load";
+
+/// Spawn one clickable world row at [`ROW_H`]: the world's name (or slug,
+/// when the header did not read) over one status line - the start role's name
+/// when the header read, [`ROW_INVALID_TEXT`] when it refused - and a trailing
+/// badge: `CHECKING` while the state check runs, `INVALID` when it refused.
 fn spawn_load_row(
     list: &mut ChildSpawnerCommands,
     listing: &WorldListing,
@@ -500,6 +517,14 @@ fn spawn_load_row(
         Ok(header) => header.name.clone(),
         Err(_) => listing.folder.slug.clone(),
     };
+    let status = match &listing.header {
+        // The listing refused a role `roles` lacked; the id stands in only if
+        // a mod reload dropped the role since.
+        Ok(header) => roles
+            .get_role(&header.role)
+            .map_or_else(|| header.role.to_string(), |role| role.name.clone()),
+        Err(_) => ROW_INVALID_TEXT.to_string(),
+    };
     let mut row = list.spawn((
         Name::new(format!("Load World Row: {}", listing.folder.slug)),
         LoadWorldRow {
@@ -510,6 +535,12 @@ fn spawn_load_row(
         Hovered::default(),
         observe(on_load_world_row_select),
     ));
+    // Written onto the spawned `list_row` Node, so the row keeps one
+    // definition of its box and the fixed height is the only local difference.
+    row.entry::<Node>().and_modify(|mut node| {
+        node.height = px(ROW_H);
+        node.flex_shrink = 0.0;
+    });
     if selected {
         row.insert(Selected);
     }
@@ -519,6 +550,9 @@ fn spawn_load_row(
             Node {
                 flex_direction: FlexDirection::Column,
                 flex_grow: 1.0,
+                min_width: px(0),
+                row_gap: px(2),
+                overflow: Overflow::clip(),
                 ..default()
             },
         ))
@@ -534,39 +568,36 @@ fn spawn_load_row(
                 TextColor(Color::NONE),
                 ThemedText::new(UiColor::Body),
             ));
-            if let Ok(header) = &listing.header {
-                // The listing refused a role `roles` lacked; the id stands in
-                // only if a mod reload dropped the role since.
-                let role = roles
-                    .get_role(&header.role)
-                    .map_or_else(|| header.role.to_string(), |role| role.name.clone());
-                info.spawn(row_line(
-                    "Load World Row Role",
-                    format!("Role: {role}"),
-                    UiColor::Secondary,
-                ));
-            }
+            info.spawn(row_line("Load World Row Status", status));
+        });
+        row.spawn((
+            Name::new("Load World Row Badge Slot"),
+            Node {
+                width: px(ROW_BADGE_SLOT_W),
+                flex_shrink: 0.0,
+                justify_content: JustifyContent::FlexEnd,
+                ..default()
+            },
+        ))
+        .with_children(|slot| {
             if checking {
-                info.spawn(row_line(
-                    "Load World Row Checking",
-                    CHECKING_TEXT.to_string(),
-                    UiColor::Secondary,
+                slot.spawn((
+                    Name::new("Load World Row Checking"),
+                    badge(BadgeKind::Mute, "Checking"),
                 ));
-            }
-            if let Err(refusal) = &listing.header {
-                info.spawn(row_line(
-                    "Load World Row Refusal",
-                    refusal.to_string(),
-                    UiColor::Danger,
+            } else if listing.header.is_err() {
+                slot.spawn((
+                    Name::new("Load World Row Invalid"),
+                    badge(BadgeKind::Amber, "Invalid"),
                 ));
             }
         });
     });
 }
 
-/// One small line under a world row's name, the size of the Mods row's
+/// The one-line status under a world row's name, the size of the Mods row's
 /// version line.
-fn row_line(name: &'static str, text: String, color: UiColor) -> impl Bundle {
+fn row_line(name: &'static str, text: String) -> impl Bundle {
     (
         Name::new(name),
         UiText,
@@ -576,7 +607,7 @@ fn row_line(name: &'static str, text: String, color: UiColor) -> impl Bundle {
             ..default()
         },
         TextColor(Color::NONE),
-        ThemedText::new(color),
+        ThemedText::new(UiColor::Secondary),
     )
 }
 
@@ -611,11 +642,101 @@ const MAIN_SLOT_W: f32 = 180.0;
 /// The Delete, Delete world and Cancel slot width, the Mods portal slots.
 const SIDE_SLOT_W: f32 = 140.0;
 
+/// The label column width of a details row, so every value starts on one
+/// vertical line.
+const DETAIL_LABEL_W: f32 = 110.0;
+
+/// One `LABEL  value` line of the details pane: an uppercase label in a fixed
+/// column beside its value, the catalogue's label-over-value read laid flat.
+fn detail_row(name: &'static str, label: &str, value: String, color: UiColor) -> impl Bundle {
+    let label = label.to_uppercase();
+    (
+        Name::new(name),
+        Node {
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::Center,
+            column_gap: px(12),
+            min_height: px(24),
+            ..default()
+        },
+        children![
+            (
+                UiText,
+                Text::new(label),
+                TextFont {
+                    font_size: FontSize::Px(11.0),
+                    ..default()
+                },
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Label),
+                Node {
+                    width: px(DETAIL_LABEL_W),
+                    flex_shrink: 0.0,
+                    ..default()
+                },
+            ),
+            (
+                UiText,
+                Text::new(value),
+                TextFont {
+                    font_size: FontSize::Px(13.0),
+                    ..default()
+                },
+                TextColor(Color::NONE),
+                ThemedText::new(color),
+            ),
+        ],
+    )
+}
+
+/// A one-line note in the details pane at `color`: the refusal of a world,
+/// the reason a delete refused, or the delete prompt.
+fn details_note(name: &'static str, text: String, color: UiColor) -> impl Bundle {
+    (
+        Name::new(name),
+        UiText,
+        Text::new(text),
+        TextFont {
+            font_size: FontSize::Px(13.0),
+            ..default()
+        },
+        TextColor(Color::NONE),
+        ThemedText::new(color),
+        Node {
+            margin: UiRect::vertical(px(4)),
+            ..default()
+        },
+    )
+}
+
+/// `unix` seconds as `YYYY-MM-DD HH:MM UTC`, the date a save reads as in the
+/// details pane. Civil-from-days after Howard Hinnant; the game has no
+/// calendar crate and needs no zone.
+fn utc_stamp(unix: u64) -> String {
+    let days = (unix / 86_400) as i64;
+    let secs = unix % 86_400;
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!(
+        "{year:04}-{month:02}-{day:02} {:02}:{:02} UTC",
+        secs / 3_600,
+        (secs % 3_600) / 60
+    )
+}
+
 /// Rebuild the world details pane from the selected world: its name and a
-/// rule, then the seed, sector, credits, game version and saved time, or the
-/// refusal; a button row with Load, greyed on a refusal or while the world is
-/// checked, and Delete; or the delete prompt with its confirm row, or the
-/// reason a delete refused.
+/// rule, then one labelled line each for the seed, sector, credits, game
+/// version and saved time, or the one-line refusal; a button row with Load,
+/// greyed on a refusal or while the world is checked, and Delete; or the
+/// delete prompt with its confirm row, or the reason a delete refused. With
+/// no world selected the pane stays empty: the list already says why.
 pub(crate) fn refresh_load_details(
     mut commands: Commands,
     listings: Res<WorldListings>,
@@ -639,29 +760,14 @@ pub(crate) fn refresh_load_details(
 
     commands.entity(panel).with_children(|details| {
         if let WorldDeleteStep::Refused { slug, reason } = &*step {
-            details.spawn((
-                Name::new("Load World Delete Refusal"),
-                Text::new(format!("Cannot delete {slug}: {reason}")),
-                TextFont {
-                    font_size: FontSize::Px(13.0),
-                    ..default()
-                },
-                TextColor(Color::NONE),
-                ThemedText::new(UiColor::Danger),
+            details.spawn(details_note(
+                "Load World Delete Refusal",
+                format!("Cannot delete {slug}: {reason}"),
+                UiColor::Accent,
             ));
         }
 
         let Some(listing) = listing else {
-            details.spawn((
-                Name::new("Load World Details Empty"),
-                Text::new("Select a saved world to see its details."),
-                TextFont {
-                    font_size: FontSize::Px(14.0),
-                    ..default()
-                },
-                TextColor(Color::NONE),
-                ThemedText::new(UiColor::Label),
-            ));
             return;
         };
 
@@ -673,59 +779,47 @@ pub(crate) fn refresh_load_details(
 
         details.spawn((
             Name::new("Load World Details Name"),
+            UiText,
             Text::new(title.clone()),
             TextFont {
                 font_size: FontSize::Px(20.0),
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Body),
+            ThemedText::new(UiColor::Primary),
         ));
         details.spawn((Name::new("Load World Details Separator"), separator()));
 
         match &listing.header {
             Ok(header) => {
-                for line in [
-                    format!("Seed: {}", header.seed),
-                    format!("Sector: {}", header.player_sector),
-                    format!("Credits: {}", header.credits),
-                    format!("Game version: {}", header.game_version),
-                    format!("Saved: {} (unix seconds)", header.saved_at_unix),
+                for (label, value) in [
+                    ("Seed", header.seed.to_string()),
+                    ("Sector", header.player_sector.to_string()),
+                    ("Credits", header.credits.to_string()),
+                    ("Version", header.game_version.to_string()),
+                    ("Saved", utc_stamp(header.saved_at_unix)),
                 ] {
-                    details.spawn((
-                        Name::new("Load World Details Line"),
-                        Text::new(line),
-                        TextFont {
-                            font_size: FontSize::Px(13.0),
-                            ..default()
-                        },
-                        TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Body),
+                    details.spawn(detail_row(
+                        "Load World Details Line",
+                        label,
+                        value,
+                        UiColor::Body,
                     ));
                 }
                 if checking {
-                    details.spawn((
-                        Name::new("Load World Details Checking"),
-                        Text::new(CHECKING_TEXT),
-                        TextFont {
-                            font_size: FontSize::Px(13.0),
-                            ..default()
-                        },
-                        TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Label),
+                    details.spawn(detail_row(
+                        "Load World Details Checking",
+                        "State",
+                        CHECKING_TEXT.to_string(),
+                        UiColor::Label,
                     ));
                 }
             }
             Err(refusal) => {
-                details.spawn((
-                    Name::new("Load World Details Refusal"),
-                    Text::new(refusal.to_string()),
-                    TextFont {
-                        font_size: FontSize::Px(14.0),
-                        ..default()
-                    },
-                    TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Danger),
+                details.spawn(details_note(
+                    "Load World Details Refusal",
+                    refusal.to_string(),
+                    UiColor::Accent,
                 ));
             }
         }
@@ -764,21 +858,10 @@ pub(crate) fn refresh_load_details(
             });
 
         if confirming {
-            details.spawn((
-                Name::new("Load World Delete Prompt"),
-                Text::new(format!(
-                    "Delete {title}? This removes its save files and cannot be undone."
-                )),
-                TextFont {
-                    font_size: FontSize::Px(13.0),
-                    ..default()
-                },
-                TextColor(Color::NONE),
-                ThemedText::new(UiColor::Danger),
-                Node {
-                    margin: UiRect::top(px(12)),
-                    ..default()
-                },
+            details.spawn(details_note(
+                "Load World Delete Prompt",
+                format!("Delete {title}? This removes its save files and cannot be undone."),
+                UiColor::Body,
             ));
             details
                 .spawn(actions_row("Load World Delete Confirm Actions"))
@@ -810,4 +893,18 @@ pub(crate) fn refresh_load_details(
                 });
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::utc_stamp;
+
+    /// The saved time reads as a calendar date, not as seconds: the save
+    /// fixture's `1_700_000_000` is 2023-11-14 22:13:20 UTC.
+    #[test]
+    fn a_save_time_reads_as_a_utc_date() {
+        assert_eq!(utc_stamp(1_700_000_000), "2023-11-14 22:13 UTC");
+        assert_eq!(utc_stamp(0), "1970-01-01 00:00 UTC");
+        assert_eq!(utc_stamp(951_782_400), "2000-02-29 00:00 UTC");
+    }
 }
