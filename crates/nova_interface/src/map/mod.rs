@@ -19,8 +19,10 @@
 //!
 //! `map_chart` or the Chart button swaps the local scene for the chart view
 //! while a streamed world runs: the player's [`Chart`] of visited cells,
-//! found stations and found wrecks at cell scale. Selecting a station there
-//! shows what the player saw on the last dock, or no stock if never docked.
+//! found stations and found wrecks at cell scale, and the player's held
+//! [`Jobs`] marked in their target's cell. Selecting a station there shows
+//! what the player saw on the last dock, or no stock if never docked; a job
+//! shows its title, reward and where it hands in.
 //!
 //! # Module layout
 //!
@@ -41,7 +43,7 @@ mod tests;
 
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
-use nova_gameplay::prelude::Chart;
+use nova_gameplay::prelude::{Chart, Jobs};
 
 pub use self::contacts::{MapContactCode, MapContactKind, MapContacts};
 pub(crate) use self::{app::*, chart::*, contacts::*, scene::*};
@@ -145,8 +147,10 @@ pub(crate) struct MapPanePlugin;
 impl Plugin for MapPanePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MapRuntime>();
-        // The open world feeds the chart; a scene without one reads it empty.
+        // The open world feeds the chart and the jobs; a scene without one
+        // reads them empty.
         app.init_resource::<Chart>();
+        app.init_resource::<Jobs>();
         // Scene lifecycle runs unconditionally so it can tear down when the
         // interface closes; the interactive systems gate on the Map pane owning
         // the interface.

@@ -30,7 +30,8 @@
 //!
 //! It also carries the player's [`Chart`]: the cells the player entered, the
 //! stations and wrecks found, and each station's last-seen summary, whose
-//! item ids pass the same check as every saved hold.
+//! item ids pass the same check as every saved hold, and the player's
+//! [`Jobs`]: the jobs held and the ids completed, checked the same way.
 
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
@@ -43,8 +44,8 @@ use bevy::prelude::*;
 use nova_assets::{prelude::LoadedSectionPacks, storage::write_atomic};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
-    kg_text, CargoCanisterRuntimeId, Chart, GameItems, ItemDesignId, SavedBodyRef, SavedOwner,
-    SavedSectionRef, SavedTargetRef, CARGO_CANISTER_MAX_MASS_G,
+    kg_text, CargoCanisterRuntimeId, Chart, GameItems, ItemDesignId, Jobs, SavedBodyRef,
+    SavedOwner, SavedSectionRef, SavedTargetRef, CARGO_CANISTER_MAX_MASS_G,
 };
 use nova_scenario::prelude::{
     FleetEscort, FrozenShip, GameScenarios, GameStartRoles, SavedScenario, ScenarioId,
@@ -75,7 +76,7 @@ pub use transients::{
 /// nobody held live is recorded as an arrival there. Every cell the player
 /// never visited regenerates from the seed on Load, so another generator
 /// would change it silently.
-pub const WORLD_SAVE_FORMAT: u32 = 11;
+pub const WORLD_SAVE_FORMAT: u32 = 12;
 
 /// The most characters a world name has, after trimming.
 const WORLD_NAME_MAX: usize = 32;
@@ -136,6 +137,8 @@ pub struct WorldSaveState {
     pub scenario: SavedScenario,
     /// The player's chart of the world.
     pub chart: Chart,
+    /// The jobs the player holds and has completed.
+    pub jobs: Jobs,
 }
 
 /// The player ship as it was saved.
@@ -374,7 +377,7 @@ pub fn open_world(
 /// `roles` does not hold, and a state file that is
 /// missing, corrupt, of another generation, holding a camera view or a
 /// transient that cannot open, an id [`check_saved_ids`] refuses, a chart
-/// [`Chart::validate`] refuses, or an item `items` does not hold. Reads the whole state, so run it off the main
+/// [`Chart::validate`] or [`Jobs::validate`] refuses, or an item `items` does not hold. Reads the whole state, so run it off the main
 /// thread; the Load list does, before the player can pick the world.
 pub fn check_world(
     root: &Path,
@@ -424,6 +427,10 @@ fn read_state(
         .chart
         .validate()
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
+    state
+        .jobs
+        .validate()
+        .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     check_saved_fleet(&state)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     check_saved_items(&state, items)
@@ -462,7 +469,7 @@ fn check_saved_fleet(state: &WorldSaveState) -> Result<(), String> {
 }
 
 /// Every item id the saved state holds is in `items`: the player's, every
-/// ledger body's and every chart summary's. A save checks before it
+/// ledger body's, every chart summary's and every held job's. A save checks before it
 /// writes; Load checks after the header's catalog digest has matched. A
 /// changed or missing mod normally fails at that earlier digest check.
 fn check_saved_items(state: &WorldSaveState, items: &GameItems) -> Result<(), String> {
@@ -485,6 +492,9 @@ fn check_saved_items(state: &WorldSaveState, items: &GameItems) -> Result<(), St
     }
     if let Some(item) = unknown(&mut state.chart.item_ids()) {
         return Err(format!("unknown item '{item}' named by the chart"));
+    }
+    if let Some(item) = unknown(&mut state.jobs.item_ids()) {
+        return Err(format!("unknown item '{item}' named by a held job"));
     }
     for (coord, record) in state.sectors.iter() {
         for body in record.bodies() {

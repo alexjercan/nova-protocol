@@ -176,8 +176,8 @@ scenario_events! {
     OnTraded => OnTradedEvent { label: "On Traded" },
     /// A ship's credits balance moved (`id` = the ship; `previous_cr`,
     /// `current_cr`, `delta_cr`, `cause` = `Trade`, `Take`, `Rebuild`,
-    /// `Swap`, `Add`, `ShipBuy`, `EscortHire` or `StationBuy`). Once per ship
-    /// per change, so a trade raises one for each party.
+    /// `Swap`, `Add`, `ShipBuy`, `EscortHire`, `StationBuy` or `JobReward`).
+    /// Once per ship per change, so a trade raises one for each party.
     OnCreditsChanged => OnCreditsChangedEvent { label: "On Credits Changed" },
     /// A Ship pane repair spent hull plates (`id` = the ship; `section` = the
     /// pane code such as `HULL-3`, `item`, `count` = plates spent). Once per

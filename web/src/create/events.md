@@ -811,7 +811,7 @@ inventory, so a handler counts occurrences, not frames.
 | `OnPickedUp` | the ship whose intake took the stack | none | `canister`, `item`, `count` |
 | `OnJettisoned` | the ship whose intake dropped the stack | none | `canister`, `item`, `count` |
 | `OnTraded` | the ship traded WITH | the player's ship | `trade` (`Buy` or `Sell`, from the player's side), `item`, `count`, `price_cr` |
-| `OnCreditsChanged` | the ship whose purse moved | none | `previous_cr`, `current_cr`, `delta_cr` (signed), `cause` (`Trade`, `Take`, `Rebuild`, `Swap`, `Add`, `ShipBuy`, `EscortHire`, `StationBuy` or `Cheat`) |
+| `OnCreditsChanged` | the ship whose purse moved | none | `previous_cr`, `current_cr`, `delta_cr` (signed), `cause` (`Trade`, `Take`, `Rebuild`, `Swap`, `Add`, `ShipBuy`, `EscortHire`, `StationBuy`, `JobReward` or `Cheat`) |
 | `OnRepaired` | the repaired ship | none | `section` (the Ship pane code, `CTL-1`), `item`, `count` (plates spent) |
 | `OnRebuilt` | the rebuilt ship | none | `section` (the code the lost section had, `PDC-1`), `parts` (every recipe part, item id to count), `price_cr` (work plus bought parts) |
 | `OnSwapped` | the refitted ship | none | `section` (the Ship pane code, `PDC-1`), `from` and `to` (the old and new section prototype ids), `parts` (every part of the new part's recipe), `price_cr` (work plus bought parts) |

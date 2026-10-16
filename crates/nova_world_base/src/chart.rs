@@ -2,14 +2,15 @@
 //! the player enters, the stations and derelict hulls the player's sensors
 //! find, and what the player sees at a station while docked there.
 //!
-//! The chart is cleared with the frozen ledger, in `NovaWorldSystems::Cleanup`,
-//! so a Retry, an unload or a replaced scenario starts a new one. A Load puts
-//! the saved chart back after that clear, on the frame the world arms.
+//! The chart and the player's [`Jobs`] are cleared with the frozen ledger,
+//! in `NovaWorldSystems::Cleanup`, so a Retry, an unload or a replaced
+//! scenario starts new ones. A Load puts the saved chart and jobs back after
+//! that clear, on the frame the world arms.
 
 use bevy::prelude::*;
 use nova_events::prelude::GeneratedBodyId;
 use nova_gameplay::prelude::{
-    Chart, ChartSectorEdge, DerelictShipMarker, OwnedStationMarker, PlayerSpaceshipMarker,
+    Chart, ChartSectorEdge, DerelictShipMarker, Jobs, OwnedStationMarker, PlayerSpaceshipMarker,
     ShipInventory, StationMarker, StationServices, StationStorage, StationSummary,
 };
 use nova_ship::prelude::{DockedShip, DockingConnection, SensorContacts};
@@ -17,16 +18,20 @@ use nova_world::prelude::{CurrentSector, SectorClusterTypes, SectorRoot, WorldCo
 
 use crate::NovaLayeredWorld;
 
-/// Forget the chart on every frame `Cleanup` drops the frozen ledger, and
-/// keep [`ChartSectorEdge`] on the armed world's edge.
+/// Forget the chart and the jobs on every frame `Cleanup` drops the frozen
+/// ledger, and keep [`ChartSectorEdge`] on the armed world's edge.
 pub(crate) fn clear_chart(
     mut commands: Commands,
     config: Option<Res<WorldConfig<NovaLayeredWorld>>>,
     edge: Option<Res<ChartSectorEdge>>,
     mut chart: ResMut<Chart>,
+    mut jobs: ResMut<Jobs>,
 ) {
     if !chart.is_empty() {
         chart.clear();
+    }
+    if !jobs.is_empty() {
+        jobs.clear();
     }
     let armed = config.map(|config| config.sector_edge);
     let shown = edge.map(|edge| edge.0);

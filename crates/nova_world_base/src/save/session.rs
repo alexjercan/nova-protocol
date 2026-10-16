@@ -5,7 +5,7 @@
 //! time, off the main thread; the newest request waits behind it and is
 //! snapshotted on the first frame the writer is idle. The snapshot is the
 //! whole world in one frame: the ledger, every live sector, the player, the
-//! canister counter and the chart.
+//! canister counter, the chart and the jobs.
 
 use std::{
     sync::Arc,
@@ -20,8 +20,8 @@ use bevy::{
 };
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_gameplay::prelude::{
-    CargoCanisterIdAllocator, CargoCanisterRuntimeId, Chart, PlayerSpaceshipMarker, ShipCredits,
-    UnsettledBody,
+    CargoCanisterIdAllocator, CargoCanisterRuntimeId, Chart, Jobs, PlayerSpaceshipMarker,
+    ShipCredits, UnsettledBody,
 };
 use nova_scenario::prelude::{
     freeze_fleet, freeze_ship, CurrentScenario, GeneratedMarks, NovaEventWorld, OpenWorldSession,
@@ -235,18 +235,20 @@ impl WorldSaveSession {
     }
 }
 
-/// The saved ledger and chart a Load seeds the world with, taken on the
-/// frame the world arms.
+/// The saved ledger, chart and jobs a Load seeds the world with, taken on
+/// the frame the world arms.
 #[derive(Resource, Debug)]
 pub struct ResumedWorld {
     /// The ledger the save holds.
     pub sectors: FrozenSectors,
     /// The player's chart the save holds.
     pub chart: Chart,
+    /// The player's jobs the save holds.
+    pub jobs: Jobs,
 }
 
 /// Seed `world` with everything a Load resumes: the session, the saved
-/// ledger and chart, the player ship the scenario's player spawn thaws, the camera view
+/// ledger, chart and jobs, the player ship the scenario's player spawn thaws, the camera view
 /// its controller opens at, the seed and start role, the canister counter past every saved
 /// id, and the saved transients, with the clocks held until they are back.
 ///
@@ -268,10 +270,15 @@ pub fn resume_world(
         transients,
         scenario,
         chart,
+        jobs,
         ..
     } = state;
     world.insert_resource(WorldSaveSession::opened(folder, lock, header));
-    world.insert_resource(ResumedWorld { sectors, chart });
+    world.insert_resource(ResumedWorld {
+        sectors,
+        chart,
+        jobs,
+    });
     world.insert_resource(ResumedScenario(scenario));
     world.insert_resource(ResumedCameraView {
         view: player.view,
@@ -303,8 +310,8 @@ pub(crate) fn save_systems() -> ScheduleConfigs<ScheduleSystem> {
         .run_if(resource_exists::<WorldSaveSession>)
 }
 
-/// Seed the ledger and the chart `Cleanup` just cleared with the save's, on
-/// the frame the world arms.
+/// Seed the ledger, the chart and the jobs `Cleanup` just cleared with the
+/// save's, on the frame the world arms.
 ///
 /// # Panics
 ///
@@ -319,11 +326,16 @@ pub(crate) fn restore_resumed_world(world: &mut World) {
         "nova_world_base: a ResumedWorld was inserted after the open world armed; a Load must \
          insert it before the scenario loads"
     );
-    let ResumedWorld { sectors, chart } = world
+    let ResumedWorld {
+        sectors,
+        chart,
+        jobs,
+    } = world
         .remove_resource::<ResumedWorld>()
         .expect("run only with a ResumedWorld");
     world.resource_mut::<FrozenSectors>().restore(sectors);
     *world.resource_mut::<Chart>() = chart;
+    *world.resource_mut::<Jobs>() = jobs;
 }
 
 /// Want a save when the world first arms and when the player crosses into
@@ -503,6 +515,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
         .0;
     let player_sector = world.resource::<CurrentSector>().0;
     let chart = world.resource::<Chart>().clone();
+    let jobs = world.resource::<Jobs>().clone();
     let saved_at_unix = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |since| since.as_secs());
@@ -538,6 +551,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
         transients,
         scenario,
         chart,
+        jobs,
     };
     let checked = check_saved_ids(&state)
         .map_err(|fault| match fault {
@@ -550,6 +564,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
             state
                 .chart
                 .validate()
+                .and_then(|()| state.jobs.validate())
                 .and_then(|()| check_saved_fleet(&state))
                 .and_then(|()| check_saved_items(&state, &items))
                 .and_then(|()| check_saved_stock(&state, &items))

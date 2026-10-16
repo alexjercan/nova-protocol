@@ -3,9 +3,11 @@
 //! The view swaps the local scene for a grid of cells around the player's
 //! cell, the visited cells filled in the colour of their first cluster type,
 //! and the found stations and wrecks as marks in the cell that generated
-//! them. Marks and cell tags are projected UI labels, like the local blips.
-//! A label shows only a code minted from the chart's found order, never a
-//! name: the open world names a ship by whose it is.
+//! them, and every held job ([`Jobs`]) as a mark in its target's cell.
+//! Marks and cell tags are projected UI labels, like the local blips.
+//! A label shows only a code minted from the chart's found order (or the
+//! jobs' accept order), never a name: the open world names a ship by whose
+//! it is.
 //!
 //! Chart space is its own frame on the map layer: the player's cell centre
 //! sits at the origin and one cell is [`MAP_CHART_CELL`] units across. The
@@ -25,6 +27,7 @@ use nova_ui::{
 
 use super::{app::*, contacts::*, *};
 use crate::{
+    inventory::cr_text,
     pane::{legend_entry, play_menu_select, themed_label, InterfacePaneType},
     terminal::NovaOsAppInput,
     viewer::unlit,
@@ -53,6 +56,8 @@ pub(crate) enum MapChartMarkType {
     Station(GeneratedBodyId),
     /// A found derelict hull.
     Wreck(GeneratedBodyId),
+    /// A held job, marked in its target's cell.
+    Job(JobId),
 }
 
 /// The chart view's scene, under the map scene root.
@@ -69,8 +74,13 @@ pub(crate) struct MapChartLabel {
     pub(crate) mark: Option<MapChartMarkType>,
 }
 
-/// The chart code of a mark: its 1-based place in the chart's found order.
-pub(crate) fn chart_mark_code(chart: &Chart, mark: &MapChartMarkType) -> Option<String> {
+/// The chart code of a mark: its 1-based place in the chart's found order,
+/// or a held job's in the accept order.
+pub(crate) fn chart_mark_code(
+    chart: &Chart,
+    jobs: &Jobs,
+    mark: &MapChartMarkType,
+) -> Option<String> {
     match mark {
         MapChartMarkType::Station(id) => chart
             .stations()
@@ -82,7 +92,24 @@ pub(crate) fn chart_mark_code(chart: &Chart, mark: &MapChartMarkType) -> Option<
             .iter()
             .position(|wreck| wreck == id)
             .map(|index| format!("WRK-{}", index + 1)),
+        MapChartMarkType::Job(id) => jobs
+            .held()
+            .iter()
+            .position(|job| job.id == *id)
+            .map(|index| format!("JOB-{}", index + 1)),
     }
+}
+
+/// The one line a job is called by: its title from the catalog, or by its
+/// item id while no catalog is loaded.
+pub(crate) fn job_title(job: &Job, items: Option<&GameItems>) -> String {
+    items.map_or_else(
+        || {
+            let JobType::Procure { item, count } = &job.kind;
+            format!("Bring {count} {item}")
+        },
+        |items| job.title(items),
+    )
 }
 
 /// The colour a visited cell is filled with: its first cluster type's, or a
@@ -120,6 +147,8 @@ pub(crate) const fn chart_station_kind(derelict: bool, owned: bool) -> (&'static
 
 /// The colour of a wreck mark.
 pub(crate) const MAP_CHART_WRECK_COLOR: UiColor = UiColor::AccentHigh;
+/// The colour of a held job's mark and label.
+pub(crate) const MAP_CHART_JOB_COLOR: UiColor = UiColor::Accent;
 
 /// Where a cell sits in chart space, from the player's cell.
 fn chart_cell_position(cell: SectorCoord, player_cell: SectorCoord) -> Vec3 {
@@ -187,6 +216,7 @@ pub(crate) fn manage_map_chart(
     mut commands: Commands,
     mut runtime: ResMut<MapRuntime>,
     chart: Res<Chart>,
+    jobs: Res<Jobs>,
     edge: Option<Res<ChartSectorEdge>>,
     contacts: MapContacts,
     theme: Res<ActiveUiTheme>,
@@ -218,6 +248,7 @@ pub(crate) fn manage_map_chart(
     if runtime.chart_root.is_some()
         && *built_for == Some(player_cell)
         && !chart.is_changed()
+        && !jobs.is_changed()
         && !theme.is_changed()
     {
         return;
@@ -288,7 +319,8 @@ pub(crate) fn manage_map_chart(
         }
     }
 
-    // Stations and wrecks, side by side in the cell that generated them.
+    // Stations and wrecks, side by side in the cell that generated them,
+    // and held jobs in their target's cell.
     let marks: Vec<(MapChartMarkType, SectorCoord, UiColor)> = chart
         .stations()
         .iter()
@@ -306,9 +338,17 @@ pub(crate) fn manage_map_chart(
                 MAP_CHART_WRECK_COLOR,
             )
         }))
+        .chain(jobs.held().iter().map(|job| {
+            (
+                MapChartMarkType::Job(job.id.clone()),
+                job.target.origin,
+                MAP_CHART_JOB_COLOR,
+            )
+        }))
         .collect();
     let station_mesh = meshes.add(Cuboid::new(9.0, 9.0, 9.0));
     let wreck_mesh = meshes.add(Tetrahedron::default());
+    let job_mesh = meshes.add(Cuboid::new(4.0, 14.0, 4.0));
     for (mark, cell, color) in &marks {
         let in_cell: Vec<&MapChartMarkType> = marks
             .iter()
@@ -335,8 +375,15 @@ pub(crate) fn manage_map_chart(
                     Transform::from_translation(at).with_scale(Vec3::splat(10.0)),
                 );
             }
+            MapChartMarkType::Job(_) => {
+                spawn_mesh(
+                    job_mesh.clone(),
+                    material,
+                    Transform::from_translation(at + Vec3::Y * 3.0),
+                );
+            }
         }
-        if let Some(code) = chart_mark_code(&chart, mark) {
+        if let Some(code) = chart_mark_code(&chart, &jobs, mark) {
             labels.push((at, Some(mark.clone()), code, *color));
         }
     }
@@ -496,9 +543,12 @@ pub(crate) fn project_map_chart_labels(
 /// What the contact panel says in the chart view, field by field: the
 /// selected mark's code, its last-seen name, what it is, its cell, the
 /// services and stock seen on the last dock, or a station seen but never
-/// docked as having no stock. With nothing selected it counts the chart.
+/// docked as having no stock; for a held job, its title, reward and where
+/// it hands in. With nothing selected it counts the chart.
 pub(crate) fn chart_panel_field(
     chart: &Chart,
+    jobs: &Jobs,
+    items: Option<&GameItems>,
     selected: Option<&MapChartMarkType>,
     field: MapPanelField,
 ) -> (String, UiColor) {
@@ -514,6 +564,11 @@ pub(crate) fn chart_panel_field(
         }
     };
     let station = |id: &GeneratedBodyId| chart.station(id);
+    let station_name = |id: &GeneratedBodyId| {
+        station(id)
+            .and_then(|station| station.summary.as_ref())
+            .map_or_else(|| id.to_string(), |summary| summary.name.clone())
+    };
     match (selected, field) {
         (None, MapPanelField::Code) => ("No mark".to_string(), UiColor::Label),
         (None, MapPanelField::Range) => (
@@ -522,20 +577,52 @@ pub(crate) fn chart_panel_field(
         ),
         (None, MapPanelField::Bearing) => (
             format!(
-                "Stations {}  Wrecks {}",
+                "Stations {}  Wrecks {}  Jobs {}",
                 chart.stations().len(),
-                chart.wrecks().len()
+                chart.wrecks().len(),
+                jobs.held().len()
             ),
             UiColor::Primary,
         ),
         (None, MapPanelField::Note) => (
-            "Click a station or wreck to read it.".to_string(),
+            "Click a station, wreck or job to read it.".to_string(),
             UiColor::Label,
         ),
         (None, _) => (String::new(), UiColor::Body),
         (Some(mark), MapPanelField::Code) => (
-            chart_mark_code(chart, mark).unwrap_or_default(),
+            chart_mark_code(chart, jobs, mark).unwrap_or_default(),
             UiColor::Primary,
+        ),
+        (Some(MapChartMarkType::Job(id)), MapPanelField::Name) => (
+            jobs.job(id).map_or_else(
+                || "Job no longer held".to_string(),
+                |job| job_title(job, items),
+            ),
+            UiColor::Body,
+        ),
+        (Some(MapChartMarkType::Job(_)), MapPanelField::Kind) => {
+            ("HELD JOB".to_string(), MAP_CHART_JOB_COLOR)
+        }
+        (Some(MapChartMarkType::Job(id)), MapPanelField::Range) => (
+            jobs.job(id)
+                .map_or_else(String::new, |job| format!("Cell {}", job.target.origin)),
+            UiColor::Primary,
+        ),
+        (Some(MapChartMarkType::Job(id)), MapPanelField::Bearing) => (
+            jobs.job(id).map_or_else(String::new, |job| {
+                format!("Reward {}", cr_text(job.reward_cr))
+            }),
+            UiColor::Primary,
+        ),
+        (Some(MapChartMarkType::Job(id)), MapPanelField::Note) => (
+            jobs.job(id).map_or_else(String::new, |job| {
+                format!(
+                    "Posted by {}.\nHand in at {} while docked.",
+                    station_name(job.posted_by()),
+                    station_name(&job.target)
+                )
+            }),
+            UiColor::Label,
         ),
         (Some(MapChartMarkType::Station(id)), MapPanelField::Name) => (
             station(id)
@@ -603,7 +690,7 @@ pub(crate) fn chart_panel_field(
 }
 
 /// The legend the chart view shows: each cluster type's fill and tag, the
-/// station and wreck marks, and the own ship.
+/// station, wreck and held-job marks, and the own ship.
 pub(crate) fn spawn_chart_legend(legend: &mut ChildSpawnerCommands) {
     let swatch = |entry: &mut ChildSpawnerCommands, color: UiColor, alpha: f32| {
         entry.spawn((
@@ -632,6 +719,7 @@ pub(crate) fn spawn_chart_legend(legend: &mut ChildSpawnerCommands) {
         (chart_station_kind(false, true).1, "Owned station"),
         (chart_station_kind(true, false).1, "Dead station"),
         (MAP_CHART_WRECK_COLOR, "Wreck"),
+        (MAP_CHART_JOB_COLOR, "Held job"),
         (MapContactKind::OwnShip.color(), "Own ship"),
     ] {
         legend.spawn(legend_entry()).with_children(|entry| {

@@ -10,7 +10,7 @@ use nova_gameplay::prelude::{
     nova_blast, resumed_lifetime, AssetRef, CargoCanister, CargoCanisterIdAllocator,
     CargoCanisterRuntimeId, Chart, ClockFreeze, DamageLevel, DamageMarks, DamageType, FreezeOwner,
     FrozenRoundFlight, GameItems, Health, ImpactSparkMarker, ImpactSparkPlugin, ImpactSparks,
-    IntegrityDestroyMarker, ItemCategoryType, ItemDesign, ItemDesignId, ItemRoleType,
+    IntegrityDestroyMarker, ItemCategoryType, ItemDesign, ItemDesignId, ItemRoleType, Jobs,
     PlayerFleetMarker, PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage,
     ProjectileOwner, RailgunSlugProjectileMarker, RoundRake, SavedBodyRef, SavedLifetime,
     SavedOwner, SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory,
@@ -142,6 +142,7 @@ fn state(generation: u64, credits: u32) -> WorldSaveState {
         transients: Vec::new(),
         scenario: saved_scenario(),
         chart: Chart::default(),
+        jobs: Jobs::default(),
     }
 }
 

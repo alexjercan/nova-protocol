@@ -931,6 +931,8 @@ pub enum CreditChangeCauseType {
     EscortHire,
     /// A station bought from its civilization while docked: its price.
     StationBuy,
+    /// A job handed in at a docked station: its reward.
+    JobReward,
     /// An armed `credits give` or `credits set` command wrote the balance.
     Cheat,
 }
@@ -947,6 +949,7 @@ impl CreditChangeCauseType {
             CreditChangeCauseType::ShipBuy => "ShipBuy",
             CreditChangeCauseType::EscortHire => "EscortHire",
             CreditChangeCauseType::StationBuy => "StationBuy",
+            CreditChangeCauseType::JobReward => "JobReward",
             CreditChangeCauseType::Cheat => "Cheat",
         }
     }

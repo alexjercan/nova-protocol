@@ -289,7 +289,7 @@ station's `ParkedHulls` despawns them with it. A parked hull is no persistent
 body of its own: `freeze_station` records each in `FrozenStation.parked`
 (`FrozenParkedHull`: name, listing, pose relative to the station, ship), and a
 thaw parks them again where they froze. A station whose only docks are its
-own parked hulls retires; the save format is 11.
+own parked hulls retires; the save format is 12.
 
 The Station pane's "Your ships" and "Ships for sale" lists
 (`nova_interface/src/station/shipyard.rs`) show every hull parked at the

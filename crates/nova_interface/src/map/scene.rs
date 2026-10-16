@@ -1018,6 +1018,8 @@ pub(crate) fn update_map_panel(
     icons: Res<InterfaceIcons>,
     contacts: MapContacts,
     chart: Res<Chart>,
+    jobs: Res<Jobs>,
+    items: Option<Res<GameItems>>,
     q_autopilot: Query<&Autopilot>,
     mut q_field: Query<(&MapPanelField, &mut Text, &mut ThemedText)>,
     mut q_icon: Query<(&mut ImageNode, &mut ThemedImageTint, &mut Visibility), With<MapPanelIcon>>,
@@ -1057,9 +1059,13 @@ pub(crate) fn update_map_panel(
         let (value, color) = match (&selected, field) {
             (_, MapPanelField::Note) if runtime.goto_note.is_some() => note.clone(),
             (_, MapPanelField::Destination) => destination.clone(),
-            _ if runtime.chart => {
-                chart_panel_field(&chart, runtime.chart_selected.as_ref(), *field)
-            }
+            _ if runtime.chart => chart_panel_field(
+                &chart,
+                &jobs,
+                items.as_deref(),
+                runtime.chart_selected.as_ref(),
+                *field,
+            ),
             (_, MapPanelField::Note) => note.clone(),
             (Some(contact), MapPanelField::Code) => (contact.code.clone(), UiColor::Primary),
             (Some(contact), MapPanelField::Name) => (contact.name.clone(), UiColor::Body),

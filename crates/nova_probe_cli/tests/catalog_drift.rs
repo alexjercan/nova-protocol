@@ -1122,6 +1122,17 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_station_jobs",
+        &[
+            "a docked station posts a seeded board",
+            "an accept holds the job",
+            "the chart view marks the held job",
+            "the leave save holds the job",
+            "a loaded world restores the job and the board",
+            "a hand-in pays the reward and completes the job",
+        ],
+    ),
+    (
         "system_station_orbit",
         &[
             "station rides its orbit",
@@ -1133,7 +1144,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 564;
+const SYSTEMS_INVARIANTS: usize = 570;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

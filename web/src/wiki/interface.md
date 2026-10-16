@@ -1,6 +1,6 @@
 # Interface
 
-Every ship carries a second seat of control: the **interface**. Press <kbd>Tab</kbd> in flight and a full-screen panel opens over the frozen world with three panes: **Map**, **Ship** and **Inventory**. Docked at a living station, a fourth pane, **Station**, sells ships, escorts and the station itself. Flight resumes the moment you close it.
+Every ship carries a second seat of control: the **interface**. Press <kbd>Tab</kbd> in flight and a full-screen panel opens over the frozen world with three panes: **Map**, **Ship** and **Inventory**. Docked at a living station, a fourth pane, **Station**, sells ships, escorts and the station itself, and posts jobs. Flight resumes the moment you close it.
 
 <figure class="figure">
     <!-- Capture: assets/wiki-interface-map.png -->
@@ -90,7 +90,7 @@ The Map pane is a schematic 3D chart of local space: distance rings, a hub, and 
 | <kbd>T</kbd>, or click **Reframe** | left stick click | Reset the view. |
 | <kbd>C</kbd>, or click **Chart** | - | Switch between the local view and the chart view. |
 
-In a generated world, the chart view draws your chart at sector scale: a grid of sectors around yours, each sector you entered filled in the colour of its cluster type, and the stations and wrecks your sensors found. A label shows only a code: `STN-1` for a station, `WRK-1` for a wreck, numbered in the order you found them. Click a station to read what you saw at your last dock there: its name, services, trade stock and what you stored. A station you never docked at shows `Not docked: no stock seen.` A station you bought shows in the ally colour as `OWNED STATION`. A scene with no generated world has no chart.
+In a generated world, the chart view draws your chart at sector scale: a grid of sectors around yours, each sector you entered filled in the colour of its cluster type, and the stations and wrecks your sensors found. A label shows only a code: `STN-1` for a station, `WRK-1` for a wreck, numbered in the order you found them. Click a station to read what you saw at your last dock there: its name, services, trade stock and what you stored. A station you never docked at shows `Not docked: no stock seen.` A station you bought shows in the ally colour as `OWNED STATION`. Every job you hold is marked `JOB-1`, `JOB-2` and so on, in accept order, in the sector of the station it hands in at, docked or not; click one to read what it asks, its reward and where to hand it in. A scene with no generated world has no chart.
 
 <details class="explain">
 <summary>Show explanation</summary>
@@ -226,7 +226,17 @@ Docked at a living station that offers refit, select a section and press <kbd>De
 
 <!-- Pane: crates/nova_interface/src/station/mod.rs. -->
 
-Docked at a living station, the **Station** pane shows what it sells: **This station**, **Ships for sale** and **Escorts for hire**, each offer with its price and a button or the reason it is refused. Above the ships for sale, **Your ships** lists the ships you own parked at that station, each with **Board**; it shows only while you have a ship parked there. A station that offers none of the three and holds none of your ships says so. Results and refusals show on the note line under the lists. Refit (rebuild, swap and add) stays in the Ship pane, beside the ship it changes. The wreck strip is in the Inventory pane, over the wreck's column.
+Docked at a living station, the **Station** pane shows what it sells: **This station**, **Ships for sale** and **Escorts for hire**, each offer with its price and a button or the reason it is refused. Above the ships for sale, **Your ships** lists the ships you own parked at that station, each with **Board**; it shows only while you have a ship parked there. Under the offers, **Jobs posted here** and **Your jobs** list the station's job board and the jobs you hold (see [Jobs](#jobs)). A station that offers none of these and holds none of your ships says so. Results and refusals show on the note line under the lists. Refit (rebuild, swap and add) stays in the Ship pane, beside the ship it changes. The wreck strip is in the Inventory pane, over the wreck's column.
+
+### Jobs
+
+<!-- Lists: crates/nova_interface/src/station/jobs.rs. Board: crates/nova_gameplay/src/jobs.rs. -->
+
+Every living generated station posts a board of three jobs. The board is fixed by the world seed and the station: the same station posts the same three jobs on every visit and after a Load, and a job stays posted until you complete it. For now every job is a procurement, `Bring 4 Iron ore`: bring that many units of the item to the station that posted it. A station asks for what its sector lacks: raw material in an asteroid or rock sector, food and raw material near a planet, parts and plates in a derelict field.
+
+**Jobs posted here** lists the board, less the jobs you hold or completed, each with its reward and **Accept**. **Your jobs** lists every job you hold, from any station, with its reward and the station it hands in at. **Hand in** shows while you are docked at that station with the goods in your hold and the station can pay; otherwise the row says why not (`hand in at <station>`, `the hold carries 2 of 4 Iron ore`). A hand-in takes the goods out of your hold, pays the reward from the station's balance (`OnCreditsChanged` with cause `JobReward` on both sides) and moves the job to completed. The note line says `accepted: Bring 4 Iron ore` and `handed in Bring 4 Iron ore for 146 cr`.
+
+Held jobs stay visible undocked: the Map's chart view marks each in the sector it hands in at (see [the map](#the-map)). A saved Open World keeps the jobs you hold and have completed; a Load brings them back. Jobs do not expire.
 
 ### Buying a ship
 

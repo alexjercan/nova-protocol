@@ -37,6 +37,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
   the camera behind it while it moves.
 - Two docked hulls no longer collide, so skin plates and greebles past a
   port face no longer wear both hulls down while they sit docked.
+- **(breaking)** Living generated stations post three seeded Bring-items
+  jobs. Accept and Hand in on the Station pane while docked; held jobs mark
+  the Map's chart as `JOB-n` and save. Save format 12.
 
 ### Combat & Weapons
 
@@ -134,7 +137,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
   zero. Any other value fails at lint and at load.
 - **(breaking)** `Station` content holds its hull, services, stock and credits
   under `design` and spawns from `Prototype(id)` or `Inline`, with a side.
-  Save format 10 refuses old saves.
+  Older saves are refused.
 - A station is a dynamic body: gravity and rams move it, its bridge levels it
   and it orbits in a well. At its `collapse_threshold` share of hull it
   collapses like a ship and drops its hold and storage.

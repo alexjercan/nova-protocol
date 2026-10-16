@@ -79,8 +79,9 @@ what levels the station, see below.
 A docked ship trades with a living station that offers `Trade` as it trades
 with a ship, and keeps items in the storage of one that offers `Storage` (see
 [Trade and storage](#trade-and-storage)). `Rebuild` and `Refit` are in play
-too (see [Rebuild](#rebuild), [Swap](#swap), [Add](#add), [Buy a hull](#buy-a-hull) and [Hire an escort](#hire-an-escort)); `Jobs` and `Roster` are
-checked and carried, and the screens that read them are their own task.
+too (see [Rebuild](#rebuild), [Swap](#swap), [Add](#add), [Buy a hull](#buy-a-hull) and [Hire an escort](#hire-an-escort)). `Jobs` posts the
+station's job board (see [Jobs](#jobs)); `Roster` is checked and carried, and
+the screen that reads it is its own task.
 
 ## How a station behaves
 
@@ -404,7 +405,7 @@ every cell.
 | credits | 10000 | 40000 |
 | opening stock, share of the hold | 4% | 8% |
 
-Every generated station offers Rebuild, Refit, Trade and Storage. Its stock
+Every generated station offers Rebuild, Refit, Trade, Storage and Jobs. Its stock
 is half goods and half the parts its own sections are built from. It draws
 parts its advancement allows, those within 0.25 below it first, and carries
 flight computers for its mass, as a generated ship does. A dead station keeps the same stock
@@ -436,6 +437,41 @@ A living station fought down to its last turret or last flight computer
 turns into the same dead station in place (see the
 [behaviour table](#how-a-station-behaves)), and freezes, thaws and saves as
 one.
+
+## Jobs
+
+<!-- Board: crates/nova_gameplay/src/jobs.rs (`station_job_board`). Posting: crates/nova_world_base/src/jobs.rs. -->
+
+A living station that offers `Jobs` posts a board of three procurements
+(`JOBS_PER_BOARD`), put on its root as `JobBoard` the first frame it stands
+under its sector root. The board is a pure function of the world seed, the
+station's generated id and the cluster types of its sector, drawn off one
+`WyRand` seeded from FNV-64 of `(seed, "station_jobs", station id)`: the same
+station posts the same board in every process and after a Load, and nothing
+on a board changes. The sector's clusters pick the item categories:
+
+| clusters | asks for |
+|---|---|
+| `AsteroidRich`, `RockOnly` | `Raw` |
+| `PlanetHeavy` | `Food`, `Raw` |
+| `DerelictField` | `Parts`, `Repair` |
+| none | every category but `Ammo` |
+
+Each job draws a distinct item from those categories while the pool allows
+(a catalog with none of them draws from every item), a count of 2 to 8, and a
+reward of the goods at the item's ask plus half, plus a flat fee of 50 to
+250 cr. A job's id is the posting station's id and its board slot.
+
+The player accepts and hands in only while docked at a living station that
+offers `Jobs` (`plan_job_accept`, `plan_job_hand_in`): a hand-in needs the
+posting station, the goods in the hold and a station balance that covers the
+reward; it removes the goods, pays `OnCreditsChanged` with cause `JobReward`
+on both sides and lists the job completed. Held and completed jobs are the
+`Jobs` session resource, saved in the world state's `jobs` field (save format
+12) and checked on load: a job held twice, held and completed, with a zero
+count or reward, or naming an item the catalog lacks refuses the world.
+Authored `Station` content with `Jobs` in its services posts no board yet:
+only generated stations have the id and sector the board is seeded from.
 
 ## Base stations
 

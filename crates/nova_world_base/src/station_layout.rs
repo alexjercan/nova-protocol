@@ -123,11 +123,12 @@ const STORAGE_CAP_G: (f32, f32) = (100_000.0, 400_000.0);
 const CREDITS: (f32, f32) = (10_000.0, 40_000.0);
 
 /// The services every generated station offers.
-const SERVICES: [StationServiceType; 4] = [
+const SERVICES: [StationServiceType; 5] = [
     StationServiceType::Rebuild,
     StationServiceType::Refit,
     StationServiceType::Trade,
     StationServiceType::Storage,
+    StationServiceType::Jobs,
 ];
 
 /// The shape a generated station is built in.

@@ -107,6 +107,15 @@ name = "station_docked_sandbox"
 path = "examples/playable/station_docked_sandbox.rs"
 required-features = ["debug"]
 
+# The job board by hand: New Game on a pinned seed, docked at a living
+# generated station that posts jobs, the board's goods in the hold and the
+# Station tab open. Nothing closes it and no deadline ends it; under
+# NOVA_AUTOPILOT a smoke walk accepts, reads the chart, hands in and ends.
+[[example]]
+name = "job_board_sandbox"
+path = "examples/playable/job_board_sandbox.rs"
+required-features = ["debug"]
+
 # Buying a parked hull by hand: New Game on a pinned seed, docked at a living
 # generated station with hulls for sale parked at its ports, after one buy so
 # the old ship is parked as the player's own too. The overlay marks each port and hull
@@ -829,6 +838,14 @@ required-features = ["debug"]
 [[example]]
 name = "system_world_chart"
 path = "examples/systems/system_world_chart.rs"
+required-features = ["debug"]
+
+# Station jobs: a docked station posts its seeded board, an accept holds the
+# job, the Map's chart view marks it, the leave save and a Load keep it, and
+# a hand-in takes the goods and pays the reward.
+[[example]]
+name = "system_station_jobs"
+path = "examples/systems/system_station_jobs.rs"
 required-features = ["debug"]
 
 # Then the one range that grades SHIPPED content rather than a fixture built

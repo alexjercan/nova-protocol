@@ -61,7 +61,7 @@ Dying ends the run with a **DEFEAT** panel: "Your ship was destroyed." On the de
 
 ### What a Load brings back
 
-A Load restores your ship (pose, motion, sections, damage, plates, ammo, reloads, hold, credits, key bindings and the chase-camera zoom), your [chart](../interface/#the-map) of the sectors you entered and the stations and wrecks you found, every frozen off-window sector, and every live sector in the streamed window as it was at the last good save - including a turret round, a torpedo, a rock chunk cut off a rock, a detached hull piece and a shed plate or decor fixture still in flight, each resuming on its own remaining lifetime. A visual-only effect, such as a spark or a muzzle flash, is not saved and does not come back.
+A Load restores your ship (pose, motion, sections, damage, plates, ammo, reloads, hold, credits, key bindings and the chase-camera zoom), your [chart](../interface/#the-map) of the sectors you entered and the stations and wrecks you found, the [jobs](../interface/#jobs) you hold and have completed, every frozen off-window sector, and every live sector in the streamed window as it was at the last good save - including a turret round, a torpedo, a rock chunk cut off a rock, a detached hull piece and a shed plate or decor fixture still in flight, each resuming on its own remaining lifetime. A visual-only effect, such as a spark or a muzzle flash, is not saved and does not come back.
 
 A Load also brings the scenario back as it was: your objectives and their markers, the story log, the scenario's variables and readouts, and any timer still running, with the seconds it had left. A one-shot scenario event that already fired before the save does not fire again.
 
