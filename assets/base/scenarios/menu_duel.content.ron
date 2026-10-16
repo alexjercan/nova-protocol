@@ -333,7 +333,7 @@
                                                 nav_constant: 4.0,
                                                 linear_damping: 0.4,
                                                 blast_radius: 450.0,
-                                                blast_damage: 2000.0,
+                                                blast_damage: 6000.0,
                                                 launch_sound: Some("self://sounds/torpedo_launch.wav"),
                                                 door_sound: Some("self://sounds/bay_door.wav"),
                                                 detonation_sound: Some("self://sounds/torpedo_detonate.wav"),
@@ -505,6 +505,20 @@
                                     "bridge": (
                                         config: (
                                             health: Some(500.0),
+                                        ),
+                                    ),
+                                    "pdc_port": (
+                                        config: (
+                                            kind: Some(Turret((
+                                                bullet_damage: Some(8.0),
+                                            ))),
+                                        ),
+                                    ),
+                                    "pdc_starboard": (
+                                        config: (
+                                            kind: Some(Turret((
+                                                bullet_damage: Some(8.0),
+                                            ))),
                                         ),
                                     ),
                                 },
@@ -1091,6 +1105,11 @@
                                         ),
                                         source: Prototype(
                                             id: "railgun_lance_section",
+                                            patch: (
+                                                kind: Some(Railgun((
+                                                    slug_damage: Some(100.0),
+                                                ))),
+                                            ),
                                         ),
                                     ),
                                     (
@@ -1108,6 +1127,11 @@
                                         ),
                                         source: Prototype(
                                             id: "pdc_kinetic_turret_section",
+                                            patch: (
+                                                kind: Some(Turret((
+                                                    bullet_damage: Some(2.0),
+                                                ))),
+                                            ),
                                         ),
                                     ),
                                     (
@@ -1125,6 +1149,11 @@
                                         ),
                                         source: Prototype(
                                             id: "pdc_kinetic_turret_section",
+                                            patch: (
+                                                kind: Some(Turret((
+                                                    bullet_damage: Some(2.0),
+                                                ))),
+                                            ),
                                         ),
                                     ),
                                     (
@@ -1231,7 +1260,7 @@
                                     ),
                                 ],
                                 integrity: (
-                                    collapse_threshold: Some(0.5),
+                                    collapse_threshold: Some(0.8),
                                 ),
                                 presentation: (
                                     skin: true,

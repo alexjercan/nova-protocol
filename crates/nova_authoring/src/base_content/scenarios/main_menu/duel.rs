@@ -80,10 +80,13 @@ const BAY_CELLS: Vec3 = Vec3::new(1.0, 1.0, 2.0);
 /// Its values exceed supported player-buildable content, so the section stays
 /// inline instead of appearing in the editor catalog.
 ///
-/// `blast_damage` 2000 over a 450 m radius destroys either target through the
-/// 65% transmission rule. `projectile_health` 50000 exceeds the damage six PDC
-/// mounts can deal during the approximately 6 s closing window, so the round
-/// remains visible under fire and still reaches the target.
+/// `blast_damage` 6000 over a 450 m radius kills the victor from any side in
+/// one hit: pressure keeps 65% through each plate it destroys, so the eighth
+/// layer still takes about 265 (over a 200 plate) and the fifth about 960
+/// (over the 500 bridge), and the interceptor is five cells deep at most.
+/// `projectile_health` 50000 exceeds the damage six PDC mounts can deal during
+/// the approximately 6 s closing window, so the round remains visible under
+/// fire and still reaches the target.
 fn siege_bay(assets: &BaseContentAssets) -> SectionConfig {
     SectionConfig {
         base: BaseSectionConfig {
@@ -132,7 +135,7 @@ fn siege_bay(assets: &BaseContentAssets) -> SectionConfig {
             nav_constant: 4.0,
             linear_damping: 0.4,
             blast_radius: Meters(450.0),
-            blast_damage: 2000.0,
+            blast_damage: 6000.0,
             blast_effect: None,
             launch_effect: None,
             launch_sound: Some(assets.torpedo_launch_sound.clone()),
@@ -212,6 +215,59 @@ fn bay_muzzle_door() -> Vec<SectionAnimation> {
 
 /// What a duelist's bridge is built to take, so the act runs its length.
 const DUELIST_BRIDGE_HEALTH: f32 = 500.0;
+
+/// The rival comes apart once it has lost a fifth of its built health, so the
+/// act's first half ends on the first good pass instead of a long chase of a
+/// hull at half health.
+const RIVAL_COLLAPSE_THRESHOLD: f32 = 0.8;
+/// What each side's guns hit for. The catalog PDC round is 4 and the lance
+/// slug 300: the victor's mounts land twice the round, the rival's half of it,
+/// and the lance a third of its slug, so the rival cannot strip the victor's
+/// mounts or computer before it dies and the finisher still has a whole ship
+/// to kill.
+const VICTOR_PDC_DAMAGE: f32 = 8.0;
+const RIVAL_PDC_DAMAGE: f32 = 2.0;
+const RIVAL_LANCE_DAMAGE: f32 = 100.0;
+
+/// A spawn patch that sets one PDC mount's per-hit damage and nothing else.
+fn turret_damage(bullet_damage: f32) -> SpaceshipSectionConfigPatch {
+    SpaceshipSectionConfigPatch {
+        config: SectionConfigPatch {
+            kind: Some(SectionKindPatch::Turret(TurretSectionConfigPatch {
+                bullet_damage: Some(bullet_damage),
+                ..Default::default()
+            })),
+            ..Default::default()
+        },
+        ..Default::default()
+    }
+}
+
+/// A spawn patch that sets one lance's slug damage and nothing else.
+fn railgun_damage(slug_damage: f32) -> SpaceshipSectionConfigPatch {
+    SpaceshipSectionConfigPatch {
+        config: SectionConfigPatch {
+            kind: Some(SectionKindPatch::Railgun(RailgunSectionConfigPatch {
+                slug_damage: Some(slug_damage),
+                ..Default::default()
+            })),
+            ..Default::default()
+        },
+        ..Default::default()
+    }
+}
+
+/// Every named mount on a design, retuned to the duel's numbers.
+fn retuned(
+    design: ShipDesignSource,
+    patches: impl IntoIterator<Item = (&'static str, SpaceshipSectionConfigPatch)>,
+) -> ShipDesignSource {
+    patches
+        .into_iter()
+        .fold(design, |design, (section, patch)| {
+            ships::patched_section(design, section, patch)
+        })
+}
 
 /// One duelist: a block hull that flies in from off-screen onto an in-frame
 /// patrol triangle. The arrival grace keeps its guns quiet on the entrance;
@@ -381,7 +437,13 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
         "Duel Victor",
         VICTOR_SPAWN,
         VICTOR_PATROL,
-        ships::design(ships::INTERCEPTOR_SHIP_ID),
+        retuned(
+            ships::design(ships::INTERCEPTOR_SHIP_ID),
+            [
+                ("pdc_port", turret_damage(VICTOR_PDC_DAMAGE)),
+                ("pdc_starboard", turret_damage(VICTOR_PDC_DAMAGE)),
+            ],
+        ),
         // The relation model only makes Player<->Enemy hostile: one duelist
         // must fly the player's colors for AI-vs-AI combat to exist. It also
         // makes the Enemy finisher's ordnance hostile to the winner.
@@ -395,10 +457,18 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
         "Duel Rival",
         RIVAL_SPAWN,
         RIVAL_PATROL,
-        // An inline copy, so this actor comes apart below half of its built
-        // health rather than holding together at the engine's 5% floor and
-        // lingering as a nearly empty hull.
-        ships::inline_raider(assets, 0.5),
+        // An inline copy, so this actor comes apart early rather than
+        // holding together at the engine's 5% floor and lingering as a
+        // nearly empty hull; its guns are retuned down so the victor keeps
+        // its own.
+        retuned(
+            ships::inline_raider(assets, RIVAL_COLLAPSE_THRESHOLD),
+            [
+                ("pdc_dorsal", turret_damage(RIVAL_PDC_DAMAGE)),
+                ("pdc_boom", turret_damage(RIVAL_PDC_DAMAGE)),
+                ("railgun_nose", railgun_damage(RIVAL_LANCE_DAMAGE)),
+            ],
+        ),
         None,
     ));
     let victor_patrol = ordered_patrol(VICTOR_PATROL_ORDER, VICTOR_ID, VICTOR_PATROL);
@@ -635,7 +705,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_rival_is_a_one_off_half_health_hull() {
+    fn the_rival_is_a_one_off_hull_that_collapses_early() {
         let assets = BaseContentAssets::from_paths();
         let scenario = menu_duel(&assets);
         let rival = scenario
@@ -657,8 +727,8 @@ mod tests {
         };
         assert_eq!(
             design.integrity.collapse_threshold,
-            Some(0.5),
-            "the set-piece rival must collapse below half of its built health"
+            Some(RIVAL_COLLAPSE_THRESHOLD),
+            "the set-piece rival must collapse early"
         );
     }
 

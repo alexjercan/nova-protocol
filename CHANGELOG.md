@@ -112,6 +112,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** A world save carries its scenario: objectives, variables,
   story, readouts, timers, fired once handlers and marks. Load fires
   `OnResume`, not `OnStart`; `seed: None` needs it.
+- The menu duel ends fast: the rival comes apart once a fifth of its hull is
+  gone and its guns hit for less, the victor's PDCs hit for more, and the
+  siege torpedo kills the victor in one hit.
 
 ### Modding & Mod Portal
 
