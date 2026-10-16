@@ -1,8 +1,8 @@
 # Salvage: tow a derelict and sell it by delivery radius
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 67
-- TAGS: v0.16.0,salvage
+- TAGS: v0.16.0, salvage
 
 ## User facts
 - Epic `20261012-100018`. Decision 6b (2026-10-12): selling a derelict is a delivery into a station's service radius, never a dock, since the player's one port is busy with the towed hull; a whole hull must be worth more than its parts or nobody tows.
@@ -19,3 +19,6 @@
 
 ## Done when
 - Towing and selling work in a live run and the premium rule is a permanent lint.
+
+## Orchestrator close (2026-10-16, not done)
+- The owner dropped tow-and-sell on 2026-10-16: the whole-ship strip (100019) covers salvage and the owner prefers it. No code landed for this task.
