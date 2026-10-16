@@ -240,6 +240,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - `wfc_arena` fighters lose infinite ammo. Holds carry up to two spare
   magazines per mounted ammo, PDC/torpedo/slug at 50/40/10% of hold. Old
   infinite-ammo perf baselines are not directly comparable.
+- Debug log: an autopilot maneuver that keeps ending the same way on one hull
+  (a wreck its AI re-engages, a patrol closing legs) logs at the first ending
+  and every tenfold (x10, x100), not once per engagement.
 
 ## [0.15.0] - 2026-10-06
 

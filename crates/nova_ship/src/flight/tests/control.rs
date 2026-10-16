@@ -10,7 +10,12 @@ use nova_gameplay::{
 
 use super::support::*;
 use crate::{
-    flight::NovaFlightPlugin, prelude::*, sections::thruster_section::thruster_impulse_system,
+    flight::{
+        autopilot::{logged_ending, AutopilotEndType, DisengageType, EndingTally},
+        NovaFlightPlugin,
+    },
+    prelude::*,
+    sections::thruster_section::thruster_impulse_system,
 };
 /// Control case for the disabled-controller regression below: a LIVE
 /// controller damps an imposed spin, so the "disabled" test cannot pass
@@ -301,5 +306,39 @@ fn autopilot_command_reaches_the_pd_on_the_same_tick() {
         "the PD must consume the command written THIS tick; max phantom \
          error {} rad",
         trace.max_angle
+    );
+}
+
+/// A wreck whose AI re-engages a maneuver every few frames ends it every few
+/// frames too; its debug line is said at the first ending of that kind and
+/// every tenfold, each hull and each kind of ending counted on its own.
+#[test]
+fn a_repeated_maneuver_ending_is_said_at_the_first_and_every_tenfold() {
+    let mut world = World::new();
+    let wreck = world.spawn_empty().id();
+    let other = world.spawn_empty().id();
+    let mut endings = EndingTally::default();
+    let brain_dead = AutopilotEndType::Disengaged(DisengageType::NoFlightComputer);
+
+    let said: Vec<(u32, String)> = (1..=1_000)
+        .filter_map(|n| logged_ending(&mut endings, wreck, brain_dead).map(|tag| (n, tag)))
+        .collect();
+    assert_eq!(
+        said,
+        vec![
+            (1, String::new()),
+            (10, " (x10)".to_string()),
+            (100, " (x100)".to_string()),
+            (1_000, " (x1000)".to_string()),
+        ]
+    );
+    assert_eq!(
+        logged_ending(&mut endings, wreck, AutopilotEndType::Completed),
+        Some(String::new()),
+        "a different ending of the same hull is said at its own first"
+    );
+    assert_eq!(
+        logged_ending(&mut endings, other, brain_dead),
+        Some(String::new())
     );
 }

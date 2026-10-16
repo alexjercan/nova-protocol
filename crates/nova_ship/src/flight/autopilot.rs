@@ -9,7 +9,7 @@
 //! unit per second squared.
 
 use avian3d::prelude::*;
-use bevy::{ecs::entity::EntityHashSet, prelude::*};
+use bevy::{ecs::entity::EntityHashSet, platform::collections::HashMap, prelude::*};
 use nova_gameplay::prelude::*;
 
 use super::{
@@ -170,7 +170,7 @@ pub(super) struct FlightEnvironment<'a> {
 }
 
 /// Why a step disengaged the autopilot before flying the tick.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum DisengageType {
     /// No live flight computer is left.
     NoFlightComputer,
@@ -185,7 +185,7 @@ pub(super) enum DisengageType {
 }
 
 /// How a step ended the maneuver.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum AutopilotEndType {
     /// The leg arrived and the autopilot lets go.
     Completed,
@@ -495,6 +495,33 @@ pub(super) fn arrival_target(
 /// [`FlightBody`], [`FlightHelm`], [`ArrivalTarget`] and [`FlightEnvironment`],
 /// runs [`autopilot_step`], then writes the helm, telemetry, completion and
 /// disengagement back in that order.
+/// How many times each live hull's maneuver has ended each way.
+pub(super) type EndingTally = HashMap<(Entity, AutopilotEndType), u32>;
+
+/// Count one more `end` of `ship`'s maneuver and give the tag its debug line
+/// carries when this one is said: the first ending of that kind, then every
+/// tenfold (` (x10)`, ` (x100)`, ...). A hull that is re-engaged and ends the
+/// same way every few frames - a brain-dead wreck whose AI keeps handing it a
+/// maneuver, a patrol closing leg after leg - then logs a handful of lines
+/// over a session instead of one per engagement.
+pub(super) fn logged_ending(
+    endings: &mut EndingTally,
+    ship: Entity,
+    end: AutopilotEndType,
+) -> Option<String> {
+    let count = endings.entry((ship, end)).or_insert(0);
+    *count += 1;
+    let mut mantissa = *count;
+    while mantissa % 10 == 0 {
+        mantissa /= 10;
+    }
+    match (*count, mantissa) {
+        (1, _) => Some(String::new()),
+        (count, 1) => Some(format!(" (x{count})")),
+        _ => None,
+    }
+}
+
 pub(super) fn autopilot_system(
     time: Res<Time>,
     settings: Res<FlightSettings>,
@@ -544,6 +571,11 @@ pub(super) fn autopilot_system(
     // Docked drivers whose missing assembly is already logged, so the error
     // is said once per loss, not at the fixed rate.
     mut missing_assembly: Local<EntityHashSet>,
+    // How many maneuvers each live hull has ended each way, so the ending's
+    // debug line is said at the first and every tenfold, not once per
+    // engagement.
+    mut endings: Local<EndingTally>,
+    q_roots: Query<(), With<SpaceshipRootMarker>>,
 ) {
     let dt = time.delta_secs();
 
@@ -554,6 +586,7 @@ pub(super) fn autopilot_system(
             .get(*ship)
             .is_ok_and(|(.., (docked, assembly), _)| docked.is_some() && assembly.is_none())
     });
+    endings.retain(|(ship, _), _| q_roots.contains(*ship));
     for (
         ship,
         mut autopilot,
@@ -641,24 +674,42 @@ pub(super) fn autopilot_system(
             );
         }
         if let Some(AutopilotEndType::Disengaged(reason)) = step.end {
-            match (reason, action) {
-                (DisengageType::NoFlightComputer, _) => {
-                    debug!("autopilot_system: ship {ship:?} lost its flight computer, disengaging");
-                }
-                (DisengageType::NoLiveEngines, _) => {
-                    debug!("autopilot_system: ship {ship:?} has no live engines, disengaging");
-                }
-                (DisengageType::TargetGone, AutopilotAction::Goto { target }) => {
-                    debug!("autopilot_system: GOTO target {target:?} is gone, disengaging");
-                }
-                (DisengageType::WellGone, AutopilotAction::Orbit { well, .. }) => {
-                    debug!("autopilot_system: ORBIT well {well:?} is gone, disengaging");
-                }
-                (DisengageType::NoStableBand, AutopilotAction::Orbit { well, .. }) => {
-                    debug!("autopilot_system: well {well:?} has no stable band, disengaging ORBIT");
-                }
-                (reason, action) => {
-                    debug!("autopilot_system: ship {ship:?} {action:?} disengaged: {reason:?}");
+            if let Some(times) =
+                logged_ending(&mut endings, ship, AutopilotEndType::Disengaged(reason))
+            {
+                match (reason, action) {
+                    (DisengageType::NoFlightComputer, _) => {
+                        debug!(
+                            "autopilot_system: ship {ship:?} lost its flight computer, \
+                             disengaging{times}"
+                        );
+                    }
+                    (DisengageType::NoLiveEngines, _) => {
+                        debug!(
+                            "autopilot_system: ship {ship:?} has no live engines, \
+                             disengaging{times}"
+                        );
+                    }
+                    (DisengageType::TargetGone, AutopilotAction::Goto { target }) => {
+                        debug!(
+                            "autopilot_system: GOTO target {target:?} is gone, disengaging{times}"
+                        );
+                    }
+                    (DisengageType::WellGone, AutopilotAction::Orbit { well, .. }) => {
+                        debug!("autopilot_system: ORBIT well {well:?} is gone, disengaging{times}");
+                    }
+                    (DisengageType::NoStableBand, AutopilotAction::Orbit { well, .. }) => {
+                        debug!(
+                            "autopilot_system: well {well:?} has no stable band, disengaging \
+                             ORBIT{times}"
+                        );
+                    }
+                    (reason, action) => {
+                        debug!(
+                            "autopilot_system: ship {ship:?} {action:?} disengaged: \
+                             {reason:?}{times}"
+                        );
+                    }
                 }
             }
             commands.entity(ship).remove::<Autopilot>();
@@ -706,7 +757,10 @@ pub(super) fn autopilot_system(
                 continue;
             }
             Some(AutopilotEndType::Completed) => {
-                debug!("autopilot_system: ship {ship:?} maneuver complete, disengaging");
+                if let Some(times) = logged_ending(&mut endings, ship, AutopilotEndType::Completed)
+                {
+                    debug!("autopilot_system: ship {ship:?} maneuver complete, disengaging{times}");
+                }
                 if is_player {
                     commands
                         .entity(ship)
