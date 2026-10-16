@@ -228,7 +228,13 @@ pub(crate) fn apply_ship_swap_commands(
         messages.clear();
         return;
     };
+    // One swap a frame: the site was read before it, and the section it
+    // replaces keeps its old part until the commands run.
+    let mut swapped = false;
     for command in messages.read() {
+        if swapped {
+            continue;
+        }
         let section = resolved.design.get(&command.section).unwrap_or_else(|| {
             panic!(
                 "swap: the player ship's design has no section '{}'",
@@ -309,6 +315,7 @@ pub(crate) fn apply_ship_swap_commands(
             ),
             2.5,
         ));
+        swapped = true;
     }
 }
 
@@ -550,7 +557,13 @@ pub(crate) fn apply_ship_add_commands(
         messages.clear();
         return;
     };
+    // One add a frame: the site was read before it, and the section it mounts
+    // is not in the design until the commands run.
+    let mut added = false;
     for command in messages.read() {
+        if added {
+            continue;
+        }
         let section = resolved.design.get(&command.section).unwrap_or_else(|| {
             panic!(
                 "add: the player ship's design has no section '{}'",
@@ -656,5 +669,6 @@ pub(crate) fn apply_ship_add_commands(
             ),
             2.5,
         ));
+        added = true;
     }
 }

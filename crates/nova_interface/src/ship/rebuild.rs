@@ -522,7 +522,13 @@ pub(crate) fn apply_ship_rebuild_commands(
         messages.clear();
         return;
     };
+    // One rebuild a frame: the site was read before it, and the section it
+    // restores stays lost until the commands run.
+    let mut rebuilt = false;
     for command in messages.read() {
+        if rebuilt {
+            continue;
+        }
         let section = resolved.design.get(&command.section).unwrap_or_else(|| {
             panic!(
                 "rebuild: the player ship's design has no section '{}'",
@@ -581,5 +587,6 @@ pub(crate) fn apply_ship_rebuild_commands(
             format!("rebuilt {code}: {}", rebuild_price_text(&rebuild)),
             2.5,
         ));
+        rebuilt = true;
     }
 }
