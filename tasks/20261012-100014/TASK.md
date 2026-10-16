@@ -1,6 +1,6 @@
 # Upgrades: buy a whole ship from a tiered station catalogue
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 74
 - TAGS: v0.16.0, wizard
 
@@ -132,3 +132,8 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
   - Port: the bought hull's port is taken by the player and the old ship keeps the port it held, so the swap needs no free port.
   - Proof: `shipyard_sandbox` asserts the buy charged the full price and parked the old ship `Owned`, then clicks Board on its card and asserts both balances unchanged, the player in the old ship with its hold, and the bought hull parked `Owned` with `OwnedShipMarker`. Frames: `shipyard-sandbox-board-before.png` (the old ship's Board card) and `shipyard-sandbox-board-after.png` (the bought hull's). `system_station_buy` claim 5 is now a free board (`outcome: a board hands the player the old ship back for free`).
   - Follow-up 2026-10-15 (orchestrator): owned ships list in their own **Your ships** section above **Ships for sale**, each section shown only while it has a card; the cards stay as they were. A button keeps its index among the station's owned and for-sale hulls in parked order (`HullBuy-{i}`, `HullBoard-{i}`, `HullInfo-{i}`), so a name does not change when a hull moves between sections. The wiki Station paragraph also stopped saying the wreck strip is in the Ship pane; it is in the Inventory pane. Proof: `shipyard_sandbox` asserts the Board button sits above every Buy button (`PASS HullBoard-2 lists under Your ships, above 2 Buy buttons`), frame `shipyard-sandbox-board-before.png`; `system_station_buy` passes, and its `station-buy-offer.png` shows no Your ships before the buy.
+
+## Orchestrator close (2026-10-16)
+- The owner tested the shipyard in a live run on 2026-10-16 and accepted it: cards with the hull's model, Buy at the full price, the old ship kept and boarded back for free under Your ships, Info read-only, escorts for hire coasting near the station.
+- Landed through d4fb0df00..20a3770ee (e58c84dd0 replaced trade-in with a free board).
+- Playable: `nix develop --command cargo run --example shipyard_sandbox --features debug`.

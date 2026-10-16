@@ -1,6 +1,6 @@
 # Upgrades: add a section at a free attachment point
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 75
 - TAGS: v0.16.0, wizard
 
@@ -277,3 +277,9 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
   (South reads `A`), so a line reads `J / Right Trigger 2`. Proof:
   `a_pad_button_sets_the_pad_half_and_keeps_the_key`,
   `a_reserved_pad_input_is_refused`.
+
+## Orchestrator close (2026-10-16)
+- The owner tested the Ship pane refit in a live run on 2026-10-16 and accepted it: the Catalogue in the footer, the held part under Placing, `Q` pick and put away, Esc clears the hand, Delete with its reason as a tooltip, the eased view onto a placed part, and thruster rebind (keyboard and pad).
+- Landed through 7e0938571..d1476087b, with 635165d3e proving a thruster key survives save and load.
+- Not done: the controller binding scheme (modifiers, a free pad button for thrusters) waits until the owner tests a real pad; the owner calls it a future backlog item, not filed.
+- Playable: `nix develop --command cargo run --example station_docked_sandbox --features debug`.

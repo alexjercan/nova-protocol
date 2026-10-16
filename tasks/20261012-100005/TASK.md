@@ -1,6 +1,6 @@
 # Stations: buy stock, store and withdraw parts, sell goods while docked
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 83
 - TAGS: v0.16.0, stations
 
@@ -36,3 +36,7 @@
 
 ## Done when
 - Store, withdraw, buy and sell work in a live docked run and survive a save round trip.
+
+## Orchestrator close (2026-10-16)
+- The owner tested the docked actions in a live run on 2026-10-16 and accepted them: buy, sell, store, withdraw, the double-click quick actions, and own-ship holds listed as storage.
+- Playable: `nix develop --command cargo run --example station_docked_sandbox --features debug`.
