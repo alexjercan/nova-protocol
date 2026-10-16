@@ -19,3 +19,7 @@ Children carry the `Jobs:` title prefix and the `jobs` tag.
 ## Children
 - `20261012-100023` Jobs: job board on a station and job state in the save
 - `20261012-100024` Jobs: recover, escort, distress call and neutralize a named hull
+
+## Owner feedback 2026-10-16
+- Jobs could live in the "Station" tab of the HUD instead of (or as well as) the Map.
+- Jobs should fit the start role the player chose: an industrial start gets carry-items and mine-something jobs; a bounty hunter start gets destroy-an-enemy-or-neutral-ship and scavenge-a-dead-civilization-ship jobs; pick by proximity.

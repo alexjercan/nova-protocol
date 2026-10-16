@@ -21,3 +21,6 @@ Children carry the `Economy:` title prefix and the `economy` tag.
 - `20261012-100027` Economy: computed prices from reference, scarcity and demand
 - `20261012-100028` Economy: play-time clock in the world save
 - `20261012-100029` Economy: restock and the robbery refusal window
+
+## Owner feedback 2026-10-16
+- Epic direction approved as written.

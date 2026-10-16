@@ -19,3 +19,6 @@ Children carry the `Charters:` title prefix and the `charters` tag.
 ## Children
 - `20261012-100031` Charters: discovery log and charter 0
 - `20261012-100033` Charters: per-role end goals as saved facts
+
+## Owner feedback 2026-10-16
+- The chart map (landed under `20261012-100007`) feels underwhelming: it does not show what is available in a visited cell in a readable way, and the legend carries too much text. Revisit it with the charter work here.

@@ -19,3 +19,6 @@ Children carry the `Stance:` title prefix and the `stance` tag.
 ## Children
 - `20261012-100035` Stance: research note
 - `20261012-100036` Stance: implement the graph after the note is accepted
+
+## Owner feedback 2026-10-16
+- Epic direction approved. Observed: some neutral ships do not retaliate (the escorts for sale). Part of this epic: attacking a neutral ship turns its whole group Enemy until the stance clears after some time or by some other rule.

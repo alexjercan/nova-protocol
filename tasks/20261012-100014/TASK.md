@@ -137,3 +137,6 @@ Owner told the orchestrator to work the list without a stop at the gate. The age
 - The owner tested the shipyard in a live run on 2026-10-16 and accepted it: cards with the hull's model, Buy at the full price, the old ship kept and boarded back for free under Your ships, Info read-only, escorts for hire coasting near the station.
 - Landed through d4fb0df00..20a3770ee (e58c84dd0 replaced trade-in with a free board).
 - Playable: `nix develop --command cargo run --example shipyard_sandbox --features debug`.
+
+## Owner feedback 2026-10-16
+- Technology availability is opaque. Torpedoes and railguns in low brackets are fine, but the player is guessing how a station's ship builder decides what sections it offers (station limits per advancement vs. which section parts the player holds for crafting). Make the rule transparent in the station UI. Recorded here because no open task owns tech locks; the owner may re-home it.
