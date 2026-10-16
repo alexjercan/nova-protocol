@@ -263,6 +263,7 @@ pub(super) fn update_follow_flight(
         }
         let own_velocity = own_velocity.map_or(Vec3::ZERO, |velocity| **velocity);
         let leader_velocity = leader_velocity.map_or(Vec3::ZERO, |velocity| **velocity);
+        let locked = leader_lock.is_some_and(|lock| lock.0 == Some(ship));
         if docked || state.engages() || !q_engine.iter().any(|&ChildOf(parent)| parent == ship) {
             // Formation resumes from the motion the follower has then.
             if let Some(mut feed) = feed {
@@ -270,7 +271,7 @@ pub(super) fn update_follow_flight(
                     speed: own_velocity.length(),
                     leader_velocity,
                     held_for: 0.0,
-                    undocked: docked,
+                    undocked: docked || (feed.undocked && locked),
                 };
             }
             // Docked, the follower holds the pair still, as a docked passive
@@ -293,7 +294,6 @@ pub(super) fn update_follow_flight(
             held_for: 0.0,
             undocked: false,
         });
-        let locked = leader_lock.is_some_and(|lock| lock.0 == Some(ship));
         let fed_speed = (last.speed + (leader_speed - last.speed) * lag).min(leader_speed);
         let crumb = settings.attitude_deadband;
         let next_feed = if leader_velocity.distance(last.leader_velocity) <= crumb {
