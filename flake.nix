@@ -50,9 +50,12 @@
           real=${rustNightly}/bin/cargo
           flock=${pkgs.util-linux}/bin/flock
 
-          # NOVA_CARGO_LOCKED=1 marks a cargo that already runs under the
-          # lock, for example one that a test or nova_probe_cli spawns. It
-          # skips the lock and the scope, so it does not wait for its parent.
+          # NOVA_CARGO_LOCKED=1 marks a cargo whose parent holds the lock. The
+          # wrapper sets it on each cargo it runs under the lock, so a cargo
+          # that a test or build script spawns skips the lock and the scope
+          # and does not wait for its parent. A `cargo run` program, such as
+          # nova_probe_cli, runs after the lock is released and without the
+          # mark, so a cargo it spawns takes the lock itself.
           if [ "''${NOVA_CARGO_LOCKED:-}" = 1 ]; then exec "$real" "$@"; fi
 
           # Find the subcommand after +toolchain and global flags.
