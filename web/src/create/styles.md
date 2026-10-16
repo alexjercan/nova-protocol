@@ -251,7 +251,9 @@ the cell it is for, so:
 - two ships built the same way are decorated the same way.
 
 The structure is not in the seed. An edit changes the draws only where it
-changes the cells and their edges, and nothing far from the edit moves.
+changes the cells and their edges, so most plates far from the edit keep
+their pieces. Not all of them: the pick order is global, so a few plates
+anywhere on the hull can change.
 
 When a ship is RE-CLAD after damage, the plates that stayed keep their pieces
 and only the new plates are solved. A link across the edge of the repair is not
