@@ -45,8 +45,9 @@ use bevy::prelude::*;
 use nova_assets::{prelude::LoadedSectionPacks, storage::write_atomic};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
-    kg_text, CargoCanisterRuntimeId, Chart, GameItems, ItemDesignId, Jobs, SavedBodyRef,
-    SavedOwner, SavedSectionRef, SavedTargetRef, CARGO_CANISTER_MAX_MASS_G,
+    kg_text, CargoCanisterRuntimeId, Chart, GameItems, ItemDesignId, Jobs,
+    NeutralizedCivilizations, SavedBodyRef, SavedOwner, SavedSectionRef, SavedTargetRef,
+    CARGO_CANISTER_MAX_MASS_G,
 };
 use nova_scenario::prelude::{
     FleetEscort, FrozenShip, GameScenarios, GameStartRoles, SavedScenario, ScenarioId,
@@ -77,7 +78,7 @@ pub use transients::{
 /// nobody held live is recorded as an arrival there. Every cell the player
 /// never visited regenerates from the seed on Load, so another generator
 /// would change it silently.
-pub const WORLD_SAVE_FORMAT: u32 = 15;
+pub const WORLD_SAVE_FORMAT: u32 = 16;
 
 /// The most characters a world name has, after trimming.
 const WORLD_NAME_MAX: usize = 32;
@@ -143,6 +144,9 @@ pub struct WorldSaveState {
     /// The play-time clock: the seconds of unpaused, armed play the world
     /// has seen. Every frozen body's `frozen_at` reads against it.
     pub clock: WorldClock,
+    /// The civilizations whose hull the player neutralized, each with the
+    /// clock reading of the latest, whose stations refuse the player.
+    pub neutralized: NeutralizedCivilizations,
 }
 
 /// The player ship as it was saved.
@@ -434,6 +438,10 @@ fn read_state(
     state
         .jobs
         .validate()
+        .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
+    state
+        .neutralized
+        .validate(state.clock.play_seconds)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     check_saved_fleet(&state)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;

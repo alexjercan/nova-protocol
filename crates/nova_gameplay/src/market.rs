@@ -14,6 +14,12 @@
 //!   role's rule for the category, weighted by that role's share of the
 //!   preference.
 //!
+//! The table also states the two clocks of the economy: [`RestockRule`], the
+//! play time a trader's stock takes to drift back to its target after the
+//! trader thaws ([`restocked_count`]), and [`RobberyRule`], the play time a
+//! civilization's stations refuse the player after the player neutralizes
+//! one of its hulls (`NeutralizedCivilizations`).
+//!
 //! The rules are keyed by [`ItemCategoryType`], never by item, so a mod item
 //! with a category and a reference price prices itself. A pair with no rule
 //! has a factor of one. A trader with no [`TraderMarket`] (an authored
@@ -31,15 +37,16 @@ use bevy::prelude::*;
 
 use crate::{
     chart::prelude::ClusterType,
+    civilization::prelude::CivilizationId,
     inventory::prelude::{ItemCategoryType, ItemDesign, ItemDesignId},
 };
 
 /// Glob-import surface: `use nova_gameplay::market::prelude::*`.
 pub mod prelude {
     pub use super::{
-        price, price_table_faults, ClusterPriceRule, GamePriceTable, ItemPrice, PriceClamp,
-        PriceFactor, PriceQuote, PriceTable, RolePriceRule, ScarcityRule, ShipRoleType,
-        TraderMarket,
+        price, price_table_faults, restocked_count, ClusterPriceRule, GamePriceTable, ItemPrice,
+        PriceClamp, PriceFactor, PriceQuote, PriceTable, RestockRule, RobberyRule, RolePriceRule,
+        ScarcityRule, ShipRoleType, TraderMarket,
     };
 }
 
@@ -143,6 +150,32 @@ pub struct ScarcityRule {
     pub unkept: PriceFactor,
 }
 
+/// How fast a thawed trader's stock drifts back to its target.
+///
+/// A trader's stock does not change while its cell stands frozen; on the
+/// thaw the play time it stood frozen is spent at once: each targeted item
+/// moves toward its target by `target * elapsed / recovery_seconds` units,
+/// never past it, see [`restocked_count`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct RestockRule {
+    /// The play seconds an item takes to return to its target from none.
+    /// Finite, above zero.
+    pub recovery_seconds: f32,
+}
+
+/// What neutralizing a civilization's hull costs the player at its
+/// stations.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct RobberyRule {
+    /// The play seconds every living station of the civilization refuses
+    /// the player's dock after the neutralize. Finite, above zero.
+    pub refusal_seconds: f32,
+}
+
 /// The factor a trader in a cluster of one type deals one category at.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -182,6 +215,10 @@ pub struct PriceTable {
     pub clamp: PriceClamp,
     /// The stock rule.
     pub scarcity: ScarcityRule,
+    /// The restock clock.
+    pub restock: RestockRule,
+    /// The refusal window.
+    pub robbery: RobberyRule,
     /// The cluster-type rules, at most one per cluster type and category.
     pub clusters: Vec<ClusterPriceRule>,
     /// The role rules, at most one per role and category.
@@ -234,6 +271,9 @@ pub struct GamePriceTable(pub PriceTable);
 pub struct TraderMarket {
     /// The type of the cluster the trader was generated in.
     pub cluster: ClusterType,
+    /// The civilization the trader belongs to: the one whose stations
+    /// refuse the player after the player neutralizes this hull.
+    pub civilization: CivilizationId,
     /// Its civilization's preference for each role, in
     /// [`ShipRoleType::ALL`] order. Each at least zero, their sum above
     /// zero.
@@ -364,14 +404,36 @@ pub fn price(
     }
 }
 
+/// The stock of one item after a trader stood frozen `elapsed_seconds` of
+/// play with `stock` of it and a target of `target`: the stock moved toward
+/// the target by `target * elapsed / recovery` whole units, never past it.
+/// A stock at its target is unchanged; a target of zero (an item the trader
+/// keeps none of) moves nothing, so what the player sold it stays at the
+/// unkept price.
+pub fn restocked_count(stock: u32, target: u32, elapsed_seconds: f64, rule: RestockRule) -> u32 {
+    let drift = (f64::from(target) * elapsed_seconds / f64::from(rule.recovery_seconds)).floor();
+    // Past u32 the drift covers any gap, so the clamp alone decides.
+    let drift = if drift >= f64::from(u32::MAX) {
+        u32::MAX
+    } else {
+        drift as u32
+    };
+    if stock < target {
+        stock.saturating_add(drift).min(target)
+    } else {
+        stock.saturating_sub(drift).max(target)
+    }
+}
+
 /// What is wrong with `table`, one line per fault; empty when the merge and
 /// the lint accept it.
 ///
 /// A clamp must hold one, with a minimum above zero. Every factor must be
 /// finite, inside the clamp, and bid at most ask, so no rule can push a bid
 /// above its ask. A starved factor may not lower a price and a glut factor
-/// may not raise one. The glut share must be above one. A cluster type or a
-/// role may name a category once.
+/// may not raise one. The glut share must be above one. The restock
+/// recovery and the refusal window must be finite seconds above zero. A
+/// cluster type or a role may name a category once.
 pub fn price_table_faults(table: &PriceTable) -> Vec<String> {
     let mut faults = Vec::new();
     let PriceClamp { min, max } = table.clamp;
@@ -431,6 +493,18 @@ pub fn price_table_faults(table: &PriceTable) -> Vec<String> {
             scarcity.glut_share
         ));
     }
+    let recovery = table.restock.recovery_seconds;
+    if !(recovery.is_finite() && recovery > 0.0) {
+        faults.push(format!(
+            "the restock recovery of {recovery} s must be finite and above 0"
+        ));
+    }
+    let refusal = table.robbery.refusal_seconds;
+    if !(refusal.is_finite() && refusal > 0.0) {
+        faults.push(format!(
+            "the robbery refusal window of {refusal} s must be finite and above 0"
+        ));
+    }
     for (index, rule) in table.clusters.iter().enumerate() {
         if table.clusters[..index]
             .iter()
@@ -486,6 +560,12 @@ mod tests {
                 glut_share: 3.0,
                 unkept: factor(1.0, 0.8),
             },
+            restock: RestockRule {
+                recovery_seconds: 1_000.0,
+            },
+            robbery: RobberyRule {
+                refusal_seconds: 600.0,
+            },
             clusters: vec![
                 ClusterPriceRule {
                     cluster: ClusterType::AsteroidRich,
@@ -521,6 +601,10 @@ mod tests {
     fn market(cluster: ClusterType, target: &[(&str, u32)]) -> TraderMarket {
         TraderMarket {
             cluster,
+            civilization: CivilizationId {
+                world_seed: 1,
+                node: [0, 0, 0],
+            },
             role_preference: [1.0, 1.0, 0.0, 0.0],
             target: target
                 .iter()
@@ -695,5 +779,70 @@ mod tests {
         table.scarcity.glut_share = 1.0;
         let faults = price_table_faults(&table);
         assert_eq!(faults.len(), 2, "{faults:?}");
+    }
+    /// Restock spends the frozen play time at once: from none, half the
+    /// recovery gives half the target; past the recovery the stock is at
+    /// the target and no further; a glut falls at the same rate and stops
+    /// at the target; an item the target does not keep never moves.
+    #[test]
+    fn a_thawed_stock_drifts_toward_its_target_by_the_elapsed_play_time() {
+        let rule = RestockRule {
+            recovery_seconds: 100.0,
+        };
+        assert_eq!(
+            restocked_count(0, 10, 50.0, rule),
+            5,
+            "half the recovery, half the target"
+        );
+        assert_eq!(
+            restocked_count(0, 10, 100.0, rule),
+            10,
+            "the whole recovery"
+        );
+        assert_eq!(
+            restocked_count(0, 10, 1_000.0, rule),
+            10,
+            "never past the target"
+        );
+        assert_eq!(
+            restocked_count(3, 10, 0.0, rule),
+            3,
+            "no play time, no drift"
+        );
+        assert_eq!(
+            restocked_count(3, 10, 25.0, rule),
+            5,
+            "whole units, rounded down"
+        );
+        assert_eq!(restocked_count(30, 10, 50.0, rule), 25, "a glut sells down");
+        assert_eq!(
+            restocked_count(30, 10, 500.0, rule),
+            10,
+            "a glut stops at the target"
+        );
+        assert_eq!(
+            restocked_count(7, 0, 1_000.0, rule),
+            7,
+            "an unkept item stays"
+        );
+        assert_eq!(
+            restocked_count(10, 10, 1_000.0, rule),
+            10,
+            "a met target is unchanged"
+        );
+    }
+
+    /// A recovery or a refusal window of zero, below zero or not a number
+    /// is a fault the lint and the merge name.
+    #[test]
+    fn the_restock_and_refusal_clocks_must_be_positive_seconds() {
+        let mut table = table();
+        assert_eq!(price_table_faults(&table), Vec::<String>::new());
+        table.restock.recovery_seconds = 0.0;
+        table.robbery.refusal_seconds = f32::NAN;
+        let faults = price_table_faults(&table);
+        assert_eq!(faults.len(), 2, "{faults:?}");
+        assert!(faults[0].contains("restock recovery"), "{faults:?}");
+        assert!(faults[1].contains("refusal window"), "{faults:?}");
     }
 }

@@ -781,6 +781,21 @@ name = "system_station_add"
 path = "examples/systems/system_station_add.rs"
 required-features = ["debug"]
 
+# A generated trader's stock drifts back toward its spawn stock by the play
+# time its cell stood frozen, on a thaw and on a Load from the saved clock.
+[[example]]
+name = "system_station_restock"
+path = "examples/systems/system_station_restock.rs"
+required-features = ["debug"]
+
+# Neutralizing a civilization's generated hull makes its living stations refuse
+# the player's dock with a HUD line, through a save and a Load, until the
+# refusal window of play time has passed.
+[[example]]
+name = "system_station_refusal"
+path = "examples/systems/system_station_refusal.rs"
+required-features = ["debug"]
+
 # A whole hull bought from a living generated station's catalogue through the
 # Station pane: the old hull parked as the player's own with its hold, the new
 # hull redocked, a free board back into the old one, and the hulls kept

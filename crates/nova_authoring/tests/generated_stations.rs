@@ -7,9 +7,8 @@ use nova_authoring::{
     lint_walk::repo_ship_part_packs,
 };
 use nova_events::prelude::Meters3;
-use nova_gameplay::prelude::{Allegiance, GameItems};
+use nova_gameplay::prelude::{Allegiance, CivilizationId, GameItems};
 use nova_scenario::prelude::{lint_station_design, KnownSections, LintSeverity};
-use nova_world::prelude::CivilizationId;
 use nova_world_base::prelude::{
     generate_station, generated_station, station_ceiling, Civilization, CivilizationStatusType,
     ShipPartSnapshot, StationArchetypeType, StationLayoutRequest,

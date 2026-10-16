@@ -259,6 +259,49 @@ fn resolve_damage_attacker(
     }
 }
 
+/// The ship root whose fire or ram last damaged this ship root, for the
+/// rules that ask who beat a hull: the open world records the civilization
+/// of a hull the player neutralized off it. Stamped by
+/// [`on_damage_stamp_attacker`] on every attributed hit, so it names the
+/// last hitter and not the one that did the most. Not frozen: a hull that
+/// thaws starts with none.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Reflect)]
+#[reflect(Component)]
+pub struct LastAttacker(pub Entity);
+
+/// Stamp the damaged ship root with the ship root that hit it
+/// ([`LastAttacker`]), resolved as [`on_damage_track_threat`] resolves a
+/// shooter. A hit with no source, a self-hit (the ship's own blast) and a
+/// source with no ship root behind it (a rock) stamp nothing.
+pub(super) fn on_damage_stamp_attacker(
+    damage: On<HealthApplyDamage>,
+    mut commands: Commands,
+    q_root: Query<Option<&LastAttacker>, With<SpaceshipRootMarker>>,
+    q_owner: Query<&ProjectileOwner>,
+    q_allegiance: Query<&Allegiance>,
+    q_parent: Query<&ChildOf>,
+    q_ship_root: Query<(), With<SpaceshipRootMarker>>,
+) {
+    if damage.amount <= 0.0 {
+        return;
+    }
+    let ship = damage.entity;
+    let Ok(stamped) = q_root.get(ship) else {
+        return;
+    };
+    let Some(source) = damage.source else {
+        return;
+    };
+    let (attacker, _) =
+        resolve_damage_attacker(source, &q_owner, &q_allegiance, &q_parent, &q_ship_root);
+    let Some(attacker) = attacker.filter(|attacker| *attacker != ship) else {
+        return;
+    };
+    if stamped.is_none_or(|stamped| stamped.0 != attacker) {
+        commands.entity(ship).insert(LastAttacker(attacker));
+    }
+}
+
 /// Record hostile hits into the damaged ship's [`AIThreat`], and point an
 /// armed Neutral ship's [`RetaliationTarget`] at the ship that hit it.
 ///

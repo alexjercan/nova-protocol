@@ -43,7 +43,7 @@ use maneuver::update_combat_flight;
 use mission::interrupt_ai_ship_orders;
 use passive::update_passive_flight;
 use railgun::update_railgun_section_input;
-use threat::{on_damage_track_threat, release_retaliation_target};
+use threat::{on_damage_stamp_attacker, on_damage_track_threat, release_retaliation_target};
 use torpedo::{update_torpedo_section_input, update_torpedo_target_input};
 
 // The allocator that reads the point-defence envelope sits outside the AI
@@ -61,7 +61,7 @@ pub use self::{
     mission::AIOrderInterruption,
     passive::{AIAvoidMargin, AIAvoidanceDetour, AIWaypointSlack},
     railgun::AIRailgun,
-    threat::{AIEvade, AIProvocation, AIThreat, NEUTRAL_RETALIATION_THRESHOLD},
+    threat::{AIEvade, AIProvocation, AIThreat, LastAttacker, NEUTRAL_RETALIATION_THRESHOLD},
     torpedo::AI_TORPEDO_MAX_RANGE,
 };
 
@@ -111,7 +111,7 @@ pub mod prelude {
         AIEngageGrace, AIEngageRange, AIEvade, AIFollow, AILeash, AINonCombatant, AIOrbitDirective,
         AIOrderInterruption, AIPatrolRoute, AIPointDefenseRange, AIPointDefenseTarget,
         AIProvocation, AIRailgun, AISpaceshipMarker, AIStandoffClearance, AITarget, AIThreat,
-        AIWaypointSlack, FrozenAI, SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR,
+        AIWaypointSlack, FrozenAI, LastAttacker, SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR,
         AI_FOLLOW_CLOSING_SPEED, AI_FOLLOW_GAP, AI_STANDOFF_OUTER_EDGE, AI_TORPEDO_MAX_RANGE,
         NEUTRAL_RETALIATION_THRESHOLD,
     };
@@ -184,6 +184,7 @@ impl Plugin for SpaceshipAIInputPlugin {
         // trigger time is what lets the source entity (the projectile) be
         // resolved before its despawn command applies.
         app.add_observer(on_damage_track_threat);
+        app.add_observer(on_damage_stamp_attacker);
         app.add_observer(on_neutralized_stand_down);
         // The lance cadence is burned on the SHOT, not on the decision - see
         // `railgun::on_railgun_fired_burn_ai_cadence`.

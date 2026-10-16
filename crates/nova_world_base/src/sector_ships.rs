@@ -38,8 +38,8 @@
 use bevy::prelude::{Quat, Vec3};
 use nova_events::prelude::{Meters, Meters3, MetersPerSecond3};
 use nova_gameplay::prelude::{
-    Allegiance, ClusterType, Fnv32, GameItems, ItemDesignId, ItemRoleType, SeedStream,
-    ShipInventoryStock, ShipRoleType, TraderMarket,
+    Allegiance, CivilizationId, ClusterType, Fnv32, GameItems, ItemDesignId, ItemRoleType,
+    SeedStream, ShipInventoryStock, ShipRoleType, TraderMarket,
 };
 use nova_scenario::prelude::{
     AIControllerConfig, ShipDesign, ShipDesignSource, SpaceshipConfig, SpaceshipController,
@@ -328,6 +328,7 @@ pub(crate) fn trader_market(
 ) -> TraderMarket {
     TraderMarket {
         cluster,
+        civilization: civilization.id,
         role_preference: civilization.role_preference,
         target: stock
             .stacks()

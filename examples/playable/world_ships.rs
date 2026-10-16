@@ -91,10 +91,10 @@ use bevy::{input::mouse::MouseMotion, prelude::*};
 use clap::Parser;
 #[cfg(feature = "debug")]
 use nova_debug::prelude::capturing;
+use nova_gameplay::prelude::CivilizationId;
 use nova_input::prelude::InputSource;
 use nova_protocol::prelude::*;
 use nova_wfc::prelude::*;
-use nova_world::prelude::CivilizationId;
 
 #[derive(Parser)]
 #[command(name = "world_ships")]

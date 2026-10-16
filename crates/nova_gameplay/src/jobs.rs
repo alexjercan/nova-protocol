@@ -53,8 +53,10 @@ pub mod prelude {
 /// How many jobs one station's board posts.
 ///
 /// Agent decision 2026-10-16 for owner review: three, so the board reads at
-/// a glance and a station never carries the player's whole plan. No job
-/// expires until the play-time clock lands.
+/// a glance and a station never carries the player's whole plan. No offer
+/// expires: the board is re-posted from world state after a thaw and a Load,
+/// so an offer has no posting time, and a `JobId` is its slot, so a re-rolled
+/// slot would mint the body ids of a held job.
 pub const JOBS_PER_BOARD: u32 = 3;
 
 /// The fewest and the most units one procurement asks for, both included.

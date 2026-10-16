@@ -72,10 +72,10 @@ use avian3d::prelude::{AngularVelocity, ComputedCenterOfMass, LinearVelocity, Po
 use bevy::ecs::system::RunSystemOnce;
 use bevy::prelude::*;
 use clap::Parser;
+use nova_gameplay::prelude::CivilizationId;
 #[cfg(feature = "debug")]
 use nova_probe::probe_marker;
 use nova_protocol::prelude::*;
-use nova_world::prelude::CivilizationId;
 
 #[derive(Parser)]
 #[command(name = "world_encounters")]

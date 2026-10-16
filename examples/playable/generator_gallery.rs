@@ -46,6 +46,7 @@ use bevy::{
     window::PrimaryWindow,
 };
 use diagnostics::{palette, DiagnosticsGizmos, DiagnosticsPanel, DiagnosticsSystems};
+use nova_gameplay::prelude::CivilizationId;
 use nova_protocol::{
     nova_debug::{
         bevy_egui::{egui, input::EguiWantsInput, EguiContexts, EguiPrimaryContextPass},
@@ -55,7 +56,6 @@ use nova_protocol::{
 };
 use nova_scenario::prelude::{lint_station_design, KnownSections, LintSeverity};
 use nova_wfc::prelude::hull_errors;
-use nova_world::prelude::CivilizationId;
 
 /// The world seed of the pinned civilization every request names. Only a
 /// failure line reads it.

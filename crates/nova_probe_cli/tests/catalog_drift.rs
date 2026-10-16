@@ -1032,6 +1032,21 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_station_restock",
+        &[
+            "a thawed station restocks by the play time it stood frozen",
+            "a loaded world restocks the station from the saved clock",
+        ],
+    ),
+    (
+        "system_station_refusal",
+        &[
+            "a neutralized hull makes its civilization's station refuse docking",
+            "the refusal survives a save and a load",
+            "the refusal ends when the window passes",
+        ],
+    ),
+    (
         "system_station_buy",
         &[
             "a station parks its hulls for sale at its ports",
@@ -1184,7 +1199,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 586;
+const SYSTEMS_INVARIANTS: usize = 591;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

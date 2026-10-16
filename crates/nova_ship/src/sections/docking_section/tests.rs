@@ -1255,29 +1255,65 @@ fn a_pair_grades_against_the_stricter_of_its_two_ports() {
 #[test]
 fn a_station_admits_by_its_side_unless_it_is_dead_or_occupied() {
     assert_eq!(
-        station_admission(Some(Allegiance::Enemy), false, false, false, false),
+        station_admission(Some(Allegiance::Enemy), false, false, false, false, false),
         Err(DockRefusalType::EnemyStation)
     );
     for side in [Some(Allegiance::Neutral), Some(Allegiance::Player), None] {
         assert_eq!(
-            station_admission(side, false, false, false, false),
+            station_admission(side, false, false, false, false, false),
             Ok(()),
             "a living {side:?} station admits"
         );
     }
     assert_eq!(
-        station_admission(Some(Allegiance::Enemy), true, false, false, true),
+        station_admission(Some(Allegiance::Enemy), true, false, false, true, false),
         Ok(()),
         "a derelict Enemy station is a hull to loot"
     );
     assert_eq!(
-        station_admission(Some(Allegiance::Neutral), false, true, false, false),
+        station_admission(Some(Allegiance::Neutral), false, true, false, false, false),
         Err(DockRefusalType::StationOccupied)
     );
     assert_eq!(
-        station_admission(Some(Allegiance::Enemy), true, true, false, false),
+        station_admission(Some(Allegiance::Enemy), true, true, false, false, false),
         Err(DockRefusalType::StationOccupied),
         "a derelict with every port held is full"
+    );
+}
+
+/// A living station of a civilization whose hull the player neutralized
+/// refuses the player ahead of any hostility and behind the Enemy side;
+/// a dead or an owned one still admits, and one with every port held is
+/// still full first.
+#[test]
+fn a_station_of_a_neutralized_civilization_refuses_the_player_within_the_window() {
+    assert_eq!(
+        station_admission(Some(Allegiance::Neutral), false, false, false, false, true),
+        Err(DockRefusalType::NeutralizedHull)
+    );
+    assert_eq!(
+        station_admission(Some(Allegiance::Player), false, false, false, true, true),
+        Err(DockRefusalType::NeutralizedHull),
+        "the neutralized hull is named ahead of the hostility it caused"
+    );
+    assert_eq!(
+        station_admission(Some(Allegiance::Enemy), false, false, false, false, true),
+        Err(DockRefusalType::EnemyStation),
+        "an Enemy station refuses as Enemy first"
+    );
+    assert_eq!(
+        station_admission(Some(Allegiance::Neutral), true, false, false, false, true),
+        Ok(()),
+        "a dead station is a hull to loot"
+    );
+    assert_eq!(
+        station_admission(Some(Allegiance::Neutral), false, false, true, false, true),
+        Ok(()),
+        "an owned station refuses nobody"
+    );
+    assert_eq!(
+        station_admission(Some(Allegiance::Neutral), false, true, false, false, true),
+        Err(DockRefusalType::StationOccupied)
     );
 }
 
@@ -1287,7 +1323,7 @@ fn a_station_admits_by_its_side_unless_it_is_dead_or_occupied() {
 #[test]
 fn an_owned_station_refuses_nobody_and_a_hostile_one_refuses_the_ship() {
     assert_eq!(
-        station_admission(Some(Allegiance::Player), false, false, false, true),
+        station_admission(Some(Allegiance::Player), false, false, false, true, false),
         Err(DockRefusalType::HostileStation),
         "a living Player station refuses an Enemy-flagged ship"
     );
@@ -1297,13 +1333,13 @@ fn an_owned_station_refuses_nobody_and_a_hostile_one_refuses_the_ship() {
         (Some(Allegiance::Neutral), true),
     ] {
         assert_eq!(
-            station_admission(side, false, false, true, hostile),
+            station_admission(side, false, false, true, hostile, false),
             Ok(()),
             "an owned {side:?} station admits a ship hostile {hostile}"
         );
     }
     assert_eq!(
-        station_admission(Some(Allegiance::Player), false, true, true, false),
+        station_admission(Some(Allegiance::Player), false, true, true, false, false),
         Err(DockRefusalType::StationOccupied),
         "an owned station with every port held is full"
     );

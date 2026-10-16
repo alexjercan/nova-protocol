@@ -468,10 +468,6 @@ pub fn thaw_station(entity: &mut EntityCommands, frozen: FrozenStation) {
         ));
     }
     if owned {
-        // TODO(20261012-100028): an owned station earns nothing yet. Its
-        // income for the play-time it stood frozen accrues here, into its
-        // `ShipCredits`, and live in a station tick, once the economy strand
-        // adds the play-time clock. Remove this when that income rule lands.
         entity.insert(OwnedStationMarker);
     }
 }

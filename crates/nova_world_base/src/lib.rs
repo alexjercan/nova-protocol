@@ -47,7 +47,9 @@
 use bevy::prelude::*;
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_events::prelude::Meters;
-use nova_gameplay::prelude::{Chart, GameItems, Jobs, PlayerSpaceshipMarker};
+use nova_gameplay::prelude::{
+    Chart, GameItems, Jobs, NeutralizedCivilizations, PlayerSpaceshipMarker,
+};
 use nova_scenario::prelude::{CurrentScenario, OpenWorldSession, ScenarioWorldType};
 use nova_ship::prelude::GameStyles;
 use nova_world::prelude::*;
@@ -55,6 +57,7 @@ use nova_world::prelude::*;
 mod chart;
 mod civilizations;
 mod clusters;
+mod economy;
 mod environment;
 mod jobs;
 mod layered;
@@ -194,6 +197,10 @@ impl Plugin for NovaWorldBasePlugin {
         app.add_plugins(NovaWorldPlugin::<NovaLayeredWorld>::default());
         app.init_resource::<Chart>();
         app.init_resource::<Jobs>();
+        app.init_resource::<NeutralizedCivilizations>();
+        // A hull the player neutralizes is recorded against its civilization
+        // the moment its marker lands.
+        app.add_observer(economy::record_neutralized_civilization);
         // An accepted job puts its bodies in the world; one observer per
         // located kind marks the held job done off the existing event kinds.
         app.add_observer(jobs::spawn_job_bodies);
@@ -230,6 +237,10 @@ impl Plugin for NovaWorldBasePlugin {
                     chart::chart_visited_cell.run_if(resource_exists::<CurrentSector>),
                     chart::chart_sensor_finds,
                     chart::chart_docked_station,
+                    // A thawed trader's hold catches up before a board reads
+                    // it, and a served refusal is forgotten before the save.
+                    economy::restock_thawed_traders,
+                    economy::forget_served_refusals,
                     jobs::post_station_boards,
                 )
                     .chain()

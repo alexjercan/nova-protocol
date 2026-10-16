@@ -8,12 +8,13 @@ use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack, LoadedSectio
 use nova_events::prelude::{EntityId, GeneratedBodyId};
 use nova_gameplay::prelude::{
     nova_blast, resumed_lifetime, AssetRef, CargoCanister, CargoCanisterIdAllocator,
-    CargoCanisterRuntimeId, Chart, ClockFreeze, DamageLevel, DamageMarks, DamageType, FreezeOwner,
-    FrozenRoundFlight, GameItems, Health, ImpactSparkMarker, ImpactSparkPlugin, ImpactSparks,
-    IntegrityDestroyMarker, ItemCategoryType, ItemDesign, ItemDesignId, ItemRoleType, Jobs,
-    PlayerFleetMarker, PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage,
-    ProjectileOwner, RailgunSlugProjectileMarker, RoundRake, SavedBodyRef, SavedLifetime,
-    SavedOwner, SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory,
+    CargoCanisterRuntimeId, Chart, CivilizationId, ClockFreeze, DamageLevel, DamageMarks,
+    DamageType, FreezeOwner, FrozenRoundFlight, GameItems, Health, ImpactSparkMarker,
+    ImpactSparkPlugin, ImpactSparks, IntegrityDestroyMarker, ItemCategoryType, ItemDesign,
+    ItemDesignId, ItemRoleType, Jobs, NeutralizedCivilizations, PlayerFleetMarker,
+    PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage, ProjectileOwner,
+    RailgunSlugProjectileMarker, RoundRake, SavedBodyRef, SavedLifetime, SavedOwner,
+    SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory,
     SpaceshipRootMarker, StationServiceType, StationSummary, TempEntity, TorpedoProjectileMarker,
     TurretBulletProjectileMarker,
 };
@@ -144,6 +145,7 @@ fn state(generation: u64, credits: u32) -> WorldSaveState {
         chart: Chart::default(),
         jobs: Jobs::default(),
         clock: WorldClock::default(),
+        neutralized: NeutralizedCivilizations::default(),
     }
 }
 
@@ -785,6 +787,78 @@ fn a_saved_clock_resumes_at_the_play_time_it_was_written_with() {
             play_seconds: 123.5
         },
         "the Load restored the clock on the arming frame"
+    );
+}
+
+/// The player's record of neutralized civilizations is written with a leave
+/// save, comes back on a Load, and a stamp ahead of the saved clock is a
+/// save the Load refuses.
+#[test]
+fn a_saved_neutralized_record_resumes_and_a_stamp_ahead_of_the_clock_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let (mut world, _player) = armed_session(root.path());
+    frame(&mut world);
+    frame(&mut world);
+    run_until_idle(&mut world);
+
+    let robbed = CivilizationId {
+        world_seed: 7,
+        node: [1, -2, 0],
+    };
+    world.insert_resource(WorldClock {
+        play_seconds: 200.0,
+    });
+    world
+        .resource_mut::<NeutralizedCivilizations>()
+        .record(robbed, 150.0);
+    world.resource_mut::<WorldSaveSession>().request_leave();
+    run_until_idle(&mut world);
+    assert_eq!(
+        world.resource::<WorldSaveSession>().status(),
+        &WorldSaveStatus::Saved { generation: 2 }
+    );
+    let digest = world.resource::<LoadedSectionPacks>().digest.0;
+    world.remove_resource::<WorldSaveSession>();
+    let (_, lock, _, state) = open_world(
+        root.path(),
+        "session",
+        &catalog(digest),
+        &roles(),
+        &items(),
+        &scenarios(),
+    )
+    .unwrap();
+    assert!(
+        state.neutralized.refuses(&robbed),
+        "the leave save wrote the record"
+    );
+    drop(lock);
+
+    let resumed = load(root.path(), digest);
+    assert!(
+        resumed
+            .resource::<NeutralizedCivilizations>()
+            .refuses(&robbed),
+        "the Load restored the record on the arming frame"
+    );
+    drop(resumed);
+
+    // A record stamped after the saved clock is one no session wrote.
+    let mut state = state;
+    state.neutralized.record(robbed, 250.0);
+    let text = ron::to_string(&state).unwrap();
+    std::fs::write(root.path().join("session/state.2.ron"), text).unwrap();
+    let refused = open_world(
+        root.path(),
+        "session",
+        &catalog(digest),
+        &roles(),
+        &items(),
+        &scenarios(),
+    );
+    assert!(
+        matches!(refused, Err(WorldRefusal::Unreadable(ref reason)) if reason.contains("stamped neutralized")),
+        "a stamp ahead of the clock refuses the save: {refused:?}"
     );
 }
 

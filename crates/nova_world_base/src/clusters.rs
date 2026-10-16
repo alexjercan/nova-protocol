@@ -68,8 +68,8 @@ use bevy::prelude::{Quat, Vec3};
 use nova_assets::prelude::ASTEROID_TEXTURE_PATH;
 use nova_events::prelude::{Meters, Meters3, MetersPerSecond3, MetersPerSecondSquared};
 use nova_gameplay::prelude::{
-    circular_orbit_speed, unit_sphere_point, Allegiance, AssetRef, ClusterType, Fnv32, GameItems,
-    GravitySettings, GravityWell, SeedStream, TraderMarket,
+    circular_orbit_speed, unit_sphere_point, Allegiance, AssetRef, CivilizationId, ClusterType,
+    Fnv32, GameItems, GravitySettings, GravityWell, SeedStream, TraderMarket,
 };
 use nova_scenario::prelude::{
     asteroid_seed_from_id, station_orbit_velocity, AsteroidConfig, PlanetConfig, PlanetType,

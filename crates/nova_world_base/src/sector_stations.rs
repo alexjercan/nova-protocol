@@ -31,7 +31,7 @@
 use std::collections::BTreeMap;
 
 use nova_events::prelude::{Meters, Meters3};
-use nova_gameplay::prelude::GameItems;
+use nova_gameplay::prelude::{CivilizationId, GameItems};
 use nova_scenario::prelude::StationDesign;
 use nova_world::prelude::*;
 

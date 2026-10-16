@@ -7,7 +7,7 @@
 
 use nova_gameplay::prelude::{
     ClusterPriceRule, ClusterType, ItemCategoryType, PriceClamp, PriceFactor, PriceTable,
-    RolePriceRule, ScarcityRule, ShipRoleType,
+    RestockRule, RobberyRule, RolePriceRule, ScarcityRule, ShipRoleType,
 };
 
 /// The lowest total factor: no trader sells below a quarter of reference.
@@ -29,6 +29,19 @@ const GLUT_SHARE: f32 = 3.0;
 /// The scarcity factor of an item the trader does not keep: it pays a little
 /// under reference for something it only resells.
 const UNKEPT: PriceFactor = PriceFactor { ask: 1.0, bid: 0.9 };
+
+/// The play seconds a trader's stock takes to return to its target from
+/// none: thirty minutes. A cell crossing at cruise takes a few minutes, so
+/// a station the player sold out is noticeably back after a round trip to
+/// the next cluster, and whole again within one session; a reload alone
+/// restocks nothing, since the clock stands still while paused.
+const RESTOCK_RECOVERY_SECONDS: f32 = 1_800.0;
+/// The play seconds a civilization's stations refuse the player after the
+/// player neutralizes one of its hulls: fifteen minutes. Longer than a round
+/// trip to the next cluster, so waiting at the door does not pay, and
+/// shorter than a session, so the sanction ends while the player still knows
+/// what earned it (Elite's hour-per-level notoriety is the pitfall).
+const ROBBERY_REFUSAL_SECONDS: f32 = 900.0;
 
 /// Raw material in an asteroid-rich cluster: ore is everywhere.
 const ASTEROID_RICH_RAW: f32 = 0.6;
@@ -64,6 +77,12 @@ pub(crate) fn price_table() -> PriceTable {
             glut: GLUT,
             glut_share: GLUT_SHARE,
             unkept: UNKEPT,
+        },
+        restock: RestockRule {
+            recovery_seconds: RESTOCK_RECOVERY_SECONDS,
+        },
+        robbery: RobberyRule {
+            refusal_seconds: ROBBERY_REFUSAL_SECONDS,
         },
         clusters: vec![
             cluster(
@@ -143,7 +162,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use nova_gameplay::prelude::{
-        price, price_table_faults, GameItems, ItemRoleType, TraderMarket,
+        price, price_table_faults, CivilizationId, GameItems, ItemRoleType, TraderMarket,
     };
 
     use super::*;
@@ -153,6 +172,10 @@ mod tests {
     fn ore_buyer(cluster: ClusterType) -> TraderMarket {
         TraderMarket {
             cluster,
+            civilization: CivilizationId {
+                world_seed: 1,
+                node: [0, 0, 0],
+            },
             role_preference: [0.0, 1.0, 0.0, 0.0],
             target: BTreeMap::new(),
         }

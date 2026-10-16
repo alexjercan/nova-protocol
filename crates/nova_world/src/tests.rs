@@ -23,9 +23,9 @@ use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{Meters, Meters3, MetersPerSecond3};
 use nova_gameplay::{
     prelude::{
-        Allegiance, AssetRef, ClusterType, DerelictShipMarker, GravityAffected, GravityWell,
-        IntegrityEnvelope, ItemDesignId, ItemRoleType, LootableShipMarker, ShipCredits,
-        ShipInventory, ShipInventoryStock, ShipRoleType, TraderMarket,
+        Allegiance, AssetRef, CivilizationId, ClusterType, DerelictShipMarker, GravityAffected,
+        GravityWell, IntegrityEnvelope, ItemDesignId, ItemRoleType, LootableShipMarker,
+        ShipCredits, ShipInventory, ShipInventoryStock, ShipRoleType, TraderMarket,
     },
     test_support::test_items,
 };
@@ -45,11 +45,11 @@ mod frozen;
 
 use crate::{
     clock::WorldClock, generate_sector, materialize_pending_bodies, materialize_sector,
-    prepare_sector, sector_id, validate_manifest, CivilizationId, GeneratedBodyId, NovaWorldPlugin,
-    ObserverBody, PendingSectorShip, SectorAsteroid, SectorCoord, SectorFault,
-    SectorGenerationInput, SectorGenerator, SectorManifest, SectorPlanet, SectorShip,
-    SectorShipConditionType, SectorStation, WorldConfig, WorldGeometry, WorldObserver,
-    ACTIVE_WINDOW_SECTORS_MAX, SECTOR_SHIP_CLEARANCE_MAX,
+    prepare_sector, sector_id, validate_manifest, GeneratedBodyId, NovaWorldPlugin, ObserverBody,
+    PendingSectorShip, SectorAsteroid, SectorCoord, SectorFault, SectorGenerationInput,
+    SectorGenerator, SectorManifest, SectorPlanet, SectorShip, SectorShipConditionType,
+    SectorStation, WorldConfig, WorldGeometry, WorldObserver, ACTIVE_WINDOW_SECTORS_MAX,
+    SECTOR_SHIP_CLEARANCE_MAX,
 };
 
 /// The texture path every test rock names. Never loaded: no test here renders.
@@ -197,6 +197,10 @@ fn ship(id: GeneratedBodyId, position: Meters3, prototype: &str) -> SectorShip {
 fn market() -> TraderMarket {
     TraderMarket {
         cluster: ClusterType::RockOnly,
+        civilization: CivilizationId {
+            world_seed: 7,
+            node: [0, 0, 0],
+        },
         role_preference: [1.0, 0.0, 0.0, 0.0],
         target: BTreeMap::new(),
     }

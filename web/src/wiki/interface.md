@@ -356,7 +356,7 @@ The partner column's header also carries a **Take credits** button, shown only w
 
 ### Buy and sell
 
-Every live ship trades: any docked ship that is neither neutralized nor lootable. It sells only what its hold carries and pays only from its own credits. Nothing restocks. A living generated ship trades its own seeded goods and credits; a generated wreck is lootable, not a trader.
+Every live ship trades: any docked ship that is neither neutralized nor lootable. It sells only what its hold carries and pays only from its own credits. A generated trader restocks toward the goods it spawned with by the play time its sector stood unloaded; an authored scenario's ship never restocks. A generated wreck is lootable, not a trader.
 
 The table lists each item's reference price.
 

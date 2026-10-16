@@ -4,8 +4,8 @@
 //! Include with `#[path = "../shared/generated_station.rs"] mod
 //! generated_station;`.
 
+use nova_gameplay::prelude::CivilizationId;
 use nova_protocol::prelude::*;
-use nova_world::prelude::CivilizationId;
 
 /// The layout and the station design a living Neutral civilization at
 /// `advancement` builds in `archetype` from the parts of `loaded`, as the

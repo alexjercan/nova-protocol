@@ -310,6 +310,10 @@ impl Plugin for DockingSectionPlugin {
         app.register_type::<StationDocks>();
         app.register_type::<DockingConnection>();
         app.register_type::<DockedAssembly>();
+        // Admission reads the player's record of neutralized civilizations;
+        // the open world writes it. An app with no open world keeps it empty,
+        // so every station answers by its side alone.
+        app.init_resource::<NeutralizedCivilizations>();
 
         app.add_observer(on_docking_connection_request);
         app.add_observer(on_docking_release_request);

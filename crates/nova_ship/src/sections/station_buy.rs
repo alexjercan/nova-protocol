@@ -10,9 +10,7 @@
 //! and stock. The player's storage there was already the player's and is not
 //! priced.
 //!
-//! An owned station earns nothing yet: income needs the play-time clock of
-//! the economy strand (see the `TODO(20261012-100028)` in the scenario
-//! crate's `thaw_station`).
+//! An owned station earns nothing: no income rule exists.
 
 use bevy::prelude::Name;
 use nova_gameplay::prelude::{

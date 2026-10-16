@@ -19,6 +19,12 @@
                 bid: 0.9,
             ),
         ),
+        restock: (
+            recovery_seconds: 1800.0,
+        ),
+        robbery: (
+            refusal_seconds: 900.0,
+        ),
         clusters: [
             (
                 cluster: AsteroidRich,

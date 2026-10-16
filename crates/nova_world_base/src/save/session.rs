@@ -20,8 +20,8 @@ use bevy::{
 };
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_gameplay::prelude::{
-    CargoCanisterIdAllocator, CargoCanisterRuntimeId, Chart, Jobs, PlayerSpaceshipMarker,
-    ShipCredits, UnsettledBody,
+    CargoCanisterIdAllocator, CargoCanisterRuntimeId, Chart, Jobs, NeutralizedCivilizations,
+    PlayerSpaceshipMarker, ShipCredits, UnsettledBody,
 };
 use nova_scenario::prelude::{
     freeze_fleet, freeze_ship, CurrentScenario, GeneratedMarks, NovaEventWorld, OpenWorldSession,
@@ -247,6 +247,8 @@ pub struct ResumedWorld {
     pub jobs: Jobs,
     /// The play-time clock the save holds.
     pub clock: WorldClock,
+    /// The player's record of neutralized civilizations the save holds.
+    pub neutralized: NeutralizedCivilizations,
 }
 
 /// Seed `world` with everything a Load resumes: the session, the saved
@@ -274,6 +276,7 @@ pub fn resume_world(
         chart,
         jobs,
         clock,
+        neutralized,
         ..
     } = state;
     world.insert_resource(WorldSaveSession::opened(folder, lock, header));
@@ -282,6 +285,7 @@ pub fn resume_world(
         chart,
         jobs,
         clock,
+        neutralized,
     });
     world.insert_resource(ResumedScenario(scenario));
     world.insert_resource(ResumedCameraView {
@@ -314,8 +318,9 @@ pub(crate) fn save_systems() -> ScheduleConfigs<ScheduleSystem> {
         .run_if(resource_exists::<WorldSaveSession>)
 }
 
-/// Seed the ledger, the chart, the jobs and the clock `Cleanup` just cleared
-/// with the save's, on the frame the world arms.
+/// Seed the ledger, the chart, the jobs, the clock and the neutralized
+/// civilizations `Cleanup` just cleared with the save's, on the frame the
+/// world arms.
 ///
 /// # Panics
 ///
@@ -335,6 +340,7 @@ pub(crate) fn restore_resumed_world(world: &mut World) {
         chart,
         jobs,
         clock,
+        neutralized,
     } = world
         .remove_resource::<ResumedWorld>()
         .expect("run only with a ResumedWorld");
@@ -342,6 +348,7 @@ pub(crate) fn restore_resumed_world(world: &mut World) {
     *world.resource_mut::<Chart>() = chart;
     *world.resource_mut::<Jobs>() = jobs;
     *world.resource_mut::<WorldClock>() = clock;
+    *world.resource_mut::<NeutralizedCivilizations>() = neutralized;
 }
 
 /// Want a save when the world first arms and when the player crosses into
@@ -523,6 +530,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
     let chart = world.resource::<Chart>().clone();
     let jobs = world.resource::<Jobs>().clone();
     let clock = *world.resource::<WorldClock>();
+    let neutralized = world.resource::<NeutralizedCivilizations>().clone();
     let saved_at_unix = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |since| since.as_secs());
@@ -560,6 +568,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
         chart,
         jobs,
         clock,
+        neutralized,
     };
     let checked = check_saved_ids(&state)
         .map_err(|fault| match fault {
@@ -573,6 +582,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
                 .chart
                 .validate()
                 .and_then(|()| state.jobs.validate())
+                .and_then(|()| state.neutralized.validate(state.clock.play_seconds))
                 .and_then(|()| check_saved_fleet(&state))
                 .and_then(|()| check_saved_items(&state, &items))
                 .and_then(|()| check_saved_stock(&state, &items))

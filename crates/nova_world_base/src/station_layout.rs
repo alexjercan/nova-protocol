@@ -52,7 +52,7 @@ use std::{
 use bevy::prelude::*;
 use nova_events::prelude::Meters;
 use nova_gameplay::prelude::{
-    Fnv32, GameItems, ItemDesignId, ItemRoleType, SeedStream, ShipInventoryStock,
+    CivilizationId, Fnv32, GameItems, ItemDesignId, ItemRoleType, SeedStream, ShipInventoryStock,
 };
 use nova_scenario::prelude::{
     SectionSource, ShipDesign, ShipIntegrityConfig, ShipPresentationConfig, SpaceshipSectionConfig,
@@ -63,7 +63,6 @@ use nova_ship::prelude::{
     ship_exits, LinkPointGraphError, OrientedPart, PlacedPart, PlacedSectionLinkPoints,
     SectionCollider, SectionKind, ShipMeasure, GRID_EPSILON,
 };
-use nova_world::prelude::CivilizationId;
 
 use crate::{
     civilizations::Civilization,

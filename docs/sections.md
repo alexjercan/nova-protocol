@@ -428,9 +428,8 @@ station admits the player whatever the player's side (see "Who lets a dock
 in"), and sells its hold to the player at bid (`TradePriceType::Owned` in
 `plan_item_trade`); storage
 withdraw was already free. Its services still price at ask, its credits are
-its trading float (Take does not reach them), and it earns nothing yet: the
-`TODO(20261012-100028)` in `thaw_station` is where income will accrue.
-Ownership has one source of truth: the live marker, and `FrozenStation.owned`
+its trading float (Take does not reach them), and it earns nothing: no
+income rule exists. Ownership has one source of truth: the live marker, and `FrozenStation.owned`
 in the frozen record a retire or a save writes and a thaw reads back. The side
 and the name freeze with the hull (`FrozenShip`) and the body (`FrozenBody`)
 as every ship's do; the side alone cannot mark ownership, since a generated
@@ -744,17 +743,19 @@ without the hulls touching.
 read by the DOCK chip and by the request. A ship target refuses with
 `DockRefusalType::Combat` while Hostile, Enemy, answering fire or fighting
 (a neutralized target admits). A station target (`StationMarker`) answers by
-`station_admission(allegiance, derelict, occupied, owned, hostile)`, in that
-order: `StationOccupied` while every live port on its root is held (a held
-port is no candidate in the port search; this names the reason so the HUD
-can say it); admitted for a station the player owns
+`station_admission(allegiance, derelict, occupied, owned, hostile,
+neutralized_hull)`, in that order: `StationOccupied` while every live port on
+its root is held (a held port is no candidate in the port search; this names
+the reason so the HUD can say it); admitted for a station the player owns
 (`OwnedStationMarker`) or a derelict, on any side; `EnemyStation` for a
-living station on the Enemy side; `HostileStation` for a living station the
+living station on the Enemy side; `NeutralizedHull` for a living station
+whose civilization is one whose hull the asking player neutralized within the
+refusal window; `HostileStation` for a living station the
 ship is hostile to by `ship_relation` (a Player station and an Enemy-flagged
 ship, or a station answering the ship's fire); and admitted otherwise. `FlightVerbHints::dock_refusal` carries a station's line (`<NAME>
-REFUSES DOCKING`, `<NAME> DOCK OCCUPIED`) while the travel lock is on it; the
-mode chip shows it and the DOCK chip reads `DOCK REFUSED`. A ship's refusal
-stays the dark chip.
+REFUSES DOCKING`, `<NAME> REFUSES DOCKING: HULL NEUTRALIZED`, `<NAME> DOCK
+OCCUPIED`) while the travel lock is on it; the mode chip shows it and the
+DOCK chip reads `DOCK REFUSED`. A ship's refusal stays the dark chip.
 
 **A station is a hub.** A ship holds one connection (`DockedShip`); the port
 search names no pair for a ship that already has one. A station holds one

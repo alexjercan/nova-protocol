@@ -36,6 +36,7 @@ pub mod beacon;
 pub mod bounds;
 pub mod chart;
 pub mod cheats;
+pub mod civilization;
 pub mod cooldown;
 pub mod damage;
 pub mod freeze;
@@ -116,15 +117,16 @@ pub mod prelude {
     // lesson outlives it: adding a name below is a decision.
     pub use super::{
         asset_ref::prelude::*, audio::prelude::*, beacon::prelude::*, bounds::prelude::*,
-        chart::prelude::*, cheats::prelude::*, cooldown::prelude::*, damage::prelude::*,
-        freeze::prelude::*, gravity::prelude::*, hash::prelude::*, impact_sound::prelude::*,
-        impact_spark::prelude::*, integrity::prelude::*, inventory::prelude::*, jobs::prelude::*,
-        juice::prelude::*, lifetime::prelude::*, markers::prelude::*, market::prelude::*,
-        math::prelude::*, mesh::prelude::*, narrative_accent::prelude::*, objectives::prelude::*,
-        plugin::prelude::*, projectile_hooks::prelude::*, relations::prelude::*,
-        render_target::prelude::*, rounds::prelude::*, saved_refs::prelude::*,
-        settings::prelude::*, shake::prelude::*, soft_dot::prelude::*, transform::prelude::*,
-        transient_light::prelude::*, EscapeOwner, GameMode, GameStates, PauseStates,
+        chart::prelude::*, cheats::prelude::*, civilization::prelude::*, cooldown::prelude::*,
+        damage::prelude::*, freeze::prelude::*, gravity::prelude::*, hash::prelude::*,
+        impact_sound::prelude::*, impact_spark::prelude::*, integrity::prelude::*,
+        inventory::prelude::*, jobs::prelude::*, juice::prelude::*, lifetime::prelude::*,
+        markers::prelude::*, market::prelude::*, math::prelude::*, mesh::prelude::*,
+        narrative_accent::prelude::*, objectives::prelude::*, plugin::prelude::*,
+        projectile_hooks::prelude::*, relations::prelude::*, render_target::prelude::*,
+        rounds::prelude::*, saved_refs::prelude::*, settings::prelude::*, shake::prelude::*,
+        soft_dot::prelude::*, transform::prelude::*, transient_light::prelude::*, EscapeOwner,
+        GameMode, GameStates, PauseStates,
     };
 }
 
