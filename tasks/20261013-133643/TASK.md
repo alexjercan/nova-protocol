@@ -97,6 +97,28 @@
   carries a piece reshapes so its plateau covers the turned collider footprint. Feet stay as derived, so the seams to
   the neighbours do not change; only that plate's chamfers steepen. Options and the recommendation are in the agent
   report; nothing is implemented.
+- Plate fit landed 2026-10-16 (agent): bfb1ef839 (code + proof), plus the docs/changelog commit after it.
+  - `ShellShape.seat: [u8; 4]` is the plateau reach from the centre in 1/64-cell steps. `seated(half)` steepens
+    every chamfer, ramp end and corner cap that cuts into it; `seats(half)` is the exact corner check. Falls are
+    measured from the edge or corner they drop to, so feet and corner heights do not move. `SEAT_REACH`,
+    `has_seat` and `PlateReading.seat` are gone.
+  - `solve_greebles` takes a `fits` test; `solve_seated_greebles` keeps a fixture variant on a plate only when
+    `seated(decor_footprint(..))` is `Some`. `solve_decor` runs before meshing and writes the seated shapes back.
+    The re-clad seats the before hull too. The skin report counts `unseated` pieces (was "on a creased top").
+  - Oversize policy: a fixture with collider `x` or `z` above 1 cell fails `compile_greebles` (lint and load). A
+    piece that fits the cell but needs a fall steeper than `STEEPEST_SLOPE` (one cell of drop per seat step) is
+    left off that plate by the solve. No fallback. With slope 8 (a wall cover) the long line pieces nearly
+    vanished (salvage weld_seam 23 -> 0, mining duct 12 -> 0, armoured strake 20 -> 4), so the steepest slope is
+    near vertical. Result: every base hull keeps exactly the same placements as before; only plates change.
+  - Proof: `crates/nova_authoring/tests/base_hull_greebles.rs` fails on the old code ("49 of 363 pieces overhang
+    their plate", raider 7) and passes now. Lavapipe skin report: 0 unseated on the 9 base fleet hulls and on 40
+    generated hulls (generator_gallery walk: industrial ships, wrecks, ring, spire and yard stations).
+  - Caveat: the edge PROFILE can change near an edge's ends where a steepened perpendicular fall reaches it, so a
+    rim can jog at a seam beside a dressed plate (visible on the raider nose). Feet and corners still meet.
+  - Frames (not committed): /tmp/claude-1000/-home-alex-personal-nova-protocol/216d5d00-66e8-4958-a2e4-e285d6d0793a/scratchpad/plate-fit/
+    (`before/`, `after/`, `gallery/`, sheet `plate-fit-sheet.png`).
+  - Not done: `web/src/create/styles.md` still says nothing of the one-cell lint or the reshaping (owner file); no
+    armoured generated close-up (the gallery walk shows industrial only); no before frames for generated hulls.
 
 ## Delivery gate
 - After the research note is accepted: propose how a plate learns which greeble sits on it and reshapes (flattened pad, footprint), show before/after frames, then implement. Regenerate base content.

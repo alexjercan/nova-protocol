@@ -65,8 +65,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Station parts: `truss_hull_section` and `solar_panel_section` hulls and a
   `station` style with six `station_*` greebles.
 - The hull skin is rebuilt: flat plates at half or a whole cell with chamfered
-  rims, folds and skirts that close each hull corner, and stairs clad as one
-  ramp. No spikes, tents or saddles.
+  rims, folds and skirts at hull corners, and stairs clad as one ramp. A plate
+  under a greeble flattens to fit it.
 - A link point can set `skin: Bare`: it still mates, but left open it gets no
   skin plate or greeble. Truss and solar panel ends are `Bare`, so spokes and
   wing tips stop clean.
@@ -150,9 +150,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
   credits and items. Lint refuses an unknown hull or item, an overweight kit
   and a hull with no intake or one a docked ship blocks.
 
-- **(breaking)** A style places its greebles by `greeble_rules`: link types,
-  greebles with four link points, `near` terms and caps. Fixture `placement`
-  is gone; bad rules fail lint and load.
+- **(breaking)** A style places greebles by `greeble_rules`: link types,
+  greebles with four link points, `near` terms and caps. `placement` is gone;
+  bad rules or fixtures over a cell wide fail lint.
 
 ### Interface & HUD
 

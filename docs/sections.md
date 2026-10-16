@@ -1043,7 +1043,9 @@ each with the link types it `connects` to, and GREEBLES, each with a `fixture`
 (or `None` for empty space), a `weight`, a `rotate` set of quarter turns, a link
 type on each of its four link points (`up`, `right`, `down`, `left`), `near`
 terms and a `max_count`. `ShipStyleConfig::compile_greebles` checks the rules
-and resolves each fixture id once. A rule set that does not compile is an Error
+and resolves each fixture id once; a fixture whose collider is wider than one
+cell across the plate (`x` or `z` above 1) does not compile, because no plate
+can seat it. A rule set that does not compile is an Error
 at `content lint`, and the merge drops the style with an `error!`, so a ship
 naming it flies clad and bare. A style with no greebles places no decoration.
 
@@ -1065,10 +1067,33 @@ The solve has three parts, each in its own module:
   one solve runs without the greebles that carry a FORCING link type (one that
   cannot face empty space) and logs a warning. A player-built hull is a valid
   runtime condition, so that solve is a fallback, not a hidden authoring error.
+  The solve also takes a `fits` test that trims each cell's starting domain:
+  `solve_seated_greebles` keeps a fixture variant on a plate only when
+  `ShellShape::seated` can fit that plate to the variant's turned collider
+  footprint (`decor_footprint`).
 - `solve_decor` (`sections/skin_decor.rs`) turns the answer into a
   `DecorPlacement` per dressed plate: the fixture, and the quarter turn about
   the plate's own out axis that points the model's `+Z` at the slot holding the
-  greeble's `up` link point.
+  greeble's `up` link point. It runs BEFORE the plates are meshed, and replaces
+  each dressed plate's shape with its seated one.
+
+THE PLATE FITS THE PIECE. `ShellShape::seat` is the reach of the plateau from
+the cell centre, in `SEAT_STEPS` (1/64 cell) steps, toward each edge. A plate
+with a seat steepens every chamfer, ramp end and corner cap that cuts into
+that rectangle until it clears the plateau, up to `STEEPEST_SLOPE` (a cell of
+drop per seat step). Every fall is measured from the edge or corner it drops
+to, so steepening never moves a foot or a corner height: the plate still meets
+its neighbours at its feet and corners. The profile along a shared edge can
+still change near its ends where a steepened fall perpendicular to it reaches
+the edge, so a rim can jog at a seam beside a dressed plate.
+`ShellShape::seats` is the exact check: the seat plane is the flattest top
+plane at the centre, and every top plane must stand on or above it at the
+footprint's four corners. A piece the steepest slope cannot seat is left off
+that plate by the solve, never placed over a crease; `skin_report` counts any
+placement that does not seat as `unseated`, and the base hulls report none
+(`crates/nova_authoring/tests/base_hull_greebles.rs`). A re-clad seats the
+pieces of the BEFORE hull too, so the plates that keep their pieces also keep
+their shape.
 
 DETERMINISM. The seed is `greeble_seed(style id)`, an FNV-1a hash of the id
 alone, and every draw also hashes the plate's own key (its cell and out face).
