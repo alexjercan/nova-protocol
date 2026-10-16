@@ -20,7 +20,7 @@ use nova_ui::{
 
 use super::{
     catalog::{self, GalleryCategory},
-    scene::{spawn_tile, GalleryItem},
+    scene::spawn_tile,
     GalleryAlternate, GalleryHost, GalleryLayout, GalleryListing, GalleryState, HeldPart,
 };
 use crate::prelude::*;
@@ -99,7 +99,7 @@ pub(crate) fn rebuild_gallery(
     layout: Res<GalleryLayout>,
     host: Single<(Entity, Ref<GalleryHost>, Option<Ref<GalleryListing>>)>,
     sections: Res<GameSections>,
-    existing: Query<Entity, Or<(With<GalleryRoot>, With<GalleryItem>)>>,
+    existing: Query<Entity, With<GalleryRoot>>,
     mut last: Local<Option<GalleryState>>,
 ) {
     let (host_entity, host, listing) = host.into_inner();
