@@ -174,8 +174,10 @@ The engine reads a ship's skin as a grid of CELLS: one cell per plate, each with
 four edges, and across each edge the plate that continues the surface. The
 solve puts exactly one GREEBLE on every cell. A greeble is either a fixture or
 empty space, and it shows a LINK TYPE on each of its four edges. Two cells that
-share an edge must show link types that connect. The solve does not read the
-shape of a plate: every plate is one cell.
+share an edge must show link types that connect. The link rules do not read
+the shape of a plate: every plate is one cell. The solve only checks that a
+piece fits the plate it lands on (see
+[The frame a greeble is authored in](#the-frame-a-greeble-is-authored-in)).
 
 | field | type | default | meaning |
 |---|---|---|---|
@@ -226,6 +228,8 @@ clad and bare. Each of these fails:
   finite number of at least 0, or a `radius` of 0;
 - no greeble with `fixture: None`;
 - a greeble whose `fixture` names no fixture in the style;
+- a fixture whose `collider` is wider than one cell (`x` or `z` above 1),
+  because no plate can fit it;
 - a `factor: 0` term on a greeble that a forcing link type can force, because
   the ban could empty a cell that must be filled;
 - a `factor: 0` term or a `max_count` on an empty greeble, because empty space
@@ -275,9 +279,14 @@ that same frame:
 
 - `+Y` is out of the plate and `y = 0` is the mounting face. Nothing sits behind
   it.
-- The footprint is centred on the origin and stays inside half a cell, so a piece
-  cannot spill across a plate seam onto its neighbour. A tall piece (a mast)
-  reaches further up.
+- The footprint is centred on the origin and stays within half a cell of it
+  each way, so a piece cannot spill across a plate seam onto its neighbour. A
+  tall piece (a mast) reaches further up.
+- The plate under a piece reshapes so its flat top covers the `collider`
+  footprint. Its chamfers and ramps get steeper, but its feet and corners stay,
+  so it still meets its neighbours. A piece that reaches almost to an edge
+  where the plate falls away would need a slope steeper than the engine allows.
+  It does not fit that plate, and the solve leaves it off it.
 - `+Z` points at the edge that holds the greeble's `up` link point. A line
   greeble with `line` on `up` and `down` therefore lies with `+Z` down the
   line.
