@@ -51,6 +51,7 @@
 use bevy::{camera::visibility::RenderLayers, prelude::*};
 use nova_gameplay::{GameStates, PauseStates};
 use nova_scenario::prelude::ScenarioCameraMarker;
+use nova_ui::prelude::{in_input_mode, InputMode};
 
 use crate::hud::overlays::{apply_debug_overlays, overlay_on, DebugOverlays};
 
@@ -287,7 +288,12 @@ impl Plugin for DiagnosticsPlugin {
         );
         app.add_systems(Startup, spawn_the_overlay);
         app.add_systems(First, clear_the_panel);
-        app.add_systems(Update, toggle_the_diagnostics.before(apply_debug_overlays));
+        app.add_systems(
+            Update,
+            toggle_the_diagnostics
+                .run_if(in_input_mode(InputMode::Normal))
+                .before(apply_debug_overlays),
+        );
         app.add_systems(
             PostUpdate,
             (
