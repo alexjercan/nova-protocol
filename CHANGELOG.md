@@ -45,7 +45,10 @@ does NOT get an entry. Another page that states a different rule is wrong.
   a hauler past raiders, answer a distress call, neutralize a named hull.
   Accept and Hand in on the Station pane while docked; a job hands in once
   the world marks it done. Held jobs mark the Map's chart as `JOB-n` and
-  save. Save format 13.
+  save.
+- **(breaking)** Generated stations and ships now price each item by their
+  stock, cluster type and civilization; the Inventory pane shows the factors.
+  `PriceTable` content sets them. Save format 14.
 
 ### Combat & Weapons
 

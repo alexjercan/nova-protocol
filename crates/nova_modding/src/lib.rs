@@ -17,8 +17,8 @@
 //! - [`Content::UiTheme`] - a [`UiThemeConfig`], one look the whole UI paints in,
 //! - [`Content::Item`] - an [`ItemDesign`], a thing a ship carries and trades,
 //! - [`Content::Station`] - a [`StationDesignPrototype`], a parked hull a scenario spawns by id,
-//!   and
-//! - [`Content::StartRole`] - a [`StartRole`], one New Game start: a hull and a kit.
+//! - [`Content::StartRole`] - a [`StartRole`], one New Game start: a hull and a kit, and
+//! - [`Content::PriceTable`] - a [`PriceTable`], the factors a generated trader prices by.
 //!
 //! The kind lives IN the RON structure (an externally-tagged enum), so ONE
 //! loader reads any content file and a downstream router (`nova_assets`'s
@@ -48,7 +48,7 @@ use bevy::{
     prelude::*,
     reflect::TypePath,
 };
-use nova_gameplay::prelude::ItemDesign;
+use nova_gameplay::prelude::{ItemDesign, PriceTable};
 // The pure serde format types live in the engine-free `nova_mod_format`
 // crate so the portal generator builds without bevy; re-exported here so game
 // code keeps importing them from nova_modding.
@@ -68,7 +68,7 @@ pub mod prelude {
         parse_content, parse_manifest, pretty_config, serialize_content, serialize_manifest,
         BundleAsset, BundleAssetLoader, BundleManifest, CatalogEntry, CatalogLoader,
         CatalogManifest, Content, ContentAsset, ContentAssetLoader, InstalledCatalog, ModEntry,
-        ModMeta, ModdingLoaderError, NovaModdingPlugin, BASE_MOD_ID,
+        ModMeta, ModdingLoaderError, NovaModdingPlugin, BASE_MOD_ID, PRICE_TABLE_ID,
     };
 }
 
@@ -154,7 +154,20 @@ pub enum Content {
     /// kit item and a kit heavier than the hull's hold fail at lint and at
     /// load.
     StartRole(StartRole),
+    /// A [`PriceTable`] - becomes the `GamePriceTable` resource. The scarcity
+    /// curve, the cluster-type and role demand factors and the clamp a
+    /// generated trader prices every item by.
+    ///
+    /// One table, not a registry: every pack that states one replaces the
+    /// whole table, the last bundle in load order wins, and base must state
+    /// one. A factor that can push a bid above its ask fails at lint and at
+    /// load.
+    PriceTable(PriceTable),
 }
+
+/// The fixed [`Content::id`] of the [`Content::PriceTable`] singleton: a
+/// second table in one bundle is a duplicate, one in a later bundle replaces it.
+pub const PRICE_TABLE_ID: &str = "price_table";
 
 impl Content {
     /// What kind of item this is, as the word the authoring messages use.
@@ -175,6 +188,7 @@ impl Content {
             Content::Item(_) => "item",
             Content::Station(_) => "station",
             Content::StartRole(_) => "start role",
+            Content::PriceTable(_) => "price table",
         }
     }
 
@@ -192,6 +206,7 @@ impl Content {
             Content::Item(design) => design.id.as_str(),
             Content::Station(design) => design.id.as_str(),
             Content::StartRole(role) => role.id.as_str(),
+            Content::PriceTable(_) => PRICE_TABLE_ID,
         }
     }
 

@@ -39,7 +39,7 @@ The five spelling rules behind every snippet in these pages:
 
 | family | constructs |
 |---|---|
-| Mod structure | [bundle and content files](../mod-files/), [`Campaign`](../campaigns/), [`Lesson`](../lessons/), [`Scenario`](../scenarios/), [`Section`](../sections/), [`Ship`](../ships/), [`StartRole`](../start-roles/), [`Station`](../stations/), [`Style`](../styles/) |
+| Mod structure | [bundle and content files](../mod-files/), [`Campaign`](../campaigns/), [`Lesson`](../lessons/), [`Scenario`](../scenarios/), [`Section`](../sections/), [`PriceTable`](../prices/), [`Ship`](../ships/), [`StartRole`](../start-roles/), [`Station`](../stations/), [`Style`](../styles/) |
 | Handler fields | [`name`](../events/), [`once`](../scenarios/#once-a-beat-that-happens-one-time), [`filters`](../filters/), [`actions`](../actions/) |
 | Events (28) | [`OnStart`](../events/#onstart), [`OnUpdate`](../events/#onupdate), [`OnTimerEnd`](../events/#ontimerend), [`OnCinematicFinished`](../events/#cinematic-endings), [`OnCinematicSkipped`](../events/#cinematic-endings), [`OnDefeated`](../events/#ondefeated), [`OnDestroyed`](../events/#ondestroyed), [`OnNeutralized`](../events/#onneutralized), [`OnEnter`](../events/#onenter), [`OnExit`](../events/#onexit), [`OnGotoComplete`](../events/#player-maneuver-completion), [`OnStopComplete`](../events/#player-maneuver-completion), [`OnOrbitStart`](../events/#orbit-lifecycle), [`OnOrbitStable`](../events/#orbit-lifecycle), [`OnOrbitLap`](../events/#orbit-lifecycle), [`OnOrbitUnstable`](../events/#orbit-lifecycle), [`OnOrbitEnd`](../events/#orbit-lifecycle), [`OnTravelLockStart`](../events/#lock-lifecycle), [`OnTravelLockEnd`](../events/#lock-lifecycle), [`OnCombatLockStart`](../events/#lock-lifecycle), [`OnCombatLockEnd`](../events/#lock-lifecycle), [`OnDocked`](../events/#docking-lifecycle), [`OnUndocked`](../events/#docking-lifecycle), [`OnShipOrderComplete`](../events/#onshipordercomplete), [`OnShipOrderInterrupted`](../events/#onshiporderinterrupted), [`OnShipOrderResumed`](../events/#onshiporderresumed), [`OnShipOrderCanceled`](../events/#onshipordercanceled), [`OnShipOrderFailed`](../events/#onshiporderfailed) |
 | Filters (6) | [`Entity`](../filters/#entity), [`Timer`](../filters/#timer), [`Cinematic`](../filters/#cinematic), [`ShipOrder`](../filters/#shiporder), [`Expression`](../filters/#expression), [`Conditional`](../filters/#conditional) (`Not` / `And` / `Or`) |
@@ -154,6 +154,7 @@ The wiki search (sidebar) indexes every construct name, so typing
 [`PlaySound`](../actions/#playsound) (action),
 [`Plume`](../sections/#damage-effects) (damage effect),
 [`Point`](../objects/#light) (light method),
+[`PriceTable`](../prices/) (content item),
 [`Prototype`](../objects/#the-sections-list) (section source)
 
 **Q** - [`Query`](../expressions/#factors-the-atoms) (expression node)

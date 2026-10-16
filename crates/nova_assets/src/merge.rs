@@ -18,7 +18,9 @@ mod canonical;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use bevy::prelude::*;
-use nova_gameplay::prelude::{Fnv64, GameItems, GameStates, ItemDesign};
+use nova_gameplay::prelude::{
+    price_table_faults, Fnv64, GameItems, GamePriceTable, GameStates, ItemDesign, PriceTable,
+};
 use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog, BASE_MOD_ID};
 use nova_scenario::prelude::{
     GameCampaigns, GameScenarios, GameShipDesigns, GameStartRoles, GameStationDesigns,
@@ -206,6 +208,12 @@ pub fn register_bundles(
             continue;
         };
         let mut errors = section_errors(mod_id, bundle, &contents);
+        errors.extend(price_table_errors(
+            mod_id,
+            bundle,
+            &contents,
+            base_ids.contains(mod_id),
+        ));
         errors.extend(
             item_faults
                 .remove(*mod_id)
@@ -734,9 +742,59 @@ pub fn register_bundles(
     commands.insert_resource(GameShipDesigns(outcome.ships));
     commands.insert_resource(GameStationDesigns(outcome.stations));
     commands.insert_resource(GameStartRoles(outcome.start_roles));
+    // The gate above refuses a base that states no table, so a merge over a
+    // loaded catalog always has one. Without a catalog nothing was gated and
+    // no generated world arms, so there is no trader to price.
+    if let Some(table) = outcome.price_table {
+        commands.insert_resource(GamePriceTable(table));
+    }
     commands.insert_resource(TrainingCatalog::new(outcome.lessons));
     commands.insert_resource(GameUiThemes(outcome.ui_themes));
     commands.insert_resource(merged_items);
+}
+
+/// Every price-table error in one bundle, charged to `mod_id`: each fault
+/// [`price_table_faults`] finds, a second table in the bundle, and a base
+/// bundle that states none. A content file that did not load is skipped: the
+/// flatten reports it.
+fn price_table_errors(
+    mod_id: &str,
+    bundle: &BundleAsset,
+    contents: &Assets<ContentAsset>,
+    base: bool,
+) -> Vec<nova_scenario::prelude::LintIssue> {
+    let tables: Vec<&PriceTable> = bundle
+        .content
+        .iter()
+        .filter_map(|handle| contents.get(handle))
+        .flat_map(|content| content.0.iter())
+        .filter_map(|item| match item {
+            Content::PriceTable(table) => Some(table),
+            _ => None,
+        })
+        .collect();
+    let mut messages: Vec<String> = tables
+        .iter()
+        .flat_map(|table| price_table_faults(table))
+        .map(|fault| format!("price table: {fault}"))
+        .collect();
+    if tables.len() > 1 {
+        messages.push(format!(
+            "states {} price tables; a bundle states at most one",
+            tables.len()
+        ));
+    }
+    if base && tables.is_empty() {
+        messages.push("states no price table; base must state one".to_string());
+    }
+    messages
+        .into_iter()
+        .map(|message| nova_scenario::prelude::LintIssue {
+            severity: nova_scenario::prelude::LintSeverity::Error,
+            scenario: mod_id.to_string(),
+            message,
+        })
+        .collect()
 }
 
 /// Every error [`lint_section_config`](nova_scenario::prelude::lint_section_config)
@@ -976,6 +1034,10 @@ pub struct MergeOutcome {
     /// replaces a base role by declaring the same id. The order is what a
     /// role picker lists.
     pub start_roles: Vec<StartRole>,
+    /// The price table of the last bundle that states one: a mod replaces the
+    /// whole table. `None` only when no bundle states one, which the gate in
+    /// [`register_bundles`] refuses for a base pack.
+    pub price_table: Option<PriceTable>,
     /// Human-readable messages, one per intra-bundle duplicate id that was
     /// skipped. Empty on clean data.
     pub conflicts: Vec<String>,
@@ -1111,6 +1173,8 @@ fn merge_content_item(item: &Content, into: &mut MergeOutcome) {
             Some(existing) => *existing = role.clone(),
             None => into.start_roles.push(role.clone()),
         },
+        // One table, not a registry: a later bundle replaces it whole.
+        Content::PriceTable(table) => into.price_table = Some(table.clone()),
     }
 }
 

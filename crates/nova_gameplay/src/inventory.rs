@@ -33,7 +33,7 @@ use std::{collections::BTreeMap, sync::Arc};
 use bevy::prelude::*;
 use nova_events::prelude::{CreditChangeCauseType, ItemTradeType};
 
-use crate::integrity::prelude::Health;
+use crate::{integrity::prelude::Health, market::ItemPrice};
 
 /// The whole module.
 pub mod prelude {
@@ -895,16 +895,16 @@ pub enum ItemTradeRefusalType {
     CreditOverflow,
 }
 
-/// The prices a trading partner deals at.
+/// The prices a trading partner deals at for one item.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
 pub enum TradePriceType {
-    /// A partner the player does not own: a Buy pays [`ItemDesign::ask_cr`],
-    /// a Sell earns [`ItemDesign::bid_cr`].
-    Market,
+    /// A partner the player does not own: a Buy pays the ask, a Sell earns
+    /// the bid. The reference price ([`ItemDesign::reference_price`]), or a
+    /// generated trader's computed one ([`price`](crate::market::price)).
+    Market(ItemPrice),
     /// A station the player owns: its stock is the player's, so a Buy pays
-    /// [`ItemDesign::bid_cr`] as a Sell earns it, and no spread is taken
-    /// from the owner.
-    Owned,
+    /// the bid as a Sell earns it, and no spread is taken from the owner.
+    Owned(ItemPrice),
 }
 
 /// Plan a trade of `quantity` of `item` between the player ship (`own`,
@@ -912,10 +912,10 @@ pub enum TradePriceType {
 ///
 /// `prices` is `None` when the partner does not trade: it is neutralized or
 /// carries [`LootableShipMarker`], or it is a station that offers no Trade.
-/// A Buy moves items from the partner to the player at
-/// [`ItemDesign::ask_cr`] each, or at [`ItemDesign::bid_cr`] from a station
-/// the player owns ([`TradePriceType::Owned`]); a Sell moves them from the
-/// player to the partner at [`ItemDesign::bid_cr`] each. Checks run in
+/// A Buy moves items from the partner to the player at the ask each, or at
+/// the bid from a station the player owns ([`TradePriceType::Owned`]); a
+/// Sell moves them from the player to the partner at the bid each. The whole
+/// quantity trades at the one unit price. Checks run in
 /// [`ItemTradeRefusalType`] order, and a refusal changes nothing. `item`
 /// resolves in `items`.
 #[expect(
@@ -939,13 +939,13 @@ pub fn plan_item_trade(
         return Err(ItemTradeRefusalType::ZeroQuantity);
     }
     let design = items.design(item);
-    let ask_cr = match prices {
-        TradePriceType::Market => design.ask_cr,
-        TradePriceType::Owned => design.bid_cr,
+    let (ask_cr, bid_cr) = match prices {
+        TradePriceType::Market(price) => (price.ask_cr, price.bid_cr),
+        TradePriceType::Owned(price) => (price.bid_cr, price.bid_cr),
     };
     let (seller, buyer, buyer_cr, seller_cr, unit_cr) = match trade {
         ItemTradeType::Buy => (partner, own, own_cr, partner_cr, ask_cr),
-        ItemTradeType::Sell => (own, partner, partner_cr, own_cr, design.bid_cr),
+        ItemTradeType::Sell => (own, partner, partner_cr, own_cr, bid_cr),
     };
     let held = seller.count(item);
     if quantity > held {
@@ -2190,6 +2190,7 @@ mod transfer_tests {
         use ItemTradeRefusalType::*;
         use ItemTradeType::*;
         // 400 kg of room; ore is 10 kg, ask 4 and bid 3 for stone.
+        let stone_price = items.role(ItemRoleType::StoneOre).reference_price();
         let ore = |count: u32| {
             ShipInventory::new(&items, 400_000, [(ItemRoleType::StoneOre.into(), count)])
         };
@@ -2203,7 +2204,7 @@ mod transfer_tests {
             plan_item_trade(
                 &items,
                 trade,
-                trades.then_some(TradePriceType::Market),
+                trades.then_some(TradePriceType::Market(stone_price)),
                 &ItemDesignId::from(ItemRoleType::StoneOre),
                 quantity,
                 own,
@@ -2233,7 +2234,7 @@ mod transfer_tests {
             plan_item_trade(
                 &items,
                 Buy,
-                Some(TradePriceType::Owned),
+                Some(TradePriceType::Owned(stone_price)),
                 &ItemDesignId::from(ItemRoleType::StoneOre),
                 Some(5),
                 &own,

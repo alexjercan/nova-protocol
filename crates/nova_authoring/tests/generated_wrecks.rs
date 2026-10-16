@@ -4,9 +4,10 @@
 
 use bevy::math::Vec3;
 use nova_authoring::lint_walk::repo_ship_part_packs;
+use nova_gameplay::prelude::ShipRoleType;
 use nova_scenario::prelude::SpaceshipSectionConfig;
 use nova_ship::prelude::{intake_in_dock_approach, RefitPlacedSection, SectionKind, GRID_EPSILON};
-use nova_world::prelude::{CivilizationId, ShipRoleType};
+use nova_world::prelude::CivilizationId;
 use nova_world_base::prelude::{
     generate_ship, generate_wreck, ShipLayoutRequest, ShipPartSnapshot, MAX_SHIP_SECTIONS,
 };

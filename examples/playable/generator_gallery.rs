@@ -55,7 +55,7 @@ use nova_protocol::{
 };
 use nova_scenario::prelude::{lint_station_design, KnownSections, LintSeverity};
 use nova_wfc::prelude::hull_errors;
-use nova_world::prelude::{CivilizationId, ShipRoleType};
+use nova_world::prelude::CivilizationId;
 
 /// The world seed of the pinned civilization every request names. Only a
 /// failure line reads it.

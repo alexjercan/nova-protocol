@@ -71,7 +71,7 @@ use std::{
 
 use bevy::prelude::*;
 use nova_events::prelude::Meters;
-use nova_gameplay::prelude::{Fnv32, SeedStream};
+use nova_gameplay::prelude::{Fnv32, SeedStream, ShipRoleType};
 use nova_scenario::prelude::{
     SectionSource, ShipDesign, ShipPresentationConfig, SpaceshipSectionConfig,
 };
@@ -82,7 +82,7 @@ use nova_ship::prelude::{
     RefitPlacedSection, SectionConfig, SectionFootprint, SectionKind, ShipMeasure,
     ShipMeasureShortfallType, GRID_EPSILON,
 };
-use nova_world::prelude::{CivilizationId, ShipRoleType, SECTOR_SHIP_CLEARANCE_MAX};
+use nova_world::prelude::{CivilizationId, SECTOR_SHIP_CLEARANCE_MAX};
 
 use crate::{
     role_style_id,

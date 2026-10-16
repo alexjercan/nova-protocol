@@ -157,6 +157,9 @@ pub(crate) enum InspectorPart {
     AboutFull,
     /// The cue that the description is clipped, and the key that shows it.
     AboutMore,
+    /// The selected item's price at the docked partner and the factors that
+    /// made it, while the partner trades.
+    Prices,
 }
 
 /// A text of the inspector that [`update_inventory_panel`] fills.
@@ -190,6 +193,18 @@ pub(crate) enum InventoryInspectorField {
     DraftStock,
     /// What the target ship carries after the draft, or why it cannot move.
     DraftSummary,
+    /// What the docked partner asks and bids for the selected item.
+    PriceAskBid,
+    /// The item's authored reference ask and bid.
+    PriceReference,
+    /// The partner's stock factor for the item.
+    PriceScarcity,
+    /// The partner's cluster type and its factor for the item.
+    PriceCluster,
+    /// The partner civilization's leading role and its factor for the item.
+    PriceCivilization,
+    /// The product of the factors after the clamp.
+    PriceTotal,
 }
 
 /// A draft action switch: a click turns the open Give, Sell or Store draft
@@ -669,6 +684,27 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                         ));
                     });
                     item.spawn((
+                        InspectorPart::Prices,
+                        Node {
+                            display: Display::None,
+                            flex_direction: FlexDirection::Column,
+                            row_gap: px(4),
+                            ..default()
+                        },
+                    ))
+                    .with_children(|prices| {
+                        fact_row(prices, "Ask / bid", InventoryInspectorField::PriceAskBid);
+                        fact_row(prices, "Reference", InventoryInspectorField::PriceReference);
+                        fact_row(prices, "Scarcity", InventoryInspectorField::PriceScarcity);
+                        fact_row(prices, "Cluster", InventoryInspectorField::PriceCluster);
+                        fact_row(
+                            prices,
+                            "Civilization",
+                            InventoryInspectorField::PriceCivilization,
+                        );
+                        fact_row(prices, "Total", InventoryInspectorField::PriceTotal);
+                    });
+                    item.spawn((
                         InspectorPart::Form,
                         Node {
                             display: Display::None,
@@ -777,6 +813,30 @@ fn about_box(item: &mut ChildSpawnerCommands) {
                 ));
             });
     });
+}
+
+/// An ask and a bid as the inspector shows them.
+fn price_text(ask_cr: u32, bid_cr: u32) -> String {
+    format!("{} / {}", cr_text(ask_cr), cr_text(bid_cr))
+}
+
+/// A price factor as the inspector shows it: one multiplier when ask and bid
+/// move alike, else the ask's then the bid's.
+fn factor_text(factor: PriceFactor) -> String {
+    if factor.ask == factor.bid {
+        format!("x{:.2}", factor.ask)
+    } else {
+        format!("x{:.2} / x{:.2}", factor.ask, factor.bid)
+    }
+}
+
+/// A factor after what it comes from, or the bare factor at a trader that
+/// prices at reference.
+fn labelled_factor(label: Option<&str>, factor: PriceFactor) -> String {
+    match label {
+        Some(label) => format!("{label} {}", factor_text(factor)),
+        None => factor_text(factor),
+    }
 }
 
 /// A labelled fact of the selected item: the word on the left and the value,
@@ -1245,15 +1305,6 @@ pub(crate) struct PartnerTerms {
 }
 
 impl PartnerTerms {
-    /// The prices it deals at, or `None` when it does not trade.
-    pub(crate) fn prices(&self) -> Option<TradePriceType> {
-        self.trades.then_some(if self.owned {
-            TradePriceType::Owned
-        } else {
-            TradePriceType::Market
-        })
-    }
-
     /// Whether the player's row may switch to `action`: Give unless the
     /// partner is an own ship, Sell while it trades, Store at the station
     /// while it stores, and Store into each listed own ship hold.
@@ -1443,6 +1494,10 @@ pub(crate) struct InventoryShips<'w, 's> {
             Without<SectionInactiveMarker>,
         ),
     >,
+    /// Read only for a generated trader: the content merge inserts it, and a
+    /// trader without a market deals at reference.
+    price_table: Option<Res<'w, GamePriceTable>>,
+    markets: Query<'w, 's, &'static TraderMarket>,
 }
 
 /// The player ship and its docked partner, both checked to carry a
@@ -1579,6 +1634,46 @@ impl InventoryShips<'_, '_> {
                 own,
                 holds,
             },
+        })
+    }
+
+    /// The docked partner's price for `item` and the factors that made it, or
+    /// `None` while it does not trade. A generated trader prices by its
+    /// [`TraderMarket`] and its live stock of the item; any other trader deals
+    /// at reference, every factor one.
+    pub(crate) fn quote(&self, pair: InventoryPair, item: &ItemDesignId) -> Option<PriceQuote> {
+        let partner = pair.partner?;
+        self.partner_terms(pair)?.trades.then_some(())?;
+        let design = self.items.design(item);
+        Some(match self.markets.get(partner) {
+            Ok(market) => price(
+                &self
+                    .price_table
+                    .as_ref()
+                    .expect("the content merge inserts GamePriceTable before a trader spawns")
+                    .0,
+                design,
+                market,
+                self.ship(partner).1.count(item),
+            ),
+            Err(_) => PriceQuote::reference(design),
+        })
+    }
+
+    /// What [`plan_item_trade`] deals `item` at with the docked partner, or
+    /// `None` while it does not trade. A station the player owns sells at its
+    /// bid.
+    pub(crate) fn prices(
+        &self,
+        pair: InventoryPair,
+        item: &ItemDesignId,
+    ) -> Option<TradePriceType> {
+        let quote = self.quote(pair, item)?;
+        let owned = self.partner_terms(pair).is_some_and(|terms| terms.owned);
+        Some(if owned {
+            TradePriceType::Owned(quote.price)
+        } else {
+            TradePriceType::Market(quote.price)
         })
     }
 
@@ -2204,7 +2299,7 @@ fn trade_items(
         ItemTradeType::Buy => (partner, pair.own, &partner_title, &own_title),
         ItemTradeType::Sell => (pair.own, partner, &own_title, &partner_title),
     };
-    let prices = ships.partner_terms(pair).and_then(|terms| terms.prices());
+    let prices = ships.prices(pair, &item);
     let (_, own, _, own_cr) = ships.ship(pair.own);
     let (_, theirs, _, partner_cr) = ships.ship(partner);
     let planned = plan_item_trade(
@@ -2961,6 +3056,16 @@ pub(crate) fn update_inventory_panel(
         }
     }
 
+    // The selected item's price at the partner, what a trade deals at, and
+    // the partner's market when it is a generated trader.
+    let priced = selected.as_ref().and_then(|(_, item)| {
+        let quote = ships.quote(pair, item)?;
+        let prices = ships.prices(pair, item)?;
+        let market = pair
+            .partner
+            .and_then(|partner| ships.markets.get(partner).ok());
+        Some((items.design(item).reference_price(), quote, prices, market))
+    });
     for (part, mut node, mut visibility) in &mut q_part {
         // The draft's own rows hide in place, so switching between a Sell and
         // a Buy, or typing a quantity that is not a number, does not move the
@@ -2969,6 +3074,7 @@ pub(crate) fn update_inventory_panel(
             InspectorPart::Hint => (selected.is_none(), false),
             InspectorPart::Item => (selected.is_some(), false),
             InspectorPart::Form => (draft.is_some(), false),
+            InspectorPart::Prices => (priced.is_some(), false),
             InspectorPart::ActionChips => (
                 terms.as_ref().is_some_and(|terms| {
                     chip_actions.len() > 1
@@ -3088,7 +3194,7 @@ pub(crate) fn update_inventory_panel(
             (Some(quantity), Some(other)) => {
                 let (_, own_stock, _, _) = ships.ship(pair.own);
                 let (_, their_stock, lootable, their_cr) = ships.ship(other);
-                let prices = terms.as_ref().and_then(PartnerTerms::prices);
+                let prices = ships.prices(pair, &draft.item);
                 let action = draft.action;
                 match (action.transfer(), action.trade(), action.storage()) {
                     (Some(transfer), ..) => plan_item_transfer(
@@ -3268,6 +3374,52 @@ pub(crate) fn update_inventory_panel(
             (InventoryInspectorField::DraftSummary, _, Some((.., summary))) => match summary {
                 Ok(text) => (text.clone(), UiColor::Body),
                 Err(text) => (text.clone(), UiColor::Danger),
+            },
+            (InventoryInspectorField::PriceAskBid, ..) => match &priced {
+                Some((_, _, TradePriceType::Market(price), _)) => {
+                    (price_text(price.ask_cr, price.bid_cr), UiColor::Primary)
+                }
+                // An owned station sells its stock at its bid.
+                Some((_, _, TradePriceType::Owned(price), _)) => {
+                    (price_text(price.bid_cr, price.bid_cr), UiColor::Primary)
+                }
+                None => continue,
+            },
+            (InventoryInspectorField::PriceReference, ..) => match &priced {
+                Some((reference, ..)) => (
+                    price_text(reference.ask_cr, reference.bid_cr),
+                    UiColor::Body,
+                ),
+                None => continue,
+            },
+            (InventoryInspectorField::PriceScarcity, ..) => match &priced {
+                Some((_, quote, ..)) => (factor_text(quote.scarcity), UiColor::Body),
+                None => continue,
+            },
+            (InventoryInspectorField::PriceCluster, ..) => match &priced {
+                Some((_, quote, _, market)) => (
+                    labelled_factor(market.map(|market| market.cluster.label()), quote.cluster),
+                    UiColor::Body,
+                ),
+                None => continue,
+            },
+            (InventoryInspectorField::PriceCivilization, ..) => match &priced {
+                Some((_, quote, _, market)) => (
+                    labelled_factor(
+                        market.map(|market| market.leading_role().label()),
+                        quote.civilization,
+                    ),
+                    UiColor::Body,
+                ),
+                None => continue,
+            },
+            (InventoryInspectorField::PriceTotal, ..) => match &priced {
+                Some((_, quote, ..)) if quote.clamped => (
+                    format!("{} clamped", factor_text(quote.total)),
+                    UiColor::Accent,
+                ),
+                Some((_, quote, ..)) => (factor_text(quote.total), UiColor::Primary),
+                None => continue,
             },
             _ => continue,
         };

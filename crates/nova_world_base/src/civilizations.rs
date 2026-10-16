@@ -20,7 +20,7 @@
 //! diagnostic maps are reviewed.
 
 use nova_events::prelude::{Meters, Meters3};
-use nova_gameplay::prelude::Allegiance;
+use nova_gameplay::prelude::{Allegiance, ShipRoleType};
 use nova_world::prelude::*;
 
 use crate::{

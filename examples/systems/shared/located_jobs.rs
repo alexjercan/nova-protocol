@@ -33,9 +33,7 @@ use nova_protocol::{
     prelude::*,
 };
 use nova_ui::widget::TextFieldValue;
-use nova_world::prelude::{
-    desired_sectors, SectorRoot, SectorShipConditionType, ShipRoleType, WorldConfig,
-};
+use nova_world::prelude::{desired_sectors, SectorRoot, SectorShipConditionType, WorldConfig};
 
 /// The four `outcome:` markers a range emits, held as literals in the
 /// including example so the probe roster test reads them beside the range.

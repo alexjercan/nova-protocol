@@ -11,7 +11,7 @@
 //! build - `nova_modding` (a dependency) turns on `nova_scenario/serde`, and
 //! Cargo feature unification carries it here.
 
-use nova_gameplay::prelude::ItemDesign;
+use nova_gameplay::prelude::{ItemDesign, PriceTable};
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::{
     CampaignConfig, ScenarioConfig, ShipDesignPrototype, ShipDesignSource, SpaceshipConfig,
@@ -29,10 +29,11 @@ use crate::base_content;
 pub mod prelude {
     pub use super::{
         build_campaign_content, build_campaigns, build_item_content, build_items,
-        build_lesson_content, build_lessons, build_scenario_contents, build_scenarios,
-        build_section_catalog, build_section_content, build_ship_content, build_ships,
-        build_start_role_content, build_start_roles, build_station_content, build_stations,
-        build_style_content, build_styles, content_files, serialize_content, spawned_ship_sections,
+        build_lesson_content, build_lessons, build_price_table, build_price_table_content,
+        build_scenario_contents, build_scenarios, build_section_catalog, build_section_content,
+        build_ship_content, build_ships, build_start_role_content, build_start_roles,
+        build_station_content, build_stations, build_style_content, build_styles, content_files,
+        serialize_content, spawned_ship_sections,
     };
 }
 
@@ -168,6 +169,17 @@ pub fn build_start_role_content() -> Vec<Content> {
         .collect()
 }
 
+/// The base game's price table.
+pub fn build_price_table() -> PriceTable {
+    base_content::build().price_table
+}
+
+/// The price table wrapped as the one `Content::PriceTable` item the committed
+/// `assets/base/market/base.content.ron` file carries.
+pub fn build_price_table_content() -> Vec<Content> {
+    vec![Content::PriceTable(build_price_table())]
+}
+
 /// The base game's training lessons, in the order the file carries them.
 pub fn build_lessons() -> Vec<Lesson> {
     base_content::build().lessons
@@ -256,6 +268,10 @@ pub fn content_files() -> Vec<(String, String)> {
         (
             "base/roles/base.content.ron".to_string(),
             serialize_content(&build_start_role_content()),
+        ),
+        (
+            "base/market/base.content.ron".to_string(),
+            serialize_content(&build_price_table_content()),
         ),
         (
             "base/training/base.content.ron".to_string(),

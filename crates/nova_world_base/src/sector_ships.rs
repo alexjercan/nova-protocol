@@ -38,7 +38,8 @@
 use bevy::prelude::{Quat, Vec3};
 use nova_events::prelude::{Meters, Meters3, MetersPerSecond3};
 use nova_gameplay::prelude::{
-    Allegiance, Fnv32, GameItems, ItemDesignId, ItemRoleType, SeedStream, ShipInventoryStock,
+    Allegiance, ClusterType, Fnv32, GameItems, ItemDesignId, ItemRoleType, SeedStream,
+    ShipInventoryStock, ShipRoleType, TraderMarket,
 };
 use nova_scenario::prelude::{
     AIControllerConfig, ShipDesign, ShipDesignSource, SpaceshipConfig, SpaceshipController,
@@ -104,6 +105,8 @@ pub struct HullSlot<'a> {
     pub id: &'a str,
     /// The cluster's lattice node.
     pub node: [i32; 3],
+    /// The cluster's type, which an intact ship's market prices by.
+    pub cluster: ClusterType,
     /// The hull's planned slot in its cluster.
     pub slot: usize,
     /// The cluster's anchor.
@@ -142,6 +145,9 @@ pub struct PlannedShip {
     /// derelict is flown by nobody, Neutral and lootable. At rest: the cell
     /// sets the initial motion once it knows the wells around it.
     pub spawn: SpaceshipConfig,
+    /// What an intact ship prices its trades by, from [`trader_market`];
+    /// `None` on a derelict.
+    pub market: Option<TraderMarket>,
 }
 
 /// Lay out the ship `hull` stands for.
@@ -290,12 +296,15 @@ pub fn plan_ship(
         SectorShipConditionType::Derelict => (SpaceshipController::None, Allegiance::Neutral, true),
     };
 
+    let market = (condition == SectorShipConditionType::Intact)
+        .then(|| trader_market(hull.cluster, &civilization, &stock));
     Ok(PlannedShip {
         rotation,
         clearance: layout.clearance,
         condition,
         civilization: civilization.id,
         role,
+        market,
         spawn: SpaceshipConfig {
             design: ShipDesignSource::Inline(layout.design),
             controller,
@@ -307,6 +316,24 @@ pub fn plan_ship(
             credits,
         },
     })
+}
+
+/// The market a trader of `civilization` keeps in a cluster of type
+/// `cluster`: the civilization's role preference, and `stock`, what the
+/// trader spawns holding, as its target.
+pub(crate) fn trader_market(
+    cluster: ClusterType,
+    civilization: &Civilization,
+    stock: &ShipInventoryStock,
+) -> TraderMarket {
+    TraderMarket {
+        cluster,
+        role_preference: civilization.role_preference,
+        target: stock
+            .stacks()
+            .map(|(item, count)| (item.clone(), count))
+            .collect(),
+    }
 }
 
 /// The seed of one `aspect` of the hull in `slot` of the cluster at `node`.

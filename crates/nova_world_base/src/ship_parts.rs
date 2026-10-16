@@ -30,11 +30,10 @@ use std::{
     fmt,
 };
 
-use nova_gameplay::prelude::Fnv64;
+use nova_gameplay::prelude::{Fnv64, ShipRoleType};
 use nova_ship::prelude::{
     cell_grid_fit, CellGridFault, SectionCollider, SectionConfig, SectionKind, TurretJoint,
 };
-use nova_world::prelude::ShipRoleType;
 
 use crate::station_layout::StationArchetypeType;
 

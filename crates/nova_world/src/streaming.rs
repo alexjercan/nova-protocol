@@ -366,7 +366,9 @@ fn require_resolved(id: &GeneratedBodyId, design: &ShipDesignSource, sections: &
 }
 
 /// Spawn one generated station under `root`, where and as its manifest
-/// entry says: the entry's `spawn` and `hulls` are the whole station, and this adds only the pose and the identity. The hulls for
+/// entry says: the entry's `spawn` and `hulls` are the whole station, and
+/// this adds only the pose, the identity and a living station's market. The
+/// hulls for
 /// sale park at its ports and the escorts for hire coast beside it
 /// ([`PendingParkedHulls`]). A dead station is the same
 /// design spawned `derelict`: the factory marks it, so its hull spawns
@@ -381,6 +383,7 @@ fn spawn_sector_station(commands: &mut Commands, root: Entity, station: SectorSt
         civilization,
         spawn,
         hulls,
+        market,
     } = station;
     let name = generated_station_name(&civilization.name(), spawn.derelict);
     let mut entity = commands.spawn((
@@ -394,6 +397,9 @@ fn spawn_sector_station(commands: &mut Commands, root: Entity, station: SectorSt
         ChildOf(root),
     ));
     station_scenario_object(&mut entity, &design, &spawn);
+    if let Some(market) = market {
+        entity.insert(market);
+    }
     if !hulls.is_empty() {
         entity.insert(PendingParkedHulls(
             hulls.into_iter().map(PendingParkedHull::Offer).collect(),
@@ -450,9 +456,10 @@ pub(crate) fn rename_dead_generated_station(
 
 /// Spawn one generated ship under `root`, where and as its manifest entry
 /// says: the entry's `spawn` config is the whole ship, and this adds only
-/// the pose, the identity and, for a derelict, [`DerelictShipMarker`] in
-/// the same bundle as the root, so the section spawn sees it and every
-/// section but hull and docking port spawns inactive.
+/// the pose, the identity, an intact ship's market and, for a derelict,
+/// [`DerelictShipMarker`] in the same bundle as the root, so the section
+/// spawn sees it and every section but hull and docking port spawns
+/// inactive.
 fn spawn_sector_ship(commands: &mut Commands, root: Entity, ship: SectorShip) {
     let SectorShip {
         id,
@@ -463,6 +470,7 @@ fn spawn_sector_ship(commands: &mut Commands, root: Entity, ship: SectorShip) {
         civilization,
         role,
         spawn,
+        market,
     } = ship;
     let name = match condition {
         SectorShipConditionType::Intact => format!("{} {}", civilization.name(), role.label()),
@@ -481,10 +489,13 @@ fn spawn_sector_ship(commands: &mut Commands, root: Entity, ship: SectorShip) {
         spaceship_scenario_object(spawn),
         ChildOf(root),
     );
-    match condition {
+    let mut entity = match condition {
         SectorShipConditionType::Intact => commands.spawn(ship),
         SectorShipConditionType::Derelict => commands.spawn((ship, DerelictShipMarker)),
     };
+    if let Some(market) = market {
+        entity.insert(market);
+    }
 }
 
 /// The live sector roots, keyed by cell.

@@ -33,8 +33,8 @@ use nova_events::prelude::{
 use nova_gameplay::prelude::{
     station_job_board, station_offers, unit_sphere_point, Allegiance, DerelictShipMarker, Fnv32,
     GameItems, Job, JobAccepted, JobBoard, JobField, JobHull, JobMixType, JobType, JobWreck, Jobs,
-    NeutralizedMarker, PlayerSpaceshipMarker, SeedStream, ShipInventory, SpaceshipRootMarker,
-    StationMarker, StationServiceType, StationServices,
+    NeutralizedMarker, PlayerSpaceshipMarker, SeedStream, ShipInventory, ShipRoleType,
+    SpaceshipRootMarker, StationMarker, StationServiceType, StationServices,
 };
 use nova_scenario::prelude::{
     base_scenario_object, spaceship_scenario_object, AIControllerConfig, BaseScenarioObjectConfig,
@@ -44,8 +44,7 @@ use nova_ship::prelude::{
     ShipCapabilities, ShipHelmOrder, ShipOrderDirective, ShipOrderHelmAuthority, ShipOrderReports,
 };
 use nova_world::prelude::{
-    PendingSectorShip, SectorClusterTypes, SectorRoot, SectorShipConditionType, ShipRoleType,
-    WorldConfig,
+    PendingSectorShip, SectorClusterTypes, SectorRoot, SectorShipConditionType, WorldConfig,
 };
 
 use crate::{

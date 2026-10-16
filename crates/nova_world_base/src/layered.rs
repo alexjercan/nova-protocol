@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPacks};
 use nova_events::prelude::Meters;
-use nova_gameplay::prelude::GameItems;
+use nova_gameplay::prelude::{GameItems, ShipRoleType};
 use nova_ship::prelude::GameStyles;
 use nova_world::prelude::*;
 

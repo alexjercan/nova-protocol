@@ -10,13 +10,13 @@ use std::{
 };
 
 use nova_assets::items::{item_pack_faults, ItemPack};
-use nova_gameplay::prelude::{GameItems, ItemDesign};
+use nova_gameplay::prelude::{price_table_faults, GameItems, ItemDesign, PriceTable};
 use nova_input::prelude::InputSource;
 use nova_mod_format::{
     deps::{transitive_deps, DepGraph},
     BundleManifest, BASE_MOD_ID,
 };
-use nova_modding::prelude::Content;
+use nova_modding::prelude::{Content, PRICE_TABLE_ID};
 use nova_scenario::prelude::{
     lint_campaign, lint_scenario, lint_ship_design_config, lint_start_role, lint_station_design,
     CampaignConfig, EventActionConfig, GeneratedWorldConfig, KnownSections, KnownShipDesigns,
@@ -59,6 +59,7 @@ struct WalkedBundle {
     ships: Vec<ShipDesignPrototype>,
     stations: Vec<StationDesignPrototype>,
     start_roles: Vec<StartRole>,
+    price_tables: Vec<PriceTable>,
     scenarios: Vec<ScenarioConfig>,
     campaigns: Vec<CampaignConfig>,
     lessons: Vec<Lesson>,
@@ -125,6 +126,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
     let mut ships = Vec::new();
     let mut stations = Vec::new();
     let mut start_roles = Vec::new();
+    let mut price_tables = Vec::new();
     let mut scenarios = Vec::new();
     let mut campaigns = Vec::new();
     let mut lessons = Vec::new();
@@ -136,6 +138,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
             Content::Ship(ship) => ships.push(ship.clone()),
             Content::Station(station) => stations.push(station.clone()),
             Content::StartRole(role) => start_roles.push(role.clone()),
+            Content::PriceTable(table) => price_tables.push(table.clone()),
             Content::Scenario(scenario) => scenarios.push(scenario.clone()),
             Content::Campaign(campaign) => campaigns.push(campaign.clone()),
             Content::Lesson(lesson) => lessons.push(lesson.clone()),
@@ -155,6 +158,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
         ships,
         stations,
         start_roles,
+        price_tables,
         scenarios,
         campaigns,
         lessons,
@@ -363,6 +367,34 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
         ) {
             issues.push((bundle.id.clone(), issue));
         }
+    }
+
+    // The price table: the same refusals the merge gate makes, so a table
+    // that can push a bid above its ask, or a base without one, fails here
+    // before it fails at load.
+    let mut price_faults: Vec<String> = bundle
+        .price_tables
+        .iter()
+        .flat_map(price_table_faults)
+        .collect();
+    if bundle.price_tables.len() > 1 {
+        price_faults.push(format!(
+            "states {} price tables; a bundle states at most one",
+            bundle.price_tables.len()
+        ));
+    }
+    if bundle.id == BASE_MOD_ID && bundle.price_tables.is_empty() {
+        price_faults.push("states no price table; base must state one".to_string());
+    }
+    for message in price_faults {
+        issues.push((
+            bundle.id.clone(),
+            LintIssue {
+                severity: LintSeverity::Error,
+                scenario: PRICE_TABLE_ID.to_string(),
+                message,
+            },
+        ));
     }
 
     // A bounded generated world must fit the streamed window: a sphere past
@@ -1274,6 +1306,7 @@ mod tests {
             ships,
             stations: Vec::new(),
             start_roles: Vec::new(),
+            price_tables: Vec::new(),
             scenarios,
             campaigns,
             lessons,

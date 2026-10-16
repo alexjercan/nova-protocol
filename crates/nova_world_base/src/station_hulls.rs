@@ -19,10 +19,9 @@
 //!
 //! FAIL LOUD. A layout that fails fails the sector, as a planned hull's does.
 
-use nova_gameplay::prelude::{Fnv32, SeedStream};
+use nova_gameplay::prelude::{Fnv32, SeedStream, ShipRoleType};
 use nova_scenario::prelude::StationHullOffer;
 use nova_ship::prelude::HullOfferType;
-use nova_world::prelude::ShipRoleType;
 
 use crate::{
     civilizations::Civilization,

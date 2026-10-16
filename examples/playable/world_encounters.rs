@@ -75,7 +75,7 @@ use clap::Parser;
 #[cfg(feature = "debug")]
 use nova_probe::probe_marker;
 use nova_protocol::prelude::*;
-use nova_world::prelude::{CivilizationId, ShipRoleType};
+use nova_world::prelude::CivilizationId;
 
 #[derive(Parser)]
 #[command(name = "world_encounters")]

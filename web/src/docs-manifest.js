@@ -689,6 +689,24 @@ const CREATE_PAGES = [
         ],
     },
     {
+        slug: "prices",
+        md: "prices.md",
+        title: "Price tables for mods",
+        category: "Modding reference",
+        parent: "mod-files",
+        toc: true,
+        tags: ["modding", "reference", "stations"],
+        summary:
+            "Author the factors a generated trader prices every item by: the scarcity curve, demand by cluster type and civilization role, and the clamp that keeps a bid under its ask.",
+        related: ["stations", "objects", "base-content"],
+        headings: [
+            "How a trader prices",
+            "The PriceTable item",
+            "Overlay and lint",
+            "Base price table",
+        ],
+    },
+    {
         slug: "styles",
         md: "styles.md",
         title: "Ship skin styles for mods",

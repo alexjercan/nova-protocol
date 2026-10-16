@@ -13,7 +13,7 @@ use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack, LoadedSectio
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
     CargoCanisterIdAllocator, Chart, ClockFreeze, DamageMarks, JobMixType, Jobs,
-    PlayerSpaceshipMarker, PointRotationOutput, ShipInventory, ShipInventoryStock,
+    PlayerSpaceshipMarker, PointRotationOutput, ShipInventory, ShipInventoryStock, ShipRoleType,
 };
 use nova_scenario::prelude::{
     spaceship_scenario_object, CurrentScenario, GameStartRoles, GeneratedMarks, NovaEventWorld,
@@ -26,7 +26,7 @@ use nova_ship::prelude::{
 use nova_world::prelude::{CurrentSector, FrozenSectors, SectorCoord, WorldConfig, WorldObserver};
 
 use crate::{
-    role_style_id, save, GameStyles, NovaLayeredWorld, ShipRoleType, StationArchetypeType,
+    role_style_id, save, GameStyles, NovaLayeredWorld, StationArchetypeType,
     OPEN_WORLD_ACTIVE_RADIUS, OPEN_WORLD_SECTOR_EDGE,
 };
 

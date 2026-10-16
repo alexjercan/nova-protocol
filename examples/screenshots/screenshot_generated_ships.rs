@@ -22,7 +22,7 @@ use bevy::prelude::*;
 use clap::Parser;
 use nova_protocol::prelude::*;
 use nova_wfc::prelude::lint_errors;
-use nova_world::prelude::{CivilizationId, ShipRoleType};
+use nova_world::prelude::CivilizationId;
 
 /// The world seed the other v0.15 figures fly. Only a failure message reads it.
 const WORLD_SEED: u32 = 115;

@@ -594,6 +594,9 @@ pub struct FrozenShip {
     derelict: bool,
     lootable: bool,
     credits: u32,
+    /// Absent on a ship that prices nothing: every ship but a generated
+    /// trader.
+    market: Option<TraderMarket>,
     state: FrozenShipState,
 }
 
@@ -897,6 +900,7 @@ pub fn freeze_ship(world: &World, ship: Entity) -> Result<FrozenShip, UnsettledB
             .get::<ShipCredits>()
             .unwrap_or_else(|| required("ShipCredits"))
             .0,
+        market: root.get::<TraderMarket>().cloned(),
         state: FrozenShipState {
             sections,
             inventory: root
@@ -1054,8 +1058,12 @@ pub fn thaw_ship(entity: &mut EntityCommands, frozen: FrozenShip) {
         derelict,
         lootable,
         credits,
+        market,
         state,
     } = frozen;
+    if let Some(market) = market {
+        entity.insert(market);
+    }
     // Before the root marker: the section spawn reads it to spawn a
     // derelict's systems inactive.
     if derelict {

@@ -145,6 +145,15 @@ name = "station_own_sandbox"
 path = "examples/playable/station_own_sandbox.rs"
 required-features = ["debug"]
 
+# Computed prices by hand: New Game on a pinned seed, docked at a living
+# generated station of one cluster type with iron ore in the hold and the
+# Inventory tab open. Nothing ends it; under NOVA_AUTOPILOT a smoke walk sells
+# the ore at an asteroid-rich and a planet-heavy station and compares the bids.
+[[example]]
+name = "market_sandbox"
+path = "examples/playable/market_sandbox.rs"
+required-features = ["debug"]
+
 # The open world as any start role: New Game on a pinned seed as `--role`
 # (or NOVA_ROLE), with no save folder, and `--start-km` to fly far out where
 # the advancement curve fields larger hulls. Nothing ends it; under

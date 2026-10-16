@@ -239,6 +239,17 @@ impl GroupKind {
             Self::LowRock => "low-rock",
         }
     }
+
+    /// The base game's cluster type a ship of this kind of group prices its
+    /// trades as: a low-rock scatter as rock-only.
+    pub const fn cluster_type(self) -> ClusterType {
+        match self {
+            Self::AsteroidRich => ClusterType::AsteroidRich,
+            Self::RockOnly | Self::LowRock => ClusterType::RockOnly,
+            Self::PlanetHeavy => ClusterType::PlanetHeavy,
+            Self::DerelictOnly => ClusterType::DerelictField,
+        }
+    }
 }
 
 /// One body the clustered world plans, before a cell decides whether it fits.
@@ -480,6 +491,7 @@ impl CellPlan {
                     civilization: ship.civilization,
                     role: ship.role,
                     spawn: ship.spawn.clone(),
+                    market: ship.market.clone(),
                 }),
                 ClusterBody::Hull { .. } => {
                     unreachable!("a cell lays out every hull it owns before it resolves them")
@@ -945,6 +957,7 @@ pub fn plan_cell(
                     HullSlot {
                         id: &member_id,
                         node: group.id.0,
+                        cluster: group.kind.cluster_type(),
                         slot: index,
                         anchor: group.anchor,
                         environment: nova_protocol::nova_world_base::Environment {

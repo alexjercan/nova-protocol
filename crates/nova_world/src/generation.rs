@@ -38,7 +38,9 @@ use std::{collections::BTreeSet, fmt, sync::Arc};
 
 use bevy::{log::info_span, math::Quat};
 use nova_events::prelude::{GeneratedBodyId, Meters, Meters3};
-use nova_gameplay::prelude::{AssetRef, ClusterType, Fnv32, SeedStream};
+use nova_gameplay::prelude::{
+    AssetRef, ClusterType, Fnv32, SeedStream, ShipRoleType, TraderMarket,
+};
 use nova_scenario::prelude::{
     is_asteroid_kind, patrol_stops_fault, prepare_asteroid_geometry, prepare_planet,
     AIControllerConfig, AsteroidConfig, PlanetConfig, PreparedAsteroid, PreparedPlanet,
@@ -205,40 +207,6 @@ impl fmt::Display for CivilizationId {
     }
 }
 
-/// The four closed ship roles a civilization fields.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum ShipRoleType {
-    /// Unarmed traffic.
-    Civilian,
-    /// Unarmed miners with cargo intake.
-    Industrial,
-    /// Rough, low-tier fighting ships.
-    Scavenger,
-    /// Equipped fighting ships.
-    Armored,
-}
-
-impl ShipRoleType {
-    /// Every role, in the order a role array holds them.
-    pub const ALL: [Self; 4] = [
-        Self::Civilian,
-        Self::Industrial,
-        Self::Scavenger,
-        Self::Armored,
-    ];
-
-    /// What a readout or a legend calls the role.
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Civilian => "civilian",
-            Self::Industrial => "industrial",
-            Self::Scavenger => "scavenger",
-            Self::Armored => "armored",
-        }
-    }
-}
-
 /// One generated ship: where a hull stands, what it is, and the spawn that
 /// builds it.
 #[derive(Clone, Debug)]
@@ -267,6 +235,9 @@ pub struct SectorShip {
     /// flown by nobody; [`validate_manifest`] refuses an AI on one, a player
     /// on any, a catalog design and a `None` side.
     pub spawn: SpaceshipConfig,
+    /// What it prices its trades by, `None` on a derelict, which does not
+    /// trade. The spawn puts it on the root.
+    pub market: Option<TraderMarket>,
 }
 
 impl SectorShip {
@@ -312,6 +283,9 @@ pub struct SectorStation {
     /// like a ship's. Empty on a dead station, which sells nothing;
     /// [`validate_manifest`] refuses hulls on one.
     pub hulls: Vec<StationHullOffer>,
+    /// What it prices its trades by, `None` on a dead station, which does
+    /// not trade. The spawn puts it on the root.
+    pub market: Option<TraderMarket>,
 }
 
 impl SectorStation {
@@ -761,7 +735,8 @@ pub fn sector_id(coord: SectorCoord, name: &str, index: usize) -> GeneratedBodyI
 /// has no sections, a repeated section id, an inline section, a non-finite
 /// section pose or a presentation sound that is a runtime handle, a ship with
 /// no side, flown by a player, a derelict flown by an AI, or an AI route the
-/// controller could not fly;
+/// controller could not fly, and a trader with no market or a body that does
+/// not trade with one;
 /// [`SectorFault::InvalidGeometry`] for non-finite geometry, a ship rotation
 /// that is not a unit quaternion and a ship clearance that is not positive;
 /// [`SectorFault::DuplicateId`] and [`SectorFault::UnknownKind`].
@@ -925,6 +900,11 @@ pub fn validate_manifest(
         }
         check_ship_controller(ship.condition, &spawn.controller)
             .map_err(|value| refuse(&ship.id, "controller", value))?;
+        check_market(
+            ship.condition == SectorShipConditionType::Intact,
+            ship.market.as_ref(),
+        )
+        .map_err(|value| refuse(&ship.id, "market", value))?;
         stand_inside(
             input,
             &mut standing,
@@ -988,6 +968,8 @@ pub fn validate_manifest(
             }
         };
         check_ship_design(&design.hull).map_err(|value| refuse(&station.id, "design", value))?;
+        check_market(!station.is_dead(), station.market.as_ref())
+            .map_err(|value| refuse(&station.id, "market", value))?;
         if station.is_dead() && !station.hulls.is_empty() {
             return Err(refuse(
                 &station.id,
@@ -1024,6 +1006,33 @@ pub fn validate_manifest(
         ships,
         stations,
     })
+}
+
+/// Why a generated body's market is wrong: a trader states one and a body
+/// that does not trade (a derelict, a dead station) states none, and its
+/// role preferences are finite, none below zero, summing above zero, as
+/// [`nova_gameplay::prelude::price`] needs.
+fn check_market(trades: bool, market: Option<&TraderMarket>) -> Result<(), String> {
+    match (trades, market) {
+        (true, None) => Err("none; a generated trader states its market".to_string()),
+        (false, Some(_)) => Err("a market on a body that does not trade".to_string()),
+        (false, None) => Ok(()),
+        (true, Some(market)) => {
+            let preference = market.role_preference;
+            if preference
+                .iter()
+                .all(|share| share.is_finite() && *share >= 0.0)
+                && preference.iter().sum::<f32>() > 0.0
+            {
+                Ok(())
+            } else {
+                Err(format!(
+                    "role preferences {preference:?}; each finite and at least 0, summing \
+                     above 0"
+                ))
+            }
+        }
+    }
 }
 
 /// Refuse a controller the streamed world cannot host: a player (the

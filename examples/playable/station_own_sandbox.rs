@@ -208,6 +208,7 @@ fn draw_the_station(
     sandbox: Res<Sandbox>,
     chart: Option<Res<Chart>>,
     items: Option<Res<GameItems>>,
+    price_table: Option<Res<GamePriceTable>>,
     admission: DockAdmission,
     q_station: Query<(
         &GlobalTransform,
@@ -220,6 +221,7 @@ fn draw_the_station(
         Has<DerelictShipMarker>,
         &ShipCredits,
         &ShipInventory,
+        Option<&TraderMarket>,
         &Children,
     )>,
     q_sections: Query<&SectionBuildConfig>,
@@ -249,6 +251,7 @@ fn draw_the_station(
         derelict,
         station_cr,
         stock,
+        market,
         children,
     )) = q_station.get(station)
     else {
@@ -370,26 +373,34 @@ fn draw_the_station(
         if owned { "owned" } else { "for sale" },
         station_cr.0
     ));
-    let prices = if owned {
-        TradePriceType::Owned
-    } else {
-        TradePriceType::Market
-    };
     let sample = stock
         .stacks()
         .next()
         .map_or("the hold is empty".to_string(), |(item, _)| {
             let design = items.design(item);
+            let quote = match (market, price_table.as_deref()) {
+                // `price` names the station's sale price here.
+                (Some(market), Some(table)) => {
+                    nova_protocol::prelude::price(&table.0, design, market, stock.count(item))
+                }
+                (Some(_), None) => return "the price table is not loaded".to_string(),
+                (None, _) => PriceQuote::reference(design),
+            };
+            let prices = if owned {
+                TradePriceType::Owned(quote.price)
+            } else {
+                TradePriceType::Market(quote.price)
+            };
             let pays = match prices {
-                TradePriceType::Owned => design.bid_cr,
-                TradePriceType::Market => design.ask_cr,
+                TradePriceType::Owned(price) => price.bid_cr,
+                TradePriceType::Market(price) => price.ask_cr,
             };
             format!(
-                "a Buy of 1 {item} pays {pays} cr (ask {}, bid {})",
-                design.ask_cr, design.bid_cr
+                "{prices:?}: a Buy of 1 {item} pays {pays} cr (ask {}, bid {})",
+                quote.price.ask_cr, quote.price.bid_cr
             )
         });
-    panel.detail(format!("trade prices: {prices:?}   {sample}"));
+    panel.detail(format!("trade prices: {sample}"));
 }
 
 /// An admission answer as the panel reads it.

@@ -16,14 +16,16 @@
 //! crate - the base game's in `nova_world_base`, the uniform baseline with the
 //! examples - and are proved where they live.
 
+use std::collections::BTreeMap;
+
 use avian3d::prelude::{LinearVelocity, RigidBody};
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{Meters, Meters3, MetersPerSecond3};
 use nova_gameplay::{
     prelude::{
-        Allegiance, AssetRef, DerelictShipMarker, GravityAffected, GravityWell, IntegrityEnvelope,
-        ItemDesignId, ItemRoleType, LootableShipMarker, ShipCredits, ShipInventory,
-        ShipInventoryStock,
+        Allegiance, AssetRef, ClusterType, DerelictShipMarker, GravityAffected, GravityWell,
+        IntegrityEnvelope, ItemDesignId, ItemRoleType, LootableShipMarker, ShipCredits,
+        ShipInventory, ShipInventoryStock, ShipRoleType, TraderMarket,
     },
     test_support::test_items,
 };
@@ -46,8 +48,8 @@ use crate::{
     validate_manifest, CivilizationId, GeneratedBodyId, NovaWorldPlugin, ObserverBody,
     PendingSectorShip, SectorAsteroid, SectorCoord, SectorFault, SectorGenerationInput,
     SectorGenerator, SectorManifest, SectorPlanet, SectorShip, SectorShipConditionType,
-    SectorStation, ShipRoleType, WorldConfig, WorldGeometry, WorldObserver,
-    ACTIVE_WINDOW_SECTORS_MAX, SECTOR_SHIP_CLEARANCE_MAX,
+    SectorStation, WorldConfig, WorldGeometry, WorldObserver, ACTIVE_WINDOW_SECTORS_MAX,
+    SECTOR_SHIP_CLEARANCE_MAX,
 };
 
 /// The texture path every test rock names. Never loaded: no test here renders.
@@ -152,7 +154,7 @@ fn empty(coord: SectorCoord, asteroids: Vec<SectorAsteroid>) -> SectorManifest {
 
 /// A one-section intact ship at `position`, built from the section prototype
 /// `prototype`, with a 20 m clearance, flown by a routeless Neutral AI crew
-/// on a 5 km leash, with an empty hold and 120 credits.
+/// on a 5 km leash, with an empty hold, 120 credits and a [`market`].
 fn ship(id: GeneratedBodyId, position: Meters3, prototype: &str) -> SectorShip {
     SectorShip {
         id,
@@ -186,12 +188,24 @@ fn ship(id: GeneratedBodyId, position: Meters3, prototype: &str) -> SectorShip {
             lootable: false,
             credits: 120,
         },
+        market: Some(market()),
+    }
+}
+
+/// A rock-only market of a civilization that fields civilians only, keeping
+/// nothing.
+fn market() -> TraderMarket {
+    TraderMarket {
+        cluster: ClusterType::RockOnly,
+        role_preference: [1.0, 0.0, 0.0, 0.0],
+        target: BTreeMap::new(),
     }
 }
 
 /// A one-section living station at `position`, built from the section
 /// prototype `prototype`, with a 20 m clearance, a trade counter, no stock
-/// and no credits, kept by a Neutral civilization. `stem` names its cluster.
+/// and no credits, kept by a Neutral civilization, with a [`market`]. `stem`
+/// names its cluster.
 fn station(id: GeneratedBodyId, position: Meters3, prototype: &str) -> SectorStation {
     let design = StationDesign {
         hull: ShipDesign {
@@ -227,6 +241,7 @@ fn station(id: GeneratedBodyId, position: Meters3, prototype: &str) -> SectorSta
             initial_velocity: MetersPerSecond3::ZERO,
         },
         hulls: Vec::new(),
+        market: Some(market()),
     }
 }
 
@@ -322,7 +337,7 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
         &str,
         fn(SectorGenerationInput) -> SectorManifest,
         fn(&SectorFault) -> bool,
-    ); 28] = [
+    ); 29] = [
         (
             "the wrong cell",
             |input| empty(input.coord.offset(1, 0, 0), Vec::new()),
@@ -672,6 +687,7 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
             |input| {
                 let mut manifest = one_ship(input);
                 manifest.ships[0].condition = SectorShipConditionType::Derelict;
+                manifest.ships[0].market = None;
                 manifest
             },
             |fault| {
@@ -679,6 +695,23 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
                     fault,
                     SectorFault::Manifest {
                         field: "controller",
+                        ..
+                    }
+                )
+            },
+        ),
+        (
+            "an intact ship that states no market",
+            |input| {
+                let mut manifest = one_ship(input);
+                manifest.ships[0].market = None;
+                manifest
+            },
+            |fault| {
+                matches!(
+                    fault,
+                    SectorFault::Manifest {
+                        field: "market",
                         ..
                     }
                 )
@@ -1195,6 +1228,7 @@ fn intact_and_derelict(input: SectorGenerationInput) -> SectorManifest {
         TEST_HULL_SECTION_ID,
     );
     derelict.condition = SectorShipConditionType::Derelict;
+    derelict.market = None;
     derelict.spawn.controller = SpaceshipController::None;
     derelict.spawn.lootable = true;
     derelict.spawn.inventory = ShipInventoryStock::new([(ItemRoleType::HullPlate.into(), 5)]);

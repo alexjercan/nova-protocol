@@ -358,6 +358,8 @@ The partner column's header also carries a **Take credits** button, shown only w
 
 Every live ship trades: any docked ship that is neither neutralized nor lootable. It sells only what its hold carries and pays only from its own credits. Nothing restocks. A living generated ship trades its own seeded goods and credits; a generated wreck is lootable, not a trader.
 
+The table lists each item's reference price.
+
 | Item | Buy (ask) | Sell (bid) |
 | --- | --- | --- |
 | Hull plate | 40 cr | 30 cr |
@@ -371,7 +373,7 @@ Every live ship trades: any docked ship that is neither neutralized nor lootable
 | Rations | 8 cr | 6 cr |
 | Salvaged parts | 120 cr | 90 cr |
 
-Prices are fixed per item and the same on every ship. A Buy pays the ask and a Sell earns the bid, so selling back what you bought loses credits. At a station you [own](#buying-a-station), a Buy pays the bid instead. While the form is open it shows the price and your balance after, for example `Price 20 cr, you after: 1,980 cr`. **Confirm** moves the items and the credits at once, and the note line reads `Bought 5 Stone ore from Light Freighter for 20 cr` or `Sold 10 Stone ore to Light Freighter for 30 cr`. A refused trade changes nothing and keeps the form open: `Refused: enter a quantity`, `Refused: quantity is zero`, `Refused: only 2 Stone ore in Light Freighter`, `Refused: Line Warship has room for 30 kg more`, `Refused: Light Freighter has only 20 cr`, `Refused: Light Freighter cannot hold more credits`, `Refused: Light Freighter does not trade`, or `Refused: not docked`. A trade never splits to fit the hold or the credits.
+A living generated station or ship computes its own prices from the reference when you trade: its stock against the stock it started with (scarce goods cost and pay more, a glut less), the type of the cluster it stands in (ore is cheap where asteroids are many and dear among planets), and what its civilization's ships do. Select an item while docked and the inspector shows **Ask / bid** at this trader, the **Reference**, and the **Scarcity**, **Cluster** and **Civilization** factors that made it, with their **Total**, marked `clamped` when the price hit its limit. A station or ship placed by a scenario deals at the reference price. A Buy pays the ask and a Sell earns the bid, so selling back what you bought loses credits. At a station you [own](#buying-a-station), a Buy pays the bid instead. While the form is open it shows the price and your balance after, for example `Price 20 cr, you after: 1,980 cr`. **Confirm** moves the items and the credits at once, and the note line reads `Bought 5 Stone ore from Light Freighter for 20 cr` or `Sold 10 Stone ore to Light Freighter for 30 cr`. A refused trade changes nothing and keeps the form open: `Refused: enter a quantity`, `Refused: quantity is zero`, `Refused: only 2 Stone ore in Light Freighter`, `Refused: Line Warship has room for 30 kg more`, `Refused: Light Freighter has only 20 cr`, `Refused: Light Freighter cannot hold more credits`, `Refused: Light Freighter does not trade`, or `Refused: not docked`. A trade never splits to fit the hold or the credits.
 
 ### Store and withdraw
 

@@ -2572,6 +2572,7 @@ mod generated_wreck {
                     lootable: true,
                     credits: 0,
                 },
+                market: None,
             }),
         };
         let prepared =

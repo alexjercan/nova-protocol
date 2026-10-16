@@ -43,7 +43,7 @@ use bevy::prelude::*;
 use clap::Parser;
 use nova_input::prelude::InputSource;
 use nova_protocol::prelude::*;
-use nova_world::prelude::{CivilizationId, ShipRoleType};
+use nova_world::prelude::CivilizationId;
 
 #[derive(Parser)]
 #[command(name = "system_station_add")]

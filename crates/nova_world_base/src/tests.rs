@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, panic::AssertUnwindSafe};
 use bevy::ecs::system::RunSystemOnce;
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack};
 use nova_events::prelude::{Meters, Meters3};
-use nova_gameplay::prelude::{Allegiance, Fnv64, ItemDesignId, ItemRoleType};
+use nova_gameplay::prelude::{Allegiance, Fnv64, ItemDesignId, ItemRoleType, ShipRoleType};
 use nova_scenario::prelude::{
     resolve_ship_design, GameShipDesigns, GeneratedWorldConfig, ScenarioConfig, ScenarioRole,
     SectionSource, ShipDesign, SpaceshipController, SpaceshipSectionConfig,

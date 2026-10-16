@@ -69,7 +69,7 @@ use nova_assets::prelude::ASTEROID_TEXTURE_PATH;
 use nova_events::prelude::{Meters, Meters3, MetersPerSecond3, MetersPerSecondSquared};
 use nova_gameplay::prelude::{
     circular_orbit_speed, unit_sphere_point, Allegiance, AssetRef, ClusterType, Fnv32, GameItems,
-    GravitySettings, GravityWell, SeedStream,
+    GravitySettings, GravityWell, SeedStream, TraderMarket,
 };
 use nova_scenario::prelude::{
     asteroid_seed_from_id, station_orbit_velocity, AsteroidConfig, PlanetConfig, PlanetType,
@@ -81,7 +81,7 @@ use nova_world::prelude::*;
 use crate::{
     civilizations::{CivilizationField, CivilizationStatusType},
     environment::{Environment, EnvironmentFields},
-    sector_ships::{plan_patrol, plan_ship, HullSlot, PlannedShip},
+    sector_ships::{plan_patrol, plan_ship, trader_market, HullSlot, PlannedShip},
     sector_stations::StationClaims,
     ship_parts::ShipPartSnapshot,
     station_hulls::station_hulls,
@@ -480,6 +480,9 @@ struct PlannedStation {
     /// The hulls it sells: [`station_hulls`] for a living station, none for
     /// a dead one.
     hulls: Vec<StationHullOffer>,
+    /// What a living station prices its trades by, its design's stock as
+    /// the target; `None` for a dead one.
+    market: Option<TraderMarket>,
 }
 
 /// Where a station stands in a cluster, as [`station_pose`] decides it.
@@ -1014,6 +1017,7 @@ impl SectorPlan {
                     condition: ship.condition,
                     civilization: ship.civilization,
                     role: ship.role,
+                    market: ship.market.clone(),
                     spawn: SpaceshipConfig {
                         initial_velocity: generated_initial_velocity(
                             &planned.id.to_string(),
@@ -1053,6 +1057,7 @@ impl SectorPlan {
                             initial_velocity,
                         },
                         hulls: station.hulls.clone(),
+                        market: station.market.clone(),
                     });
                 }
                 ClusterBody::Hull { .. } => {
@@ -1817,6 +1822,7 @@ pub(crate) fn plan_sector(
                 HullSlot {
                     id: &planned_id,
                     node,
+                    cluster: cluster.cluster_type,
                     slot: index,
                     anchor: cluster.anchor,
                     environment: cluster.environment,
@@ -1857,6 +1863,8 @@ pub(crate) fn plan_sector(
                     CivilizationStatusType::Extinct => (true, Allegiance::Neutral),
                 };
                 let id = sector_id(coord, &format!("{stem}_station"), 0);
+                let market = (!dead)
+                    .then(|| trader_market(cluster.cluster_type, &civilization, &design.stock));
                 let hulls = if dead {
                     Vec::new()
                 } else {
@@ -1879,6 +1887,7 @@ pub(crate) fn plan_sector(
                         allegiance,
                         design,
                         hulls,
+                        market,
                     })),
                     position: pose.position,
                     escorts: Vec::new(),

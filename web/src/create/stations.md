@@ -132,7 +132,7 @@ not a derelict, and its `services` list the service.
 
 | rule | what happens |
 |---|---|
-| trade | with `Trade`, the station's column lists its hold: the station's row opens Buy, the player's row Sell, at the item's reference `ask_cr` and `bid_cr`, against both purses. Without `Trade`, Buy and Sell refuse with `<NAME> does not trade` |
+| trade | with `Trade`, the station's column lists its hold: the station's row opens Buy, the player's row Sell, against both purses. A station a scenario places deals at the item's reference `ask_cr` and `bid_cr`; a generated one at its computed price, see [Price tables](../prices/). Without `Trade`, Buy and Sell refuse with `<NAME> does not trade` |
 | storage | with `Storage`, a third column lists the station's storage and its used mass against `storage_cap_g`. The player's row opens Store, the storage row Withdraw. No credits move |
 | one store | a station keeps one storage, for the player alone. Nothing else stores or takes from it |
 | refusals | Store and Withdraw refuse in this order, on the form with Confirm disabled, and on the note line: not docked, no `Storage` service, unknown item, no quantity, quantity zero, fewer items than the quantity, then `storage full, <N> kg free` for a Store or `<SHIP> has room for <N> more` for a Withdraw |
