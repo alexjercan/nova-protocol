@@ -19,7 +19,7 @@
 //! curve is decided; every other constant here is provisional until the
 //! diagnostic maps are reviewed.
 
-use nova_events::prelude::{Meters, Meters3};
+use nova_events::prelude::{Meters, Meters3, SectorCoord};
 use nova_gameplay::prelude::{Allegiance, CivilizationId, ShipRoleType};
 use nova_world::prelude::*;
 
@@ -31,6 +31,15 @@ use crate::{
 /// The spacing of the civilization lattice: one civilization per node. Each
 /// multiple of it from the origin is one ring of civilizations.
 pub(crate) const CIVILIZATION_LATTICE: Meters = Meters(240_000.0);
+
+/// The civilization ring of the cell `coord` on a grid of `edge`: the whole
+/// lattice steps its centre lies from the world origin. Cell (0, 0, 0) is
+/// ring 0; at a 32 km edge cell (8, 0, 0), 256 km out, is ring 1 and cell
+/// (15, 0, 0), 480 km out, ring 2. The role goals count a job by the ring of
+/// its posting station's cell.
+pub(crate) fn ring_of(coord: SectorCoord, edge: Meters) -> u32 {
+    (coord.centre(edge).length().get() / CIVILIZATION_LATTICE.get()).floor() as u32
+}
 
 /// How far a centroid may move off its node on each axis, in either direction.
 pub(crate) const CIVILIZATION_JITTER: Meters = Meters(40_000.0);
@@ -501,6 +510,25 @@ mod tests {
             for civilization in [near_first, far_second, far_first, near_second] {
                 assert_eq!(civilization, direct);
             }
+        }
+    }
+
+    /// A cell's ring is whole lattice steps of its centre: on a 32 km grid
+    /// cells 0 and 7 along an axis (0 and 224 km) are ring 0, cell 8 (256 km)
+    /// ring 1 and cell 15 (480 km) ring 2; a diagonal cell counts its full
+    /// distance, so (6, 6, 0) at 271 km is ring 1.
+    #[test]
+    fn ring_of_reads_whole_lattice_steps_from_the_cell_centre() {
+        let edge = Meters(32_000.0);
+        for (cell, ring) in [
+            (SectorCoord::new(0, 0, 0), 0),
+            (SectorCoord::new(7, 0, 0), 0),
+            (SectorCoord::new(-8, 0, 0), 1),
+            (SectorCoord::new(0, 8, 0), 1),
+            (SectorCoord::new(15, 0, 0), 2),
+            (SectorCoord::new(6, 6, 0), 1),
+        ] {
+            assert_eq!(ring_of(cell, edge), ring, "{cell}");
         }
     }
 

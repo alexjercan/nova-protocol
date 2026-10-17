@@ -9,9 +9,11 @@
 //! shows only a code minted from the chart's found order (or the jobs'
 //! accept order), never a name: the open world names a ship by whose it is.
 //!
-//! The side panel carries the discovery log under the selection: the chart's
-//! own finds ([`Chart::log`]) newest first, each a play-time stamp, a code
-//! and a cell, and each a row that selects its find.
+//! The side panel carries the CHARTER block over the discovery log while the
+//! role has a goal, naming the goal's title and each count's `have / need`,
+//! then the discovery log under the selection: the chart's own finds
+//! ([`Chart::log`]) newest first, each a play-time stamp, a code and a cell,
+//! and each a row that selects its find.
 //!
 //! Chart space is its own frame on the map layer: the player's cell centre
 //! sits at the origin and one cell is [`MAP_CHART_CELL`] units across. The
@@ -81,6 +83,11 @@ pub(crate) struct MapChartLabel {
     /// The mark the label selects.
     pub(crate) mark: Option<MapChartMarkType>,
 }
+
+/// The CHARTER block over the discovery log, shown in the chart view while
+/// the role has a goal.
+#[derive(Component)]
+pub(crate) struct MapChartCharterMarker;
 
 /// The rows of the discovery log in the side panel, shown in the chart view.
 #[derive(Component)]
@@ -598,6 +605,93 @@ fn on_map_chart_log_row_click(
     select_chart_mark(&mut runtime, mark, bank.as_deref(), &mut commands);
 }
 
+/// The CHARTER block's slot in the side panel, over the discovery log,
+/// hidden off the chart view. [`update_map_chart_charter`] fills it.
+pub(crate) fn spawn_map_chart_charter(panel: &mut ChildSpawnerCommands) {
+    panel.spawn((
+        MapChartCharterMarker,
+        Name::new("MapChartCharter"),
+        Node {
+            display: Display::None,
+            flex_direction: FlexDirection::Column,
+            row_gap: px(2),
+            ..default()
+        },
+    ));
+}
+
+/// The CHARTER block's lines: a heading, the goal's title, one
+/// `label  have / need` row per line coloured met or open, and a last line
+/// naming the play time the goal was met, or that it stands.
+pub(crate) fn charter_block_lines(
+    progress: &GoalProgress,
+    record: &GoalRecord,
+) -> Vec<(String, UiColor)> {
+    let mut lines = vec![
+        ("CHARTER".to_string(), UiColor::Label),
+        (progress.title.clone(), UiColor::Label),
+    ];
+    for line in &progress.lines {
+        let color = if line.have >= line.need {
+            UiColor::Accent
+        } else {
+            UiColor::Secondary
+        };
+        lines.push((
+            format!("{}  {} / {}", line.label, line.have, line.need),
+            color,
+        ));
+    }
+    lines.push(match record.met_at {
+        Some(at) => (format!("Met at {}", play_time_text(at)), UiColor::Label),
+        None => ("Standing".to_string(), UiColor::Label),
+    });
+    lines
+}
+
+/// Show the CHARTER block while the chart view shows and the role has a
+/// goal, rebuild its lines whenever the progress or the record changes, and
+/// hide it off the chart view or with no goal.
+pub(crate) fn update_map_chart_charter(
+    mut commands: Commands,
+    runtime: Res<MapRuntime>,
+    progress: Res<GoalProgress>,
+    record: Res<GoalRecord>,
+    mut q_block: Query<(Entity, &mut Node), With<MapChartCharterMarker>>,
+    mut built: Local<bool>,
+) {
+    let Ok((block, mut node)) = q_block.single_mut() else {
+        return;
+    };
+    let shown = runtime.active && runtime.chart && !progress.is_empty();
+    let display = if shown { Display::Flex } else { Display::None };
+    if node.display != display {
+        node.display = display;
+    }
+    if !shown {
+        if *built {
+            commands.entity(block).despawn_related::<Children>();
+            *built = false;
+        }
+        return;
+    }
+    if !*built || progress.is_changed() || record.is_changed() {
+        *built = true;
+        commands
+            .entity(block)
+            .despawn_related::<Children>()
+            .with_children(|block| {
+                for (index, (text, color)) in charter_block_lines(&progress, &record)
+                    .into_iter()
+                    .enumerate()
+                {
+                    let size = if index == 0 { 12.0 } else { 11.0 };
+                    block.spawn(themed_label(&text, size, color));
+                }
+            });
+    }
+}
+
 /// The discovery log's slot in the side panel: a heading over the rows,
 /// hidden off the chart view. [`update_map_chart_log`] fills the rows.
 pub(crate) fn spawn_map_chart_log(panel: &mut ChildSpawnerCommands) {
@@ -1063,4 +1157,35 @@ pub(crate) fn map_chart_button() -> impl Bundle {
         button(ButtonSpec::new("Chart").fit()),
         Name::new("MapChart"),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The CHARTER block reads a heading, the goal's title, a `have / need`
+    /// row per line coloured met or open, and the met stamp or `Standing`.
+    #[test]
+    fn charter_block_lines_reads_heading_title_rows_and_the_met_stamp() {
+        let progress = GoalProgress {
+            title: "A kill list".to_string(),
+            lines: vec![GoalLine::new("Hulls", 6, 6), GoalLine::new("Rings", 1, 2)],
+        };
+        let met = charter_block_lines(&progress, &GoalRecord { met_at: Some(90.0) });
+        assert_eq!(
+            met,
+            vec![
+                ("CHARTER".to_string(), UiColor::Label),
+                ("A kill list".to_string(), UiColor::Label),
+                ("Hulls  6 / 6".to_string(), UiColor::Accent),
+                ("Rings  1 / 2".to_string(), UiColor::Secondary),
+                ("Met at 0:01:30".to_string(), UiColor::Label),
+            ]
+        );
+        let standing = charter_block_lines(&progress, &GoalRecord::default());
+        assert_eq!(
+            standing.last(),
+            Some(&("Standing".to_string(), UiColor::Label))
+        );
+    }
 }

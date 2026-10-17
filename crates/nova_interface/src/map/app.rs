@@ -10,7 +10,7 @@ use nova_ui::{
     widget::ThemedFill,
 };
 
-use super::{on_map_goto_button, spawn_map_chart_log, MapContactKind};
+use super::{on_map_goto_button, spawn_map_chart_charter, spawn_map_chart_log, MapContactKind};
 use crate::{
     icons::{icon_node, BodyIconType, InterfaceIcons},
     pane::{panel_preview_frame, side_panel, themed_label, PANEL_PREVIEW_PX},
@@ -63,7 +63,8 @@ pub(crate) struct MapGotoMarker;
 
 /// Build the contact panel beside the map view: the selection's icon over its
 /// code, name and kind; a rule; its range and bearing; a rule; its note; a
-/// rule; the discovery log, shown in the chart view; and the live GOTO
+/// rule; the CHARTER block, shown in the chart view while the role has a
+/// goal; the discovery log, shown in the chart view; and the live GOTO
 /// destination over the GOTO button.
 /// [`update_map_panel`](super::update_map_panel) fills it.
 pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
@@ -103,6 +104,7 @@ pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &Interfa
             panel.spawn(panel_rule());
             panel.spawn((MapPanelField::Note, themed_label("", 12.0, UiColor::Label)));
             panel.spawn(panel_rule());
+            spawn_map_chart_charter(panel);
             spawn_map_chart_log(panel);
             panel.spawn((
                 MapPanelField::Destination,

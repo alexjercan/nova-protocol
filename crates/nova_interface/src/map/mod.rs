@@ -169,6 +169,7 @@ impl Plugin for MapPanePlugin {
                 map_input,
                 map_focus_follow,
                 manage_map_chart,
+                update_map_chart_charter,
                 update_map_chart_log,
                 drive_map_camera,
                 project_map_blips,

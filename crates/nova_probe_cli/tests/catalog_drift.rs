@@ -934,6 +934,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "the start hull jettisons and takes an item back in",
             "the start role survives a save and a load",
             "every start role started",
+            "every start role streams the same stations from one seed",
         ],
     ),
     (
@@ -1158,6 +1159,16 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_role_goals",
+        &[
+            "the charter opens standing with its lines at zero",
+            "six neutralize hand-ins across two rings meet the kill list and stamp the record once",
+            "the map's chart view shows the charter met",
+            "the leave save keeps the met charter",
+            "a load restores the met charter",
+        ],
+    ),
+    (
         "system_job_recover",
         &[
             "a recover job is posted and accepted",
@@ -1205,7 +1216,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 597;
+const SYSTEMS_INVARIANTS: usize = 603;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

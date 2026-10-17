@@ -55,6 +55,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** Generated traders restock toward spawn stock by play time
   their sector stood unloaded; neutralizing a civilization's hull refuses
   your dock at its stations for 15 min of play.
+- **(breaking)** Transport and Bounty Hunter carry a charter: 8 jobs at 4
+  stations over 2 rings, or 6 hulls over 2 rings. The save stamps the play
+  time it is met. Save format 19.
 
 ### Combat & Weapons
 
@@ -181,6 +184,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** A style places greebles by `greeble_rules`: link types,
   greebles with four link points, `near` terms and caps. `placement` is gone;
   bad rules or fixtures over a cell wide fail lint.
+- **(breaking)** `StartRole` takes a `goal`: `Some` of a `StationNetwork`,
+  `KillList` or `Flagship`, or `None`. A zero count, rings past posters or an
+  unknown hull fail lint.
 
 ### Interface & HUD
 
@@ -194,6 +200,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The Map's chart view (`C`) draws the cells you entered by cluster type, the
   stations and wrecks you found by code, and a discovery log of every find
   with its play time; click any to read it.
+- The Map's chart view shows a CHARTER block: the start role's goal with each
+  count as have / need, Standing until met, then Met at the play time.
 - Alt-tab no longer pauses play by default. Settings > Graphics > Pause when
   unfocused turns the focus pause back on.
 - A Sandbox ship's Station box spawns it as a station. Station Check names

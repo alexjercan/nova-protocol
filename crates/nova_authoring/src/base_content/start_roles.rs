@@ -3,9 +3,18 @@
 //! `content gen` serializes this builder into
 //! `assets/base/roles/base.content.ron`. Each kit is worth 3,000 cr at ask:
 //! the credits plus the items at their base `ask_cr`.
+//!
+//! Goals are the roles' finite end goals over saved facts (decision 13 of
+//! `tasks/20261012-095526`). The transport and bounty hunter goals ship;
+//! the counts rest on the trade and combat job mixes (a trade board shows
+//! about two Procure or Escort offers, a combat board about one Neutralize)
+//! and on the first ring boundary at 240 km, one trip out of the start ring.
+//! TODO(20261012-100033): industrial, scavenger, military and pirate carry
+//! `None` until their goals land (owned stations, a yard, a hull above the
+//! Line Warship, a civilization outlived).
 
 use nova_gameplay::prelude::{ItemRoleType, JobMixType, ShipInventoryStock};
-use nova_scenario::prelude::{StartKit, StartRole};
+use nova_scenario::prelude::{RoleGoal, RoleGoalType, StartKit, StartRole};
 
 use super::ships::{
     INTERCEPTOR_SHIP_ID, LIGHT_FREIGHTER_SHIP_ID, MINING_TUG_SHIP_ID, PATROL_PICKET_SHIP_ID,
@@ -24,6 +33,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             2_200,
             &[(ItemRoleType::HullPlate, 15), (ItemRoleType::Rations, 25)],
             JobMixType::Trade,
+            None,
             "Mining crews work the rock fields for whoever buys the ore. The tug is old, but \
              it pays.",
         ),
@@ -36,6 +46,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             1_800,
             &[(ItemRoleType::PdcRound, 200), (ItemRoleType::HullPlate, 10)],
             JobMixType::Salvage,
+            None,
             "Every fight leaves wrecks behind. Scavengers take what still has a price.",
         ),
         role(
@@ -47,6 +58,14 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             2_000,
             &[(ItemRoleType::Rations, 50), (ItemRoleType::WaterIce, 50)],
             JobMixType::Trade,
+            Some(RoleGoal {
+                title: "A station network".to_string(),
+                kind: RoleGoalType::StationNetwork {
+                    jobs: 8,
+                    stations: 4,
+                    rings: 2,
+                },
+            }),
             "Stations need food, water and parts they cannot make. Haulers carry them \
              between stations.",
         ),
@@ -63,6 +82,10 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
                 (ItemRoleType::HullPlate, 10),
             ],
             JobMixType::Combat,
+            Some(RoleGoal {
+                title: "A kill list".to_string(),
+                kind: RoleGoalType::KillList { hulls: 6, rings: 2 },
+            }),
             "Some ships carry a price on their hull. Hunters collect it.",
         ),
         role(
@@ -74,6 +97,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             1_600,
             &[(ItemRoleType::PdcRound, 250), (ItemRoleType::HullPlate, 10)],
             JobMixType::Combat,
+            None,
             "Patrol crews start on small pickets and earn larger hulls. Few reach a warship.",
         ),
         role(
@@ -89,13 +113,18 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
                 (ItemRoleType::HullPlate, 10),
             ],
             JobMixType::Combat,
+            None,
             "Past the patrol routes, a full hold is a target. Raiders live on what they take.",
         ),
     ]
 }
 
 /// One role: `hull` with a kit of `credits` and `stock`, whose boards lean
-/// to `jobs`.
+/// to `jobs`, with its end `goal` or none yet.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one row of the role table; every field is authored here"
+)]
 fn role(
     id: &str,
     name: &str,
@@ -104,6 +133,7 @@ fn role(
     credits: u32,
     stock: &[(ItemRoleType, u32)],
     jobs: JobMixType,
+    goal: Option<RoleGoal>,
     lore: &str,
 ) -> StartRole {
     StartRole {
@@ -116,6 +146,7 @@ fn role(
             stock: ShipInventoryStock::new(stock.iter().map(|&(item, count)| (item.into(), count))),
         },
         jobs,
+        goal,
         lore: lore.to_string(),
     }
 }

@@ -1,5 +1,6 @@
 //! system_start_roles: every start role starts, docks, and comes back from
-//! its save, driven the way a player drives New Game.
+//! its save, driven the way a player drives New Game; every role on seed 10
+//! must stream the same generated stations.
 //!
 //! Boots the shipped app (via [`editor_app`]) and, for each role in the
 //! loaded catalogue, in catalogue order: clicks New Game, names the world
@@ -28,13 +29,14 @@
 //!
 //! | # | marker | claim |
 //! | - | - | - |
-//! | 1 | `outcome: create starts the picked start role` | the session Create inserted names the picked role and the first save landed |
+//! | 1 | `outcome: create starts the picked start role` | the session Create inserted names the picked role, the first save landed, and the charter progress is the role's goal or empty for a role with none |
 //! | 2 | `outcome: the start role spawns its hull with its kit and its weapons bound` | the player's design sections are the hull's, its credits and hold are the kit's, every turret is on the trigger, every railgun on R, every bay on F, every miner on V |
 //! | 3 | `outcome: the start hull passes the post-build checks` | `ship_build_fault` finds no fault in the live design |
 //! | 4 | `outcome: the start hull docks at a generated station` | the player docks at the station's outward port and undocks |
 //! | 5 | `outcome: the start hull jettisons and takes an item back in` | one kit unit planned by `plan_item_jettison` leaves the intake as a canister, the intake takes it back, and the hold is the kit again |
 //! | 6 | `outcome: the start role survives a save and a load` | after Load last save the session's role, hull, kit and bindings are the role's, and the unsaved credit is gone |
 //! | 7 | `outcome: every start role started` | the walk started every role in the catalogue |
+//! | 8 | `outcome: every start role streams the same stations from one seed` | every role's sorted live station ids on seed 10 are non-empty and equal |
 //!
 //! Each role's hull price and kit value at ask are logged for review, not
 //! asserted.
@@ -105,13 +107,16 @@ fn main() -> bevy::app::AppExit {
 
 #[cfg(feature = "debug")]
 mod walk {
-    use std::{collections::BTreeMap, sync::Arc};
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        sync::Arc,
+    };
 
     use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
     use nova_input::prelude::InputSource;
     use nova_protocol::nova_debug::harness::{AutopilotPlugin, Predicate};
     use nova_ui::widget::TextFieldValue;
-    use nova_world::prelude::WorldConfig;
+    use nova_world::prelude::{desired_sectors, SectorRoot, WorldConfig};
 
     use super::*;
 
@@ -172,6 +177,9 @@ mod walk {
         ejected: usize,
         /// Canisters that intake took.
         taken: usize,
+        /// Sorted generated station ids streamed for each role on the pinned
+        /// seed.
+        stations_by_role: BTreeMap<String, Vec<GeneratedBodyId>>,
     }
 
     /// Count a canister the watched intake dropped.
@@ -251,6 +259,24 @@ mod walk {
         when(|world| {
             the_player(world).is_some_and(|player| world.get::<DockedShip>(player).is_none())
                 && saved_and_idle(world)
+        })
+    }
+
+    /// The full desired window around the start cell is live before station
+    /// ids are compared, so query timing cannot change a role's recorded set.
+    fn station_window_streamed() -> Arc<Predicate> {
+        when(|world| {
+            if !world.contains_resource::<WorldConfig<NovaLayeredWorld>>() {
+                return false;
+            }
+            let radius = world
+                .resource::<WorldConfig<NovaLayeredWorld>>()
+                .active_radius;
+            let live: BTreeSet<SectorCoord> = world
+                .try_query::<&SectorRoot>()
+                .map(|mut roots| roots.iter(world).map(|root| root.0).collect())
+                .unwrap_or_default();
+            live == desired_sectors(SectorCoord::ORIGIN, radius) && nearest_station(world).is_some()
         })
     }
 
@@ -379,10 +405,19 @@ mod walk {
             "start roles: Create must start the picked role"
         );
         assert_eq!(session.seed, STATION_SEED, "start roles: Create's seed");
+        // The charter follows the role: a role with no goal shows no
+        // progress, so the Map has no CHARTER block to hide.
+        let goal_title = role_of(world, id).goal.map(|goal| goal.title);
+        let progress = world.resource::<GoalProgress>();
+        assert_eq!(
+            (!progress.is_empty()).then(|| progress.title.clone()),
+            goal_title,
+            "start roles: '{id}' charter progress follows the role's goal"
+        );
         nova_probe::probe_marker(
             world,
             "outcome: create starts the picked start role",
-            serde_json::json!({ "role": id }),
+            serde_json::json!({ "role": id, "charter": goal_title }),
         );
 
         let bound = assert_the_ship(world, id);
@@ -459,8 +494,27 @@ mod walk {
 
     fn choose_the_station(world: &mut World, id: &str) {
         let (body, station) = nearest_station(world).expect("start roles: a station stands");
+        let mut station_ids: Vec<GeneratedBodyId> = world
+            .query_filtered::<&GeneratedBodyId, With<StationMarker>>()
+            .iter(world)
+            .cloned()
+            .collect();
+        station_ids.sort();
+        station_ids.dedup();
+        assert!(
+            !station_ids.is_empty(),
+            "start roles: {id} has no live generated stations"
+        );
         info!("start roles: {id} berths at '{body}'");
-        world.resource_mut::<RolesWatch>().station = Some(station);
+        let mut watch = world.resource_mut::<RolesWatch>();
+        watch.station = Some(station);
+        assert!(
+            watch
+                .stations_by_role
+                .insert(id.to_string(), station_ids)
+                .is_none(),
+            "start roles: {id} station set was recorded twice"
+        );
     }
 
     /// `section`'s position and rotation in `root`'s frame, by its mount chain.
@@ -856,8 +910,8 @@ mod walk {
             .step(label("assert the start"))
             .on_enter(move |world: &mut World| assert_the_start(world, id))
             .add()
-            .step(label("a living station streams in"))
-            .until(when(|world| nearest_station(world).is_some()))
+            .step(label("the station window streams in"))
+            .until(station_window_streamed())
             .deadline(SESSION_SECS)
             .add()
             .step(label("choose the station"))
@@ -948,13 +1002,52 @@ mod walk {
         script
             .step("start roles: report")
             .on_enter(|world: &mut World| {
-                let started = world.resource::<RolesWatch>().started.clone();
+                let (started, stations_by_role) = {
+                    let watch = world.resource::<RolesWatch>();
+                    (watch.started.clone(), watch.stations_by_role.clone())
+                };
                 assert_eq!(started, ROLES, "start roles: every role started");
                 nova_probe::probe_marker(
                     world,
                     "outcome: every start role started",
                     serde_json::json!({ "roles": started }),
                 );
+                let first = stations_by_role
+                    .get(ROLES[0])
+                    .expect("start roles: the first role's stations were recorded");
+                assert_eq!(
+                    stations_by_role.len(),
+                    ROLES.len(),
+                    "start roles: every role recorded its station set"
+                );
+                for role in ROLES {
+                    let stations = stations_by_role
+                        .get(role)
+                        .unwrap_or_else(|| panic!("start roles: {role} has no station set"));
+                    assert!(
+                        !stations.is_empty(),
+                        "start roles: {role} streamed no generated stations"
+                    );
+                    assert_eq!(
+                        stations, first,
+                        "start roles: {role} streams the first role's stations on seed {STATION_SEED}"
+                    );
+                }
+                let station_ids: BTreeMap<String, Vec<String>> = stations_by_role
+                    .iter()
+                    .map(|(role, stations)| {
+                        (
+                            role.clone(),
+                            stations.iter().map(ToString::to_string).collect(),
+                        )
+                    })
+                    .collect();
+                nova_probe::probe_marker(
+                    world,
+                    "outcome: every start role streams the same stations from one seed",
+                    serde_json::json!({ "seed": STATION_SEED, "stations_by_role": station_ids }),
+                );
+                info!("start roles: PASS every role streams the same stations {first:?}");
                 info!("start roles: PASS every start role started");
             })
             .add()

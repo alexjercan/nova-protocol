@@ -1,5 +1,6 @@
 //! Reference checks over one start role: its hull resolves, carries a cargo
-//! intake clear of its docking ports, and its kit fits.
+//! intake clear of its docking ports, its kit fits, and its goal is one a
+//! save can meet and tell apart.
 
 use nova_gameplay::prelude::GameItems;
 use nova_ship::prelude::{intake_in_dock_approach, RefitPlacedSection, SectionKind};
@@ -17,7 +18,11 @@ use crate::prelude::*;
 /// - an intake reaches a docking port's face, where a berthed hull parks
 ///   (see [`intake_in_dock_approach`]);
 /// - the kit's `stock` names an item `items` does not hold, or weighs more
-///   than the hull's hold.
+///   than the hull's hold;
+/// - the goal asks for a zero count, for more stations than jobs (a hand-in
+///   serves one station), for more rings than posting stations or hulls (a
+///   station stands in one ring, so the save cannot show more), or names a
+///   flagship hull `designs` does not hold.
 pub fn lint_start_role(
     role: &StartRole,
     designs: &KnownShipDesigns,
@@ -57,7 +62,68 @@ pub fn lint_start_role(
         source,
         &mut issues,
     );
+    if let Some(goal) = &role.goal {
+        check_goal(id, goal, designs, source, &mut issues);
+    }
     issues
+}
+
+/// Refuse a goal no save can meet or tell apart: a zero count, more stations
+/// than jobs, more rings than posting stations or hulls, a flagship hull no
+/// visible design carries.
+fn check_goal(
+    id: &str,
+    goal: &RoleGoal,
+    designs: &KnownShipDesigns,
+    source: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    let mut refuse = |message: String| {
+        issues.push(LintIssue::error(
+            source,
+            format!("start role '{id}': goal {message}"),
+        ));
+    };
+    let mut above_zero = |count: u32, what: &str| {
+        if count == 0 {
+            refuse(format!("asks for 0 {what}"));
+        }
+    };
+    match &goal.kind {
+        RoleGoalType::StationNetwork {
+            jobs,
+            stations,
+            rings,
+        } => {
+            above_zero(*jobs, "jobs");
+            above_zero(*stations, "stations");
+            above_zero(*rings, "rings");
+            if stations > jobs {
+                refuse(format!(
+                    "asks for {stations} stations over {jobs} jobs; a hand-in serves one station"
+                ));
+            }
+            if rings > stations {
+                refuse(format!(
+                    "asks for {rings} rings over {stations} stations; a station stands in one ring"
+                ));
+            }
+        }
+        RoleGoalType::KillList { hulls, rings } => {
+            above_zero(*hulls, "hulls");
+            above_zero(*rings, "rings");
+            if rings > hulls {
+                refuse(format!(
+                    "asks for {rings} rings over {hulls} hulls; a hull is posted from one ring"
+                ));
+            }
+        }
+        RoleGoalType::Flagship { hull } => {
+            if designs.get(hull).is_none() {
+                refuse(format!("hull '{hull}' is no known ship design"));
+            }
+        }
+    }
 }
 
 /// Refuse a start hull with no cargo intake, or with an intake where a
@@ -126,6 +192,7 @@ mod tests {
                 stock: ShipInventoryStock::default(),
             },
             jobs: JobMixType::Trade,
+            goal: None,
             lore: String::new(),
         }
     }
@@ -163,6 +230,7 @@ mod tests {
                 stock: ShipInventoryStock::default(),
             },
             jobs: JobMixType::Trade,
+            goal: None,
             lore: String::new(),
         };
         let found = lint_start_role(
@@ -179,6 +247,87 @@ mod tests {
                     && issue.message.contains("start role 'industrial'")
                     && issue.message.contains("'no_such_hull'")),
             "{found:?}"
+        );
+    }
+
+    /// A goal is refused by what the save cannot show: a zero count, more
+    /// stations than the jobs that serve them, more rings than the posters
+    /// that stand in them, or a flagship hull no design carries. A sound goal
+    /// of each kind passes.
+    #[test]
+    fn a_start_role_goal_with_a_zero_count_more_rings_than_posters_or_an_unknown_hull_is_refused() {
+        let goal_errors = |kind: RoleGoalType| -> Vec<String> {
+            let mut role = role("picket");
+            role.goal = Some(RoleGoal {
+                title: "A goal".to_string(),
+                kind,
+            });
+            lint_start_role(
+                &role,
+                &ships(&["picket"]),
+                &sections(&["hull"]),
+                &GameItems::default(),
+                "test",
+            )
+            .into_iter()
+            .filter(|issue| issue.severity == LintSeverity::Error && issue.message.contains("goal"))
+            .map(|issue| issue.message)
+            .collect()
+        };
+        assert!(goal_errors(RoleGoalType::StationNetwork {
+            jobs: 8,
+            stations: 4,
+            rings: 2,
+        })
+        .is_empty());
+        assert!(goal_errors(RoleGoalType::KillList { hulls: 6, rings: 2 }).is_empty());
+        assert!(goal_errors(RoleGoalType::Flagship {
+            hull: "picket".into(),
+        })
+        .is_empty());
+
+        let zero = goal_errors(RoleGoalType::StationNetwork {
+            jobs: 0,
+            stations: 4,
+            rings: 2,
+        });
+        assert!(
+            zero.iter().any(|m| m.contains("asks for 0 jobs")),
+            "{zero:?}"
+        );
+        let stations = goal_errors(RoleGoalType::StationNetwork {
+            jobs: 2,
+            stations: 4,
+            rings: 1,
+        });
+        assert!(
+            stations
+                .iter()
+                .any(|m| m.contains("4 stations over 2 jobs")),
+            "{stations:?}"
+        );
+        let rings = goal_errors(RoleGoalType::StationNetwork {
+            jobs: 8,
+            stations: 2,
+            rings: 3,
+        });
+        assert!(
+            rings.iter().any(|m| m.contains("3 rings over 2 stations")),
+            "{rings:?}"
+        );
+        let hulls = goal_errors(RoleGoalType::KillList { hulls: 1, rings: 2 });
+        assert!(
+            hulls.iter().any(|m| m.contains("2 rings over 1 hulls")),
+            "{hulls:?}"
+        );
+        let unknown = goal_errors(RoleGoalType::Flagship {
+            hull: "no_such_hull".into(),
+        });
+        assert!(
+            unknown
+                .iter()
+                .any(|m| m.contains("hull 'no_such_hull' is no known ship design")),
+            "{unknown:?}"
         );
     }
 }

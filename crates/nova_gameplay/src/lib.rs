@@ -41,6 +41,7 @@ pub mod clock;
 pub mod cooldown;
 pub mod damage;
 pub mod freeze;
+pub mod goal;
 pub mod gravity;
 pub mod hash;
 pub mod impact_sound;
@@ -119,8 +120,8 @@ pub mod prelude {
     pub use super::{
         asset_ref::prelude::*, audio::prelude::*, beacon::prelude::*, bounds::prelude::*,
         chart::prelude::*, cheats::prelude::*, civilization::prelude::*, clock::prelude::*,
-        cooldown::prelude::*, damage::prelude::*, freeze::prelude::*, gravity::prelude::*,
-        hash::prelude::*, impact_sound::prelude::*, impact_spark::prelude::*,
+        cooldown::prelude::*, damage::prelude::*, freeze::prelude::*, goal::prelude::*,
+        gravity::prelude::*, hash::prelude::*, impact_sound::prelude::*, impact_spark::prelude::*,
         integrity::prelude::*, inventory::prelude::*, jobs::prelude::*, juice::prelude::*,
         lifetime::prelude::*, markers::prelude::*, market::prelude::*, math::prelude::*,
         mesh::prelude::*, narrative_accent::prelude::*, objectives::prelude::*, plugin::prelude::*,

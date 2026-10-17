@@ -1,11 +1,13 @@
 //! The START ROLE content kind: one New Game start a player picks.
 //!
 //! A role names a catalog hull and a kit: the credits and the items the ship
-//! starts with. It is authored once per role as a [`StartRole`] and read
-//! through [`GameStartRoles`]. The lint (`lint_start_role`) refuses a hull no
-//! visible ship design carries, a hull with no cargo intake or with an intake
-//! where a berthed ship parks, an unknown kit item and a kit the hull's hold
-//! cannot carry.
+//! starts with, and its finite end goal ([`RoleGoal`]), a predicate over
+//! facts the world save already carries. It is authored once per role as a
+//! [`StartRole`] and read through [`GameStartRoles`]. The lint
+//! (`lint_start_role`) refuses a hull no visible ship design carries, a hull
+//! with no cargo intake or with an intake where a berthed ship parks, an
+//! unknown kit item, a kit the hull's hold cannot carry, and a goal no save
+//! can meet or tell apart.
 //!
 //! New Game's Create and Load insert the [`OpenWorldSession`]: the seed and
 //! the role the player picked. The `SpawnStartRole` action reads it and
@@ -26,8 +28,8 @@ use crate::objects::{
 /// Glob-import surface for the start role content kind.
 pub mod prelude {
     pub use super::{
-        start_role_bindings, GameStartRoles, OpenWorldSession, StartKit, StartRole,
-        StartRoleDesignId,
+        start_role_bindings, GameStartRoles, OpenWorldSession, RoleGoal, RoleGoalType, StartKit,
+        StartRole, StartRoleDesignId,
     };
 }
 
@@ -123,11 +125,13 @@ impl std::fmt::Display for StartRoleDesignId {
     }
 }
 
-/// One New Game start: the hull the player flies and the kit it starts with.
+/// One New Game start: the hull the player flies, the kit it starts with and
+/// its end goal.
 ///
 /// Every field is required in RON. A hull no visible ship design carries, a
 /// hull with no cargo intake or with an intake where a berthed ship parks, an
-/// unknown kit item and a kit heavier than the hull's hold are refused at
+/// unknown kit item, a kit heavier than the hull's hold and a goal with a
+/// zero count, more rings than posters or an unknown hull are refused at
 /// lint, see `lint_start_role`.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -145,8 +149,58 @@ pub struct StartRole {
     pub kit: StartKit,
     /// Which job kinds the station boards lean to for this start.
     pub jobs: JobMixType,
+    /// The role's one finite end goal, or `None` for a role whose goal has
+    /// not landed: the Map shows no CHARTER block and nothing completes.
+    /// TODO(20261012-100033): `RoleGoal`, required, once every base role
+    /// carries one.
+    pub goal: Option<RoleGoal>,
     /// Background text for the role.
     pub lore: String,
+}
+
+/// One finite end goal: the heading the Map shows and its predicate.
+#[derive(Clone, Debug, PartialEq, Eq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct RoleGoal {
+    /// The heading the Map's CHARTER block shows, for a reader.
+    pub title: String,
+    /// What the save must show.
+    pub kind: RoleGoalType,
+}
+
+/// The predicates a goal may be. Closed: a role picks one and sets its
+/// counts. Every predicate reads facts the world save already carries: the
+/// jobs the player handed in, and the player's hull.
+///
+/// A "ring" is one lattice step of civilizations from the world origin, read
+/// off the posting station's cell.
+#[derive(Clone, Debug, PartialEq, Eq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum RoleGoalType {
+    /// Hand in `jobs` Procure or Escort jobs posted by `stations` distinct
+    /// stations whose cells span `rings` distinct rings.
+    StationNetwork {
+        /// How many trade jobs to hand in, above zero.
+        jobs: u32,
+        /// How many distinct posting stations, above zero.
+        stations: u32,
+        /// How many distinct rings those stations span, at most `stations`.
+        rings: u32,
+    },
+    /// Hand in `hulls` Neutralize jobs posted from `rings` distinct rings.
+    KillList {
+        /// How many neutralize jobs to hand in, above zero.
+        hulls: u32,
+        /// How many distinct rings their posters span, at most `hulls`.
+        rings: u32,
+    },
+    /// Fly a hull whose live sections' recipe value at ask is at least the
+    /// catalog design `hull`'s.
+    Flagship {
+        /// The catalog design that sets the bar.
+        hull: ShipDesignId,
+    },
 }
 
 /// What a start role's ship starts with.

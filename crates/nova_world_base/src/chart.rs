@@ -3,27 +3,32 @@
 //! find, each stamped with the [`WorldClock`] of the find, and what the
 //! player sees at a station while docked there.
 //!
-//! The chart, the player's [`Jobs`] and the player's
-//! [`NeutralizedCivilizations`] are cleared with the frozen ledger, in
-//! `NovaWorldSystems::Cleanup`, so a Retry, an unload or a replaced
-//! scenario starts new ones. A Load puts the saved three back after that
-//! clear, on the frame the world arms.
+//! The chart, the player's [`Jobs`], the player's
+//! [`NeutralizedCivilizations`] and the role goal's [`GoalRecord`] are
+//! cleared with the frozen ledger, in `NovaWorldSystems::Cleanup`, so a
+//! Retry, an unload or a replaced scenario starts new ones. A Load puts the
+//! saved four back after that clear, on the frame the world arms.
 
 use bevy::prelude::*;
 use nova_events::prelude::GeneratedBodyId;
 use nova_gameplay::prelude::{
-    Chart, ChartSectorEdge, DerelictShipMarker, JobPostings, Jobs, NeutralizedCivilizations,
-    OwnedStationMarker, PlayerSpaceshipMarker, ShipInventory, StationMarker, StationServices,
-    StationStorage, StationSummary, WorldClock,
+    Chart, ChartSectorEdge, DerelictShipMarker, GoalProgress, GoalRecord, JobPostings, Jobs,
+    NeutralizedCivilizations, OwnedStationMarker, PlayerSpaceshipMarker, ShipInventory,
+    StationMarker, StationServices, StationStorage, StationSummary, WorldClock,
 };
 use nova_ship::prelude::{DockedShip, DockingConnection, SensorContacts};
 use nova_world::prelude::{CurrentSector, SectorClusterTypes, SectorRoot, WorldConfig};
 
 use crate::NovaLayeredWorld;
 
-/// Forget the chart, the jobs, the job postings and the neutralized
-/// civilizations on every frame `Cleanup` drops the frozen ledger, and keep
-/// [`ChartSectorEdge`] on the armed world's edge.
+/// Forget the chart, the jobs, the job postings, the neutralized
+/// civilizations and the role goal's record and progress on every frame
+/// `Cleanup` drops the frozen ledger, and keep [`ChartSectorEdge`] on the
+/// armed world's edge.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one system clearing every session record the ledger owns"
+)]
 pub(crate) fn clear_chart(
     mut commands: Commands,
     config: Option<Res<WorldConfig<NovaLayeredWorld>>>,
@@ -32,6 +37,8 @@ pub(crate) fn clear_chart(
     mut jobs: ResMut<Jobs>,
     mut postings: ResMut<JobPostings>,
     mut neutralized: ResMut<NeutralizedCivilizations>,
+    mut goal: ResMut<GoalRecord>,
+    mut progress: ResMut<GoalProgress>,
 ) {
     if !chart.is_empty() {
         chart.clear();
@@ -44,6 +51,12 @@ pub(crate) fn clear_chart(
     }
     if !neutralized.is_empty() {
         neutralized.clear();
+    }
+    if goal.is_met() {
+        goal.clear();
+    }
+    if !progress.is_empty() {
+        *progress = GoalProgress::default();
     }
     let armed = config.map(|config| config.sector_edge);
     let shown = edge.map(|edge| edge.0);

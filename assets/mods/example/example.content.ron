@@ -1632,12 +1632,15 @@
     )),
     // -- 10. START ROLE -----------------------------------------------------
     // A `StartRole` is one row in the New Game wizard's role list: the catalog
-    // hull the player starts in and a kit of credits and items. Every field is
-    // required. `hull` must name a ship design a loaded bundle declares (here
-    // the base `light_freighter`), every kit item must be in the item catalog,
-    // and the kit must fit the hull's hold: lint refuses each failure. The
-    // wizard derives the weapon keys from the hull's sections, so a role binds
-    // nothing itself.
+    // hull the player starts in, a kit of credits and items, the job mix its
+    // boards lean to and its one end goal. Every field is required; `goal` is
+    // `None` only for a role whose goal has not been authored, and then the
+    // Map shows no CHARTER block. `hull` must name a ship design a loaded
+    // bundle declares (here the base `light_freighter`), every kit item must
+    // be in the item catalog, the kit must fit the hull's hold, and a goal
+    // must ask for counts above zero and no more rings than stations or
+    // hulls: lint refuses each failure. The wizard derives the weapon keys
+    // from the hull's sections, so a role binds nothing itself.
     StartRole((
         id: "example_surveyor",
         name: "Surveyor (Example Mod)",
@@ -1648,6 +1651,10 @@
             stock: {"example_survey_core": 10, "Rations": 20},
         ),
         jobs: Trade,
+        goal: Some((
+            title: "A survey network",
+            kind: StationNetwork(jobs: 4, stations: 2, rings: 1),
+        )),
         lore: "Survey crews map the rock fields and sell the data cores to any station that pays.",
     )),
 ]

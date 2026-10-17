@@ -9,7 +9,7 @@ use nova_events::prelude::{EntityId, GeneratedBodyId};
 use nova_gameplay::prelude::{
     nova_blast, resumed_lifetime, AssetRef, CargoCanister, CargoCanisterIdAllocator,
     CargoCanisterRuntimeId, Chart, CivilizationId, ClockFreeze, DamageLevel, DamageMarks,
-    DamageType, FreezeOwner, FrozenRoundFlight, GameItems, Health, ImpactSparkMarker,
+    DamageType, FreezeOwner, FrozenRoundFlight, GameItems, GoalRecord, Health, ImpactSparkMarker,
     ImpactSparkPlugin, ImpactSparks, IntegrityDestroyMarker, ItemCategoryType, ItemDesign,
     ItemDesignId, ItemRoleType, Job, JobId, JobPostings, JobType, Jobs, NeutralizedCivilizations,
     PlayerFleetMarker, PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage,
@@ -22,7 +22,8 @@ use nova_scenario::prelude::{
     freeze_asteroid, freeze_fleet, freeze_ore_drop, freeze_ship, freeze_station,
     spaceship_scenario_object, AsteroidKind, AsteroidKindId, AsteroidMarker, AsteroidRadius,
     AsteroidSeed, AsteroidTexture, CurrentScenario, GameStartRoles, MinedCanisterQueue, MinedOre,
-    MinedOreDrop, SpaceshipConfig, StationMarker, StationServices, StationStorage,
+    MinedOreDrop, RoleGoal, RoleGoalType, SpaceshipConfig, StationMarker, StationServices,
+    StationStorage,
 };
 use nova_ship::prelude::{
     cargo_canister, freeze_canister, freeze_wreck_fragment, thaw_round, thaw_torpedo, AIFollow,
@@ -147,6 +148,7 @@ fn state(generation: u64, credits: u32) -> WorldSaveState {
         postings: JobPostings::default(),
         clock: WorldClock::default(),
         neutralized: NeutralizedCivilizations::default(),
+        goal: GoalRecord::default(),
     }
 }
 
@@ -863,6 +865,97 @@ fn a_saved_neutralized_record_resumes_and_a_stamp_ahead_of_the_clock_is_refused(
     );
 }
 
+/// The role goal's record is written with a leave save and comes back on a
+/// Load; a stamp ahead of the saved clock, or a met record for a start role
+/// with no goal, is a save the Load refuses.
+#[test]
+fn a_saved_goal_record_resumes_and_a_stamp_ahead_of_the_clock_or_without_a_goal_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let (mut world, _player) = armed_session(root.path());
+    frame(&mut world);
+    frame(&mut world);
+    run_until_idle(&mut world);
+
+    // The fixture role carries no goal; this save's role does.
+    let mut roles_with_goal = fixture_roles();
+    roles_with_goal.0[0].goal = Some(RoleGoal {
+        title: "A kill list".to_string(),
+        kind: RoleGoalType::KillList { hulls: 6, rings: 2 },
+    });
+    world.insert_resource(roles_with_goal.clone());
+    world.insert_resource(WorldClock {
+        play_seconds: 200.0,
+    });
+    world.resource_mut::<GoalRecord>().met_at = Some(150.0);
+    world.resource_mut::<WorldSaveSession>().request_leave();
+    run_until_idle(&mut world);
+    assert_eq!(
+        world.resource::<WorldSaveSession>().status(),
+        &WorldSaveStatus::Saved { generation: 2 }
+    );
+    let digest = world.resource::<LoadedSectionPacks>().digest.0;
+    world.remove_resource::<WorldSaveSession>();
+    let (_, lock, _, state) = open_world(
+        root.path(),
+        "session",
+        &catalog(digest),
+        &roles_with_goal,
+        &items(),
+        &scenarios(),
+    )
+    .unwrap();
+    assert_eq!(
+        state.goal,
+        GoalRecord {
+            met_at: Some(150.0)
+        },
+        "the leave save wrote the record"
+    );
+    drop(lock);
+
+    let resumed = load_as(root.path(), digest, &roles_with_goal);
+    assert_eq!(
+        *resumed.resource::<GoalRecord>(),
+        GoalRecord {
+            met_at: Some(150.0)
+        },
+        "the Load restored the record on the arming frame"
+    );
+    drop(resumed);
+
+    // A met record for a role with no goal is one no session wrote.
+    let refused = open_world(
+        root.path(),
+        "session",
+        &catalog(digest),
+        &roles(),
+        &items(),
+        &scenarios(),
+    );
+    assert!(
+        matches!(refused, Err(WorldRefusal::Unreadable(ref reason)) if reason.contains("has no goal")),
+        "a met record needs a goal: {refused:?}"
+    );
+
+    // A record stamped after the saved clock is one no session wrote.
+    let mut state = state;
+    state.goal.met_at = Some(250.0);
+    let text = ron::to_string(&state).unwrap();
+    std::fs::write(root.path().join("session/state.2.ron"), text).unwrap();
+    let refused = open_world(
+        root.path(),
+        "session",
+        &catalog(digest),
+        &roles_with_goal,
+        &items(),
+        &scenarios(),
+    );
+    assert!(
+        matches!(refused, Err(WorldRefusal::Unreadable(ref reason)) if reason.contains("stamped met")),
+        "a stamp ahead of the clock refuses the save: {refused:?}"
+    );
+}
+
 /// A station's slot postings are written with a leave save and come back
 /// on a Load; a held job whose slot moved past its posting is a save the
 /// Load refuses.
@@ -1221,6 +1314,11 @@ fn loaded_with_a_round(root: &Path) -> World {
 /// the origin sector alone. It is armed, as on the frame the scenario arms
 /// it, and no sector is live.
 fn load(root: &Path, digest: u64) -> World {
+    load_as(root, digest, &roles())
+}
+
+/// [`load`] against the start role catalog `roles`.
+fn load_as(root: &Path, digest: u64, roles: &GameStartRoles) -> World {
     let mut app = App::new();
     app.add_plugins(crate::test_support::WorldSaveTestPlugin);
     let mut world = std::mem::take(app.world_mut());
@@ -1233,7 +1331,7 @@ fn load(root: &Path, digest: u64) -> World {
         root,
         "session",
         &catalog(digest),
-        &roles(),
+        roles,
         &items(),
         &scenarios(),
     )

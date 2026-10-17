@@ -874,6 +874,13 @@ name = "system_station_jobs"
 path = "examples/systems/system_station_jobs.rs"
 required-features = ["debug"]
 
+# A bounty hunter's kill-list charter: six completed Neutralize fixture jobs
+# meet its two-ring goal, which the Map and a save/load round trip preserve.
+[[example]]
+name = "system_role_goals"
+path = "examples/systems/system_role_goals.rs"
+required-features = ["debug"]
+
 # The four located job kinds the boards post beside procurement: each range
 # shares examples/systems/shared/located_jobs.rs and walks one kind from the
 # board through the work in the world to the hand-in.

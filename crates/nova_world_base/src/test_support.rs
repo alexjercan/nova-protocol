@@ -12,8 +12,8 @@ use bevy::prelude::*;
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack, LoadedSectionPacks};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
-    CargoCanisterIdAllocator, Chart, ClockFreeze, DamageMarks, JobMixType, JobPostings, Jobs,
-    NeutralizedCivilizations, PlayerSpaceshipMarker, PointRotationOutput, ShipInventory,
+    CargoCanisterIdAllocator, Chart, ClockFreeze, DamageMarks, GoalRecord, JobMixType, JobPostings,
+    Jobs, NeutralizedCivilizations, PlayerSpaceshipMarker, PointRotationOutput, ShipInventory,
     ShipInventoryStock, ShipRoleType,
 };
 use nova_scenario::prelude::{
@@ -52,6 +52,7 @@ pub fn fixture_roles() -> GameStartRoles {
             stock: ShipInventoryStock::default(),
         },
         jobs: JobMixType::Trade,
+        goal: None,
         lore: String::new(),
     }])
 }
@@ -158,6 +159,7 @@ pub fn arm_save_fixture(world: &mut World) -> Entity {
     world.init_resource::<Jobs>();
     world.init_resource::<JobPostings>();
     world.init_resource::<NeutralizedCivilizations>();
+    world.init_resource::<GoalRecord>();
     world.insert_resource(CurrentSector(SectorCoord::ORIGIN));
     let player = world
         .spawn((

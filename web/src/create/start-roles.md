@@ -1,7 +1,8 @@
 # Start roles for mods
 
-A `StartRole` is one New Game start: the catalog hull the player flies and
-the kit it starts with, a sum of credits and a hold of items. Roles are
+A `StartRole` is one New Game start: the catalog hull the player flies, the
+kit it starts with, a sum of credits and a hold of items, the job mix its
+station boards lean to, and its one end goal, the charter. Roles are
 content like ships and stations. Create a new id to add a role, or reuse a
 base id to replace that role. The New Game wizard lists
 the roles in merge order.
@@ -27,12 +28,17 @@ spelling rules, see
             },
         ),
         jobs: Trade,
+        goal: Some((
+            title: "A courier network",
+            kind: StationNetwork(jobs: 8, stations: 4, rings: 2),
+        )),
         lore: "Stations need what they cannot make. Couriers carry it.",
     )),
 ]
 ```
 
-Every field is required.
+Every field is required. `goal` is `None` only for a role whose goal has not
+been authored; the Map then shows no CHARTER block and nothing completes.
 
 | field | type | meaning |
 |---|---|---|
@@ -42,6 +48,7 @@ Every field is required.
 | `hull` | string | the id of a [ship design](../ships/) the player starts in: a base ship id, one of your mod's own, or one from a mod you depend on |
 | `kit` | kit | what the ship starts with, see below |
 | `jobs` | `Trade`, `Salvage` or `Combat` | the job mix every station board leans to for this start, see [Jobs](../stations/#jobs) |
+| `goal` | `Some(goal)` or `None` | the role's one finite end goal, see [The goal](#the-goal) |
 | `lore` | string | background text for the role |
 
 A `kit` has two fields, both required:
@@ -50,6 +57,36 @@ A `kit` has two fields, both required:
 |---|---|---|
 | `credits` | whole number | the credits the ship starts with |
 | `stock` | stock | the items the hold starts with, in the [stock format](../objects/#inventory). It must fit the hull's hold (100 kg per hull section) |
+
+## The goal
+
+A `goal` is a charter: one finite end the role plays toward, read off the
+saved world and shown as the CHARTER block in the Map's chart view. It has
+two fields, both required:
+
+| field | type | meaning |
+|---|---|---|
+| `title` | string | the name the CHARTER block shows |
+| `kind` | goal kind | what the save must show, one of the kinds below |
+
+| kind | fields | met when |
+|---|---|---|
+| `StationNetwork` | `jobs`, `stations`, `rings` | the player handed in `jobs` bring or escort jobs, posted by `stations` distinct stations that stand in `rings` distinct civilization rings |
+| `KillList` | `hulls`, `rings` | the player handed in `hulls` neutralize jobs, posted from `rings` distinct civilization rings |
+| `Flagship` | `hull` | the player's live hull is worth at least the ship design `hull` names, at the build recipes' value |
+
+A civilization ring is one 240 km step out from the start: a station in a
+cell whose centre is under 240 km from the origin stands in ring 0, one
+between 240 and 480 km in ring 1, and so on. Every count is a whole number
+above zero. The base `transport` role asks for a station network of eight
+jobs at four stations over two rings; the base `bounty_hunter` asks for a
+kill list of six hulls over two rings. The base `industrial`, `scavenger`,
+`military` and `pirate` roles carry `None`.
+
+Progress is derived from the saved world each frame: the jobs you handed in
+and the hull you fly. The frame the goal is met, the save records the play
+time; the CHARTER block then reads `Met at` that time, and a Load brings it
+back. The world does not change on a met goal.
 
 ## Overlay and lint
 
@@ -68,13 +105,18 @@ role that:
 - names a `hull` whose cargo intake reaches as far out as a docking port's
   face, where a berthed ship parks;
 - seeds its kit `stock` with an unknown item;
-- seeds a kit heavier than the hull's hold.
+- seeds a kit heavier than the hull's hold;
+- gives its `goal` a count of zero, asks for more `stations` than `jobs` (a
+  hand-in serves one station) or more `rings` than `stations` or `hulls` (a
+  station stands in one ring), or names a `Flagship` `hull` no visible ship
+  design has.
 
 ## In the game
 
 The second step of the New Game wizard lists the roles and selects the
 first. The details pane shows the selected role's `name`, `about`, the
-hull's design name, the kit and the `lore`. **Create** starts the base
+hull's design name, the kit and the `lore`. In the game the Map's chart view
+shows the role's `goal` as the CHARTER block. **Create** starts the base
 `open_world` scenario, whose
 [`SpawnStartRole`](../actions/#spawnstartrole) action spawns the role's hull
 with its kit and binds its weapons.

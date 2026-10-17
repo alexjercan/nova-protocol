@@ -12,6 +12,7 @@
             },
         ),
         jobs: Trade,
+        goal: None,
         lore: "Mining crews work the rock fields for whoever buys the ore. The tug is old, but it pays.",
     )),
     StartRole((
@@ -27,6 +28,7 @@
             },
         ),
         jobs: Salvage,
+        goal: None,
         lore: "Every fight leaves wrecks behind. Scavengers take what still has a price.",
     )),
     StartRole((
@@ -42,6 +44,14 @@
             },
         ),
         jobs: Trade,
+        goal: Some((
+            title: "A station network",
+            kind: StationNetwork(
+                jobs: 8,
+                stations: 4,
+                rings: 2,
+            ),
+        )),
         lore: "Stations need food, water and parts they cannot make. Haulers carry them between stations.",
     )),
     StartRole((
@@ -58,6 +68,13 @@
             },
         ),
         jobs: Combat,
+        goal: Some((
+            title: "A kill list",
+            kind: KillList(
+                hulls: 6,
+                rings: 2,
+            ),
+        )),
         lore: "Some ships carry a price on their hull. Hunters collect it.",
     )),
     StartRole((
@@ -73,6 +90,7 @@
             },
         ),
         jobs: Combat,
+        goal: None,
         lore: "Patrol crews start on small pickets and earn larger hulls. Few reach a warship.",
     )),
     StartRole((
@@ -89,6 +107,7 @@
             },
         ),
         jobs: Combat,
+        goal: None,
         lore: "Past the patrol routes, a full hold is a target. Raiders live on what they take.",
     )),
 ]

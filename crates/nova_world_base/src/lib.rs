@@ -41,15 +41,19 @@
 //! station, seeded from the world seed, the station and what stands around
 //! it, renews an offer that stood past the price table's window or was
 //! handed in, puts an accepted job's bodies in the world and marks a held job
-//! done. A world save carries the chart, the player's [`Jobs`], the
-//! [`JobPostings`] and the [`WorldClock`]; on the web they last one session.
+//! done. It derives the start role's goal progress from those records every
+//! frame and stamps the goal met once, as a saved fact
+//! (`nova_gameplay::prelude::GoalRecord`). A world save carries the chart,
+//! the player's [`Jobs`], the [`JobPostings`], the [`WorldClock`] and the
+//! goal record; on the web they last one session.
 #![warn(missing_docs)]
 
 use bevy::prelude::*;
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_events::prelude::Meters;
 use nova_gameplay::prelude::{
-    Chart, GameItems, JobPostings, Jobs, NeutralizedCivilizations, PlayerSpaceshipMarker,
+    Chart, GameItems, GoalProgress, GoalRecord, JobPostings, Jobs, NeutralizedCivilizations,
+    PlayerSpaceshipMarker,
 };
 use nova_scenario::prelude::{CurrentScenario, OpenWorldSession, ScenarioWorldType};
 use nova_ship::prelude::GameStyles;
@@ -61,6 +65,7 @@ mod civilizations;
 mod clusters;
 mod economy;
 mod environment;
+mod goal;
 mod jobs;
 mod layered;
 #[cfg(not(target_arch = "wasm32"))]
@@ -204,6 +209,8 @@ impl Plugin for NovaWorldBasePlugin {
         app.init_resource::<Jobs>();
         app.init_resource::<JobPostings>();
         app.init_resource::<NeutralizedCivilizations>();
+        app.init_resource::<GoalRecord>();
+        app.init_resource::<GoalProgress>();
         // A hull the player neutralizes is recorded against its civilization
         // the moment its marker lands.
         app.add_observer(economy::record_neutralized_civilization);
@@ -243,6 +250,9 @@ impl Plugin for NovaWorldBasePlugin {
                     chart::chart_visited_cell.run_if(resource_exists::<CurrentSector>),
                     chart::chart_sensor_finds,
                     chart::chart_docked_station,
+                    // The goal reads this frame's hand-ins before the save
+                    // snapshots the record.
+                    goal::track_role_goal,
                     charter::point_charter_zero,
                     // A thawed trader's hold catches up before a board reads
                     // it, and a served refusal is forgotten before the save.

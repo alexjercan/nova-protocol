@@ -28,7 +28,7 @@
 //! and a Distress call put generated bodies in the world on the accept
 //! ([`JobAccepted`]), named by the job ([`Job::spawned_bodies`]).
 //!
-//! [`Jobs`] is the player's record: the jobs held, the ids done and the ids
+//! [`Jobs`] is the player's record: the jobs held, the ids done and the jobs
 //! completed. It is a session resource like the chart: a world save carries
 //! it, a Load puts it back, and the Map's chart view marks every held job in
 //! its target's cell. It lives here because the interface cannot depend on
@@ -595,7 +595,9 @@ pub struct JobAccepted {
 }
 
 /// The player's jobs: the jobs held, in accept order, the ids of the held
-/// jobs whose work is done, and the ids completed, in hand-in order.
+/// jobs whose work is done, and the jobs completed, in hand-in order. A
+/// completed job keeps its kind, its poster and its names: the role goal
+/// counts the hand-ins by kind and by the poster's cell.
 ///
 /// Cleared with the chart whenever the world on hand goes: an unload, a
 /// Retry, a replaced scenario. A Load restores the saved record on the
@@ -606,7 +608,7 @@ pub struct JobAccepted {
 pub struct Jobs {
     held: Vec<Job>,
     done: Vec<JobId>,
-    completed: Vec<JobId>,
+    completed: Vec<Job>,
 }
 
 impl Jobs {
@@ -633,7 +635,7 @@ impl Jobs {
     }
 
     /// The jobs completed, in hand-in order.
-    pub fn completed(&self) -> &[JobId] {
+    pub fn completed(&self) -> &[Job] {
         &self.completed
     }
 
@@ -654,7 +656,7 @@ impl Jobs {
 
     /// Whether the player completed the job `id`.
     pub fn is_completed(&self, id: &JobId) -> bool {
-        self.completed.contains(id)
+        self.completed.iter().any(|job| job.id == *id)
     }
 
     /// Hold `job`.
@@ -692,7 +694,7 @@ impl Jobs {
     /// ([`plan_job_hand_in`]).
     pub fn complete(&mut self, id: &JobId) -> Job {
         let job = self.drop(id);
-        self.completed.push(id.clone());
+        self.completed.push(job.clone());
         job
     }
 
@@ -739,9 +741,13 @@ impl Jobs {
                 return Err(format!("the jobs list '{id}' done twice"));
             }
         }
-        for (index, id) in self.completed.iter().enumerate() {
-            if self.completed[..index].contains(id) {
-                return Err(format!("the jobs list '{id}' completed twice"));
+        for (index, job) in self.completed.iter().enumerate() {
+            job.validate()?;
+            if self.completed[..index]
+                .iter()
+                .any(|other| other.id == job.id)
+            {
+                return Err(format!("the jobs list '{}' completed twice", job.id));
             }
         }
         Ok(())
@@ -1639,7 +1645,7 @@ mod tests {
         let done = jobs.complete(&job.id);
         assert_eq!(done, job);
         assert!(jobs.held().is_empty());
-        assert_eq!(jobs.completed(), &[job.id.clone()]);
+        assert_eq!(jobs.completed(), &[job.clone()]);
         assert_eq!(
             plan_job_accept(&job, Some(&poster), &jobs, false, true),
             Err(JobAcceptRefusalType::AlreadyDone)
@@ -1706,7 +1712,7 @@ mod tests {
             !jobs.is_done(&recover.id),
             "a completed job is no longer done"
         );
-        assert_eq!(jobs.completed(), &[recover.id.clone()]);
+        assert_eq!(jobs.completed(), &[recover.clone()]);
 
         let dropped = jobs.drop(&escort.id);
         assert_eq!(dropped, escort);
@@ -1728,7 +1734,7 @@ mod tests {
         assert!(twice.validate().unwrap_err().contains("twice"));
         let mut both = Jobs::default();
         both.held.push(job.clone());
-        both.completed.push(job.id.clone());
+        both.completed.push(job.clone());
         assert!(both.validate().unwrap_err().contains("completed"));
         let mut loose = Jobs::default();
         loose.done.push(job.id.clone());

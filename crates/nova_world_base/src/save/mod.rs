@@ -31,10 +31,11 @@
 //! It also carries the player's [`Chart`]: the cells the player entered, the
 //! stations and wrecks found, and each station's last-seen summary, whose
 //! item ids pass the same check as every saved hold, and the player's
-//! [`Jobs`]: the jobs held and the ids completed, checked the same way, the
+//! [`Jobs`]: the jobs held and the jobs completed, checked the same way, the
 //! [`JobPostings`]: each station board's slot postings and their stamps,
-//! and the [`WorldClock`], the play time every frozen body's stamp and every
-//! posting reads against.
+//! the [`WorldClock`], the play time every frozen body's stamp and every
+//! posting reads against, and the role goal's [`GoalRecord`], refused when
+//! stamped ahead of that clock or for a role with no goal.
 
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
@@ -47,12 +48,12 @@ use bevy::prelude::*;
 use nova_assets::{prelude::LoadedSectionPacks, storage::write_atomic};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
-    kg_text, CargoCanisterRuntimeId, Chart, GameItems, ItemDesignId, JobPostings, Jobs,
+    kg_text, CargoCanisterRuntimeId, Chart, GameItems, GoalRecord, ItemDesignId, JobPostings, Jobs,
     NeutralizedCivilizations, SavedBodyRef, SavedOwner, SavedSectionRef, SavedTargetRef,
     CARGO_CANISTER_MAX_MASS_G,
 };
 use nova_scenario::prelude::{
-    FleetEscort, FrozenShip, GameScenarios, GameStartRoles, SavedScenario, ScenarioId,
+    FleetEscort, FrozenShip, GameScenarios, GameStartRoles, SavedScenario, ScenarioId, StartRole,
     StartRoleDesignId,
 };
 use nova_ship::prelude::{CameraView, SavedTorpedoTarget, FLEET_SIDES};
@@ -80,7 +81,7 @@ pub use transients::{
 /// nobody held live is recorded as an arrival there. Every cell the player
 /// never visited regenerates from the seed on Load, so another generator
 /// would change it silently.
-pub const WORLD_SAVE_FORMAT: u32 = 18;
+pub const WORLD_SAVE_FORMAT: u32 = 19;
 
 /// The most characters a world name has, after trimming.
 const WORLD_NAME_MAX: usize = 32;
@@ -153,6 +154,8 @@ pub struct WorldSaveState {
     /// The civilizations whose hull the player neutralized, each with the
     /// clock reading of the latest, whose stations refuse the player.
     pub neutralized: NeutralizedCivilizations,
+    /// The start role's goal: standing, or the clock reading it was met at.
+    pub goal: GoalRecord,
 }
 
 /// The player ship as it was saved.
@@ -371,7 +374,10 @@ pub fn open_world(
     let path = root.join(slug);
     let lock = lock_world(&path)?;
     let header = read_header(&path, loaded, roles)?;
-    let state = read_state(&path, &header, items, scenarios)?;
+    let role = roles
+        .get_role(&header.role)
+        .expect("read_header checked the role is loaded");
+    let state = read_state(&path, &header, role, items, scenarios)?;
     sweep_orphans(&path, &state_file(header.generation));
     Ok((
         WorldFolder {
@@ -404,13 +410,18 @@ pub fn check_world(
     check_slug(slug)?;
     let path = root.join(slug);
     let header = read_header(&path, loaded, roles)?;
-    read_state(&path, &header, items, scenarios).map(drop)
+    let role = roles
+        .get_role(&header.role)
+        .expect("read_header checked the role is loaded");
+    read_state(&path, &header, role, items, scenarios).map(drop)
 }
 
-/// Read and check the state file `header` names in the world folder `path`.
+/// Read and check the state file `header` names in the world folder `path`,
+/// for the loaded start `role` the header names.
 fn read_state(
     path: &Path,
     header: &WorldSaveHeader,
+    role: &StartRole,
     items: &GameItems,
     scenarios: &RegisteredScenarios,
 ) -> Result<WorldSaveState, WorldRefusal> {
@@ -453,6 +464,16 @@ fn read_state(
         .neutralized
         .validate(state.clock.play_seconds)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
+    state
+        .goal
+        .validate(state.clock.play_seconds)
+        .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
+    if state.goal.is_met() && role.goal.is_none() {
+        return Err(WorldRefusal::Unreadable(format!(
+            "{state_name}: the goal is stamped met but the start role '{}' has no goal",
+            role.id
+        )));
+    }
     check_saved_fleet(&state)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     check_saved_items(&state, items)
