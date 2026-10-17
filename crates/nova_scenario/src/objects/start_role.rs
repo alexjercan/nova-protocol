@@ -1,8 +1,9 @@
 //! The START ROLE content kind: one New Game start a player picks.
 //!
 //! A role names a catalog hull and a kit: the credits and the items the ship
-//! starts with, and its finite end goal ([`RoleGoal`]), a predicate over
-//! facts the world save already carries. It is authored once per role as a
+//! starts with, and its charter ([`RoleGoal`]): one finite milestone, a
+//! predicate over facts the world save already carries. A met charter ends
+//! nothing; the open world plays on. It is authored once per role as a
 //! [`StartRole`] and read through [`GameStartRoles`]. The lint
 //! (`lint_start_role`) refuses a hull no visible ship design carries, a hull
 //! with no cargo intake or with an intake where a berthed ship parks, an
@@ -126,7 +127,7 @@ impl std::fmt::Display for StartRoleDesignId {
 }
 
 /// One New Game start: the hull the player flies, the kit it starts with and
-/// its end goal.
+/// its charter.
 ///
 /// Every field is required in RON. A hull no visible ship design carries, a
 /// hull with no cargo intake or with an intake where a berthed ship parks, an
@@ -149,7 +150,7 @@ pub struct StartRole {
     pub kit: StartKit,
     /// Which job kinds the station boards lean to for this start.
     pub jobs: JobMixType,
-    /// The role's one finite end goal, or `None` for a role whose goal has
+    /// The role's one finite milestone, or `None` for a role whose goal has
     /// not landed: the Map shows no CHARTER block and nothing completes.
     /// TODO(20261012-100033): `RoleGoal`, required, once every base role
     /// carries one.
@@ -158,7 +159,8 @@ pub struct StartRole {
     pub lore: String,
 }
 
-/// One finite end goal: the heading the Map shows and its predicate.
+/// One finite milestone: the heading the Map shows and its predicate. Met,
+/// it stamps the save and changes nothing else; play goes on.
 #[derive(Clone, Debug, PartialEq, Eq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
@@ -171,7 +173,8 @@ pub struct RoleGoal {
 
 /// The predicates a goal may be. Closed: a role picks one and sets its
 /// counts. Every predicate reads facts the world save already carries: the
-/// jobs the player handed in, and the player's hull.
+/// jobs the player handed in, the player's hull, the stations the player
+/// owns with what they store, and the escorts in the player's fleet.
 ///
 /// A "ring" is one lattice step of civilizations from the world origin, read
 /// off the posting station's cell.
@@ -200,6 +203,19 @@ pub enum RoleGoalType {
     Flagship {
         /// The catalog design that sets the bar.
         hull: ShipDesignId,
+    },
+    /// Own a station whose storage holds, for every ship part family, the
+    /// full build recipe of at least one loaded section of that family: a
+    /// yard that can build a whole ship. One station must cover every
+    /// family; two half-stocked stations do not add up.
+    OwnYard,
+    /// Own `stations` stations and fly with `escorts` fleet escorts.
+    MiningEmpire {
+        /// How many stations to own, above zero.
+        stations: u32,
+        /// How many escorts to fly with, above zero and at most the fleet's
+        /// slots (`FLEET_SIDES`).
+        escorts: u32,
     },
 }
 

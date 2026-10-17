@@ -92,7 +92,7 @@ impl ShipPartFamilyType {
     ];
 
     /// The family of a section kind.
-    fn of(kind: &SectionKind) -> Option<Self> {
+    pub(crate) fn of(kind: &SectionKind) -> Option<Self> {
         Some(match kind {
             SectionKind::Hull(_) => Self::Hull,
             SectionKind::Controller(_) => Self::Controller,

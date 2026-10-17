@@ -3,7 +3,7 @@
 //! save can meet and tell apart.
 
 use nova_gameplay::prelude::GameItems;
-use nova_ship::prelude::{intake_in_dock_approach, RefitPlacedSection, SectionKind};
+use nova_ship::prelude::{intake_in_dock_approach, RefitPlacedSection, SectionKind, FLEET_SIDES};
 
 use super::{ship::check_stock, KnownSections, KnownShipDesigns, LintIssue};
 use crate::prelude::*;
@@ -21,8 +21,9 @@ use crate::prelude::*;
 ///   than the hull's hold;
 /// - the goal asks for a zero count, for more stations than jobs (a hand-in
 ///   serves one station), for more rings than posting stations or hulls (a
-///   station stands in one ring, so the save cannot show more), or names a
-///   flagship hull `designs` does not hold.
+///   station stands in one ring, so the save cannot show more), for more
+///   escorts than the fleet has slots, or names a flagship hull `designs`
+///   does not hold.
 pub fn lint_start_role(
     role: &StartRole,
     designs: &KnownShipDesigns,
@@ -69,8 +70,8 @@ pub fn lint_start_role(
 }
 
 /// Refuse a goal no save can meet or tell apart: a zero count, more stations
-/// than jobs, more rings than posting stations or hulls, a flagship hull no
-/// visible design carries.
+/// than jobs, more rings than posting stations or hulls, more escorts than
+/// fleet slots, a flagship hull no visible design carries.
 fn check_goal(
     id: &str,
     goal: &RoleGoal,
@@ -121,6 +122,19 @@ fn check_goal(
         RoleGoalType::Flagship { hull } => {
             if designs.get(hull).is_none() {
                 refuse(format!("hull '{hull}' is no known ship design"));
+            }
+        }
+        // No count to refuse: the base catalog, which every mod loads,
+        // holds a recipe-bearing section of each part family.
+        RoleGoalType::OwnYard => {}
+        RoleGoalType::MiningEmpire { stations, escorts } => {
+            above_zero(*stations, "stations");
+            above_zero(*escorts, "escorts");
+            let slots = FLEET_SIDES.len();
+            if *escorts as usize > slots {
+                refuse(format!(
+                    "asks for {escorts} escorts over the fleet's {slots} slots"
+                ));
             }
         }
     }
@@ -252,8 +266,8 @@ mod tests {
 
     /// A goal is refused by what the save cannot show: a zero count, more
     /// stations than the jobs that serve them, more rings than the posters
-    /// that stand in them, or a flagship hull no design carries. A sound goal
-    /// of each kind passes.
+    /// that stand in them, more escorts than the fleet's slots, or a
+    /// flagship hull no design carries. A sound goal of each kind passes.
     #[test]
     fn a_start_role_goal_with_a_zero_count_more_rings_than_posters_or_an_unknown_hull_is_refused() {
         let goal_errors = |kind: RoleGoalType| -> Vec<String> {
@@ -283,6 +297,12 @@ mod tests {
         assert!(goal_errors(RoleGoalType::KillList { hulls: 6, rings: 2 }).is_empty());
         assert!(goal_errors(RoleGoalType::Flagship {
             hull: "picket".into(),
+        })
+        .is_empty());
+        assert!(goal_errors(RoleGoalType::OwnYard).is_empty());
+        assert!(goal_errors(RoleGoalType::MiningEmpire {
+            stations: 2,
+            escorts: 2,
         })
         .is_empty());
 
@@ -319,6 +339,16 @@ mod tests {
         assert!(
             hulls.iter().any(|m| m.contains("2 rings over 1 hulls")),
             "{hulls:?}"
+        );
+        let escorts = goal_errors(RoleGoalType::MiningEmpire {
+            stations: 2,
+            escorts: 3,
+        });
+        assert!(
+            escorts
+                .iter()
+                .any(|m| m.contains("3 escorts over the fleet's 2 slots")),
+            "{escorts:?}"
         );
         let unknown = goal_errors(RoleGoalType::Flagship {
             hull: "no_such_hull".into(),

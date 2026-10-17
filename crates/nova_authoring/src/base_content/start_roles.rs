@@ -4,21 +4,27 @@
 //! `assets/base/roles/base.content.ron`. Each kit is worth 3,000 cr at ask:
 //! the credits plus the items at their base `ask_cr`.
 //!
-//! Goals are the roles' finite end goals over saved facts (decision 13 of
-//! `tasks/20261012-095526`). The transport and bounty hunter goals ship;
-//! the counts rest on the trade and combat job mixes (a trade board shows
-//! about two Procure or Escort offers, a combat board about one Neutralize)
-//! and on the first ring boundary at 240 km, one trip out of the start ring.
-//! TODO(20261012-100033): industrial, scavenger, military and pirate carry
-//! `None` until their goals land (owned stations, a yard, a hull above the
-//! Line Warship, a civilization outlived).
+//! Goals are the roles' finite milestones over saved facts (decision 13 of
+//! `tasks/20261012-095526`). The transport and bounty hunter counts rest on
+//! the trade and combat job mixes (a trade board shows about two Procure or
+//! Escort offers, a combat board about one Neutralize) and on the first ring
+//! boundary at 240 km, one trip out of the start ring. The scavenger's yard
+//! takes no count: one owned station stocked for every part family. The
+//! military bar is the Line Warship's recipe value, 64,300 cr, which
+//! generated Armored hulls reach about 2,000 km out. The industrial empire
+//! is two station buys and the full fleet (`FLEET_SIDES`), with no stock
+//! clause: a bought station keeps its targets and restocks on every thaw,
+//! so such a clause would read met from the buy on. A charter is a
+//! milestone, not an ending: the world plays on past it.
+//! TODO(20261012-100033): pirate carries `None` until the stance graph
+//! (`20261012-100036`) can turn a civilization Enemy.
 
 use nova_gameplay::prelude::{ItemRoleType, JobMixType, ShipInventoryStock};
 use nova_scenario::prelude::{RoleGoal, RoleGoalType, StartKit, StartRole};
 
 use super::ships::{
-    INTERCEPTOR_SHIP_ID, LIGHT_FREIGHTER_SHIP_ID, MINING_TUG_SHIP_ID, PATROL_PICKET_SHIP_ID,
-    RAIDER_SHIP_ID, SALVAGE_HAULER_SHIP_ID,
+    INTERCEPTOR_SHIP_ID, LIGHT_FREIGHTER_SHIP_ID, LINE_WARSHIP_SHIP_ID, MINING_TUG_SHIP_ID,
+    PATROL_PICKET_SHIP_ID, RAIDER_SHIP_ID, SALVAGE_HAULER_SHIP_ID,
 };
 
 /// Every shipped start role, in the order a picker lists them.
@@ -33,7 +39,13 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             2_200,
             &[(ItemRoleType::HullPlate, 15), (ItemRoleType::Rations, 25)],
             JobMixType::Trade,
-            None,
+            Some(RoleGoal {
+                title: "A mining empire".to_string(),
+                kind: RoleGoalType::MiningEmpire {
+                    stations: 2,
+                    escorts: 2,
+                },
+            }),
             "Mining crews work the rock fields for whoever buys the ore. The tug is old, but \
              it pays.",
         ),
@@ -46,7 +58,10 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             1_800,
             &[(ItemRoleType::PdcRound, 200), (ItemRoleType::HullPlate, 10)],
             JobMixType::Salvage,
-            None,
+            Some(RoleGoal {
+                title: "A yard of your own".to_string(),
+                kind: RoleGoalType::OwnYard,
+            }),
             "Every fight leaves wrecks behind. Scavengers take what still has a price.",
         ),
         role(
@@ -97,7 +112,12 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             1_600,
             &[(ItemRoleType::PdcRound, 250), (ItemRoleType::HullPlate, 10)],
             JobMixType::Combat,
-            None,
+            Some(RoleGoal {
+                title: "The Line Warship".to_string(),
+                kind: RoleGoalType::Flagship {
+                    hull: LINE_WARSHIP_SHIP_ID.into(),
+                },
+            }),
             "Patrol crews start on small pickets and earn larger hulls. Few reach a warship.",
         ),
         role(
@@ -120,7 +140,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
 }
 
 /// One role: `hull` with a kit of `credits` and `stock`, whose boards lean
-/// to `jobs`, with its end `goal` or none yet.
+/// to `jobs`, with its charter `goal` or none yet.
 #[expect(
     clippy::too_many_arguments,
     reason = "one row of the role table; every field is authored here"

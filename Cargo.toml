@@ -881,6 +881,29 @@ name = "system_role_goals"
 path = "examples/systems/system_role_goals.rs"
 required-features = ["debug"]
 
+# A scavenger's yard charter: a station bought through the Station pane and
+# stocked with one recipe per part family meets it, live and frozen, which the
+# Map and a save/load round trip preserve.
+[[example]]
+name = "system_role_goal_yard"
+path = "examples/systems/system_role_goal_yard.rs"
+required-features = ["debug"]
+
+# A military flagship charter: a hull worth the Line Warship bought through
+# the Station pane meets it, which the Map and a save/load round trip preserve.
+[[example]]
+name = "system_role_goal_flagship"
+path = "examples/systems/system_role_goal_flagship.rs"
+required-features = ["debug"]
+
+# An industrial mining empire charter: two stations bought and two escorts
+# hired through the Station pane meet it, live and frozen, which the Map and
+# a save/load round trip preserve.
+[[example]]
+name = "system_role_goal_empire"
+path = "examples/systems/system_role_goal_empire.rs"
+required-features = ["debug"]
+
 # The four located job kinds the boards post beside procurement: each range
 # shares examples/systems/shared/located_jobs.rs and walks one kind from the
 # board through the work in the world to the hand-in.

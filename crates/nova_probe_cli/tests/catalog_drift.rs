@@ -1169,6 +1169,40 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_role_goal_yard",
+        &[
+            "the yard charter opens standing with no owned station",
+            "a bought station counts as the yard with nothing stocked",
+            "stocking a recipe of every part family meets the yard and stamps the record once",
+            "a frozen yard still reads met",
+            "the map's chart view shows the yard charter met",
+            "the leave save keeps the met yard charter",
+            "a load restores the met yard charter",
+        ],
+    ),
+    (
+        "system_role_goal_flagship",
+        &[
+            "the flagship charter opens standing at the picket's value",
+            "buying a hull worth the line warship meets the flagship charter and stamps the record once",
+            "the map's chart view shows the flagship charter met",
+            "the leave save keeps the met flagship charter",
+            "a load restores the met flagship charter",
+        ],
+    ),
+    (
+        "system_role_goal_empire",
+        &[
+            "the empire charter opens standing with no station and no escort",
+            "two bought stations stand the charter at the escort line",
+            "hiring the second escort meets the empire charter and stamps the record once",
+            "a frozen station still counts toward the met empire charter",
+            "the map's chart view shows the empire charter met",
+            "the leave save keeps the met empire charter",
+            "a load restores the met empire charter",
+        ],
+    ),
+    (
         "system_job_recover",
         &[
             "a recover job is posted and accepted",
@@ -1216,7 +1250,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 603;
+const SYSTEMS_INVARIANTS: usize = 622;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

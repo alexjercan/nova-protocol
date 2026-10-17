@@ -12,7 +12,13 @@
             },
         ),
         jobs: Trade,
-        goal: None,
+        goal: Some((
+            title: "A mining empire",
+            kind: MiningEmpire(
+                stations: 2,
+                escorts: 2,
+            ),
+        )),
         lore: "Mining crews work the rock fields for whoever buys the ore. The tug is old, but it pays.",
     )),
     StartRole((
@@ -28,7 +34,10 @@
             },
         ),
         jobs: Salvage,
-        goal: None,
+        goal: Some((
+            title: "A yard of your own",
+            kind: OwnYard,
+        )),
         lore: "Every fight leaves wrecks behind. Scavengers take what still has a price.",
     )),
     StartRole((
@@ -90,7 +99,12 @@
             },
         ),
         jobs: Combat,
-        goal: None,
+        goal: Some((
+            title: "The Line Warship",
+            kind: Flagship(
+                hull: "line_warship",
+            ),
+        )),
         lore: "Patrol crews start on small pickets and earn larger hulls. Few reach a warship.",
     )),
     StartRole((

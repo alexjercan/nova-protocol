@@ -55,9 +55,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** Generated traders restock toward spawn stock by play time
   their sector stood unloaded; neutralizing a civilization's hull refuses
   your dock at its stations for 15 min of play.
-- **(breaking)** Transport and Bounty Hunter carry a charter: 8 jobs at 4
-  stations over 2 rings, or 6 hulls over 2 rings. The save stamps the play
-  time it is met. Save format 19.
+- **(breaking)** Every start role but Pirate carries a charter milestone: a
+  station network, kill list, stocked yard, Line Warship hull or mining
+  empire. The save stamps its met time. Save format 19.
 
 ### Combat & Weapons
 
@@ -184,9 +184,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** A style places greebles by `greeble_rules`: link types,
   greebles with four link points, `near` terms and caps. `placement` is gone;
   bad rules or fixtures over a cell wide fail lint.
-- **(breaking)** `StartRole` takes a `goal`: `Some` of a `StationNetwork`,
-  `KillList` or `Flagship`, or `None`. A zero count, rings past posters or an
-  unknown hull fail lint.
+- **(breaking)** `StartRole` takes a `goal`: `StationNetwork`, `KillList`,
+  `Flagship`, `OwnYard`, `MiningEmpire` or `None`. Zero counts, excess rings
+  or escorts and unknown hulls fail lint.
 
 ### Interface & HUD
 

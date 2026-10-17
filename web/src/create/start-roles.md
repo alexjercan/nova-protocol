@@ -2,7 +2,7 @@
 
 A `StartRole` is one New Game start: the catalog hull the player flies, the
 kit it starts with, a sum of credits and a hold of items, the job mix its
-station boards lean to, and its one end goal, the charter. Roles are
+station boards lean to, and its charter, one finite milestone. Roles are
 content like ships and stations. Create a new id to add a role, or reuse a
 base id to replace that role. The New Game wizard lists
 the roles in merge order.
@@ -48,7 +48,7 @@ been authored; the Map then shows no CHARTER block and nothing completes.
 | `hull` | string | the id of a [ship design](../ships/) the player starts in: a base ship id, one of your mod's own, or one from a mod you depend on |
 | `kit` | kit | what the ship starts with, see below |
 | `jobs` | `Trade`, `Salvage` or `Combat` | the job mix every station board leans to for this start, see [Jobs](../stations/#jobs) |
-| `goal` | `Some(goal)` or `None` | the role's one finite end goal, see [The goal](#the-goal) |
+| `goal` | `Some(goal)` or `None` | the role's charter, one finite milestone, see [The goal](#the-goal) |
 | `lore` | string | background text for the role |
 
 A `kit` has two fields, both required:
@@ -60,9 +60,11 @@ A `kit` has two fields, both required:
 
 ## The goal
 
-A `goal` is a charter: one finite end the role plays toward, read off the
-saved world and shown as the CHARTER block in the Map's chart view. It has
-two fields, both required:
+A `goal` is a charter: one finite milestone the role plays toward, read off
+the saved world and shown as the CHARTER block in the Map's chart view. It
+is not an ending: the world is an endless sandbox, a met charter stamps the
+save and nothing else, and there is no completion screen. It has two fields,
+both required:
 
 | field | type | meaning |
 |---|---|---|
@@ -74,19 +76,27 @@ two fields, both required:
 | `StationNetwork` | `jobs`, `stations`, `rings` | the player handed in `jobs` bring or escort jobs, posted by `stations` distinct stations that stand in `rings` distinct civilization rings |
 | `KillList` | `hulls`, `rings` | the player handed in `hulls` neutralize jobs, posted from `rings` distinct civilization rings |
 | `Flagship` | `hull` | the player's live hull is worth at least the ship design `hull` names, at the build recipes' value |
+| `OwnYard` | none | the player owns a station whose store holds, for every one of the seven ship part families (hull, controller, thruster, weapon, cargo intake, docking, mining), the full build recipe of at least one loaded section of that family |
+| `MiningEmpire` | `stations`, `escorts` | the player owns `stations` stations and flies with `escorts` hired escorts in the fleet |
 
 A civilization ring is one 240 km step out from the start: a station in a
 cell whose centre is under 240 km from the origin stands in ring 0, one
 between 240 and 480 km in ring 1, and so on. Every count is a whole number
 above zero. The base `transport` role asks for a station network of eight
 jobs at four stations over two rings; the base `bounty_hunter` asks for a
-kill list of six hulls over two rings. The base `industrial`, `scavenger`,
-`military` and `pirate` roles carry `None`.
+kill list of six hulls over two rings; the base `scavenger` asks for a yard
+(`OwnYard`); the base `military` asks for a hull worth the `line_warship`
+(`Flagship`); the base `industrial` asks for a mining empire of two stations
+and two escorts (`MiningEmpire`), the fleet's two slots. The base `pirate`
+role carries `None`.
 
-Progress is derived from the saved world each frame: the jobs you handed in
-and the hull you fly. The frame the goal is met, the save records the play
-time; the CHARTER block then reads `Met at` that time, and a Load brings it
-back. The world does not change on a met goal.
+Progress is derived from the saved world each frame: the jobs you handed in,
+the hull you fly, the stations you own with what you stored there, live or
+frozen in a sector you left, and the escorts in your fleet. A yard counts
+its best single station: two stations each stocked for some families do not
+add up. The frame the goal is met, the save records the play time; the
+CHARTER block then reads `Met at` that time, and a Load brings it back. The
+world does not change on a met goal.
 
 ## Overlay and lint
 
@@ -108,8 +118,8 @@ role that:
 - seeds a kit heavier than the hull's hold;
 - gives its `goal` a count of zero, asks for more `stations` than `jobs` (a
   hand-in serves one station) or more `rings` than `stations` or `hulls` (a
-  station stands in one ring), or names a `Flagship` `hull` no visible ship
-  design has.
+  station stands in one ring), asks for more `escorts` than the fleet's two
+  slots, or names a `Flagship` `hull` no visible ship design has.
 
 ## In the game
 

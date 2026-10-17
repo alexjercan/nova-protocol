@@ -4,13 +4,19 @@
 //! A role's goal (`RoleGoal`, content on the `StartRole`) is a predicate over
 //! facts the world save already carries: the jobs the player handed in
 //! ([`Jobs::completed`]), read by kind and by the civilization ring of the
-//! posting station's cell ([`ring_of`]), and the player's live hull, read as
-//! its sections' recipe value at ask ([`hull_price_cr`]). [`track_role_goal`]
-//! derives [`GoalProgress`] from them every frame for the Map's chart view,
-//! and stamps [`GoalRecord`] with the world clock the first frame the
-//! progress is met. The record is the one saved fact; the progress is never
-//! saved. Both clear with the chart (`chart::clear_chart`) and the record
-//! comes back on a Load.
+//! posting station's cell ([`ring_of`]); the player's live hull, read as
+//! its sections' recipe value at ask ([`hull_price_cr`]); and the stations
+//! the player owns with what they store, read live
+//! ([`OwnedStationMarker`] + [`StationStorage`]) and off the frozen ledger
+//! (`FrozenStation::owned` + `::storage`), so a yard still counts while its
+//! cell is off the window; and the escorts in the player's fleet
+//! ([`PlayerFleetMarker`]), which fly with the player and are never frozen
+//! with a cell. [`track_role_goal`] derives [`GoalProgress`]
+//! from them every frame for the Map's chart view, and stamps
+//! [`GoalRecord`] with the world clock the first frame the progress is met.
+//! The record is the one saved fact; the progress is never saved. Both
+//! clear with the chart (`chart::clear_chart`) and the record comes back on
+//! a Load.
 //!
 //! No refresh follows a met goal yet: the record is saved and shown only.
 //! TODO(20261012-100033): apply the owner's refresh at thaw.
@@ -20,16 +26,17 @@ use std::collections::BTreeSet;
 use bevy::prelude::*;
 use nova_events::prelude::Meters;
 use nova_gameplay::prelude::{
-    GameItems, GoalLine, GoalProgress, GoalRecord, Job, JobType, Jobs, PlayerSpaceshipMarker,
+    GameItems, GoalLine, GoalProgress, GoalRecord, Job, JobType, Jobs, OwnedStationMarker,
+    PlayerFleetMarker, PlayerSpaceshipMarker, StationStorage,
 };
 use nova_scenario::prelude::{
     resolve_ship_design, GameShipDesigns, GameStartRoles, OpenWorldSession, RoleGoal, RoleGoalType,
     ShipDesignId, ShipDesignSource,
 };
-use nova_ship::prelude::{hull_price_cr, GameSections, SectionBuildConfig};
-use nova_world::prelude::{WorldClock, WorldConfig};
+use nova_ship::prelude::{hull_price_cr, GameSections, SectionBuildConfig, SectionConfig};
+use nova_world::prelude::{FrozenBodyType, FrozenSectors, WorldClock, WorldConfig};
 
-use crate::{civilizations::ring_of, NovaLayeredWorld};
+use crate::{civilizations::ring_of, ship_parts::ShipPartFamilyType, NovaLayeredWorld};
 
 /// The saved facts one evaluation of a goal reads.
 pub(crate) struct GoalFacts<'a> {
@@ -42,6 +49,34 @@ pub(crate) struct GoalFacts<'a> {
     /// The goal hull's recipe value at ask. `None` for a goal that is not a
     /// `Flagship`; a `Flagship` goal with none is an assembly fault.
     pub flagship_value_cr: Option<u64>,
+    /// The storage of every station the player owns, live or frozen: one
+    /// entry per owned station.
+    pub owned_storage: &'a [&'a StationStorage],
+    /// Every loaded section, whose recipes a yard stocks by part family.
+    pub sections: &'a [SectionConfig],
+    /// How many escorts fly in the player's fleet.
+    pub escorts: u64,
+}
+
+/// How many part families `storage` can build one loaded section of: a
+/// family counts when some section of it has a recipe with parts and the
+/// store holds every part at its count. A recipe with no parts stocks
+/// nothing, so no family comes free.
+pub(crate) fn families_stocked(storage: &StationStorage, sections: &[SectionConfig]) -> u64 {
+    let stocked: BTreeSet<ShipPartFamilyType> = sections
+        .iter()
+        .filter(|section| !section.base.build.parts.is_empty())
+        .filter(|section| {
+            section
+                .base
+                .build
+                .parts
+                .iter()
+                .all(|(item, count)| storage.count(item) >= *count)
+        })
+        .filter_map(|section| ShipPartFamilyType::of(&section.kind))
+        .collect();
+    stocked.len() as u64
 }
 
 /// The progress of `goal` over `facts`: one `have / need` line per count
@@ -49,7 +84,8 @@ pub(crate) struct GoalFacts<'a> {
 ///
 /// A trade job is a Procure or an Escort; a kill is a Neutralize. A job
 /// counts toward the stations and rings of its kind only, by its poster's id
-/// and its poster's cell.
+/// and its poster's cell. A yard's families are the best single owned
+/// station's ([`families_stocked`]): two half-stocked stations do not add up.
 ///
 /// # Panics
 ///
@@ -97,6 +133,30 @@ pub(crate) fn goal_progress(goal: &RoleGoal, facts: &GoalFacts<'_>) -> GoalProgr
             });
             vec![GoalLine::new("Hull value, cr", facts.hull_value_cr, need)]
         }
+        RoleGoalType::OwnYard => {
+            let families = facts
+                .owned_storage
+                .iter()
+                .map(|storage| families_stocked(storage, facts.sections))
+                .max()
+                .unwrap_or(0);
+            vec![
+                GoalLine::new("Stations owned", facts.owned_storage.len() as u64, 1),
+                GoalLine::new(
+                    "Part families stocked",
+                    families,
+                    ShipPartFamilyType::ALL.len() as u64,
+                ),
+            ]
+        }
+        RoleGoalType::MiningEmpire { stations, escorts } => vec![
+            GoalLine::new(
+                "Stations owned",
+                facts.owned_storage.len() as u64,
+                u64::from(*stations),
+            ),
+            GoalLine::new("Escorts in fleet", facts.escorts, u64::from(*escorts)),
+        ],
     };
     GoalProgress {
         title: goal.title.clone(),
@@ -104,21 +164,25 @@ pub(crate) fn goal_progress(goal: &RoleGoal, facts: &GoalFacts<'_>) -> GoalProgr
     }
 }
 
-/// Derive the session role's goal progress from the completed jobs and the
-/// player's hull every frame, and stamp the record once when it is met.
+/// Derive the session role's goal progress from the completed jobs, the
+/// player's hull, the player's owned stations and the player's fleet every
+/// frame, and stamp the record once when it is met.
 ///
 /// No session, a role the catalog does not hold or a role with no goal: the
 /// progress is empty and the record is left as it is. A `Flagship` goal
-/// values its hull once per hull id, off the loaded catalog.
+/// values its hull once per hull id, off the loaded catalog. An `OwnYard` or
+/// `MiningEmpire` goal reads every owned station, live and frozen; the yard
+/// reads them against the loaded sections' recipes.
 ///
 /// # Panics
 ///
 /// A `Flagship` goal with no [`GameShipDesigns`] or [`GameSections`] on
-/// hand, or naming a design the catalog does not hold: the lint refuses the
-/// id, so this is an assembly fault.
+/// hand, or naming a design the catalog does not hold, or an `OwnYard` goal
+/// with no [`GameSections`]: the lint refuses the id, so this is an assembly
+/// fault.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one system reading the session, the roles, the jobs, the world's edge, the catalog, the clock and the player's hull"
+    reason = "one system reading the session, the roles, the jobs, the world's edge, the catalog, the clock, the player's hull, the owned stations and the fleet"
 )]
 pub(crate) fn track_role_goal(
     session: Option<Res<OpenWorldSession>>,
@@ -131,6 +195,9 @@ pub(crate) fn track_role_goal(
     clock: Res<WorldClock>,
     player: Query<&Children, With<PlayerSpaceshipMarker>>,
     q_sections: Query<&SectionBuildConfig>,
+    owned: Query<&StationStorage, With<OwnedStationMarker>>,
+    frozen: Res<FrozenSectors>,
+    fleet: Query<(), With<PlayerFleetMarker>>,
     mut progress: ResMut<GoalProgress>,
     mut record: ResMut<GoalRecord>,
     mut flagship: Local<Option<(ShipDesignId, u64)>>,
@@ -183,7 +250,37 @@ pub(crate) fn track_role_goal(
             }
             flagship.as_ref().map(|(_, value)| *value)
         }
-        RoleGoalType::StationNetwork { .. } | RoleGoalType::KillList { .. } => None,
+        RoleGoalType::StationNetwork { .. }
+        | RoleGoalType::KillList { .. }
+        | RoleGoalType::OwnYard
+        | RoleGoalType::MiningEmpire { .. } => None,
+    };
+    let owned_storage: Vec<&StationStorage> = match &goal.kind {
+        RoleGoalType::OwnYard | RoleGoalType::MiningEmpire { .. } => {
+            let frozen_owned = frozen
+                .iter()
+                .flat_map(|(_, sector)| sector.bodies())
+                .filter_map(|body| match body.body() {
+                    FrozenBodyType::Station(station) if station.owned() => Some(station.storage()),
+                    _ => None,
+                });
+            owned.iter().chain(frozen_owned).collect()
+        }
+        RoleGoalType::StationNetwork { .. }
+        | RoleGoalType::KillList { .. }
+        | RoleGoalType::Flagship { .. } => Vec::new(),
+    };
+    let catalog: &[SectionConfig] = match &goal.kind {
+        RoleGoalType::OwnYard => {
+            let Some(sections) = sections.as_deref() else {
+                panic!("track_role_goal: an OwnYard goal needs the loaded section catalog");
+            };
+            &sections.0
+        }
+        RoleGoalType::StationNetwork { .. }
+        | RoleGoalType::KillList { .. }
+        | RoleGoalType::Flagship { .. }
+        | RoleGoalType::MiningEmpire { .. } => &[],
     };
     let next = goal_progress(
         goal,
@@ -192,6 +289,9 @@ pub(crate) fn track_role_goal(
             sector_edge: config.sector_edge,
             hull_value_cr,
             flagship_value_cr,
+            owned_storage: &owned_storage,
+            sections: catalog,
+            escorts: fleet.iter().count() as u64,
         },
     );
     if next.is_met() && !record.is_met() {
@@ -208,8 +308,11 @@ pub(crate) fn track_role_goal(
 
 #[cfg(test)]
 mod tests {
-    use nova_events::prelude::{GeneratedBodyId, SectorCoord};
-    use nova_gameplay::prelude::JobId;
+    use nova_events::prelude::{GeneratedBodyId, MetersPerSecond, SectorCoord};
+    use nova_gameplay::prelude::{BuildRecipe, ItemCategoryType, ItemDesign, ItemDesignId, JobId};
+    use nova_ship::prelude::{
+        BaseSectionConfig, CargoIntakeSectionConfig, MiningSectionConfig, SectionKind,
+    };
 
     use super::*;
 
@@ -251,6 +354,9 @@ mod tests {
             sector_edge: EDGE,
             hull_value_cr: 0,
             flagship_value_cr: None,
+            owned_storage: &[],
+            sections: &[],
+            escorts: 0,
         }
     }
 
@@ -353,6 +459,227 @@ mod tests {
         assert!(progress.is_met());
     }
 
+    /// A section of `kind` whose recipe takes `parts`.
+    fn section(kind: SectionKind, parts: &[(&str, u32)]) -> SectionConfig {
+        SectionConfig {
+            base: BaseSectionConfig {
+                id: format!("{kind:?}"),
+                build: BuildRecipe {
+                    credits: 10,
+                    parts: parts
+                        .iter()
+                        .map(|&(item, count)| (ItemDesignId::from(item), count))
+                        .collect(),
+                    strip_yield: 0.5,
+                },
+                ..default()
+            },
+            kind,
+        }
+    }
+
+    /// One section per family: six take parts, the mining beam takes none.
+    fn catalog() -> Vec<SectionConfig> {
+        vec![
+            section(SectionKind::Hull(default()), &[("SectionPanel", 2)]),
+            section(SectionKind::Controller(default()), &[("FlightCore", 1)]),
+            section(SectionKind::Thruster(default()), &[("DriveBell", 1)]),
+            section(
+                SectionKind::Turret(default()),
+                &[("TurretBody", 1), ("TurretBarrel", 1)],
+            ),
+            section(
+                SectionKind::CargoIntake(CargoIntakeSectionConfig {
+                    render_mesh: default(),
+                    render_mesh_transform: None,
+                    canister_mesh: default(),
+                    door_sound: default(),
+                    eject_sound: default(),
+                    take_sound: default(),
+                    detection_range: Meters(50.0),
+                    capture_gap: Meters(5.0),
+                    aperture_width: Meters(4.0),
+                    aperture_height: Meters(4.0),
+                    eject_speed: MetersPerSecond(5.0),
+                }),
+                &[("FrameSpar", 1)],
+            ),
+            section(SectionKind::Docking(default()), &[("DockingCollar", 1)]),
+            section(
+                SectionKind::Mining(MiningSectionConfig {
+                    render_mesh: default(),
+                    render_mesh_transform: None,
+                    pulse_sound: default(),
+                    refusal_sound: default(),
+                    door_open_sound: default(),
+                    door_close_sound: default(),
+                    reach: Meters(100.0),
+                    pulse_interval_seconds: 1.0,
+                    carve_radius_cells: 1.5,
+                }),
+                &[],
+            ),
+        ]
+    }
+
+    fn items() -> GameItems {
+        GameItems::new(
+            [
+                "SectionPanel",
+                "FlightCore",
+                "DriveBell",
+                "TurretBody",
+                "TurretBarrel",
+                "FrameSpar",
+                "DockingCollar",
+                "CapacitorBank",
+            ]
+            .into_iter()
+            .map(|id| ItemDesign {
+                id: id.into(),
+                name: id.to_string(),
+                about: String::new(),
+                category: ItemCategoryType::Parts,
+                mass_g: 1_000,
+                ask_cr: 10,
+                bid_cr: 5,
+            }),
+        )
+    }
+
+    fn storage(stock: &[(&str, u32)]) -> StationStorage {
+        let items = items();
+        let mut storage = StationStorage::new(1_000_000);
+        for &(item, count) in stock {
+            storage.add(&items, &item.into(), count);
+        }
+        storage
+    }
+
+    fn yard() -> RoleGoal {
+        RoleGoal {
+            title: "A yard of your own".to_string(),
+            kind: RoleGoalType::OwnYard,
+        }
+    }
+
+    fn yard_facts<'a>(
+        owned_storage: &'a [&'a StationStorage],
+        sections: &'a [SectionConfig],
+    ) -> GoalFacts<'a> {
+        GoalFacts {
+            completed: &[],
+            sector_edge: EDGE,
+            hull_value_cr: 0,
+            flagship_value_cr: None,
+            owned_storage,
+            sections,
+            escorts: 0,
+        }
+    }
+
+    /// No station and no escort reads 0 / 2 twice; two stations with one
+    /// escort stand; two of each is met; a third station over the count
+    /// still reads met.
+    #[test]
+    fn a_mining_empire_counts_owned_stations_and_fleet_escorts_and_meets_at_both_counts() {
+        let goal = RoleGoal {
+            title: "A mining empire".to_string(),
+            kind: RoleGoalType::MiningEmpire {
+                stations: 2,
+                escorts: 2,
+            },
+        };
+        let empire = |owned: &[&StationStorage], escorts: u64| {
+            goal_progress(
+                &goal,
+                &GoalFacts {
+                    escorts,
+                    ..yard_facts(owned, &[])
+                },
+            )
+        };
+        let progress = empire(&[], 0);
+        assert_eq!(progress.title, "A mining empire");
+        assert_eq!(haves(&progress), [0, 0]);
+        assert_eq!(
+            progress
+                .lines
+                .iter()
+                .map(|line| line.need)
+                .collect::<Vec<_>>(),
+            [2, 2]
+        );
+        assert!(!progress.is_met());
+
+        let a = storage(&[]);
+        let b = storage(&[("SectionPanel", 1)]);
+        let progress = empire(&[&a, &b], 1);
+        assert_eq!(haves(&progress), [2, 1]);
+        assert!(!progress.is_met());
+
+        assert!(empire(&[&a, &b], 2).is_met());
+        let progress = empire(&[&a, &b, &a], 2);
+        assert_eq!(haves(&progress), [3, 2]);
+        assert!(progress.is_met());
+    }
+
+    /// No owned station reads 0 / 1 and 0 / 7; a station one part short of
+    /// the turret recipe reads 1 / 1 and 5 / 7 (the mining beam's empty
+    /// recipe stocks nothing); two stations each stocking part of the
+    /// catalog do not add up; one station stocking a part-bearing section
+    /// of every family, with a mining recipe to stock, is met.
+    #[test]
+    fn a_yard_counts_the_best_owned_station_s_stocked_families_and_meets_at_all_seven() {
+        let goal = yard();
+        let catalog = catalog();
+        let progress = goal_progress(&goal, &yard_facts(&[], &catalog));
+        assert_eq!(progress.title, "A yard of your own");
+        assert_eq!(haves(&progress), [0, 0]);
+        assert_eq!(
+            progress
+                .lines
+                .iter()
+                .map(|line| line.need)
+                .collect::<Vec<_>>(),
+            [1, 7]
+        );
+        assert!(!progress.is_met());
+
+        let short = storage(&[
+            ("SectionPanel", 2),
+            ("FlightCore", 1),
+            ("DriveBell", 1),
+            ("TurretBody", 1),
+            ("FrameSpar", 1),
+            ("DockingCollar", 1),
+        ]);
+        let progress = goal_progress(&goal, &yard_facts(&[&short], &catalog));
+        assert_eq!(haves(&progress), [1, 5]);
+        assert!(!progress.is_met());
+
+        let barrel = storage(&[("TurretBarrel", 1), ("TurretBody", 1)]);
+        let progress = goal_progress(&goal, &yard_facts(&[&short, &barrel], &catalog));
+        assert_eq!(haves(&progress), [2, 5], "two stations do not add up");
+        assert!(!progress.is_met());
+
+        let mut stocked = catalog.clone();
+        stocked[6].base.build.parts = [(ItemDesignId::from("CapacitorBank"), 2)].into();
+        let full = storage(&[
+            ("SectionPanel", 2),
+            ("FlightCore", 1),
+            ("DriveBell", 1),
+            ("TurretBody", 1),
+            ("TurretBarrel", 1),
+            ("FrameSpar", 1),
+            ("DockingCollar", 1),
+            ("CapacitorBank", 2),
+        ]);
+        let progress = goal_progress(&goal, &yard_facts(&[&short, &full], &stocked));
+        assert_eq!(haves(&progress), [2, 7]);
+        assert!(progress.is_met());
+    }
+
     /// The flagship line reads the hull's value against the design's: one
     /// credit under stands, equal is met.
     #[test]
@@ -368,6 +695,9 @@ mod tests {
             sector_edge: EDGE,
             hull_value_cr: 9_999,
             flagship_value_cr: Some(10_000),
+            owned_storage: &[],
+            sections: &[],
+            escorts: 0,
         };
         let progress = goal_progress(&goal, &short);
         assert_eq!(haves(&progress), [9_999]);

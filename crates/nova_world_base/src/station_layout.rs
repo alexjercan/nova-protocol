@@ -115,7 +115,7 @@ const GOODS: [(ItemRoleType, f32); 4] = [
 
 /// The grams a station stores for the ships that dock with it, at
 /// advancement 0 and at advancement 1.
-const STORAGE_CAP_G: (f32, f32) = (100_000.0, 400_000.0);
+const STORAGE_CAP_G: (f32, f32) = (1_000_000.0, 4_000_000.0);
 
 /// The credits a station trades with at spawn, at advancement 0 and at
 /// advancement 1.

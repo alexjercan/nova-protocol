@@ -401,7 +401,7 @@ every cell.
 | clearance radius, at most | 100 m | 300 m |
 | docking ports, `2 + floor(6a)` | 2 | 8 |
 | turrets, `4 + floor(12a)` | 4 | 16 |
-| storage cap | 100 kg | 400 kg |
+| storage cap | 1 t | 4 t |
 | credits | 10000 | 40000 |
 | opening stock, share of the hold | 4% | 8% |
 
