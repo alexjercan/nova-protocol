@@ -631,6 +631,25 @@ pub const WARES: [Ware; 8] = [
     },
 ];
 
+/// What the docked station's storage holds per ware, in `WARES` order.
+pub const STORAGE: [u32; 8] = [1, 0, 0, 10, 0, 0, 0, 0];
+/// The station's storage cap, in kg.
+pub const STORAGE_CAP_KG: u32 = 4_000;
+
+/// One own ship's hold the storage column lists under the station's
+/// storage: its name, its cap in kg, and its stacks as `(ware, qty)`.
+pub struct OwnHold {
+    pub ship: &'static str,
+    pub cap_kg: u32,
+    pub stacks: &'static [(usize, u32)],
+}
+
+pub const OWN_HOLDS: [OwnHold; 1] = [OwnHold {
+    ship: "Vane hauler",
+    cap_kg: 20_000,
+    stacks: &[(2, 3), (5, 2)],
+}];
+
 /// Signed percent of `price` against `reference`.
 pub fn delta_percent(price: u32, reference: u32) -> i32 {
     let delta = price as i64 - reference as i64;
@@ -645,10 +664,19 @@ pub enum Hull {
 }
 
 impl Hull {
-    pub fn name(self) -> &'static str {
+    /// The catalog name the role step's hull line shows.
+    pub fn display(self) -> &'static str {
         match self {
-            Hull::Cargoa => "cargoa",
-            Hull::Racer => "racer",
+            Hull::Cargoa => "Cargoa corvette",
+            Hull::Racer => "Racer yacht",
+        }
+    }
+
+    /// The hull's length for the hull line, in metres.
+    pub fn length_m(self) -> u32 {
+        match self {
+            Hull::Cargoa => 70,
+            Hull::Racer => 50,
         }
     }
 }
@@ -656,7 +684,6 @@ impl Hull {
 /// A start role of the mock New Game: the shared first milestone, then its
 /// own line, credits and kit.
 pub struct RoleCard {
-    pub id: &'static str,
     pub name: &'static str,
     pub hull: Hull,
     pub then: &'static str,
@@ -671,7 +698,6 @@ pub const FIRST_MILESTONE: &str = "Own a station";
 
 pub const ROLES: [RoleCard; 6] = [
     RoleCard {
-        id: "industrial",
         name: "Industrial",
         hull: Hull::Cargoa,
         then: "then a mining fleet",
@@ -681,7 +707,6 @@ pub const ROLES: [RoleCard; 6] = [
         icon: IconType::Raw,
     },
     RoleCard {
-        id: "scavenger",
         name: "Scavenger",
         hull: Hull::Cargoa,
         then: "then a stocked yard",
@@ -691,7 +716,6 @@ pub const ROLES: [RoleCard; 6] = [
         icon: IconType::Recover,
     },
     RoleCard {
-        id: "transport",
         name: "Transport",
         hull: Hull::Cargoa,
         then: "then a trade route",
@@ -701,7 +725,6 @@ pub const ROLES: [RoleCard; 6] = [
         icon: IconType::Bring,
     },
     RoleCard {
-        id: "bounty_hunter",
         name: "Bounty hunter",
         hull: Hull::Cargoa,
         then: "then a kill list",
@@ -711,7 +734,6 @@ pub const ROLES: [RoleCard; 6] = [
         icon: IconType::Neutralize,
     },
     RoleCard {
-        id: "military",
         name: "Military",
         hull: Hull::Cargoa,
         then: "then clear a ring of raiders",
@@ -721,7 +743,6 @@ pub const ROLES: [RoleCard; 6] = [
         icon: IconType::Escort,
     },
     RoleCard {
-        id: "pirate",
         name: "Pirate",
         hull: Hull::Racer,
         then: "then outlive a civilization",
@@ -740,12 +761,24 @@ pub struct SaveObjective {
     pub need: u32,
 }
 
-/// One saved world on the mock Load page.
+impl SaveObjective {
+    /// Still to do: an unmet milestone or a held job.
+    pub fn open(&self) -> bool {
+        self.have < self.need
+    }
+}
+
+/// One saved world on the mock Load page. The fleet counts are what the save
+/// holds beside the player's own hull; the details list only the ones above
+/// zero.
 pub struct SaveCard {
     pub world: &'static str,
     pub role: usize,
+    pub hull: Hull,
+    pub owned_ships: u32,
+    pub escorts: u32,
+    pub owned_stations: u32,
     pub objectives: &'static [SaveObjective],
-    pub jobs_held: u32,
     pub play_time: &'static str,
     pub saved_rel: &'static str,
     pub saved_at: &'static str,
@@ -757,12 +790,23 @@ pub struct SaveCard {
     pub explored: u32,
 }
 
+impl SaveCard {
+    /// How many objectives are still open.
+    pub fn open_count(&self) -> usize {
+        self.objectives.iter().filter(|o| o.open()).count()
+    }
+}
+
 pub const RUNNING_VERSION: &str = "v0.14.0";
 
 pub const SAVES: [SaveCard; 4] = [
     SaveCard {
         world: "Dust Gate run",
         role: 2,
+        hull: Hull::Cargoa,
+        owned_ships: 0,
+        escorts: 2,
+        owned_stations: 1,
         objectives: &[
             SaveObjective {
                 icon: IconType::Milestone,
@@ -777,7 +821,6 @@ pub const SAVES: [SaveCard; 4] = [
                 need: 3,
             },
         ],
-        jobs_held: 1,
         play_time: "02:14:07",
         saved_rel: "2 h ago",
         saved_at: "2026-10-17 09:41",
@@ -790,6 +833,10 @@ pub const SAVES: [SaveCard; 4] = [
     SaveCard {
         world: "Second yard",
         role: 1,
+        hull: Hull::Cargoa,
+        owned_ships: 0,
+        escorts: 0,
+        owned_stations: 0,
         objectives: &[
             SaveObjective {
                 icon: IconType::Milestone,
@@ -810,7 +857,6 @@ pub const SAVES: [SaveCard; 4] = [
                 need: 1,
             },
         ],
-        jobs_held: 2,
         play_time: "00:48:22",
         saved_rel: "yesterday",
         saved_at: "2026-10-16 22:05",
@@ -823,13 +869,16 @@ pub const SAVES: [SaveCard; 4] = [
     SaveCard {
         world: "Line",
         role: 4,
+        hull: Hull::Cargoa,
+        owned_ships: 3,
+        escorts: 0,
+        owned_stations: 1,
         objectives: &[SaveObjective {
             icon: IconType::Milestone,
             title: "Own a station",
             have: 1,
             need: 1,
         }],
-        jobs_held: 0,
         play_time: "05:30:51",
         saved_rel: "3 d ago",
         saved_at: "2026-10-14 18:12",
@@ -842,6 +891,10 @@ pub const SAVES: [SaveCard; 4] = [
     SaveCard {
         world: "Empire",
         role: 0,
+        hull: Hull::Racer,
+        owned_ships: 2,
+        escorts: 1,
+        owned_stations: 2,
         objectives: &[
             SaveObjective {
                 icon: IconType::Milestone,
@@ -856,7 +909,6 @@ pub const SAVES: [SaveCard; 4] = [
                 need: 1,
             },
         ],
-        jobs_held: 1,
         play_time: "01:05:00",
         saved_rel: "1 w ago",
         saved_at: "2026-10-10 11:00",

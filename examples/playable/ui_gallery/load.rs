@@ -1,6 +1,6 @@
 //! The Load page: the main menu's LOAD panel. The saved worlds sort by last
 //! played with Continue at the top; the details at the right preview the
-//! save's chart in 3D and list its objectives.
+//! save's chart in 3D, list the fleet it holds and its open objectives.
 
 use bevy::prelude::*;
 use nova_ui::{prelude::*, theme::UiColor};
@@ -10,7 +10,8 @@ use crate::{
     chrome::*,
     data::{hash, thousands, Content, SaveCard, StationKind, ROLES, RUNNING_VERSION, SAVES},
     icons::{icon, GalleryIcons},
-    Click, LoadState, CONTINUE, LOAD_DELETE, LOAD_LOAD, LOAD_PREVIEW, SAVE_ROW_PREFIX,
+    Click, LoadState, CONTINUE, FLEET_ESCORTS, FLEET_OWNED_SHIPS, FLEET_OWNED_STATIONS, FLEET_SHIP,
+    LOAD_DELETE, LOAD_LOAD, LOAD_PREVIEW, NO_OPEN_OBJECTIVES, SAVE_ROW_PREFIX,
 };
 
 /// A seeded chart around a start cell: every cell within `core` visited,
@@ -99,13 +100,12 @@ fn save_view(save: &SaveCard) -> ChartView {
     seeded_view(save.seed, 0, save.explored, 2, "YOU")
 }
 
-fn objectives_summary(save: &SaveCard) -> String {
-    let jobs = match save.jobs_held {
-        0 => "no job held".to_string(),
-        1 => "1 job held".to_string(),
-        n => format!("{n} jobs held"),
-    };
-    format!("{} objectives, {jobs}", save.objectives.len())
+/// The row's objectives cell: how many are still open.
+fn open_summary(save: &SaveCard) -> String {
+    match save.open_count() {
+        0 => "none open".to_string(),
+        n => format!("{n} open"),
+    }
 }
 
 pub fn load_page(
@@ -145,7 +145,7 @@ pub fn load_page(
                         (0.0, "World"),
                         (90.0, "Play time"),
                         (90.0, "Saved"),
-                        (0.0, "Objectives"),
+                        (0.0, "Open"),
                     ],
                 );
                 for (i, save) in SAVES.iter().enumerate() {
@@ -161,7 +161,7 @@ pub fn load_page(
                         r.spawn(grow_cell(save.world, 13.0, UiColor::Primary));
                         r.spawn(cell(90.0, save.play_time, 12.0, UiColor::Body, false));
                         r.spawn(cell(90.0, save.saved_rel, 12.0, UiColor::Body, false));
-                        r.spawn(grow_cell(&objectives_summary(save), 12.0, UiColor::Label));
+                        r.spawn(grow_cell(&open_summary(save), 12.0, UiColor::Label));
                     });
                 }
             });
@@ -219,7 +219,6 @@ fn details(
         11.0,
         UiColor::Label,
     ));
-    kv(side, "Role", role.name);
     kv(side, "Seed", &save.seed.to_string());
     kv(side, "Sector", save.sector);
     kv(side, "Credits", &format!("{} cr", thousands(save.credits)));
@@ -230,8 +229,22 @@ fn details(
         &format!("{} ({})", save.saved_at, save.saved_rel),
     );
     side.spawn(divider());
-    section(side, "Objectives");
-    for objective in save.objectives {
+    section(side, "Fleet");
+    fleet_line(side, FLEET_SHIP, "Ship", save.hull.display());
+    for (name, label, n) in [
+        (FLEET_OWNED_SHIPS, "Owned ships", save.owned_ships),
+        (FLEET_ESCORTS, "Escorts", save.escorts),
+        (FLEET_OWNED_STATIONS, "Owned stations", save.owned_stations),
+    ] {
+        if n > 0 {
+            fleet_line(side, name, label, &n.to_string());
+        }
+    }
+    side.spawn(divider());
+    section(side, "Open objectives");
+    let mut any = false;
+    for objective in save.objectives.iter().filter(|o| o.open()) {
+        any = true;
         side.spawn(Node {
             column_gap: px(8),
             ..control_row(JustifyContent::FlexStart)
@@ -239,16 +252,18 @@ fn details(
         .with_children(|r| {
             r.spawn(icon(icons, objective.icon, 16.0));
             r.spawn(grow_cell(objective.title, 13.0, UiColor::Primary));
-            if objective.have >= objective.need {
-                r.spawn(tag(BadgeKind::Green, "MET"));
-            } else {
-                r.spawn(text(
-                    &format!("{} / {}", objective.have, objective.need),
-                    12.0,
-                    UiColor::Body,
-                ));
-            }
+            r.spawn(text(
+                &format!("{} / {}", objective.have, objective.need),
+                12.0,
+                UiColor::Body,
+            ));
         });
+    }
+    if !any {
+        side.spawn((
+            Name::new(NO_OPEN_OBJECTIVES),
+            text("No open objectives", 12.0, UiColor::Label),
+        ));
     }
     side.spawn(Node {
         flex_grow: 1.0,
@@ -265,4 +280,20 @@ fn details(
                 button(ButtonSpec::new("Delete").fit().danger()),
             ));
         });
+}
+
+/// One named `label  value` line of the FLEET block, so the smoke can see
+/// which lines a save shows.
+fn fleet_line(side: &mut ChildSpawnerCommands, name: &str, label: &str, value: &str) {
+    side.spawn((
+        Name::new(name.to_string()),
+        Node {
+            column_gap: px(8),
+            ..control_row(JustifyContent::FlexStart)
+        },
+    ))
+    .with_children(|r| {
+        r.spawn(cell(84.0, label, 12.0, UiColor::Label, false));
+        r.spawn(grow_cell(value, 13.0, UiColor::Primary));
+    });
 }

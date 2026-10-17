@@ -117,3 +117,25 @@ button per row. Ideas, cheapest first, all on widgets `nova_ui` already has:
   player's ship begins docked at it. That station is "the starting station":
   only it posts the class-specific starter jobs; every other station posts
   normal jobs. See the wizard epic `20261012-100008` for the placement side.
+
+## Owner feedback 2026-10-17 (round 3) and next up in the game
+- Jobs get their own interface pane: undocked shows only the assigned jobs;
+  docked adds the jobs available to take. The current job kinds are a proof
+  of concept; the owner has plans for them, do not get attached.
+- Next up (game changes this epic owns):
+  - `InterfacePaneType::Jobs` in `crates/nova_interface/src/pane.rs`, always
+    available; move the lists out of `station/jobs.rs` into a `jobs` pane:
+    "Your jobs" undocked and docked, "Jobs posted here" docked only; the
+    Station pane keeps the rest. Update `next_interface_pane`, the tab bar,
+    the footer key hints, `wiki/interface.md` and `wiki/keybinds.md`.
+  - Rows as the gallery shows: kind icon | title | reward | target sector and
+    distance | time-left meter | Accept; expired offers are not listed; held
+    rows carry a `have / need` meter, HAND IN HERE or "hand in at X", a greyed
+    Hand in with the refusal as a tooltip; an inspector with the task text,
+    poster, target, hand-in station, reward and Show on Map.
+  - Job-kind icons as procedural masks in `crates/nova_interface/src/icons.rs`.
+  - Starter-station gating: only the starting station (see the owner idea
+    above and the wizard epic) posts gated jobs; rule to decide: class plus
+    timer plus radius (owner) or hull capability (agent suggestion).
+  - The three jobs review bugs (`20261017-202136`, `-202139`, `-202141`)
+    land first.

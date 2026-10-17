@@ -73,3 +73,19 @@ player reads them as sentences or not at all. Ideas:
 - Add the percentages: what the station pays most for and what is most
   expensive against the reference, a few computed figures, not prose.
 - Make the mock look like the real pane, not a new layout.
+
+## Owner feedback 2026-10-17 (round 3) and next up in the game
+- The Inventory pane keeps its three columns (Tender, Trader, Storage) and
+  its inspector. What the game takes from the gallery is the computed
+  figures: percentages against the reference and the market summary.
+- Next up (game changes this epic owns):
+  - `crates/nova_interface/src/inventory/app.rs`: a "vs ref" column on the
+    own and partner tables (bid or ask against the item's reference price,
+    green under, amber over); Reference / Pays / Asks lines in the inspector;
+    Buy all and Sell all beside Buy and Sell; a Market strip under the
+    columns: pays most, sells cheapest (top three each, computed in
+    `crates/nova_gameplay/src/market.rs` from the price table), the restock
+    line with a stock-against-target meter, the REFUSED badge with time left
+    while the civilization refuses; the play clock in the pane header.
+  - The two economy review bugs (`20261017-202144`, `-202147`) land first,
+    after the stance lane's `economy.rs` edits.

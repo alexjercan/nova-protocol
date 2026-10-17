@@ -234,22 +234,27 @@ pub fn side_panel_wide(share: f32, overflow: Overflow) -> impl Bundle {
     )
 }
 
+/// The node of a [`column_panel`]: an equal share of the row.
+pub fn column_panel_node() -> Node {
+    Node {
+        flex_grow: 1.0,
+        flex_basis: px(0),
+        min_width: px(0),
+        min_height: px(0),
+        flex_direction: FlexDirection::Column,
+        row_gap: px(4),
+        padding: UiRect::all(px(8)),
+        border: UiRect::all(px(1)),
+        border_radius: BorderRadius::all(px(4)),
+        overflow: Overflow::clip(),
+        ..default()
+    }
+}
+
 /// A column panel inside a pane: the inventory column's paint.
 pub fn column_panel() -> impl Bundle {
     (
-        Node {
-            flex_grow: 1.0,
-            flex_basis: px(0),
-            min_width: px(0),
-            min_height: px(0),
-            flex_direction: FlexDirection::Column,
-            row_gap: px(4),
-            padding: UiRect::all(px(8)),
-            border: UiRect::all(px(1)),
-            border_radius: BorderRadius::all(px(4)),
-            overflow: Overflow::clip(),
-            ..default()
-        },
+        column_panel_node(),
         BackgroundColor(Color::NONE),
         BorderColor::all(Color::NONE),
         ThemedBorder::alpha(UiColor::Secondary, 0.35),

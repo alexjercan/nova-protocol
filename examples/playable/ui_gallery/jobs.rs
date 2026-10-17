@@ -89,6 +89,11 @@ fn board_panel(
                     }
                 });
             });
+        panel.spawn(text(
+            "Job kinds are a proof of concept; the set changes.",
+            11.0,
+            UiColor::Label,
+        ));
         if tier == BoardTier::Starter {
             panel.spawn(text(STARTER_NOTE, 12.0, UiColor::Body));
         }

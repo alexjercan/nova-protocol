@@ -1,6 +1,7 @@
 //! The gallery's 3D scenes: one reusable chart scene (the Chart page, the
-//! Load preview and the New Game seed preview) and the small spinning hull
-//! viewports of the role cards.
+//! Load preview and the New Game seed preview), the spinning hull viewport
+//! of the role step, and the menu backdrop of drifting rocks behind the New
+//! Game modal.
 //!
 //! Each scene renders through its own `Camera3d` into an image that a UI
 //! `ImageNode` shows, sized 1:1 to the node each frame, exactly as the game's
@@ -71,6 +72,7 @@ pub enum SceneKind {
     Chart,
     LoadPreview,
     NewGamePreview,
+    Backdrop,
     Hull(usize),
 }
 
@@ -80,7 +82,8 @@ impl SceneKind {
             SceneKind::Chart => 0,
             SceneKind::LoadPreview => 1,
             SceneKind::NewGamePreview => 2,
-            SceneKind::Hull(i) => 3 + i,
+            SceneKind::Backdrop => 3,
+            SceneKind::Hull(i) => 4 + i,
         }
     }
 
@@ -415,13 +418,19 @@ pub struct ChartScene {
     clicks: bool,
 }
 
-/// A hull viewport node.
+/// A hull viewport node: which role's hull it shows.
 #[derive(Component)]
-pub struct HullScene;
+pub struct HullScene {
+    #[cfg_attr(
+        not(feature = "debug"),
+        expect(dead_code, reason = "the smoke reads which role the viewport shows")
+    )]
+    pub role: usize,
+}
 
-/// A hull scene root that spins.
+/// A scene root that turns about Y at a rate in radians per second.
 #[derive(Component)]
-pub struct HullSpin;
+pub struct HullSpin(pub f32);
 
 /// One projected label over a viewport.
 #[derive(Component)]
@@ -1120,18 +1129,20 @@ pub fn project_chart_labels(
 // ---------------------------------------------------------------------------
 
 /// Spawn a hull viewport under `parent`: a lit, slowly spinning silhouette
-/// of a few cuboids standing in for the real hull preview.
+/// of a few cuboids standing in for the real hull preview of role `index`.
 pub fn spawn_hull_scene(
     parent: &mut ChildSpawnerCommands,
     assets: &mut SceneAssets,
     index: usize,
     hull: Hull,
     node: Node,
+    name: &str,
 ) {
     let kind = SceneKind::Hull(index);
     let image = render_target(&mut assets.images);
     let node_entity = parent
         .spawn((
+            Name::new(name.to_string()),
             Node {
                 overflow: Overflow::clip(),
                 ..node
@@ -1145,7 +1156,7 @@ pub fn spawn_hull_scene(
     let layer = RenderLayers::layer(kind.layer());
     let root = commands
         .spawn((
-            HullSpin,
+            HullSpin(0.45),
             Transform::from_rotation(Quat::from_rotation_y(index as f32 * 0.9)),
             Visibility::Visible,
         ))
@@ -1267,7 +1278,7 @@ pub fn spawn_hull_scene(
         ));
     }
     commands.entity(node_entity).insert((
-        HullScene,
+        HullScene { role: index },
         SceneTarget {
             camera,
             root,
@@ -1276,9 +1287,135 @@ pub fn spawn_hull_scene(
     ));
 }
 
-/// Turn every hull slowly about its mast.
-pub fn spin_hulls(time: Res<Time>, mut roots: Query<&mut Transform, With<HullSpin>>) {
-    for mut transform in &mut roots {
-        transform.rotate_y(0.45 * time.delta_secs());
+/// Turn every spinning root about its mast at its own rate.
+pub fn spin_hulls(time: Res<Time>, mut roots: Query<(&mut Transform, &HullSpin)>) {
+    for (mut transform, spin) in &mut roots {
+        transform.rotate_y(spin.0 * time.delta_secs());
     }
+}
+
+// ---------------------------------------------------------------------------
+// Menu backdrop
+// ---------------------------------------------------------------------------
+
+/// Spawn the menu backdrop under `parent`: a few grey low-poly rocks that
+/// drift slowly in the dark, as the menu's ambient scenario reads behind
+/// the New Game modal. The node fills its parent.
+pub fn spawn_backdrop_scene(parent: &mut ChildSpawnerCommands, assets: &mut SceneAssets) {
+    let kind = SceneKind::Backdrop;
+    let image = render_target(&mut assets.images);
+    let node_entity = parent
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                top: px(0),
+                left: px(0),
+                width: percent(100),
+                height: percent(100),
+                overflow: Overflow::clip(),
+                ..default()
+            },
+            ImageNode::new(image.clone()),
+            Pickable::IGNORE,
+        ))
+        .id();
+    let commands = parent.commands_mut();
+    let theme = &*assets.theme;
+    let layer = RenderLayers::layer(kind.layer());
+    let root = commands
+        .spawn((HullSpin(0.02), Transform::IDENTITY, Visibility::Visible))
+        .id();
+    let camera = commands
+        .spawn((
+            Camera3d::default(),
+            Camera {
+                order: kind.order(),
+                clear_color: ClearColorConfig::Custom(theme.color(UiColor::Void)),
+                ..default()
+            },
+            RenderTarget::Image(ImageRenderTarget {
+                handle: image.clone(),
+                scale_factor: 1.0,
+            }),
+            Transform::from_translation(Vec3::new(0.0, 30.0, 320.0))
+                .looking_at(Vec3::ZERO, Vec3::Y),
+            AmbientLight {
+                color: theme.color(UiColor::Secondary),
+                brightness: 60.0,
+                affects_lightmapped_meshes: false,
+            },
+            layer.clone(),
+        ))
+        .id();
+    commands.spawn((
+        DirectionalLight {
+            illuminance: 1_800.0,
+            shadow_maps_enabled: false,
+            ..default()
+        },
+        Transform::from_translation(Vec3::new(-1.0, 1.5, 1.0)).looking_at(Vec3::ZERO, Vec3::Y),
+        layer.clone(),
+        ChildOf(root),
+    ));
+    let rock = assets.materials.add(StandardMaterial {
+        base_color: Color::srgb(0.42, 0.44, 0.43),
+        perceptual_roughness: 0.95,
+        metallic: 0.0,
+        ..default()
+    });
+    // (radius, position, scale): the two big rocks either side of the modal
+    // and the small ones that read as the cluster's drift.
+    let rocks = [
+        (
+            46.0,
+            Vec3::new(-150.0, -10.0, -40.0),
+            Vec3::new(1.2, 0.8, 1.0),
+        ),
+        (
+            40.0,
+            Vec3::new(140.0, 20.0, -60.0),
+            Vec3::new(1.0, 0.7, 1.3),
+        ),
+        (
+            12.0,
+            Vec3::new(-40.0, -70.0, 60.0),
+            Vec3::new(1.0, 0.9, 1.1),
+        ),
+        (8.0, Vec3::new(60.0, 60.0, -120.0), Vec3::new(1.3, 1.0, 0.8)),
+        (
+            16.0,
+            Vec3::new(220.0, -60.0, -200.0),
+            Vec3::new(1.0, 1.0, 1.0),
+        ),
+        (
+            6.0,
+            Vec3::new(-230.0, 70.0, -150.0),
+            Vec3::new(1.0, 0.8, 1.2),
+        ),
+    ];
+    for (i, (radius, at, scale)) in rocks.into_iter().enumerate() {
+        commands.spawn((
+            Mesh3d(
+                assets
+                    .meshes
+                    .add(Sphere::new(radius).mesh().ico(1).expect("ico(1) is valid")),
+            ),
+            MeshMaterial3d(rock.clone()),
+            Transform::from_translation(at)
+                .with_scale(scale)
+                .with_rotation(Quat::from_euler(
+                    EulerRot::XYZ,
+                    i as f32 * 0.7,
+                    i as f32 * 1.3,
+                    0.4,
+                )),
+            layer.clone(),
+            ChildOf(root),
+        ));
+    }
+    commands.entity(node_entity).insert(SceneTarget {
+        camera,
+        root,
+        image,
+    });
 }

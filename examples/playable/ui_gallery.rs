@@ -8,15 +8,17 @@
 //!
 //! The top bar switches between six pages: `Jobs` (the JOBS pane: board and
 //! own jobs, docked or undocked), `Chart` (the MAP pane's chart view with a
-//! 3D sector chart), `Market` (the INVENTORY pane with prices), `Load` (the
-//! menu's LOAD panel with a 3D save preview), `New Game` (world name, seed,
-//! seed preview and role cards with spinning hulls) and `Icons` (every icon
-//! mask at three sizes). `S` flips the theme; a text field keeps the keys
-//! while it is focused.
+//! 3D sector chart), `Market` (the INVENTORY pane with prices and the
+//! station's storage), `Load` (the menu's LOAD panel with a 3D save preview
+//! and the save's fleet), `New Game` (the main menu with its two-step New
+//! Game modal: name, seed and seed preview, then the role list with a
+//! spinning hull) and `Icons` (every icon mask at three sizes). `S` flips
+//! the theme; a text field keeps the keys while it is focused.
 //!
 //! Interactive run:  `cargo run --example ui_gallery`.
 //! Capture every page: `NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=target/gallery cargo
-//! run --example ui_gallery --features debug` -> ui_gallery-<page>.png.
+//! run --example ui_gallery --features debug` -> ui_gallery-<page>.png,
+//! with one shot per New Game step.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
@@ -54,7 +56,7 @@ use bevy::{prelude::*, ui::IsDefaultUiCamera, ui_widgets::Activate};
 use chart3d::{ChartOrbits, ChartPointer, SceneAssets, SceneKind};
 use chrome::{fade_toasts, spawn_toast, text};
 use clap::Parser;
-use data::{job, next_seed, Category, INITIAL_SEED, WARES};
+use data::{job, next_seed, Category, INITIAL_SEED, STORAGE, WARES};
 use icons::GalleryIcons;
 use nova_protocol::prelude::GameStates;
 use nova_ui::{
@@ -104,11 +106,24 @@ pub const MARKET_BUY: &str = "Gallery Buy";
 pub const MARKET_SELL: &str = "Gallery Sell";
 pub const MARKET_BUY_ALL: &str = "Gallery Buy All";
 pub const MARKET_SELL_ALL: &str = "Gallery Sell All";
+pub const MARKET_STORE: &str = "Gallery Store";
+pub const MARKET_TAKE: &str = "Gallery Take";
 pub const SAVE_ROW_PREFIX: &str = "Gallery Save Row";
 pub const CONTINUE: &str = "Gallery Continue";
 pub const LOAD_PREVIEW: &str = "Gallery Load Preview";
 pub const LOAD_LOAD: &str = "Gallery Load";
 pub const LOAD_DELETE: &str = "Gallery Delete";
+pub const FLEET_SHIP: &str = "Gallery Fleet Ship";
+pub const FLEET_OWNED_SHIPS: &str = "Gallery Fleet Owned Ships";
+pub const FLEET_ESCORTS: &str = "Gallery Fleet Escorts";
+pub const FLEET_OWNED_STATIONS: &str = "Gallery Fleet Owned Stations";
+pub const NO_OPEN_OBJECTIVES: &str = "Gallery No Open Objectives";
+pub const MENU_NEW_GAME: &str = "Gallery Menu New Game";
+pub const NEW_GAME_PANEL: &str = "Gallery New Game Panel";
+pub const NEW_GAME_NEXT: &str = "Gallery New Game Next";
+pub const NEW_GAME_BACK: &str = "Gallery New Game Back";
+pub const NEW_GAME_CANCEL: &str = "Gallery New Game Cancel";
+pub const HULL_VIEWPORT: &str = "Gallery Hull Viewport";
 pub const RANDOMIZE: &str = "Gallery Randomize";
 pub const SEED_FIELD: &str = "Gallery Seed";
 pub const WORLD_NAME_FIELD: &str = "Gallery World Name";
@@ -286,11 +301,13 @@ pub struct ChartState {
     pub selected: Option<(i32, i32)>,
 }
 
-/// Which trade column a row is in.
+/// Which inventory column a row is in: the own hold, the station's trade
+/// stock, or the station's storage.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum TradeSide {
     Tender,
     Trader,
+    Storage,
 }
 
 /// The mock trade: live copies of the stocks, the selection, the filter,
@@ -299,6 +316,7 @@ pub enum TradeSide {
 pub struct MarketState {
     pub ship: Vec<u32>,
     pub station: Vec<u32>,
+    pub storage: Vec<u32>,
     pub selected: Option<(TradeSide, usize)>,
     pub filter: Option<Category>,
     pub credits: u32,
@@ -311,6 +329,7 @@ impl Default for MarketState {
         Self {
             ship: WARES.iter().map(|w| w.ship_qty).collect(),
             station: WARES.iter().map(|w| w.station_qty).collect(),
+            storage: STORAGE.to_vec(),
             selected: None,
             filter: None,
             credits: 12_450,
@@ -339,9 +358,19 @@ pub struct LoadState {
     pub selected: usize,
 }
 
-/// The New Game page's seed, role and world name.
+/// Which step of the New Game modal is up, or none while it is closed.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum NewGameStep {
+    Closed,
+    World,
+    Role,
+}
+
+/// The New Game modal's step, seed, role and world name. The values live
+/// here, not in the fields, so Back and Next show what was committed.
 #[derive(Resource)]
 pub struct NewGameState {
+    pub step: NewGameStep,
     pub seed: u64,
     pub role: usize,
     pub world_name: String,
@@ -350,6 +379,7 @@ pub struct NewGameState {
 impl Default for NewGameState {
     fn default() -> Self {
         Self {
+            step: NewGameStep::World,
             seed: INITIAL_SEED,
             role: 0,
             world_name: "Dust Gate run".into(),
@@ -378,9 +408,15 @@ pub enum Click {
     BuyAll,
     SellAll,
     DraftAll,
+    Store,
+    Take,
     Save(usize),
     Randomize,
     Role(usize),
+    NewGameStep(NewGameStep),
+    /// Next commits the typed name and seed first, and refuses a bad seed.
+    NewGameNext,
+    Create,
     Reframe(SceneKind),
 }
 
@@ -635,6 +671,8 @@ pub fn on_click(
     mut load: ResMut<LoadState>,
     mut new_game: ResMut<NewGameState>,
     mut orbits: ResMut<ChartOrbits>,
+    seeds: Query<(Entity, &TextFieldValue), With<new_game::SeedField>>,
+    names: Query<&TextFieldValue, With<new_game::WorldNameField>>,
 ) {
     let Ok(click) = q.get(activate.entity) else {
         return;
@@ -695,6 +733,14 @@ pub fn on_click(
         Click::DraftAll => {
             draft.qty = market.draft_max();
         }
+        Click::Store => {
+            let note = market::store(&mut market, draft.qty);
+            trade_note(&mut commands, &mut market, note);
+        }
+        Click::Take => {
+            let note = market::take(&mut market, draft.qty);
+            trade_note(&mut commands, &mut market, note);
+        }
         Click::Save(i) => {
             load.selected = i;
         }
@@ -703,6 +749,41 @@ pub fn on_click(
         }
         Click::Role(i) => {
             new_game.role = i;
+        }
+        Click::NewGameStep(step) => {
+            new_game.step = step;
+        }
+        Click::NewGameNext => {
+            let seed = seeds.iter().next();
+            let name = names.iter().next();
+            match seed.map(|(entity, value)| (entity, value.0.trim().parse::<u64>())) {
+                Some((_, Ok(seed))) => {
+                    new_game.seed = seed;
+                }
+                Some((entity, Err(_))) => {
+                    commands
+                        .entity(entity)
+                        .insert(TextFieldError("digits only".into()));
+                    return;
+                }
+                None => {}
+            }
+            if let Some(name) = name {
+                new_game.world_name = name.0.clone();
+            }
+            new_game.step = NewGameStep::Role;
+        }
+        Click::Create => {
+            spawn_toast(
+                &mut commands,
+                &format!("Created {}", new_game.world_name),
+                &format!(
+                    "seed {}, {} start",
+                    new_game.seed,
+                    data::ROLES[new_game.role].name
+                ),
+            );
+            new_game.step = NewGameStep::Closed;
         }
         Click::Reframe(kind) => {
             orbits.reframe(kind);
@@ -735,33 +816,55 @@ struct Capture {
     finished: bool,
 }
 
-/// The shots: a page, the theme to take it in, and the file.
+/// The shots: a page, the New Game step to show on it, the theme to take it
+/// in, and the file.
 #[cfg(feature = "debug")]
-const SHOTS: [(GalleryPage, &str, &str); 7] = [
-    (GalleryPage::Jobs, PHOSPHOR_THEME_ID, "ui_gallery-jobs.png"),
+const SHOTS: [(GalleryPage, NewGameStep, &str, &str); 8] = [
+    (
+        GalleryPage::Jobs,
+        NewGameStep::World,
+        PHOSPHOR_THEME_ID,
+        "ui_gallery-jobs.png",
+    ),
     (
         GalleryPage::Chart,
+        NewGameStep::World,
         PHOSPHOR_THEME_ID,
         "ui_gallery-chart.png",
     ),
     (
         GalleryPage::Market,
+        NewGameStep::World,
         PHOSPHOR_THEME_ID,
         "ui_gallery-market.png",
     ),
-    (GalleryPage::Load, PHOSPHOR_THEME_ID, "ui_gallery-load.png"),
+    (
+        GalleryPage::Load,
+        NewGameStep::World,
+        PHOSPHOR_THEME_ID,
+        "ui_gallery-load.png",
+    ),
     (
         GalleryPage::NewGame,
+        NewGameStep::World,
         PHOSPHOR_THEME_ID,
-        "ui_gallery-new-game.png",
+        "ui_gallery-new-game-world.png",
+    ),
+    (
+        GalleryPage::NewGame,
+        NewGameStep::Role,
+        PHOSPHOR_THEME_ID,
+        "ui_gallery-new-game-role.png",
     ),
     (
         GalleryPage::Icons,
+        NewGameStep::World,
         PHOSPHOR_THEME_ID,
         "ui_gallery-icons.png",
     ),
     (
         GalleryPage::Jobs,
+        NewGameStep::World,
         HARDWARE_THEME_ID,
         "ui_gallery-jobs-hardware.png",
     ),
@@ -785,6 +888,7 @@ fn drive_capture(
     mut chart: ResMut<ChartState>,
     mut jobs: ResMut<JobsState>,
     mut market: ResMut<MarketState>,
+    mut new_game: ResMut<NewGameState>,
     mut dock: ResMut<DockState>,
     mut exit: MessageWriter<AppExit>,
     log: Option<Res<nova_protocol::prelude::CaptureLog>>,
@@ -814,12 +918,15 @@ fn drive_capture(
         }
         return;
     }
-    let (wanted_page, theme, file) = SHOTS[stage / 2];
+    let (wanted_page, step, theme, file) = SHOTS[stage / 2];
     if stage % 2 == 0 {
         // Show the page with something selected, so the inspector is not
         // empty.
         *page = wanted_page;
         *selected = SelectedUiTheme(theme.to_string());
+        if new_game.step != step {
+            new_game.step = step;
+        }
         chrome::clear_toasts(&mut commands);
         if *dock != DockState::Docked {
             *dock = DockState::Docked;
@@ -830,8 +937,11 @@ fn drive_capture(
         if jobs.selected.is_none() {
             jobs.selected = Some(2);
         }
-        if market.selected.is_none() {
-            market.selected = Some((TradeSide::Trader, 1));
+        if wanted_page == GalleryPage::Market {
+            // The smoke may have emptied a storage row; the shot shows the
+            // stocked storage with its row inspected.
+            *market = MarketState::default();
+            market.selected = Some((TradeSide::Storage, 0));
         }
         cap.wait = SHOT_SETTLE_FRAMES;
     } else {
@@ -887,7 +997,9 @@ fn gallery_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
     let held_row = format!("{HELD_ROW_PREFIX} 4");
     let tile = format!("{TILE_PREFIX} 5 2");
     let trade_row = format!("{TRADE_ROW_PREFIX} Trader 1");
+    let storage_row = format!("{TRADE_ROW_PREFIX} Storage 0");
     let save_row = format!("{SAVE_ROW_PREFIX} 2");
+    let escorted_save_row = format!("{SAVE_ROW_PREFIX} 0");
     let role = format!("{ROLE_PREFIX} 3");
     let hand_in = format!("{HAND_IN_PREFIX} 8");
 
@@ -1083,6 +1195,42 @@ fn gallery_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
             );
         })
         .add()
+        // Storage: a storage row selects and the inspector offers Store and
+        // Take; Take moves the stack into the hold.
+        .click_named(
+            "gallery: select a storage row",
+            &storage_row,
+            resource_where::<MarketState>(|m| m.selected == Some((TradeSide::Storage, 0))),
+            BEAT_DEADLINE_SECS,
+        )
+        .step("gallery: the storage row offers Store and Take")
+        .on_enter(|world: &mut World| {
+            assert_eq!(count_named(world, MARKET_STORE), 1, "Store is offered");
+            assert_eq!(count_named(world, MARKET_TAKE), 1, "Take is offered");
+            info!("gallery: storage row selected, Store and Take offered");
+        })
+        .add()
+        .click_named(
+            "gallery: Take",
+            MARKET_TAKE,
+            resource_where::<MarketState>(|m| m.storage[0] != STORAGE[0]),
+            BEAT_DEADLINE_SECS,
+        )
+        .step("gallery: Take moved the stack")
+        .on_enter(|world: &mut World| {
+            let market = world.resource::<MarketState>();
+            assert_eq!(market.storage[0], STORAGE[0] - 1, "one ore left storage");
+            assert_eq!(
+                market.ship[0],
+                WARES[0].ship_qty + 1,
+                "the ore is in the hold"
+            );
+            info!(
+                "gallery: took one iron ore, storage {} hold {}",
+                market.storage[0], market.ship[0]
+            );
+        })
+        .add()
         // Load: a row selects and fills the details card.
         .click_named(
             "gallery: open Load",
@@ -1103,18 +1251,52 @@ fn gallery_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
                 1,
                 "the details show the save's chart preview"
             );
+            let save = &data::SAVES[world.resource::<LoadState>().selected];
+            assert_eq!(save.escorts, 0, "the smoke picks a save with no escorts");
+            assert_eq!(
+                count_named(world, FLEET_ESCORTS),
+                0,
+                "a save with no escorts has no Escorts line"
+            );
+            assert_eq!(
+                count_named(world, FLEET_OWNED_SHIPS),
+                1,
+                "a save with owned ships lists them"
+            );
+            assert_eq!(
+                count_named(world, NO_OPEN_OBJECTIVES),
+                1,
+                "a save with nothing open says so"
+            );
             info!(
-                "gallery: save selected {}",
-                data::SAVES[world.resource::<LoadState>().selected].world
+                "gallery: save selected {}, no Escorts line, {} owned ships",
+                save.world, save.owned_ships
             );
         })
         .add()
-        // New Game: Randomize moves the seed and the preview, a role card
-        // selects.
+        .click_named(
+            "gallery: select the escorted save",
+            &escorted_save_row,
+            resource_where::<LoadState>(|l| l.selected == 0),
+            BEAT_DEADLINE_SECS,
+        )
+        .step("gallery: the escorted save lists its escorts")
+        .on_enter(|world: &mut World| {
+            assert_eq!(
+                count_named(world, FLEET_ESCORTS),
+                1,
+                "a save with escorts has the Escorts line"
+            );
+            info!("gallery: escorted save shows the Escorts line");
+        })
+        .add()
+        // New Game: Randomize moves the seed and the preview, Next shows the
+        // role step, a role row re-aims the hull viewport, Back returns to
+        // the world step with the seed kept.
         .click_named(
             "gallery: open New Game",
             PAGE_NEW_GAME,
-            ui_node_present(CREATE),
+            ui_node_present(NEW_GAME_NEXT),
             BEAT_DEADLINE_SECS,
         )
         .click_named(
@@ -1124,9 +1306,94 @@ fn gallery_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
             BEAT_DEADLINE_SECS,
         )
         .click_named(
+            "gallery: Next",
+            NEW_GAME_NEXT,
+            resource_where::<NewGameState>(|n| n.step == NewGameStep::Role),
+            BEAT_DEADLINE_SECS,
+        )
+        .step("gallery: the role step is up")
+        .until(ui_node_present(NEW_GAME_BACK))
+        .diagnose(ui_node_diagnosis(NEW_GAME_BACK))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("gallery: the role step replaced the world step")
+        .on_enter(|world: &mut World| {
+            assert_eq!(count_named(world, SEED_FIELD), 0, "the seed field is gone");
+            assert_eq!(count_named(world, CREATE), 1, "Create is up");
+            assert_eq!(
+                hull_viewport_role(world),
+                Some(0),
+                "the hull viewport shows the first role"
+            );
+            info!("gallery: role step up, hull viewport on role 0");
+        })
+        .add()
+        .click_named(
             "gallery: pick a role",
             &role,
             resource_where::<NewGameState>(|n| n.role == 3),
+            BEAT_DEADLINE_SECS,
+        )
+        .step("gallery: the hull viewport follows the role")
+        .until(std::sync::Arc::new(|world: &World| {
+            let mut scenes = world.try_query::<&chart3d::HullScene>();
+            scenes
+                .as_mut()
+                .is_some_and(|q| q.iter(world).any(|scene| scene.role == 3))
+        }))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("gallery: the hull viewport re-aimed")
+        .on_enter(|world: &mut World| {
+            assert_eq!(
+                hull_viewport_role(world),
+                Some(3),
+                "the hull viewport shows the picked role"
+            );
+            info!(
+                "gallery: hull viewport on role 3 ({})",
+                data::ROLES[3].hull.display()
+            );
+        })
+        .add()
+        .click_named(
+            "gallery: Back",
+            NEW_GAME_BACK,
+            resource_where::<NewGameState>(|n| n.step == NewGameStep::World),
+            BEAT_DEADLINE_SECS,
+        )
+        .step("gallery: the world step is back")
+        .until(ui_node_present(SEED_FIELD))
+        .diagnose(ui_node_diagnosis(SEED_FIELD))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("gallery: Back kept the world step's state")
+        .on_enter(|world: &mut World| {
+            assert_eq!(count_named(world, NEW_GAME_BACK), 0, "Back is gone");
+            assert_eq!(count_named_prefix(world, ROLE_PREFIX), 0, "no role row");
+            let (seed, role) = {
+                let n = world.resource::<NewGameState>();
+                (n.seed, n.role)
+            };
+            assert_ne!(seed, INITIAL_SEED, "the randomized seed is kept");
+            assert_eq!(role, 3, "the picked role is kept");
+            let mut fields = world.query::<(&Name, &TextFieldValue)>();
+            let seed_text = fields
+                .iter(world)
+                .find(|(name, _)| name.as_str() == SEED_FIELD)
+                .map(|(_, value)| value.0.clone());
+            assert_eq!(
+                seed_text,
+                Some(seed.to_string()),
+                "the seed field shows the kept seed"
+            );
+            info!("gallery: world step back with seed {seed}");
+        })
+        .add()
+        .click_named(
+            "gallery: Next again",
+            NEW_GAME_NEXT,
+            resource_where::<NewGameState>(|n| n.step == NewGameStep::Role),
             BEAT_DEADLINE_SECS,
         )
         .step("gallery: new game state moved")
@@ -1140,7 +1407,7 @@ fn gallery_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
             info!(
                 "gallery: seed {} role {} preview {before:#x} -> {after:#x}",
                 n.seed,
-                data::ROLES[n.role].id
+                data::ROLES[n.role].name
             );
         })
         .add()
@@ -1190,6 +1457,13 @@ fn gallery_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         }))
         .deadline(240.0)
         .add()
+}
+
+/// The role the one hull viewport shows, if a hull viewport is up.
+#[cfg(feature = "debug")]
+fn hull_viewport_role(world: &mut World) -> Option<usize> {
+    let mut q = world.query::<&chart3d::HullScene>();
+    q.iter(world).next().map(|scene| scene.role)
 }
 
 /// How many entities carry exactly the `Name` `name`.

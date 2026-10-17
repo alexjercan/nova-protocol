@@ -118,3 +118,44 @@ the menu screens that feed a charter (New Game, Load) are text too. Ideas:
   phase 2 counts in `20261012-100033` under this direction.
 - The `ui_gallery` example (`examples/playable/ui_gallery.rs`) is the mock
   the owner judges; round 2 rework in progress.
+
+## Owner feedback 2026-10-17 (round 3) and next up in the game
+- Chart is approved as the gallery shows it. Load shows only what the save
+  has (ship, owned ships, escorts, owned stations when present) and only
+  OPEN objectives, never met ones. New Game keeps the game's two modal
+  panels: the world preview on the first panel so the player sees the world
+  first, the ship details when a class is selected on the second.
+- Owner idea: autopilot travel between sectors. GOTO a station on the chart
+  in another sector even with no live target: a sector destination for the
+  autopilot, the streaming window follows, arrival when the station
+  materializes. Owners: `nova_ship` autopilot, `nova_world` streaming, the
+  Map's GOTO.
+- Next up (game changes this epic owns):
+  - `crates/nova_interface/src/map/chart.rs`: textured cell tiles generated
+    per content in place of cuboid stripes; station mark variants (living,
+    dead, owned, refusing, posting n jobs); the sector panel lists contents
+    as icon rows with counts, the entered time, the finds, the last-seen
+    stock with prices and the dock time, the jobs posted there, a route
+    hint; the OBJECTIVES block (held jobs with `have / need`, the unmet
+    milestone) replaces the CHARTER block; the discovery log gets icons and
+    relative times; the legend becomes an icon row. Icons in `icons.rs`.
+  - `crates/nova_menu/src/load_screen.rs`: rows with role icon, play time,
+    saved-ago and the open objectives count; details with the save's 3D
+    chart preview, a FLEET block (ship, owned ships, escorts, owned stations,
+    only when present) and open objectives only; a Continue button for the
+    most recent save in `menu_ui.rs`. Needs the save header to carry the
+    play time, the hull name, the fleet and station counts and a chart
+    summary (`crates/nova_world_base/src/save/mod.rs`, format bump, not
+    shipped so no migration).
+  - `crates/nova_menu/src/world_setup.rs`: step 1 adds the 3D chart preview
+    of the seed (a preview call on the generator that draws the cells around
+    the start without creating the world); step 2 adds the 3D hull preview
+    in the details (move `hull_preview` out of `nova_interface` into a shared
+    place) and the milestones; the owner rewrites the role texts.
+  - Goals rebalanced per the round 2 direction: `OwnStation` is the shared
+    first milestone for every role, then one simple flavour goal each;
+    rework `RoleGoal` kinds, lint, the content builders, `start-roles.md`
+    and the Map block (`20261012-100033`). HUD objective chips read the open
+    objectives.
+  - Docs: `wiki/interface.md`, `wiki/getting-started.md`, `create/start-roles.md`,
+    changelog entries under the subsystem headings.

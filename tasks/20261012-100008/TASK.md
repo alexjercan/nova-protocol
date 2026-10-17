@@ -40,3 +40,10 @@ Children carry the `Wizard:` or `Upgrades:` title prefix and the `wizard` tag.
   the class-specific starter jobs (jobs epic `20261012-100022`). Charter 0
   ("dock at a living station", `20261012-100031`) needs a new first step
   under this direction.
+
+## Next up 2026-10-17 (start docked at an allied station)
+- Generator: find the closest station of an allied civilization to the seed's
+  start point, move the start there and spawn the player docked at it; keep
+  the station's id as the starting station in the world save; charter 0
+  gets a new first step; only this station posts the gated starter jobs
+  (jobs epic `20261012-100022`). The New Game seed preview centres on it.
