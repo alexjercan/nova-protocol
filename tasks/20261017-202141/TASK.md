@@ -1,6 +1,6 @@
 # Jobs: job-spawned raiders are offered as Neutralize targets on neighbouring boards
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.16.0,jobs,bug
 
@@ -18,3 +18,9 @@
 - Permanent proof: a unit test in `crates/nova_world_base/src/jobs.rs` that holds an Escort with raiders and asserts the neighbouring field excludes them.
 
 Found by the 2026-10-17 review of epic 20261012-100022.
+
+## Fix 2026-10-17
+- Claim: a neighbouring board never offers a held job's spawned bodies: an escort's raiders are not Neutralize targets and a genuine caller is not a wreck to recover.
+- Evidence: `job_field` took every Enemy intact hull and every stocked derelict under the 27 roots, less the renewal's `retired` set only (`crates/nova_world_base/src/jobs.rs:280-333` before). Reproduced by `a_held_job_s_spawned_bodies_are_off_the_neighbouring_field` failing with four hostiles and two wrecks in the field.
+- Change: `job_field` takes `held: &Jobs` and excludes every held job's `spawned_bodies()` with the retired set; `post_station_boards` passes the player's `Jobs`. `crates/nova_gameplay/src/jobs.rs` is unchanged.
+- Verification: `cargo test -p nova_world_base --lib jobs::tests`: `a_held_job_s_spawned_bodies_are_off_the_neighbouring_field ... ok`.

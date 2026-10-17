@@ -27,7 +27,10 @@
 //! ([`recover_on_undock`]), an escort on `onshipordercomplete`
 //! ([`escort_on_arrival`]), a distress call on `ondocked` or `onneutralized`
 //! ([`distress_on_answer`]), a neutralize on `onneutralized` or `ondestroyed`
-//! ([`neutralize_on_kill`]).
+//! ([`neutralize_on_kill`]). A held job is dropped, and its spawned bodies
+//! taken out, on the `onneutralized` or `ondestroyed` of what retires it
+//! ([`drop_on_loss`]): its poster, done or not, or its hauler, its wreck or
+//! its genuine caller before the job is done. A done job keeps its hand-in.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -227,7 +230,7 @@ pub(crate) fn post_station_boards(
         if renewed == 0 && posted.is_some() {
             continue;
         }
-        let field = job_field(&around, &retired, &wrecks, &hulls);
+        let field = job_field(&around, &retired, &jobs, &wrecks, &hulls);
         let slots = postings
             .board(id)
             .expect("the station's postings were opened above");
@@ -272,7 +275,9 @@ fn cube_around(centre: SectorCoord) -> Vec<SectorCoord> {
 
 /// The wrecks with something aboard and the hostile intact hulls under the
 /// roots `around`, each list in id order, less the bodies in `retired`,
-/// which a renewal this frame is taking out of the world.
+/// which a renewal this frame is taking out of the world, and every body a
+/// job in `held` put there: a neighbouring board never offers an escort's
+/// raiders as Neutralize targets or a genuine caller as a wreck to recover.
 #[expect(
     clippy::type_complexity,
     reason = "the two queries are the poster's, passed through"
@@ -280,6 +285,7 @@ fn cube_around(centre: SectorCoord) -> Vec<SectorCoord> {
 fn job_field(
     around: &[Entity],
     retired: &BTreeSet<GeneratedBodyId>,
+    held: &Jobs,
     wrecks: &Query<
         (&GeneratedBodyId, &Name, &ShipInventory, &ChildOf),
         (
@@ -298,9 +304,15 @@ fn job_field(
         ),
     >,
 ) -> JobField {
+    let excluded: BTreeSet<GeneratedBodyId> = held
+        .held()
+        .iter()
+        .flat_map(Job::spawned_bodies)
+        .chain(retired.iter().cloned())
+        .collect();
     let mut field = JobField::default();
     for (id, name, hold, parent) in wrecks {
-        if !around.contains(&parent.parent()) || hold.is_empty() || retired.contains(id) {
+        if !around.contains(&parent.parent()) || hold.is_empty() || excluded.contains(id) {
             continue;
         }
         field.wrecks.push(JobWreck {
@@ -315,7 +327,7 @@ fn job_field(
     for (id, name, allegiance, parent) in hulls {
         if !around.contains(&parent.parent())
             || *allegiance != Allegiance::Enemy
-            || retired.contains(id)
+            || excluded.contains(id)
         {
             continue;
         }
@@ -644,6 +656,69 @@ fn is_taken_out(event: &GameEvent, body: &GeneratedBodyId) -> bool {
         && event_subject(event) == Some(body.to_string().as_str())
 }
 
+/// Drop every held job the `onneutralized` or `ondestroyed` of one body
+/// retires, and take the job's spawned bodies out of the world so the board
+/// offers it again and a second accept can put them back: every job of the
+/// poster, done or not, since no hand-in is left; an escort whose hauler, a
+/// recovery whose wreck or a genuine distress call whose caller is taken out
+/// before the job is done. A done job keeps its hand-in: a hauler killed at
+/// its mark or a wreck shot after the lift still pays. A trap's caller taken
+/// out is [`distress_on_answer`]'s done and a neutralize's hull
+/// [`neutralize_on_kill`]'s.
+pub(crate) fn drop_on_loss(
+    event: On<GameEvent>,
+    mut commands: Commands,
+    mut jobs: ResMut<Jobs>,
+    bodies: Query<(Entity, &GeneratedBodyId)>,
+) {
+    if event.name() != OnNeutralizedEvent::name() && event.name() != OnDestroyedEvent::name() {
+        return;
+    }
+    let Some(subject) = event_subject(&event) else {
+        return;
+    };
+    let lost: Vec<(Job, &'static str)> = jobs
+        .held()
+        .iter()
+        .filter_map(|job| {
+            if job.posted_by().to_string() == subject {
+                return Some((job.clone(), "poster"));
+            }
+            if jobs.is_done(&job.id) {
+                return None;
+            }
+            let target = match &job.kind {
+                JobType::Escort { hauler, .. } => Some((hauler, "hauler")),
+                JobType::Recover { wreck, .. } => Some((wreck, "wreck")),
+                JobType::Distress {
+                    caller,
+                    genuine: true,
+                } => Some((caller, "caller")),
+                JobType::Distress { genuine: false, .. }
+                | JobType::Procure { .. }
+                | JobType::Neutralize { .. } => None,
+            };
+            target
+                .filter(|(body, _)| body.to_string() == subject)
+                .map(|(_, what)| (job.clone(), what))
+        })
+        .collect();
+    for (job, what) in lost {
+        jobs.drop(&job.id);
+        let gone = job.spawned_bodies();
+        for (entity, id) in &bodies {
+            if gone.contains(id) {
+                commands.entity(entity).try_despawn();
+            }
+        }
+        warn!(
+            "nova_world_base: '{}' is lost: its {what} '{subject}' was {}",
+            job.id,
+            event.name()
+        );
+    }
+}
+
 /// Mark a held recovery done on the `onundocked` from its wreck while the
 /// player's hold carries at least the asked units and the wreck carries none
 /// of the item. An undock that leaves units aboard marks nothing: the player
@@ -701,58 +776,40 @@ pub(crate) fn recover_on_undock(
 }
 
 /// Mark a held escort done on the `onshipordercomplete` of its hauler's Move
-/// order. Drop it on the hauler's `onneutralized` or `ondestroyed`, and take
-/// the hauler's remains and its live raiders out of the world, so the board
-/// posts the job again and a second accept can put its bodies back.
-pub(crate) fn escort_on_arrival(
-    event: On<GameEvent>,
-    mut commands: Commands,
-    mut jobs: ResMut<Jobs>,
-    bodies: Query<(Entity, &GeneratedBodyId)>,
-) {
+/// order. The hauler's loss is [`drop_on_loss`]'s.
+pub(crate) fn escort_on_arrival(event: On<GameEvent>, mut jobs: ResMut<Jobs>) {
+    let arrived = event.name() == OnShipOrderCompleteEvent::name()
+        && event
+            .info()
+            .data
+            .as_ref()
+            .and_then(|data| data.get("kind"))
+            .and_then(|kind| kind.as_str())
+            == Some("Move");
+    if !arrived {
+        return;
+    }
     let Some(subject) = event_subject(&event) else {
         return;
     };
-    let held: Vec<Job> = jobs
+    let due: Vec<Job> = jobs
         .held()
         .iter()
         .filter(|job| {
-            matches!(&job.kind, JobType::Escort { hauler, .. } if hauler.to_string() == subject)
+            !jobs.is_done(&job.id)
+                && matches!(&job.kind, JobType::Escort { hauler, .. } if hauler.to_string() == subject)
         })
         .cloned()
         .collect();
-    for job in held {
+    for job in due {
         let JobType::Escort { hauler, .. } = &job.kind else {
             unreachable!()
         };
-        let arrived = event.name() == OnShipOrderCompleteEvent::name()
-            && event
-                .info()
-                .data
-                .as_ref()
-                .and_then(|data| data.get("kind"))
-                .and_then(|kind| kind.as_str())
-                == Some("Move");
-        if arrived && !jobs.is_done(&job.id) {
-            jobs.mark_done(&job.id);
-            info!(
-                "nova_world_base: '{}' is done: the hauler '{hauler}' reached its mark",
-                job.id
-            );
-        } else if is_taken_out(&event, hauler) {
-            jobs.drop(&job.id);
-            let gone = job.spawned_bodies();
-            for (entity, id) in &bodies {
-                if gone.contains(id) {
-                    commands.entity(entity).try_despawn();
-                }
-            }
-            warn!(
-                "nova_world_base: '{}' is lost: the hauler '{hauler}' was {}",
-                job.id,
-                event.name()
-            );
-        }
+        jobs.mark_done(&job.id);
+        info!(
+            "nova_world_base: '{}' is done: the hauler '{hauler}' reached its mark",
+            job.id
+        );
     }
 }
 
@@ -819,5 +876,372 @@ pub(crate) fn neutralize_on_kill(event: On<GameEvent>, mut jobs: ResMut<Jobs>) {
                 event.name()
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy::ecs::system::RunSystemOnce;
+    use nova_events::prelude::{OnDestroyedEventInfo, OnShipOrderCompleteEventInfo, ShipOrderKind};
+    use nova_gameplay::{prelude::ItemDesignId, test_support::test_items};
+
+    use super::*;
+
+    fn poster() -> GeneratedBodyId {
+        GeneratedBodyId::new(SectorCoord::new(0, 0, 0), "cluster_0_0_0_station", 0)
+    }
+
+    fn job_id(slot: u32) -> JobId {
+        JobId {
+            station: poster(),
+            slot,
+            posting: 0,
+        }
+    }
+
+    /// The id of body `index` of `part` the job `id` spawns, under the stem
+    /// the gameplay crate mints; `job` checks the match with `Job::validate`.
+    fn spawned(id: &JobId, part: &str, index: u32) -> GeneratedBodyId {
+        GeneratedBodyId::new(
+            id.station.origin,
+            format!("{}_job_{}_{}_{part}", id.station.stem, id.slot, id.posting),
+            index,
+        )
+    }
+
+    fn wreck_id() -> GeneratedBodyId {
+        GeneratedBodyId::new(SectorCoord::new(1, 0, 0), "cluster_1_0_0_hull", 2)
+    }
+
+    fn hull_id() -> GeneratedBodyId {
+        GeneratedBodyId::new(SectorCoord::new(1, 0, 0), "cluster_1_0_0_hull", 0)
+    }
+
+    fn item() -> ItemDesignId {
+        test_items()
+            .iter()
+            .next()
+            .expect("the fixture catalog has an item")
+            .id
+            .clone()
+    }
+
+    fn job(slot: u32, kind: JobType) -> Job {
+        let job = Job {
+            id: job_id(slot),
+            kind,
+            target: poster(),
+            reward_cr: 100,
+        };
+        job.validate().expect("the test names the job's own bodies");
+        job
+    }
+
+    /// An escort whose cargo puts three raiders in wait.
+    fn escort(slot: u32) -> Job {
+        let id = job_id(slot);
+        job(
+            slot,
+            JobType::Escort {
+                hauler: spawned(&id, "hauler", 0),
+                cargo_cr: 1_500,
+            },
+        )
+    }
+
+    fn recover(slot: u32) -> Job {
+        job(
+            slot,
+            JobType::Recover {
+                wreck: wreck_id(),
+                wreck_name: "Vell derelict".to_string(),
+                item: item(),
+                count: 2,
+            },
+        )
+    }
+
+    fn distress(slot: u32, genuine: bool) -> Job {
+        let id = job_id(slot);
+        job(
+            slot,
+            JobType::Distress {
+                caller: spawned(&id, "caller", 0),
+                genuine,
+            },
+        )
+    }
+
+    fn neutralize(slot: u32) -> Job {
+        job(
+            slot,
+            JobType::Neutralize {
+                hull: hull_id(),
+                hull_name: "Kessel armored".to_string(),
+            },
+        )
+    }
+
+    fn procure(slot: u32) -> Job {
+        job(
+            slot,
+            JobType::Procure {
+                item: item(),
+                count: 2,
+            },
+        )
+    }
+
+    fn taken_out(body: &GeneratedBodyId) -> GameEvent {
+        GameEvent::new(
+            OnDestroyedEvent::name(),
+            OnDestroyedEventInfo {
+                id: body.to_string(),
+                type_name: "spaceship".to_string(),
+            }
+            .into(),
+        )
+    }
+
+    fn arrived(hauler: &GeneratedBodyId) -> GameEvent {
+        GameEvent::new(
+            OnShipOrderCompleteEvent::name(),
+            OnShipOrderCompleteEventInfo {
+                order: format!("{hauler}_leg"),
+                id: hauler.to_string(),
+                type_name: "spaceship".to_string(),
+                kind: ShipOrderKind::Move,
+            }
+            .into(),
+        )
+    }
+
+    /// An app holding `held`, with every job observer over a `GameEvent`.
+    fn held_app(held: impl IntoIterator<Item = Job>) -> App {
+        let mut app = App::new();
+        let mut jobs = Jobs::default();
+        for job in held {
+            jobs.accept(job);
+        }
+        app.insert_resource(jobs);
+        app.add_observer(recover_on_undock);
+        app.add_observer(escort_on_arrival);
+        app.add_observer(distress_on_answer);
+        app.add_observer(neutralize_on_kill);
+        app.add_observer(drop_on_loss);
+        app
+    }
+
+    fn fire(app: &mut App, event: GameEvent) {
+        app.world_mut().trigger(event);
+        app.world_mut().flush();
+    }
+
+    /// Put every body of `ids` in the world, each under its id only.
+    fn stand(app: &mut App, ids: &[GeneratedBodyId]) -> Vec<Entity> {
+        ids.iter()
+            .map(|id| app.world_mut().spawn(id.clone()).id())
+            .collect()
+    }
+
+    fn standing(app: &App, entities: &[Entity]) -> usize {
+        entities
+            .iter()
+            .filter(|entity| app.world().entities().contains(**entity))
+            .count()
+    }
+
+    fn jobs(app: &App) -> &Jobs {
+        app.world().resource::<Jobs>()
+    }
+
+    #[test]
+    fn done_escort_stays_done_when_the_hauler_dies_after_its_mark() {
+        let escort = escort(0);
+        let JobType::Escort { hauler, .. } = &escort.kind else {
+            unreachable!()
+        };
+        let mut app = held_app([escort.clone()]);
+        stand(&mut app, &escort.spawned_bodies());
+
+        fire(&mut app, arrived(hauler));
+        assert!(jobs(&app).is_done(&escort.id), "the mark marks it done");
+
+        fire(&mut app, taken_out(hauler));
+        assert!(
+            jobs(&app).holds(&escort.id),
+            "a hauler killed at its mark does not lose the job"
+        );
+        assert!(jobs(&app).is_done(&escort.id), "the hand-in still pays");
+    }
+
+    #[test]
+    fn an_escort_is_dropped_and_its_bodies_taken_out_when_the_hauler_dies_before_its_mark() {
+        let escort = escort(0);
+        let JobType::Escort { hauler, .. } = &escort.kind else {
+            unreachable!()
+        };
+        let mut app = held_app([escort.clone()]);
+        let bodies = stand(&mut app, &escort.spawned_bodies());
+        assert_eq!(bodies.len(), 4, "the hauler and three raiders");
+
+        fire(&mut app, taken_out(hauler));
+        assert!(!jobs(&app).holds(&escort.id), "the slot is free");
+        assert!(jobs(&app).done().is_empty());
+        assert_eq!(
+            standing(&app, &bodies),
+            0,
+            "the remains and the raiders are taken out so a second accept can put them back"
+        );
+    }
+
+    #[test]
+    fn a_held_recovery_is_dropped_when_its_wreck_is_destroyed_unless_it_is_done() {
+        let recover = recover(0);
+        let mut app = held_app([recover.clone()]);
+        fire(&mut app, taken_out(&wreck_id()));
+        assert!(
+            !jobs(&app).holds(&recover.id),
+            "a recovery with no wreck left to lift from is dropped"
+        );
+
+        let mut app = held_app([recover.clone()]);
+        app.world_mut()
+            .resource_mut::<Jobs>()
+            .mark_done(&recover.id);
+        fire(&mut app, taken_out(&wreck_id()));
+        assert!(jobs(&app).holds(&recover.id), "the lift is done; it pays");
+        assert!(jobs(&app).is_done(&recover.id));
+    }
+
+    #[test]
+    fn a_held_genuine_distress_call_is_dropped_when_its_caller_is_destroyed_and_a_trap_is_done() {
+        let genuine = distress(0, true);
+        let JobType::Distress { caller, .. } = &genuine.kind else {
+            unreachable!()
+        };
+        let mut app = held_app([genuine.clone()]);
+        let bodies = stand(&mut app, &genuine.spawned_bodies());
+        fire(&mut app, taken_out(caller));
+        assert!(
+            !jobs(&app).holds(&genuine.id),
+            "a caller destroyed before the dock is lost"
+        );
+        assert_eq!(standing(&app, &bodies), 0, "the remains are taken out");
+
+        let trap = distress(1, false);
+        let JobType::Distress { caller, .. } = &trap.kind else {
+            unreachable!()
+        };
+        let mut app = held_app([trap.clone()]);
+        fire(&mut app, taken_out(caller));
+        assert!(jobs(&app).holds(&trap.id), "a trap sprung is the job done");
+        assert!(jobs(&app).is_done(&trap.id));
+    }
+
+    #[test]
+    fn every_held_job_is_dropped_when_its_poster_dies_done_or_not() {
+        let escort = escort(0);
+        let JobType::Escort { hauler, .. } = &escort.kind else {
+            unreachable!()
+        };
+        let held = [escort.clone(), procure(1), neutralize(2)];
+        let mut app = held_app(held.clone());
+        let bodies = stand(&mut app, &escort.spawned_bodies());
+        fire(&mut app, arrived(hauler));
+        assert!(jobs(&app).is_done(&escort.id));
+
+        fire(&mut app, taken_out(&poster()));
+        assert!(
+            jobs(&app).held().is_empty(),
+            "no hand-in is left for any of them: {:?}",
+            jobs(&app).held()
+        );
+        assert!(jobs(&app).done().is_empty());
+        assert_eq!(
+            standing(&app, &bodies),
+            0,
+            "the dead poster never renews the slot, so the drop takes the bodies out"
+        );
+    }
+
+    #[test]
+    fn a_held_job_s_spawned_bodies_are_off_the_neighbouring_field() {
+        let items = test_items();
+        let escort = escort(0);
+        let distress = distress(1, true);
+        let JobType::Distress { caller, .. } = &distress.kind else {
+            unreachable!()
+        };
+        let mut app = App::new();
+        let root = app.world_mut().spawn_empty().id();
+        let hostile = |app: &mut App, id: &GeneratedBodyId| {
+            app.world_mut().spawn((
+                id.clone(),
+                Name::new(id.to_string()),
+                Allegiance::Enemy,
+                ChildOf(root),
+                SpaceshipRootMarker,
+            ));
+        };
+        let wreck = |app: &mut App, id: &GeneratedBodyId| {
+            app.world_mut().spawn((
+                id.clone(),
+                Name::new(id.to_string()),
+                ShipInventory::new(&items, 1_000_000, [(item(), 1)]),
+                ChildOf(root),
+                SpaceshipRootMarker,
+                DerelictShipMarker,
+            ));
+        };
+        for raider in escort.raider_ids() {
+            hostile(&mut app, &raider);
+        }
+        hostile(&mut app, &hull_id());
+        wreck(&mut app, caller);
+        wreck(&mut app, &wreck_id());
+        let field = |app: &mut App, held: Jobs| {
+            app.world_mut()
+                .run_system_once(
+                    move |wrecks: Query<
+                        (&GeneratedBodyId, &Name, &ShipInventory, &ChildOf),
+                        (
+                            With<SpaceshipRootMarker>,
+                            With<DerelictShipMarker>,
+                            Without<StationMarker>,
+                        ),
+                    >,
+                          hulls: Query<
+                        (&GeneratedBodyId, &Name, &Allegiance, &ChildOf),
+                        (
+                            With<SpaceshipRootMarker>,
+                            Without<DerelictShipMarker>,
+                            Without<NeutralizedMarker>,
+                            Without<StationMarker>,
+                        ),
+                    >| {
+                        job_field(&[root], &BTreeSet::new(), &held, &wrecks, &hulls)
+                    },
+                )
+                .expect("the field reads the queries")
+        };
+        let ids = |hulls: &[JobHull]| hulls.iter().map(|hull| hull.id.clone()).collect::<Vec<_>>();
+        let wreck_ids = |wrecks: &[JobWreck]| {
+            wrecks
+                .iter()
+                .map(|wreck| wreck.id.clone())
+                .collect::<Vec<_>>()
+        };
+
+        let open = field(&mut app, Jobs::default());
+        assert_eq!(open.hostiles.len(), 4, "the raiders stand as hostiles");
+        assert_eq!(open.wrecks.len(), 2, "the caller stands as a wreck");
+
+        let mut jobs = Jobs::default();
+        jobs.accept(escort.clone());
+        jobs.accept(distress.clone());
+        let posted = field(&mut app, jobs);
+        assert_eq!(ids(&posted.hostiles), vec![hull_id()]);
+        assert_eq!(wreck_ids(&posted.wrecks), vec![wreck_id()]);
     }
 }

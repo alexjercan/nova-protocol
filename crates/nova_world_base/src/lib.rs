@@ -227,6 +227,7 @@ impl Plugin for NovaWorldBasePlugin {
         app.add_observer(jobs::escort_on_arrival);
         app.add_observer(jobs::distress_on_answer);
         app.add_observer(jobs::neutralize_on_kill);
+        app.add_observer(jobs::drop_on_loss);
         // In `Update`, not `PreUpdate`: a menu entry swaps the scenario in
         // `StateTransition`, and a ship destroyed in `FixedUpdate` leaves the
         // world. Both land after `PreUpdate`, and the streaming stages would
