@@ -613,6 +613,7 @@ fn the_goto_button_sets_the_goto_the_key_sets() {
     app.insert_resource(InterfaceIcons::blank());
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
+    app.init_resource::<Jobs>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Map);
     app.add_systems(
@@ -1695,6 +1696,7 @@ fn a_selected_contact_fills_the_panel_in_place() {
     app.insert_resource(InterfaceIcons::blank());
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
+    app.init_resource::<Jobs>();
     app.add_systems(Update, (assign_map_contact_codes, update_map_panel).chain());
     track_node_churn(app);
     let content = rig.content_root;
