@@ -1,19 +1,27 @@
 //! The map's chart view: the player's [`Chart`] drawn at cell scale.
 //!
 //! The view swaps the local scene for a grid of cells around the player's
-//! cell, the visited cells striped in the colour of each of their cluster
-//! types and tagged with the type words, the found stations and wrecks as
-//! marks in the cell that generated them, and every held job ([`Jobs`]) as a
-//! mark in its target's cell. Marks and cell tags are projected UI labels,
-//! like the local blips, and each selects what it names. A mark's label
-//! shows only a code minted from the chart's found order (or the jobs'
-//! accept order), never a name: the open world names a ship by whose it is.
+//! cell. A visited cell is a textured tile: one layer per cluster type, each
+//! the type's texture ([`ChartTileTextures`]) in the type's colour, or a
+//! faint grid for a cell with no cluster body; a cell never entered is an
+//! outline. The found stations and wrecks stand as marks in the cell that
+//! generated them, and every held job ([`Jobs`]) as a mark in its target's
+//! cell. A station mark reads its state: a living station in the living
+//! colour, a dead one faint in the danger colour, the player's own in the
+//! ally colour, a ring under one that refuses the player a dock right now,
+//! and a `n JOBS` tag over one whose board posts jobs the player does not
+//! hold. Marks and cell tags are projected UI labels, like the local blips,
+//! and each selects what it names. A mark's label shows only a code minted
+//! from the chart's found order (or the jobs' accept order), never a name:
+//! the open world names a ship by whose it is.
 //!
-//! The side panel carries the CHARTER block over the discovery log while the
-//! role has a goal, naming the goal's title and each count's `have / need`,
-//! then the discovery log under the selection: the chart's own finds
-//! ([`Chart::log`]) newest first, each a play-time stamp, a code and a cell,
-//! and each a row that selects its find.
+//! The side panel carries the SECTOR block while a find is selected: the
+//! find's cell, the route to it from the player's cell, its contents as icon
+//! rows, when the player entered it, the finds there, the stock last seen at
+//! a station docked there and the jobs held or posted there. With nothing
+//! selected it carries the CHARTER block over the discovery log: the chart's
+//! own finds ([`Chart::log`]) newest first, each an icon, a label, a cell and
+//! how long ago, and each a row that selects its find.
 //!
 //! Chart space is its own frame on the map layer: the player's cell centre
 //! sits at the origin and one cell is [`MAP_CHART_CELL`] units across. The
@@ -25,16 +33,18 @@
 use bevy::{camera::visibility::RenderLayers, prelude::*, ui_widgets::Activate};
 use nova_events::prelude::{GeneratedBodyId, SectorCoord};
 use nova_gameplay::prelude::*;
+use nova_ship::prelude::DockAdmission;
 use nova_ui::{
     prelude::{button, ButtonSpec},
     theme::{ActiveUiTheme, UiColor},
     widget::{ThemedBorder, ThemedFill},
 };
 
-use super::{app::*, contacts::*, *};
+use super::{app::*, contacts::*, tiles::ChartTileTextures, *};
 use crate::{
-    inventory::cr_text,
-    pane::{legend_entry, play_menu_select, themed_label, InterfacePaneType},
+    icons::{icon_node, ChartIconType, InterfaceIcons},
+    inventory::{category_color, cr_text},
+    pane::{control_row, divider, legend_entry, play_menu_select, themed_label, InterfacePaneType},
     terminal::NovaOsAppInput,
     viewer::unlit,
 };
@@ -54,6 +64,11 @@ pub(crate) const MAP_CHART_RADIUS_MAX: f32 = 680.0;
 const MAP_CHART_MARK_SPACING: f32 = 14.0;
 /// Height of a mark over its cell's floor, in map units.
 const MAP_CHART_MARK_LIFT: f32 = 8.0;
+/// Vertical step between the labels of marks that share a cell: a 14 unit
+/// sideways shift is narrower than a label, so stacked labels never overlap.
+const MAP_CHART_LABEL_STACK: f32 = 16.0;
+/// Side of a tile, as a share of its cell: a gap keeps the grid readable.
+const MAP_CHART_TILE_SHARE: f32 = 0.92;
 
 /// One find of the chart the player can select: a visited cell, a station,
 /// a wreck or a held job.
@@ -69,13 +84,25 @@ pub(crate) enum MapChartMarkType {
     Job(JobId),
 }
 
+/// The live facts of a found station that stands in the streamed window,
+/// which the chart draws beyond its record. A station out of the window
+/// reads the default: it neither refuses nor posts.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct ChartStationLive {
+    /// It refuses the player a dock right now ([`DockAdmission`]).
+    pub(crate) refusing: bool,
+    /// How many jobs its board posts that the player neither holds nor has
+    /// completed.
+    pub(crate) posting: u32,
+}
+
 /// The chart view's scene, under the map scene root.
 #[derive(Component)]
 pub(crate) struct MapChartRoot;
 
 /// One label of the chart view over the viewport: a mark's code or a
-/// visited cell's type words, which selects what it names, or the own-ship
-/// tag, which takes no clicks.
+/// visited cell's coordinate, which selects what it names, or a tag that
+/// takes no clicks: the own-ship tag and a station's job count.
 #[derive(Component)]
 pub(crate) struct MapChartLabel {
     /// Where the label points, in chart space.
@@ -84,16 +111,23 @@ pub(crate) struct MapChartLabel {
     pub(crate) mark: Option<MapChartMarkType>,
 }
 
+/// The SECTOR block of the side panel, shown in the chart view while a find
+/// is selected.
+#[derive(Component)]
+pub(crate) struct MapChartSectorMarker;
+
 /// The CHARTER block over the discovery log, shown in the chart view while
 /// the role has a goal.
 #[derive(Component)]
 pub(crate) struct MapChartCharterMarker;
 
-/// The rows of the discovery log in the side panel, shown in the chart view.
+/// The rows of the discovery log in the side panel, shown in the chart view
+/// with nothing selected.
 #[derive(Component)]
 pub(crate) struct MapChartLogMarker;
 
-/// One row of the discovery log: the find it selects.
+/// One row that selects a find: a discovery log row or a FINDS row of the
+/// SECTOR block.
 #[derive(Component)]
 pub(crate) struct MapChartLogRow(pub(crate) MapChartMarkType);
 
@@ -128,6 +162,17 @@ pub(crate) fn chart_mark_code(
     }
 }
 
+/// The cell a mark stands in: the cell itself, the cell that generated a
+/// station or a wreck, or a held job's target cell. A job no longer held has
+/// no cell.
+pub(crate) fn chart_mark_cell(jobs: &Jobs, mark: &MapChartMarkType) -> Option<SectorCoord> {
+    match mark {
+        MapChartMarkType::Cell(coord) => Some(*coord),
+        MapChartMarkType::Station(id) | MapChartMarkType::Wreck(id) => Some(id.origin),
+        MapChartMarkType::Job(id) => jobs.job(id).map(job_cell),
+    }
+}
+
 /// The cell a held job is marked in: the cell of the body it is about, or
 /// the poster's for a procurement, which is done at the hand-in.
 pub(crate) fn job_cell(job: &Job) -> SectorCoord {
@@ -155,21 +200,23 @@ pub(crate) fn job_title(job: &Job, items: Option<&GameItems>) -> String {
     )
 }
 
-/// The colour a cluster type's stripe of a visited cell is filled with.
+/// The colour a cluster type's tile layer, icon and word read in.
 pub(crate) const fn chart_cell_color(cluster: ClusterType) -> UiColor {
-    match cluster {
-        ClusterType::AsteroidRich => UiColor::Accent,
-        ClusterType::RockOnly => UiColor::Secondary,
-        ClusterType::PlanetHeavy => UiColor::Info,
-        ClusterType::DerelictField => UiColor::Body,
-    }
+    ChartIconType::of(cluster).color()
 }
 
-/// The alpha of a cluster stripe.
-const MAP_CHART_STRIPE_ALPHA: f32 = 0.35;
-/// The fill of a visited cell with no cluster body: faint, so it reads as
-/// seen and empty.
-const MAP_CHART_EMPTY_CELL: (UiColor, f32) = (UiColor::Label, 0.15);
+/// The alpha of a cluster type's tile layer.
+const MAP_CHART_TILE_ALPHA: f32 = 0.9;
+/// The fill under a visited cell's layers: the player's cell in the own-ship
+/// colour, every other visited cell faint.
+const MAP_CHART_PLAYER_CELL_FILL: (UiColor, f32) = (UiColor::Primary, 0.16);
+const MAP_CHART_VISITED_CELL_FILL: (UiColor, f32) = (UiColor::Secondary, 0.14);
+/// The grid of a visited cell with no cluster body.
+const MAP_CHART_EMPTY_CELL: (UiColor, f32) = (UiColor::Label, 0.5);
+/// The outline of a cell the player never entered.
+const MAP_CHART_UNVISITED_CELL: (UiColor, f32) = (UiColor::Secondary, 0.6);
+/// The alpha a dead station's mark fades to.
+const MAP_CHART_DEAD_STATION_ALPHA: f32 = 0.3;
 
 /// The word a cell label, the panel and the legend name a cluster type by:
 /// what the player finds there.
@@ -182,12 +229,24 @@ pub(crate) const fn chart_cluster_word(cluster: ClusterType) -> &'static str {
     }
 }
 
-/// The colour a visited cell's label and log row read in: its first cluster
-/// type's, or the empty fill's.
-fn chart_cell_label_color(cell: &ChartCell) -> UiColor {
+/// What a visited cell holds, in words: its cluster types joined, or empty.
+fn chart_cell_words(cell: &ChartCell) -> String {
+    if cell.clusters.is_empty() {
+        "EMPTY".to_string()
+    } else {
+        cell.clusters
+            .iter()
+            .map(|cluster| chart_cluster_word(*cluster))
+            .collect::<Vec<_>>()
+            .join(" + ")
+    }
+}
+
+/// The icon of a visited cell: its first cluster type's, or the bare cell.
+fn chart_cell_icon(cell: &ChartCell) -> ChartIconType {
     cell.clusters
         .first()
-        .map_or(MAP_CHART_EMPTY_CELL.0, |cluster| chart_cell_color(*cluster))
+        .map_or(ChartIconType::Sector, |cluster| ChartIconType::of(*cluster))
 }
 
 /// What a station mark is, as the panel's kind line names it, and its
@@ -202,9 +261,47 @@ pub(crate) const fn chart_station_kind(derelict: bool, owned: bool) -> (&'static
 }
 
 /// The colour of a wreck mark.
-pub(crate) const MAP_CHART_WRECK_COLOR: UiColor = UiColor::AccentHigh;
+pub(crate) const MAP_CHART_WRECK_COLOR: UiColor = ChartIconType::Wreck.color();
 /// The colour of a held job's mark and label.
-pub(crate) const MAP_CHART_JOB_COLOR: UiColor = UiColor::Accent;
+pub(crate) const MAP_CHART_JOB_COLOR: UiColor = ChartIconType::Job.color();
+
+/// How long ago a play-time stamp was, read against the clock: `just now`
+/// under a minute, else whole minutes, else whole hours. A stamp ahead of
+/// the clock reads `just now`.
+pub(crate) fn relative_time_text(now: f64, at: f64) -> String {
+    let elapsed = now - at;
+    if !elapsed.is_finite() || elapsed < 60.0 {
+        "just now".to_string()
+    } else if elapsed < 3600.0 {
+        format!("{} min ago", (elapsed / 60.0).floor())
+    } else {
+        format!("{} h ago", (elapsed / 3600.0).floor())
+    }
+}
+
+/// The route from the player's cell to `to`, one leg per axis: `2 cells +X,
+/// 1 cell -Z`, or `This cell`.
+pub(crate) fn route_hint(from: SectorCoord, to: SectorCoord) -> String {
+    let legs = [
+        (to.x - from.x, 'X'),
+        (to.y - from.y, 'Y'),
+        (to.z - from.z, 'Z'),
+    ];
+    let parts: Vec<String> = legs
+        .iter()
+        .filter(|(delta, _)| *delta != 0)
+        .map(|(delta, axis)| {
+            let cells = if delta.abs() == 1 { "cell" } else { "cells" };
+            let sign = if *delta > 0 { '+' } else { '-' };
+            format!("{} {cells} {sign}{axis}", delta.abs())
+        })
+        .collect();
+    if parts.is_empty() {
+        "This cell".to_string()
+    } else {
+        parts.join(", ")
+    }
+}
 
 /// Where a cell sits in chart space, from the player's cell.
 fn chart_cell_position(cell: SectorCoord, player_cell: SectorCoord) -> Vec3 {
@@ -261,12 +358,58 @@ pub(crate) fn on_map_chart_button(_activate: On<Activate>, mut runtime: ResMut<M
     runtime.chart_requested = true;
 }
 
+/// The live facts of every found station standing in the streamed window,
+/// in id order: whether it refuses `player` a dock and how many jobs its
+/// board posts that `jobs` neither holds nor has completed.
+fn chart_station_live(
+    chart: &Chart,
+    jobs: &Jobs,
+    player: Option<Entity>,
+    stations: &Query<(Entity, &GeneratedBodyId, Option<&JobBoard>), With<StationMarker>>,
+    admission: &DockAdmission,
+) -> Vec<(GeneratedBodyId, ChartStationLive)> {
+    let mut live: Vec<(GeneratedBodyId, ChartStationLive)> = stations
+        .iter()
+        .filter(|(_, id, _)| chart.station(id).is_some())
+        .map(|(entity, id, board)| {
+            let posting = board.map_or(0, |board| {
+                board
+                    .0
+                    .iter()
+                    .filter(|job| !jobs.holds(&job.id) && !jobs.is_completed(&job.id))
+                    .count() as u32
+            });
+            let refusing = player.is_some_and(|player| admission.refusal(player, entity).is_some());
+            (id.clone(), ChartStationLive { refusing, posting })
+        })
+        .collect();
+    live.sort_by(|a, b| a.0.cmp(&b.0));
+    live
+}
+
+/// The live facts of the found station `id`, or the default off the window.
+fn live_of(live: &[(GeneratedBodyId, ChartStationLive)], id: &GeneratedBodyId) -> ChartStationLive {
+    live.iter()
+        .find(|(each, _)| each == id)
+        .map_or_else(ChartStationLive::default, |(_, facts)| *facts)
+}
+
+/// What the chart scene was last built for, beyond the chart, the jobs and
+/// the theme, whose change ticks say so themselves.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct ChartSceneBuild {
+    player_cell: SectorCoord,
+    selected: Option<MapChartMarkType>,
+    live: Vec<(GeneratedBodyId, ChartStationLive)>,
+}
+
 /// Build the chart scene and its labels while the chart view shows, rebuild
-/// them when the chart, the player's cell or the theme changes, and tear
-/// them down when the view goes. Hides the local rings and hub meanwhile.
+/// them when the chart, the jobs, the selection, the player's cell, a
+/// station's live facts or the theme changes, and tear them down when the
+/// view goes. Hides the local rings and hub meanwhile.
 #[expect(
     clippy::too_many_arguments,
-    reason = "the chart, the scene assets and the viewport its labels sit on"
+    reason = "the chart, the live stations, the scene assets and the viewport its labels sit on"
 )]
 pub(crate) fn manage_map_chart(
     mut commands: Commands,
@@ -275,12 +418,15 @@ pub(crate) fn manage_map_chart(
     jobs: Res<Jobs>,
     edge: Option<Res<ChartSectorEdge>>,
     contacts: MapContacts,
+    admission: DockAdmission,
+    q_stations: Query<(Entity, &GeneratedBodyId, Option<&JobBoard>), With<StationMarker>>,
     theme: Res<ActiveUiTheme>,
+    tiles: Res<ChartTileTextures>,
     meshes: Option<ResMut<Assets<Mesh>>>,
     materials: Option<ResMut<Assets<StandardMaterial>>>,
     q_viewport: Query<Entity, With<MapViewportMarker>>,
     mut q_anchor: Query<&mut Visibility, With<MapFocusAnchor>>,
-    mut built_for: Local<Option<SectorCoord>>,
+    mut built_for: Local<Option<ChartSceneBuild>>,
 ) {
     let local = if runtime.chart {
         Visibility::Hidden
@@ -297,12 +443,22 @@ pub(crate) fn manage_map_chart(
         if runtime.chart_root.is_some() || !runtime.chart_labels.is_empty() {
             drop_map_chart(&mut commands, &mut runtime);
         }
+        if runtime.chart_player_cell.is_some() || !runtime.chart_live.is_empty() {
+            runtime.chart_player_cell = None;
+            runtime.chart_live.clear();
+        }
         *built_for = None;
         return;
     };
     let player_cell = SectorCoord::containing(Meters3::from_engine(contacts.focus()), edge.0);
+    let player = contacts.player_frame().map(|(entity, _, _)| entity);
+    let build = ChartSceneBuild {
+        player_cell,
+        selected: runtime.chart_selected.clone(),
+        live: chart_station_live(&chart, &jobs, player, &q_stations, &admission),
+    };
     if runtime.chart_root.is_some()
-        && *built_for == Some(player_cell)
+        && built_for.as_ref() == Some(&build)
         && !chart.is_changed()
         && !jobs.is_changed()
         && !theme.is_changed()
@@ -310,7 +466,15 @@ pub(crate) fn manage_map_chart(
         return;
     }
     drop_map_chart(&mut commands, &mut runtime);
-    *built_for = Some(player_cell);
+    runtime.chart_player_cell = Some(player_cell);
+    if runtime.chart_live != build.live {
+        runtime.chart_live.clone_from(&build.live);
+    }
+    let selected_cell = build
+        .selected
+        .as_ref()
+        .and_then(|mark| chart_mark_cell(&jobs, mark));
+    *built_for = Some(build);
     let Some(scene_root) = runtime.scene_root else {
         return;
     };
@@ -333,6 +497,13 @@ pub(crate) fn manage_map_chart(
             ChildOf(root),
         ));
     };
+    let textured = |texture: Handle<Image>, color: Color| StandardMaterial {
+        base_color: color,
+        base_color_texture: Some(texture),
+        unlit: true,
+        alpha_mode: AlphaMode::Blend,
+        ..default()
+    };
 
     // The grid: cell borders on the player's layer.
     let span = MAP_CHART_CELL * (2 * MAP_CHART_REACH + 1) as f32;
@@ -353,58 +524,91 @@ pub(crate) fn manage_map_chart(
         );
     }
 
-    // Visited cells: one stripe along z per cluster type, in its colour, so
-    // a cell with two types shows both; an empty cell a faint fill.
-    let mut stripe_meshes: Vec<Handle<Mesh>> = Vec::new();
+    // The tiles: every cell of the grid on the player's layer, plus every
+    // visited cell off it. A visited cell is a fill under one textured layer
+    // per cluster type, or the empty grid, with its coordinate at its
+    // corner; a cell never entered is an outline.
+    let tile = meshes.add(Plane3d::default().mesh().size(
+        MAP_CHART_CELL * MAP_CHART_TILE_SHARE,
+        MAP_CHART_CELL * MAP_CHART_TILE_SHARE,
+    ));
+    let mut cells: Vec<SectorCoord> = chart.visited().map(|(coord, _)| coord).collect();
+    for dx in -MAP_CHART_REACH..=MAP_CHART_REACH {
+        for dz in -MAP_CHART_REACH..=MAP_CHART_REACH {
+            let coord = SectorCoord::new(player_cell.x + dx, player_cell.y, player_cell.z + dz);
+            if !cells.contains(&coord) {
+                cells.push(coord);
+            }
+        }
+    }
     let mut labels = Vec::new();
-    for (coord, cell) in chart.visited() {
+    for coord in cells {
         let at = chart_cell_position(coord, player_cell);
-        let count = cell.clusters.len().max(1);
-        while stripe_meshes.len() < count {
-            let stripes = stripe_meshes.len() + 1;
-            stripe_meshes.push(meshes.add(Cuboid::new(
-                MAP_CHART_CELL * 0.9,
-                0.4,
-                MAP_CHART_CELL * 0.9 / stripes as f32,
-            )));
+        match chart.cell(coord) {
+            Some(cell) => {
+                let (color, alpha) = if coord == player_cell {
+                    MAP_CHART_PLAYER_CELL_FILL
+                } else {
+                    MAP_CHART_VISITED_CELL_FILL
+                };
+                spawn_mesh(
+                    tile.clone(),
+                    materials.add(unlit(theme.color_alpha(color, alpha))),
+                    Transform::from_translation(at - Vec3::Y * 0.3),
+                );
+                if cell.clusters.is_empty() {
+                    let (color, alpha) = MAP_CHART_EMPTY_CELL;
+                    spawn_mesh(
+                        tile.clone(),
+                        materials.add(textured(
+                            tiles.grid.clone(),
+                            theme.color_alpha(color, alpha),
+                        )),
+                        Transform::from_translation(at),
+                    );
+                }
+                for (index, cluster) in cell.clusters.iter().enumerate() {
+                    spawn_mesh(
+                        tile.clone(),
+                        materials.add(textured(
+                            tiles.cluster(*cluster),
+                            theme.color_alpha(chart_cell_color(*cluster), MAP_CHART_TILE_ALPHA),
+                        )),
+                        Transform::from_translation(at + Vec3::Y * (0.2 + index as f32 * 0.2)),
+                    );
+                }
+                let corner = Vec3::new(-0.38, 0.0, -0.38) * MAP_CHART_CELL;
+                labels.push((
+                    at + corner,
+                    Some(MapChartMarkType::Cell(coord)),
+                    coord.to_string(),
+                    coord.to_string(),
+                    UiColor::Label,
+                    10.0,
+                ));
+            }
+            None => {
+                let (color, alpha) = MAP_CHART_UNVISITED_CELL;
+                spawn_mesh(
+                    tile.clone(),
+                    materials.add(textured(
+                        tiles.outline.clone(),
+                        theme.color_alpha(color, alpha),
+                    )),
+                    Transform::from_translation(at),
+                );
+            }
         }
-        let mesh = stripe_meshes[count - 1].clone();
-        let depth = MAP_CHART_CELL * 0.9 / count as f32;
-        for (index, cluster) in cell.clusters.iter().enumerate() {
-            let offset = (index as f32 - (count - 1) as f32 * 0.5) * depth;
+        if selected_cell == Some(coord) {
             spawn_mesh(
-                mesh.clone(),
-                materials.add(unlit(
-                    theme.color_alpha(chart_cell_color(*cluster), MAP_CHART_STRIPE_ALPHA),
+                tile.clone(),
+                materials.add(textured(
+                    tiles.outline.clone(),
+                    theme.color(UiColor::Accent),
                 )),
-                Transform::from_translation(at - Vec3::Y * 0.3 + Vec3::Z * offset),
+                Transform::from_translation(at + Vec3::Y * 1.2),
             );
         }
-        if cell.clusters.is_empty() {
-            let (color, alpha) = MAP_CHART_EMPTY_CELL;
-            spawn_mesh(
-                mesh,
-                materials.add(unlit(theme.color_alpha(color, alpha))),
-                Transform::from_translation(at - Vec3::Y * 0.3),
-            );
-        }
-        let words = if cell.clusters.is_empty() {
-            "EMPTY".to_string()
-        } else {
-            cell.clusters
-                .iter()
-                .map(|cluster| chart_cluster_word(*cluster))
-                .collect::<Vec<_>>()
-                .join("\n")
-        };
-        let corner = Vec3::new(-0.38, 0.0, -0.38) * MAP_CHART_CELL;
-        labels.push((
-            at + corner,
-            Some(MapChartMarkType::Cell(coord)),
-            words,
-            coord.to_string(),
-            chart_cell_label_color(cell),
-        ));
     }
 
     // Stations and wrecks, side by side in the cell that generated them,
@@ -435,6 +639,7 @@ pub(crate) fn manage_map_chart(
         }))
         .collect();
     let station_mesh = meshes.add(Cuboid::new(9.0, 9.0, 9.0));
+    let refusal_ring = meshes.add(Torus::new(8.0, 9.5));
     let wreck_mesh = meshes.add(Tetrahedron::default());
     let job_mesh = meshes.add(Cuboid::new(4.0, 14.0, 4.0));
     for (mark, cell, color) in &marks {
@@ -447,33 +652,67 @@ pub(crate) fn manage_map_chart(
         let shift = (slot as f32 - (in_cell.len() - 1) as f32 * 0.5) * MAP_CHART_MARK_SPACING;
         let at =
             chart_cell_position(*cell, player_cell) + Vec3::new(shift, MAP_CHART_MARK_LIFT, 0.0);
-        let material = materials.add(unlit(theme.color(*color)));
+        let label_at = at + Vec3::Y * (slot as f32 * MAP_CHART_LABEL_STACK);
         match mark {
-            MapChartMarkType::Station(_) => {
+            MapChartMarkType::Station(id) => {
+                let dead = chart.station(id).is_some_and(|station| station.derelict);
+                let alpha = if dead {
+                    MAP_CHART_DEAD_STATION_ALPHA
+                } else {
+                    1.0
+                };
                 spawn_mesh(
                     station_mesh.clone(),
-                    material,
+                    materials.add(unlit(theme.color_alpha(*color, alpha))),
                     Transform::from_translation(at),
                 );
+                let live = live_of(&runtime.chart_live, id);
+                if live.refusing {
+                    spawn_mesh(
+                        refusal_ring.clone(),
+                        materials.add(unlit(theme.color(UiColor::Danger))),
+                        Transform::from_translation(at - Vec3::Y * 4.0),
+                    );
+                }
+                if live.posting > 0 {
+                    if let Some(code) = chart_mark_code(&chart, &jobs, mark) {
+                        labels.push((
+                            // Above every stacked label of the cell.
+                            at + Vec3::Y * (in_cell.len() as f32 * MAP_CHART_LABEL_STACK + 4.0),
+                            None,
+                            format!("{} JOBS", live.posting),
+                            format!("{code} jobs"),
+                            MAP_CHART_JOB_COLOR,
+                            10.0,
+                        ));
+                    }
+                }
             }
             MapChartMarkType::Wreck(_) => {
                 spawn_mesh(
                     wreck_mesh.clone(),
-                    material,
+                    materials.add(unlit(theme.color(*color))),
                     Transform::from_translation(at).with_scale(Vec3::splat(10.0)),
                 );
             }
             MapChartMarkType::Job(_) => {
                 spawn_mesh(
                     job_mesh.clone(),
-                    material,
+                    materials.add(unlit(theme.color(*color))),
                     Transform::from_translation(at + Vec3::Y * 3.0),
                 );
             }
-            MapChartMarkType::Cell(_) => unreachable!("a cell is drawn as a fill, not a mark"),
+            MapChartMarkType::Cell(_) => unreachable!("a cell is drawn as a tile, not a mark"),
         }
         if let Some(code) = chart_mark_code(&chart, &jobs, mark) {
-            labels.push((at, Some(mark.clone()), code.clone(), code, *color));
+            labels.push((
+                label_at,
+                Some(mark.clone()),
+                code.clone(),
+                code,
+                *color,
+                12.0,
+            ));
         }
     }
 
@@ -492,10 +731,20 @@ pub(crate) fn manage_map_chart(
         "YOU".to_string(),
         "YOU".to_string(),
         MapContactKind::OwnShip.color(),
+        11.0,
     ));
 
-    for (anchor, mark, text, name, color) in labels {
-        let label = spawn_chart_label(&mut commands, viewport, anchor, mark, &text, &name, color);
+    for (anchor, mark, text, name, color, size) in labels {
+        let label = spawn_chart_label(
+            &mut commands,
+            viewport,
+            anchor,
+            mark,
+            &text,
+            &name,
+            color,
+            size,
+        );
         runtime.chart_labels.push(label);
     }
 }
@@ -512,10 +761,10 @@ pub(crate) fn drop_map_chart(commands: &mut Commands, runtime: &mut MapRuntime) 
 
 /// Spawn one chart label under the viewport, hidden until projected. A
 /// mark's label is a button named `MapChartMark{name}` that selects the
-/// mark.
+/// mark; a tag takes no clicks.
 #[expect(
     clippy::too_many_arguments,
-    reason = "a label's place, mark, text, name and colour under the viewport"
+    reason = "a label's place, mark, text, name, colour and size under the viewport"
 )]
 fn spawn_chart_label(
     commands: &mut Commands,
@@ -525,6 +774,7 @@ fn spawn_chart_label(
     text: &str,
     name: &str,
     color: UiColor,
+    size: f32,
 ) -> Entity {
     let clickable = mark.is_some();
     let mut label = commands.spawn((
@@ -542,10 +792,7 @@ fn spawn_chart_label(
         BorderColor::all(Color::NONE),
         ThemedBorder::alpha(UiColor::Secondary, if clickable { 0.3 } else { 0.0 }),
         ChildOf(viewport),
-        children![(
-            themed_label(text, if clickable { 12.0 } else { 11.0 }, color),
-            Pickable::IGNORE
-        )],
+        children![(themed_label(text, size, color), Pickable::IGNORE)],
     ));
     if clickable {
         label
@@ -591,7 +838,7 @@ fn on_map_chart_label_click(
     select_chart_mark(&mut runtime, mark, bank.as_deref(), &mut commands);
 }
 
-/// Select a find when its discovery log row is activated.
+/// Select a find when its discovery log row or FINDS row is activated.
 fn on_map_chart_log_row_click(
     activate: On<Activate>,
     q_row: Query<&MapChartLogRow>,
@@ -603,6 +850,432 @@ fn on_map_chart_log_row_click(
         return;
     };
     select_chart_mark(&mut runtime, mark, bank.as_deref(), &mut commands);
+}
+
+/// A section heading of a chart panel block.
+fn block_heading(parent: &mut ChildSpawnerCommands, text: &str) {
+    parent.spawn((themed_label(text, 11.0, UiColor::Label), Pickable::IGNORE));
+}
+
+/// A `label  value` line of a chart panel block.
+fn block_fact(parent: &mut ChildSpawnerCommands, label: &str, value: &str) {
+    parent
+        .spawn(Node {
+            column_gap: px(8),
+            ..control_row(JustifyContent::FlexStart)
+        })
+        .with_children(|row| {
+            row.spawn((
+                Node {
+                    width: px(72),
+                    flex_shrink: 0.0,
+                    ..default()
+                },
+                children![(themed_label(label, 12.0, UiColor::Label), Pickable::IGNORE)],
+            ));
+            row.spawn((
+                themed_label(value, 13.0, UiColor::Primary),
+                Pickable::IGNORE,
+            ));
+        });
+}
+
+/// A note line of a chart panel block.
+fn block_note(parent: &mut ChildSpawnerCommands, text: &str) {
+    parent.spawn((themed_label(text, 12.0, UiColor::Body), Pickable::IGNORE));
+}
+
+/// One icon row of a chart panel block: an icon in its tint, a label that
+/// takes the width and clips, and the trailing cells in the Label colour.
+/// Returns the row for the caller to make a button of.
+fn spawn_icon_row<'a>(
+    parent: &'a mut ChildSpawnerCommands,
+    icon: Option<(Handle<Image>, UiColor)>,
+    label: &str,
+    label_color: UiColor,
+    trailing: &[(&str, f32, UiColor)],
+) -> EntityCommands<'a> {
+    let mut row = parent.spawn(Node {
+        column_gap: px(8),
+        padding: UiRect::axes(px(4), px(1)),
+        border: UiRect::all(px(1)),
+        ..control_row(JustifyContent::FlexStart)
+    });
+    row.with_children(|row| {
+        if let Some((image, tint)) = icon {
+            row.spawn(icon_node(image, tint, 16.0));
+        }
+        row.spawn((
+            Node {
+                flex_grow: 1.0,
+                flex_basis: px(0),
+                min_width: px(0),
+                overflow: Overflow::clip(),
+                ..default()
+            },
+            Pickable::IGNORE,
+            children![(
+                themed_label(label, 13.0, label_color),
+                TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                Pickable::IGNORE
+            )],
+        ));
+        for (text, size, color) in trailing {
+            row.spawn((
+                themed_label(text, *size, *color),
+                TextLayout::new(Justify::Right, LineBreak::NoWrap),
+                Pickable::IGNORE,
+            ));
+        }
+    });
+    row
+}
+
+/// Make `row` a button named `name` that selects `mark`, born with its
+/// edge: the accent when it is the selection, so a rebuild under a selected
+/// row never shows it plain for a frame.
+fn select_row(row: &mut EntityCommands, name: String, mark: MapChartMarkType, selected: bool) {
+    let (edge, alpha) = chart_log_row_edge(selected);
+    row.insert((
+        MapChartLogRow(mark),
+        bevy::ui_widgets::Button,
+        Name::new(name),
+        BackgroundColor(Color::NONE),
+        BorderColor::all(Color::NONE),
+        ThemedBorder::alpha(edge, alpha),
+    ))
+    .observe(on_map_chart_log_row_click);
+}
+
+/// The SECTOR block's slot in the side panel, over the CHARTER block, hidden
+/// off the chart view and with nothing selected.
+/// [`update_map_chart_sector`] fills it.
+pub(crate) fn spawn_map_chart_sector(panel: &mut ChildSpawnerCommands) {
+    panel.spawn((
+        MapChartSectorMarker,
+        Name::new("MapChartSector"),
+        Node {
+            display: Display::None,
+            flex_direction: FlexDirection::Column,
+            row_gap: px(4),
+            ..default()
+        },
+    ));
+}
+
+/// What a chart panel block was last built for, so it rebuilds only on a
+/// difference: the selection, the player's cell, the stations' live facts
+/// and the play minute every relative time reads in.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct ChartPanelBuild {
+    selected: Option<MapChartMarkType>,
+    player_cell: Option<SectorCoord>,
+    live: Vec<(GeneratedBodyId, ChartStationLive)>,
+    minute: u64,
+}
+
+impl ChartPanelBuild {
+    fn of(runtime: &MapRuntime, clock: &WorldClock) -> Self {
+        Self {
+            selected: runtime.chart_selected.clone(),
+            player_cell: runtime.chart_player_cell,
+            live: runtime.chart_live.clone(),
+            minute: (clock.play_seconds.max(0.0) / 60.0).floor() as u64,
+        }
+    }
+}
+
+/// The name a found station is called by in a row: its code, then the name
+/// seen on the last dock if the player docked there.
+fn station_row_label(chart: &Chart, jobs: &Jobs, station: &ChartStation) -> String {
+    let code = chart_mark_code(chart, jobs, &MapChartMarkType::Station(station.id.clone()))
+        .unwrap_or_default();
+    match &station.summary {
+        Some(summary) => format!("{code} {}", summary.name),
+        None => code,
+    }
+}
+
+/// Show the SECTOR block while the chart view shows with a find selected,
+/// rebuild it whenever the selection, the chart, the jobs, the player's
+/// cell, a station's live facts or the play minute changes, and hide it
+/// otherwise.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the selection, the records it reads and the icons the rows draw"
+)]
+pub(crate) fn update_map_chart_sector(
+    mut commands: Commands,
+    runtime: Res<MapRuntime>,
+    chart: Res<Chart>,
+    jobs: Res<Jobs>,
+    items: Option<Res<GameItems>>,
+    clock: Res<WorldClock>,
+    icons: Res<InterfaceIcons>,
+    mut q_block: Query<(Entity, &mut Node), With<MapChartSectorMarker>>,
+    mut built: Local<Option<ChartPanelBuild>>,
+) {
+    let Ok((block, mut node)) = q_block.single_mut() else {
+        return;
+    };
+    let selected_cell = runtime
+        .chart_selected
+        .as_ref()
+        .and_then(|mark| chart_mark_cell(&jobs, mark));
+    let shown = runtime.active && runtime.chart && selected_cell.is_some();
+    let display = if shown { Display::Flex } else { Display::None };
+    if node.display != display {
+        node.display = display;
+    }
+    let (Some(coord), Some(player_cell), true) = (selected_cell, runtime.chart_player_cell, shown)
+    else {
+        if built.is_some() {
+            commands.entity(block).despawn_related::<Children>();
+            *built = None;
+        }
+        return;
+    };
+    let build = ChartPanelBuild::of(&runtime, &clock);
+    if built.as_ref() == Some(&build) && !chart.is_changed() && !jobs.is_changed() {
+        return;
+    }
+    *built = Some(build);
+    let selected = runtime.chart_selected.as_ref();
+    commands
+        .entity(block)
+        .despawn_related::<Children>()
+        .with_children(|block| {
+            block
+                .spawn(control_row(JustifyContent::SpaceBetween))
+                .with_children(|head| {
+                    head.spawn((
+                        themed_label(&format!("SECTOR {coord}"), 15.0, UiColor::Primary),
+                        Pickable::IGNORE,
+                    ));
+                    head.spawn((
+                        themed_label(&route_hint(player_cell, coord), 12.0, UiColor::Label),
+                        Pickable::IGNORE,
+                    ));
+                });
+            block.spawn(divider());
+            block_heading(block, "CONTENTS");
+            match chart.cell(coord) {
+                Some(cell) if cell.clusters.is_empty() => block_note(block, "Empty space."),
+                Some(cell) => {
+                    for cluster in &cell.clusters {
+                        let icon = ChartIconType::of(*cluster);
+                        spawn_icon_row(
+                            block,
+                            Some((icons.chart(icon), icon.color())),
+                            icon.label(),
+                            UiColor::Primary,
+                            &[],
+                        );
+                    }
+                }
+                None => block_note(block, "Not entered yet: contents unknown."),
+            }
+            if let Some(cell) = chart.cell(coord) {
+                block.spawn(divider());
+                block_fact(
+                    block,
+                    "Entered",
+                    &format!(
+                        "{}, {}",
+                        play_time_text(cell.entered_at),
+                        relative_time_text(clock.play_seconds, cell.entered_at)
+                    ),
+                );
+            }
+
+            // The finds: the stations and wrecks the cell generated.
+            let stations: Vec<&ChartStation> = chart
+                .stations()
+                .iter()
+                .filter(|station| station.id.origin == coord)
+                .collect();
+            let wrecks: Vec<&ChartWreck> = chart
+                .wrecks()
+                .iter()
+                .filter(|wreck| wreck.id.origin == coord)
+                .collect();
+            if !stations.is_empty() || !wrecks.is_empty() {
+                block.spawn(divider());
+                block_heading(block, "FINDS");
+            }
+            for station in &stations {
+                let mark = MapChartMarkType::Station(station.id.clone());
+                let code = chart_mark_code(&chart, &jobs, &mark).unwrap_or_default();
+                let (_, color) = chart_station_kind(station.derelict, station.owned);
+                let live = live_of(&runtime.chart_live, &station.id);
+                let mut facts: Vec<String> = Vec::new();
+                if station.derelict {
+                    facts.push("dead".to_string());
+                } else if station.owned {
+                    facts.push("yours".to_string());
+                }
+                if live.refusing {
+                    facts.push("refuses docking".to_string());
+                }
+                if live.posting > 0 {
+                    facts.push(format!("posts {} jobs", live.posting));
+                }
+                if facts.is_empty() {
+                    facts.push("living".to_string());
+                }
+                let facts = facts.join(", ");
+                let mut row = spawn_icon_row(
+                    block,
+                    Some((icons.chart(ChartIconType::Station), color)),
+                    &station_row_label(&chart, &jobs, station),
+                    color,
+                    &[(&facts, 12.0, UiColor::Label)],
+                );
+                select_row(
+                    &mut row,
+                    format!("MapChartFind{code}"),
+                    mark.clone(),
+                    selected == Some(&mark),
+                );
+            }
+            for wreck in &wrecks {
+                let mark = MapChartMarkType::Wreck(wreck.id.clone());
+                let code = chart_mark_code(&chart, &jobs, &mark).unwrap_or_default();
+                let found = format!(
+                    "found {}",
+                    relative_time_text(clock.play_seconds, wreck.found_at)
+                );
+                let mut row = spawn_icon_row(
+                    block,
+                    Some((icons.chart(ChartIconType::Wreck), MAP_CHART_WRECK_COLOR)),
+                    &code,
+                    MAP_CHART_WRECK_COLOR,
+                    &[(&found, 12.0, UiColor::Label)],
+                );
+                select_row(
+                    &mut row,
+                    format!("MapChartFind{code}"),
+                    mark.clone(),
+                    selected == Some(&mark),
+                );
+            }
+
+            // What the player last saw at each station docked at here.
+            for station in &stations {
+                let Some(summary) = &station.summary else {
+                    continue;
+                };
+                block.spawn(divider());
+                block_heading(block, &format!("{} LAST SEEN", summary.name.to_uppercase()));
+                if station.derelict {
+                    block_note(block, "Dead. Nothing trades here.");
+                    continue;
+                }
+                let services = if summary.services.is_empty() {
+                    "none".to_string()
+                } else {
+                    summary
+                        .services
+                        .iter()
+                        .map(|service| format!("{service:?}").to_lowercase())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                };
+                block_fact(block, "Services", &services);
+                if summary.stock.is_empty() {
+                    block_note(block, "No stock seen.");
+                }
+                for (item, count) in &summary.stock {
+                    stock_row(block, &icons, items.as_deref(), item, *count);
+                }
+                if !summary.stored.is_empty() {
+                    block_heading(block, "STORED");
+                    for (item, count) in &summary.stored {
+                        stock_row(block, &icons, items.as_deref(), item, *count);
+                    }
+                }
+            }
+
+            // The jobs here: held jobs about this cell, and the boards that
+            // post.
+            let held: Vec<&Job> = jobs
+                .held()
+                .iter()
+                .filter(|job| job_cell(job) == coord)
+                .collect();
+            let posting: Vec<(&ChartStation, u32)> = stations
+                .iter()
+                .map(|station| (*station, live_of(&runtime.chart_live, &station.id).posting))
+                .filter(|(_, posting)| *posting > 0)
+                .collect();
+            if !held.is_empty() || !posting.is_empty() {
+                block.spawn(divider());
+                block_heading(block, "JOBS HERE");
+            }
+            for job in held {
+                let mark = MapChartMarkType::Job(job.id.clone());
+                let code = chart_mark_code(&chart, &jobs, &mark).unwrap_or_default();
+                let state = if jobs.is_done(&job.id) {
+                    "done"
+                } else {
+                    "held"
+                };
+                let mut row = spawn_icon_row(
+                    block,
+                    Some((icons.chart(ChartIconType::Job), MAP_CHART_JOB_COLOR)),
+                    &job_title(job, items.as_deref()),
+                    UiColor::Primary,
+                    &[(state, 12.0, UiColor::Label)],
+                );
+                select_row(
+                    &mut row,
+                    format!("MapChartFind{code}"),
+                    mark.clone(),
+                    selected == Some(&mark),
+                );
+            }
+            for (station, count) in posting {
+                let code = chart_mark_code(
+                    &chart,
+                    &jobs,
+                    &MapChartMarkType::Station(station.id.clone()),
+                )
+                .unwrap_or_default();
+                spawn_icon_row(
+                    block,
+                    Some((icons.chart(ChartIconType::Job), MAP_CHART_JOB_COLOR)),
+                    &format!("{code} posts {count} jobs"),
+                    UiColor::Primary,
+                    &[("open", 12.0, UiColor::Label)],
+                );
+            }
+        });
+}
+
+/// One stock row: the item's category icon and name from the catalog, or
+/// its id with no icon while no catalog is loaded, and its count.
+fn stock_row(
+    block: &mut ChildSpawnerCommands,
+    icons: &InterfaceIcons,
+    items: Option<&GameItems>,
+    item: &ItemDesignId,
+    count: u32,
+) {
+    let design = items.and_then(|items| items.get(item));
+    let icon = design.map(|design| {
+        (
+            icons.category(design.category),
+            category_color(design.category),
+        )
+    });
+    let name = design.map_or_else(|| item.to_string(), |design| design.name.clone());
+    spawn_icon_row(
+        block,
+        icon,
+        &name,
+        UiColor::Primary,
+        &[(&format!("x{count}"), 12.0, UiColor::Body)],
+    );
 }
 
 /// The CHARTER block's slot in the side panel, over the discovery log,
@@ -707,44 +1380,62 @@ pub(crate) fn spawn_map_chart_log(panel: &mut ChildSpawnerCommands) {
     ));
 }
 
-/// The text of one discovery log row: the play time of the find, its code
-/// and its cell.
-fn chart_log_row_text(chart: &Chart, jobs: &Jobs, entry: &ChartLogEntry) -> (String, UiColor) {
-    let (mark, cell, color) = match &entry.entry {
-        ChartLogEntryType::Cell(coord) => (
-            MapChartMarkType::Cell(*coord),
-            *coord,
-            chart
-                .cell(*coord)
-                .map_or(MAP_CHART_EMPTY_CELL.0, chart_cell_label_color),
-        ),
-        ChartLogEntryType::Station(id) => (
-            MapChartMarkType::Station(id.clone()),
-            id.origin,
-            chart
-                .station(id)
-                .map_or(chart_station_kind(false, false).1, |station| {
-                    chart_station_kind(station.derelict, station.owned).1
-                }),
-        ),
-        ChartLogEntryType::Wreck(id) => (
-            MapChartMarkType::Wreck(id.clone()),
-            id.origin,
-            MAP_CHART_WRECK_COLOR,
-        ),
-    };
-    let code = match &mark {
-        MapChartMarkType::Cell(_) => "CELL".to_string(),
-        mark => chart_mark_code(chart, jobs, mark).unwrap_or_default(),
-    };
-    (
-        format!("{}  {code}  {cell}", play_time_text(entry.at)),
-        color,
-    )
+/// One discovery log row, as the panel draws it.
+struct ChartLogRowView {
+    /// The find it selects.
+    mark: MapChartMarkType,
+    icon: ChartIconType,
+    /// The icon's and the label's colour.
+    color: UiColor,
+    /// A cell's contents in words, a station's code and last-seen name, or
+    /// a wreck's code.
+    label: String,
+    cell: SectorCoord,
 }
 
-/// The edge a discovery log row wears: the accent when it is the selected
-/// find, else the faint secondary the chart labels wear.
+/// What one discovery log row draws.
+fn chart_log_row(chart: &Chart, jobs: &Jobs, entry: &ChartLogEntry) -> ChartLogRowView {
+    match &entry.entry {
+        ChartLogEntryType::Cell(coord) => {
+            let cell = chart.cell(*coord);
+            ChartLogRowView {
+                mark: MapChartMarkType::Cell(*coord),
+                icon: cell.map_or(ChartIconType::Sector, chart_cell_icon),
+                color: UiColor::Primary,
+                label: cell.map_or_else(|| "CELL".to_string(), chart_cell_words),
+                cell: *coord,
+            }
+        }
+        ChartLogEntryType::Station(id) => {
+            let station = chart.station(id);
+            ChartLogRowView {
+                mark: MapChartMarkType::Station(id.clone()),
+                icon: ChartIconType::Station,
+                color: station.map_or(chart_station_kind(false, false).1, |station| {
+                    chart_station_kind(station.derelict, station.owned).1
+                }),
+                label: station.map_or_else(
+                    || id.to_string(),
+                    |station| station_row_label(chart, jobs, station),
+                ),
+                cell: id.origin,
+            }
+        }
+        ChartLogEntryType::Wreck(id) => {
+            let mark = MapChartMarkType::Wreck(id.clone());
+            ChartLogRowView {
+                label: chart_mark_code(chart, jobs, &mark).unwrap_or_default(),
+                mark,
+                icon: ChartIconType::Wreck,
+                color: MAP_CHART_WRECK_COLOR,
+                cell: id.origin,
+            }
+        }
+    }
+}
+
+/// The edge a find row wears: the accent when it is the selected find, else
+/// the faint secondary the chart labels wear.
 const fn chart_log_row_edge(selected: bool) -> (UiColor, f32) {
     if selected {
         (UiColor::Accent, 1.0)
@@ -753,35 +1444,39 @@ const fn chart_log_row_edge(selected: bool) -> (UiColor, f32) {
     }
 }
 
-/// Show the discovery log while the chart view shows, rebuild its rows
-/// newest first whenever the chart changes, hide it off the chart view, and
-/// edge the selected find's row in the accent.
+/// Show the discovery log while the chart view shows with nothing selected,
+/// rebuild its rows newest first whenever the chart or the play minute
+/// changes, hide it otherwise, and edge the selected find's row in the
+/// accent.
 pub(crate) fn update_map_chart_log(
     mut commands: Commands,
     runtime: Res<MapRuntime>,
     chart: Res<Chart>,
     jobs: Res<Jobs>,
+    clock: Res<WorldClock>,
+    icons: Res<InterfaceIcons>,
     mut q_log: Query<(Entity, &mut Node), With<MapChartLogMarker>>,
     mut q_row: Query<(&MapChartLogRow, &mut ThemedBorder)>,
-    mut built: Local<bool>,
+    mut built: Local<Option<u64>>,
 ) {
     let Ok((log, mut node)) = q_log.single_mut() else {
         return;
     };
-    let shown = runtime.active && runtime.chart;
+    let shown = runtime.active && runtime.chart && runtime.chart_selected.is_none();
     let display = if shown { Display::Flex } else { Display::None };
     if node.display != display {
         node.display = display;
     }
     if !shown {
-        if *built {
+        if built.is_some() {
             commands.entity(log).despawn_related::<Children>();
-            *built = false;
+            *built = None;
         }
         return;
     }
-    if !*built || chart.is_changed() {
-        *built = true;
+    let minute = (clock.play_seconds.max(0.0) / 60.0).floor() as u64;
+    if *built != Some(minute) || chart.is_changed() {
+        *built = Some(minute);
         let mut entries = chart.log();
         entries.reverse();
         entries.truncate(MAP_CHART_LOG_ROWS);
@@ -794,31 +1489,22 @@ pub(crate) fn update_map_chart_log(
                     log.spawn(themed_label("Nothing found yet.", 11.0, UiColor::Label));
                 }
                 for (index, entry) in entries.iter().enumerate() {
-                    let (text, color) = chart_log_row_text(&chart, &jobs, entry);
-                    let mark = match &entry.entry {
-                        ChartLogEntryType::Cell(coord) => MapChartMarkType::Cell(*coord),
-                        ChartLogEntryType::Station(id) => MapChartMarkType::Station(id.clone()),
-                        ChartLogEntryType::Wreck(id) => MapChartMarkType::Wreck(id.clone()),
-                    };
-                    // Born with its edge, so a rebuild under a selected
-                    // row never shows it plain for a frame.
-                    let (edge, alpha) =
-                        chart_log_row_edge(runtime.chart_selected.as_ref() == Some(&mark));
-                    log.spawn((
-                        MapChartLogRow(mark),
-                        bevy::ui_widgets::Button,
-                        Name::new(format!("MapChartLog{index}")),
-                        Node {
-                            padding: UiRect::axes(px(4), px(1)),
-                            border: UiRect::all(px(1)),
-                            ..default()
-                        },
-                        BackgroundColor(Color::NONE),
-                        BorderColor::all(Color::NONE),
-                        ThemedBorder::alpha(edge, alpha),
-                        children![(themed_label(&text, 11.0, color), Pickable::IGNORE)],
-                    ))
-                    .observe(on_map_chart_log_row_click);
+                    let view = chart_log_row(&chart, &jobs, entry);
+                    let cell = view.cell.to_string();
+                    let when = relative_time_text(clock.play_seconds, entry.at);
+                    let mut row = spawn_icon_row(
+                        log,
+                        Some((icons.chart(view.icon), view.color)),
+                        &view.label,
+                        view.color,
+                        &[(&cell, 12.0, UiColor::Body), (&when, 11.0, UiColor::Label)],
+                    );
+                    select_row(
+                        &mut row,
+                        format!("MapChartLog{index}"),
+                        view.mark.clone(),
+                        runtime.chart_selected.as_ref() == Some(&view.mark),
+                    );
                 }
             });
         return;
@@ -887,13 +1573,13 @@ pub(crate) fn project_map_chart_labels(
     }
 }
 
-/// What the contact panel says in the chart view, field by field: the
-/// selected mark's code, its last-seen name, what it is, its cell, when the
-/// player found it, the services and stock seen on the last dock, or a
-/// station seen but never docked as having no stock; for a visited cell,
-/// what its clusters hold, when the player entered it and what was found
-/// there; for a held job, its title, reward and where it hands in. With
-/// nothing selected it heads the discovery log and counts the chart.
+/// What the contact panel's head says in the chart view, field by field:
+/// the selected mark's code, its last-seen name, what it is, its cell, the
+/// services seen on the last dock, and when the player found it and whether
+/// it was docked at; for a visited cell, what its clusters hold and when the
+/// player entered it; for a held job, its title, reward and where it hands
+/// in. The SECTOR block lists the cell's finds, stock and jobs. With nothing
+/// selected it heads the discovery log and counts the chart.
 pub(crate) fn chart_panel_field(
     chart: &Chart,
     jobs: &Jobs,
@@ -901,17 +1587,6 @@ pub(crate) fn chart_panel_field(
     selected: Option<&MapChartMarkType>,
     field: MapPanelField,
 ) -> (String, UiColor) {
-    let stacks = |stacks: &[(ItemDesignId, u32)]| {
-        if stacks.is_empty() {
-            "none".to_string()
-        } else {
-            stacks
-                .iter()
-                .map(|(item, count)| format!("{item} x{count}"))
-                .collect::<Vec<_>>()
-                .join(", ")
-        }
-    };
     let station = |id: &GeneratedBodyId| chart.station(id);
     let station_name = |id: &GeneratedBodyId| {
         station(id)
@@ -945,12 +1620,7 @@ pub(crate) fn chart_panel_field(
         ),
         (Some(MapChartMarkType::Cell(coord)), MapPanelField::Name) => (
             match chart.cell(*coord) {
-                Some(cell) if !cell.clusters.is_empty() => cell
-                    .clusters
-                    .iter()
-                    .map(|cluster| chart_cluster_word(*cluster))
-                    .collect::<Vec<_>>()
-                    .join(" + "),
+                Some(cell) if !cell.clusters.is_empty() => chart_cell_words(cell),
                 _ => "Empty space".to_string(),
             },
             UiColor::Body,
@@ -967,27 +1637,7 @@ pub(crate) fn chart_panel_field(
             }),
             UiColor::Primary,
         ),
-        (Some(MapChartMarkType::Cell(coord)), MapPanelField::Note) => {
-            let here: Vec<String> = chart
-                .stations()
-                .iter()
-                .filter(|station| station.id.origin == *coord)
-                .map(|station| MapChartMarkType::Station(station.id.clone()))
-                .chain(
-                    chart
-                        .wrecks()
-                        .iter()
-                        .filter(|wreck| wreck.id.origin == *coord)
-                        .map(|wreck| MapChartMarkType::Wreck(wreck.id.clone())),
-                )
-                .filter_map(|mark| chart_mark_code(chart, jobs, &mark))
-                .collect();
-            if here.is_empty() {
-                ("Nothing found here yet.".to_string(), UiColor::Label)
-            } else {
-                (format!("Here: {}.", here.join(", ")), UiColor::Label)
-            }
-        }
+        (Some(MapChartMarkType::Cell(_)), MapPanelField::Note) => (String::new(), UiColor::Label),
         (Some(MapChartMarkType::Job(id)), MapPanelField::Name) => (
             jobs.job(id).map_or_else(
                 || "Job no longer held".to_string(),
@@ -1073,21 +1723,15 @@ pub(crate) fn chart_panel_field(
             let Some(station) = station(id) else {
                 return (String::new(), UiColor::Label);
             };
-            match &station.summary {
-                Some(summary) => (
-                    format!(
-                        "{}\nLast seen docked.\nStock: {}\nStored: {}",
-                        found(station.found_at),
-                        stacks(&summary.stock),
-                        stacks(&summary.stored)
-                    ),
-                    UiColor::Label,
-                ),
-                None => (
-                    format!("{}\nNot docked: no stock seen.", found(station.found_at)),
-                    UiColor::Label,
-                ),
-            }
+            let seen = if station.summary.is_some() {
+                "Last seen docked."
+            } else {
+                "Not docked: no stock seen."
+            };
+            (
+                format!("{}\n{seen}", found(station.found_at)),
+                UiColor::Label,
+            )
         }
         (Some(MapChartMarkType::Wreck(id)), MapPanelField::Note) => (
             chart.wreck(id).map_or_else(String::new, |wreck| {
@@ -1099,54 +1743,13 @@ pub(crate) fn chart_panel_field(
     }
 }
 
-/// The legend the chart view shows: each cluster type's stripe and word,
-/// the station mark in its three states, the wreck and job marks, and you.
-pub(crate) fn spawn_chart_legend(legend: &mut ChildSpawnerCommands) {
-    let swatch = |entry: &mut ChildSpawnerCommands, color: UiColor, alpha: f32| {
-        entry.spawn((
-            Node {
-                width: px(12),
-                height: px(12),
-                ..default()
-            },
-            BackgroundColor(Color::NONE),
-            ThemedFill::alpha(color, alpha),
-        ));
-    };
-    let capitalized = |word: &str| {
-        let mut chars = word.chars();
-        chars.next().map_or_else(String::new, |first| {
-            first.to_string() + &chars.as_str().to_lowercase()
-        })
-    };
-    for cluster in ClusterType::ALL {
+/// The legend the chart view shows: one icon and word per content, the
+/// station, wreck and job marks, and you.
+pub(crate) fn spawn_chart_legend(legend: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
+    for icon in ChartIconType::LEGEND {
         legend.spawn(legend_entry()).with_children(|entry| {
-            swatch(entry, chart_cell_color(cluster), 1.0);
-            entry.spawn(themed_label(
-                &capitalized(chart_cluster_word(cluster)),
-                12.0,
-                UiColor::Body,
-            ));
-        });
-    }
-    legend.spawn(legend_entry()).with_children(|entry| {
-        swatch(entry, chart_station_kind(false, false).1, 1.0);
-        swatch(entry, chart_station_kind(true, false).1, 1.0);
-        swatch(entry, chart_station_kind(false, true).1, 1.0);
-        entry.spawn(themed_label(
-            "Station: living, dead, yours",
-            12.0,
-            UiColor::Body,
-        ));
-    });
-    for (color, word) in [
-        (MAP_CHART_WRECK_COLOR, "Wreck"),
-        (MAP_CHART_JOB_COLOR, "Job"),
-        (MapContactKind::OwnShip.color(), "You"),
-    ] {
-        legend.spawn(legend_entry()).with_children(|entry| {
-            swatch(entry, color, 1.0);
-            entry.spawn(themed_label(word, 12.0, UiColor::Body));
+            entry.spawn(icon_node(icons.chart(icon), icon.color(), 16.0));
+            entry.spawn(themed_label(icon.label(), 12.0, UiColor::Body));
         });
     }
 }
@@ -1187,5 +1790,25 @@ mod tests {
             standing.last(),
             Some(&("Standing".to_string(), UiColor::Label))
         );
+    }
+
+    /// A find reads how long ago against the clock in whole minutes, then
+    /// whole hours, and `just now` under a minute or ahead of the clock; the
+    /// route to a cell reads one leg per axis the player must cross.
+    #[test]
+    fn the_sector_panel_reads_relative_times_and_routes() {
+        assert_eq!(relative_time_text(100.0, 70.0), "just now");
+        assert_eq!(relative_time_text(100.0, 130.0), "just now");
+        assert_eq!(relative_time_text(300.0, 59.0), "4 min ago");
+        assert_eq!(relative_time_text(7_300.0, 0.0), "2 h ago");
+        assert_eq!(relative_time_text(f64::NAN, 0.0), "just now");
+
+        let from = SectorCoord::new(1, 0, -2);
+        assert_eq!(route_hint(from, from), "This cell");
+        assert_eq!(
+            route_hint(from, SectorCoord::new(3, 0, -3)),
+            "2 cells +X, 1 cell -Z"
+        );
+        assert_eq!(route_hint(from, SectorCoord::new(1, -1, -2)), "1 cell -Y");
     }
 }

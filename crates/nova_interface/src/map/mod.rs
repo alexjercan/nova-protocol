@@ -21,10 +21,11 @@
 //! while a streamed world runs: the player's [`Chart`] of visited cells,
 //! found stations and found wrecks at cell scale, and the player's held
 //! [`Jobs`] marked in their target's cell, with the discovery log of those
-//! finds by play time in the panel. Selecting a cell shows what its clusters
-//! hold and when the player entered it; a station shows when it was found
-//! and what the player saw on the last dock, or no stock if never docked; a
-//! job shows its title, reward and where it hands in.
+//! finds as icon rows with relative play times in the panel. Selecting a
+//! find shows its cell's SECTOR block: its contents, when the player entered
+//! it, the finds there, the stock last seen at a docked station and the jobs
+//! held or posted there; a station's head shows when it was found; a job's
+//! its title, reward and where it hands in.
 //!
 //! # Module layout
 //!
@@ -33,12 +34,14 @@
 //! | `contacts` | The shared contact model. |
 //! | `app` | The pane's components and runtime state. |
 //! | `chart` | The chart view of the player's visited cells and finds. |
+//! | `tiles` | The chart's tile textures, one per cluster type. |
 //! | `scene` | The schematic 3D scene, its camera and the projected blips. |
 
 mod app;
 mod chart;
 mod contacts;
 mod scene;
+mod tiles;
 
 #[cfg(test)]
 mod tests;
@@ -48,7 +51,7 @@ use nova_events::units::prelude::*;
 use nova_gameplay::prelude::{Chart, JobPostings, Jobs, WorldClock};
 
 pub use self::contacts::{MapContactCode, MapContactKind, MapContacts};
-pub(crate) use self::{app::*, chart::*, contacts::*, scene::*};
+pub(crate) use self::{app::*, chart::*, contacts::*, scene::*, tiles::*};
 
 /// Glob-import surface: `use nova_interface::map::prelude::*`.
 pub mod prelude {
@@ -156,6 +159,7 @@ impl Plugin for MapPanePlugin {
         app.init_resource::<Jobs>();
         app.init_resource::<JobPostings>();
         app.init_resource::<WorldClock>();
+        app.add_systems(Startup, init_chart_tiles);
         // Scene lifecycle runs unconditionally so it can tear down when the
         // interface closes; the interactive systems gate on the Map pane owning
         // the interface.
@@ -169,6 +173,7 @@ impl Plugin for MapPanePlugin {
                 map_input,
                 map_focus_follow,
                 manage_map_chart,
+                update_map_chart_sector,
                 update_map_chart_charter,
                 update_map_chart_log,
                 drive_map_camera,

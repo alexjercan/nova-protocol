@@ -4,13 +4,17 @@
 //! or how its contact panel is laid out.
 
 use bevy::{prelude::*, ui::InteractionDisabled};
+use nova_events::prelude::{GeneratedBodyId, SectorCoord};
 use nova_ui::{
     prelude::{button, ButtonSpec},
     theme::UiColor,
     widget::ThemedFill,
 };
 
-use super::{on_map_goto_button, spawn_map_chart_charter, spawn_map_chart_log, MapContactKind};
+use super::{
+    on_map_goto_button, spawn_map_chart_charter, spawn_map_chart_log, spawn_map_chart_sector,
+    ChartStationLive, MapContactKind,
+};
 use crate::{
     icons::{icon_node, BodyIconType, InterfaceIcons},
     pane::{panel_preview_frame, side_panel, themed_label, PANEL_PREVIEW_PX},
@@ -63,9 +67,10 @@ pub(crate) struct MapGotoMarker;
 
 /// Build the contact panel beside the map view: the selection's icon over its
 /// code, name and kind; a rule; its range and bearing; a rule; its note; a
-/// rule; the CHARTER block, shown in the chart view while the role has a
-/// goal; the discovery log, shown in the chart view; and the live GOTO
-/// destination over the GOTO button.
+/// rule; the SECTOR block, shown in the chart view with a find selected; the
+/// CHARTER block, shown in the chart view while the role has a goal; the
+/// discovery log, shown in the chart view with nothing selected; and the
+/// live GOTO destination over the GOTO button.
 /// [`update_map_panel`](super::update_map_panel) fills it.
 pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     parent
@@ -104,6 +109,7 @@ pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &Interfa
             panel.spawn(panel_rule());
             panel.spawn((MapPanelField::Note, themed_label("", 12.0, UiColor::Label)));
             panel.spawn(panel_rule());
+            spawn_map_chart_sector(panel);
             spawn_map_chart_charter(panel);
             spawn_map_chart_log(panel);
             panel.spawn((
@@ -215,4 +221,9 @@ pub(crate) struct MapRuntime {
     pub(crate) chart_root: Option<Entity>,
     /// The chart view's labels over the viewport.
     pub(crate) chart_labels: Vec<Entity>,
+    /// The player's cell the chart view was built around, while it stands.
+    pub(crate) chart_player_cell: Option<SectorCoord>,
+    /// The live facts of every found station standing in the streamed
+    /// window, in id order, as the chart view last drew them.
+    pub(crate) chart_live: Vec<(GeneratedBodyId, ChartStationLive)>,
 }

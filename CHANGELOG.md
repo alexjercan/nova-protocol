@@ -202,6 +202,18 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Interface & HUD
 
+- The Map's chart view draws each entered cell as a textured tile per cluster
+  type, outlines cells you never entered and rings the selected mark's cell
+  in the accent.
+- Chart station marks show their state: dead marks fade, a station refusing
+  you docking wears a red ring, and one with open jobs reads `n JOBS` above
+  its code.
+- Selecting a chart cell or mark opens a SECTOR block of icon rows: contents,
+  entered time, finds, the stock and services seen at your last dock there
+  and the jobs posted there.
+- The chart's discovery log lists finds as icon rows with relative times
+  (`just now`, `4 min ago`) and hides while a selection stands; the legend is
+  an icon row.
 - GOTO's predicted path now curves for a coasting or tumbling target, gravity
   included. It hides while the target changes course or spin; the guide stays.
 - Create names worlds; New World is the default. Load lists saved worlds with

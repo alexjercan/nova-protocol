@@ -1,19 +1,19 @@
 //! The icon masks the interface panes draw: one silhouette per section
-//! family, per kind of map body and per item category.
+//! family, per kind of map body, per item category and per chart mark.
 //!
 //! Each mask is a white shape whose alpha is its coverage, drawn once at
 //! startup and tinted by the theme where it is shown, so a theme change never
 //! redraws a mask.
 //!
-//! Touch this module when changing what a section family or a map body looks
-//! like.
+//! Touch this module when changing what a section family, a map body or a
+//! chart mark looks like.
 
 use bevy::{
     asset::RenderAssetUsages,
     prelude::*,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
 };
-use nova_gameplay::prelude::{ItemCategoryType, SectionClass};
+use nova_gameplay::prelude::{ClusterType, ItemCategoryType, SectionClass};
 use nova_ui::{theme::UiColor, widget::ThemedImageTint};
 
 /// How the panes draw a section kind: one icon, tint and legend word per
@@ -39,12 +39,30 @@ pub(crate) enum BodyIconType {
     Objective,
 }
 
+/// What the Map's chart view, its panel, its log and its legend draw a find
+/// as: a cell's contents by cluster type, a cell itself, the found marks and
+/// the own ship.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum ChartIconType {
+    Asteroids,
+    Rocks,
+    Planet,
+    Derelicts,
+    /// A visited cell with no cluster body, in the log.
+    Sector,
+    Station,
+    Wreck,
+    Job,
+    You,
+}
+
 /// Every icon mask the panes draw, in each family's `ALL` order.
 #[derive(Resource)]
 pub(crate) struct InterfaceIcons {
     pub(crate) sections: [Handle<Image>; SectionIconType::ALL.len()],
     pub(crate) bodies: [Handle<Image>; BodyIconType::ALL.len()],
     pub(crate) categories: [Handle<Image>; ITEM_CATEGORIES.len()],
+    pub(crate) charts: [Handle<Image>; ChartIconType::ALL.len()],
 }
 
 impl InterfaceIcons {
@@ -63,6 +81,11 @@ impl InterfaceIcons {
         self.categories[category as usize].clone()
     }
 
+    /// The mask of a chart mark.
+    pub(crate) fn chart(&self, icon: ChartIconType) -> Handle<Image> {
+        self.charts[icon as usize].clone()
+    }
+
     /// Default handles for every mask, for tests that build pane markup
     /// without drawing images.
     #[cfg(test)]
@@ -71,6 +94,7 @@ impl InterfaceIcons {
             sections: std::array::from_fn(|_| Handle::default()),
             bodies: std::array::from_fn(|_| Handle::default()),
             categories: std::array::from_fn(|_| Handle::default()),
+            charts: std::array::from_fn(|_| Handle::default()),
         }
     }
 }
@@ -97,6 +121,14 @@ fn ring(p: Vec2, c: Vec2, r: f32, w: f32) -> f32 {
 fn segment(p: Vec2, a: Vec2, b: Vec2, w: f32) -> f32 {
     let t = ((p - a).dot(b - a) / (b - a).length_squared()).clamp(0.0, 1.0);
     (p - (a + (b - a) * t)).length() - w * 0.5
+}
+
+/// Signed distance to the outline of an axis-aligned box of half size `h`
+/// around `c`, stroked `w` wide.
+fn box_outline(p: Vec2, c: Vec2, h: Vec2, w: f32) -> f32 {
+    let q = (p - c).abs() - h;
+    let outside = q.max(Vec2::ZERO).length() + q.x.max(q.y).min(0.0);
+    outside.abs() - w * 0.5
 }
 
 /// Signed distance to a convex polygon, wound clockwise on screen.
@@ -338,6 +370,197 @@ impl BodyIconType {
     }
 }
 
+impl ChartIconType {
+    pub(crate) const ALL: [Self; 9] = [
+        Self::Asteroids,
+        Self::Rocks,
+        Self::Planet,
+        Self::Derelicts,
+        Self::Sector,
+        Self::Station,
+        Self::Wreck,
+        Self::Job,
+        Self::You,
+    ];
+
+    /// What the chart's legend lists, in its order: the contents, the marks
+    /// and the own ship. A bare cell needs no legend entry.
+    pub(crate) const LEGEND: [Self; 8] = [
+        Self::Asteroids,
+        Self::Rocks,
+        Self::Planet,
+        Self::Derelicts,
+        Self::Station,
+        Self::Wreck,
+        Self::Job,
+        Self::You,
+    ];
+
+    /// The icon of a cluster type: what the player finds there.
+    pub(crate) const fn of(cluster: ClusterType) -> Self {
+        match cluster {
+            ClusterType::AsteroidRich => Self::Asteroids,
+            ClusterType::RockOnly => Self::Rocks,
+            ClusterType::PlanetHeavy => Self::Planet,
+            ClusterType::DerelictField => Self::Derelicts,
+        }
+    }
+
+    /// The legend word.
+    pub(crate) const fn label(self) -> &'static str {
+        match self {
+            Self::Asteroids => "Asteroids",
+            Self::Rocks => "Rocks",
+            Self::Planet => "Planet",
+            Self::Derelicts => "Derelicts",
+            Self::Sector => "Sector",
+            Self::Station => "Station",
+            Self::Wreck => "Wreck",
+            Self::Job => "Job",
+            Self::You => "You",
+        }
+    }
+
+    /// The tint of the icon, and of the tile layer or the mark it stands
+    /// for: a living station's colour for the station icon, the Map's own
+    /// ship colour for you.
+    pub(crate) const fn color(self) -> UiColor {
+        match self {
+            Self::Asteroids => UiColor::Accent,
+            Self::Rocks => UiColor::Secondary,
+            Self::Planet => UiColor::Info,
+            Self::Derelicts => UiColor::Body,
+            Self::Sector => UiColor::Label,
+            Self::Station => UiColor::Nominal,
+            Self::Wreck => UiColor::AccentHigh,
+            Self::Job => UiColor::Accent,
+            Self::You => UiColor::Primary,
+        }
+    }
+
+    /// Three lumps for asteroids, a scatter of small rocks, the map's ringed
+    /// planet, two hull halves for derelicts, a framed dot for a bare cell,
+    /// a cube in projection for a station, a cracked outline for a wreck, the
+    /// map's nav diamond for a job, and the own-ship dot in a faint ring.
+    fn coverage(self, p: Vec2, px: f32) -> f32 {
+        match self {
+            Self::Asteroids => {
+                let lumps = polygon(
+                    p,
+                    &[
+                        Vec2::new(-0.95, 0.1),
+                        Vec2::new(-0.55, -0.35),
+                        Vec2::new(-0.1, -0.1),
+                        Vec2::new(-0.25, 0.45),
+                        Vec2::new(-0.8, 0.55),
+                    ],
+                )
+                .min(polygon(
+                    p,
+                    &[
+                        Vec2::new(0.1, -0.9),
+                        Vec2::new(0.6, -0.8),
+                        Vec2::new(0.75, -0.3),
+                        Vec2::new(0.3, -0.05),
+                        Vec2::new(0.0, -0.4),
+                    ],
+                ))
+                .min(polygon(
+                    p,
+                    &[
+                        Vec2::new(0.2, 0.2),
+                        Vec2::new(0.85, 0.15),
+                        Vec2::new(0.9, 0.7),
+                        Vec2::new(0.45, 0.9),
+                        Vec2::new(0.1, 0.6),
+                    ],
+                ));
+                solid(lumps, px)
+            }
+            Self::Rocks => [
+                (Vec2::new(-0.6, -0.5), 0.2),
+                (Vec2::new(0.4, -0.65), 0.14),
+                (Vec2::new(0.65, 0.1), 0.18),
+                (Vec2::new(-0.1, 0.05), 0.12),
+                (Vec2::new(-0.65, 0.55), 0.15),
+                (Vec2::new(0.25, 0.65), 0.21),
+            ]
+            .into_iter()
+            .map(|(c, r)| solid(circle(p, c, r), px))
+            .fold(0.0, f32::max),
+            Self::Planet => BodyIconType::Planet.coverage(p, px),
+            Self::Derelicts => {
+                let bow = polygon(
+                    p,
+                    &[
+                        Vec2::new(-0.9, -0.1),
+                        Vec2::new(-0.3, -0.55),
+                        Vec2::new(-0.05, -0.2),
+                        Vec2::new(-0.2, 0.35),
+                        Vec2::new(-0.75, 0.4),
+                    ],
+                );
+                let stern = polygon(
+                    p,
+                    &[
+                        Vec2::new(0.15, -0.35),
+                        Vec2::new(0.85, -0.5),
+                        Vec2::new(0.9, 0.3),
+                        Vec2::new(0.35, 0.55),
+                        Vec2::new(0.1, 0.1),
+                    ],
+                );
+                solid(bow.min(stern), px)
+            }
+            Self::Sector => solid(box_outline(p, Vec2::ZERO, Vec2::splat(0.72), 0.12), px)
+                .max(solid(circle(p, Vec2::ZERO, 0.14), px)),
+            Self::Station => {
+                let front = box_outline(p, Vec2::new(-0.15, 0.15), Vec2::new(0.55, 0.55), 0.12);
+                let back = box_outline(p, Vec2::new(0.2, -0.2), Vec2::new(0.55, 0.55), 0.08);
+                let edges = [
+                    (Vec2::new(-0.7, -0.4), Vec2::new(-0.35, -0.75)),
+                    (Vec2::new(0.4, -0.4), Vec2::new(0.75, -0.75)),
+                    (Vec2::new(0.4, 0.7), Vec2::new(0.75, 0.35)),
+                ]
+                .into_iter()
+                .map(|(a, b)| segment(p, a, b, 0.08))
+                .fold(f32::INFINITY, f32::min);
+                solid(front, px).max(solid(back.min(edges), px) * 0.6)
+            }
+            Self::Wreck => {
+                let shell = polygon(
+                    p,
+                    &[
+                        Vec2::new(-0.9, 0.0),
+                        Vec2::new(-0.4, -0.7),
+                        Vec2::new(0.6, -0.6),
+                        Vec2::new(0.9, 0.1),
+                        Vec2::new(0.4, 0.75),
+                        Vec2::new(-0.5, 0.65),
+                    ],
+                );
+                let crack = segment(p, Vec2::new(-0.1, -0.75), Vec2::new(0.15, -0.15), 0.16)
+                    .min(segment(
+                        p,
+                        Vec2::new(0.15, -0.15),
+                        Vec2::new(-0.15, 0.25),
+                        0.16,
+                    ))
+                    .min(segment(
+                        p,
+                        Vec2::new(-0.15, 0.25),
+                        Vec2::new(0.1, 0.8),
+                        0.16,
+                    ));
+                solid((shell.abs() - 0.07).max(-crack), px)
+            }
+            Self::Job => BodyIconType::Objective.coverage(p, px),
+            Self::You => solid(circle(p, Vec2::ZERO, 0.32), px)
+                .max(solid(ring(p, Vec2::ZERO, 0.7, 0.08), px) * 0.6),
+        }
+    }
+}
+
 /// Every item category, in declaration order, which is the order its mask is
 /// stored in: [`InterfaceIcons::category`] indexes by `category as usize`.
 pub(crate) const ITEM_CATEGORIES: [ItemCategoryType; 5] = [
@@ -467,6 +690,7 @@ pub(crate) fn init_interface_icons(mut commands: Commands, mut images: ResMut<As
         bodies: BodyIconType::ALL.map(|body| icon_mask(&mut images, |p, px| body.coverage(p, px))),
         categories: ITEM_CATEGORIES
             .map(|category| icon_mask(&mut images, |p, px| category_coverage(category, p, px))),
+        charts: ChartIconType::ALL.map(|icon| icon_mask(&mut images, |p, px| icon.coverage(p, px))),
     });
 }
 

@@ -15,10 +15,11 @@
 //!
 //! The chart must hold those three cells and the station with the summary
 //! seen on the undock: its name, services and the stock in its hold. The Map
-//! pane's chart view is opened with the `map_chart` key, and the station's
-//! label, which shows only its chart code, is clicked: the panel must show
-//! the last-seen name and stock, and the discovery log must list the station
-//! and the spawn's cell with their play times. The player leaves to the main
+//! pane's chart view is opened with the `map_chart` key: the discovery log
+//! must list the station and the spawn's cell with how long ago. Then the
+//! station's label, which shows only its chart code, is clicked: the panel
+//! must show the last-seen name and its SECTOR block the stock seen on the
+//! dock. The player leaves to the main
 //! menu; the leave save is read back off disk through [`open_world`], and
 //! the world is loaded again in this process through the Load screen.
 //!
@@ -28,8 +29,8 @@
 //! | 2 | `outcome: docking at a station completes charter 0` | after the dock the objectives no longer list `charter_0` and no station wears the marker |
 //! | 3 | `outcome: a docked station's summary reaches the chart` | after the undock the chart holds the station, living, with its name, services and hold stock |
 //! | 4 | `outcome: the chart records the three entered cells` | the chart's visited cells are exactly the spawn's cell, the station's cell and the third cell |
-//! | 5 | `outcome: the map's chart view reads the station by its code` | the chart view labels the station `STN-n`; a click shows its last-seen name and stock |
-//! | 6 | `outcome: the discovery log lists the station` | the panel's log has a `h:mm:ss  STN-n  (x, y, z)` row for the station and a `CELL  (0, 0, 0)` row for the spawn's cell |
+//! | 5 | `outcome: the map's chart view reads the station by its code` | the chart view labels the station `STN-n`; a click shows its last-seen name and its SECTOR block lists the stock |
+//! | 6 | `outcome: the discovery log lists the station` | with nothing selected, the panel's log has an icon row reading `STN-n`, its cell and how long ago, and a row for the spawn's cell `(0, 0, 0)` |
 //! | 7 | `outcome: the leave save holds the chart` | the leave save, read with [`open_world`], holds the three cells and the station's summary |
 //! | 8 | `outcome: a loaded world restores the chart` | after Load the live chart holds the same three cells and the same station summary |
 //!
@@ -772,10 +773,11 @@ mod walk {
             .unwrap_or_else(|| panic!("world chart: the panel shows the last dock: {shown:?}"))
             .clone();
         let (item, count) = summary.stock.first().expect("checked non-empty");
-        assert!(
-            note.contains(&format!("{item} x{count}")),
-            "world chart: the panel lists the stock: {note:?}"
-        );
+        let item_name = world.resource::<GameItems>().design(item).name.clone();
+        let stock_row = sector_rows(world)
+            .into_iter()
+            .find(|row| row.contains(&item_name) && row.contains(&format!("x{count}")))
+            .unwrap_or_else(|| panic!("world chart: the SECTOR block lists the stock: {shown:?}"));
         assert!(
             shown.iter().any(|text| text == "LIVING STATION"),
             "world chart: the panel says the station lives: {shown:?}"
@@ -783,36 +785,87 @@ mod walk {
         nova_probe::probe_marker(
             world,
             "outcome: the map's chart view reads the station by its code",
-            serde_json::json!({ "code": code, "name": summary.name, "note": note }),
+            serde_json::json!({ "code": code, "name": summary.name, "note": note, "stock_row": stock_row }),
         );
-        info!("world chart: the chart view shows {code}: {note:?}");
+        info!("world chart: the chart view shows {code}: {note:?}, {stock_row:?}");
+    }
+
+    /// Every text under `root`, depth first.
+    fn texts_under(world: &mut World, root: Entity) -> Vec<String> {
+        let mut out = Vec::new();
+        let mut stack = vec![root];
+        while let Some(entity) = stack.pop() {
+            if let Some(text) = world.get::<Text>(entity) {
+                out.push(text.0.clone());
+            }
+            if let Some(children) = world.get::<Children>(entity) {
+                stack.extend(children.iter());
+            }
+        }
+        out
+    }
+
+    /// The texts of every panel row whose name starts with `prefix`, one row
+    /// at a time.
+    fn named_rows(world: &mut World, prefix: &str) -> Vec<Vec<String>> {
+        let rows: Vec<Entity> = world
+            .query::<(Entity, &Name)>()
+            .iter(world)
+            .filter(|(_, name)| name.as_str().starts_with(prefix))
+            .map(|(entity, _)| entity)
+            .collect();
+        rows.into_iter()
+            .map(|row| texts_under(world, row))
+            .collect()
+    }
+
+    /// The icon rows of the SECTOR block.
+    fn sector_rows(world: &mut World) -> Vec<Vec<String>> {
+        let block = world
+            .query::<(Entity, &Name)>()
+            .iter(world)
+            .find(|(_, name)| name.as_str() == "MapChartSector")
+            .map(|(entity, _)| entity)
+            .expect("world chart: the panel holds the SECTOR block");
+        let Some(children) = world.get::<Children>(block) else {
+            return Vec::new();
+        };
+        let rows: Vec<Entity> = children.iter().collect();
+        rows.into_iter()
+            .map(|row| texts_under(world, row))
+            .collect()
+    }
+
+    /// Whether a text reads how long ago a find was.
+    fn relative(text: &str) -> bool {
+        text == "just now" || text.ends_with(" ago")
     }
 
     /// Claim 6: the discovery log in the panel lists the station's find and
-    /// the spawn's cell, each with a play-time stamp.
+    /// the spawn's cell, each an icon row with its cell and how long ago.
     fn assert_the_discovery_log(world: &mut World) {
         let code = station_code(world);
         let cell = world
             .resource::<ChartWatch>()
             .cell
             .expect("world chart: the station's cell is chosen");
-        let shown = texts(world);
-        let stamped = |text: &str| {
-            text.split_once(':').is_some_and(|(hours, rest)| {
-                !hours.is_empty() && hours.chars().all(|c| c.is_ascii_digit()) && rest.len() > 5
-            })
-        };
-        let station_row = shown
+        let rows = named_rows(world, "MapChartLog");
+        let station_row = rows
             .iter()
-            .find(|text| stamped(text) && text.ends_with(&format!("  {code}  {cell}")))
-            .unwrap_or_else(|| panic!("world chart: the log lists {code} in {cell}: {shown:?}"))
+            .find(|row| {
+                row.iter().any(|text| text.starts_with(&code))
+                    && row.contains(&cell.to_string())
+                    && row.iter().any(|text| relative(text))
+            })
+            .unwrap_or_else(|| panic!("world chart: the log lists {code} in {cell}: {rows:?}"))
             .clone();
-        let origin_row = shown
+        let origin_row = rows
             .iter()
-            .find(|text| {
-                stamped(text) && text.ends_with(&format!("  CELL  {}", SectorCoord::ORIGIN))
+            .find(|row| {
+                row.contains(&SectorCoord::ORIGIN.to_string())
+                    && row.iter().any(|text| relative(text))
             })
-            .unwrap_or_else(|| panic!("world chart: the log lists the spawn's cell: {shown:?}"))
+            .unwrap_or_else(|| panic!("world chart: the log lists the spawn's cell: {rows:?}"))
             .clone();
         nova_probe::probe_marker(
             world,
@@ -1036,6 +1089,9 @@ mod walk {
         .step("world chart: settle the chart view")
         .until(frames(SETTLE_FRAMES))
         .add()
+        .step("world chart: assert the discovery log")
+        .on_enter(assert_the_discovery_log)
+        .add()
         // The label's name holds the code minted from the found order; the
         // walk's station is not the first found if the spawn's window held
         // another station.
@@ -1059,9 +1115,6 @@ mod walk {
         .add()
         .step("world chart: assert the chart view")
         .on_enter(assert_the_chart_view)
-        .add()
-        .step("world chart: assert the discovery log")
-        .on_enter(assert_the_discovery_log)
         .add()
         .step("world chart: shoot the chart view")
         .on_enter(|world: &mut World| shoot(world, CHART_SHOT))

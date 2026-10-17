@@ -1163,7 +1163,7 @@ pub(crate) fn refresh_map_legend(
         .despawn_related::<Children>()
         .with_children(|legend| {
             if runtime.chart {
-                spawn_chart_legend(legend);
+                spawn_chart_legend(legend, &icons);
                 return;
             }
             for mark in &marks {

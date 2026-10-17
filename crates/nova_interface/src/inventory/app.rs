@@ -279,7 +279,7 @@ fn category_label(category: ItemCategoryType) -> &'static str {
 }
 
 /// The tint of a category's icon, row and quantity.
-fn category_color(category: ItemCategoryType) -> UiColor {
+pub(crate) fn category_color(category: ItemCategoryType) -> UiColor {
     match category {
         ItemCategoryType::Raw => UiColor::Secondary,
         ItemCategoryType::Repair => UiColor::Nominal,
