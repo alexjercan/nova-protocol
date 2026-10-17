@@ -89,3 +89,40 @@ player reads them as sentences or not at all. Ideas:
     while the civilization refuses; the play clock in the pane header.
   - The two economy review bugs (`20261017-202144`, `-202147`) land first,
     after the stance lane's `economy.rs` edits.
+
+## Progress 2026-10-17 (Inventory figures)
+- Claim: the Inventory pane shows the gallery's computed figures and keeps
+  its three columns and inspector. Every figure is a pure function in
+  `crates/nova_gameplay/src/market.rs`; the pane only renders.
+- Evidence: `crates/nova_gameplay/src/market.rs:436` `delta_percent`, `:477`
+  `market_summary` (top three bids over the catalog, top three asks among
+  what the trader holds), `:538` `restock_gap` (most starved targeted item,
+  play seconds to full), `:579` `refusal` (window or decay rest, `None` end
+  for a seeded Enemy). `crates/nova_interface/src/inventory/app.rs:1142`
+  `inventory_row` price cell and `vs ref` badge, `:1874` `row_price` (own
+  rows bid vs reference bid, partner rows ask vs reference ask, an owned
+  station's bid), `:3637` Pays and Asks inspector lines, `:1078` Buy all and
+  Sell all, `:1607` `on_trade_all_button`, `:3726`
+  `update_inventory_trade_controls`.
+  `crates/nova_interface/src/inventory/market.rs:107` `update_market_strip`.
+  `crates/nova_interface/src/pane.rs:300` `show_pane_clock`, gated on a
+  non-empty `Chart`.
+- Change: `vs ref` column on the own and partner tables; Reference, Pays and
+  Asks in the inspector (the Ask / bid line is gone); Buy all and Sell all
+  beside Confirm; the MARKET strip under the columns (pays most, sells
+  cheapest, restock meter with play minutes to full, REFUSED with minutes
+  left); the play clock in the interface title row. `market_sandbox` reads
+  the Pays and Asks rows; README, wiki and CHANGELOG updated.
+- Omitted for lack of data: the gallery's wall-clock `Restock in 12 min`
+  (restock happens only on a thaw, so the strip shows the play time to full
+  instead), its prose refusal reason line, and tonnage on the restock line
+  (holds count units).
+- Verification: `cargo test -p nova_gameplay --lib market` 16 passed;
+  `cargo test -p nova_interface --lib -- inventory pane::tests::the_title_row_clock`
+  33 passed, with `a_market_trader_prices_its_rows_against_the_reference_and_sells_the_whole_stack`
+  (rows 45 cr and 24 cr for the own side, 60 cr and 32 cr for the partner,
+  inspector `16 cr / 12 cr`, `24 cr (+100%)`, `32 cr (+100%)`, strip leads
+  and `Hull plate x1 of 2, full in 10 min of play`, Sell all moves 10 ore
+  for 240 cr) and
+  `the_title_row_clock_reads_the_play_time_only_while_a_world_is_armed`.
+  `market_sandbox` autopilot capture: see the lane report.

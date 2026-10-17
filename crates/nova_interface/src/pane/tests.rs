@@ -592,3 +592,49 @@ fn the_next_tab_key_steps_through_station_only_while_docked() {
         InterfacePaneType::Map
     );
 }
+
+#[test]
+fn the_title_row_clock_reads_the_play_time_only_while_a_world_is_armed() {
+    use bevy::ecs::system::RunSystemOnce;
+    use nova_events::prelude::SectorCoord;
+    use nova_gameplay::prelude::{Chart, ClusterType, WorldClock};
+
+    let mut rig = card_rig();
+    let clock_of = |world: &mut World| {
+        world
+            .query_filtered::<(&Text, &Node), With<InterfacePaneClock>>()
+            .single(world)
+            .map(|(text, node)| (text.0.clone(), node.display != Display::None))
+            .expect("the title row has one clock")
+    };
+
+    // No clock and no chart: hidden.
+    rig.app
+        .world_mut()
+        .run_system_once(show_pane_clock)
+        .expect("the clock system runs");
+    assert_eq!(clock_of(rig.app.world_mut()).1, false);
+
+    // A clock on an unarmed world (empty chart) stays hidden.
+    rig.app.insert_resource(WorldClock {
+        play_seconds: 3_661.0,
+    });
+    rig.app.init_resource::<Chart>();
+    rig.app
+        .world_mut()
+        .run_system_once(show_pane_clock)
+        .expect("the clock system runs");
+    assert_eq!(clock_of(rig.app.world_mut()).1, false);
+
+    // The start cell on the chart arms it: the clock shows the play time.
+    rig.app.world_mut().resource_mut::<Chart>().visit(
+        SectorCoord::ORIGIN,
+        vec![ClusterType::AsteroidRich],
+        0.0,
+    );
+    rig.app
+        .world_mut()
+        .run_system_once(show_pane_clock)
+        .expect("the clock system runs");
+    assert_eq!(clock_of(rig.app.world_mut()), ("1:01:01".to_string(), true));
+}

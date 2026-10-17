@@ -202,6 +202,15 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Interface & HUD
 
+- Inventory rows at a trader show the price of one with a `vs ref` badge of
+  the percent off the reference, green under and amber over; the inspector
+  reads Reference, Pays and Asks.
+- Buy all and Sell all beside Confirm trade the whole stack in one click,
+  disabled while that trade would be refused.
+- A MARKET strip under the Inventory columns names what a generated trader
+  pays most for and sells cheapest, its restock gap with a stock meter and
+  play minutes to full, and REFUSED with the minutes left.
+- The interface title row shows the play clock while a world runs.
 - The Map's chart view draws each entered cell as a textured tile per cluster
   type, outlines cells you never entered and rings the selected mark's cell
   in the accent.

@@ -61,8 +61,10 @@
 //! | --- | --- |
 //! | `app` | The pane body, its refresh, the action form and its handler. |
 //! | `strip` | The strip block, the strip action handler and the strip timer. |
+//! | `market` | The MARKET strip: the trader's leads, restock and refusal. |
 
 mod app;
+mod market;
 mod strip;
 
 #[cfg(test)]
@@ -77,18 +79,20 @@ use nova_ui::{
     widget::DoubleClick,
 };
 
+pub(crate) use self::{app::*, market::*, strip::*};
 pub use self::{
-    app::INVENTORY_TAKE_ALL,
+    app::{INVENTORY_BUY_ALL, INVENTORY_SELL_ALL, INVENTORY_TAKE_ALL},
+    market::{INVENTORY_MARKET_REFUSED, INVENTORY_MARKET_STRIP},
     strip::{
         HullStripCommand, INVENTORY_STRIP_BLOCK, INVENTORY_STRIP_BUTTON, INVENTORY_STRIP_PROGRESS,
     },
 };
-pub(crate) use self::{app::*, strip::*};
 
 /// Glob-import surface: `use nova_interface::inventory::prelude::*`.
 pub mod prelude {
     pub use super::{
-        app::INVENTORY_TAKE_ALL,
+        app::{INVENTORY_BUY_ALL, INVENTORY_SELL_ALL, INVENTORY_TAKE_ALL},
+        market::{INVENTORY_MARKET_REFUSED, INVENTORY_MARKET_STRIP},
         strip::{
             HullStripCommand, INVENTORY_STRIP_BLOCK, INVENTORY_STRIP_BUTTON,
             INVENTORY_STRIP_PROGRESS,
@@ -125,6 +129,8 @@ impl Plugin for InventoryPanePlugin {
                 advance_hull_strip,
                 type_inventory_draft,
                 update_inventory_panel,
+                update_inventory_trade_controls,
+                update_market_strip,
                 update_strip_block,
                 update_inventory_about,
                 sync_inventory_draft_controls,

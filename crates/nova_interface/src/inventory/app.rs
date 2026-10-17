@@ -26,14 +26,15 @@ use nova_ship::prelude::{
 use nova_ui::{
     theme::UiColor,
     widget::{
-        slider_track, text_field, ButtonSpec, TextFieldError, TextFieldFocused, TextFieldSpec,
-        TextFieldValue, ThemedBorder, ThemedFill, ThemedImageTint, ThemedText,
+        badge, slider_track, text_field, BadgeKind, ButtonSpec, TextFieldError, TextFieldFocused,
+        TextFieldSpec, TextFieldValue, ThemedBorder, ThemedFill, ThemedImageTint, ThemedText,
     },
 };
 
 use super::{
-    spawn_strip_block, CreditTakeCommand, InventoryActionCommand, InventoryActionType,
-    InventoryDraft, InventoryRuntime, InventorySideType, InventoryStoreType, TakeAllCommand,
+    spawn_market_strip, spawn_strip_block, CreditTakeCommand, InventoryActionCommand,
+    InventoryActionType, InventoryDraft, InventoryRuntime, InventorySideType, InventoryStoreType,
+    TakeAllCommand,
 };
 use crate::{
     icons::{icon_node, InterfaceIcons},
@@ -49,6 +50,10 @@ use crate::{
 const ROW_PX: f32 = 28.0;
 /// Width of the quantity column, in logical px.
 const QTY_PX: f32 = 64.0;
+/// Width of the Pays or Asks price column, in logical px.
+const PRICE_PX: f32 = 66.0;
+/// Width of the `vs ref` column, in logical px.
+const DELTA_PX: f32 = 58.0;
 /// Seconds a transfer result stays on the note line, as on the Ship pane.
 pub(crate) const NOTE_SECONDS: f32 = 2.5;
 /// Font size of the item description, in logical px.
@@ -115,6 +120,24 @@ pub(crate) struct InventoryTakeCreditsButton;
 
 /// The name of the partner column header's Take all button.
 pub const INVENTORY_TAKE_ALL: &str = "InventoryTakeAll";
+
+/// The name of the form's Buy all button.
+pub const INVENTORY_BUY_ALL: &str = "InventoryBuyAll";
+
+/// The name of the form's Sell all button.
+pub const INVENTORY_SELL_ALL: &str = "InventorySellAll";
+
+/// The form's Buy all or Sell all button beside Confirm: one click confirms
+/// the open Buy or Sell draft at the whole source stack. Shown only while a
+/// draft of its trade is open, disabled while a trade of the whole stack
+/// would be refused.
+#[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) struct InventoryTradeAllButton(pub(crate) ItemTradeType);
+
+/// The `Pays` or `Asks` and `vs ref` headings over a trade column's rows,
+/// shown only while the docked partner trades.
+#[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) struct InventoryPriceHeadings(pub(crate) InventorySideType);
 
 /// The partner column header's Take all button: one click takes every stack
 /// and the credits. Shown only while the partner is eligible (neutralized or
@@ -193,10 +216,15 @@ pub(crate) enum InventoryInspectorField {
     DraftStock,
     /// What the target ship carries after the draft, or why it cannot move.
     DraftSummary,
-    /// What the docked partner asks and bids for the selected item.
-    PriceAskBid,
     /// The item's authored reference ask and bid.
     PriceReference,
+    /// What the docked partner pays for the selected item: its bid, and how
+    /// far that stands from the reference bid.
+    PricePays,
+    /// What the docked partner asks for the selected item: its ask, and how
+    /// far that stands from the reference ask; at a station the player owns,
+    /// the bid a Buy pays there.
+    PriceAsks,
     /// The partner's stock factor for the item.
     PriceScarcity,
     /// The partner's cluster type and its factor for the item.
@@ -264,7 +292,27 @@ struct ColumnSection {
     /// The ship's name and load over a hold's rows.
     heading: Option<String>,
     /// Every stack it holds.
-    stacks: Vec<(ItemDesignId, u32)>,
+    stacks: Vec<RowStack>,
+}
+
+/// One stack as a row draws it.
+#[derive(Clone, PartialEq, Eq, Debug)]
+struct RowStack {
+    item: ItemDesignId,
+    count: u32,
+    /// What the docked partner deals the stack at, while it trades: the bid
+    /// on the player's rows, the ask on the partner's.
+    price: Option<RowPrice>,
+}
+
+/// A row's price cell and its `vs ref` badge.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct RowPrice {
+    /// The price of one, in credits.
+    cr: u32,
+    /// The price against the reference on the same side, by
+    /// [`delta_percent`].
+    delta_percent: i32,
 }
 
 /// The filter and inspector word for a category.
@@ -370,6 +418,7 @@ pub(crate) fn inventory_body(body: &mut ChildSpawnerCommands, icons: &InterfaceI
                             inventory_column(columns, side);
                         }
                     });
+                spawn_market_strip(stores);
             });
         inspector(split, icons);
     });
@@ -541,6 +590,41 @@ fn inventory_column(columns: &mut ChildSpawnerCommands, side: InventorySideType)
                         },
                         TextLayout::new(Justify::Right, LineBreak::NoWrap),
                     ));
+                    let price_heading = match side {
+                        InventorySideType::Own => Some("Pays"),
+                        InventorySideType::Partner => Some("Asks"),
+                        InventorySideType::Storage | InventorySideType::Hold(_) => None,
+                    };
+                    if let Some(label) = price_heading {
+                        headings
+                            .spawn((
+                                InventoryPriceHeadings(side),
+                                Node {
+                                    display: Display::None,
+                                    flex_direction: FlexDirection::Row,
+                                    column_gap: px(8),
+                                    ..default()
+                                },
+                            ))
+                            .with_children(|prices| {
+                                prices.spawn((
+                                    themed_label(label, 11.0, UiColor::Label),
+                                    Node {
+                                        width: px(PRICE_PX),
+                                        ..default()
+                                    },
+                                    TextLayout::new(Justify::Right, LineBreak::NoWrap),
+                                ));
+                                prices.spawn((
+                                    themed_label("vs ref", 11.0, UiColor::Label),
+                                    Node {
+                                        width: px(DELTA_PX),
+                                        ..default()
+                                    },
+                                    TextLayout::new(Justify::Right, LineBreak::NoWrap),
+                                ));
+                            });
+                    }
                 });
             panel.spawn((
                 InventoryColumn { side, drawn: None },
@@ -693,8 +777,9 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                         },
                     ))
                     .with_children(|prices| {
-                        fact_row(prices, "Ask / bid", InventoryInspectorField::PriceAskBid);
                         fact_row(prices, "Reference", InventoryInspectorField::PriceReference);
+                        fact_row(prices, "Pays", InventoryInspectorField::PricePays);
+                        fact_row(prices, "Asks", InventoryInspectorField::PriceAsks);
                         fact_row(prices, "Scarcity", InventoryInspectorField::PriceScarcity);
                         fact_row(prices, "Cluster", InventoryInspectorField::PriceCluster);
                         fact_row(
@@ -818,6 +903,26 @@ fn about_box(item: &mut ChildSpawnerCommands) {
 /// An ask and a bid as the inspector shows them.
 fn price_text(ask_cr: u32, bid_cr: u32) -> String {
     format!("{} / {}", cr_text(ask_cr), cr_text(bid_cr))
+}
+
+/// A price with its percent off the reference: `33 cr (-17%)`.
+fn priced_text(price_cr: u32, reference_cr: u32) -> String {
+    format!(
+        "{} ({:+}%)",
+        cr_text(price_cr),
+        delta_percent(price_cr, reference_cr)
+    )
+}
+
+/// The `vs ref` badge of a price: green under the reference, amber over,
+/// mute at it.
+fn delta_badge(delta_percent: i32) -> impl Bundle {
+    let kind = match delta_percent.signum() {
+        -1 => BadgeKind::Green,
+        1 => BadgeKind::Amber,
+        _ => BadgeKind::Mute,
+    };
+    badge(kind, &format!("{delta_percent:+}%"))
 }
 
 /// A price factor as the inspector shows it: one multiplier when ask and bid
@@ -954,15 +1059,37 @@ fn draft_form(form: &mut ChildSpawnerCommands) {
             ..default()
         },
     ));
-    form.spawn(control_row(JustifyContent::FlexStart))
-        .with_children(|row| {
+    form.spawn(Node {
+        column_gap: px(8),
+        flex_wrap: FlexWrap::Wrap,
+        row_gap: px(6),
+        ..control_row(JustifyContent::FlexStart)
+    })
+    .with_children(|row| {
+        row.spawn((
+            Name::new("InventoryDraftConfirm"),
+            InventoryDraftConfirm,
+            compact_button(ButtonSpec::new("Confirm").fit().primary()),
+        ))
+        .observe(confirm_inventory_draft);
+        // `update_inventory_trade_controls` shows the one of the open
+        // draft's trade and enables it while the whole stack would trade.
+        for (trade, name, label) in [
+            (ItemTradeType::Buy, INVENTORY_BUY_ALL, "Buy all"),
+            (ItemTradeType::Sell, INVENTORY_SELL_ALL, "Sell all"),
+        ] {
+            // Spawned up and disabled: the button bundle owns its `Node`, and
+            // `update_inventory_trade_controls` hides it the same frame, before
+            // the form it sits in first shows.
             row.spawn((
-                Name::new("InventoryDraftConfirm"),
-                InventoryDraftConfirm,
-                compact_button(ButtonSpec::new("Confirm").fit().primary()),
+                Name::new(name),
+                InventoryTradeAllButton(trade),
+                compact_button(ButtonSpec::new(label).fit()),
+                InteractionDisabled,
             ))
-            .observe(confirm_inventory_draft);
-        });
+            .observe(on_trade_all_button);
+        }
+    });
 }
 
 /// One switch chip of the player's row form, painted as the draft's action
@@ -1010,11 +1137,12 @@ pub(crate) fn action_chip_name(action: InventoryActionType) -> String {
     }
 }
 
-/// One stack's row: the category icon, the item name and the count.
+/// One stack's row: the category icon, the item name and the count, then
+/// at a trading partner the price of one and its `vs ref` badge.
 fn inventory_row(
     list: &mut ChildSpawnerCommands,
     side: InventorySideType,
-    (item, count): (ItemDesignId, u32),
+    RowStack { item, count, price }: RowStack,
     selected: bool,
     icons: &InterfaceIcons,
     items: &GameItems,
@@ -1065,6 +1193,30 @@ fn inventory_row(
             TextLayout::new(Justify::Right, LineBreak::NoWrap),
             Pickable::IGNORE,
         ));
+        if let Some(price) = price {
+            row.spawn((
+                themed_label(&cr_text(price.cr), 12.0, UiColor::Accent),
+                Node {
+                    width: px(PRICE_PX),
+                    flex_shrink: 0.0,
+                    ..default()
+                },
+                TextLayout::new(Justify::Right, LineBreak::NoWrap),
+                Pickable::IGNORE,
+            ));
+            row.spawn((
+                Node {
+                    width: px(DELTA_PX),
+                    flex_shrink: 0.0,
+                    justify_content: JustifyContent::FlexEnd,
+                    ..default()
+                },
+                Pickable::IGNORE,
+            ))
+            .with_children(|cell| {
+                cell.spawn((delta_badge(price.delta_percent), Pickable::IGNORE));
+            });
+        }
     });
 }
 
@@ -1446,6 +1598,37 @@ fn on_take_all_button(_activate: On<Activate>, mut actions: MessageWriter<TakeAl
     actions.write(TakeAllCommand);
 }
 
+/// Confirm the open Buy or Sell draft at the whole source stack: the same
+/// [`InventoryActionCommand`] Confirm writes, at what the seller holds, so it
+/// refuses exactly as Confirm would. The draft takes the quantity too, so a
+/// refusal shows on the form. The button widget drops a press on a disabled
+/// button; this guard also drops an `Activate` triggered directly, and one on
+/// a button whose trade is not the open draft's.
+fn on_trade_all_button(
+    activate: On<Activate>,
+    q_button: Query<(&InventoryTradeAllButton, Has<InteractionDisabled>)>,
+    ships: InventoryShips,
+    mut runtime: ResMut<InventoryRuntime>,
+    mut actions: MessageWriter<InventoryActionCommand>,
+) {
+    let Ok((button, disabled)) = q_button.get(activate.entity) else {
+        return;
+    };
+    let Some(draft) = runtime.draft.as_mut() else {
+        return;
+    };
+    if disabled || draft.action.trade() != Some(button.0) {
+        return;
+    }
+    let quantity = ships.draft_stock(draft);
+    draft.quantity = Some(quantity);
+    actions.write(InventoryActionCommand {
+        action: draft.action,
+        item: draft.item.clone(),
+        quantity: Some(quantity),
+    });
+}
+
 /// The player ship, the ship it is docked with, that partner's station storage
 /// and the player's cargo intake, as the Inventory pane reads and moves them. One resolver for the panel, the
 /// row click, the form and the action handler, so all four fail the same way
@@ -1514,6 +1697,11 @@ impl InventoryShips<'_, '_> {
     ///
     /// # Panics
     ///
+    /// The loaded item catalog.
+    pub(crate) fn items(&self) -> &GameItems {
+        &self.items
+    }
+
     /// On a player ship without its required [`ShipInventory`], or a docked
     /// player whose connection or partner inventory is missing: a broken
     /// record, not a state to draw a guess for.
@@ -1657,6 +1845,57 @@ impl InventoryShips<'_, '_> {
                 self.ship(partner).1.count(item),
             ),
             Err(_) => PriceQuote::reference(design),
+        })
+    }
+
+    /// The docked partner's [`TraderMarket`], the table it prices by and its
+    /// hold, while it trades by a market: a generated trader. `None` while
+    /// undocked, while the partner does not trade, or at an authored trader
+    /// that deals at reference.
+    pub(crate) fn trader_market(
+        &self,
+        pair: InventoryPair,
+    ) -> Option<(&PriceTable, &TraderMarket, &ShipInventory)> {
+        let partner = pair.partner?;
+        self.partner_terms(pair)?.trades.then_some(())?;
+        let market = self.markets.get(partner).ok()?;
+        let table = &self
+            .price_table
+            .as_ref()
+            .expect("the content merge inserts GamePriceTable before a trader spawns")
+            .0;
+        Some((table, market, self.ship(partner).1))
+    }
+
+    /// What a row of `item` on `side` shows as its price while the docked
+    /// partner trades: the bid a Sell earns on the player's rows, the ask a
+    /// Buy pays on the partner's, each against the reference on its side.
+    /// `None` on any other side or partner.
+    fn row_price(
+        &self,
+        pair: InventoryPair,
+        side: InventorySideType,
+        item: &ItemDesignId,
+    ) -> Option<RowPrice> {
+        let prices = self.prices(pair, item)?;
+        let reference = self.items.design(item).reference_price();
+        let (cr, reference_cr) = match (side, prices) {
+            (
+                InventorySideType::Own,
+                TradePriceType::Market(price) | TradePriceType::Owned(price),
+            ) => (price.bid_cr, reference.bid_cr),
+            (InventorySideType::Partner, TradePriceType::Market(price)) => {
+                (price.ask_cr, reference.ask_cr)
+            }
+            // A Buy at an owned station pays its bid.
+            (InventorySideType::Partner, TradePriceType::Owned(price)) => {
+                (price.bid_cr, reference.bid_cr)
+            }
+            (InventorySideType::Storage | InventorySideType::Hold(_), _) => return None,
+        };
+        Some(RowPrice {
+            cr,
+            delta_percent: delta_percent(cr, reference_cr),
         })
     }
 
@@ -2857,9 +3096,22 @@ pub(crate) fn update_inventory_panel(
     }
     let draft = runtime.draft.clone();
 
+    let rows_of = |which: InventorySideType, view: &SideView| -> Option<Vec<RowStack>> {
+        let stacks = view.stacks.as_ref()?;
+        Some(
+            stacks
+                .iter()
+                .map(|(item, count)| RowStack {
+                    item: item.clone(),
+                    count: *count,
+                    price: ships.row_price(pair, which, item),
+                })
+                .collect(),
+        )
+    };
     let sections_of = |which: InventorySideType| -> Option<Vec<ColumnSection>> {
         let single = |which: InventorySideType, view: &SideView| {
-            view.stacks.clone().map(|stacks| {
+            rows_of(which, view).map(|stacks| {
                 vec![ColumnSection {
                     side: which,
                     heading: None,
@@ -2876,7 +3128,7 @@ pub(crate) fn update_inventory_panel(
                 sections.extend(holds.iter().map(|(ship, view, load)| ColumnSection {
                     side: InventorySideType::Hold(*ship),
                     heading: Some(format!("{}  {load}", view.title)),
-                    stacks: view.stacks.clone().unwrap_or_default(),
+                    stacks: rows_of(InventorySideType::Hold(*ship), view).unwrap_or_default(),
                 }));
                 (!sections.is_empty()).then_some(sections)
             }
@@ -2912,10 +3164,10 @@ pub(crate) fn update_inventory_panel(
                     rows.spawn(themed_label("Inventory empty.", 12.0, UiColor::Label));
                     continue;
                 }
-                let visible: Vec<(ItemDesignId, u32)> = section
+                let visible: Vec<RowStack> = section
                     .stacks
                     .iter()
-                    .filter(|&(item, _)| shown(item))
+                    .filter(|stack| shown(&stack.item))
                     .cloned()
                     .collect();
                 if visible.is_empty() {
@@ -2928,7 +3180,7 @@ pub(crate) fn update_inventory_panel(
                 for stack in visible {
                     let picked = selected
                         .as_ref()
-                        .is_some_and(|(side, id)| *side == section.side && *id == stack.0);
+                        .is_some_and(|(side, id)| *side == section.side && *id == stack.item);
                     inventory_row(rows, section.side, stack, picked, &icons, items);
                 }
             }
@@ -3375,20 +3627,29 @@ pub(crate) fn update_inventory_panel(
                 Ok(text) => (text.clone(), UiColor::Body),
                 Err(text) => (text.clone(), UiColor::Danger),
             },
-            (InventoryInspectorField::PriceAskBid, ..) => match &priced {
-                Some((_, _, TradePriceType::Market(price), _)) => {
-                    (price_text(price.ask_cr, price.bid_cr), UiColor::Primary)
-                }
-                // An owned station sells its stock at its bid.
-                Some((_, _, TradePriceType::Owned(price), _)) => {
-                    (price_text(price.bid_cr, price.bid_cr), UiColor::Primary)
-                }
-                None => continue,
-            },
             (InventoryInspectorField::PriceReference, ..) => match &priced {
                 Some((reference, ..)) => (
                     price_text(reference.ask_cr, reference.bid_cr),
                     UiColor::Body,
+                ),
+                None => continue,
+            },
+            (InventoryInspectorField::PricePays, ..) => match &priced {
+                Some((reference, quote, ..)) => (
+                    priced_text(quote.price.bid_cr, reference.bid_cr),
+                    UiColor::Primary,
+                ),
+                None => continue,
+            },
+            (InventoryInspectorField::PriceAsks, ..) => match &priced {
+                Some((reference, _, TradePriceType::Market(price), _)) => (
+                    priced_text(price.ask_cr, reference.ask_cr),
+                    UiColor::Primary,
+                ),
+                // An owned station sells its stock at its bid.
+                Some((_, _, TradePriceType::Owned(price), _)) => (
+                    format!("{} at bid, yours", cr_text(price.bid_cr)),
+                    UiColor::Primary,
                 ),
                 None => continue,
             },
@@ -3452,6 +3713,72 @@ pub(crate) fn update_inventory_panel(
         }
         if tint.color != tone {
             tint.color = tone;
+        }
+    }
+}
+
+/// Show the trade controls the docked partner earns: the `Pays`/`Asks` and
+/// `vs ref` headings over the player's and the partner's rows while it
+/// trades, and beside Confirm the Buy all or Sell all of the open draft's
+/// trade, enabled while [`plan_item_trade`] takes the whole source stack
+/// against the live stock, room and credits. Runs after
+/// [`update_inventory_panel`], which closes a draft the dock no longer offers.
+pub(crate) fn update_inventory_trade_controls(
+    mut commands: Commands,
+    ships: InventoryShips,
+    runtime: Res<InventoryRuntime>,
+    mut q_headings: Query<(&InventoryPriceHeadings, &mut Node), Without<InventoryTradeAllButton>>,
+    mut q_trade_all: Query<
+        (
+            Entity,
+            &InventoryTradeAllButton,
+            &mut Node,
+            Has<InteractionDisabled>,
+        ),
+        Without<InventoryPriceHeadings>,
+    >,
+) {
+    let pair = ships.pair();
+    let terms = pair.and_then(|pair| ships.partner_terms(pair));
+    let trades = terms.as_ref().is_some_and(|terms| terms.trades);
+    for (_, mut node) in &mut q_headings {
+        let display = if trades { Display::Flex } else { Display::None };
+        if node.display != display {
+            node.display = display;
+        }
+    }
+    let whole = runtime.draft.as_ref().and_then(|draft| {
+        let trade = draft.action.trade()?;
+        let pair = pair?;
+        let partner = pair.partner?;
+        let (_, own, _, own_cr) = ships.ship(pair.own);
+        let (_, theirs, _, their_cr) = ships.ship(partner);
+        let planned = plan_item_trade(
+            &ships.items,
+            trade,
+            ships.prices(pair, &draft.item),
+            &draft.item,
+            Some(ships.draft_stock(draft)),
+            own,
+            own_cr,
+            theirs,
+            their_cr,
+        );
+        Some((trade, planned.is_ok()))
+    });
+    for (button, trade_all, mut node, disabled) in &mut q_trade_all {
+        let (shown, enabled) = match whole {
+            Some((trade, enabled)) if trade == trade_all.0 => (true, enabled),
+            _ => (false, false),
+        };
+        let display = if shown { Display::Flex } else { Display::None };
+        if node.display != display {
+            node.display = display;
+        }
+        if enabled && disabled {
+            commands.entity(button).remove::<InteractionDisabled>();
+        } else if !enabled && !disabled {
+            commands.entity(button).insert(InteractionDisabled);
         }
     }
 }

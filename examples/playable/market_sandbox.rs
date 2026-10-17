@@ -8,9 +8,13 @@
 //! takes. Then the fixture lands, once: [`ORE_COUNT`] iron ore goes into the
 //! hold and the Inventory tab opens.
 //!
-//! Try: click Iron ore on your side. The inspector reads the station's ask
-//! and bid, the reference price, and the scarcity, cluster and civilization
-//! factors that made them. Sell it, and the Sell pays that bid.
+//! Try: click Iron ore on your side. Its row and the station's read the
+//! price of one with its percent off the reference, and the inspector reads
+//! the reference, what the station pays and asks against it, and the
+//! scarcity, cluster and civilization factors that made them. Under the
+//! columns the MARKET strip names what the station pays most for and sells
+//! cheapest, its restock gap and a refusal. Sell it, or Sell all, and the
+//! Sell pays that bid.
 //!
 //! [`MARKETS`] pins one world per cluster type: seed 1 stands an
 //! asteroid-rich station by the spawn and seed 21 a planet-heavy one. No
@@ -175,9 +179,15 @@ fn drive_the_sandbox(world: &mut World) {
     match phase {
         SandboxPhaseType::Ready => {}
         SandboxPhaseType::Streaming => {
-            if window_is(world, SectorCoord::ORIGIN) {
-                let chosen = choose_the_station(world);
+            if window_settled(world) {
                 let player = the_player(world).expect("market sandbox: one player ship");
+                if world.get::<DockedShip>(player).is_some() {
+                    // The start docked the player at its starting station;
+                    // the sandbox stages a station of its own.
+                    world.trigger(DockingReleaseRequest { entity: player });
+                    return;
+                }
+                let chosen = choose_the_station(world);
                 park_beside(world, player, chosen.position, PARK_DISTANCE);
                 let mut sandbox = world.resource_mut::<Sandbox>();
                 sandbox.station = Some(chosen);
@@ -309,6 +319,14 @@ fn the_station(world: &mut World) -> Option<(Entity, TraderMarket)> {
     Some((station, world.get::<TraderMarket>(station)?.clone()))
 }
 
+/// The iron ore reference price, which the pane's percentages are against.
+fn ore_reference(world: &World) -> ItemPrice {
+    world
+        .resource::<GameItems>()
+        .design(&ItemDesignId::from(ItemRoleType::IronOre))
+        .reference_price()
+}
+
 /// The price the station deals iron ore at now: `price` over its market and
 /// its live stock.
 fn ore_quote(world: &mut World) -> Option<PriceQuote> {
@@ -433,13 +451,14 @@ mod smoke {
     #[derive(Resource, Clone, Copy, Debug)]
     struct PendingSale {
         quote: PriceQuote,
+        reference: ItemPrice,
         credits: u32,
         held: u32,
     }
 
-    /// The inspector's Ask / bid and Cluster rows for `quote` at a station
-    /// of `cluster`, as the pane draws them.
-    fn price_rows(cluster: ClusterType, quote: &PriceQuote) -> Vec<String> {
+    /// The inspector's Pays, Asks and Cluster rows for `quote` at a station
+    /// of `cluster`, as the pane draws them against the iron ore reference.
+    fn price_rows(cluster: ClusterType, quote: &PriceQuote, reference: ItemPrice) -> Vec<String> {
         let factor = |factor: PriceFactor| {
             if factor.ask == factor.bid {
                 format!("x{:.2}", factor.ask)
@@ -448,7 +467,16 @@ mod smoke {
             }
         };
         vec![
-            format!("{} cr / {} cr", quote.price.ask_cr, quote.price.bid_cr),
+            format!(
+                "{} cr ({:+}%)",
+                quote.price.bid_cr,
+                delta_percent(quote.price.bid_cr, reference.bid_cr)
+            ),
+            format!(
+                "{} cr ({:+}%)",
+                quote.price.ask_cr,
+                delta_percent(quote.price.ask_cr, reference.ask_cr)
+            ),
             format!("{} {}", cluster.label(), factor(quote.cluster)),
         ]
     }
@@ -499,6 +527,7 @@ mod smoke {
                 assert_eq!(market.cluster, cluster, "the station's market");
                 let pending = PendingSale {
                     quote,
+                    reference: ore_reference(world),
                     credits: credits(world),
                     held: ore_held(world),
                 };
@@ -508,7 +537,7 @@ mod smoke {
             .until(and(
                 when(move |world| {
                     world.get_resource::<PendingSale>().is_some_and(|pending| {
-                        texts_read(price_rows(cluster, &pending.quote))(world)
+                        texts_read(price_rows(cluster, &pending.quote, pending.reference))(world)
                     })
                 }),
                 frames(SETTLE_FRAMES),

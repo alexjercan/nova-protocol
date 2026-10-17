@@ -18,8 +18,8 @@
 use bevy::{prelude::*, ui_widgets::Activate};
 use nova_gameplay::{
     prelude::{
-        AudioRoute, PlayerSpaceshipMarker, SfxCommandsExt, SoundBank, UiSfx, MENU_SELECT_VOLUME,
-        UI_TOGGLE_VOLUME,
+        play_time_text, AudioRoute, Chart, PlayerSpaceshipMarker, SfxCommandsExt, SoundBank, UiSfx,
+        WorldClock, MENU_SELECT_VOLUME, UI_TOGGLE_VOLUME,
     },
     PauseStates,
 };
@@ -285,6 +285,45 @@ pub(crate) struct InterfacePaneHead;
 #[derive(Component)]
 pub(crate) struct InterfacePaneBody;
 
+/// The play clock at the end of the title row, `h:mm:ss` of armed play.
+/// Hidden until the world arms, which is when the [`Chart`] first holds the
+/// start cell; a scenario with no streamed world never shows it.
+#[derive(Component)]
+pub(crate) struct InterfacePaneClock;
+
+/// The `Name` of the title row's play clock, for tests and captures.
+pub const INTERFACE_PANE_CLOCK: &str = "InterfacePaneClock";
+
+/// Write the play clock into the title row while the world is armed, and
+/// hide it otherwise. Runs with the pane shut too, at the cost of one text
+/// compare per frame, so the clock is right on the frame the card opens.
+pub(crate) fn show_pane_clock(
+    clock: Option<Res<WorldClock>>,
+    chart: Option<Res<Chart>>,
+    mut q_clock: Query<(&mut Text, &mut Node), With<InterfacePaneClock>>,
+) {
+    let Ok((mut text, mut node)) = q_clock.single_mut() else {
+        return;
+    };
+    let armed = chart.is_some_and(|chart| !chart.is_empty());
+    let shown = clock
+        .filter(|_| armed)
+        .map(|clock| play_time_text(clock.play_seconds));
+    let display = if shown.is_some() {
+        Display::Flex
+    } else {
+        Display::None
+    };
+    if node.display != display {
+        node.display = display;
+    }
+    if let Some(shown) = shown {
+        if text.0 != shown {
+            text.0 = shown;
+        }
+    }
+}
+
 /// Build the card on a fresh root, and on a pane change replace only the
 /// body's children.
 ///
@@ -385,6 +424,17 @@ fn spawn_interface_card(
                             }
                         }
                     });
+                    head.spawn((
+                        InterfacePaneClock,
+                        Name::new(INTERFACE_PANE_CLOCK),
+                        themed_label("0:00:00", 12.0, UiColor::Label),
+                        Node {
+                            display: Display::None,
+                            min_width: px(64.0),
+                            ..default()
+                        },
+                        TextLayout::new(Justify::Right, LineBreak::NoWrap),
+                    ));
                 });
             card.spawn((
                 InterfacePaneBody,

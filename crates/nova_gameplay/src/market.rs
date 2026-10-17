@@ -36,16 +36,20 @@ use bevy::prelude::*;
 
 use crate::{
     chart::prelude::ClusterType,
-    civilization::prelude::CivilizationId,
+    civilization::prelude::{
+        CivilizationId, CivilizationStances, StanceType, ENEMY_DECAY_SECONDS,
+        PROVOKED_WINDOW_SECONDS,
+    },
     inventory::prelude::{ItemCategoryType, ItemDesign, ItemDesignId},
 };
 
 /// Glob-import surface: `use nova_gameplay::market::prelude::*`.
 pub mod prelude {
     pub use super::{
-        price, price_table_faults, restocked_count, ClusterPriceRule, GamePriceTable, ItemPrice,
-        JobOfferRule, PriceClamp, PriceFactor, PriceQuote, PriceTable, RestockRule, RolePriceRule,
-        ScarcityRule, ShipRoleType, TraderMarket,
+        delta_percent, market_summary, price, price_table_faults, refusal, restock_gap,
+        restocked_count, ClusterPriceRule, GamePriceTable, ItemPrice, JobOfferRule, MarketLead,
+        MarketSummary, PriceClamp, PriceFactor, PriceQuote, PriceTable, Refusal, RestockGap,
+        RestockRule, RolePriceRule, ScarcityRule, ShipRoleType, TraderMarket, MARKET_LEADS,
     };
 }
 
@@ -424,6 +428,174 @@ pub fn restocked_count(stock: u32, target: u32, elapsed_seconds: f64, rule: Rest
     } else {
         stock.saturating_sub(drift).max(target)
     }
+}
+
+/// The signed percent `price_cr` stands from `reference_cr`, rounded toward
+/// zero: `-18` for a 33 cr bid on a 40 cr reference, `+40` for a 126 cr bid
+/// on a 90 cr one. A reference of zero has no percent and reads as zero.
+pub fn delta_percent(price_cr: u32, reference_cr: u32) -> i32 {
+    if reference_cr == 0 {
+        return 0;
+    }
+    let delta = i64::from(price_cr) - i64::from(reference_cr);
+    i32::try_from(delta * 100 / i64::from(reference_cr)).expect("a percent of a u32 price fits")
+}
+
+/// How many items each lead of a [`MarketSummary`] lists.
+pub const MARKET_LEADS: usize = 3;
+
+/// One item of a market lead: what the trader deals it at and how far that
+/// stands from the item's reference.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MarketLead {
+    /// The item.
+    pub item: ItemDesignId,
+    /// The bid a Sell earns, or the ask a Buy pays, in credits.
+    pub price_cr: u32,
+    /// `price_cr` against the reference on the same side, by
+    /// [`delta_percent`].
+    pub delta_percent: i32,
+}
+
+/// The Market strip's leads at one trader: the items it pays the most over
+/// their reference for and the stocked items it sells the furthest under
+/// theirs, at most [`MARKET_LEADS`] each.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct MarketSummary {
+    /// Every catalog item by its bid against the reference bid, highest
+    /// first; a tie keeps the lower id first.
+    pub pays_most: Vec<MarketLead>,
+    /// Every item the trader holds by its ask against the reference ask,
+    /// lowest first; a tie keeps the lower id first.
+    pub sells_cheapest: Vec<MarketLead>,
+}
+
+/// The [`MarketSummary`] of a trader with `market` over `designs`, each
+/// priced by [`price`] at the `stock` the trader holds of it. The trader
+/// buys any catalog item, so every design competes for `pays_most`; it
+/// sells only what it holds, so `sells_cheapest` reads stocked designs.
+pub fn market_summary<'a>(
+    table: &PriceTable,
+    market: &TraderMarket,
+    designs: impl IntoIterator<Item = &'a ItemDesign>,
+    stock: impl Fn(&ItemDesignId) -> u32,
+) -> MarketSummary {
+    let mut pays = Vec::new();
+    let mut sells = Vec::new();
+    for design in designs {
+        let held = stock(&design.id);
+        let quote = price(table, design, market, held);
+        pays.push(MarketLead {
+            item: design.id.clone(),
+            price_cr: quote.price.bid_cr,
+            delta_percent: delta_percent(quote.price.bid_cr, design.bid_cr),
+        });
+        if held > 0 {
+            sells.push(MarketLead {
+                item: design.id.clone(),
+                price_cr: quote.price.ask_cr,
+                delta_percent: delta_percent(quote.price.ask_cr, design.ask_cr),
+            });
+        }
+    }
+    pays.sort_by(|a, b| {
+        b.delta_percent
+            .cmp(&a.delta_percent)
+            .then_with(|| a.item.cmp(&b.item))
+    });
+    sells.sort_by(|a, b| {
+        a.delta_percent
+            .cmp(&b.delta_percent)
+            .then_with(|| a.item.cmp(&b.item))
+    });
+    pays.truncate(MARKET_LEADS);
+    sells.truncate(MARKET_LEADS);
+    MarketSummary {
+        pays_most: pays,
+        sells_cheapest: sells,
+    }
+}
+
+/// The Market strip's restock meter: the targeted item a trader is
+/// furthest under its target on, and the play time away it takes to fill.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RestockGap {
+    /// The item.
+    pub item: ItemDesignId,
+    /// What the trader holds of it.
+    pub stock: u32,
+    /// What it keeps, from its [`TraderMarket::target`]. Above `stock`.
+    pub target: u32,
+    /// The play seconds its cell must stand frozen for the stock to reach
+    /// the target, by the table's [`RestockRule`]; a trader restocks only
+    /// on a thaw.
+    pub seconds_away: f64,
+}
+
+/// The [`RestockGap`] of a trader with `market` at the `stock` it holds:
+/// the targeted item with the lowest stock over target, the lower id on a
+/// tie, or `None` while every targeted item is at or past its target.
+pub fn restock_gap(
+    table: &PriceTable,
+    market: &TraderMarket,
+    stock: impl Fn(&ItemDesignId) -> u32,
+) -> Option<RestockGap> {
+    let mut gap: Option<(f64, RestockGap)> = None;
+    for (item, &target) in &market.target {
+        let held = stock(item);
+        if target == 0 || held >= target {
+            continue;
+        }
+        let share = f64::from(held) / f64::from(target);
+        if gap.as_ref().is_none_or(|(lowest, _)| share < *lowest) {
+            gap = Some((
+                share,
+                RestockGap {
+                    item: item.clone(),
+                    stock: held,
+                    target,
+                    seconds_away: (1.0 - share) * f64::from(table.restock.recovery_seconds),
+                },
+            ));
+        }
+    }
+    gap.map(|(_, gap)| gap)
+}
+
+/// Why a trader's civilization refuses the player, for the Market strip's
+/// REFUSED badge.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Refusal {
+    /// The play seconds until the refusal ends on its own: the rest of a
+    /// provocation's window, or of an Enemy by events' decay. `None` for a
+    /// civilization Enemy by the seed, which only a settlement moves.
+    pub seconds_left: Option<f64>,
+}
+
+/// Whether `civilization`, whose seed drew `seeded`, refuses the player at
+/// `now`: its effective stance is Enemy. A provocation refuses for the rest
+/// of [`PROVOKED_WINDOW_SECONDS`], an Enemy by events for the rest of
+/// [`ENEMY_DECAY_SECONDS`] since it turned, and a seeded Enemy with no end.
+pub fn refusal(
+    stances: &CivilizationStances,
+    civilization: &CivilizationId,
+    seeded: StanceType,
+    now: f64,
+) -> Option<Refusal> {
+    if stances.effective(civilization, seeded, now) != StanceType::Enemy {
+        return None;
+    }
+    let record = stances.record(civilization);
+    let provoked = record
+        .and_then(|record| record.provoked_at)
+        .filter(|at| now - at < PROVOKED_WINDOW_SECONDS)
+        .map(|at| PROVOKED_WINDOW_SECONDS - (now - at));
+    let decays = record
+        .and_then(|record| record.enemy_since)
+        .map(|since| (ENEMY_DECAY_SECONDS - (now - since)).max(0.0));
+    Some(Refusal {
+        seconds_left: provoked.or(decays),
+    })
 }
 
 /// What is wrong with `table`, one line per fault; empty when the merge and
@@ -845,5 +1017,133 @@ mod tests {
         assert_eq!(faults.len(), 2, "{faults:?}");
         assert!(faults[0].contains("restock recovery"), "{faults:?}");
         assert!(faults[1].contains("job offer window"), "{faults:?}");
+    }
+
+    /// The percent is signed, truncated toward zero, and a zero reference
+    /// reads as zero rather than dividing by it.
+    #[test]
+    fn delta_percent_is_the_signed_truncated_percent_off_the_reference() {
+        assert_eq!(delta_percent(33, 40), -17);
+        assert_eq!(delta_percent(126, 90), 40);
+        assert_eq!(delta_percent(40, 40), 0);
+        assert_eq!(delta_percent(1, 3), -66);
+        assert_eq!(delta_percent(5, 0), 0);
+    }
+
+    /// Pays most ranks every catalog item by its bid over the reference bid,
+    /// highest first; sells cheapest ranks only stocked items by their ask
+    /// under the reference ask, lowest first; both stop at three.
+    #[test]
+    fn the_market_summary_leads_with_the_best_bid_and_the_cheapest_stocked_ask() {
+        let table = table();
+        let designs = [
+            design("ore", ItemCategoryType::Raw, 16, 12),
+            design("food", ItemCategoryType::Food, 100, 80),
+            design("rounds", ItemCategoryType::Ammo, 100, 60),
+            design("plate", ItemCategoryType::Repair, 40, 30),
+            design("slug", ItemCategoryType::Ammo, 40, 30),
+        ];
+        let mut market = market(ClusterType::AsteroidRich, &[("food", 10), ("plate", 10)]);
+        market.role_preference = [0.0, 0.0, 0.0, 1.0];
+        let stock = |item: &ItemDesignId| match item.as_str() {
+            "ore" => 5,
+            "food" => 0,
+            "plate" => 10,
+            _ => 0,
+        };
+        let summary = market_summary(&table, &market, &designs, stock);
+        let leads = |leads: &[MarketLead]| {
+            leads
+                .iter()
+                .map(|lead| (lead.item.to_string(), lead.price_cr, lead.delta_percent))
+                .collect::<Vec<_>>()
+        };
+        // Starved food bids x1.25; armored pays x1.5 on the unkept ammo
+        // (x0.8), so rounds and slug tie at +20 and keep id order; ore and
+        // plate fall off the three.
+        assert_eq!(
+            leads(&summary.pays_most),
+            [
+                ("food".to_string(), 100, 25),
+                ("rounds".to_string(), 72, 20),
+                ("slug".to_string(), 36, 20),
+            ]
+        );
+        // Only ore and plate are stocked: ore asks half in the belt, plate at
+        // its target asks the reference.
+        assert_eq!(
+            leads(&summary.sells_cheapest),
+            [("ore".to_string(), 8, -50), ("plate".to_string(), 40, 0)]
+        );
+    }
+
+    /// The gap names the targeted item with the lowest share of its target,
+    /// its fill time is that share's rest of the recovery, an unkept or a
+    /// glutted item never shows, and a trader at target has no gap.
+    #[test]
+    fn the_restock_gap_is_the_most_starved_targeted_item() {
+        let table = table();
+        let market = market(
+            ClusterType::RockOnly,
+            &[("food", 10), ("ore", 20), ("plate", 4)],
+        );
+        let stock = |item: &ItemDesignId| match item.as_str() {
+            "food" => 5,
+            "ore" => 5,
+            "plate" => 9,
+            _ => 100,
+        };
+        let gap = restock_gap(&table, &market, stock).expect("ore is starved");
+        assert_eq!((gap.item.as_str(), gap.stock, gap.target), ("ore", 5, 20));
+        assert!(
+            (gap.seconds_away - 750.0).abs() < 1e-9,
+            "{}",
+            gap.seconds_away
+        );
+        let full = restock_gap(&table, &market, |item: &ItemDesignId| match item.as_str() {
+            "plate" => 0,
+            _ => 50,
+        });
+        assert_eq!(
+            full.map(|gap| gap.item.to_string()),
+            Some("plate".to_string())
+        );
+        assert_eq!(restock_gap(&table, &market, |_| 100), None);
+    }
+
+    /// A provocation refuses for the rest of its window, an Enemy by events
+    /// for the rest of its decay, a seeded Enemy with no end, and a Neutral
+    /// civilization does not refuse.
+    #[test]
+    fn a_refusal_counts_down_its_window_or_its_decay() {
+        let id = CivilizationId {
+            world_seed: 1,
+            node: [0, 0, 0],
+        };
+        let mut stances = CivilizationStances::default();
+        assert_eq!(refusal(&stances, &id, StanceType::Neutral, 10.0), None);
+        assert_eq!(
+            refusal(&stances, &id, StanceType::Enemy, 10.0),
+            Some(Refusal { seconds_left: None })
+        );
+        stances.provoke(id, StanceType::Neutral, 100.0);
+        let provoked = refusal(&stances, &id, StanceType::Neutral, 160.0).expect("provoked");
+        assert_eq!(provoked.seconds_left, Some(PROVOKED_WINDOW_SECONDS - 60.0));
+        assert_eq!(
+            refusal(
+                &stances,
+                &id,
+                StanceType::Neutral,
+                100.0 + PROVOKED_WINDOW_SECONDS
+            ),
+            None,
+            "the window has passed"
+        );
+        let mut stances = CivilizationStances::default();
+        for _ in 0..3 {
+            stances.offence(id, StanceType::Neutral, 200.0);
+        }
+        let enemy = refusal(&stances, &id, StanceType::Neutral, 500.0).expect("enemy by events");
+        assert_eq!(enemy.seconds_left, Some(ENEMY_DECAY_SECONDS - 300.0));
     }
 }

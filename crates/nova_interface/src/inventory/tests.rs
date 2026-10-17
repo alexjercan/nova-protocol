@@ -93,7 +93,9 @@ fn dock_partner(world: &mut World, player: Entity, name: &str, plates: u32) -> E
     partner
 }
 
-/// Every text one side's column shows, in tree order.
+/// Every text one side's column shows, in tree order. A badge's legend is
+/// empty until a theme writes it, which this rig has none of, so empty texts
+/// are left out.
 fn column_texts(world: &mut World, side: InventorySideType) -> Vec<String> {
     let column = world
         .query::<(Entity, &InventoryColumn)>()
@@ -104,7 +106,7 @@ fn column_texts(world: &mut World, side: InventorySideType) -> Vec<String> {
     let mut texts = Vec::new();
     let mut stack = vec![column];
     while let Some(entity) = stack.pop() {
-        if let Some(text) = world.get::<Text>(entity) {
+        if let Some(text) = world.get::<Text>(entity).filter(|text| !text.0.is_empty()) {
             texts.push(text.0.clone());
         }
         if let Some(children) = world.get::<Children>(entity) {
@@ -215,9 +217,10 @@ fn inventory_columns_show_the_player_and_docked_partner_stacks() {
         ),
         "0 cr"
     );
+    // A ship partner trades at reference: its row carries the ask of one.
     assert_eq!(
         column_texts(world, InventorySideType::Partner),
-        ["Hull plate", "x40"]
+        ["Hull plate", "x40", "40 cr"]
     );
 
     // A ship with no stacks says so rather than drawing nothing.
@@ -590,7 +593,7 @@ fn clicking_a_row_inspects_it_and_a_filter_chip_hides_other_categories() {
     );
     assert_eq!(
         column_texts(rig.app.world_mut(), InventorySideType::Own),
-        ["Hull plate", "x12"]
+        ["Hull plate", "x12", "30 cr"]
     );
 }
 
@@ -2703,4 +2706,230 @@ mod generated_wreck {
         );
         assert_eq!(held(&app), (before_take + drawn - 1, 1));
     }
+}
+
+/// A price table that doubles raw prices in a planet-heavy cluster, doubles
+/// a starved item's price and pays four fifths for an unkept one, with a
+/// 20 min restock.
+fn market_table() -> PriceTable {
+    let factor = |ask: f32, bid: f32| PriceFactor { ask, bid };
+    PriceTable {
+        clamp: PriceClamp {
+            min: 0.25,
+            max: 3.0,
+        },
+        scarcity: ScarcityRule {
+            starved: factor(2.0, 2.0),
+            glut: factor(0.9, 0.5),
+            glut_share: 3.0,
+            unkept: factor(1.0, 0.8),
+        },
+        restock: RestockRule {
+            recovery_seconds: 1_200.0,
+        },
+        jobs: JobOfferRule {
+            offer_seconds: 1_200.0,
+        },
+        clusters: vec![ClusterPriceRule {
+            cluster: ClusterType::PlanetHeavy,
+            category: ItemCategoryType::Raw,
+            factor: factor(2.0, 2.0),
+        }],
+        roles: Vec::new(),
+    }
+}
+
+#[test]
+fn a_market_trader_prices_its_rows_against_the_reference_and_sells_the_whole_stack() {
+    use InventorySideType::{Own, Partner};
+
+    let (mut rig, player) = inventory_rig();
+    let plate = ItemDesignId::from(ItemRoleType::HullPlate);
+    let ore = ItemDesignId::from(ItemRoleType::IronOre);
+    rig.app.insert_resource(GamePriceTable(market_table()));
+    rig.app
+        .world_mut()
+        .get_mut::<ShipInventory>(player)
+        .expect("the player has a hold")
+        .add(&test_items(), &ore, 10);
+    let station = dock_station(&mut rig, player, vec![StationServiceType::Trade], 0);
+    // The station keeps one of two plates (starved, x2) and forty of forty
+    // iron ore (at target, raw in a planet-heavy cluster, x2).
+    let world = rig.app.world_mut();
+    world.entity_mut(station).insert(ShipInventory::new(
+        &test_items(),
+        1_000_000,
+        [(plate.clone(), 1), (ore.clone(), 40)],
+    ));
+    world.entity_mut(station).insert(TraderMarket {
+        cluster: ClusterType::PlanetHeavy,
+        civilization: CivilizationId {
+            world_seed: 1,
+            node: [0, 0, 0],
+        },
+        role_preference: [1.0, 0.0, 0.0, 0.0],
+        target: [(plate.clone(), 2), (ore.clone(), 40)]
+            .into_iter()
+            .collect(),
+    });
+    settle(&mut rig.app);
+    take_cues(&mut rig.app);
+
+    // The player's rows show the bid a Sell earns, the partner's the ask a
+    // Buy pays, with the heading over each.
+    let own = column_texts(rig.app.world_mut(), Own);
+    assert!(
+        own.windows(2).any(|pair| pair == ["x12", "45 cr"]),
+        "{own:?}"
+    );
+    assert!(
+        own.windows(2).any(|pair| pair == ["x10", "24 cr"]),
+        "{own:?}"
+    );
+    let partner = column_texts(rig.app.world_mut(), Partner);
+    assert!(
+        partner.windows(2).any(|pair| pair == ["x1", "60 cr"]),
+        "{partner:?}"
+    );
+    assert!(
+        partner.windows(2).any(|pair| pair == ["x40", "32 cr"]),
+        "{partner:?}"
+    );
+    let heading_shown = |world: &mut World, side: InventorySideType| {
+        world
+            .query::<(&InventoryPriceHeadings, &Node)>()
+            .iter(world)
+            .find(|(heading, _)| heading.0 == side)
+            .map(|(_, node)| node.display != Display::None)
+            .expect("each trading side has a price heading")
+    };
+    assert!(heading_shown(rig.app.world_mut(), Own));
+    assert!(heading_shown(rig.app.world_mut(), Partner));
+
+    // The strip leads with the ore the station pays double for, sells the
+    // starved plate dearest and the ore cheapest among what it holds, and
+    // counts the plate gap down in play minutes.
+    let drawn = rig
+        .app
+        .world_mut()
+        .query::<&MarketStrip>()
+        .single(rig.app.world())
+        .expect("the pane has one market strip")
+        .drawn()
+        .cloned()
+        .expect("a market trader draws the strip");
+    assert_eq!(
+        drawn.pays_most.first(),
+        Some(&LeadDraw {
+            name: "Iron ore".to_string(),
+            delta_percent: 100
+        }),
+        "{drawn:?}"
+    );
+    assert_eq!(drawn.pays_most.len(), MARKET_LEADS);
+    assert_eq!(
+        drawn.sells_cheapest,
+        [
+            LeadDraw {
+                name: "Hull plate".to_string(),
+                delta_percent: 50
+            },
+            LeadDraw {
+                name: "Iron ore".to_string(),
+                delta_percent: 100
+            },
+        ]
+    );
+    assert_eq!(
+        drawn.restock,
+        Some(RestockDraw {
+            name: "Hull plate".to_string(),
+            stock: 1,
+            target: 2,
+            minutes_away: 10,
+            fraction: 0.5,
+        })
+    );
+    assert_eq!(drawn.refused, None, "no stances and no clock: no refusal");
+    let strip_texts = |world: &mut World| {
+        let strip = world
+            .query_filtered::<Entity, With<MarketStrip>>()
+            .single(world)
+            .expect("the pane has one market strip");
+        let mut texts = Vec::new();
+        let mut stack = vec![strip];
+        while let Some(entity) = stack.pop() {
+            if let Some(text) = world.get::<Text>(entity) {
+                texts.push(text.0.clone());
+            }
+            if let Some(children) = world.get::<Children>(entity) {
+                stack.extend(children.iter().rev());
+            }
+        }
+        texts
+    };
+    let texts = strip_texts(rig.app.world_mut());
+    assert!(
+        texts.contains(&"Hull plate x1 of 2, full in 10 min of play".to_string()),
+        "{texts:?}"
+    );
+
+    // The inspector shows the reference, what the station pays and asks
+    // against it, and Sell all sells the whole stack at the shown bid.
+    let at = row_at(&mut rig, Own, &ore);
+    click_at(&mut rig, at);
+    let inspector = |world: &mut World, wanted: InventoryInspectorField| {
+        world
+            .query::<(&InventoryInspectorField, &Text)>()
+            .iter(world)
+            .find(|(field, _)| **field == wanted)
+            .map(|(_, text)| text.0.clone())
+    };
+    assert_eq!(
+        inspector(rig.app.world_mut(), InventoryInspectorField::PriceReference).as_deref(),
+        Some("16 cr / 12 cr")
+    );
+    assert_eq!(
+        inspector(rig.app.world_mut(), InventoryInspectorField::PricePays).as_deref(),
+        Some("24 cr (+100%)")
+    );
+    assert_eq!(
+        inspector(rig.app.world_mut(), InventoryInspectorField::PriceAsks).as_deref(),
+        Some("32 cr (+100%)")
+    );
+    let trade_all = |world: &mut World, trade: ItemTradeType| {
+        world
+            .query::<(
+                Entity,
+                &InventoryTradeAllButton,
+                &Node,
+                Has<InteractionDisabled>,
+            )>()
+            .iter(world)
+            .find(|(_, button, ..)| button.0 == trade)
+            .map(|(entity, _, node, disabled)| (entity, node.display != Display::None, disabled))
+            .expect("the form has a Buy all and a Sell all")
+    };
+    let (sell_all, shown, disabled) = trade_all(rig.app.world_mut(), ItemTradeType::Sell);
+    assert!(shown && !disabled, "Sell all is up for a Sell draft");
+    let (_, buy_shown, _) = trade_all(rig.app.world_mut(), ItemTradeType::Buy);
+    assert!(!buy_shown, "Buy all stays down for a Sell draft");
+    take_cues(&mut rig.app);
+    rig.app.world_mut().trigger(Activate { entity: sell_all });
+    settle(&mut rig.app);
+    let world = rig.app.world();
+    assert_eq!(
+        world
+            .get::<ShipInventory>(player)
+            .map(|hold| hold.count(&ore)),
+        Some(0)
+    );
+    assert_eq!(
+        world
+            .get::<ShipInventory>(station)
+            .map(|hold| hold.count(&ore)),
+        Some(50)
+    );
+    assert_eq!(world.get::<ShipCredits>(player), Some(&ShipCredits(340)));
+    assert_eq!(world.get::<ShipCredits>(station), Some(&ShipCredits(760)));
 }
