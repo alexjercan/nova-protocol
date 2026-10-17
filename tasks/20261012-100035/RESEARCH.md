@@ -112,8 +112,7 @@ Measured, from the task bodies and the design page:
   and forgets stamps older than `PriceTable::robbery.refusal_seconds`
   (`:116-118`; `crates/nova_gameplay/src/market.rs:234`). The live content value is 900 s
   (`ROBBERY_REFUSAL_SECONDS`, `crates/nova_authoring/src/base_content/market.rs:44`,
-  `:91`); the 600 s at `market.rs:588` is the table default outside the base
-  content. The stamp counts a neutralize whose `LastAttacker` is the player
+  `:91`); the 600 s at `market.rs:588` is a unit-test fixture, not live content. The stamp counts a neutralize whose `LastAttacker` is the player
   ship or a fleet escort (`economy.rs:77-88`).
 - Decision 10 says this window is subsumed by the stance graph
   (`DESIGN.html:922`): the robbery event becomes an edge flip.
@@ -145,7 +144,7 @@ Measured, from the task bodies and the design page:
 ### 2.5 Events, jobs and the save
 
 - `OnNeutralizedEvent` and `OnDestroyedEvent` carry the ship's scenario id
-  and type name only (`crates/nova_events/src/lib.rs:284-305`), no
+  and type name only (`crates/nova_events/src/lib.rs:275-305`), no
   civilization. The world layer reads the victim's civilization off its
   `TraderMarket` on `Add<NeutralizedMarker>` (`economy.rs:77-104`), not off
   the event.
@@ -165,7 +164,7 @@ Measured, from the task bodies and the design page:
   (`crates/nova_scenario/src/objects/start_role.rs:186-213`); the pirate role
   has `goal: None` pending this graph (`tasks/20261012-100033/TASK.md:22`).
   The base content carries the `TODO(20261012-100033)`
-  for it (`crates/nova_authoring/src/base_content/start_roles.rs:19`, `:124`).
+  for it (`crates/nova_authoring/src/base_content/start_roles.rs:19`, `:136`).
   The station-network charter counts stations that are not derelict and
   not Enemy (`crates/nova_world_base/src/charter.rs:59-60`), so a flip to
   Enemy already changes what a charter counts.
@@ -174,7 +173,8 @@ Measured, from the task bodies and the design page:
 
 ### 2.6 Where the side is read (blast radius of a new owner)
 
-`Allegiance` appears in 71 files. The heavy readers are the
+`Allegiance` appears in 71 Rust files under `crates/` at `9b507e6e5`
+(`grep -rl Allegiance crates --include=*.rs | wc -l`). The heavy readers are the
 HUD marker colours (`crates/nova_hud/src/allegiance_markers.rs`), the AI
 threat and acquisition (`crates/nova_ship/src/input/ai/threat.rs`,
 `acquisition.rs`), the docking admission, the Map contacts
@@ -450,7 +450,7 @@ of section 3.1:
 
 | Pair type | Bound km | Measured over 16 seeds km |
 | --- | ---: | ---: |
-| face maximum | 329.8 | 319.5 to 328.4 |
+| face maximum | 339.4 | 319.5 to 328.4 |
 | two-apart minimum | 400.0 | 401.2 to 405.4 |
 | edge-diagonal minimum | 226.3 | 235.0 to 246.4 |
 | corner-diagonal minimum | 277.1 | 298.4 to 320.3 |
