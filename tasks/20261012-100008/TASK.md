@@ -32,3 +32,11 @@ Children carry the `Wizard:` or `Upgrades:` title prefix and the `wizard` tag.
 
 ## Orchestrator close (2026-10-16)
 - Every child is closed: start roles, swap, add a section, buy a ship, hire an escort and buy a station. The owner accepted the last three (100013, 100014, and the docked flows) in live runs on 2026-10-16.
+
+## Owner idea 2026-10-17 (start docked at an allied station)
+- At New World, find the closest station of an allied civilization to the
+  seed's start point and move the start there; the player ship begins docked
+  at it. That station is the starting station and the only one that posts
+  the class-specific starter jobs (jobs epic `20261012-100022`). Charter 0
+  ("dock at a living station", `20261012-100031`) needs a new first step
+  under this direction.

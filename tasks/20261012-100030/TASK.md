@@ -95,3 +95,26 @@ the menu screens that feed a charter (New Game, Load) are text too. Ideas:
   Load frame, owned stations consumed once on materialize, `ring_of` and the
   lint bounds, charter 0 on `OnStart` only with the living-station filter,
   `OwnYard` best single station, `MiningEmpire` without a stock clause.
+
+## Owner feedback 2026-10-17 (round 2, chart, load, new game, goals)
+- The chart already looks good in the game. Improve it, do not replace it:
+  keep the 3D orbit view, show more useful things in chart mode, and draw
+  generated images for cells instead of coloured squares, as the local map
+  draws its contacts.
+- Load: show the saved world's chart as the same 3D view, with zoom and
+  orbit, beside the play time and the saved-ago time.
+- New Game: the seed panel shows the world preview as the chart (zoom,
+  orbit), as Factorio previews a map seed; then the role step.
+- The `3 / 8` charter counts read as nonsense to the owner. Show the
+  current objectives (held jobs, the next milestone) instead of goal counts,
+  in the chart panel, on Load and on the HUD.
+- Role descriptions are bad; the owner rewrites them. Do not spend time on
+  them.
+- Goals must be balanced across roles. "Own 4 stations" against "own 2" is
+  not acceptable. One owned station is the shared first milestone for every
+  role (the "launch the rocket" moment). After it each role gets one simple
+  flavour goal: industrial something about mining, military something about
+  clearing enemies, and so on. Keep them simple. Revisit decision 13 and the
+  phase 2 counts in `20261012-100033` under this direction.
+- The `ui_gallery` example (`examples/playable/ui_gallery.rs`) is the mock
+  the owner judges; round 2 rework in progress.

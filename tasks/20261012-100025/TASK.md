@@ -66,3 +66,10 @@ player reads them as sentences or not at all. Ideas:
 - Sound: price formula (no division by zero, finite, bid <= ask, saturating
   cast), clock gating and reset, restock clamps, refusal window boundary and
   admission order, save format gate, PriceTable content kind, job expiry.
+
+## Owner feedback 2026-10-17 (round 2, market UI)
+- The Inventory pane already looks decent. Keep its layout: the quantity
+  slider, the text field, All, and add Buy all and Sell all.
+- Add the percentages: what the station pays most for and what is most
+  expensive against the reference, a few computed figures, not prose.
+- Make the mock look like the real pane, not a new layout.

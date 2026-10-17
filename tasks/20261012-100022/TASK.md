@@ -87,3 +87,33 @@ button per row. Ideas, cheapest first, all on widgets `nova_ui` already has:
   hand-in moves and refusals, admission of a neutralized partner, 3 slots,
   role mix weights, 27-cell field, trap odds, raider count and leash,
   `TargetGone` and `NotDone`, `Jobs.completed: Vec<Job>`.
+
+## Owner feedback 2026-10-17 (round 2, jobs UI and gating)
+- Kind glyphs as text marks are not helpful. Use generated icons (the game
+  draws icons as procedural masks in `crates/nova_interface/src/icons.rs`;
+  add job-kind icons there).
+- Keep every column. Time left is the meter only, no text and no badge. An
+  expired offer is not shown at all.
+- Drop the Track idea; nothing backs it.
+- Held jobs must stay visible after undocking: a Jobs pane in the interface
+  that works undocked, with the board only while docked.
+- Drop the FITS YOUR ROLE badge: the player can buy or refit another ship,
+  so the class is not a fixed trait.
+- Gating instead: for the first jobs the stations near the start post only
+  jobs the player's class can do; after a timer, or after an upgrade, every
+  job opens; stations past a radius from the start post any job. The goal is
+  an easy early progression from jobs.
+- Agent suggestion (open): gate on the current hull's capability instead of
+  the class and a timer: Bring needs hold mass for the stack, Recover needs
+  a docking clamp, Neutralize needs a weapon, Escort needs a weapon, Answer
+  needs a clamp; a starter station hides what the hull cannot do and a core
+  station shows all with a greyed Accept and the reason. An upgrade opens
+  jobs by itself, no timer or class table to tune. Near-start stations post
+  small counts and close targets; farther stations post harder jobs.
+
+## Owner idea 2026-10-17 (starting station)
+- A new world starts docked: the generator finds the closest station of an
+  allied civilization to the start point and moves the start there, so the
+  player's ship begins docked at it. That station is "the starting station":
+  only it posts the class-specific starter jobs; every other station posts
+  normal jobs. See the wizard epic `20261012-100008` for the placement side.
