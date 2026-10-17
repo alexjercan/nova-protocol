@@ -4,7 +4,7 @@
 //! player sees at a station while docked there.
 //!
 //! The chart, the player's [`Jobs`], the player's
-//! [`NeutralizedCivilizations`] and the role goal's [`GoalRecord`] are
+//! [`CivilizationStances`] and the role goal's [`GoalRecord`] are
 //! cleared with the frozen ledger, in `NovaWorldSystems::Cleanup`, so a
 //! Retry, an unload or a replaced scenario starts new ones. A Load puts the
 //! saved four back after that clear, on the frame the world arms.
@@ -12,17 +12,17 @@
 use bevy::prelude::*;
 use nova_events::prelude::GeneratedBodyId;
 use nova_gameplay::prelude::{
-    Chart, ChartSectorEdge, DerelictShipMarker, GoalProgress, GoalRecord, JobPostings, Jobs,
-    NeutralizedCivilizations, OwnedStationMarker, PlayerSpaceshipMarker, ShipInventory,
-    StationMarker, StationServices, StationStorage, StationSummary, WorldClock,
+    Chart, ChartSectorEdge, CivilizationStances, DerelictShipMarker, GoalProgress, GoalRecord,
+    JobPostings, Jobs, OwnedStationMarker, PlayerSpaceshipMarker, ShipInventory, StationMarker,
+    StationServices, StationStorage, StationSummary, WorldClock,
 };
 use nova_ship::prelude::{DockedShip, DockingConnection, SensorContacts};
 use nova_world::prelude::{CurrentSector, SectorClusterTypes, SectorRoot, WorldConfig};
 
 use crate::NovaLayeredWorld;
 
-/// Forget the chart, the jobs, the job postings, the neutralized
-/// civilizations and the role goal's record and progress on every frame
+/// Forget the chart, the jobs, the job postings, the civilization stances
+/// and the role goal's record and progress on every frame
 /// `Cleanup` drops the frozen ledger, and keep [`ChartSectorEdge`] on the
 /// armed world's edge.
 #[expect(
@@ -36,7 +36,7 @@ pub(crate) fn clear_chart(
     mut chart: ResMut<Chart>,
     mut jobs: ResMut<Jobs>,
     mut postings: ResMut<JobPostings>,
-    mut neutralized: ResMut<NeutralizedCivilizations>,
+    mut stances: ResMut<CivilizationStances>,
     mut goal: ResMut<GoalRecord>,
     mut progress: ResMut<GoalProgress>,
 ) {
@@ -49,8 +49,8 @@ pub(crate) fn clear_chart(
     if !postings.is_empty() {
         postings.clear();
     }
-    if !neutralized.is_empty() {
-        neutralized.clear();
+    if !stances.is_empty() {
+        stances.clear();
     }
     if goal.is_met() {
         goal.clear();

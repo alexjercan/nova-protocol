@@ -88,6 +88,7 @@ pub(crate) struct StationSale<'w, 's> {
             Has<DerelictShipMarker>,
             Has<OwnedStationMarker>,
             Has<GeneratedBodyId>,
+            &'static Allegiance,
         ),
         With<StationMarker>,
     >,
@@ -106,14 +107,16 @@ impl StationSale<'_, '_> {
         } else {
             connection.first_ship
         };
-        let (name, stock, credits, children, derelict, owned, generated) =
+        let (name, stock, credits, children, derelict, owned, generated, side) =
             self.stations.get(station).ok()?;
         let sale = if owned {
             StationSaleType::Owned
-        } else if generated && !derelict {
+        } else if !generated || derelict {
+            StationSaleType::NotForSale
+        } else if *side == Allegiance::Player {
             StationSaleType::ForSale
         } else {
-            StationSaleType::NotForSale
+            StationSaleType::NotAllied
         };
         let recipes = children
             .into_iter()
@@ -137,6 +140,9 @@ fn station_refusal_text(name: &str, refusal: &StationBuyRefusalType) -> String {
         StationBuyRefusalType::NotDocked => "buy: dock at a living station".to_string(),
         StationBuyRefusalType::NotForSale => format!("buy: no civilization sells {name}"),
         StationBuyRefusalType::AlreadyOwned => format!("buy: {name} is yours already"),
+        StationBuyRefusalType::NotAllied => {
+            format!("buy: {name}'s civilization sells to its allies only")
+        }
         StationBuyRefusalType::InsufficientCredits { need, have } => {
             format!(
                 "buy: {name} costs {}, the ship holds {}",
@@ -186,6 +192,15 @@ pub(crate) fn update_station_sale_block(
     };
     let row = sale.docked().and_then(|docked| match docked.sale {
         StationSaleType::NotForSale => None,
+        StationSaleType::NotAllied => Some(StationRow {
+            line: "Sold to allies only".to_string(),
+            refusal: Some(station_refusal_text(
+                &docked.name,
+                &StationBuyRefusalType::NotAllied,
+            )),
+            name: docked.name,
+            owned: false,
+        }),
         StationSaleType::Owned => Some(StationRow {
             line: "Yours: it refuses no hull, and its stock sells to you at bid".to_string(),
             name: docked.name,

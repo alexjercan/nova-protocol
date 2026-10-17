@@ -1859,7 +1859,7 @@ pub(crate) fn plan_sector(
             };
             if SectorCoord::containing(pose.position, edge) == coord {
                 let (dead, allegiance) = match civilization.status {
-                    CivilizationStatusType::Living => (false, civilization.allegiance),
+                    CivilizationStatusType::Living => (false, civilization.stance.side()),
                     CivilizationStatusType::Extinct => (true, Allegiance::Neutral),
                 };
                 let id = sector_id(coord, &format!("{stem}_station"), 0);

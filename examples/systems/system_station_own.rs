@@ -7,9 +7,11 @@
 //! seed the way the Create World modal does, and lets the window stream in.
 //! It picks the nearest generated station that is living, on the Neutral
 //! side, and stands outside the spawn's cell: a side the buy visibly
-//! changes. The player jumps beside it and is put on a berth at its collar
-//! each frame until the dock takes; the walk never flies the approach
-//! (`system_station_docking` does).
+//! changes. Before the buy the walk warms the station's civilization to
+//! Ally by merits, the way a player who hands in its jobs would, since the
+//! buy gate needs an Ally. The player jumps beside it and is put on a berth
+//! at its collar each frame until the dock takes; the walk never flies the
+//! approach (`system_station_docking` does).
 //!
 //! DISCLOSED FIXTURE STATE: once docked, the player holds 100,000,000 cr, so
 //! the station is affordable. The player's side is set to Enemy twice, as
@@ -52,10 +54,10 @@ use clap::Parser;
 #[command(name = "system_station_own")]
 #[command(version = "1.0.0")]
 #[command(
-    about = "New Game on a pinned seed: dock at a living Neutral station and buy it from the \
-             Station pane; it takes the Player side and the owned name, the chart holds it as the \
-             player's, and it stays so across a retire, a thaw, a save and a Load. Autopilot-only \
-             correctness range",
+    about = "New Game on a pinned seed: dock at a living Neutral station, warm its civilization to \
+             Ally by merits, and buy it from the Station pane; it takes the Player side and the \
+             owned name, the chart holds it as the player's, and it stays so across a retire, a \
+             thaw, a save and a Load. Autopilot-only correctness range",
     long_about = None
 )]
 struct Cli;
@@ -117,7 +119,7 @@ mod walk {
     };
     use nova_ui::widget::TextFieldValue;
     use nova_world::prelude::{
-        desired_sectors, FrozenBodyType, FrozenSectors, SectorRoot, WorldConfig,
+        desired_sectors, FrozenBodyType, FrozenSectors, SectorRoot, WorldClock, WorldConfig,
     };
 
     use super::*;
@@ -742,7 +744,7 @@ mod walk {
         .add()
     }
 
-    /// Pick the nearest station that is living, generated, on the Player
+    /// Pick the nearest station that is living, generated, on the Neutral
     /// side, and stands outside the spawn's cell.
     fn choose_the_station(world: &mut World) {
         let (edge, _) = world_shape(world);
@@ -830,6 +832,33 @@ mod walk {
         );
         info!("station own: '{name}' is {civilization}'s, on the Neutral side");
         world.resource_mut::<OwnWatch>().civilization = Some(civilization);
+    }
+
+    /// Warm the station's civilization to Ally the way a player does: one
+    /// merit per handed-in job, `MERIT_STEP` merits per step. Nothing when
+    /// it is Ally.
+    fn warm_to_ally(world: &mut World, station: Entity) {
+        let civ = world
+            .get::<TraderMarket>(station)
+            .expect("station own: the chosen station prices goods")
+            .civilization;
+        let now = world.resource::<WorldClock>().play_seconds;
+        let seeded = seeded_stance(&civ);
+        let mut stances = world.resource_mut::<CivilizationStances>();
+        let mut merits = 0;
+        while stances.effective(&civ, seeded, now) != StanceType::Ally {
+            record_merit(&mut stances, civ, now);
+            merits += 1;
+            assert!(
+                merits <= 2 * MERIT_STEP,
+                "station own: '{}' never warmed to Ally",
+                civ.name()
+            );
+        }
+        info!(
+            "station own: '{}' warmed to Ally after {merits} merit(s)",
+            civ.name()
+        );
     }
 
     /// Disclosed fixture state: the player's balance set to
@@ -1288,6 +1317,13 @@ mod walk {
             .add()
             .step("station own: the unowned station is its civilization's")
             .on_enter(assert_the_civilization)
+            .add()
+            .step("station own: warm the station's civilization to Ally")
+            .on_enter(|world: &mut World| warm_to_ally(world, station(world)))
+            .until(when(|world: &World| {
+                world.get::<Allegiance>(station(world)) == Some(&Allegiance::Player)
+            }))
+            .deadline(SESSION_SECS)
             .add()
             .step("station own: berth and dock")
             .each(|world, _, _| berth_and_dock(world))

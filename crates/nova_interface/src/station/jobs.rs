@@ -25,6 +25,7 @@ use bevy::{prelude::*, ui_widgets::Activate};
 use nova_events::prelude::{CreditChangeCauseType, GeneratedBodyId};
 use nova_gameplay::prelude::*;
 use nova_ui::{theme::UiColor, widget::ButtonSpec};
+use nova_world_base::prelude::record_merit;
 
 use super::StationRuntime;
 use crate::{
@@ -404,7 +405,7 @@ fn on_job_button(
 /// button for a job it lists.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one system reading both commands, the board, the jobs, the postings, the clock, the table, the site, the targets, the hold and both balances"
+    reason = "one system reading both commands, the board, the jobs, the postings, the clock, the table, the site, the targets, the hold, both balances and the stances"
 )]
 #[expect(
     clippy::type_complexity,
@@ -429,6 +430,9 @@ pub(crate) fn apply_station_job_commands(
         Query<&ShipCredits>,
         Query<(&mut ShipCredits, &mut ShipInventoryReports)>,
     )>,
+    // The civilization a hand-in merits: the station's, read with the
+    // player's table of stances.
+    (q_markets, mut stances): (Query<&TraderMarket>, ResMut<CivilizationStances>),
 ) {
     if accepts.is_empty() && hand_ins.is_empty() {
         return;
@@ -541,5 +545,22 @@ pub(crate) fn apply_station_job_commands(
             job.id, plan.reward_cr
         );
         runtime.say(format!("handed in {title} for {}", cr_text(plan.reward_cr)));
+        if let Ok(market) = q_markets.get(*station) {
+            if let Some(step) = record_merit(&mut stances, market.civilization, clock.play_seconds)
+            {
+                info!(
+                    "stance: {} moved from {:?} to {:?} on the hand-in at {:.1} s of play",
+                    step.civilization.name(),
+                    step.from,
+                    step.to,
+                    clock.play_seconds
+                );
+                runtime.say(format!(
+                    "{} now holds you {}",
+                    step.civilization.name(),
+                    format!("{:?}", step.to).to_lowercase()
+                ));
+            }
+        }
     }
 }

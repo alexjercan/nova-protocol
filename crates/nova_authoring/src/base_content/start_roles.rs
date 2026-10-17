@@ -14,10 +14,11 @@
 //! generated Armored hulls reach about 2,000 km out. The industrial empire
 //! is two station buys and the full fleet (`FLEET_SIDES`), with no stock
 //! clause: a bought station keeps its targets and restocks on every thaw,
-//! so such a clause would read met from the buy on. A charter is a
-//! milestone, not an ending: the world plays on past it.
-//! TODO(20261012-100033): pirate carries `None` until the stance graph
-//! (`20261012-100036`) can turn a civilization Enemy.
+//! so such a clause would read met from the buy on. The pirate's outlaw
+//! count is twice the offence step: the stance graph turns a Neutral
+//! civilization Enemy at three neutralized hulls within an hour of play,
+//! and six more of its hulls while it stands Enemy is twice that. A charter
+//! is a milestone, not an ending: the world plays on past it.
 
 use nova_gameplay::prelude::{ItemRoleType, JobMixType, ShipInventoryStock};
 use nova_scenario::prelude::{RoleGoal, RoleGoalType, StartKit, StartRole};
@@ -39,13 +40,13 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             2_200,
             &[(ItemRoleType::HullPlate, 15), (ItemRoleType::Rations, 25)],
             JobMixType::Trade,
-            Some(RoleGoal {
+            RoleGoal {
                 title: "A mining empire".to_string(),
                 kind: RoleGoalType::MiningEmpire {
                     stations: 2,
                     escorts: 2,
                 },
-            }),
+            },
             "Mining crews work the rock fields for whoever buys the ore. The tug is old, but \
              it pays.",
         ),
@@ -58,10 +59,10 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             1_800,
             &[(ItemRoleType::PdcRound, 200), (ItemRoleType::HullPlate, 10)],
             JobMixType::Salvage,
-            Some(RoleGoal {
+            RoleGoal {
                 title: "A yard of your own".to_string(),
                 kind: RoleGoalType::OwnYard,
-            }),
+            },
             "Every fight leaves wrecks behind. Scavengers take what still has a price.",
         ),
         role(
@@ -73,14 +74,14 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             2_000,
             &[(ItemRoleType::Rations, 50), (ItemRoleType::WaterIce, 50)],
             JobMixType::Trade,
-            Some(RoleGoal {
+            RoleGoal {
                 title: "A station network".to_string(),
                 kind: RoleGoalType::StationNetwork {
                     jobs: 8,
                     stations: 4,
                     rings: 2,
                 },
-            }),
+            },
             "Stations need food, water and parts they cannot make. Haulers carry them \
              between stations.",
         ),
@@ -97,10 +98,10 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
                 (ItemRoleType::HullPlate, 10),
             ],
             JobMixType::Combat,
-            Some(RoleGoal {
+            RoleGoal {
                 title: "A kill list".to_string(),
                 kind: RoleGoalType::KillList { hulls: 6, rings: 2 },
-            }),
+            },
             "Some ships carry a price on their hull. Hunters collect it.",
         ),
         role(
@@ -112,12 +113,12 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             1_600,
             &[(ItemRoleType::PdcRound, 250), (ItemRoleType::HullPlate, 10)],
             JobMixType::Combat,
-            Some(RoleGoal {
+            RoleGoal {
                 title: "The Line Warship".to_string(),
                 kind: RoleGoalType::Flagship {
                     hull: LINE_WARSHIP_SHIP_ID.into(),
                 },
-            }),
+            },
             "Patrol crews start on small pickets and earn larger hulls. Few reach a warship.",
         ),
         role(
@@ -133,14 +134,17 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
                 (ItemRoleType::HullPlate, 10),
             ],
             JobMixType::Combat,
-            None,
+            RoleGoal {
+                title: "An outlaw's name".to_string(),
+                kind: RoleGoalType::Outlaw { hulls: 6 },
+            },
             "Past the patrol routes, a full hold is a target. Raiders live on what they take.",
         ),
     ]
 }
 
 /// One role: `hull` with a kit of `credits` and `stock`, whose boards lean
-/// to `jobs`, with its charter `goal` or none yet.
+/// to `jobs`, with its charter `goal`.
 #[expect(
     clippy::too_many_arguments,
     reason = "one row of the role table; every field is authored here"
@@ -153,7 +157,7 @@ fn role(
     credits: u32,
     stock: &[(ItemRoleType, u32)],
     jobs: JobMixType,
-    goal: Option<RoleGoal>,
+    goal: RoleGoal,
     lore: &str,
 ) -> StartRole {
     StartRole {

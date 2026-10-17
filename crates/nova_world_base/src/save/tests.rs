@@ -8,22 +8,21 @@ use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack, LoadedSectio
 use nova_events::prelude::{EntityId, GeneratedBodyId};
 use nova_gameplay::prelude::{
     nova_blast, resumed_lifetime, AssetRef, CargoCanister, CargoCanisterIdAllocator,
-    CargoCanisterRuntimeId, Chart, CivilizationId, ClockFreeze, DamageLevel, DamageMarks,
-    DamageType, FreezeOwner, FrozenRoundFlight, GameItems, GoalRecord, Health, ImpactSparkMarker,
-    ImpactSparkPlugin, ImpactSparks, IntegrityDestroyMarker, ItemCategoryType, ItemDesign,
-    ItemDesignId, ItemRoleType, Job, JobId, JobPostings, JobType, Jobs, NeutralizedCivilizations,
+    CargoCanisterRuntimeId, Chart, CivilizationId, CivilizationStances, ClockFreeze, DamageLevel,
+    DamageMarks, DamageType, FreezeOwner, FrozenRoundFlight, GameItems, GoalRecord, Health,
+    ImpactSparkMarker, ImpactSparkPlugin, ImpactSparks, IntegrityDestroyMarker, ItemCategoryType,
+    ItemDesign, ItemDesignId, ItemRoleType, Job, JobId, JobPostings, JobType, Jobs,
     PlayerFleetMarker, PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage,
     ProjectileOwner, RailgunSlugProjectileMarker, RoundRake, SavedBodyRef, SavedLifetime,
     SavedOwner, SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory,
-    SpaceshipRootMarker, StationServiceType, StationSummary, TempEntity, TorpedoProjectileMarker,
-    TurretBulletProjectileMarker,
+    SpaceshipRootMarker, StanceType, StationServiceType, StationSummary, TempEntity,
+    TorpedoProjectileMarker, TurretBulletProjectileMarker,
 };
 use nova_scenario::prelude::{
     freeze_asteroid, freeze_fleet, freeze_ore_drop, freeze_ship, freeze_station,
     spaceship_scenario_object, AsteroidKind, AsteroidKindId, AsteroidMarker, AsteroidRadius,
     AsteroidSeed, AsteroidTexture, CurrentScenario, GameStartRoles, MinedCanisterQueue, MinedOre,
-    MinedOreDrop, RoleGoal, RoleGoalType, SpaceshipConfig, StationMarker, StationServices,
-    StationStorage,
+    MinedOreDrop, SpaceshipConfig, StationMarker, StationServices, StationStorage,
 };
 use nova_ship::prelude::{
     cargo_canister, freeze_canister, freeze_wreck_fragment, thaw_round, thaw_torpedo, AIFollow,
@@ -147,7 +146,7 @@ fn state(generation: u64, credits: u32) -> WorldSaveState {
         jobs: Jobs::default(),
         postings: JobPostings::default(),
         clock: WorldClock::default(),
-        neutralized: NeutralizedCivilizations::default(),
+        stances: CivilizationStances::default(),
         goal: GoalRecord::default(),
     }
 }
@@ -793,11 +792,10 @@ fn a_saved_clock_resumes_at_the_play_time_it_was_written_with() {
     );
 }
 
-/// The player's record of neutralized civilizations is written with a leave
-/// save, comes back on a Load, and a stamp ahead of the saved clock is a
-/// save the Load refuses.
+/// The player's stance table is written with a leave save, comes back on a
+/// Load, and a stamp ahead of the saved clock is a save the Load refuses.
 #[test]
-fn a_saved_neutralized_record_resumes_and_a_stamp_ahead_of_the_clock_is_refused() {
+fn a_saved_stance_table_resumes_and_a_stamp_ahead_of_the_clock_is_refused() {
     let root = tempfile::tempdir().unwrap();
     let (mut world, _player) = armed_session(root.path());
     frame(&mut world);
@@ -812,8 +810,8 @@ fn a_saved_neutralized_record_resumes_and_a_stamp_ahead_of_the_clock_is_refused(
         play_seconds: 200.0,
     });
     world
-        .resource_mut::<NeutralizedCivilizations>()
-        .record(robbed, 150.0);
+        .resource_mut::<CivilizationStances>()
+        .provoke(robbed, StanceType::Neutral, 150.0);
     world.resource_mut::<WorldSaveSession>().request_leave();
     run_until_idle(&mut world);
     assert_eq!(
@@ -831,24 +829,26 @@ fn a_saved_neutralized_record_resumes_and_a_stamp_ahead_of_the_clock_is_refused(
         &scenarios(),
     )
     .unwrap();
-    assert!(
-        state.neutralized.refuses(&robbed),
-        "the leave save wrote the record"
+    assert_eq!(
+        state.stances.effective(&robbed, StanceType::Neutral, 200.0),
+        StanceType::Enemy,
+        "the leave save wrote the provocation"
     );
     drop(lock);
 
     let resumed = load(root.path(), digest);
-    assert!(
+    assert_eq!(
         resumed
-            .resource::<NeutralizedCivilizations>()
-            .refuses(&robbed),
-        "the Load restored the record on the arming frame"
+            .resource::<CivilizationStances>()
+            .effective(&robbed, StanceType::Neutral, 200.0),
+        StanceType::Enemy,
+        "the Load restored the table on the arming frame"
     );
     drop(resumed);
 
-    // A record stamped after the saved clock is one no session wrote.
+    // A stamp after the saved clock is one no session wrote.
     let mut state = state;
-    state.neutralized.record(robbed, 250.0);
+    state.stances.provoke(robbed, StanceType::Neutral, 250.0);
     let text = ron::to_string(&state).unwrap();
     std::fs::write(root.path().join("session/state.2.ron"), text).unwrap();
     let refused = open_world(
@@ -860,29 +860,21 @@ fn a_saved_neutralized_record_resumes_and_a_stamp_ahead_of_the_clock_is_refused(
         &scenarios(),
     );
     assert!(
-        matches!(refused, Err(WorldRefusal::Unreadable(ref reason)) if reason.contains("stamped neutralized")),
+        matches!(refused, Err(WorldRefusal::Unreadable(ref reason)) if reason.contains("stance stamp")),
         "a stamp ahead of the clock refuses the save: {refused:?}"
     );
 }
 
 /// The role goal's record is written with a leave save and comes back on a
-/// Load; a stamp ahead of the saved clock, or a met record for a start role
-/// with no goal, is a save the Load refuses.
+/// Load; a stamp ahead of the saved clock is a save the Load refuses.
 #[test]
-fn a_saved_goal_record_resumes_and_a_stamp_ahead_of_the_clock_or_without_a_goal_is_refused() {
+fn a_saved_goal_record_resumes_and_a_stamp_ahead_of_the_clock_is_refused() {
     let root = tempfile::tempdir().unwrap();
     let (mut world, _player) = armed_session(root.path());
     frame(&mut world);
     frame(&mut world);
     run_until_idle(&mut world);
 
-    // The fixture role carries no goal; this save's role does.
-    let mut roles_with_goal = fixture_roles();
-    roles_with_goal.0[0].goal = Some(RoleGoal {
-        title: "A kill list".to_string(),
-        kind: RoleGoalType::KillList { hulls: 6, rings: 2 },
-    });
-    world.insert_resource(roles_with_goal.clone());
     world.insert_resource(WorldClock {
         play_seconds: 200.0,
     });
@@ -899,7 +891,7 @@ fn a_saved_goal_record_resumes_and_a_stamp_ahead_of_the_clock_or_without_a_goal_
         root.path(),
         "session",
         &catalog(digest),
-        &roles_with_goal,
+        &roles(),
         &items(),
         &scenarios(),
     )
@@ -913,7 +905,7 @@ fn a_saved_goal_record_resumes_and_a_stamp_ahead_of_the_clock_or_without_a_goal_
     );
     drop(lock);
 
-    let resumed = load_as(root.path(), digest, &roles_with_goal);
+    let resumed = load(root.path(), digest);
     assert_eq!(
         *resumed.resource::<GoalRecord>(),
         GoalRecord {
@@ -922,20 +914,6 @@ fn a_saved_goal_record_resumes_and_a_stamp_ahead_of_the_clock_or_without_a_goal_
         "the Load restored the record on the arming frame"
     );
     drop(resumed);
-
-    // A met record for a role with no goal is one no session wrote.
-    let refused = open_world(
-        root.path(),
-        "session",
-        &catalog(digest),
-        &roles(),
-        &items(),
-        &scenarios(),
-    );
-    assert!(
-        matches!(refused, Err(WorldRefusal::Unreadable(ref reason)) if reason.contains("has no goal")),
-        "a met record needs a goal: {refused:?}"
-    );
 
     // A record stamped after the saved clock is one no session wrote.
     let mut state = state;
@@ -946,7 +924,7 @@ fn a_saved_goal_record_resumes_and_a_stamp_ahead_of_the_clock_or_without_a_goal_
         root.path(),
         "session",
         &catalog(digest),
-        &roles_with_goal,
+        &roles(),
         &items(),
         &scenarios(),
     );

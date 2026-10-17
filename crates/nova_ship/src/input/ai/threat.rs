@@ -259,6 +259,17 @@ fn resolve_damage_attacker(
     }
 }
 
+/// Fired on the ship whose provocation tally for `shooter` crossed
+/// [`NEUTRAL_RETALIATION_THRESHOLD`]: the world layer stamps the ship's
+/// civilization provoked when the shooter is the player.
+#[derive(Event, Debug, Clone, Copy)]
+pub struct ShipProvoked {
+    /// The ship root whose tally crossed the threshold.
+    pub ship: Entity,
+    /// The ship root that provoked it.
+    pub shooter: Entity,
+}
+
 /// The ship root whose fire or ram last damaged this ship root, for the
 /// rules that ask who beat a hull: the open world records the civilization
 /// of a hull the player neutralized off it. Stamped by
@@ -302,8 +313,10 @@ pub(super) fn on_damage_stamp_attacker(
     }
 }
 
-/// Record hostile hits into the damaged ship's [`AIThreat`], and point an
-/// armed Neutral ship's [`RetaliationTarget`] at the ship that hit it.
+/// Record hostile hits into the damaged ship's [`AIThreat`], point an armed
+/// Neutral ship's [`RetaliationTarget`] at the ship that hit it, and fire
+/// [`ShipProvoked`] once an attacker's tally crosses
+/// [`NEUTRAL_RETALIATION_THRESHOLD`].
 ///
 /// `HealthApplyDamage` propagates from the hit section up through `ChildOf`
 /// to the ship root, so this fires once the event reaches an entity
@@ -312,13 +325,17 @@ pub(super) fn on_damage_stamp_attacker(
 /// deliberately affects the owner) must not spook it into evading itself.
 ///
 /// A Neutral ship tallies every other ship's damage in its [`AIProvocation`],
-/// whatever that ship's side, and reacts only once one attacker's tally
-/// reaches [`NEUTRAL_RETALIATION_THRESHOLD`]. Rams count as well as fire, so
-/// a scrape is forgiven and a burst of fire is not. An armed one then answers
-/// that ship: the latest ship over the threshold replaces the one before, and
-/// the hit counts as hostile through [`ship_relation`]. An unarmed one stays
-/// out of the fight and answers nobody. Any other side keeps its allegiance
-/// rule: a Player-aligned ship hit by the player does not turn on it.
+/// whatever that ship's side, and a Player-aligned ship tallies the player's
+/// own hits on it the same way. Rams count as well as fire, so a scrape is
+/// forgiven and a burst of fire is not. Once one attacker's tally reaches
+/// [`NEUTRAL_RETALIATION_THRESHOLD`], [`ShipProvoked`] fires on the damaged
+/// ship so the world layer can stamp its civilization provoked when the
+/// shooter is the player. A Neutral ship then answers that ship as well: the
+/// latest ship over the threshold replaces the one before in
+/// [`RetaliationTarget`], and the hit counts as hostile through
+/// [`ship_relation`]; an unarmed Neutral stays out of the fight and answers
+/// nobody. Any other side keeps its allegiance rule: a Player-aligned ship
+/// hit by the player does not turn on it, but its civilization is told.
 ///
 /// A docked Neutral ship provoked by a third ship records it and stays
 /// docked; its fire waits for the undock. Provoked by the player, armed or
@@ -370,12 +387,15 @@ pub(super) fn on_damage_track_threat(
     let (attacker, attacker_allegiance) =
         resolve_damage_attacker(source, &q_owner, &q_allegiance, &q_parent, &q_ship_root);
     let shooter = attacker.filter(|attacker| *attacker != ship && q_ship_root.contains(*attacker));
-    let provoked = (*own_allegiance == Allegiance::Neutral)
-        .then_some(shooter)
-        .flatten()
-        .filter(|&shooter| provocation.provoke(shooter, damage.amount, time.elapsed_secs()));
+    let tracked = shooter.filter(|&shooter| {
+        *own_allegiance == Allegiance::Neutral
+            || (*own_allegiance == Allegiance::Player && q_player.contains(shooter))
+    });
+    let provoked =
+        tracked.filter(|&shooter| provocation.provoke(shooter, damage.amount, time.elapsed_secs()));
     if let Some(shooter) = provoked {
-        if !non_combatant {
+        commands.trigger(ShipProvoked { ship, shooter });
+        if *own_allegiance == Allegiance::Neutral && !non_combatant {
             if let Ok(mut answering) = q_retaliation.get_mut(ship) {
                 if answering.0 != Some(shooter) {
                     answering.0 = Some(shooter);
@@ -668,6 +688,41 @@ mod threat_tests {
                 "{ship:?} reads no hostile hit"
             );
         }
+    }
+
+    #[derive(Resource, Default)]
+    struct Provoked(Vec<(Entity, Entity)>);
+
+    /// A Player-aligned ship the player damages past the threshold has its
+    /// provocation tally cross and fires [`ShipProvoked`], naming the
+    /// player as the shooter; its `RetaliationTarget` stays `None`, because
+    /// only a Neutral answers back.
+    #[test]
+    fn a_player_aligned_ship_hit_past_the_threshold_tells_its_civilization_but_never_retaliates() {
+        let (mut world, ally) = threat_world();
+        world.entity_mut(ally).insert(Allegiance::Player);
+        let player = world
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
+            .id();
+        world.init_resource::<Provoked>();
+        world.add_observer(|provoked: On<ShipProvoked>, mut record: ResMut<Provoked>| {
+            record.0.push((provoked.ship, provoked.shooter));
+        });
+
+        let bullet = shot(&mut world, player, Allegiance::Player);
+        hit_for(&mut world, ally, bullet, NEUTRAL_RETALIATION_THRESHOLD);
+        world.flush();
+
+        assert_eq!(
+            world.resource::<Provoked>().0,
+            vec![(ally, player)],
+            "the civilization is told the player provoked it"
+        );
+        assert_eq!(
+            answering(&world, ally),
+            None,
+            "an ally never answers the player, provoked or not"
+        );
     }
 
     /// Sustained fire on a Neutral makes it answer: one short PDC burst

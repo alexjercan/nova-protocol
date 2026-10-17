@@ -14,8 +14,12 @@
 //! radius and scans again. The first distinct pair it completes, with the
 //! hire-capable one as station B and any other as station A, ends the
 //! scout. The player jumps beside each in turn and berths and docks the way
-//! [`system_station_own`] does, buys A through the Station pane's Buy
-//! station button, flies to B and buys it the same way, then hires two
+//! [`system_station_own`] does. A non-Enemy station a scout finds may still
+//! stand short of Ally, which a sale refuses, so the walk warms each
+//! station's civilization to Ally by merits ([`record_merit`], one per
+//! handed-in job, [`MERIT_STEP`] merits per step) the way a player does by
+//! handing in jobs, before it buys A through the Station pane's Buy station
+//! button, flies to B, warms it the same way and buys it, then hires two
 //! escorts at B through the Hire button the way [`system_station_hire`]
 //! does.
 //!
@@ -53,10 +57,11 @@ use clap::Parser;
 #[command(name = "system_role_goal_empire")]
 #[command(version = "1.0.0")]
 #[command(
-    about = "New Game on a pinned seed as the industrial: buy two living non-Enemy stations, \
-             hire two escorts at the second through the Station pane, and watch the empire \
-             charter reach met, keep reading met off the frozen ledger past a cell freeze, show \
-             in the Map, and survive a save and a Load. Autopilot-only correctness range",
+    about = "New Game on a pinned seed as the industrial: warm two living non-Enemy stations' \
+             civilizations to Ally by merits, buy both, hire two escorts at the second through \
+             the Station pane, and watch the empire charter reach met, keep reading met off the \
+             frozen ledger past a cell freeze, show in the Map, and survive a save and a Load. \
+             Autopilot-only correctness range",
     long_about = None
 )]
 struct Cli;
@@ -284,6 +289,52 @@ mod walk {
 
     fn owned(world: &World, station: Entity) -> bool {
         world.get::<OwnedStationMarker>(station).is_some()
+    }
+
+    /// The station tagged `tag` reads the player's own side: the world
+    /// layer's `sync_civilization_sides` wrote its civilization's stance
+    /// there.
+    fn station_is_ally(tag: &'static str) -> Arc<Predicate> {
+        when(move |world| {
+            let id = world.resource::<EmpireWatch>().station(tag).id;
+            wearing(world, &id)
+                .and_then(|station| world.get::<Allegiance>(station))
+                .is_some_and(|allegiance| *allegiance == Allegiance::Player)
+        })
+    }
+
+    /// Warm the station tagged `tag`'s civilization to Ally the way a
+    /// player does: one merit per handed-in job, [`MERIT_STEP`] merits per
+    /// step. Nothing when it is Ally already.
+    ///
+    /// # Panics
+    ///
+    /// The civilization never reaches Ally within twice [`MERIT_STEP`]
+    /// merits.
+    fn warm_to_ally(world: &mut World, tag: &'static str) {
+        let id = world.resource::<EmpireWatch>().station(tag).id;
+        let station = wearing(world, &id).expect("role goal empire: the station stands");
+        let civ = world
+            .get::<TraderMarket>(station)
+            .expect("role goal empire: the chosen station prices goods")
+            .civilization;
+        let now = world.resource::<WorldClock>().play_seconds;
+        let seeded = seeded_stance(&civ);
+        let mut stances = world.resource_mut::<CivilizationStances>();
+        let mut merits = 0;
+        while stances.effective(&civ, seeded, now) != StanceType::Ally {
+            record_merit(&mut stances, civ, now);
+            merits += 1;
+            assert!(
+                merits <= 2 * MERIT_STEP,
+                "role goal empire: '{}' never warmed to Ally",
+                civ.name()
+            );
+        }
+        info!(
+            "role goal empire: '{}' warmed to Ally after {merits} merit(s)",
+            civ.name()
+        );
     }
 
     fn world_shape(world: &World) -> (Meters, i32) {
@@ -1401,11 +1452,21 @@ mod walk {
                 );
             })
             .until(frames(1))
+            .add()
+            .step("role goal empire: warm station a's civilization to Ally")
+            .on_enter(|world: &mut World| warm_to_ally(world, "a"))
+            .until(station_is_ally("a"))
+            .deadline(SESSION_SECS)
             .add();
         let script = buy_at(script, "a");
         let script = tap(script, "the interface key", "interface_toggle", unpaused());
         let script = undock_and_clear(script, "a");
-        let script = dock_at(script, "b");
+        let script = dock_at(script, "b")
+            .step("role goal empire: warm station b's civilization to Ally")
+            .on_enter(|world: &mut World| warm_to_ally(world, "b"))
+            .until(station_is_ally("b"))
+            .deadline(SESSION_SECS)
+            .add();
         let script = buy_at(script, "b");
         let script = tap(script, "the interface key", "interface_toggle", unpaused())
             .step("role goal empire: run one frame after both buys")

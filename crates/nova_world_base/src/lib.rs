@@ -52,7 +52,7 @@ use bevy::prelude::*;
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_events::prelude::Meters;
 use nova_gameplay::prelude::{
-    Chart, GameItems, GoalProgress, GoalRecord, JobPostings, Jobs, NeutralizedCivilizations,
+    Chart, CivilizationStances, GameItems, GoalProgress, GoalRecord, JobPostings, Jobs,
     PlayerSpaceshipMarker,
 };
 use nova_scenario::prelude::{CurrentScenario, OpenWorldSession, ScenarioWorldType};
@@ -74,6 +74,7 @@ mod sector_ships;
 mod sector_stations;
 mod ship_layout;
 mod ship_parts;
+mod stance;
 mod station_hulls;
 mod station_layout;
 
@@ -93,6 +94,7 @@ pub use crate::save::{
 pub use crate::{
     civilizations::{
         role_style_id, Civilization, CivilizationField, CivilizationReach, CivilizationStatusType,
+        STANCE_ALLY_SHARE, STANCE_ENEMY_SHARE, STANCE_NEIGHBOUR_RADIUS,
     },
     clusters::{sector_clusters, ClusterSummary, SectorClusters},
     environment::{Environment, EnvironmentFieldType, EnvironmentFields},
@@ -106,6 +108,7 @@ pub use crate::{
         ShipPart, ShipPartExclusionType, ShipPartFamilyType, ShipPartFault, ShipPartPack,
         ShipPartSnapshot,
     },
+    stance::{apply_offence, fine_cr, record_merit, seeded_stance, settle, FINE_CR},
     station_layout::{
         generate_station, generated_station, station_archetype, station_ceiling,
         StationArchetypeType, StationLayout, StationLayoutConstraintType, StationLayoutFailure,
@@ -119,6 +122,21 @@ pub use crate::{
 /// ship planner, the base-world ids, the role style ids and the saved-world
 /// format into scope.
 pub mod prelude {
+    pub use super::{
+        apply_offence, fine_cr, generate_ship, generate_station, generate_wreck, generated_station,
+        plan_ship, record_merit, role_style_id, sector_clusters, seeded_stance, settle, ship_stock,
+        station_archetype, station_ceiling, Civilization, CivilizationField, CivilizationReach,
+        CivilizationStatusType, ClusterSummary, Environment, EnvironmentFieldType,
+        EnvironmentFields, HullSlot, NovaLayeredWorld, NovaWorldBasePlugin, PlannedShip,
+        SectorClusters, ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType,
+        ShipLayoutFailure, ShipLayoutRequest, ShipPart, ShipPartExclusionType, ShipPartFamilyType,
+        ShipPartFault, ShipPartPack, ShipPartSnapshot, StationArchetypeType, StationLayout,
+        StationLayoutConstraintType, StationLayoutFailure, StationLayoutRequest, ARMOURED_STYLE_ID,
+        BLOCK_WAYSTATION_STATION_ID, CHARTER_ZERO_OBJECTIVE_ID, CIVILIAN_STYLE_ID,
+        CLEARANCE_MARGIN, FINE_CR, INDUSTRIAL_STYLE_ID, MAX_SHIP_SECTIONS,
+        OPEN_WORLD_BOUNDS_RADIUS_MAX, OPEN_WORLD_SCENARIO_ID, SALVAGE_STYLE_ID, STANCE_ALLY_SHARE,
+        STANCE_ENEMY_SHARE, STANCE_NEIGHBOUR_RADIUS, STATION_STYLE_ID,
+    };
     #[cfg(not(target_arch = "wasm32"))]
     pub use super::{
         check_world, create_world, delete_world, list_worlds, open_world, resume_world, world_slug,
@@ -126,20 +144,6 @@ pub mod prelude {
         SaveReason, SavedPlayer, WorldFolder, WorldListing, WorldLock, WorldRefusal,
         WorldResumeProgress, WorldResumeRefused, WorldSaveHeader, WorldSaveSession, WorldSaveState,
         WorldSaveStatus, WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_FORMAT,
-    };
-    pub use super::{
-        generate_ship, generate_station, generate_wreck, generated_station, plan_ship,
-        role_style_id, sector_clusters, ship_stock, station_archetype, station_ceiling,
-        Civilization, CivilizationField, CivilizationReach, CivilizationStatusType, ClusterSummary,
-        Environment, EnvironmentFieldType, EnvironmentFields, HullSlot, NovaLayeredWorld,
-        NovaWorldBasePlugin, PlannedShip, SectorClusters, ShipDriveLayoutType, ShipLayout,
-        ShipLayoutConstraintType, ShipLayoutFailure, ShipLayoutRequest, ShipPart,
-        ShipPartExclusionType, ShipPartFamilyType, ShipPartFault, ShipPartPack, ShipPartSnapshot,
-        StationArchetypeType, StationLayout, StationLayoutConstraintType, StationLayoutFailure,
-        StationLayoutRequest, ARMOURED_STYLE_ID, BLOCK_WAYSTATION_STATION_ID,
-        CHARTER_ZERO_OBJECTIVE_ID, CIVILIAN_STYLE_ID, CLEARANCE_MARGIN, INDUSTRIAL_STYLE_ID,
-        MAX_SHIP_SECTIONS, OPEN_WORLD_BOUNDS_RADIUS_MAX, OPEN_WORLD_SCENARIO_ID, SALVAGE_STYLE_ID,
-        STATION_STYLE_ID,
     };
 }
 
@@ -208,12 +212,14 @@ impl Plugin for NovaWorldBasePlugin {
         app.init_resource::<Chart>();
         app.init_resource::<Jobs>();
         app.init_resource::<JobPostings>();
-        app.init_resource::<NeutralizedCivilizations>();
+        app.init_resource::<CivilizationStances>();
         app.init_resource::<GoalRecord>();
         app.init_resource::<GoalProgress>();
-        // A hull the player neutralizes is recorded against its civilization
-        // the moment its marker lands.
-        app.add_observer(economy::record_neutralized_civilization);
+        // A hull the player neutralizes is an offence against its
+        // civilization the moment its marker lands; a provocation is stamped
+        // the moment the tally crosses.
+        app.add_observer(stance::record_offence);
+        app.add_observer(stance::record_provocation);
         // An accepted job puts its bodies in the world; one observer per
         // located kind marks the held job done off the existing event kinds.
         app.add_observer(jobs::spawn_job_bodies);
@@ -255,9 +261,11 @@ impl Plugin for NovaWorldBasePlugin {
                     goal::track_role_goal,
                     charter::point_charter_zero,
                     // A thawed trader's hold catches up before a board reads
-                    // it, and a served refusal is forgotten before the save.
+                    // it; a served window is forgotten and every body's side
+                    // follows its civilization's stance before the save.
                     economy::restock_thawed_traders,
-                    economy::forget_served_refusals,
+                    stance::expire_stances,
+                    stance::sync_civilization_sides,
                     jobs::post_station_boards,
                 )
                     .chain()

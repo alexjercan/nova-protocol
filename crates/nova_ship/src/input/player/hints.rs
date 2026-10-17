@@ -92,12 +92,10 @@ pub struct FlightVerbHints {
     pub helm_station: bool,
     /// The line the HUD shows while the travel lock is on a station that
     /// refuses a dock ([`DockRefusalType`]), naming the station: `<NAME>
-    /// REFUSES DOCKING` for a living Enemy or hostile station, `<NAME>
-    /// REFUSES DOCKING: HULL NEUTRALIZED` for one whose civilization's hull
-    /// the player neutralized within the refusal window, `<NAME> DOCK OCCUPIED`
-    /// for one already holding its connection. `None` while the lock is
-    /// clear, on a ship, or on a station that admits; a ship's refusal keeps
-    /// the dark chip it always had.
+    /// REFUSES DOCKING` for a living Enemy or hostile station, `<NAME> DOCK
+    /// OCCUPIED` for one already holding its connection. `None` while the
+    /// lock is clear, on a ship, or on a station that admits; a ship's
+    /// refusal keeps the dark chip it always had.
     pub dock_refusal: Option<String>,
     /// Whether any maneuver is engaged right now - explicit, so consumers
     /// (the GOTO cue hides mid-maneuver) do not have to proxy it through
@@ -113,9 +111,6 @@ pub fn dock_refusal_line(name: &str, refusal: DockRefusalType) -> Option<String>
         DockRefusalType::Combat => None,
         DockRefusalType::EnemyStation | DockRefusalType::HostileStation => {
             Some(format!("{name} REFUSES DOCKING"))
-        }
-        DockRefusalType::NeutralizedHull => {
-            Some(format!("{name} REFUSES DOCKING: HULL NEUTRALIZED"))
         }
         DockRefusalType::StationOccupied => Some(format!("{name} DOCK OCCUPIED")),
     }

@@ -14,11 +14,10 @@
 //!   role's rule for the category, weighted by that role's share of the
 //!   preference.
 //!
-//! The table also states the two clocks of the economy: [`RestockRule`], the
+//! The table also states the clocks of the economy: [`RestockRule`], the
 //! play time a trader's stock takes to drift back to its target after the
-//! trader thaws ([`restocked_count`]), and [`RobberyRule`], the play time a
-//! civilization's stations refuse the player after the player neutralizes
-//! one of its hulls (`NeutralizedCivilizations`).
+//! trader thaws ([`restocked_count`]), and [`JobOfferRule`], the play time
+//! an unheld job offer stands.
 //!
 //! The rules are keyed by [`ItemCategoryType`], never by item, so a mod item
 //! with a category and a reference price prices itself. A pair with no rule
@@ -45,8 +44,8 @@ use crate::{
 pub mod prelude {
     pub use super::{
         price, price_table_faults, restocked_count, ClusterPriceRule, GamePriceTable, ItemPrice,
-        JobOfferRule, PriceClamp, PriceFactor, PriceQuote, PriceTable, RestockRule, RobberyRule,
-        RolePriceRule, ScarcityRule, ShipRoleType, TraderMarket,
+        JobOfferRule, PriceClamp, PriceFactor, PriceQuote, PriceTable, RestockRule, RolePriceRule,
+        ScarcityRule, ShipRoleType, TraderMarket,
     };
 }
 
@@ -165,17 +164,6 @@ pub struct RestockRule {
     pub recovery_seconds: f32,
 }
 
-/// What neutralizing a civilization's hull costs the player at its
-/// stations.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
-pub struct RobberyRule {
-    /// The play seconds every living station of the civilization refuses
-    /// the player's dock after the neutralize. Finite, above zero.
-    pub refusal_seconds: f32,
-}
-
 /// How long a station's job offer stands before the slot posts a new one.
 ///
 /// An offer the player does not hold expires this many play seconds after
@@ -230,8 +218,6 @@ pub struct PriceTable {
     pub scarcity: ScarcityRule,
     /// The restock clock.
     pub restock: RestockRule,
-    /// The refusal window.
-    pub robbery: RobberyRule,
     /// The job offer window.
     pub jobs: JobOfferRule,
     /// The cluster-type rules, at most one per cluster type and category.
@@ -286,8 +272,8 @@ pub struct GamePriceTable(pub PriceTable);
 pub struct TraderMarket {
     /// The type of the cluster the trader was generated in.
     pub cluster: ClusterType,
-    /// The civilization the trader belongs to: the one whose stations
-    /// refuse the player after the player neutralizes this hull.
+    /// The civilization the trader belongs to: the one the player offends
+    /// by neutralizing this hull.
     pub civilization: CivilizationId,
     /// Its civilization's preference for each role, in
     /// [`ShipRoleType::ALL`] order. Each at least zero, their sum above
@@ -514,12 +500,6 @@ pub fn price_table_faults(table: &PriceTable) -> Vec<String> {
             "the restock recovery of {recovery} s must be finite and above 0"
         ));
     }
-    let refusal = table.robbery.refusal_seconds;
-    if !(refusal.is_finite() && refusal > 0.0) {
-        faults.push(format!(
-            "the robbery refusal window of {refusal} s must be finite and above 0"
-        ));
-    }
     let offer = table.jobs.offer_seconds;
     if !(offer.is_finite() && offer > 0.0) {
         faults.push(format!(
@@ -583,9 +563,6 @@ mod tests {
             },
             restock: RestockRule {
                 recovery_seconds: 1_000.0,
-            },
-            robbery: RobberyRule {
-                refusal_seconds: 600.0,
             },
             jobs: JobOfferRule {
                 offer_seconds: 1_200.0,
@@ -856,19 +833,17 @@ mod tests {
         );
     }
 
-    /// A recovery or a refusal window of zero, below zero or not a number
+    /// A recovery or an offer window of zero, below zero or not a number
     /// is a fault the lint and the merge name.
     #[test]
-    fn the_restock_refusal_and_offer_clocks_must_be_positive_seconds() {
+    fn the_restock_and_offer_clocks_must_be_positive_seconds() {
         let mut table = table();
         assert_eq!(price_table_faults(&table), Vec::<String>::new());
         table.restock.recovery_seconds = 0.0;
-        table.robbery.refusal_seconds = f32::NAN;
         table.jobs.offer_seconds = -1.0;
         let faults = price_table_faults(&table);
-        assert_eq!(faults.len(), 3, "{faults:?}");
+        assert_eq!(faults.len(), 2, "{faults:?}");
         assert!(faults[0].contains("restock recovery"), "{faults:?}");
-        assert!(faults[1].contains("refusal window"), "{faults:?}");
-        assert!(faults[2].contains("job offer window"), "{faults:?}");
+        assert!(faults[1].contains("job offer window"), "{faults:?}");
     }
 }

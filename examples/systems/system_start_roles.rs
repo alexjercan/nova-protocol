@@ -405,13 +405,12 @@ mod walk {
             "start roles: Create must start the picked role"
         );
         assert_eq!(session.seed, STATION_SEED, "start roles: Create's seed");
-        // The charter follows the role: a role with no goal shows no
-        // progress, so the Map has no CHARTER block to hide.
-        let goal_title = role_of(world, id).goal.map(|goal| goal.title);
+        // The charter follows the role: every role carries a goal, so the
+        // Map's CHARTER block reads its title from the first frame.
+        let goal_title = role_of(world, id).goal.title;
         let progress = world.resource::<GoalProgress>();
         assert_eq!(
-            (!progress.is_empty()).then(|| progress.title.clone()),
-            goal_title,
+            progress.title, goal_title,
             "start roles: '{id}' charter progress follows the role's goal"
         );
         nova_probe::probe_marker(

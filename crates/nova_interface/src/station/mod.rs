@@ -41,6 +41,7 @@ mod escorts;
 mod hull_info;
 mod hull_preview;
 mod jobs;
+mod settle;
 mod shipyard;
 mod station_buy;
 
@@ -55,11 +56,12 @@ pub use self::{
     escorts::EscortHireCommand,
     hull_info::HULL_INFO_CLOSE,
     jobs::{JobAcceptCommand, JobHandInCommand},
+    settle::StanceSettleCommand,
     shipyard::HullBuyCommand,
     station_buy::{StationBuyCommand, STATION_BUY_BUTTON},
 };
 pub(crate) use self::{
-    escorts::*, hull_info::*, hull_preview::*, jobs::*, shipyard::*, station_buy::*,
+    escorts::*, hull_info::*, hull_preview::*, jobs::*, settle::*, shipyard::*, station_buy::*,
 };
 use crate::pane::{panel_paint, themed_label};
 
@@ -70,6 +72,7 @@ pub mod prelude {
         escorts::EscortHireCommand,
         hull_info::HULL_INFO_CLOSE,
         jobs::{JobAcceptCommand, JobHandInCommand},
+        settle::StanceSettleCommand,
         shipyard::HullBuyCommand,
         station_buy::{StationBuyCommand, STATION_BUY_BUTTON},
         StationRuntime, STATION_PANEL,
@@ -144,7 +147,8 @@ pub(crate) enum StationPanelField {
 }
 
 /// Build the Station pane body: one panel with the station block, the hull
-/// list, the escort list, the job lists, the empty line and the note line.
+/// list, the escort list, the job lists, the settle block, the empty line
+/// and the note line.
 pub(crate) fn station_body(body: &mut ChildSpawnerCommands) {
     body.spawn((
         StationPanelMarker,
@@ -170,6 +174,7 @@ pub(crate) fn station_body(body: &mut ChildSpawnerCommands) {
         spawn_station_hull_list(panel);
         spawn_station_escort_list(panel);
         spawn_station_job_lists(panel);
+        spawn_station_settle_block(panel);
         panel.spawn((
             StationPanelField::Empty,
             themed_label(
@@ -290,6 +295,7 @@ pub(crate) fn update_station_panel(
                 With<StationHullList>,
                 With<StationEscortList>,
                 With<StationJobList>,
+                With<StationSettleBlock>,
             )>,
             Without<StationPanelField>,
         ),
@@ -340,6 +346,7 @@ impl Plugin for StationPanePlugin {
         app.add_message::<JobAcceptCommand>();
         app.add_message::<JobHandInCommand>();
         app.add_message::<StationBuyCommand>();
+        app.add_message::<StanceSettleCommand>();
         app.add_systems(
             Update,
             (
@@ -349,11 +356,13 @@ impl Plugin for StationPanePlugin {
                 apply_station_hull_buy_commands,
                 apply_station_escort_hire_commands,
                 apply_station_job_commands,
+                apply_station_settle_commands,
                 scroll_station_panel,
                 update_station_sale_block,
                 update_station_hull_list,
                 update_station_escort_list,
                 update_station_job_lists,
+                update_station_settle_block,
                 sync_hull_previews,
                 mirror_hull_previews,
                 update_station_panel,

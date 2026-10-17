@@ -112,8 +112,8 @@ differs is who the station lets in and who flies the pair.
 
 | rule | what happens |
 |---|---|
-| admission | a living station reads its `allegiance`: `Enemy` refuses every dock, and any side refuses a ship it is hostile to (a `Player` station and an Enemy-flagged ship, or a station answering that ship's fire). A living station also refuses the player while its civilization is one whose generated hull the player neutralized within the refusal window. A derelict admits whatever its side; it is a hull to loot. A station you [own](#buy-the-station) admits you whatever your side |
-| the refusal | while the travel lock is on a station that refuses, the HUD mode chip reads `<NAME> REFUSES DOCKING` with the station object's `name`, or `<NAME> REFUSES DOCKING: HULL NEUTRALIZED` for the neutralized-hull refusal; the DOCK chip reads `DOCK REFUSED`, and `DOCK` builds nothing |
+| admission | a living station reads its `allegiance`: `Enemy` refuses every dock, and any side refuses a ship it is hostile to (a `Player` station and an Enemy-flagged ship, or a station answering that ship's fire). A generated station's side is its civilization's [stance](#civilization-stances) to you, so an Enemy civilization's stations refuse you. A derelict admits whatever its side; it is a hull to loot. A station you [own](#buy-the-station) admits you whatever your side |
+| the refusal | while the travel lock is on a station that refuses, the HUD mode chip reads `<NAME> REFUSES DOCKING` with the station object's `name`; the DOCK chip reads `DOCK REFUSED`, and `DOCK` builds nothing |
 | one ship per port | a ship holds one connection; a station holds one per docking port. A ship docks while any port is free; once every port is held the next ship meets `<NAME> DOCK OCCUPIED` until one lets go. The station and every ship docked at it move as one body |
 | a living station's helm | the station owns the helm of everything docked at it. `HELM` is refused, the HUD reads `STATION HELM`, and each docked ship's drive, RCS and maneuvers are held. The station has no thruster, so the assembly never moves; its bridge holds it level on the station's parked attitude |
 | a dead station's helm | the docked player holds the helm from the capture, as after `HELM` on a ship, because the dead station's bridge is inactive (derelict or neutralized alike), and gets it the moment a living station it is docked to turns dead. The player's burn tows the station and every ship docked at it |
@@ -274,11 +274,11 @@ the station when its sector unloads, and in the world save.
 
 | rule | what happens |
 |---|---|
-| the gate | docked to a living station whose `services` list `Refit`, that hires out escorts |
+| the gate | docked to a living station whose `services` list `Refit`, that hires out escorts, and that flies your side: an Ally civilization's station or one you own, see [Civilization stances](#civilization-stances) |
 | the price | half again the hull's price: every section's [build recipe](../sections/#build-recipe) at ask, times 3/2 |
 | the fleet | two slots, starboard then port. A third hire is refused |
 | the credits | the ship pays the price and the station takes it |
-| refusals | in this order: not docked, no `Refit` service, a full fleet, too few credits, a station balance that would overflow |
+| refusals | in this order: not docked, no `Refit` service, not an ally, a full fleet, too few credits, a station balance that would overflow |
 | the result | the escort leaves the station's list and joins your fleet where it waited, with an empty hold. It flies on its own drive to its place off your side and behind your travel, matches your speed, holds where it is while you stop, and fights what attacks you |
 | sectors and saves | an escort flies with you across sectors and the world save keeps it in your fleet. A neutralized escort leaves the fleet and stays in its sector as a wreck |
 | events | `OnEscortHired` and one `OnCreditsChanged` per party with `cause: EscortHire`, see [Hold events](../events/#hold-events) |
@@ -297,18 +297,18 @@ scenario places and a derelict are not for sale.
 
 | rule | what happens |
 |---|---|
-| the gate | docked to a living station a generated world placed. No `services` entry is needed |
+| the gate | docked to a living station a generated world placed, whose civilization is your Ally, see [Civilization stances](#civilization-stances). No `services` entry is needed |
 | the price | twice what the station is worth at ask: every live section's [build recipe](../sections/#build-recipe), every stack of its hold at the item's `ask_cr`, and its credits. Your storage there is already yours and is not priced |
 | the credits | the ship pays the price to the civilization. The station keeps its own credits, stock and services |
-| refusals | in this order: not docked, not for sale, already yours, too few credits |
+| refusals | in this order: not docked, not for sale, already yours, not an ally, too few credits |
 | what becomes yours | the station leaves its civilization: it takes the Player side, so its guns fire on your foes, and it is named `Owned station`. It admits you whatever your side. Its hold sells to you at the item's `bid_cr`; storage withdraw stays free. Its services still price at ask, and Take does not reach its credits |
 | what stays | the station keeps its stock, credits, services and the hulls it sells. It earns no income yet, and you cannot set its stock targets yet |
 | the Map | the chart holds it as yours: the chart view shows `OWNED STATION` in the ally colour |
 | sectors and saves | the station stays yours, on your side and under its new name, when its sector retires and thaws, and the world save keeps it so |
 | events | `OnStationBought` and one `OnCreditsChanged` for your ship with `cause: StationBuy`, see [Hold events](../events/#hold-events) |
 
-The proof is `system_station_own`: on a New Game, the player docks at a
-Neutral generated station, buys it through the pane and sees it take the
+The proof is `system_station_own`: on a New Game, the player docks at an
+Ally civilization's generated station, buys it through the pane and sees it take the
 Player side and the owned name, leaves its sector and comes back, saves and
 Loads, and finds it still the player's, on the chart and the Map too. An
 Enemy-flagged ship, which its Player side would refuse, is admitted.
@@ -422,6 +422,37 @@ A generated station spawns with a typed generated id and no scenario
 address, freezes as a station record when its cell retires, and thaws from
 that record: what a docked ship bought or stored is kept for the session,
 and across a save on the desktop build.
+
+## Civilization stances
+
+Every living civilization holds one stance toward the player, `Ally`,
+`Neutral` or `Enemy`, and one toward each living neighbour. Never a number.
+The world seed draws both; the player's deeds move the first. A generated
+station or ship flies its civilization's stance as its side (`Ally` is the
+`Player` side), so [admission](#docking-at-a-station), the AI and the HUD
+read the side alone.
+
+| rule | what happens |
+|---|---|
+| the seed | each civilization's stance to the player is an even draw of `Enemy`, `Ally` or `Neutral`, the same for every start role. Two living civilizations whose centroids lie under 340 km apart are neighbours; their edge is drawn `Ally` / `Neutral` / `Enemy` at 25 / 50 / 25, and a civilization with no `Enemy` edge designates one neighbour its rival, so every neighbourhood holds a rival |
+| an offence | neutralizing an intact generated hull or station of a civilization, your ship or a fleet escort dealing the last hit. Three offences inside 3600 s of play step the civilization one down; the first two are a grace count, and an offence older than the window is forgotten |
+| a merit | handing in a job one of its stations posted. Three merits step it one up |
+| propagation | a step DOWN an offence makes reaches the civilization's living neighbours once, by their edge: an `Ally` edge follows one step down, an `Enemy` edge warms one step up, a `Neutral` edge moves nothing. Nothing reaches a neighbour's neighbour, and a merit, a settlement or the decay moves the one civilization alone |
+| a provocation | your fire or ram on a `Neutral` or `Ally` hull past its patience (30 hit points in quick succession, the same tally that makes a Neutral ship answer) makes its whole civilization read `Enemy` for 900 s of play; a later provocation restarts the window |
+| what the side does | an `Enemy` civilization's stations refuse your dock and its ships fight you; only an `Ally` civilization's station [sells itself](#buy-the-station) or [hires out escorts](#hire-an-escort); a `Neutral` one trades and posts jobs |
+| settling | docked at a living station a civilization keeps, the Station pane's **Settle** block lists every neighbour of that civilization that stands `Enemy` to you, with its fine: 1,000 cr at advancement 0 up to 10,000 cr at 1, so a backwater asks about 1,090 cr. Paying it returns that civilization to `Neutral`, clears its offences and provocation, and moves no neighbour. The fine goes to the station |
+| decay | a civilization your deeds made `Enemy` returns to `Neutral` after 7200 s of play with no new offence; a seeded `Enemy` never decays |
+| merchandise | a station you own, an escort in your fleet and a neutralized hull keep their side: a bought station flies yours, a dead hull is loot |
+| the charter | the base `pirate` role's goal counts the civilizations your kills turned `Enemy` and the intact hulls you took from one of them while it stood so, see [Start roles](../start-roles/#the-goal) |
+| sectors and saves | the stances live on your save, not the station: an offence counts across a retire, a thaw and a Load, and a Load restores the table on its arming frame. A table stamped ahead of the saved play clock refuses the Load |
+| events | a settlement fires one `OnCreditsChanged` per party with `cause: Settle`, see [Hold events](../events/#hold-events) |
+
+The proof is `system_civilization_stance`: on a New Game as the pirate, the
+player docks at a civilization's station, neutralizes three of its other
+hulls, sees the station refuse the dock and the charter count the
+civilization, finds its rival warmed to `Ally` with every hull on the Player
+side, reads the stances back from the leave save and after a Load with a
+remote civilization untouched, and docks again once the Enemy decayed.
 
 ## Dead stations
 

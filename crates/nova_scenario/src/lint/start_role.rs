@@ -63,9 +63,7 @@ pub fn lint_start_role(
         source,
         &mut issues,
     );
-    if let Some(goal) = &role.goal {
-        check_goal(id, goal, designs, source, &mut issues);
-    }
+    check_goal(id, &role.goal, designs, source, &mut issues);
     issues
 }
 
@@ -137,6 +135,7 @@ fn check_goal(
                 ));
             }
         }
+        RoleGoalType::Outlaw { hulls } => above_zero(*hulls, "hulls"),
     }
 }
 
@@ -206,7 +205,10 @@ mod tests {
                 stock: ShipInventoryStock::default(),
             },
             jobs: JobMixType::Trade,
-            goal: None,
+            goal: RoleGoal {
+                title: "A goal".to_string(),
+                kind: RoleGoalType::OwnYard,
+            },
             lore: String::new(),
         }
     }
@@ -244,7 +246,10 @@ mod tests {
                 stock: ShipInventoryStock::default(),
             },
             jobs: JobMixType::Trade,
-            goal: None,
+            goal: RoleGoal {
+                title: "A goal".to_string(),
+                kind: RoleGoalType::OwnYard,
+            },
             lore: String::new(),
         };
         let found = lint_start_role(
@@ -272,10 +277,10 @@ mod tests {
     fn a_start_role_goal_with_a_zero_count_more_rings_than_posters_or_an_unknown_hull_is_refused() {
         let goal_errors = |kind: RoleGoalType| -> Vec<String> {
             let mut role = role("picket");
-            role.goal = Some(RoleGoal {
+            role.goal = RoleGoal {
                 title: "A goal".to_string(),
                 kind,
-            });
+            };
             lint_start_role(
                 &role,
                 &ships(&["picket"]),
@@ -300,6 +305,12 @@ mod tests {
         })
         .is_empty());
         assert!(goal_errors(RoleGoalType::OwnYard).is_empty());
+        assert!(goal_errors(RoleGoalType::Outlaw { hulls: 6 }).is_empty());
+        let outlaw = goal_errors(RoleGoalType::Outlaw { hulls: 0 });
+        assert!(
+            outlaw.iter().any(|m| m.contains("asks for 0 hulls")),
+            "{outlaw:?}"
+        );
         assert!(goal_errors(RoleGoalType::MiningEmpire {
             stations: 2,
             escorts: 2,

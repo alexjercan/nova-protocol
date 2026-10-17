@@ -7,7 +7,9 @@
 //! seed the way the Create World modal does, and lets the window stream in.
 //! It picks the nearest generated station that is living, not on the Enemy
 //! side, offers Refit, and hires out two escorts or more, and stands outside
-//! the spawn's cell. The player jumps beside it and is put on
+//! the spawn's cell. The walk then warms the station's civilization to Ally
+//! by merits, the way a player who hands in its jobs would, since the hire
+//! gate needs an Ally. The player jumps beside it and is put on
 //! a berth at its collar each frame until the dock takes; the walk never
 //! flies the approach (`system_station_docking` does). It hires two escorts,
 //! one per fleet slot, through the same button.
@@ -70,9 +72,9 @@ use clap::Parser;
 #[command(version = "1.0.0")]
 #[command(
     about = "New Game on a pinned seed: dock at a living generated station that hires out \
-             escorts, hire one from the Station pane, cross sectors with it, check it through a save \
-             and a Load, then kill it and check it is gone from the fleet. Autopilot-only \
-             correctness range",
+             escorts, warm its civilization to Ally by merits, hire one from the Station pane, \
+             cross sectors with it, check it through a save and a Load, then kill it and check it \
+             is gone from the fleet. Autopilot-only correctness range",
     long_about = None
 )]
 struct Cli;
@@ -135,7 +137,7 @@ mod walk {
     };
     use nova_ui::widget::TextFieldValue;
     use nova_world::prelude::{
-        desired_sectors, FrozenBodyType, FrozenSectors, SectorRoot, WorldConfig,
+        desired_sectors, FrozenBodyType, FrozenSectors, SectorRoot, WorldClock, WorldConfig,
     };
 
     use super::*;
@@ -942,6 +944,33 @@ mod walk {
         watch.id = Some(id);
         watch.cell = Some(cell);
         watch.position = Some(position);
+    }
+
+    /// Warm the station's civilization to Ally the way a player does: one
+    /// merit per handed-in job, `MERIT_STEP` merits per step. Nothing when
+    /// it is Ally.
+    fn warm_to_ally(world: &mut World, station: Entity) {
+        let civ = world
+            .get::<TraderMarket>(station)
+            .expect("station hire: the chosen station prices goods")
+            .civilization;
+        let now = world.resource::<WorldClock>().play_seconds;
+        let seeded = seeded_stance(&civ);
+        let mut stances = world.resource_mut::<CivilizationStances>();
+        let mut merits = 0;
+        while stances.effective(&civ, seeded, now) != StanceType::Ally {
+            record_merit(&mut stances, civ, now);
+            merits += 1;
+            assert!(
+                merits <= 2 * MERIT_STEP,
+                "station hire: '{}' never warmed to Ally",
+                civ.name()
+            );
+        }
+        info!(
+            "station hire: '{}' warmed to Ally after {merits} merit(s)",
+            civ.name()
+        );
     }
 
     /// Disclosed fixture state: the player's balance set to
@@ -2417,6 +2446,13 @@ mod walk {
                 window_is(|world| world.resource::<HireWatch>().cell),
                 the_station_stands(),
             ))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station hire: warm the station's civilization to Ally")
+            .on_enter(|world: &mut World| warm_to_ally(world, station(world)))
+            .until(when(|world: &World| {
+                world.get::<Allegiance>(station(world)) == Some(&Allegiance::Player)
+            }))
             .deadline(SESSION_SECS)
             .add()
             .step("station hire: berth and dock")

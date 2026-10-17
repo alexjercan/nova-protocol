@@ -22,9 +22,6 @@
         restock: (
             recovery_seconds: 1800.0,
         ),
-        robbery: (
-            refusal_seconds: 900.0,
-        ),
         jobs: (
             offer_seconds: 1200.0,
         ),

@@ -11,7 +11,9 @@
 //! (`FrozenStation::owned` + `::storage`), so a yard still counts while its
 //! cell is off the window; and the escorts in the player's fleet
 //! ([`PlayerFleetMarker`]), which fly with the player and are never frozen
-//! with a cell. [`track_role_goal`] derives [`GoalProgress`]
+//! with a cell; and the player's [`CivilizationStances`], for the
+//! civilizations the player's events made Enemy and the hulls taken while
+//! they stand so. [`track_role_goal`] derives [`GoalProgress`]
 //! from them every frame for the Map's chart view, and stamps
 //! [`GoalRecord`] with the world clock the first frame the progress is met.
 //! The record is the one saved fact; the progress is never saved. Both
@@ -26,8 +28,8 @@ use std::collections::BTreeSet;
 use bevy::prelude::*;
 use nova_events::prelude::Meters;
 use nova_gameplay::prelude::{
-    GameItems, GoalLine, GoalProgress, GoalRecord, Job, JobType, Jobs, OwnedStationMarker,
-    PlayerFleetMarker, PlayerSpaceshipMarker, StationStorage,
+    CivilizationStances, GameItems, GoalLine, GoalProgress, GoalRecord, Job, JobType, Jobs,
+    OwnedStationMarker, PlayerFleetMarker, PlayerSpaceshipMarker, StationStorage,
 };
 use nova_scenario::prelude::{
     resolve_ship_design, GameShipDesigns, GameStartRoles, OpenWorldSession, RoleGoal, RoleGoalType,
@@ -56,6 +58,9 @@ pub(crate) struct GoalFacts<'a> {
     pub sections: &'a [SectionConfig],
     /// How many escorts fly in the player's fleet.
     pub escorts: u64,
+    /// How many civilizations the player's events made Enemy, and the most
+    /// intact hulls taken from one of them while it stands so.
+    pub outlaw: (u64, u64),
 }
 
 /// How many part families `storage` can build one loaded section of: a
@@ -157,6 +162,10 @@ pub(crate) fn goal_progress(goal: &RoleGoal, facts: &GoalFacts<'_>) -> GoalProgr
             ),
             GoalLine::new("Escorts in fleet", facts.escorts, u64::from(*escorts)),
         ],
+        RoleGoalType::Outlaw { hulls } => vec![
+            GoalLine::new("Civilizations turned Enemy", facts.outlaw.0, 1),
+            GoalLine::new("Hulls taken while Enemy", facts.outlaw.1, u64::from(*hulls)),
+        ],
     };
     GoalProgress {
         title: goal.title.clone(),
@@ -165,8 +174,8 @@ pub(crate) fn goal_progress(goal: &RoleGoal, facts: &GoalFacts<'_>) -> GoalProgr
 }
 
 /// Derive the session role's goal progress from the completed jobs, the
-/// player's hull, the player's owned stations and the player's fleet every
-/// frame, and stamp the record once when it is met.
+/// player's hull, the player's owned stations, the player's fleet and the
+/// player's stances every frame, and stamp the record once when it is met.
 ///
 /// No session, a role the catalog does not hold or a role with no goal: the
 /// progress is empty and the record is left as it is. A `Flagship` goal
@@ -182,7 +191,7 @@ pub(crate) fn goal_progress(goal: &RoleGoal, facts: &GoalFacts<'_>) -> GoalProgr
 /// fault.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one system reading the session, the roles, the jobs, the world's edge, the catalog, the clock, the player's hull, the owned stations and the fleet"
+    reason = "one system reading the session, the roles, the jobs, the world's edge, the catalog, the clock, the player's hull, the owned stations, the fleet and the stances"
 )]
 pub(crate) fn track_role_goal(
     session: Option<Res<OpenWorldSession>>,
@@ -197,7 +206,7 @@ pub(crate) fn track_role_goal(
     q_sections: Query<&SectionBuildConfig>,
     owned: Query<&StationStorage, With<OwnedStationMarker>>,
     frozen: Res<FrozenSectors>,
-    fleet: Query<(), With<PlayerFleetMarker>>,
+    (fleet, stances): (Query<(), With<PlayerFleetMarker>>, Res<CivilizationStances>),
     mut progress: ResMut<GoalProgress>,
     mut record: ResMut<GoalRecord>,
     mut flagship: Local<Option<(ShipDesignId, u64)>>,
@@ -205,7 +214,7 @@ pub(crate) fn track_role_goal(
     let goal = session
         .as_deref()
         .and_then(|session| roles.get_role(&session.role))
-        .and_then(|role| role.goal.as_ref());
+        .map(|role| &role.goal);
     let Some(goal) = goal else {
         if !progress.is_empty() {
             *progress = GoalProgress::default();
@@ -253,7 +262,8 @@ pub(crate) fn track_role_goal(
         RoleGoalType::StationNetwork { .. }
         | RoleGoalType::KillList { .. }
         | RoleGoalType::OwnYard
-        | RoleGoalType::MiningEmpire { .. } => None,
+        | RoleGoalType::MiningEmpire { .. }
+        | RoleGoalType::Outlaw { .. } => None,
     };
     let owned_storage: Vec<&StationStorage> = match &goal.kind {
         RoleGoalType::OwnYard | RoleGoalType::MiningEmpire { .. } => {
@@ -268,7 +278,8 @@ pub(crate) fn track_role_goal(
         }
         RoleGoalType::StationNetwork { .. }
         | RoleGoalType::KillList { .. }
-        | RoleGoalType::Flagship { .. } => Vec::new(),
+        | RoleGoalType::Flagship { .. }
+        | RoleGoalType::Outlaw { .. } => Vec::new(),
     };
     let catalog: &[SectionConfig] = match &goal.kind {
         RoleGoalType::OwnYard => {
@@ -280,7 +291,8 @@ pub(crate) fn track_role_goal(
         RoleGoalType::StationNetwork { .. }
         | RoleGoalType::KillList { .. }
         | RoleGoalType::Flagship { .. }
-        | RoleGoalType::MiningEmpire { .. } => &[],
+        | RoleGoalType::MiningEmpire { .. }
+        | RoleGoalType::Outlaw { .. } => &[],
     };
     let next = goal_progress(
         goal,
@@ -292,6 +304,7 @@ pub(crate) fn track_role_goal(
             owned_storage: &owned_storage,
             sections: catalog,
             escorts: fleet.iter().count() as u64,
+            outlaw: stances.outlaw_progress(),
         },
     );
     if next.is_met() && !record.is_met() {
@@ -357,6 +370,7 @@ mod tests {
             owned_storage: &[],
             sections: &[],
             escorts: 0,
+            outlaw: (0, 0),
         }
     }
 
@@ -575,6 +589,7 @@ mod tests {
             owned_storage,
             sections,
             escorts: 0,
+            outlaw: (0, 0),
         }
     }
 
@@ -680,6 +695,33 @@ mod tests {
         assert!(progress.is_met());
     }
 
+    /// An outlaw's charter reads the civilizations the player's events made
+    /// Enemy against one and the hulls taken while Enemy against its count:
+    /// a seeded Enemy and the flipping kill count for nothing, six hulls
+    /// while Enemy meet it.
+    #[test]
+    fn an_outlaw_counts_civilizations_turned_enemy_and_hulls_taken_while_enemy() {
+        let goal = RoleGoal {
+            title: "An outlaw's name".to_string(),
+            kind: RoleGoalType::Outlaw { hulls: 6 },
+        };
+        let clean = goal_progress(&goal, &facts(&[]));
+        assert_eq!(haves(&clean), [0, 0]);
+        assert!(!clean.is_met());
+        let outlawed = GoalFacts {
+            outlaw: (1, 5),
+            ..facts(&[])
+        };
+        let progress = goal_progress(&goal, &outlawed);
+        assert_eq!(haves(&progress), [1, 5]);
+        assert!(!progress.is_met());
+        let met = GoalFacts {
+            outlaw: (1, 6),
+            ..facts(&[])
+        };
+        assert!(goal_progress(&goal, &met).is_met());
+    }
+
     /// The flagship line reads the hull's value against the design's: one
     /// credit under stands, equal is met.
     #[test]
@@ -698,6 +740,7 @@ mod tests {
             owned_storage: &[],
             sections: &[],
             escorts: 0,
+            outlaw: (0, 0),
         };
         let progress = goal_progress(&goal, &short);
         assert_eq!(haves(&progress), [9_999]);

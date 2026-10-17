@@ -150,11 +150,8 @@ pub struct StartRole {
     pub kit: StartKit,
     /// Which job kinds the station boards lean to for this start.
     pub jobs: JobMixType,
-    /// The role's one finite milestone, or `None` for a role whose goal has
-    /// not landed: the Map shows no CHARTER block and nothing completes.
-    /// TODO(20261012-100033): `RoleGoal`, required, once every base role
-    /// carries one.
-    pub goal: Option<RoleGoal>,
+    /// The role's one finite milestone.
+    pub goal: RoleGoal,
     /// Background text for the role.
     pub lore: String,
 }
@@ -216,6 +213,14 @@ pub enum RoleGoalType {
         /// How many escorts to fly with, above zero and at most the fleet's
         /// slots (`FLEET_SIDES`).
         escorts: u32,
+    },
+    /// Turn a civilization Enemy by the player's own deeds (a civilization
+    /// the seed drew Enemy does not count) and neutralize `hulls` intact
+    /// hulls of it while it stands Enemy.
+    Outlaw {
+        /// How many intact hulls to neutralize while the civilization is
+        /// Enemy, above zero.
+        hulls: u32,
     },
 }
 

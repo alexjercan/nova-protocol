@@ -8,14 +8,13 @@
 //! [`station_admission`]: a station with every port held refuses the next
 //! hull; a hull parked at the station ([`ParkedHull`]) is let in whatever
 //! the sides; a station the player owns ([`OwnedStationMarker`]) refuses nobody
-//! else; a derelict or neutralized station admits whoever comes to loot it; a living station refuses
-//! while it is on the Enemy side, while its civilization is one whose hull
-//! the asking player neutralized within the refusal window
-//! ([`NeutralizedCivilizations`]), or while it is hostile to the ship asking
-//! (by side, or answering its fire). A ship holds one connection: the port search names no
-//! pair for a docked ship. A station holds one per port: a held port is no
-//! candidate, and the station branch here names the reason the HUD shows when
-//! none is free.
+//! else; a derelict or neutralized station admits whoever comes to loot it; a
+//! living station refuses while it is on the Enemy side (a civilization's
+//! stance to the player, or a provoked one, decides that side), or while it
+//! is hostile to the ship asking (by side, or answering its fire). A ship
+//! holds one connection: the port search names no pair for a docked ship. A
+//! station holds one per port: a held port is no candidate, and the station
+//! branch here names the reason the HUD shows when none is free.
 //!
 //! A dock already made is never judged again here: a ship under fire stays
 //! docked, and the player hitting a docked Neutral is what forces the undock
@@ -35,9 +34,6 @@ pub enum DockRefusalType {
     Combat,
     /// A living station of an Enemy civilization.
     EnemyStation,
-    /// A living station of a civilization whose hull the asking player
-    /// neutralized within the refusal window.
-    NeutralizedHull,
     /// A living station hostile to the ship asking: their sides are hostile,
     /// or one answers the other's fire.
     HostileStation,
@@ -47,9 +43,8 @@ pub enum DockRefusalType {
 
 /// The station branch of admission: what a station on `allegiance`'s side
 /// answers, dead or alive, owned or not, with or without a free port, to a
-/// ship that is `hostile` to it ([`ship_relation`]) and that, when
-/// `neutralized_hull`, is the player within the refusal window of the
-/// station's civilization. `dead` is a derelict or a neutralized station.
+/// ship that is `hostile` to it ([`ship_relation`]). `dead` is a derelict or
+/// a neutralized station.
 ///
 /// # Errors
 ///
@@ -57,16 +52,14 @@ pub enum DockRefusalType {
 /// whatever the station is. An `owned` station then admits: it refuses nobody. A `dead`
 /// station admits on any side: it is a hull to loot, and a `None` side is
 /// hostile to no one. A living station refuses with [`DockRefusalType::EnemyStation`]
-/// on the Enemy side, then with [`DockRefusalType::NeutralizedHull`] while
-/// the player is within its civilization's refusal window, then with
-/// [`DockRefusalType::HostileStation`] while it and the ship are hostile.
+/// on the Enemy side, then with [`DockRefusalType::HostileStation`] while it
+/// and the ship are hostile.
 pub fn station_admission(
     allegiance: Option<Allegiance>,
     dead: bool,
     occupied: bool,
     owned: bool,
     hostile: bool,
-    neutralized_hull: bool,
 ) -> Result<(), DockRefusalType> {
     if occupied {
         return Err(DockRefusalType::StationOccupied);
@@ -76,9 +69,6 @@ pub fn station_admission(
     }
     if allegiance == Some(Allegiance::Enemy) {
         return Err(DockRefusalType::EnemyStation);
-    }
-    if neutralized_hull {
-        return Err(DockRefusalType::NeutralizedHull);
     }
     if hostile {
         return Err(DockRefusalType::HostileStation);
@@ -102,13 +92,9 @@ pub struct DockAdmission<'w, 's> {
             Has<DerelictShipMarker>,
             Has<OwnedStationMarker>,
             Has<PlayerSpaceshipMarker>,
-            Option<&'static TraderMarket>,
         ),
         With<SpaceshipRootMarker>,
     >,
-    /// The player's record of the civilizations whose hull the player
-    /// neutralized: a living station of one refuses the player.
-    neutralized: Res<'w, NeutralizedCivilizations>,
     /// The hulls parked at a station, which berth there whatever its side.
     parked: Query<'w, 's, &'static ParkedHull>,
     /// The free live ports, by the hull they are mounted on: a station with
@@ -135,23 +121,24 @@ impl DockAdmission<'_, '_> {
     /// Why `target` refuses `ship`, or `None` when it lets it dock.
     ///
     /// A station answers by [`station_admission`], and to a hull parked at
-    /// it as an owned station does; it refuses the player while its
-    /// civilization is in the player's [`NeutralizedCivilizations`]. A neutralized ship always
-    /// admits: the dock is a boarding. Otherwise a ship refuses while it is
-    /// hostile to `ship`, while it is on the Enemy side, while it answers any
-    /// ship's fire, and while its AI is fighting; a calm Player-aligned or
-    /// Neutral ship lets it in. A target that is not a ship root has no
-    /// state to refuse with.
+    /// it as an owned station does. A neutralized ship always admits: the
+    /// dock is a boarding. Otherwise a ship refuses while it is hostile to
+    /// `ship`, while it is on the Enemy side, while it answers any ship's
+    /// fire, and while its AI is fighting; a calm Player-aligned or Neutral
+    /// ship lets it in. A target that is not a ship root has no state to
+    /// refuse with.
     pub fn refusal(&self, ship: Entity, target: Entity) -> Option<DockRefusalType> {
-        let Ok((allegiance, answering, state, neutralized, station, derelict, owned, _, market)) =
+        let Ok((allegiance, answering, state, neutralized, station, derelict, owned, _)) =
             self.ships.get(target)
         else {
             return None;
         };
-        let (own_allegiance, own_answering, player) = self.ships.get(ship).map_or(
-            (None, None, false),
-            |(allegiance, answering, _, _, _, _, _, player, _)| (allegiance, answering, player),
-        );
+        let (own_allegiance, own_answering) = self
+            .ships
+            .get(ship)
+            .map_or((None, None), |(allegiance, answering, _, _, _, _, _, _)| {
+                (allegiance, answering)
+            });
         let hostile = ship_relation(
             RelationParty {
                 entity: ship,
@@ -167,15 +154,12 @@ impl DockAdmission<'_, '_> {
         if station {
             let occupied = !self.free_ports.iter().any(|mount| mount.0 == target);
             let berth = self.parked.get(ship).is_ok_and(|parked| parked.0 == target);
-            let neutralized_hull = player
-                && market.is_some_and(|market| self.neutralized.refuses(&market.civilization));
             return station_admission(
                 allegiance.copied(),
                 derelict || neutralized,
                 occupied,
                 owned || berth,
                 hostile,
-                neutralized_hull,
             )
             .err();
         }

@@ -743,19 +743,20 @@ without the hulls touching.
 read by the DOCK chip and by the request. A ship target refuses with
 `DockRefusalType::Combat` while Hostile, Enemy, answering fire or fighting
 (a neutralized target admits). A station target (`StationMarker`) answers by
-`station_admission(allegiance, derelict, occupied, owned, hostile,
-neutralized_hull)`, in that order: `StationOccupied` while every live port on
-its root is held (a held port is no candidate in the port search; this names
-the reason so the HUD can say it); admitted for a station the player owns
-(`OwnedStationMarker`) or a derelict, on any side; `EnemyStation` for a
-living station on the Enemy side; `NeutralizedHull` for a living station
-whose civilization is one whose hull the asking player neutralized within the
-refusal window; `HostileStation` for a living station the
-ship is hostile to by `ship_relation` (a Player station and an Enemy-flagged
-ship, or a station answering the ship's fire); and admitted otherwise. `FlightVerbHints::dock_refusal` carries a station's line (`<NAME>
-REFUSES DOCKING`, `<NAME> REFUSES DOCKING: HULL NEUTRALIZED`, `<NAME> DOCK
-OCCUPIED`) while the travel lock is on it; the mode chip shows it and the
-DOCK chip reads `DOCK REFUSED`. A ship's refusal stays the dark chip.
+`station_admission(allegiance, derelict, occupied, owned, hostile)`, in that
+order: `StationOccupied` while every live port on its root is held (a held
+port is no candidate in the port search; this names the reason so the HUD
+can say it); admitted for a station the player owns (`OwnedStationMarker`)
+or a derelict, on any side; `EnemyStation` for a living station on the Enemy
+side (a generated station's side is its civilization's effective stance to
+the player, written every frame by `nova_world_base`'s
+`sync_civilization_sides`); `HostileStation` for a living station the ship
+is hostile to by `ship_relation` (a Player station and an Enemy-flagged
+ship, or a station answering the ship's fire); and admitted otherwise.
+`FlightVerbHints::dock_refusal` carries a station's line (`<NAME> REFUSES
+DOCKING`, `<NAME> DOCK OCCUPIED`) while the travel lock is on it; the mode
+chip shows it and the DOCK chip reads `DOCK REFUSED`. A ship's refusal stays
+the dark chip.
 
 **A station is a hub.** A ship holds one connection (`DockedShip`); the port
 search names no pair for a ship that already has one. A station holds one

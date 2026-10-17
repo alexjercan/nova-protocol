@@ -53,11 +53,19 @@ does NOT get an entry. Another page that states a different rule is wrong.
   and the slot posts a new one; a held job never expires. The Station pane
   shows the time left. Save format 18.
 - **(breaking)** Generated traders restock toward spawn stock by play time
-  their sector stood unloaded; neutralizing a civilization's hull refuses
-  your dock at its stations for 15 min of play.
-- **(breaking)** Every start role but Pirate carries a charter milestone: a
-  station network, kill list, stocked yard, Line Warship hull or mining
-  empire. The save stamps its met time. Save format 19.
+  their sector stood unloaded.
+- **(breaking)** Every start role carries a charter milestone: a station
+  network, kill list, stocked yard, Line Warship, mining empire or outlaw's
+  name. The save stamps the met time. Save format 20.
+- **(breaking)** Each civilization holds a stance to you, Ally, Neutral or
+  Enemy, seeded and moved by your kills and hand-ins; a flip drags allies
+  down and warms rivals, one hop. Save format 20.
+- An Enemy civilization's stations refuse your dock and its ships fight you.
+  Firing on a Neutral or Ally hull past its patience turns its civilization
+  Enemy for 15 min of play.
+- Only an Ally civilization's station sells itself or hires out escorts.
+  Settle with an Enemy neighbour at an admitting station for a fine by its
+  advancement; an Enemy you made thaws after 2 h of play.
 
 ### Combat & Weapons
 
@@ -127,6 +135,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Hold events `OnMined`, `OnPickedUp`, `OnJettisoned`, `OnTraded`,
   `OnCreditsChanged` and `OnRepaired` fire once per occurrence; the example
   mod's `example_prospect` berth runs all six.
+- A stance fine fires `OnCreditsChanged` with cause `Settle`.
 - `ObjectiveMarkerAttach`/`Detach` take `$id` or `$other_id` from the event,
   so a handler marks a generated rock or derelict; the mark outlives a
   retire and thaw. A written generated id fails lint.
@@ -185,7 +194,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
   greebles with four link points, `near` terms and caps. `placement` is gone;
   bad rules or fixtures over a cell wide fail lint.
 - **(breaking)** `StartRole` takes a `goal`: `StationNetwork`, `KillList`,
-  `Flagship`, `OwnYard`, `MiningEmpire` or `None`. Zero counts, excess rings
+  `Flagship`, `OwnYard`, `MiningEmpire` or `Outlaw`. Zero counts, excess rings
   or escorts and unknown hulls fail lint.
 
 ### Interface & HUD
@@ -213,6 +222,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Docked at a living station, the TAB interface shows a Station tab with the
   station, its ships for sale and its escorts for hire. M steps to it only
   while docked.
+- The Station pane's Settle block lists each Enemy neighbour of the station's
+  civilization with its fine and a Settle button.
 - On the Ship pane a gun, torpedo bay, railgun or mining beam with no key
   reads UNBOUND, and B or Rebind gives it one.
 - Ship pane Rebind takes a key or a pad button and sets that device's half

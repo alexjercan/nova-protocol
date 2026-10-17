@@ -7,9 +7,10 @@
 //! has streamed in, it picks the nearest generated station that is living
 //! and on the Neutral side, outside the spawn's cell. The player jumps beside
 //! it and is put on a berth at its collar each frame until the dock takes.
-//! Then the fixture lands, once: the player's balance is set to the
-//! station's price plus [`SPARE_CREDITS`], to buy the station and then trade
-//! at it.
+//! Then the fixture lands, once: the station's civilization is warmed to
+//! Ally by merits, the way a player who hands in its jobs would, since the
+//! buy gate needs an Ally; the player's balance is set to the station's
+//! price plus [`SPARE_CREDITS`], to buy the station and then trade at it.
 //!
 //! What to try:
 //!
@@ -49,14 +50,15 @@ use bevy::prelude::*;
 use clap::Parser;
 use diagnostics::{palette, DiagnosticsGizmos, DiagnosticsPanel, DiagnosticsSystems};
 use nova_protocol::{nova_debug::diagnostics, prelude::*};
+use nova_world::prelude::WorldClock;
 use open_world_stage::{advance_station_dock, OpenWorldStartPlugin, StationDock};
 
 #[derive(Parser)]
 #[command(name = "station_own_sandbox")]
 #[command(version = "1.0.0")]
 #[command(
-    about = "Start docked at a living Neutral station with the credits to buy it, buy it, and \
-             check it is the player's",
+    about = "Start docked at a living Neutral station, warm its civilization to Ally by merits, \
+             with the credits to buy it, buy it, and check it is the player's",
     long_about = None
 )]
 struct Cli;
@@ -134,6 +136,7 @@ fn drive_the_sandbox(world: &mut World) {
     let Some((player, station)) = docked else {
         return;
     };
+    warm_to_ally(world, station);
     let price = station_price(world, station);
     let credits = u32::try_from(price)
         .ok()
@@ -145,6 +148,32 @@ fn drive_the_sandbox(world: &mut World) {
     world.resource_mut::<Sandbox>().station = Some(station);
     info!(
         "station own sandbox: docked; fixture sets the balance to {credits} cr ({price} cr price)"
+    );
+}
+
+/// Warm the station's civilization to Ally the way a player does: one merit
+/// per handed-in job, `MERIT_STEP` merits per step. Nothing when it is Ally.
+fn warm_to_ally(world: &mut World, station: Entity) {
+    let civ = world
+        .get::<TraderMarket>(station)
+        .expect("station own sandbox: the chosen station prices goods")
+        .civilization;
+    let now = world.resource::<WorldClock>().play_seconds;
+    let seeded = seeded_stance(&civ);
+    let mut stances = world.resource_mut::<CivilizationStances>();
+    let mut merits = 0;
+    while stances.effective(&civ, seeded, now) != StanceType::Ally {
+        record_merit(&mut stances, civ, now);
+        merits += 1;
+        assert!(
+            merits <= 2 * MERIT_STEP,
+            "station own sandbox: '{}' never warmed to Ally",
+            civ.name()
+        );
+    }
+    info!(
+        "station own sandbox: '{}' warmed to Ally after {merits} merit(s)",
+        civ.name()
     );
 }
 
@@ -308,6 +337,7 @@ fn draw_the_station(
         side_text(side),
         if owned { "yes" } else { "no" }
     ));
+    panel.detail("civilization warmed to Ally by merits at the dock, before the buy".to_string());
     let charted = chart
         .as_deref()
         .and_then(|chart| chart.station(id))
@@ -324,10 +354,8 @@ fn draw_the_station(
             retaliation: None,
         },
     ) == Relation::Hostile;
-    // The neutralized-hull refusal is the player's alone, so the Enemy-flagged
-    // ship never carries it.
     let enemy_flagged =
-        station_admission(side.copied(), derelict, false, owned, enemy_hostile, false).err();
+        station_admission(side.copied(), derelict, false, owned, enemy_hostile).err();
     let for_player = player.and_then(|(player, _)| admission.refusal(player, station));
     panel.detail(format!(
         "admission: the player {}   an Enemy-flagged ship at a free port {}",

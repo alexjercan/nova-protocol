@@ -39,7 +39,7 @@ use bevy::prelude::{Quat, Vec3};
 use nova_events::prelude::{Meters, Meters3, MetersPerSecond3};
 use nova_gameplay::prelude::{
     Allegiance, CivilizationId, ClusterType, Fnv32, GameItems, ItemDesignId, ItemRoleType,
-    SeedStream, ShipInventoryStock, ShipRoleType, TraderMarket,
+    SeedStream, ShipInventoryStock, ShipRoleType, StanceType, TraderMarket,
 };
 use nova_scenario::prelude::{
     AIControllerConfig, ShipDesign, ShipDesignSource, SpaceshipConfig, SpaceshipController,
@@ -286,11 +286,11 @@ pub fn plan_ship(
                 patrol: Vec::new(),
                 patrol_stops: Vec::new(),
                 leash: Some(CREW_LEASH),
-                engage_delay: (civilization.allegiance == Allegiance::Enemy)
+                engage_delay: (civilization.stance == StanceType::Enemy)
                     .then_some(ENEMY_ENGAGE_DELAY),
                 ..AIControllerConfig::default()
             }),
-            civilization.allegiance,
+            civilization.stance.side(),
             false,
         ),
         SectorShipConditionType::Derelict => (SpaceshipController::None, Allegiance::Neutral, true),

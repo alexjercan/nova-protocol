@@ -1,6 +1,7 @@
 //! A station bought from its civilization: it becomes the player's.
 //!
-//! A living generated station is for sale to a ship docked with it. The price
+//! A living generated station of a civilization that is an Ally of the
+//! player is for sale to a ship docked with it. The price
 //! is [`station_price_cr`]: what the station is worth at ask (every live
 //! section's recipe, its hold's stock and its credits) times
 //! [`STATION_OWNERSHIP_FACTOR`]. A buy charges the player the price and
@@ -85,6 +86,9 @@ pub enum StationSaleType {
     /// A ship, a dead station, or a station a scenario placed by hand: no
     /// civilization sells it.
     NotForSale,
+    /// A living generated station of a civilization that is not an Ally of
+    /// the player: it sells to allies only.
+    NotAllied,
     /// A living station a civilization keeps, generated with the world.
     ForSale,
     /// A station the player owns already.
@@ -100,6 +104,9 @@ pub enum StationBuyRefusalType {
     NotForSale,
     /// The player owns the station already.
     AlreadyOwned,
+    /// The partner's civilization is not an Ally of the player: it sells to
+    /// allies only.
+    NotAllied,
     /// The ship's balance does not cover the price.
     InsufficientCredits {
         /// The price.
@@ -120,7 +127,8 @@ pub struct StationBuyPlan {
 
 /// Plan buying the docked station at `price_cr` ([`station_price_cr`]) with
 /// a balance of `own_cr`. `sale` is `None` while the ship is not docked.
-/// Checks run in [`StationBuyRefusalType`] order. A refusal changes nothing.
+/// Checks run in [`StationBuyRefusalType`] order: not docked, not for sale,
+/// already owned, not allied, then the balance. A refusal changes nothing.
 pub fn plan_station_buy(
     price_cr: u64,
     sale: Option<StationSaleType>,
@@ -129,6 +137,7 @@ pub fn plan_station_buy(
     match sale.ok_or(StationBuyRefusalType::NotDocked)? {
         StationSaleType::NotForSale => return Err(StationBuyRefusalType::NotForSale),
         StationSaleType::Owned => return Err(StationBuyRefusalType::AlreadyOwned),
+        StationSaleType::NotAllied => return Err(StationBuyRefusalType::NotAllied),
         StationSaleType::ForSale => {}
     }
     let left = u64::from(own_cr).checked_sub(price_cr).ok_or(
@@ -202,6 +211,11 @@ mod tests {
         assert_eq!(
             plan_station_buy(0, Some(StationSaleType::Owned), 1_000),
             Err(AlreadyOwned)
+        );
+        assert_eq!(
+            plan_station_buy(0, Some(StationSaleType::NotAllied), 1_000),
+            Err(NotAllied),
+            "a civilization not an Ally sells to nobody"
         );
         assert_eq!(
             plan_station_buy(u64::from(u32::MAX) + 1, Some(StationSaleType::ForSale), 5),

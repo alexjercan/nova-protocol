@@ -3,9 +3,10 @@
 //! A living generated station hires out a few crewed hulls beside the ones it
 //! sells ([`HullOfferType::Hire`]). Each coasts beside the station, inert,
 //! until hired ([`ParkedHullType::Hire`]). A hire at a docked station that
-//! offers Refit charges [`escort_price_cr`] and, while the fleet has a free
-//! slot ([`FLEET_SIDES`]), raises an [`EscortHireRequest`]: the scenario
-//! crate makes the hull the player's escort where it coasts, following the
+//! offers Refit and is allied with the player ([`EscortHirePartner::allied`])
+//! charges [`escort_price_cr`] and, while the fleet has a free slot
+//! ([`FLEET_SIDES`]), raises an [`EscortHireRequest`]: the scenario crate
+//! makes the hull the player's escort where it coasts, following the
 //! player. The escort's id is [`escort_id`], derived from the station's id
 //! and the offer's roster slot, so it is the same whenever it is hired.
 
@@ -74,12 +75,15 @@ pub fn escort_price_cr(items: &GameItems, sections: &[DesignSection]) -> u64 {
         / denominator
 }
 
-/// The docked station a hire reads: whether it is a living station that
-/// offers Refit, and its balance.
+/// The docked station a hire reads: the partner flies the player's side: an
+/// Ally civilization's station or one the player owns.
 #[derive(Clone, Copy, Debug)]
 pub struct EscortHirePartner {
     /// The partner is a living station whose design offers Refit.
     pub offers: bool,
+    /// The partner's civilization is an Ally of the player, or the player
+    /// owns it outright.
+    pub allied: bool,
     /// The partner's credits.
     pub credits_cr: u32,
 }
@@ -91,6 +95,9 @@ pub enum EscortHireRefusalType {
     NotDocked,
     /// The partner is not a living station that offers Refit.
     NoRefitService,
+    /// The partner's civilization is not an Ally of the player: only an
+    /// allied station hires out its escorts.
+    NotAllied,
     /// Every fleet slot holds an escort.
     FleetFull {
         /// How many escorts the fleet holds at most.
@@ -136,6 +143,9 @@ pub fn plan_escort_hire(
     if !partner.offers {
         return Err(EscortHireRefusalType::NoRefitService);
     }
+    if !partner.allied {
+        return Err(EscortHireRefusalType::NotAllied);
+    }
     let side = FLEET_SIDES
         .into_iter()
         .find(|side| !held.contains(side))
@@ -178,8 +188,23 @@ mod tests {
         assert_eq!(price, recipes * 3 / 2);
         let partner = Some(EscortHirePartner {
             offers: true,
+            allied: true,
             credits_cr: 100,
         });
+        assert_eq!(
+            plan_escort_hire(
+                price,
+                Some(EscortHirePartner {
+                    offers: true,
+                    allied: false,
+                    credits_cr: 100,
+                }),
+                &[],
+                10_000
+            ),
+            Err(EscortHireRefusalType::NotAllied),
+            "an un-allied station hires out no escorts"
+        );
         let plan = plan_escort_hire(price, partner, &[Vec3::X], 10_000)
             .expect("one side is free and the balance covers the price");
         assert_eq!(u64::from(plan.price_cr), price);

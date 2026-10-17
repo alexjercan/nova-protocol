@@ -20,8 +20,8 @@ use bevy::{
 };
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_gameplay::prelude::{
-    CargoCanisterIdAllocator, CargoCanisterRuntimeId, Chart, GoalRecord, JobPostings, Jobs,
-    NeutralizedCivilizations, PlayerSpaceshipMarker, ShipCredits, UnsettledBody,
+    CargoCanisterIdAllocator, CargoCanisterRuntimeId, Chart, CivilizationStances, GoalRecord,
+    JobPostings, Jobs, PlayerSpaceshipMarker, ShipCredits, UnsettledBody,
 };
 use nova_scenario::prelude::{
     freeze_fleet, freeze_ship, CurrentScenario, GeneratedMarks, NovaEventWorld, OpenWorldSession,
@@ -249,8 +249,8 @@ pub struct ResumedWorld {
     pub postings: JobPostings,
     /// The play-time clock the save holds.
     pub clock: WorldClock,
-    /// The player's record of neutralized civilizations the save holds.
-    pub neutralized: NeutralizedCivilizations,
+    /// The player's table of civilization stances the save holds.
+    pub stances: CivilizationStances,
     /// The start role's goal record the save holds.
     pub goal: GoalRecord,
 }
@@ -281,7 +281,7 @@ pub fn resume_world(
         jobs,
         postings,
         clock,
-        neutralized,
+        stances,
         goal,
         ..
     } = state;
@@ -292,7 +292,7 @@ pub fn resume_world(
         jobs,
         postings,
         clock,
-        neutralized,
+        stances,
         goal,
     });
     world.insert_resource(ResumedScenario(scenario));
@@ -327,8 +327,8 @@ pub(crate) fn save_systems() -> ScheduleConfigs<ScheduleSystem> {
 }
 
 /// Seed the ledger, the chart, the jobs, the postings, the clock, the
-/// neutralized civilizations and the goal record `Cleanup` just cleared with
-/// the save's, on the frame the world arms.
+/// civilization stances and the goal record `Cleanup` just cleared with the
+/// save's, on the frame the world arms.
 ///
 /// # Panics
 ///
@@ -349,7 +349,7 @@ pub(crate) fn restore_resumed_world(world: &mut World) {
         jobs,
         postings,
         clock,
-        neutralized,
+        stances,
         goal,
     } = world
         .remove_resource::<ResumedWorld>()
@@ -359,7 +359,7 @@ pub(crate) fn restore_resumed_world(world: &mut World) {
     *world.resource_mut::<Jobs>() = jobs;
     *world.resource_mut::<JobPostings>() = postings;
     *world.resource_mut::<WorldClock>() = clock;
-    *world.resource_mut::<NeutralizedCivilizations>() = neutralized;
+    *world.resource_mut::<CivilizationStances>() = stances;
     *world.resource_mut::<GoalRecord>() = goal;
 }
 
@@ -543,7 +543,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
     let jobs = world.resource::<Jobs>().clone();
     let postings = world.resource::<JobPostings>().clone();
     let clock = *world.resource::<WorldClock>();
-    let neutralized = world.resource::<NeutralizedCivilizations>().clone();
+    let stances = world.resource::<CivilizationStances>().clone();
     let goal = *world.resource::<GoalRecord>();
     let saved_at_unix = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -583,7 +583,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
         jobs,
         postings,
         clock,
-        neutralized,
+        stances,
         goal,
     };
     let checked = check_saved_ids(&state)
@@ -603,7 +603,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
                         .postings
                         .validate(state.clock.play_seconds, &state.jobs)
                 })
-                .and_then(|()| state.neutralized.validate(state.clock.play_seconds))
+                .and_then(|()| state.stances.validate(state.clock.play_seconds))
                 .and_then(|()| state.goal.validate(state.clock.play_seconds))
                 .and_then(|()| check_saved_fleet(&state))
                 .and_then(|()| check_saved_items(&state, &items))

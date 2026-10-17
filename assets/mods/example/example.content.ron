@@ -1651,10 +1651,10 @@
             stock: {"example_survey_core": 10, "Rations": 20},
         ),
         jobs: Trade,
-        goal: Some((
+        goal: (
             title: "A survey network",
             kind: StationNetwork(jobs: 4, stations: 2, rings: 1),
-        )),
+        ),
         lore: "Survey crews map the rock fields and sell the data cores to any station that pays.",
     )),
 ]

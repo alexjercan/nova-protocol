@@ -28,17 +28,16 @@ spelling rules, see
             },
         ),
         jobs: Trade,
-        goal: Some((
+        goal: (
             title: "A courier network",
             kind: StationNetwork(jobs: 8, stations: 4, rings: 2),
-        )),
+        ),
         lore: "Stations need what they cannot make. Couriers carry it.",
     )),
 ]
 ```
 
-Every field is required. `goal` is `None` only for a role whose goal has not
-been authored; the Map then shows no CHARTER block and nothing completes.
+Every field is required.
 
 | field | type | meaning |
 |---|---|---|
@@ -48,7 +47,7 @@ been authored; the Map then shows no CHARTER block and nothing completes.
 | `hull` | string | the id of a [ship design](../ships/) the player starts in: a base ship id, one of your mod's own, or one from a mod you depend on |
 | `kit` | kit | what the ship starts with, see below |
 | `jobs` | `Trade`, `Salvage` or `Combat` | the job mix every station board leans to for this start, see [Jobs](../stations/#jobs) |
-| `goal` | `Some(goal)` or `None` | the role's charter, one finite milestone, see [The goal](#the-goal) |
+| `goal` | goal | the role's charter, one finite milestone, see [The goal](#the-goal) |
 | `lore` | string | background text for the role |
 
 A `kit` has two fields, both required:
@@ -78,6 +77,7 @@ both required:
 | `Flagship` | `hull` | the player's live hull is worth at least the ship design `hull` names, at the build recipes' value |
 | `OwnYard` | none | the player owns a station whose store holds, for every one of the seven ship part families (hull, controller, thruster, weapon, cargo intake, docking, mining), the full build recipe of at least one loaded section of that family |
 | `MiningEmpire` | `stations`, `escorts` | the player owns `stations` stations and flies with `escorts` hired escorts in the fleet |
+| `Outlaw` | `hulls` | the player's own kills turned a civilization `Enemy` (a seeded `Enemy` does not count) and the player neutralized `hulls` more intact hulls of it while it stands `Enemy`; the kill that flips it does not count, and a settlement or the decay clears the count, see [Civilization stances](../stations/#civilization-stances) |
 
 A civilization ring is one 240 km step out from the start: a station in a
 cell whose centre is under 240 km from the origin stands in ring 0, one
@@ -87,12 +87,15 @@ jobs at four stations over two rings; the base `bounty_hunter` asks for a
 kill list of six hulls over two rings; the base `scavenger` asks for a yard
 (`OwnYard`); the base `military` asks for a hull worth the `line_warship`
 (`Flagship`); the base `industrial` asks for a mining empire of two stations
-and two escorts (`MiningEmpire`), the fleet's two slots. The base `pirate`
-role carries `None`.
+and two escorts (`MiningEmpire`), the fleet's two slots; the base `pirate`
+asks for an outlaw's name (`Outlaw`): one civilization its own kills turned
+Enemy, then six more intact hulls of it neutralized while it stands Enemy.
 
 Progress is derived from the saved world each frame: the jobs you handed in,
 the hull you fly, the stations you own with what you stored there, live or
-frozen in a sector you left, and the escorts in your fleet. A yard counts
+frozen in a sector you left, the escorts in your fleet, and the
+[civilizations](../stations/#civilization-stances) your kills turned Enemy
+with the hulls you took from them since. A yard counts
 its best single station: two stations each stocked for some families do not
 add up. The frame the goal is met, the save records the play time; the
 CHARTER block then reads `Met at` that time, and a Load brings it back. The

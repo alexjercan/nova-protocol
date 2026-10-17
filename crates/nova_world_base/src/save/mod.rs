@@ -34,8 +34,9 @@
 //! [`Jobs`]: the jobs held and the jobs completed, checked the same way, the
 //! [`JobPostings`]: each station board's slot postings and their stamps,
 //! the [`WorldClock`], the play time every frozen body's stamp and every
-//! posting reads against, and the role goal's [`GoalRecord`], refused when
-//! stamped ahead of that clock or for a role with no goal.
+//! posting reads against, the player's [`CivilizationStances`], refused when
+//! a stamp is ahead of that clock, and the role goal's [`GoalRecord`],
+//! refused when stamped ahead of it.
 
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
@@ -48,12 +49,12 @@ use bevy::prelude::*;
 use nova_assets::{prelude::LoadedSectionPacks, storage::write_atomic};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
-    kg_text, CargoCanisterRuntimeId, Chart, GameItems, GoalRecord, ItemDesignId, JobPostings, Jobs,
-    NeutralizedCivilizations, SavedBodyRef, SavedOwner, SavedSectionRef, SavedTargetRef,
+    kg_text, CargoCanisterRuntimeId, Chart, CivilizationStances, GameItems, GoalRecord,
+    ItemDesignId, JobPostings, Jobs, SavedBodyRef, SavedOwner, SavedSectionRef, SavedTargetRef,
     CARGO_CANISTER_MAX_MASS_G,
 };
 use nova_scenario::prelude::{
-    FleetEscort, FrozenShip, GameScenarios, GameStartRoles, SavedScenario, ScenarioId, StartRole,
+    FleetEscort, FrozenShip, GameScenarios, GameStartRoles, SavedScenario, ScenarioId,
     StartRoleDesignId,
 };
 use nova_ship::prelude::{CameraView, SavedTorpedoTarget, FLEET_SIDES};
@@ -81,7 +82,7 @@ pub use transients::{
 /// nobody held live is recorded as an arrival there. Every cell the player
 /// never visited regenerates from the seed on Load, so another generator
 /// would change it silently.
-pub const WORLD_SAVE_FORMAT: u32 = 19;
+pub const WORLD_SAVE_FORMAT: u32 = 20;
 
 /// The most characters a world name has, after trimming.
 const WORLD_NAME_MAX: usize = 32;
@@ -151,9 +152,9 @@ pub struct WorldSaveState {
     /// has seen. Every frozen body's `frozen_at` and every posting's stamp
     /// reads against it.
     pub clock: WorldClock,
-    /// The civilizations whose hull the player neutralized, each with the
-    /// clock reading of the latest, whose stations refuse the player.
-    pub neutralized: NeutralizedCivilizations,
+    /// The player's table of civilization stances: every civilization whose
+    /// standing differs from the seed or has something pending.
+    pub stances: CivilizationStances,
     /// The start role's goal: standing, or the clock reading it was met at.
     pub goal: GoalRecord,
 }
@@ -374,10 +375,7 @@ pub fn open_world(
     let path = root.join(slug);
     let lock = lock_world(&path)?;
     let header = read_header(&path, loaded, roles)?;
-    let role = roles
-        .get_role(&header.role)
-        .expect("read_header checked the role is loaded");
-    let state = read_state(&path, &header, role, items, scenarios)?;
+    let state = read_state(&path, &header, items, scenarios)?;
     sweep_orphans(&path, &state_file(header.generation));
     Ok((
         WorldFolder {
@@ -410,18 +408,13 @@ pub fn check_world(
     check_slug(slug)?;
     let path = root.join(slug);
     let header = read_header(&path, loaded, roles)?;
-    let role = roles
-        .get_role(&header.role)
-        .expect("read_header checked the role is loaded");
-    read_state(&path, &header, role, items, scenarios).map(drop)
+    read_state(&path, &header, items, scenarios).map(drop)
 }
 
-/// Read and check the state file `header` names in the world folder `path`,
-/// for the loaded start `role` the header names.
+/// Read and check the state file `header` names in the world folder `path`.
 fn read_state(
     path: &Path,
     header: &WorldSaveHeader,
-    role: &StartRole,
     items: &GameItems,
     scenarios: &RegisteredScenarios,
 ) -> Result<WorldSaveState, WorldRefusal> {
@@ -461,19 +454,13 @@ fn read_state(
         .validate(state.clock.play_seconds, &state.jobs)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     state
-        .neutralized
+        .stances
         .validate(state.clock.play_seconds)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     state
         .goal
         .validate(state.clock.play_seconds)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
-    if state.goal.is_met() && role.goal.is_none() {
-        return Err(WorldRefusal::Unreadable(format!(
-            "{state_name}: the goal is stamped met but the start role '{}' has no goal",
-            role.id
-        )));
-    }
     check_saved_fleet(&state)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     check_saved_items(&state, items)

@@ -51,7 +51,10 @@ pub(crate) fn dummy_roles() -> GameStartRoles {
                     stock: ShipInventoryStock::default(),
                 },
                 jobs: JobMixType::Trade,
-                goal: None,
+                goal: RoleGoal {
+                    title: "A goal".to_string(),
+                    kind: RoleGoalType::OwnYard,
+                },
                 lore: String::new(),
             })
             .collect(),

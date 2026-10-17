@@ -4,7 +4,9 @@
 //! out escorts (hulls it holds listed [`ParkedHullType::Hire`], coasting
 //! beside it), the pane lists them under the hulls for sale, each as a card:
 //! the escort's own model turning (`hull_preview`), one line with its name,
-//! length and price, and a Hire button or the reason the hire is refused. A
+//! length and price, and a Hire button or the reason the hire is refused; a
+//! station whose side is not the player's (its civilization no Ally) shows
+//! every escort refused. A
 //! click raises an
 //! [`EscortHireCommand`]; [`apply_station_escort_hire_commands`] plans it with
 //! [`plan_escort_hire`], moves the credits, and raises the
@@ -71,6 +73,9 @@ fn escort_refusal_text(name: &str, refusal: &EscortHireRefusalType) -> String {
     match refusal {
         EscortHireRefusalType::NotDocked => "hire: dock at a station that refits".to_string(),
         EscortHireRefusalType::NoRefitService => "hire: this dock offers no refit".to_string(),
+        EscortHireRefusalType::NotAllied => {
+            "hire: this station's civilization is no ally of yours".to_string()
+        }
         EscortHireRefusalType::FleetFull { cap } => {
             format!("hire: the fleet holds its {cap} escorts")
         }
@@ -109,12 +114,15 @@ fn held_sides(player: Entity, q_fleet: &Query<&AIFollow, With<PlayerFleetMarker>
         .collect()
 }
 
-/// Plan hiring an escort at `price` for the resolved player ship.
+/// Plan hiring an escort at `price` for the resolved player ship. The
+/// partner is allied while it flies the player's side: an Ally
+/// civilization's station or one the player owns.
 fn plan_offer(
     resolved: &ResolvedSite<'_>,
     price: u64,
     held: &[Vec3],
     q_credits: &Query<&ShipCredits>,
+    q_sides: &Query<&Allegiance>,
 ) -> Result<EscortHirePlan, EscortHireRefusalType> {
     let own_cr = q_credits
         .get(resolved.player)
@@ -123,6 +131,7 @@ fn plan_offer(
     let partner = resolved.partner.and_then(|(partner, offers)| {
         Some(EscortHirePartner {
             offers,
+            allied: q_sides.get(partner).ok() == Some(&Allegiance::Player),
             credits_cr: q_credits.get(partner).ok()?.0,
         })
     });
@@ -155,7 +164,7 @@ pub(crate) fn spawn_station_escort_list(panel: &mut ChildSpawnerCommands) {
 /// refusal changes.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one system reading the hulls, the site, the balances, the fleet and the list"
+    reason = "one system reading the hulls, the site, the balances, the sides, the fleet and the list"
 )]
 pub(crate) fn update_station_escort_list(
     mut commands: Commands,
@@ -164,6 +173,7 @@ pub(crate) fn update_station_escort_list(
     q_parked: Query<&ParkedHulls>,
     q_hires: HireQuery,
     q_credits: Query<&ShipCredits>,
+    q_sides: Query<&Allegiance>,
     q_fleet: Query<&AIFollow, With<PlayerFleetMarker>>,
     mut q_list: Query<&mut Node, With<StationEscortList>>,
     mut q_rows: Query<(Entity, &mut StationEscortRows)>,
@@ -198,7 +208,7 @@ pub(crate) fn update_station_escort_list(
                         hull,
                         name: name.to_string(),
                         detail: format!("{}, {}", hull_length_text(&design.0), cr_text(price)),
-                        refusal: plan_offer(&resolved, price, &held, &q_credits)
+                        refusal: plan_offer(&resolved, price, &held, &q_credits, &q_sides)
                             .err()
                             .map(|refusal| escort_refusal_text(name.as_str(), &refusal)),
                     })
@@ -271,7 +281,7 @@ fn on_escort_hire_button(
 /// escort for hire of a generated station.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one system reading the hulls, the site, the fleet, the ids and both balances"
+    reason = "one system reading the hulls, the site, the fleet, the ids, the sides and both balances"
 )]
 #[expect(
     clippy::type_complexity,
@@ -285,6 +295,7 @@ pub(crate) fn apply_station_escort_hire_commands(
     site: StationSite,
     q_hires: Query<(&ParkedHull, &Name, &ParkedHullType, &ShipDesignSections)>,
     q_ids: Query<&GeneratedBodyId>,
+    q_sides: Query<&Allegiance>,
     q_fleet: Query<&AIFollow, With<PlayerFleetMarker>>,
     mut q_credits: ParamSet<(
         Query<&ShipCredits>,
@@ -322,7 +333,7 @@ pub(crate) fn apply_station_escort_hire_commands(
     let name = name.to_string();
     let held = held_sides(resolved.player, &q_fleet);
     let price = escort_price_cr(&items, &design.0);
-    let plan = match plan_offer(&resolved, price, &held, &q_credits.p0()) {
+    let plan = match plan_offer(&resolved, price, &held, &q_credits.p0(), &q_sides) {
         Ok(plan) => plan,
         Err(refusal) => {
             runtime.say(escort_refusal_text(&name, &refusal));

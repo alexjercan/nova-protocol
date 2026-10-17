@@ -42,12 +42,9 @@ An item the trader's target does not name is untouched - what you sold it
 stays sold. A reload alone restocks nothing: the clock stops while the game
 is paused, so no play time passes.
 
-Neutralizing a civilization's generated hull or station - your ship or a
-fleet escort dealt the last hit - costs you its living stations: each one
-refuses your dock for `refusal_seconds` of play after the neutralize. The
-record is kept on your save, not the station, so it carries across a
-retire, a thaw and a Load. The HUD reads `<NAME> REFUSES DOCKING: HULL
-NEUTRALIZED` while your travel lock is on a refusing station.
+Neutralizing a civilization's generated hull or station is an offence
+against it, not a price rule: see
+[Civilization stances](../stations/#civilization-stances).
 
 ## How a job offer expires
 
@@ -74,7 +71,6 @@ for the full posting and renewal rule.
             unkept: (ask: 1.0, bid: 0.9),
         ),
         restock: (recovery_seconds: 1800.0),
-        robbery: (refusal_seconds: 900.0),
         jobs: (offer_seconds: 1200.0),
         clusters: [
             (cluster: AsteroidRich, category: Raw, factor: (ask: 0.6, bid: 0.6)),
@@ -93,7 +89,6 @@ Every field is required.
 | `clamp` | `(min, max)` | the lowest and highest total factor on each side |
 | `scarcity` | scarcity rule | the stock curve, see below |
 | `restock` | `(recovery_seconds)` | the play seconds a thawed trader's stock takes to return to its target from none, see [How a trader restocks](#how-a-trader-restocks) |
-| `robbery` | `(refusal_seconds)` | the play seconds a civilization's living stations refuse the player after the player neutralizes one of its hulls |
 | `jobs` | `(offer_seconds)` | the play seconds an unheld station job offer stands before its slot posts a new one, see [How a job offer expires](#how-a-job-offer-expires) |
 | `clusters` | list of cluster rules | demand by cluster type: `cluster` is `AsteroidRich`, `RockOnly`, `PlanetHeavy` or `DerelictField`; `category` is an item category; `factor` is `(ask, bid)` |
 | `roles` | list of role rules | demand by civilization role: `role` is `Civilian`, `Industrial`, `Scavenger` or `Armored`; `category` and `factor` as above |
@@ -123,8 +118,8 @@ pack that:
   ask;
 - states a `starved` side below 1, a `glut` side above 1, or a `glut_share`
   of 1 or less;
-- states a `restock.recovery_seconds`, a `robbery.refusal_seconds` or a
-  `jobs.offer_seconds` that is not a finite number above 0;
+- states a `restock.recovery_seconds` or a `jobs.offer_seconds` that is not a
+  finite number above 0;
 - names one cluster type or one role with one category twice.
 
 With every factor's bid at most its ask, a trader's bid is never above its
@@ -139,7 +134,6 @@ ask.
 | glut, at 3 times the target | ask 0.9, bid 0.6 |
 | unkept | ask 1.0, bid 0.9 |
 | restock recovery | 1800 s (30 min of play) |
-| robbery refusal window | 900 s (15 min of play) |
 | job offer window | 1200 s (20 min of play) |
 | `AsteroidRich` `Raw` | 0.6 |
 | `RockOnly` `Raw` | 0.8 |
@@ -157,5 +151,4 @@ The table is generated into `assets/base/market/base.content.ron`.
 The proof is `market_sandbox`: it sells iron ore at a living asteroid-rich
 station and at a living planet-heavy one through the Inventory pane, checks
 each Sell pays the computed bid, and checks the asteroid-rich bid is the lower.
-The restock and refusal proofs are `system_station_restock` and
-`system_station_refusal`.
+The restock proof is `system_station_restock`.

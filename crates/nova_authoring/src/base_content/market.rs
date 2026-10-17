@@ -7,7 +7,7 @@
 
 use nova_gameplay::prelude::{
     ClusterPriceRule, ClusterType, ItemCategoryType, JobOfferRule, PriceClamp, PriceFactor,
-    PriceTable, RestockRule, RobberyRule, RolePriceRule, ScarcityRule, ShipRoleType,
+    PriceTable, RestockRule, RolePriceRule, ScarcityRule, ShipRoleType,
 };
 
 /// The lowest total factor: no trader sells below a quarter of reference.
@@ -36,12 +36,6 @@ const UNKEPT: PriceFactor = PriceFactor { ask: 1.0, bid: 0.9 };
 /// the next cluster, and whole again within one session; a reload alone
 /// restocks nothing, since the clock stands still while paused.
 const RESTOCK_RECOVERY_SECONDS: f32 = 1_800.0;
-/// The play seconds a civilization's stations refuse the player after the
-/// player neutralizes one of its hulls: fifteen minutes. Longer than a round
-/// trip to the next cluster, so waiting at the door does not pay, and
-/// shorter than a session, so the sanction ends while the player still knows
-/// what earned it (Elite's hour-per-level notoriety is the pitfall).
-const ROBBERY_REFUSAL_SECONDS: f32 = 900.0;
 /// The play seconds an unheld job offer stands before its slot posts a new
 /// one: twenty minutes. Longer than one round trip to the next cluster, so
 /// an offer the player left to prepare for is still there once; shorter than
@@ -86,9 +80,6 @@ pub(crate) fn price_table() -> PriceTable {
         },
         restock: RestockRule {
             recovery_seconds: RESTOCK_RECOVERY_SECONDS,
-        },
-        robbery: RobberyRule {
-            refusal_seconds: ROBBERY_REFUSAL_SECONDS,
         },
         jobs: JobOfferRule {
             offer_seconds: JOB_OFFER_SECONDS,

@@ -14,13 +14,22 @@
 //! space a new ship starts in fields many small hulls and size climbs with
 //! distance.
 //!
+//! Two civilizations are neighbours when their centroids are closer than
+//! [`STANCE_NEIGHBOUR_RADIUS`]; the seed draws one symmetric [`StanceType`]
+//! per pair of living neighbours ([`CivilizationField::edge`]) and a
+//! designated rival keeps every living civilization with a living neighbour
+//! on at least one Enemy edge. The seed also draws each civilization's
+//! stance toward the player ([`Civilization::stance`]), which the player's
+//! events move (`nova_gameplay::civilization::CivilizationStances`).
+//!
 //! PURE. The open world's ship planner reads it to pick each generated ship's
-//! civilization and role, and debug diagnostics read it too. The advancement
-//! curve is decided; every other constant here is provisional until the
+//! civilization and role, the stance systems read the neighbourhood, and
+//! debug diagnostics read it too. The advancement curve and the stance
+//! constants are decided; every other constant here is provisional until the
 //! diagnostic maps are reviewed.
 
 use nova_events::prelude::{Meters, Meters3, SectorCoord};
-use nova_gameplay::prelude::{Allegiance, CivilizationId, ShipRoleType};
+use nova_gameplay::prelude::{CivilizationId, Fnv32, SeedStream, ShipRoleType, StanceType};
 use nova_world::prelude::*;
 
 use crate::{
@@ -78,6 +87,31 @@ const ROLE_PREFERENCE_FLOOR: f32 = 0.5;
 
 /// The chance one role is the civilization's specialty.
 const SPECIALIST_CHANCE: f32 = 0.15;
+
+/// How close two centroids must be for their civilizations to be
+/// neighbours: the smallest round radius above the farthest two face-adjacent
+/// centroids can lie (`sqrt(L^2 + 2 (2J)^2)`, 339.4 km) and 60 km under the
+/// nearest two centroids two nodes apart can lie (`L * 2 - 4 J`, 400 km), so
+/// every face neighbour is a neighbour and no neighbour lies outside the
+/// 3x3x3 block of nodes round a node, for every seed.
+pub const STANCE_NEIGHBOUR_RADIUS: Meters = Meters(340_000.0);
+
+/// The share of neighbour pairs whose drawn edge is Ally.
+pub const STANCE_ALLY_SHARE: f32 = 0.25;
+
+/// The share of neighbour pairs whose drawn edge is Enemy, before the
+/// designated rival turns more.
+pub const STANCE_ENEMY_SHARE: f32 = 0.25;
+
+// Every face pair is within the radius (one lattice step plus the two
+// jitters' worst case) and no pair two nodes apart is (two steps less two
+// jitters toward each other).
+const _: () = assert!(
+    CIVILIZATION_LATTICE.0 * CIVILIZATION_LATTICE.0
+        + 8.0 * CIVILIZATION_JITTER.0 * CIVILIZATION_JITTER.0
+        < STANCE_NEIGHBOUR_RADIUS.0 * STANCE_NEIGHBOUR_RADIUS.0
+        && STANCE_NEIGHBOUR_RADIUS.0 <= 2.0 * CIVILIZATION_LATTICE.0 - 2.0 * CIVILIZATION_JITTER.0
+);
 
 /// How much a specialty multiplies that role's preference. A scavenger
 /// specialist is the pirate-like case.
@@ -137,9 +171,11 @@ pub struct Civilization {
     /// Its seeded preference for each role, in [`ShipRoleType::ALL`] order.
     /// Each is at least zero; only fighter roles can be zero.
     pub role_preference: [f32; 4],
-    /// The side its crews fight for, drawn independently of every other
-    /// trait: Enemy, Player, or Neutral with one chance in three each.
-    pub allegiance: Allegiance,
+    /// Its seeded stance toward the player, drawn independently of every
+    /// other trait: Enemy, Ally or Neutral with one chance in three each. The
+    /// player's events move the table stance off it; its crews fly the
+    /// effective stance's side.
+    pub stance: StanceType,
 }
 
 impl Civilization {
@@ -235,9 +271,8 @@ impl CivilizationField {
             role_preference[3] = 0.0;
         }
 
-        let sides = [Allegiance::Enemy, Allegiance::Player, Allegiance::Neutral];
-        let side = ((id.stream(b"allegiance").unit() * 3.0) as usize).min(2);
-        let allegiance = sides[side];
+        let stances = [StanceType::Enemy, StanceType::Ally, StanceType::Neutral];
+        let stance = stances[((id.stream(b"allegiance").unit() * 3.0) as usize).min(2)];
 
         Civilization {
             id,
@@ -245,8 +280,101 @@ impl CivilizationField {
             status,
             advancement,
             role_preference,
-            allegiance,
+            stance,
         }
+    }
+
+    /// The living neighbours of `node`: every living civilization other than
+    /// `node`'s whose centroid is closer than [`STANCE_NEIGHBOUR_RADIUS`], in
+    /// node order; none for an extinct node, which holds no edge. Only the
+    /// 3x3x3 block round the node is read: the lattice and jitter bound
+    /// every farther pair past the radius.
+    pub fn neighbours(&self, node: [i32; 3]) -> Vec<Civilization> {
+        let centre = self.civilization(node);
+        let mut found = Vec::new();
+        if centre.status != CivilizationStatusType::Living {
+            return found;
+        }
+        for dx in -1..=1 {
+            for dy in -1..=1 {
+                for dz in -1..=1 {
+                    if (dx, dy, dz) == (0, 0, 0) {
+                        continue;
+                    }
+                    let other = self.civilization([node[0] + dx, node[1] + dy, node[2] + dz]);
+                    if other.status == CivilizationStatusType::Living
+                        && centre.centroid.distance(other.centroid).0 < STANCE_NEIGHBOUR_RADIUS.0
+                    {
+                        found.push(other);
+                    }
+                }
+            }
+        }
+        found
+    }
+
+    /// The stance two living neighbours `a` and `b` hold toward each other:
+    /// the drawn edge, turned Enemy when either designates the other as its
+    /// rival. `None` when they are not living neighbours. Symmetric: the
+    /// pair stream is keyed by the two nodes in order, and each designation
+    /// reads only its own civilization's drawn edges.
+    pub fn edge(&self, a: [i32; 3], b: [i32; 3]) -> Option<StanceType> {
+        if a == b || !self.neighbours(a).iter().any(|other| other.id.node == b) {
+            return None;
+        }
+        let drawn = self.drawn_edge(a, b);
+        if drawn == StanceType::Enemy || self.rival(a) == Some(b) || self.rival(b) == Some(a) {
+            return Some(StanceType::Enemy);
+        }
+        Some(drawn)
+    }
+
+    /// The pair stream of `a` and `b`: the world seed, `stance` and the two
+    /// nodes in lexicographic order, so either end reads the same draws.
+    fn pair_stream(&self, a: [i32; 3], b: [i32; 3]) -> SeedStream {
+        let (first, second) = if a <= b { (a, b) } else { (b, a) };
+        let mut hash = Fnv32::new()
+            .write(&self.world_seed.to_le_bytes())
+            .write(b"stance");
+        for index in first.into_iter().chain(second) {
+            hash = hash.write(&index.to_le_bytes());
+        }
+        SeedStream::new(hash.finish())
+    }
+
+    /// The edge the pair stream draws before any rival: the first draw
+    /// against the shares.
+    fn drawn_edge(&self, a: [i32; 3], b: [i32; 3]) -> StanceType {
+        let unit = self.pair_stream(a, b).unit();
+        if unit < STANCE_ALLY_SHARE {
+            StanceType::Ally
+        } else if unit >= 1.0 - STANCE_ENEMY_SHARE {
+            StanceType::Enemy
+        } else {
+            StanceType::Neutral
+        }
+    }
+
+    /// The living neighbour `node` designates as its rival: `None` when it
+    /// has no living neighbour or one of its drawn edges is Enemy already;
+    /// else the neighbour with the lowest second draw of their pair stream.
+    fn rival(&self, node: [i32; 3]) -> Option<[i32; 3]> {
+        let neighbours = self.neighbours(node);
+        if neighbours
+            .iter()
+            .any(|other| self.drawn_edge(node, other.id.node) == StanceType::Enemy)
+        {
+            return None;
+        }
+        neighbours
+            .iter()
+            .map(|other| {
+                let mut stream = self.pair_stream(node, other.id.node);
+                let _first = stream.unit();
+                (stream.unit(), other.id.node)
+            })
+            .min_by(|a, b| a.0.total_cmp(&b.0).then_with(|| a.1.cmp(&b.1)))
+            .map(|(_, other)| other)
     }
 
     /// Every civilization whose centroid is closer to `position` than the
@@ -364,8 +492,42 @@ fn outward_factor(position: Meters3, centroid: Meters3) -> f32 {
 }
 
 #[cfg(test)]
+pub(crate) mod sweep {
+    //! The seeds and nodes the stance sweep tests of this crate run over.
+
+    /// The seeds the stance sweep runs: the three above and the thirteen the
+    /// research census used.
+    pub(crate) const SWEEP_SEEDS: [u32; 16] = [
+        20_260_922,
+        12_345,
+        4_000_000_000,
+        1,
+        2,
+        3,
+        7,
+        10,
+        42,
+        99,
+        1234,
+        2026,
+        31337,
+        65536,
+        123_456_789,
+        987_654_321,
+    ];
+
+    /// Every node of the sweep's centre cube.
+    pub(crate) fn sweep_nodes() -> impl Iterator<Item = [i32; 3]> {
+        (-4..=4).flat_map(|x| (-4..=4).flat_map(move |y| (-4..=4).map(move |z| [x, y, z])))
+    }
+}
+
+#[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        sweep::{sweep_nodes, SWEEP_SEEDS},
+        *,
+    };
 
     const SEEDS: [u32; 3] = [20_260_922, 12_345, 4_000_000_000];
 
@@ -573,10 +735,10 @@ mod tests {
         }
     }
 
-    /// Each side holds about a third of the civilizations, whatever their
-    /// status: the side is its own draw, not a reading of another trait.
+    /// Each stance holds about a third of the civilizations, whatever their
+    /// status: the stance is its own draw, not a reading of another trait.
     #[test]
-    fn a_civilization_side_is_an_even_draw_of_its_own() {
+    fn a_civilization_stance_is_an_even_draw_of_its_own() {
         for seed in SEEDS {
             let field = field(seed);
             let mut counts = [[0_usize; 3]; 2];
@@ -584,10 +746,10 @@ mod tests {
                 for y in -6..6 {
                     for z in -2..2 {
                         let civilization = field.civilization([x, y, z]);
-                        let side = match civilization.allegiance {
-                            Allegiance::Enemy => 0,
-                            Allegiance::Player => 1,
-                            Allegiance::Neutral => 2,
+                        let side = match civilization.stance {
+                            StanceType::Enemy => 0,
+                            StanceType::Ally => 1,
+                            StanceType::Neutral => 2,
                         };
                         let status =
                             usize::from(civilization.status == CivilizationStatusType::Extinct);
@@ -603,6 +765,101 @@ mod tests {
                         (0.25..0.42).contains(&share),
                         "seed {seed} status {status} side {side}: {count} of {total}"
                     );
+                }
+            }
+        }
+    }
+
+    /// After the designated-rival rule, every living civilization with a
+    /// living neighbour holds at least one Enemy edge, in every seed.
+    #[test]
+    fn every_living_civilization_with_a_living_neighbour_has_a_rival() {
+        for seed in SWEEP_SEEDS {
+            let field = field(seed);
+            for node in sweep_nodes() {
+                if field.civilization(node).status != CivilizationStatusType::Living {
+                    continue;
+                }
+                let neighbours = field.neighbours(node);
+                if neighbours.is_empty() {
+                    continue;
+                }
+                assert!(
+                    neighbours
+                        .iter()
+                        .any(|other| field.edge(node, other.id.node) == Some(StanceType::Enemy)),
+                    "seed {seed}: {} has {} living neighbours and no rival",
+                    field.civilization(node).id,
+                    neighbours.len()
+                );
+            }
+        }
+    }
+
+    /// An edge reads the same from either end and from a fresh field; a
+    /// pair that is not two living neighbours has none.
+    #[test]
+    fn an_edge_reads_the_same_from_both_ends_and_in_any_order() {
+        for seed in SWEEP_SEEDS {
+            let field = field(seed);
+            for node in sweep_nodes() {
+                for other in field.neighbours(node) {
+                    let forward = field.edge(node, other.id.node);
+                    let backward = field.edge(other.id.node, node);
+                    let fresh = CivilizationField::new(seed).edge(other.id.node, node);
+                    assert!(
+                        forward.is_some() && forward == backward && forward == fresh,
+                        "seed {seed}: {node:?} -> {:?} reads {forward:?}, back {backward:?}, fresh {fresh:?}",
+                        other.id.node
+                    );
+                }
+            }
+            let (a, b) = ([0, 0, 0], [2, 0, 0]);
+            assert_eq!(field.edge(a, b), None, "seed {seed}: two nodes apart");
+            assert_eq!(field.edge(a, a), None, "seed {seed}: a node to itself");
+        }
+    }
+
+    /// Every neighbour lies in the 3x3x3 block round the node, within the
+    /// radius, and is living; every living face neighbour of a living node
+    /// is a neighbour, and an extinct node has none.
+    #[test]
+    fn a_neighbourhood_never_leaves_the_block_round_the_node() {
+        for seed in SWEEP_SEEDS {
+            let field = field(seed);
+            for node in sweep_nodes() {
+                let centre = field.civilization(node);
+                for other in field.neighbours(node) {
+                    let offset: Vec<i32> = (0..3)
+                        .map(|axis| other.id.node[axis] - node[axis])
+                        .collect();
+                    assert!(
+                        offset.iter().all(|step| (-1..=1).contains(step)) && offset != [0, 0, 0],
+                        "seed {seed}: {node:?} lists {:?}",
+                        other.id.node
+                    );
+                    assert!(centre.centroid.distance(other.centroid).0 < STANCE_NEIGHBOUR_RADIUS.0);
+                    assert_eq!(other.status, CivilizationStatusType::Living);
+                }
+                if centre.status != CivilizationStatusType::Living {
+                    assert!(
+                        field.neighbours(node).is_empty(),
+                        "seed {seed}: {node:?} is extinct"
+                    );
+                    continue;
+                }
+                for axis in 0..3 {
+                    for step in [-1, 1] {
+                        let mut face = node;
+                        face[axis] += step;
+                        let other = field.civilization(face);
+                        if other.status == CivilizationStatusType::Living {
+                            assert!(
+                                field.neighbours(node).iter().any(|found| found.id == other.id),
+                                "seed {seed}: the living face neighbour {face:?} of {node:?} is missing"
+                            );
+                        }
+                    }
                 }
             }
         }

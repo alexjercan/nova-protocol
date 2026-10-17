@@ -13,6 +13,7 @@ bevy_enhanced_input = { version = "0.26.0" }
 nova_input = { path = "../nova_input" }
 nova_gameplay = { path = "../nova_gameplay" }
 nova_ship = { path = "../nova_ship" }
+nova_world_base = { path = "../nova_world_base" }
 nova_hud = { path = "../nova_hud" }
 nova_events = { path = "../nova_events" }
 nova_command = { path = "../nova_command" }
@@ -27,7 +28,6 @@ serde = { version = "1", features = ["derive"] }
 nova_gameplay = { path = "../nova_gameplay", features = ["test-support"] }
 nova_scenario = { path = "../nova_scenario", features = ["serde"] }
 nova_world = { path = "../nova_world" }
-nova_world_base = { path = "../nova_world_base" }
 
 [lints]
 workspace = true

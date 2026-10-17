@@ -12,13 +12,13 @@ use bevy::prelude::*;
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack, LoadedSectionPacks};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
-    CargoCanisterIdAllocator, Chart, ClockFreeze, DamageMarks, GoalRecord, JobMixType, JobPostings,
-    Jobs, NeutralizedCivilizations, PlayerSpaceshipMarker, PointRotationOutput, ShipInventory,
+    CargoCanisterIdAllocator, Chart, CivilizationStances, ClockFreeze, DamageMarks, GoalRecord,
+    JobMixType, JobPostings, Jobs, PlayerSpaceshipMarker, PointRotationOutput, ShipInventory,
     ShipInventoryStock, ShipRoleType,
 };
 use nova_scenario::prelude::{
     spaceship_scenario_object, CurrentScenario, GameStartRoles, GeneratedMarks, NovaEventWorld,
-    ScenarioConfig, SpaceshipConfig, SpentHandlers, StartKit, StartRole,
+    RoleGoal, RoleGoalType, ScenarioConfig, SpaceshipConfig, SpentHandlers, StartKit, StartRole,
 };
 use nova_ship::prelude::{
     ChaseCameraPlugin, ChaseZoom, ShipStyleConfig, SpaceshipCameraController,
@@ -52,7 +52,10 @@ pub fn fixture_roles() -> GameStartRoles {
             stock: ShipInventoryStock::default(),
         },
         jobs: JobMixType::Trade,
-        goal: None,
+        goal: RoleGoal {
+            title: "A goal".to_string(),
+            kind: RoleGoalType::OwnYard,
+        },
         lore: String::new(),
     }])
 }
@@ -158,7 +161,7 @@ pub fn arm_save_fixture(world: &mut World) -> Entity {
     world.init_resource::<Chart>();
     world.init_resource::<Jobs>();
     world.init_resource::<JobPostings>();
-    world.init_resource::<NeutralizedCivilizations>();
+    world.init_resource::<CivilizationStances>();
     world.init_resource::<GoalRecord>();
     world.insert_resource(CurrentSector(SectorCoord::ORIGIN));
     let player = world

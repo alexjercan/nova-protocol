@@ -794,12 +794,13 @@ name = "system_station_restock"
 path = "examples/systems/system_station_restock.rs"
 required-features = ["debug"]
 
-# Neutralizing a civilization's generated hull makes its living stations refuse
-# the player's dock with a HUD line, through a save and a Load, until the
-# refusal window of play time has passed.
+# Three hulls of one civilization neutralized inside the offence window turn it
+# Enemy: its station refuses the dock with a HUD line, its rival neighbour warms
+# to Ally, a remote civilization is untouched, the stances survive a save and a
+# Load, and the Enemy decays to Neutral once its window of play time passes.
 [[example]]
-name = "system_station_refusal"
-path = "examples/systems/system_station_refusal.rs"
+name = "system_civilization_stance"
+path = "examples/systems/system_civilization_stance.rs"
 required-features = ["debug"]
 
 # A whole hull bought from a living generated station's catalogue through the

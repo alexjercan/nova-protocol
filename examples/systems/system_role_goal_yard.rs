@@ -7,8 +7,11 @@
 //! Boots the shipped app (via [`editor_app`]), starts New Game on seed 10,
 //! picks `scavenger`, and waits for the armed world and its first save. It
 //! picks the nearest living Neutral station outside the spawn's cell, jumps
-//! beside it and berths and docks the way [`system_station_own`] does, then
-//! buys it through the Station pane's Buy station button.
+//! beside it and berths and docks the way [`system_station_own`] does. A
+//! Neutral station still refuses a sale, so the walk warms its civilization
+//! to Ally by merits ([`record_merit`], one per handed-in job,
+//! [`MERIT_STEP`] merits per step) the way a player does by handing in
+//! jobs, then buys it through the Station pane's Buy station button.
 //!
 //! DISCLOSED FIXTURE STATE: once bought, the player holds 100,000,000 cr, so
 //! the station is affordable (same fixture as [`system_station_own`]). Once
@@ -50,10 +53,11 @@ use clap::Parser;
 #[command(name = "system_role_goal_yard")]
 #[command(version = "1.0.0")]
 #[command(
-    about = "New Game on a pinned seed as the scavenger: buy a living Neutral station, stock a \
-             recipe of every part family into it, and watch the yard charter reach met, keep \
-             reading met off the frozen ledger past a cell freeze, show in the Map, and survive \
-             a save and a Load. Autopilot-only correctness range",
+    about = "New Game on a pinned seed as the scavenger: warm a living Neutral station's \
+             civilization to Ally by merits, buy it, stock a recipe of every part family into \
+             it, and watch the yard charter reach met, keep reading met off the frozen ledger \
+             past a cell freeze, show in the Map, and survive a save and a Load. Autopilot-only \
+             correctness range",
     long_about = None
 )]
 struct Cli;
@@ -302,6 +306,49 @@ mod walk {
 
     fn owned(world: &World, station: Entity) -> bool {
         world.get::<OwnedStationMarker>(station).is_some()
+    }
+
+    /// The chosen station reads the player's own side: the world layer's
+    /// `sync_civilization_sides` wrote its civilization's stance there.
+    fn station_is_ally() -> Arc<Predicate> {
+        when(|world| {
+            station_root(world)
+                .and_then(|station| world.get::<Allegiance>(station))
+                .is_some_and(|allegiance| *allegiance == Allegiance::Player)
+        })
+    }
+
+    /// Warm the chosen station's civilization to Ally the way a player
+    /// does: one merit per handed-in job, [`MERIT_STEP`] merits per step.
+    /// Nothing when it is Ally already.
+    ///
+    /// # Panics
+    ///
+    /// The civilization never reaches Ally within twice [`MERIT_STEP`]
+    /// merits.
+    fn warm_to_ally(world: &mut World) {
+        let station = station(world);
+        let civ = world
+            .get::<TraderMarket>(station)
+            .expect("role goal yard: the chosen station prices goods")
+            .civilization;
+        let now = world.resource::<WorldClock>().play_seconds;
+        let seeded = seeded_stance(&civ);
+        let mut stances = world.resource_mut::<CivilizationStances>();
+        let mut merits = 0;
+        while stances.effective(&civ, seeded, now) != StanceType::Ally {
+            record_merit(&mut stances, civ, now);
+            merits += 1;
+            assert!(
+                merits <= 2 * MERIT_STEP,
+                "role goal yard: '{}' never warmed to Ally",
+                civ.name()
+            );
+        }
+        info!(
+            "role goal yard: '{}' warmed to Ally after {merits} merit(s)",
+            civ.name()
+        );
     }
 
     fn world_shape(world: &World) -> (Meters, i32) {
@@ -1158,6 +1205,11 @@ mod walk {
             .step("role goal yard: set the fixture balance")
             .on_enter(set_fixture_credits)
             .until(frames(1))
+            .add()
+            .step("role goal yard: warm the station's civilization to Ally")
+            .on_enter(warm_to_ally)
+            .until(station_is_ally())
+            .deadline(SESSION_SECS)
             .add();
         let script = shoot_the_block(script, "to buy", STATION_BUY_BUTTON, BUY_SHOT).click_named(
             "role goal yard: buy the station",
