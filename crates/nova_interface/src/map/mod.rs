@@ -43,7 +43,7 @@ mod tests;
 
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
-use nova_gameplay::prelude::{Chart, Jobs};
+use nova_gameplay::prelude::{Chart, JobPostings, Jobs, WorldClock};
 
 pub use self::contacts::{MapContactCode, MapContactKind, MapContacts};
 pub(crate) use self::{app::*, chart::*, contacts::*, scene::*};
@@ -147,10 +147,13 @@ pub(crate) struct MapPanePlugin;
 impl Plugin for MapPanePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MapRuntime>();
-        // The open world feeds the chart and the jobs; a scene without one
-        // reads them empty.
+        // The open world feeds the chart, the jobs, the job postings and the
+        // play-time clock; a scene without one reads them empty and the clock
+        // at zero.
         app.init_resource::<Chart>();
         app.init_resource::<Jobs>();
+        app.init_resource::<JobPostings>();
+        app.init_resource::<WorldClock>();
         // Scene lifecycle runs unconditionally so it can tear down when the
         // interface closes; the interactive systems gate on the Map pane owning
         // the interface.

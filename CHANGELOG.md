@@ -48,10 +48,13 @@ does NOT get an entry. Another page that states a different rule is wrong.
   save.
 - **(breaking)** Generated stations and ships now price each item by their
   stock, cluster type and civilization; the Inventory pane shows the factors.
-  `PriceTable` content sets them. Save format 16.
+  `PriceTable` content sets them. Save format 17.
 - **(breaking)** A saved world now keeps a play-time clock that runs only
   while you fly unpaused, and each sector you leave records when it froze.
-  Restock reads it on a thaw. Save format 16.
+  Restock reads it on a thaw. Save format 17.
+- **(breaking)** An unaccepted station job offer expires after 20 min of play
+  and the slot posts a new one; a held job never expires. The Station pane
+  shows the time left. Save format 17.
 - **(breaking)** Generated traders restock toward spawn stock by play time
   their sector stood unloaded; neutralizing a civilization's hull refuses
   your dock at its stations for 15 min of play, shown on the HUD.

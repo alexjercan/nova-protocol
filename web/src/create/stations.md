@@ -440,17 +440,29 @@ one.
 
 ## Jobs
 
-<!-- Board: crates/nova_gameplay/src/jobs.rs (`station_job_board`). Posting, spawn and completion: crates/nova_world_base/src/jobs.rs. -->
+<!-- Board and postings: crates/nova_gameplay/src/jobs.rs (`station_job_board`, `JobPostings`). Renewal: crates/nova_world_base/src/jobs.rs. -->
 
 A living station that offers `Jobs` posts a board of three jobs
 (`JOBS_PER_BOARD`), put on its root as `JobBoard` once every sector in the
-cube of 27 around its own is live and settled. The board is a pure function
-of the world seed, the station's generated id, the cluster types of its
-sector, the start role's job mix and the field around the station, drawn off
-one `WyRand` seeded from FNV-64 of `(seed, "station_jobs", station id)`: the
-same station posts the same board in every process and after a Load, and
-nothing on a board changes. A job's id is the posting station's id and its
-board slot.
+cube of 27 around its own is live and settled. Each board slot carries a
+posting number and the play-time stamp it was posted at (`SlotPosting`, kept
+per station in the `JobPostings` session resource, saved with the world). A
+slot's offer is a pure function of the world seed, the station's generated
+id, the slot, the posting number, the cluster types of its sector, the start
+role's job mix and the field around the station, drawn off its own `WyRand`
+seeded from FNV-64 of `(seed, "station_jobs", station id, slot, posting)`:
+the same slot posts the same offer in every process and after a Load, for as
+long as it stays on that posting. A job's id is the posting station's id,
+its board slot and its posting number (`<station>#<slot>.<posting>`).
+
+A slot renews - moves to its next posting, stamped now - when its job is
+handed in, or when an unheld offer stands past the price table's
+`jobs.offer_seconds`: the bodies the old posting could have put in the world
+(a hauler, its raiders, a caller, each named
+`<station stem>_job_<slot>_<posting>_<part>`) are despawned first, then the
+slot posts again under the next posting number. A job you hold is pinned:
+its slot never renews under it, so a held job never expires. A dropped job
+(a lost hauler) stays posted under its own id until its own window passes.
 
 Each slot draws its kind by the start role's `jobs` mix (see
 [start roles](../start-roles/)), as weights over `Procure`, `Recover`,
@@ -489,8 +501,9 @@ candidate posts a `Procure` instead.
 
 The player accepts and hands in only while docked at a living station that
 offers `Jobs` (`plan_job_accept`, `plan_job_hand_in`). An accept is refused
-while the job is held or completed, and for a `Recover` or `Neutralize`
-whose target is gone. An accept raises `JobAccepted`: an `Escort` spawns its
+while the job is held or completed, while its offer's window has passed
+(`Expired`: the station no longer offers it), and for a `Recover` or
+`Neutralize` whose target is gone. An accept raises `JobAccepted`: an `Escort` spawns its
 hauler, under a `Move` helm order to its mark, and its raiders; a `Distress`
 spawns its caller. A job is DONE when the open world sees its completion
 over the shipped event kinds: `onundocked` naming the wreck with the stack
@@ -502,10 +515,13 @@ destroyed (`Distress`), `onneutralized` or `ondestroyed` naming the hull
 `Procure` is done with the goods in the hold), and a station balance that
 covers the reward; it removes a `Procure`'s goods, pays `OnCreditsChanged`
 with cause `JobReward` on both sides and lists the job completed. Held, done
-and completed jobs are the `Jobs` session resource, saved in the world
-state's `jobs` field (save format 13) and checked on load: a job held twice,
-held and completed, done but not held, with a zero count or reward, or
-naming an item the catalog lacks refuses the world. A frozen sector keeps a
+and completed jobs are the `Jobs` session resource, and every board's slot
+postings are the `JobPostings` session resource; both save in the world
+state's `jobs` and `postings` fields (save format 17) and are checked on
+load: a job held twice, held and completed, done but not held, with a zero
+count or reward, or naming an item the catalog lacks refuses the world, as
+does a board with the wrong slot count, a posting stamp ahead of the clock,
+or a held job that is not its slot's current posting. A frozen sector keeps a
 spawned hauler, caller or raider as any ship, but not the hauler's helm
 order: a hauler left mid-leg stands where it was thawed. Authored `Station`
 content with `Jobs` in its services posts no board: only generated stations

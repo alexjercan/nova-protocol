@@ -12,7 +12,7 @@ use bevy::prelude::*;
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack, LoadedSectionPacks};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
-    CargoCanisterIdAllocator, Chart, ClockFreeze, DamageMarks, JobMixType, Jobs,
+    CargoCanisterIdAllocator, Chart, ClockFreeze, DamageMarks, JobMixType, JobPostings, Jobs,
     NeutralizedCivilizations, PlayerSpaceshipMarker, PointRotationOutput, ShipInventory,
     ShipInventoryStock, ShipRoleType,
 };
@@ -156,6 +156,7 @@ pub fn arm_save_fixture(world: &mut World) -> Entity {
     world.init_resource::<GeneratedMarks>();
     world.init_resource::<Chart>();
     world.init_resource::<Jobs>();
+    world.init_resource::<JobPostings>();
     world.init_resource::<NeutralizedCivilizations>();
     world.insert_resource(CurrentSector(SectorCoord::ORIGIN));
     let player = world

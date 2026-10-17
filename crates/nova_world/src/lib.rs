@@ -121,11 +121,11 @@
 //!   A record never holds a transient (a projectile or debris); retirement
 //!   despawns it. [`NovaWorldSystems::Cleanup`] drops the records with the
 //!   work. A saved world writes the ledger to disk through `nova_world_base`.
-//! - [`WorldClock`] counts the play seconds the virtual clock ran while a
-//!   world was armed. A body freezes with the clock's reading, and a thawed
-//!   body carries [`ThawedAfter`], the play time it stood frozen, for its
-//!   owner's catch-up rule. [`NovaWorldSystems::Cleanup`] resets the clock
-//!   with the records; a saved world carries it.
+//! - the clock is `nova_gameplay`'s [`WorldClock`], advanced by this plugin's
+//!   [`NovaWorldSystems::Observe`] stage and reset with the records in
+//!   [`NovaWorldSystems::Cleanup`]. A body freezes with the clock's reading,
+//!   and a thawed body carries [`ThawedAfter`], the play time it stood
+//!   frozen, for its owner's catch-up rule. `nova_world_base` saves it.
 //! - the plugin owns the WORK. A pending [`SectorJob`] and a prepared
 //!   [`ReadySectors`] payload are not scenario objects and the scenario sweep
 //!   cannot see them, so [`NovaWorldSystems::Cleanup`] drops them the moment
@@ -181,10 +181,10 @@ use std::{any::type_name, fmt::Debug, marker::PhantomData};
 use bevy::{ecs::change_detection::CheckChangeTicks, prelude::*};
 use nova_events::prelude::Meters;
 pub use nova_events::prelude::{GeneratedBodyId, SectorCoord};
+pub use nova_gameplay::prelude::{advance_world_clock, WorldClock};
 use nova_gameplay::prelude::{Fnv32, SeedStream};
 use nova_scenario::prelude::{scenario_is_live, AsteroidKindId, CurrentScenario, ShipDesignError};
 
-mod clock;
 mod frozen;
 mod generation;
 mod streaming;
@@ -193,10 +193,10 @@ mod streaming;
 mod tests;
 
 pub use crate::{
-    clock::{advance_world_clock, ThawedAfter, WorldClock},
     frozen::{
         adopt_moving_bodies, freeze_body, snapshot_sectors, thaw_record, DockPolicy, FrozenBody,
         FrozenBodyType, FrozenSector, FrozenSectors, PreparedFrozenBody, SectorSnapshotError,
+        ThawedAfter,
     },
     generation::{
         bodies_clear, generate_sector, prepare_sector, sector_id, validate_manifest,
@@ -221,13 +221,13 @@ pub mod prelude {
         GeneratedBodyId, NovaWorldPlugin, NovaWorldSystems, PreparedSector, SectorAsteroid,
         SectorCoord, SectorDescription, SectorFault, SectorGenerationInput, SectorGenerator,
         SectorManifest, SectorPlanet, SectorShip, SectorShipConditionType, SectorStation,
-        WorldConfig, WorldGeometry, ACTIVE_WINDOW_SECTORS_MAX, SECTOR_SHIP_CLEARANCE_MAX,
+        WorldClock, WorldConfig, WorldGeometry, ACTIVE_WINDOW_SECTORS_MAX,
+        SECTOR_SHIP_CLEARANCE_MAX,
     };
     pub use crate::{
-        clock::{ThawedAfter, WorldClock},
         frozen::{
             freeze_body, snapshot_sectors, thaw_record, DockPolicy, FrozenBody, FrozenBodyType,
-            FrozenSector, FrozenSectors, PreparedFrozenBody, SectorSnapshotError,
+            FrozenSector, FrozenSectors, PreparedFrozenBody, SectorSnapshotError, ThawedAfter,
         },
         streaming::{
             desired_sectors, live_sectors, CurrentSector, PendingSectorShip, PendingSectorStation,

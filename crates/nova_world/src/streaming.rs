@@ -36,14 +36,13 @@ use nova_ship::prelude::GameSections;
 
 use crate::{
     bodies_clear,
-    clock::WorldClock,
     frozen::{
         freeze_body, hold_unsettled, thaw_record, DockPolicy, FrozenBody, FrozenSector,
         FrozenSectors, PersistentBody, SettlingBodies,
     },
     generation::{prepare_cell, PreparedBodies, PreparedSectorAsteroid, PreparedSectorPlanet},
     PreparedSector, SectorCoord, SectorFault, SectorGenerator, SectorShip, SectorShipConditionType,
-    SectorStation, WorldConfig,
+    SectorStation, WorldClock, WorldConfig,
 };
 
 /// Marks the entity the desired set is centred on.

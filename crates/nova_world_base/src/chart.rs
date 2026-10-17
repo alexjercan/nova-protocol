@@ -11,24 +11,25 @@
 use bevy::prelude::*;
 use nova_events::prelude::GeneratedBodyId;
 use nova_gameplay::prelude::{
-    Chart, ChartSectorEdge, DerelictShipMarker, Jobs, NeutralizedCivilizations, OwnedStationMarker,
-    PlayerSpaceshipMarker, ShipInventory, StationMarker, StationServices, StationStorage,
-    StationSummary,
+    Chart, ChartSectorEdge, DerelictShipMarker, JobPostings, Jobs, NeutralizedCivilizations,
+    OwnedStationMarker, PlayerSpaceshipMarker, ShipInventory, StationMarker, StationServices,
+    StationStorage, StationSummary,
 };
 use nova_ship::prelude::{DockedShip, DockingConnection, SensorContacts};
 use nova_world::prelude::{CurrentSector, SectorClusterTypes, SectorRoot, WorldConfig};
 
 use crate::NovaLayeredWorld;
 
-/// Forget the chart, the jobs and the neutralized civilizations on every
-/// frame `Cleanup` drops the frozen ledger, and keep [`ChartSectorEdge`] on
-/// the armed world's edge.
+/// Forget the chart, the jobs, the job postings and the neutralized
+/// civilizations on every frame `Cleanup` drops the frozen ledger, and keep
+/// [`ChartSectorEdge`] on the armed world's edge.
 pub(crate) fn clear_chart(
     mut commands: Commands,
     config: Option<Res<WorldConfig<NovaLayeredWorld>>>,
     edge: Option<Res<ChartSectorEdge>>,
     mut chart: ResMut<Chart>,
     mut jobs: ResMut<Jobs>,
+    mut postings: ResMut<JobPostings>,
     mut neutralized: ResMut<NeutralizedCivilizations>,
 ) {
     if !chart.is_empty() {
@@ -36,6 +37,9 @@ pub(crate) fn clear_chart(
     }
     if !jobs.is_empty() {
         jobs.clear();
+    }
+    if !postings.is_empty() {
+        postings.clear();
     }
     if !neutralized.is_empty() {
         neutralized.clear();

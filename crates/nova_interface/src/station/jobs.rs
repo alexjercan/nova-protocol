@@ -3,15 +3,20 @@
 //!
 //! While the ship is docked at a living station that offers Jobs, the pane
 //! lists the station's [`JobBoard`] less the jobs the player holds or
-//! completed, each with its title, its reward and an Accept button, and
+//! completed, each with its title, its reward, the play time its offer has
+//! left ([`offer_deadline_text`], off the slot's [`JobPostings`] stamp, the
+//! price table's window and the [`WorldClock`]) and an Accept button, and
 //! under it every job the player holds, from any station, with a Hand in
 //! button while this station is its target and the job is done, by the
 //! goods in the hold for a procurement and by the world for a located job,
-//! else the reason. A click raises a [`JobAcceptCommand`] or a
-//! [`JobHandInCommand`]; [`apply_station_job_commands`] plans it with
-//! [`plan_job_accept`] or [`plan_job_hand_in`], moves the goods and the
-//! credits, moves the job in [`Jobs`] and raises [`JobAccepted`] so the open
-//! world puts the job's bodies in place.
+//! else the reason. An offer whose window passed, or whose slot renewed
+//! since the board was read, reads `expired` and refuses the accept until
+//! the open world posts the slot's new offer. A click raises a
+//! [`JobAcceptCommand`] or a [`JobHandInCommand`];
+//! [`apply_station_job_commands`] plans it with [`plan_job_accept`] or
+//! [`plan_job_hand_in`], moves the goods and the credits, moves the job in
+//! [`Jobs`] and raises [`JobAccepted`] so the open world puts the job's
+//! bodies in place.
 //!
 //! Touch this module when changing what the lists show or what a hand-in
 //! moves.
@@ -108,13 +113,11 @@ fn accept_refusal_text(refusal: &JobAcceptRefusalType) -> String {
         JobAcceptRefusalType::NotPostedHere => "accept: this station did not post it".to_string(),
         JobAcceptRefusalType::AlreadyHeld => "accept: you hold it already".to_string(),
         JobAcceptRefusalType::AlreadyDone => "accept: you completed it already".to_string(),
+        JobAcceptRefusalType::Expired => "accept: this offer expired".to_string(),
         JobAcceptRefusalType::TargetGone => "accept: its target is gone".to_string(),
     }
 }
 
-/// Whether the body a recovery or a neutralize names still qualifies: the
-/// wreck carries the whole stack, or the hull stands un-neutralized. Read
-/// for those two kinds only; every other kind reads `true`.
 /// The bodies a located job can name, read where they stand.
 type JobTargets<'w, 's> = Query<
     'w,
@@ -126,6 +129,9 @@ type JobTargets<'w, 's> = Query<
     ),
 >;
 
+/// Whether the body a recovery or a neutralize names still qualifies: the
+/// wreck carries the whole stack, or the hull stands un-neutralized. Read
+/// for those two kinds only; every other kind reads `true`.
 fn target_standing(job: &Job, q_targets: &JobTargets) -> bool {
     let standing = |body: &GeneratedBodyId| q_targets.iter().find(|(id, _, _)| *id == body);
     match &job.kind {
@@ -138,6 +144,25 @@ fn target_standing(job: &Job, q_targets: &JobTargets) -> bool {
             standing(hull).is_some_and(|(_, _, neutralized)| !neutralized)
         }
         JobType::Procure { .. } | JobType::Escort { .. } | JobType::Distress { .. } => true,
+    }
+}
+
+/// The posted offer `job`'s standing on the clock: whether it expired, and
+/// what the row says about its deadline. An offer whose slot is no longer
+/// on its posting has expired: the open world renewed the slot and its new
+/// board lands after this read.
+fn offer_standing(
+    job: &Job,
+    postings: &JobPostings,
+    rule: JobOfferRule,
+    now: f64,
+) -> (bool, String) {
+    match postings.slot(&job.id) {
+        Some(slot) => (
+            slot.is_expired(rule, now),
+            offer_deadline_text(slot.remaining(rule, now)),
+        ),
+        None => (true, offer_deadline_text(0.0)),
     }
 }
 
@@ -201,16 +226,20 @@ fn job_row() -> Node {
 }
 
 /// Show the job lists while the jobs gate holds or the player holds a job,
-/// and respawn their rows when a job, a reward or a refusal changes.
+/// and respawn their rows when a job, a reward, a deadline or a refusal
+/// changes.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one system reading the board, the jobs, the site, the targets, the hold, both balances and the lists"
+    reason = "one system reading the board, the jobs, the postings, the clock, the table, the site, the targets, the hold, both balances and the lists"
 )]
 pub(crate) fn update_station_job_lists(
     mut commands: Commands,
     items: Option<Res<GameItems>>,
+    table: Option<Res<GamePriceTable>>,
     chart: Res<Chart>,
     jobs: Res<Jobs>,
+    postings: Res<JobPostings>,
+    clock: Res<WorldClock>,
     site: StationSite,
     q_ids: Query<&GeneratedBodyId>,
     q_targets: JobTargets,
@@ -223,7 +252,7 @@ pub(crate) fn update_station_job_lists(
     let Ok(mut list) = q_list.single_mut() else {
         return;
     };
-    let Some(items) = items else {
+    let (Some(items), Some(table)) = (items, table) else {
         return;
     };
     let partner = jobs_partner(&site, &q_ids);
@@ -241,18 +270,23 @@ pub(crate) fn update_station_job_lists(
                 .0
                 .iter()
                 .filter(|job| !jobs.holds(&job.id) && !jobs.is_completed(&job.id))
-                .map(|job| JobRow {
-                    id: job.id.clone(),
-                    title: job.title(&items),
-                    detail: format!("Reward {}", cr_text(job.reward_cr)),
-                    refusal: plan_job_accept(
-                        job,
-                        Some(station_id),
-                        &jobs,
-                        target_standing(job, &q_targets),
-                    )
-                    .err()
-                    .map(|refusal| accept_refusal_text(&refusal)),
+                .map(|job| {
+                    let (expired, deadline) =
+                        offer_standing(job, &postings, table.0.jobs, clock.play_seconds);
+                    JobRow {
+                        id: job.id.clone(),
+                        title: job.title(&items),
+                        detail: format!("Reward {}, {deadline}", cr_text(job.reward_cr)),
+                        refusal: plan_job_accept(
+                            job,
+                            Some(station_id),
+                            &jobs,
+                            expired,
+                            target_standing(job, &q_targets),
+                        )
+                        .err()
+                        .map(|refusal| accept_refusal_text(&refusal)),
+                    }
                 })
                 .collect();
         }
@@ -360,16 +394,17 @@ fn on_job_button(
 /// the job and raises [`JobAccepted`]; a hand-in takes a procurement's goods
 /// out of the hold, pays the reward with `JobReward` credit changes on both
 /// sides and completes the job. A refusal changes nothing and shows its
-/// reason on the note line.
+/// reason on the note line. An accept of a job the docked station's board
+/// no longer posts is refused as expired: the slot renewed between the click
+/// and this frame.
 ///
 /// # Panics
 ///
-/// On an accept of a job the docked station's board does not post, or a
-/// hand-in of a job the player does not hold: the lists only show a button
-/// for a job they list.
+/// On a hand-in of a job the player does not hold: the list only shows a
+/// button for a job it lists.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one system reading both commands, the board, the jobs, the site, the targets, the hold and both balances"
+    reason = "one system reading both commands, the board, the jobs, the postings, the clock, the table, the site, the targets, the hold and both balances"
 )]
 #[expect(
     clippy::type_complexity,
@@ -381,8 +416,11 @@ pub(crate) fn apply_station_job_commands(
     mut hand_ins: MessageReader<JobHandInCommand>,
     mut runtime: ResMut<StationRuntime>,
     items: Option<Res<GameItems>>,
+    table: Option<Res<GamePriceTable>>,
     chart: Res<Chart>,
     mut jobs: ResMut<Jobs>,
+    postings: Res<JobPostings>,
+    clock: Res<WorldClock>,
     site: StationSite,
     q_ids: Query<&GeneratedBodyId>,
     q_boards: Query<&JobBoard>,
@@ -395,7 +433,7 @@ pub(crate) fn apply_station_job_commands(
     if accepts.is_empty() && hand_ins.is_empty() {
         return;
     }
-    let Some(items) = items else {
+    let (Some(items), Some(table)) = (items, table) else {
         accepts.clear();
         hand_ins.clear();
         return;
@@ -412,16 +450,24 @@ pub(crate) fn apply_station_job_commands(
             runtime.say(accept_refusal_text(&JobAcceptRefusalType::NotDocked));
             continue;
         };
-        let board = q_boards
+        let Some(job) = q_boards
             .get(*station)
-            .unwrap_or_else(|_| panic!("accept: the docked station {station:?} posts no board"));
-        let job = board
-            .job(&command.id)
-            .unwrap_or_else(|| panic!("accept: the docked station posts no job '{}'", command.id));
+            .ok()
+            .and_then(|board| board.job(&command.id))
+        else {
+            info!(
+                "nova_interface: the accept of '{}' finds it off the board: expired",
+                command.id
+            );
+            runtime.say(accept_refusal_text(&JobAcceptRefusalType::Expired));
+            continue;
+        };
+        let (expired, _) = offer_standing(job, &postings, table.0.jobs, clock.play_seconds);
         match plan_job_accept(
             job,
             Some(station_id),
             &jobs,
+            expired,
             target_standing(job, &q_holds.p0()),
         ) {
             Ok(()) => {

@@ -31,8 +31,10 @@
 //! It also carries the player's [`Chart`]: the cells the player entered, the
 //! stations and wrecks found, and each station's last-seen summary, whose
 //! item ids pass the same check as every saved hold, and the player's
-//! [`Jobs`]: the jobs held and the ids completed, checked the same way, and
-//! the [`WorldClock`], the play time every frozen body's stamp reads against.
+//! [`Jobs`]: the jobs held and the ids completed, checked the same way, the
+//! [`JobPostings`]: each station board's slot postings and their stamps,
+//! and the [`WorldClock`], the play time every frozen body's stamp and every
+//! posting reads against.
 
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
@@ -45,7 +47,7 @@ use bevy::prelude::*;
 use nova_assets::{prelude::LoadedSectionPacks, storage::write_atomic};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
-    kg_text, CargoCanisterRuntimeId, Chart, GameItems, ItemDesignId, Jobs,
+    kg_text, CargoCanisterRuntimeId, Chart, GameItems, ItemDesignId, JobPostings, Jobs,
     NeutralizedCivilizations, SavedBodyRef, SavedOwner, SavedSectionRef, SavedTargetRef,
     CARGO_CANISTER_MAX_MASS_G,
 };
@@ -78,7 +80,7 @@ pub use transients::{
 /// nobody held live is recorded as an arrival there. Every cell the player
 /// never visited regenerates from the seed on Load, so another generator
 /// would change it silently.
-pub const WORLD_SAVE_FORMAT: u32 = 16;
+pub const WORLD_SAVE_FORMAT: u32 = 17;
 
 /// The most characters a world name has, after trimming.
 const WORLD_NAME_MAX: usize = 32;
@@ -141,8 +143,12 @@ pub struct WorldSaveState {
     pub chart: Chart,
     /// The jobs the player holds, has done and has completed.
     pub jobs: Jobs,
+    /// Every posted station board's slot postings and their play-time
+    /// stamps.
+    pub postings: JobPostings,
     /// The play-time clock: the seconds of unpaused, armed play the world
-    /// has seen. Every frozen body's `frozen_at` reads against it.
+    /// has seen. Every frozen body's `frozen_at` and every posting's stamp
+    /// reads against it.
     pub clock: WorldClock,
     /// The civilizations whose hull the player neutralized, each with the
     /// clock reading of the latest, whose stations refuse the player.
@@ -438,6 +444,10 @@ fn read_state(
     state
         .jobs
         .validate()
+        .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
+    state
+        .postings
+        .validate(state.clock.play_seconds, &state.jobs)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     state
         .neutralized

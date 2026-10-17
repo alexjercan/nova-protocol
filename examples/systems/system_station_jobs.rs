@@ -11,7 +11,15 @@
 //! accepts the lightest procurement, undocks, reads the held job in the
 //! Map's chart view, leaves to the main menu, reads the leave save off disk
 //! through [`open_world`], loads the world again through the Load screen,
-//! docks again, fills the hold with the goods and hands the job in.
+//! docks again, bumps the play-time clock past the offer window and reads
+//! the two unheld slots renew while the held slot and job stand pinned, then
+//! undocks, retires the station's cell, bumps the clock again and jumps back
+//! to read the thaw renew the same two slots and despawn their old postings'
+//! bodies, with the held job still pinned. It docks once more, fills the
+//! hold with the goods, hands the job in and reads the hand-in's slot renew
+//! under a new posting. The pinned job is the procurement: it has no body in
+//! the world to lose while the player is away (an escort's hauler falls to
+//! its raiders unescorted, which drops the job by design).
 //!
 //! | # | marker | claim |
 //! | - | - | - |
@@ -20,17 +28,23 @@
 //! | 3 | `outcome: the chart view marks the held job` | undocked, the chart view labels the job `JOB-1`; a click shows HELD JOB, its title and its reward |
 //! | 4 | `outcome: the leave save holds the job` | the leave save, read with [`open_world`], holds the one job and no completed id |
 //! | 5 | `outcome: a loaded world restores the job and the board` | after the Load the job is held again and the station posts the same board |
-//! | 6 | `outcome: a hand-in pays the reward and completes the job` | docked again with the goods, the Hand in click takes the goods, pays the reward from the station and lists the job completed |
+//! | 6 | `outcome: a passed window renews the unheld offers and pins the held job` | docked again, once the clock passes the offer window the two unheld slots renew, stamped at the clock, and the tab lists them with their deadline, while the held slot and job stand unchanged |
+//! | 7 | `outcome: a thaw renews only the unheld offers` | after the station's cell retires and thaws with the clock again past the offer window, the two unheld slots renew and their old postings' bodies are gone, while the held slot still carries the pinned job |
+//! | 8 | `outcome: a hand-in pays the reward and completes the job` | docked a third time with the goods, the Hand in click takes the goods, pays the reward from the station and lists the job completed |
+//! | 9 | `outcome: a hand-in renews the slot under a new posting` | the hand-in's slot posts a new job one posting above the old, the other two slots hold, and the tab lists the new offer with its deadline |
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
 //! NOVA_AUTOPILOT=1 NOVA_AUTOPILOT_DEADLINE=1800 \
 //!   cargo run --example system_station_jobs --features debug
-//! # look for: `station jobs: PASS the hand-in paid`,
+//! # look for: `station jobs: PASS the thaw renewed`,
+//! #           `station jobs: PASS the hand-in paid`,
+//! #           `station jobs: PASS the hand-in renewed`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
-//! `NOVA_CAPTURE=1` also writes `station-jobs-board.png` of the Station tab
-//! and `station-jobs-map.png` of the chart view.
+//! `NOVA_CAPTURE=1` also writes `station-jobs-board.png` of the Station tab,
+//! `station-jobs-map.png` of the chart view and `station-jobs-renewed.png`
+//! of the Station tab after the passed-window renewal.
 
 use bevy::prelude::*;
 use clap::Parser;
@@ -127,6 +141,7 @@ mod walk {
     /// The frames the capture path writes.
     const BOARD_SHOT: &str = "station-jobs-board.png";
     const MAP_SHOT: &str = "station-jobs-map.png";
+    const RENEWED_SHOT: &str = "station-jobs-renewed.png";
 
     /// How far from the station the player parks before the berth.
     const PARK_DISTANCE: Meters = Meters(2_000.0);
@@ -151,14 +166,20 @@ mod walk {
         id: Option<GeneratedBodyId>,
         /// The cell it stands in.
         cell: Option<SectorCoord>,
+        /// The cell the retire jump lands in, past the window around `cell`.
+        away: Option<SectorCoord>,
         /// Where it stood when chosen.
         position: Option<Meters3>,
-        /// The board as the station posted it.
+        /// The board as the station posted it, updated each time a renewal
+        /// is asserted so the next claim reads the board it renewed from.
         board: Vec<Job>,
         /// The job the walk accepts, and its row on the posted list.
         job: Option<(usize, Job)>,
         /// The player's and the station's balances before the hand-in.
         before_cr: Option<(u32, u32)>,
+        /// The play seconds the last clock bump landed on: a renewal it
+        /// causes stamps no earlier.
+        bumped_to: Option<f64>,
     }
 
     pub(super) struct JobWatchPlugin;
@@ -322,6 +343,18 @@ mod walk {
             .iter(world)
             .map(|text| text.0.clone())
             .collect()
+    }
+
+    /// Whether a shown text is the posted row's detail `Reward <n> cr,
+    /// <deadline>` for `reward_cr`. The pane groups thousands with commas,
+    /// so the digits are compared with the commas stripped.
+    fn reward_detail_shown(shown: &[String], reward_cr: u32, deadline: &str) -> bool {
+        let tail = format!(" cr, {deadline}");
+        shown.iter().any(|text| {
+            text.strip_prefix("Reward ")
+                .and_then(|rest| rest.strip_suffix(&tail))
+                .is_some_and(|amount| amount.replace(',', "") == reward_cr.to_string())
+        })
     }
 
     fn a_text_reads(check: impl Fn(&str) -> bool + Send + Sync + 'static) -> Arc<Predicate> {
@@ -497,7 +530,7 @@ mod walk {
 
     /// Pick the nearest living, non-Enemy station outside the spawn's cell.
     fn choose_the_station(world: &mut World) {
-        let (edge, _) = world_shape(world);
+        let (edge, radius) = world_shape(world);
         let mut stations: Vec<(f32, GeneratedBodyId, Meters3)> = world
             .query_filtered::<(
                 &GeneratedBodyId,
@@ -525,10 +558,26 @@ mod walk {
             );
         };
         let cell = SectorCoord::containing(position, edge);
+        // The retire cell: past the far face along the station's farthest
+        // axis, as `system_station_restock` chooses it.
+        let axes = [cell.x, cell.y, cell.z];
+        let (axis, _) = axes
+            .iter()
+            .enumerate()
+            .max_by_key(|(_, index)| index.abs())
+            .expect("three axes");
+        let mut away = [0; 3];
+        away[axis] = axes[axis] - axes[axis].signum() * (radius + 1);
+        let away = SectorCoord::new(away[0], away[1], away[2]);
+        assert!(
+            !desired_sectors(away, radius).contains(&cell),
+            "station jobs: the window around {away} leaves {cell} out"
+        );
         info!("station jobs: chose '{id}' in cell {cell}, {distance:.0} m out");
         let mut watch = world.resource_mut::<JobWatch>();
         watch.id = Some(id);
         watch.cell = Some(cell);
+        watch.away = Some(away);
         watch.position = Some(position);
     }
 
@@ -717,9 +766,10 @@ mod walk {
         info!("station jobs: the chart view shows JOB-1: {title}, {reward}");
     }
 
-    /// Claim 4: the leave save holds the job.
+    /// Claim 4: the leave save holds the job and its slot's first posting.
     fn assert_the_saved_jobs(world: &mut World) {
         let (_, job) = the_job(world);
+        let station = station_id(world);
         let root = nova_assets::storage::worlds_root()
             .expect("station jobs: the sandboxed CONFIG_ROOT gives a worlds root");
         let slug = world_slug(WORLD_NAME).expect("the world name has a slug");
@@ -741,6 +791,23 @@ mod walk {
             state.jobs.completed().is_empty(),
             "station jobs: the save lists nothing completed"
         );
+        let board = state
+            .postings
+            .board(&station)
+            .expect("station jobs: the save holds the station's postings");
+        assert_eq!(
+            board.len(),
+            JOBS_PER_BOARD as usize,
+            "station jobs: the save holds {JOBS_PER_BOARD} slot postings"
+        );
+        assert!(
+            board.iter().all(|slot| slot.posting == 0),
+            "station jobs: every slot still stands on its first posting: {board:?}"
+        );
+        assert!(
+            state.postings.slot(&job.id).is_some(),
+            "station jobs: the save holds the accepted job's slot posting"
+        );
         nova_probe::probe_marker(
             world,
             "outcome: the leave save holds the job",
@@ -749,6 +816,7 @@ mod walk {
                 "generation": header.generation,
                 "format": header.format,
                 "held": state.jobs.held().len(),
+                "postings": JOBS_PER_BOARD,
             }),
         );
         info!(
@@ -820,7 +888,7 @@ mod walk {
         );
     }
 
-    /// Claim 6: the hand-in took the goods, paid the reward and completed
+    /// Claim 8: the hand-in took the goods, paid the reward and completed
     /// the job.
     fn assert_the_hand_in(world: &mut World) {
         let (_, job) = the_job(world);
@@ -878,6 +946,303 @@ mod walk {
             "station jobs: PASS the hand-in paid {} cr for {count} {item}",
             job.reward_cr
         );
+    }
+
+    /// Advance once the hand-in's slot carries a job one posting above the
+    /// one the walk accepted.
+    fn the_slot_renews() -> Arc<Predicate> {
+        when(|world| {
+            let (_, job) = the_job(world);
+            station_root(world).is_some_and(|station| {
+                world.get::<JobBoard>(station).is_some_and(|board| {
+                    board
+                        .0
+                        .get(job.id.slot as usize)
+                        .is_some_and(|posted| posted.id.posting == job.id.posting + 1)
+                })
+            })
+        })
+    }
+
+    /// Advance once every board slot but the held one carries a posting one
+    /// above `JobWatch.board`'s: the renewal a passed offer window or a
+    /// thaw gives the slots the player does not hold.
+    fn unheld_slots_renewed() -> Arc<Predicate> {
+        when(|world| {
+            let before = world.resource::<JobWatch>().board.clone();
+            let held_slot = world
+                .resource::<Jobs>()
+                .held()
+                .first()
+                .map(|job| job.id.slot);
+            station_root(world).is_some_and(|station| {
+                world.get::<JobBoard>(station).is_some_and(|board| {
+                    board.0.len() == before.len()
+                        && board.0.iter().enumerate().all(|(slot, posted)| {
+                            held_slot == Some(slot as u32)
+                                || posted.id.posting == before[slot].id.posting + 1
+                        })
+                })
+            })
+        })
+    }
+
+    /// Claim 9: the hand-in's slot renews under a new posting; the other
+    /// two stand unchanged.
+    fn assert_the_renewed_slot(world: &mut World) {
+        let (_, job) = the_job(world);
+        let before = world.resource::<JobWatch>().board.clone();
+        let items = world.resource::<GameItems>().clone();
+        let rule = world.resource::<GamePriceTable>().0.jobs;
+        let clock = world.resource::<WorldClock>().play_seconds;
+        let station = station(world);
+        let board = world
+            .get::<JobBoard>(station)
+            .expect("station jobs: the station posts a board")
+            .0
+            .clone();
+        assert_eq!(
+            board.len(),
+            JOBS_PER_BOARD as usize,
+            "station jobs: the renewed board still posts {JOBS_PER_BOARD} jobs"
+        );
+        for (slot, old) in before.iter().enumerate() {
+            if slot as u32 == job.id.slot {
+                continue;
+            }
+            assert_eq!(
+                &board[slot], old,
+                "station jobs: slot {slot} is unchanged by the hand-in"
+            );
+        }
+        let new = board[job.id.slot as usize].clone();
+        let expected = JobId {
+            station: job.id.station.clone(),
+            slot: job.id.slot,
+            posting: job.id.posting + 1,
+        };
+        assert_eq!(
+            new.id, expected,
+            "station jobs: the renewed slot posts under the next posting"
+        );
+        let posting = world
+            .resource::<JobPostings>()
+            .slot(&new.id)
+            .copied()
+            .unwrap_or_else(|| panic!("station jobs: JobPostings records '{}'", new.id));
+        assert!(
+            posting.posted_at <= clock,
+            "station jobs: the renewal stamps no later than the clock: {} > {clock}",
+            posting.posted_at
+        );
+        let remaining = posting.remaining(rule, clock);
+        assert!(
+            remaining > 0.0,
+            "station jobs: the renewed offer has time left: {remaining}"
+        );
+        let title = new.title(&items);
+        let deadline = offer_deadline_text(remaining);
+        let shown = texts(world);
+        assert!(
+            shown.contains(&title),
+            "station jobs: the Station tab lists '{title}': {shown:?}"
+        );
+        assert!(
+            reward_detail_shown(&shown, new.reward_cr, &deadline),
+            "station jobs: the Station tab reads 'Reward {} cr, {deadline}': {shown:?}",
+            new.reward_cr
+        );
+        nova_probe::probe_marker(
+            world,
+            "outcome: a hand-in renews the slot under a new posting",
+            serde_json::json!({
+                "old": job.id.to_string(),
+                "new": new.id.to_string(),
+                "title": title,
+                "deadline": deadline,
+            }),
+        );
+        info!(
+            "station jobs: PASS the hand-in renewed slot {}: '{}' -> '{}' ({title}), {deadline}",
+            job.id.slot, job.id, new.id
+        );
+    }
+
+    /// DISCLOSED FIXTURE STATE: the Station pane holds the game paused, so
+    /// nothing but this step moves play time across the offer window.
+    fn bump_the_clock_past_offer(world: &mut World) {
+        let offer_seconds = world.resource::<GamePriceTable>().0.jobs.offer_seconds;
+        let mut clock = world.resource_mut::<WorldClock>();
+        clock.play_seconds += f64::from(offer_seconds) + 1.0;
+        let bumped_to = clock.play_seconds;
+        info!(
+            "station jobs: the clock advances past the {offer_seconds:.0} s offer window, to \
+             {bumped_to:.0} s of play"
+        );
+        world.resource_mut::<JobWatch>().bumped_to = Some(bumped_to);
+    }
+
+    /// Claim 6: a passed offer window renews the two unheld slots and pins
+    /// the held job's slot.
+    fn assert_the_passed_window(world: &mut World) {
+        let (_, held) = the_job(world);
+        let before = world.resource::<JobWatch>().board.clone();
+        let bumped_to = world.resource::<JobWatch>().bumped_to.expect("bumped");
+        let items = world.resource::<GameItems>().clone();
+        let rule = world.resource::<GamePriceTable>().0.jobs;
+        let clock = world.resource::<WorldClock>().play_seconds;
+        let jobs = world.resource::<Jobs>().clone();
+        assert_eq!(
+            jobs.held(),
+            &[held.clone()],
+            "station jobs: the walked job is the one held"
+        );
+        let station = station(world);
+        let board = world
+            .get::<JobBoard>(station)
+            .expect("station jobs: the station posts a board")
+            .0
+            .clone();
+        assert_eq!(
+            board[held.id.slot as usize], held,
+            "station jobs: the held slot keeps its job"
+        );
+        let deadline = offer_deadline_text(f64::from(rule.offer_seconds));
+        let mut renewed_ids = Vec::new();
+        for (slot, old) in before.iter().enumerate() {
+            if slot as u32 == held.id.slot {
+                continue;
+            }
+            let new = board[slot].clone();
+            assert_eq!(
+                new.id.posting,
+                old.id.posting + 1,
+                "station jobs: slot {slot} renews once past the offer window"
+            );
+            let posting = world
+                .resource::<JobPostings>()
+                .slot(&new.id)
+                .copied()
+                .unwrap_or_else(|| panic!("station jobs: JobPostings records '{}'", new.id));
+            assert!(
+                (bumped_to..=clock).contains(&posting.posted_at),
+                "station jobs: slot {slot} stamps between the bump ({bumped_to}) and the clock \
+                 ({clock}): {}",
+                posting.posted_at
+            );
+            let title = new.title(&items);
+            let shown = texts(world);
+            assert!(
+                shown.contains(&title),
+                "station jobs: the Station tab lists '{title}': {shown:?}"
+            );
+            assert!(
+                reward_detail_shown(&shown, new.reward_cr, &deadline),
+                "station jobs: the Station tab reads 'Reward {} cr, {deadline}': {shown:?}",
+                new.reward_cr
+            );
+            renewed_ids.push(new.id);
+        }
+        let held_title = held.title(&items);
+        let shown = texts(world);
+        assert_eq!(
+            shown.iter().filter(|text| **text == held_title).count(),
+            1,
+            "station jobs: the held title is listed once, under Your jobs: {shown:?}"
+        );
+        nova_probe::probe_marker(
+            world,
+            "outcome: a passed window renews the unheld offers and pins the held job",
+            serde_json::json!({
+                "held": held.id.to_string(),
+                "renewed": renewed_ids.iter().map(ToString::to_string).collect::<Vec<_>>(),
+                "deadline": deadline,
+            }),
+        );
+        info!(
+            "station jobs: the passed window renews {renewed_ids:?}, pins '{}'",
+            held.id
+        );
+        world.resource_mut::<JobWatch>().board = board;
+    }
+
+    /// Claim 7: a thaw renews the same two unheld slots again, taking out
+    /// every body the old postings could have put in the world, while the
+    /// held slot and job stand pinned.
+    fn assert_the_thawed_board(world: &mut World) {
+        let (_, held) = the_job(world);
+        let before = world.resource::<JobWatch>().board.clone();
+        let bumped_to = world.resource::<JobWatch>().bumped_to.expect("bumped");
+        let clock = world.resource::<WorldClock>().play_seconds;
+        let jobs = world.resource::<Jobs>().clone();
+        assert_eq!(
+            jobs.held(),
+            &[held.clone()],
+            "station jobs: the walked job is still held after the thaw"
+        );
+        let station = station(world);
+        let board = world
+            .get::<JobBoard>(station)
+            .expect("station jobs: the thawed station posts a board")
+            .0
+            .clone();
+        assert_eq!(
+            board[held.id.slot as usize], held,
+            "station jobs: the thaw keeps the held slot's job"
+        );
+        let mut renewed_ids = Vec::new();
+        let mut replaced_ids = Vec::new();
+        for (slot, old) in before.iter().enumerate() {
+            if slot as u32 == held.id.slot {
+                continue;
+            }
+            let new = board[slot].clone();
+            assert_eq!(
+                new.id.posting,
+                old.id.posting + 1,
+                "station jobs: slot {slot} renews once on the thaw"
+            );
+            let posting = world
+                .resource::<JobPostings>()
+                .slot(&new.id)
+                .copied()
+                .unwrap_or_else(|| panic!("station jobs: JobPostings records '{}'", new.id));
+            assert!(
+                (bumped_to..=clock).contains(&posting.posted_at),
+                "station jobs: slot {slot} stamps between the bump ({bumped_to}) and the thaw \
+                 ({clock}): {}",
+                posting.posted_at
+            );
+            renewed_ids.push(new.id);
+            replaced_ids.push(old.id.clone());
+        }
+        let live_bodies: Vec<GeneratedBodyId> = world
+            .query::<&GeneratedBodyId>()
+            .iter(world)
+            .cloned()
+            .collect();
+        for replaced in &replaced_ids {
+            for possible in replaced.possible_bodies() {
+                assert!(
+                    !live_bodies.contains(&possible),
+                    "station jobs: the retired posting '{replaced}' leaves no live body \
+                     '{possible}'"
+                );
+            }
+        }
+        nova_probe::probe_marker(
+            world,
+            "outcome: a thaw renews only the unheld offers",
+            serde_json::json!({
+                "held": held.id.to_string(),
+                "renewed": renewed_ids.iter().map(ToString::to_string).collect::<Vec<_>>(),
+            }),
+        );
+        info!(
+            "station jobs: PASS the thaw renewed {renewed_ids:?}, pinned '{}'",
+            held.id
+        );
+        world.resource_mut::<JobWatch>().board = board;
     }
 
     /// The walk. Every beat waits on a world value.
@@ -1068,6 +1433,76 @@ mod walk {
             .until(player_docked())
             .deadline(SESSION_SECS)
             .add();
+        let script = open_the_station_tab(script)
+            .step("station jobs: bump the clock past the offer window")
+            .on_enter(bump_the_clock_past_offer)
+            .until(unheld_slots_renewed())
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station jobs: settle the passed window")
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station jobs: assert the passed window")
+            .on_enter(assert_the_passed_window)
+            .add()
+            .step("station jobs: shoot the renewed board")
+            .on_enter(|world: &mut World| shoot(world, RENEWED_SHOT))
+            .until(shot_written(RENEWED_SHOT))
+            .deadline(BEAT_SECS)
+            .add();
+        let script = tap(script, "the interface key", "interface_toggle", unpaused())
+            .step("station jobs: undock for the thaw")
+            .on_enter(|world: &mut World| {
+                let player = player(world);
+                world.trigger(DockingReleaseRequest { entity: player });
+            })
+            .until(and(player_free(), frames(SETTLE_FRAMES)))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station jobs: jump away until the station's cell retires")
+            .on_enter(|world: &mut World| {
+                let (edge, _) = world_shape(world);
+                let away = world.resource::<JobWatch>().away.expect("chosen");
+                park_player(world, away.centre(edge));
+            })
+            .until(window_is(|world| world.resource::<JobWatch>().away))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station jobs: assert the station retired")
+            .on_enter(|world: &mut World| {
+                let cell = world.resource::<JobWatch>().cell.expect("chosen");
+                assert!(
+                    !live_cells(world).contains(&cell),
+                    "station jobs: the station's cell left the live window"
+                );
+                assert!(
+                    station_root(world).is_none(),
+                    "station jobs: the retired station stands nowhere"
+                );
+            })
+            .add()
+            .step("station jobs: bump the clock past the offer window again")
+            .on_enter(bump_the_clock_past_offer)
+            .add()
+            .step("station jobs: jump back to thaw the station")
+            .on_enter(park_beside)
+            .until(and(
+                window_is(|world| world.resource::<JobWatch>().cell),
+                and(the_station_posts_a_board(), unheld_slots_renewed()),
+            ))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station jobs: settle the thawed board")
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station jobs: assert the thawed board")
+            .on_enter(assert_the_thawed_board)
+            .add()
+            .step("station jobs: berth and dock a third time")
+            .each(|world, _, _| berth_and_dock(world))
+            .until(player_docked())
+            .deadline(SESSION_SECS)
+            .add();
         open_the_station_tab(script)
             .step("station jobs: give the goods")
             .on_enter(give_the_goods)
@@ -1083,6 +1518,16 @@ mod walk {
             .add()
             .step("station jobs: assert the hand-in")
             .on_enter(assert_the_hand_in)
+            .add()
+            .step("station jobs: wait for the hand-in to renew the slot")
+            .until(the_slot_renews())
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station jobs: settle the renewed board")
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station jobs: assert the renewed slot")
+            .on_enter(assert_the_renewed_slot)
             .add()
     }
 }

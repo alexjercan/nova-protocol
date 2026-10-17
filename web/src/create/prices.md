@@ -49,6 +49,18 @@ record is kept on your save, not the station, so it carries across a
 retire, a thaw and a Load. The HUD reads `<NAME> REFUSES DOCKING: HULL
 NEUTRALIZED` while your travel lock is on a refusing station.
 
+## How a job offer expires
+
+A living station's job board has three slots, each on its own posting. An
+offer the player does not hold expires `jobs.offer_seconds` of play after it
+was posted, and the slot then posts a new offer under a new id. A held job
+is pinned to its slot and never expires, however long you hold it; handing
+one in renews the slot at once, and a job you drop (its hauler lost) stays
+posted under its own id until its own window passes. The clock
+is play time, so the pause menu, the interface and a Load all freeze every
+offer's countdown along with everything else. See [Jobs](../stations/#jobs)
+for the full posting and renewal rule.
+
 ## The PriceTable item
 
 ```ron
@@ -63,6 +75,7 @@ NEUTRALIZED` while your travel lock is on a refusing station.
         ),
         restock: (recovery_seconds: 1800.0),
         robbery: (refusal_seconds: 900.0),
+        jobs: (offer_seconds: 1200.0),
         clusters: [
             (cluster: AsteroidRich, category: Raw, factor: (ask: 0.6, bid: 0.6)),
         ],
@@ -81,6 +94,7 @@ Every field is required.
 | `scarcity` | scarcity rule | the stock curve, see below |
 | `restock` | `(recovery_seconds)` | the play seconds a thawed trader's stock takes to return to its target from none, see [How a trader restocks](#how-a-trader-restocks) |
 | `robbery` | `(refusal_seconds)` | the play seconds a civilization's living stations refuse the player after the player neutralizes one of its hulls |
+| `jobs` | `(offer_seconds)` | the play seconds an unheld station job offer stands before its slot posts a new one, see [How a job offer expires](#how-a-job-offer-expires) |
 | `clusters` | list of cluster rules | demand by cluster type: `cluster` is `AsteroidRich`, `RockOnly`, `PlanetHeavy` or `DerelictField`; `category` is an item category; `factor` is `(ask, bid)` |
 | `roles` | list of role rules | demand by civilization role: `role` is `Civilian`, `Industrial`, `Scavenger` or `Armored`; `category` and `factor` as above |
 
@@ -109,8 +123,8 @@ pack that:
   ask;
 - states a `starved` side below 1, a `glut` side above 1, or a `glut_share`
   of 1 or less;
-- states a `restock.recovery_seconds` or a `robbery.refusal_seconds` that is
-  not a finite number above 0;
+- states a `restock.recovery_seconds`, a `robbery.refusal_seconds` or a
+  `jobs.offer_seconds` that is not a finite number above 0;
 - names one cluster type or one role with one category twice.
 
 With every factor's bid at most its ask, a trader's bid is never above its
@@ -126,6 +140,7 @@ ask.
 | unkept | ask 1.0, bid 0.9 |
 | restock recovery | 1800 s (30 min of play) |
 | robbery refusal window | 900 s (15 min of play) |
+| job offer window | 1200 s (20 min of play) |
 | `AsteroidRich` `Raw` | 0.6 |
 | `RockOnly` `Raw` | 0.8 |
 | `PlanetHeavy` `Raw` | 1.5 |

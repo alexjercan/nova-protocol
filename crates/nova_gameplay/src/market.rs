@@ -45,8 +45,8 @@ use crate::{
 pub mod prelude {
     pub use super::{
         price, price_table_faults, restocked_count, ClusterPriceRule, GamePriceTable, ItemPrice,
-        PriceClamp, PriceFactor, PriceQuote, PriceTable, RestockRule, RobberyRule, RolePriceRule,
-        ScarcityRule, ShipRoleType, TraderMarket,
+        JobOfferRule, PriceClamp, PriceFactor, PriceQuote, PriceTable, RestockRule, RobberyRule,
+        RolePriceRule, ScarcityRule, ShipRoleType, TraderMarket,
     };
 }
 
@@ -176,6 +176,19 @@ pub struct RobberyRule {
     pub refusal_seconds: f32,
 }
 
+/// How long a station's job offer stands before the slot posts a new one.
+///
+/// An offer the player does not hold expires this many play seconds after
+/// its posting stamp (`nova_gameplay::jobs::SlotPosting`); a held job never
+/// expires.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct JobOfferRule {
+    /// The play seconds an unheld offer stands. Finite, above zero.
+    pub offer_seconds: f32,
+}
+
 /// The factor a trader in a cluster of one type deals one category at.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -219,6 +232,8 @@ pub struct PriceTable {
     pub restock: RestockRule,
     /// The refusal window.
     pub robbery: RobberyRule,
+    /// The job offer window.
+    pub jobs: JobOfferRule,
     /// The cluster-type rules, at most one per cluster type and category.
     pub clusters: Vec<ClusterPriceRule>,
     /// The role rules, at most one per role and category.
@@ -505,6 +520,12 @@ pub fn price_table_faults(table: &PriceTable) -> Vec<String> {
             "the robbery refusal window of {refusal} s must be finite and above 0"
         ));
     }
+    let offer = table.jobs.offer_seconds;
+    if !(offer.is_finite() && offer > 0.0) {
+        faults.push(format!(
+            "the job offer window of {offer} s must be finite and above 0"
+        ));
+    }
     for (index, rule) in table.clusters.iter().enumerate() {
         if table.clusters[..index]
             .iter()
@@ -565,6 +586,9 @@ mod tests {
             },
             robbery: RobberyRule {
                 refusal_seconds: 600.0,
+            },
+            jobs: JobOfferRule {
+                offer_seconds: 1_200.0,
             },
             clusters: vec![
                 ClusterPriceRule {
@@ -835,14 +859,16 @@ mod tests {
     /// A recovery or a refusal window of zero, below zero or not a number
     /// is a fault the lint and the merge name.
     #[test]
-    fn the_restock_and_refusal_clocks_must_be_positive_seconds() {
+    fn the_restock_refusal_and_offer_clocks_must_be_positive_seconds() {
         let mut table = table();
         assert_eq!(price_table_faults(&table), Vec::<String>::new());
         table.restock.recovery_seconds = 0.0;
         table.robbery.refusal_seconds = f32::NAN;
+        table.jobs.offer_seconds = -1.0;
         let faults = price_table_faults(&table);
-        assert_eq!(faults.len(), 2, "{faults:?}");
+        assert_eq!(faults.len(), 3, "{faults:?}");
         assert!(faults[0].contains("restock recovery"), "{faults:?}");
         assert!(faults[1].contains("refusal window"), "{faults:?}");
+        assert!(faults[2].contains("job offer window"), "{faults:?}");
     }
 }

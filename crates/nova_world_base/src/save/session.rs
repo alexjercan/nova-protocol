@@ -20,8 +20,8 @@ use bevy::{
 };
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_gameplay::prelude::{
-    CargoCanisterIdAllocator, CargoCanisterRuntimeId, Chart, Jobs, NeutralizedCivilizations,
-    PlayerSpaceshipMarker, ShipCredits, UnsettledBody,
+    CargoCanisterIdAllocator, CargoCanisterRuntimeId, Chart, JobPostings, Jobs,
+    NeutralizedCivilizations, PlayerSpaceshipMarker, ShipCredits, UnsettledBody,
 };
 use nova_scenario::prelude::{
     freeze_fleet, freeze_ship, CurrentScenario, GeneratedMarks, NovaEventWorld, OpenWorldSession,
@@ -245,6 +245,8 @@ pub struct ResumedWorld {
     pub chart: Chart,
     /// The player's jobs the save holds.
     pub jobs: Jobs,
+    /// The station boards' slot postings the save holds.
+    pub postings: JobPostings,
     /// The play-time clock the save holds.
     pub clock: WorldClock,
     /// The player's record of neutralized civilizations the save holds.
@@ -275,6 +277,7 @@ pub fn resume_world(
         scenario,
         chart,
         jobs,
+        postings,
         clock,
         neutralized,
         ..
@@ -284,6 +287,7 @@ pub fn resume_world(
         sectors,
         chart,
         jobs,
+        postings,
         clock,
         neutralized,
     });
@@ -318,9 +322,9 @@ pub(crate) fn save_systems() -> ScheduleConfigs<ScheduleSystem> {
         .run_if(resource_exists::<WorldSaveSession>)
 }
 
-/// Seed the ledger, the chart, the jobs, the clock and the neutralized
-/// civilizations `Cleanup` just cleared with the save's, on the frame the
-/// world arms.
+/// Seed the ledger, the chart, the jobs, the postings, the clock and the
+/// neutralized civilizations `Cleanup` just cleared with the save's, on the
+/// frame the world arms.
 ///
 /// # Panics
 ///
@@ -339,6 +343,7 @@ pub(crate) fn restore_resumed_world(world: &mut World) {
         sectors,
         chart,
         jobs,
+        postings,
         clock,
         neutralized,
     } = world
@@ -347,6 +352,7 @@ pub(crate) fn restore_resumed_world(world: &mut World) {
     world.resource_mut::<FrozenSectors>().restore(sectors);
     *world.resource_mut::<Chart>() = chart;
     *world.resource_mut::<Jobs>() = jobs;
+    *world.resource_mut::<JobPostings>() = postings;
     *world.resource_mut::<WorldClock>() = clock;
     *world.resource_mut::<NeutralizedCivilizations>() = neutralized;
 }
@@ -529,6 +535,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
     let player_sector = world.resource::<CurrentSector>().0;
     let chart = world.resource::<Chart>().clone();
     let jobs = world.resource::<Jobs>().clone();
+    let postings = world.resource::<JobPostings>().clone();
     let clock = *world.resource::<WorldClock>();
     let neutralized = world.resource::<NeutralizedCivilizations>().clone();
     let saved_at_unix = SystemTime::now()
@@ -567,6 +574,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
         scenario,
         chart,
         jobs,
+        postings,
         clock,
         neutralized,
     };
@@ -582,6 +590,11 @@ pub(crate) fn snapshot_world(world: &mut World) {
                 .chart
                 .validate()
                 .and_then(|()| state.jobs.validate())
+                .and_then(|()| {
+                    state
+                        .postings
+                        .validate(state.clock.play_seconds, &state.jobs)
+                })
                 .and_then(|()| state.neutralized.validate(state.clock.play_seconds))
                 .and_then(|()| check_saved_fleet(&state))
                 .and_then(|()| check_saved_items(&state, &items))

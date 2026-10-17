@@ -38,12 +38,12 @@ use super::{
     Answers, Rocks, TEST_HULL_SECTION_ID,
 };
 use crate::{
-    adopt_moving_bodies, clear_sector_work, clock::WorldClock, frozen::SettlingBodies,
-    generation::prepare_cell, materialize_sector, retire_sectors, sector_id,
-    streaming::ClearedConfig, CurrentSector, FrozenBody, FrozenBodyType, FrozenSector,
-    FrozenSectors, GeneratedBodyId, ObserverBody, PendingSectorShip, PendingSectorStation,
-    ReadySectors, SectorAsteroid, SectorCoord, SectorGenerationInput, SectorGenerator,
-    SectorJobStats, SectorManifest, SectorRoot, ThawedAfter, WorldConfig, WorldObserver,
+    adopt_moving_bodies, clear_sector_work, frozen::SettlingBodies, generation::prepare_cell,
+    materialize_sector, retire_sectors, sector_id, streaming::ClearedConfig, CurrentSector,
+    FrozenBody, FrozenBodyType, FrozenSector, FrozenSectors, GeneratedBodyId, ObserverBody,
+    PendingSectorShip, PendingSectorStation, ReadySectors, SectorAsteroid, SectorCoord,
+    SectorGenerationInput, SectorGenerator, SectorJobStats, SectorManifest, SectorRoot,
+    ThawedAfter, WorldClock, WorldConfig, WorldObserver,
 };
 
 /// Arm `config` around `centre` with nothing live yet, so the arming frame's

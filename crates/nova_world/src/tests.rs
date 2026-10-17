@@ -44,11 +44,11 @@ use nova_ship::prelude::{
 mod frozen;
 
 use crate::{
-    clock::WorldClock, generate_sector, materialize_pending_bodies, materialize_sector,
-    prepare_sector, sector_id, validate_manifest, GeneratedBodyId, NovaWorldPlugin, ObserverBody,
-    PendingSectorShip, SectorAsteroid, SectorCoord, SectorFault, SectorGenerationInput,
-    SectorGenerator, SectorManifest, SectorPlanet, SectorShip, SectorShipConditionType,
-    SectorStation, WorldConfig, WorldGeometry, WorldObserver, ACTIVE_WINDOW_SECTORS_MAX,
+    generate_sector, materialize_pending_bodies, materialize_sector, prepare_sector, sector_id,
+    validate_manifest, GeneratedBodyId, NovaWorldPlugin, ObserverBody, PendingSectorShip,
+    SectorAsteroid, SectorCoord, SectorFault, SectorGenerationInput, SectorGenerator,
+    SectorManifest, SectorPlanet, SectorShip, SectorShipConditionType, SectorStation, WorldClock,
+    WorldConfig, WorldGeometry, WorldObserver, ACTIVE_WINDOW_SECTORS_MAX,
     SECTOR_SHIP_CLEARANCE_MAX,
 };
 

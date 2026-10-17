@@ -6,8 +6,8 @@
 //! (`nova_gameplay::market::price`). A factor of 1 leaves the reference price.
 
 use nova_gameplay::prelude::{
-    ClusterPriceRule, ClusterType, ItemCategoryType, PriceClamp, PriceFactor, PriceTable,
-    RestockRule, RobberyRule, RolePriceRule, ScarcityRule, ShipRoleType,
+    ClusterPriceRule, ClusterType, ItemCategoryType, JobOfferRule, PriceClamp, PriceFactor,
+    PriceTable, RestockRule, RobberyRule, RolePriceRule, ScarcityRule, ShipRoleType,
 };
 
 /// The lowest total factor: no trader sells below a quarter of reference.
@@ -42,6 +42,12 @@ const RESTOCK_RECOVERY_SECONDS: f32 = 1_800.0;
 /// shorter than a session, so the sanction ends while the player still knows
 /// what earned it (Elite's hour-per-level notoriety is the pitfall).
 const ROBBERY_REFUSAL_SECONDS: f32 = 900.0;
+/// The play seconds an unheld job offer stands before its slot posts a new
+/// one: twenty minutes. Longer than one round trip to the next cluster, so
+/// an offer the player left to prepare for is still there once; shorter than
+/// the restock recovery, so a board turns over before a station's stock
+/// does. A held job never expires.
+const JOB_OFFER_SECONDS: f32 = 1_200.0;
 
 /// Raw material in an asteroid-rich cluster: ore is everywhere.
 const ASTEROID_RICH_RAW: f32 = 0.6;
@@ -83,6 +89,9 @@ pub(crate) fn price_table() -> PriceTable {
         },
         robbery: RobberyRule {
             refusal_seconds: ROBBERY_REFUSAL_SECONDS,
+        },
+        jobs: JobOfferRule {
+            offer_seconds: JOB_OFFER_SECONDS,
         },
         clusters: vec![
             cluster(

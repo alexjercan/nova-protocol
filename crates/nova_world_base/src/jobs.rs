@@ -2,15 +2,21 @@
 //! world streams, what an accepted job puts in the world, and what marks a
 //! held job done.
 //!
-//! The board is a function of the world seed, the station's id, the cluster
-//! types of its cell, the start role's job mix and the [`JobField`] of
-//! wrecks and hostile hulls standing in the station's cell and the 26 cells
-//! around it. It is put on the station root once, on the first frame every
-//! one of those 27 cells is live and settled; the same world state posts the
-//! same board, after a thaw and after a Load, and a looted wreck or a
-//! neutralized hull is off the next posting. The player's record of the jobs
-//! taken off it is [`nova_gameplay::prelude::Jobs`], which
-//! `chart::clear_chart` clears.
+//! The board is a function of the world seed, the station's id, each slot's
+//! posting ([`JobPostings`]), the cluster types of its cell, the start
+//! role's job mix and the [`JobField`] of wrecks and hostile hulls standing
+//! in the station's cell and the 26 cells around it. It is put on the
+//! station root on the first frame every one of those 27 cells is live and
+//! settled, and again whenever a slot renews: an offer the player does not
+//! hold that stood longer than the price table's `jobs.offer_seconds` of
+//! play, or whose job was handed in, moves to its next posting, the bodies
+//! its old posting could have put in the world are taken out, and the slot
+//! posts a new offer under a new id ([`post_station_boards`]). A held job
+//! pins its slot. The same postings and world state post the same board,
+//! after a thaw and after a Load, and a looted wreck or a neutralized hull
+//! is off the next posting. The player's record of the jobs taken off it is
+//! [`nova_gameplay::prelude::Jobs`]; the postings and the jobs are saved
+//! with the world and `chart::clear_chart` clears both.
 //!
 //! An Escort puts a hauler and its raiders in the world on the accept and a
 //! Distress call puts its caller there ([`spawn_job_bodies`]); every body is a
@@ -32,9 +38,10 @@ use nova_events::prelude::{
 };
 use nova_gameplay::prelude::{
     station_job_board, station_offers, unit_sphere_point, Allegiance, DerelictShipMarker, Fnv32,
-    GameItems, Job, JobAccepted, JobBoard, JobField, JobHull, JobMixType, JobType, JobWreck, Jobs,
-    NeutralizedMarker, PlayerSpaceshipMarker, SeedStream, ShipInventory, ShipRoleType,
-    SpaceshipRootMarker, StationMarker, StationServiceType, StationServices,
+    GameItems, GamePriceTable, Job, JobAccepted, JobBoard, JobField, JobHull, JobId, JobMixType,
+    JobPostings, JobType, JobWreck, Jobs, NeutralizedMarker, PlayerSpaceshipMarker, SeedStream,
+    ShipInventory, ShipRoleType, SpaceshipRootMarker, StationMarker, StationServiceType,
+    StationServices,
 };
 use nova_scenario::prelude::{
     base_scenario_object, spaceship_scenario_object, AIControllerConfig, BaseScenarioObjectConfig,
@@ -44,7 +51,8 @@ use nova_ship::prelude::{
     ShipCapabilities, ShipHelmOrder, ShipOrderDirective, ShipOrderHelmAuthority, ShipOrderReports,
 };
 use nova_world::prelude::{
-    PendingSectorShip, SectorClusterTypes, SectorRoot, SectorShipConditionType, WorldConfig,
+    PendingSectorShip, SectorClusterTypes, SectorRoot, SectorShipConditionType, WorldClock,
+    WorldConfig,
 };
 
 use crate::{
@@ -75,15 +83,22 @@ const RAIDER_LEASH: Meters = Meters(6_000.0);
 const NO_CIVILIZATION: &str = "no civilization reaches the posting station";
 
 /// Post the board on every generated station that offers
-/// [`StationServiceType::Jobs`] and has none yet, once the station's cell
-/// and the 26 cells around it are live and settled: every root stands, no
-/// ship of theirs is still held as a [`PendingSectorShip`], and every ship
-/// root of theirs carries its hold. A dead station posts nothing. The mix is
-/// the session's start role's; a generated scenario that runs with no
-/// session, a fixed-seed world no New Game opened, posts the trade mix.
+/// [`StationServiceType::Jobs`], once the station's cell and the 26 cells
+/// around it are live and settled: every root stands, no ship of theirs is
+/// still held as a [`PendingSectorShip`], and every ship root of theirs
+/// carries its hold. A station with no board yet opens its postings (first
+/// postings, stamped now) and posts. On every such frame each slot the
+/// player does not hold whose job was handed in, or whose offer stood past
+/// the table's `jobs.offer_seconds` of play, renews: every live body its
+/// old posting could have named is taken out of the world and the slot moves
+/// to its next posting; a station with a renewed slot posts its board again,
+/// so the held slots read the same and the renewed ones a new offer. A dead
+/// station posts nothing. The mix is the session's start role's; a generated
+/// scenario that runs with no session, a fixed-seed world no New Game
+/// opened, posts the trade mix.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one system reading the config, the session, the stations, the roots and the field"
+    reason = "one system reading the config, the table, the clock, the session, the jobs, the postings, the stations, the roots and the field"
 )]
 #[expect(
     clippy::type_complexity,
@@ -93,8 +108,12 @@ pub(crate) fn post_station_boards(
     mut commands: Commands,
     config: Res<WorldConfig<NovaLayeredWorld>>,
     items: Res<GameItems>,
+    table: Res<GamePriceTable>,
+    clock: Res<WorldClock>,
     session: Option<Res<OpenWorldSession>>,
     roles: Res<GameStartRoles>,
+    jobs: Res<Jobs>,
+    mut postings: ResMut<JobPostings>,
     stations: Query<
         (
             Entity,
@@ -102,9 +121,11 @@ pub(crate) fn post_station_boards(
             &ChildOf,
             Option<&StationServices>,
             Has<DerelictShipMarker>,
+            Option<&JobBoard>,
         ),
-        (With<StationMarker>, Without<JobBoard>),
+        With<StationMarker>,
     >,
+    bodies: Query<(Entity, &GeneratedBodyId)>,
     roots: Query<(Entity, &SectorRoot, &SectorClusterTypes)>,
     unsettled: Query<
         &ChildOf,
@@ -145,7 +166,15 @@ pub(crate) fn post_station_boards(
             .unwrap_or_else(|| panic!("post_station_boards: no start role '{}'", session.role))
             .jobs
     });
-    for (entity, id, parent, services, derelict) in &stations {
+    let now = clock.play_seconds;
+    let rule = table.0.jobs;
+    // One pass over the live bodies: a renewed slot looks its few possible
+    // ids up here instead of scanning every body again.
+    let worn: BTreeMap<&GeneratedBodyId, Entity> = bodies
+        .iter()
+        .map(|(body, body_id)| (body_id, body))
+        .collect();
+    for (entity, id, parent, services, derelict, posted) in &stations {
         if !station_offers(services, derelict, StationServiceType::Jobs) {
             continue;
         }
@@ -163,8 +192,55 @@ pub(crate) fn post_station_boards(
         if around.iter().any(|root| unsettled.contains(root)) {
             continue;
         }
-        let field = job_field(&around, &wrecks, &hulls);
-        let board = station_job_board(config.seed, id, &clusters.0, &items, mix, &field);
+        let slots = postings.open(id, now).to_vec();
+        let mut retired: BTreeSet<GeneratedBodyId> = BTreeSet::new();
+        let mut renewed = 0;
+        for (slot, posting) in slots.iter().enumerate() {
+            let job_id = JobId {
+                station: id.clone(),
+                slot: slot as u32,
+                posting: posting.posting,
+            };
+            if jobs.holds(&job_id) {
+                continue;
+            }
+            let handed_in = jobs.is_completed(&job_id);
+            if !handed_in && !posting.is_expired(rule, now) {
+                continue;
+            }
+            let mut taken_out = 0;
+            for body_id in job_id.possible_bodies() {
+                if let Some(body) = worn.get(&body_id) {
+                    commands.entity(*body).try_despawn();
+                    retired.insert(body_id);
+                    taken_out += 1;
+                }
+            }
+            let next = postings.renew(&job_id, now);
+            renewed += 1;
+            info!(
+                "nova_world_base: the station '{id}' renews slot {slot} at {now:.1} s of play \
+                 ({}): '{job_id}' -> '{next}', {taken_out} body(ies) taken out",
+                if handed_in { "handed in" } else { "expired" }
+            );
+        }
+        if renewed == 0 && posted.is_some() {
+            continue;
+        }
+        let field = job_field(&around, &retired, &wrecks, &hulls);
+        let slots = postings
+            .board(id)
+            .expect("the station's postings were opened above");
+        let board = station_job_board(
+            config.seed,
+            id,
+            &clusters.0,
+            &items,
+            mix,
+            &field,
+            slots,
+            &jobs,
+        );
         info!(
             "nova_world_base: the station '{id}' posts {} job(s) over {} wreck(s) and {} \
              hostile(s): {}",
@@ -173,7 +249,7 @@ pub(crate) fn post_station_boards(
             field.hostiles.len(),
             board
                 .iter()
-                .map(|job| job.title(&items))
+                .map(|job| format!("{} ({})", job.title(&items), job.id))
                 .collect::<Vec<_>>()
                 .join("; ")
         );
@@ -195,13 +271,15 @@ fn cube_around(centre: SectorCoord) -> Vec<SectorCoord> {
 }
 
 /// The wrecks with something aboard and the hostile intact hulls under the
-/// roots `around`, each list in id order.
+/// roots `around`, each list in id order, less the bodies in `retired`,
+/// which a renewal this frame is taking out of the world.
 #[expect(
     clippy::type_complexity,
     reason = "the two queries are the poster's, passed through"
 )]
 fn job_field(
     around: &[Entity],
+    retired: &BTreeSet<GeneratedBodyId>,
     wrecks: &Query<
         (&GeneratedBodyId, &Name, &ShipInventory, &ChildOf),
         (
@@ -222,7 +300,7 @@ fn job_field(
 ) -> JobField {
     let mut field = JobField::default();
     for (id, name, hold, parent) in wrecks {
-        if !around.contains(&parent.parent()) || hold.is_empty() {
+        if !around.contains(&parent.parent()) || hold.is_empty() || retired.contains(id) {
             continue;
         }
         field.wrecks.push(JobWreck {
@@ -235,7 +313,10 @@ fn job_field(
         });
     }
     for (id, name, allegiance, parent) in hulls {
-        if !around.contains(&parent.parent()) || *allegiance != Allegiance::Enemy {
+        if !around.contains(&parent.parent())
+            || *allegiance != Allegiance::Enemy
+            || retired.contains(id)
+        {
             continue;
         }
         field.hostiles.push(JobHull {

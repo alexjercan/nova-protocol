@@ -232,7 +232,7 @@ Docked at a living station, the **Station** pane shows what it sells: **This sta
 
 <!-- Lists: crates/nova_interface/src/station/jobs.rs. Board: crates/nova_gameplay/src/jobs.rs. -->
 
-Every living generated station posts a board of three jobs. The board is fixed by the world seed, the station and your start: the same station posts the same three jobs on every visit and after a Load, and a job stays posted until you complete it. Which kinds a board leans to follows your start role: a trader's boards post procurements and escorts, a scavenger's recoveries, a hunter's distress calls and bounties.
+Every living generated station posts a board of three jobs. The board is fixed by the world seed, the station and your start: a board slot's offer stands 20 minutes of play (the pause menu, the interface and a Load all stop that clock), then the slot posts a new offer. A job you hold never expires, and a job you hand in is replaced at once. Which kinds a board leans to follows your start role: a trader's boards post procurements and escorts, a scavenger's recoveries, a hunter's distress calls and bounties.
 
 | job | what to do |
 |---|---|
@@ -242,9 +242,9 @@ Every living generated station posts a board of three jobs. The board is fixed b
 | `Answer a distress call` | a caller 10 km out: dock with the drifting hull. One call in three is a trap: a raider waits there instead, and neutralizing it answers the call |
 | `Neutralize <hull>` | neutralize the named hostile hull nearby |
 
-**Jobs posted here** lists the board, less the jobs you hold or completed, each with its reward and **Accept**; a recovery or a bounty whose target is already gone says so instead. **Your jobs** lists every job you hold, from any station, with its reward and the station it hands in at. **Hand in** shows while you are docked at that station, the job is done and the station can pay; otherwise the row says why not (`hand in at <station>`, `the hold carries 2 of 4 Iron ore`, `<job>: not done yet`). A hand-in takes a procurement's goods out of your hold, pays the reward from the station's balance (`OnCreditsChanged` with cause `JobReward` on both sides) and moves the job to completed. The note line says `accepted: Bring 4 Iron ore` and `handed in Bring 4 Iron ore for 146 cr`.
+**Jobs posted here** lists the board, less the jobs you hold or completed, each with its reward, the time left (`expires in 12 min`) and **Accept**; a recovery or a bounty whose target is already gone says so instead, and an offer whose window has passed says `accept: this offer expired` in place of Accept. **Your jobs** lists every job you hold, from any station, with its reward and the station it hands in at. **Hand in** shows while you are docked at that station, the job is done and the station can pay; otherwise the row says why not (`hand in at <station>`, `the hold carries 2 of 4 Iron ore`, `<job>: not done yet`). A hand-in takes a procurement's goods out of your hold, pays the reward from the station's balance (`OnCreditsChanged` with cause `JobReward` on both sides) and moves the job to completed. The note line says `accepted: Bring 4 Iron ore` and `handed in Bring 4 Iron ore for 146 cr`.
 
-Held jobs stay visible undocked: the Map's chart view marks each in the sector of its mark, the wreck, the hauler, the caller or the hull, or the posting station for a procurement; its note says what is left to do (see [the map](#the-map)). A saved Open World keeps the jobs you hold, have done and have completed; a Load brings them back. Jobs do not expire. A hauler you lose, neutralized or destroyed, takes its escort job with it.
+Held jobs stay visible undocked: the Map's chart view marks each in the sector of its mark, the wreck, the hauler, the caller or the hull, or the posting station for a procurement; its note says what is left to do (see [the map](#the-map)). A saved Open World keeps the jobs you hold, have done and have completed; a Load brings them back. A held job never expires. A hauler you lose, neutralized or destroyed, takes its escort job with it.
 
 ### Buying a ship
 

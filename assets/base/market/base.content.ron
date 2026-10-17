@@ -25,6 +25,9 @@
         robbery: (
             refusal_seconds: 900.0,
         ),
+        jobs: (
+            offer_seconds: 1200.0,
+        ),
         clusters: [
             (
                 cluster: AsteroidRich,

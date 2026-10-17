@@ -11,10 +11,10 @@ use nova_gameplay::prelude::{
     CargoCanisterRuntimeId, Chart, CivilizationId, ClockFreeze, DamageLevel, DamageMarks,
     DamageType, FreezeOwner, FrozenRoundFlight, GameItems, Health, ImpactSparkMarker,
     ImpactSparkPlugin, ImpactSparks, IntegrityDestroyMarker, ItemCategoryType, ItemDesign,
-    ItemDesignId, ItemRoleType, Jobs, NeutralizedCivilizations, PlayerFleetMarker,
-    PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage, ProjectileOwner,
-    RailgunSlugProjectileMarker, RoundRake, SavedBodyRef, SavedLifetime, SavedOwner,
-    SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory,
+    ItemDesignId, ItemRoleType, Job, JobId, JobPostings, JobType, Jobs, NeutralizedCivilizations,
+    PlayerFleetMarker, PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage,
+    ProjectileOwner, RailgunSlugProjectileMarker, RoundRake, SavedBodyRef, SavedLifetime,
+    SavedOwner, SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory,
     SpaceshipRootMarker, StationServiceType, StationSummary, TempEntity, TorpedoProjectileMarker,
     TurretBulletProjectileMarker,
 };
@@ -144,6 +144,7 @@ fn state(generation: u64, credits: u32) -> WorldSaveState {
         scenario: saved_scenario(),
         chart: Chart::default(),
         jobs: Jobs::default(),
+        postings: JobPostings::default(),
         clock: WorldClock::default(),
         neutralized: NeutralizedCivilizations::default(),
     }
@@ -859,6 +860,102 @@ fn a_saved_neutralized_record_resumes_and_a_stamp_ahead_of_the_clock_is_refused(
     assert!(
         matches!(refused, Err(WorldRefusal::Unreadable(ref reason)) if reason.contains("stamped neutralized")),
         "a stamp ahead of the clock refuses the save: {refused:?}"
+    );
+}
+
+/// A station's slot postings are written with a leave save and come back
+/// on a Load; a held job whose slot moved past its posting is a save the
+/// Load refuses.
+#[test]
+fn a_saved_posting_record_resumes_and_a_stale_held_posting_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let (mut world, _player) = armed_session(root.path());
+    frame(&mut world);
+    frame(&mut world);
+    run_until_idle(&mut world);
+
+    let poster = GeneratedBodyId::new(SectorCoord::new(1, 0, 0), "cluster_1_0_0_station", 0);
+    let held = Job {
+        id: JobId {
+            station: poster.clone(),
+            slot: 1,
+            posting: 0,
+        },
+        kind: JobType::Procure {
+            item: items()
+                .iter()
+                .next()
+                .expect("the fixture catalog has an item")
+                .id
+                .clone(),
+            count: 2,
+        },
+        target: poster.clone(),
+        reward_cr: 120,
+    };
+    world.insert_resource(WorldClock {
+        play_seconds: 200.0,
+    });
+    world.resource_mut::<JobPostings>().open(&poster, 50.0);
+    world.resource_mut::<Jobs>().accept(held.clone());
+    world.resource_mut::<WorldSaveSession>().request_leave();
+    run_until_idle(&mut world);
+    assert_eq!(
+        world.resource::<WorldSaveSession>().status(),
+        &WorldSaveStatus::Saved { generation: 2 }
+    );
+    let digest = world.resource::<LoadedSectionPacks>().digest.0;
+    let postings = world.resource::<JobPostings>().clone();
+    world.remove_resource::<WorldSaveSession>();
+    let (_, lock, _, state) = open_world(
+        root.path(),
+        "session",
+        &catalog(digest),
+        &roles(),
+        &items(),
+        &scenarios(),
+    )
+    .unwrap();
+    assert_eq!(
+        state.postings, postings,
+        "the leave save wrote the postings"
+    );
+    assert_eq!(
+        state.postings.slot(&held.id).map(|slot| slot.posted_at),
+        Some(50.0),
+        "the held job's slot is on its posting"
+    );
+    drop(lock);
+
+    let resumed = load(root.path(), digest);
+    assert_eq!(
+        *resumed.resource::<JobPostings>(),
+        postings,
+        "the Load restored the postings on the arming frame"
+    );
+    assert!(
+        resumed.resource::<Jobs>().holds(&held.id),
+        "the Load restored the held job"
+    );
+    drop(resumed);
+
+    // A held job behind its slot's posting is a record no session wrote: a
+    // held slot never renews.
+    let mut state = state;
+    state.postings.renew(&held.id, 100.0);
+    let text = ron::to_string(&state).unwrap();
+    std::fs::write(root.path().join("session/state.2.ron"), text).unwrap();
+    let refused = open_world(
+        root.path(),
+        "session",
+        &catalog(digest),
+        &roles(),
+        &items(),
+        &scenarios(),
+    );
+    assert!(
+        matches!(refused, Err(WorldRefusal::Unreadable(ref reason)) if reason.contains("not its slot's current posting")),
+        "a stale held posting refuses the save: {refused:?}"
     );
 }
 

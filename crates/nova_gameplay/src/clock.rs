@@ -1,18 +1,26 @@
 //! The play-time clock of an open world.
 //!
 //! Nothing frozen simulates, so the world needs one number that says how
-//! much play passed while a cell stood frozen: the seconds the virtual clock
-//! ran while a world was armed. Every hold on the simulation (the pause
-//! overlay, the interface, a scenario load, a world resume) pauses the
-//! virtual clock, so the play-time clock stops with it by construction.
+//! much play passed while a cell stood frozen, and how long a station's job
+//! offer has stood: the seconds the virtual clock ran while a world was
+//! armed. Every hold on the simulation (the pause overlay, the interface, a
+//! scenario load, a world resume, see [`crate::freeze`]) pauses the virtual
+//! clock, so the play-time clock stops with it by construction.
 //!
-//! [`WorldClock`] advances in [`crate::NovaWorldSystems::Observe`], so a
-//! body frozen in `Retire` or `Adopt` is stamped with this frame's time and
-//! a save after `Retire` carries the same value. [`crate::clear_sector_work`]
-//! resets it on the frames it forgets the ledger, and `nova_world_base`
-//! restores a saved clock on the arming frame, between the two.
+//! It lives here, below the world crates, because the Station pane reads it
+//! to show how long an offer has left. `nova_world` owns its lifetime:
+//! `NovaWorldPlugin` advances it in its `Observe` stage, so a body frozen in
+//! `Retire` or `Adopt` is stamped with this frame's time and a save after
+//! `Retire` carries the same value; `clear_sector_work` resets it on the
+//! frames it forgets the ledger, and `nova_world_base` restores a saved clock
+//! on the arming frame, between the two.
 
 use bevy::prelude::*;
+
+/// Glob-import surface: `use nova_gameplay::clock::prelude::*`.
+pub mod prelude {
+    pub use super::{advance_world_clock, WorldClock};
+}
 
 /// Play time of the open world: the seconds the virtual clock ran while a
 /// world was armed. Saved with the world, reset with the frozen ledger.
@@ -34,19 +42,11 @@ impl WorldClock {
     pub fn elapsed_since(self, frozen_at: f64) -> f64 {
         assert!(
             frozen_at <= self.play_seconds,
-            "nova_world: a body froze at {frozen_at} s of play but the clock reads {} s",
+            "nova_gameplay: a body froze at {frozen_at} s of play but the clock reads {} s",
             self.play_seconds
         );
         self.play_seconds - frozen_at
     }
-}
-
-/// On a body thawed from a frozen record: how many play seconds it stood
-/// frozen. A body the generator spawned fresh has none.
-#[derive(Component, Debug, Clone, Copy, PartialEq)]
-pub struct ThawedAfter {
-    /// Play seconds between the body's freeze and its thaw.
-    pub play_seconds: f64,
 }
 
 /// Advance the clock by this frame's virtual delta, which is zero while

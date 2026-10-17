@@ -1148,7 +1148,10 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "the chart view marks the held job",
             "the leave save holds the job",
             "a loaded world restores the job and the board",
+            "a passed window renews the unheld offers and pins the held job",
+            "a thaw renews only the unheld offers",
             "a hand-in pays the reward and completes the job",
+            "a hand-in renews the slot under a new posting",
         ],
     ),
     (
@@ -1199,7 +1202,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 591;
+const SYSTEMS_INVARIANTS: usize = 594;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

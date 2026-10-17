@@ -30,7 +30,7 @@ use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
 use bevy::prelude::*;
 use nova_events::prelude::{EntityId, GeneratedBodyId, Meters3, ScenarioAddressableMarker};
 use nova_gameplay::prelude::{
-    CargoCanister, PlayerFleetMarker, SpaceshipRootMarker, TempEntity, UnsettledBody,
+    CargoCanister, PlayerFleetMarker, SpaceshipRootMarker, TempEntity, UnsettledBody, WorldClock,
 };
 use nova_scenario::prelude::{
     freeze_asteroid, freeze_ore_drop, freeze_ship, freeze_station, prepare_frozen_asteroid,
@@ -45,7 +45,6 @@ use nova_ship::prelude::{
 };
 
 use crate::{
-    clock::{ThawedAfter, WorldClock},
     desired_sectors, live_sectors,
     streaming::{assert_world_was_cleared, freeze_sector_bodies, ClearedConfig},
     CurrentSector, PendingSectorShip, PendingSectorStation, SectorCoord, SectorGenerator,
@@ -443,6 +442,14 @@ impl FrozenBody {
     pub fn frozen_at(&self) -> f64 {
         self.frozen_at
     }
+}
+
+/// On a body thawed from a frozen record: how many play seconds it stood
+/// frozen. A body the generator spawned fresh has none.
+#[derive(Component, Debug, Clone, Copy, PartialEq)]
+pub struct ThawedAfter {
+    /// Play seconds between the body's freeze and its thaw.
+    pub play_seconds: f64,
 }
 
 /// Every kind of body a cell can freeze, each in its owner crate's record.

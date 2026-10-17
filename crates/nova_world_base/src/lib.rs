@@ -39,16 +39,17 @@
 //! the player's sensors find, and what the player sees at a docked station,
 //! and posts a [`nova_gameplay::prelude::JobBoard`] on every living generated
 //! station, seeded from the world seed, the station and what stands around
-//! it, puts an accepted job's bodies in the world and marks a held job done.
-//! A world save carries the chart, the player's [`Jobs`] and the
-//! [`WorldClock`]; on the web they last one session.
+//! it, renews an offer that stood past the price table's window or was
+//! handed in, puts an accepted job's bodies in the world and marks a held job
+//! done. A world save carries the chart, the player's [`Jobs`], the
+//! [`JobPostings`] and the [`WorldClock`]; on the web they last one session.
 #![warn(missing_docs)]
 
 use bevy::prelude::*;
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_events::prelude::Meters;
 use nova_gameplay::prelude::{
-    Chart, GameItems, Jobs, NeutralizedCivilizations, PlayerSpaceshipMarker,
+    Chart, GameItems, JobPostings, Jobs, NeutralizedCivilizations, PlayerSpaceshipMarker,
 };
 use nova_scenario::prelude::{CurrentScenario, OpenWorldSession, ScenarioWorldType};
 use nova_ship::prelude::GameStyles;
@@ -197,6 +198,7 @@ impl Plugin for NovaWorldBasePlugin {
         app.add_plugins(NovaWorldPlugin::<NovaLayeredWorld>::default());
         app.init_resource::<Chart>();
         app.init_resource::<Jobs>();
+        app.init_resource::<JobPostings>();
         app.init_resource::<NeutralizedCivilizations>();
         // A hull the player neutralizes is recorded against its civilization
         // the moment its marker lands.
