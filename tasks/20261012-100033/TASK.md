@@ -37,3 +37,7 @@
 - 2026-10-17 (phase 2, owner): option (a). Automatic restock stays as it is, kept simple; industrial = `MiningEmpire { stations: 2, escorts: 2 }`, two owned stations and the full fleet (`FLEET_SIDES`), no stock clause. Lint refuses more escorts than fleet slots.
 - 2026-10-17 (phase 2, owner): the yard proof found a generated station's store (100 kg at advancement 0, 400 kg at 1) under the lightest full yard (540 kg: hull 20, thruster 30, intake 75, mining 75, docking 110, controller 115, turret 115), so `OwnYard` was unreachable everywhere. Options put: (a) raise the generated store to 1 t / 4 t; (b) sum every owned store; (c) one item per family; (d) grow the store on the buy. Owner picked (a): `STORAGE_CAP_G` is (1 t, 4 t), one stocked station stays the yard, placement untouched. The cap never shipped (absent at v0.15.0), so no changelog entry.
 - 2026-10-17 (phase 2, owner): a charter is a finite optional milestone, like a first station buy, never an ending: the game is an endless sandbox, a met charter stamps the save and changes nothing else, and there is no completion or end-of-game screen. Docs and code say "milestone", not "end goal". The "refresh at thaw" gate in this task is read under that direction: any refresh is a world change, not a game end.
+
+## Review 2026-10-17
+- See the epic `20261012-100030` review section: `KillList` counts jobs, not
+  distinct hulls; the goal stamp is not ordered before the save snapshot.

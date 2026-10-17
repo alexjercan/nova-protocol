@@ -283,6 +283,12 @@ path = "examples/playable/mining_beam_gallery.rs"
 name = "widget_zoo"
 path = "examples/playable/widget_zoo.rs"
 
+# A clickable mock of the proposed job board, chart, market, load and new game
+# screens, on hard-coded data. Nothing in the game changes; the owner judges it.
+[[example]]
+name = "ui_gallery"
+path = "examples/playable/ui_gallery.rs"
+
 # Themed map, ship and inventory screens over a paused fixture scenario. Mock
 # station trade, loot and repair only: nothing docks, boards or changes play.
 [[example]]

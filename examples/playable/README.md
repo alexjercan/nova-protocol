@@ -64,6 +64,7 @@ hints drop to the bottom edge, and the world labels hide. These examples need
 | Encounter rules on generated hulls | `world_encounters` | `nix develop --command cargo run --example world_encounters --features debug` | Fly the staged cast. Your magazines are empty, so use `neutral_contact_sandbox` for retaliation by fire. | Own labels. |
 | Spare magazines in a fight | `wfc_arena` | `nix develop --command cargo run --example wfc_arena --features debug` | Watch a long fight: each fighter carries up to two spare magazines per mounted ammo in its hold. | Own labels. |
 | Chart view, generated stations, credits cheats | `start_role_sandbox` | as above | TAB, `M` to Map, `C` for the chart. `:` opens the shell: `cheats enable`, then `credits give player 1000`. | As above. |
+| Proposed job board, chart, market, load and new game screens (owner feedback 2026-10-17), mock data | `ui_gallery` | `nix develop --command cargo run --example ui_gallery --features debug` | Top bar: Jobs, Chart, Market, Load, New Game. Jobs: filter chips, Accept, Hand in, Track, click a row for the inspector, Show on Map. Chart: click a tile; CHARTER meters and the discovery log beside it. Market: delta badges (hover for the reason), the Market strip, restock, REFUSED. Load: pick a row. New Game: Randomize, role cards, the disclosure. `S` flips the theme. | None of the shared layer. `NOVA_AUTOPILOT=1` clicks every page and prints `gallery:` verdicts; `NOVA_CAPTURE=1` writes one PNG per page. |
 
 ## Features with no playable example
 
