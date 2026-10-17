@@ -19,7 +19,7 @@ use bevy::prelude::*;
 
 /// Glob-import surface: `use nova_gameplay::clock::prelude::*`.
 pub mod prelude {
-    pub use super::{advance_world_clock, WorldClock};
+    pub use super::{advance_world_clock, play_time_text, WorldClock};
 }
 
 /// Play time of the open world: the seconds the virtual clock ran while a
@@ -47,6 +47,18 @@ impl WorldClock {
         );
         self.play_seconds - frozen_at
     }
+}
+
+/// A play-time reading as a clock face, `h:mm:ss`, as the Map's discovery
+/// log shows it. A reading the clock never wrote (negative, NaN) reads as
+/// zero rather than as a sign.
+pub fn play_time_text(play_seconds: f64) -> String {
+    let total = if play_seconds.is_finite() && play_seconds > 0.0 {
+        play_seconds.floor() as u64
+    } else {
+        0
+    };
+    format!("{}:{:02}:{:02}", total / 3600, total / 60 % 60, total % 60)
 }
 
 /// Advance the clock by this frame's virtual delta, which is zero while
@@ -116,6 +128,18 @@ mod tests {
             (resumed - 0.3).abs() < 1e-9,
             "the clock runs again after the unpause, not {resumed}"
         );
+    }
+
+    /// The clock face carries hours past 9, pads minutes and seconds, floors
+    /// the fraction and reads zero for a reading the clock never wrote.
+    #[test]
+    fn play_time_text_reads_hours_minutes_seconds() {
+        assert_eq!(play_time_text(0.0), "0:00:00");
+        assert_eq!(play_time_text(59.9), "0:00:59");
+        assert_eq!(play_time_text(3_661.0), "1:01:01");
+        assert_eq!(play_time_text(36_000.0 + 5.0), "10:00:05");
+        assert_eq!(play_time_text(-3.0), "0:00:00");
+        assert_eq!(play_time_text(f64::NAN), "0:00:00");
     }
 
     /// The elapsed time a thaw reads is the clock less the freeze stamp, and

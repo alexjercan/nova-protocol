@@ -1,32 +1,42 @@
-//! system_world_chart: the player's chart records the cells entered and a
-//! docked station's summary, the Map draws it, and a save and a Load keep it.
+//! system_world_chart: a fresh start posts charter 0, the player's chart
+//! records the cells entered and a docked station's summary, the dock
+//! completes the charter, the Map draws the chart and its discovery log, and
+//! a save and a Load keep the chart.
 //!
 //! Boots the shipped app (via [`editor_app`]), starts New Game on a pinned
 //! seed the way the Create World modal does, and lets the window stream in
-//! around the spawn's cell. It picks the nearest living, non-Enemy station
-//! outside that cell, jumps beside it, and is put on a berth at its collar
-//! each frame until the dock takes; the walk never flies the approach
-//! (`system_station_docking` does). It undocks and teleports past the cell's
-//! +X edge into a third cell, so the player has entered exactly three cells.
+//! around the spawn's cell: charter 0 must stand with its marker on a living
+//! station. It picks the nearest living, non-Enemy station outside that
+//! cell, jumps beside it, and is put on a berth at its collar each frame
+//! until the dock takes; the walk never flies the approach
+//! (`system_station_docking` does). The dock must complete charter 0. It
+//! undocks and teleports past the cell's +X edge into a third cell, so the
+//! player has entered exactly three cells.
 //!
 //! The chart must hold those three cells and the station with the summary
 //! seen on the undock: its name, services and the stock in its hold. The Map
 //! pane's chart view is opened with the `map_chart` key, and the station's
 //! label, which shows only its chart code, is clicked: the panel must show
-//! the last-seen name and stock. The player leaves to the main menu; the
-//! leave save is read back off disk through [`open_world`], and the world is
-//! loaded again in this process through the Load screen.
+//! the last-seen name and stock, and the discovery log must list the station
+//! and the spawn's cell with their play times. The player leaves to the main
+//! menu; the leave save is read back off disk through [`open_world`], and
+//! the world is loaded again in this process through the Load screen.
 //!
 //! | # | marker | claim |
 //! | - | - | - |
-//! | 1 | `outcome: a docked station's summary reaches the chart` | after the undock the chart holds the station, living, with its name, services and hold stock |
-//! | 2 | `outcome: the chart records the three entered cells` | the chart's visited cells are exactly the spawn's cell, the station's cell and the third cell |
-//! | 3 | `outcome: the map's chart view reads the station by its code` | the chart view labels the station `STN-n`; a click shows its last-seen name and stock |
-//! | 4 | `outcome: the leave save holds the chart` | the leave save, read with [`open_world`], holds the three cells and the station's summary |
-//! | 5 | `outcome: a loaded world restores the chart` | after Load the live chart holds the same three cells and the same station summary |
+//! | 1 | `outcome: charter 0 stands on a fresh start` | once the window streams in, the objectives list `charter_0` and a living station wears the `STATION` marker |
+//! | 2 | `outcome: docking at a station completes charter 0` | after the dock the objectives no longer list `charter_0` and no station wears the marker |
+//! | 3 | `outcome: a docked station's summary reaches the chart` | after the undock the chart holds the station, living, with its name, services and hold stock |
+//! | 4 | `outcome: the chart records the three entered cells` | the chart's visited cells are exactly the spawn's cell, the station's cell and the third cell |
+//! | 5 | `outcome: the map's chart view reads the station by its code` | the chart view labels the station `STN-n`; a click shows its last-seen name and stock |
+//! | 6 | `outcome: the discovery log lists the station` | the panel's log has a `h:mm:ss  STN-n  (x, y, z)` row for the station and a `CELL  (0, 0, 0)` row for the spawn's cell |
+//! | 7 | `outcome: the leave save holds the chart` | the leave save, read with [`open_world`], holds the three cells and the station's summary |
+//! | 8 | `outcome: a loaded world restores the chart` | after Load the live chart holds the same three cells and the same station summary |
 //!
-//! ONE SUBJECT: the chart. The save's refusal of an unknown item named by a
-//! chart is unit-tested in `nova_world_base::save`.
+//! ONE SUBJECT: the chart and the charter it answers. The save's refusal of
+//! an unknown item named by a chart is unit-tested in
+//! `nova_world_base::save`; that a derelict station does not complete the
+//! charter is unit-tested in `nova_authoring`.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
@@ -277,6 +287,29 @@ mod walk {
             };
             world.resource::<Chart>().station(&id).is_some()
         })
+    }
+
+    /// Whether the objectives list charter 0.
+    fn charter_zero_listed(world: &World) -> bool {
+        world
+            .resource::<GameObjectives>()
+            .objectives
+            .iter()
+            .any(|objective| objective.id == CHARTER_ZERO_OBJECTIVE_ID)
+    }
+
+    /// Every station wearing the charter's `STATION` marker, by id.
+    fn charter_marked_stations(world: &mut World) -> Vec<String> {
+        world
+            .query_filtered::<(&GeneratedBodyId, &ObjectiveMarkerTarget), With<StationMarker>>()
+            .iter(world)
+            .filter(|(_, mark)| mark.label == "STATION")
+            .map(|(id, _)| id.to_string())
+            .collect()
+    }
+
+    fn charter_zero_stands(listed: bool) -> Arc<Predicate> {
+        when(move |world| charter_zero_listed(world) == listed)
     }
 
     fn the_chart_holds_a_summary() -> Arc<Predicate> {
@@ -566,7 +599,7 @@ mod walk {
             .add()
     }
 
-    /// Claim 1: the undock left the station's summary on the chart.
+    /// Claim 3: the undock left the station's summary on the chart.
     fn assert_the_summary(world: &mut World) {
         let id = station_id(world);
         let station = station(world);
@@ -637,7 +670,46 @@ mod walk {
         world.resource_mut::<ChartWatch>().summary = Some(summary);
     }
 
-    /// Claim 2: the chart's visited cells are exactly the three entered.
+    /// Claim 1: a fresh start lists charter 0 and marks a living station.
+    fn assert_charter_zero_stands(world: &mut World) {
+        assert!(
+            charter_zero_listed(world),
+            "world chart: a fresh start lists charter 0"
+        );
+        let marked = charter_marked_stations(world);
+        assert_eq!(
+            marked.len(),
+            1,
+            "world chart: the charter marks one station: {marked:?}"
+        );
+        nova_probe::probe_marker(
+            world,
+            "outcome: charter 0 stands on a fresh start",
+            serde_json::json!({ "marked": marked }),
+        );
+        info!("world chart: charter 0 stands, pointing at {marked:?}");
+    }
+
+    /// Claim 2: the dock completed charter 0 and took its marker down.
+    fn assert_charter_zero_complete(world: &mut World) {
+        assert!(
+            !charter_zero_listed(world),
+            "world chart: the dock completed charter 0"
+        );
+        let marked = charter_marked_stations(world);
+        assert!(
+            marked.is_empty(),
+            "world chart: no station keeps the charter marker: {marked:?}"
+        );
+        nova_probe::probe_marker(
+            world,
+            "outcome: docking at a station completes charter 0",
+            serde_json::json!({ "station": station_id(world).to_string() }),
+        );
+        info!("world chart: charter 0 is complete");
+    }
+
+    /// Claim 4: the chart's visited cells are exactly the three entered.
     fn assert_the_visited_cells(world: &mut World) {
         let expected = entered(world);
         let chart = world.resource::<Chart>().clone();
@@ -648,13 +720,13 @@ mod walk {
         );
         let types: Vec<String> = chart
             .visited()
-            .map(|(cell, clusters)| format!("{cell} {clusters:?}"))
+            .map(|(coord, cell)| format!("{coord} {:?}", cell.clusters))
             .collect();
         let others: Vec<String> = chart
             .stations()
             .iter()
             .map(|station| station.id.to_string())
-            .chain(chart.wrecks().iter().map(ToString::to_string))
+            .chain(chart.wrecks().iter().map(|wreck| wreck.id.to_string()))
             .collect();
         nova_probe::probe_marker(
             world,
@@ -676,7 +748,7 @@ mod walk {
         format!("STN-{}", index + 1)
     }
 
-    /// Claim 3: the chart view labels the station by code, and its panel
+    /// Claim 5: the chart view labels the station by code, and its panel
     /// shows the last-seen name and stock.
     fn assert_the_chart_view(world: &mut World) {
         let code = station_code(world);
@@ -696,7 +768,7 @@ mod walk {
         );
         let note = shown
             .iter()
-            .find(|text| text.starts_with("Last seen docked."))
+            .find(|text| text.contains("Last seen docked."))
             .unwrap_or_else(|| panic!("world chart: the panel shows the last dock: {shown:?}"))
             .clone();
         let (item, count) = summary.stock.first().expect("checked non-empty");
@@ -716,7 +788,41 @@ mod walk {
         info!("world chart: the chart view shows {code}: {note:?}");
     }
 
-    /// Claim 4: the leave save holds the three cells and the summary.
+    /// Claim 6: the discovery log in the panel lists the station's find and
+    /// the spawn's cell, each with a play-time stamp.
+    fn assert_the_discovery_log(world: &mut World) {
+        let code = station_code(world);
+        let cell = world
+            .resource::<ChartWatch>()
+            .cell
+            .expect("world chart: the station's cell is chosen");
+        let shown = texts(world);
+        let stamped = |text: &str| {
+            text.split_once(':').is_some_and(|(hours, rest)| {
+                !hours.is_empty() && hours.chars().all(|c| c.is_ascii_digit()) && rest.len() > 5
+            })
+        };
+        let station_row = shown
+            .iter()
+            .find(|text| stamped(text) && text.ends_with(&format!("  {code}  {cell}")))
+            .unwrap_or_else(|| panic!("world chart: the log lists {code} in {cell}: {shown:?}"))
+            .clone();
+        let origin_row = shown
+            .iter()
+            .find(|text| {
+                stamped(text) && text.ends_with(&format!("  CELL  {}", SectorCoord::ORIGIN))
+            })
+            .unwrap_or_else(|| panic!("world chart: the log lists the spawn's cell: {shown:?}"))
+            .clone();
+        nova_probe::probe_marker(
+            world,
+            "outcome: the discovery log lists the station",
+            serde_json::json!({ "station_row": station_row, "origin_row": origin_row }),
+        );
+        info!("world chart: the log reads {station_row:?} and {origin_row:?}");
+    }
+
+    /// Claim 7: the leave save holds the three cells and the summary.
     fn assert_the_saved_chart(world: &mut World) {
         let id = station_id(world);
         let expected = entered(world);
@@ -773,7 +879,7 @@ mod walk {
         );
     }
 
-    /// Claim 5: the loaded chart holds the same cells and summary.
+    /// Claim 8: the loaded chart holds the same cells and summary.
     fn assert_the_loaded_chart(world: &mut World) {
         let id = station_id(world);
         let expected = entered(world);
@@ -855,6 +961,9 @@ mod walk {
             ))
             .deadline(SESSION_SECS)
             .add()
+            .step("world chart: assert charter 0 stands")
+            .on_enter(assert_charter_zero_stands)
+            .add()
             .step("world chart: choose the station")
             .on_enter(choose_the_station)
             .add()
@@ -873,6 +982,13 @@ mod walk {
             .each(|world, _, _| berth_and_dock(world))
             .until(and(player_docked(), the_chart_holds_a_summary()))
             .deadline(SESSION_SECS)
+            .add()
+            .step("world chart: the dock completes charter 0")
+            .until(and(charter_zero_stands(false), frames(SETTLE_FRAMES)))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("world chart: assert charter 0 is complete")
+            .on_enter(assert_charter_zero_complete)
             .add()
             .step("world chart: undock")
             .on_enter(|world: &mut World| {
@@ -935,7 +1051,7 @@ mod walk {
                 .unwrap_or_else(|| panic!("world chart: no label named '{target}'"));
             world.trigger(bevy::ui_widgets::Activate { entity: label });
         })
-        .until(a_text_reads(|text| text.starts_with("Last seen docked.")))
+        .until(a_text_reads(|text| text.contains("Last seen docked.")))
         .deadline(BEAT_SECS)
         .add()
         .step("world chart: settle the panel")
@@ -943,6 +1059,9 @@ mod walk {
         .add()
         .step("world chart: assert the chart view")
         .on_enter(assert_the_chart_view)
+        .add()
+        .step("world chart: assert the discovery log")
+        .on_enter(assert_the_discovery_log)
         .add()
         .step("world chart: shoot the chart view")
         .on_enter(|world: &mut World| shoot(world, CHART_SHOT))

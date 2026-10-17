@@ -108,6 +108,10 @@
                             shadows: false,
                         )),
                     )),
+                    Objective((
+                        id: "charter_0",
+                        message: "Charter 0: dock at the nearest station",
+                    )),
                 ],
             ),
             (
@@ -208,6 +212,21 @@
                             )),
                             shadows: false,
                         )),
+                    )),
+                ],
+            ),
+            (
+                name: OnDocked,
+                once: true,
+                filters: [
+                    Entity((
+                        type_name: Some("living_station"),
+                        other_id: Some("player"),
+                    )),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: "charter_0",
                     )),
                 ],
             ),

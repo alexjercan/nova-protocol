@@ -1,13 +1,17 @@
 //! The map's chart view: the player's [`Chart`] drawn at cell scale.
 //!
 //! The view swaps the local scene for a grid of cells around the player's
-//! cell, the visited cells filled in the colour of their first cluster type,
-//! and the found stations and wrecks as marks in the cell that generated
-//! them, and every held job ([`Jobs`]) as a mark in its target's cell.
-//! Marks and cell tags are projected UI labels, like the local blips.
-//! A label shows only a code minted from the chart's found order (or the
-//! jobs' accept order), never a name: the open world names a ship by whose
-//! it is.
+//! cell, the visited cells striped in the colour of each of their cluster
+//! types and tagged with the type words, the found stations and wrecks as
+//! marks in the cell that generated them, and every held job ([`Jobs`]) as a
+//! mark in its target's cell. Marks and cell tags are projected UI labels,
+//! like the local blips, and each selects what it names. A mark's label
+//! shows only a code minted from the chart's found order (or the jobs'
+//! accept order), never a name: the open world names a ship by whose it is.
+//!
+//! The side panel carries the discovery log under the selection: the chart's
+//! own finds ([`Chart::log`]) newest first, each a play-time stamp, a code
+//! and a cell, and each a row that selects its find.
 //!
 //! Chart space is its own frame on the map layer: the player's cell centre
 //! sits at the origin and one cell is [`MAP_CHART_CELL`] units across. The
@@ -49,9 +53,12 @@ const MAP_CHART_MARK_SPACING: f32 = 14.0;
 /// Height of a mark over its cell's floor, in map units.
 const MAP_CHART_MARK_LIFT: f32 = 8.0;
 
-/// One station or wreck of the chart the player can select.
+/// One find of the chart the player can select: a visited cell, a station,
+/// a wreck or a held job.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum MapChartMarkType {
+    /// A visited cell.
+    Cell(SectorCoord),
     /// A found station.
     Station(GeneratedBodyId),
     /// A found derelict hull.
@@ -64,8 +71,9 @@ pub(crate) enum MapChartMarkType {
 #[derive(Component)]
 pub(crate) struct MapChartRoot;
 
-/// One label of the chart view over the viewport: a mark's code, which
-/// selects the mark, or a visited cell's cluster tag, which takes no clicks.
+/// One label of the chart view over the viewport: a mark's code or a
+/// visited cell's type words, which selects what it names, or the own-ship
+/// tag, which takes no clicks.
 #[derive(Component)]
 pub(crate) struct MapChartLabel {
     /// Where the label points, in chart space.
@@ -74,14 +82,27 @@ pub(crate) struct MapChartLabel {
     pub(crate) mark: Option<MapChartMarkType>,
 }
 
-/// The chart code of a mark: its 1-based place in the chart's found order,
-/// or a held job's in the accept order.
+/// The rows of the discovery log in the side panel, shown in the chart view.
+#[derive(Component)]
+pub(crate) struct MapChartLogMarker;
+
+/// One row of the discovery log: the find it selects.
+#[derive(Component)]
+pub(crate) struct MapChartLogRow(pub(crate) MapChartMarkType);
+
+/// How many finds the discovery log lists, newest first.
+pub(crate) const MAP_CHART_LOG_ROWS: usize = 12;
+
+/// The chart code of a mark: a cell's coordinate, a station's or wreck's
+/// 1-based place in the chart's found order, or a held job's in the accept
+/// order.
 pub(crate) fn chart_mark_code(
     chart: &Chart,
     jobs: &Jobs,
     mark: &MapChartMarkType,
 ) -> Option<String> {
     match mark {
+        MapChartMarkType::Cell(coord) => Some(coord.to_string()),
         MapChartMarkType::Station(id) => chart
             .stations()
             .iter()
@@ -90,7 +111,7 @@ pub(crate) fn chart_mark_code(
         MapChartMarkType::Wreck(id) => chart
             .wrecks()
             .iter()
-            .position(|wreck| wreck == id)
+            .position(|wreck| wreck.id == *id)
             .map(|index| format!("WRK-{}", index + 1)),
         MapChartMarkType::Job(id) => jobs
             .held()
@@ -127,26 +148,39 @@ pub(crate) fn job_title(job: &Job, items: Option<&GameItems>) -> String {
     )
 }
 
-/// The colour a visited cell is filled with: its first cluster type's, or a
-/// faint neutral for a cell with no cluster body.
-pub(crate) fn chart_cell_color(clusters: &[ClusterType]) -> (UiColor, f32) {
-    match clusters.first() {
-        Some(ClusterType::AsteroidRich) => (UiColor::Accent, 0.35),
-        Some(ClusterType::RockOnly) => (UiColor::Secondary, 0.35),
-        Some(ClusterType::PlanetHeavy) => (UiColor::Info, 0.35),
-        Some(ClusterType::DerelictField) => (UiColor::Body, 0.3),
-        None => (UiColor::Label, 0.15),
+/// The colour a cluster type's stripe of a visited cell is filled with.
+pub(crate) const fn chart_cell_color(cluster: ClusterType) -> UiColor {
+    match cluster {
+        ClusterType::AsteroidRich => UiColor::Accent,
+        ClusterType::RockOnly => UiColor::Secondary,
+        ClusterType::PlanetHeavy => UiColor::Info,
+        ClusterType::DerelictField => UiColor::Body,
     }
 }
 
-/// The two-letter tag a cell label and the legend name a cluster type by.
-pub(crate) const fn chart_cluster_tag(cluster: ClusterType) -> &'static str {
+/// The alpha of a cluster stripe.
+const MAP_CHART_STRIPE_ALPHA: f32 = 0.35;
+/// The fill of a visited cell with no cluster body: faint, so it reads as
+/// seen and empty.
+const MAP_CHART_EMPTY_CELL: (UiColor, f32) = (UiColor::Label, 0.15);
+
+/// The word a cell label, the panel and the legend name a cluster type by:
+/// what the player finds there.
+pub(crate) const fn chart_cluster_word(cluster: ClusterType) -> &'static str {
     match cluster {
-        ClusterType::AsteroidRich => "AR",
-        ClusterType::RockOnly => "RO",
-        ClusterType::PlanetHeavy => "PH",
-        ClusterType::DerelictField => "DF",
+        ClusterType::AsteroidRich => "ASTEROIDS",
+        ClusterType::RockOnly => "ROCKS",
+        ClusterType::PlanetHeavy => "PLANETS",
+        ClusterType::DerelictField => "DERELICTS",
     }
+}
+
+/// The colour a visited cell's label and log row read in: its first cluster
+/// type's, or the empty fill's.
+fn chart_cell_label_color(cell: &ChartCell) -> UiColor {
+    cell.clusters
+        .first()
+        .map_or(MAP_CHART_EMPTY_CELL.0, |cluster| chart_cell_color(*cluster))
 }
 
 /// What a station mark is, as the panel's kind line names it, and its
@@ -312,26 +346,58 @@ pub(crate) fn manage_map_chart(
         );
     }
 
-    // Visited cells, filled in their first cluster type's colour.
-    let fill = meshes.add(Cuboid::new(MAP_CHART_CELL * 0.9, 0.4, MAP_CHART_CELL * 0.9));
+    // Visited cells: one stripe along z per cluster type, in its colour, so
+    // a cell with two types shows both; an empty cell a faint fill.
+    let mut stripe_meshes: Vec<Handle<Mesh>> = Vec::new();
     let mut labels = Vec::new();
-    for (cell, clusters) in chart.visited() {
-        let (color, alpha) = chart_cell_color(clusters);
-        let at = chart_cell_position(cell, player_cell);
-        spawn_mesh(
-            fill.clone(),
-            materials.add(unlit(theme.color_alpha(color, alpha))),
-            Transform::from_translation(at - Vec3::Y * 0.3),
-        );
-        if !clusters.is_empty() {
-            let tag = clusters
-                .iter()
-                .map(|cluster| chart_cluster_tag(*cluster))
-                .collect::<Vec<_>>()
-                .join("+");
-            let corner = Vec3::new(-0.38, 0.0, -0.38) * MAP_CHART_CELL;
-            labels.push((at + corner, None, tag, color));
+    for (coord, cell) in chart.visited() {
+        let at = chart_cell_position(coord, player_cell);
+        let count = cell.clusters.len().max(1);
+        while stripe_meshes.len() < count {
+            let stripes = stripe_meshes.len() + 1;
+            stripe_meshes.push(meshes.add(Cuboid::new(
+                MAP_CHART_CELL * 0.9,
+                0.4,
+                MAP_CHART_CELL * 0.9 / stripes as f32,
+            )));
         }
+        let mesh = stripe_meshes[count - 1].clone();
+        let depth = MAP_CHART_CELL * 0.9 / count as f32;
+        for (index, cluster) in cell.clusters.iter().enumerate() {
+            let offset = (index as f32 - (count - 1) as f32 * 0.5) * depth;
+            spawn_mesh(
+                mesh.clone(),
+                materials.add(unlit(
+                    theme.color_alpha(chart_cell_color(*cluster), MAP_CHART_STRIPE_ALPHA),
+                )),
+                Transform::from_translation(at - Vec3::Y * 0.3 + Vec3::Z * offset),
+            );
+        }
+        if cell.clusters.is_empty() {
+            let (color, alpha) = MAP_CHART_EMPTY_CELL;
+            spawn_mesh(
+                mesh,
+                materials.add(unlit(theme.color_alpha(color, alpha))),
+                Transform::from_translation(at - Vec3::Y * 0.3),
+            );
+        }
+        let words = if cell.clusters.is_empty() {
+            "EMPTY".to_string()
+        } else {
+            cell.clusters
+                .iter()
+                .map(|cluster| chart_cluster_word(*cluster))
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+        let corner = Vec3::new(-0.38, 0.0, -0.38) * MAP_CHART_CELL;
+        labels.push((
+            at + corner,
+            Some(MapChartMarkType::Cell(coord)),
+            words,
+            coord.to_string(),
+            chart_cell_label_color(cell),
+        ));
     }
 
     // Stations and wrecks, side by side in the cell that generated them,
@@ -348,8 +414,8 @@ pub(crate) fn manage_map_chart(
         })
         .chain(chart.wrecks().iter().map(|wreck| {
             (
-                MapChartMarkType::Wreck(wreck.clone()),
-                wreck.origin,
+                MapChartMarkType::Wreck(wreck.id.clone()),
+                wreck.id.origin,
                 MAP_CHART_WRECK_COLOR,
             )
         }))
@@ -397,9 +463,10 @@ pub(crate) fn manage_map_chart(
                     Transform::from_translation(at + Vec3::Y * 3.0),
                 );
             }
+            MapChartMarkType::Cell(_) => unreachable!("a cell is drawn as a fill, not a mark"),
         }
         if let Some(code) = chart_mark_code(&chart, &jobs, mark) {
-            labels.push((at, Some(mark.clone()), code, *color));
+            labels.push((at, Some(mark.clone()), code.clone(), code, *color));
         }
     }
 
@@ -415,12 +482,13 @@ pub(crate) fn manage_map_chart(
     labels.push((
         within + Vec3::Y * MAP_CHART_MARK_LIFT * 0.5,
         None,
-        "SELF".to_string(),
+        "YOU".to_string(),
+        "YOU".to_string(),
         MapContactKind::OwnShip.color(),
     ));
 
-    for (anchor, mark, text, color) in labels {
-        let label = spawn_chart_label(&mut commands, viewport, anchor, mark, &text, color);
+    for (anchor, mark, text, name, color) in labels {
+        let label = spawn_chart_label(&mut commands, viewport, anchor, mark, &text, &name, color);
         runtime.chart_labels.push(label);
     }
 }
@@ -436,13 +504,19 @@ pub(crate) fn drop_map_chart(commands: &mut Commands, runtime: &mut MapRuntime) 
 }
 
 /// Spawn one chart label under the viewport, hidden until projected. A
-/// mark's label is a button that selects the mark.
+/// mark's label is a button named `MapChartMark{name}` that selects the
+/// mark.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a label's place, mark, text, name and colour under the viewport"
+)]
 fn spawn_chart_label(
     commands: &mut Commands,
     viewport: Entity,
     anchor: Vec3,
     mark: Option<MapChartMarkType>,
     text: &str,
+    name: &str,
     color: UiColor,
 ) -> Entity {
     let clickable = mark.is_some();
@@ -470,13 +544,26 @@ fn spawn_chart_label(
         label
             .insert((
                 bevy::ui_widgets::Button,
-                Name::new(format!("MapChartMark{text}")),
+                Name::new(format!("MapChartMark{name}")),
             ))
             .observe(on_map_chart_label_click);
     } else {
         label.insert(Pickable::IGNORE);
     }
     label.id()
+}
+
+/// Select `mark` in the chart view, with one click if the selection changes.
+fn select_chart_mark(
+    runtime: &mut MapRuntime,
+    mark: &MapChartMarkType,
+    bank: Option<&SoundBank<UiSfx>>,
+    commands: &mut Commands,
+) {
+    if runtime.chart_selected.as_ref() != Some(mark) {
+        runtime.chart_selected = Some(mark.clone());
+        play_menu_select(commands, bank);
+    }
 }
 
 /// Select a chart mark when its label is activated, with one click if the
@@ -494,9 +581,160 @@ fn on_map_chart_label_click(
     else {
         return;
     };
-    if runtime.chart_selected.as_ref() != Some(mark) {
-        runtime.chart_selected = Some(mark.clone());
-        play_menu_select(&mut commands, bank.as_deref());
+    select_chart_mark(&mut runtime, mark, bank.as_deref(), &mut commands);
+}
+
+/// Select a find when its discovery log row is activated.
+fn on_map_chart_log_row_click(
+    activate: On<Activate>,
+    q_row: Query<&MapChartLogRow>,
+    mut runtime: ResMut<MapRuntime>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
+) {
+    let Ok(MapChartLogRow(mark)) = q_row.get(activate.entity) else {
+        return;
+    };
+    select_chart_mark(&mut runtime, mark, bank.as_deref(), &mut commands);
+}
+
+/// The discovery log's slot in the side panel: a heading over the rows,
+/// hidden off the chart view. [`update_map_chart_log`] fills the rows.
+pub(crate) fn spawn_map_chart_log(panel: &mut ChildSpawnerCommands) {
+    panel.spawn((
+        MapChartLogMarker,
+        Name::new("MapChartLog"),
+        Node {
+            display: Display::None,
+            flex_direction: FlexDirection::Column,
+            row_gap: px(2),
+            ..default()
+        },
+    ));
+}
+
+/// The text of one discovery log row: the play time of the find, its code
+/// and its cell.
+fn chart_log_row_text(chart: &Chart, jobs: &Jobs, entry: &ChartLogEntry) -> (String, UiColor) {
+    let (mark, cell, color) = match &entry.entry {
+        ChartLogEntryType::Cell(coord) => (
+            MapChartMarkType::Cell(*coord),
+            *coord,
+            chart
+                .cell(*coord)
+                .map_or(MAP_CHART_EMPTY_CELL.0, chart_cell_label_color),
+        ),
+        ChartLogEntryType::Station(id) => (
+            MapChartMarkType::Station(id.clone()),
+            id.origin,
+            chart
+                .station(id)
+                .map_or(chart_station_kind(false, false).1, |station| {
+                    chart_station_kind(station.derelict, station.owned).1
+                }),
+        ),
+        ChartLogEntryType::Wreck(id) => (
+            MapChartMarkType::Wreck(id.clone()),
+            id.origin,
+            MAP_CHART_WRECK_COLOR,
+        ),
+    };
+    let code = match &mark {
+        MapChartMarkType::Cell(_) => "CELL".to_string(),
+        mark => chart_mark_code(chart, jobs, mark).unwrap_or_default(),
+    };
+    (
+        format!("{}  {code}  {cell}", play_time_text(entry.at)),
+        color,
+    )
+}
+
+/// The edge a discovery log row wears: the accent when it is the selected
+/// find, else the faint secondary the chart labels wear.
+const fn chart_log_row_edge(selected: bool) -> (UiColor, f32) {
+    if selected {
+        (UiColor::Accent, 1.0)
+    } else {
+        (UiColor::Secondary, 0.3)
+    }
+}
+
+/// Show the discovery log while the chart view shows, rebuild its rows
+/// newest first whenever the chart changes, hide it off the chart view, and
+/// edge the selected find's row in the accent.
+pub(crate) fn update_map_chart_log(
+    mut commands: Commands,
+    runtime: Res<MapRuntime>,
+    chart: Res<Chart>,
+    jobs: Res<Jobs>,
+    mut q_log: Query<(Entity, &mut Node), With<MapChartLogMarker>>,
+    mut q_row: Query<(&MapChartLogRow, &mut ThemedBorder)>,
+    mut built: Local<bool>,
+) {
+    let Ok((log, mut node)) = q_log.single_mut() else {
+        return;
+    };
+    let shown = runtime.active && runtime.chart;
+    let display = if shown { Display::Flex } else { Display::None };
+    if node.display != display {
+        node.display = display;
+    }
+    if !shown {
+        if *built {
+            commands.entity(log).despawn_related::<Children>();
+            *built = false;
+        }
+        return;
+    }
+    if !*built || chart.is_changed() {
+        *built = true;
+        let mut entries = chart.log();
+        entries.reverse();
+        entries.truncate(MAP_CHART_LOG_ROWS);
+        commands
+            .entity(log)
+            .despawn_related::<Children>()
+            .with_children(|log| {
+                log.spawn(themed_label("DISCOVERY LOG", 12.0, UiColor::Label));
+                if entries.is_empty() {
+                    log.spawn(themed_label("Nothing found yet.", 11.0, UiColor::Label));
+                }
+                for (index, entry) in entries.iter().enumerate() {
+                    let (text, color) = chart_log_row_text(&chart, &jobs, entry);
+                    let mark = match &entry.entry {
+                        ChartLogEntryType::Cell(coord) => MapChartMarkType::Cell(*coord),
+                        ChartLogEntryType::Station(id) => MapChartMarkType::Station(id.clone()),
+                        ChartLogEntryType::Wreck(id) => MapChartMarkType::Wreck(id.clone()),
+                    };
+                    // Born with its edge, so a rebuild under a selected
+                    // row never shows it plain for a frame.
+                    let (edge, alpha) =
+                        chart_log_row_edge(runtime.chart_selected.as_ref() == Some(&mark));
+                    log.spawn((
+                        MapChartLogRow(mark),
+                        bevy::ui_widgets::Button,
+                        Name::new(format!("MapChartLog{index}")),
+                        Node {
+                            padding: UiRect::axes(px(4), px(1)),
+                            border: UiRect::all(px(1)),
+                            ..default()
+                        },
+                        BackgroundColor(Color::NONE),
+                        BorderColor::all(Color::NONE),
+                        ThemedBorder::alpha(edge, alpha),
+                        children![(themed_label(&text, 11.0, color), Pickable::IGNORE)],
+                    ))
+                    .observe(on_map_chart_log_row_click);
+                }
+            });
+        return;
+    }
+    for (row, mut border) in &mut q_row {
+        let (color, alpha) = chart_log_row_edge(Some(&row.0) == runtime.chart_selected.as_ref());
+        if border.color != color || border.alpha != alpha {
+            border.color = color;
+            border.alpha = alpha;
+        }
     }
 }
 
@@ -556,10 +794,12 @@ pub(crate) fn project_map_chart_labels(
 }
 
 /// What the contact panel says in the chart view, field by field: the
-/// selected mark's code, its last-seen name, what it is, its cell, the
-/// services and stock seen on the last dock, or a station seen but never
-/// docked as having no stock; for a held job, its title, reward and where
-/// it hands in. With nothing selected it counts the chart.
+/// selected mark's code, its last-seen name, what it is, its cell, when the
+/// player found it, the services and stock seen on the last dock, or a
+/// station seen but never docked as having no stock; for a visited cell,
+/// what its clusters hold, when the player entered it and what was found
+/// there; for a held job, its title, reward and where it hands in. With
+/// nothing selected it heads the discovery log and counts the chart.
 pub(crate) fn chart_panel_field(
     chart: &Chart,
     jobs: &Jobs,
@@ -584,8 +824,9 @@ pub(crate) fn chart_panel_field(
             .and_then(|station| station.summary.as_ref())
             .map_or_else(|| id.to_string(), |summary| summary.name.clone())
     };
+    let found = |at: f64| format!("Found {}.", play_time_text(at));
     match (selected, field) {
-        (None, MapPanelField::Code) => ("No mark".to_string(), UiColor::Label),
+        (None, MapPanelField::Code) => ("DISCOVERY LOG".to_string(), UiColor::Label),
         (None, MapPanelField::Range) => (
             format!("Cells visited {}", chart.visited().count()),
             UiColor::Primary,
@@ -600,7 +841,7 @@ pub(crate) fn chart_panel_field(
             UiColor::Primary,
         ),
         (None, MapPanelField::Note) => (
-            "Click a station, wreck or job to read it.".to_string(),
+            "Click a log line, a cell or a mark to read it.".to_string(),
             UiColor::Label,
         ),
         (None, _) => (String::new(), UiColor::Body),
@@ -608,6 +849,51 @@ pub(crate) fn chart_panel_field(
             chart_mark_code(chart, jobs, mark).unwrap_or_default(),
             UiColor::Primary,
         ),
+        (Some(MapChartMarkType::Cell(coord)), MapPanelField::Name) => (
+            match chart.cell(*coord) {
+                Some(cell) if !cell.clusters.is_empty() => cell
+                    .clusters
+                    .iter()
+                    .map(|cluster| chart_cluster_word(*cluster))
+                    .collect::<Vec<_>>()
+                    .join(" + "),
+                _ => "Empty space".to_string(),
+            },
+            UiColor::Body,
+        ),
+        (Some(MapChartMarkType::Cell(_)), MapPanelField::Kind) => {
+            ("VISITED CELL".to_string(), UiColor::Primary)
+        }
+        (Some(MapChartMarkType::Cell(coord)), MapPanelField::Range) => {
+            (format!("Cell {coord}"), UiColor::Primary)
+        }
+        (Some(MapChartMarkType::Cell(coord)), MapPanelField::Bearing) => (
+            chart.cell(*coord).map_or_else(String::new, |cell| {
+                format!("Entered {}", play_time_text(cell.entered_at))
+            }),
+            UiColor::Primary,
+        ),
+        (Some(MapChartMarkType::Cell(coord)), MapPanelField::Note) => {
+            let here: Vec<String> = chart
+                .stations()
+                .iter()
+                .filter(|station| station.id.origin == *coord)
+                .map(|station| MapChartMarkType::Station(station.id.clone()))
+                .chain(
+                    chart
+                        .wrecks()
+                        .iter()
+                        .filter(|wreck| wreck.id.origin == *coord)
+                        .map(|wreck| MapChartMarkType::Wreck(wreck.id.clone())),
+                )
+                .filter_map(|mark| chart_mark_code(chart, jobs, &mark))
+                .collect();
+            if here.is_empty() {
+                ("Nothing found here yet.".to_string(), UiColor::Label)
+            } else {
+                (format!("Here: {}.", here.join(", ")), UiColor::Label)
+            }
+        }
         (Some(MapChartMarkType::Job(id)), MapPanelField::Name) => (
             jobs.job(id).map_or_else(
                 || "Job no longer held".to_string(),
@@ -690,27 +976,37 @@ pub(crate) fn chart_panel_field(
             }
         }
         (Some(MapChartMarkType::Station(id)), MapPanelField::Note) => {
-            match station(id).and_then(|station| station.summary.as_ref()) {
+            let Some(station) = station(id) else {
+                return (String::new(), UiColor::Label);
+            };
+            match &station.summary {
                 Some(summary) => (
                     format!(
-                        "Last seen docked.\nStock: {}\nStored: {}",
+                        "{}\nLast seen docked.\nStock: {}\nStored: {}",
+                        found(station.found_at),
                         stacks(&summary.stock),
                         stacks(&summary.stored)
                     ),
                     UiColor::Label,
                 ),
-                None => ("Not docked: no stock seen.".to_string(), UiColor::Label),
+                None => (
+                    format!("{}\nNot docked: no stock seen.", found(station.found_at)),
+                    UiColor::Label,
+                ),
             }
         }
-        (Some(MapChartMarkType::Wreck(_)), MapPanelField::Note) => {
-            ("Found on sensors.".to_string(), UiColor::Label)
-        }
+        (Some(MapChartMarkType::Wreck(id)), MapPanelField::Note) => (
+            chart.wreck(id).map_or_else(String::new, |wreck| {
+                format!("{}\nFound on sensors.", found(wreck.found_at))
+            }),
+            UiColor::Label,
+        ),
         (Some(_), _) => (String::new(), UiColor::Body),
     }
 }
 
-/// The legend the chart view shows: each cluster type's fill and tag, the
-/// station, wreck and held-job marks, and the own ship.
+/// The legend the chart view shows: each cluster type's stripe and word,
+/// the station mark in its three states, the wreck and job marks, and you.
 pub(crate) fn spawn_chart_legend(legend: &mut ChildSpawnerCommands) {
     let swatch = |entry: &mut ChildSpawnerCommands, color: UiColor, alpha: f32| {
         entry.spawn((
@@ -723,24 +1019,36 @@ pub(crate) fn spawn_chart_legend(legend: &mut ChildSpawnerCommands) {
             ThemedFill::alpha(color, alpha),
         ));
     };
+    let capitalized = |word: &str| {
+        let mut chars = word.chars();
+        chars.next().map_or_else(String::new, |first| {
+            first.to_string() + &chars.as_str().to_lowercase()
+        })
+    };
     for cluster in ClusterType::ALL {
         legend.spawn(legend_entry()).with_children(|entry| {
-            let (color, _) = chart_cell_color(&[cluster]);
-            swatch(entry, color, 1.0);
+            swatch(entry, chart_cell_color(cluster), 1.0);
             entry.spawn(themed_label(
-                &format!("{} {}", chart_cluster_tag(cluster), cluster.label()),
+                &capitalized(chart_cluster_word(cluster)),
                 12.0,
                 UiColor::Body,
             ));
         });
     }
+    legend.spawn(legend_entry()).with_children(|entry| {
+        swatch(entry, chart_station_kind(false, false).1, 1.0);
+        swatch(entry, chart_station_kind(true, false).1, 1.0);
+        swatch(entry, chart_station_kind(false, true).1, 1.0);
+        entry.spawn(themed_label(
+            "Station: living, dead, yours",
+            12.0,
+            UiColor::Body,
+        ));
+    });
     for (color, word) in [
-        (chart_station_kind(false, false).1, "Living station"),
-        (chart_station_kind(false, true).1, "Owned station"),
-        (chart_station_kind(true, false).1, "Dead station"),
         (MAP_CHART_WRECK_COLOR, "Wreck"),
-        (MAP_CHART_JOB_COLOR, "Held job"),
-        (MapContactKind::OwnShip.color(), "Own ship"),
+        (MAP_CHART_JOB_COLOR, "Job"),
+        (MapContactKind::OwnShip.color(), "You"),
     ] {
         legend.spawn(legend_entry()).with_children(|entry| {
             swatch(entry, color, 1.0);

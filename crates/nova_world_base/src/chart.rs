@@ -1,6 +1,7 @@
 //! What feeds the player's [`Chart`] while the open world streams: the cells
 //! the player enters, the stations and derelict hulls the player's sensors
-//! find, and what the player sees at a station while docked there.
+//! find, each stamped with the [`WorldClock`] of the find, and what the
+//! player sees at a station while docked there.
 //!
 //! The chart, the player's [`Jobs`] and the player's
 //! [`NeutralizedCivilizations`] are cleared with the frozen ledger, in
@@ -13,7 +14,7 @@ use nova_events::prelude::GeneratedBodyId;
 use nova_gameplay::prelude::{
     Chart, ChartSectorEdge, DerelictShipMarker, JobPostings, Jobs, NeutralizedCivilizations,
     OwnedStationMarker, PlayerSpaceshipMarker, ShipInventory, StationMarker, StationServices,
-    StationStorage, StationSummary,
+    StationStorage, StationSummary, WorldClock,
 };
 use nova_ship::prelude::{DockedShip, DockingConnection, SensorContacts};
 use nova_world::prelude::{CurrentSector, SectorClusterTypes, SectorRoot, WorldConfig};
@@ -61,6 +62,7 @@ pub(crate) fn clear_chart(
 pub(crate) fn chart_visited_cell(
     current: Res<CurrentSector>,
     roots: Query<(&SectorRoot, &SectorClusterTypes)>,
+    clock: Res<WorldClock>,
     mut chart: ResMut<Chart>,
 ) {
     let coord = current.0;
@@ -74,7 +76,7 @@ pub(crate) fn chart_visited_cell(
         "nova_world_base: the chart records {coord} with clusters {:?}",
         clusters.0
     );
-    chart.visit(coord, clusters.0.clone());
+    chart.visit(coord, clusters.0.clone(), clock.play_seconds);
 }
 
 /// Record every generated station and derelict hull the player's sensors
@@ -91,6 +93,7 @@ pub(crate) fn chart_sensor_finds(
         ),
         Or<(With<StationMarker>, With<DerelictShipMarker>)>,
     >,
+    clock: Res<WorldClock>,
     mut chart: ResMut<Chart>,
 ) {
     let Ok(contacts) = player.single() else {
@@ -103,11 +106,11 @@ pub(crate) fn chart_sensor_finds(
         if station {
             if chart.station(id).is_none() {
                 info!("nova_world_base: the chart finds the station '{id}'");
-                chart.find_station(id, derelict, owned);
+                chart.find_station(id, derelict, owned, clock.play_seconds);
             }
-        } else if !chart.has_wreck(id) {
+        } else if chart.wreck(id).is_none() {
             info!("nova_world_base: the chart finds the wreck '{id}'");
-            chart.find_wreck(id);
+            chart.find_wreck(id, clock.play_seconds);
         }
     }
 }
@@ -139,6 +142,7 @@ pub(crate) fn chart_docked_station(
         With<StationMarker>,
     >,
     mut last: Local<LastDockedStation>,
+    clock: Res<WorldClock>,
     mut chart: ResMut<Chart>,
 ) {
     let Ok(docked) = player.single() else {
@@ -201,5 +205,5 @@ pub(crate) fn chart_docked_station(
         summary.stock.len(),
         summary.stored.len()
     );
-    chart.record_station(id, derelict, owned, summary);
+    chart.record_station(id, derelict, owned, summary, clock.play_seconds);
 }

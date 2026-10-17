@@ -40,24 +40,21 @@ does NOT get an entry. Another page that states a different rule is wrong.
   the camera behind it while it moves.
 - Two docked hulls no longer collide, so skin plates and greebles past a
   port face no longer wear both hulls down while they sit docked.
-- **(breaking)** Living generated stations post three seeded jobs, weighted
-  by the start role: bring items, recover a stack from a named wreck, escort
-  a hauler past raiders, answer a distress call, neutralize a named hull.
-  Accept and Hand in on the Station pane while docked; a job hands in once
-  the world marks it done. Held jobs mark the Map's chart as `JOB-n` and
-  save.
+- **(breaking)** Living generated stations post three seeded jobs by start
+  role: bring, recover, escort, distress, neutralize. Accept and Hand in on
+  the Station pane while docked; held jobs save.
 - **(breaking)** Generated stations and ships now price each item by their
   stock, cluster type and civilization; the Inventory pane shows the factors.
-  `PriceTable` content sets them. Save format 17.
+  `PriceTable` content sets them. Save format 18.
 - **(breaking)** A saved world now keeps a play-time clock that runs only
   while you fly unpaused, and each sector you leave records when it froze.
-  Restock reads it on a thaw. Save format 17.
+  Restock reads it on a thaw. Save format 18.
 - **(breaking)** An unaccepted station job offer expires after 20 min of play
   and the slot posts a new one; a held job never expires. The Station pane
-  shows the time left. Save format 17.
+  shows the time left. Save format 18.
 - **(breaking)** Generated traders restock toward spawn stock by play time
   their sector stood unloaded; neutralizing a civilization's hull refuses
-  your dock at its stations for 15 min of play, shown on the HUD.
+  your dock at its stations for 15 min of play.
 
 ### Combat & Weapons
 
@@ -136,6 +133,12 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The menu duel ends fast: the rival comes apart once a fifth of its hull is
   gone and its guns hit for less, the victor's PDCs hit for more, and the
   siege torpedo kills the victor in one hit.
+- A fresh open-world start posts charter 0, dock at the nearest station, and
+  marks the nearest living station `STATION`; your first dock at a living
+  station completes it.
+- `OnDocked` and `OnUndocked` carry the docked-with hull's `type_name`; a
+  station reads `living_station` or `derelict_station`, so a filter can ask
+  for a living station.
 
 ### Modding & Mod Portal
 
@@ -188,9 +191,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
   deletes on confirm.
 - Save notices show progress, success or failure; `~` hides them. Leaving
   offers a retry.
-- The Map's chart view (`C`) draws the cells you entered by cluster type and
-  the stations and wrecks you found by code. A station shows the services and
-  stock seen on your last dock.
+- The Map's chart view (`C`) draws the cells you entered by cluster type, the
+  stations and wrecks you found by code, and a discovery log of every find
+  with its play time; click any to read it.
 - Alt-tab no longer pauses play by default. Settings > Graphics > Pause when
   unfocused turns the focus pause back on.
 - A Sandbox ship's Station box spawns it as a station. Station Check names

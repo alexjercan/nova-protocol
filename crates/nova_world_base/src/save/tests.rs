@@ -2924,6 +2924,7 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
             stock: vec![(item.clone(), 2)],
             stored: Vec::new(),
         },
+        0.0,
     );
     let saved_state = WorldSaveState {
         chart,

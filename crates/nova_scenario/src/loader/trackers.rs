@@ -421,7 +421,7 @@ pub(super) fn track_docking_transitions(
         // `first_ship` is the hull that issued `DOCK`, so it is the ACTING
         // party and the one it flew up to is the subject - the same
         // passive-then-active shape the area, orbit and lock payloads use.
-        let (Ok((asking_id, asking_type_name)), Ok((partner_id, _))) = (
+        let (Ok((asking_id, asking_type_name)), Ok((partner_id, partner_type_name))) = (
             q_ships.get(connection.first_ship),
             q_ships.get(connection.second_ship),
         ) else {
@@ -429,6 +429,7 @@ pub(super) fn track_docking_transitions(
         };
         let info = DockingEventInfo {
             id: partner_id.0.clone(),
+            type_name: partner_type_name.0.clone(),
             other_id: asking_id.0.clone(),
             other_type_name: asking_type_name.0.clone(),
         };

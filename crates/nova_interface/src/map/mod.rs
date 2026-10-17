@@ -20,9 +20,11 @@
 //! `map_chart` or the Chart button swaps the local scene for the chart view
 //! while a streamed world runs: the player's [`Chart`] of visited cells,
 //! found stations and found wrecks at cell scale, and the player's held
-//! [`Jobs`] marked in their target's cell. Selecting a station there shows
-//! what the player saw on the last dock, or no stock if never docked; a job
-//! shows its title, reward and where it hands in.
+//! [`Jobs`] marked in their target's cell, with the discovery log of those
+//! finds by play time in the panel. Selecting a cell shows what its clusters
+//! hold and when the player entered it; a station shows when it was found
+//! and what the player saw on the last dock, or no stock if never docked; a
+//! job shows its title, reward and where it hands in.
 //!
 //! # Module layout
 //!
@@ -167,6 +169,7 @@ impl Plugin for MapPanePlugin {
                 map_input,
                 map_focus_follow,
                 manage_map_chart,
+                update_map_chart_log,
                 drive_map_camera,
                 project_map_blips,
                 project_map_chart_labels,

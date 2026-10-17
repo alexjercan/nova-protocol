@@ -600,6 +600,13 @@ pub struct FrozenShip {
     state: FrozenShipState,
 }
 
+impl FrozenShip {
+    /// Whether the hull froze dead: spawned derelict, or turned derelict.
+    pub fn is_derelict(&self) -> bool {
+        self.derelict
+    }
+}
+
 /// The part of a [`FrozenShip`] the section spawn applies over the fresh
 /// design.
 #[derive(Clone, Debug)]

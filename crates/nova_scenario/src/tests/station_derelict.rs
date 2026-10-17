@@ -2,7 +2,10 @@
 //! into a dead station, and a frozen copy of it thaws dead.
 
 use bevy::prelude::*;
-use nova_events::prelude::{EntityId, MetersPerSecond3};
+use nova_events::prelude::{
+    EntityId, EntityTypeName, MetersPerSecond3, DERELICT_STATION_TYPE_NAME,
+    LIVING_STATION_TYPE_NAME,
+};
 use nova_gameplay::{
     prelude::*,
     test_support::{settle, test_items, unfinished_integrity_physics_app},
@@ -120,6 +123,11 @@ fn assert_dead(app: &App, station: Entity, context: &str) {
         "{context}: Neutral"
     );
     assert!(!root.contains::<AISpaceshipMarker>(), "{context}: no AI");
+    assert_eq!(
+        root.get::<EntityTypeName>().map(|name| name.0.as_str()),
+        Some(DERELICT_STATION_TYPE_NAME),
+        "{context}: typed derelict_station for event filters"
+    );
     assert!(
         !station_offers(
             root.get::<StationServices>(),
@@ -158,6 +166,11 @@ fn a_station_that_loses_its_last_turret_turns_into_a_dead_station() {
         );
         assert_eq!(root.get::<Allegiance>(), Some(&Allegiance::Enemy));
         assert!(!root.contains::<DerelictShipMarker>());
+        assert_eq!(
+            root.get::<EntityTypeName>().map(|name| name.0.as_str()),
+            Some(LIVING_STATION_TYPE_NAME),
+            "a living station is typed living_station for event filters"
+        );
         assert!(station_offers(
             root.get::<StationServices>(),
             false,

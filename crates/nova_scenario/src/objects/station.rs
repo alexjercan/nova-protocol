@@ -38,7 +38,9 @@
 //! [`STATION_ORBIT_TOLERANCE`] of its radius.
 
 use bevy::prelude::*;
-use nova_events::prelude::MetersPerSecond3;
+use nova_events::prelude::{
+    EntityTypeName, MetersPerSecond3, DERELICT_STATION_TYPE_NAME, LIVING_STATION_TYPE_NAME,
+};
 use nova_gameplay::prelude::{
     circular_orbit_speed, Allegiance, DerelictShipMarker, ItemDesignId, LootableShipMarker,
     NeutralizedMarker, OwnedStationMarker, RetaliationTarget, SectionInactiveMarker, SectionMarker,
@@ -292,6 +294,20 @@ pub fn station_scenario_object(
         StationServices(design.services.clone()),
         StationStorage::new(design.storage_cap_g),
     ));
+    // Its own insert: the spaceship bundle above already names the hull
+    // `spaceship`, and one bundle may not carry a component twice.
+    entity.insert(station_type_name(living));
+}
+
+/// The type name a station wears: a living one and a dead one are two kinds
+/// to an event filter, where a ship of any state is one. Inserted after the
+/// spaceship bundle, which names every hull `spaceship`.
+fn station_type_name(living: bool) -> EntityTypeName {
+    EntityTypeName::new(if living {
+        LIVING_STATION_TYPE_NAME
+    } else {
+        DERELICT_STATION_TYPE_NAME
+    })
 }
 
 /// The AI a living station is driven by. No leash: the leash measures how far
@@ -341,6 +357,7 @@ pub(crate) fn on_station_neutralized_turn_derelict(
             Allegiance::Neutral,
             SpaceshipController::None,
             station_capabilities(false),
+            station_type_name(false),
         ));
 }
 
@@ -460,8 +477,10 @@ pub fn thaw_station(entity: &mut EntityCommands, frozen: FrozenStation) {
         parked,
         owned,
     } = frozen;
+    let living = !ship.is_derelict();
     thaw_ship(entity, ship);
     entity.insert((StationMarker, StationServices(services), storage));
+    entity.insert(station_type_name(living));
     if !parked.is_empty() {
         entity.insert(PendingParkedHulls(
             parked.into_iter().map(PendingParkedHull::Frozen).collect(),

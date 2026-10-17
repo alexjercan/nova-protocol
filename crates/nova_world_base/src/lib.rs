@@ -56,6 +56,7 @@ use nova_ship::prelude::GameStyles;
 use nova_world::prelude::*;
 
 mod chart;
+mod charter;
 mod civilizations;
 mod clusters;
 mod economy;
@@ -130,15 +131,18 @@ pub mod prelude {
         ShipLayoutConstraintType, ShipLayoutFailure, ShipLayoutRequest, ShipPart,
         ShipPartExclusionType, ShipPartFamilyType, ShipPartFault, ShipPartPack, ShipPartSnapshot,
         StationArchetypeType, StationLayout, StationLayoutConstraintType, StationLayoutFailure,
-        StationLayoutRequest, ARMOURED_STYLE_ID, BLOCK_WAYSTATION_STATION_ID, CIVILIAN_STYLE_ID,
-        CLEARANCE_MARGIN, INDUSTRIAL_STYLE_ID, MAX_SHIP_SECTIONS, OPEN_WORLD_BOUNDS_RADIUS_MAX,
-        OPEN_WORLD_SCENARIO_ID, SALVAGE_STYLE_ID, STATION_STYLE_ID,
+        StationLayoutRequest, ARMOURED_STYLE_ID, BLOCK_WAYSTATION_STATION_ID,
+        CHARTER_ZERO_OBJECTIVE_ID, CIVILIAN_STYLE_ID, CLEARANCE_MARGIN, INDUSTRIAL_STYLE_ID,
+        MAX_SHIP_SECTIONS, OPEN_WORLD_BOUNDS_RADIUS_MAX, OPEN_WORLD_SCENARIO_ID, SALVAGE_STYLE_ID,
+        STATION_STYLE_ID,
     };
 }
 
 /// The id of the base bootstrap New Game launches: the player's start role
 /// ship, the lights and the sky, with every sector streamed in around them.
 pub const OPEN_WORLD_SCENARIO_ID: &str = "open_world";
+
+pub use charter::CHARTER_ZERO_OBJECTIVE_ID;
 
 /// The id the block-built waystation is spawned by: an unarmed plated block
 /// with a bridge on top and a docking collar off its port flank, no drive.
@@ -239,6 +243,7 @@ impl Plugin for NovaWorldBasePlugin {
                     chart::chart_visited_cell.run_if(resource_exists::<CurrentSector>),
                     chart::chart_sensor_finds,
                     chart::chart_docked_station,
+                    charter::point_charter_zero,
                     // A thawed trader's hold catches up before a board reads
                     // it, and a served refusal is forgotten before the save.
                     economy::restock_thawed_traders,

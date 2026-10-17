@@ -1,6 +1,10 @@
 //! The player's chart of a streamed world: the cells the player entered, the
 //! types of the clusters with bodies in each, and the stations and wrecks
-//! the player's sensors found.
+//! the player's sensors found, each stamped with the play time of the find.
+//!
+//! The stamps make the chart the discovery log too: [`Chart::log`] orders
+//! every find by its stamp, so the Map shows when and where without a second
+//! record that could drift from the chart.
 //!
 //! [`Chart`] is a session resource. The open world crate feeds it while a
 //! world streams, a world save carries it, and a Load puts it back. The Map
@@ -18,7 +22,10 @@ use crate::{inventory::prelude::ItemDesignId, markers::prelude::StationServiceTy
 
 /// Glob-import surface: `use nova_gameplay::chart::prelude::*`.
 pub mod prelude {
-    pub use super::{Chart, ChartSectorEdge, ChartStation, ClusterType, StationSummary};
+    pub use super::{
+        Chart, ChartCell, ChartLogEntry, ChartLogEntryType, ChartSectorEdge, ChartStation,
+        ChartWreck, ClusterType, StationSummary,
+    };
 }
 
 /// What a cluster of the open world is.
@@ -77,7 +84,7 @@ pub struct StationSummary {
 }
 
 /// One station the player's sensors found.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct ChartStation {
@@ -91,26 +98,70 @@ pub struct ChartStation {
     /// What the player saw there on the last dock. `None` until the player
     /// docks: a station seen on sensors only shows no stock.
     pub summary: Option<StationSummary>,
+    /// Play seconds on the world clock when the sensors found it.
+    pub found_at: f64,
+}
+
+/// One derelict hull the player's sensors found.
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct ChartWreck {
+    /// The hull's generated id.
+    pub id: GeneratedBodyId,
+    /// Play seconds on the world clock when the sensors found it.
+    pub found_at: f64,
+}
+
+/// One cell the player entered.
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct ChartCell {
+    /// The type of every cluster with a body in the cell, in the generator's
+    /// order: zero, one or more.
+    pub clusters: Vec<ClusterType>,
+    /// Play seconds on the world clock when the player entered it.
+    pub entered_at: f64,
+}
+
+/// What one discovery log entry points at.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ChartLogEntryType {
+    /// The player entered the cell.
+    Cell(SectorCoord),
+    /// The sensors found the station.
+    Station(GeneratedBodyId),
+    /// The sensors found the derelict hull.
+    Wreck(GeneratedBodyId),
+}
+
+/// One line of the discovery log, derived from the chart.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChartLogEntry {
+    /// Play seconds on the world clock when it happened.
+    pub at: f64,
+    /// What happened.
+    pub entry: ChartLogEntryType,
 }
 
 /// The player's chart of the streamed world.
 ///
 /// Visited cells are the cells the player stood in, never the streamed
-/// window around them. Each one keeps the type of every cluster with a body
-/// in it, in the generator's order: zero, one or more. Stations and wrecks
-/// are kept in the order they were found, so a chart code minted from the
-/// position stays the same across a save and a Load.
+/// window around them. Stations and wrecks are kept in the order they were
+/// found, so a chart code minted from the position stays the same across a
+/// save and a Load. Every entry carries the play time of its find.
 ///
 /// Cleared with the frozen ledger whenever the world on hand goes: an
 /// unload, a Retry, a replaced scenario. A Load restores the saved chart on
 /// the frame the world arms.
-#[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Resource, Clone, Debug, Default, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct Chart {
-    visited: BTreeMap<SectorCoord, Vec<ClusterType>>,
+    visited: BTreeMap<SectorCoord, ChartCell>,
     stations: Vec<ChartStation>,
-    wrecks: Vec<GeneratedBodyId>,
+    wrecks: Vec<ChartWreck>,
 }
 
 impl Chart {
@@ -131,17 +182,24 @@ impl Chart {
         self.visited.contains_key(&coord)
     }
 
-    /// Record that the player entered `coord`, holding `clusters`. A cell
-    /// already visited keeps the types it was recorded with.
-    pub fn visit(&mut self, coord: SectorCoord, clusters: Vec<ClusterType>) {
-        self.visited.entry(coord).or_insert(clusters);
+    /// Record that the player entered `coord`, holding `clusters`, at `at`
+    /// play seconds. A cell already visited keeps the types and the time it
+    /// was recorded with.
+    pub fn visit(&mut self, coord: SectorCoord, clusters: Vec<ClusterType>, at: f64) {
+        self.visited.entry(coord).or_insert(ChartCell {
+            clusters,
+            entered_at: at,
+        });
     }
 
-    /// Every visited cell with its cluster types, in coordinate order.
-    pub fn visited(&self) -> impl Iterator<Item = (SectorCoord, &[ClusterType])> + '_ {
-        self.visited
-            .iter()
-            .map(|(coord, clusters)| (*coord, clusters.as_slice()))
+    /// Every visited cell, in coordinate order.
+    pub fn visited(&self) -> impl Iterator<Item = (SectorCoord, &ChartCell)> + '_ {
+        self.visited.iter().map(|(coord, cell)| (*coord, cell))
+    }
+
+    /// The visited cell `coord`, if the player entered it.
+    pub fn cell(&self, coord: SectorCoord) -> Option<&ChartCell> {
+        self.visited.get(&coord)
     }
 
     /// Every found station, in the order it was found.
@@ -154,29 +212,31 @@ impl Chart {
         self.stations.iter().find(|station| station.id == *id)
     }
 
-    /// Record that the player found the station `id`, dead or alive, owned
-    /// or not. A station already found keeps its entry.
-    pub fn find_station(&mut self, id: &GeneratedBodyId, derelict: bool, owned: bool) {
+    /// Record that the player found the station `id` at `at` play seconds,
+    /// dead or alive, owned or not. A station already found keeps its entry.
+    pub fn find_station(&mut self, id: &GeneratedBodyId, derelict: bool, owned: bool, at: f64) {
         if self.station(id).is_none() {
             self.stations.push(ChartStation {
                 id: id.clone(),
                 derelict,
                 owned,
                 summary: None,
+                found_at: at,
             });
         }
     }
 
     /// Record what the player saw at the station `id` while docked, finding
-    /// it first if it was not found yet.
+    /// it first at `at` play seconds if it was not found yet.
     pub fn record_station(
         &mut self,
         id: &GeneratedBodyId,
         derelict: bool,
         owned: bool,
         summary: StationSummary,
+        at: f64,
     ) {
-        self.find_station(id, derelict, owned);
+        self.find_station(id, derelict, owned, at);
         let station = self
             .stations
             .iter_mut()
@@ -188,20 +248,51 @@ impl Chart {
     }
 
     /// Every found wreck, in the order it was found.
-    pub fn wrecks(&self) -> &[GeneratedBodyId] {
+    pub fn wrecks(&self) -> &[ChartWreck] {
         &self.wrecks
     }
 
-    /// Whether the player found the wreck `id`.
-    pub fn has_wreck(&self, id: &GeneratedBodyId) -> bool {
-        self.wrecks.contains(id)
+    /// The found wreck `id`, if the player found it.
+    pub fn wreck(&self, id: &GeneratedBodyId) -> Option<&ChartWreck> {
+        self.wrecks.iter().find(|wreck| wreck.id == *id)
     }
 
-    /// Record that the player found the wreck `id`.
-    pub fn find_wreck(&mut self, id: &GeneratedBodyId) {
-        if !self.has_wreck(id) {
-            self.wrecks.push(id.clone());
+    /// Record that the player found the wreck `id` at `at` play seconds. A
+    /// wreck already found keeps its entry.
+    pub fn find_wreck(&mut self, id: &GeneratedBodyId, at: f64) {
+        if self.wreck(id).is_none() {
+            self.wrecks.push(ChartWreck {
+                id: id.clone(),
+                found_at: at,
+            });
         }
+    }
+
+    /// The discovery log: every visited cell, found station and found wreck
+    /// by play time, oldest first. Finds on the same stamp list the cell
+    /// first, then the station, then the wreck, each in found order, so the
+    /// log reads the same across a save and a Load.
+    pub fn log(&self) -> Vec<ChartLogEntry> {
+        let mut log: Vec<ChartLogEntry> = self
+            .visited
+            .iter()
+            .map(|(coord, cell)| ChartLogEntry {
+                at: cell.entered_at,
+                entry: ChartLogEntryType::Cell(*coord),
+            })
+            .chain(self.stations.iter().map(|station| ChartLogEntry {
+                at: station.found_at,
+                entry: ChartLogEntryType::Station(station.id.clone()),
+            }))
+            .chain(self.wrecks.iter().map(|wreck| ChartLogEntry {
+                at: wreck.found_at,
+                entry: ChartLogEntryType::Wreck(wreck.id.clone()),
+            }))
+            .collect();
+        // A stable sort keeps the chain order inside one stamp: cells in
+        // coordinate order, then stations and wrecks in found order.
+        log.sort_by(|a, b| a.at.total_cmp(&b.at));
+        log
     }
 
     /// Every item id a station summary names: its stock and the stored
@@ -215,9 +306,14 @@ impl Chart {
     }
 
     /// Refuse a chart a Load could not have built: a station or a wreck
-    /// listed twice, or a summary stack of zero or listed twice.
+    /// listed twice, a summary stack of zero or listed twice, or a find
+    /// stamped off the play-time clock.
     pub fn validate(&self) -> Result<(), String> {
+        for (coord, cell) in &self.visited {
+            validate_stamp(cell.entered_at, || format!("the cell {coord}"))?;
+        }
         for (index, station) in self.stations.iter().enumerate() {
+            validate_stamp(station.found_at, || format!("the station '{}'", station.id))?;
             if self.stations[..index]
                 .iter()
                 .any(|other| other.id == station.id)
@@ -248,11 +344,27 @@ impl Chart {
             }
         }
         for (index, wreck) in self.wrecks.iter().enumerate() {
-            if self.wrecks[..index].contains(wreck) {
-                return Err(format!("the chart lists the wreck '{wreck}' twice"));
+            validate_stamp(wreck.found_at, || format!("the wreck '{}'", wreck.id))?;
+            if self.wrecks[..index]
+                .iter()
+                .any(|other| other.id == wreck.id)
+            {
+                return Err(format!("the chart lists the wreck '{}' twice", wreck.id));
             }
         }
         Ok(())
+    }
+}
+
+/// A play-time stamp the clock could have written: finite and not negative.
+fn validate_stamp(at: f64, what: impl FnOnce() -> String) -> Result<(), String> {
+    if at.is_finite() && at >= 0.0 {
+        Ok(())
+    } else {
+        Err(format!(
+            "the chart stamps {} at {at} s of play, which no clock reads",
+            what()
+        ))
     }
 }
 
@@ -260,3 +372,62 @@ impl Chart {
 /// while a world streams, so the Map draws no chart over a fixed scene.
 #[derive(Resource, Clone, Copy, Debug, PartialEq)]
 pub struct ChartSectorEdge(pub Meters);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn body(stem: &str) -> GeneratedBodyId {
+        GeneratedBodyId::new(SectorCoord::ORIGIN, stem, 0)
+    }
+
+    /// The log lists every find by its play-time stamp, oldest first, and
+    /// on one stamp the cell before the station before the wreck, so a Load
+    /// reads the same log the session wrote.
+    #[test]
+    fn the_log_orders_every_find_by_play_time() {
+        let mut chart = Chart::default();
+        chart.visit(SectorCoord::new(0, 0, 0), vec![], 0.0);
+        chart.find_wreck(&body("wreck_a"), 12.5);
+        chart.find_station(&body("station_a"), false, false, 12.5);
+        chart.visit(SectorCoord::new(1, 0, 0), vec![ClusterType::RockOnly], 12.5);
+        chart.find_station(&body("station_b"), true, false, 4.0);
+        // A repeat find keeps the first stamp.
+        chart.find_wreck(&body("wreck_a"), 40.0);
+        chart.visit(
+            SectorCoord::new(0, 0, 0),
+            vec![ClusterType::PlanetHeavy],
+            40.0,
+        );
+
+        let log: Vec<(f64, ChartLogEntryType)> = chart
+            .log()
+            .into_iter()
+            .map(|entry| (entry.at, entry.entry))
+            .collect();
+        assert_eq!(
+            log,
+            vec![
+                (0.0, ChartLogEntryType::Cell(SectorCoord::new(0, 0, 0))),
+                (4.0, ChartLogEntryType::Station(body("station_b"))),
+                (12.5, ChartLogEntryType::Cell(SectorCoord::new(1, 0, 0))),
+                (12.5, ChartLogEntryType::Station(body("station_a"))),
+                (12.5, ChartLogEntryType::Wreck(body("wreck_a"))),
+            ]
+        );
+        assert!(chart.validate().is_ok());
+    }
+
+    /// A stamp no clock reads is refused on Load.
+    #[test]
+    fn a_find_stamped_off_the_clock_is_refused() {
+        let mut chart = Chart::default();
+        chart.find_wreck(&body("wreck_a"), -1.0);
+        let error = chart.validate().expect_err("a negative stamp is refused");
+        assert!(error.contains("wreck_a"), "{error}");
+
+        let mut chart = Chart::default();
+        chart.visit(SectorCoord::new(0, 0, 0), vec![], f64::NAN);
+        assert!(chart.validate().is_err(), "a NaN stamp is refused");
+    }
+}

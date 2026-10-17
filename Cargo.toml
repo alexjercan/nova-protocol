@@ -856,9 +856,11 @@ name = "system_sandbox_station"
 path = "examples/systems/system_sandbox_station.rs"
 required-features = ["debug"]
 
-# The player's chart of a streamed world: three entered cells and a docked
-# station's summary recorded, the station read by its code in the Map's chart
-# view, and the chart read back from the leave save and from a Load.
+# The player's chart of a streamed world: charter 0 posted on a fresh start
+# and completed by the dock, three entered cells and a docked station's
+# summary recorded, the station read by its code and in the discovery log of
+# the Map's chart view, and the chart read back from the leave save and from
+# a Load.
 [[example]]
 name = "system_world_chart"
 path = "examples/systems/system_world_chart.rs"

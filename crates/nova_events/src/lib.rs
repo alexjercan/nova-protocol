@@ -66,9 +66,10 @@ pub mod prelude {
         ShipOrderKind, StationBoughtEventInfo, StorageEventInfo, StrippedEventInfo,
         SwappedEventInfo, TradedEventInfo, ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME, BEACON_TYPE_NAME,
         CANISTER_FIELD_NAME, CINEMATIC_KEY_FIELD_NAME, CREDIT_CAUSE_FIELD_NAME,
-        CURRENT_CREDITS_FIELD_NAME, DELTA_CREDITS_FIELD_NAME, ENTITY_ID_COMPONENT_NAME,
-        ENTITY_OTHER_ID_COMPONENT_NAME, ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME,
-        ENTITY_TYPE_NAME_COMPONENT_NAME, ITEM_COUNT_FIELD_NAME, ITEM_FIELD_NAME, LIGHT_TYPE_NAME,
+        CURRENT_CREDITS_FIELD_NAME, DELTA_CREDITS_FIELD_NAME, DERELICT_STATION_TYPE_NAME,
+        ENTITY_ID_COMPONENT_NAME, ENTITY_OTHER_ID_COMPONENT_NAME,
+        ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME, ENTITY_TYPE_NAME_COMPONENT_NAME,
+        ITEM_COUNT_FIELD_NAME, ITEM_FIELD_NAME, LIGHT_TYPE_NAME, LIVING_STATION_TYPE_NAME,
         PLANET_TYPE_NAME, PREVIOUS_CREDITS_FIELD_NAME, PRICE_FIELD_NAME, SECTION_FIELD_NAME,
         SHIP_ORDER_FIELD_NAME, SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME,
         TIMER_KEY_FIELD_NAME, TRADE_FIELD_NAME,
@@ -162,6 +163,13 @@ pub const LIGHT_TYPE_NAME: &str = "light";
 pub const PLANET_TYPE_NAME: &str = "planet";
 /// [`EntityTypeName`] value for an authored spaceship.
 pub const SPACESHIP_TYPE_NAME: &str = "spaceship";
+/// [`EntityTypeName`] value for a station that lives: it offers its services
+/// and defends itself. A station is a hull with a post, so a filter on
+/// `spaceship` never sees one.
+pub const LIVING_STATION_TYPE_NAME: &str = "living_station";
+/// [`EntityTypeName`] value for a dead station: spawned derelict, or a living
+/// one that lost its last turret. It offers nothing and is loot.
+pub const DERELICT_STATION_TYPE_NAME: &str = "derelict_station";
 
 /// Event kind fired once when a keyed scenario timer ends (`ontimerend`).
 #[derive(Debug, Clone, EventKind, Reflect)]
@@ -490,20 +498,25 @@ pub struct OnDockedEvent;
 #[event_info(DockingEventInfo)]
 pub struct OnUndockedEvent;
 
-/// Shared payload for the docking lifecycle: the ship that was docked WITH
-/// (`id`) and the ship that asked for the dock (`other_id` /
+/// Shared payload for the docking lifecycle: the hull that was docked WITH
+/// (`id` / `type_name`) and the ship that asked for the dock (`other_id` /
 /// `other_type_name`).
 ///
 /// The same passive-then-active shape as the area, orbit and lock payloads,
 /// so one `Entity` filter addresses all of them. `DOCK` is a player verb, so
 /// the asking ship is the player's and the other side is whatever it flew up
-/// to; both sides are hulls, which is why there is no `type_name` for the
-/// first - it would read `spaceship` on every dock in the game.
+/// to. The subject's `type_name` tells a station from a ship: a dock with a
+/// living station reads [`LIVING_STATION_TYPE_NAME`], with a dead one
+/// [`DERELICT_STATION_TYPE_NAME`], with any other hull
+/// [`SPACESHIP_TYPE_NAME`].
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
 pub struct DockingEventInfo {
-    /// Scenario id of the ship that was docked with.
+    /// Scenario id of the hull that was docked with.
     #[serde(rename = "id")]
     pub id: String,
+    /// Type name of the hull that was docked with.
+    #[serde(rename = "type_name")]
+    pub type_name: String,
     /// Scenario id of the ship that asked for the dock.
     #[serde(rename = "other_id")]
     pub other_id: String,

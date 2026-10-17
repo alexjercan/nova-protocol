@@ -40,8 +40,8 @@ The whole vocabulary at a glance:
 | [`OnTravelLockEnd`](#lock-lifecycle) | `id`, `other_id`, `other_type_name` | the player's travel lock leaves |
 | [`OnCombatLockStart`](#lock-lifecycle) | `id`, `other_id`, `other_type_name` | the player's combat lock lands |
 | [`OnCombatLockEnd`](#lock-lifecycle) | `id`, `other_id`, `other_type_name` | the player's combat lock leaves |
-| [`OnDocked`](#docking-lifecycle) | `id`, `other_id`, `other_type_name` | two hulls clamp together |
-| [`OnUndocked`](#docking-lifecycle) | `id`, `other_id`, `other_type_name` | a dock comes off, by any ending |
+| [`OnDocked`](#docking-lifecycle) | `id`, `type_name`, `other_id`, `other_type_name` | two hulls clamp together |
+| [`OnUndocked`](#docking-lifecycle) | `id`, `type_name`, `other_id`, `other_type_name` | a dock comes off, by any ending |
 | [`OnShipOrderComplete`](#onshipordercomplete) | `order`, `kind`, `id`, `type_name` | a helm order reaches what it was told to reach |
 | [`OnShipOrderInterrupted`](#onshiporderinterrupted) | `order`, `kind`, `id`, `type_name` | an AI ship breaks off its order to fight |
 | [`OnShipOrderResumed`](#onshiporderresumed) | `order`, `kind`, `id`, `type_name` | that ship picks the same order back up |
@@ -743,15 +743,32 @@ Use the combat pair for the red lock. To react to any locked target, omit
 ## Docking lifecycle
 
 Two edges describe a dock: `OnDocked` when the clamp is made and `OnUndocked`
-when it comes off. Both carry the ship that was docked WITH as `id` and the
-ship that ASKED for the dock as `other_id` / `other_type_name`, and the release
-keeps the roles the capture set - so one pair of ids filters both edges.
+when it comes off. Both carry the hull that was docked WITH as `id` /
+`type_name` and the ship that ASKED for the dock as `other_id` /
+`other_type_name`, and the release keeps the roles the capture set - so one
+pair of ids filters both edges.
 
 <details class="explain">
 <summary>Show explanation</summary>
 
 `DOCK` is a player verb, so `other_id` is the player's ship and `id` is
-whatever it flew up to.
+whatever it flew up to. Its `type_name` tells a station from a ship: a living
+station reads `living_station`, a dead one `derelict_station` (spawned dead,
+or a living one that lost its last turret), and any other hull `spaceship`.
+That is how a beat asks for "any living station" in a generated world, where
+no author can write the station's id:
+
+```ron
+(
+    name: OnDocked,
+    once: true,
+    filters: [Entity((
+        type_name: Some("living_station"),
+        other_id: Some("player"),
+    ))],
+    actions: [ObjectiveComplete((id: "charter_0"))],
+),
+```
 
 `OnDocked` fires when the clamp exists, which is before the sleeves finish
 reaching across the gap - the joint is what holds the pair, and the tubes are
