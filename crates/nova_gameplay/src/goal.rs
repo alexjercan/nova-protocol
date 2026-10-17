@@ -23,8 +23,7 @@ pub mod prelude {
 /// Stamped once by the open world crate when the goal's progress is met,
 /// with the world clock's reading, and never cleared back while the world
 /// stands: a hand-in cannot be undone, and a hull sold later does not unmake
-/// a flagship. A save that stamps it ahead of its clock, or for a role with
-/// no goal, is refused.
+/// a flagship. A save that stamps it ahead of its clock is refused.
 ///
 /// TODO(20261012-100033): the world reacts to a met goal at thaw once the
 /// owner picks the refresh; until then the record is saved and shown only.

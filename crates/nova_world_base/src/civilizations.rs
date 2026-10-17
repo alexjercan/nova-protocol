@@ -90,7 +90,7 @@ const SPECIALIST_CHANCE: f32 = 0.15;
 
 /// How close two centroids must be for their civilizations to be
 /// neighbours: the smallest round radius above the farthest two face-adjacent
-/// centroids can lie (`sqrt(L^2 + 2 (2J)^2)`, 339.4 km) and 60 km under the
+/// centroids can lie (`sqrt((L + 2J)^2 + 2 (2J)^2)`, 339.4 km) and 60 km under the
 /// nearest two centroids two nodes apart can lie (`L * 2 - 4 J`, 400 km), so
 /// every face neighbour is a neighbour and no neighbour lies outside the
 /// 3x3x3 block of nodes round a node, for every seed.
@@ -103,11 +103,13 @@ pub const STANCE_ALLY_SHARE: f32 = 0.25;
 /// designated rival turns more.
 pub const STANCE_ENEMY_SHARE: f32 = 0.25;
 
-// Every face pair is within the radius (one lattice step plus the two
-// jitters' worst case) and no pair two nodes apart is (two steps less two
-// jitters toward each other).
+// Every face pair is within the radius: one lattice step plus two jitters
+// apart along the shared axis and two jitters apart on each other axis,
+// `(L + 2J)^2 + 2 (2J)^2 < R^2`. No pair two nodes apart is: two steps less
+// two jitters toward each other, `R <= 2L - 2J`.
 const _: () = assert!(
-    CIVILIZATION_LATTICE.0 * CIVILIZATION_LATTICE.0
+    (CIVILIZATION_LATTICE.0 + 2.0 * CIVILIZATION_JITTER.0)
+        * (CIVILIZATION_LATTICE.0 + 2.0 * CIVILIZATION_JITTER.0)
         + 8.0 * CIVILIZATION_JITTER.0 * CIVILIZATION_JITTER.0
         < STANCE_NEIGHBOUR_RADIUS.0 * STANCE_NEIGHBOUR_RADIUS.0
         && STANCE_NEIGHBOUR_RADIUS.0 <= 2.0 * CIVILIZATION_LATTICE.0 - 2.0 * CIVILIZATION_JITTER.0

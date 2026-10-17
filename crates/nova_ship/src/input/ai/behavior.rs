@@ -1503,6 +1503,36 @@ mod engage_grace_tests {
         );
     }
 
+    /// A side flip inside the grace is no shot: a Neutral arrival the world
+    /// layer turns Enemy mid-grace (a civilization the player turned Enemy
+    /// streams its ships in on the seed's side first) keeps holding its
+    /// routine until the timer runs out, then engages.
+    #[test]
+    fn a_side_flip_inside_the_grace_holds_until_the_timer_runs_out() {
+        let (mut app, ship) = grace_app(Some(2.0));
+        app.world_mut().entity_mut(ship).insert(Allegiance::Neutral);
+        app.update();
+        assert_eq!(state(&mut app, ship), AIBehaviorState::Patrol);
+
+        app.world_mut().entity_mut(ship).insert(Allegiance::Enemy);
+        for _ in 0..2 {
+            app.update();
+        }
+        assert_eq!(
+            state(&mut app, ship),
+            AIBehaviorState::Patrol,
+            "the flip to Enemy inside the grace holds the entrance like a seeded Enemy's"
+        );
+        for _ in 0..12 {
+            app.update();
+        }
+        assert_eq!(
+            state(&mut app, ship),
+            AIBehaviorState::Engage,
+            "the grace ran out: the flipped arrival goes hot"
+        );
+    }
+
     /// Shot during the entrance: the ship engages NOW and the grace never
     /// holds again (the timer is pinned to finished).
     #[test]

@@ -443,6 +443,7 @@ read the side alone.
 | settling | docked at a living station a civilization keeps, the Station pane's **Settle** block lists every neighbour of that civilization that stands `Enemy` to you, with its fine: 1,000 cr at advancement 0 up to 10,000 cr at 1, so a backwater asks about 1,090 cr. Paying it returns that civilization to `Neutral`, clears its offences and provocation, and moves no neighbour. The fine goes to the station |
 | decay | a civilization your deeds made `Enemy` returns to `Neutral` after 7200 s of play with no new offence; a seeded `Enemy` never decays |
 | merchandise | a station you own, an escort in your fleet and a neutralized hull keep their side: a bought station flies yours, a dead hull is loot |
+| arrival | a generated crew holds fire for 8 s after its cell streams in, whatever its side, so a civilization you turned `Enemy` arrives with the grace a seeded `Enemy` gets; a `Neutral` or `Ally` crew provoked inside that window answers once it passes |
 | the charter | the base `pirate` role's goal counts the civilizations your kills turned `Enemy` and the intact hulls you took from one of them while it stood so, see [Start roles](../start-roles/#the-goal) |
 | sectors and saves | the stances live on your save, not the station: an offence counts across a retire, a thaw and a Load, and a Load restores the table on its arming frame. A table stamped ahead of the saved play clock refuses the Load |
 | events | a settlement fires one `OnCreditsChanged` per party with `cause: Settle`, see [Hold events](../events/#hold-events) |

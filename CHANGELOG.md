@@ -63,6 +63,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - An Enemy civilization's stations refuse your dock and its ships fight you.
   Firing on a Neutral or Ally hull past its patience turns its civilization
   Enemy for 15 min of play.
+- Every generated crew holds fire for 8 s after its cell streams in, not only
+  a seeded Enemy one, so a civilization you turned Enemy arrives with the
+  same grace.
 - Only an Ally civilization's station sells itself or hires out escorts.
   Settle with an Enemy neighbour at an admitting station for a fine by its
   advancement; an Enemy you made thaws after 2 h of play.

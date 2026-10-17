@@ -255,17 +255,6 @@ pub struct StanceStep {
     pub to: StanceType,
 }
 
-impl StanceStep {
-    /// `-1` for a step down, `+1` for a step up.
-    pub fn direction(self) -> i8 {
-        if self.to < self.from {
-            1
-        } else {
-            -1
-        }
-    }
-}
-
 /// The player's table of civilization stances: sparse, one record per
 /// civilization whose standing differs from the seed or has something
 /// pending. The world layer moves it; admission never reads it, since the
@@ -604,7 +593,6 @@ mod tests {
                 to: StanceType::Enemy,
             })
         );
-        assert_eq!(step.unwrap().direction(), -1);
         assert_eq!(table.record(&x).unwrap().enemy_since, Some(30.0));
         assert!(table.record(&x).unwrap().offences.is_empty());
 

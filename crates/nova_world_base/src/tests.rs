@@ -149,7 +149,7 @@ fn the_open_world_describes_the_same_sectors_in_any_visit_order() {
 /// condition's band, and a wreck's mixed stock need not hold a plate. A hold
 /// that cannot fit one unit of its role's lightest item gets no stock. The
 /// generator states the whole spawn: an intact ship is AI-flown on its
-/// civilization's side with the crew leash, an Enemy crew arrives holding
+/// civilization's side with the crew leash, every crew arrives holding
 /// fire, and a wreck is unflown, Neutral and lootable.
 #[test]
 fn every_planned_ship_carries_goods_its_hold_fits_and_credits() {
@@ -190,8 +190,9 @@ fn every_planned_ship_carries_goods_its_hold_fits_and_credits() {
                     assert_eq!(crew.leash, Some(Meters(5_000.0)), "ship {} leash", ship.id);
                     assert_eq!(
                         crew.engage_delay,
-                        (side == Allegiance::Enemy).then_some(8.0),
-                        "ship {} arrival grace: only an Enemy crew holds fire",
+                        Some(8.0),
+                        "ship {} arrival grace: every crew holds fire on arrival, on the {side:?} \
+                         side too",
                         ship.id
                     );
                     patrolling += usize::from(!crew.patrol.is_empty());

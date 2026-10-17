@@ -39,7 +39,7 @@ use bevy::prelude::{Quat, Vec3};
 use nova_events::prelude::{Meters, Meters3, MetersPerSecond3};
 use nova_gameplay::prelude::{
     Allegiance, CivilizationId, ClusterType, Fnv32, GameItems, ItemDesignId, ItemRoleType,
-    SeedStream, ShipInventoryStock, ShipRoleType, StanceType, TraderMarket,
+    SeedStream, ShipInventoryStock, ShipRoleType, TraderMarket,
 };
 use nova_scenario::prelude::{
     AIControllerConfig, ShipDesign, ShipDesignSource, SpaceshipConfig, SpaceshipController,
@@ -76,9 +76,14 @@ const PATROL_STOP: (f32, f32) = (30.0, 60.0);
 /// How far a generated crew chases from its patrol centre.
 const CREW_LEASH: Meters = Meters(5_000.0);
 
-/// Seconds an Enemy crew holds fire after it spawns, so a cell that streams
-/// in around the player does not open fire on the spawn frame.
-const ENEMY_ENGAGE_DELAY: f32 = 8.0;
+/// Seconds a generated crew holds fire after it spawns, whatever its side,
+/// so a cell that streams in around the player does not open fire on the
+/// spawn frame. Every side, because the planner reads the seed alone: a
+/// civilization the player turned Enemy spawns on the seed's side and the
+/// world layer flips it the same frame, so an Enemy-only grace would skip
+/// it. A Neutral or Ally crew provoked inside the window answers once it
+/// passes.
+const ENGAGE_DELAY: f32 = 8.0;
 
 /// The share of its hold an intact ship's stock aims for, as a `(least,
 /// most)` band at advancement 0 and at advancement 1, interpolated linearly
@@ -141,7 +146,7 @@ pub struct PlannedShip {
     /// stock of [`ship_stock`], the balance, and the crew. An intact ship is
     /// flown by an AI on its civilization's side with no patrol until the
     /// cell gives it one with `plan_patrol` after it places every body, and
-    /// an Enemy crew waits [`ENEMY_ENGAGE_DELAY`] before it first engages. A
+    /// every crew waits [`ENGAGE_DELAY`] before it first engages. A
     /// derelict is flown by nobody, Neutral and lootable. At rest: the cell
     /// sets the initial motion once it knows the wells around it.
     pub spawn: SpaceshipConfig,
@@ -286,8 +291,7 @@ pub fn plan_ship(
                 patrol: Vec::new(),
                 patrol_stops: Vec::new(),
                 leash: Some(CREW_LEASH),
-                engage_delay: (civilization.stance == StanceType::Enemy)
-                    .then_some(ENEMY_ENGAGE_DELAY),
+                engage_delay: Some(ENGAGE_DELAY),
                 ..AIControllerConfig::default()
             }),
             civilization.stance.side(),
