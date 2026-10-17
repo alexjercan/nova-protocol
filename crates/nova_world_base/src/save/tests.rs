@@ -1,6 +1,10 @@
 //! The saved-world folder: names, locks, refusals and the write order.
 
-use std::{collections::BTreeSet, path::Path, time::Duration};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::Path,
+    time::Duration,
+};
 
 use avian3d::prelude::{LinearVelocity, Position, RigidBody, Rotation};
 use bevy::prelude::*;
@@ -8,15 +12,15 @@ use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack, LoadedSectio
 use nova_events::prelude::{EntityId, GeneratedBodyId};
 use nova_gameplay::prelude::{
     nova_blast, resumed_lifetime, AssetRef, CargoCanister, CargoCanisterIdAllocator,
-    CargoCanisterRuntimeId, Chart, CivilizationId, CivilizationStances, ClockFreeze, DamageLevel,
-    DamageMarks, DamageType, FreezeOwner, FrozenRoundFlight, GameItems, GoalRecord, Health,
-    ImpactSparkMarker, ImpactSparkPlugin, ImpactSparks, IntegrityDestroyMarker, ItemCategoryType,
-    ItemDesign, ItemDesignId, ItemRoleType, Job, JobId, JobPostings, JobType, Jobs,
-    PlayerFleetMarker, PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage,
+    CargoCanisterRuntimeId, Chart, CivilizationId, CivilizationStances, ClockFreeze, ClusterType,
+    DamageLevel, DamageMarks, DamageType, FreezeOwner, FrozenRoundFlight, GameItems, GoalRecord,
+    Health, ImpactSparkMarker, ImpactSparkPlugin, ImpactSparks, IntegrityDestroyMarker,
+    ItemCategoryType, ItemDesign, ItemDesignId, ItemRoleType, Job, JobId, JobPostings, JobType,
+    Jobs, PlayerFleetMarker, PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage,
     ProjectileOwner, RailgunSlugProjectileMarker, RoundRake, SavedBodyRef, SavedLifetime,
     SavedOwner, SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory,
     SpaceshipRootMarker, StanceType, StationServiceType, StationSummary, TempEntity,
-    TorpedoProjectileMarker, TurretBulletProjectileMarker,
+    TorpedoProjectileMarker, TraderMarket, TurretBulletProjectileMarker,
 };
 use nova_scenario::prelude::{
     freeze_asteroid, freeze_fleet, freeze_ore_drop, freeze_ship, freeze_station,
@@ -2725,13 +2729,25 @@ fn canister_ledger_with_item(coord: SectorCoord, id: u64, item: &ItemDesignId) -
 /// A ledger cell at `coord` holding `body` under `id`, built through the
 /// record's RON form like [`ledger`].
 fn ledger_holding(coord: SectorCoord, id: Option<&str>, body: &FrozenBodyType) -> FrozenSectors {
+    ledger_holding_at(coord, id, body, 0.0)
+}
+
+/// [`ledger_holding`] with the body stamped as frozen at `frozen_at` play
+/// seconds.
+fn ledger_holding_at(
+    coord: SectorCoord,
+    id: Option<&str>,
+    body: &FrozenBodyType,
+    frozen_at: f64,
+) -> FrozenSectors {
     let transform = ron::to_string(&Transform::IDENTITY).unwrap();
     ron::from_str(&format!(
         "{{{}: Visited([(id: {}, name: None, transform: {transform}, visibility: None, \
-         motion: None, body: {}, frozen_at: 0.0)])}}",
+         motion: None, body: {}, frozen_at: {})])}}",
         ron::to_string(&coord).unwrap(),
         ron::to_string(&id).unwrap(),
-        ron::to_string(body).unwrap()
+        ron::to_string(body).unwrap(),
+        ron::to_string(&frozen_at).unwrap()
     ))
     .unwrap()
 }
@@ -3266,4 +3282,169 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
         assert_eq!(services, expected, "generation {generation}");
         drop(lock);
     }
+}
+
+/// A clock reading the play-time clock never wrote: not finite, or below
+/// zero. The clock starts at zero and only advances, so every stamp in the
+/// save reads against it.
+#[test]
+fn a_world_whose_clock_is_not_finite_or_negative_is_refused_on_open() {
+    let root = tempfile::tempdir().unwrap();
+    let (folder, lock) = create_world(root.path(), "Clock").unwrap();
+    drop(lock);
+    for (generation, play_seconds) in (1..).zip([f64::NAN, f64::INFINITY, -1.0]) {
+        let saved_state = WorldSaveState {
+            clock: WorldClock { play_seconds },
+            ..state(generation, 750)
+        };
+        write_world(&folder, &header("Clock", generation), &saved_state).unwrap();
+        assert_eq!(
+            open_world(
+                root.path(),
+                "clock",
+                &catalog(7),
+                &roles(),
+                &items(),
+                &scenarios()
+            )
+            .map(|_| ()),
+            Err(WorldRefusal::Unreadable(format!(
+                "state.{generation}.ron: the clock reads {play_seconds} s of play, which no \
+                 session wrote"
+            ))),
+            "case at generation {generation}"
+        );
+    }
+}
+
+/// A ledger body stamped as frozen after the saved clock, or at a reading
+/// no clock wrote, is a save no session produced: its thaw would read a
+/// negative elapsed time.
+#[test]
+fn a_world_whose_body_froze_ahead_of_the_clock_is_refused_on_open() {
+    let root = tempfile::tempdir().unwrap();
+    let (folder, lock) = create_world(root.path(), "Stamp").unwrap();
+    drop(lock);
+    let east = SectorCoord::new(1, 0, 0);
+    let ship = FrozenBodyType::Ship(Box::new(state(1, 0).player.ship));
+    for (generation, frozen_at) in (1..).zip([5.0, f64::NAN, -1.0]) {
+        let saved_state = WorldSaveState {
+            sectors: ledger_holding_at(east, Some("hauler"), &ship, frozen_at),
+            clock: WorldClock { play_seconds: 2.0 },
+            ..state(generation, 750)
+        };
+        write_world(&folder, &header("Stamp", generation), &saved_state).unwrap();
+        assert_eq!(
+            open_world(
+                root.path(),
+                "stamp",
+                &catalog(7),
+                &roles(),
+                &items(),
+                &scenarios()
+            )
+            .map(|_| ()),
+            Err(WorldRefusal::Unreadable(format!(
+                "state.{generation}.ron: 'hauler' froze at {frozen_at} s of play, which the \
+                 clock at 2 s never wrote"
+            ))),
+            "case at generation {generation}"
+        );
+    }
+
+    let within = WorldSaveState {
+        sectors: ledger_holding_at(east, Some("hauler"), &ship, 2.0),
+        clock: WorldClock { play_seconds: 2.0 },
+        ..state(4, 750)
+    };
+    write_world(&folder, &header("Stamp", 4), &within).unwrap();
+    let (_, lock, _, saved) = open_world(
+        root.path(),
+        "stamp",
+        &catalog(7),
+        &roles(),
+        &items(),
+        &scenarios(),
+    )
+    .unwrap();
+    assert_eq!(saved.generation, 4, "a body frozen at the clock opens");
+    drop(lock);
+}
+
+/// A frozen trader whose role preferences sum to nothing, or hold a value
+/// the generator never draws, would panic at its first price: the open
+/// refuses it instead.
+#[test]
+fn a_world_whose_trader_has_no_role_preference_is_refused_on_open() {
+    let root = tempfile::tempdir().unwrap();
+    let (folder, lock) = create_world(root.path(), "Trader").unwrap();
+    drop(lock);
+    let east = SectorCoord::new(1, 0, 0);
+    let trader_preferring = |role_preference: [f32; 4]| {
+        let mut world = World::new();
+        let ship = world
+            .spawn((
+                spaceship_scenario_object(SpaceshipConfig::default()),
+                ShipInventory::default(),
+                DamageMarks::default(),
+                TraderMarket {
+                    cluster: ClusterType::RockOnly,
+                    civilization: CivilizationId {
+                        world_seed: 42,
+                        node: [1, 0, 0],
+                    },
+                    role_preference,
+                    target: BTreeMap::new(),
+                },
+            ))
+            .id();
+        let frozen = freeze_ship(&world, ship).expect("a bare ship is settled");
+        ledger_holding(
+            east,
+            Some("trader"),
+            &FrozenBodyType::Ship(Box::new(frozen)),
+        )
+    };
+    let cases = [[0.0; 4], [1.0, f32::NAN, 0.0, 0.0], [2.0, -1.0, 0.0, 0.0]];
+    for (generation, role_preference) in (1..).zip(cases) {
+        let saved_state = WorldSaveState {
+            sectors: trader_preferring(role_preference),
+            ..state(generation, 750)
+        };
+        write_world(&folder, &header("Trader", generation), &saved_state).unwrap();
+        assert_eq!(
+            open_world(
+                root.path(),
+                "trader",
+                &catalog(7),
+                &roles(),
+                &items(),
+                &scenarios()
+            )
+            .map(|_| ()),
+            Err(WorldRefusal::Unreadable(format!(
+                "state.{generation}.ron: 'trader' prices by the role preferences \
+                 {role_preference:?}, which must each be finite and at least zero and sum \
+                 above zero"
+            ))),
+            "case at generation {generation}"
+        );
+    }
+
+    let within = WorldSaveState {
+        sectors: trader_preferring([1.0, 1.0, 0.0, 0.0]),
+        ..state(4, 750)
+    };
+    write_world(&folder, &header("Trader", 4), &within).unwrap();
+    let (_, lock, _, saved) = open_world(
+        root.path(),
+        "trader",
+        &catalog(7),
+        &roles(),
+        &items(),
+        &scenarios(),
+    )
+    .unwrap();
+    assert_eq!(saved.generation, 4, "a trader with a preference opens");
+    drop(lock);
 }

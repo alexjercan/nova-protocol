@@ -605,6 +605,12 @@ impl FrozenShip {
     pub fn is_derelict(&self) -> bool {
         self.derelict
     }
+
+    /// What the ship prices by, for a generated trader; `None` on every
+    /// other ship.
+    pub fn market(&self) -> Option<&TraderMarket> {
+        self.market.as_ref()
+    }
 }
 
 /// The part of a [`FrozenShip`] the section spawn applies over the fresh

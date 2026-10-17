@@ -441,6 +441,8 @@ fn read_state(
     }
     check_saved_ids(&state)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
+    check_saved_clock(&state)
+        .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     state
         .chart
         .validate()
@@ -494,6 +496,82 @@ fn check_saved_fleet(state: &WorldSaveState) -> Result<(), String> {
             ));
         }
         held.push(escort.side);
+    }
+    Ok(())
+}
+
+/// The saved clock is a reading the play-time clock wrote (finite, at least
+/// zero), every ledger body froze at or before it, and every frozen trader
+/// prices by role preferences `price` accepts (each finite and at least
+/// zero, their sum above zero). Runs before the stamp checks that read the
+/// clock. Load checks on open: a thaw asserts its stamp against the clock
+/// (`WorldClock::elapsed_since`) and the first trade asserts the preference
+/// sum (`nova_gameplay::market::price`), and a hand-edited save must refuse
+/// here rather than panic there. The game's own writer stamps from the live
+/// clock and freezes the market the generator drew, so it never produces
+/// one.
+fn check_saved_clock(state: &WorldSaveState) -> Result<(), String> {
+    let clock = state.clock.play_seconds;
+    if !clock.is_finite() || clock < 0.0 {
+        return Err(format!(
+            "the clock reads {clock} s of play, which no session wrote"
+        ));
+    }
+    let check_market = |ship: &FrozenShip, owner: &str| -> Result<(), String> {
+        let Some(market) = ship.market() else {
+            return Ok(());
+        };
+        let preference = market.role_preference;
+        let each_valid = preference
+            .iter()
+            .all(|share| share.is_finite() && *share >= 0.0);
+        if !each_valid || preference.iter().sum::<f32>() <= 0.0 {
+            return Err(format!(
+                "{owner} prices by the role preferences {preference:?}, which must each be \
+                 finite and at least zero and sum above zero"
+            ));
+        }
+        Ok(())
+    };
+    check_market(
+        &state.player.ship,
+        &format!("the player ship '{}'", state.player.id.0),
+    )?;
+    for escort in &state.player.fleet {
+        check_market(&escort.ship, &format!("the escort '{}'", escort.id.0))?;
+    }
+    for (coord, record) in state.sectors.iter() {
+        for body in record.bodies() {
+            let owner = match body.id() {
+                Some(id) => format!("'{id}'"),
+                None => format!("a body in sector {coord}"),
+            };
+            let frozen_at = body.frozen_at();
+            if !frozen_at.is_finite() || frozen_at < 0.0 || frozen_at > clock {
+                return Err(format!(
+                    "{owner} froze at {frozen_at} s of play, which the clock at {clock} s never \
+                     wrote"
+                ));
+            }
+            match body.body() {
+                FrozenBodyType::Ship(ship) => check_market(ship, &owner)?,
+                FrozenBodyType::Station(station) => {
+                    check_market(station.ship(), &owner)?;
+                    for parked in station.parked() {
+                        check_market(
+                            parked.ship(),
+                            &format!("'{}' parked at {owner}", parked.name()),
+                        )?;
+                    }
+                }
+                FrozenBodyType::Asteroid(_)
+                | FrozenBodyType::PendingShip { .. }
+                | FrozenBodyType::PendingStation { .. }
+                | FrozenBodyType::Canister(_)
+                | FrozenBodyType::WreckFragment(_)
+                | FrozenBodyType::OreDrop(_) => {}
+            }
+        }
     }
     Ok(())
 }
