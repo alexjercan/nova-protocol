@@ -1,6 +1,7 @@
 //! Staging for the hand-played open-world examples: start New Game as the
-//! Create World modal does, wait for the window to stream in, jump the
-//! player, and berth it at a generated station until the dock takes.
+//! Create World modal does, wait for the window to stream in and the start
+//! to dock the player at its starting station, undock, jump the player, and
+//! berth it at another generated station until the dock takes.
 //!
 //! Include it with `#[path = "shared/open_world_stage.rs"] mod
 //! open_world_stage;`. [`isolate_the_profile`] runs first in `main`;
@@ -84,6 +85,9 @@ fn start_the_world(
     mut commands: Commands,
     mut start: ResMut<OpenWorldStart>,
     roles: Res<GameStartRoles>,
+    loaded: Res<LoadedSectionPacks>,
+    styles: Res<GameStyles>,
+    items: Res<GameItems>,
     mut mode: ResMut<GameMode>,
     mut pick: ResMut<NewGameScenario>,
     mut state: ResMut<NextState<GameStates>>,
@@ -96,10 +100,15 @@ fn start_the_world(
         let known: Vec<&str> = roles.0.iter().map(|role| role.id.as_str()).collect();
         panic!("open world stage: no start role '{role}'; the roles are {known:?}");
     }
-    commands.insert_resource(OpenWorldSession {
-        seed: start.seed,
-        role,
-    });
+    let session =
+        start_session(start.seed, role, &loaded, &styles, &items).unwrap_or_else(|refusal| {
+            panic!("open world stage: seed {} refused: {refusal}", start.seed)
+        });
+    info!(
+        "open world stage: the start docks at '{}' at {:?}",
+        session.start.id, session.start.position
+    );
+    commands.insert_resource(session);
     pick.0 = None;
     *mode = GameMode::NewGame;
     state.set(GameStates::Playing);
@@ -240,13 +249,26 @@ pub fn station_hull_terms(world: &World, station: Entity) -> (bool, bool) {
     terms
 }
 
-/// The station nearest the origin that `accept` takes, outside the spawn's
-/// cell, with ties broken by id.
+/// The player's cell, once the player stands in an armed world.
+pub fn player_cell(world: &mut World) -> Option<SectorCoord> {
+    let player = the_player(world)?;
+    let at = world.get::<Position>(player)?.0;
+    cell_of(world, at)
+}
+
+/// The station nearest the player that `accept` takes, outside the player's
+/// cell and never the session's starting station, with ties broken by id.
 pub fn nearest_station(
     world: &mut World,
     accept: impl Fn(&StationCandidate<'_>) -> bool,
 ) -> Option<ChosenStation> {
     let edge = sector_edge(world)?;
+    let home = player_cell(world)?;
+    let player = the_player(world)?;
+    let at = Meters3::from_engine(world.get::<Position>(player)?.0);
+    let start = world
+        .get_resource::<OpenWorldSession>()
+        .map(|session| session.start.id.clone());
     let mut q_stations = world.query_filtered::<(
         Entity,
         &GeneratedBodyId,
@@ -268,14 +290,12 @@ pub fn nearest_station(
                 allegiance: *allegiance,
                 sells_hulls,
                 hires_escorts,
-            }) && SectorCoord::containing(Meters3::from_engine(position.0), edge)
-                != SectorCoord::ORIGIN
+            }) && SectorCoord::containing(Meters3::from_engine(position.0), edge) != home
+                && start.as_ref() != Some(*id)
         })
         .map(|(_, id, position, ..)| {
             (
-                Meters3::from_engine(position.0)
-                    .distance(Meters3::ZERO)
-                    .get(),
+                Meters3::from_engine(position.0).distance(at).get(),
                 id.clone(),
                 position.0,
             )
@@ -436,9 +456,12 @@ pub fn berth_and_dock(world: &mut World, ship: Entity, target: Entity) {
 /// Where a station dock stands.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum StationDockPhaseType {
-    /// The window around the spawn is streaming in.
+    /// The window around the start is streaming in and the start is docking
+    /// the player at its starting station.
     #[default]
     Streaming,
+    /// The player was asked to let go of the starting station.
+    Undocking,
     /// The player jumped beside the station; its window is streaming in.
     Jumped,
     /// The player is put on the berth each frame until the dock takes.
@@ -460,15 +483,16 @@ pub struct StationDock {
 /// How far from the station the player parks before the berth.
 const PARK_DISTANCE: Meters = Meters(2_000.0);
 
-/// Advance `dock` one step: choose the station once the spawn's window is in,
-/// park beside it, wait for its window and for its parked hulls to dock, then
-/// berth the player each call until the dock takes. Returns the player and
-/// the station once docked.
+/// Advance `dock` one step: once the start's window is in and the start has
+/// docked the player at its starting station, undock, choose the station,
+/// park beside it, wait for its window and for its parked hulls to dock,
+/// then berth the player each call until the dock takes. Returns the player
+/// and the station once docked.
 ///
 /// # Panics
 ///
-/// When the spawn's window holds no station `accept` takes outside the
-/// spawn's cell: `what` names the station the example needs.
+/// When the start's window holds no station `accept` takes outside the
+/// start's cell: `what` names the station the example needs.
 pub fn advance_station_dock(
     world: &mut World,
     dock: &mut StationDock,
@@ -477,11 +501,21 @@ pub fn advance_station_dock(
 ) -> Option<(Entity, Entity)> {
     match dock.phase {
         StationDockPhaseType::Streaming => {
-            if window_is(world, SectorCoord::ORIGIN) {
+            let player = the_player(world)?;
+            if window_settled(world) && world.get::<DockedShip>(player).is_some() {
+                // The start docked the player at its starting station; the
+                // example stages a station of its own.
+                world.trigger(DockingReleaseRequest { entity: player });
+                dock.phase = StationDockPhaseType::Undocking;
+            }
+            None
+        }
+        StationDockPhaseType::Undocking => {
+            let player = the_player(world)?;
+            if world.get::<DockedShip>(player).is_none() {
                 let chosen = nearest_station(world, accept).unwrap_or_else(|| {
-                    panic!("open world stage: the spawn's window holds no {what}")
+                    panic!("open world stage: the start's window holds no {what}")
                 });
-                let player = the_player(world)?;
                 park_beside(world, player, chosen.position, PARK_DISTANCE);
                 dock.station = Some(chosen);
                 dock.phase = StationDockPhaseType::Jumped;

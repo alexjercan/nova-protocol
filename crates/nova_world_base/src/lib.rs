@@ -75,6 +75,7 @@ mod sector_stations;
 mod ship_layout;
 mod ship_parts;
 mod stance;
+mod start;
 mod station_hulls;
 mod station_layout;
 
@@ -109,6 +110,7 @@ pub use crate::{
         ShipPartSnapshot,
     },
     stance::{apply_offence, fine_cr, record_merit, seeded_stance, settle, FINE_CR},
+    start::{start_session, starting_station},
     station_layout::{
         generate_station, generated_station, station_archetype, station_ceiling,
         StationArchetypeType, StationLayout, StationLayoutConstraintType, StationLayoutFailure,
@@ -125,15 +127,15 @@ pub mod prelude {
     pub use super::{
         apply_offence, fine_cr, generate_ship, generate_station, generate_wreck, generated_station,
         plan_ship, record_merit, role_style_id, sector_clusters, seeded_stance, settle, ship_stock,
-        station_archetype, station_ceiling, Civilization, CivilizationField, CivilizationReach,
-        CivilizationStatusType, ClusterSummary, Environment, EnvironmentFieldType,
-        EnvironmentFields, HullSlot, NovaLayeredWorld, NovaWorldBasePlugin, PlannedShip,
-        SectorClusters, ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType,
+        start_session, starting_station, station_archetype, station_ceiling, Civilization,
+        CivilizationField, CivilizationReach, CivilizationStatusType, ClusterSummary, Environment,
+        EnvironmentFieldType, EnvironmentFields, HullSlot, NovaLayeredWorld, NovaWorldBasePlugin,
+        PlannedShip, SectorClusters, ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType,
         ShipLayoutFailure, ShipLayoutRequest, ShipPart, ShipPartExclusionType, ShipPartFamilyType,
         ShipPartFault, ShipPartPack, ShipPartSnapshot, StationArchetypeType, StationLayout,
         StationLayoutConstraintType, StationLayoutFailure, StationLayoutRequest, ARMOURED_STYLE_ID,
-        BLOCK_WAYSTATION_STATION_ID, CHARTER_ZERO_OBJECTIVE_ID, CIVILIAN_STYLE_ID,
-        CLEARANCE_MARGIN, FINE_CR, INDUSTRIAL_STYLE_ID, MAX_SHIP_SECTIONS,
+        BLOCK_WAYSTATION_STATION_ID, CHARTER_ZERO_OBJECTIVE_ID, CHARTER_ZERO_UNDOCK_OBJECTIVE_ID,
+        CIVILIAN_STYLE_ID, CLEARANCE_MARGIN, FINE_CR, INDUSTRIAL_STYLE_ID, MAX_SHIP_SECTIONS,
         OPEN_WORLD_BOUNDS_RADIUS_MAX, OPEN_WORLD_SCENARIO_ID, SALVAGE_STYLE_ID, STANCE_ALLY_SHARE,
         STANCE_ENEMY_SHARE, STANCE_NEIGHBOUR_RADIUS, STATION_STYLE_ID,
     };
@@ -151,7 +153,7 @@ pub mod prelude {
 /// ship, the lights and the sky, with every sector streamed in around them.
 pub const OPEN_WORLD_SCENARIO_ID: &str = "open_world";
 
-pub use charter::CHARTER_ZERO_OBJECTIVE_ID;
+pub use charter::{CHARTER_ZERO_OBJECTIVE_ID, CHARTER_ZERO_UNDOCK_OBJECTIVE_ID};
 
 /// The id the block-built waystation is spawned by: an unarmed plated block
 /// with a bridge on top and a docking collar off its port flank, no drive.
@@ -228,6 +230,9 @@ impl Plugin for NovaWorldBasePlugin {
         app.add_observer(jobs::distress_on_answer);
         app.add_observer(jobs::neutralize_on_kill);
         app.add_observer(jobs::drop_on_loss);
+        // Charter 0's second step names the one station no author can: the
+        // seed's starting station.
+        app.add_observer(charter::complete_charter_zero);
         // In `Update`, not `PreUpdate`: a menu entry swaps the scenario in
         // `StateTransition`, and a ship destroyed in `FixedUpdate` leaves the
         // world. Both land after `PreUpdate`, and the streaming stages would
@@ -260,6 +265,10 @@ impl Plugin for NovaWorldBasePlugin {
                     // The goal reads this frame's hand-ins before the save
                     // snapshots the record.
                     goal::track_role_goal,
+                    // The fresh player ship docks at the starting station
+                    // the frame it stands; the pointer then has a docked
+                    // player to measure from.
+                    start::berth_at_start,
                     charter::point_charter_zero,
                     // A thawed trader's hold catches up before a board reads
                     // it; a served window is forgotten and every body's side

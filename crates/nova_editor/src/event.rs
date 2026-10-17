@@ -634,11 +634,7 @@ impl ActionChoiceExt for ActionChoice {
                 EventActionConfig::SpawnScenarioObject(stock_object())
             }
             ActionChoice::SpawnStartRole => {
-                EventActionConfig::SpawnStartRole(StartRoleSpawnConfig {
-                    id: String::new(),
-                    position: Meters3::ZERO,
-                    rotation: Quat::IDENTITY,
-                })
+                EventActionConfig::SpawnStartRole(StartRoleSpawnConfig { id: String::new() })
             }
             ActionChoice::ScatterObjects => {
                 EventActionConfig::ScatterObjects(ScatterObjectsConfig {

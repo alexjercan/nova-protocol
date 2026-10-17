@@ -54,8 +54,11 @@ the panel says about it, through `bevy/reflect_documentation`.
   base generator streams sectors around the ONE player ship the scenario spawns
   in `OnStart` (lint refuses zero or two). `seed: None` takes the seed the
   player typed on New Game, carried by `nova_scenario::OpenWorldSession`
-  with the start role the player picked, which only such a scenario may spawn
-  through `SpawnStartRole` (lint Error elsewhere); it also authors an `OnResume` handler spawning that one player ship and the
+  with the start role the player picked and the `StartingStation` New Game
+  chose (the nearest living Ally station to the origin; a seed without one is
+  refused), which only such a scenario may spawn through `SpawnStartRole`
+  (lint Error elsewhere) at that station's berth standoff, where
+  `nova_world_base` docks it on a fresh start; it also authors an `OnResume` handler spawning that one player ship and the
   lights (lint Error without one; one player exactly), because a Load fires
   `OnResume` instead of `OnStart`. The open world builds one spawn list and
   hangs it on both;

@@ -31,6 +31,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New Game asks for a name and seed, then a start role beside its hull card:
   length, sections, weapons, drives and kit. The default name counts past saved
   worlds. Create spawns the role's hull and kit.
+- New Game starts you docked at your starting station, the nearest station
+  of an Ally civilization; a seed with none in reach is refused. The save
+  keeps the station (save format 21).
 - Open-world ships now grow slowly with distance: the first four civilization
   rings field small hulls only, medium hulls appear near 2,000 km out and the
   largest past 3,000 km.
@@ -135,6 +138,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A generated world's `bounds` spawns the scenario area `bounds` at load.
   Leaving it raises `OnExit` for the authored outcome; the world streams on
   past the edge. Lint warns when no `OnExit` reads it.
+- **(breaking)** `SpawnStartRole` takes only `id`; the ship spawns beside the
+  starting station and docks there. `position` and `rotation` fail at lint.
 - Hold events `OnMined`, `OnPickedUp`, `OnJettisoned`, `OnTraded`,
   `OnCreditsChanged` and `OnRepaired` fire once per occurrence; the example
   mod's `example_prospect` berth runs all six.
@@ -148,9 +153,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The menu duel ends fast: the rival comes apart once a fifth of its hull is
   gone and its guns hit for less, the victor's PDCs hit for more, and the
   siege torpedo kills the victor in one hit.
-- A fresh open-world start posts charter 0, dock at the nearest station, and
-  marks the nearest living station `STATION`; your first dock at a living
-  station completes it.
+- Charter 0 is two steps: undock from your starting station, then dock at
+  another living station, which the `STATION` marker points at. The starting
+  station and a dead one do not count.
 - `OnDocked` and `OnUndocked` carry the docked-with hull's `type_name`; a
   station reads `living_station` or `derelict_station`, so a filter can ask
   for a living station.

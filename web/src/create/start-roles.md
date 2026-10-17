@@ -132,7 +132,8 @@ hull's design name, the kit and the `lore`. In the game the Map's chart view
 shows the role's `goal` as the CHARTER block. **Create** starts the base
 `open_world` scenario, whose
 [`SpawnStartRole`](../actions/#spawnstartrole) action spawns the role's hull
-with its kit and binds its weapons.
+with its kit and binds its weapons, docked at the starting station: the
+nearest station of a civilization that begins as the player's Ally.
 
 The world save records the role id. A Load refuses a world whose role id
 the loaded content does not define, with

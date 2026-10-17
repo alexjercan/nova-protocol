@@ -6,7 +6,10 @@ use bevy::{prelude::*, ui::InteractionDisabled, ui_widgets::Activate};
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::OpenWorldSession;
 use nova_ui::widget::{TextFieldError, TextFieldValue};
-use nova_world_base::prelude::{create_world, WorldSaveSession};
+use nova_world_base::{
+    prelude::{create_world, start_session, WorldSaveSession},
+    test_support::{fixture_loaded, fixture_styles},
+};
 
 use super::support::{
     app, dummy_scenarios, observe_load_scenario, LoadedScenario, TEST_ROLE_IDS, TEST_START_ID,
@@ -180,12 +183,18 @@ fn create_starts_the_declared_new_game_on_the_typed_seed_as_the_selected_role() 
     assert_eq!(session.folder().path, root.path().join("long-haul"));
     assert!(root.path().join("long-haul/world.lock").exists());
 
+    let expected = start_session(
+        12_345,
+        TEST_ROLE_IDS[1].into(),
+        &fixture_loaded(),
+        &fixture_styles(),
+        app.world().resource::<GameItems>(),
+    )
+    .expect("the fixture seed has a living ally station near the origin");
     assert_eq!(
         app.world().get_resource::<OpenWorldSession>(),
-        Some(&OpenWorldSession {
-            seed: 12_345,
-            role: TEST_ROLE_IDS[1].into(),
-        })
+        Some(&expected),
+        "Create inserts the seed, the role and the seed's starting station"
     );
     assert_eq!(app.world().resource::<NewGameScenario>().0, None);
     assert_eq!(*app.world().resource::<GameMode>(), GameMode::NewGame);

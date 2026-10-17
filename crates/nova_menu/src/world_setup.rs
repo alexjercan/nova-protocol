@@ -20,13 +20,13 @@ use bevy::{
     ui_widgets::{observe, Activate, Button},
 };
 use bevy_rand::prelude::*;
+use nova_assets::prelude::LoadedSectionPacks;
 use nova_events::prelude::Meters;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::{
-    GameShipDesigns, GameStartRoles, OpenWorldSession, SectionSource, ShipDesignId,
-    StartRoleDesignId,
+    GameShipDesigns, GameStartRoles, SectionSource, ShipDesignId, StartRoleDesignId,
 };
-use nova_ship::prelude::{GameSections, SectionConfig, SectionKind};
+use nova_ship::prelude::{GameSections, GameStyles, SectionConfig, SectionKind};
 use nova_ui::{
     prelude::REPORT_Z,
     theme,
@@ -36,6 +36,7 @@ use nova_ui::{
         TextFieldSpec, TextFieldValue, ThemedRadius, ThemedText, UiText,
     },
 };
+use nova_world_base::prelude::start_session;
 #[cfg(not(target_arch = "wasm32"))]
 use nova_world_base::prelude::{create_world, world_slug, WorldSaveSession};
 use rand::Rng as _;
@@ -803,7 +804,10 @@ pub(crate) fn on_randomize_seed(
 pub(crate) fn on_create_world(
     _activate: On<Activate>,
     mut commands: Commands,
-    field: Single<&TextFieldValue, With<WorldSeedField>>,
+    field: Single<(Entity, &TextFieldValue), With<WorldSeedField>>,
+    loaded: Res<LoadedSectionPacks>,
+    styles: Res<GameStyles>,
+    items: Res<GameItems>,
     #[cfg(not(target_arch = "wasm32"))] name_field: Single<
         (Entity, &TextFieldValue),
         (With<WorldNameField>, Without<WorldSeedField>),
@@ -816,11 +820,23 @@ pub(crate) fn on_create_world(
     mut state: ResMut<NextState<GameStates>>,
     mut pick: ResMut<NewGameScenario>,
 ) {
-    let Some(seed) = parse_world_seed(&field.0) else {
+    let (seed_entity, seed_field) = *field;
+    let Some(seed) = parse_world_seed(&seed_field.0) else {
         return;
     };
     let Some(role) = selection.0.clone() else {
         return;
+    };
+    // The seed's starting station, before anything is created for it: a
+    // seed with no allied station near the origin is refused at the field.
+    let session = match start_session(seed, role.clone(), &loaded, &styles, &items) {
+        Ok(session) => session,
+        Err(refusal) => {
+            commands.entity(seed_entity).insert(TextFieldError(refusal));
+            #[cfg(not(target_arch = "wasm32"))]
+            show_step(&mut nodes, WorldSetupStepType::World);
+            return;
+        }
     };
     #[cfg(not(target_arch = "wasm32"))]
     {
@@ -845,7 +861,7 @@ pub(crate) fn on_create_world(
             role.clone(),
         ));
     }
-    commands.insert_resource(OpenWorldSession { seed, role });
+    commands.insert_resource(session);
     pick.0 = None;
     *mode = GameMode::NewGame;
     state.set(GameStates::Playing);

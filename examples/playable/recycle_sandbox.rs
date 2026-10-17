@@ -67,7 +67,7 @@ use nova_protocol::{
 };
 use open_world_stage::{
     berth_and_dock, body_by_id, cell_of, free_ports, park_beside, the_player, window_is,
-    OpenWorldStartPlugin,
+    window_settled, OpenWorldStartPlugin,
 };
 
 #[derive(Parser)]
@@ -165,12 +165,18 @@ fn drive_the_sandbox(world: &mut World) {
     let phase = world.resource::<Sandbox>().phase;
     match phase {
         SetupPhaseType::Streaming => {
-            if !window_is(world, SectorCoord::ORIGIN) {
+            if !window_settled(world) {
+                return;
+            }
+            let player = the_player(world).expect("recycle sandbox: one player ship");
+            if world.get::<DockedShip>(player).is_some() {
+                // The start docked the player at its starting station; the
+                // sandbox stages a wreck of its own.
+                world.trigger(DockingReleaseRequest { entity: player });
                 return;
             }
             let wreck = nearest_wreck(world)
-                .expect("recycle sandbox: the spawn's window holds a lootable derelict ship");
-            let player = the_player(world).expect("recycle sandbox: one player ship");
+                .expect("recycle sandbox: the start's window holds a lootable derelict ship");
             park_beside(world, player, wreck.2, PARK_DISTANCE);
             info!(
                 "recycle sandbox: chose the wreck '{}' in cell {}",

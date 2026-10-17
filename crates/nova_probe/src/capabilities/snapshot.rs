@@ -2211,6 +2211,15 @@ mod tests {
         app.insert_resource(OpenWorldSession {
             seed: 12_345,
             role: "industrial".into(),
+            start: nova_scenario::prelude::StartingStation {
+                id: nova_events::prelude::GeneratedBodyId::new(
+                    nova_events::prelude::SectorCoord::new(1, 0, 0),
+                    "cluster_1_0_0_station",
+                    0,
+                ),
+                position: nova_events::prelude::Meters3::new(40_000.0, 0.0, 0.0),
+                spawn: nova_events::prelude::Meters3::new(41_000.0, 0.0, 0.0),
+            },
         });
         assert_eq!(
             capture_snapshot(app.world_mut(), "test")["world_seed"],

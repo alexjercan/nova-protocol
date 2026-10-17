@@ -113,7 +113,7 @@ ranges in the handbook show:
 | world | what it is | who starts it |
 |---|---|---|
 | `Void` | No streamed world: the objects your handlers spawn are the whole scene. The default. | Whatever the role says. |
-| `Generated((seed: None))` | The generated open world, streamed around the one player ship your `OnStart` spawns, from the seed the player typed on New Game. Only this world may use [`SpawnStartRole`](../actions/#spawnstartrole), which spawns the start role the player picked. | New Game and Load only: the Scenarios list hides it, a campaign may not list it, and `--scenario` refuses it. The base `open_world` start. |
+| `Generated((seed: None))` | The generated open world, streamed around the one player ship your `OnStart` spawns, from the seed the player typed on New Game. Only this world may use [`SpawnStartRole`](../actions/#spawnstartrole), which spawns the start role the player picked beside the seed's starting station, the nearest allied one, where the world docks it. | New Game and Load only: the Scenarios list hides it, a campaign may not list it, and `--scenario` refuses it. The base `open_world` start. |
 | `Generated((seed: Some(42)))` | The same generator on a fixed seed: a bounded world that always comes up the same. Session-only: it makes no saved world, Retry reloads it, and Load last save is not offered. | The Scenarios list and campaigns, like any chapter. |
 
 A generated world must spawn EXACTLY ONE player ship in `OnStart`; zero or

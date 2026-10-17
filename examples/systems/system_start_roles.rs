@@ -7,10 +7,10 @@
 //! after the role, enters seed 10, clicks Next, picks the role and clicks
 //! Create. The world's first save lands; the spawned ship must be the role's
 //! hull with the role's kit and every weapon bound to its key, and its design
-//! must pass the post-build checks. The player is then put on a berth at the
-//! nearest living, non-Enemy generated station each frame until the dock
-//! takes; the walk never flies the approach (`system_station_docking` does).
-//! It undocks and waits for the crossing save. It then jettisons one unit of
+//! must pass the post-build checks. The start docks the player at the
+//! session's starting station, the living Ally station nearest the origin;
+//! the walk waits for that dock, checks the docked station is the one the
+//! session names, undocks and waits for the crossing save. It then jettisons one unit of
 //! the kit's first item through its cargo intake, as the Inventory pane's
 //! Jettison does, and waits for the canister to leave the door. THE CANISTER
 //! IS THEN PUT IN THE INTAKE'S TRIGGER each frame, moving with the ship: a
@@ -23,16 +23,15 @@
 //! must be back, and the extra credit gone. Back to Main Menu leaves through
 //! the leave save, and the next role starts.
 //!
-//! Seed 10's window holds a living Neutral waystation in cell (1, 0, 0)
-//! (`system_station_storage` pins it), so every role docks at a generated
-//! station of the same world.
+//! Seed 10's start is the same allied station for every role, so every role
+//! docks at a generated station of the same world.
 //!
 //! | # | marker | claim |
 //! | - | - | - |
 //! | 1 | `outcome: create starts the picked start role` | the session Create inserted names the picked role, the first save landed, and the charter progress is the role's goal or empty for a role with none |
 //! | 2 | `outcome: the start role spawns its hull with its kit and its weapons bound` | the player's design sections are the hull's, its credits and hold are the kit's, every turret is on the trigger, every railgun on R, every bay on F, every miner on V |
 //! | 3 | `outcome: the start hull passes the post-build checks` | `ship_build_fault` finds no fault in the live design |
-//! | 4 | `outcome: the start hull docks at a generated station` | the player docks at the station's outward port and undocks |
+//! | 4 | `outcome: the start hull docks at a generated station` | the start docks the player at the session's starting station, a living Ally one, and the walk undocks |
 //! | 5 | `outcome: the start hull jettisons and takes an item back in` | one kit unit planned by `plan_item_jettison` leaves the intake as a canister, the intake takes it back, and the hold is the kit again |
 //! | 6 | `outcome: the start role survives a save and a load` | after Load last save the session's role, hull, kit and bindings are the role's, and the unsaved credit is gone |
 //! | 7 | `outcome: every start role started` | the walk started every role in the catalogue |
@@ -132,8 +131,8 @@ mod walk {
         "pirate",
     ];
 
-    /// The seed every role's world plays: its window holds a living Neutral
-    /// waystation in cell (1, 0, 0), as `system_station_storage` pins.
+    /// The seed every role's world plays: its start docks every role at the
+    /// same living Ally station.
     const STATION_SEED: u32 = 10;
 
     const NEW_GAME_BUTTON: &str = "New Game Button";
@@ -143,12 +142,6 @@ mod walk {
     const CREATE_WORLD_BUTTON: &str = "Create World Button";
     const RETRY_BUTTON: &str = "Pause Retry Button";
     const BACK_TO_MENU_BUTTON: &str = "Back To Menu Button";
-
-    /// The gap the berth leaves between the two port faces, engine units:
-    /// half a cell, inside the 10 m capture distance.
-    const BERTH_GAP: f32 = 0.5;
-    /// Where a port's face sits in its own frame, as the docking verb reads it.
-    const PORT_FACE: Vec3 = Vec3::new(0.0, 0.0, -0.5);
 
     /// Seconds a load, a stream, a save or a beat gets on a software-rendered
     /// GPU.
@@ -162,7 +155,7 @@ mod walk {
         /// The player ship before Load last save, so the reload's ship can be
         /// told apart.
         before: Option<Entity>,
-        /// The station the role docks at.
+        /// The starting station the start docked the role at.
         station: Option<Entity>,
         /// The roles that came back from their save.
         started: Vec<String>,
@@ -262,21 +255,25 @@ mod walk {
         })
     }
 
-    /// The full desired window around the start cell is live before station
-    /// ids are compared, so query timing cannot change a role's recorded set.
+    /// The full desired window around the player's cell is live and the
+    /// start has docked the player before station ids are compared, so query
+    /// timing cannot change a role's recorded set.
     fn station_window_streamed() -> Arc<Predicate> {
         when(|world| {
-            if !world.contains_resource::<WorldConfig<NovaLayeredWorld>>() {
+            let Some(config) = world.get_resource::<WorldConfig<NovaLayeredWorld>>() else {
                 return false;
-            }
-            let radius = world
-                .resource::<WorldConfig<NovaLayeredWorld>>()
-                .active_radius;
+            };
+            let Some(at) = the_player(world).and_then(|player| world.get::<Position>(player))
+            else {
+                return false;
+            };
+            let home = SectorCoord::containing(Meters3::from_engine(at.0), config.sector_edge);
             let live: BTreeSet<SectorCoord> = world
                 .try_query::<&SectorRoot>()
                 .map(|mut roots| roots.iter(world).map(|root| root.0).collect())
                 .unwrap_or_default();
-            live == desired_sectors(SectorCoord::ORIGIN, radius) && nearest_station(world).is_some()
+            live == desired_sectors(home, config.active_radius)
+                && the_player(world).is_some_and(|player| world.get::<DockedShip>(player).is_some())
         })
     }
 
@@ -464,35 +461,44 @@ mod walk {
         );
     }
 
-    /// The nearest generated station that is living and not on the Enemy
-    /// side, once one has streamed in.
-    fn nearest_station(world: &World) -> Option<(GeneratedBodyId, Entity)> {
-        let at = world.get::<Position>(the_player(world)?)?.0;
-        let mut query = world.try_query_filtered::<(
-            Entity,
-            &GeneratedBodyId,
-            &Position,
-            Option<&StationServices>,
-            Has<DerelictShipMarker>,
-            Option<&Allegiance>,
-        ), With<StationMarker>>()?;
-        let mut stations: Vec<(f32, GeneratedBodyId, Entity)> = query
-            .iter(world)
-            .filter(|(_, _, _, services, derelict, allegiance)| {
-                station_offers(*services, *derelict, StationServiceType::Trade)
-                    && *allegiance != Some(&Allegiance::Enemy)
-            })
-            .map(|(entity, body, position, ..)| (position.0.distance(at), body.clone(), entity))
-            .collect();
-        stations.sort_by(|a, b| a.0.total_cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
-        stations
-            .into_iter()
-            .next()
-            .map(|(_, body, entity)| (body, entity))
-    }
-
+    /// The start docked the player at the session's starting station: a
+    /// living station on the player's side. Record it and the live station
+    /// set.
     fn choose_the_station(world: &mut World, id: &str) {
-        let (body, station) = nearest_station(world).expect("start roles: a station stands");
+        let player = player(world);
+        let start = world.resource::<OpenWorldSession>().start.id.clone();
+        let connection = world
+            .get::<DockedShip>(player)
+            .expect("start roles: the start docks the player")
+            .connection;
+        let station = world
+            .get::<DockingConnection>(connection)
+            .map(|connection| {
+                if connection.first_ship == player {
+                    connection.second_ship
+                } else {
+                    connection.first_ship
+                }
+            })
+            .expect("start roles: a docked ship's connection stands");
+        let body = world
+            .get::<GeneratedBodyId>(station)
+            .expect("start roles: the dock partner is a generated body")
+            .clone();
+        assert_eq!(
+            body, start,
+            "start roles: {id} starts docked at the session's starting station"
+        );
+        assert!(
+            world.get::<StationMarker>(station).is_some()
+                && world.get::<DerelictShipMarker>(station).is_none(),
+            "start roles: {id} starts at a living station"
+        );
+        assert_eq!(
+            world.get::<Allegiance>(station),
+            Some(&Allegiance::Player),
+            "start roles: {id} starts at a station on the player's side"
+        );
         let mut station_ids: Vec<GeneratedBodyId> = world
             .query_filtered::<&GeneratedBodyId, With<StationMarker>>()
             .iter(world)
@@ -504,7 +510,7 @@ mod walk {
             !station_ids.is_empty(),
             "start roles: {id} has no live generated stations"
         );
-        info!("start roles: {id} berths at '{body}'");
+        info!("start roles: {id} starts docked at '{body}'");
         let mut watch = world.resource_mut::<RolesWatch>();
         watch.station = Some(station);
         assert!(
@@ -533,90 +539,6 @@ mod walk {
         (position, rotation)
     }
 
-    /// The free, live docking ports mounted on `root`, lowest first.
-    fn free_ports(world: &mut World, root: Entity) -> Vec<Entity> {
-        let ports: Vec<Entity> = world
-            .query_filtered::<Entity, (
-                With<DockingSectionMarker>,
-                Without<DockedPort>,
-                Without<SectionInactiveMarker>,
-            )>()
-            .iter(world)
-            .collect();
-        let mut ports: Vec<Entity> = ports
-            .into_iter()
-            .filter(|port| {
-                let mut at = *port;
-                while let Some(parent) = world.get::<ChildOf>(at).map(ChildOf::parent) {
-                    if parent == root {
-                        return true;
-                    }
-                    at = parent;
-                }
-                false
-            })
-            .collect();
-        ports.sort();
-        ports
-    }
-
-    /// The free port of `root` that faces most squarely away from it, so a
-    /// berth there sets the other hull outside it.
-    fn outward_port(world: &mut World, root: Entity) -> Entity {
-        free_ports(world, root)
-            .into_iter()
-            .map(|port| {
-                let (at, rotation) = local_pose(world, port, root);
-                let facing = (rotation * Vec3::NEG_Z).dot(at.normalize_or_zero());
-                (port, facing)
-            })
-            .max_by(|a, b| a.1.total_cmp(&b.1).then_with(|| b.0.cmp(&a.0)))
-            .map(|(port, _)| port)
-            .unwrap_or_else(|| panic!("start roles: {root:?} has no free docking port"))
-    }
-
-    /// Put the player on the berth at the station's outward collar, its own
-    /// outward port facing the station's across [`BERTH_GAP`], moving and
-    /// turning with the station, then ask to dock. Every frame until the dock
-    /// takes.
-    fn berth_and_dock(world: &mut World) {
-        let player = player(world);
-        if world.get::<DockedShip>(player).is_some() {
-            return;
-        }
-        let station = world
-            .resource::<RolesWatch>()
-            .station
-            .expect("start roles: the station is chosen");
-        let station_port = outward_port(world, station);
-        let player_port = outward_port(world, player);
-        let position = world.get::<Position>(station).expect("a station stands").0;
-        let rotation = world.get::<Rotation>(station).expect("a station stands").0;
-        let velocity = world
-            .get::<LinearVelocity>(station)
-            .map_or(Vec3::ZERO, |v| v.0);
-        let spin = world
-            .get::<AngularVelocity>(station)
-            .map_or(Vec3::ZERO, |w| w.0);
-        let (port_at, port_rot) = local_pose(world, station_port, station);
-        let face_rot = rotation * port_rot;
-        let face = position + rotation * port_at + face_rot * PORT_FACE;
-        let axis = face_rot * Vec3::NEG_Z;
-        let (own_at, own_rot) = local_pose(world, player_port, player);
-        let turn = Quat::from_rotation_arc((own_rot * Vec3::NEG_Z).normalize(), -axis);
-        let face_offset = turn * own_at + turn * own_rot * PORT_FACE;
-        world.entity_mut(player).insert((
-            Position(face + axis * BERTH_GAP - face_offset),
-            Rotation(turn),
-            LinearVelocity(velocity),
-            AngularVelocity(spin),
-        ));
-        world.trigger(DockingConnectionRequest {
-            entity: player,
-            target: station,
-        });
-    }
-
     /// The dock took: report it and let go.
     fn report_the_dock(world: &mut World, id: &str) {
         let player = player(world);
@@ -624,11 +546,12 @@ mod walk {
         let connection = world
             .get::<DockedShip>(player)
             .map(|docked| docked.connection);
-        info!("start roles: {id} docked at {station:?} through {connection:?}");
+        let body = world.resource::<OpenWorldSession>().start.id.to_string();
+        info!("start roles: {id} docked at {station:?} ('{body}') through {connection:?}");
         nova_probe::probe_marker(
             world,
             "outcome: the start hull docks at a generated station",
-            serde_json::json!({ "role": id, "station": format!("{station:?}") }),
+            serde_json::json!({ "role": id, "station": body }),
         );
         world.trigger(DockingReleaseRequest { entity: player });
     }
@@ -909,17 +832,14 @@ mod walk {
             .step(label("assert the start"))
             .on_enter(move |world: &mut World| assert_the_start(world, id))
             .add()
-            .step(label("the station window streams in"))
-            .until(station_window_streamed())
+            .step(label(
+                "the station window streams in and the start docks the player",
+            ))
+            .until(and(station_window_streamed(), player_docked()))
             .deadline(SESSION_SECS)
             .add()
-            .step(label("choose the station"))
+            .step(label("assert the docked station is the start"))
             .on_enter(move |world: &mut World| choose_the_station(world, id))
-            .add()
-            .step(label("berth and dock"))
-            .each(|world, _, _| berth_and_dock(world))
-            .until(player_docked())
-            .deadline(SESSION_SECS)
             .add()
             .step(label("report the dock and undock"))
             .on_enter(move |world: &mut World| report_the_dock(world, id))

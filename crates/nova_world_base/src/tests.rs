@@ -82,6 +82,8 @@ fn world(on: ScenarioWorldType) -> World {
     world.insert_resource(OpenWorldSession {
         seed: SEED,
         role: crate::test_support::FIXTURE_ROLE_ID.into(),
+        start: crate::start::starting_station(SEED, &fixture_world())
+            .expect("the fixture seed has a living ally station near the origin"),
     });
     world.insert_resource(loaded());
     world.insert_resource(styles());

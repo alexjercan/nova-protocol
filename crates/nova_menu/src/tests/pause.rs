@@ -13,8 +13,8 @@ use nova_scenario::prelude::*;
 
 use super::support::{
     app, clocks_paused, cue_app, dummy_scenario, dummy_scenarios, enter_playing, find_named,
-    mods_app, observe_load_scenario, pause_state, press_escape, LoadedScenario, PlayedCues,
-    TEST_BACKDROP_ID, TEST_ROLE_IDS,
+    fixture_start, mods_app, observe_load_scenario, pause_state, press_escape, LoadedScenario,
+    PlayedCues, TEST_BACKDROP_ID, TEST_ROLE_IDS,
 };
 use crate::{
     mods::ModsPanel,
@@ -290,6 +290,7 @@ fn pause_retry_reloads_the_current_scenario_keeps_the_session_and_unpauses() {
     let session = OpenWorldSession {
         seed: 9,
         role: TEST_ROLE_IDS[0].into(),
+        start: fixture_start(),
     };
     app.insert_resource(session.clone());
     observe_load_scenario(&mut app);

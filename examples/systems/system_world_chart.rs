@@ -1,43 +1,53 @@
-//! system_world_chart: a fresh start posts charter 0, the player's chart
-//! records the cells entered and a docked station's summary, the dock
-//! completes the charter, the Map draws the chart and its discovery log, and
-//! a save and a Load keep the chart.
+//! system_world_chart: a fresh start docks the player at the allied starting
+//! station and posts charter 0's undock step, the undock posts its dock
+//! step, the player's chart records the cells entered and a docked station's
+//! summary, a dock at another station completes the charter, the Map draws
+//! the chart and its discovery log, and a save and a Load keep the chart and
+//! the starting station.
 //!
 //! Boots the shipped app (via [`editor_app`]), starts New Game on a pinned
 //! seed the way the Create World modal does, and lets the window stream in
-//! around the spawn's cell: charter 0 must stand with its marker on a living
-//! station. It picks the nearest living, non-Enemy station outside that
-//! cell, jumps beside it, and is put on a berth at its collar each frame
-//! until the dock takes; the walk never flies the approach
-//! (`system_station_docking` does). The dock must complete charter 0. It
-//! undocks and teleports past the cell's +X edge into a third cell, so the
-//! player has entered exactly three cells.
+//! around the start's cell: the start must dock the player at the session's
+//! starting station, an Ally one, with `charter_0_undock` listed and no
+//! station marked. The Station pane is opened on the dock and shot. The walk
+//! undocks: `charter_0` must then stand, pointing at no station or at one
+//! living station other than the starting one. Stations are a civilization
+//! apart, so no other one streams in round the start; the walk teleports to
+//! the pinned waystation's cell, picks the nearest living, non-Enemy station
+//! outside the start's cell other than the starting station, jumps beside
+//! it, and is put on a berth at its collar each frame until the dock takes;
+//! the walk never flies the approach (`system_station_docking` does). The
+//! dock must complete charter 0. It undocks and teleports past the cell's +X
+//! edge into a third cell, so the player has entered exactly three cells.
 //!
 //! The chart must hold those three cells and the station with the summary
 //! seen on the undock: its name, services and the stock in its hold. The Map
 //! pane's chart view is opened with the `map_chart` key: the discovery log
-//! must list the station and the spawn's cell with how long ago. Then the
+//! must list the station and the start's cell with how long ago. Then the
 //! station's label, which shows only its chart code, is clicked: the panel
 //! must show the last-seen name and its SECTOR block the stock seen on the
-//! dock. The player leaves to the main
-//! menu; the leave save is read back off disk through [`open_world`], and
-//! the world is loaded again in this process through the Load screen.
+//! dock. The player leaves to the main menu; the leave save is read back off
+//! disk through [`open_world`], and the world is loaded again in this
+//! process through the Load screen.
 //!
 //! | # | marker | claim |
 //! | - | - | - |
-//! | 1 | `outcome: charter 0 stands on a fresh start` | once the window streams in, the objectives list `charter_0` and a living station wears the `STATION` marker |
-//! | 2 | `outcome: docking at a station completes charter 0` | after the dock the objectives no longer list `charter_0` and no station wears the marker |
-//! | 3 | `outcome: a docked station's summary reaches the chart` | after the undock the chart holds the station, living, with its name, services and hold stock |
-//! | 4 | `outcome: the chart records the three entered cells` | the chart's visited cells are exactly the spawn's cell, the station's cell and the third cell |
-//! | 5 | `outcome: the map's chart view reads the station by its code` | the chart view labels the station `STN-n`; a click shows its last-seen name and its SECTOR block lists the stock |
-//! | 6 | `outcome: the discovery log lists the station` | with nothing selected, the panel's log has an icon row reading `STN-n`, its cell and how long ago, and a row for the spawn's cell `(0, 0, 0)` |
-//! | 7 | `outcome: the leave save holds the chart` | the leave save, read with [`open_world`], holds the three cells and the station's summary |
-//! | 8 | `outcome: a loaded world restores the chart` | after Load the live chart holds the same three cells and the same station summary |
+//! | 1 | `outcome: the player starts docked at the allied starting station` | once the window streams in the player is docked with the station whose id the session's start names, that station is on the Player side, the objectives list `charter_0_undock` and not `charter_0`, and no station wears the `STATION` marker |
+//! | 2 | `outcome: undocking posts charter 0's dock step` | after the undock the objectives list `charter_0` and not `charter_0_undock`, and the marker is on at most one living station, never the starting one |
+//! | 3 | `outcome: docking at another station completes charter 0` | after the dock the objectives no longer list `charter_0` and no station wears the marker |
+//! | 4 | `outcome: a docked station's summary reaches the chart` | after the undock the chart holds the station, living, with its name, services and hold stock |
+//! | 5 | `outcome: the chart records the three entered cells` | the chart's visited cells are exactly the start's cell, the station's cell and the third cell |
+//! | 6 | `outcome: the map's chart view reads the station by its code` | the chart view labels the station `STN-n`; a click shows its last-seen name and its SECTOR block lists the stock |
+//! | 7 | `outcome: the discovery log lists the station` | with nothing selected, the panel's log has an icon row reading `STN-n`, its cell and how long ago, and a row for the start's cell |
+//! | 8 | `outcome: the leave save holds the chart and the start` | the leave save, read with [`open_world`], holds the three cells, the station's summary and the starting station's id |
+//! | 9 | `outcome: a loaded world restores the chart` | after Load the live chart holds the same three cells and the same station summary, and the session names the same starting station |
 //!
 //! ONE SUBJECT: the chart and the charter it answers. The save's refusal of
 //! an unknown item named by a chart is unit-tested in
-//! `nova_world_base::save`; that a derelict station does not complete the
-//! charter is unit-tested in `nova_authoring`.
+//! `nova_world_base::save`; that the starting station or a derelict station
+//! does not complete the charter is unit-tested in `nova_world_base::charter`
+//! and that only the player's undock posts the dock step in
+//! `nova_authoring`.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
@@ -46,7 +56,8 @@
 //! # look for: `world chart: PASS the loaded chart holds 3 cells`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
-//! `NOVA_CAPTURE=1` also writes `map-chart-view.png` of the chart view.
+//! `NOVA_CAPTURE=1` also writes `start-docked-station.png` of the Station
+//! pane at the starting station and `map-chart-view.png` of the chart view.
 
 use bevy::prelude::*;
 use clap::Parser;
@@ -119,10 +130,17 @@ mod walk {
 
     use super::*;
 
-    /// The seed the range plays. Its window around the spawn holds one
-    /// station, a living Neutral waystation in cell (1, 0, 0), 48 km out
-    /// (`system_station_storage` docks at the same one).
+    /// The seed the range plays. Its start docks the player at the living
+    /// Ally station in cell (0, 6, 2); a living Neutral waystation stands in
+    /// [`waystation_cell`] (`system_station_storage` pins it) for the walk to
+    /// dock at.
     const STATION_SEED: u32 = 10;
+
+    /// The cell of seed 10's living Neutral waystation, 48 km from the
+    /// origin, which the walk jumps to for its second dock.
+    fn waystation_cell() -> SectorCoord {
+        SectorCoord::new(1, 0, 0)
+    }
 
     const NEW_GAME_BUTTON: &str = "New Game Button";
     const WORLD_NAME_FIELD: &str = "World Name Field";
@@ -141,6 +159,8 @@ mod walk {
 
     /// The frame the capture path writes of the chart view.
     const CHART_SHOT: &str = "map-chart-view.png";
+    /// The shot of the Station pane at the starting station.
+    const START_SHOT: &str = "start-docked-station.png";
 
     /// How far from the station the player parks before the berth.
     const PARK_DISTANCE: Meters = Meters(2_000.0);
@@ -161,6 +181,10 @@ mod walk {
     /// What the run chose and recorded between beats.
     #[derive(Resource, Default, Debug)]
     struct ChartWatch {
+        /// The session's starting station, as the start docked the player.
+        start: Option<GeneratedBodyId>,
+        /// The cell the starting station stands in: the first cell entered.
+        start_cell: Option<SectorCoord>,
         /// The chosen station's typed id.
         id: Option<GeneratedBodyId>,
         /// The cell it stands in.
@@ -245,10 +269,17 @@ mod walk {
         chart.visited().map(|(cell, _)| cell).collect()
     }
 
+    /// The player's cell, once the player stands in an armed world.
+    fn player_cell(world: &World) -> Option<SectorCoord> {
+        let (edge, _) = world_shape(world);
+        let at = world.get::<Position>(the_player(world)?)?.0;
+        Some(SectorCoord::containing(Meters3::from_engine(at), edge))
+    }
+
     /// The three cells the walk enters, in order.
     fn entered(world: &World) -> BTreeSet<SectorCoord> {
         let watch = world.resource::<ChartWatch>();
-        [Some(SectorCoord::ORIGIN), watch.cell, watch.third]
+        [watch.start_cell, watch.cell, watch.third]
             .into_iter()
             .map(|cell| cell.expect("world chart: every entered cell is chosen"))
             .collect()
@@ -290,13 +321,18 @@ mod walk {
         })
     }
 
-    /// Whether the objectives list charter 0.
-    fn charter_zero_listed(world: &World) -> bool {
+    /// Whether the objectives list the objective `id`.
+    fn objective_listed(world: &World, id: &str) -> bool {
         world
             .resource::<GameObjectives>()
             .objectives
             .iter()
-            .any(|objective| objective.id == CHARTER_ZERO_OBJECTIVE_ID)
+            .any(|objective| objective.id == id)
+    }
+
+    /// Whether the objectives list charter 0's dock step.
+    fn charter_zero_listed(world: &World) -> bool {
+        objective_listed(world, CHARTER_ZERO_OBJECTIVE_ID)
     }
 
     /// Every station wearing the charter's `STATION` marker, by id.
@@ -387,11 +423,12 @@ mod walk {
     }
 
     /// Where the player parks: [`PARK_DISTANCE`] from the station toward the
-    /// spawn, in the station's own cell.
+    /// start, in the station's own cell.
     fn park_beside(world: &mut World) {
+        let start = world.resource::<OpenWorldSession>().start.position;
         let watch = world.resource::<ChartWatch>();
         let position = watch.position.expect("the station is chosen");
-        let toward_spawn = (-position.get()).normalize_or_zero();
+        let toward_spawn = (start.get() - position.get()).normalize_or_zero();
         let beside = Meters3(position.get() + toward_spawn * PARK_DISTANCE.get());
         let (edge, _) = world_shape(world);
         assert_eq!(
@@ -529,33 +566,65 @@ mod walk {
         value.0 = text.to_string();
     }
 
-    /// Pick the nearest living, non-Enemy station outside the spawn's cell.
-    fn choose_the_station(world: &mut World) {
+    /// The living, non-Enemy stations outside the start's cell other than
+    /// the starting station, nearest the player first, ties by id.
+    fn other_stations(world: &World) -> Vec<(f32, GeneratedBodyId, Meters3)> {
         let (edge, _) = world_shape(world);
-        let mut stations: Vec<(f32, GeneratedBodyId, Meters3)> = world
-            .query_filtered::<(
-                &GeneratedBodyId,
-                &Position,
-                Has<DerelictShipMarker>,
-                Option<&Allegiance>,
-            ), With<StationMarker>>()
+        let Some(player) = the_player(world) else {
+            return Vec::new();
+        };
+        let Some(from) = world.get::<Position>(player) else {
+            return Vec::new();
+        };
+        let from = Meters3::from_engine(from.0);
+        let watch = world.resource::<ChartWatch>();
+        let (Some(start), Some(start_cell)) = (watch.start.clone(), watch.start_cell) else {
+            return Vec::new();
+        };
+        let Some(mut query) = world.try_query_filtered::<(
+            &GeneratedBodyId,
+            &Position,
+            Has<DerelictShipMarker>,
+            Option<&Allegiance>,
+        ), With<StationMarker>>() else {
+            return Vec::new();
+        };
+        let mut stations: Vec<(f32, GeneratedBodyId, Meters3)> = query
             .iter(world)
-            .filter(|(_, position, derelict, allegiance)| {
+            .filter(|(id, position, derelict, allegiance)| {
                 !derelict
                     && *allegiance != Some(&Allegiance::Enemy)
-                    && SectorCoord::containing(Meters3::from_engine(position.0), edge)
-                        != SectorCoord::ORIGIN
+                    && **id != start
+                    && SectorCoord::containing(Meters3::from_engine(position.0), edge) != start_cell
             })
             .map(|(id, position, ..)| {
                 let position = Meters3::from_engine(position.0);
-                (position.distance(Meters3::ZERO).get(), id.clone(), position)
+                (position.distance(from).get(), id.clone(), position)
             })
             .collect();
         stations.sort_by(|a, b| a.0.total_cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
-        let Some((distance, id, position)) = stations.into_iter().next() else {
+        stations
+    }
+
+    /// A station the walk can dock at has streamed in.
+    fn other_station_stands() -> Arc<Predicate> {
+        when(|world| !other_stations(world).is_empty())
+    }
+
+    /// Teleport the player to the pinned waystation's cell centre.
+    fn jump_to_the_waystation_cell(world: &mut World) {
+        let (edge, _) = world_shape(world);
+        park_player(world, waystation_cell().centre(edge));
+    }
+
+    /// Pick the nearest living, non-Enemy station outside the start's cell,
+    /// other than the starting station.
+    fn choose_the_station(world: &mut World) {
+        let (edge, _) = world_shape(world);
+        let Some((distance, id, position)) = other_stations(world).into_iter().next() else {
             panic!(
                 "world chart: the window on seed {STATION_SEED} holds no living, non-Enemy \
-                 station outside the spawn's cell"
+                 station outside the start's cell other than the starting station"
             );
         };
         let cell = SectorCoord::containing(position, edge);
@@ -600,7 +669,7 @@ mod walk {
             .add()
     }
 
-    /// Claim 3: the undock left the station's summary on the chart.
+    /// Claim 4: the undock left the station's summary on the chart.
     fn assert_the_summary(world: &mut World) {
         let id = station_id(world);
         let station = station(world);
@@ -671,27 +740,113 @@ mod walk {
         world.resource_mut::<ChartWatch>().summary = Some(summary);
     }
 
-    /// Claim 1: a fresh start lists charter 0 and marks a living station.
-    fn assert_charter_zero_stands(world: &mut World) {
+    /// Claim 1: the start docked the player at the session's starting
+    /// station, an allied one, with the undock step listed and nothing
+    /// marked.
+    fn assert_the_start(world: &mut World) {
+        let start = world.resource::<OpenWorldSession>().start.clone();
+        let (edge, _) = world_shape(world);
+        let player = player(world);
+        let docked = world
+            .get::<DockedShip>(player)
+            .expect("world chart: the start docks the player");
+        let partner = world
+            .get::<DockingConnection>(docked.connection)
+            .map(|connection| {
+                if connection.first_ship == player {
+                    connection.second_ship
+                } else {
+                    connection.first_ship
+                }
+            })
+            .expect("world chart: a docked ship's connection stands");
+        let worn = world
+            .get::<GeneratedBodyId>(partner)
+            .expect("world chart: the dock partner is a generated body")
+            .clone();
+        assert_eq!(
+            worn, start.id,
+            "world chart: the player is docked at the session's starting station"
+        );
         assert!(
-            charter_zero_listed(world),
-            "world chart: a fresh start lists charter 0"
+            world.get::<StationMarker>(partner).is_some()
+                && world.get::<DerelictShipMarker>(partner).is_none(),
+            "world chart: the starting station is a living station"
+        );
+        assert_eq!(
+            world.get::<Allegiance>(partner),
+            Some(&Allegiance::Player),
+            "world chart: the starting station is on the player's side"
+        );
+        assert!(
+            objective_listed(world, CHARTER_ZERO_UNDOCK_OBJECTIVE_ID),
+            "world chart: a fresh start lists the undock step"
+        );
+        assert!(
+            !charter_zero_listed(world),
+            "world chart: the dock step waits for the undock"
         );
         let marked = charter_marked_stations(world);
+        assert!(
+            marked.is_empty(),
+            "world chart: no station wears the charter marker before the undock: {marked:?}"
+        );
+        let cell = SectorCoord::containing(start.position, edge);
         assert_eq!(
-            marked.len(),
-            1,
-            "world chart: the charter marks one station: {marked:?}"
+            player_cell(world),
+            Some(cell),
+            "world chart: the player stands in the starting station's cell"
         );
         nova_probe::probe_marker(
             world,
-            "outcome: charter 0 stands on a fresh start",
-            serde_json::json!({ "marked": marked }),
+            "outcome: the player starts docked at the allied starting station",
+            serde_json::json!({
+                "station": start.id.to_string(),
+                "cell": cell.to_string(),
+                "position": format!("{:?}", start.position.get()),
+            }),
         );
-        info!("world chart: charter 0 stands, pointing at {marked:?}");
+        info!(
+            "world chart: the player starts docked at '{}' in cell {cell}",
+            start.id
+        );
+        let mut watch = world.resource_mut::<ChartWatch>();
+        watch.start = Some(start.id);
+        watch.start_cell = Some(cell);
     }
 
-    /// Claim 2: the dock completed charter 0 and took its marker down.
+    /// Claim 2: the undock completed the undock step and posted the dock
+    /// step, whose marker never points at the starting station.
+    fn assert_charter_zero_stands(world: &mut World) {
+        assert!(
+            charter_zero_listed(world),
+            "world chart: the undock posts charter 0's dock step"
+        );
+        assert!(
+            !objective_listed(world, CHARTER_ZERO_UNDOCK_OBJECTIVE_ID),
+            "world chart: the undock completes the undock step"
+        );
+        let start = world
+            .resource::<ChartWatch>()
+            .start
+            .clone()
+            .expect("world chart: the start is recorded")
+            .to_string();
+        let marked = charter_marked_stations(world);
+        assert!(
+            marked.len() <= 1 && !marked.contains(&start),
+            "world chart: the charter marks at most one station, never the starting one: \
+             {marked:?}"
+        );
+        nova_probe::probe_marker(
+            world,
+            "outcome: undocking posts charter 0's dock step",
+            serde_json::json!({ "marked": marked }),
+        );
+        info!("world chart: charter 0 stands after the undock, pointing at {marked:?}");
+    }
+
+    /// Claim 3: the dock completed charter 0 and took its marker down.
     fn assert_charter_zero_complete(world: &mut World) {
         assert!(
             !charter_zero_listed(world),
@@ -704,13 +859,13 @@ mod walk {
         );
         nova_probe::probe_marker(
             world,
-            "outcome: docking at a station completes charter 0",
+            "outcome: docking at another station completes charter 0",
             serde_json::json!({ "station": station_id(world).to_string() }),
         );
         info!("world chart: charter 0 is complete");
     }
 
-    /// Claim 4: the chart's visited cells are exactly the three entered.
+    /// Claim 5: the chart's visited cells are exactly the three entered.
     fn assert_the_visited_cells(world: &mut World) {
         let expected = entered(world);
         let chart = world.resource::<Chart>().clone();
@@ -749,7 +904,7 @@ mod walk {
         format!("STN-{}", index + 1)
     }
 
-    /// Claim 5: the chart view labels the station by code, and its panel
+    /// Claim 6: the chart view labels the station by code, and its panel
     /// shows the last-seen name and stock.
     fn assert_the_chart_view(world: &mut World) {
         let code = station_code(world);
@@ -859,13 +1014,16 @@ mod walk {
             })
             .unwrap_or_else(|| panic!("world chart: the log lists {code} in {cell}: {rows:?}"))
             .clone();
+        let start_cell = world
+            .resource::<ChartWatch>()
+            .start_cell
+            .expect("world chart: the start's cell is recorded");
         let origin_row = rows
             .iter()
             .find(|row| {
-                row.contains(&SectorCoord::ORIGIN.to_string())
-                    && row.iter().any(|text| relative(text))
+                row.contains(&start_cell.to_string()) && row.iter().any(|text| relative(text))
             })
-            .unwrap_or_else(|| panic!("world chart: the log lists the spawn's cell: {rows:?}"))
+            .unwrap_or_else(|| panic!("world chart: the log lists the start's cell: {rows:?}"))
             .clone();
         nova_probe::probe_marker(
             world,
@@ -875,10 +1033,16 @@ mod walk {
         info!("world chart: the log reads {station_row:?} and {origin_row:?}");
     }
 
-    /// Claim 7: the leave save holds the three cells and the summary.
+    /// Claim 8: the leave save holds the three cells, the summary and the
+    /// starting station.
     fn assert_the_saved_chart(world: &mut World) {
         let id = station_id(world);
         let expected = entered(world);
+        let start = world
+            .resource::<ChartWatch>()
+            .start
+            .clone()
+            .expect("world chart: the start is recorded");
         let summary = world
             .resource::<ChartWatch>()
             .summary
@@ -909,9 +1073,13 @@ mod walk {
             Some(summary),
             "world chart: the save holds the station's summary"
         );
+        assert_eq!(
+            state.start.id, start,
+            "world chart: the save names the starting station"
+        );
         nova_probe::probe_marker(
             world,
-            "outcome: the leave save holds the chart",
+            "outcome: the leave save holds the chart and the start",
             serde_json::json!({
                 "slug": slug,
                 "generation": header.generation,
@@ -919,6 +1087,7 @@ mod walk {
                 "cells": state.chart.visited().count(),
                 "stations": state.chart.stations().len(),
                 "wrecks": state.chart.wrecks().len(),
+                "start": state.start.id.to_string(),
             }),
         );
         info!(
@@ -932,10 +1101,21 @@ mod walk {
         );
     }
 
-    /// Claim 8: the loaded chart holds the same cells and summary.
+    /// Claim 9: the loaded chart holds the same cells and summary, and the
+    /// session the same starting station.
     fn assert_the_loaded_chart(world: &mut World) {
         let id = station_id(world);
         let expected = entered(world);
+        let start = world
+            .resource::<ChartWatch>()
+            .start
+            .clone()
+            .expect("world chart: the start is recorded");
+        assert_eq!(
+            world.resource::<OpenWorldSession>().start.id,
+            start,
+            "world chart: the Load restored the starting station"
+        );
         let summary = world
             .resource::<ChartWatch>()
             .summary
@@ -1007,15 +1187,62 @@ mod walk {
                 state_is(GameStates::Playing),
                 SESSION_SECS,
             )
-            .step("world chart: the window streams in around the spawn")
+            .step("world chart: the window streams in around the start")
             .until(and(
-                window_is(|_| Some(SectorCoord::ORIGIN)),
-                the_chart_has_visited(|_| Some(SectorCoord::ORIGIN)),
+                window_is(player_cell),
+                the_chart_has_visited(player_cell),
+            ))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("world chart: the start docks the player at its starting station")
+            .until(and(player_docked(), frames(SETTLE_FRAMES)))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("world chart: assert the start")
+            .on_enter(assert_the_start)
+            .add();
+        let script = tap(
+            script,
+            "the interface key",
+            "interface_toggle",
+            the_interface_shows(None),
+        )
+        .click_named(
+            "world chart: open the Station pane",
+            "InterfaceTabStation",
+            the_interface_shows(Some(InterfacePaneType::Station)),
+            BEAT_SECS,
+        )
+        .step("world chart: settle the Station pane")
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("world chart: shoot the Station pane at the start")
+        .on_enter(|world: &mut World| shoot(world, START_SHOT))
+        .until(shot_written(START_SHOT))
+        .deadline(BEAT_SECS)
+        .add();
+        let script = tap(script, "the interface key", "interface_toggle", unpaused())
+            .step("world chart: undock from the starting station")
+            .on_enter(|world: &mut World| {
+                let player = player(world);
+                world.trigger(DockingReleaseRequest { entity: player });
+            })
+            .until(and(
+                and(player_free(), charter_zero_stands(true)),
+                frames(SETTLE_FRAMES),
             ))
             .deadline(SESSION_SECS)
             .add()
             .step("world chart: assert charter 0 stands")
             .on_enter(assert_charter_zero_stands)
+            .add()
+            .step("world chart: jump to the waystation's cell")
+            .on_enter(jump_to_the_waystation_cell)
+            .until(and(
+                window_is(|_| Some(waystation_cell())),
+                other_station_stands(),
+            ))
+            .deadline(SESSION_SECS)
             .add()
             .step("world chart: choose the station")
             .on_enter(choose_the_station)

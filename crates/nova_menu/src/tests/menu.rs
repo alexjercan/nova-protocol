@@ -11,7 +11,7 @@ use nova_hud::prelude::HudVisibility;
 use nova_scenario::prelude::*;
 
 use super::support::{
-    app, cue_app, dummy_scenario, dummy_scenarios, dummy_start, enter_playing,
+    app, cue_app, dummy_scenario, dummy_scenarios, dummy_start, enter_playing, fixture_start,
     observe_load_scenario, observe_unload_scenario, take_cues, LoadedScenario, PlayedCues,
     Unloaded, TEST_BACKDROP_ID, TEST_ROLE_IDS, TEST_START_ID,
 };
@@ -98,6 +98,7 @@ fn start_new_game_scenario_loads_the_pick_or_the_session_seeded_start() {
             app.insert_resource(OpenWorldSession {
                 seed: 7,
                 role: TEST_ROLE_IDS[0].into(),
+                start: fixture_start(),
             });
         }
         enter_playing(&mut app);

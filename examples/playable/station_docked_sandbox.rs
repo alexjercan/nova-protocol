@@ -175,8 +175,11 @@ enum SandboxPhaseType {
     /// The world has not started yet.
     #[default]
     Menu,
-    /// New Game is up; the window around the spawn is streaming in.
+    /// New Game is up; the window around the start is streaming in and the
+    /// start is docking the player at its starting station.
     Streaming,
+    /// The player was asked to let go of the starting station.
+    Undocking,
     /// The player jumped beside the station; its window is streaming in.
     Jumped,
     /// The player is put on the berth each frame until the dock takes.
@@ -198,6 +201,9 @@ struct Sandbox {
 fn start_the_world(
     mut commands: Commands,
     mut sandbox: ResMut<Sandbox>,
+    loaded: Res<LoadedSectionPacks>,
+    styles: Res<GameStyles>,
+    items: Res<GameItems>,
     mut mode: ResMut<GameMode>,
     mut pick: ResMut<NewGameScenario>,
     mut state: ResMut<NextState<GameStates>>,
@@ -205,10 +211,12 @@ fn start_the_world(
     if sandbox.phase != SandboxPhaseType::Menu {
         return;
     }
-    commands.insert_resource(OpenWorldSession {
-        seed: SANDBOX_SEED,
-        role: SANDBOX_ROLE.into(),
-    });
+    let session = start_session(SANDBOX_SEED, SANDBOX_ROLE.into(), &loaded, &styles, &items)
+        .unwrap_or_else(|refusal| {
+            panic!("station sandbox: seed {SANDBOX_SEED} refused: {refusal}")
+        });
+    info!("station sandbox: the start docks at '{}'", session.start.id);
+    commands.insert_resource(session);
     pick.0 = None;
     *mode = GameMode::NewGame;
     state.set(GameStates::Playing);
@@ -222,7 +230,22 @@ fn drive_the_sandbox(world: &mut World) {
     match phase {
         SandboxPhaseType::Menu | SandboxPhaseType::Ready => {}
         SandboxPhaseType::Streaming => {
-            if window_is(world, Some(SectorCoord::ORIGIN)) {
+            let Some(player) = the_player(world) else {
+                return;
+            };
+            let home = player_cell(world);
+            if window_is(world, home) && world.get::<DockedShip>(player).is_some() {
+                // The start docked the player at its starting station; the
+                // sandbox stages a station of its own.
+                world.trigger(DockingReleaseRequest { entity: player });
+                world.resource_mut::<Sandbox>().phase = SandboxPhaseType::Undocking;
+            }
+        }
+        SandboxPhaseType::Undocking => {
+            let Some(player) = the_player(world) else {
+                return;
+            };
+            if world.get::<DockedShip>(player).is_none() {
                 choose_the_station(world);
                 park_beside(world);
                 world.resource_mut::<Sandbox>().phase = SandboxPhaseType::Jumped;
@@ -265,6 +288,16 @@ fn the_player(world: &mut World) -> Option<Entity> {
     players.next().is_none().then_some(player)
 }
 
+/// The player's cell, once the player stands in an armed world.
+fn player_cell(world: &mut World) -> Option<SectorCoord> {
+    let edge = world
+        .get_resource::<WorldConfig<NovaLayeredWorld>>()?
+        .sector_edge;
+    let player = the_player(world)?;
+    let at = world.get::<Position>(player)?.0;
+    Some(SectorCoord::containing(Meters3::from_engine(at), edge))
+}
+
 /// The entity wearing the chosen station's id, if one does.
 fn station_root(world: &mut World) -> Option<Entity> {
     let (id, ..) = world.resource::<Sandbox>().station.clone()?;
@@ -304,6 +337,10 @@ fn choose_the_station(world: &mut World) {
     let edge = world
         .resource::<WorldConfig<NovaLayeredWorld>>()
         .sector_edge;
+    let home = player_cell(world).expect("station sandbox: the player stands in the armed world");
+    let start = world
+        .get_resource::<OpenWorldSession>()
+        .map(|session| session.start.id.clone());
     let mut stations: Vec<(f32, GeneratedBodyId, Vec3)> = world
         .query_filtered::<(
             &GeneratedBodyId,
@@ -316,12 +353,12 @@ fn choose_the_station(world: &mut World) {
         ), With<StationMarker>>()
         .iter(world)
         .filter(
-            |(_, position, services, derelict, allegiance, parked, pending)| {
+            |(id, position, services, derelict, allegiance, parked, pending)| {
                 station_offers(*services, *derelict, StationServiceType::Refit)
                     && (parked.is_some() || pending.is_some())
                     && *allegiance != Some(&Allegiance::Enemy)
-                    && SectorCoord::containing(Meters3::from_engine(position.0), edge)
-                        != SectorCoord::ORIGIN
+                    && SectorCoord::containing(Meters3::from_engine(position.0), edge) != home
+                    && start.as_ref() != Some(*id)
             },
         )
         .map(|(id, position, ..)| {

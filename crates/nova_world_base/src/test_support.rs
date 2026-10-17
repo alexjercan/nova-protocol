@@ -18,7 +18,8 @@ use nova_gameplay::prelude::{
 };
 use nova_scenario::prelude::{
     spaceship_scenario_object, CurrentScenario, GameStartRoles, GeneratedMarks, NovaEventWorld,
-    RoleGoal, RoleGoalType, ScenarioConfig, SpaceshipConfig, SpentHandlers, StartKit, StartRole,
+    OpenWorldSession, RoleGoal, RoleGoalType, ScenarioConfig, SpaceshipConfig, SpentHandlers,
+    StartKit, StartRole,
 };
 use nova_ship::prelude::{
     ChaseCameraPlugin, ChaseZoom, ShipStyleConfig, SpaceshipCameraController,
@@ -58,6 +59,22 @@ pub fn fixture_roles() -> GameStartRoles {
         },
         lore: String::new(),
     }])
+}
+
+/// The ship-layout fixture packs as the content merge would register them,
+/// under digest 1: the catalog [`NovaLayeredWorld`] pins in a test.
+pub fn fixture_loaded() -> LoadedSectionPacks {
+    LoadedSectionPacks {
+        packs: crate::ship_layout::fixture::packs()
+            .into_iter()
+            .map(|pack| LoadedSectionPack {
+                id: pack.id,
+                dependencies: pack.dependencies,
+                sections: pack.sections,
+            })
+            .collect(),
+        digest: ContentCatalogDigest(1),
+    }
 }
 
 /// One style for each role's [`role_style_id`] and each station archetype's
@@ -110,21 +127,19 @@ impl Plugin for WorldSaveTestPlugin {
 /// observer that its chase plugin adds, and without it no save can complete.
 pub fn arm_save_fixture(world: &mut World) -> Entity {
     bevy::tasks::IoTaskPool::get_or_init(bevy::tasks::TaskPool::default);
-    let loaded = LoadedSectionPacks {
-        packs: crate::ship_layout::fixture::packs()
-            .into_iter()
-            .map(|pack| LoadedSectionPack {
-                id: pack.id,
-                dependencies: pack.dependencies,
-                sections: pack.sections,
-            })
-            .collect(),
-        digest: ContentCatalogDigest(1),
-    };
+    let loaded = fixture_loaded();
     let items = nova_gameplay::test_support::test_items();
     let generator = NovaLayeredWorld::from_loaded(&loaded, &fixture_styles(), &items).expect(
         "the fixture packs build a snapshot and every role and station archetype has a style",
     );
+    // The session New Game would have inserted: the save snapshots its
+    // starting station.
+    world.insert_resource(OpenWorldSession {
+        seed: 42,
+        role: FIXTURE_ROLE_ID.into(),
+        start: crate::start::starting_station(42, &generator)
+            .expect("seed 42 has a living ally station near the origin"),
+    });
     world.insert_resource(loaded);
     world.insert_resource(items);
     world.insert_resource(fixture_roles());

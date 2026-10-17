@@ -36,8 +36,8 @@ use nova_protocol::{nova_debug::diagnostics, nova_interface::pane::InterfacePane
 mod open_world_stage;
 
 use open_world_stage::{
-    berth_and_dock, body_by_id, cell_of, park_beside, the_player, window_is, ChosenStation,
-    OpenWorldStart, OpenWorldStartPlugin,
+    berth_and_dock, body_by_id, cell_of, park_beside, the_player, window_is, window_settled,
+    ChosenStation, OpenWorldStart, OpenWorldStartPlugin,
 };
 
 #[derive(Parser)]

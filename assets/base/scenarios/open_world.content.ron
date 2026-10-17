@@ -15,17 +15,6 @@
                 actions: [
                     SpawnStartRole((
                         id: "player",
-                        position: (
-                            0.0,
-                            0.0,
-                            0.0,
-                        ),
-                        rotation: (
-                            0.0,
-                            0.0,
-                            0.0,
-                            1.0,
-                        ),
                     )),
                     SpawnScenarioObject((
                         base: (
@@ -109,8 +98,8 @@
                         )),
                     )),
                     Objective((
-                        id: "charter_0",
-                        message: "Charter 0: dock at the nearest station",
+                        id: "charter_0_undock",
+                        message: "Charter 0: undock from your starting station",
                     )),
                 ],
             ),
@@ -120,17 +109,6 @@
                 actions: [
                     SpawnStartRole((
                         id: "player",
-                        position: (
-                            0.0,
-                            0.0,
-                            0.0,
-                        ),
-                        rotation: (
-                            0.0,
-                            0.0,
-                            0.0,
-                            1.0,
-                        ),
                     )),
                     SpawnScenarioObject((
                         base: (
@@ -216,7 +194,7 @@
                 ],
             ),
             (
-                name: OnDocked,
+                name: OnUndocked,
                 once: true,
                 filters: [
                     Entity((
@@ -226,7 +204,11 @@
                 ],
                 actions: [
                     ObjectiveComplete((
+                        id: "charter_0_undock",
+                    )),
+                    Objective((
                         id: "charter_0",
+                        message: "Charter 0: dock at another living station",
                     )),
                 ],
             ),

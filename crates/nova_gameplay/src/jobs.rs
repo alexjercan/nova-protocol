@@ -55,7 +55,8 @@ pub mod prelude {
         escort_raiders, offer_deadline_text, plan_job_accept, plan_job_hand_in, station_job_board,
         Job, JobAcceptRefusalType, JobAccepted, JobBoard, JobField, JobHandInPartner,
         JobHandInPlan, JobHandInRefusalType, JobHull, JobId, JobMixType, JobPostings, JobType,
-        JobWreck, Jobs, SlotPosting, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD, RAIDERS_PER_CARGO_CR,
+        JobWreck, Jobs, SlotPosting, StarterBoardMarker, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD,
+        RAIDERS_PER_CARGO_CR,
     };
 }
 
@@ -585,6 +586,12 @@ impl JobBoard {
         self.0.iter().find(|job| job.id == *id)
     }
 }
+
+/// The board of the station the player started docked at: the one board
+/// that posts starter jobs. Put beside the [`JobBoard`] by the open world
+/// from the session's starting station id, and never on another board.
+#[derive(Component, Debug, Default)]
+pub struct StarterBoardMarker;
 
 /// Raised by the Station pane once a job is held, so the open world puts
 /// the job's bodies ([`Job::spawned_bodies`]) in the world.

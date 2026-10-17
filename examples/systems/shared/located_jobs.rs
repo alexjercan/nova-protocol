@@ -227,6 +227,17 @@ fn the_player(world: &World) -> Option<Entity> {
     players.next().is_none().then_some(player)
 }
 
+/// The player's cell, once the player stands in an armed world: the start
+/// docks the player at its starting station, so the spawn's cell is the
+/// station's, not the origin.
+fn player_cell(world: &World) -> Option<SectorCoord> {
+    let edge = world
+        .get_resource::<WorldConfig<NovaLayeredWorld>>()?
+        .sector_edge;
+    let at = world.get::<Position>(the_player(world)?)?.0;
+    Some(SectorCoord::containing(Meters3::from_engine(at), edge))
+}
+
 fn player(world: &World) -> Entity {
     the_player(world).expect("located jobs: exactly one player ship")
 }
@@ -348,6 +359,10 @@ fn docked_with(world: &World, target: Option<Entity>) -> bool {
 
 fn player_docked_at_the_station() -> Arc<Predicate> {
     when(|world| docked_with(world, station_root(world)))
+}
+
+fn player_docked() -> Arc<Predicate> {
+    when(|world| docked_with(world, None))
 }
 
 fn player_free() -> Arc<Predicate> {
@@ -613,9 +628,17 @@ fn stack_fits(world: &World, job: &Job) -> bool {
         })
 }
 
-/// Where the neutralize walk plants its hostile: in the spawn's cell, above
-/// the spawn, clear of the start role's ship.
-const PLANT_AT: Meters3 = Meters3(Vec3::new(0.0, 4_000.0, 0.0));
+/// How far above the start's spawn point the neutralize walk plants its
+/// hostile: in the start's cell, clear of the starting station and the start
+/// role's ship.
+const PLANT_ABOVE: Meters = Meters(4_000.0);
+
+/// Where the neutralize walk plants its hostile: [`PLANT_ABOVE`] the
+/// session's spawn point.
+fn plant_at(world: &World) -> Meters3 {
+    let spawn = world.resource::<OpenWorldSession>().start.spawn;
+    Meters3(spawn.get() + Vec3::Y * PLANT_ABOVE.get())
+}
 
 /// Plant one intact Armored hull on the Enemy side in the spawn's cell, once,
 /// before any board posts: the spawn's cell is in the cube of every station
@@ -629,10 +652,13 @@ fn plant_a_hostile(world: &mut World) {
     {
         return;
     }
+    let Some(home) = player_cell(world) else {
+        return;
+    };
     let Some(origin) = world
         .query::<(Entity, &SectorRoot)>()
         .iter(world)
-        .find(|(_, root)| root.0 == SectorCoord::ORIGIN)
+        .find(|(_, root)| root.0 == home)
         .map(|(entity, _)| entity)
     else {
         return;
@@ -640,7 +666,8 @@ fn plant_a_hostile(world: &mut World) {
     let Some(items) = world.get_resource::<GameItems>().cloned() else {
         return;
     };
-    let id = GeneratedBodyId::new(SectorCoord::ORIGIN, "walk_hostile", 0);
+    let id = GeneratedBodyId::new(home, "walk_hostile", 0);
+    let plant_at = plant_at(world);
     let (name, design, stock) = {
         let config = world.resource::<WorldConfig<NovaLayeredWorld>>();
         let key = |aspect: &[u8]| {
@@ -652,7 +679,7 @@ fn plant_a_hostile(world: &mut World) {
         };
         let parts = config.generator.parts();
         let civilization = CivilizationField::new(config.seed)
-            .in_reach(PLANT_AT)
+            .in_reach(plant_at)
             .unwrap_or_else(|fault| panic!("neutralize job: the plant: {fault}"))
             .into_iter()
             .max_by(|a, b| a.selection_weight.total_cmp(&b.selection_weight))
@@ -686,7 +713,7 @@ fn plant_a_hostile(world: &mut World) {
         base_scenario_object(&BaseScenarioObjectConfig {
             id: id.to_string(),
             name,
-            position: PLANT_AT,
+            position: plant_at,
             rotation: Quat::IDENTITY,
         }),
         id.clone(),
@@ -705,7 +732,7 @@ fn plant_a_hostile(world: &mut World) {
         }),
         ChildOf(origin),
     ));
-    info!("neutralize job: the walk plants the hostile '{id}' at {PLANT_AT:?}");
+    info!("neutralize job: the walk plants the hostile '{id}' at {plant_at:?}");
     world.resource_mut::<LocatedJobWatch>().planted = Some(id);
 }
 
@@ -1146,8 +1173,20 @@ pub fn script(kind: LocatedKindType) -> AutopilotPlugin<GameStates> {
             state_is(GameStates::Playing),
             SESSION_SECS,
         )
-        .step("located jobs: the window streams in around the spawn")
-        .until(window_is(|_| Some(SectorCoord::ORIGIN)))
+        .step("located jobs: the window streams in around the start")
+        .until(window_is(player_cell))
+        .deadline(SESSION_SECS)
+        .add()
+        .step("located jobs: the start docks the player at its starting station")
+        .until(player_docked())
+        .deadline(SESSION_SECS)
+        .add()
+        .step("located jobs: undock from the starting station")
+        .on_enter(|world: &mut World| {
+            let player = the_player(world).expect("located jobs: one player ship");
+            world.trigger(DockingReleaseRequest { entity: player });
+        })
+        .until(player_free())
         .deadline(SESSION_SECS)
         .add()
         .step(format!("{tag} job: find a board posting the kind"))

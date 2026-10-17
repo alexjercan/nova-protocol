@@ -9,7 +9,7 @@ use std::{
 use avian3d::prelude::{LinearVelocity, Position, RigidBody, Rotation};
 use bevy::prelude::*;
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack, LoadedSectionPacks};
-use nova_events::prelude::{EntityId, GeneratedBodyId};
+use nova_events::prelude::{EntityId, GeneratedBodyId, Meters3};
 use nova_gameplay::prelude::{
     nova_blast, resumed_lifetime, AssetRef, CargoCanister, CargoCanisterIdAllocator,
     CargoCanisterRuntimeId, Chart, CivilizationId, CivilizationStances, ClockFreeze, ClusterType,
@@ -26,7 +26,7 @@ use nova_scenario::prelude::{
     freeze_asteroid, freeze_fleet, freeze_ore_drop, freeze_ship, freeze_station,
     spaceship_scenario_object, AsteroidKind, AsteroidKindId, AsteroidMarker, AsteroidRadius,
     AsteroidSeed, AsteroidTexture, CurrentScenario, GameStartRoles, MinedCanisterQueue, MinedOre,
-    MinedOreDrop, SpaceshipConfig, StationMarker, StationServices, StationStorage,
+    MinedOreDrop, SpaceshipConfig, StartingStation, StationMarker, StationServices, StationStorage,
 };
 use nova_ship::prelude::{
     cargo_canister, freeze_canister, freeze_wreck_fragment, thaw_round, thaw_torpedo, AIFollow,
@@ -152,6 +152,11 @@ fn state(generation: u64, credits: u32) -> WorldSaveState {
         clock: WorldClock::default(),
         stances: CivilizationStances::default(),
         goal: GoalRecord::default(),
+        start: StartingStation {
+            id: GeneratedBodyId::new(SectorCoord::new(1, 0, 0), "cluster_1_0_0_station", 0),
+            position: Meters3::new(40_000.0, 0.0, 0.0),
+            spawn: Meters3::new(41_000.0, 0.0, 0.0),
+        },
     }
 }
 

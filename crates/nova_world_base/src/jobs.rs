@@ -43,8 +43,8 @@ use nova_gameplay::prelude::{
     station_job_board, station_offers, unit_sphere_point, Allegiance, DerelictShipMarker, Fnv32,
     GameItems, GamePriceTable, Job, JobAccepted, JobBoard, JobField, JobHull, JobId, JobMixType,
     JobPostings, JobType, JobWreck, Jobs, NeutralizedMarker, PlayerSpaceshipMarker, SeedStream,
-    ShipInventory, ShipRoleType, SpaceshipRootMarker, StationMarker, StationServiceType,
-    StationServices,
+    ShipInventory, ShipRoleType, SpaceshipRootMarker, StarterBoardMarker, StationMarker,
+    StationServiceType, StationServices,
 };
 use nova_scenario::prelude::{
     base_scenario_object, spaceship_scenario_object, AIControllerConfig, BaseScenarioObjectConfig,
@@ -98,7 +98,8 @@ const NO_CIVILIZATION: &str = "no civilization reaches the posting station";
 /// so the held slots read the same and the renewed ones a new offer. A dead
 /// station posts nothing. The mix is the session's start role's; a generated
 /// scenario that runs with no session, a fixed-seed world no New Game
-/// opened, posts the trade mix.
+/// opened, posts the trade mix. The session's starting station carries the
+/// [`StarterBoardMarker`] beside its board; no other station does.
 #[expect(
     clippy::too_many_arguments,
     reason = "one system reading the config, the table, the clock, the session, the jobs, the postings, the stations, the roots and the field"
@@ -256,7 +257,20 @@ pub(crate) fn post_station_boards(
                 .collect::<Vec<_>>()
                 .join("; ")
         );
-        commands.entity(entity).insert(JobBoard(board));
+        let starter = session
+            .as_deref()
+            .is_some_and(|session| session.is_starting_station(id));
+        // TODO(20261012-100022): gate the starter (tutorial) jobs on
+        // `starter` here, so only the starting station's board posts them.
+        // Remove this note when the starter job kinds land and the gate
+        // reads the marker.
+        let mut station = commands.entity(entity);
+        station.insert(JobBoard(board));
+        if starter {
+            station.insert(StarterBoardMarker);
+        } else {
+            station.remove::<StarterBoardMarker>();
+        }
     }
 }
 

@@ -491,6 +491,10 @@ pub(crate) struct StationPose {
     pub(crate) position: Meters3,
     rotation: Quat,
     orbit: Option<(Vec3, f32)>,
+    /// The unit direction from the body the station stands by, out through
+    /// the station: the side its space is open on, where the start berths
+    /// the player ship from.
+    pub(crate) open: Vec3,
 }
 
 /// One body of a cluster, where it stands, and the cell that owns it.
@@ -1553,6 +1557,7 @@ pub(crate) fn station_pose(
                         rotation: Quat::from_rotation_arc(Vec3::Y, direction)
                             * Quat::from_rotation_y(yaw),
                         orbit: Some((*centre, well.mu)),
+                        open: direction,
                     });
                 }
             }
@@ -1582,6 +1587,7 @@ pub(crate) fn station_pose(
                     position,
                     rotation: Quat::from_rotation_y(yaw),
                     orbit: None,
+                    open: side,
                 });
             }
         }

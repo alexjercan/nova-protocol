@@ -12,7 +12,7 @@ use nova_assets::{
         ModCatalog, ModInfo, ModMeta, RemoteCatalog, RemoteCatalogState, UninstallPortalMod,
     },
 };
-use nova_events::prelude::Meters3;
+use nova_events::prelude::{GeneratedBodyId, Meters3, SectorCoord};
 use nova_gameplay::prelude::*;
 use nova_input::prelude::RegisterInputActions;
 use nova_scenario::prelude::*;
@@ -37,6 +37,16 @@ pub(crate) const TEST_ROLE_IDS: [&str; 2] = ["test_miner", "test_raider"];
 
 /// The start role catalog the New Game modal lists: [`TEST_ROLE_IDS`], each
 /// on a hull the empty ship catalog does not hold.
+/// A starting station for a session no generator picked: the tests that
+/// insert a session by hand and never stream.
+pub(crate) fn fixture_start() -> StartingStation {
+    StartingStation {
+        id: GeneratedBodyId::new(SectorCoord::new(1, 0, 0), "cluster_1_0_0_station", 0),
+        position: Meters3::new(40_000.0, 0.0, 0.0),
+        spawn: Meters3::new(41_000.0, 0.0, 0.0),
+    }
+}
+
 pub(crate) fn dummy_roles() -> GameStartRoles {
     GameStartRoles(
         TEST_ROLE_IDS
@@ -144,9 +154,12 @@ pub(crate) fn app_storing_settings_at(root: impl Into<std::path::PathBuf>) -> Ap
     // merges no content, and an empty registry would draw a picker with no
     // rows at all.
     app.insert_resource(GameUiThemes(base_ui_themes()));
-    // The item catalog the Load list checks each saved world against; the
-    // content merge publishes it in production.
+    // The item catalog the Load list checks each saved world against, and
+    // the section packs and styles Create builds the world from to pick the
+    // starting station; the content merge publishes them in production.
     app.insert_resource(nova_gameplay::test_support::test_items());
+    app.insert_resource(nova_world_base::test_support::fixture_loaded());
+    app.insert_resource(nova_world_base::test_support::fixture_styles());
     // The start roles and ship catalog the New Game modal lists and names
     // hulls from; the content merge publishes both in production.
     app.insert_resource(dummy_roles());

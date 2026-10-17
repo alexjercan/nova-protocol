@@ -17,6 +17,7 @@
 use std::collections::BTreeMap;
 
 use bevy::prelude::*;
+use nova_events::prelude::{GeneratedBodyId, Meters3};
 use nova_gameplay::prelude::{JobMixType, ShipInventoryStock};
 use nova_input::prelude::InputSource;
 use nova_ship::prelude::{SectionKind, ADDED_MINING_KEYS};
@@ -29,8 +30,8 @@ use crate::objects::{
 /// Glob-import surface for the start role content kind.
 pub mod prelude {
     pub use super::{
-        start_role_bindings, GameStartRoles, OpenWorldSession, RoleGoal, RoleGoalType, StartKit,
-        StartRole, StartRoleDesignId,
+        start_role_bindings, GameStartRoles, OpenWorldSession, RoleGoal, RoleGoalType,
+        StartBerthMarker, StartKit, StartRole, StartRoleDesignId, StartingStation,
     };
 }
 
@@ -40,13 +41,53 @@ pub mod prelude {
 /// `Generated((seed: None))`. It stays for the whole run, so a Retry streams
 /// the same world again and spawns the same start. A new New Game replaces
 /// it.
-#[derive(Resource, Clone, Debug, Eq, PartialEq)]
+#[derive(Resource, Clone, Debug, PartialEq)]
 pub struct OpenWorldSession {
     /// The world seed every sector is generated from.
     pub seed: u32,
     /// The start role the player ship spawns as.
     pub role: StartRoleDesignId,
+    /// The allied station the player starts docked at.
+    pub start: StartingStation,
 }
+
+impl OpenWorldSession {
+    /// Whether the generated station `id` is the one the player started
+    /// docked at: the one station that posts starter jobs and the one
+    /// charter 0 does not count a dock at.
+    #[must_use]
+    pub fn is_starting_station(&self, id: &GeneratedBodyId) -> bool {
+        self.start.id == *id
+    }
+}
+
+/// The station the player starts docked at: the living station nearest the
+/// seed's origin whose civilization's seeded stance is Ally.
+///
+/// World generation picks it once per seed (`starting_station` in
+/// `nova_world_base`) and refuses a seed with no such station; the world save
+/// carries it so a Load and the jobs board read the same station.
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct StartingStation {
+    /// The station's generated body id, the id its `EntityId` carries.
+    pub id: GeneratedBodyId,
+    /// The station's world position, in metres.
+    pub position: Meters3,
+    /// Where the player ship spawns before it berths: in the station's open
+    /// space, clear of its cluster.
+    pub spawn: Meters3,
+}
+
+/// The fresh player ship that still has to berth at the starting station.
+///
+/// `SpawnStartRole` inserts it on a ship it spawns fresh, never on one a
+/// Load thaws. `nova_world_base` berths and docks the ship once the station
+/// stands and removes the marker when the ship is docked.
+#[derive(Component, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct StartBerthMarker;
 
 /// The input bindings a start role's hull, or a hull bought at a station,
 /// spawns with.

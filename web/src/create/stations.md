@@ -476,7 +476,12 @@ one.
 
 A living station that offers `Jobs` posts a board of three jobs
 (`JOBS_PER_BOARD`), put on its root as `JobBoard` once every sector in the
-cube of 27 around its own is live and settled. Each board slot carries a
+cube of 27 around its own is live and settled. The station the player began
+docked at - the session's starting station, the nearest station of a
+civilization whose seeded stance is Ally, kept in the world save's `start`
+field (save format 21) - also wears `StarterBoardMarker` beside its board; it
+is the one board that posts the start role's starter jobs, and no other
+board ever carries the marker. Each board slot carries a
 posting number and the play-time stamp it was posted at (`SlotPosting`, kept
 per station in the `JobPostings` session resource, saved with the world). A
 slot's offer is a pure function of the world seed, the station's generated

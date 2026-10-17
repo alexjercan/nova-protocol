@@ -131,7 +131,7 @@ still launchable by id.
 
 | id | display name | in the picker | what it is |
 |---|---|---|---|
-| `open_world` | Open World | no | the New Game start (`world: Generated((seed: None))`): the picked [start role](../start-roles/)'s ship, spawned by `SpawnStartRole` at the origin of the world generated from the seed the player picks |
+| `open_world` | Open World | no | the New Game start (`world: Generated((seed: None))`): the picked [start role](../start-roles/)'s ship, spawned by `SpawnStartRole` docked at the starting station - the nearest allied station to the origin of the world generated from the seed the player picks |
 | `tutorial` | Basic Training | yes | the first-flight course: the Fleet gunnery range, a qualification card read over the radio |
 | `season_one_chapter_one` | A Useful Job | yes | Season 1, chapter one: thread a working lane on RCS, come about on a stranded ship, and dock to take three people off |
 | `menu_waystation` | Waystation Traffic | no | menu backdrop: hauler convoy; done after a 150 s rotation limit |

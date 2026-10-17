@@ -756,19 +756,28 @@ whatever it flew up to. Its `type_name` tells a station from a ship: a living
 station reads `living_station`, a dead one `derelict_station` (spawned dead,
 or a living one that lost its last turret), and any other hull `spaceship`.
 That is how a beat asks for "any living station" in a generated world, where
-no author can write the station's id:
+no author can write the station's id. The base open world posts charter 0's
+second step on the player's first undock, which is from the starting station
+the player begins docked at:
 
 ```ron
 (
-    name: OnDocked,
+    name: OnUndocked,
     once: true,
     filters: [Entity((
         type_name: Some("living_station"),
         other_id: Some("player"),
     ))],
-    actions: [ObjectiveComplete((id: "charter_0"))],
+    actions: [
+        ObjectiveComplete((id: "charter_0_undock")),
+        Objective((id: "charter_0", message: "Charter 0: dock at another living station")),
+    ],
 ),
 ```
+
+The dock that completes `charter_0` is not an authored handler: the open
+world completes it in code, because only the session knows the starting
+station's id and a dock back there must not count.
 
 `OnDocked` fires when the clamp exists, which is before the sleeves finish
 reaching across the gap - the joint is what holds the pair, and the tubes are

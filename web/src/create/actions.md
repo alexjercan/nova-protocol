@@ -115,7 +115,7 @@ trigger, railguns to <kbd>R</kbd>, torpedo bays to <kbd>F</kbd> and mining
 beams to <kbd>V</kbd>. The ship takes the hull's design name.
 
 ```ron
-SpawnStartRole((id: "player", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0))),
+SpawnStartRole((id: "player")),
 ```
 
 <details class="explain">
@@ -124,15 +124,20 @@ SpawnStartRole((id: "player", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.
 | field | type | default | meaning |
 |---|---|---|---|
 | `id` | string | required | the ship's scenario id |
-| `position` | 3-tuple | required | world position, meters |
-| `rotation` | 4-tuple | required | world rotation quaternion `(x, y, z, w)` |
+
+It takes no position: the ship spawns at the session's starting station,
+the nearest station of a civilization whose seeded stance is Ally, one
+berth standoff outside its open side and facing it, and the open world docks
+it there as soon as the station streams in. New Game picks that station with
+the seed, and refuses a seed that keeps no allied station in the civilization
+block round the origin.
 
 Only a `world: Generated((seed: None))` scenario may use it: New Game's
 session names the role, and lint reports an error for it anywhere else. It
 counts as the scenario's player spawn. At run time, with no New Game session
 or a role the loaded content does not define, it logs an error and spawns
 nothing. On Load it spawns the same ship, and the save's ship state lands on
-it.
+it, docked or free as it was saved.
 
 </details>
 

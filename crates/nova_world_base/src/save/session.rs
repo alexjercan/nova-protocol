@@ -283,6 +283,7 @@ pub fn resume_world(
         clock,
         stances,
         goal,
+        start,
         ..
     } = state;
     world.insert_resource(WorldSaveSession::opened(folder, lock, header));
@@ -310,6 +311,7 @@ pub fn resume_world(
     world.insert_resource(OpenWorldSession {
         seed: header.seed,
         role: header.role.clone(),
+        start,
     });
     world
         .resource_mut::<CargoCanisterIdAllocator>()
@@ -545,6 +547,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
     let clock = *world.resource::<WorldClock>();
     let stances = world.resource::<CivilizationStances>().clone();
     let goal = *world.resource::<GoalRecord>();
+    let start = world.resource::<OpenWorldSession>().start.clone();
     let saved_at_unix = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |since| since.as_secs());
@@ -585,6 +588,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
         clock,
         stances,
         goal,
+        start,
     };
     let checked = check_saved_ids(&state)
         .map_err(|fault| match fault {

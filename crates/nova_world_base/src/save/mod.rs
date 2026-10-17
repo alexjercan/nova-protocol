@@ -55,7 +55,7 @@ use nova_gameplay::prelude::{
 };
 use nova_scenario::prelude::{
     FleetEscort, FrozenShip, GameScenarios, GameStartRoles, SavedScenario, ScenarioId,
-    StartRoleDesignId,
+    StartRoleDesignId, StartingStation,
 };
 use nova_ship::prelude::{CameraView, SavedTorpedoTarget, FLEET_SIDES};
 use nova_world::prelude::{FrozenBody, FrozenBodyType, FrozenSectors, SectorCoord, WorldClock};
@@ -82,7 +82,7 @@ pub use transients::{
 /// nobody held live is recorded as an arrival there. Every cell the player
 /// never visited regenerates from the seed on Load, so another generator
 /// would change it silently.
-pub const WORLD_SAVE_FORMAT: u32 = 20;
+pub const WORLD_SAVE_FORMAT: u32 = 21;
 
 /// The most characters a world name has, after trimming.
 const WORLD_NAME_MAX: usize = 32;
@@ -157,6 +157,9 @@ pub struct WorldSaveState {
     pub stances: CivilizationStances,
     /// The start role's goal: standing, or the clock reading it was met at.
     pub goal: GoalRecord,
+    /// The allied station the player started docked at. The one board that
+    /// posts starter jobs, and the station charter 0 does not count.
+    pub start: StartingStation,
 }
 
 /// The player ship as it was saved.
@@ -443,6 +446,8 @@ fn read_state(
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     check_saved_clock(&state)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
+    check_saved_start(&state)
+        .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     state
         .chart
         .validate()
@@ -510,6 +515,25 @@ fn check_saved_fleet(state: &WorldSaveState) -> Result<(), String> {
 /// here rather than panic there. The game's own writer stamps from the live
 /// clock and freezes the market the generator drew, so it never produces
 /// one.
+/// The saved starting station stands somewhere: its position and its spawn
+/// point are finite. Load checks on open: the jobs board and charter 0
+/// compare its id, and the spawn pose is read only by a fresh start, so a
+/// hand-edited save with a non-finite point must refuse here rather than
+/// carry one. The game's own writer copies the session's pick.
+fn check_saved_start(state: &WorldSaveState) -> Result<(), String> {
+    let start = &state.start;
+    if !start.position.get().is_finite() || !start.spawn.get().is_finite() {
+        return Err(format!(
+            "the starting station '{}' stands at {:?} with its spawn at {:?}, which no \
+             generation placed",
+            start.id,
+            start.position.get(),
+            start.spawn.get()
+        ));
+    }
+    Ok(())
+}
+
 fn check_saved_clock(state: &WorldSaveState) -> Result<(), String> {
     let clock = state.clock.play_seconds;
     if !clock.is_finite() || clock < 0.0 {

@@ -260,10 +260,13 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
 ///
 /// New Game's open world authors it in place of a fixed player ship. The ship
 /// is the role's catalog hull, named after that design, with the role's kit
-/// and [`start_role_bindings`]. It spawns through the same path as a
-/// `SpawnScenarioObject` ship, so a Load thaws the saved ship in its place.
-/// The lint refuses it outside a `Generated((seed: None))` world, the one
-/// world the session seeds.
+/// and [`start_role_bindings`]. It spawns in the open space of the session's
+/// [`StartingStation`], facing it, carrying a [`StartBerthMarker`] so the
+/// world berths it there; the pose is the session's, not authored, since the
+/// station is the seed's. It spawns through the same path as a
+/// `SpawnScenarioObject` ship, so a Load thaws the saved ship in its place,
+/// undocked where it was and without the marker. The lint refuses it outside
+/// a `Generated((seed: None))` world, the one world the session seeds.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
@@ -271,10 +274,6 @@ pub struct StartRoleSpawnConfig {
     /// The player ship's scenario `EntityId`.
     #[reflect(@Names::NewObject)]
     pub id: String,
-    /// The ship's initial world position.
-    pub position: Meters3,
-    /// The ship's initial world rotation.
-    pub rotation: Quat,
 }
 
 impl EventAction<NovaEventWorld> for StartRoleSpawnConfig {
@@ -286,11 +285,21 @@ impl EventAction<NovaEventWorld> for StartRoleSpawnConfig {
         world.push_command(move |commands| {
             commands.queue(
                 move |world: &mut World| match start_role_ship(world, &config) {
-                    Ok((base, ship)) => spawn_scenario_spaceship(world, &base, &config.id, ship),
-                    Err(cause) => error!(
-                        "SpawnStartRole: player ship '{}' not spawned: {cause}",
-                        config.id
-                    ),
+                    Ok((base, ship)) => {
+                        let fresh = world
+                            .get_resource::<ResumedSpaceship>()
+                            .is_none_or(|resumed| resumed.id.0 != config.id);
+                        let root = spawn_scenario_spaceship(world, &base, &config.id, ship);
+                        if fresh {
+                            world.entity_mut(root).insert(StartBerthMarker);
+                        }
+                    }
+                    Err(cause) => {
+                        error!(
+                            "SpawnStartRole: player ship '{}' not spawned: {cause}",
+                            config.id
+                        );
+                    }
                 },
             );
         });
@@ -332,11 +341,13 @@ fn start_role_ship(
     })?;
     let design = ShipDesignSource::prototype(role.hull.clone());
     let (hull, _) = resolve_ship_design(&design, designs, sections);
+    let start = &session.start;
+    let facing = (start.position.get() - start.spawn.get()).normalize_or(Vec3::NEG_Z);
     let base = BaseScenarioObjectConfig {
         id: config.id.clone(),
         name: prototype.name.clone(),
-        position: config.position,
-        rotation: config.rotation,
+        position: start.spawn,
+        rotation: Quat::from_rotation_arc(Vec3::NEG_Z, facing),
     };
     let ship = SpaceshipConfig {
         design,
@@ -401,6 +412,7 @@ fn spawn_scenario_station(
 
 /// Build the scenario ship `id` on a fresh root spawned from `base`: thawed
 /// from the [`ResumedSpaceship`] that names `id`, or fresh from `config`.
+/// Returns the root.
 ///
 /// A resumed ship takes its pose and motion from the record; the authored
 /// object only gave it its id, its name and its addressability. A record for
@@ -424,7 +436,7 @@ fn spawn_scenario_spaceship(
     base: &BaseScenarioObjectConfig,
     id: &str,
     config: SpaceshipConfig,
-) {
+) -> Entity {
     let id_errors = match &config.design {
         ShipDesignSource::Inline(design) => section_id_errors(design),
         ShipDesignSource::Prototype { id: design_id, .. } => world
@@ -457,6 +469,7 @@ fn spawn_scenario_spaceship(
     let mut commands = world.commands();
     let mut entity_commands =
         commands.spawn((base_scenario_object(base), ScenarioAddressableMarker));
+    let root = entity_commands.id();
     match resumed {
         Some(ResumedSpaceship {
             transform,
@@ -483,6 +496,7 @@ fn spawn_scenario_spaceship(
         }
     }
     world.flush();
+    root
 }
 
 /// A volume to scatter objects within, for [`ScatterObjectsConfig`].
