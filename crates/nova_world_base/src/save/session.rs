@@ -20,23 +20,27 @@ use bevy::{
 };
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_gameplay::prelude::{
-    CargoCanisterIdAllocator, CargoCanisterRuntimeId, Chart, CivilizationStances, GoalRecord,
-    JobPostings, Jobs, PlayerSpaceshipMarker, ShipCredits, UnsettledBody,
+    CargoCanisterIdAllocator, CargoCanisterRuntimeId, Chart, CivilizationStances, GoalProgress,
+    GoalRecord, JobPostings, Jobs, OwnedShipMarker, PlayerFleetMarker, PlayerSpaceshipMarker,
+    ShipCredits, UnsettledBody,
 };
 use nova_scenario::prelude::{
-    freeze_fleet, freeze_ship, CurrentScenario, GeneratedMarks, NovaEventWorld, OpenWorldSession,
-    ResumedScenario, ResumedSpaceship, SavedScenario, SpentHandlers, StartRoleDesignId,
+    freeze_fleet, freeze_ship, CurrentScenario, GameShipDesigns, GeneratedMarks, NovaEventWorld,
+    OpenWorldSession, ResumedScenario, ResumedSpaceship, SavedScenario, ShipDesignSource,
+    SpentHandlers, StartRoleDesignId,
 };
-use nova_ship::prelude::{CameraView, ResumedCameraView};
+use nova_ship::prelude::{CameraView, ParkedHullType, ResumedCameraView};
 use nova_world::prelude::{
-    snapshot_sectors, CurrentSector, FrozenSectors, SectorSnapshotError, WorldClock, WorldConfig,
+    snapshot_sectors, CurrentSector, FrozenBodyType, FrozenSectors, SectorSnapshotError,
+    WorldClock, WorldConfig,
 };
 
 use super::{
     check_saved_fleet, check_saved_ids, check_saved_items, check_saved_stock,
     transients::{freeze_transients, hold_resumed_transients},
-    write_world, SavedIdFault, SavedPlayer, WorldFolder, WorldLock, WorldSaveHeader,
-    WorldSaveState, WORLD_SAVE_FORMAT,
+    write_world, SavedChart, SavedFleet, SavedIdFault, SavedObjective, SavedObjectiveLine,
+    SavedObjectiveType, SavedPlayer, WorldFolder, WorldLock, WorldSaveHeader, WorldSaveState,
+    WORLD_SAVE_FORMAT,
 };
 use crate::NovaLayeredWorld;
 
@@ -551,6 +555,26 @@ pub(crate) fn snapshot_world(world: &mut World) {
     let saved_at_unix = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |since| since.as_secs());
+    let hull = match ship.design() {
+        ShipDesignSource::Prototype { id, .. } => world
+            .resource::<GameShipDesigns>()
+            .get_design(id)
+            .map_or_else(|| id.to_string(), |design| design.name.clone()),
+        ShipDesignSource::Inline(_) => body
+            .get::<Name>()
+            .map_or_else(|| id.0.clone(), |name| name.to_string()),
+    };
+    let fleet_counts = SavedFleet {
+        owned_ships: owned_ships(world, &sectors),
+        escorts: fleet.len() as u32,
+        owned_stations: chart
+            .stations()
+            .iter()
+            .filter(|station| station.owned)
+            .count() as u32,
+    };
+    let objectives = open_objectives(world, &scenario, &jobs, &items, goal);
+    let chart_summary = SavedChart::of(&chart, &jobs);
 
     let mut session = world.resource_mut::<WorldSaveSession>();
     let generation = session.generation + 1;
@@ -566,6 +590,11 @@ pub(crate) fn snapshot_world(world: &mut World) {
         generation,
         player_sector,
         credits,
+        play_seconds: clock.play_seconds,
+        hull,
+        fleet: fleet_counts,
+        objectives,
+        chart: chart_summary,
     };
     let state = WorldSaveState {
         format: WORLD_SAVE_FORMAT,
@@ -630,6 +659,75 @@ pub(crate) fn snapshot_world(world: &mut World) {
     session.wanted = None;
     session.settling_frames = 0;
     session.status = WorldSaveStatus::Writing;
+}
+
+/// How many ships the player owns parked at stations: every live owned hull
+/// that is neither the player's own ship nor an escort of the fleet, plus
+/// every hull parked as owned at a frozen station of `sectors`.
+fn owned_ships(world: &mut World, sectors: &FrozenSectors) -> u32 {
+    let live = world
+        .query_filtered::<Entity, (
+            With<OwnedShipMarker>,
+            Without<PlayerFleetMarker>,
+            Without<PlayerSpaceshipMarker>,
+        )>()
+        .iter(world)
+        .count();
+    let frozen = sectors
+        .iter()
+        .flat_map(|(_, sector)| sector.bodies())
+        .filter_map(|body| match body.body() {
+            FrozenBodyType::Station(station) => Some(station),
+            _ => None,
+        })
+        .flat_map(|station| station.parked())
+        .filter(|hull| hull.terms() == ParkedHullType::Owned)
+        .count();
+    (live + frozen) as u32
+}
+
+/// Every objective still open, in HUD order: the charter steps `scenario`
+/// posts, the jobs held, then the role goal while its progress stands
+/// unmet. A world with no derived progress yet lists no goal.
+fn open_objectives(
+    world: &World,
+    scenario: &SavedScenario,
+    jobs: &Jobs,
+    items: &nova_gameplay::prelude::GameItems,
+    goal: GoalRecord,
+) -> Vec<SavedObjective> {
+    let mut objectives: Vec<SavedObjective> = scenario
+        .objectives
+        .iter()
+        .map(|objective| SavedObjective {
+            kind: SavedObjectiveType::Charter,
+            title: objective.message.clone(),
+            lines: Vec::new(),
+        })
+        .chain(jobs.held().iter().map(|job| SavedObjective {
+            kind: SavedObjectiveType::Job,
+            title: job.title(items),
+            lines: Vec::new(),
+        }))
+        .collect();
+    if let Some(progress) = world.get_resource::<GoalProgress>() {
+        if !progress.is_empty() && !goal.is_met() {
+            objectives.push(SavedObjective {
+                kind: SavedObjectiveType::Goal,
+                title: progress.title.clone(),
+                lines: progress
+                    .lines
+                    .iter()
+                    .map(|line| SavedObjectiveLine {
+                        label: line.label.clone(),
+                        have: line.have,
+                        need: line.need,
+                    })
+                    .collect(),
+            });
+        }
+    }
+    objectives
 }
 
 /// The loaded scenario's state for the save, or why it cannot be taken this

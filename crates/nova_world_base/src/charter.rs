@@ -29,6 +29,13 @@ pub const CHARTER_ZERO_UNDOCK_OBJECTIVE_ID: &str = "charter_0_undock";
 /// step, docking at a living station other than the starting one.
 pub const CHARTER_ZERO_OBJECTIVE_ID: &str = "charter_0";
 
+/// The objective line charter 0's first step shows: the base content posts
+/// it, and the New Game role step lists it as the first milestone.
+pub const CHARTER_ZERO_UNDOCK_MESSAGE: &str = "Charter 0: undock from your starting station";
+
+/// The objective line charter 0's second step shows.
+pub const CHARTER_ZERO_MESSAGE: &str = "Charter 0: dock at another living station";
+
 /// The marker chip label the pointer puts on the nearest station.
 const CHARTER_ZERO_MARK: &str = "STATION";
 

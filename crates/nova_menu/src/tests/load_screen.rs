@@ -1,11 +1,13 @@
 //! The Load picker: a saved world lists and loads, a refused one lists and
 //! refuses to load.
 
-use std::{future, thread, time::Duration};
+use std::{future, path::Path, thread, time::Duration};
 
 use bevy::{prelude::*, tasks::IoTaskPool, ui::InteractionDisabled, ui_widgets::Activate};
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPacks};
+use nova_events::prelude::SectorCoord;
 use nova_gameplay::prelude::*;
+use nova_scenario::prelude::OpenWorldSession;
 use nova_world_base::{
     prelude::{create_world, ResumedWorld, WorldRefusal, WorldSaveSession, WorldSaveStatus},
     test_support::{arm_save_fixture, WorldSaveTestPlugin, FIXTURE_ROLE_ID, FIXTURE_SCENARIO_ID},
@@ -14,6 +16,7 @@ use nova_world_base::{
 use super::support::{app, dummy_scenarios, dummy_start};
 use crate::{
     load_screen::{SelectedWorldSlug, WorldChecks, WorldOpen},
+    preview::MenuChartPreview,
     scenarios::NewGameScenario,
     world_setup::WorldsRoot,
 };
@@ -68,7 +71,13 @@ fn save_until_idle(app: &mut App) {
             session.status()
         );
     }
-    panic!("the fixture world did not finish saving in time");
+    let session = app.world().resource::<WorldSaveSession>();
+    panic!(
+        "the fixture world did not finish saving in time: idle {}, status {:?}, state {:?}",
+        session.is_idle(),
+        session.status(),
+        state(app)
+    );
 }
 
 /// Run `app` until [`WorldChecks`] empties, or panic after a generous number
@@ -107,6 +116,61 @@ fn press_load_world(app: &mut App) {
 fn has_named(app: &mut App, name: &str) -> bool {
     let mut names = app.world_mut().query::<&Name>();
     names.iter(app.world()).any(|found| found.as_str() == name)
+}
+
+/// The value texts of every `detail_row` named `name`, in spawn order: the
+/// last [`Text`] child of each.
+fn row_values(app: &mut App, name: &str) -> Vec<String> {
+    let mut rows = app.world_mut().query::<(&Name, &Children)>();
+    let children: Vec<Vec<Entity>> = rows
+        .iter(app.world())
+        .filter(|(found, _)| found.as_str() == name)
+        .map(|(_, children)| children.iter().collect())
+        .collect();
+    children
+        .iter()
+        .map(|children| {
+            children
+                .iter()
+                .rev()
+                .find_map(|child| app.world().get::<Text>(*child).map(|text| text.0.clone()))
+                .expect("a detail row holds a value text")
+        })
+        .collect()
+}
+
+/// Save the fixture world `name` under `root` through the production
+/// pipeline, as a player flying "Fixture hull" for 90 s with one trade goal
+/// open, and release its lock so Load can take it.
+fn save_fixture_world(app: &mut App, root: &Path, name: &str) {
+    if !app.is_plugin_added::<WorldSaveTestPlugin>() {
+        app.add_plugins(WorldSaveTestPlugin);
+    }
+    let player = arm_save_fixture(app.world_mut());
+    app.world_mut()
+        .entity_mut(player)
+        .insert(Name::new("Fixture hull"));
+    app.world_mut().resource_mut::<WorldClock>().play_seconds = 90.0;
+    let start = app.world().resource::<OpenWorldSession>().start.id.clone();
+    {
+        let mut chart = app.world_mut().resource_mut::<Chart>();
+        chart.visit(SectorCoord::ORIGIN, vec![ClusterType::RockOnly], 10.0);
+        chart.find_station(&start, false, false, 45.0);
+    }
+    app.world_mut().insert_resource(GoalProgress {
+        title: "A station network".to_string(),
+        lines: vec![GoalLine::new("Trade jobs", 1, 3)],
+    });
+    let (folder, lock) = create_world(root, name).expect("the root takes a new world");
+    app.world_mut().insert_resource(WorldSaveSession::created(
+        folder,
+        lock,
+        name.to_string(),
+        42,
+        FIXTURE_ROLE_ID.into(),
+    ));
+    save_until_idle(app);
+    app.world_mut().remove_resource::<WorldSaveSession>();
 }
 
 /// The text of the one [`Text`] entity named `name`.
@@ -395,4 +459,147 @@ fn delete_asks_first_then_removes_the_world_and_its_row() {
         app.world().resource::<SelectedWorldSlug>().0.as_deref(),
         Some("keep-world")
     );
+}
+
+/// A world's row reads its play time, how long ago it was saved and how many
+/// objectives it holds open; its details draw the save's chart, name the
+/// hull in a FLEET block that lists only the fleet counts the save holds,
+/// and list the open objectives with their counts.
+#[test]
+fn a_load_row_reads_play_time_save_age_and_open_count_and_its_details_the_fleet_and_objectives() {
+    let mut app = menu();
+    let root = tempfile::tempdir().expect("a scratch worlds root");
+    app.insert_resource(WorldsRoot(Some(root.path().to_path_buf())));
+    save_fixture_world(&mut app, root.path(), "Good World");
+
+    press(&mut app, "Load Button");
+    checks_settle(&mut app);
+
+    assert_eq!(text_of(&mut app, "Load World Row Play Time"), "0:01:30");
+    assert_eq!(text_of(&mut app, "Load World Row Saved"), "just now");
+    assert_eq!(text_of(&mut app, "Load World Row Open"), "1 open");
+
+    let row = named(&mut app, "Load World Row: good-world");
+    app.world_mut().trigger(Activate { entity: row });
+    app.update();
+
+    let preview = named(&mut app, "Load World Details Preview");
+    let chart = app
+        .world()
+        .get::<MenuChartPreview>(preview)
+        .expect("the details preview carries the save's chart")
+        .0
+        .clone();
+    assert!(
+        chart.marks.iter().any(|mark| matches!(
+            mark.kind,
+            nova_hud::prelude::ChartSceneMarkType::Station { .. }
+        )),
+        "the saved chart marks the starting station: {:?}",
+        chart.marks
+    );
+    assert_eq!(
+        row_values(&mut app, "Load World Details Line"),
+        vec![
+            "42".to_string(),
+            chart.centre.to_string(),
+            "300 cr".to_string(),
+            "0:01:30".to_string(),
+            format!("{} (just now)", text_of_saved(&mut app)),
+            nova_info::prelude::APP_VERSION.to_string(),
+        ]
+    );
+    assert_eq!(
+        row_values(&mut app, "Load World Details Fleet Ship"),
+        vec!["Fixture hull".to_string()]
+    );
+    assert!(!has_named(&mut app, "Load World Details Fleet Owned Ships"));
+    assert!(!has_named(&mut app, "Load World Details Fleet Escorts"));
+    assert!(!has_named(
+        &mut app,
+        "Load World Details Fleet Owned Stations"
+    ));
+    assert_eq!(
+        text_of(&mut app, "Load World Details Objective Title"),
+        "A station network"
+    );
+    assert_eq!(
+        text_of(&mut app, "Load World Details Objective Counts"),
+        "Trade jobs 1 / 3"
+    );
+    assert!(!has_named(&mut app, "Load World Details No Objectives"));
+}
+
+/// The `Saved` line's UTC stamp, read back from the selected world's header
+/// so the test does not re-derive the save's clock.
+fn text_of_saved(app: &mut App) -> String {
+    let listings = app.world().resource::<crate::load_screen::WorldListings>();
+    let header = listings
+        .0
+        .as_ref()
+        .expect("the root listed")
+        .iter()
+        .find_map(|listing| listing.header.as_ref().ok())
+        .expect("one readable save");
+    crate::load_screen::utc_stamp(header.saved_at_unix)
+}
+
+/// The menu heads its buttons with Continue when the worlds folder holds a
+/// readable save, naming the newest one and its age, and Continue resumes
+/// that world exactly like Load does; with no save there is no Continue.
+#[test]
+fn continue_names_the_newest_save_and_resumes_it() {
+    let mut empty = menu();
+    assert!(
+        !has_named(&mut empty, "Continue Button"),
+        "an empty worlds folder offers no Continue"
+    );
+    drop(empty);
+
+    let root = tempfile::tempdir().expect("a scratch worlds root");
+    // The fixture arms one player per app, so the older save comes from an
+    // app of its own.
+    let mut older = menu();
+    older.insert_resource(WorldsRoot(Some(root.path().to_path_buf())));
+    save_fixture_world(&mut older, root.path(), "Older World");
+    drop(older);
+    thread::sleep(Duration::from_millis(1_100));
+    let mut app = menu();
+    app.insert_resource(WorldsRoot(Some(root.path().to_path_buf())));
+    save_fixture_world(&mut app, root.path(), "Newest World");
+    // The menu panel is built on entry, so leave and re-enter the menu the
+    // way a player coming back from a world does.
+    app.world_mut()
+        .resource_mut::<NextState<GameStates>>()
+        .set(GameStates::Loading);
+    app.update();
+    app.world_mut()
+        .resource_mut::<NextState<GameStates>>()
+        .set(GameStates::MainMenu);
+    app.update();
+
+    assert_eq!(
+        text_of(&mut app, "Continue Caption"),
+        "Newest World, saved just now"
+    );
+    press(&mut app, "Continue Button");
+    for _ in 0..200 {
+        if app.world().resource::<WorldOpen>().0.is_none() {
+            break;
+        }
+        thread::sleep(Duration::from_millis(5));
+        app.update();
+    }
+    app.update();
+
+    assert_eq!(
+        app.world().resource::<WorldSaveSession>().name(),
+        "Newest World"
+    );
+    assert_eq!(
+        app.world().resource::<SelectedWorldSlug>().0.as_deref(),
+        Some("newest-world")
+    );
+    assert!(app.world().get_resource::<ResumedWorld>().is_some());
+    assert_eq!(state(&app), GameStates::Playing);
 }

@@ -188,3 +188,47 @@ the menu screens that feed a charter (New Game, Load) are text too. Ideas:
   `PASS the loaded chart holds 3 cells`, `autopilot: cycle complete, no panic`.
   `map-objectives.png` shows the block; the first capture clipped the charter
   line, fixed by the wrap.
+
+## Progress 2026-10-18 (Load and New Game)
+- Claim: the save header (format 22) carries play time, hull name, fleet
+  counts, open objectives and a chart summary. Evidence:
+  `crates/nova_world_base/src/save/mod.rs:85`, `:124`, `:142`, `:238`;
+  `save/session.rs:667` (owned ships), `:692` (open objectives only, a met
+  goal is skipped). Verification: `cargo test -p nova_world_base --lib save`
+  43 passed, including
+  `a_save_header_carries_the_play_time_hull_fleet_open_objectives_and_chart`
+  and `a_met_goal_is_not_listed_among_a_save_header_s_open_objectives`.
+- Claim: New Game step 1 previews the seed without creating the world.
+  Evidence: `crates/nova_world_base/src/start.rs:165` (`start_preview`, 5 by 5
+  cells round the allied start), `crates/nova_menu/src/world_setup.rs:826`.
+  Step 2 shows the hull turning and the milestones (`world_setup.rs:652`,
+  `:679`). Verification: `start` tests 2 passed; nova_menu
+  `new_game_previews_the_seed_s_start_and_lists_the_role_s_milestones`.
+- Claim: Load rows read play time, saved-ago and open count; the details draw
+  the save's chart, a FLEET block (counts only when present) and the open
+  objectives; Continue heads the menu. Evidence:
+  `crates/nova_menu/src/load_screen.rs:702`, `:820`, `:1092`, `:365`, `:388`;
+  `menu_ui.rs:133`, `:718`. Verification: nova_menu 220 passed, including
+  `a_load_row_reads_play_time_save_age_and_open_count_and_its_details_the_fleet_and_objectives`
+  and `continue_names_the_newest_save_and_resumes_it`.
+- Change: the chart scene and the hull view live in `crates/nova_hud/src/preview/`
+  (`PreviewPlugin`, `spawn_chart_scene` at `chart.rs:227`,
+  `spawn_hull_preview_scene` at `hull.rs:147`); the Map, the Station cards and
+  the menu (`crates/nova_menu/src/preview.rs`) draw through them.
+- Fix found in the live run: the menu backdrop's `stage_menu_camera` posed
+  every `Camera3d`, preview cameras included, and the Station cards'
+  system switched off every hull view camera, the menu's too. Now the first
+  takes the scenario camera only (`crates/nova_menu/src/ambience.rs:306`,
+  `:320`) and the second its own cameras only
+  (`crates/nova_interface/src/station/hull_preview.rs:165`). A hidden preview
+  stops rendering (`crates/nova_menu/src/preview.rs:329`).
+- Live proof: `screenshot_menu` (`NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`, lavapipe)
+  walks the world step, the role step, Create, a leave to the menu, Continue
+  and Load, and asserts the Load row's open count, the FLEET ship line and an
+  open objective. Frames: `news-0150-world-setup.png`, `menu-role-step.png`,
+  `menu-continue.png`, `menu-load-screen.png`.
+- Open: the role icon on Load rows and on the role list is not drawn; the
+  game has no role icon yet. Options: (a) an explicit icon field on
+  `StartRole` content, linted; (b) derive it from the role's `JobMixType`
+  with the job icons, three icons for six roles. Either needs the icon masks
+  shared out of `nova_interface/src/icons.rs`.

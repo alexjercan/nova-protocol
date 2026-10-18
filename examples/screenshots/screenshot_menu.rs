@@ -1,8 +1,12 @@
 //! screenshot_menu: the main menu over the ambience backdrop
 //! (`tutorial-menu.png`), the Settings panel open over it
 //! (`wiki-settings.png`), its Controls tab (`wiki-controls.png`) and the New
-//! Game world setup window holding a typed seed (`news-0150-world-setup.png`),
-//! driven through the shipped app (`editor_app`).
+//! Game world setup window holding a typed seed (`news-0150-world-setup.png`)
+//! over its chart preview, the role step with the hull turning
+//! (`menu-role-step.png`), then Create, a leave through the pause menu, the
+//! menu offering Continue (`menu-continue.png`) and the Load screen listing
+//! that save (`menu-load-screen.png`), driven
+//! through the shipped app (`editor_app`).
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - walk the menu, exit clean,
@@ -76,10 +80,50 @@ const SEED_DIGITS_MAX: usize = 10;
 #[cfg(feature = "debug")]
 const WORLD_SETUP_SHOT: &str = "news-0150-world-setup.png";
 
+/// The still of the role step with the selected role's hull turning.
+#[cfg(feature = "debug")]
+const ROLE_STEP_SHOT: &str = "menu-role-step.png";
+
+/// The still of the main menu offering Continue on the save just left.
+#[cfg(feature = "debug")]
+const CONTINUE_SHOT: &str = "menu-continue.png";
+
+/// The still of the Load screen listing the world this walk left.
+#[cfg(feature = "debug")]
+const LOAD_SHOT: &str = "menu-load-screen.png";
+
+/// The role step's hull view.
+#[cfg(feature = "debug")]
+const HULL_PREVIEW: &str = "Start Role Hull Preview";
+
+/// The pause menu's leave to the main menu.
+#[cfg(feature = "debug")]
+const BACK_TO_MENU_BUTTON: &str = "Back To Menu Button";
+
+/// The main menu's Continue, shown once a save stands.
+#[cfg(feature = "debug")]
+const CONTINUE_BUTTON: &str = "Continue Button";
+
+/// The Load details' chart preview of the selected save.
+#[cfg(feature = "debug")]
+const LOAD_PREVIEW: &str = "Load World Details Preview";
+
+/// A Load row's open objectives count.
+#[cfg(feature = "debug")]
+const LOAD_ROW_OPEN: &str = "Load World Row Open";
+
+/// The Load details' FLEET line naming the hull flown.
+#[cfg(feature = "debug")]
+const LOAD_FLEET_SHIP: &str = "Load World Details Fleet Ship";
+
+/// One open objective in the Load details: charter 0 stands at the leave.
+#[cfg(feature = "debug")]
+const LOAD_OBJECTIVE: &str = "Load World Details Objective";
+
 #[derive(Parser)]
 #[command(name = "screenshot_menu")]
 #[command(version = "1.0.0")]
-#[command(about = "Capture the main menu, its Settings panel and the New Game world setup window. Autopilot-only: a scripted pointer walk over the real menu", long_about = None)]
+#[command(about = "Capture the main menu, its Settings panel, both New Game steps and the Load screen. Autopilot-only: a scripted pointer walk over the real menu", long_about = None)]
 struct Cli;
 
 fn main() -> bevy::app::AppExit {
@@ -143,8 +187,8 @@ fn main() -> bevy::app::AppExit {
     app.run()
 }
 
-/// The driven walk: menu -> Settings -> Controls -> world setup, one shot per
-/// state.
+/// The driven walk: menu -> Settings -> Controls -> world setup -> role step
+/// -> first flight -> menu -> Load, one shot per screen.
 #[cfg(feature = "debug")]
 fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     // The HUD chrome is dropped right before every shot rather than once at
@@ -245,6 +289,19 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         // The name field keeps the name it opens on: Create on it is the
         // player's untouched path.
         .click("go on to the start role", "World Next Button")
+        // The role step opens on the first role, so its hull view stands.
+        .step("the role step shows the selected hull")
+        .until(ui_node_present(HULL_PREVIEW))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("settle the role step")
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("capture the role step")
+        .on_enter(shot(ROLE_STEP_SHOT))
+        .until(shot_written(ROLE_STEP_SHOT))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
         .click("create the world", "Create World Button")
         .step("reach the first flight")
         .until(state_is(GameStates::Playing))
@@ -260,6 +317,65 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
             );
         })
         .add()
+        // Leave through the pause menu: the leave writes the save the Load
+        // screen then lists, and the menu offers Continue on it.
+        .step("open the pause menu")
+        .on_enter(press_key(KeyCode::Escape))
+        .until(ui_node_present(BACK_TO_MENU_BUTTON))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("let escape go")
+        .on_enter(release_key(KeyCode::Escape))
+        .add()
+        .click_named(
+            "back to the main menu",
+            BACK_TO_MENU_BUTTON,
+            state_is(GameStates::MainMenu),
+            STEP_DEADLINE_SECS,
+        )
+        .step("the menu offers Continue on the save")
+        .until(ui_node_present(CONTINUE_BUTTON))
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
+        .step("settle the menu with Continue")
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("capture the menu with Continue")
+        .on_enter(shot(CONTINUE_SHOT))
+        .until(shot_written(CONTINUE_SHOT))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
+        .click_named(
+            "open Load",
+            "Load Button",
+            ui_node_present(LOAD_PREVIEW),
+            BEAT_DEADLINE_SECS,
+        )
+        .step("the Load row and details show the open objectives and the fleet")
+        .on_enter(|world: &mut World| {
+            for name in [LOAD_ROW_OPEN, LOAD_FLEET_SHIP, LOAD_OBJECTIVE] {
+                assert!(
+                    named_node(world, name),
+                    "screenshot_menu: the Load details lack '{name}'"
+                );
+            }
+        })
+        .add()
+        .step("settle the Load screen")
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("capture the Load screen")
+        .on_enter(shot(LOAD_SHOT))
+        .until(shot_written(LOAD_SHOT))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
+}
+
+/// Whether a node called `name` exists.
+#[cfg(feature = "debug")]
+fn named_node(world: &mut World, name: &str) -> bool {
+    let mut query = world.query::<&Name>();
+    query.iter(world).any(|node| node.as_str() == name)
 }
 
 /// Advance once the seed field reads `seed`.

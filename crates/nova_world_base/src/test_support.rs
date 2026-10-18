@@ -17,9 +17,9 @@ use nova_gameplay::prelude::{
     ShipInventoryStock, ShipRoleType,
 };
 use nova_scenario::prelude::{
-    spaceship_scenario_object, CurrentScenario, GameStartRoles, GeneratedMarks, NovaEventWorld,
-    OpenWorldSession, RoleGoal, RoleGoalType, ScenarioConfig, SpaceshipConfig, SpentHandlers,
-    StartKit, StartRole,
+    spaceship_scenario_object, CurrentScenario, GameShipDesigns, GameStartRoles, GeneratedMarks,
+    NovaEventWorld, OpenWorldSession, RoleGoal, RoleGoalType, ScenarioConfig, SpaceshipConfig,
+    SpentHandlers, StartKit, StartRole,
 };
 use nova_ship::prelude::{
     ChaseCameraPlugin, ChaseZoom, ShipStyleConfig, SpaceshipCameraController,
@@ -178,6 +178,9 @@ pub fn arm_save_fixture(world: &mut World) -> Entity {
     world.init_resource::<JobPostings>();
     world.init_resource::<CivilizationStances>();
     world.init_resource::<GoalRecord>();
+    // The catalog the save names a prototype hull by; the fixture ship is
+    // inline, so the save names it by the ship.
+    world.init_resource::<GameShipDesigns>();
     world.insert_resource(CurrentSector(SectorCoord::ORIGIN));
     let player = world
         .spawn((

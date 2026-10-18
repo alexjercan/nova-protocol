@@ -40,15 +40,9 @@ const ORBIT_DRAG_RADIANS_PER_PX: f32 = 0.0024;
 /// cover at 30 m.
 const ORBIT_ZOOM_PER_NOTCH: f32 = 0.12;
 
-/// The camera eye offset from the focus for a given orbit, on a Y-up sphere.
-pub fn orbit_eye(radius: f32, theta: f32, phi: f32) -> Vec3 {
-    let horizontal = radius * phi.cos();
-    Vec3::new(
-        horizontal * theta.sin(),
-        radius * phi.sin(),
-        horizontal * theta.cos(),
-    )
-}
+/// The camera eye offset from the focus for a given orbit, on a Y-up sphere:
+/// the one the shared previews orbit by.
+pub use nova_hud::prelude::orbit_eye;
 
 /// One frame of a viewer's orbit gesture, as it comes off the app input.
 ///
@@ -116,7 +110,7 @@ impl OrbitGesture {
     /// Whether the player touched the orbit at all this frame. An untouched
     /// orbit must not be written, so an idle frame leaves the camera's orbit
     /// component unchanged.
-    pub(crate) fn is_idle(self) -> bool {
+    pub fn is_idle(self) -> bool {
         !self.turn_left
             && !self.turn_right
             && !self.tilt_up

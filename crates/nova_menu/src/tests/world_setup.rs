@@ -15,6 +15,7 @@ use super::support::{
     app, dummy_scenarios, observe_load_scenario, LoadedScenario, TEST_ROLE_IDS, TEST_START_ID,
 };
 use crate::{
+    preview::{MenuChartPreview, MenuHullPreview},
     scenarios::NewGameScenario,
     world_setup::{parse_world_seed, WorldSeedField, WorldSetupOverlay, WorldsRoot},
 };
@@ -270,4 +271,98 @@ fn create_refuses_a_taken_world_name_inline_and_starts_nothing() {
         .map(|entry| entry.unwrap().file_name())
         .collect();
     assert_eq!(files, ["world.lock"]);
+}
+
+/// The text of the one [`Text`] entity named `name`.
+fn text_of(app: &mut App, name: &str) -> String {
+    let entity = named(app, name);
+    app.world()
+        .get::<Text>(entity)
+        .expect("a Text component")
+        .0
+        .clone()
+}
+
+/// The value texts of every `detail_row` named `name`, in spawn order.
+fn row_values(app: &mut App, name: &str) -> Vec<String> {
+    let mut rows = app.world_mut().query::<(&Name, &Children)>();
+    let children: Vec<Vec<Entity>> = rows
+        .iter(app.world())
+        .filter(|(found, _)| found.as_str() == name)
+        .map(|(_, children)| children.iter().collect())
+        .collect();
+    children
+        .iter()
+        .map(|children| {
+            children
+                .iter()
+                .rev()
+                .find_map(|child| app.world().get::<Text>(*child).map(|text| text.0.clone()))
+                .expect("a detail row holds a value text")
+        })
+        .collect()
+}
+
+/// Step 1 draws the typed seed's chart: the cells round its starting
+/// station with the station marked and the start inside its cell, and a
+/// caption counting the stations in reach; a seed with no start draws an
+/// empty chart and says why. Step 2 lists the role's three milestones as the
+/// game states them, and shows no hull view when the catalog lacks the hull.
+#[test]
+fn new_game_previews_the_seed_s_start_and_lists_the_role_s_milestones() {
+    let mut app = menu();
+    press(&mut app, "New Game Button");
+    type_seed(&mut app, "42");
+    app.update();
+
+    let preview = named(&mut app, "Seed Preview");
+    let chart = app
+        .world()
+        .get::<MenuChartPreview>(preview)
+        .expect("the seed preview carries the seed's chart");
+    let stations = chart
+        .0
+        .marks
+        .iter()
+        .filter(|mark| {
+            matches!(
+                mark.kind,
+                nova_hud::prelude::ChartSceneMarkType::Station { .. }
+            )
+        })
+        .count();
+    assert!(stations >= 1, "seed 42 has a station in reach");
+    assert!(!chart.0.cells.is_empty());
+    assert!(chart.0.you.is_some(), "the start sits inside its cell");
+    let plural = if stations == 1 { "station" } else { "stations" };
+    assert_eq!(
+        text_of(&mut app, "Seed Preview Caption"),
+        format!(
+            "The sectors round the start of seed 42: {stations} {plural} in reach. \
+             Right-drag turns, wheel zooms."
+        )
+    );
+
+    press(&mut app, "World Next Button");
+    press(
+        &mut app,
+        &format!("Start Role Button: {}", TEST_ROLE_IDS[0]),
+    );
+    assert_eq!(
+        row_values(&mut app, "Start Role Details Milestone"),
+        vec![
+            format!(
+                "1. {}",
+                nova_world_base::prelude::CHARTER_ZERO_UNDOCK_MESSAGE
+            ),
+            format!("2. {}", nova_world_base::prelude::CHARTER_ZERO_MESSAGE),
+            "3. A goal".to_string(),
+        ]
+    );
+    let mut hulls = app.world_mut().query::<&MenuHullPreview>();
+    assert_eq!(
+        hulls.iter(app.world()).count(),
+        0,
+        "the fixture catalog has no design for the role's hull"
+    );
 }

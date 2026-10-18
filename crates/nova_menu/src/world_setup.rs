@@ -3,8 +3,9 @@
 //!
 //! New Game does not leave the menu. It opens this modal over it with a fresh
 //! seed drawn from the game's entropy. The modal has two steps in one panel:
-//! the world step (name and seed, then Next) and the role step (the start
-//! roles, the selected role's details, then Create). Both steps stay spawned
+//! the world step (name and seed over the seed's chart preview, then Next)
+//! and the role step (the start roles, the selected role's details with its
+//! hull turning and its milestones, then Create). Both steps stay spawned
 //! and only one is shown, so Back keeps what was typed. Only Create starts the
 //! world. On the desktop build the name field opens on `New World`, and Create
 //! first makes the world's folder under [`WorldsRoot`]; a name that is taken
@@ -21,27 +22,33 @@ use bevy::{
 };
 use bevy_rand::prelude::*;
 use nova_assets::prelude::LoadedSectionPacks;
-use nova_events::prelude::Meters;
+use nova_events::prelude::{Meters, SectorCoord};
 use nova_gameplay::prelude::*;
+use nova_hud::prelude::{ChartSceneCell, ChartSceneMark, ChartSceneMarkType, ChartSceneView};
 use nova_scenario::prelude::{
-    GameShipDesigns, GameStartRoles, SectionSource, ShipDesignId, StartRoleDesignId,
+    resolve_ship_design, GameShipDesigns, GameStartRoles, SectionSource, ShipDesignId,
+    ShipDesignSource, StartRoleDesignId,
 };
-use nova_ship::prelude::{GameSections, GameStyles, SectionConfig, SectionKind};
+use nova_ship::prelude::{DesignSection, GameSections, GameStyles, SectionConfig, SectionKind};
 use nova_ui::{
     prelude::REPORT_Z,
     theme,
     theme::UiColor,
     widget::{
         list_row, panel, separator, text_field, ButtonVariant, Selected, TextFieldError,
-        TextFieldSpec, TextFieldValue, ThemedRadius, ThemedText, UiText,
+        TextFieldSpec, TextFieldValue, ThemedBorder, ThemedRadius, ThemedText, UiText,
     },
 };
-use nova_world_base::prelude::start_session;
 #[cfg(not(target_arch = "wasm32"))]
 use nova_world_base::prelude::{create_world, world_slug, WorldSaveSession};
+use nova_world_base::prelude::{
+    start_preview, start_session, NovaLayeredWorld, CHARTER_ZERO_MESSAGE,
+    CHARTER_ZERO_UNDOCK_MESSAGE, START_PREVIEW_REACH,
+};
 use rand::Rng as _;
 
 use crate::{
+    preview::{preview_node, MenuChartPreview, MenuHullPreview},
     scenarios::NewGameScenario,
     widgets::{
         actions_row, back_button, button, button_slot, button_variant, detail_row, MenuSfxButton,
@@ -80,6 +87,12 @@ const RANDOMIZE_SLOT_W: f32 = 130.0;
 /// The one line over the fields: what a world is, in brief.
 const PROFILE_TEXT: &str = "A seeded open world of asteroid clusters, planetoids and derelicts.";
 
+/// The height of the seed's chart preview on the world step.
+const SEED_PREVIEW_H: f32 = 200.0;
+
+/// The height of the hull's view on the role step.
+const HULL_PREVIEW_H: f32 = 150.0;
+
 /// The refusal under the name field when there is no worlds folder.
 #[cfg(not(target_arch = "wasm32"))]
 const NO_WORLDS_ROOT: &str = "This system has no folder for saved worlds";
@@ -107,6 +120,15 @@ pub(crate) struct WorldNameField;
 /// Marker for the seed field.
 #[derive(Component)]
 pub(crate) struct WorldSeedField;
+
+/// Marker for the seed's chart preview on the world step.
+#[derive(Component)]
+pub(crate) struct SeedPreview;
+
+/// Marker for the line under the seed preview: what it shows, or why the
+/// seed has no start.
+#[derive(Component)]
+pub(crate) struct SeedPreviewCaption;
 
 /// Marker for the panel, widened on the role step.
 #[derive(Component)]
@@ -337,6 +359,24 @@ fn spawn_world_step(seed: String, name: String) -> impl FnOnce(&mut ChildSpawner
                         observe(on_randomize_seed),
                     ));
             });
+        // The seed's chart: `refresh_seed_preview` draws it from the typed
+        // seed and writes the caption.
+        parent.spawn((
+            SeedPreview,
+            preview_node(
+                "Seed Preview",
+                Node {
+                    height: px(SEED_PREVIEW_H),
+                    flex_shrink: 0.0,
+                    margin: UiRect::top(px(4)),
+                    border: UiRect::all(px(theme::BORDER_W)),
+                    ..default()
+                },
+            ),
+            ThemedBorder::new(UiColor::Label),
+            ThemedRadius::control(),
+        ));
+        parent.spawn((SeedPreviewCaption, label("Seed Preview Caption", "")));
         parent
             .spawn(actions_row("World Step Actions", JustifyContent::FlexEnd))
             .with_children(|actions| {
@@ -606,8 +646,47 @@ fn hull_card(
     ]
 }
 
+/// The sections a role's hull places, resolved against the catalogs, for
+/// the hull view: `None` when the catalog lacks the hull. A placed section
+/// whose prototype the catalog lacks is skipped the way the spawn skips it.
+fn hull_sections(
+    hull: &ShipDesignId,
+    designs: &GameShipDesigns,
+    sections: &GameSections,
+) -> Option<Vec<DesignSection>> {
+    designs.get_design(hull)?;
+    let source = ShipDesignSource::Prototype {
+        id: hull.clone(),
+        section_patches: Default::default(),
+    };
+    let (resolved, _) = resolve_ship_design(&source, designs, sections);
+    Some(
+        resolved
+            .sections
+            .into_iter()
+            .map(|section| DesignSection {
+                id: section.id,
+                position: section.position,
+                rotation: section.rotation,
+                config: section.config,
+            })
+            .collect(),
+    )
+}
+
+/// The milestones a role step lists, in play order: charter 0's two steps
+/// as the open world posts them, then the role's own goal.
+fn milestones(goal_title: &str) -> [String; 3] {
+    [
+        format!("1. {CHARTER_ZERO_UNDOCK_MESSAGE}"),
+        format!("2. {CHARTER_ZERO_MESSAGE}"),
+        format!("3. {goal_title}"),
+    ]
+}
+
 /// Rebuild the details pane from the selected role: its name, how it plays,
-/// its hull's card ([`hull_card`]), its kit and its lore.
+/// its hull turning in its view, its hull's card ([`hull_card`]), its kit,
+/// its milestones ([`milestones`]) and its lore.
 pub(crate) fn refresh_start_role_details(
     mut commands: Commands,
     selections: Query<&SelectedStartRole, Changed<SelectedStartRole>>,
@@ -632,6 +711,8 @@ pub(crate) fn refresh_start_role_details(
         return;
     };
     let card = hull_card(&role.hull, &designs, &sections);
+    let hull = hull_sections(&role.hull, &designs, &sections);
+    let steps = milestones(&role.goal.title);
     // The lint refuses a kit item the catalog lacks; the id stands in only
     // if a mod reload dropped it since.
     let stock: Vec<String> = role
@@ -673,6 +754,22 @@ pub(crate) fn refresh_start_role_details(
             TextColor(Color::NONE),
             ThemedText::new(UiColor::Body),
         ));
+        if let Some(hull) = hull {
+            details.spawn((
+                MenuHullPreview(hull),
+                preview_node(
+                    "Start Role Hull Preview",
+                    Node {
+                        height: px(HULL_PREVIEW_H),
+                        flex_shrink: 0.0,
+                        border: UiRect::all(px(theme::BORDER_W)),
+                        ..default()
+                    },
+                ),
+                ThemedBorder::new(UiColor::Label),
+                ThemedRadius::control(),
+            ));
+        }
         details.spawn((Name::new("Start Role Details Separator"), separator()));
         for (label, value) in card {
             details.spawn(detail_row(
@@ -694,6 +791,14 @@ pub(crate) fn refresh_start_role_details(
             cargo,
             UiColor::Body,
         ));
+        for (index, step) in steps.into_iter().enumerate() {
+            details.spawn(detail_row(
+                "Start Role Details Milestone",
+                if index == 0 { "Milestones" } else { "" },
+                step,
+                UiColor::Body,
+            ));
+        }
         details.spawn((
             Name::new("Start Role Details Lore"),
             UiText,
@@ -710,6 +815,93 @@ pub(crate) fn refresh_start_role_details(
             },
         ));
     });
+}
+
+/// Draw the typed seed's chart in the world step's preview: the cells round
+/// the seed's starting station as the generator describes them, every
+/// station in reach marked and the start where it stands in its cell. A
+/// seed with no start draws an empty grid and says why under it. Runs when
+/// the seed field changes or the preview is new; a seed that is not a number
+/// is the field's refusal and leaves the last chart standing.
+pub(crate) fn refresh_seed_preview(
+    mut commands: Commands,
+    seeds: Query<Ref<TextFieldValue>, With<WorldSeedField>>,
+    previews: Query<(Entity, Has<MenuChartPreview>), With<SeedPreview>>,
+    mut captions: Query<&mut Text, With<SeedPreviewCaption>>,
+    loaded: Res<LoadedSectionPacks>,
+    styles: Res<GameStyles>,
+    items: Res<GameItems>,
+) {
+    let (Some(seed), Ok((preview, drawn))) = (seeds.iter().next(), previews.single()) else {
+        return;
+    };
+    if drawn && !seed.is_changed() {
+        return;
+    }
+    let Some(seed) = parse_world_seed(&seed.0) else {
+        return;
+    };
+    let generator = NovaLayeredWorld::from_loaded(&loaded, &styles, &items).map_err(|faults| {
+        faults
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("; ")
+    });
+    let described = generator
+        .and_then(|generator| start_preview(seed, &generator).map_err(|fault| fault.to_string()));
+    let (view, caption) = match described {
+        Ok(described) => {
+            let stations = described.stations.len();
+            let view = ChartSceneView {
+                centre: described.cell(),
+                reach: START_PREVIEW_REACH,
+                cells: described
+                    .cells
+                    .iter()
+                    .map(|(at, clusters)| ChartSceneCell {
+                        at: *at,
+                        clusters: clusters.clone(),
+                    })
+                    .collect(),
+                marks: described
+                    .stations
+                    .iter()
+                    .map(|(at, dead)| ChartSceneMark {
+                        at: *at,
+                        kind: ChartSceneMarkType::Station {
+                            dead: *dead,
+                            owned: false,
+                            refusing: false,
+                        },
+                    })
+                    .collect(),
+                selected: None,
+                you: Some(described.start_within_cell() * nova_hud::prelude::CHART_CELL),
+            };
+            let caption = format!(
+                "The sectors round the start of seed {seed}: {stations} {} in reach. \
+                 Right-drag turns, wheel zooms.",
+                if stations == 1 { "station" } else { "stations" }
+            );
+            (view, caption)
+        }
+        Err(refusal) => (
+            ChartSceneView {
+                centre: SectorCoord::ORIGIN,
+                reach: START_PREVIEW_REACH,
+                cells: Vec::new(),
+                marks: Vec::new(),
+                selected: None,
+                you: None,
+            },
+            format!("Seed {seed} has no start: {refusal}"),
+        ),
+    };
+    commands.entity(preview).insert(MenuChartPreview(view));
+    for mut text in &mut captions {
+        text.0 = caption.clone();
+    }
 }
 
 /// Refuse a typed name or seed inline, and grey Next while either stands.

@@ -33,7 +33,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
   worlds. Create spawns the role's hull and kit.
 - New Game starts you docked at your starting station, the nearest station
   of an Ally civilization; a seed with none in reach is refused. The save
-  keeps the station (save format 21).
+  keeps the station (save format 22).
 - Open-world ships now grow slowly with distance: the first four civilization
   rings field small hulls only, medium hulls appear near 2,000 km out and the
   largest past 3,000 km.
@@ -59,10 +59,10 @@ does NOT get an entry. Another page that states a different rule is wrong.
   their sector stood unloaded.
 - **(breaking)** Every start role carries a charter milestone: a station
   network, kill list, stocked yard, Line Warship, mining empire or outlaw's
-  name. The save stamps the met time. Save format 20.
+  name. The save stamps the met time. Save format 22.
 - **(breaking)** Each civilization holds a stance to you, Ally, Neutral or
   Enemy, seeded and moved by your kills and hand-ins; a flip drags allies
-  down and warms rivals, one hop. Save format 20.
+  down and warms rivals, one hop. Save format 22.
 - An Enemy civilization's stations refuse your dock and its ships fight you.
   Firing on a Neutral or Ally hull past its patience turns its civilization
   Enemy for 15 min of play.
@@ -243,6 +243,15 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Create names worlds; New World is the default. Load lists saved worlds with
   role and date, marks one it cannot open INVALID with the reason, and
   deletes on confirm.
+- New Game's first step draws the seed's sectors round your starting station
+  as a 3D chart to turn and zoom, before the world exists.
+- New Game's role step turns the role's hull in 3D and lists its milestones:
+  charter 0's two steps, then the role's goal.
+- Load rows show play time, saved-ago and open objectives. The details draw
+  the save's 3D chart, a FLEET block of what the save holds and only its open
+  objectives.
+- The main menu offers Continue when a save stands: it opens the newest
+  world, named under the button with how long ago it was saved.
 - Save notices show progress, success or failure; `~` hides them. Leaving
   offers a retry.
 - The Map's chart view (`C`) draws the cells you entered by cluster type, the
@@ -317,6 +326,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Internals & Tooling
 
+- Save format 22: the world header carries play time, the hull name, fleet and
+  station counts, the open objectives and a chart summary for the Load screen.
 - Debug builds: F11 opens the Nova Debug window and freezes flight. It has
   overlay checkboxes (F3 diagnostics too), cheats, a command prompt, entities
   by sector and by type, and the raw inspector.

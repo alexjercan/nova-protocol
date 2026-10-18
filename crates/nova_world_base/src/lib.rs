@@ -88,9 +88,10 @@ mod tests;
 pub use crate::save::{
     check_world, create_world, delete_world, list_worlds, open_world, resume_world, world_slug,
     write_world, FrozenTransient, FrozenTransientType, RegisteredScenarios, ResumedWorld,
-    SaveReason, SavedPlayer, WorldFolder, WorldListing, WorldLock, WorldRefusal,
-    WorldResumeProgress, WorldResumeRefused, WorldSaveHeader, WorldSaveSession, WorldSaveState,
-    WorldSaveStatus, WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_FORMAT,
+    SaveReason, SavedChart, SavedChartCell, SavedChartMark, SavedChartMarkType, SavedFleet,
+    SavedObjective, SavedObjectiveLine, SavedObjectiveType, SavedPlayer, WorldFolder, WorldListing,
+    WorldLock, WorldRefusal, WorldResumeProgress, WorldResumeRefused, WorldSaveHeader,
+    WorldSaveSession, WorldSaveState, WorldSaveStatus, WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_FORMAT,
 };
 pub use crate::{
     civilizations::{
@@ -110,7 +111,7 @@ pub use crate::{
         ShipPartSnapshot,
     },
     stance::{apply_offence, fine_cr, record_merit, seeded_stance, settle, FINE_CR},
-    start::{start_session, starting_station},
+    start::{start_preview, start_session, starting_station, StartPreview, START_PREVIEW_REACH},
     station_layout::{
         generate_station, generated_station, station_archetype, station_ceiling,
         StationArchetypeType, StationLayout, StationLayoutConstraintType, StationLayoutFailure,
@@ -127,25 +128,29 @@ pub mod prelude {
     pub use super::{
         apply_offence, fine_cr, generate_ship, generate_station, generate_wreck, generated_station,
         plan_ship, record_merit, role_style_id, sector_clusters, seeded_stance, settle, ship_stock,
-        start_session, starting_station, station_archetype, station_ceiling, Civilization,
-        CivilizationField, CivilizationReach, CivilizationStatusType, ClusterSummary, Environment,
-        EnvironmentFieldType, EnvironmentFields, HullSlot, NovaLayeredWorld, NovaWorldBasePlugin,
-        PlannedShip, SectorClusters, ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType,
-        ShipLayoutFailure, ShipLayoutRequest, ShipPart, ShipPartExclusionType, ShipPartFamilyType,
-        ShipPartFault, ShipPartPack, ShipPartSnapshot, StationArchetypeType, StationLayout,
-        StationLayoutConstraintType, StationLayoutFailure, StationLayoutRequest, ARMOURED_STYLE_ID,
-        BLOCK_WAYSTATION_STATION_ID, CHARTER_ZERO_OBJECTIVE_ID, CHARTER_ZERO_UNDOCK_OBJECTIVE_ID,
-        CIVILIAN_STYLE_ID, CLEARANCE_MARGIN, FINE_CR, INDUSTRIAL_STYLE_ID, MAX_SHIP_SECTIONS,
-        OPEN_WORLD_BOUNDS_RADIUS_MAX, OPEN_WORLD_SCENARIO_ID, SALVAGE_STYLE_ID, STANCE_ALLY_SHARE,
-        STANCE_ENEMY_SHARE, STANCE_NEIGHBOUR_RADIUS, STATION_STYLE_ID,
+        start_preview, start_session, starting_station, station_archetype, station_ceiling,
+        Civilization, CivilizationField, CivilizationReach, CivilizationStatusType, ClusterSummary,
+        Environment, EnvironmentFieldType, EnvironmentFields, HullSlot, NovaLayeredWorld,
+        NovaWorldBasePlugin, PlannedShip, SectorClusters, ShipDriveLayoutType, ShipLayout,
+        ShipLayoutConstraintType, ShipLayoutFailure, ShipLayoutRequest, ShipPart,
+        ShipPartExclusionType, ShipPartFamilyType, ShipPartFault, ShipPartPack, ShipPartSnapshot,
+        StartPreview, StationArchetypeType, StationLayout, StationLayoutConstraintType,
+        StationLayoutFailure, StationLayoutRequest, ARMOURED_STYLE_ID, BLOCK_WAYSTATION_STATION_ID,
+        CHARTER_ZERO_MESSAGE, CHARTER_ZERO_OBJECTIVE_ID, CHARTER_ZERO_UNDOCK_MESSAGE,
+        CHARTER_ZERO_UNDOCK_OBJECTIVE_ID, CIVILIAN_STYLE_ID, CLEARANCE_MARGIN, FINE_CR,
+        INDUSTRIAL_STYLE_ID, MAX_SHIP_SECTIONS, OPEN_WORLD_BOUNDS_RADIUS_MAX,
+        OPEN_WORLD_SCENARIO_ID, SALVAGE_STYLE_ID, STANCE_ALLY_SHARE, STANCE_ENEMY_SHARE,
+        STANCE_NEIGHBOUR_RADIUS, START_PREVIEW_REACH, STATION_STYLE_ID,
     };
     #[cfg(not(target_arch = "wasm32"))]
     pub use super::{
         check_world, create_world, delete_world, list_worlds, open_world, resume_world, world_slug,
         write_world, FrozenTransient, FrozenTransientType, RegisteredScenarios, ResumedWorld,
-        SaveReason, SavedPlayer, WorldFolder, WorldListing, WorldLock, WorldRefusal,
-        WorldResumeProgress, WorldResumeRefused, WorldSaveHeader, WorldSaveSession, WorldSaveState,
-        WorldSaveStatus, WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_FORMAT,
+        SaveReason, SavedChart, SavedChartCell, SavedChartMark, SavedChartMarkType, SavedFleet,
+        SavedObjective, SavedObjectiveLine, SavedObjectiveType, SavedPlayer, WorldFolder,
+        WorldListing, WorldLock, WorldRefusal, WorldResumeProgress, WorldResumeRefused,
+        WorldSaveHeader, WorldSaveSession, WorldSaveState, WorldSaveStatus,
+        WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_FORMAT,
     };
 }
 
@@ -153,7 +158,10 @@ pub mod prelude {
 /// ship, the lights and the sky, with every sector streamed in around them.
 pub const OPEN_WORLD_SCENARIO_ID: &str = "open_world";
 
-pub use charter::{CHARTER_ZERO_OBJECTIVE_ID, CHARTER_ZERO_UNDOCK_OBJECTIVE_ID};
+pub use charter::{
+    CHARTER_ZERO_MESSAGE, CHARTER_ZERO_OBJECTIVE_ID, CHARTER_ZERO_UNDOCK_MESSAGE,
+    CHARTER_ZERO_UNDOCK_OBJECTIVE_ID,
+};
 
 /// The id the block-built waystation is spawned by: an unarmed plated block
 /// with a bridge on top and a docking collar off its port flank, no drive.

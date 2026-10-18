@@ -1311,7 +1311,7 @@ fn stock_row(
 
 /// The OBJECTIVES block's slot in the side panel, over the discovery log,
 /// hidden off the chart view and while a find is selected.
-/// [`update_map_chart_charter`] fills it.
+/// [`update_map_chart_objectives`] fills it.
 pub(crate) fn spawn_map_chart_objectives(panel: &mut ChildSpawnerCommands) {
     panel.spawn((
         MapChartObjectivesMarker,
@@ -1408,7 +1408,7 @@ pub(crate) fn objective_rows(
     clippy::type_complexity,
     reason = "the records the rows read grouped in one tuple"
 )]
-pub(crate) fn update_map_chart_charter(
+pub(crate) fn update_map_chart_objectives(
     mut commands: Commands,
     runtime: Res<MapRuntime>,
     (chart, jobs, objectives, progress, record): (

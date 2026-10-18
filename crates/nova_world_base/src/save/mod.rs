@@ -49,9 +49,9 @@ use bevy::prelude::*;
 use nova_assets::{prelude::LoadedSectionPacks, storage::write_atomic};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
-    kg_text, CargoCanisterRuntimeId, Chart, CivilizationStances, GameItems, GoalRecord,
-    ItemDesignId, JobPostings, Jobs, SavedBodyRef, SavedOwner, SavedSectionRef, SavedTargetRef,
-    CARGO_CANISTER_MAX_MASS_G,
+    kg_text, CargoCanisterRuntimeId, Chart, CivilizationStances, ClusterType, GameItems,
+    GoalRecord, ItemDesignId, JobPostings, Jobs, SavedBodyRef, SavedOwner, SavedSectionRef,
+    SavedTargetRef, CARGO_CANISTER_MAX_MASS_G,
 };
 use nova_scenario::prelude::{
     FleetEscort, FrozenShip, GameScenarios, GameStartRoles, SavedScenario, ScenarioId,
@@ -82,7 +82,7 @@ pub use transients::{
 /// nobody held live is recorded as an arrival there. Every cell the player
 /// never visited regenerates from the seed on Load, so another generator
 /// would change it silently.
-pub const WORLD_SAVE_FORMAT: u32 = 21;
+pub const WORLD_SAVE_FORMAT: u32 = 22;
 
 /// The most characters a world name has, after trimming.
 const WORLD_NAME_MAX: usize = 32;
@@ -120,6 +120,155 @@ pub struct WorldSaveHeader {
     pub player_sector: SectorCoord,
     /// The player's credits.
     pub credits: u32,
+    /// The play-time clock's reading: seconds of unpaused, armed play.
+    pub play_seconds: f64,
+    /// The name of the hull the player flies: its catalog design's name, or
+    /// the ship's own name for a hull authored inline.
+    pub hull: String,
+    /// What the player keeps beside that hull.
+    pub fleet: SavedFleet,
+    /// Every objective still open, in HUD order: the charter steps posted,
+    /// then the jobs held, then the role goal while it stands. A met goal
+    /// and a completed job are not listed.
+    pub objectives: Vec<SavedObjective>,
+    /// The chart as the Load preview draws it: every visited cell and every
+    /// find, round the player's cell.
+    pub chart: SavedChart,
+}
+
+/// The player's fleet beside the hull they fly, counted at the save.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SavedFleet {
+    /// Ships the player owns parked at stations, live or frozen: bought or
+    /// boarded hulls, not the one flown and not an escort.
+    pub owned_ships: u32,
+    /// Escorts flying with the player.
+    pub escorts: u32,
+    /// Stations the chart records as the player's.
+    pub owned_stations: u32,
+}
+
+/// What kind of open objective a [`SavedObjective`] is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SavedObjectiveType {
+    /// A charter step the open-world scenario posts.
+    Charter,
+    /// A job the player holds.
+    Job,
+    /// The start role's goal, standing.
+    Goal,
+}
+
+/// One open objective, as the Load list and details show it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SavedObjective {
+    /// What it is.
+    pub kind: SavedObjectiveType,
+    /// Its one line: the objective text, the job title or the goal title.
+    pub title: String,
+    /// Its counts, `label  have / need` each: the goal's lines. A charter
+    /// step and a job have none.
+    pub lines: Vec<SavedObjectiveLine>,
+}
+
+/// One count of an open objective.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SavedObjectiveLine {
+    /// What is counted.
+    pub label: String,
+    /// What the save shows.
+    pub have: u64,
+    /// What the objective asks for.
+    pub need: u64,
+}
+
+/// The chart as the Load preview draws it.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SavedChart {
+    /// Every cell the player entered, with its cluster types, in chart order.
+    pub cells: Vec<SavedChartCell>,
+    /// Every find and held job, in the cell it is marked in, in chart order.
+    pub marks: Vec<SavedChartMark>,
+}
+
+/// One visited cell of a [`SavedChart`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SavedChartCell {
+    /// The cell.
+    pub at: SectorCoord,
+    /// The type of every cluster with a body in it, in the generator's order.
+    pub clusters: Vec<ClusterType>,
+}
+
+/// One mark of a [`SavedChart`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SavedChartMark {
+    /// The cell it stands in.
+    pub at: SectorCoord,
+    /// What it is.
+    pub kind: SavedChartMarkType,
+}
+
+/// What a [`SavedChartMark`] stands for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SavedChartMarkType {
+    /// A found station.
+    Station {
+        /// Dead when found.
+        dead: bool,
+        /// The player's when last seen.
+        owned: bool,
+    },
+    /// A found derelict hull.
+    Wreck,
+    /// A held job, in its target's cell.
+    Job,
+}
+
+impl SavedChart {
+    /// The chart `chart` records with the jobs `jobs` holds: every visited
+    /// cell, then the stations and wrecks found and the held jobs, each in
+    /// the cell the Map's chart view marks it in.
+    pub fn of(chart: &Chart, jobs: &Jobs) -> Self {
+        Self {
+            cells: chart
+                .visited()
+                .map(|(at, cell)| SavedChartCell {
+                    at,
+                    clusters: cell.clusters.clone(),
+                })
+                .collect(),
+            marks: chart
+                .stations()
+                .iter()
+                .map(|station| SavedChartMark {
+                    at: station.id.origin,
+                    kind: SavedChartMarkType::Station {
+                        dead: station.derelict,
+                        owned: station.owned,
+                    },
+                })
+                .chain(chart.wrecks().iter().map(|wreck| SavedChartMark {
+                    at: wreck.id.origin,
+                    kind: SavedChartMarkType::Wreck,
+                }))
+                .chain(jobs.held().iter().map(|job| {
+                    SavedChartMark {
+                        at: job
+                            .located_body()
+                            .map_or(job.target.origin, |body| body.origin),
+                        kind: SavedChartMarkType::Job,
+                    }
+                }))
+                .collect(),
+        }
+    }
 }
 
 /// The whole world as it was saved: the player and every changed sector.

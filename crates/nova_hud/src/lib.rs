@@ -64,6 +64,7 @@ pub mod objective_feedback;
 pub mod objective_markers;
 pub mod objective_stack;
 pub mod pickup_sight;
+pub mod preview;
 pub mod readout;
 pub mod screen_indicator;
 pub mod situation;
@@ -87,11 +88,11 @@ pub mod prelude {
         hull_shell::prelude::*, key_glyphs::prelude::*, keybind_dock::prelude::*,
         lock_crosshairs::prelude::*, lock_dwell_ring::prelude::*, maneuver_instruments::prelude::*,
         objective_feedback::prelude::*, objective_markers::prelude::*, objective_stack::prelude::*,
-        pickup_sight::prelude::*, readout::prelude::*, screen_indicator::prelude::*,
-        situation::prelude::*, target_inset::prelude::*, torpedo_target::prelude::*,
-        velocity::prelude::*, HudContextGate, HudInterfaceExempt, HudSelfDrivenVisibility,
-        HudSituationSensingSystems, HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin,
-        NovaHudSystems,
+        pickup_sight::prelude::*, preview::prelude::*, readout::prelude::*,
+        screen_indicator::prelude::*, situation::prelude::*, target_inset::prelude::*,
+        torpedo_target::prelude::*, velocity::prelude::*, HudContextGate, HudInterfaceExempt,
+        HudSelfDrivenVisibility, HudSituationSensingSystems, HudTier, HudVisibility, NovaHudAssets,
+        NovaHudPlugin, NovaHudSystems,
     };
 }
 

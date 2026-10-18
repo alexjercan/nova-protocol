@@ -15,7 +15,7 @@ use bevy::prelude::*;
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_events::prelude::{GeneratedBodyId, Meters3, SectorCoord};
 use nova_gameplay::prelude::{
-    GameItems, PointRotation, PointRotationOutput, SectionInactiveMarker, StanceType,
+    ClusterType, GameItems, PointRotation, PointRotationOutput, SectionInactiveMarker, StanceType,
 };
 use nova_scenario::prelude::{
     OpenWorldSession, PendingParkedHulls, StartBerthMarker, StartRoleDesignId, StartingStation,
@@ -24,7 +24,9 @@ use nova_ship::prelude::{
     parked_hull_pose, DockedPort, DockedShip, DockingConnectionRequest, DockingSectionMarker,
     GameStyles, ParkedHullType, ParkedHulls,
 };
-use nova_world::prelude::{sector_id, SectorFault};
+use nova_world::prelude::{
+    sector_id, SectorFault, SectorGenerationInput, SectorGenerator, WorldGeometry,
+};
 
 use crate::{
     civilizations::{CivilizationField, CivilizationStatusType},
@@ -116,6 +118,79 @@ pub fn starting_station(
                     keeps a station"
                 .to_string(),
         })
+}
+
+/// How many cells out from the start's cell on each horizontal axis New
+/// Game's seed preview describes: a 5 by 5 grid, a quarter of the chart
+/// view's 7 by 7 at a glance.
+pub const START_PREVIEW_REACH: i32 = 2;
+
+/// What New Game's seed preview draws for a seed: the start and the cells
+/// round it, as the generator describes them without streaming anything.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StartPreview {
+    /// The station the player starts docked at.
+    pub start: StartingStation,
+    /// Every cell within [`START_PREVIEW_REACH`] of the start's cell on its
+    /// layer, in row order, each with the type of every cluster with a body
+    /// in it, as the chart records a visited cell.
+    pub cells: Vec<(SectorCoord, Vec<ClusterType>)>,
+    /// Every station those cells place, in cell order: the cell and whether
+    /// it is dead. The start is among them.
+    pub stations: Vec<(SectorCoord, bool)>,
+}
+
+impl StartPreview {
+    /// The cell the start stands in.
+    pub fn cell(&self) -> SectorCoord {
+        self.start.id.origin
+    }
+
+    /// Where the starting station stands in its cell, as a share of the
+    /// cell's edge on each axis, `-0.5` to `0.5`: a chart drawn at any cell
+    /// scale puts the start there.
+    pub fn start_within_cell(&self) -> Vec3 {
+        (self.start.position - self.cell().centre(OPEN_WORLD_SECTOR_EDGE)).0
+            / OPEN_WORLD_SECTOR_EDGE.0
+    }
+}
+
+/// The seed preview of `seed`: the starting station and the generator's
+/// description of the cells round it, the same plan `plan_sector` streams.
+///
+/// # Errors
+///
+/// What [`starting_station`] refuses, and whatever the generator refuses one
+/// of the cells for.
+pub fn start_preview(seed: u32, generator: &NovaLayeredWorld) -> Result<StartPreview, SectorFault> {
+    let start = starting_station(seed, generator)?;
+    let centre = start.id.origin;
+    let mut cells = Vec::new();
+    let mut stations = Vec::new();
+    for dz in -START_PREVIEW_REACH..=START_PREVIEW_REACH {
+        for dx in -START_PREVIEW_REACH..=START_PREVIEW_REACH {
+            let coord = SectorCoord::new(centre.x + dx, centre.y, centre.z + dz);
+            let manifest = generator.generate(SectorGenerationInput {
+                seed,
+                geometry: WorldGeometry {
+                    sector_edge: OPEN_WORLD_SECTOR_EDGE,
+                },
+                coord,
+            })?;
+            cells.push((coord, manifest.cluster_types));
+            stations.extend(
+                manifest
+                    .stations
+                    .iter()
+                    .map(|station| (coord, station.spawn.derelict)),
+            );
+        }
+    }
+    Ok(StartPreview {
+        start,
+        cells,
+        stations,
+    })
 }
 
 /// The session New Game's Create inserts for `seed` and `role`: the world
@@ -353,6 +428,33 @@ mod tests {
             starting_station(SEED, &fixture_world()).expect("the pick is seeded"),
             start,
             "the same seed picks the same station"
+        );
+    }
+
+    /// The seed preview describes the 5 by 5 cells round the start's cell on
+    /// its layer, lists the start's cell among its stations, and is seeded.
+    #[test]
+    fn the_seed_preview_describes_the_cells_round_the_start_and_places_its_station() {
+        let preview = start_preview(SEED, &fixture_world()).expect("the fixture seed previews");
+        let span = (2 * START_PREVIEW_REACH + 1) as usize;
+        assert_eq!(preview.cells.len(), span * span);
+        let centre = preview.cell();
+        assert!(preview.cells.iter().all(|(coord, _)| {
+            coord.y == centre.y
+                && (coord.x - centre.x).abs() <= START_PREVIEW_REACH
+                && (coord.z - centre.z).abs() <= START_PREVIEW_REACH
+        }));
+        assert!(
+            preview
+                .stations
+                .iter()
+                .any(|(cell, dead)| *cell == centre && !dead),
+            "the start's cell places its living station, got {:?}",
+            preview.stations
+        );
+        assert_eq!(
+            start_preview(SEED, &fixture_world()).expect("the preview is seeded"),
+            preview
         );
     }
 }

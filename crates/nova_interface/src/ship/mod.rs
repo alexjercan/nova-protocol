@@ -130,11 +130,9 @@ const SHIP_LAYER: usize = 22;
 /// the map camera (-30) so the two never share an order even mid-teardown.
 const SHIP_CAMERA_ORDER: isize = -31;
 
-/// Orbit-radius zoom clamp floor (world units from the center): close enough to
-/// read one section.
-pub const SHIP_RADIUS_MIN: f32 = 3.0;
-/// Orbit-radius zoom clamp ceiling: the fixed reach of a hull.
-pub const SHIP_RADIUS_MAX: f32 = 400.0;
+/// The orbit-radius zoom clamp, shared with the hull views: one section
+/// close up to the fixed reach of a hull.
+pub use nova_hud::prelude::{SHIP_RADIUS_MAX, SHIP_RADIUS_MIN};
 const SHIP_THETA_DEFAULT: f32 = 0.7;
 const SHIP_PHI_DEFAULT: f32 = 0.5;
 /// Exponential ease rate (1/s) for the orbit center chasing the selected

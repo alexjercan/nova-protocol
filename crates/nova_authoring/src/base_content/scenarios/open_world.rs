@@ -25,19 +25,14 @@ use bevy::prelude::*;
 use nova_events::prelude::*;
 use nova_scenario::prelude::*;
 use nova_world_base::prelude::{
-    CHARTER_ZERO_OBJECTIVE_ID, CHARTER_ZERO_UNDOCK_OBJECTIVE_ID, OPEN_WORLD_SCENARIO_ID,
+    CHARTER_ZERO_MESSAGE, CHARTER_ZERO_OBJECTIVE_ID, CHARTER_ZERO_UNDOCK_MESSAGE,
+    CHARTER_ZERO_UNDOCK_OBJECTIVE_ID, OPEN_WORLD_SCENARIO_ID,
 };
 
 use crate::{base_content::assets::BaseContentAssets, scenario_helpers::prelude::entity};
 
 /// The player's ship, by the id events and tools address it with.
 const PLAYER_ID: &str = "player";
-
-/// The objective line charter 0's first step shows.
-const CHARTER_ZERO_UNDOCK_MESSAGE: &str = "Charter 0: undock from your starting station";
-
-/// The objective line charter 0's second step shows.
-const CHARTER_ZERO_MESSAGE: &str = "Charter 0: dock at another living station";
 
 /// The handler that completes charter 0's first step and posts the second:
 /// the player undocks from a living station. A `living_station` subject,

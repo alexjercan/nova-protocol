@@ -67,6 +67,7 @@ mod mods;
 mod outcome;
 mod pause;
 mod portal;
+mod preview;
 mod safe_mode;
 #[cfg(not(target_arch = "wasm32"))]
 mod save_status;
@@ -313,8 +314,30 @@ impl Plugin for NovaMenuPlugin {
             Update,
             (
                 world_setup::read_world_setup.after(TextFieldSystems),
+                world_setup::refresh_seed_preview.after(TextFieldSystems),
                 world_setup::refresh_start_role_details,
             )
+                .run_if(in_state(GameStates::MainMenu)),
+        );
+        // The menu's 3D previews: the shared chart tiles and hull turntables,
+        // then the menu's own scenes, built the frame a preview node appears
+        // or changes and sized to the node once it is laid out. The
+        // interface adds the same preview plugin; one app keeps one.
+        if !app.is_plugin_added::<nova_hud::prelude::PreviewPlugin>() {
+            app.add_plugins(nova_hud::prelude::PreviewPlugin);
+        }
+        app.add_message::<bevy::input::mouse::MouseMotion>();
+        app.add_message::<bevy::input::mouse::MouseWheel>();
+        app.add_systems(
+            Update,
+            (
+                preview::build_menu_previews,
+                preview::sync_menu_preview_lights,
+                preview::drive_menu_preview_orbits,
+                preview::drive_menu_preview_cameras,
+                preview::resize_menu_preview_targets,
+            )
+                .chain()
                 .run_if(in_state(GameStates::MainMenu)),
         );
         // Safe mode's one report, owed on the front door once per recovery.

@@ -13,13 +13,13 @@ use nova_events::prelude::{EntityId, GeneratedBodyId, Meters3};
 use nova_gameplay::prelude::{
     nova_blast, resumed_lifetime, AssetRef, CargoCanister, CargoCanisterIdAllocator,
     CargoCanisterRuntimeId, Chart, CivilizationId, CivilizationStances, ClockFreeze, ClusterType,
-    DamageLevel, DamageMarks, DamageType, FreezeOwner, FrozenRoundFlight, GameItems, GoalRecord,
-    Health, ImpactSparkMarker, ImpactSparkPlugin, ImpactSparks, IntegrityDestroyMarker,
-    ItemCategoryType, ItemDesign, ItemDesignId, ItemRoleType, Job, JobId, JobPostings, JobType,
-    Jobs, PlayerFleetMarker, PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage,
-    ProjectileOwner, RailgunSlugProjectileMarker, RoundRake, SavedBodyRef, SavedLifetime,
-    SavedOwner, SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory,
-    SpaceshipRootMarker, StanceType, StationServiceType, StationSummary, TempEntity,
+    DamageLevel, DamageMarks, DamageType, FreezeOwner, FrozenRoundFlight, GameItems, GoalLine,
+    GoalProgress, GoalRecord, Health, ImpactSparkMarker, ImpactSparkPlugin, ImpactSparks,
+    IntegrityDestroyMarker, ItemCategoryType, ItemDesign, ItemDesignId, ItemRoleType, Job, JobId,
+    JobPostings, JobType, Jobs, PlayerFleetMarker, PlayerSpaceshipMarker, PointRotationOutput,
+    ProjectileDamage, ProjectileOwner, RailgunSlugProjectileMarker, RoundRake, SavedBodyRef,
+    SavedLifetime, SavedOwner, SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits,
+    ShipInventory, SpaceshipRootMarker, StanceType, StationServiceType, StationSummary, TempEntity,
     TorpedoProjectileMarker, TraderMarket, TurretBulletProjectileMarker,
 };
 use nova_scenario::prelude::{
@@ -47,9 +47,10 @@ use nova_world::{
 use super::{
     check_world, create_world, delete_world, list_worlds, open_world, restore_resumed_world,
     resume_world, write_world, FrozenTransient, FrozenTransientType, RegisteredScenarios,
-    ResumedTransients, SavedPlayer, SavedScenario, WorldRefusal, WorldResumeProgress,
-    WorldResumeRefused, WorldSaveHeader, WorldSaveSession, WorldSaveState, WorldSaveStatus,
-    WORLD_SAVE_FORMAT,
+    ResumedTransients, SavedChart, SavedChartCell, SavedChartMark, SavedChartMarkType, SavedFleet,
+    SavedObjective, SavedObjectiveLine, SavedObjectiveType, SavedPlayer, SavedScenario,
+    WorldRefusal, WorldResumeProgress, WorldResumeRefused, WorldSaveHeader, WorldSaveSession,
+    WorldSaveState, WorldSaveStatus, WORLD_SAVE_FORMAT,
 };
 use crate::{
     test_support::{fixture_roles, FIXTURE_ROLE_ID, FIXTURE_SCENARIO_ID},
@@ -108,6 +109,11 @@ fn header(name: &str, generation: u64) -> WorldSaveHeader {
         generation,
         player_sector: SectorCoord::new(1, 0, -2),
         credits: 750,
+        play_seconds: 0.0,
+        hull: "Fixture hull".to_string(),
+        fleet: SavedFleet::default(),
+        objectives: Vec::new(),
+        chart: SavedChart::default(),
     }
 }
 
@@ -750,6 +756,120 @@ fn the_first_frame_and_a_leave_each_write_a_save() {
     .unwrap();
     assert_eq!((header.generation, header.credits), (2, 410));
     assert_eq!(state.player.id.0, "player");
+}
+
+/// A save's header carries what the Load list and details show without the
+/// state file: the play time, the hull's name, the fleet counts, the open
+/// objectives with the goal's counts, and the chart's cells and marks.
+#[test]
+fn a_save_header_carries_the_play_time_hull_fleet_open_objectives_and_chart() {
+    let root = tempfile::tempdir().unwrap();
+    let (mut world, player) = armed_session(root.path());
+    world.entity_mut(player).insert(Name::new("Fixture hull"));
+    world.resource_mut::<WorldClock>().play_seconds = 90.0;
+    let station = GeneratedBodyId::new(SectorCoord::new(1, 0, 0), "cluster_1_0_0_station", 0);
+    {
+        let mut chart = world.resource_mut::<Chart>();
+        chart.visit(SectorCoord::ORIGIN, vec![ClusterType::RockOnly], 10.0);
+        chart.visit(SectorCoord::new(1, 0, 0), Vec::new(), 40.0);
+        chart.find_station(&station, false, true, 45.0);
+    }
+    world.insert_resource(GoalProgress {
+        title: "A station network".to_string(),
+        lines: vec![GoalLine::new("Trade jobs", 1, 3)],
+    });
+    frame(&mut world);
+    frame(&mut world);
+    world.resource_mut::<WorldSaveSession>().request_leave();
+    run_until_idle(&mut world);
+    assert!(matches!(
+        world.resource::<WorldSaveSession>().status(),
+        WorldSaveStatus::Saved { .. }
+    ));
+    let digest = world.resource::<LoadedSectionPacks>().digest.0;
+    world.remove_resource::<WorldSaveSession>();
+    let (_, _lock, header, _) = open_world(
+        root.path(),
+        "session",
+        &catalog(digest),
+        &roles(),
+        &items(),
+        &scenarios(),
+    )
+    .unwrap();
+    assert_eq!(header.play_seconds, 90.0);
+    assert_eq!(header.hull, "Fixture hull");
+    assert_eq!(
+        header.fleet,
+        SavedFleet {
+            owned_ships: 0,
+            escorts: 0,
+            owned_stations: 1,
+        }
+    );
+    assert_eq!(
+        header.objectives,
+        vec![SavedObjective {
+            kind: SavedObjectiveType::Goal,
+            title: "A station network".to_string(),
+            lines: vec![SavedObjectiveLine {
+                label: "Trade jobs".to_string(),
+                have: 1,
+                need: 3,
+            }],
+        }]
+    );
+    assert_eq!(
+        header.chart,
+        SavedChart {
+            cells: vec![
+                SavedChartCell {
+                    at: SectorCoord::ORIGIN,
+                    clusters: vec![ClusterType::RockOnly],
+                },
+                SavedChartCell {
+                    at: SectorCoord::new(1, 0, 0),
+                    clusters: Vec::new(),
+                },
+            ],
+            marks: vec![SavedChartMark {
+                at: SectorCoord::new(1, 0, 0),
+                kind: SavedChartMarkType::Station {
+                    dead: false,
+                    owned: true,
+                },
+            }],
+        }
+    );
+}
+
+/// A met goal is not an open objective: the header lists none for it.
+#[test]
+fn a_met_goal_is_not_listed_among_a_save_header_s_open_objectives() {
+    let root = tempfile::tempdir().unwrap();
+    let (mut world, _player) = armed_session(root.path());
+    world.resource_mut::<WorldClock>().play_seconds = 90.0;
+    world.insert_resource(GoalProgress {
+        title: "A station network".to_string(),
+        lines: vec![GoalLine::new("Trade jobs", 3, 3)],
+    });
+    world.resource_mut::<GoalRecord>().met_at = Some(60.0);
+    frame(&mut world);
+    frame(&mut world);
+    world.resource_mut::<WorldSaveSession>().request_leave();
+    run_until_idle(&mut world);
+    let digest = world.resource::<LoadedSectionPacks>().digest.0;
+    world.remove_resource::<WorldSaveSession>();
+    let (_, _lock, header, _) = open_world(
+        root.path(),
+        "session",
+        &catalog(digest),
+        &roles(),
+        &items(),
+        &scenarios(),
+    )
+    .unwrap();
+    assert!(header.objectives.is_empty(), "{:?}", header.objectives);
 }
 
 /// The play-time clock a session has seen is written with a leave save and

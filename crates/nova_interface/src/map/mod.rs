@@ -34,7 +34,6 @@
 //! | `contacts` | The shared contact model. |
 //! | `app` | The pane's components and runtime state. |
 //! | `chart` | The chart view of the player's visited cells and finds. |
-//! | `tiles` | The chart's tile textures, one per cluster type. |
 //! | `scene` | The schematic 3D scene, its camera and the projected blips. |
 
 mod app;
@@ -49,9 +48,10 @@ mod tests;
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::{Chart, JobPostings, Jobs, WorldClock};
+use nova_hud::prelude::PreviewPlugin;
 
 pub use self::contacts::{MapContactCode, MapContactKind, MapContacts};
-pub(crate) use self::{app::*, chart::*, contacts::*, scene::*, tiles::*};
+pub(crate) use self::{app::*, chart::*, contacts::*, scene::*};
 
 /// Glob-import surface: `use nova_interface::map::prelude::*`.
 pub mod prelude {
@@ -159,7 +159,11 @@ impl Plugin for MapPanePlugin {
         app.init_resource::<Jobs>();
         app.init_resource::<JobPostings>();
         app.init_resource::<WorldClock>();
-        app.add_systems(Startup, init_chart_tiles);
+        // The chart's tile textures and mark meshes, shared with the menu's
+        // previews; the menu adds the same plugin, and one app keeps one.
+        if !app.is_plugin_added::<PreviewPlugin>() {
+            app.add_plugins(PreviewPlugin);
+        }
         // Scene lifecycle runs unconditionally so it can tear down when the
         // interface closes; the interactive systems gate on the Map pane owning
         // the interface.
@@ -174,7 +178,7 @@ impl Plugin for MapPanePlugin {
                 map_focus_follow,
                 manage_map_chart,
                 update_map_chart_sector,
-                update_map_chart_charter,
+                update_map_chart_objectives,
                 update_map_chart_log,
                 drive_map_camera,
                 project_map_blips,

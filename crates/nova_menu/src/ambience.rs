@@ -299,14 +299,27 @@ pub(crate) struct MenuCameraMemory(pub(crate) Option<Transform>);
 ///   renders through the menu's own UI camera, never through this one.
 pub(crate) fn stage_menu_camera(
     mut commands: Commands,
-    mut controlled: Query<(Entity, &mut Camera), (With<Camera3d>, With<WASDCameraController>)>,
+    mut controlled: Query<
+        (Entity, &mut Camera),
+        (
+            With<Camera3d>,
+            With<ScenarioCameraMarker>,
+            With<WASDCameraController>,
+        ),
+    >,
+    // The scenario's camera only: the New Game and Load previews render
+    // their own scenes through cameras of their own, posed by their orbits.
     mut staged: Query<
         (
             &mut Transform,
             &mut Camera,
             Option<&ScriptedCameraTransform>,
         ),
-        (With<Camera3d>, Without<WASDCameraController>),
+        (
+            With<Camera3d>,
+            With<ScenarioCameraMarker>,
+            Without<WASDCameraController>,
+        ),
     >,
     mut memory: ResMut<MenuCameraMemory>,
 ) {

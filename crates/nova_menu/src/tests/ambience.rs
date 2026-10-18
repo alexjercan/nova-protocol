@@ -65,6 +65,7 @@ fn menu_camera_activates_on_the_backdrops_scripted_pose() {
         .world_mut()
         .spawn((
             Camera3d::default(),
+            ScenarioCameraMarker,
             WASDCameraController,
             Transform::from_xyz(0.0, 10.0, 20.0),
         ))
@@ -111,6 +112,7 @@ fn a_mid_menu_reload_holds_the_last_scripted_pose() {
         .world_mut()
         .spawn((
             Camera3d::default(),
+            ScenarioCameraMarker,
             WASDCameraController,
             Transform::from_xyz(0.0, 10.0, 20.0),
         ))
@@ -128,6 +130,7 @@ fn a_mid_menu_reload_holds_the_last_scripted_pose() {
         .world_mut()
         .spawn((
             Camera3d::default(),
+            ScenarioCameraMarker,
             WASDCameraController,
             Transform::from_xyz(0.0, 10.0, 20.0),
         ))

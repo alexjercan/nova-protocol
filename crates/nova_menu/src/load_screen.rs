@@ -1,6 +1,10 @@
 //! The Load picker: a two-pane overlay in the Mods style listing every
 //! world folder under [`WorldsRoot`], that resumes the selected one through
-//! the New Game handoff.
+//! the New Game handoff. A row reads the world's name over its start role,
+//! its play time, how long ago it was saved and how many objectives stand
+//! open; the details draw the save's chart, the fleet it holds and its open
+//! objectives. The menu's Continue button opens the newest save the same
+//! way the Load button does ([`open_world_task`]).
 //!
 //! The list reads only each world's header. Each world whose header reads is
 //! then checked whole off the main thread with [`check_world`]: its state
@@ -10,7 +14,12 @@
 //! checks again as it opens the world, off the main thread as well
 //! ([`WorldOpen`]); the world resumes on the frame the open lands.
 
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use bevy::{
     picking::hover::Hovered,
@@ -21,22 +30,37 @@ use bevy::{
 };
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_gameplay::prelude::*;
+use nova_hud::prelude::{ChartSceneCell, ChartSceneMark, ChartSceneMarkType, ChartSceneView};
 use nova_scenario::prelude::{GameScenarios, GameStartRoles};
 use nova_ui::{
+    theme,
     theme::UiColor,
-    widget::{badge, list_row, separator, themed_button, BadgeKind, Selected, ThemedText, UiText},
+    widget::{
+        badge, list_row, separator, themed_button, BadgeKind, Selected, ThemedBorder, ThemedRadius,
+        ThemedText, UiText,
+    },
 };
 use nova_world_base::prelude::{
     check_world, delete_world, list_worlds, open_world, resume_world, RegisteredScenarios,
-    WorldFolder, WorldListing, WorldLock, WorldRefusal, WorldResumeRefused, WorldSaveHeader,
-    WorldSaveSession, WorldSaveState,
+    SavedChart, SavedChartMarkType, SavedObjectiveLine, WorldFolder, WorldListing, WorldLock,
+    WorldRefusal, WorldResumeRefused, WorldSaveHeader, WorldSaveSession, WorldSaveState,
 };
 
 use crate::{
+    preview::{preview_node, MenuChartPreview},
     scenarios::NewGameScenario,
     widgets::{actions_row, button_slot, danger_button, detail_row, MAIN_SLOT_W, SIDE_SLOT_W},
     world_setup::WorldsRoot,
 };
+
+/// How many cells the Load preview reaches out from the save's cell.
+const LOAD_PREVIEW_REACH: i32 = 2;
+
+/// The height of the save's chart preview in the details.
+const LOAD_PREVIEW_H: f32 = 220.0;
+
+/// The width of a row's play-time and saved-ago cells.
+const ROW_TIME_W: f32 = 90.0;
 
 /// Marker for the Load panel root, toggled by the Load button.
 #[derive(Component)]
@@ -291,6 +315,23 @@ pub(crate) fn on_delete_world_confirm(
     };
 }
 
+/// Open the world `slug` under `root` off the main thread, checked again as
+/// it opens; [`poll_world_open`] takes the result.
+pub(crate) fn open_world_task(
+    root: &Path,
+    slug: &str,
+    packs: &LoadedSectionPacks,
+    roles: &GameStartRoles,
+    items: &GameItems,
+    scenarios: &GameScenarios,
+) -> Task<OpenedWorld> {
+    let (root, slug) = (root.to_path_buf(), slug.to_string());
+    let (packs, roles, items) = (packs.clone(), roles.clone(), items.clone());
+    let scenarios = RegisteredScenarios::from(scenarios);
+    IoTaskPool::get()
+        .spawn(async move { open_world(&root, &slug, &packs, &roles, &items, &scenarios) })
+}
+
 /// Start opening the selected world off the main thread, checked again as
 /// it opens; [`poll_world_open`] finishes the Load. A click while a check or
 /// an open is still running does nothing.
@@ -315,21 +356,67 @@ pub(crate) fn on_load_world(
     // A Load drops a Delete asked about, so a refused resume does not bring
     // its prompt back.
     *step = WorldDeleteStep::Idle;
-    let (root, slug) = (root.to_path_buf(), slug.to_string());
-    let (packs, roles, items) = (packs.clone(), roles.clone(), items.clone());
-    let scenarios = RegisteredScenarios::from(&*scenarios);
-    let task = {
-        let slug = slug.clone();
-        IoTaskPool::get()
-            .spawn(async move { open_world(&root, &slug, &packs, &roles, &items, &scenarios) })
+    let task = open_world_task(root, slug, &packs, &roles, &items, &scenarios);
+    opening.0 = Some((slug.to_string(), task));
+}
+
+/// The newest saved world of `listings`, by its save time: the one Continue
+/// opens. A world whose header did not read has no save time and is not it.
+pub(crate) fn latest_world(listings: &[WorldListing]) -> Option<&WorldListing> {
+    listings
+        .iter()
+        .filter(|listing| listing.header.is_ok())
+        .max_by_key(|listing| {
+            listing
+                .header
+                .as_ref()
+                .map_or(0, |header| header.saved_at_unix)
+        })
+}
+
+/// The world the menu's Continue button opens, on the button.
+#[derive(Component, Clone, Debug)]
+pub(crate) struct ContinueWorld(pub(crate) String);
+
+/// Open the newest saved world from the menu's Continue button: read the
+/// list as the Load button does, so a refusal has a row to land on, select
+/// the world and start its open. A press while an open runs does nothing.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one observer reading the worlds root, the catalogs the open checks against and the picker's state"
+)]
+pub(crate) fn on_continue_world(
+    activate: On<Activate>,
+    buttons: Query<&ContinueWorld>,
+    root: Res<WorldsRoot>,
+    packs: Res<LoadedSectionPacks>,
+    roles: Res<GameStartRoles>,
+    items: Res<GameItems>,
+    scenarios: Res<GameScenarios>,
+    mut checks: ResMut<WorldChecks>,
+    mut listings: ResMut<WorldListings>,
+    mut selected: ResMut<SelectedWorldSlug>,
+    mut opening: ResMut<WorldOpen>,
+    mut step: ResMut<WorldDeleteStep>,
+) {
+    let (Ok(button), Some(root)) = (buttons.get(activate.entity), root.0.as_deref()) else {
+        return;
     };
-    opening.0 = Some((slug, task));
+    if opening.0.is_some() {
+        return;
+    }
+    listings.0 = read_listings(root, &packs, &roles, &items, &scenarios, &mut checks);
+    selected.0 = Some(button.0.clone());
+    *step = WorldDeleteStep::Idle;
+    let task = open_world_task(root, &button.0, &packs, &roles, &items, &scenarios);
+    opening.0 = Some((button.0.clone(), task));
 }
 
 /// Take a finished [`WorldOpen`]. On `Err` (a world locked or refused since
 /// the list was read), the refusal replaces that row's header so the list
-/// and details redraw with it; nothing starts. On `Ok`, resume the world and
-/// hand off to Playing exactly like New Game.
+/// and details redraw with it, and the Load panel shows if it was not (a
+/// Continue refused); nothing starts. On `Ok`, resume the world and hand off
+/// to Playing exactly like New Game.
 pub(crate) fn poll_world_open(
     mut commands: Commands,
     mut opening: ResMut<WorldOpen>,
@@ -337,6 +424,7 @@ pub(crate) fn poll_world_open(
     mut pick: ResMut<NewGameScenario>,
     mut mode: ResMut<GameMode>,
     mut state: ResMut<NextState<GameStates>>,
+    panel: Option<Single<&mut Visibility, With<LoadPanel>>>,
 ) {
     let Some((_, task)) = &mut opening.0 else {
         return;
@@ -359,6 +447,9 @@ pub(crate) fn poll_world_open(
                 if let Some(row) = rows.iter_mut().find(|row| row.folder.slug == slug) {
                     row.header = Err(refusal);
                 }
+            }
+            if let Some(mut panel) = panel {
+                **panel = Visibility::Visible;
             }
         }
     }
@@ -463,13 +554,109 @@ pub(crate) fn refresh_load_list(
         selected.0 = rows.first().map(|row| row.folder.slug.clone());
     }
 
+    let now = now_unix();
     commands.entity(list).with_children(|list| {
+        spawn_load_head(list);
         for row in rows {
             let is_selected = selected.0.as_deref() == Some(row.folder.slug.as_str());
             let checking = checks.pending(&row.folder.slug);
-            spawn_load_row(list, row, &roles, is_selected, checking);
+            spawn_load_row(list, row, &roles, is_selected, checking, now);
         }
     });
+}
+
+/// Seconds since the Unix epoch now, the clock a save's `saved_at_unix` is
+/// read against; zero on a clock set before the epoch.
+pub(crate) fn now_unix() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |since| since.as_secs())
+}
+
+/// How long ago a save at `saved_at_unix` was, read against `now_unix`:
+/// `just now` under a minute, else whole minutes, hours or days. A save
+/// ahead of the clock reads `just now`.
+pub(crate) fn saved_ago_text(now_unix: u64, saved_at_unix: u64) -> String {
+    let elapsed = now_unix.saturating_sub(saved_at_unix);
+    match elapsed {
+        0..60 => "just now".to_string(),
+        60..3_600 => format!("{} min ago", elapsed / 60),
+        3_600..86_400 => format!("{} h ago", elapsed / 3_600),
+        _ => format!("{} d ago", elapsed / 86_400),
+    }
+}
+
+/// The column heads over the world rows: the name, the play time, the save
+/// age and the open objectives.
+fn spawn_load_head(list: &mut ChildSpawnerCommands) {
+    list.spawn((
+        Name::new("Load World List Head"),
+        Node {
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::Center,
+            column_gap: px(12),
+            padding: UiRect::axes(px(13), px(4)),
+            ..default()
+        },
+    ))
+    .with_children(|head| {
+        head.spawn(head_cell("World", None));
+        head.spawn(head_cell("Play time", Some(ROW_TIME_W)));
+        head.spawn(head_cell("Saved", Some(ROW_TIME_W)));
+        head.spawn(head_cell("Open", Some(ROW_BADGE_SLOT_W)));
+    });
+}
+
+/// One column head: fixed at `width`, or growing.
+fn head_cell(text: &str, width: Option<f32>) -> impl Bundle {
+    (
+        UiText,
+        Text::new(text.to_uppercase()),
+        TextFont {
+            font_size: FontSize::Px(11.0),
+            ..default()
+        },
+        TextLayout {
+            linebreak: LineBreak::NoWrap,
+            ..default()
+        },
+        TextColor(Color::NONE),
+        ThemedText::new(UiColor::Label),
+        Node {
+            width: width.map_or(Val::Auto, px),
+            flex_grow: if width.is_some() { 0.0 } else { 1.0 },
+            flex_shrink: 0.0,
+            ..default()
+        },
+    )
+}
+
+/// One fixed cell of a world row, at `width`.
+fn row_cell(name: &'static str, text: String, width: f32, color: UiColor) -> impl Bundle {
+    (
+        Name::new(name),
+        UiText,
+        Text::new(text),
+        TextFont {
+            font_size: FontSize::Px(12.0),
+            ..default()
+        },
+        TextColor(Color::NONE),
+        ThemedText::new(color),
+        Node {
+            width: px(width),
+            flex_shrink: 0.0,
+            ..default()
+        },
+    )
+}
+
+/// How many objectives a save holds open, as its row says it.
+fn open_count_text(header: &WorldSaveHeader) -> String {
+    match header.objectives.len() {
+        0 => "none open".to_string(),
+        n => format!("{n} open"),
+    }
 }
 
 /// One explanatory line in place of the row list: no root, a refused root, or
@@ -508,14 +695,17 @@ const ROW_INVALID_TEXT: &str = "Cannot load";
 
 /// Spawn one clickable world row at [`ROW_H`]: the world's name (or slug,
 /// when the header did not read) over one status line - the start role's name
-/// when the header read, [`ROW_INVALID_TEXT`] when it refused - and a trailing
-/// badge: `CHECKING` while the state check runs, `INVALID` when it refused.
+/// when the header read, [`ROW_INVALID_TEXT`] when it refused - then, when
+/// the header read, its play time, how long ago it was saved and how many
+/// objectives it holds open, and a trailing badge: `CHECKING` while the
+/// state check runs, `INVALID` when it refused.
 fn spawn_load_row(
     list: &mut ChildSpawnerCommands,
     listing: &WorldListing,
     roles: &GameStartRoles,
     selected: bool,
     checking: bool,
+    now: u64,
 ) {
     let title = match &listing.header {
         Ok(header) => header.name.clone(),
@@ -574,6 +764,20 @@ fn spawn_load_row(
             ));
             info.spawn(row_line("Load World Row Status", status));
         });
+        if let Ok(header) = &listing.header {
+            row.spawn(row_cell(
+                "Load World Row Play Time",
+                play_time_text(header.play_seconds),
+                ROW_TIME_W,
+                UiColor::Body,
+            ));
+            row.spawn(row_cell(
+                "Load World Row Saved",
+                saved_ago_text(now, header.saved_at_unix),
+                ROW_TIME_W,
+                UiColor::Body,
+            ));
+        }
         row.spawn((
             Name::new("Load World Row Badge Slot"),
             Node {
@@ -589,14 +793,134 @@ fn spawn_load_row(
                     Name::new("Load World Row Checking"),
                     badge(BadgeKind::Mute, "Checking"),
                 ));
-            } else if listing.header.is_err() {
-                slot.spawn((
-                    Name::new("Load World Row Invalid"),
-                    badge(BadgeKind::Amber, "Invalid"),
-                ));
+            } else {
+                match &listing.header {
+                    Ok(header) => {
+                        slot.spawn(row_cell(
+                            "Load World Row Open",
+                            open_count_text(header),
+                            ROW_BADGE_SLOT_W,
+                            UiColor::Label,
+                        ));
+                    }
+                    Err(_) => {
+                        slot.spawn((
+                            Name::new("Load World Row Invalid"),
+                            badge(BadgeKind::Amber, "Invalid"),
+                        ));
+                    }
+                }
             }
         });
     });
+}
+
+/// The chart a save's details draw: every cell and mark the header records,
+/// round the cell the player was saved in, with the player at its middle.
+fn saved_chart_view(header: &WorldSaveHeader) -> ChartSceneView {
+    let SavedChart { cells, marks } = &header.chart;
+    ChartSceneView {
+        centre: header.player_sector,
+        reach: LOAD_PREVIEW_REACH,
+        cells: cells
+            .iter()
+            .map(|cell| ChartSceneCell {
+                at: cell.at,
+                clusters: cell.clusters.clone(),
+            })
+            .collect(),
+        marks: marks
+            .iter()
+            .map(|mark| ChartSceneMark {
+                at: mark.at,
+                kind: match mark.kind {
+                    SavedChartMarkType::Station { dead, owned } => ChartSceneMarkType::Station {
+                        dead,
+                        owned,
+                        refusing: false,
+                    },
+                    SavedChartMarkType::Wreck => ChartSceneMarkType::Wreck,
+                    SavedChartMarkType::Job => ChartSceneMarkType::Job,
+                },
+            })
+            .collect(),
+        selected: None,
+        you: Some(Vec3::ZERO),
+    }
+}
+
+/// A block heading in the details pane: FLEET, OPEN OBJECTIVES.
+fn details_heading(name: &'static str, text: &str) -> impl Bundle {
+    (
+        Name::new(name),
+        UiText,
+        Text::new(text.to_uppercase()),
+        TextFont {
+            font_size: FontSize::Px(11.0),
+            ..default()
+        },
+        TextColor(Color::NONE),
+        ThemedText::new(UiColor::Label),
+        Node {
+            margin: UiRect::top(px(4)),
+            ..default()
+        },
+    )
+}
+
+/// One open objective's row: its title, then each count as `have / need`.
+fn objective_row(details: &mut ChildSpawnerCommands, title: &str, counts: &str) {
+    details
+        .spawn((
+            Name::new("Load World Details Objective"),
+            Node {
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: px(12),
+                min_height: px(24),
+                ..default()
+            },
+        ))
+        .with_children(|row| {
+            row.spawn((
+                Name::new("Load World Details Objective Title"),
+                UiText,
+                Text::new(title.to_string()),
+                TextFont {
+                    font_size: FontSize::Px(13.0),
+                    ..default()
+                },
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Primary),
+                Node {
+                    flex_grow: 1.0,
+                    min_width: px(0),
+                    ..default()
+                },
+            ));
+            if !counts.is_empty() {
+                row.spawn((
+                    Name::new("Load World Details Objective Counts"),
+                    UiText,
+                    Text::new(counts.to_string()),
+                    TextFont {
+                        font_size: FontSize::Px(12.0),
+                        ..default()
+                    },
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColor::Body),
+                ));
+            }
+        });
+}
+
+/// The `LABEL  have / need` text of an objective's counts, one per line.
+fn objective_counts(header_lines: &[SavedObjectiveLine]) -> String {
+    header_lines
+        .iter()
+        .map(|line| format!("{} {} / {}", line.label, line.have, line.need))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// The one-line status under a world row's name, the size of the Mods row's
@@ -638,7 +962,7 @@ fn details_note(name: &'static str, text: String, color: UiColor) -> impl Bundle
 /// `unix` seconds as `YYYY-MM-DD HH:MM UTC`, the date a save reads as in the
 /// details pane. Civil-from-days after Howard Hinnant; the game has no
 /// calendar crate and needs no zone.
-fn utc_stamp(unix: u64) -> String {
+pub(crate) fn utc_stamp(unix: u64) -> String {
     let days = (unix / 86_400) as i64;
     let secs = unix % 86_400;
     let z = days + 719_468;
@@ -658,11 +982,14 @@ fn utc_stamp(unix: u64) -> String {
 }
 
 /// Rebuild the world details pane from the selected world: its name and a
-/// rule, then one labelled line each for the seed, sector, credits, game
-/// version and saved time, or the one-line refusal; a button row with Load,
-/// greyed on a refusal or while the world is checked, and Delete; or the
-/// delete prompt with its confirm row, or the reason a delete refused. With
-/// no world selected the pane stays empty: the list already says why.
+/// rule, then the save's chart preview, one labelled line each for the
+/// seed, sector, credits, play time, saved time and game version, the FLEET
+/// block (the hull flown, then the owned ships, escorts and owned stations
+/// the save holds) and the open objectives, or the one-line refusal; a
+/// button row with Load, greyed on a refusal or while the world is checked,
+/// and Delete; or the delete prompt with its confirm row, or the reason a
+/// delete refused. With no world selected the pane stays empty: the list
+/// already says why.
 pub(crate) fn refresh_load_details(
     mut commands: Commands,
     listings: Res<WorldListings>,
@@ -718,12 +1045,41 @@ pub(crate) fn refresh_load_details(
 
         match &listing.header {
             Ok(header) => {
+                details.spawn((
+                    MenuChartPreview(saved_chart_view(header)),
+                    preview_node(
+                        "Load World Details Preview",
+                        Node {
+                            height: px(LOAD_PREVIEW_H),
+                            flex_shrink: 0.0,
+                            margin: UiRect::vertical(px(4)),
+                            border: UiRect::all(px(theme::BORDER_W)),
+                            ..default()
+                        },
+                    ),
+                    ThemedBorder::new(UiColor::Label),
+                    ThemedRadius::control(),
+                ));
+                details.spawn(details_note(
+                    "Load World Details Preview Hint",
+                    "Right-drag turns, wheel zooms.".to_string(),
+                    UiColor::Label,
+                ));
+                let now = now_unix();
                 for (label, value) in [
                     ("Seed", header.seed.to_string()),
                     ("Sector", header.player_sector.to_string()),
-                    ("Credits", header.credits.to_string()),
+                    ("Credits", format!("{} cr", header.credits)),
+                    ("Play time", play_time_text(header.play_seconds)),
+                    (
+                        "Saved",
+                        format!(
+                            "{} ({})",
+                            utc_stamp(header.saved_at_unix),
+                            saved_ago_text(now, header.saved_at_unix)
+                        ),
+                    ),
                     ("Version", header.game_version.to_string()),
-                    ("Saved", utc_stamp(header.saved_at_unix)),
                 ] {
                     details.spawn(detail_row(
                         "Load World Details Line",
@@ -731,6 +1087,54 @@ pub(crate) fn refresh_load_details(
                         value,
                         UiColor::Body,
                     ));
+                }
+                details.spawn((Name::new("Load World Details Fleet Rule"), separator()));
+                details.spawn(details_heading("Load World Details Fleet", "Fleet"));
+                details.spawn(detail_row(
+                    "Load World Details Fleet Ship",
+                    "Ship",
+                    header.hull.clone(),
+                    UiColor::Primary,
+                ));
+                for (name, label, count) in [
+                    (
+                        "Load World Details Fleet Owned Ships",
+                        "Owned ships",
+                        header.fleet.owned_ships,
+                    ),
+                    (
+                        "Load World Details Fleet Escorts",
+                        "Escorts",
+                        header.fleet.escorts,
+                    ),
+                    (
+                        "Load World Details Fleet Owned Stations",
+                        "Owned stations",
+                        header.fleet.owned_stations,
+                    ),
+                ] {
+                    if count > 0 {
+                        details.spawn(detail_row(name, label, count.to_string(), UiColor::Primary));
+                    }
+                }
+                details.spawn((Name::new("Load World Details Objectives Rule"), separator()));
+                details.spawn(details_heading(
+                    "Load World Details Objectives",
+                    "Open objectives",
+                ));
+                if header.objectives.is_empty() {
+                    details.spawn(details_note(
+                        "Load World Details No Objectives",
+                        "No open objectives".to_string(),
+                        UiColor::Label,
+                    ));
+                }
+                for objective in &header.objectives {
+                    objective_row(
+                        details,
+                        &objective.title,
+                        &objective_counts(&objective.lines),
+                    );
                 }
                 if checking {
                     details.spawn(detail_row(
@@ -826,7 +1230,19 @@ pub(crate) fn refresh_load_details(
 
 #[cfg(test)]
 mod tests {
-    use super::utc_stamp;
+    use super::{saved_ago_text, utc_stamp};
+
+    /// A save's age reads in the largest whole unit: seconds as `just now`,
+    /// then minutes, hours and days; a save ahead of the clock is `just now`.
+    #[test]
+    fn a_save_s_age_reads_in_whole_units() {
+        assert_eq!(saved_ago_text(1_000, 1_000), "just now");
+        assert_eq!(saved_ago_text(1_000, 1_059), "just now");
+        assert_eq!(saved_ago_text(1_059, 1_000), "just now");
+        assert_eq!(saved_ago_text(1_000 + 60, 1_000), "1 min ago");
+        assert_eq!(saved_ago_text(1_000 + 7_200, 1_000), "2 h ago");
+        assert_eq!(saved_ago_text(1_000 + 3 * 86_400 + 5, 1_000), "3 d ago");
+    }
 
     /// The saved time reads as a calendar date, not as seconds: the save
     /// fixture's `1_700_000_000` is 2023-11-14 22:13:20 UTC.

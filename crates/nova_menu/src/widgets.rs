@@ -202,6 +202,12 @@ pub(crate) fn detail_row(
                     font_size: FontSize::Px(11.0),
                     ..default()
                 },
+                // One line: a two-word label measured as wrapped lifts
+                // itself above its value.
+                TextLayout {
+                    linebreak: LineBreak::NoWrap,
+                    ..default()
+                },
                 TextColor(Color::NONE),
                 ThemedText::new(UiColor::Label),
                 Node {

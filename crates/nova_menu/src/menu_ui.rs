@@ -5,6 +5,8 @@ use bevy::{
     prelude::*,
     ui_widgets::{observe, Activate},
 };
+#[cfg(not(target_arch = "wasm32"))]
+use nova_assets::prelude::LoadedSectionPacks;
 use nova_gameplay::prelude::*;
 use nova_info::prelude::*;
 use nova_scenario::prelude::{OpenWorldSession, *};
@@ -22,12 +24,16 @@ use nova_ui::{
     },
 };
 #[cfg(not(target_arch = "wasm32"))]
-use nova_world_base::prelude::WorldSaveSession;
+use nova_world_base::prelude::{list_worlds, WorldSaveSession};
 
 #[cfg(not(target_arch = "wasm32"))]
 use crate::{
     leave::{begin_leave, LeaveTarget},
-    load_screen::{on_load_back, on_load_screen, LoadPanel, LoadWorldDetails, LoadWorldList},
+    load_screen::{
+        latest_world, now_unix, on_continue_world, on_load_back, on_load_screen, saved_ago_text,
+        ContinueWorld, LoadPanel, LoadWorldDetails, LoadWorldList,
+    },
+    world_setup::WorldsRoot,
 };
 use crate::{
     mods::{
@@ -50,7 +56,15 @@ use crate::{
 
 /// The menu panel: title on top, buttons below, anchored bottom-right per the
 /// spike's layout call (the center of the screen stays free for the background
-/// scene).
+/// scene). On desktop a Continue button heads the buttons when the worlds
+/// folder holds a readable save, naming the newest one.
+#[cfg_attr(
+    not(target_arch = "wasm32"),
+    expect(
+        clippy::too_many_arguments,
+        reason = "one system building every menu panel from the picker states and the worlds folder"
+    )
+)]
 pub(crate) fn setup_menu_ui(
     mut commands: Commands,
     mut active_tab: ResMut<ModsActiveTab>,
@@ -60,7 +74,12 @@ pub(crate) fn setup_menu_ui(
     catalog: Res<TrainingCatalog>,
     mut rotation: ResMut<FieldNoteRotation>,
     time: Res<Time<Real>>,
+    #[cfg(not(target_arch = "wasm32"))] root: Res<WorldsRoot>,
+    #[cfg(not(target_arch = "wasm32"))] packs: Res<LoadedSectionPacks>,
+    #[cfg(not(target_arch = "wasm32"))] roles: Res<GameStartRoles>,
 ) {
+    #[cfg(not(target_arch = "wasm32"))]
+    let latest = latest_save(&root, &packs, &roles);
     commands
         .spawn((
             DespawnOnExit(GameStates::MainMenu),
@@ -108,6 +127,30 @@ pub(crate) fn setup_menu_ui(
                 BackgroundColor(Color::NONE),
                 ThemedFill::new(UiColor::Label),
             ));
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some((slug, name, ago)) = latest {
+                parent.spawn((
+                    Name::new("Continue Button"),
+                    ContinueWorld(slug),
+                    button_variant("Continue", ButtonVariant::Primary, None),
+                    observe(on_continue_world),
+                ));
+                parent.spawn((
+                    Name::new("Continue Caption"),
+                    UiText,
+                    Text::new(format!("{name}, saved {ago}")),
+                    TextFont {
+                        font_size: FontSize::Px(12.0),
+                        ..default()
+                    },
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColor::Label),
+                    Node {
+                        margin: UiRect::bottom(px(6)),
+                        ..default()
+                    },
+                ));
+            }
             parent.spawn((
                 Name::new("New Game Button"),
                 button_variant("New Game", ButtonVariant::Primary, None),
@@ -666,4 +709,24 @@ pub(crate) fn start_new_game_scenario(
             exit.write(AppExit::error());
         }
     }
+}
+
+/// The newest readable save under the worlds folder, as Continue names it:
+/// its slug, its world name and how long ago it was saved. `None` with no
+/// folder, an unreadable folder or no readable save in it.
+#[cfg(not(target_arch = "wasm32"))]
+fn latest_save(
+    root: &WorldsRoot,
+    packs: &LoadedSectionPacks,
+    roles: &GameStartRoles,
+) -> Option<(String, String, String)> {
+    let listings = list_worlds(root.0.as_deref()?, packs, roles).ok()?;
+    let latest = latest_world(&listings)?;
+    let header = latest.header.as_ref().ok()?;
+    let now = now_unix();
+    Some((
+        latest.folder.slug.clone(),
+        header.name.clone(),
+        saved_ago_text(now, header.saved_at_unix),
+    ))
 }
