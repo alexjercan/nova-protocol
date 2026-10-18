@@ -24,8 +24,10 @@
 //! With `NOVA_AUTOPILOT=1` a smoke walk sells the ore at the asteroid-rich
 //! station, goes back to the main menu, sells it at the planet-heavy one, and
 //! asserts each Sell paid the bid `price` computes and the asteroid-rich bid
-//! is the lower. `NOVA_CAPTURE=1` shoots `sandbox-market-asteroid-rich.png`
-//! and `sandbox-market-planet-heavy.png`. Unset, no walk and no deadline run.
+//! is the lower, then picks the station's iron ore to open a Buy draft.
+//! `NOVA_CAPTURE=1` shoots `sandbox-market-asteroid-rich.png`,
+//! `sandbox-market-planet-heavy.png` and `sandbox-market-buy-all.png`. Unset,
+//! no walk and no deadline run.
 
 use avian3d::prelude::Position;
 use bevy::prelude::*;
@@ -394,6 +396,10 @@ mod smoke {
     const SETTLE_FRAMES: u32 = 10;
     /// The own-side row of the hold's iron ore.
     const ORE_ROW: &str = "InventoryRowOwnIronOre";
+    /// The station's row of the iron ore it bought.
+    const STATION_ORE_ROW: &str = "InventoryRowPartnerIronOre";
+    /// The frame of the Buy draft with Buy all beside Confirm.
+    const BUY_SHOT: &str = "sandbox-market-buy-all.png";
 
     fn when(check: impl Fn(&World) -> bool + Send + Sync + 'static) -> Arc<Predicate> {
         Arc::new(check)
@@ -621,8 +627,8 @@ mod smoke {
             .add()
     }
 
-    /// The smoke walk: sell the ore at each market in turn, then compare the
-    /// bids.
+    /// The smoke walk: sell the ore at each market in turn, compare the bids,
+    /// then open a Buy draft on the station's iron ore and shoot Buy all.
     pub(super) fn script() -> AutopilotPlugin<GameStates> {
         let mut script = AutopilotPlugin::<GameStates>::new();
         for (market, (_, cluster)) in MARKETS.into_iter().enumerate() {
@@ -656,6 +662,20 @@ mod smoke {
                 );
             })
             .until(frames(1))
+            .add()
+            .click_named(
+                "market sandbox: pick the station's iron ore to buy",
+                STATION_ORE_ROW,
+                and(
+                    texts_read(vec!["Buy all".to_string()]),
+                    frames(SETTLE_FRAMES),
+                ),
+                BEAT_SECS,
+            )
+            .step("market sandbox: shoot the Buy draft")
+            .on_enter(|world: &mut World| shoot(world, BUY_SHOT))
+            .until(shot_written(BUY_SHOT.to_string()))
+            .deadline(SHOT_SECS)
             .add()
     }
 }
