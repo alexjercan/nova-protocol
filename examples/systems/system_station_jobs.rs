@@ -11,7 +11,7 @@
 //! it picks the nearest living, non-Enemy station outside the origin's
 //! cell, jumps beside it, and is put on a berth at its collar
 //! each frame until the dock takes; the walk never flies the approach
-//! (`system_station_docking` does). On the Station tab it reads the board,
+//! (`system_station_docking` does). On the Jobs tab it reads the board,
 //! accepts the lightest procurement, undocks, reads the held job in the
 //! Map's chart view, leaves to the main menu, reads the leave save off disk
 //! through [`open_world`], loads the world again through the Load screen,
@@ -27,15 +27,15 @@
 //!
 //! | # | marker | claim |
 //! | - | - | - |
-//! | 1 | `outcome: a docked station posts a seeded board` | the station root carries [`JOBS_PER_BOARD`] valid jobs of its own, one of them a procurement, and the Station tab lists every title |
+//! | 1 | `outcome: a docked station posts a seeded board` | the station root carries [`JOBS_PER_BOARD`] valid jobs of its own, one of them a procurement, and the Jobs tab lists every title |
 //! | 2 | `outcome: an accept holds the job` | after the Accept click the job is held, gone from the posted list and listed under Your jobs |
 //! | 3 | `outcome: the chart view marks the held job` | undocked, the chart view labels the job `JOB-1`; a click shows HELD JOB, its title and its reward |
 //! | 4 | `outcome: the leave save holds the job` | the leave save, read with [`open_world`], holds the one job and no completed id |
 //! | 5 | `outcome: a loaded world restores the job and the board` | after the Load the job is held again and the station posts the same board |
-//! | 6 | `outcome: a passed window renews the unheld offers and pins the held job` | docked again, once the clock passes the offer window the two unheld slots renew, stamped at the clock, and the tab lists them with their deadline, while the held slot and job stand unchanged |
+//! | 6 | `outcome: a passed window renews the unheld offers and pins the held job` | docked again, once the clock passes the offer window the two unheld slots renew, stamped at the clock, and the tab lists them with their reward, while the held slot and job stand unchanged |
 //! | 7 | `outcome: a thaw renews only the unheld offers` | after the station's cell retires and thaws with the clock again past the offer window, the two unheld slots renew and their old postings' bodies are gone, while the held slot still carries the pinned job |
 //! | 8 | `outcome: a hand-in pays the reward and completes the job` | docked a third time with the goods, the Hand in click takes the goods, pays the reward from the station and lists the job completed |
-//! | 9 | `outcome: a hand-in renews the slot under a new posting` | the hand-in's slot posts a new job one posting above the old, the other two slots hold, and the tab lists the new offer with its deadline |
+//! | 9 | `outcome: a hand-in renews the slot under a new posting` | the hand-in's slot posts a new job one posting above the old, the other two slots hold, and the tab lists the new offer with its reward |
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
@@ -46,9 +46,9 @@
 //! #           `station jobs: PASS the hand-in renewed`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
-//! `NOVA_CAPTURE=1` also writes `station-jobs-board.png` of the Station tab,
+//! `NOVA_CAPTURE=1` also writes `station-jobs-board.png` of the Jobs tab,
 //! `station-jobs-map.png` of the chart view and `station-jobs-renewed.png`
-//! of the Station tab after the passed-window renewal.
+//! of the Jobs tab after the passed-window renewal.
 
 use bevy::prelude::*;
 use clap::Parser;
@@ -139,7 +139,7 @@ mod walk {
     const BACK_TO_MENU_BUTTON: &str = "Back To Menu Button";
     const LOAD_BUTTON: &str = "Load Button";
     const LOAD_WORLD_BUTTON: &str = "Load World Button";
-    const STATION_TAB: &str = "InterfaceTabStation";
+    const JOBS_TAB: &str = "InterfaceTabJobs";
     const MAP_TAB: &str = "InterfaceTabMap";
 
     /// The frames the capture path writes.
@@ -359,14 +359,13 @@ mod walk {
             .collect()
     }
 
-    /// Whether a shown text is the posted row's detail `Reward <n> cr,
-    /// <deadline>` for `reward_cr`. The pane groups thousands with commas,
-    /// so the digits are compared with the commas stripped.
-    fn reward_detail_shown(shown: &[String], reward_cr: u32, deadline: &str) -> bool {
-        let tail = format!(" cr, {deadline}");
+    /// Whether a shown text is a posted row's Reward cell `<n> cr` for
+    /// `reward_cr`. The pane groups thousands with commas, so the digits are
+    /// compared with the commas stripped. The row's time left is a meter
+    /// with no text, so no deadline is read off the pane.
+    fn reward_shown(shown: &[String], reward_cr: u32) -> bool {
         shown.iter().any(|text| {
-            text.strip_prefix("Reward ")
-                .and_then(|rest| rest.strip_suffix(&tail))
+            text.strip_suffix(" cr")
                 .is_some_and(|amount| amount.replace(',', "") == reward_cr.to_string())
         })
     }
@@ -615,8 +614,8 @@ mod walk {
             .add()
     }
 
-    /// Open the interface and its Station tab.
-    fn open_the_station_tab(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
+    /// Open the interface and its Jobs tab.
+    fn open_the_jobs_tab(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
         tap(
             script,
             "the interface key",
@@ -624,12 +623,12 @@ mod walk {
             the_interface_shows(None),
         )
         .click_named(
-            "station jobs: open the Station tab",
-            STATION_TAB,
-            the_interface_shows(Some(InterfacePaneType::Station)),
+            "station jobs: open the Jobs tab",
+            JOBS_TAB,
+            the_interface_shows(Some(InterfacePaneType::Jobs)),
             BEAT_SECS,
         )
-        .step("station jobs: settle the Station tab")
+        .step("station jobs: settle the Jobs tab")
         .until(frames(SETTLE_FRAMES))
         .add()
     }
@@ -676,7 +675,7 @@ mod walk {
             let title = job.title(&items);
             assert!(
                 shown.contains(&title),
-                "station jobs: the Station tab lists '{title}': {shown:?}"
+                "station jobs: the Jobs tab lists '{title}': {shown:?}"
             );
         }
         // The lightest procurement, so the hold takes its goods at the end.
@@ -1057,11 +1056,11 @@ mod walk {
         let shown = texts(world);
         assert!(
             shown.contains(&title),
-            "station jobs: the Station tab lists '{title}': {shown:?}"
+            "station jobs: the Jobs tab lists '{title}': {shown:?}"
         );
         assert!(
-            reward_detail_shown(&shown, new.reward_cr, &deadline),
-            "station jobs: the Station tab reads 'Reward {} cr, {deadline}': {shown:?}",
+            reward_shown(&shown, new.reward_cr),
+            "station jobs: the Jobs tab reads '{} cr': {shown:?}",
             new.reward_cr
         );
         nova_probe::probe_marker(
@@ -1080,7 +1079,7 @@ mod walk {
         );
     }
 
-    /// DISCLOSED FIXTURE STATE: the Station pane holds the game paused, so
+    /// DISCLOSED FIXTURE STATE: the interface holds the game paused, so
     /// nothing but this step moves play time across the offer window.
     fn bump_the_clock_past_offer(world: &mut World) {
         let offer_seconds = world.resource::<GamePriceTable>().0.jobs.offer_seconds;
@@ -1146,11 +1145,11 @@ mod walk {
             let shown = texts(world);
             assert!(
                 shown.contains(&title),
-                "station jobs: the Station tab lists '{title}': {shown:?}"
+                "station jobs: the Jobs tab lists '{title}': {shown:?}"
             );
             assert!(
-                reward_detail_shown(&shown, new.reward_cr, &deadline),
-                "station jobs: the Station tab reads 'Reward {} cr, {deadline}': {shown:?}",
+                reward_shown(&shown, new.reward_cr),
+                "station jobs: the Jobs tab reads '{} cr': {shown:?}",
                 new.reward_cr
             );
             renewed_ids.push(new.id);
@@ -1332,7 +1331,7 @@ mod walk {
             .until(player_docked())
             .deadline(SESSION_SECS)
             .add();
-        let script = open_the_station_tab(script)
+        let script = open_the_jobs_tab(script)
             .step("station jobs: the board shows")
             .until(ui_node_present("JobAccept-0"))
             .deadline(BEAT_SECS)
@@ -1462,7 +1461,7 @@ mod walk {
             .until(player_docked())
             .deadline(SESSION_SECS)
             .add();
-        let script = open_the_station_tab(script)
+        let script = open_the_jobs_tab(script)
             .step("station jobs: bump the clock past the offer window")
             .on_enter(bump_the_clock_past_offer)
             .until(unheld_slots_renewed())
@@ -1532,7 +1531,7 @@ mod walk {
             .until(player_docked())
             .deadline(SESSION_SECS)
             .add();
-        open_the_station_tab(script)
+        open_the_jobs_tab(script)
             .step("station jobs: give the goods")
             .on_enter(give_the_goods)
             .until(ui_node_present("JobHandIn-0"))
