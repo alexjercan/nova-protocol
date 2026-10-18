@@ -6,6 +6,7 @@
 
 ## User facts
 - Stage 6 of the game expansion. Decisions 2026-10-12: each of the six start roles has one finite end goal (mining empire, own yard, station network, kill list, Line Warship, outlive a civilization; decision 13); a discovery log and charters point the player at the first station; a capstone build flips the rings (D4 refresh).
+- 2026-10-18 (owner, option "No world refresh"): the six role charters are optional sandbox milestones, saved and displayed; a met charter triggers no thaw refresh and no ending. This replaces the capstone ring flip (D4 refresh) above for the charters.
 - Design: `tasks/20261012-095526/DESIGN.html` (owner-reviewed page, version 19); codebase facts in `tasks/20261012-095526/RESEARCH-CODEBASE.md`.
 
 ## Strand
@@ -14,7 +15,7 @@ Children carry the `Charters:` title prefix and the `charters` tag.
 2. Per-role end goals as saved facts.
 
 ## Done when
-- A role's goal is visible from the start, progresses across reloads, and completing it is a saved fact the world reacts to.
+- A role's goal is visible from the start, progresses across reloads, and completing it is a saved fact shown on the Map; the world does not react to it.
 
 ## Children
 - `20261012-100031` Charters: discovery log and charter 0

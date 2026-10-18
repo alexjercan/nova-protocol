@@ -2,8 +2,9 @@
 //! and what the Map shows this frame, [`GoalProgress`].
 //!
 //! A start role's goal is content (`RoleGoal` in `nova_scenario`): a
-//! predicate over facts the world save already carries, the jobs the player
-//! handed in and the player's hull. The open world crate derives the
+//! predicate over facts the world save already carries: the jobs the player
+//! handed in, the player's hull, owned stations and fleet, and the
+//! civilization stances. The open world crate derives the
 //! progress every frame and stamps the record once the predicate holds; the
 //! Map's chart view reads both. They live here, below the world crates, for
 //! the same reason the chart and the jobs do: the interface cannot depend on
@@ -23,10 +24,8 @@ pub mod prelude {
 /// Stamped once by the open world crate when the goal's progress is met,
 /// with the world clock's reading, and never cleared back while the world
 /// stands: a hand-in cannot be undone, and a hull sold later does not unmake
-/// a flagship. A save that stamps it ahead of its clock is refused.
-///
-/// TODO(20261012-100033): the world reacts to a met goal at thaw once the
-/// owner picks the refresh; until then the record is saved and shown only.
+/// a flagship. A save that stamps it ahead of its clock is refused. The
+/// record is saved and shown only: the world does not react to a met goal.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]

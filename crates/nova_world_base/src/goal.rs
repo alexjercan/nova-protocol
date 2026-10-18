@@ -20,8 +20,8 @@
 //! clear with the chart (`chart::clear_chart`) and the record comes back on
 //! a Load.
 //!
-//! No refresh follows a met goal yet: the record is saved and shown only.
-//! TODO(20261012-100033): apply the owner's refresh at thaw.
+//! A met goal is an optional milestone, not an ending: the record is saved
+//! and shown only, and the world does not change at thaw.
 
 use std::collections::BTreeSet;
 
