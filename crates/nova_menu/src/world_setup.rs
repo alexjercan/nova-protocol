@@ -820,7 +820,11 @@ pub(crate) fn refresh_start_role_details(
 /// Draw the typed seed's chart in the world step's preview: the cells round
 /// the seed's starting station as the generator describes them, every
 /// station in reach marked and the start where it stands in its cell. A
-/// seed with no start draws an empty grid and says why under it. Runs when
+/// seed with no start draws an empty grid and says why under it. Only the
+/// start is labelled, YOU: the gallery mock also labels the starting station
+/// STN-1, but a chart code is the station's place in the found order, and
+/// sensors may find another station first, so no code is known before play.
+/// Runs when
 /// the seed field changes or the preview is new; a seed that is not a number
 /// is the field's refusal and leaves the last chart standing.
 pub(crate) fn refresh_seed_preview(
@@ -874,6 +878,7 @@ pub(crate) fn refresh_seed_preview(
                             owned: false,
                             refusing: false,
                         },
+                        code: String::new(),
                     })
                     .collect(),
                 selected: None,

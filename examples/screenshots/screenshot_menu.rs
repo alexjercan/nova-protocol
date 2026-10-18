@@ -279,6 +279,17 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         .step("settle the world setup window")
         .until(frames(SETTLE_FRAMES))
         .add()
+        // A station's chart code is its place in the found order, which no
+        // seed knows before play, so the seed preview labels the start alone.
+        .step("the seed preview labels only the start")
+        .on_enter(|world: &mut World| {
+            assert_eq!(
+                shown_chart_labels(world),
+                ["YOU"],
+                "screenshot_menu: the seed preview must label the start alone"
+            );
+        })
+        .add()
         .step("capture the world setup window")
         // The news figure ships with the post, so the footer's build id stays
         // out of it. The wiki shots above keep the footer: they are reshot with
@@ -375,6 +386,19 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         .step("settle the Load screen")
         .until(frames(SETTLE_FRAMES))
         .add()
+        // The walk left the world docked at its starting station, the one
+        // station the save's chart has found.
+        .step("the Load preview labels the found station and the player")
+        .on_enter(|world: &mut World| {
+            let labels = shown_chart_labels(world);
+            for label in ["STN-1", "YOU"] {
+                assert!(
+                    labels.iter().any(|shown| shown == label),
+                    "screenshot_menu: the Load preview does not show '{label}', it shows {labels:?}"
+                );
+            }
+        })
+        .add()
         .step("the Load row's open count reads in the other columns' ink")
         .on_enter(|world: &mut World| {
             // The selected row's fill is the label ink, so an open count in
@@ -409,6 +433,20 @@ fn named_nodes(world: &mut World, name: &str) -> usize {
         .iter(world)
         .filter(|node| node.as_str() == name)
         .count()
+}
+
+/// The text of every chart preview label shown, sorted.
+#[cfg(feature = "debug")]
+fn shown_chart_labels(world: &mut World) -> Vec<String> {
+    let mut query = world.query::<(&Name, &InheritedVisibility)>();
+    let mut labels: Vec<String> = query
+        .iter(world)
+        .filter(|(_, shown)| shown.get())
+        .filter_map(|(name, _)| name.as_str().strip_prefix("Menu Chart Label "))
+        .map(str::to_string)
+        .collect();
+    labels.sort();
+    labels
 }
 
 /// The text of the one node called `name`.

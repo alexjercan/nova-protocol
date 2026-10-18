@@ -321,7 +321,8 @@ impl Plugin for NovaMenuPlugin {
         );
         // The menu's 3D previews: the shared chart tiles and hull turntables,
         // then the menu's own scenes, built the frame a preview node appears
-        // or changes and sized to the node once it is laid out. The
+        // or changes and sized to the node once it is laid out, and the chart
+        // labels placed once the cameras stand where they render from. The
         // interface adds the same preview plugin; one app keeps one.
         if !app.is_plugin_added::<nova_hud::prelude::PreviewPlugin>() {
             app.add_plugins(nova_hud::prelude::PreviewPlugin);
@@ -336,6 +337,7 @@ impl Plugin for NovaMenuPlugin {
                 preview::drive_menu_preview_orbits,
                 preview::drive_menu_preview_cameras,
                 preview::resize_menu_preview_targets,
+                preview::project_menu_chart_labels,
             )
                 .chain()
                 .run_if(in_state(GameStates::MainMenu)),

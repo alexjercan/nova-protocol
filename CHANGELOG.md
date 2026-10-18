@@ -245,12 +245,13 @@ does NOT get an entry. Another page that states a different rule is wrong.
   role and date, marks one it cannot open INVALID with the reason, and
   deletes on confirm.
 - New Game's first step draws the seed's sectors round your starting station
-  as a 3D chart to turn and zoom, before the world exists.
+  as a 3D chart to turn and zoom, with YOU at the start, before the world
+  exists.
 - New Game's role step turns the role's hull in 3D and lists its milestones:
   charter 0's two steps, then the role's goal.
 - Load rows show play time, saved-ago and open objectives. The details draw
-  the save's 3D chart, a FLEET block of what the save holds and only its open
-  objectives.
+  the save's 3D chart with the Map's mark codes and YOU, a FLEET block of what
+  the save holds and only its open objectives.
 - The main menu offers Continue when a save stands: it opens the newest
   world, named under the button with how long ago it was saved.
 - Save notices show progress, success or failure; `~` hides them. Leaving

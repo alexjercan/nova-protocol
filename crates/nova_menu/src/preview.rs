@@ -8,8 +8,11 @@
 //! `nova_hud::preview`, and a camera rendering into the node's image; the
 //! image follows the node's size. A chart preview orbits under the pointer
 //! the way the Map does, right-drag turning and the wheel zooming; a hull
-//! preview turns on its turntable. The scene goes with the node: despawning
-//! the node drops its [`MenuPreviewScene`], whose hook despawns the scene.
+//! preview turns on its turntable. A chart preview labels each mark that has
+//! a code and the own ship with a [`MenuChartLabel`] under the node, which
+//! [`project_menu_chart_labels`] places over its mark. The scene goes with
+//! the node: despawning the node drops its [`MenuPreviewScene`], whose hook
+//! despawns the scene.
 //!
 //! A headless host with no render assets builds no scene and draws nothing;
 //! the nodes still stand, so a test reads what a preview would show.
@@ -22,11 +25,15 @@ use bevy::{
     picking::hover::Hovered,
     prelude::*,
 };
+use nova_events::prelude::SectorCoord;
 use nova_gameplay::prelude::{new_render_target_image, resize_render_target};
 use nova_hud::prelude::*;
 use nova_interface::prelude::{zoom_radius, OrbitGesture};
 use nova_ship::prelude::{insert_preview_section, DesignSection, PreviewRole};
-use nova_ui::theme::{ActiveUiTheme, UiColor};
+use nova_ui::{
+    theme::{ActiveUiTheme, UiColor},
+    widget::{ThemedFill, ThemedText, UiText},
+};
 
 /// The render layer of the first preview's scene; preview slot `n` draws on
 /// `MENU_PREVIEW_LAYER + n`, so no camera sees another preview's scene.
@@ -53,6 +60,14 @@ pub(crate) struct MenuChartPreview(pub(crate) ChartSceneView);
 /// A hull preview: the node draws a hull of these sections, turning.
 #[derive(Component, Clone, Debug)]
 pub(crate) struct MenuHullPreview(pub(crate) Vec<DesignSection>);
+
+/// One label of a chart preview under its node: a mark's code or the own
+/// ship's tag, hidden until projected.
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+pub(crate) struct MenuChartLabel {
+    /// Where the label points, in chart space.
+    pub(crate) anchor: Vec3,
+}
 
 /// A chart preview's orbit, driven by the pointer over the node.
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
@@ -121,9 +136,10 @@ pub(crate) fn preview_node(name: &'static str, node: Node) -> impl Bundle {
 }
 
 /// Build the scene of every preview node that has none yet or whose view
-/// changed: despawn the old scene, take the lowest free slot, spawn the
-/// scene on its layer with a camera rendering into a new image, and hand
-/// the node the image. A host with no render assets builds nothing.
+/// changed: despawn the old scene and labels, take the lowest free slot,
+/// spawn the scene on its layer with a camera rendering into a new image,
+/// label a chart's marks under the node, and hand the node the image. A host
+/// with no render assets builds nothing.
 #[expect(
     clippy::too_many_arguments,
     reason = "one system reading the preview nodes, the theme and every render asset store"
@@ -136,6 +152,7 @@ pub(crate) fn build_menu_previews(
     meshes: Option<ResMut<Assets<Mesh>>>,
     materials: Option<ResMut<Assets<StandardMaterial>>>,
     q_scenes: Query<&MenuPreviewScene>,
+    q_labels: Query<(Entity, &ChildOf), With<MenuChartLabel>>,
     mut q_nodes: Query<
         (
             Entity,
@@ -156,6 +173,11 @@ pub(crate) fn build_menu_previews(
         if let Some(old) = old {
             commands.entity(old.root).try_despawn();
             taken.retain(|slot| *slot != old.slot);
+        }
+        for (label, parent) in &q_labels {
+            if parent.parent() == node {
+                commands.entity(label).try_despawn();
+            }
         }
         let slot = (0..)
             .find(|slot| !taken.contains(slot))
@@ -198,7 +220,7 @@ pub(crate) fn build_menu_previews(
                         ChildOf(root),
                     ))
                     .id();
-                spawn_chart_scene(
+                let placements = spawn_chart_scene(
                     &mut commands,
                     &mut meshes,
                     &mut materials,
@@ -208,6 +230,69 @@ pub(crate) fn build_menu_previews(
                     layer,
                     root,
                 );
+                // Labels of marks that share a cell stack upward, as the
+                // Map's do.
+                let marks = chart.0.marks.iter().zip(&placements).map(|(mark, placed)| {
+                    (
+                        placed.at + Vec3::Y * (placed.slot as f32 * CHART_LABEL_STACK),
+                        mark.code.as_str(),
+                        mark.kind.color(),
+                        12.0,
+                    )
+                });
+                // A save puts the own ship at its cell's middle, where the
+                // cell's marks stand, so its tag takes the slot over the
+                // cell's labels instead of covering them.
+                let you = chart.0.you.map(|you| {
+                    let centre = chart.0.centre;
+                    let cell = SectorCoord::new(
+                        centre.x + (you.x / CHART_CELL).round() as i32,
+                        centre.y + (you.y / CHART_CELL).round() as i32,
+                        centre.z + (you.z / CHART_CELL).round() as i32,
+                    );
+                    let labelled = chart
+                        .0
+                        .marks
+                        .iter()
+                        .filter(|mark| mark.at == cell && !mark.code.is_empty())
+                        .count();
+                    let lift = if labelled == 0 {
+                        CHART_MARK_LIFT * 0.5
+                    } else {
+                        CHART_MARK_LIFT + labelled as f32 * CHART_LABEL_STACK
+                    };
+                    (you + Vec3::Y * lift, "YOU", CHART_YOU_COLOR, 11.0)
+                });
+                for (anchor, text, color, size) in marks.chain(you) {
+                    if text.is_empty() {
+                        continue;
+                    }
+                    commands.spawn((
+                        Name::new(format!("Menu Chart Label {text}")),
+                        MenuChartLabel { anchor },
+                        Node {
+                            position_type: PositionType::Absolute,
+                            padding: UiRect::axes(px(4), px(1)),
+                            ..default()
+                        },
+                        Visibility::Hidden,
+                        BackgroundColor(Color::NONE),
+                        ThemedFill::alpha(UiColor::Void, 0.8),
+                        Pickable::IGNORE,
+                        ChildOf(node),
+                        children![(
+                            UiText,
+                            Text::new(text),
+                            TextFont {
+                                font_size: FontSize::Px(size),
+                                ..default()
+                            },
+                            TextColor(Color::NONE),
+                            ThemedText::new(color),
+                            Pickable::IGNORE,
+                        )],
+                    ));
+                }
                 commands.entity(node).insert(orbit);
                 MenuPreviewScene {
                     root,
@@ -320,6 +405,43 @@ pub(crate) fn drive_menu_preview_cameras(
         };
         *transform = Transform::from_translation(orbit_eye(orbit.radius, orbit.theta, orbit.phi))
             .looking_at(Vec3::ZERO, Vec3::Y);
+    }
+}
+
+/// Place each chart preview's labels over their anchors through its camera,
+/// and hide the ones off its image. A camera re-derives its target size a
+/// frame after a resize and projects into the old size until then, so the
+/// labels wait hidden for it.
+pub(crate) fn project_menu_chart_labels(
+    q_nodes: Query<(&MenuPreviewScene, &ComputedNode, &Children)>,
+    q_cameras: Query<(&Camera, &GlobalTransform)>,
+    mut q_labels: Query<(&MenuChartLabel, &mut Node, &mut Visibility)>,
+) {
+    for (scene, computed, children) in &q_nodes {
+        let Ok((camera, cam_gt)) = q_cameras.get(scene.camera) else {
+            continue;
+        };
+        let ready = camera.physical_target_size() == Some(computed.size().round().as_uvec2());
+        let to_logical = computed.inverse_scale_factor();
+        let size = computed.size() * to_logical;
+        let mut labels = q_labels.iter_many_mut(children);
+        while let Some((label, mut node, mut visibility)) = labels.fetch_next() {
+            let projected = ready
+                .then(|| camera.world_to_viewport(cam_gt, label.anchor).ok())
+                .flatten()
+                .map(|p| p * to_logical)
+                .filter(|p| p.x >= 0.0 && p.y >= 0.0 && p.x <= size.x && p.y <= size.y);
+            let Some(p) = projected else {
+                visibility.set_if_neq(Visibility::Hidden);
+                continue;
+            };
+            let (left, top) = (px(p.x + 6.0), px(p.y - 9.0));
+            if node.left != left || node.top != top {
+                node.left = left;
+                node.top = top;
+            }
+            visibility.set_if_neq(Visibility::Inherited);
+        }
     }
 }
 

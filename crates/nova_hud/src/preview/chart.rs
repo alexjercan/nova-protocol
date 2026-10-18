@@ -17,9 +17,8 @@
 //! one tinted layer per type.
 //!
 //! The builder spawns meshes only and hands back where each mark stands, so
-//! a host that labels its marks (the Map) projects its own labels and a host
-//! that does not (the menu) draws nothing more. Touch this module when
-//! changing what a cell's contents or a mark look like on any chart.
+//! each host projects its own labels over its own viewport. Touch this module
+//! when changing what a cell's contents or a mark look like on any chart.
 
 use bevy::{
     asset::RenderAssetUsages,
@@ -163,6 +162,8 @@ pub struct ChartSceneMark {
     pub at: SectorCoord,
     /// What it is.
     pub kind: ChartSceneMarkType,
+    /// Its chart code, `STN-1`, as the Map labels it; empty draws no label.
+    pub code: String,
 }
 
 /// Everything a chart scene draws.

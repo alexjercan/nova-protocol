@@ -817,8 +817,11 @@ fn spawn_load_row(
 
 /// The chart a save's details draw: every cell and mark the header records,
 /// round the cell the player was saved in, with the player at its middle.
+/// The header keeps each kind in the found or accept order, so counting each
+/// kind gives the code the Map labels it with.
 fn saved_chart_view(header: &WorldSaveHeader) -> ChartSceneView {
     let SavedChart { cells, marks } = &header.chart;
+    let (mut stations, mut wrecks, mut jobs) = (0, 0, 0);
     ChartSceneView {
         centre: header.player_sector,
         reach: LOAD_PREVIEW_REACH,
@@ -831,17 +834,33 @@ fn saved_chart_view(header: &WorldSaveHeader) -> ChartSceneView {
             .collect(),
         marks: marks
             .iter()
-            .map(|mark| ChartSceneMark {
-                at: mark.at,
-                kind: match mark.kind {
-                    SavedChartMarkType::Station { dead, owned } => ChartSceneMarkType::Station {
-                        dead,
-                        owned,
-                        refusing: false,
-                    },
-                    SavedChartMarkType::Wreck => ChartSceneMarkType::Wreck,
-                    SavedChartMarkType::Job => ChartSceneMarkType::Job,
-                },
+            .map(|mark| {
+                let (kind, code) = match mark.kind {
+                    SavedChartMarkType::Station { dead, owned } => {
+                        stations += 1;
+                        (
+                            ChartSceneMarkType::Station {
+                                dead,
+                                owned,
+                                refusing: false,
+                            },
+                            format!("STN-{stations}"),
+                        )
+                    }
+                    SavedChartMarkType::Wreck => {
+                        wrecks += 1;
+                        (ChartSceneMarkType::Wreck, format!("WRK-{wrecks}"))
+                    }
+                    SavedChartMarkType::Job => {
+                        jobs += 1;
+                        (ChartSceneMarkType::Job, format!("JOB-{jobs}"))
+                    }
+                };
+                ChartSceneMark {
+                    at: mark.at,
+                    kind,
+                    code,
+                }
             })
             .collect(),
         selected: None,
