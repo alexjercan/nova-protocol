@@ -16,10 +16,13 @@
 //! ([`JobPostings::renew`]), which posts a new offer under a new [`JobId`].
 //! A held job never expires: its slot is pinned until it is handed in or
 //! dropped. The open world crate puts the board on the station root as a
-//! [`JobBoard`]; the Station pane lists it while the player is docked there,
+//! [`JobBoard`]; the Jobs pane lists it while the player is docked there,
 //! with each offer's remaining time ([`offer_deadline_text`]), and offers
 //! Accept and Hand in. Both happen docked only ([`plan_job_accept`],
-//! [`plan_job_hand_in`]).
+//! [`plan_job_hand_in`]). Every job asks something of the hull
+//! ([`plan_job_hull_fit`]): the starting station's board
+//! ([`StarterBoardMarker`]) lists only the jobs the current hull can do, every
+//! other board lists them all and refuses the accept with the reason.
 //!
 //! Five kinds ([`JobType`]). A procurement is done at the hand-in, by the
 //! goods in the hold. A located kind is done in the world: the open world
@@ -52,11 +55,11 @@ use crate::{
 /// Glob-import surface: `use nova_gameplay::jobs::prelude::*`.
 pub mod prelude {
     pub use super::{
-        escort_raiders, offer_deadline_text, plan_job_accept, plan_job_hand_in, station_job_board,
-        Job, JobAcceptRefusalType, JobAccepted, JobBoard, JobField, JobHandInPartner,
-        JobHandInPlan, JobHandInRefusalType, JobHull, JobId, JobMixType, JobPostings, JobType,
-        JobWreck, Jobs, SlotPosting, StarterBoardMarker, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD,
-        RAIDERS_PER_CARGO_CR,
+        escort_raiders, offer_deadline_text, plan_job_accept, plan_job_hand_in, plan_job_hull_fit,
+        station_job_board, Job, JobAcceptRefusalType, JobAccepted, JobBoard, JobField,
+        JobHandInPartner, JobHandInPlan, JobHandInRefusalType, JobHull, JobHullFit,
+        JobHullRefusalType, JobId, JobMixType, JobPostings, JobType, JobWreck, Jobs, SlotPosting,
+        StarterBoardMarker, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD, RAIDERS_PER_CARGO_CR,
     };
 }
 
@@ -588,12 +591,14 @@ impl JobBoard {
 }
 
 /// The board of the station the player started docked at: the one board
-/// that posts starter jobs. Put beside the [`JobBoard`] by the open world
-/// from the session's starting station id, and never on another board.
+/// whose list hides every job the current hull cannot do
+/// ([`plan_job_hull_fit`]), so the first jobs are ones the start can finish.
+/// Put beside the [`JobBoard`] by the open world from the session's starting
+/// station id, and never on another board.
 #[derive(Component, Debug, Default)]
 pub struct StarterBoardMarker;
 
-/// Raised by the Station pane once a job is held, so the open world puts
+/// Raised by the Jobs pane once a job is held, so the open world puts
 /// the job's bodies ([`Job::spawned_bodies`]) in the world.
 #[derive(Event, Clone, Debug)]
 pub struct JobAccepted {
@@ -1081,6 +1086,79 @@ pub fn offer_deadline_text(remaining_seconds: f64) -> String {
     } else {
         format!("expires in {} s", remaining_seconds.ceil())
     }
+}
+
+/// What the player's hull can do, read off its live sections and its hold
+/// for the board's gate ([`plan_job_hull_fit`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct JobHullFit {
+    /// The hold's whole capacity in grams, empty or not: the player can make
+    /// room.
+    pub hold_capacity_g: u32,
+    /// A live docking section stands on the hull.
+    pub has_clamp: bool,
+    /// A live weapon section stands on the hull: a turret, a torpedo bay or
+    /// a railgun.
+    pub has_weapon: bool,
+}
+
+/// Why the current hull cannot do a job.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum JobHullRefusalType {
+    /// A procurement's whole stack outweighs the hold.
+    HoldTooSmall {
+        /// The stack's mass.
+        need_g: u64,
+        /// The hold's capacity.
+        have_g: u32,
+    },
+    /// A recovery or a distress call docks with its target, and the hull has
+    /// no docking section.
+    NoClamp,
+    /// An escort or a neutralize fights, and the hull has no weapon section.
+    NoWeapon,
+}
+
+/// Plan whether a hull of `fit` can do `job`: a procurement needs hold
+/// capacity for its whole stack, a recovery and a distress call need a
+/// docking section, an escort and a neutralize need a weapon section. The
+/// starter board hides a refused job; every other board lists it and greys
+/// its Accept with the refusal.
+///
+/// Agent decision 2026-10-18 for owner review: the gate reads the hull, not
+/// the start class and a timer, so an upgrade opens jobs by itself.
+///
+/// # Panics
+///
+/// When a procurement names an item the catalog lacks: the board drew it
+/// from the catalog, and the save check refuses one before a Load.
+pub fn plan_job_hull_fit(
+    job: &Job,
+    items: &GameItems,
+    fit: JobHullFit,
+) -> Result<(), JobHullRefusalType> {
+    match &job.kind {
+        JobType::Procure { item, count } => {
+            let need_g = items.design(item).stack_mass_g(*count);
+            if need_g > u64::from(fit.hold_capacity_g) {
+                return Err(JobHullRefusalType::HoldTooSmall {
+                    need_g,
+                    have_g: fit.hold_capacity_g,
+                });
+            }
+        }
+        JobType::Recover { .. } | JobType::Distress { .. } => {
+            if !fit.has_clamp {
+                return Err(JobHullRefusalType::NoClamp);
+            }
+        }
+        JobType::Escort { .. } | JobType::Neutralize { .. } => {
+            if !fit.has_weapon {
+                return Err(JobHullRefusalType::NoWeapon);
+            }
+        }
+    }
+    Ok(())
 }
 
 /// The docked station a hand-in reads: its id and its balance.
@@ -1984,5 +2062,112 @@ mod tests {
         assert!(JobPostings::default().is_empty());
         postings.clear();
         assert!(postings.is_empty());
+    }
+
+    #[test]
+    fn the_hull_gate_refuses_each_kind_the_hull_cannot_do_and_passes_a_fit_hull() {
+        let items = catalog();
+        let poster = station(0);
+        let id = |slot| JobId {
+            station: poster.clone(),
+            slot,
+            posting: 0,
+        };
+        let job = |slot, kind| Job {
+            id: id(slot),
+            kind,
+            target: poster.clone(),
+            reward_cr: 100,
+        };
+        let procure = job(
+            0,
+            JobType::Procure {
+                item: "IronOre".into(),
+                count: 4,
+            },
+        );
+        let recover = job(
+            1,
+            JobType::Recover {
+                wreck: body("wreck", 0),
+                wreck_name: "Vell derelict".into(),
+                item: "FrameSpar".into(),
+                count: 2,
+            },
+        );
+        let escort = job(
+            2,
+            JobType::Escort {
+                hauler: id(2).spawned_body("hauler", 0),
+                cargo_cr: 600,
+            },
+        );
+        let distress = job(
+            0,
+            JobType::Distress {
+                caller: id(0).spawned_body("caller", 0),
+                genuine: true,
+            },
+        );
+        let neutralize = job(
+            1,
+            JobType::Neutralize {
+                hull: body("hull", 0),
+                hull_name: "Harrow".into(),
+            },
+        );
+        let bare = JobHullFit {
+            hold_capacity_g: 3_999,
+            has_clamp: false,
+            has_weapon: false,
+        };
+        assert_eq!(
+            plan_job_hull_fit(&procure, &items, bare),
+            Err(JobHullRefusalType::HoldTooSmall {
+                need_g: 4_000,
+                have_g: 3_999
+            }),
+            "four 1 kg units outweigh a 3,999 g hold"
+        );
+        assert_eq!(
+            plan_job_hull_fit(&recover, &items, bare),
+            Err(JobHullRefusalType::NoClamp)
+        );
+        assert_eq!(
+            plan_job_hull_fit(&distress, &items, bare),
+            Err(JobHullRefusalType::NoClamp)
+        );
+        assert_eq!(
+            plan_job_hull_fit(&escort, &items, bare),
+            Err(JobHullRefusalType::NoWeapon)
+        );
+        assert_eq!(
+            plan_job_hull_fit(&neutralize, &items, bare),
+            Err(JobHullRefusalType::NoWeapon)
+        );
+        let fit = JobHullFit {
+            hold_capacity_g: 4_000,
+            has_clamp: true,
+            has_weapon: true,
+        };
+        for job in [&procure, &recover, &escort, &distress, &neutralize] {
+            assert_eq!(
+                plan_job_hull_fit(job, &items, fit),
+                Ok(()),
+                "a hull with the hold, a clamp and a weapon does '{}'",
+                job.id
+            );
+        }
+        let armed_only = JobHullFit {
+            hold_capacity_g: 4_000,
+            has_clamp: false,
+            has_weapon: true,
+        };
+        assert_eq!(plan_job_hull_fit(&escort, &items, armed_only), Ok(()));
+        assert_eq!(
+            plan_job_hull_fit(&recover, &items, armed_only),
+            Err(JobHullRefusalType::NoClamp),
+            "a weapon does not stand in for a clamp"
+        );
     }
 }

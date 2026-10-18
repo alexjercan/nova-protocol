@@ -99,7 +99,8 @@ const NO_CIVILIZATION: &str = "no civilization reaches the posting station";
 /// station posts nothing. The mix is the session's start role's; a generated
 /// scenario that runs with no session, a fixed-seed world no New Game
 /// opened, posts the trade mix. The session's starting station carries the
-/// [`StarterBoardMarker`] beside its board; no other station does.
+/// [`StarterBoardMarker`] beside its board; no other station does. The
+/// marker is the whole gate: the board itself is the same draw everywhere.
 #[expect(
     clippy::too_many_arguments,
     reason = "one system reading the config, the table, the clock, the session, the jobs, the postings, the stations, the roots and the field"
@@ -257,13 +258,12 @@ pub(crate) fn post_station_boards(
                 .collect::<Vec<_>>()
                 .join("; ")
         );
+        // The board posts every job; the Jobs pane reads the marker and
+        // hides, on this one board, the jobs the current hull cannot do
+        // (`plan_job_hull_fit`), so the gate follows a refit with no timer.
         let starter = session
             .as_deref()
             .is_some_and(|session| session.is_starting_station(id));
-        // TODO(20261012-100022): gate the starter (tutorial) jobs on
-        // `starter` here, so only the starting station's board posts them.
-        // Remove this note when the starter job kinds land and the gate
-        // reads the marker.
         let mut station = commands.entity(entity);
         station.insert(JobBoard(board));
         if starter {

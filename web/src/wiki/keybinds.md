@@ -328,7 +328,7 @@ None of this is fixed: in the editor, click a section to bind it to any key or m
         </tr>
         <tr>
             <td>
-                <a href="../interface/">Interface</a> (Map, Ship and Inventory panes;
+                <a href="../interface/">Interface</a> (Map, Ship, Inventory and Jobs panes;
                 pauses, frees the cursor; <kbd>Esc</kbd> also closes it)
             </td>
             <td><kbd>Tab</kbd></td>
@@ -341,7 +341,7 @@ None of this is fixed: in the editor, click a section to bind it to any key or m
             </td>
         </tr>
         <tr>
-            <td>Switch interface pane (Map / Ship / Inventory)</td>
+            <td>Switch interface pane (Map / Ship / Inventory / Jobs / Station)</td>
             <td><kbd>M</kbd></td>
             <td>
                 <span

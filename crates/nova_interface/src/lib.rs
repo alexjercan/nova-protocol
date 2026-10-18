@@ -1,7 +1,8 @@
 //! The TAB interface and the `:` command modal.
 //!
-//! TAB opens a themed full-screen interface with a Map pane, a Ship pane and
-//! an Inventory pane over the frozen world. `:` opens `NOVA COMMANDS`, a
+//! TAB opens a themed full-screen interface with a Map pane, a Ship pane, an
+//! Inventory pane and a Jobs pane, plus a Station pane while docked, over the
+//! frozen world. `:` opens `NOVA COMMANDS`, a
 //! command-only modal on the retained CRT monitor, over any surface -
 //! including the interface, which it returns to on close. The flight HUD
 //! (`nova_hud`) hides while either is open; the two share only the
@@ -16,12 +17,14 @@
 //! | Module | Concern |
 //! | --- | --- |
 //! | `bindings` | The named actions the interface and its panes answer to. |
-//! | `icons` | The section, map-body and item-category icon masks the panes draw. |
+//! | `icons` | The section, map-body, item-category, chart and job-kind icon masks the panes draw. |
 //! | `pane` | The TAB interface: open, close, pane switch and layout. |
 //! | `terminal` | The command modal: casing, CRT, prompt, input, sound. |
 //! | `map` | The Map pane: a schematic 3D view of local space. |
 //! | `ship` | The Ship pane: a schematic 3D viewer of the player ship. |
 //! | `inventory` | The Inventory pane: the player and docked-ship inventories. |
+//! | `jobs` | The Jobs pane: the held jobs and the docked station's board. |
+//! | `station` | The Station pane: what the docked station sells. |
 //! | `viewer` | The orbit camera and selection cycle both panes run on. |
 
 #![warn(missing_docs)]
@@ -29,6 +32,7 @@
 pub mod bindings;
 mod icons;
 pub mod inventory;
+pub mod jobs;
 pub mod map;
 pub mod pane;
 pub mod ship;
@@ -60,6 +64,7 @@ pub mod prelude {
     pub use super::{
         bindings::interface_bindings,
         inventory::prelude::*,
+        jobs::prelude::*,
         map::prelude::*,
         pane::InterfacePaneType,
         ship::prelude::*,
@@ -82,6 +87,7 @@ use nova_ui::{
 
 use crate::{
     inventory::InventoryPaneSystems,
+    jobs::JobsPaneSystems,
     map::MapPaneSystems,
     pane::{
         leave_station_pane, next_interface_pane, play_interface_toggle, rebuild_interface_body,
@@ -136,6 +142,7 @@ impl Plugin for InterfacePlugin {
                 .before(MapPaneSystems)
                 .before(ShipPaneSystems)
                 .before(InventoryPaneSystems)
+                .before(JobsPaneSystems)
                 .before(StationPaneSystems),
         );
         // A hull buy clears the Ship pane's selection before the Ship pane
@@ -151,6 +158,7 @@ impl Plugin for InterfacePlugin {
                 MapPaneSystems,
                 ShipPaneSystems,
                 InventoryPaneSystems,
+                JobsPaneSystems,
                 StationPaneSystems,
             )
                 .before(UiThemeSystems),
@@ -194,6 +202,7 @@ impl Plugin for InterfacePlugin {
         app.add_plugins(map::MapPanePlugin);
         app.add_plugins(ship::ShipPanePlugin);
         app.add_plugins(inventory::InventoryPanePlugin);
+        app.add_plugins(jobs::JobsPanePlugin);
         app.add_plugins(station::StationPanePlugin);
     }
 }

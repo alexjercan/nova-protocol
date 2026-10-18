@@ -71,6 +71,7 @@ pub(crate) fn manage_map_scene(
         runtime.chart = false;
         runtime.chart_requested = false;
         runtime.chart_selected = None;
+        runtime.chart_show = None;
         return;
     }
 

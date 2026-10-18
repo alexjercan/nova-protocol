@@ -324,7 +324,9 @@ pub(crate) fn frame_chart(orbit: &mut MapOrbit) {
 /// Switch between the local view and the chart view on `map_chart` or the
 /// Chart button, while the map owns the screen. A scene with no streamed
 /// world has no chart: the switch writes a note and stays local. Each switch
-/// drops the chart selection and reframes the view it enters.
+/// drops the chart selection and reframes the view it enters; a switch into
+/// the chart that a Show on Map asked for selects its mark instead
+/// ([`MapRuntime::chart_show`]).
 pub(crate) fn toggle_map_chart(
     input: NovaOsAppInput,
     mut runtime: ResMut<MapRuntime>,
@@ -338,11 +340,12 @@ pub(crate) fn toggle_map_chart(
         return;
     }
     if edge.is_none() {
+        runtime.chart_show = None;
         runtime.goto_note = Some(("NO CHART: NO OPEN WORLD".to_string(), 2.5));
         return;
     }
     runtime.chart = !runtime.chart;
-    runtime.chart_selected = None;
+    runtime.chart_selected = runtime.chart_show.take().filter(|_| runtime.chart);
     if let Ok(mut orbit) = q_camera.single_mut() {
         if runtime.chart {
             frame_chart(&mut orbit);

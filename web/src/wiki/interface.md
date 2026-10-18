@@ -1,6 +1,6 @@
 # Interface
 
-Every ship carries a second seat of control: the **interface**. Press <kbd>Tab</kbd> in flight and a full-screen panel opens over the frozen world with three panes: **Map**, **Ship** and **Inventory**. Docked at a living station, a fourth pane, **Station**, sells ships, escorts and the station itself, and posts jobs. Flight resumes the moment you close it.
+Every ship carries a second seat of control: the **interface**. Press <kbd>Tab</kbd> in flight and a full-screen panel opens over the frozen world with four panes: **Map**, **Ship**, **Inventory** and **Jobs**. Docked at a living station, a fifth pane, **Station**, sells ships, escorts and the station itself. Flight resumes the moment you close it.
 
 <figure class="figure">
     <!-- Capture: assets/wiki-interface-map.png -->
@@ -35,8 +35,8 @@ Every ship carries a second seat of control: the **interface**. Press <kbd>Tab</
 | --- | --- |
 | <kbd>Tab</kbd> (or click the right stick) | The interface opens on the Map pane, or on the pane you last used. It needs a live ship, and it does not open over the pause menu. |
 | <kbd>Tab</kbd> again, <kbd>Esc</kbd>, or gamepad Start | Close it and return to flight. |
-| <kbd>M</kbd> (or gamepad <kbd>Y</kbd>) | Step to the next pane: Map, Ship, Inventory, Station while you are docked at a living station, then Map again. While a text field has the caret, such as the Inventory quantity, <kbd>M</kbd> types instead. |
-| Click **Map**, **Ship**, **Inventory** or **Station** | Switch to that pane. The **Station** tab shows only while you are docked at a living station; undock and the interface opens on Ship instead. |
+| <kbd>M</kbd> (or gamepad <kbd>Y</kbd>) | Step to the next pane: Map, Ship, Inventory, Jobs, Station while you are docked at a living station, then Map again. While a text field has the caret, such as the Inventory quantity, <kbd>M</kbd> types instead. |
+| Click **Map**, **Ship**, **Inventory**, **Jobs** or **Station** | Switch to that pane. The **Station** tab shows only while you are docked at a living station; undock and the interface opens on Ship instead. |
 | <kbd>:</kbd> | Open the [command shell](../commands/) over the pane. Close it and you are back on the same pane, with its camera and selection as you left them. |
 
 <details class="explain">
@@ -226,25 +226,7 @@ Docked at a living station that offers refit, select a section and press <kbd>De
 
 <!-- Pane: crates/nova_interface/src/station/mod.rs. -->
 
-Docked at a living station, the **Station** pane shows what it sells: **This station**, **Ships for sale** and **Escorts for hire**, each offer with its price and a button or the reason it is refused. Above the ships for sale, **Your ships** lists the ships you own parked at that station, each with **Board**; it shows only while you have a ship parked there. Under the offers, **Jobs posted here** and **Your jobs** list the station's job board and the jobs you hold (see [Jobs](#jobs)). A station that offers none of these and holds none of your ships says so. Results and refusals show on the note line under the lists. Refit (rebuild, swap and add) stays in the Ship pane, beside the ship it changes. The wreck strip is in the Inventory pane, over the wreck's column.
-
-### Jobs
-
-<!-- Lists: crates/nova_interface/src/station/jobs.rs. Board: crates/nova_gameplay/src/jobs.rs. -->
-
-Every living generated station posts a board of three jobs. The board is fixed by the world seed, the station and your start: a board slot's offer stands 20 minutes of play (the pause menu, the interface and a Load all stop that clock), then the slot posts a new offer. A job you hold never expires, and a job you hand in is replaced at once. Which kinds a board leans to follows your start role: a trader's boards post procurements and escorts, a scavenger's recoveries, a hunter's distress calls and bounties.
-
-| job | what to do |
-|---|---|
-| `Bring 4 Iron ore` | bring that many units to the station that posted it. A station asks for what its sector lacks: raw material in an asteroid or rock sector, food and raw material near a planet, parts and plates in a derelict field |
-| `Recover 2 Hull plate from <wreck>` | dock with the named wreck nearby, take the stack aboard and undock with it |
-| `Escort a hauler carrying 1200 cr` | a hauler leaves the station for a mark 10 km out when you accept; see it there. Raiders wait on the way, more for a richer cargo |
-| `Answer a distress call` | a caller 10 km out: dock with the drifting hull. One call in three is a trap: a raider waits there instead, and neutralizing it answers the call |
-| `Neutralize <hull>` | neutralize the named hostile hull nearby |
-
-**Jobs posted here** lists the board, less the jobs you hold or completed, each with its reward, the time left (`expires in 12 min`) and **Accept**; a recovery or a bounty whose target is already gone says so instead, and an offer whose window has passed says `accept: this offer expired` in place of Accept. **Your jobs** lists every job you hold, from any station, with its reward and the station it hands in at. **Hand in** shows while you are docked at that station, the job is done and the station can pay; otherwise the row says why not (`hand in at <station>`, `the hold carries 2 of 4 Iron ore`, `<job>: not done yet`). A hand-in takes a procurement's goods out of your hold, pays the reward from the station's balance (`OnCreditsChanged` with cause `JobReward` on both sides) and moves the job to completed. The note line says `accepted: Bring 4 Iron ore` and `handed in Bring 4 Iron ore for 146 cr`.
-
-Held jobs stay visible undocked: the Map's chart view marks each in the sector of its mark, the wreck, the hauler, the caller or the hull, or the posting station for a procurement; its note says what is left to do (see [the map](#the-map)). A saved Open World keeps the jobs you hold, have done and have completed; a Load brings them back. A held job never expires. A hauler you lose, neutralized or destroyed, takes its escort job with it.
+Docked at a living station, the **Station** pane shows what it sells: **This station**, **Ships for sale** and **Escorts for hire**, each offer with its price and a button or the reason it is refused. Above the ships for sale, **Your ships** lists the ships you own parked at that station, each with **Board**; it shows only while you have a ship parked there. The station's job board is on the [Jobs](#jobs) pane. A station that offers none of these and holds none of your ships says so. Results and refusals show on the note line under the lists. Refit (rebuild, swap and add) stays in the Ship pane, beside the ship it changes. The wreck strip is in the Inventory pane, over the wreck's column.
 
 ### Buying a ship
 
@@ -270,6 +252,29 @@ Under **Ships for sale**, the same station lists its **Escorts for hire**: armed
      crates/nova_ship/src/sections/station_buy.rs. -->
 
 Docked at a living station in an Open World, the Station pane shows **This station**: its name and its price, twice what its sections, its hold and its credits are worth at ask. Click **Buy station** to make it yours; the credits go to its civilization. The station leaves its civilization: it joins your side, so its guns fire on your foes, and it is named **Owned station**. An owned station lets you dock whatever side you are flagged, and its hold sells to you at the price it would pay. It earns nothing yet. In a saved Open World it stays yours across a Load. A price your credits cannot cover is refused.
+
+## Jobs
+
+<!-- Pane: crates/nova_interface/src/jobs.rs. Board and gate: crates/nova_gameplay/src/jobs.rs
+     (`plan_job_hull_fit`); starter board: crates/nova_world_base/src/jobs.rs `StarterBoardMarker`. -->
+
+Every living generated station posts a board of three jobs. The board is fixed by the world seed, the station and your start: a board slot's offer stands 20 minutes of play (the pause menu, the interface and a Load all stop that clock), then the slot posts a new offer. A job you hold never expires, and a job you hand in is replaced at once. Which kinds a board leans to follows your start role: a trader's boards post procurements and escorts, a scavenger's recoveries, a hunter's distress calls and bounties.
+
+| job | what to do |
+|---|---|
+| `Bring 4 Iron ore` | bring that many units to the station that posted it. A station asks for what its sector lacks: raw material in an asteroid or rock sector, food and raw material near a planet, parts and plates in a derelict field |
+| `Recover 2 Hull plate from <wreck>` | dock with the named wreck nearby, take the stack aboard and undock with it |
+| `Escort a hauler carrying 1200 cr` | a hauler leaves the station for a mark 10 km out when you accept; see it there. Raiders wait on the way, more for a richer cargo |
+| `Answer a distress call` | a caller 10 km out: dock with the drifting hull. One call in three is a trap: a raider waits there instead, and neutralizing it answers the call |
+| `Neutralize <hull>` | neutralize the named hostile hull nearby |
+
+The **Jobs** pane shows two lists and an inspector. Docked at a living station, **Jobs posted here** lists its board, less the jobs you hold or completed and less any offer whose window has passed: each row is the kind's icon, the title, the reward, the target's sector and its distance from you, a meter of the time left and **Accept**. **Your jobs** lists every job you hold, from any station, docked or not: the icon, the title, a `have / need` meter (the units in your hold for a procurement or a recovery, done or not for the rest), where it hands in and **Hand in**. Docked at the hand-in station the row reads **HAND IN HERE**; docked elsewhere, `hand in at <station>`; undocked, the station and its distance.
+
+Every job asks something of your hull: a procurement needs hold room for the stack, a recovery or a distress call a docking section, an escort or a bounty a weapon. Your **starting station's** board (tagged **STARTER BOARD**) lists only the jobs your current hull can do, so a fresh transport sees no escorts until it carries a gun; every other board lists them all and greys **Accept**, with the reason under the pointer (`accept: the hull has no weapon`, `accept: 6,000 kg does not fit the 4,000 kg hold`). A recovery or a bounty whose target is already gone is greyed the same way. **Hand in** is greyed, with the reason, while you are not docked at the job's station, the job is not done, the hold is short or the station cannot pay (`dock at <station> to hand in`, `the hold carries 2 of 4 Iron ore`, `<job>: not done yet`).
+
+Click a row and the inspector reads the job: its task, its poster, its target and where that is, the hand-in station, the reward, the time left or your progress, and **Show on Map**, which opens the Map's chart view on the job's mark. A hand-in takes a procurement's goods out of your hold, pays the reward from the station's balance (`OnCreditsChanged` with cause `JobReward` on both sides) and moves the job to completed. The note line under the lists says `accepted: Bring 4 Iron ore` and `handed in Bring 4 Iron ore for 146 cr`.
+
+Held jobs stay on the pane undocked, and the Map's chart view marks each in the sector of its mark, the wreck, the hauler, the caller or the hull, or the posting station for a procurement; its note says what is left to do (see [the map](#the-map)). A saved Open World keeps the jobs you hold, have done and have completed; a Load brings them back. A held job never expires. A hauler you lose, neutralized or destroyed, takes its escort job with it.
 
 ## Stripping a wreck
 

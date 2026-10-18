@@ -15,16 +15,11 @@
 //! - "Escorts for hire": a card per escort the station hires out, with its
 //!   3D view, its name, length and price, a Hire button that raises an
 //!   `EscortHireCommand`, and Info.
-//! - "Jobs posted here": a row per job on the station's board the player
-//!   neither holds nor completed, with an Accept button that raises a
-//!   `JobAcceptCommand`.
-//! - "Your jobs": a row per job the player holds, from any station, with a
-//!   Hand in button that raises a `JobHandInCommand` while this station is
-//!   its target and the hold carries the goods, else the reason.
 //!
 //! A line says so when the station offers none of the lists and parks none
 //! of the player's ships. Refit (rebuild, swap, add) stays in the Ship pane,
-//! beside the ship it changes; the wreck strip is in the Inventory pane.
+//! beside the ship it changes; the wreck strip is in the Inventory pane; the
+//! station's job board is in the Jobs pane (`crate::jobs`).
 //!
 //! # Module layout
 //!
@@ -34,13 +29,11 @@
 //! | `shipyard` | The "Your ships" and "Ships for sale" lists and the buy and board action handler. |
 //! | `hull_preview` | The 3D view of each hull on a "Ships for sale" or "Escorts for hire" card. |
 //! | `escorts` | The "Escorts for hire" list and the hire action handler. |
-//! | `jobs` | The "Jobs posted here" and "Your jobs" lists and the accept and hand-in handler. |
 //! | `hull_info` | A card's Info: the hull in the Ship pane's view, read-only. |
 
 mod escorts;
 mod hull_info;
 mod hull_preview;
-mod jobs;
 mod settle;
 mod shipyard;
 mod station_buy;
@@ -55,13 +48,12 @@ use nova_ui::{screen::drive_wheel_scroll, theme::UiColor};
 pub use self::{
     escorts::EscortHireCommand,
     hull_info::HULL_INFO_CLOSE,
-    jobs::{JobAcceptCommand, JobHandInCommand},
     settle::StanceSettleCommand,
     shipyard::HullBuyCommand,
     station_buy::{StationBuyCommand, STATION_BUY_BUTTON},
 };
 pub(crate) use self::{
-    escorts::*, hull_info::*, hull_preview::*, jobs::*, settle::*, shipyard::*, station_buy::*,
+    escorts::*, hull_info::*, hull_preview::*, settle::*, shipyard::*, station_buy::*,
 };
 use crate::pane::{panel_paint, themed_label};
 
@@ -71,7 +63,6 @@ pub mod prelude {
     pub use super::{
         escorts::EscortHireCommand,
         hull_info::HULL_INFO_CLOSE,
-        jobs::{JobAcceptCommand, JobHandInCommand},
         settle::StanceSettleCommand,
         shipyard::HullBuyCommand,
         station_buy::{StationBuyCommand, STATION_BUY_BUTTON},
@@ -173,12 +164,11 @@ pub(crate) fn station_body(body: &mut ChildSpawnerCommands) {
         spawn_station_sale_block(panel);
         spawn_station_hull_list(panel);
         spawn_station_escort_list(panel);
-        spawn_station_job_lists(panel);
         spawn_station_settle_block(panel);
         panel.spawn((
             StationPanelField::Empty,
             themed_label(
-                "This station sells no ships, hires no escorts, posts no jobs and is not for sale.",
+                "This station sells no ships, hires no escorts and is not for sale.",
                 13.0,
                 UiColor::Label,
             ),
@@ -294,7 +284,6 @@ pub(crate) fn update_station_panel(
                 With<StationSaleBlock>,
                 With<StationHullList>,
                 With<StationEscortList>,
-                With<StationJobList>,
                 With<StationSettleBlock>,
             )>,
             Without<StationPanelField>,
@@ -343,8 +332,6 @@ impl Plugin for StationPanePlugin {
         app.init_resource::<HullInfoLine>();
         app.add_message::<HullBuyCommand>();
         app.add_message::<EscortHireCommand>();
-        app.add_message::<JobAcceptCommand>();
-        app.add_message::<JobHandInCommand>();
         app.add_message::<StationBuyCommand>();
         app.add_message::<StanceSettleCommand>();
         app.add_systems(
@@ -355,13 +342,11 @@ impl Plugin for StationPanePlugin {
                 apply_station_buy_commands,
                 apply_station_hull_buy_commands,
                 apply_station_escort_hire_commands,
-                apply_station_job_commands,
                 apply_station_settle_commands,
                 scroll_station_panel,
                 update_station_sale_block,
                 update_station_hull_list,
                 update_station_escort_list,
-                update_station_job_lists,
                 update_station_settle_block,
                 sync_hull_previews,
                 mirror_hull_previews,

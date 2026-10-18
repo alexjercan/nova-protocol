@@ -1,12 +1,14 @@
 //! The TAB interface: one themed full-screen surface over the frozen world,
-//! with a Map pane, a Ship pane and an Inventory pane.
+//! with a Map pane, a Ship pane, an Inventory pane, a Jobs pane and, docked,
+//! a Station pane.
 //!
 //! TAB opens it from flight (`Unpaused -> Interface`) and closes it again.
-//! Keyboard M and gamepad Y step Map -> Ship -> Inventory -> Map, and the
-//! Map, Ship and Inventory buttons in the card's title row pick a pane. The
-//! first open shows Map; after that TAB reopens the last pane. The `:` command
-//! modal opens over the pane without tearing it down, so closing the modal
-//! returns to the same pane with its scene, camera and selection.
+//! Keyboard M and gamepad Y step Map -> Ship -> Inventory -> Jobs -> Station
+//! -> Map, Station only while docked, and the buttons in the card's title
+//! row pick a pane. The first open shows Map; after that TAB reopens the
+//! last pane. The `:` command modal opens over the pane without tearing it
+//! down, so closing the modal returns to the same pane with its scene, camera
+//! and selection.
 //!
 //! Escape is not read here: the one back-out owner is
 //! [`close_surface_from_menu_keys`](crate::terminal), so a single press never
@@ -34,6 +36,7 @@ use nova_ui::{
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
     inventory::inventory_body,
+    jobs::jobs_body,
     map::{
         map_chart_button, on_map_chart_button, on_map_reframe_button, spawn_map_panel,
         MapLegendMarker, MapViewportMarker,
@@ -60,6 +63,8 @@ pub enum InterfacePaneType {
     Ship,
     /// What the player ship carries, and what a docked ship carries.
     Inventory,
+    /// The jobs the player holds, always, and the docked station's board.
+    Jobs,
     /// What the docked station sells: ships, escorts and the station itself.
     /// Its tab shows only while the player ship is docked at a living station.
     Station,
@@ -67,10 +72,11 @@ pub enum InterfacePaneType {
 
 impl InterfacePaneType {
     /// Every pane, in title-row order, with its button label.
-    const ALL: [(Self, &'static str); 4] = [
+    const ALL: [(Self, &'static str); 5] = [
         (Self::Map, "Map"),
         (Self::Ship, "Ship"),
         (Self::Inventory, "Inventory"),
+        (Self::Jobs, "Jobs"),
         (Self::Station, "Station"),
     ];
 
@@ -80,18 +86,20 @@ impl InterfacePaneType {
             Self::Map => "map",
             Self::Ship => "ship",
             Self::Inventory => "inventory",
+            Self::Jobs => "jobs",
             Self::Station => "station",
         }
     }
 
     /// The pane `interface_next_tab` steps to: Map -> Ship -> Inventory ->
-    /// Station -> Map, skipping Station while `docked` is false.
+    /// Jobs -> Station -> Map, skipping Station while `docked` is false.
     fn next(self, docked: bool) -> Self {
         match self {
             Self::Map => Self::Ship,
             Self::Ship => Self::Inventory,
-            Self::Inventory if docked => Self::Station,
-            Self::Inventory | Self::Station => Self::Map,
+            Self::Inventory => Self::Jobs,
+            Self::Jobs if docked => Self::Station,
+            Self::Jobs | Self::Station => Self::Map,
         }
     }
 
@@ -458,6 +466,7 @@ fn pane_body(body: &mut ChildSpawnerCommands, pane: InterfacePaneType, icons: &I
         InterfacePaneType::Map => map_body(body, icons),
         InterfacePaneType::Ship => ship_body(body, icons),
         InterfacePaneType::Inventory => inventory_body(body, icons),
+        InterfacePaneType::Jobs => jobs_body(body),
         InterfacePaneType::Station => station_body(body),
     }
 }
@@ -502,7 +511,7 @@ fn viewport_node() -> Node {
 }
 
 /// The row a viewer pane splits into its view and its side panel.
-fn view_split() -> Node {
+pub(crate) fn view_split() -> Node {
     Node {
         flex_grow: 1.0,
         min_height: px(0),

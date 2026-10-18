@@ -139,3 +139,50 @@ button per row. Ideas, cheapest first, all on widgets `nova_ui` already has:
     timer plus radius (owner) or hull capability (agent suggestion).
   - The three jobs review bugs (`20261017-202136`, `-202139`, `-202141`)
     land first.
+
+## Decision 2026-10-18 (starter gating)
+- Rule taken: the starting station's board (`StarterBoardMarker`) lists only
+  the jobs the player's current hull can do, judged by `plan_job_hull_fit`
+  in `crates/nova_gameplay/src/jobs.rs`: a Procure needs hold capacity for
+  the stack, a Recover and a Distress need a live docking section, an
+  Escort and a Neutralize need a live weapon section (turret, torpedo bay
+  or railgun). Every other board lists every job and greys Accept with the
+  hull's reason in a tooltip. No timer, no radius: the gate follows a refit
+  at once and needs no saved state.
+- Owner's alternative, not taken: class plus timer plus radius (the start
+  role's class picks the kinds, a play-time window opens the rest, farther
+  stations post harder jobs). It needs a clock and a radius in the save and
+  gates a hull that was refitted to do the work. Reopen it if the kinds get
+  the owner's planned rework and class matters more than hardware.
+
+## Progress 2026-10-18 (Jobs pane)
+- Claim: `InterfacePaneType::Jobs` is always on the tab bar; "Your jobs"
+  shows docked and undocked, "Jobs posted here" docked only. The Station
+  pane no longer lists jobs. Rows, inspector, Show on Map, kind icons and
+  the starter gate follow the round 3 notes and
+  `examples/playable/ui_gallery/jobs.rs`.
+- Evidence: pane enum and tab order `crates/nova_interface/src/pane.rs:79`,
+  `:100`; listing gate `crates/nova_interface/src/jobs.rs:371`
+  (`board_listing`); pane build `jobs.rs:486`, board `:976`, held `:1053`,
+  inspector `:1142`, Show on Map `:1269`, accept and hand-in `:1327`; hull
+  gate `crates/nova_gameplay/src/jobs.rs:1135` (`plan_job_hull_fit`); chart
+  hand-off `crates/nova_interface/src/map/chart.rs:348`
+  (`MapRuntime::chart_show`); job-kind masks
+  `crates/nova_interface/src/icons.rs:62` (`JobIconType`).
+- Change: new `crates/nova_interface/src/jobs.rs` replaces the deleted
+  `station/jobs.rs`; `JobAcceptCommand` and `JobHandInCommand` move with
+  it. `StarterBoardMarker` is now the whole gate: the board draw is the same
+  everywhere and the pane hides unfit jobs on that one board.
+- Verification: `nova_gameplay` test
+  `the_hull_gate_refuses_each_kind_the_hull_cannot_do_and_passes_a_fit_hull`;
+  `nova_interface` tests
+  `the_starter_board_hides_a_job_the_hull_cannot_do_and_a_core_board_greys_its_accept`,
+  `a_held_row_measures_the_stack_in_the_hold_and_a_located_job_by_done`,
+  `a_cell_distance_reads_this_sector_or_whole_kilometres_from_the_player_s_cell`,
+  `the_next_tab_key_steps_through_jobs_always_and_station_only_while_docked`.
+  `job_board_sandbox` with `NOVA_AUTOPILOT=1` walks starter board (2 of 3
+  listed, the transport's escort hidden), select, accept, undock, held row,
+  Show on Map (`JOB-1` selected, HELD JOB), redock, HAND IN HERE, hand-in;
+  captures `sandbox-jobs-{starter,board,held,map,hand-in,done}.png` read.
+- Gap: seed 10 has no second job-posting station in the window, so the
+  greyed Accept on a non-starter board has unit proof only, no capture.

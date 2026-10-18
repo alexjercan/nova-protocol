@@ -217,6 +217,11 @@ pub(crate) struct MapRuntime {
     pub(crate) chart_requested: bool,
     /// The station or wreck selected in the chart view.
     pub(crate) chart_selected: Option<super::MapChartMarkType>,
+    /// A mark to open the chart view on, selected, the next time the map
+    /// owns the screen: the Jobs pane's Show on Map. Taken with
+    /// [`chart_requested`](Self::chart_requested) by
+    /// [`toggle_map_chart`](super::toggle_map_chart).
+    pub(crate) chart_show: Option<super::MapChartMarkType>,
     /// The chart view's scene root, while it stands.
     pub(crate) chart_root: Option<Entity>,
     /// The chart view's labels over the viewport.

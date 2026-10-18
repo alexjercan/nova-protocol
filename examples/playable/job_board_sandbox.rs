@@ -1,33 +1,41 @@
 //! job_board_sandbox: start docked at a living station with the goods its
-//! board asks for in the hold, on the Station tab, and try the jobs by hand.
+//! board asks for in the hold, on the Jobs tab, and try the jobs by hand.
 //!
 //! Boots the shipped app and starts New Game on a pinned seed, as the Create
 //! World modal does, but without a save folder: nothing this run does is
 //! saved. When the window has streamed in, it picks the nearest generated
-//! station that is living, not on the Enemy side and posts jobs. The player
+//! station that is living, not on the Enemy side and posts jobs, or stays
+//! with the starting station when the window holds no other. The player
 //! jumps beside it and is put on a berth at its collar each frame until the
 //! dock takes. Then the fixture lands, once: the hold is given the goods of
-//! every posted job, as far as it has room, and the Station tab opens on the
+//! every posted job, as far as it has room, and the Jobs tab opens on the
 //! board.
 //!
-//! Try: Accept a job, close the interface with TAB, undock, open TAB > Map
-//! and press the chart key: the held job is marked `JOB-1` in the cell of
-//! the body it is about. A procurement hands in at once: dock again and Hand
-//! in, the goods leave the hold and the reward lands on the balance. A
-//! located job (recover, escort, distress, neutralize) refuses the hand-in
-//! until the world marks it done: fly to the mark, do the work and come
-//! back. The diagnostics panel (`F3`) lists the board with each job's task
-//! and state, the jobs held and completed, and the balance.
+//! Try: click a row and read it in the inspector, Accept it, close the
+//! interface with TAB, undock, open TAB > Jobs: the board is gone and the
+//! held row says where it hands in and how far that is; Show on Map opens
+//! the Map's chart view on the job's mark, `JOB-1` in the cell of the body
+//! it is about. A procurement hands in at once: dock again and Hand in, the
+//! goods leave the hold and the reward lands on the balance. A located job
+//! (recover, escort, distress, neutralize) greys Hand in until the world
+//! marks it done: fly to the mark, do the work and come back. The
+//! diagnostics panel (`F3`) lists the board with each job's task and state,
+//! the jobs held and completed, and the balance.
 //!
 //! `NOVA_SANDBOX_ROLE=<start role id>` picks the start role, whose job mix
 //! the boards lean to: the default `transport` posts procurements and
 //! escorts, `scavenger` recoveries, `bounty_hunter` distress calls and
 //! neutralizations.
 //!
-//! With `NOVA_AUTOPILOT=1` a smoke walk accepts the first procurement,
-//! undocks, reads it in the chart view, docks again and hands it in.
-//! `NOVA_CAPTURE=1` shoots `sandbox-jobs-board.png`, `sandbox-jobs-map.png`
-//! and `sandbox-jobs-done.png`. Unset, no walk and no deadline run.
+//! With `NOVA_AUTOPILOT=1` a smoke walk first holds the start docked at its
+//! starting station and reads its starter board on the Jobs tab: it lists
+//! exactly the jobs the hull can do (the transport has no weapon, so its
+//! escorts stay off). Then it moves to the chosen station, reads and accepts
+//! the first procurement, undocks, reads the held row and Show on Map in
+//! the chart view, docks again and hands it in. `NOVA_CAPTURE=1` shoots
+//! `sandbox-jobs-starter.png`, `sandbox-jobs-board.png`,
+//! `sandbox-jobs-held.png`, `sandbox-jobs-map.png`,
+//! `sandbox-jobs-hand-in.png` and `sandbox-jobs-done.png`. Unset, no walk and no deadline run.
 
 use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
 use bevy::prelude::*;
@@ -40,7 +48,7 @@ use nova_world::prelude::{desired_sectors, SectorRoot, WorldConfig};
 #[command(version = "1.0.0")]
 #[command(
     about = "Start docked at a living generated station with its board's goods in the hold, on \
-             the Station tab, and try the jobs by hand",
+             the Jobs tab, and try the jobs by hand",
     long_about = None
 )]
 struct Cli;
@@ -81,8 +89,12 @@ fn main() -> bevy::app::AppExit {
         )),
     );
 
+    let autopilot = std::env::var_os("NOVA_AUTOPILOT").is_some();
     let mut app = nova_protocol::prelude::editor_app(true, None);
-    app.init_resource::<Sandbox>();
+    app.insert_resource(Sandbox {
+        hold_at_start: autopilot,
+        ..default()
+    });
     app.add_plugins((
         diagnostics::DiagnosticsHintPlugin::new(INTRO),
         jobs_overlay::JobsOverlayPlugin,
@@ -93,7 +105,7 @@ fn main() -> bevy::app::AppExit {
         drive_the_sandbox.run_if(in_state(GameStates::Playing)),
     );
 
-    if std::env::var_os("NOVA_AUTOPILOT").is_some() {
+    if autopilot {
         app.insert_resource(bevy::ecs::error::FallbackErrorHandler(
             bevy::ecs::error::panic,
         ));
@@ -119,13 +131,16 @@ enum SandboxPhaseType {
     /// New Game is up; the window around the start is streaming in and the
     /// start is docking the player at its starting station.
     Streaming,
+    /// Docked at the starting station with its starter board on the Jobs
+    /// tab, held there for the smoke walk until it leaves.
+    Starter,
     /// The player was asked to let go of the starting station.
     Undocking,
     /// The player jumped beside the station; its window is streaming in.
     Jumped,
     /// The player is put on the berth each frame until the dock takes.
     Docking,
-    /// Docked, fixture set and the Station tab open. The player has the run.
+    /// Docked, fixture set and the Jobs tab open. The player has the run.
     Ready,
 }
 
@@ -133,6 +148,10 @@ enum SandboxPhaseType {
 #[derive(Resource, Default, Debug)]
 struct Sandbox {
     phase: SandboxPhaseType,
+    /// Hold the start docked at its starting station on the Jobs tab
+    /// ([`SandboxPhaseType::Starter`]) until [`leave_the_start`], for the
+    /// smoke walk's starter board read.
+    hold_at_start: bool,
     /// The chosen station's id, the cell it stands in and where it stood.
     station: Option<(GeneratedBodyId, SectorCoord, Meters3)>,
 }
@@ -173,17 +192,19 @@ fn start_the_world(
 fn drive_the_sandbox(world: &mut World) {
     let phase = world.resource::<Sandbox>().phase;
     match phase {
-        SandboxPhaseType::Menu | SandboxPhaseType::Ready => {}
+        SandboxPhaseType::Menu | SandboxPhaseType::Starter | SandboxPhaseType::Ready => {}
         SandboxPhaseType::Streaming => {
             let Some(player) = the_player(world) else {
                 return;
             };
             let home = player_cell(world);
             if window_is(world, home) && world.get::<DockedShip>(player).is_some() {
-                // The start docked the player at its starting station; the
-                // sandbox stages a station of its own.
-                world.trigger(DockingReleaseRequest { entity: player });
-                world.resource_mut::<Sandbox>().phase = SandboxPhaseType::Undocking;
+                if world.resource::<Sandbox>().hold_at_start {
+                    open_the_jobs_tab(world);
+                    world.resource_mut::<Sandbox>().phase = SandboxPhaseType::Starter;
+                } else {
+                    leave_the_start(world);
+                }
             }
         }
         SandboxPhaseType::Undocking => {
@@ -217,13 +238,23 @@ fn drive_the_sandbox(world: &mut World) {
             };
             if world.get::<DockedShip>(player).is_some() {
                 set_the_fixture(world, player);
-                open_the_station_tab(world);
+                open_the_jobs_tab(world);
                 world.resource_mut::<Sandbox>().phase = SandboxPhaseType::Ready;
             } else {
                 berth_and_dock(world, player);
             }
         }
     }
+}
+
+/// Let go of the starting station: the start docked the player there and
+/// the sandbox stages a station of its own.
+fn leave_the_start(world: &mut World) {
+    let Some(player) = the_player(world) else {
+        return;
+    };
+    world.trigger(DockingReleaseRequest { entity: player });
+    world.resource_mut::<Sandbox>().phase = SandboxPhaseType::Undocking;
 }
 
 /// The one player ship, if exactly one stands.
@@ -278,7 +309,8 @@ fn window_is(world: &mut World, centre: Option<SectorCoord>) -> bool {
 }
 
 /// Pick the nearest station that is living, not on the Enemy side and posts
-/// jobs, outside the spawn's cell.
+/// jobs, outside the spawn's cell; the starting station itself when the
+/// window holds no other.
 fn choose_the_station(world: &mut World) {
     let edge = world
         .resource::<WorldConfig<NovaLayeredWorld>>()
@@ -287,6 +319,23 @@ fn choose_the_station(world: &mut World) {
     let start = world
         .get_resource::<OpenWorldSession>()
         .map(|session| session.start.id.clone());
+    let seen: Vec<String> = world
+        .query_filtered::<(
+            &GeneratedBodyId,
+            &Position,
+            Option<&StationServices>,
+            Has<DerelictShipMarker>,
+            Option<&Allegiance>,
+        ), With<StationMarker>>()
+        .iter(world)
+        .map(|(id, position, services, derelict, allegiance)| {
+            format!(
+                "{id} in {} jobs {} derelict {derelict} {allegiance:?}",
+                SectorCoord::containing(Meters3::from_engine(position.0), edge),
+                station_offers(services, derelict, StationServiceType::Jobs)
+            )
+        })
+        .collect();
     let mut stations: Vec<(f32, GeneratedBodyId, Vec3)> = world
         .query_filtered::<(
             &GeneratedBodyId,
@@ -314,10 +363,29 @@ fn choose_the_station(world: &mut World) {
         .collect();
     stations.sort_by(|a, b| a.0.total_cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
     let Some((distance, id, at)) = stations.into_iter().next() else {
-        panic!(
-            "job sandbox: the window on seed {SANDBOX_SEED} holds no living, non-Enemy station \
-             posting jobs outside the spawn's cell"
+        // The window around the docked start holds no second station: the
+        // run plays the starting station's own board instead.
+        let start = start.expect("job sandbox: an open world session records its start");
+        let Some(at) = world
+            .query::<(&GeneratedBodyId, &Position)>()
+            .iter(world)
+            .find(|(id, _)| **id == start)
+            .map(|(_, position)| position.0)
+        else {
+            panic!(
+                "job sandbox: the window on seed {SANDBOX_SEED} holds neither a second station \
+                 posting jobs outside the spawn's cell {home} nor the starting station '{start}'; \
+                 the stations seen: {seen:#?}"
+            );
+        };
+        let position = Meters3::from_engine(at);
+        let cell = SectorCoord::containing(position, edge);
+        info!(
+            "job sandbox: no second station posting jobs in the window; staying with the \
+             starting station '{start}' in cell {cell}"
         );
+        world.resource_mut::<Sandbox>().station = Some((start, cell, position));
+        return;
     };
     let position = Meters3::from_engine(at);
     let cell = SectorCoord::containing(position, edge);
@@ -468,18 +536,17 @@ fn set_the_fixture(world: &mut World, player: Entity) {
     info!("job sandbox: docked; goods in the hold: {given:?}");
 }
 
-/// Open the TAB interface on the Station tab, and say how to get back to it.
-fn open_the_station_tab(world: &mut World) {
-    *world.resource_mut::<InterfacePaneType>() = InterfacePaneType::Station;
+/// Open the TAB interface on the Jobs tab, and say how to get back to it.
+fn open_the_jobs_tab(world: &mut World) {
+    *world.resource_mut::<InterfacePaneType>() = InterfacePaneType::Jobs;
     world
         .resource_mut::<NextState<PauseStates>>()
         .set(PauseStates::Interface);
-    info!("job sandbox: the Station tab is open; TAB closes and reopens the interface");
+    info!("job sandbox: the Jobs tab is open; TAB closes and reopens the interface");
 }
 
 /// What the sandbox is for, for the diagnostics intro.
-const INTRO: &str =
-    "Docked at a station posting jobs: Accept, undock, read the Map chart, hand in.";
+const INTRO: &str = "Docked at a station posting jobs: Accept, undock, Show on Map, dock, hand in.";
 
 /// The diagnostics panel: the docked station's board, the jobs held and
 /// completed, and the balance.
@@ -543,8 +610,9 @@ mod jobs_overlay {
 mod smoke {
     use std::sync::Arc;
 
-    use nova_protocol::nova_debug::harness::{
-        press_action, release_action, shoot, AutopilotPlugin, Predicate,
+    use nova_protocol::{
+        nova_debug::harness::{press_action, release_action, shoot, AutopilotPlugin, Predicate},
+        nova_interface::jobs::prelude::*,
     };
 
     use super::*;
@@ -559,8 +627,11 @@ mod smoke {
     const SETTLE_FRAMES: u32 = 10;
     /// The virtual clock's clamp on the software rasterizer.
     const WALK_CLOCK_SECS: f32 = 1.0;
+    const STARTER_SHOT: &str = "sandbox-jobs-starter.png";
     const BOARD_SHOT: &str = "sandbox-jobs-board.png";
+    const HELD_SHOT: &str = "sandbox-jobs-held.png";
     const MAP_SHOT: &str = "sandbox-jobs-map.png";
+    const HAND_IN_SHOT: &str = "sandbox-jobs-hand-in.png";
     const DONE_SHOT: &str = "sandbox-jobs-done.png";
 
     /// Hold the virtual clock's clamp every frame: a scenario load hands
@@ -593,15 +664,15 @@ mod smoke {
         })
     }
 
-    fn ready_on_the_station_tab() -> Arc<Predicate> {
-        when(|world| {
+    fn in_phase_on_the_jobs_tab(phase: SandboxPhaseType) -> Arc<Predicate> {
+        when(move |world| {
             world
                 .get_resource::<Sandbox>()
-                .is_some_and(|sandbox| sandbox.phase == SandboxPhaseType::Ready)
+                .is_some_and(|sandbox| sandbox.phase == phase)
                 && world
                     .get_resource::<State<PauseStates>>()
                     .is_some_and(|pause| *pause.get() == PauseStates::Interface)
-                && world.get_resource::<InterfacePaneType>() == Some(&InterfacePaneType::Station)
+                && world.get_resource::<InterfacePaneType>() == Some(&InterfacePaneType::Jobs)
         })
     }
 
@@ -625,6 +696,97 @@ mod smoke {
         when(move |world| world.resource::<Jobs>().completed().len() == count)
     }
 
+    fn ui_node_absent(name: &'static str) -> Arc<Predicate> {
+        when(move |world| {
+            world
+                .try_query::<&Name>()
+                .is_none_or(|mut names| names.iter(world).all(|found| found.as_str() != name))
+        })
+    }
+
+    /// How many UI nodes carry a `Name` starting with `prefix`.
+    fn named_count(world: &World, prefix: &str) -> usize {
+        world.try_query::<&Name>().map_or(0, |mut names| {
+            names
+                .iter(world)
+                .filter(|found| found.as_str().starts_with(prefix))
+                .count()
+        })
+    }
+
+    /// What the player's hull can do, read as the Jobs pane reads it.
+    fn player_fit(world: &World) -> JobHullFit {
+        let Some(player) = one_player(world) else {
+            return JobHullFit::default();
+        };
+        let mut fit = JobHullFit {
+            hold_capacity_g: world
+                .get::<ShipInventory>(player)
+                .map_or(0, ShipInventory::capacity_g),
+            has_clamp: false,
+            has_weapon: false,
+        };
+        let Some(mut sections) = world.try_query_filtered::<(
+            &ChildOf,
+            Has<DockingSectionMarker>,
+            Has<TurretSectionMarker>,
+            Has<TorpedoSectionMarker>,
+            Has<RailgunSectionMarker>,
+        ), (With<SectionMarker>, Without<SectionInactiveMarker>)>(
+        ) else {
+            return fit;
+        };
+        for (child_of, clamp, turret, bay, railgun) in sections.iter(world) {
+            if child_of.parent() != player {
+                continue;
+            }
+            fit.has_clamp |= clamp;
+            fit.has_weapon |= turret || bay || railgun;
+        }
+        fit
+    }
+
+    /// The starting station's board, as the start recorded it.
+    fn starter_board(world: &World) -> Option<JobBoard> {
+        let start = world.get_resource::<OpenWorldSession>()?.start.id.clone();
+        let mut boards = world.try_query::<(&GeneratedBodyId, &JobBoard)>()?;
+        boards
+            .iter(world)
+            .find(|(id, _)| **id == start)
+            .map(|(_, board)| board.clone())
+    }
+
+    /// The starter board's jobs the hull can and cannot do: `(fit, unfit)`.
+    fn starter_split(world: &World) -> Option<(usize, usize)> {
+        let board = starter_board(world)?;
+        let items = world.get_resource::<GameItems>()?;
+        let fit = player_fit(world);
+        let fits = board
+            .0
+            .iter()
+            .filter(|job| plan_job_hull_fit(job, items, fit).is_ok())
+            .count();
+        Some((fits, board.0.len() - fits))
+    }
+
+    /// The starter board lists exactly the jobs the hull can do, with the
+    /// STARTER BOARD badge, and leaves at least one off: the transport's
+    /// board leans to escorts and the transport carries no weapon.
+    fn starter_board_gated() -> Arc<Predicate> {
+        when(|world| {
+            let Some((fits, unfit)) = starter_split(world) else {
+                return false;
+            };
+            let rows = named_count(world, "JobRowPosted-");
+            let badge = world.try_query::<&Text>().is_some_and(|mut texts| {
+                texts
+                    .iter(world)
+                    .any(|text| text.0.contains("STARTER BOARD"))
+            });
+            badge && rows == fits && unfit > 0
+        })
+    }
+
     /// Activate the UI node named `name`, as a click on it would.
     fn activate_named(world: &mut World, name: &str) {
         let target = world
@@ -642,6 +804,18 @@ mod smoke {
                 .try_query::<&Text>()
                 .is_some_and(|mut query| query.iter(world).any(|text| check(&text.0)))
         })
+    }
+
+    /// The board row of the first procurement the chosen station posts.
+    fn procurement_row(world: &mut World) -> usize {
+        let board = station_root(world)
+            .and_then(|station| world.get::<JobBoard>(station).cloned())
+            .expect("job sandbox: the station posts a board");
+        board
+            .0
+            .iter()
+            .position(|job| job.kind.is_procurement())
+            .expect("job sandbox: the board posts a procurement")
     }
 
     /// Press and release a key action, one frame each.
@@ -663,12 +837,37 @@ mod smoke {
             .add()
     }
 
-    /// The smoke walk: accept the first job, undock, read it in the chart
-    /// view, dock again and hand it in, shooting each surface.
+    /// The smoke walk: read the starter board, move to the chosen station,
+    /// accept the first procurement, undock, read the held row and Show on
+    /// Map, dock again and hand it in, shooting each surface.
     pub(super) fn script() -> AutopilotPlugin<GameStates> {
         let script = AutopilotPlugin::<GameStates>::new()
-            .step("job sandbox: docked on the Station tab")
-            .until(ready_on_the_station_tab())
+            .step("job sandbox: docked at the starting station on the Jobs tab")
+            .until(in_phase_on_the_jobs_tab(SandboxPhaseType::Starter))
+            .diagnose(|world| format!("{:?}", world.get_resource::<Sandbox>()))
+            .deadline(SETUP_SECS)
+            .add()
+            .step("job sandbox: the starter board lists only what the hull can do")
+            .until(and(starter_board_gated(), frames(SETTLE_FRAMES)))
+            .diagnose(|world| {
+                format!(
+                    "starter split (fit, unfit) {:?}, rows {}, hull {:?}",
+                    starter_split(world),
+                    named_count(world, "JobRowPosted-"),
+                    player_fit(world)
+                )
+            })
+            .deadline(BEAT_SECS)
+            .add()
+            .step("job sandbox: shoot the starter board")
+            .on_enter(|world: &mut World| shoot(world, STARTER_SHOT))
+            .until(shot_written(STARTER_SHOT))
+            .deadline(SHOT_SECS)
+            .add();
+        let script = tap(script, "the interface key", "interface_toggle", unpaused())
+            .step("job sandbox: leave the start for the chosen station")
+            .on_enter(leave_the_start)
+            .until(in_phase_on_the_jobs_tab(SandboxPhaseType::Ready))
             .diagnose(|world| format!("{:?}", world.get_resource::<Sandbox>()))
             .deadline(SETUP_SECS)
             .add()
@@ -676,24 +875,26 @@ mod smoke {
             .until(and(ui_node_present("JobAccept-0"), frames(SETTLE_FRAMES)))
             .deadline(BEAT_SECS)
             .add()
+            // The job rows can sit below the panel's fold on a 1080p frame,
+            // out of the pointer's reach: the rows and buttons are activated
+            // by name.
+            .step("job sandbox: select the first procurement")
+            .on_enter(|world: &mut World| {
+                let row = procurement_row(world);
+                activate_named(world, &format!("JobRowPosted-{row}"));
+            })
+            .until(and(ui_node_present(JOB_SHOW_ON_MAP), frames(SETTLE_FRAMES)))
+            .deadline(BEAT_SECS)
+            .add()
             .step("job sandbox: shoot the board")
             .on_enter(|world: &mut World| shoot(world, BOARD_SHOT))
             .until(shot_written(BOARD_SHOT))
             .deadline(SHOT_SECS)
             .add()
-            // The job rows can sit below the panel's fold on a 1080p frame,
-            // out of the pointer's reach: the buttons are activated by name.
             .step("job sandbox: accept the first procurement")
             .on_enter(|world: &mut World| {
-                let board = station_root(world)
-                    .and_then(|station| world.get::<JobBoard>(station).cloned())
-                    .expect("job sandbox: the station posts a board");
-                let row = board
-                    .0
-                    .iter()
-                    .position(|job| job.kind.is_procurement())
-                    .expect("job sandbox: the board posts a procurement");
-                activate_named(world, &format!("JobAccept-{row}"));
+                let row = procurement_row(world);
+                activate_named(world, &format!("{JOB_ACCEPT_PREFIX}{row}"));
             })
             .until(and(held_count(1), frames(SETTLE_FRAMES)))
             .deadline(BEAT_SECS)
@@ -714,29 +915,41 @@ mod smoke {
             the_interface_shows(None),
         )
         .click_named(
-            "job sandbox: open the Map pane",
-            "InterfaceTabMap",
-            the_interface_shows(Some(InterfacePaneType::Map)),
-            BEAT_SECS,
-        )
-        .step("job sandbox: settle the map")
-        .until(frames(SETTLE_FRAMES))
-        .add();
-        let script = tap(
-            script,
-            "the chart key",
-            "map_chart",
-            a_text_reads(|text| text == "JOB-1"),
-        )
-        .click_named(
-            "job sandbox: select the job on the chart",
-            "MapChartMarkJOB-1",
+            "job sandbox: open the Jobs pane undocked",
+            "InterfaceTabJobs",
             and(
-                a_text_reads(|text| text == "HELD JOB"),
+                and(ui_node_absent(JOBS_BOARD), ui_node_present("JobHandIn-0")),
                 frames(SETTLE_FRAMES),
             ),
             BEAT_SECS,
         )
+        .step("job sandbox: select the held job")
+        .on_enter(|world: &mut World| activate_named(world, "JobRowHeld-0"))
+        .until(and(
+            and(
+                ui_node_present(JOB_SHOW_ON_MAP),
+                a_text_reads(|text| text.contains("HELD") && !text.contains("JOB")),
+            ),
+            frames(SETTLE_FRAMES),
+        ))
+        .deadline(BEAT_SECS)
+        .add()
+        .step("job sandbox: shoot the held list")
+        .on_enter(|world: &mut World| shoot(world, HELD_SHOT))
+        .until(shot_written(HELD_SHOT))
+        .deadline(SHOT_SECS)
+        .add()
+        .step("job sandbox: Show on Map opens the chart on the job")
+        .on_enter(|world: &mut World| activate_named(world, JOB_SHOW_ON_MAP))
+        .until(and(
+            and(
+                the_interface_shows(Some(InterfacePaneType::Map)),
+                a_text_reads(|text| text == "HELD JOB"),
+            ),
+            and(a_text_reads(|text| text == "JOB-1"), frames(SETTLE_FRAMES)),
+        ))
+        .deadline(BEAT_SECS)
+        .add()
         .step("job sandbox: shoot the chart view")
         .on_enter(|world: &mut World| shoot(world, MAP_SHOT))
         .until(shot_written(MAP_SHOT))
@@ -760,17 +973,28 @@ mod smoke {
             the_interface_shows(None),
         )
         .click_named(
-            "job sandbox: open the Station tab",
-            "InterfaceTabStation",
-            and(ui_node_present("JobHandIn-0"), frames(SETTLE_FRAMES)),
+            "job sandbox: open the Jobs tab",
+            "InterfaceTabJobs",
+            and(
+                and(ui_node_present(JOBS_BOARD), ui_node_present("JobHandIn-0")),
+                and(
+                    a_text_reads(|text| text.contains("HAND IN HERE")),
+                    frames(SETTLE_FRAMES),
+                ),
+            ),
             BEAT_SECS,
         )
+        .step("job sandbox: shoot the held row docked at its hand-in")
+        .on_enter(|world: &mut World| shoot(world, HAND_IN_SHOT))
+        .until(shot_written(HAND_IN_SHOT))
+        .deadline(SHOT_SECS)
+        .add()
         .step("job sandbox: hand the job in")
-        .on_enter(|world: &mut World| activate_named(world, "JobHandIn-0"))
+        .on_enter(|world: &mut World| activate_named(world, &format!("{JOB_HAND_IN_PREFIX}0")))
         .until(and(completed_count(1), frames(SETTLE_FRAMES)))
         .deadline(BEAT_SECS)
         .add()
-        .step("job sandbox: shoot the Station tab after the hand-in")
+        .step("job sandbox: shoot the Jobs tab after the hand-in")
         .on_enter(|world: &mut World| shoot(world, DONE_SHOT))
         .until(shot_written(DONE_SHOT))
         .deadline(SHOT_SECS)

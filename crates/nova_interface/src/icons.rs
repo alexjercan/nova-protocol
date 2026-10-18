@@ -1,19 +1,20 @@
 //! The icon masks the interface panes draw: one silhouette per section
-//! family, per kind of map body, per item category and per chart mark.
+//! family, per kind of map body, per item category, per chart mark and per
+//! job kind.
 //!
 //! Each mask is a white shape whose alpha is its coverage, drawn once at
 //! startup and tinted by the theme where it is shown, so a theme change never
 //! redraws a mask.
 //!
-//! Touch this module when changing what a section family, a map body or a
-//! chart mark looks like.
+//! Touch this module when changing what a section family, a map body, a
+//! chart mark or a job kind looks like.
 
 use bevy::{
     asset::RenderAssetUsages,
     prelude::*,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
 };
-use nova_gameplay::prelude::{ClusterType, ItemCategoryType, SectionClass};
+use nova_gameplay::prelude::{ClusterType, ItemCategoryType, JobType, SectionClass};
 use nova_ui::{theme::UiColor, widget::ThemedImageTint};
 
 /// How the panes draw a section kind: one icon, tint and legend word per
@@ -56,6 +57,16 @@ pub(crate) enum ChartIconType {
     You,
 }
 
+/// What the Jobs pane draws a job kind as, so a board scans by shape.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum JobIconType {
+    Bring,
+    Recover,
+    Escort,
+    Answer,
+    Neutralize,
+}
+
 /// Every icon mask the panes draw, in each family's `ALL` order.
 #[derive(Resource)]
 pub(crate) struct InterfaceIcons {
@@ -63,6 +74,7 @@ pub(crate) struct InterfaceIcons {
     pub(crate) bodies: [Handle<Image>; BodyIconType::ALL.len()],
     pub(crate) categories: [Handle<Image>; ITEM_CATEGORIES.len()],
     pub(crate) charts: [Handle<Image>; ChartIconType::ALL.len()],
+    pub(crate) jobs: [Handle<Image>; JobIconType::ALL.len()],
 }
 
 impl InterfaceIcons {
@@ -86,6 +98,11 @@ impl InterfaceIcons {
         self.charts[icon as usize].clone()
     }
 
+    /// The mask of a job kind.
+    pub(crate) fn job(&self, icon: JobIconType) -> Handle<Image> {
+        self.jobs[icon as usize].clone()
+    }
+
     /// Default handles for every mask, for tests that build pane markup
     /// without drawing images.
     #[cfg(test)]
@@ -95,6 +112,7 @@ impl InterfaceIcons {
             bodies: std::array::from_fn(|_| Handle::default()),
             categories: std::array::from_fn(|_| Handle::default()),
             charts: std::array::from_fn(|_| Handle::default()),
+            jobs: std::array::from_fn(|_| Handle::default()),
         }
     }
 }
@@ -129,6 +147,17 @@ fn box_outline(p: Vec2, c: Vec2, h: Vec2, w: f32) -> f32 {
     let q = (p - c).abs() - h;
     let outside = q.max(Vec2::ZERO).length() + q.x.max(q.y).min(0.0);
     outside.abs() - w * 0.5
+}
+
+/// Signed distance to a chevron pointing right, its tip at `tip`, `len`
+/// long on each arm, stroked `w` wide.
+fn chevron(p: Vec2, tip: Vec2, len: f32, w: f32) -> f32 {
+    segment(p, tip + Vec2::new(-len, -len), tip, w).min(segment(
+        p,
+        tip + Vec2::new(-len, len),
+        tip,
+        w,
+    ))
 }
 
 /// Signed distance to a convex polygon, wound clockwise on screen.
@@ -561,6 +590,83 @@ impl ChartIconType {
     }
 }
 
+impl JobIconType {
+    pub(crate) const ALL: [Self; 5] = [
+        Self::Bring,
+        Self::Recover,
+        Self::Escort,
+        Self::Answer,
+        Self::Neutralize,
+    ];
+
+    /// The icon of a job kind.
+    pub(crate) const fn of(kind: &JobType) -> Self {
+        match kind {
+            JobType::Procure { .. } => Self::Bring,
+            JobType::Recover { .. } => Self::Recover,
+            JobType::Escort { .. } => Self::Escort,
+            JobType::Distress { .. } => Self::Answer,
+            JobType::Neutralize { .. } => Self::Neutralize,
+        }
+    }
+
+    /// The tint of every job icon: the accent, as the chart's job mark.
+    pub(crate) const fn color(self) -> UiColor {
+        UiColor::Accent
+    }
+
+    /// A strapped crate for a procurement, a hook over a cracked hull for a
+    /// recovery, two chevrons for an escort, a ringed exclamation mark for a
+    /// distress call and a reticle for a neutralize.
+    fn coverage(self, p: Vec2, px: f32) -> f32 {
+        match self {
+            Self::Bring => {
+                let shell = box_outline(p, Vec2::new(0.0, 0.1), Vec2::new(0.72, 0.62), 0.14);
+                let lid = segment(p, Vec2::new(-0.72, -0.22), Vec2::new(0.72, -0.22), 0.1);
+                let strap = segment(p, Vec2::new(0.0, -0.22), Vec2::new(0.0, 0.72), 0.1);
+                solid(shell.min(lid).min(strap), px)
+            }
+            Self::Recover => {
+                let line = segment(p, Vec2::new(0.1, -0.95), Vec2::new(0.1, -0.2), 0.12);
+                let hook = ring(p, Vec2::new(-0.12, 0.0), 0.24, 0.12).max(p.y - 0.12);
+                let hull = polygon(
+                    p,
+                    &[
+                        Vec2::new(-0.85, 0.5),
+                        Vec2::new(0.4, 0.5),
+                        Vec2::new(0.7, 0.85),
+                        Vec2::new(-0.6, 0.85),
+                    ],
+                );
+                let crack = segment(p, Vec2::new(-0.1, 0.45), Vec2::new(0.15, 0.9), 0.1);
+                solid(line.min(hook), px).max(solid(hull.max(-crack), px) * 0.8)
+            }
+            Self::Escort => {
+                let lead = chevron(p, Vec2::new(0.1, 0.0), 0.55, 0.16);
+                let wing = chevron(p, Vec2::new(0.75, 0.0), 0.55, 0.16);
+                solid(lead.min(wing), px)
+            }
+            Self::Answer => {
+                let beacon = ring(p, Vec2::ZERO, 0.78, 0.13);
+                let bar = segment(p, Vec2::new(0.0, -0.45), Vec2::new(0.0, 0.1), 0.17);
+                let dot = circle(p, Vec2::new(0.0, 0.42), 0.11);
+                solid(beacon.min(bar).min(dot), px)
+            }
+            Self::Neutralize => {
+                let ticks = [Vec2::X, Vec2::NEG_X, Vec2::Y, Vec2::NEG_Y]
+                    .into_iter()
+                    .map(|axis| segment(p, axis * 0.35, axis * 0.95, 0.13))
+                    .fold(f32::INFINITY, f32::min);
+                let reticle =
+                    ring(p, Vec2::ZERO, 0.6, 0.13)
+                        .min(ticks)
+                        .min(circle(p, Vec2::ZERO, 0.1));
+                solid(reticle, px)
+            }
+        }
+    }
+}
+
 /// Every item category, in declaration order, which is the order its mask is
 /// stored in: [`InterfaceIcons::category`] indexes by `category as usize`.
 pub(crate) const ITEM_CATEGORIES: [ItemCategoryType; 5] = [
@@ -691,6 +797,7 @@ pub(crate) fn init_interface_icons(mut commands: Commands, mut images: ResMut<As
         categories: ITEM_CATEGORIES
             .map(|category| icon_mask(&mut images, |p, px| category_coverage(category, p, px))),
         charts: ChartIconType::ALL.map(|icon| icon_mask(&mut images, |p, px| icon.coverage(p, px))),
+        jobs: JobIconType::ALL.map(|icon| icon_mask(&mut images, |p, px| icon.coverage(p, px))),
     });
 }
 

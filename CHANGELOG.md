@@ -45,7 +45,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
   port face no longer wear both hulls down while they sit docked.
 - **(breaking)** Living generated stations post three seeded jobs by start
   role: bring, recover, escort, distress, neutralize. Accept and Hand in on
-  the Station pane while docked; held jobs save.
+  the Jobs pane while docked; held jobs save.
 - **(breaking)** Generated stations and ships now price each item by their
   stock, cluster type and civilization; the Inventory pane shows the factors.
   `PriceTable` content sets them. Save format 18.
@@ -53,7 +53,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
   while you fly unpaused, and each sector you leave records when it froze.
   Restock reads it on a thaw. Save format 18.
 - **(breaking)** An unaccepted station job offer expires after 20 min of play
-  and the slot posts a new one; a held job never expires. The Station pane
+  and the slot posts a new one; a held job never expires. The Jobs pane
   shows the time left. Save format 18.
 - **(breaking)** Generated traders restock toward spawn stock by play time
   their sector stood unloaded.
@@ -129,6 +129,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Scenarios & Objectives
 
+- Your starting station's board lists only the jobs your hull can do: a
+  hold for the stack, a docking section, or a weapon. Other boards list all
+  and grey Accept with the reason.
 - **(breaking)** `role: OpenWorld` is gone. A scenario declares `world:
   Generated((seed: None))` for the New Game seed or a fixed seed the picker
   lists; no line is a void. It spawns one player ship.
@@ -207,6 +210,13 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Interface & HUD
 
+- A Jobs pane: Your jobs with a `have / need` meter and where to hand in;
+  docked, Jobs posted here with reward, target, distance, time left and
+  Accept. A refused button greys with the reason.
+- Clicking a job row opens it in the pane's inspector: task, poster, target,
+  hand-in station, reward, time left or progress, and Show on Map, which
+  opens the Map's chart view on the job's mark.
+- Job rows carry a kind icon: crate, hook, chevrons, beacon or reticle.
 - Inventory rows at a trader show the price of one with a `vs ref` badge of
   the percent off the reference, green under and amber over; the inspector
   reads Reference, Pays and Asks.
