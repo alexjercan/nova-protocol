@@ -66,11 +66,11 @@ pub(crate) struct MapRouteLine;
 pub(crate) struct MapGotoMarker;
 
 /// Build the contact panel beside the map view: the selection's icon, in a
-/// frame the chart view hides, over its code, name and kind; a rule; its range and bearing; a rule; its note; a
-/// rule; the SECTOR block, shown in the chart view with a find selected; the
-/// CHARTER block, shown in the chart view while the role has a goal; the
-/// discovery log, shown in the chart view with nothing selected; and the
-/// live GOTO destination over the GOTO button.
+/// frame the chart view hides, over its code, name and kind; a rule; its range
+/// and bearing; a rule; its note; a rule; the SECTOR block, shown in the chart
+/// view with a find selected; the CHARTER block, shown in the chart view while
+/// the role has a goal; the discovery log, shown in the chart view with nothing
+/// selected; and the live GOTO destination over the GOTO button.
 /// [`update_map_panel`](super::update_map_panel) fills it.
 pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     parent
