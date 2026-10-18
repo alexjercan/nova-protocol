@@ -3,7 +3,8 @@
 //!
 //! Phase `create` (the default, no `--phase` flag) boots the shipped app,
 //! clicks New Game, names "Probe World", picks the bounty hunter start role
-//! (two point-defense mounts and a torpedo bay) and creates it, then injects
+//! (two point-defense mounts and a torpedo bay) and creates it, waits for the
+//! start to dock the player at its starting station and undocks, then injects
 //! fixture state directly through production constructors and components: the
 //! nearest streamed asteroid's `BodyRadius` is set to a carved value, a
 //! mined canister is spawned with [`cargo_canister`] and a minted
@@ -187,14 +188,14 @@ const FIXTURE_TIMER_SECS: f64 = 60.0;
 const FIXTURE_MARK_LABEL: &str = "FIXTURE";
 
 /// The fixture's once handlers, by index in `resume_fixture`'s event list:
-/// `OnStart`, the self-counting `OnUpdate` and the timer-starting `OnUpdate`
-/// fire in the create phase.
+/// `OnStart`, charter 0's `OnUndocked`, the self-counting `OnUpdate` and the
+/// timer-starting `OnUpdate` fire in the create phase.
 #[cfg(feature = "debug")]
-const SPENT_BY_THE_LEAVE: [usize; 3] = [0, 3, 5];
+const SPENT_BY_THE_LEAVE: [usize; 4] = [0, 2, 4, 6];
 
 /// The index of the `OnTimerEnd` handler, spent only once the timer ends.
 #[cfg(feature = "debug")]
-const TIMER_END_HANDLER: usize = 4;
+const TIMER_END_HANDLER: usize = 5;
 
 /// The index of the once `OnResume` handler: spent in the load phase's live
 /// record once it fires, never listed by a save (the next resume needs it).
@@ -409,7 +410,7 @@ fn register_fixture_scenario(mut scenarios: ResMut<GameScenarios>) {
     ]);
     assert_eq!(
         scenario.events.len(),
-        SPENT_BY_THE_LEAVE[1],
+        SPENT_BY_THE_LEAVE[2],
         "world_resume: the open world's event list grew; re-pin the fixture handler indexes"
     );
     scenario.events.push(ScenarioEventConfig {
@@ -457,7 +458,7 @@ fn register_fixture_scenario(mut scenarios: ResMut<GameScenarios>) {
             seconds: number(FIXTURE_TIMER_SECS),
         })],
     });
-    assert_eq!(scenario.events.len(), SPENT_BY_THE_LEAVE[2] + 1);
+    assert_eq!(scenario.events.len(), SPENT_BY_THE_LEAVE[3] + 1);
     scenarios.insert(FIXTURE_SCENARIO_ID.to_string(), scenario);
 }
 
@@ -784,6 +785,22 @@ fn the_player(world: &World) -> Option<Entity> {
     let mut players = players.iter(world);
     let player = players.next()?;
     players.next().is_none().then_some(player)
+}
+
+/// The player ship is docked.
+#[cfg(feature = "debug")]
+fn player_docked() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        the_player(world).is_some_and(|player| world.get::<DockedShip>(player).is_some())
+    })
+}
+
+/// The player ship is not docked.
+#[cfg(feature = "debug")]
+fn player_free() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        the_player(world).is_some_and(|player| world.get::<DockedShip>(player).is_none())
+    })
 }
 
 /// Write `text` into the node called `name`'s field.
@@ -1594,6 +1611,18 @@ fn create_script(
         .until(armed_around_a_player())
         .deadline(SESSION_SECS)
         .add()
+        .step("world_resume: the start docks the player at its starting station")
+        .until(player_docked())
+        .deadline(SESSION_SECS)
+        .add()
+        .step("world_resume: undock from the starting station")
+        .on_enter(|world: &mut World| {
+            let player = the_player(world).expect("world_resume: exactly one player ship");
+            world.trigger(DockingReleaseRequest { entity: player });
+        })
+        .until(player_free())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
         .step("world_resume: inject the fixture state")
         .on_enter(inject_fixture)
         .add()
@@ -2114,7 +2143,7 @@ fn load_script(
         .add()
         .step("world_resume load: wait for the fixture transients to resume")
         .until(fixture_transients_restored())
-        .deadline(BEAT_DEADLINE_SECS)
+        .deadline(SESSION_SECS)
         .add()
         // Matches and asserts every saved round, torpedo and piece BEFORE
         // the screenshot and the pixel-diff: those two cost real lavapipe

@@ -78,6 +78,14 @@ impl Plugin for NovaGameplayPlugin {
         // render-gated HUD.
         app.init_resource::<crate::objectives::GameObjectives>();
 
+        // The player's civilization stances, the role goal's record and its
+        // progress: the world layer moves them, but the interface reads them
+        // in every app, so an app with its own game plugins still gets empty
+        // tables.
+        app.init_resource::<crate::civilization::CivilizationStances>();
+        app.init_resource::<crate::goal::GoalRecord>();
+        app.init_resource::<crate::goal::GoalProgress>();
+
         // Mints CargoCanisterRuntimeId for every mined and jettisoned canister.
         // Shared by nova_ship (jettison) and nova_scenario (mining), so it is
         // owned here rather than by either. Runs for the life of the app: not

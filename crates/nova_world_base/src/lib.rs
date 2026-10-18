@@ -51,10 +51,7 @@
 use bevy::prelude::*;
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_events::prelude::Meters;
-use nova_gameplay::prelude::{
-    Chart, CivilizationStances, GameItems, GoalProgress, GoalRecord, JobPostings, Jobs,
-    PlayerSpaceshipMarker,
-};
+use nova_gameplay::prelude::{Chart, GameItems, JobPostings, Jobs, PlayerSpaceshipMarker};
 use nova_scenario::prelude::{CurrentScenario, OpenWorldSession, ScenarioWorldType};
 use nova_ship::prelude::GameStyles;
 use nova_world::prelude::*;
@@ -222,9 +219,6 @@ impl Plugin for NovaWorldBasePlugin {
         app.init_resource::<Chart>();
         app.init_resource::<Jobs>();
         app.init_resource::<JobPostings>();
-        app.init_resource::<CivilizationStances>();
-        app.init_resource::<GoalRecord>();
-        app.init_resource::<GoalProgress>();
         // A hull the player neutralizes is an offence against its
         // civilization the moment its marker lands; a provocation is stamped
         // the moment the tally crosses.
