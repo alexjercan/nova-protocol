@@ -238,5 +238,5 @@ the menu screens that feed a charter (New Game, Load) are text too. Ideas:
 - Finding: the window already follows the player ship (`WorldObserver`), so
   the work is a far leg to the station's cell and a handoff to the existing
   entity GOTO when the station materializes.
-- Stop: gates G1-G9 in the note (owner crate, names, aim point, arrival,
-  failure, save, speed cap, targets, proof). No code before the answers.
+- Stop: gates G1-G10 in the note (owner crate, names, aim point, arrival,
+  failure, save, speed cap, targets, proof, G key). No code before the answers.

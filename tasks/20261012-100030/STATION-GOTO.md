@@ -45,8 +45,16 @@ materializes."
   cruise cap (`crates/nova_ship/src/flight/guidance.rs:26-50`). A long leg
   reaches a high peak speed. The window keeps 2 cells (64 km) ahead
   (`crates/nova_world_base/src/lib.rs:187-193`), and jobs run at most one per
-  pool thread (`crates/nova_world/src/streaming.rs:714`). Unverified: whether
-  preparation keeps ahead at peak speed on a long leg.
+  pool thread (`crates/nova_world/src/streaming.rs:714`). At most one
+  prepared sector materializes per frame, nearest first (`streaming.rs:844`).
+  A fast crossing discards jobs for cells it left (`SectorJobStats`), and
+  does not queue them. Unverified: whether preparation keeps ahead at peak
+  speed on a long leg.
+- The G key during the far leg. `on_autopilot_goto_input` toggles a trip off
+  only when the action is `Goto` (`crates/nova_ship/src/input/player/flight_rig.rs:483-493`).
+  During the far leg the action is `GotoPos`, so G engages a GOTO on the
+  travel lock instead, and `drive_station_goto` reads that as a cancel
+  (gate G10).
 - Collisions. GOTO has no collision avoidance
   (`crates/nova_ship/src/flight/state.rs:219-222`). A straight leg at high
   speed through a streamed rock field can hit a rock that materializes ahead.
@@ -222,6 +230,7 @@ existing Goto completion -> PlayerAutopilotCompleted{Goto{station}}
 - Handoff: an entity with `StationMarker` and the target `GeneratedBodyId`
   exists. Then the far leg ends without a completion event.
 - Arrival: the existing `Goto` completion. The ship rests one resolved margin
+  (`arrival_standoff`, 500 m, `crates/nova_ship/src/flight/state.rs:519`)
   off the station's face (`state.rs:219-222`, `autopilot.rs:408-482`), and
   `PlayerAutopilotCompleted { action: Goto { target } }` fires, so
   `OnGotoCompleteEvent` fires for the station's id (`trackers.rs:288-295`).
@@ -288,8 +297,12 @@ existing Goto completion -> PlayerAutopilotCompleted{Goto{station}}
 - G8 Targets. (a) station marks only. (b) stations, wrecks and held jobs'
   bodies: wider, more failure cases (wrecks are taken by jobs, job bodies
   spawn late). Recommend (a).
+- G10 G key during the far leg. (a) leave it: G retargets to the travel
+  lock and cancels the station GOTO. (b) the toggle also stops a player
+  `GotoPos` (`flight_rig.rs:483-493`): G stops the trip as it does today,
+  but `nova_ship` changes. Recommend (b).
 - G9 Proof. Approve the unit test, the map test, the systems range and the
   playable example as listed, or name the subset.
 
 Recommendation: A, `StationGoto`, cell-centre aim, handoff then existing
-GOTO arrival, `Stop` on loss, not saved, no cruise cap, stations only.
+GOTO arrival, `Stop` on loss, not saved, no cruise cap, stations only, G stops the far leg.
