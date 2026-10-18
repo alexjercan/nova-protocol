@@ -1006,12 +1006,13 @@ pub(crate) fn on_map_goto_button(_activate: On<Activate>, mut runtime: ResMut<Ma
 
 /// Fill the contact panel from the selection, with a GOTO result on the note
 /// while it shows, the player's live GOTO destination, and the GOTO button
-/// enabled only on a contact other than the own ship. Rewrites text, colour,
-/// the icon and the button state in place and only on a difference, so a held
+/// enabled only on a contact other than the own ship, and the head frame
+/// hidden in the chart view. Rewrites text, colour, the icon, the frame and
+/// the button state in place and only on a difference, so a held
 /// selection writes nothing.
 #[expect(
     clippy::too_many_arguments,
-    reason = "the panel's text, icon and button, and the autopilot it reads"
+    reason = "the panel's text, icon, frame and button, and the autopilot it reads"
 )]
 pub(crate) fn update_map_panel(
     mut commands: Commands,
@@ -1023,7 +1024,16 @@ pub(crate) fn update_map_panel(
     items: Option<Res<GameItems>>,
     q_autopilot: Query<&Autopilot>,
     mut q_field: Query<(&MapPanelField, &mut Text, &mut ThemedText)>,
-    mut q_icon: Query<(&mut ImageNode, &mut ThemedImageTint, &mut Visibility), With<MapPanelIcon>>,
+    mut q_icon: Query<
+        (
+            &ChildOf,
+            &mut ImageNode,
+            &mut ThemedImageTint,
+            &mut Visibility,
+        ),
+        With<MapPanelIcon>,
+    >,
+    mut q_frame: Query<&mut Node, Without<MapPanelIcon>>,
     q_goto_button: Query<(Entity, Has<InteractionDisabled>), With<MapGotoButton>>,
 ) {
     if !runtime.active {
@@ -1104,8 +1114,19 @@ pub(crate) fn update_map_panel(
         }
     }
 
-    for (mut image, mut tint, mut visibility) in &mut q_icon {
-        // The chart's marks are no live contact, so the head icon stays empty.
+    for (frame, mut image, mut tint, mut visibility) in &mut q_icon {
+        // The chart's marks are no live contact and the chart view shows no
+        // head frame, as the approved chart mock draws none.
+        let display = if runtime.chart {
+            Display::None
+        } else {
+            Display::Flex
+        };
+        if let Ok(mut node) = q_frame.get_mut(frame.parent()) {
+            if node.display != display {
+                node.display = display;
+            }
+        }
         let Some(contact) = selected.filter(|_| !runtime.chart) else {
             visibility.set_if_neq(Visibility::Hidden);
             continue;

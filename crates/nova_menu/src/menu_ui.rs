@@ -481,10 +481,10 @@ pub(crate) fn setup_menu_ui(
                 });
         });
 
-    // The Load picker: hidden until the Load button toggles it. Same
-    // list-beside-details shape and panel head as the Mods panel; the Load
-    // button itself re-reads the worlds root on each open, so nothing here
-    // needs to seed its resources.
+    // The Load picker: hidden until the Load button toggles it. The Mods
+    // panel's list-beside-details shape and panel head, with a wider list; the
+    // Load button itself re-reads the worlds root on each open, so nothing
+    // here needs to seed its resources.
     #[cfg(not(target_arch = "wasm32"))]
     commands
         .spawn((
@@ -520,8 +520,12 @@ pub(crate) fn setup_menu_ui(
                             (
                                 Name::new("Load World List"),
                                 LoadWorldList,
+                                // Wider than the shared split: the approved
+                                // Load mock gives the details a third of the
+                                // row and the list the rest.
                                 Node {
                                     overflow: Overflow::scroll_y(),
+                                    width: percent(66),
                                     ..list_pane()
                                 },
                                 scroll_viewport(),
