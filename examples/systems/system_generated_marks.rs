@@ -2,14 +2,18 @@
 //! sector.
 //!
 //! Boots the shipped app (via [`editor_app`]), enables the example mod, and
-//! starts its `example_survey` chapter the way the Scenarios list does. Then
-//! it moves a generated rock from the window's -X face into the chapter's
-//! survey sphere, so the chapter's own `OnEnter` handler marks it through the
-//! `$other_id` payload binding - the only way a handler can name a body the
-//! world generator placed. The player then jumps one cell along +X, which
-//! retires the rock's sector, and jumps back, which thaws it. The claim is
-//! that the body comes back wearing the same [`GeneratedBodyId`] and the same
-//! marker chip, with the handler having fired exactly once.
+//! starts its `example_survey` chapter the way the Scenarios list does. The
+//! chapter spawns its own player ship at the origin by `SpawnScenarioObject`,
+//! not through `SpawnStartRole`, so no `OpenWorldSession` stands and nothing
+//! docks the player at a starting station: the window streams in around the
+//! origin from the start. Then it moves a generated rock from the window's
+//! -X face into the chapter's survey sphere, so the chapter's own `OnEnter`
+//! handler marks it through the `$other_id` payload binding - the only way a
+//! handler can name a body the world generator placed. The player then
+//! jumps one cell along +X, which retires the rock's sector, and jumps back,
+//! which thaws it. The claim is that the body comes back wearing the same
+//! [`GeneratedBodyId`] and the same marker chip, with the handler having
+//! fired exactly once.
 //!
 //! ONE SUBJECT: addressing a streamed body across retire and thaw. What a
 //! sector contains is `system_world_sectors`' range, the `bounds` block is

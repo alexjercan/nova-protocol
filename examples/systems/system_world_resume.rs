@@ -131,7 +131,8 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(not(feature = "debug"))]
     {
-        editor_app(true, None).run()
+        let Cli {} = cli;
+        nova_protocol::prelude::editor_app(true, None).run()
     }
 
     #[cfg(feature = "debug")]

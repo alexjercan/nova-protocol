@@ -4,7 +4,12 @@
 //!
 //! Boots the shipped app (via [`editor_app`]), starts New Game on the pinned
 //! seed [`system_generated_stations`] already proved holds a living
-//! generated station outside the spawn's own cell, 53 km out. The walk picks
+//! generated station outside the origin's own cell, 53 km out, and lets the
+//! window stream in around the session's starting station, where the start
+//! docks the player. The walk undocks and jumps to the origin, the spawn
+//! point before the docked start: stations are a civilization apart, so the
+//! station it wants never streams in round the start. Once the window stands
+//! round the origin the walk picks
 //! the item the station's [`TraderMarket`] targets the most of (`item_x`,
 //! a target of at least 2, so a half recovery lands strictly between empty
 //! and full) and, as DISCLOSED FIXTURE STATE, sets its hold to zero and
@@ -126,8 +131,8 @@ mod walk {
 
     use super::*;
 
-    /// `system_generated_stations`'s seed: its window around the spawn holds
-    /// one living generated station outside the spawn's own cell, 53 km out.
+    /// `system_generated_stations`'s seed: its window around the origin holds
+    /// one living generated station outside the origin's own cell, 53 km out.
     const STATION_SEED: u32 = 6;
 
     const NEW_GAME_BUTTON: &str = "New Game Button";
@@ -232,6 +237,16 @@ mod walk {
         (config.sector_edge, config.active_radius)
     }
 
+    /// The cell of the session's starting station, where the start docks the
+    /// player, once the session and the world config stand.
+    fn start_cell(world: &World) -> Option<SectorCoord> {
+        let edge = world
+            .get_resource::<WorldConfig<NovaLayeredWorld>>()?
+            .sector_edge;
+        let start = world.get_resource::<OpenWorldSession>()?.start.position;
+        Some(SectorCoord::containing(start, edge))
+    }
+
     fn live_cells(world: &World) -> std::collections::BTreeSet<SectorCoord> {
         world
             .try_query::<&SectorRoot>()
@@ -298,6 +313,18 @@ mod walk {
         })
     }
 
+    fn player_docked() -> Arc<Predicate> {
+        when(|world| {
+            the_player(world).is_some_and(|player| world.get::<DockedShip>(player).is_some())
+        })
+    }
+
+    fn player_free() -> Arc<Predicate> {
+        when(|world| {
+            the_player(world).is_some_and(|player| world.get::<DockedShip>(player).is_none())
+        })
+    }
+
     /// Teleport the player to `position`, at rest: the walk crosses cell
     /// faces without flying them.
     fn park_player(world: &mut World, position: Meters3) {
@@ -311,12 +338,12 @@ mod walk {
     }
 
     /// Where the player parks: [`PARK_DISTANCE`] from the station toward the
-    /// spawn, in the station's own cell.
+    /// origin, in the station's own cell.
     fn park_beside(world: &World) -> Meters3 {
         let watch = world.resource::<RestockWatch>();
         let position = watch.position.expect("the station is chosen");
-        let toward_spawn = (-position.get()).normalize_or_zero();
-        Meters3(position.get() + toward_spawn * PARK_DISTANCE.get())
+        let toward_origin = (-position.get()).normalize_or_zero();
+        Meters3(position.get() + toward_origin * PARK_DISTANCE.get())
     }
 
     /// The live `SectorRoot` entity of `cell`.
@@ -353,13 +380,14 @@ mod walk {
         }
     }
 
-    /// Pick the generated station nearest the spawn that carries a
+    /// Pick the generated station nearest the origin that carries a
     /// `TraderMarket`, choose the retire jump the way
     /// `system_generated_stations` does, then pick `item_x` (a targeted item,
     /// above zero target) and `item_y` (an item the market names nowhere).
     ///
     /// Refuses a seed whose window holds no such station, whose nearest one
-    /// stands in the spawn's own cell, whose market targets none of its
+    /// stands in the origin's own cell, where the walk stands after its jump,
+    /// whose market targets none of its
     /// items, or whose market targets every catalog item: each would make
     /// this claim about something else.
     fn find_the_station_and_its_market(world: &mut World) {
@@ -383,7 +411,7 @@ mod walk {
         stations.sort_by(|a, b| a.0.total_cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
         let Some((distance, id, entity)) = stations.into_iter().next() else {
             panic!(
-                "restock: the window around the spawn holds no generated station with a \
+                "restock: the window around the origin holds no generated station with a \
                  TraderMarket on seed {STATION_SEED}, so this claim cannot be made here"
             );
         };
@@ -397,8 +425,8 @@ mod walk {
         assert_ne!(
             cell,
             SectorCoord::ORIGIN,
-            "restock: the nearest station stands in the spawn's own cell on seed \
-             {STATION_SEED}, which one jump cannot retire"
+            "restock: the nearest station stands in the origin's own cell, where the walk stands \
+             after its jump, on seed {STATION_SEED}, which one jump cannot retire"
         );
 
         // The retire cell: past the far face along the station's farthest
@@ -447,7 +475,7 @@ mod walk {
 
         info!(
             "station restock probe: nearest station '{id}' in cell {cell}, {distance:.0} m from \
-             the spawn; {item_x} targets {target_x}, recovers in {:.0} s; {item_y} is untargeted",
+             the origin; {item_x} targets {target_x}, recovers in {:.0} s; {item_y} is untargeted",
             rule.recovery_seconds
         );
         let mut watch = world.resource_mut::<RestockWatch>();
@@ -832,7 +860,24 @@ mod walk {
                 state_is(GameStates::Playing),
                 SESSION_SECS,
             )
-            .step("restock: the window streams in around the spawn")
+            .step("restock: the window streams in around the start")
+            .until(window_is(start_cell))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("restock: the start docks the player at its starting station")
+            .until(and(player_docked(), frames(SETTLE_FRAMES)))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("restock: undock from the starting station")
+            .on_enter(|world: &mut World| {
+                let player = player(world);
+                world.trigger(DockingReleaseRequest { entity: player });
+            })
+            .until(and(player_free(), frames(SETTLE_FRAMES)))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("restock: jump to the origin, the spawn before the docked start")
+            .on_enter(|world: &mut World| park_player(world, Meters3::ZERO))
             .until(window_is(|_| Some(SectorCoord::ORIGIN)))
             .deadline(SESSION_SECS)
             .add()

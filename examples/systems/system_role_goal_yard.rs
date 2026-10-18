@@ -5,9 +5,14 @@
 //! a Load.
 //!
 //! Boots the shipped app (via [`editor_app`]), starts New Game on seed 10,
-//! picks `scavenger`, and waits for the armed world and its first save. It
-//! picks the nearest living Neutral station outside the spawn's cell, jumps
-//! beside it and berths and docks the way [`system_station_own`] does. A
+//! picks `scavenger`, and waits for the window to stream in around the
+//! session's starting station, where the start docks the player, and for the
+//! first save. The walk undocks and jumps to the origin, the spawn point
+//! before the docked start: stations are a civilization apart, so the
+//! station it wants never streams in round the start. Once the window stands
+//! round the origin it picks the nearest living Neutral station outside the
+//! origin's cell, jumps beside it and berths and docks the way
+//! [`system_station_own`] does. A
 //! Neutral station still refuses a sale, so the walk warms its civilization
 //! to Ally by merits ([`record_merit`], one per handed-in job,
 //! [`MERIT_STEP`] merits per step) the way a player does by handing in
@@ -32,7 +37,7 @@
 //! | 2 | `outcome: a bought station counts as the yard with nothing stocked` | after the buy, `Stations owned 1 / 1` and `Part families stocked 0 / 7`, not met, still no stamp |
 //! | 3 | `outcome: stocking a recipe of every part family meets the yard and stamps the record once` | stocking a recipe of every family reads `1 / 1` and `7 / 7`, met, with a stamp inside the play clock that does not move across two more frames |
 //! | 4 | `outcome: a frozen yard still reads met` | after the station's cell freezes, the frozen record is owned, its frozen storage still holds every stocked part, and the progress still reads `1 / 1`, `7 / 7`, met, with the same stamp |
-//! | 5 | `outcome: the map's chart view shows the yard charter met` | its text nodes show the charter heading, title, both met lines and a `Met at` row |
+//! | 5 | `outcome: the map's chart view shows the yard charter met` | its OBJECTIVES block shows one `Met at` row in place of the milestones and no milestone row |
 //! | 6 | `outcome: the leave save keeps the met yard charter` | `open_world` reads the same met stamp from the leave save |
 //! | 7 | `outcome: a load restores the met yard charter` | after Load and a frame, the same stamp and met progress return |
 //!
@@ -44,7 +49,7 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 //! `NOVA_CAPTURE=1` also writes `role-goal-yard-charter.png` of the chart
-//! view with the met CHARTER block.
+//! view with the met OBJECTIVES block.
 
 use bevy::prelude::*;
 use clap::Parser;
@@ -121,8 +126,8 @@ mod walk {
 
     use super::*;
 
-    /// The seed the range plays: its window around the spawn holds a living
-    /// Neutral station outside the spawn's cell, as [`system_station_own`]
+    /// The seed the range plays: its window around the origin holds a living
+    /// Neutral station outside the origin's cell, as [`system_station_own`]
     /// relies on.
     const STATION_SEED: u32 = 10;
 
@@ -356,6 +361,16 @@ mod walk {
         (config.sector_edge, config.active_radius)
     }
 
+    /// The cell of the session's starting station, where the start docks the
+    /// player, once the session and the world config stand.
+    fn start_cell(world: &World) -> Option<SectorCoord> {
+        let edge = world
+            .get_resource::<WorldConfig<NovaLayeredWorld>>()?
+            .sector_edge;
+        let start = world.get_resource::<OpenWorldSession>()?.start.position;
+        Some(SectorCoord::containing(start, edge))
+    }
+
     fn live_cells(world: &World) -> std::collections::BTreeSet<SectorCoord> {
         world
             .try_query::<&SectorRoot>()
@@ -467,12 +482,12 @@ mod walk {
     }
 
     /// Where the player parks: [`PARK_DISTANCE`] from the station toward the
-    /// spawn, in the station's own cell.
+    /// origin, in the station's own cell.
     fn park_beside(world: &mut World) {
         let watch = world.resource::<YardWatch>();
         let position = watch.position.expect("the station is chosen");
-        let toward_spawn = (-position.get()).normalize_or_zero();
-        let beside = Meters3(position.get() + toward_spawn * PARK_DISTANCE.get());
+        let toward_origin = (-position.get()).normalize_or_zero();
+        let beside = Meters3(position.get() + toward_origin * PARK_DISTANCE.get());
         let (edge, _) = world_shape(world);
         assert_eq!(
             SectorCoord::containing(beside, edge),
@@ -677,7 +692,8 @@ mod walk {
     }
 
     /// Pick the nearest station that is living, generated, on the Neutral
-    /// side, and stands outside the spawn's cell.
+    /// side, and stands outside the origin's cell, where the walk stands
+    /// after its jump.
     fn choose_the_station(world: &mut World) {
         let (edge, _) = world_shape(world);
         let seen: Vec<(GeneratedBodyId, Option<Allegiance>, bool, Vec3)> = world
@@ -710,7 +726,7 @@ mod walk {
         let Some((distance, id, at)) = stations.into_iter().next() else {
             panic!(
                 "role goal yard: the window on seed {STATION_SEED} holds no living Neutral \
-                 station outside the spawn's cell"
+                 station outside the origin's cell"
             );
         };
         let position = Meters3::from_engine(at);
@@ -804,6 +820,14 @@ mod walk {
     }
 
     /// Every UI text on screen.
+    /// Whether a node carries the `Name` `name`.
+    fn named_node(world: &mut World, name: &str) -> bool {
+        world
+            .query::<&Name>()
+            .iter(world)
+            .any(|named| named.as_str() == name)
+    }
+
     fn shown_texts(world: &mut World) -> Vec<String> {
         world
             .query::<&Text>()
@@ -1039,32 +1063,25 @@ mod walk {
     /// Claim 5: the chart view renders the met charter block.
     fn assert_map_charter(world: &mut World) {
         let shown = shown_texts(world);
-        for expected in [
-            "CHARTER",
-            "A yard of your own",
-            "Stations owned  1 / 1",
-            "Part families stocked  7 / 7",
-        ] {
-            assert!(
-                shown.iter().any(|text| text == expected),
-                "role goal yard: the chart view shows '{expected}': {shown:?}"
-            );
-        }
         let met_row = shown
             .iter()
             .find(|text| text.starts_with("Met at "))
+            .cloned()
             .unwrap_or_else(|| {
                 panic!("role goal yard: the chart view shows its met stamp: {shown:?}")
             });
+        assert!(
+            named_node(world, "MapChartObjectiveMet"),
+            "role goal yard: the OBJECTIVES block holds the met row"
+        );
+        assert!(
+            !named_node(world, "MapChartObjectiveMilestone"),
+            "role goal yard: a met role lists no milestone row: {shown:?}"
+        );
         nova_probe::probe_marker(
             world,
             "outcome: the map's chart view shows the yard charter met",
-            serde_json::json!({
-                "heading": "CHARTER",
-                "title": "A yard of your own",
-                "lines": ["Stations owned  1 / 1", "Part families stocked  7 / 7"],
-                "stamp": met_row,
-            }),
+            serde_json::json!({ "block": "OBJECTIVES", "stamp": met_row }),
         );
         info!("role goal yard: the Map chart view shows the met yard charter: {met_row}");
     }
@@ -1176,7 +1193,24 @@ mod walk {
                 state_is(GameStates::Playing),
                 SESSION_SECS,
             )
-            .step("role goal yard: the window streams in and the first save lands")
+            .step("role goal yard: the window streams in around the start and the first save lands")
+            .until(and(window_is(start_cell), when(saved_and_idle)))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("role goal yard: the start docks the player at its starting station")
+            .until(and(player_docked(), frames(SETTLE_FRAMES)))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("role goal yard: undock from the starting station")
+            .on_enter(|world: &mut World| {
+                let player = player(world);
+                world.trigger(DockingReleaseRequest { entity: player });
+            })
+            .until(and(player_free(), frames(SETTLE_FRAMES)))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("role goal yard: jump to the origin, the spawn before the docked start")
+            .on_enter(|world: &mut World| park_player(world, Meters3::ZERO))
             .until(and(
                 window_is(|_| Some(SectorCoord::ORIGIN)),
                 when(saved_and_idle),
@@ -1286,7 +1320,7 @@ mod walk {
             script,
             "the chart key",
             "map_chart",
-            a_text_reads(|text| text == "CHARTER"),
+            a_text_reads(|text| text.starts_with("Met at ")),
         )
         .step("role goal yard: settle the charter block")
         .until(frames(SETTLE_FRAMES))

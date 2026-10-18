@@ -6,8 +6,13 @@
 //! picks `military`, and waits for the armed world and its first save. The
 //! range checks the authored charter against the patrol picket's own hull
 //! value and the Line Warship's recipe value, both recomputed live off the
-//! loaded catalog, never hardcoded. It then picks the nearest living,
-//! non-Enemy station that offers Refit, as DISCLOSED FIXTURE STATE: every
+//! loaded catalog, never hardcoded. The window streams in around the
+//! session's starting station, where the start docks the player; the walk
+//! undocks and jumps to the origin, the spawn point before the docked start,
+//! because stations are a civilization apart and the station it wants never
+//! streams in round the start. Once the window stands round the origin it
+//! picks the nearest living, non-Enemy station that offers Refit outside the
+//! origin's cell, as DISCLOSED FIXTURE STATE: every
 //! hull the station parks, for sale or for hire, is despawned, and a single
 //! Sale offer of a "Fixture Line Warship" (the loaded `line_warship` design,
 //! inline) is handed to the station in its place. Once the fixture is
@@ -22,7 +27,7 @@
 //! | - | - | - |
 //! | 1 | `outcome: the flagship charter opens standing at the picket's value` | the charter reads the live picket's hull value against the Line Warship's recipe value, both recomputed, the picket short, the goal short of met and no stamp |
 //! | 2 | `outcome: buying a hull worth the line warship meets the flagship charter and stamps the record once` | buying the fixture lifts the player's live hull value to the Line Warship's, meets the charter, and the record keeps its first stamp across two more frames |
-//! | 3 | `outcome: the map's chart view shows the flagship charter met` | its text nodes show the charter heading, title, the met line and a `Met at` row |
+//! | 3 | `outcome: the map's chart view shows the flagship charter met` | its OBJECTIVES block shows one `Met at` row in place of the milestones and no milestone row |
 //! | 4 | `outcome: the leave save keeps the met flagship charter` | `open_world` reads the same met stamp from the leave save |
 //! | 5 | `outcome: a load restores the met flagship charter` | after Load and a frame, the same stamp and met progress return |
 //!
@@ -34,7 +39,7 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 //! `NOVA_CAPTURE=1` also writes `role-goal-flagship-charter.png` of the chart
-//! view with the met CHARTER block.
+//! view with the met OBJECTIVES block.
 
 use bevy::prelude::*;
 use clap::Parser;
@@ -131,7 +136,7 @@ mod walk {
     /// `park_pending_hulls`'s log for a port-fit warning before touching
     /// anything.
     const FIXTURE_DEADLINE_SECS: f32 = 60.0;
-    /// The frame the capture path writes of the chart view's CHARTER block.
+    /// The frame the capture path writes of the chart view's OBJECTIVES block.
     const CHARTER_SHOT: &str = "role-goal-flagship-charter.png";
 
     /// The military role's flagship goal hull
@@ -262,6 +267,16 @@ mod walk {
         (config.sector_edge, config.active_radius)
     }
 
+    /// The cell of the session's starting station, where the start docks the
+    /// player, once the session and the world config stand.
+    fn start_cell(world: &World) -> Option<SectorCoord> {
+        let edge = world
+            .get_resource::<WorldConfig<NovaLayeredWorld>>()?
+            .sector_edge;
+        let start = world.get_resource::<OpenWorldSession>()?.start.position;
+        Some(SectorCoord::containing(start, edge))
+    }
+
     fn live_cells(world: &World) -> std::collections::BTreeSet<SectorCoord> {
         world
             .try_query::<&SectorRoot>()
@@ -323,6 +338,12 @@ mod walk {
         })
     }
 
+    fn player_free() -> Arc<Predicate> {
+        when(|world| {
+            the_player(world).is_some_and(|player| world.get::<DockedShip>(player).is_none())
+        })
+    }
+
     /// The buy's swap took and the player redocked through a new connection.
     fn swapped_and_redocked() -> Arc<Predicate> {
         when(|world| {
@@ -379,6 +400,14 @@ mod walk {
                 .is_some_and(GoalRecord::is_met)
     }
 
+    /// Whether a node carries the `Name` `name`.
+    fn named_node(world: &mut World, name: &str) -> bool {
+        world
+            .query::<&Name>()
+            .iter(world)
+            .any(|named| named.as_str() == name)
+    }
+
     fn shown_texts(world: &mut World) -> Vec<String> {
         world
             .query::<&Text>()
@@ -423,8 +452,8 @@ mod walk {
     }
 
     /// Pick the nearest station that is living, not on the Enemy side,
-    /// offers Refit, parks hulls for sale, and stands outside the spawn's
-    /// cell.
+    /// offers Refit, parks hulls for sale, and stands outside the origin's
+    /// cell, where the walk stands after its jump.
     fn choose_the_station(world: &mut World) {
         let (edge, _) = world_shape(world);
         let mut stations: Vec<(f32, GeneratedBodyId, Vec3)> = world
@@ -461,7 +490,7 @@ mod walk {
         let Some((distance, id, at)) = stations.into_iter().next() else {
             panic!(
                 "role goal flagship: the window on seed {STATION_SEED} holds no living, \
-                 non-Enemy station with Refit and parked hulls outside the spawn's cell"
+                 non-Enemy station with Refit and parked hulls outside the origin's cell"
             );
         };
         let position = Meters3::from_engine(at);
@@ -485,14 +514,14 @@ mod walk {
     }
 
     /// Where the player parks: [`PARK_DISTANCE`] from the station toward the
-    /// spawn, in the station's own cell.
+    /// origin, in the station's own cell.
     fn park_beside(world: &mut World) {
         let watch = world.resource::<GoalWatch>();
         let position = watch
             .position
             .expect("role goal flagship: the station is chosen");
-        let toward_spawn = (-position.get()).normalize_or_zero();
-        let beside = Meters3(position.get() + toward_spawn * PARK_DISTANCE.get());
+        let toward_origin = (-position.get()).normalize_or_zero();
+        let beside = Meters3(position.get() + toward_origin * PARK_DISTANCE.get());
         let (edge, _) = world_shape(world);
         assert_eq!(
             SectorCoord::containing(beside, edge),
@@ -960,28 +989,26 @@ mod walk {
 
     /// Claim 3: the chart view renders the met charter block.
     fn assert_map_charter(world: &mut World) {
-        let need = world
-            .resource::<GoalWatch>()
-            .need_cr
-            .expect("role goal flagship: the need value was captured");
-        let line = format!("Hull value, cr  {need} / {need}");
         let shown = shown_texts(world);
-        for expected in ["CHARTER", "The Line Warship", line.as_str()] {
-            assert!(
-                shown.iter().any(|text| text == expected),
-                "role goal flagship: the chart view shows '{expected}': {shown:?}"
-            );
-        }
         let met_row = shown
             .iter()
             .find(|text| text.starts_with("Met at "))
+            .cloned()
             .unwrap_or_else(|| {
                 panic!("role goal flagship: the chart view shows its met stamp: {shown:?}")
             });
+        assert!(
+            named_node(world, "MapChartObjectiveMet"),
+            "role goal flagship: the OBJECTIVES block holds the met row"
+        );
+        assert!(
+            !named_node(world, "MapChartObjectiveMilestone"),
+            "role goal flagship: a met role lists no milestone row: {shown:?}"
+        );
         nova_probe::probe_marker(
             world,
             "outcome: the map's chart view shows the flagship charter met",
-            serde_json::json!({ "heading": "CHARTER", "title": "The Line Warship", "line": line, "stamp": met_row }),
+            serde_json::json!({ "block": "OBJECTIVES", "stamp": met_row }),
         );
         info!("role goal flagship: the Map chart view shows the met flagship charter: {met_row}");
     }
@@ -1115,7 +1142,24 @@ mod walk {
             .step("role goal flagship: assert the opening charter")
             .on_enter(assert_opening_charter)
             .add()
-            .step("role goal flagship: the window streams in around the spawn")
+            .step("role goal flagship: the window streams in around the start")
+            .until(window_is(start_cell))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("role goal flagship: the start docks the player at its starting station")
+            .until(and(player_docked(), frames(SETTLE_FRAMES)))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("role goal flagship: undock from the starting station")
+            .on_enter(|world: &mut World| {
+                let player = player(world);
+                world.trigger(DockingReleaseRequest { entity: player });
+            })
+            .until(and(player_free(), frames(SETTLE_FRAMES)))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("role goal flagship: jump to the origin, the spawn before the docked start")
+            .on_enter(|world: &mut World| park_player(world, Meters3::ZERO))
             .until(window_is(|_| Some(SectorCoord::ORIGIN)))
             .deadline(SESSION_SECS)
             .add()
@@ -1187,7 +1231,7 @@ mod walk {
             script,
             "chart key",
             "map_chart",
-            a_text_reads(|text| text == "CHARTER"),
+            a_text_reads(|text| text.starts_with("Met at ")),
         )
         .step("role goal flagship: settle the charter block")
         .until(frames(6))

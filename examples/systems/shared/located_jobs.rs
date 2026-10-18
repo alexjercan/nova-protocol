@@ -1091,11 +1091,8 @@ fn assert_the_hand_in(world: &mut World) {
     let jobs = world.resource::<Jobs>().clone();
     assert!(jobs.held().is_empty(), "{tag} job: nothing is held");
     assert!(jobs.done().is_empty(), "{tag} job: nothing is done");
-    assert_eq!(
-        jobs.completed(),
-        &[job.id.clone()],
-        "{tag} job: the job is completed"
-    );
+    let completed: Vec<&JobId> = jobs.completed().iter().map(|done| &done.id).collect();
+    assert_eq!(completed, [&job.id], "{tag} job: the job is completed");
     let own_cr = world.get::<ShipCredits>(player).expect("credits").0;
     let station_cr = world.get::<ShipCredits>(station).expect("credits").0;
     assert_eq!(

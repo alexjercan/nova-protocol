@@ -62,11 +62,14 @@ const CELL_M: f32 = 10.0;
 
 /// How far the camera stands back from a design, as a multiple of its
 /// longest extent, plus a margin so a small hull is not shot from inside.
+#[cfg(feature = "debug")]
 const FRAME_DISTANCE_FACTOR: f32 = 1.35;
+#[cfg(feature = "debug")]
 const FRAME_DISTANCE_MARGIN: Meters = Meters(40.0);
 
 /// The direction the camera looks from: high, front and to the right of the
 /// row, so every hull reads two faces and its top at once.
+#[cfg(feature = "debug")]
 const FRAME_DIRECTION: Vec3 = Vec3::new(0.7, 0.55, 1.0);
 
 /// Real seconds the load and a shot may take on a software rasterizer, and
@@ -107,6 +110,10 @@ fn custom_plugin(app: &mut App) {
 }
 
 /// Where one design stands and how far its hull reaches.
+#[cfg_attr(
+    not(feature = "debug"),
+    expect(dead_code, reason = "only the debug capture walk frames each slot")
+)]
 #[derive(Clone, Debug)]
 struct Slot {
     /// The design id, which names its shot.
@@ -118,6 +125,10 @@ struct Slot {
 }
 
 /// The row as laid out at load.
+#[cfg_attr(
+    not(feature = "debug"),
+    expect(dead_code, reason = "only the debug capture walk reads the row")
+)]
 #[derive(Resource, Clone, Debug, Default)]
 struct Row {
     slots: Vec<Slot>,
@@ -241,6 +252,7 @@ fn load_row(
 }
 
 /// The camera pose that frames a box of `length` around `centre`.
+#[cfg(feature = "debug")]
 fn frame(centre: Meters3, length: Meters) -> (Meters3, Meters3) {
     let distance = length.get() * FRAME_DISTANCE_FACTOR + FRAME_DISTANCE_MARGIN.get();
     let eye = centre.get() + FRAME_DIRECTION.normalize() * distance;
@@ -248,6 +260,7 @@ fn frame(centre: Meters3, length: Meters) -> (Meters3, Meters3) {
 }
 
 /// The pose that frames the whole row.
+#[cfg(feature = "debug")]
 fn frame_row(row: &Row) -> (Meters3, Meters3) {
     let first = row.slots.first().expect("the row holds a design");
     let last = row.slots.last().expect("the row holds a design");

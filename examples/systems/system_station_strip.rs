@@ -5,8 +5,12 @@
 //! living station shows the Station tab, no strip block, and refuses a strip.
 //!
 //! Boots the shipped app (via [`editor_app`]), starts New Game on a pinned
-//! seed the way the Create World modal does, and lets the window stream in.
-//! It picks the nearest generated derelict ship (lootable, with a free live
+//! seed the way the Create World modal does, and lets the window stream in
+//! around the session's starting station, where the start docks the player.
+//! The walk undocks and jumps to the origin, the spawn point before the
+//! docked start: stations are a civilization apart, so the station it wants
+//! never streams in round the start. Once the window stands round the origin
+//! it picks the nearest generated derelict ship (lootable, with a free live
 //! port) and the nearest living Player or Neutral station. The player jumps
 //! beside each and is put on a berth at its collar each frame until the dock
 //! takes; the walk never flies an approach (`system_station_docking` does).
@@ -129,7 +133,7 @@ mod walk {
 
     use super::*;
 
-    /// The seed the range plays: its window around the spawn holds a
+    /// The seed the range plays: its window around the origin holds a
     /// generated derelict ship and a living Player or Neutral station.
     const STRIP_SEED: u32 = 115;
 
@@ -376,6 +380,16 @@ mod walk {
         (config.sector_edge, config.active_radius)
     }
 
+    /// The cell of the session's starting station, where the start docks the
+    /// player, once the session and the world config stand.
+    fn start_cell(world: &World) -> Option<SectorCoord> {
+        let edge = world
+            .get_resource::<WorldConfig<NovaLayeredWorld>>()?
+            .sector_edge;
+        let start = world.get_resource::<OpenWorldSession>()?.start.position;
+        Some(SectorCoord::containing(start, edge))
+    }
+
     fn live_cells(world: &World) -> std::collections::BTreeSet<SectorCoord> {
         world
             .try_query::<&SectorRoot>()
@@ -438,6 +452,12 @@ mod walk {
         })
     }
 
+    fn player_free() -> Arc<Predicate> {
+        when(|world| {
+            the_player(world).is_some_and(|player| world.get::<DockedShip>(player).is_none())
+        })
+    }
+
     fn the_interface_shows(pane: InterfacePaneType) -> Arc<Predicate> {
         when(move |world| {
             world
@@ -476,12 +496,12 @@ mod walk {
         info!("station strip: the player jumps to {position:?}");
     }
 
-    /// Park [`PARK_DISTANCE`] from `target` toward the spawn.
+    /// Park [`PARK_DISTANCE`] from `target` toward the origin.
     fn park_beside(world: &mut World, target: &Target) {
-        let toward_spawn = (-target.position.get()).normalize_or(Vec3::X);
+        let toward_origin = (-target.position.get()).normalize_or(Vec3::X);
         park_player(
             world,
-            Meters3(target.position.get() + toward_spawn * PARK_DISTANCE.get()),
+            Meters3(target.position.get() + toward_origin * PARK_DISTANCE.get()),
         );
     }
 
@@ -1380,7 +1400,24 @@ mod walk {
                 state_is(GameStates::Playing),
                 SESSION_SECS,
             )
-            .step("station strip: the window streams in around the spawn")
+            .step("station strip: the window streams in around the start")
+            .until(window_is(start_cell))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station strip: the start docks the player at its starting station")
+            .until(and(player_docked(), frames(SETTLE_FRAMES)))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station strip: undock from the starting station")
+            .on_enter(|world: &mut World| {
+                let player = player(world);
+                world.trigger(DockingReleaseRequest { entity: player });
+            })
+            .until(and(player_free(), frames(SETTLE_FRAMES)))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station strip: jump to the origin, the spawn before the docked start")
+            .on_enter(|world: &mut World| park_player(world, Meters3::ZERO))
             .until(window_is(|_| Some(SectorCoord::ORIGIN)))
             .deadline(SESSION_SECS)
             .add()

@@ -4,9 +4,13 @@
 //! player's, and it stays so across a retire, a thaw, a save and a Load.
 //!
 //! Boots the shipped app (via [`editor_app`]), starts New Game on a pinned
-//! seed the way the Create World modal does, and lets the window stream in.
-//! It picks the nearest generated station that is living, on the Neutral
-//! side, and stands outside the spawn's cell: a side the buy visibly
+//! seed the way the Create World modal does, and lets the window stream in
+//! around the session's starting station, where the start docks the player.
+//! The walk undocks and jumps to the origin, the spawn point before the
+//! docked start: stations are a civilization apart, so the station it wants
+//! never streams in round the start. Once the window stands round the origin
+//! it picks the nearest generated station that is living, on the Neutral
+//! side, and stands outside the origin's cell: a side the buy visibly
 //! changes. Before the buy the walk warms the station's civilization to
 //! Ally by merits, the way a player who hands in its jobs would, since the
 //! buy gate needs an Ally. The player jumps beside it and is put on a berth
@@ -124,8 +128,8 @@ mod walk {
 
     use super::*;
 
-    /// The seed the range plays: its window around the spawn holds a living
-    /// Neutral station outside the spawn's cell.
+    /// The seed the range plays: its window around the origin holds a living
+    /// Neutral station outside the origin's cell.
     const STATION_SEED: u32 = 10;
 
     const NEW_GAME_BUTTON: &str = "New Game Button";
@@ -417,6 +421,16 @@ mod walk {
         (config.sector_edge, config.active_radius)
     }
 
+    /// The cell of the session's starting station, where the start docks the
+    /// player, once the session and the world config stand.
+    fn start_cell(world: &World) -> Option<SectorCoord> {
+        let edge = world
+            .get_resource::<WorldConfig<NovaLayeredWorld>>()?
+            .sector_edge;
+        let start = world.get_resource::<OpenWorldSession>()?.start.position;
+        Some(SectorCoord::containing(start, edge))
+    }
+
     fn live_cells(world: &World) -> std::collections::BTreeSet<SectorCoord> {
         world
             .try_query::<&SectorRoot>()
@@ -529,12 +543,12 @@ mod walk {
     }
 
     /// Where the player parks: [`PARK_DISTANCE`] from the station toward the
-    /// spawn, in the station's own cell.
+    /// origin, in the station's own cell.
     fn park_beside(world: &mut World) {
         let watch = world.resource::<OwnWatch>();
         let position = watch.position.expect("the station is chosen");
-        let toward_spawn = (-position.get()).normalize_or_zero();
-        let beside = Meters3(position.get() + toward_spawn * PARK_DISTANCE.get());
+        let toward_origin = (-position.get()).normalize_or_zero();
+        let beside = Meters3(position.get() + toward_origin * PARK_DISTANCE.get());
         let (edge, _) = world_shape(world);
         assert_eq!(
             SectorCoord::containing(beside, edge),
@@ -745,7 +759,8 @@ mod walk {
     }
 
     /// Pick the nearest station that is living, generated, on the Neutral
-    /// side, and stands outside the spawn's cell.
+    /// side, and stands outside the origin's cell, where the walk stands
+    /// after its jump.
     fn choose_the_station(world: &mut World) {
         let (edge, _) = world_shape(world);
         let seen: Vec<(GeneratedBodyId, Option<Allegiance>, bool, Vec3)> = world
@@ -785,7 +800,7 @@ mod walk {
         let Some((distance, id, at)) = stations.into_iter().next() else {
             panic!(
                 "station own: the window on seed {STATION_SEED} holds no living Neutral station \
-                 outside the spawn's cell"
+                 outside the origin's cell"
             );
         };
         let position = Meters3::from_engine(at);
@@ -1300,7 +1315,24 @@ mod walk {
                 state_is(GameStates::Playing),
                 SESSION_SECS,
             )
-            .step("station own: the window streams in around the spawn")
+            .step("station own: the window streams in around the start")
+            .until(window_is(start_cell))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station own: the start docks the player at its starting station")
+            .until(and(player_docked(), frames(SETTLE_FRAMES)))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station own: undock from the starting station")
+            .on_enter(|world: &mut World| {
+                let player = player(world);
+                world.trigger(DockingReleaseRequest { entity: player });
+            })
+            .until(and(player_free(), frames(SETTLE_FRAMES)))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station own: jump to the origin, the spawn before the docked start")
+            .on_enter(|world: &mut World| park_player(world, Meters3::ZERO))
             .until(window_is(|_| Some(SectorCoord::ORIGIN)))
             .deadline(SESSION_SECS)
             .add()

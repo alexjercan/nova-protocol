@@ -88,6 +88,7 @@ const BRIDGE: (i32, i32) = (4, 0);
 
 /// What a shot looks at.
 #[derive(Clone, Copy, Debug)]
+#[cfg(feature = "debug")]
 enum Subject {
     Hull,
     Stair,
@@ -96,10 +97,12 @@ enum Subject {
 
 /// One framing: its name, the direction the camera looks from, how far back
 /// it stands as a multiple of the hull's longest extent, and what it aims at.
+#[cfg(feature = "debug")]
 type Shot = (&'static str, Vec3, f32, Subject);
 
 /// The whole hull, then each diagonal from the +X/-Y side (the valley under
 /// the steps), end on, and from the -X/+Y side (over the treads).
+#[cfg(feature = "debug")]
 const SHOTS: [Shot; 7] = [
     ("wide", Vec3::new(0.7, 0.55, 1.0), 1.5, Subject::Hull),
     (
@@ -176,6 +179,13 @@ fn custom_plugin(app: &mut App) {
 }
 
 /// Where the hull and its two diagonals stand, in meters.
+#[cfg_attr(
+    not(feature = "debug"),
+    expect(
+        dead_code,
+        reason = "only the debug capture walk aims at the stair and block"
+    )
+)]
 #[derive(Resource, Clone, Debug)]
 struct Frame {
     hull: Meters3,
@@ -184,6 +194,7 @@ struct Frame {
     length: Meters,
 }
 
+#[cfg(feature = "debug")]
 impl Frame {
     fn aim(&self, subject: Subject) -> Meters3 {
         match subject {

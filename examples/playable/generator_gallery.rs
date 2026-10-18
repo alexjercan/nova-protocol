@@ -625,7 +625,7 @@ fn generate_row(
             status: CivilizationStatusType::Living,
             advancement,
             role_preference: [1.0; 4],
-            allegiance: Allegiance::Neutral,
+            stance: StanceType::Neutral,
         };
         let mut station = generated_station(snapshot, items, &layout, &keeper);
         station.hull.presentation.skin = controls.skin == SkinType::Clad;

@@ -43,7 +43,7 @@ pub fn generated_station_design(
         status: CivilizationStatusType::Living,
         advancement,
         role_preference: [1.0; 4],
-        allegiance: Allegiance::Neutral,
+        stance: StanceType::Neutral,
     };
     let layout = generate_station(
         &snapshot,

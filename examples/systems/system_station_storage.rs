@@ -3,23 +3,34 @@
 //! save.
 //!
 //! Boots the shipped app (via [`editor_app`]), starts New Game on a pinned
-//! seed the way the Create World modal does, and lets the window stream in.
-//! It picks the nearest generated station that is living, not on the Enemy
-//! side, offers Trade and Storage, and stands outside the spawn's cell. THE
+//! seed the way the Create World modal does, and lets the window stream in
+//! around the session's starting station, where the start docks the player.
+//! The walk undocks and jumps to the origin, the spawn point before the
+//! docked start: stations are a civilization apart, so the station it wants
+//! never streams in round the start. Once the window stands round the origin
+//! it picks the nearest generated station that is living, not on the Enemy
+//! side, offers Trade and Storage, and stands outside the origin's cell. THE
 //! HOLD AND THE BALANCE ARE DISCLOSED FIXTURE STATE: the player's hold is set
-//! to 12 section panels and 3 rations and its balance to 1,000 cr, so the
-//! walk does not depend on what the start role spawns with. The player jumps
+//! to one section panel more than the station's storage cap takes, plus 3
+//! rations, and its balance to 1,000 cr, so the walk does not depend on what
+//! the start role spawns with. The player jumps
 //! beside the station and is put on a berth at its collar each frame until the
 //! dock takes; the walk never flies the approach (`system_station_docking`
 //! does).
 //!
 //! Every move after the dock goes through the Inventory pane by clicks: buy a
-//! turret barrel, sell a ration, store five panels and the barrel. The player
+//! hull plate, sell a ration, store five panels and the plate. The expected
+//! credits are the station's live quotes, read through `price` at the
+//! choice, as the pane shows them. (The walk once bought a turret barrel at
+//! the catalog's 60 cr: the waystation stocks no turret parts and a trader
+//! prices by its market, so the bought item is now the hull plate every
+//! station's goods stock holds.) The player
 //! undocks and jumps away until the station's cell retires, and the cell's
 //! record must hold the station's storage. The jump back thaws a new station
 //! entity; the player docks again and withdraws both stacks, and the counts
-//! must be the ones stored. Then a store of eleven panels (110 kg) must refuse
-//! on the form with Confirm disabled, two panels are stored, and the player
+//! must be the ones stored. Then a store of one panel more than the empty
+//! storage's cap takes (the cap is 1 t at advancement 0, once 100 kg) must
+//! refuse on the form with Confirm disabled, two panels are stored, and the player
 //! leaves to the main menu. The leave save is read back off disk through
 //! [`open_world`], and the world is loaded again in this process through the
 //! Load screen: the thawed station must hold the two panels.
@@ -30,7 +41,7 @@
 //! | 2 | `outcome: the player stores parts in the station's storage` | a Store through the pane moves the stacks from the hold to the station's storage with no credits, and fires `OnStored` once per stack with the station as subject |
 //! | 3 | `outcome: the retired station's record holds its storage` | the retired cell's record holds the station with the stored stacks |
 //! | 4 | `outcome: the thawed station gives back the same stacks` | the thawed station is a new entity holding the stored stacks; a Withdraw of each moves it back, the hold counts are the ones before the store, and `OnWithdrawn` fires once per stack |
-//! | 5 | `outcome: a store past the cap refuses on the form` | eleven panels against an empty 100 kg storage show `Refused: storage full, 100 kg free` with Confirm disabled, and nothing moves |
+//! | 5 | `outcome: a store past the cap refuses on the form` | one panel more than the empty storage's cap takes shows `Refused: storage full, <cap> free` with Confirm disabled, and nothing moves |
 //! | 6 | `outcome: the leave save holds the station's storage` | the leave save, read with [`open_world`], holds the station in its cell with the two stored panels |
 //! | 7 | `outcome: a loaded world gives the station its storage back` | after Load, the station stands under its id with the two stored panels |
 //!
@@ -116,9 +127,9 @@ mod walk {
 
     use super::*;
 
-    /// The seed the range plays. Its window around the spawn holds one
+    /// The seed the range plays. Its window around the origin holds one
     /// station, a living Neutral waystation in cell (1, 0, 0), 48 km out.
-    /// Seeds 6 to 9 and 11 to 13 hold only an Enemy, a dead or a spawn-cell
+    /// Seeds 6 to 9 and 11 to 13 hold only an Enemy, a dead or an origin-cell
     /// station.
     const STATION_SEED: u32 = 10;
 
@@ -144,23 +155,18 @@ mod walk {
     /// Item ids the walk moves.
     const PANEL: &str = "SectionPanel";
     const RATIONS: &str = "Rations";
-    const BARREL: &str = "TurretBarrel";
+    /// The item the walk buys: a goods item every generated station stocks
+    /// and the fixture hold does not hold.
+    const PLATE: &str = "HullPlate";
 
-    /// The disclosed fixture hold and balance.
-    const HOLD_PANELS: u32 = 12;
+    /// The disclosed fixture hold and balance. The panel count is one more
+    /// than the station's storage cap fits, read at the choice.
     const HOLD_RATIONS: u32 = 3;
     const PLAYER_CREDITS: u32 = 1_000;
-
-    /// The base catalog's ask for a barrel and bid for a ration.
-    const BARREL_ASK: u32 = 60;
-    const RATIONS_BID: u32 = 6;
 
     /// What the first visit stores, and what the second stores for the save.
     const STORED_PANELS: u32 = 5;
     const SAVED_PANELS: u32 = 2;
-    /// A store past the empty waystation's 100 kg cap: 110 kg of panels.
-    const OVER_CAP_PANELS: u32 = 11;
-    const OVER_CAP_REFUSAL: &str = "Refused: storage full, 100 kg free";
 
     /// How far from the station the player parks before the berth.
     const PARK_DISTANCE: Meters = Meters(2_000.0);
@@ -194,10 +200,18 @@ mod walk {
         position: Option<Meters3>,
         /// The entity that wore the id before the retire.
         before: Option<Entity>,
-        /// The player's panels and barrels right before the first store.
+        /// The player's panels and plates right before the first store.
         before_store: Option<(u32, u32)>,
-        /// The player's panels and barrels right after the two withdraws.
+        /// The player's panels and plates right after the two withdraws.
         after_withdraw: Option<(u32, u32)>,
+        /// The station's live ask for a plate and bid for a ration at the
+        /// choice, as the pane quotes them.
+        prices: Option<(u32, u32)>,
+        /// One panel more than the station's empty storage takes: the
+        /// fixture hold's panels and the over-cap store.
+        over_cap_panels: Option<u32>,
+        /// The station's storage cap, for the refusal's free text.
+        cap_g: Option<u32>,
         /// The storage right before the retire.
         stored: Option<BTreeMap<String, u32>>,
     }
@@ -306,6 +320,22 @@ mod walk {
         )
     }
 
+    fn over_cap_panels(world: &World) -> u32 {
+        world
+            .resource::<StorageWatch>()
+            .over_cap_panels
+            .expect("station storage: the over-cap count is chosen")
+    }
+
+    /// The form's refusal of a store past the empty storage's cap.
+    fn over_cap_refusal(world: &World) -> String {
+        let cap_g = world
+            .resource::<StorageWatch>()
+            .cap_g
+            .expect("station storage: the cap is read");
+        format!("Refused: storage full, {} free", kg_text(u64::from(cap_g)))
+    }
+
     fn stored_count(world: &World, item: &str) -> u32 {
         stored(world).get(item).copied().unwrap_or(0)
     }
@@ -313,6 +343,16 @@ mod walk {
     fn world_shape(world: &World) -> (Meters, i32) {
         let config = world.resource::<WorldConfig<NovaLayeredWorld>>();
         (config.sector_edge, config.active_radius)
+    }
+
+    /// The cell of the session's starting station, where the start docks the
+    /// player, once the session and the world config stand.
+    fn start_cell(world: &World) -> Option<SectorCoord> {
+        let edge = world
+            .get_resource::<WorldConfig<NovaLayeredWorld>>()?
+            .sector_edge;
+        let start = world.get_resource::<OpenWorldSession>()?.start.position;
+        Some(SectorCoord::containing(start, edge))
     }
 
     fn live_cells(world: &World) -> std::collections::BTreeSet<SectorCoord> {
@@ -390,12 +430,12 @@ mod walk {
     }
 
     /// Where the player parks: [`PARK_DISTANCE`] from the station toward the
-    /// spawn, in the station's own cell.
+    /// origin, in the station's own cell.
     fn park_beside(world: &mut World) {
         let watch = world.resource::<StorageWatch>();
         let position = watch.position.expect("the station is chosen");
-        let toward_spawn = (-position.get()).normalize_or_zero();
-        let beside = Meters3(position.get() + toward_spawn * PARK_DISTANCE.get());
+        let toward_origin = (-position.get()).normalize_or_zero();
+        let beside = Meters3(position.get() + toward_origin * PARK_DISTANCE.get());
         let (edge, _) = world_shape(world);
         assert_eq!(
             SectorCoord::containing(beside, edge),
@@ -554,7 +594,8 @@ mod walk {
     }
 
     /// Pick the nearest station that is living, not on the Enemy side, offers
-    /// Trade and Storage, and stands outside the spawn's cell; choose the
+    /// Trade and Storage, and stands outside the origin's cell, where the walk
+    /// stands after its jump; choose the
     /// retire jump; set the disclosed fixture hold and balance.
     fn choose_the_station(world: &mut World) {
         let (edge, radius) = world_shape(world);
@@ -605,7 +646,7 @@ mod walk {
         let Some((distance, id, entity)) = stations.into_iter().next() else {
             panic!(
                 "station storage: the window on seed {STATION_SEED} holds no living, non-Enemy \
-                 station with Trade and Storage outside the spawn's cell"
+                 station with Trade and Storage outside the origin's cell"
             );
         };
         let position = Meters3::from_engine(world.get::<Position>(entity).expect("a body").0);
@@ -635,24 +676,70 @@ mod walk {
              {station_cr} cr"
         );
 
+        // The live quotes the pane will show, by the station's market and
+        // its stock of each item at the choice: the Buy of a plate leaves the
+        // ration stock where it is.
+        let items = world.resource::<GameItems>().clone();
+        let table = world.resource::<GamePriceTable>().0.clone();
+        let market = world
+            .get::<TraderMarket>(entity)
+            .expect("station storage: a living station carries a TraderMarket")
+            .clone();
+        let plate_ask = price(
+            &table,
+            items.design(&PLATE.into()),
+            &market,
+            stock_of(&stock, PLATE),
+        )
+        .price
+        .ask_cr;
+        let ration_bid = price(
+            &table,
+            items.design(&RATIONS.into()),
+            &market,
+            stock_of(&stock, RATIONS),
+        )
+        .price
+        .bid_cr;
+        assert!(
+            stock_of(&stock, PLATE) > 0,
+            "station storage: '{id}' stocks no {PLATE} to buy"
+        );
+        // One panel more than the empty storage takes.
+        let cap_g = world
+            .get::<StationStorage>(entity)
+            .expect("station storage: a living station carries StationStorage")
+            .cap_g();
+        let panel_g = items.design(&PANEL.into()).mass_g;
+        let over_cap_panels = cap_g / panel_g + 1;
+
         // Disclosed fixture state: the hold and the balance the walk spends.
+        // The hold is widened to carry the over-cap panels, the rations and
+        // the bought plate.
         let player = player(world);
+        let needed_g = over_cap_panels * panel_g
+            + HOLD_RATIONS * items.design(&RATIONS.into()).mass_g
+            + items.design(&PLATE.into()).mass_g;
         let capacity_g = world
             .get::<ShipInventory>(player)
             .expect("the player carries a hold")
-            .capacity_g();
-        let items = world.resource::<GameItems>().clone();
+            .capacity_g()
+            .max(needed_g);
         let hold = ShipInventory::new(
             &items,
             capacity_g,
-            [(PANEL.into(), HOLD_PANELS), (RATIONS.into(), HOLD_RATIONS)],
+            [
+                (PANEL.into(), over_cap_panels),
+                (RATIONS.into(), HOLD_RATIONS),
+            ],
         );
         world
             .entity_mut(player)
             .insert((hold, ShipCredits(PLAYER_CREDITS)));
         info!(
-            "station storage: fixture hold {HOLD_PANELS} {PANEL}, {HOLD_RATIONS} {RATIONS} in \
-             {capacity_g} g, {PLAYER_CREDITS} cr"
+            "station storage: fixture hold {over_cap_panels} {PANEL}, {HOLD_RATIONS} {RATIONS} in \
+             {capacity_g} g, {PLAYER_CREDITS} cr; the station asks {plate_ask} cr a {PLATE}, bids \
+             {ration_bid} cr a {RATIONS}, stores {cap_g} g"
         );
 
         let mut watch = world.resource_mut::<StorageWatch>();
@@ -661,6 +748,14 @@ mod walk {
         watch.away = Some(away);
         watch.position = Some(position);
         watch.before = Some(entity);
+        watch.prices = Some((plate_ask, ration_bid));
+        watch.over_cap_panels = Some(over_cap_panels);
+        watch.cap_g = Some(cap_g);
+    }
+
+    /// `item`'s count in a stock listing.
+    fn stock_of(stock: &BTreeMap<String, u32>, item: &str) -> u32 {
+        stock.get(item).copied().unwrap_or(0)
     }
 
     /// Press and release a key action, one frame each.
@@ -714,7 +809,8 @@ mod walk {
     /// Switch the open own-row draft to Store and type `quantity`.
     fn store_draft(
         script: AutopilotPlugin<GameStates>,
-        quantity: u32,
+        label: &str,
+        quantity: impl Fn(&World) -> u32 + Send + Sync + 'static,
     ) -> AutopilotPlugin<GameStates> {
         script
             .click_named(
@@ -723,8 +819,9 @@ mod walk {
                 frames(SETTLE_FRAMES),
                 BEAT_SECS,
             )
-            .step(format!("station storage: type {quantity}"))
+            .step(format!("station storage: type {label}"))
             .on_enter(move |world: &mut World| {
+                let quantity = quantity(world);
                 set_field_text(world, QUANTITY_FIELD, &quantity.to_string());
             })
             .until(frames(SETTLE_FRAMES))
@@ -749,11 +846,15 @@ mod walk {
     fn assert_trades_and_stores(world: &mut World) {
         let player = player(world);
         let id = station_id(world).to_string();
-        let (panels, barrels) = world
+        let (panels, plates) = world
             .resource::<StorageWatch>()
             .before_store
             .expect("recorded before the store");
-        assert_eq!(barrels, 1, "station storage: the Buy brought one barrel");
+        let (plate_ask, ration_bid) = world
+            .resource::<StorageWatch>()
+            .prices
+            .expect("recorded at the choice");
+        assert_eq!(plates, 1, "station storage: the Buy brought one plate");
         assert_eq!(
             held(world, player, RATIONS),
             HOLD_RATIONS - 1,
@@ -761,13 +862,13 @@ mod walk {
         );
         assert_eq!(
             credits(world, player),
-            PLAYER_CREDITS - BARREL_ASK + RATIONS_BID,
+            PLAYER_CREDITS - plate_ask + ration_bid,
             "the Buy paid the ask and the Sell earned the bid"
         );
         assert_eq!(held(world, player, PANEL), panels - STORED_PANELS);
-        assert_eq!(held(world, player, BARREL), 0);
+        assert_eq!(held(world, player, PLATE), 0);
         let expected: BTreeMap<String, u32> =
-            [(PANEL.to_string(), STORED_PANELS), (BARREL.to_string(), 1)].into();
+            [(PANEL.to_string(), STORED_PANELS), (PLATE.to_string(), 1)].into();
         let storage = stored(world);
         assert_eq!(
             storage, expected,
@@ -783,7 +884,7 @@ mod walk {
             2,
             "one OnStored per stack: {stored_events:?}"
         );
-        for (item, count) in [(PANEL, STORED_PANELS), (BARREL, 1)] {
+        for (item, count) in [(PANEL, STORED_PANELS), (PLATE, 1)] {
             assert!(
                 stored_events.iter().any(|data| data["id"] == id.as_str()
                     && data["other_id"] == "player"
@@ -865,10 +966,10 @@ mod walk {
     fn assert_the_withdraw(world: &mut World) {
         let id = station_id(world).to_string();
         let watch = world.resource::<StorageWatch>();
-        let (panels, barrels) = watch.before_store.expect("recorded before the store");
+        let (panels, plates) = watch.before_store.expect("recorded before the store");
         assert_eq!(
             watch.after_withdraw,
-            Some((panels, barrels)),
+            Some((panels, plates)),
             "station storage: the withdraw gave back the stored stacks"
         );
         let withdrawn = world.resource::<StorageWatch>().named("onwithdrawn");
@@ -877,7 +978,7 @@ mod walk {
             2,
             "one OnWithdrawn per stack: {withdrawn:?}"
         );
-        for (item, count) in [(PANEL, STORED_PANELS), (BARREL, 1)] {
+        for (item, count) in [(PANEL, STORED_PANELS), (PLATE, 1)] {
             assert!(
                 withdrawn.iter().any(|data| data["id"] == id.as_str()
                     && data["item"] == item
@@ -888,17 +989,18 @@ mod walk {
         nova_probe::probe_marker(
             world,
             "outcome: the thawed station gives back the same stacks",
-            serde_json::json!({ "station": id, "panels": panels, "barrels": barrels }),
+            serde_json::json!({ "station": id, "panels": panels, "plates": plates }),
         );
-        info!("station storage: withdrew {panels} {PANEL} and {barrels} {BARREL}");
+        info!("station storage: withdrew {panels} {PANEL} and {plates} {PLATE}");
     }
 
-    /// Claim 5: eleven panels refuse on the form, Confirm disabled.
+    /// Claim 5: one panel over the cap refuses on the form, Confirm disabled.
     fn assert_the_over_cap_refusal(world: &mut World) {
         let player = player(world);
         let summary = node_text(world, DRAFT_SUMMARY);
         assert_eq!(
-            summary, OVER_CAP_REFUSAL,
+            summary,
+            over_cap_refusal(world),
             "station storage: the form refuses the store"
         );
         assert!(
@@ -910,7 +1012,7 @@ mod walk {
         nova_probe::probe_marker(
             world,
             "outcome: a store past the cap refuses on the form",
-            serde_json::json!({ "summary": summary, "panels": panels, "tried": OVER_CAP_PANELS }),
+            serde_json::json!({ "summary": summary, "panels": panels, "tried": over_cap_panels(world) }),
         );
         info!("station storage: '{summary}'");
     }
@@ -1018,7 +1120,24 @@ mod walk {
                 state_is(GameStates::Playing),
                 SESSION_SECS,
             )
-            .step("station storage: the window streams in around the spawn")
+            .step("station storage: the window streams in around the start")
+            .until(window_is(start_cell))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station storage: the start docks the player at its starting station")
+            .until(and(player_docked(), frames(SETTLE_FRAMES)))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station storage: undock from the starting station")
+            .on_enter(|world: &mut World| {
+                let player = player(world);
+                world.trigger(DockingReleaseRequest { entity: player });
+            })
+            .until(and(player_free(), frames(SETTLE_FRAMES)))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station storage: jump to the origin, the spawn before the docked start")
+            .on_enter(|world: &mut World| park_player(world, Meters3::ZERO))
             .until(window_is(|_| Some(SectorCoord::ORIGIN)))
             .deadline(SESSION_SECS)
             .add()
@@ -1039,11 +1158,11 @@ mod walk {
             .deadline(SESSION_SECS)
             .add();
         let script = open_inventory(script);
-        let script = pick_row(script, &format!("InventoryRowPartner{BARREL}"));
+        let script = pick_row(script, &format!("InventoryRowPartner{PLATE}"));
         let script = confirm(
             script,
             "the Buy",
-            when(|world| held(world, player(world), BARREL) == 1),
+            when(|world| held(world, player(world), PLATE) == 1),
         );
         let script = pick_row(script, &format!("InventoryRowOwn{RATIONS}"));
         let script = confirm(
@@ -1054,23 +1173,23 @@ mod walk {
         .step("station storage: record the hold before the store")
         .on_enter(|world: &mut World| {
             let player = player(world);
-            let counts = (held(world, player, PANEL), held(world, player, BARREL));
+            let counts = (held(world, player, PANEL), held(world, player, PLATE));
             world.resource_mut::<StorageWatch>().before_store = Some(counts);
         })
         .add();
         let script = pick_row(script, &format!("InventoryRowOwn{PANEL}"));
-        let script = store_draft(script, STORED_PANELS);
+        let script = store_draft(script, "the panels", |_| STORED_PANELS);
         let script = confirm(
             script,
             "the panel store",
             when(|world| stored_count(world, PANEL) == STORED_PANELS),
         );
-        let script = pick_row(script, &format!("InventoryRowOwn{BARREL}"));
-        let script = store_draft(script, 1);
+        let script = pick_row(script, &format!("InventoryRowOwn{PLATE}"));
+        let script = store_draft(script, "the plate", |_| 1);
         let script = confirm(
             script,
-            "the barrel store",
-            when(|world| stored_count(world, BARREL) == 1),
+            "the plate store",
+            when(|world| stored_count(world, PLATE) == 1),
         );
         // The pane pushed its reports under the interface pause; the tracker
         // drains them once the clock runs again.
@@ -1128,11 +1247,11 @@ mod walk {
             "the panel withdraw",
             when(|world| stored_count(world, PANEL) == 0),
         );
-        let script = pick_row(script, &format!("InventoryRowStorage{BARREL}"));
+        let script = pick_row(script, &format!("InventoryRowStorage{PLATE}"));
         let script = confirm(
             script,
-            "the barrel withdraw",
-            when(|world| stored_count(world, BARREL) == 0),
+            "the plate withdraw",
+            when(|world| stored_count(world, PLATE) == 0),
         )
         .step("station storage: record the hold after the withdraw")
         .on_enter(|world: &mut World| {
@@ -1141,12 +1260,12 @@ mod walk {
                 "station storage: the withdraws empty the storage"
             );
             let player = player(world);
-            let counts = (held(world, player, PANEL), held(world, player, BARREL));
+            let counts = (held(world, player, PANEL), held(world, player, PLATE));
             world.resource_mut::<StorageWatch>().after_withdraw = Some(counts);
         })
         .add();
         let script = pick_row(script, &format!("InventoryRowOwn{PANEL}"));
-        let script = store_draft(script, OVER_CAP_PANELS)
+        let script = store_draft(script, "one panel over the cap", over_cap_panels)
             .step("station storage: assert the over-cap refusal")
             .on_enter(assert_the_over_cap_refusal)
             .add()

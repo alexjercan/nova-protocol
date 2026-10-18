@@ -5,10 +5,14 @@
 //! and survives the leave save and a Load.
 //!
 //! Boots the shipped app (via [`editor_app`]), starts New Game on seed 10,
-//! picks `industrial`, and waits for the armed world and its first save. The
-//! active window around the spawn on this seed holds only one living,
-//! non-Enemy station, so the walk scouts: it scans the current window for
-//! living, non-Enemy, non-derelict stations outside the spawn's cell, and
+//! picks `industrial`, and waits for the window to stream in around the
+//! session's starting station, where the start docks the player, and for the
+//! first save. The walk undocks and jumps to the origin, the spawn point
+//! before the docked start: stations are a civilization apart, so no station
+//! it wants streams in round the start. The active window around the origin
+//! on this seed holds only one living, non-Enemy station, so the walk
+//! scouts: it scans the current window for living, non-Enemy, non-derelict
+//! stations outside the origin's cell, and
 //! once it holds two with at least one that offers Refit and hires out two
 //! escorts or more, it jumps a window's span along +X past the active
 //! radius and scans again. The first distinct pair it completes, with the
@@ -36,7 +40,7 @@
 //! | 2 | `outcome: two bought stations stand the charter at the escort line` | after both buys, `Stations owned 2 / 2` and `Escorts in fleet 0 / 2`, not met, still no stamp |
 //! | 3 | `outcome: hiring the second escort meets the empire charter and stamps the record once` | the first hire reads `1 / 2` escorts, not met; the second reads `2 / 2` and `2 / 2`, met, with a stamp inside the play clock that does not move across two more frames |
 //! | 4 | `outcome: a frozen station still counts toward the met empire charter` | after both stations' cells freeze, both frozen records are owned, both escorts still fly in the fleet, and the progress still reads `2 / 2`, `2 / 2`, met, with the same stamp |
-//! | 5 | `outcome: the map's chart view shows the empire charter met` | its text nodes show the charter heading, title, both met lines and a `Met at` row |
+//! | 5 | `outcome: the map's chart view shows the empire charter met` | its OBJECTIVES block shows one `Met at` row in place of the milestones and no milestone row |
 //! | 6 | `outcome: the leave save keeps the met empire charter` | `open_world` reads the same met stamp from the leave save |
 //! | 7 | `outcome: a load restores the met empire charter` | after Load and a frame, the same stamp, met progress and both escorts in the fleet return |
 //!
@@ -48,7 +52,7 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 //! `NOVA_CAPTURE=1` also writes `role-goal-empire-charter.png` of the chart
-//! view with the met CHARTER block.
+//! view with the met OBJECTIVES block.
 
 use bevy::prelude::*;
 use clap::Parser;
@@ -125,8 +129,8 @@ mod walk {
 
     use super::*;
 
-    /// The seed the range plays: its window around the spawn holds two
-    /// living, non-Enemy stations outside the spawn's cell, one of which
+    /// The seed the range plays: its window around the origin holds two
+    /// living, non-Enemy stations outside the origin's cell, one of which
     /// hires out two escorts or more.
     const STATION_SEED: u32 = 10;
 
@@ -342,6 +346,16 @@ mod walk {
         (config.sector_edge, config.active_radius)
     }
 
+    /// The cell of the session's starting station, where the start docks the
+    /// player, once the session and the world config stand.
+    fn start_cell(world: &World) -> Option<SectorCoord> {
+        let edge = world
+            .get_resource::<WorldConfig<NovaLayeredWorld>>()?
+            .sector_edge;
+        let start = world.get_resource::<OpenWorldSession>()?.start.position;
+        Some(SectorCoord::containing(start, edge))
+    }
+
     fn live_cells(world: &World) -> std::collections::BTreeSet<SectorCoord> {
         world
             .try_query::<&SectorRoot>()
@@ -443,11 +457,11 @@ mod walk {
     }
 
     /// Jump the player to the station tagged `tag`'s side, [`PARK_DISTANCE`]
-    /// from it toward the spawn, in its own cell.
+    /// from it toward the origin, in its own cell.
     fn jump_beside(world: &mut World, tag: &'static str) {
         let target = world.resource::<EmpireWatch>().station(tag);
-        let toward_spawn = (-target.position.get()).normalize_or_zero();
-        let beside = Meters3(target.position.get() + toward_spawn * PARK_DISTANCE.get());
+        let toward_origin = (-target.position.get()).normalize_or_zero();
+        let beside = Meters3(target.position.get() + toward_origin * PARK_DISTANCE.get());
         let (edge, _) = world_shape(world);
         assert_eq!(
             SectorCoord::containing(beside, edge),
@@ -674,8 +688,8 @@ mod walk {
     }
 
     /// A station the scout found: living, non-Enemy and non-derelict,
-    /// outside the spawn's cell, with whether it offers Refit and hires out
-    /// two escorts or more.
+    /// outside the origin's cell, where the walk stands after its jump, with
+    /// whether it offers Refit and hires out two escorts or more.
     #[derive(Clone, Debug)]
     struct Candidate {
         id: GeneratedBodyId,
@@ -705,7 +719,7 @@ mod walk {
     }
 
     /// Record every living, non-Enemy, non-derelict station in the current
-    /// window outside the spawn's cell that the scout has not already
+    /// window outside the origin's cell that the scout has not already
     /// discovered.
     fn scan_candidates(world: &mut World) {
         let (edge, _) = world_shape(world);
@@ -1005,6 +1019,14 @@ mod walk {
     }
 
     /// Every UI text on screen.
+    /// Whether a node carries the `Name` `name`.
+    fn named_node(world: &mut World, name: &str) -> bool {
+        world
+            .query::<&Name>()
+            .iter(world)
+            .any(|named| named.as_str() == name)
+    }
+
     fn shown_texts(world: &mut World) -> Vec<String> {
         world
             .query::<&Text>()
@@ -1208,32 +1230,25 @@ mod walk {
     /// Claim 5: the chart view renders the met charter block.
     fn assert_map_charter(world: &mut World) {
         let shown = shown_texts(world);
-        for expected in [
-            "CHARTER",
-            "A mining empire",
-            "Stations owned  2 / 2",
-            "Escorts in fleet  2 / 2",
-        ] {
-            assert!(
-                shown.iter().any(|text| text == expected),
-                "role goal empire: the chart view shows '{expected}': {shown:?}"
-            );
-        }
         let met_row = shown
             .iter()
             .find(|text| text.starts_with("Met at "))
+            .cloned()
             .unwrap_or_else(|| {
                 panic!("role goal empire: the chart view shows its met stamp: {shown:?}")
             });
+        assert!(
+            named_node(world, "MapChartObjectiveMet"),
+            "role goal empire: the OBJECTIVES block holds the met row"
+        );
+        assert!(
+            !named_node(world, "MapChartObjectiveMilestone"),
+            "role goal empire: a met role lists no milestone row: {shown:?}"
+        );
         nova_probe::probe_marker(
             world,
             "outcome: the map's chart view shows the empire charter met",
-            serde_json::json!({
-                "heading": "CHARTER",
-                "title": "A mining empire",
-                "lines": ["Stations owned  2 / 2", "Escorts in fleet  2 / 2"],
-                "stamp": met_row,
-            }),
+            serde_json::json!({ "block": "OBJECTIVES", "stamp": met_row }),
         );
         info!("role goal empire: the Map chart view shows the met empire charter: {met_row}");
     }
@@ -1427,7 +1442,26 @@ mod walk {
                 state_is(GameStates::Playing),
                 SESSION_SECS,
             )
-            .step("role goal empire: the window streams in and the first save lands")
+            .step(
+                "role goal empire: the window streams in around the start and the first save lands",
+            )
+            .until(and(window_is(start_cell), when(saved_and_idle)))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("role goal empire: the start docks the player at its starting station")
+            .until(and(player_docked(), frames(SETTLE_FRAMES)))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("role goal empire: undock from the starting station")
+            .on_enter(|world: &mut World| {
+                let player = player(world);
+                world.trigger(DockingReleaseRequest { entity: player });
+            })
+            .until(and(player_free(), frames(SETTLE_FRAMES)))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("role goal empire: jump to the origin, the spawn before the docked start")
+            .on_enter(|world: &mut World| park_player(world, Meters3::ZERO))
             .until(and(
                 window_is(|_| Some(SectorCoord::ORIGIN)),
                 when(saved_and_idle),
@@ -1554,7 +1588,7 @@ mod walk {
             script,
             "the chart key",
             "map_chart",
-            a_text_reads(|text| text == "CHARTER"),
+            a_text_reads(|text| text.starts_with("Met at ")),
         )
         .step("role goal empire: settle the charter block")
         .until(frames(SETTLE_FRAMES))

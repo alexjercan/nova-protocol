@@ -6,7 +6,11 @@
 //!
 //! Boots the shipped app (via [`editor_app`]), starts New Game on a pinned
 //! seed as the pirate the way the Create World modal does, and lets the
-//! window stream in. It scans the window for a civilization X with a living
+//! window stream in around the session's starting station, where the start
+//! docks the player. The walk undocks and jumps to the origin, the spawn
+//! point before the docked start: stations are a civilization apart, so the
+//! station it wants never streams in round the start. Once the window stands
+//! round the origin it scans the window for a civilization X with a living
 //! non-Enemy station AND three other living, non-Enemy hulls of its own
 //! inside the window round that station's cell, whose seeded rival (a living
 //! neighbour on an Enemy edge) N is not Enemy itself; the nearest such
@@ -121,8 +125,8 @@ mod walk {
     use super::*;
 
     /// The seed the range plays: `system_station_round_trip`'s seed, whose
-    /// window around the spawn holds a living Neutral station outside the
-    /// spawn's cell. Unverified here: that the window also holds three more
+    /// window around the origin holds a living Neutral station outside the
+    /// origin's cell. Unverified here: that the window also holds three more
     /// living, non-Enemy hulls of that station's civilization - see the
     /// module doc and the report this range shipped with.
     const STATION_SEED: u32 = 10;
@@ -283,6 +287,16 @@ mod walk {
         (config.sector_edge, config.active_radius)
     }
 
+    /// The cell of the session's starting station, where the start docks the
+    /// player, once the session and the world config stand.
+    fn start_cell(world: &World) -> Option<SectorCoord> {
+        let edge = world
+            .get_resource::<WorldConfig<NovaLayeredWorld>>()?
+            .sector_edge;
+        let start = world.get_resource::<OpenWorldSession>()?.start.position;
+        Some(SectorCoord::containing(start, edge))
+    }
+
     fn live_cells(world: &World) -> std::collections::BTreeSet<SectorCoord> {
         world
             .try_query::<&SectorRoot>()
@@ -431,15 +445,15 @@ mod walk {
     }
 
     /// Where the player parks: [`PARK_DISTANCE`] from the dock target toward
-    /// the spawn. Also the stand-off for the kills: a wreck breaking up at
+    /// the origin. Also the stand-off for the kills: a wreck breaking up at
     /// the berth took the player's own docking section in an earlier run.
     fn park_beside(world: &mut World) {
         let position = world
             .resource::<StanceWatch>()
             .dock_position
             .expect("civilization stance: the dock target is chosen");
-        let toward_spawn = (-position.get()).normalize_or_zero();
-        let beside = Meters3(position.get() + toward_spawn * PARK_DISTANCE.get());
+        let toward_origin = (-position.get()).normalize_or_zero();
+        let beside = Meters3(position.get() + toward_origin * PARK_DISTANCE.get());
         park_player(world, beside);
     }
 
@@ -1191,7 +1205,24 @@ mod walk {
                 state_is(GameStates::Playing),
                 SESSION_SECS,
             )
-            .step("civilization stance: the window streams in around the spawn")
+            .step("civilization stance: the window streams in around the start")
+            .until(window_is(start_cell))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("civilization stance: the start docks the player at its starting station")
+            .until(and(player_docked(), frames(SETTLE_FRAMES)))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("civilization stance: undock from the starting station")
+            .on_enter(|world: &mut World| {
+                let player = player(world);
+                world.trigger(DockingReleaseRequest { entity: player });
+            })
+            .until(and(player_free(), frames(SETTLE_FRAMES)))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("civilization stance: jump to the origin, the spawn before the docked start")
+            .on_enter(|world: &mut World| park_player(world, Meters3::ZERO))
             .until(window_is(|_| Some(SectorCoord::ORIGIN)))
             .deadline(SESSION_SECS)
             .add()

@@ -54,6 +54,7 @@ const SPUR: i32 = 2;
 
 /// What a shot looks at.
 #[derive(Clone, Copy, Debug)]
+#[cfg(feature = "debug")]
 enum Subject {
     Hull,
     WingTip,
@@ -62,9 +63,11 @@ enum Subject {
 
 /// One framing: its name, the direction the camera looks from, how far back
 /// it stands as a multiple of the hull's longest extent, and what it aims at.
+#[cfg(feature = "debug")]
 type Shot = (&'static str, Vec3, f32, Subject);
 
 /// The whole hull, then the +X wing tip and the spur end up close.
+#[cfg(feature = "debug")]
 const SHOTS: [Shot; 3] = [
     ("wide", Vec3::new(0.7, 0.55, 1.0), 1.1, Subject::Hull),
     ("wing-tip", Vec3::new(1.0, 0.6, 0.7), 0.35, Subject::WingTip),
@@ -107,6 +110,13 @@ fn custom_plugin(app: &mut App) {
 }
 
 /// Where the hull, the +X wing tip and the spur end stand, in meters.
+#[cfg_attr(
+    not(feature = "debug"),
+    expect(
+        dead_code,
+        reason = "only the debug capture walk aims at the wing tip and spur end"
+    )
+)]
 #[derive(Resource, Clone, Debug)]
 struct Frame {
     hull: Meters3,
@@ -115,6 +125,7 @@ struct Frame {
     length: Meters,
 }
 
+#[cfg(feature = "debug")]
 impl Frame {
     fn aim(&self, subject: Subject) -> Meters3 {
         match subject {

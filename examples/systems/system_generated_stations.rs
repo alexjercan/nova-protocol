@@ -3,7 +3,11 @@
 //!
 //! Boots the shipped app (via [`editor_app`]), starts New Game on a pinned
 //! seed the way the Create World modal does, and lets the 5x5x5 window stream
-//! in around the spawn. Then it finds the nearest generated station - its
+//! in around the session's starting station, where the start docks the
+//! player. The walk undocks and jumps to the origin, the spawn point before
+//! the docked start: stations are a civilization apart, so the station it
+//! wants never streams in round the start. Once the window stands round the
+//! origin it finds the nearest generated station - its
 //! typed id, the civilization in its name, living or dead, and how far it
 //! stands - jumps to its side, jumps far enough along one axis that the
 //! station's cell leaves the window, and jumps back. The claim is that the
@@ -87,8 +91,8 @@ fn main() -> bevy::app::AppExit {
 }
 
 /// The seed the range plays: its nearest station stands at rest beside a
-/// rock in the window's +X face, cell (2, 0, 0), 53 km from the spawn. A
-/// station in the spawn's own cell could not be retired by one jump, and an
+/// rock in the window's +X face, cell (2, 0, 0), 53 km from the origin. A
+/// station in the origin's own cell could not be retired by one jump, and an
 /// orbiting one would make the pose claim about its orbit.
 #[cfg(feature = "debug")]
 const STATION_SEED: u32 = 6;
@@ -178,6 +182,17 @@ fn world_shape(world: &World) -> (Meters, i32) {
     (config.sector_edge, config.active_radius)
 }
 
+/// The cell of the session's starting station, where the start docks the
+/// player, once the session and the world config stand.
+#[cfg(feature = "debug")]
+fn start_cell(world: &World) -> Option<SectorCoord> {
+    let edge = world
+        .get_resource::<WorldConfig<NovaLayeredWorld>>()?
+        .sector_edge;
+    let start = world.get_resource::<OpenWorldSession>()?.start.position;
+    Some(SectorCoord::containing(start, edge))
+}
+
 /// The live cells, as a set.
 #[cfg(feature = "debug")]
 fn live_cells(world: &World) -> std::collections::BTreeSet<SectorCoord> {
@@ -244,6 +259,34 @@ fn window_is(centre: SectorCoord) -> std::sync::Arc<nova_protocol::nova_debug::h
         }
         let (_, radius) = world_shape(world);
         live_cells(world) == desired_sectors(centre, radius)
+    })
+}
+
+/// Advance once the window is the one around the session's starting
+/// station's cell.
+#[cfg(feature = "debug")]
+fn window_is_the_start() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        let Some(cell) = start_cell(world) else {
+            return false;
+        };
+        window_is(cell)(world)
+    })
+}
+
+/// Advance once the player ship is docked.
+#[cfg(feature = "debug")]
+fn player_docked() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        the_player(world).is_some_and(|player| world.get::<DockedShip>(player).is_some())
+    })
+}
+
+/// Advance once the player ship is undocked.
+#[cfg(feature = "debug")]
+fn player_free() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        the_player(world).is_some_and(|player| world.get::<DockedShip>(player).is_none())
     })
 }
 
@@ -319,7 +362,24 @@ fn station_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
             state_is(GameStates::Playing),
             SESSION_SECS,
         )
-        .step("generated_stations: the window streams in around the spawn")
+        .step("generated_stations: the window streams in around the start")
+        .until(window_is_the_start())
+        .deadline(SESSION_SECS)
+        .add()
+        .step("generated_stations: the start docks the player at its starting station")
+        .until(and(player_docked(), frames(SETTLE_FRAMES)))
+        .deadline(SESSION_SECS)
+        .add()
+        .step("generated_stations: undock from the starting station")
+        .on_enter(|world: &mut World| {
+            let player = the_player(world).expect("generated_stations: exactly one player ship");
+            world.trigger(DockingReleaseRequest { entity: player });
+        })
+        .until(and(player_free(), frames(SETTLE_FRAMES)))
+        .deadline(SESSION_SECS)
+        .add()
+        .step("generated_stations: jump to the origin, the spawn before the docked start")
+        .on_enter(|world: &mut World| park_player(world, Meters3::ZERO))
         .until(window_is(SectorCoord::ORIGIN))
         .deadline(SESSION_SECS)
         .add()
@@ -366,13 +426,13 @@ fn station_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
 }
 
 /// Where the player parks: [`PARK_DISTANCE`] from the station toward the
-/// spawn, in the station's own cell.
+/// origin, in the station's own cell.
 #[cfg(feature = "debug")]
 fn park_beside(world: &World) -> Meters3 {
     let watch = world.resource::<StationWatch>();
     let position = watch.position.expect("the station is chosen");
-    let toward_spawn = (-position.get()).normalize_or_zero();
-    let beside = Meters3(position.get() + toward_spawn * PARK_DISTANCE.get());
+    let toward_origin = (-position.get()).normalize_or_zero();
+    let beside = Meters3(position.get() + toward_origin * PARK_DISTANCE.get());
     let (edge, _) = world_shape(world);
     assert_eq!(
         SectorCoord::containing(beside, edge),
@@ -382,12 +442,13 @@ fn park_beside(world: &World) -> Meters3 {
     beside
 }
 
-/// Pick the generated station nearest the spawn, log what it is, and choose
+/// Pick the generated station nearest the origin, log what it is, and choose
 /// the retire jump: along the axis the station's cell is farthest out on,
 /// to the cell on the far side of the window whose window excludes it.
 ///
 /// Refuses to run on a seed whose window holds no station, whose nearest
-/// station stands in the spawn's cell, or whose nearest station is moving:
+/// station stands in the origin's cell, where the walk stands after its
+/// jump, or whose nearest station is moving:
 /// each would make the claim about something else.
 #[cfg(feature = "debug")]
 fn find_the_nearest_station(world: &mut World) {
@@ -408,7 +469,7 @@ fn find_the_nearest_station(world: &mut World) {
     stations.sort_by(|a, b| a.0.total_cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
     let Some((distance, id, entity)) = stations.into_iter().next() else {
         panic!(
-            "generated_stations: the window around the spawn holds no generated station on seed \
+            "generated_stations: the window around the origin holds no generated station on seed \
              {STATION_SEED}, so this claim cannot be made here"
         );
     };
@@ -426,8 +487,8 @@ fn find_the_nearest_station(world: &mut World) {
     assert_ne!(
         cell,
         SectorCoord::ORIGIN,
-        "generated_stations: the nearest station stands in the spawn's own cell on seed \
-         {STATION_SEED}, which one jump cannot retire"
+        "generated_stations: the nearest station stands in the origin's own cell, where the walk \
+         stands after its jump, on seed {STATION_SEED}, which one jump cannot retire"
     );
     let velocity = world
         .get::<LinearVelocity>(entity)
@@ -459,7 +520,7 @@ fn find_the_nearest_station(world: &mut World) {
 
     info!(
         "generated_stations: nearest station '{id}' ({name}, {}) in cell {cell}, {distance:.0} m \
-         from the spawn",
+         from the origin",
         if dead { "dead" } else { "living" }
     );
     nova_probe::probe_marker(

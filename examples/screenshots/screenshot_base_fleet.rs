@@ -48,6 +48,7 @@ const FLEET: [(&str, f32); 9] = [
 const SPACING: Meters = Meters(600.0);
 
 /// The eye's offset from a hull at distance factor 1: above the port bow.
+#[cfg(feature = "debug")]
 const EYE: Meters3 = Meters3::new(-110.0, 55.0, -95.0);
 
 fn slot(index: usize) -> Meters3 {

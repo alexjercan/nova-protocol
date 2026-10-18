@@ -5,9 +5,13 @@
 //! player left it.
 //!
 //! Boots the shipped app (via [`editor_app`]), starts New Game on a pinned
-//! seed the way the Create World modal does, and lets the window stream in.
-//! It picks the nearest generated station that is living, not on the Enemy
-//! side, offers Rebuild, and stands outside the spawn's cell. The walk picks
+//! seed the way the Create World modal does, and lets the window stream in
+//! around the session's starting station, where the start docks the player.
+//! The walk undocks and jumps to the origin, the spawn point before the
+//! docked start: stations are a civilization apart, so the station it wants
+//! never streams in round the start. Once the window stands round the origin
+//! it picks the nearest generated station that is living, not on the Enemy
+//! side, offers Rebuild, and stands outside the origin's cell. The walk picks
 //! the scavenger start role. THE LOSS AND THE PARTS ARE DISCLOSED FIXTURE
 //! STATE: the salvage hauler's `pdc_dorsal` is set
 //! to zero health with the depletion marker, the state the damage path leaves
@@ -116,7 +120,7 @@ mod walk {
     use super::*;
 
     /// The seed the range plays: `system_station_storage`'s seed, whose window
-    /// around the spawn holds a living Neutral station outside the spawn's
+    /// around the origin holds a living Neutral station outside the origin's
     /// cell.
     const STATION_SEED: u32 = 10;
 
@@ -445,6 +449,16 @@ mod walk {
         (config.sector_edge, config.active_radius)
     }
 
+    /// The cell of the session's starting station, where the start docks the
+    /// player, once the session and the world config stand.
+    fn start_cell(world: &World) -> Option<SectorCoord> {
+        let edge = world
+            .get_resource::<WorldConfig<NovaLayeredWorld>>()?
+            .sector_edge;
+        let start = world.get_resource::<OpenWorldSession>()?.start.position;
+        Some(SectorCoord::containing(start, edge))
+    }
+
     fn live_cells(world: &World) -> std::collections::BTreeSet<SectorCoord> {
         world
             .try_query::<&SectorRoot>()
@@ -559,12 +573,12 @@ mod walk {
     }
 
     /// Where the player parks: [`PARK_DISTANCE`] from the station toward the
-    /// spawn, in the station's own cell.
+    /// origin, in the station's own cell.
     fn park_beside(world: &mut World) {
         let watch = world.resource::<RoundTripWatch>();
         let position = watch.position.expect("the station is chosen");
-        let toward_spawn = (-position.get()).normalize_or_zero();
-        let beside = Meters3(position.get() + toward_spawn * PARK_DISTANCE.get());
+        let toward_origin = (-position.get()).normalize_or_zero();
+        let beside = Meters3(position.get() + toward_origin * PARK_DISTANCE.get());
         let (edge, _) = world_shape(world);
         assert_eq!(
             SectorCoord::containing(beside, edge),
@@ -704,8 +718,8 @@ mod walk {
     }
 
     /// Pick the nearest station that is living, not on the Enemy side,
-    /// offers Rebuild, and stands outside the spawn's cell; choose the
-    /// retire jump.
+    /// offers Rebuild, and stands outside the origin's cell, where the walk
+    /// stands after its jump; choose the retire jump.
     fn choose_the_station(world: &mut World) {
         let (edge, radius) = world_shape(world);
         let mut stations: Vec<(f32, GeneratedBodyId, Entity)> = world
@@ -738,7 +752,7 @@ mod walk {
         let Some((distance, id, entity)) = stations.into_iter().next() else {
             panic!(
                 "station round trip: the window on seed {STATION_SEED} holds no living, non-Enemy \
-                 station with Rebuild outside the spawn's cell"
+                 station with Rebuild outside the origin's cell"
             );
         };
         let pose = pose_of(world, entity);
@@ -1188,7 +1202,24 @@ mod walk {
                 state_is(GameStates::Playing),
                 SESSION_SECS,
             )
-            .step("station round trip: the window streams in around the spawn")
+            .step("station round trip: the window streams in around the start")
+            .until(and(window_is(start_cell), section_coded()))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station round trip: the start docks the player at its starting station")
+            .until(and(player_docked(), frames(SETTLE_FRAMES)))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station round trip: undock from the starting station")
+            .on_enter(|world: &mut World| {
+                let player = player(world);
+                world.trigger(DockingReleaseRequest { entity: player });
+            })
+            .until(and(player_free(), frames(SETTLE_FRAMES)))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station round trip: jump to the origin, the spawn before the docked start")
+            .on_enter(|world: &mut World| park_player(world, Meters3::ZERO))
             .until(and(
                 window_is(|_| Some(SectorCoord::ORIGIN)),
                 section_coded(),
