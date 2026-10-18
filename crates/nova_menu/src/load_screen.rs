@@ -800,7 +800,7 @@ fn spawn_load_row(
                             "Load World Row Open",
                             open_count_text(header),
                             ROW_BADGE_SLOT_W,
-                            UiColor::Label,
+                            UiColor::Body,
                         ));
                     }
                     Err(_) => {

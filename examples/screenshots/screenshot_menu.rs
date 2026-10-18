@@ -112,6 +112,10 @@ const LOAD_PREVIEW: &str = "Load World Details Preview";
 #[cfg(feature = "debug")]
 const LOAD_ROW_OPEN: &str = "Load World Row Open";
 
+/// A Load row's play time, the column the open count must read like.
+#[cfg(feature = "debug")]
+const LOAD_ROW_PLAY_TIME: &str = "Load World Row Play Time";
+
 /// The Load details' FLEET line naming the hull flown.
 #[cfg(feature = "debug")]
 const LOAD_FLEET_SHIP: &str = "Load World Details Fleet Ship";
@@ -359,10 +363,29 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
                     "screenshot_menu: the Load details lack '{name}'"
                 );
             }
+            let objectives = named_nodes(world, LOAD_OBJECTIVE);
+            let open = node_text(world, LOAD_ROW_OPEN);
+            assert_eq!(
+                open,
+                format!("{objectives} open"),
+                "screenshot_menu: the Load row's open count does not match the {objectives} open objectives in its details"
+            );
         })
         .add()
         .step("settle the Load screen")
         .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("the Load row's open count reads in the other columns' ink")
+        .on_enter(|world: &mut World| {
+            // The selected row's fill is the label ink, so an open count in
+            // label colour drew but did not read.
+            let open = node_text_color(world, LOAD_ROW_OPEN);
+            let play_time = node_text_color(world, LOAD_ROW_PLAY_TIME);
+            assert_eq!(
+                open, play_time,
+                "screenshot_menu: the Load row's open count is not in the play time's colour"
+            );
+        })
         .add()
         .step("capture the Load screen")
         .on_enter(shot(LOAD_SHOT))
@@ -376,6 +399,38 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
 fn named_node(world: &mut World, name: &str) -> bool {
     let mut query = world.query::<&Name>();
     query.iter(world).any(|node| node.as_str() == name)
+}
+
+/// How many nodes are called `name`.
+#[cfg(feature = "debug")]
+fn named_nodes(world: &mut World, name: &str) -> usize {
+    let mut query = world.query::<&Name>();
+    query
+        .iter(world)
+        .filter(|node| node.as_str() == name)
+        .count()
+}
+
+/// The text of the one node called `name`.
+#[cfg(feature = "debug")]
+fn node_text(world: &mut World, name: &str) -> String {
+    let mut query = world.query::<(&Name, &Text)>();
+    query
+        .iter(world)
+        .find(|(node, _)| node.as_str() == name)
+        .map(|(_, text)| text.0.clone())
+        .unwrap_or_else(|| panic!("screenshot_menu: no text node '{name}'"))
+}
+
+/// The resolved text colour of the one node called `name`.
+#[cfg(feature = "debug")]
+fn node_text_color(world: &mut World, name: &str) -> Color {
+    let mut query = world.query::<(&Name, &TextColor)>();
+    query
+        .iter(world)
+        .find(|(node, _)| node.as_str() == name)
+        .map(|(_, color)| color.0)
+        .unwrap_or_else(|| panic!("screenshot_menu: no text node '{name}'"))
 }
 
 /// Advance once the seed field reads `seed`.
