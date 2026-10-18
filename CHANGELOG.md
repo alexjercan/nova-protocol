@@ -218,6 +218,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   hand-in station, reward, time left or progress, and Show on Map, which
   opens the Map's chart view on the job's mark.
 - Job rows carry a kind icon: crate, hook, chevrons, beacon or reticle.
+- In flight, a held job's wreck, hauler, caller or hull wears a gold `JOB-n`
+  chip with its distance; a done job's chip moves to the station that pays it.
 - Inventory rows at a trader show the price of one with a `vs ref` badge of
   the percent off the reference, green under and amber over; the inspector
   reads Reference, Pays and Asks.

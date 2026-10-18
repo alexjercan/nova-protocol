@@ -162,11 +162,7 @@ pub(crate) fn chart_mark_code(
             .iter()
             .position(|wreck| wreck.id == *id)
             .map(|index| format!("WRK-{}", index + 1)),
-        MapChartMarkType::Job(id) => jobs
-            .held()
-            .iter()
-            .position(|job| job.id == *id)
-            .map(|index| format!("JOB-{}", index + 1)),
+        MapChartMarkType::Job(id) => jobs.mark_code(id),
     }
 }
 

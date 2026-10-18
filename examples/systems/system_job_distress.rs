@@ -14,15 +14,20 @@
 //! | 3 | `outcome: the world marks the distress job done` | after the work the job is listed done while still held |
 //! | 4 | `outcome: the hand-in pays the distress job` | docked again, the Hand in click pays the reward from the station and lists the job completed |
 //!
+//! Between claims 1 and 3 the range also parks in flight off the caller and
+//! asserts the caller wears its in-flight objective marker chip.
+//!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
 //! NOVA_AUTOPILOT=1 NOVA_AUTOPILOT_DEADLINE=1800 \
 //!   cargo run --example system_job_distress --features debug
-//! # look for: `distress job: PASS the hand-in paid`,
+//! # look for: `distress job: PASS the caller wears the in-flight marker`,
+//! #           `distress job: PASS the hand-in paid`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 //! `NOVA_CAPTURE=1` also writes `job-distress-board.png` of the Jobs tab
-//! with the held job and `job-distress-done.png` after the hand-in.
+//! with the held job, `job-distress-inflight.png` of the caller in flight
+//! wearing its marker chip, and `job-distress-done.png` after the hand-in.
 
 use bevy::prelude::*;
 use clap::Parser;

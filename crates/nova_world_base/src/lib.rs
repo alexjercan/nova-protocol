@@ -279,6 +279,8 @@ impl Plugin for NovaWorldBasePlugin {
                     stance::expire_stances,
                     stance::sync_civilization_sides,
                     jobs::post_station_boards,
+                    // After the boards, so a renewal's despawns land first.
+                    jobs::mark_held_job_targets,
                 )
                     .chain()
                     .after(NovaWorldSystems::Retire)

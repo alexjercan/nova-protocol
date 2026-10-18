@@ -33,10 +33,12 @@
 //! taken out, on the `onneutralized` or `ondestroyed` of what retires it
 //! ([`drop_on_loss`]): its poster, done or not, or its hauler, its wreck or
 //! its genuine caller before the job is done. A done job keeps its hand-in.
+//! Every standing body a held job sends the player to wears the HUD's
+//! objective chip as `JOB-n` ([`mark_held_job_targets`]).
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use bevy::prelude::*;
+use bevy::{ecs::entity::EntityHashSet, prelude::*};
 use nova_events::prelude::{
     EventKind, GameEvent, GeneratedBodyId, Meters, Meters3, MetersPerSecond3, OnDestroyedEvent,
     OnDockedEvent, OnNeutralizedEvent, OnShipOrderCompleteEvent, OnUndockedEvent, SectorCoord,
@@ -44,9 +46,9 @@ use nova_events::prelude::{
 use nova_gameplay::prelude::{
     station_job_offers, station_offers, unit_sphere_point, Allegiance, DerelictShipMarker, Fnv32,
     GameItems, GamePriceTable, Job, JobAccepted, JobBoard, JobField, JobHull, JobId, JobMixType,
-    JobPostings, JobType, JobWreck, Jobs, NeutralizedMarker, PlayerSpaceshipMarker, SeedStream,
-    ShipInventory, ShipRoleType, SpaceshipRootMarker, StarterBoardMarker, StationMarker,
-    StationServiceType, StationServices, JOBS_PER_BOARD,
+    JobPostings, JobType, JobWreck, Jobs, NeutralizedMarker, ObjectiveMarkerTarget,
+    PlayerSpaceshipMarker, SeedStream, ShipInventory, ShipRoleType, SpaceshipRootMarker,
+    StarterBoardMarker, StationMarker, StationServiceType, StationServices, JOBS_PER_BOARD,
 };
 use nova_scenario::prelude::{
     base_scenario_object, spaceship_scenario_object, AIControllerConfig, BaseScenarioObjectConfig,
@@ -912,6 +914,81 @@ pub(crate) fn neutralize_on_kill(event: On<GameEvent>, mut jobs: ResMut<Jobs>) {
     }
 }
 
+/// Keep the HUD's objective chip on every standing body a held job sends the
+/// player to: an undone recovery's wreck, escort's hauler, distress call's
+/// caller or neutralize's hull as `JOB-n <verb>`, and a done job's poster as
+/// `JOB-n Hand in`. The codes of every job on one body share its one tag
+/// (`JOB-1, JOB-2 Hand in`). A procurement marks nothing: its work is the
+/// hand-in itself. A frozen or unspawned body has no entity and no chip; the
+/// chart's JOB-n mark stands for it, and the body is tagged the frame it
+/// thaws or spawns. A tag this system put on a body no held job names comes
+/// off.
+///
+/// # Panics
+///
+/// When a body a held job names wears a tag this system did not put there:
+/// a scenario and the jobs would both own its one chip.
+pub(crate) fn mark_held_job_targets(
+    mut commands: Commands,
+    jobs: Res<Jobs>,
+    mut tagged: Local<EntityHashSet>,
+    added: Query<(), Added<GeneratedBodyId>>,
+    bodies: Query<(Entity, &GeneratedBodyId, Option<&ObjectiveMarkerTarget>)>,
+) {
+    if !jobs.is_changed() && added.is_empty() {
+        return;
+    }
+    let mut wanted: BTreeMap<&GeneratedBodyId, Vec<(String, &'static str)>> = BTreeMap::new();
+    for job in jobs.held() {
+        let (body, verb) = if jobs.is_done(&job.id) {
+            (job.posted_by(), "Hand in")
+        } else if let Some(body) = job.located_body() {
+            (body, job.kind.label())
+        } else {
+            continue;
+        };
+        let code = jobs.mark_code(&job.id).expect("a held job has a mark code");
+        wanted.entry(body).or_default().push((code, verb));
+    }
+    for (entity, id, tag) in &bodies {
+        let ours = tagged.contains(&entity);
+        match wanted.get(id) {
+            Some(entries) => {
+                assert!(
+                    ours || tag.is_none(),
+                    "mark_held_job_targets: '{id}' wears the objective tag '{}' that no held job put there",
+                    tag.map_or("", |tag| tag.label.as_str())
+                );
+                // A run of one verb shares it, in accept order; runs join by `; `.
+                let label = entries
+                    .chunk_by(|a, b| a.1 == b.1)
+                    .map(|run| {
+                        let codes: Vec<&str> = run.iter().map(|(code, _)| code.as_str()).collect();
+                        format!("{} {}", codes.join(", "), run[0].1)
+                    })
+                    .collect::<Vec<_>>()
+                    .join("; ");
+                if tag.is_none_or(|tag| tag.label != label) {
+                    // A body frozen on this frame is gone by the time the
+                    // command lands; the thaw tags it again.
+                    commands
+                        .entity(entity)
+                        .try_insert(ObjectiveMarkerTarget { label });
+                    tagged.insert(entity);
+                }
+            }
+            None if ours => {
+                commands
+                    .entity(entity)
+                    .try_remove::<ObjectiveMarkerTarget>();
+                tagged.remove(&entity);
+            }
+            None => {}
+        }
+    }
+    tagged.retain(|entity| bodies.contains(*entity));
+}
+
 #[cfg(test)]
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
@@ -1284,5 +1361,76 @@ mod tests {
         let posted = field(&mut app, jobs);
         assert_eq!(ids(&posted.hostiles), vec![hull_id()]);
         assert_eq!(wreck_ids(&posted.wrecks), vec![wreck_id()]);
+    }
+
+    #[test]
+    fn a_held_job_marks_its_body_until_done_then_its_poster_and_remarks_a_thawed_body() {
+        let answer = distress(0, true);
+        let JobType::Distress { caller, .. } = answer.kind.clone() else {
+            unreachable!()
+        };
+        let recovery = recover(1);
+        let mut app = held_app([answer.clone(), recovery.clone(), procure(2)]);
+        app.add_systems(Update, mark_held_job_targets);
+        let tags = |app: &mut App| -> Vec<(GeneratedBodyId, String)> {
+            let mut tags: Vec<_> = app
+                .world_mut()
+                .query::<(&GeneratedBodyId, &ObjectiveMarkerTarget)>()
+                .iter(app.world())
+                .map(|(id, tag)| (id.clone(), tag.label.clone()))
+                .collect();
+            tags.sort();
+            tags
+        };
+
+        let [station, _] = stand(&mut app, &[poster(), wreck_id()])[..] else {
+            unreachable!()
+        };
+        app.update();
+        assert_eq!(
+            tags(&mut app),
+            vec![(wreck_id(), "JOB-2 Recover".to_string())],
+            "the unspawned caller has no entity and no chip, the procurement marks nothing"
+        );
+
+        stand(&mut app, std::slice::from_ref(&caller));
+        app.update();
+        assert_eq!(
+            tags(&mut app),
+            vec![
+                (caller.clone(), "JOB-1 Answer".to_string()),
+                (wreck_id(), "JOB-2 Recover".to_string()),
+            ],
+            "the caller is marked the frame it spawns"
+        );
+
+        let mut jobs = app.world_mut().resource_mut::<Jobs>();
+        jobs.mark_done(&answer.id);
+        jobs.mark_done(&recovery.id);
+        app.update();
+        assert_eq!(
+            tags(&mut app),
+            vec![(poster(), "JOB-1, JOB-2 Hand in".to_string())],
+            "two done jobs share their poster's one chip"
+        );
+
+        app.world_mut().despawn(station);
+        app.update();
+        assert!(tags(&mut app).is_empty(), "a frozen poster has no chip");
+        stand(&mut app, &[poster()]);
+        app.update();
+        assert_eq!(
+            tags(&mut app),
+            vec![(poster(), "JOB-1, JOB-2 Hand in".to_string())],
+            "the thawed poster is marked again"
+        );
+
+        app.world_mut().resource_mut::<Jobs>().complete(&answer.id);
+        app.update();
+        assert_eq!(
+            tags(&mut app),
+            vec![(poster(), "JOB-1 Hand in".to_string())],
+            "the hand-in takes its code off and the next job moves up"
+        );
     }
 }

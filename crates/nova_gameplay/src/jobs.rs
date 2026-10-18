@@ -725,6 +725,16 @@ impl Jobs {
         self.held.iter().find(|job| job.id == *id)
     }
 
+    /// The code the chart and the world marker call the held job `id` by:
+    /// `JOB-n`, its 1-based place in the accept order. None when the player
+    /// does not hold it.
+    pub fn mark_code(&self, id: &JobId) -> Option<String> {
+        self.held
+            .iter()
+            .position(|job| job.id == *id)
+            .map(|index| format!("JOB-{}", index + 1))
+    }
+
     /// Whether the player holds the job `id`.
     pub fn holds(&self, id: &JobId) -> bool {
         self.job(id).is_some()

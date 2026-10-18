@@ -1200,6 +1200,64 @@ fn assert_the_hand_in(world: &mut World) {
     info!("{tag} job: PASS the hand-in paid {} cr", job.reward_cr);
 }
 
+/// Distress-only: the caller wears the objective marker tag
+/// `mark_held_job_targets` gives the held job's located body.
+fn the_caller_wears_its_marker() -> Arc<Predicate> {
+    when(|world| {
+        let body = located_body(world);
+        body_wearing(world, &body)
+            .is_some_and(|caller| world.get::<ObjectiveMarkerTarget>(caller).is_some())
+    })
+}
+
+/// Distress-only: the HUD has grown the caller's marker chip.
+fn a_chip_targets_the_caller() -> Arc<Predicate> {
+    when(|world| {
+        let body = located_body(world);
+        let Some(caller) = body_wearing(world, &body) else {
+            return false;
+        };
+        world
+            .try_query_filtered::<&AnchoredChipTarget, With<ObjectiveMarkerChipHudMarker>>()
+            .is_some_and(|mut query| query.iter(world).any(|target| **target == caller))
+    })
+}
+
+/// Distress-only claim: the caller carries the in-flight marker chip while
+/// the player holds off it undocked.
+fn assert_the_in_flight_marker(world: &mut World) {
+    let (_, job) = the_job(world);
+    let body = located_body(world);
+    let caller =
+        body_wearing(world, &body).unwrap_or_else(|| panic!("distress job: no '{body}' stands"));
+    let jobs = world.resource::<Jobs>().clone();
+    let code = jobs
+        .mark_code(&job.id)
+        .expect("distress job: the job is held");
+    let label = format!("{code} Answer");
+    let marker = world
+        .get::<ObjectiveMarkerTarget>(caller)
+        .unwrap_or_else(|| panic!("distress job: '{body}' wears no objective marker"));
+    assert_eq!(
+        marker.label, label,
+        "distress job: the caller's marker reads '{label}'"
+    );
+    let chips = world
+        .query_filtered::<&AnchoredChipTarget, With<ObjectiveMarkerChipHudMarker>>()
+        .iter(world)
+        .filter(|&target| **target == caller)
+        .count();
+    assert_eq!(
+        chips, 1,
+        "distress job: exactly one chip targets the caller"
+    );
+    assert!(
+        world.get::<DockedShip>(player(world)).is_none(),
+        "distress job: the player is undocked"
+    );
+    info!("distress job: PASS the caller wears the in-flight marker '{label}'");
+}
+
 /// The walk for `kind`. Every beat waits on a world value.
 pub fn script(kind: LocatedKindType) -> AutopilotPlugin<GameStates> {
     let tag = kind.label();
@@ -1316,7 +1374,38 @@ pub fn script(kind: LocatedKindType) -> AutopilotPlugin<GameStates> {
         })
         .until(and(player_free(), frames(SETTLE_FRAMES)))
         .deadline(SESSION_SECS)
-        .add()
+        .add();
+    let script = if kind == LocatedKindType::Distress {
+        let inflight_shot = format!("job-{tag}-inflight.png");
+        let inflight_shot_name = inflight_shot.clone();
+        script
+            .step("distress job: park in flight off the caller")
+            .on_enter(|world: &mut World| {
+                // The chip pins to the screen edge when the caller is off
+                // screen, so the shot proves it whichever way the view faces.
+                let body = located_body(world);
+                let caller = body_wearing(world, &body)
+                    .unwrap_or_else(|| panic!("distress job: no '{body}' stands"));
+                park_beside(world, caller);
+            })
+            .until(and(
+                and(the_caller_wears_its_marker(), a_chip_targets_the_caller()),
+                frames(SETTLE_FRAMES),
+            ))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("distress job: assert the in-flight marker")
+            .on_enter(assert_the_in_flight_marker)
+            .add()
+            .step("distress job: shoot the caller in flight")
+            .on_enter(move |world: &mut World| shoot(world, &inflight_shot_name))
+            .until(shot_written(inflight_shot))
+            .deadline(BEAT_SECS)
+            .add()
+    } else {
+        script
+    };
+    let script = script
         .step(format!("{tag} job: do the work"))
         .each(|world, _, _| do_the_work(world))
         .until(the_job_is_done())
