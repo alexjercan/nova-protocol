@@ -10,7 +10,11 @@
 //! around the start's cell: the start must dock the player at the session's
 //! starting station, an Ally one, with `charter_0_undock` listed and no
 //! station marked. The Station pane is opened on the dock and shot. The walk
-//! undocks: `charter_0` must then stand, pointing at no station or at one
+//! accepts the starting station's first procurement on the Jobs pane and
+//! opens the Map's chart view: its OBJECTIVES block must list charter 0's
+//! undock step, the held job with its `have / need` and the starting
+//! station's code, and only the role's next unmet milestone; it is shot and
+//! the chart view closed. The walk undocks: `charter_0` must then stand, pointing at no station or at one
 //! living station other than the starting one. Stations are a civilization
 //! apart, so no other one streams in round the start; the walk teleports to
 //! the pinned waystation's cell, picks the nearest living, non-Enemy station
@@ -41,6 +45,7 @@
 //! | 7 | `outcome: the discovery log lists the station` | with nothing selected, the panel's log has an icon row reading `STN-n`, its cell and how long ago, and a row for the start's cell |
 //! | 8 | `outcome: the leave save holds the chart and the start` | the leave save, read with [`open_world`], holds the three cells, the station's summary and the starting station's id |
 //! | 9 | `outcome: a loaded world restores the chart` | after Load the live chart holds the same three cells and the same station summary, and the session names the same starting station |
+//! | 10 | `outcome: the chart's objectives list what the player has to do` | at the start, with a procurement held, the OBJECTIVES block lists the undock step's line, a `JOB-1` row with the job's title, `have / need` and the starting station's `STN-n`, and one milestone row: the role goal's first unmet line with its `have / need`; no other goal line and no `Met at` row shows |
 //!
 //! ONE SUBJECT: the chart and the charter it answers. The save's refusal of
 //! an unknown item named by a chart is unit-tested in
@@ -57,7 +62,8 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 //! `NOVA_CAPTURE=1` also writes `start-docked-station.png` of the Station
-//! pane at the starting station and `map-chart-view.png` of the chart view.
+//! pane at the starting station, `map-objectives.png` of the chart view's
+//! OBJECTIVES block at the start and `map-chart-view.png` of the chart view.
 
 use bevy::prelude::*;
 use clap::Parser;
@@ -161,6 +167,10 @@ mod walk {
     const CHART_SHOT: &str = "map-chart-view.png";
     /// The shot of the Station pane at the starting station.
     const START_SHOT: &str = "start-docked-station.png";
+    /// The shot of the chart view's OBJECTIVES block at the start.
+    const OBJECTIVES_SHOT: &str = "map-objectives.png";
+    /// The `Name` prefix of the OBJECTIVES block's rows.
+    const OBJECTIVE_ROW_PREFIX: &str = "MapChartObjective";
 
     /// How far from the station the player parks before the berth.
     const PARK_DISTANCE: Meters = Meters(2_000.0);
@@ -815,6 +825,143 @@ mod walk {
         watch.start_cell = Some(cell);
     }
 
+    /// The starting station's board row of its first procurement: the
+    /// posted row whose title is that job's, as the Jobs pane lists it.
+    fn starter_procurement_row(world: &mut World) -> usize {
+        let start = world
+            .resource::<ChartWatch>()
+            .start
+            .clone()
+            .expect("world chart: the start is recorded");
+        let job = world
+            .query::<(&GeneratedBodyId, &JobBoard)>()
+            .iter(world)
+            .find(|(id, _)| **id == start)
+            .and_then(|(_, board)| board.0.iter().find(|job| job.kind.is_procurement()))
+            .cloned()
+            .expect("world chart: the starting station posts a procurement");
+        let title = job.title(world.resource::<GameItems>());
+        (0..)
+            .map(|index| (index, named_row(world, &format!("JobRowPosted-{index}"))))
+            .take_while(|(_, row)| row.is_some())
+            .find(|(_, row)| row.as_ref().is_some_and(|row| row.contains(&title)))
+            .map(|(index, _)| index)
+            .unwrap_or_else(|| panic!("world chart: the board lists '{title}'"))
+    }
+
+    /// Activate the UI node named `name`.
+    fn activate_named(world: &mut World, name: &str) {
+        let target = world
+            .query::<(Entity, &Name)>()
+            .iter(world)
+            .find(|(_, found)| found.as_str() == name)
+            .map(|(entity, _)| entity)
+            .unwrap_or_else(|| panic!("world chart: no node named '{name}'"));
+        world.trigger(bevy::ui_widgets::Activate { entity: target });
+    }
+
+    fn held_count(count: usize) -> Arc<Predicate> {
+        when(move |world| world.resource::<Jobs>().held().len() == count)
+    }
+
+    /// Whether the chart view's OBJECTIVES block shows.
+    fn objectives_show(shown: bool) -> Arc<Predicate> {
+        when(move |world| {
+            world
+                .try_query::<(&Name, &Node)>()
+                .and_then(|mut query| {
+                    query
+                        .iter(world)
+                        .find(|(name, _)| name.as_str() == "MapChartObjectives")
+                        .map(|(_, node)| (node.display != Display::None) == shown)
+                })
+                .unwrap_or(false)
+        })
+    }
+
+    /// Whether a text reads `have / need`.
+    fn have_need(text: &str) -> bool {
+        text.split_once(" / ")
+            .is_some_and(|(have, need)| have.parse::<u64>().is_ok() && need.parse::<u64>().is_ok())
+    }
+
+    /// Claim 10: at the start, with the procurement held, the OBJECTIVES
+    /// block lists the undock step, the job with `have / need` and its
+    /// hand-in station's code, and only the next unmet milestone.
+    fn assert_the_objectives(world: &mut World) {
+        let undock = world
+            .resource::<GameObjectives>()
+            .objectives
+            .iter()
+            .find(|objective| objective.id == CHARTER_ZERO_UNDOCK_OBJECTIVE_ID)
+            .map(|objective| objective.message.clone())
+            .expect("world chart: the start lists the undock step");
+        let rows = named_row(world, "MapChartObjectives")
+            .expect("world chart: the panel holds the OBJECTIVES block");
+        let charter = named_rows(world, &format!("{OBJECTIVE_ROW_PREFIX}Charter"));
+        assert_eq!(
+            charter,
+            vec![vec![undock.clone()]],
+            "world chart: the block lists charter 0's open step: {rows:?}"
+        );
+        let job = world.resource::<Jobs>().held()[0].clone();
+        let title = job.title(world.resource::<GameItems>());
+        let start = world
+            .resource::<ChartWatch>()
+            .start
+            .clone()
+            .expect("world chart: the start is recorded");
+        let index = world
+            .resource::<Chart>()
+            .stations()
+            .iter()
+            .position(|station| station.id == start)
+            .expect("world chart: the chart holds the starting station");
+        let hand_in = format!("STN-{}", index + 1);
+        let job_row = named_row(world, &format!("{OBJECTIVE_ROW_PREFIX}JOB-1"))
+            .unwrap_or_else(|| panic!("world chart: the block lists JOB-1: {rows:?}"));
+        assert!(
+            job_row.contains(&title)
+                && job_row.iter().any(|text| have_need(text))
+                && job_row.contains(&hand_in),
+            "world chart: the job row reads '{title}', have / need and {hand_in}: {job_row:?}"
+        );
+        let goal = world.resource::<GoalProgress>().clone();
+        let next = goal
+            .lines
+            .iter()
+            .find(|line| line.have < line.need)
+            .expect("world chart: a fresh role has an unmet milestone");
+        // `texts_under` reads depth first, so a row's texts come in no
+        // fixed order: compare them sorted.
+        let mut milestones = named_rows(world, &format!("{OBJECTIVE_ROW_PREFIX}Milestone"));
+        milestones.iter_mut().for_each(|row| row.sort());
+        let mut expected = vec![next.label.clone(), format!("{} / {}", next.have, next.need)];
+        expected.sort();
+        assert_eq!(
+            milestones,
+            vec![expected],
+            "world chart: the block lists only the next unmet milestone: {rows:?}"
+        );
+        for line in goal.lines.iter().filter(|line| line.label != next.label) {
+            assert!(
+                !rows.contains(&line.label),
+                "world chart: '{}' is not the next milestone and is not listed: {rows:?}",
+                line.label
+            );
+        }
+        assert!(
+            named_rows(world, &format!("{OBJECTIVE_ROW_PREFIX}Met")).is_empty(),
+            "world chart: a standing goal shows no Met row: {rows:?}"
+        );
+        nova_probe::probe_marker(
+            world,
+            "outcome: the chart's objectives list what the player has to do",
+            serde_json::json!({ "rows": rows }),
+        );
+        info!("world chart: PASS the objectives read {rows:?}");
+    }
+
     /// Claim 2: the undock completed the undock step and posted the dock
     /// step, whose marker never points at the starting station.
     fn assert_charter_zero_stands(world: &mut World) {
@@ -972,6 +1119,16 @@ mod walk {
         rows.into_iter()
             .map(|row| texts_under(world, row))
             .collect()
+    }
+
+    /// The texts of the one node named `name`, if it stands.
+    fn named_row(world: &mut World, name: &str) -> Option<Vec<String>> {
+        let row = world
+            .query::<(Entity, &Name)>()
+            .iter(world)
+            .find(|(_, found)| found.as_str() == name)
+            .map(|(entity, _)| entity)?;
+        Some(texts_under(world, row))
     }
 
     /// The icon rows of the SECTOR block.
@@ -1220,7 +1377,55 @@ mod walk {
         .on_enter(|world: &mut World| shoot(world, START_SHOT))
         .until(shot_written(START_SHOT))
         .deadline(BEAT_SECS)
+        .add()
+        .click_named(
+            "world chart: open the Jobs pane",
+            "InterfaceTabJobs",
+            and(ui_node_present("JobAccept-0"), frames(SETTLE_FRAMES)),
+            BEAT_SECS,
+        )
+        // The rows can sit below the panel's fold: the Accept is activated
+        // by name.
+        .step("world chart: accept the starting station's procurement")
+        .on_enter(|world: &mut World| {
+            let row = starter_procurement_row(world);
+            activate_named(world, &format!("JobAccept-{row}"));
+        })
+        .until(and(held_count(1), frames(SETTLE_FRAMES)))
+        .deadline(BEAT_SECS)
+        .add()
+        .click_named(
+            "world chart: open the Map pane at the start",
+            "InterfaceTabMap",
+            the_interface_shows(Some(InterfacePaneType::Map)),
+            BEAT_SECS,
+        )
+        .step("world chart: settle the map at the start")
+        .until(frames(SETTLE_FRAMES))
         .add();
+        let script = tap(
+            script,
+            "the chart key at the start",
+            "map_chart",
+            ui_node_present(format!("{OBJECTIVE_ROW_PREFIX}JOB-1")),
+        )
+        .step("world chart: settle the objectives")
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("world chart: assert the objectives")
+        .on_enter(assert_the_objectives)
+        .add()
+        .step("world chart: shoot the objectives")
+        .on_enter(|world: &mut World| shoot(world, OBJECTIVES_SHOT))
+        .until(shot_written(OBJECTIVES_SHOT))
+        .deadline(BEAT_SECS)
+        .add();
+        let script = tap(
+            script,
+            "the chart key to close the chart",
+            "map_chart",
+            objectives_show(false),
+        );
         let script = tap(script, "the interface key", "interface_toggle", unpaused())
             .step("world chart: undock from the starting station")
             .on_enter(|world: &mut World| {

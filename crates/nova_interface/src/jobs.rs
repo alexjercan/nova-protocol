@@ -383,7 +383,7 @@ fn board_listing(
 
 /// A held job's progress as `have / need`: the units in the hold against
 /// the stack for a procurement and a recovery, done or not for the rest.
-fn progress(job: &Job, hold: Option<&ShipInventory>, done: bool) -> (u32, u32) {
+pub(crate) fn progress(job: &Job, hold: Option<&ShipInventory>, done: bool) -> (u32, u32) {
     match &job.kind {
         JobType::Procure { item, count } | JobType::Recover { item, count, .. } => {
             let have = hold.map_or(0, |hold| hold.count(item)).min(*count);

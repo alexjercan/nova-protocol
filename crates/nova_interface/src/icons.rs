@@ -42,7 +42,7 @@ pub(crate) enum BodyIconType {
 
 /// What the Map's chart view, its panel, its log and its legend draw a find
 /// as: a cell's contents by cluster type, a cell itself, the found marks and
-/// the own ship.
+/// the own ship; and what the OBJECTIVES block draws a milestone as.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum ChartIconType {
     Asteroids,
@@ -55,6 +55,8 @@ pub(crate) enum ChartIconType {
     Wreck,
     Job,
     You,
+    /// A charter step or a role milestone, in the OBJECTIVES block.
+    Milestone,
 }
 
 /// What the Jobs pane draws a job kind as, so a board scans by shape.
@@ -400,7 +402,7 @@ impl BodyIconType {
 }
 
 impl ChartIconType {
-    pub(crate) const ALL: [Self; 9] = [
+    pub(crate) const ALL: [Self; 10] = [
         Self::Asteroids,
         Self::Rocks,
         Self::Planet,
@@ -410,10 +412,11 @@ impl ChartIconType {
         Self::Wreck,
         Self::Job,
         Self::You,
+        Self::Milestone,
     ];
 
     /// What the chart's legend lists, in its order: the contents, the marks
-    /// and the own ship. A bare cell needs no legend entry.
+    /// and the own ship. A bare cell and a milestone need no legend entry.
     pub(crate) const LEGEND: [Self; 8] = [
         Self::Asteroids,
         Self::Rocks,
@@ -447,6 +450,7 @@ impl ChartIconType {
             Self::Wreck => "Wreck",
             Self::Job => "Job",
             Self::You => "You",
+            Self::Milestone => "Milestone",
         }
     }
 
@@ -464,13 +468,15 @@ impl ChartIconType {
             Self::Wreck => UiColor::AccentHigh,
             Self::Job => UiColor::Accent,
             Self::You => UiColor::Primary,
+            Self::Milestone => UiColor::Nominal,
         }
     }
 
     /// Three lumps for asteroids, a scatter of small rocks, the map's ringed
     /// planet, two hull halves for derelicts, a framed dot for a bare cell,
     /// a cube in projection for a station, a cracked outline for a wreck, the
-    /// map's nav diamond for a job, and the own-ship dot in a faint ring.
+    /// map's nav diamond for a job, the own-ship dot in a faint ring, and a
+    /// pennant on a pole for a milestone.
     fn coverage(self, p: Vec2, px: f32) -> f32 {
         match self {
             Self::Asteroids => {
@@ -586,6 +592,18 @@ impl ChartIconType {
             Self::Job => BodyIconType::Objective.coverage(p, px),
             Self::You => solid(circle(p, Vec2::ZERO, 0.32), px)
                 .max(solid(ring(p, Vec2::ZERO, 0.7, 0.08), px) * 0.6),
+            Self::Milestone => {
+                let pole = segment(p, Vec2::new(-0.6, -0.9), Vec2::new(-0.6, 0.9), 0.13);
+                let flag = polygon(
+                    p,
+                    &[
+                        Vec2::new(-0.5, -0.85),
+                        Vec2::new(0.8, -0.5),
+                        Vec2::new(-0.5, -0.1),
+                    ],
+                );
+                solid(pole.min(flag), px)
+            }
         }
     }
 }

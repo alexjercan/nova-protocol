@@ -160,3 +160,31 @@ the menu screens that feed a charter (New Game, Load) are text too. Ideas:
     objectives.
   - Docs: `wiki/interface.md`, `wiki/getting-started.md`, `create/start-roles.md`,
     changelog entries under the subsystem headings.
+
+## Progress 2026-10-18 (Map objectives)
+- Claim: the chart view's OBJECTIVES block replaces the CHARTER block. With
+  nothing selected it lists charter 0's open step, each held job (kind icon,
+  title, `have / need` or `done`, hand-in `STN-n`) and the role's next unmet
+  milestone, or one `Met at <play time>` row. Met milestones and goal counts
+  are gone. A held job's row selects its JOB mark.
+- Evidence: `crates/nova_interface/src/map/chart.rs:1330` (`ObjectiveRowType`),
+  `:1359` (`objective_rows`, the pure list), `:1411` (the system, shown at
+  `:1430` only with nothing selected, as the gallery shows it), `:921`
+  (`spawn_icon_row_breaking`: the charter line wraps instead of clipping);
+  `crates/nova_interface/src/jobs.rs:386` (`progress`, now `pub(crate)`,
+  shared with the Jobs pane); `crates/nova_interface/src/icons.rs:595`
+  (`ChartIconType::Milestone`, the gallery's pennant).
+- Change: `charter_block_lines` and `MapChartCharterMarker` are deleted. The
+  system keeps the name `update_map_chart_charter` because
+  `crates/nova_interface/src/map/mod.rs:181` registers it and another lane
+  held that file; rename it to `update_map_chart_objectives` in both places.
+  The goal's `title` no longer shows on the Map; `web/src/create/start-roles.md`
+  still names the CHARTER block (lines 63, 70, 101, 132) and needs the
+  goals-rebalance rewrite.
+- Verification: `the_objectives_list_the_open_charter_step_held_jobs_and_only_the_next_unmet_milestone`
+  (31 map tests pass). `system_world_chart` claim 10 under lavapipe: `world
+  chart: PASS the objectives read [... "Bring 7 Water ice", "0 / 7", "STN-1",
+  "Charter 0: undock from your starting station", "Stations owned", "0 / 1"]`,
+  `PASS the loaded chart holds 3 cells`, `autopilot: cycle complete, no panic`.
+  `map-objectives.png` shows the block; the first capture clipped the charter
+  line, fixed by the wrap.

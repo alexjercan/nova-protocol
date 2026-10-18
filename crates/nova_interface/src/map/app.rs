@@ -12,7 +12,7 @@ use nova_ui::{
 };
 
 use super::{
-    on_map_goto_button, spawn_map_chart_charter, spawn_map_chart_log, spawn_map_chart_sector,
+    on_map_goto_button, spawn_map_chart_log, spawn_map_chart_objectives, spawn_map_chart_sector,
     ChartStationLive, MapContactKind,
 };
 use crate::{
@@ -110,7 +110,7 @@ pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &Interfa
             panel.spawn((MapPanelField::Note, themed_label("", 12.0, UiColor::Label)));
             panel.spawn(panel_rule());
             spawn_map_chart_sector(panel);
-            spawn_map_chart_charter(panel);
+            spawn_map_chart_objectives(panel);
             spawn_map_chart_log(panel);
             panel.spawn((
                 MapPanelField::Destination,
