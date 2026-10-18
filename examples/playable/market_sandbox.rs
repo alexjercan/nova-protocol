@@ -17,7 +17,7 @@
 //! Sell pays that bid.
 //!
 //! [`MARKETS`] pins one world per cluster type: seed 1 stands an
-//! asteroid-rich station by the spawn and seed 21 a planet-heavy one. No
+//! asteroid-rich station by the spawn and seed 7 a planet-heavy one. No
 //! seed found stands both in one window. `NOVA_SANDBOX_MARKET=planet-heavy`
 //! starts on the planet-heavy world; unset, the asteroid-rich one.
 //!
@@ -55,7 +55,7 @@ struct Cli;
 /// trades, in a cluster of that type.
 const MARKETS: [(u32, ClusterType); 2] = [
     (1, ClusterType::AsteroidRich),
-    (21, ClusterType::PlanetHeavy),
+    (7, ClusterType::PlanetHeavy),
 ];
 /// The start role the player spawns as: the industrial mining tug.
 const SANDBOX_ROLE: &str = "industrial";
