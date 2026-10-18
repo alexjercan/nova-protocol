@@ -27,7 +27,7 @@
 //!
 //! | # | marker | claim |
 //! | - | - | - |
-//! | 1 | `outcome: a docked station posts a seeded board` | the station root carries [`JOBS_PER_BOARD`] valid jobs of its own, one of them a procurement, and the Jobs tab lists every title |
+//! | 1 | `outcome: a docked station posts a seeded board` | the station root carries [`JOBS_PER_BOARD`] valid jobs of its own, one of them a procurement, and the Jobs tab lists every title; each escort or neutralize row greys its Accept with `accept: the hull has no weapon` in its tooltip, every other Accept stays live |
 //! | 2 | `outcome: an accept holds the job` | after the Accept click the job is held, gone from the posted list and listed under Your jobs |
 //! | 3 | `outcome: the chart view marks the held job` | undocked, the chart view labels the job `JOB-1`; a click shows HELD JOB, its title and its reward |
 //! | 4 | `outcome: the leave save holds the job` | the leave save, read with [`open_world`], holds the one job and no completed id |
@@ -47,6 +47,7 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 //! `NOVA_CAPTURE=1` also writes `station-jobs-board.png` of the Jobs tab,
+//! `station-jobs-refused.png` of the first greyed Accept's tooltip,
 //! `station-jobs-map.png` of the chart view and `station-jobs-renewed.png`
 //! of the Jobs tab after the passed-window renewal.
 
@@ -111,12 +112,13 @@ mod walk {
     use std::{collections::BTreeSet, sync::Arc};
 
     use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
+    use bevy::ui::InteractionDisabled;
     use nova_protocol::{
         nova_debug::harness::{press_action, release_action, shoot, AutopilotPlugin, Predicate},
         nova_interface::pane::InterfacePaneType,
         prelude::*,
     };
-    use nova_ui::widget::TextFieldValue;
+    use nova_ui::widget::{TextFieldValue, Tooltip, TooltipPanel};
     use nova_world::prelude::{desired_sectors, SectorClusterTypes, SectorRoot, WorldConfig};
 
     use super::*;
@@ -144,6 +146,7 @@ mod walk {
 
     /// The frames the capture path writes.
     const BOARD_SHOT: &str = "station-jobs-board.png";
+    const REFUSED_SHOT: &str = "station-jobs-refused.png";
     const MAP_SHOT: &str = "station-jobs-map.png";
     const RENEWED_SHOT: &str = "station-jobs-renewed.png";
 
@@ -708,6 +711,41 @@ mod walk {
                 "station jobs: the Jobs tab lists '{title}': {shown:?}"
             );
         }
+        // The transport carries no weapon: this core board lists each escort
+        // and neutralization with a greyed Accept and the hull's reason in
+        // its tooltip.
+        let mut refused = Vec::new();
+        for job in &board {
+            let title = job.title(&items);
+            let (row, _) = posted_row(world, &title)
+                .unwrap_or_else(|| panic!("station jobs: the Jobs tab lists no row '{title}'"));
+            let accept = format!("JobAccept-{row}");
+            let (disabled, tooltip) = world
+                .query::<(&Name, Has<InteractionDisabled>, Option<&Tooltip>)>()
+                .iter(world)
+                .find(|(name, ..)| name.as_str() == accept)
+                .map(|(_, disabled, tooltip)| (disabled, tooltip.map(|tooltip| tooltip.0.clone())))
+                .unwrap_or_else(|| panic!("station jobs: the row '{title}' shows {accept}"));
+            if matches!(
+                job.kind,
+                JobType::Escort { .. } | JobType::Neutralize { .. }
+            ) {
+                assert!(disabled, "station jobs: '{title}' greys its Accept");
+                assert_eq!(
+                    tooltip.as_deref(),
+                    Some("accept: the hull has no weapon"),
+                    "station jobs: '{title}' says why its Accept is greyed"
+                );
+                refused.push(title);
+            } else {
+                assert!(!disabled, "station jobs: '{title}' keeps its Accept live");
+            }
+        }
+        assert!(
+            !refused.is_empty(),
+            "station jobs: the board on seed {seed} posts a job the weaponless transport cannot do: \
+             {board:?}"
+        );
         // The lightest procurement, so the hold takes its goods at the end.
         let (index, job) = board
             .iter()
@@ -732,10 +770,12 @@ mod walk {
                 "jobs": board.iter().map(|job| job.title(&items)).collect::<Vec<_>>(),
                 "rewards": board.iter().map(|job| job.reward_cr).collect::<Vec<_>>(),
                 "chosen": index,
+                "refused": refused,
             }),
         );
         info!(
-            "station jobs: '{id}' posts {} job(s); the walk takes row {index}: {} for {} cr",
+            "station jobs: '{id}' posts {} job(s), greys Accept on {refused:?}; the walk takes \
+             row {index}: {} for {} cr",
             board.len(),
             job.title(&items),
             job.reward_cr
@@ -743,6 +783,31 @@ mod walk {
         let mut watch = world.resource_mut::<JobWatch>();
         watch.board = board;
         watch.job = Some((index, job));
+    }
+
+    /// Whether the first greyed Accept's tooltip panel is up and laid out.
+    fn refused_tooltip_shown(world: &World) -> bool {
+        let Some(button) = world
+            .try_query_filtered::<(Entity, &Name), With<InteractionDisabled>>()
+            .and_then(|mut buttons| {
+                buttons
+                    .iter(world)
+                    .filter(|(_, name)| name.as_str().starts_with("JobAccept-"))
+                    .min_by(|a, b| a.1.as_str().cmp(b.1.as_str()))
+                    .map(|(button, _)| button)
+            })
+        else {
+            return false;
+        };
+        world
+            .try_query_filtered::<(&ChildOf, &Node, &ComputedNode), With<TooltipPanel>>()
+            .is_some_and(|mut panels| {
+                panels.iter(world).any(|(parent, node, computed)| {
+                    parent.parent() == button
+                        && node.display == Display::Flex
+                        && computed.size().x > 0.0
+                })
+            })
     }
 
     /// Claim 2: the accept holds the job, and the lists moved it.
@@ -1374,6 +1439,29 @@ mod walk {
             .step("station jobs: shoot the board")
             .on_enter(|world: &mut World| shoot(world, BOARD_SHOT))
             .until(shot_written(BOARD_SHOT))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station jobs: hover the first greyed Accept for its reason")
+            .each(|world, _, _| {
+                let accept = world
+                    .query_filtered::<&Name, With<InteractionDisabled>>()
+                    .iter(world)
+                    .map(Name::as_str)
+                    .filter(|name| name.starts_with("JobAccept-"))
+                    .min()
+                    .map(str::to_string)
+                    .expect("station jobs: the board greys an Accept");
+                keep_hovering_named(accept)(world);
+            })
+            .until(Arc::new(refused_tooltip_shown))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station jobs: settle the tooltip")
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station jobs: shoot the greyed Accept's tooltip")
+            .on_enter(|world: &mut World| shoot(world, REFUSED_SHOT))
+            .until(shot_written(REFUSED_SHOT))
             .deadline(BEAT_SECS)
             .add()
             .step("station jobs: click Accept")
