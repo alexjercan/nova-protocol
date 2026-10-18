@@ -1074,7 +1074,7 @@ mod walk {
             }),
         );
         info!(
-            "station jobs: PASS the hand-in renewed slot {}: '{}' -> '{}' ({title}), {deadline}",
+            "station jobs: PASS the hand-in renewed slot {}: '{}' -> '{}' ({title})",
             job.id.slot, job.id, new.id
         );
     }
