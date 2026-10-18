@@ -6,14 +6,14 @@
 //! Enemy hull in the spawn's cell before any board posts (generated hostiles
 //! keep to their own civilization, so no scanned seed put one beside a
 //! living friendly station), find a living station posting
-//! a neutralize job, dock, accept it off the Station tab, read
+//! a neutralize job, dock, accept it off the Jobs tab, read
 //! the hand-in refused as not done, undock, do the work in the world, see the
 //! open world mark the job done, dock again and hand it in for the reward.
 //!
 //! | # | marker | claim |
 //! | - | - | - |
 //! | 1 | `outcome: a neutralize job is posted and accepted` | a living station's board posts the kind; after the Accept click the job is held and its bodies stand under the poster's cell root |
-//! | 2 | `outcome: the hand-in is refused until the neutralize job is done` | docked at the poster with the job held, Your jobs shows the not-done refusal and no Hand in button |
+//! | 2 | `outcome: the hand-in is refused until the neutralize job is done` | docked at the poster with the job held, Your jobs greys the Hand in button with the not-done reason in its tooltip |
 //! | 3 | `outcome: the world marks the neutralize job done` | after the work the job is listed done while still held |
 //! | 4 | `outcome: the hand-in pays the neutralize job` | docked again, the Hand in click pays the reward from the station and lists the job completed |
 //!
@@ -24,7 +24,7 @@
 //! # look for: `neutralize job: PASS the hand-in paid`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
-//! `NOVA_CAPTURE=1` also writes `job-neutralize-board.png` of the Station tab
+//! `NOVA_CAPTURE=1` also writes `job-neutralize-board.png` of the Jobs tab
 //! with the held job and `job-neutralize-done.png` after the hand-in.
 
 use bevy::prelude::*;

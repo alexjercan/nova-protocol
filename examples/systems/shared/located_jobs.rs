@@ -1,7 +1,7 @@
 //! The walk the four located-job ranges share: New Game on a pinned seed as
 //! the start role whose boards lean to the wanted kind, stream the window,
 //! find a living station whose board posts a job of that kind, dock there,
-//! accept it off the Station tab, read the hand-in refused as not done,
+//! accept it off the Jobs tab, read the hand-in refused as not done,
 //! undock, do the job's work in the world, see the open world mark it done,
 //! dock again and hand it in for the reward.
 //!
@@ -19,20 +19,20 @@
 //! | # | marker | claim |
 //! | - | - | - |
 //! | 1 | `outcome: a <kind> job is posted and accepted` | a living station's board posts the kind; after the Accept click the job is held and its bodies, if the kind puts any in the world, stand under the poster's cell root |
-//! | 2 | `outcome: the hand-in is refused until the <kind> job is done` | docked at the poster with the job held, Your jobs shows the not-done refusal and no Hand in button |
+//! | 2 | `outcome: the hand-in is refused until the <kind> job is done` | docked at the poster with the job held, Your jobs greys the Hand in button with the not-done reason in its tooltip |
 //! | 3 | `outcome: the world marks the <kind> job done` | after the work the job is listed done while still held |
 //! | 4 | `outcome: the hand-in pays the <kind> job` | docked again, the Hand in click pays the reward from the station, takes nothing out of the hold and lists the job completed |
 
 use std::{collections::BTreeSet, sync::Arc};
 
 use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
-use bevy::prelude::*;
+use bevy::{prelude::*, ui::InteractionDisabled};
 use nova_protocol::{
     nova_debug::harness::{press_action, release_action, shoot, AutopilotPlugin, Predicate},
     nova_interface::pane::InterfacePaneType,
     prelude::*,
 };
-use nova_ui::widget::TextFieldValue;
+use nova_ui::widget::{TextFieldValue, Tooltip};
 use nova_world::prelude::{desired_sectors, SectorRoot, SectorShipConditionType, WorldConfig};
 
 /// The four `outcome:` markers a range emits, held as literals in the
@@ -74,18 +74,22 @@ impl LocatedKindType {
         }
     }
 
-    /// The start role whose boards lean to the kind.
+    /// The start role whose boards lean to the kind and whose hull can do
+    /// it. Escort plays the military start: the Trade starts that lean to
+    /// it fly unarmed hulls, and the starting station's board hides a job
+    /// the hull cannot do.
     pub const fn role(self) -> &'static str {
         match self {
             LocatedKindType::Recover => "scavenger",
-            LocatedKindType::Escort => "transport",
+            LocatedKindType::Escort => "military",
             LocatedKindType::Distress => "bounty_hunter",
             LocatedKindType::Neutralize => "military",
         }
     }
 
     /// The world seed the range plays: `NOVA_JOB_SEED` when set, else one
-    /// whose window around the spawn holds a living station posting the kind.
+    /// whose window around the docked start holds a living station posting
+    /// the kind where the Jobs pane lists it.
     pub fn seed(self) -> u32 {
         if let Ok(seed) = std::env::var("NOVA_JOB_SEED") {
             return seed
@@ -97,8 +101,8 @@ impl LocatedKindType {
 
     const fn pinned_seed(self) -> u32 {
         match self {
-            LocatedKindType::Recover => 10,
-            LocatedKindType::Escort => 16,
+            LocatedKindType::Recover => 15,
+            LocatedKindType::Escort => 2,
             LocatedKindType::Distress => 16,
             LocatedKindType::Neutralize => 16,
         }
@@ -122,7 +126,7 @@ const WORLD_NAME: &str = "Located Jobs World";
 const SEED_FIELD: &str = "World Seed Field";
 const CREATE_WORLD_BUTTON: &str = "Create World Button";
 const WORLD_NEXT_BUTTON: &str = "World Next Button";
-const STATION_TAB: &str = "InterfaceTabStation";
+const JOBS_TAB: &str = "InterfaceTabJobs";
 
 /// How far from a hull the player parks before the berth.
 const PARK_DISTANCE: Meters = Meters(2_000.0);
@@ -399,6 +403,36 @@ fn texts(world: &mut World) -> Vec<String> {
         .collect()
 }
 
+/// The index and texts of the Jobs pane's posted row `JobRowPosted-<i>`
+/// whose title cell reads `title`.
+fn posted_row(world: &mut World, title: &str) -> Option<(usize, Vec<String>)> {
+    let rows: Vec<(usize, Entity)> = world
+        .query::<(Entity, &Name)>()
+        .iter(world)
+        .filter_map(|(entity, name)| {
+            let index = name.as_str().strip_prefix("JobRowPosted-")?.parse().ok()?;
+            Some((index, entity))
+        })
+        .collect();
+    rows.into_iter().find_map(|(index, row)| {
+        let mut texts = Vec::new();
+        let mut stack = vec![row];
+        while let Some(entity) = stack.pop() {
+            let entity = world.entity(entity);
+            if let Some(text) = entity.get::<Text>() {
+                texts.push(text.0.clone());
+            }
+            if let Some(children) = entity.get::<Children>() {
+                stack.extend(children.iter());
+            }
+        }
+        texts
+            .iter()
+            .any(|text| text == title)
+            .then_some((index, texts))
+    })
+}
+
 fn ui_node_named(name: &'static str) -> Arc<Predicate> {
     when(move |world| {
         world
@@ -580,29 +614,32 @@ fn set_field_text(world: &mut World, name: &str, text: &str) {
     value.0 = text.to_string();
 }
 
-/// Every board posted in the window, by its living non-Enemy station:
-/// the id, the cell, the position and the jobs.
-fn posted_boards(world: &mut World) -> Vec<(GeneratedBodyId, SectorCoord, Meters3, Vec<Job>)> {
+/// Every living, non-Enemy station board in the window, nearest the origin
+/// first: the id, the cell, the position, the jobs and whether it is the
+/// starting station's board.
+fn posted_boards(
+    world: &mut World,
+) -> Vec<(GeneratedBodyId, SectorCoord, Meters3, Vec<Job>, bool)> {
     let (edge, _) = world_shape(world);
-    let mut boards: Vec<(GeneratedBodyId, SectorCoord, Meters3, Vec<Job>)> = world
+    let mut boards: Vec<(GeneratedBodyId, SectorCoord, Meters3, Vec<Job>, bool)> = world
         .query_filtered::<(
             &GeneratedBodyId,
             &Position,
             &JobBoard,
+            Has<StarterBoardMarker>,
             Has<DerelictShipMarker>,
             Option<&Allegiance>,
         ), With<StationMarker>>()
         .iter(world)
-        .filter(|(_, _, _, derelict, allegiance)| {
-            !derelict && *allegiance != Some(&Allegiance::Enemy)
-        })
-        .map(|(id, position, board, ..)| {
+        .filter(|(.., derelict, allegiance)| !derelict && *allegiance != Some(&Allegiance::Enemy))
+        .map(|(id, position, board, starter, ..)| {
             let position = Meters3::from_engine(position.0);
             (
                 id.clone(),
                 SectorCoord::containing(position, edge),
                 position,
                 board.0.clone(),
+                starter,
             )
         })
         .collect();
@@ -742,13 +779,45 @@ fn plant_a_hostile(world: &mut World) {
 fn choose_the_job(world: &mut World) {
     let kind = kind(world);
     let boards = posted_boards(world);
-    let found = boards.iter().find_map(|(id, cell, position, board)| {
-        board
-            .iter()
-            .enumerate()
-            .find(|(_, job)| kind.wants(&job.kind) && stack_fits(world, job))
-            .map(|(index, job)| (id.clone(), *cell, *position, index, job.clone()))
-    });
+    // The Jobs pane leaves a job the hull cannot do off the starting
+    // station's board, so the walk cannot accept one there.
+    let player = player(world);
+    let mut fit = JobHullFit {
+        hold_capacity_g: world
+            .get::<ShipInventory>(player)
+            .map_or(0, ShipInventory::capacity_g),
+        has_clamp: false,
+        has_weapon: false,
+    };
+    for (&ChildOf(root), clamp, turret, bay, railgun) in world
+        .query_filtered::<(
+            &ChildOf,
+            Has<DockingSectionMarker>,
+            Has<TurretSectionMarker>,
+            Has<TorpedoSectionMarker>,
+            Has<RailgunSectionMarker>,
+        ), (With<SectionMarker>, Without<SectionInactiveMarker>)>()
+        .iter(world)
+    {
+        if root == player {
+            fit.has_clamp |= clamp;
+            fit.has_weapon |= turret || bay || railgun;
+        }
+    }
+    let items = world.resource::<GameItems>();
+    let found = boards
+        .iter()
+        .find_map(|(id, cell, position, board, starter)| {
+            board
+                .iter()
+                .enumerate()
+                .find(|(_, job)| {
+                    kind.wants(&job.kind)
+                        && stack_fits(world, job)
+                        && (!starter || plan_job_hull_fit(job, items, fit).is_ok())
+                })
+                .map(|(index, job)| (id.clone(), *cell, *position, index, job.clone()))
+        });
     let Some((id, cell, position, index, job)) = found else {
         return;
     };
@@ -808,8 +877,8 @@ fn tap(
         .add()
 }
 
-/// Open the interface and its Station tab.
-fn open_the_station_tab(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
+/// Open the interface and its Jobs tab.
+fn open_the_jobs_tab(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
     tap(
         script,
         "the interface key",
@@ -817,12 +886,12 @@ fn open_the_station_tab(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<
         the_interface_shows(None),
     )
     .click_named(
-        "located jobs: open the Station tab",
-        STATION_TAB,
-        the_interface_shows(Some(InterfacePaneType::Station)),
+        "located jobs: open the Jobs tab",
+        JOBS_TAB,
+        the_interface_shows(Some(InterfacePaneType::Jobs)),
         BEAT_SECS,
     )
-    .step("located jobs: settle the Station tab")
+    .step("located jobs: settle the Jobs tab")
     .until(frames(SETTLE_FRAMES))
     .add()
 }
@@ -910,27 +979,28 @@ fn assert_the_accept(world: &mut World) {
     info!("{tag} job: holds '{}' ({title}); bodies {bodies:?}", job.id);
 }
 
-/// Claim 2: Your jobs refuses the hand-in as not done.
+/// Claim 2: Your jobs greys the Hand in button with the not-done reason in
+/// its tooltip.
 fn assert_the_refusal(world: &mut World) {
     let tag = tag(world);
     let (_, job) = the_job(world);
     let items = world.resource::<GameItems>().clone();
     let title = job.title(&items);
     let refusal = format!("{title}: not done yet");
-    let shown = texts(world);
-    assert!(
-        shown.contains(&refusal),
-        "{tag} job: Your jobs shows '{refusal}': {shown:?}"
-    );
-    let buttons: Vec<String> = world
-        .query::<&Name>()
+    let (disabled, tooltip) = world
+        .query::<(&Name, Has<InteractionDisabled>, Option<&Tooltip>)>()
         .iter(world)
-        .map(|name| name.to_string())
-        .filter(|name| name.starts_with("JobHandIn-"))
-        .collect();
+        .find(|(name, ..)| name.as_str() == "JobHandIn-0")
+        .map(|(_, disabled, tooltip)| (disabled, tooltip.map(|tooltip| tooltip.0.clone())))
+        .unwrap_or_else(|| panic!("{tag} job: Your jobs shows a Hand in button for the held job"));
     assert!(
-        buttons.is_empty(),
-        "{tag} job: no Hand in button while the job is not done: {buttons:?}"
+        disabled,
+        "{tag} job: the Hand in button is greyed while the job is not done"
+    );
+    assert_eq!(
+        tooltip.as_deref(),
+        Some(refusal.as_str()),
+        "{tag} job: the greyed Hand in button says why"
     );
     nova_probe::probe_marker(
         world,
@@ -1022,7 +1092,9 @@ fn do_the_work(world: &mut World) {
                 AngularVelocity::ZERO,
             ));
             world.resource_mut::<LocatedJobWatch>().worked = true;
-            info!("escort job: set the hauler '{body}' down {HAULER_DROP_SHORT} units short of its mark");
+            info!(
+                "escort job: set the hauler '{body}' down {HAULER_DROP_SHORT} units short of its mark"
+            );
         }
         (LocatedKindType::Distress, JobType::Distress { genuine, .. }) => {
             if *genuine {
@@ -1209,15 +1281,18 @@ pub fn script(kind: LocatedKindType) -> AutopilotPlugin<GameStates> {
         .deadline(SESSION_SECS)
         .add();
     let board_shot_name = board_shot.clone();
-    let script = open_the_station_tab(script)
+    let script = open_the_jobs_tab(script)
         .step("located jobs: the board shows")
         .until(ui_node_present("JobAccept-0"))
         .deadline(BEAT_SECS)
         .add()
         .step("located jobs: click Accept")
         .on_enter(|world: &mut World| {
-            let (index, _) = the_job(world);
-            activate_named(world, &format!("JobAccept-{index}"));
+            let (_, job) = the_job(world);
+            let title = job.title(world.resource::<GameItems>());
+            let (row, _) = posted_row(world, &title)
+                .unwrap_or_else(|| panic!("located jobs: the Jobs tab lists no row '{title}'"));
+            activate_named(world, &format!("JobAccept-{row}"));
         })
         .until(and(the_job_is_held(), frames(SETTLE_FRAMES)))
         .deadline(BEAT_SECS)
@@ -1273,7 +1348,7 @@ pub fn script(kind: LocatedKindType) -> AutopilotPlugin<GameStates> {
         .on_enter(note_the_balances)
         .add();
     let done_shot_name = done_shot.clone();
-    open_the_station_tab(script)
+    open_the_jobs_tab(script)
         .step("located jobs: the Hand in button shows")
         .until(ui_node_named("JobHandIn-0"))
         .deadline(BEAT_SECS)
@@ -1286,7 +1361,7 @@ pub fn script(kind: LocatedKindType) -> AutopilotPlugin<GameStates> {
         .step(format!("{tag} job: assert the hand-in"))
         .on_enter(assert_the_hand_in)
         .add()
-        .step("located jobs: shoot the Station tab after the hand-in")
+        .step("located jobs: shoot the Jobs tab after the hand-in")
         .on_enter(move |world: &mut World| shoot(world, &done_shot_name))
         .until(shot_written(done_shot))
         .deadline(BEAT_SECS)

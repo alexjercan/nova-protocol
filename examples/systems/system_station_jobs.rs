@@ -359,12 +359,42 @@ mod walk {
             .collect()
     }
 
-    /// Whether a shown text is a posted row's Reward cell `<n> cr` for
+    /// The index and texts of the Jobs pane's posted row `JobRowPosted-<i>`
+    /// whose title cell reads `title`.
+    fn posted_row(world: &mut World, title: &str) -> Option<(usize, Vec<String>)> {
+        let rows: Vec<(usize, Entity)> = world
+            .query::<(Entity, &Name)>()
+            .iter(world)
+            .filter_map(|(entity, name)| {
+                let index = name.as_str().strip_prefix("JobRowPosted-")?.parse().ok()?;
+                Some((index, entity))
+            })
+            .collect();
+        rows.into_iter().find_map(|(index, row)| {
+            let mut texts = Vec::new();
+            let mut stack = vec![row];
+            while let Some(entity) = stack.pop() {
+                let entity = world.entity(entity);
+                if let Some(text) = entity.get::<Text>() {
+                    texts.push(text.0.clone());
+                }
+                if let Some(children) = entity.get::<Children>() {
+                    stack.extend(children.iter());
+                }
+            }
+            texts
+                .iter()
+                .any(|text| text == title)
+                .then_some((index, texts))
+        })
+    }
+
+    /// Whether one of a posted row's texts is its Reward cell `<n> cr` for
     /// `reward_cr`. The pane groups thousands with commas, so the digits are
     /// compared with the commas stripped. The row's time left is a meter
     /// with no text, so no deadline is read off the pane.
-    fn reward_shown(shown: &[String], reward_cr: u32) -> bool {
-        shown.iter().any(|text| {
+    fn reward_shown(row: &[String], reward_cr: u32) -> bool {
+        row.iter().any(|text| {
             text.strip_suffix(" cr")
                 .is_some_and(|amount| amount.replace(',', "") == reward_cr.to_string())
         })
@@ -1053,14 +1083,15 @@ mod walk {
         );
         let title = new.title(&items);
         let deadline = offer_deadline_text(remaining);
-        let shown = texts(world);
+        let (_, row) = posted_row(world, &title).unwrap_or_else(|| {
+            panic!(
+                "station jobs: the Jobs tab lists '{title}': {:?}",
+                texts(world)
+            )
+        });
         assert!(
-            shown.contains(&title),
-            "station jobs: the Jobs tab lists '{title}': {shown:?}"
-        );
-        assert!(
-            reward_shown(&shown, new.reward_cr),
-            "station jobs: the Jobs tab reads '{} cr': {shown:?}",
+            reward_shown(&row, new.reward_cr),
+            "station jobs: the '{title}' row reads '{} cr': {row:?}",
             new.reward_cr
         );
         nova_probe::probe_marker(
@@ -1142,14 +1173,15 @@ mod walk {
                 posting.posted_at
             );
             let title = new.title(&items);
-            let shown = texts(world);
+            let (_, row) = posted_row(world, &title).unwrap_or_else(|| {
+                panic!(
+                    "station jobs: the Jobs tab lists '{title}': {:?}",
+                    texts(world)
+                )
+            });
             assert!(
-                shown.contains(&title),
-                "station jobs: the Jobs tab lists '{title}': {shown:?}"
-            );
-            assert!(
-                reward_shown(&shown, new.reward_cr),
-                "station jobs: the Jobs tab reads '{} cr': {shown:?}",
+                reward_shown(&row, new.reward_cr),
+                "station jobs: the '{title}' row reads '{} cr': {row:?}",
                 new.reward_cr
             );
             renewed_ids.push(new.id);
@@ -1346,8 +1378,11 @@ mod walk {
             .add()
             .step("station jobs: click Accept")
             .on_enter(|world: &mut World| {
-                let (index, _) = the_job(world);
-                activate_named(world, &format!("JobAccept-{index}"));
+                let (_, job) = the_job(world);
+                let title = job.title(world.resource::<GameItems>());
+                let (row, _) = posted_row(world, &title)
+                    .unwrap_or_else(|| panic!("station jobs: the Jobs tab lists no row '{title}'"));
+                activate_named(world, &format!("JobAccept-{row}"));
             })
             .until(and(the_job_is_held(), frames(SETTLE_FRAMES)))
             .deadline(BEAT_SECS)
