@@ -232,3 +232,11 @@ the menu screens that feed a charter (New Game, Load) are text too. Ideas:
   `StartRole` content, linted; (b) derive it from the role's `JobMixType`
   with the job icons, three icons for six roles. Either needs the icon masks
   shared out of `nova_interface/src/icons.rs`.
+
+## Design 2026-10-19: cross-sector station GOTO (owner review pending)
+- Agent design for the round 3 owner idea, not approved: `STATION-GOTO.md`.
+- Finding: the window already follows the player ship (`WorldObserver`), so
+  the work is a far leg to the station's cell and a handoff to the existing
+  entity GOTO when the station materializes.
+- Stop: gates G1-G9 in the note (owner crate, names, aim point, arrival,
+  failure, save, speed cap, targets, proof). No code before the answers.
