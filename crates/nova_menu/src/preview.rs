@@ -7,9 +7,10 @@
 //! its own on its own render layer, drawn by the shared builders in
 //! `nova_hud::preview`, and a camera rendering into the node's image; the
 //! image follows the node's size. A chart preview orbits under the pointer
-//! the way the Map does, right-drag turning and the wheel zooming; a hull
-//! preview turns on its turntable. A chart preview labels each mark that has
-//! a code and the own ship with a [`MenuChartLabel`] under the node, which
+//! the way the Map does, right-drag turning and the wheel zooming, and keeps
+//! that turn and zoom when its view is redrawn; a hull preview turns on its
+//! turntable. A chart preview labels each mark that has a code and the own
+//! ship with a [`MenuChartLabel`] under the node, which
 //! [`project_menu_chart_labels`] places over its mark. The scene goes with
 //! the node: despawning the node drops its [`MenuPreviewScene`], whose hook
 //! despawns the scene.
@@ -138,7 +139,10 @@ pub(crate) fn preview_node(name: &'static str, node: Node) -> impl Bundle {
 /// Build the scene of every preview node that has none yet or whose view
 /// changed: despawn the old scene and labels, take the lowest free slot,
 /// spawn the scene on its layer with a camera rendering into a new image,
-/// label a chart's marks under the node, and hand the node the image. A host
+/// label a chart's marks under the node, and hand the node the image. A
+/// redrawn chart keeps the orbit the player turned it to, so a new seed
+/// changes the marks and not the view; the camera still looks at the chart's
+/// centre, the new start. A new chart opens on the chart's framing. A host
 /// with no render assets builds nothing.
 #[expect(
     clippy::too_many_arguments,
@@ -159,6 +163,7 @@ pub(crate) fn build_menu_previews(
             Option<&MenuChartPreview>,
             Option<&MenuHullPreview>,
             Option<&MenuPreviewScene>,
+            Option<&MenuPreviewOrbit>,
             &mut ImageNode,
         ),
         Or<(Changed<MenuChartPreview>, Changed<MenuHullPreview>)>,
@@ -169,7 +174,7 @@ pub(crate) fn build_menu_previews(
         return;
     };
     let mut taken: Vec<usize> = q_scenes.iter().map(|scene| scene.slot).collect();
-    for (node, chart, hull, old, mut image_node) in &mut q_nodes {
+    for (node, chart, hull, old, turned, mut image_node) in &mut q_nodes {
         if let Some(old) = old {
             commands.entity(old.root).try_despawn();
             taken.retain(|slot| *slot != old.slot);
@@ -189,7 +194,9 @@ pub(crate) fn build_menu_previews(
                 let Some(tiles) = tiles.as_deref() else {
                     continue;
                 };
-                let orbit = MenuPreviewOrbit::chart(chart.0.reach);
+                let orbit = turned
+                    .copied()
+                    .unwrap_or_else(|| MenuPreviewOrbit::chart(chart.0.reach));
                 let image = images.add(new_render_target_image(MENU_PREVIEW_PX));
                 let root = commands
                     .spawn((
