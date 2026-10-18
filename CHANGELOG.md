@@ -42,7 +42,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A mouse moving as the pause menu or a pane opens no longer keeps turning
   the camera behind it while it moves.
 - Two docked hulls no longer collide, so skin plates and greebles past a
-  port face no longer wear both hulls down while they sit docked.
+  port face no longer wear both hulls down while they sit docked, and
+  undocking no longer shoves them apart.
 - **(breaking)** Living generated stations post three seeded jobs by start
   role: bring, recover, escort, distress, neutralize. Accept and Hand in on
   the Jobs pane while docked; held jobs save.

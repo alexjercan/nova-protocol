@@ -528,6 +528,93 @@ fn dock_pressed_again_by_either_hull_takes_the_joint_away_and_stows_both_sleeves
     }
 }
 
+/// Every live undock separation in the world.
+fn separations(app: &mut App) -> usize {
+    let world = app.world_mut();
+    let mut q = world.query::<&UndockSeparation>();
+    q.iter(world).count()
+}
+
+/// Put `ship` at `at`, as a teleport does.
+fn place(app: &mut App, ship: Entity, at: Vec3) {
+    let mut ship = app.world_mut().entity_mut(ship);
+    ship.insert(Position(at));
+    ship.get_mut::<Transform>()
+        .expect("a hull has a transform")
+        .translation = at;
+}
+
+/// The shared drift of the undock fixture, engine units per second: enough
+/// to move a body's box past avian's broad-phase margin within a few steps.
+const DRIFT: f32 = 0.5;
+
+#[test]
+fn an_undocked_pair_stays_collision_free_until_its_hulls_separate() {
+    let mut app = docking_app();
+    let (first, _, second, _) = facing_pair(&mut app, 0.0);
+    request_dock(&mut app, first, second);
+    assert_eq!(connections(&mut app).len(), 1, "the touching pair docks");
+    // A greeble on the second hull that reaches past its port face into the
+    // first hull, as a skin plate does on a real hull.
+    app.world_mut().spawn((
+        ChildOf(second),
+        Name::new("greeble"),
+        Transform::from_xyz(0.0, 0.0, -0.55),
+        Collider::cuboid(0.2, 0.2, 0.2),
+        ColliderDensity(1.0),
+    ));
+    settle(&mut app);
+    // The pair drifts together, as a docked pair in flight does: a body at
+    // rest keeps its broad-phase box, so avian would never pair the greeble
+    // with the first hull, fix or no fix.
+    for ship in [first, second] {
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(LinearVelocity(Vec3::X * DRIFT));
+    }
+
+    app.world_mut()
+        .trigger(DockingReleaseRequest { entity: second });
+    for _ in 0..30 {
+        app.update();
+    }
+    assert!(connections(&mut app).is_empty(), "the dock is gone");
+    assert_eq!(separations(&mut app), 1, "the overlapping pair stays apart");
+    assert!(
+        !island_linked_contact(&app, first, second),
+        "the greeble holds no contact with the first hull"
+    );
+    let velocity =
+        |app: &App, ship: Entity| app.world().get::<LinearVelocity>(ship).expect("a body").0;
+    let shove = (velocity(&app, second) - velocity(&app, first)).length();
+    assert!(
+        shove < 1.0e-4,
+        "the undock shoves the hulls apart at {shove}"
+    );
+
+    let at = |app: &App| app.world().get::<Position>(first).expect("a body").0;
+    let clear = at(&app) + Vec3::NEG_Z * 4.0;
+    place(&mut app, second, clear);
+    for _ in 0..10 {
+        app.update();
+    }
+    assert_eq!(
+        separations(&mut app),
+        0,
+        "the separated pair is filtered no more"
+    );
+
+    let overlap = at(&app) + Vec3::NEG_Z;
+    place(&mut app, second, overlap);
+    for _ in 0..10 {
+        app.update();
+    }
+    assert!(
+        island_linked_contact(&app, first, second),
+        "the greeble collides with the first hull again"
+    );
+}
+
 #[test]
 fn a_release_request_from_a_hull_that_is_not_docked_does_nothing() {
     let mut app = docking_app();

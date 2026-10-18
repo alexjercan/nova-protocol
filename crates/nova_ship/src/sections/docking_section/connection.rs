@@ -3,12 +3,16 @@
 //!
 //! One accepted pair becomes ONE entity carrying a
 //! [`DockingConnection`] and the avian [`FixedJoint`] that does the actual
-//! work. Releasing is therefore a despawn of that one entity and nothing else
-//! - no query sweeps a joint it did not create. The joint holds the pair
-//! rigid, so the two hulls do not collide while docked
-//! ([`JointCollisionDisabled`]): a skin plate or a greeble that reaches past
-//! a port face would otherwise press on the other hull every step and wear
-//! both down while they sit still.
+//! work. Releasing despawns that one entity - no query sweeps a joint it did
+//! not create. The joint holds the pair rigid, so the two hulls do not
+//! collide while docked ([`JointCollisionDisabled`]): a skin plate or a
+//! greeble that reaches past a port face would otherwise press on the other
+//! hull every step and wear both down while they sit still.
+//!
+//! The same plate still reaches into the other hull the step after the
+//! release, so a contact there would shove both hulls apart. The release
+//! therefore leaves an [`UndockSeparation`] that keeps the pair free of
+//! collisions until no collider of one hull overlaps the other.
 //!
 //! # Ships hold one dock, a station is a hub
 //!
@@ -237,6 +241,25 @@ pub struct DockedStation {
     /// Whether the station flies its assembly this tick. Written only by
     /// `measure_docked_assemblies`.
     pub drives: bool,
+}
+
+/// On its own entity beside a slack [`DistanceJoint`] and
+/// [`JointCollisionDisabled`]: a pair that was just released while its hulls
+/// may still overlap. A skin plate or greeble that reached past a port face
+/// would otherwise start a contact the step after the undock and shove both
+/// hulls apart. [`end_undock_separations`] despawns it once no collider of
+/// one hull overlaps the other, which gives the pair its collisions back.
+///
+/// The joint is what filters the pair: avian 0.7 filters a pair only through
+/// a joint in its joint graph, and `JointDisabled` takes a joint out of the
+/// graph. Its distance limits never bind, so it applies no impulse.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+#[reflect(Component)]
+pub struct UndockSeparation {
+    /// One hull of the released pair.
+    pub first_ship: Entity,
+    /// The other hull.
+    pub second_ship: Entity,
 }
 
 /// Asks for a connection between the ship that issued `DOCK` and its locked
@@ -545,6 +568,47 @@ pub(super) fn release_broken_docking_connections(
     }
 }
 
+/// Despawn every [`UndockSeparation`] whose hulls no longer overlap, or that
+/// lost a hull.
+///
+/// The hulls overlap while any non-sensor collider box of one meets the
+/// merged collider box of the other, taken from the hull with fewer colliders
+/// so the merged box stays tight. No hit against the merged box means no hit
+/// against any of its colliders, so the narrow phase finds no penetration
+/// once the pair collides again. A hull parked overlapping stays filtered
+/// until it moves clear; there is no timeout.
+pub(super) fn end_undock_separations(
+    mut commands: Commands,
+    q_separations: Query<(Entity, &UndockSeparation)>,
+    q_roots: Query<&RigidBodyColliders>,
+    q_aabbs: Query<&ColliderAabb, Without<Sensor>>,
+) {
+    for (entity, separation) in &q_separations {
+        let (first, second) = (separation.first_ship, separation.second_ship);
+        let Ok([first_colliders, second_colliders]) = q_roots.get_many([first, second]) else {
+            debug!("end_undock_separations: {first:?}/{second:?} lost a hull");
+            commands.entity(entity).try_despawn();
+            continue;
+        };
+        let (merged, other) = if first_colliders.len() <= second_colliders.len() {
+            (first_colliders, second_colliders)
+        } else {
+            (second_colliders, first_colliders)
+        };
+        // `INVALID` is empty: a hull with no solid collider meets nothing.
+        let merged = q_aabbs
+            .iter_many(merged.iter())
+            .fold(ColliderAabb::INVALID, |merged, aabb| merged.merged(*aabb));
+        let overlapping = q_aabbs
+            .iter_many(other.iter())
+            .any(|aabb| aabb.intersects(&merged));
+        if !overlapping {
+            debug!("end_undock_separations: {first:?}/{second:?} separated, collisions restored");
+            commands.entity(entity).try_despawn();
+        }
+    }
+}
+
 /// Let a docked ship go, on its own request.
 ///
 /// Ungated: `DOCK` pressed again always works, exactly as `ORBIT` pressed
@@ -755,7 +819,8 @@ fn helm_command(
 }
 
 /// Despawn `connection` (and with it the joint and its helm), free both
-/// ports, and start both surviving sleeves back in.
+/// ports, start both surviving sleeves back in, and keep the pair free of
+/// collisions with an [`UndockSeparation`] until the hulls separate.
 ///
 /// The ship side loses its docked record and its assembly. The `hub` side,
 /// a station, keeps both while it holds other connections: its record goes
@@ -772,6 +837,36 @@ fn release_connection(
     q_states: &mut Query<&mut DockingSectionState>,
 ) {
     commands.entity(entity).try_despawn();
+    let (first_ship, second_ship) = (connection.first_ship, connection.second_ship);
+    commands.queue(move |world: &mut World| {
+        // A hull destroyed with its dock leaves no pair to keep apart.
+        if world.get_entity(first_ship).is_err() || world.get_entity(second_ship).is_err() {
+            return;
+        }
+        // A pair docked and released again before it separated still holds
+        // its separation, which ends once.
+        let pair = [first_ship, second_ship];
+        if world
+            .query::<&UndockSeparation>()
+            .iter(world)
+            .any(|held| pair.contains(&held.first_ship) && pair.contains(&held.second_ship))
+        {
+            return;
+        }
+        debug!(
+            "release_connection: {first_ship:?}/{second_ship:?} stay collision-free until the \
+             hulls separate"
+        );
+        world.spawn((
+            Name::new("Undock Separation"),
+            UndockSeparation {
+                first_ship,
+                second_ship,
+            },
+            DistanceJoint::new(first_ship, second_ship).with_limits(0.0, f32::MAX),
+            JointCollisionDisabled,
+        ));
+    });
     for section in [connection.first_section, connection.second_section] {
         commands.entity(section).try_remove::<DockedPort>();
         if let Ok(mut state) = q_states.get_mut(section) {

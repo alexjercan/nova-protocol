@@ -40,15 +40,15 @@ mod render;
 pub use admission::{station_admission, DockAdmission, DockRefusalType};
 pub use assembly::DockedAssembly;
 use assembly::{apply_docked_helm_wrench, measure_docked_assemblies};
+use connection::{
+    end_undock_separations, on_docking_connection_request, on_docking_helm_request,
+    on_docking_port_removed_release, on_docking_release_request, on_station_derelict_release_helm,
+    on_station_docks_emptied, park_suppressed_docked_helms, release_broken_docking_connections,
+};
 pub use connection::{
     helm_on_capture, helm_request_admitted, DockPartnerType, DockedHelmType, DockedPort,
     DockedShip, DockedStation, DockingConnection, DockingConnectionRequest, DockingHelmRequest,
-    DockingReleaseRequest, DockingSystems, StationDock, StationDocks,
-};
-use connection::{
-    on_docking_connection_request, on_docking_helm_request, on_docking_port_removed_release,
-    on_docking_release_request, on_station_derelict_release_helm, on_station_docks_emptied,
-    park_suppressed_docked_helms, release_broken_docking_connections,
+    DockingReleaseRequest, DockingSystems, StationDock, StationDocks, UndockSeparation,
 };
 pub(crate) use port::PORT_FACE;
 pub use port::{DockingPair, DockingPorts, PortPose};
@@ -64,7 +64,7 @@ pub mod prelude {
         DockingConnectionRequest, DockingEnvelope, DockingHelmRequest, DockingPair, DockingPorts,
         DockingReleaseRequest, DockingSectionConfig, DockingSectionConfigHelper,
         DockingSectionMarker, DockingSectionPlugin, DockingSectionState, DockingSystems, PortPose,
-        StationDock, StationDocks,
+        StationDock, StationDocks, UndockSeparation,
     };
 }
 
@@ -310,6 +310,7 @@ impl Plugin for DockingSectionPlugin {
         app.register_type::<StationDocks>();
         app.register_type::<DockingConnection>();
         app.register_type::<DockedAssembly>();
+        app.register_type::<UndockSeparation>();
 
         app.add_observer(on_docking_connection_request);
         app.add_observer(on_docking_release_request);
@@ -320,7 +321,8 @@ impl Plugin for DockingSectionPlugin {
 
         app.add_systems(
             FixedUpdate,
-            release_broken_docking_connections.in_set(DockingSystems::Release),
+            (release_broken_docking_connections, end_undock_separations)
+                .in_set(DockingSystems::Release),
         );
         app.add_systems(
             FixedUpdate,
