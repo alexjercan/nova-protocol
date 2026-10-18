@@ -32,7 +32,8 @@
 //! stations and wrecks found, and each station's last-seen summary, whose
 //! item ids pass the same check as every saved hold, and the player's
 //! [`Jobs`]: the jobs held and the jobs completed, checked the same way, the
-//! [`JobPostings`]: each station board's slot postings and their stamps,
+//! [`JobPostings`]: each station board's slot postings, their stamps and
+//! their offers as posted, whose item ids pass the same check,
 //! the [`WorldClock`], the play time every frozen body's stamp and every
 //! posting reads against, the player's [`CivilizationStances`], refused when
 //! a stamp is ahead of that clock, and the role goal's [`GoalRecord`],
@@ -82,7 +83,7 @@ pub use transients::{
 /// nobody held live is recorded as an arrival there. Every cell the player
 /// never visited regenerates from the seed on Load, so another generator
 /// would change it silently.
-pub const WORLD_SAVE_FORMAT: u32 = 22;
+pub const WORLD_SAVE_FORMAT: u32 = 23;
 
 /// The most characters a world name has, after trimming.
 const WORLD_NAME_MAX: usize = 32;
@@ -294,8 +295,8 @@ pub struct WorldSaveState {
     pub chart: Chart,
     /// The jobs the player holds, has done and has completed.
     pub jobs: Jobs,
-    /// Every posted station board's slot postings and their play-time
-    /// stamps.
+    /// Every posted station board's slot postings, their play-time stamps
+    /// and their offers.
     pub postings: JobPostings,
     /// The play-time clock: the seconds of unpaused, armed play the world
     /// has seen. Every frozen body's `frozen_at` and every posting's stamp
@@ -607,7 +608,7 @@ fn read_state(
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     state
         .postings
-        .validate(state.clock.play_seconds, &state.jobs)
+        .validate(state.clock.play_seconds)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     state
         .stances
@@ -776,6 +777,9 @@ fn check_saved_items(state: &WorldSaveState, items: &GameItems) -> Result<(), St
     }
     if let Some(item) = unknown(&mut state.jobs.item_ids()) {
         return Err(format!("unknown item '{item}' named by a held job"));
+    }
+    if let Some(item) = unknown(&mut state.postings.item_ids()) {
+        return Err(format!("unknown item '{item}' named by a posted offer"));
     }
     for (coord, record) in state.sectors.iter() {
         for body in record.bodies() {

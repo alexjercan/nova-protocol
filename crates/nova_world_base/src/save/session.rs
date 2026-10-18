@@ -631,11 +631,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
                 .chart
                 .validate()
                 .and_then(|()| state.jobs.validate())
-                .and_then(|()| {
-                    state
-                        .postings
-                        .validate(state.clock.play_seconds, &state.jobs)
-                })
+                .and_then(|()| state.postings.validate(state.clock.play_seconds))
                 .and_then(|()| state.stances.validate(state.clock.play_seconds))
                 .and_then(|()| state.goal.validate(state.clock.play_seconds))
                 .and_then(|()| check_saved_fleet(&state))

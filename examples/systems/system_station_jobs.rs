@@ -30,8 +30,8 @@
 //! | 1 | `outcome: a docked station posts a seeded board` | the station root carries [`JOBS_PER_BOARD`] valid jobs of its own, one of them a procurement, and the Jobs tab lists every title; each escort or neutralize row greys its Accept with `accept: the hull has no weapon` in its tooltip, every other Accept stays live |
 //! | 2 | `outcome: an accept holds the job` | after the Accept click the job is held, gone from the posted list and listed under Your jobs |
 //! | 3 | `outcome: the chart view marks the held job` | undocked, the chart view labels the job `JOB-1`; a click shows HELD JOB, its title and its reward |
-//! | 4 | `outcome: the leave save holds the job` | the leave save, read with [`open_world`], holds the one job and no completed id |
-//! | 5 | `outcome: a loaded world restores the job and the board` | after the Load the job is held again and the station posts the same board |
+//! | 4 | `outcome: the leave save holds the job` | the leave save, read with [`open_world`], holds the one job, no completed id and each slot's offer as the board posted it |
+//! | 5 | `outcome: a loaded world restores the job and the board` | after the Load the job is held again and the station posts the same board, the saved offers |
 //! | 6 | `outcome: a passed window renews the unheld offers and pins the held job` | docked again, once the clock passes the offer window the two unheld slots renew, stamped at the clock, and the tab lists them with their reward, while the held slot and job stand unchanged |
 //! | 7 | `outcome: a thaw renews only the unheld offers` | after the station's cell retires and thaws with the clock again past the offer window, the two unheld slots renew and their old postings' bodies are gone, while the held slot still carries the pinned job |
 //! | 8 | `outcome: a hand-in pays the reward and completes the job` | docked a third time with the goods, the Hand in click takes the goods, pays the reward from the station and lists the job completed |
@@ -875,7 +875,8 @@ mod walk {
         info!("station jobs: the chart view shows JOB-1: {title}, {reward}");
     }
 
-    /// Claim 4: the leave save holds the job and its slot's first posting.
+    /// Claim 4: the leave save holds the job, its slot's first posting and
+    /// every offer as posted.
     fn assert_the_saved_jobs(world: &mut World) {
         let (_, job) = the_job(world);
         let station = station_id(world);
@@ -917,6 +918,12 @@ mod walk {
             state.postings.slot(&job.id).is_some(),
             "station jobs: the save holds the accepted job's slot posting"
         );
+        let posted = world.resource::<JobWatch>().board.clone();
+        assert_eq!(
+            board.iter().map(|slot| &slot.offer).collect::<Vec<_>>(),
+            posted.iter().collect::<Vec<_>>(),
+            "station jobs: the save holds each offer as the board posted it"
+        );
         nova_probe::probe_marker(
             world,
             "outcome: the leave save holds the job",
@@ -954,6 +961,17 @@ mod walk {
         assert_eq!(
             posted, board,
             "station jobs: the loaded station posts the same board"
+        );
+        let saved: Vec<Job> = world
+            .resource::<JobPostings>()
+            .board(&job.id.station)
+            .expect("station jobs: the Load restored the station's postings")
+            .iter()
+            .map(|slot| slot.offer.clone())
+            .collect();
+        assert_eq!(
+            posted, saved,
+            "station jobs: the loaded board is the saved offers"
         );
         nova_probe::probe_marker(
             world,
@@ -1134,8 +1152,12 @@ mod walk {
         let posting = world
             .resource::<JobPostings>()
             .slot(&new.id)
-            .copied()
+            .cloned()
             .unwrap_or_else(|| panic!("station jobs: JobPostings records '{}'", new.id));
+        assert_eq!(
+            posting.offer, new,
+            "station jobs: the board posts the slot's saved offer"
+        );
         assert!(
             posting.posted_at <= clock,
             "station jobs: the renewal stamps no later than the clock: {} > {clock}",
@@ -1229,8 +1251,12 @@ mod walk {
             let posting = world
                 .resource::<JobPostings>()
                 .slot(&new.id)
-                .copied()
+                .cloned()
                 .unwrap_or_else(|| panic!("station jobs: JobPostings records '{}'", new.id));
+            assert_eq!(
+                posting.offer, new,
+                "station jobs: the board posts the slot's saved offer"
+            );
             assert!(
                 (bumped_to..=clock).contains(&posting.posted_at),
                 "station jobs: slot {slot} stamps between the bump ({bumped_to}) and the clock \
@@ -1313,8 +1339,12 @@ mod walk {
             let posting = world
                 .resource::<JobPostings>()
                 .slot(&new.id)
-                .copied()
+                .cloned()
                 .unwrap_or_else(|| panic!("station jobs: JobPostings records '{}'", new.id));
+            assert_eq!(
+                posting.offer, new,
+                "station jobs: the board posts the slot's saved offer"
+            );
             assert!(
                 (bumped_to..=clock).contains(&posting.posted_at),
                 "station jobs: slot {slot} stamps between the bump ({bumped_to}) and the thaw \

@@ -472,7 +472,7 @@ one.
 
 ## Jobs
 
-<!-- Board and postings: crates/nova_gameplay/src/jobs.rs (`station_job_board`, `JobPostings`). Renewal: crates/nova_world_base/src/jobs.rs. -->
+<!-- Board and postings: crates/nova_gameplay/src/jobs.rs (`station_job_offers`, `JobPostings`). Renewal: crates/nova_world_base/src/jobs.rs. -->
 
 A living station that offers `Jobs` posts a board of three jobs
 (`JOBS_PER_BOARD`), put on its root as `JobBoard` once every sector in the
@@ -482,24 +482,27 @@ civilization whose seeded stance is Ally, kept in the world save's `start`
 field (save format 21) - also wears `StarterBoardMarker` beside its board; it
 is the one board that posts the start role's starter jobs, and no other
 board ever carries the marker. Each board slot carries a
-posting number and the play-time stamp it was posted at (`SlotPosting`, kept
-per station in the `JobPostings` session resource, saved with the world). A
-slot's offer is a pure function of the world seed, the station's generated
-id, the slot, the posting number, the cluster types of its sector, the start
-role's job mix and the field around the station, drawn off its own `WyRand`
-seeded from FNV-64 of `(seed, "station_jobs", station id, slot, posting)`:
-the same slot posts the same offer in every process and after a Load, for as
-long as it stays on that posting. A job's id is the posting station's id,
-its board slot and its posting number (`<station>#<slot>.<posting>`).
+posting number, the play-time stamp it was posted at and the offer it posted
+(`SlotPosting`, kept per station in the `JobPostings` session resource, saved
+with the world). A slot's offer is drawn once, when the slot posts, from the
+world seed, the station's generated id, the slot, the posting number, the
+cluster types of its sector, the start role's job mix, the board's standing
+offers and the field around the station, off its own `WyRand` seeded from
+FNV-64 of `(seed, "station_jobs", station id, slot, posting)`. The offer then
+stands as drawn until its slot renews: a looted wreck, a job held elsewhere, a
+thaw or a Load never changes it. A job's id is the posting station's id, its
+board slot and its posting number (`<station>#<slot>.<posting>`).
 
 A slot renews - moves to its next posting, stamped now - when its job is
 handed in, or when an unheld offer stands past the price table's
 `jobs.offer_seconds`: the bodies the old posting could have put in the world
 (a hauler, its raiders, a caller, each named
 `<station stem>_job_<slot>_<posting>_<part>`) are despawned first, then the
-slot posts again under the next posting number. A job you hold is pinned:
-its slot never renews under it, so a held job never expires. A dropped job
-(a lost hauler) stays posted under its own id until its own window passes.
+slot posts again under the next posting number. Stations draw in id order.
+A job you hold is pinned: its slot never renews under it, so a held job never
+expires. A dropped job (a lost hauler, wreck or genuine caller, or a dead
+poster) stays posted under its own id until its own window passes; its
+Accept is refused while its target is gone.
 
 Each slot draws its kind by the start role's `jobs` mix (see
 [start roles](../start-roles/)), as weights over `Procure`, `Recover`,
@@ -533,8 +536,10 @@ A `Procure` draws a distinct item from those categories while the pool
 allows (a catalog with none of them draws from every item) and a count of 2
 to 8. A `Recover` names a derelict with a non-empty hold in the cube and one
 of its stacks; a `Neutralize` names an intact, un-neutralized Enemy hull in
-the cube; each wreck or hull is named once per board, and a slot with no
-candidate posts a `Procure` instead.
+the cube. A new offer never names a wreck or hull that a held job, a body a
+held job spawned, or an unexpired offer on any board already names, so two
+boards never pay for one target; a slot with no candidate left posts a
+`Procure` instead.
 
 The player accepts and hands in only while docked at a living station that
 offers `Jobs` (`plan_job_accept`, `plan_job_hand_in`). An accept is refused
@@ -553,16 +558,17 @@ destroyed (`Distress`), `onneutralized` or `ondestroyed` naming the hull
 covers the reward; it removes a `Procure`'s goods, pays `OnCreditsChanged`
 with cause `JobReward` on both sides and lists the job completed. Held, done
 and completed jobs are the `Jobs` session resource, and every board's slot
-postings are the `JobPostings` session resource; both save in the world
-state's `jobs` and `postings` fields (save format 17) and are checked on
-load: a job held twice, held and completed, done but not held, with a zero
-count or reward, or naming an item the catalog lacks refuses the world, as
-does a board with the wrong slot count, a posting stamp ahead of the clock,
-or a held job that is not its slot's current posting. A frozen sector keeps a
-spawned hauler, caller or raider as any ship, but not the hauler's helm
-order: a hauler left mid-leg stands where it was thawed. Authored `Station`
-content with `Jobs` in its services posts no board: only generated stations
-have the id and sector the board is seeded from.
+postings and offers are the `JobPostings` session resource; both save in
+the world state's `jobs` and `postings` fields (save format 23) and are
+checked on load: a job held twice, held and completed, done but not held,
+with a zero count or reward, or naming an item the catalog lacks refuses the
+world, as does a board with the wrong slot count, a posting stamp ahead of
+the clock, or an offer that is not its slot's posting or that no board could
+post. A held job is checked by its own rules, not against its slot. A
+frozen sector keeps a spawned hauler, caller or raider as any ship, but not
+the hauler's helm order: a hauler left mid-leg stands where it was thawed.
+Authored `Station` content with `Jobs` in its services posts no board: only
+generated stations have the id and sector the board is seeded from.
 
 ## Base stations
 

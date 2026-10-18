@@ -3,19 +3,22 @@
 //! states.
 //!
 //! A station's board has [`JOBS_PER_BOARD`] slots. Each slot carries a
-//! posting number and the play time it was posted at ([`SlotPosting`], kept
-//! per station in the [`JobPostings`] session resource); its offer is a
-//! function of the world seed, the station's id, the slot, the posting, the
-//! cluster types of its cell, the start role's [`JobMixType`] and the
-//! [`JobField`] of wrecks and hostile hulls standing around it when the
-//! board posts ([`station_job_board`]), so the same postings post the same
-//! board while the world around it is the same, in every process and after
-//! a Load; a looted wreck or a neutralized hull is off the next posting. An
-//! offer the player does not hold expires [`JobOfferRule::offer_seconds`] of
-//! play after its stamp; the open world crate then renews the slot
-//! ([`JobPostings::renew`]), which posts a new offer under a new [`JobId`].
-//! A held job never expires: its slot is pinned until it is handed in or
-//! dropped. The open world crate puts the board on the station root as a
+//! posting number, the play time it was posted at and the offer it posted
+//! ([`SlotPosting`], kept per station in the [`JobPostings`] session
+//! resource). The offer is drawn once, when the slot posts, as a function of
+//! the world seed, the station's id, the slot, the posting, the cluster
+//! types of its cell, the start role's [`JobMixType`], the [`JobField`] of
+//! wrecks and hostile hulls standing around it and the board's other offers
+//! ([`station_job_offers`]); it is kept as drawn until the slot renews,
+//! whatever the field does, and saved with the world. A new offer never
+//! names a body a held job or another unexpired offer names
+//! ([`JobPostings::named_bodies`]), so two boards never pay for one wreck or
+//! one hull. An offer the player does not hold expires
+//! [`JobOfferRule::offer_seconds`] of play after its stamp; the open world
+//! crate then posts the slot's next offer under a new [`JobId`]
+//! ([`JobPostings::post`]). A held job never expires: its slot is pinned
+//! until it is handed in or dropped. A dropped job's offer stays posted,
+//! refused at the accept once its target is gone, until its window passes. The open world crate puts the board on the station root as a
 //! [`JobBoard`]; the Jobs pane lists it while the player is docked there,
 //! with each offer's remaining time ([`offer_deadline_text`]), and offers
 //! Accept and Hand in. Both happen docked only ([`plan_job_accept`],
@@ -38,7 +41,10 @@
 //! the world crates. It holds no entity: a job names bodies by
 //! [`GeneratedBodyId`], so it outlives the cell that holds its poster.
 
-use std::{collections::BTreeMap, fmt};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+};
 
 use bevy::prelude::*;
 use bevy_rand::prelude::WyRand;
@@ -56,7 +62,7 @@ use crate::{
 pub mod prelude {
     pub use super::{
         escort_raiders, offer_deadline_text, plan_job_accept, plan_job_hand_in, plan_job_hull_fit,
-        station_job_board, Job, JobAcceptRefusalType, JobAccepted, JobBoard, JobField,
+        station_job_offers, Job, JobAcceptRefusalType, JobAccepted, JobBoard, JobField,
         JobHandInPartner, JobHandInPlan, JobHandInRefusalType, JobHull, JobHullFit,
         JobHullRefusalType, JobId, JobMixType, JobPostings, JobType, JobWreck, Jobs, SlotPosting,
         StarterBoardMarker, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD, RAIDERS_PER_CARGO_CR,
@@ -105,7 +111,7 @@ pub struct JobId {
     /// The job's slot on that station's board, below [`JOBS_PER_BOARD`].
     pub slot: u32,
     /// The slot's posting number: zero for the slot's first offer, one more
-    /// for each renewal ([`JobPostings::renew`]).
+    /// for each renewal ([`JobPostings::post`]).
     pub posting: u32,
 }
 
@@ -142,9 +148,9 @@ impl fmt::Display for JobId {
     }
 }
 
-/// One slot of a station's board: which posting it is on and when, in play
-/// seconds, that posting went up.
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// One slot of a station's board: which posting it is on, when, in play
+/// seconds, that posting went up, and the offer it posted.
+#[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct SlotPosting {
@@ -152,6 +158,9 @@ pub struct SlotPosting {
     pub posting: u32,
     /// The [`crate::clock::WorldClock`] reading when the posting went up.
     pub posted_at: f64,
+    /// The offer the slot posted on this posting, as drawn: it stands
+    /// unchanged until the slot renews, whatever the world around it does.
+    pub offer: Job,
 }
 
 impl SlotPosting {
@@ -159,20 +168,20 @@ impl SlotPosting {
     /// below once it expired. The stamp is taken off `now` first, so a read
     /// on the posting frame gives the whole window exactly, with no rounding
     /// residue from the sum.
-    pub fn remaining(self, rule: JobOfferRule, now: f64) -> f64 {
+    pub fn remaining(&self, rule: JobOfferRule, now: f64) -> f64 {
         (self.posted_at - now) + f64::from(rule.offer_seconds)
     }
 
     /// Whether the offer's window has passed at `now`: it has nothing left.
-    pub fn is_expired(self, rule: JobOfferRule, now: f64) -> bool {
+    pub fn is_expired(&self, rule: JobOfferRule, now: f64) -> bool {
         self.remaining(rule, now) <= 0.0
     }
 }
 
-/// Every station's slot postings: the posting number and the play-time
-/// stamp of each of the [`JOBS_PER_BOARD`] slots of every board the open
-/// world has posted. A session resource like [`Jobs`]: a world save carries
-/// it, a Load puts it back, and it is cleared with the chart.
+/// Every station's slot postings: the posting number, the play-time stamp
+/// and the offer of each of the [`JOBS_PER_BOARD`] slots of every board the
+/// open world has posted. A session resource like [`Jobs`]: a world save
+/// carries it, a Load puts it back, and it is cleared with the chart.
 #[derive(Resource, Clone, Debug, Default, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
@@ -204,53 +213,108 @@ impl JobPostings {
             .filter(|slot| slot.posting == id.posting)
     }
 
-    /// The slots of `station`'s board, posted now at `now` on their first
-    /// posting when the station has none yet.
-    pub fn open(&mut self, station: &GeneratedBodyId, now: f64) -> &[SlotPosting] {
-        self.boards.entry(station.clone()).or_insert_with(|| {
-            vec![
-                SlotPosting {
-                    posting: 0,
-                    posted_at: now,
-                };
-                JOBS_PER_BOARD as usize
-            ]
-        })
-    }
-
-    /// Move the slot of `id` to its next posting at `now` and give back the
-    /// id the new offer posts under.
+    /// Post `offers` at `now`, all of one station: a station with no board
+    /// takes [`JOBS_PER_BOARD`] offers, one per slot in slot order, each on
+    /// its first posting; a posted station takes each offer on its slot's
+    /// next posting, and its other slots stand.
     ///
     /// # Panics
     ///
-    /// When the station has not posted, the slot is past the board, or `id`
-    /// is not the slot's current posting: the caller renews what it read off
-    /// [`JobPostings::open`] this frame.
-    pub fn renew(&mut self, id: &JobId, now: f64) -> JobId {
-        let slot = self
-            .boards
-            .get_mut(&id.station)
-            .and_then(|slots| slots.get_mut(id.slot as usize))
-            .unwrap_or_else(|| panic!("JobPostings renews '{id}', which was never posted"));
-        assert_eq!(
-            slot.posting, id.posting,
-            "JobPostings renews '{id}' but the slot is on posting {}",
-            slot.posting
-        );
-        slot.posting += 1;
-        slot.posted_at = now;
-        JobId {
-            station: id.station.clone(),
-            slot: id.slot,
-            posting: slot.posting,
+    /// On any other shape: the caller posts what [`station_job_offers`] drew
+    /// for the ids it renews.
+    pub fn post(&mut self, offers: Vec<Job>, now: f64) {
+        let station = offers
+            .first()
+            .expect("JobPostings posts no offer")
+            .id
+            .station
+            .clone();
+        let Some(slots) = self.boards.get_mut(&station) else {
+            assert!(
+                offers.len() == JOBS_PER_BOARD as usize
+                    && offers.iter().enumerate().all(|(slot, offer)| offer.id
+                        == JobId {
+                            station: station.clone(),
+                            slot: slot as u32,
+                            posting: 0,
+                        }),
+                "JobPostings opens '{station}' with offers other than its first postings"
+            );
+            let slots = offers
+                .into_iter()
+                .map(|offer| SlotPosting {
+                    posting: 0,
+                    posted_at: now,
+                    offer,
+                })
+                .collect();
+            self.boards.insert(station, slots);
+            return;
+        };
+        for offer in offers {
+            assert_eq!(
+                offer.id.station, station,
+                "JobPostings posts '{}' beside '{station}'",
+                offer.id
+            );
+            let slot = slots
+                .get_mut(offer.id.slot as usize)
+                .unwrap_or_else(|| panic!("JobPostings posts '{}' off the board", offer.id));
+            assert_eq!(
+                offer.id.posting,
+                slot.posting + 1,
+                "JobPostings posts '{}' but the slot is on posting {}",
+                offer.id,
+                slot.posting
+            );
+            *slot = SlotPosting {
+                posting: offer.id.posting,
+                posted_at: now,
+                offer,
+            };
         }
+    }
+
+    /// Every body a new offer must not name at `now` under `rule`: what each
+    /// job held in `jobs` is about and every body it put in the world, and
+    /// what each offer on every board is about while its window stands and
+    /// the player has not handed it in.
+    pub fn named_bodies(
+        &self,
+        rule: JobOfferRule,
+        now: f64,
+        jobs: &Jobs,
+    ) -> BTreeSet<GeneratedBodyId> {
+        let held = jobs.held().iter().flat_map(|job| {
+            job.located_body()
+                .cloned()
+                .into_iter()
+                .chain(job.spawned_bodies())
+        });
+        let offered = self
+            .boards
+            .values()
+            .flatten()
+            .filter(|slot| !slot.is_expired(rule, now) && !jobs.is_completed(&slot.offer.id))
+            .filter_map(|slot| slot.offer.located_body().cloned());
+        held.chain(offered).collect()
+    }
+
+    /// Every item id a posted offer names.
+    pub fn item_ids(&self) -> impl Iterator<Item = &ItemDesignId> + '_ {
+        self.boards
+            .values()
+            .flatten()
+            .flat_map(|slot| slot.offer.item_ids())
     }
 
     /// Refuse a record a Load could not have built: a board with other than
     /// [`JOBS_PER_BOARD`] slots, a stamp that is not finite or stands ahead
-    /// of the clock at `clock_seconds`, or a held job of `jobs` whose slot is
-    /// not posted or not on its posting.
-    pub fn validate(&self, clock_seconds: f64, jobs: &Jobs) -> Result<(), String> {
+    /// of the clock at `clock_seconds`, or an offer that is not its slot's
+    /// posting or that [`Job::validate`] refuses. A held job is not read
+    /// against its slot: it stands by its own rules ([`Jobs::validate`])
+    /// after its posting expires or its slot renews.
+    pub fn validate(&self, clock_seconds: f64) -> Result<(), String> {
         for (station, slots) in &self.boards {
             if slots.len() != JOBS_PER_BOARD as usize {
                 return Err(format!(
@@ -266,14 +330,18 @@ impl JobPostings {
                         slot.posted_at
                     ));
                 }
-            }
-        }
-        for job in jobs.held() {
-            if self.slot(&job.id).is_none() {
-                return Err(format!(
-                    "the held job '{}' is not its slot's current posting",
-                    job.id
-                ));
+                let id = JobId {
+                    station: station.clone(),
+                    slot: index as u32,
+                    posting: slot.posting,
+                };
+                if slot.offer.id != id {
+                    return Err(format!(
+                        "the postings of '{station}' post '{}' on slot {index}, posting {}",
+                        slot.offer.id, slot.posting
+                    ));
+                }
+                slot.offer.validate()?;
             }
         }
         Ok(())
@@ -576,10 +644,11 @@ pub fn escort_raiders(cargo_cr: u32) -> u32 {
     (1 + cargo_cr / RAIDERS_PER_CARGO_CR).min(ESCORT_RAIDERS_MAX)
 }
 
-/// The board a living generated station posts, on its root. Put there by
-/// the open world the frame the station stands under its cell's root with
-/// the cells around it live, and posted again the same way after a thaw or
-/// a Load. The pane hides the jobs the player holds or completed.
+/// The board a living generated station posts, on its root: its slots'
+/// offers ([`JobPostings`]), in slot order. Put there by the open world the
+/// frame the station stands under its cell's root with the cells around it
+/// live, and put back from the same offers after a thaw or a Load. The pane
+/// hides the jobs the player holds or completed.
 #[derive(Component, Clone, Debug, PartialEq, Eq)]
 pub struct JobBoard(pub Vec<Job>);
 
@@ -711,8 +780,8 @@ impl Jobs {
     }
 
     /// Take the held job `id` off the list, done or not, and give it back:
-    /// the job is over without a hand-in, as when its hauler is lost. The
-    /// board posts it again.
+    /// the job is over without a hand-in, as when its hauler is lost. Its
+    /// offer stays on the board until its window passes.
     ///
     /// # Panics
     ///
@@ -834,12 +903,15 @@ fn wanted_categories(clusters: &[ClusterType]) -> Vec<ItemCategoryType> {
     wanted
 }
 
-/// The board the station `station` posts in the world of `seed`, standing
-/// in a cell whose clusters are `clusters`, for a start whose boards lean
-/// by `mix`, with `field` standing around it, on the slot postings `slots`:
-/// [`JOBS_PER_BOARD`] jobs, each slot's kind drawn by the mix's weights. A
-/// slot whose posting the player holds in `held` posts the held job as it
-/// is, and no slot names a body a held job is about.
+/// The offers the slots `ids` of one station's board post in the world of
+/// `seed`, the station standing in a cell whose clusters are `clusters`,
+/// for a start whose boards lean by `mix`, with `field` standing around it,
+/// beside the board's `standing` offers, which keep their slots: one offer
+/// per id, in order, each kind drawn by the mix's weights. No offer names a
+/// body a standing offer names, and a procurement asks for no item a
+/// standing one asks for while the pool allows. The caller leaves out of
+/// `field` every body another board or a held job names
+/// ([`JobPostings::named_bodies`]).
 ///
 /// A procurement asks for an item from the categories the cell asks for
 /// ([`wanted_categories`]), distinct while the pool allows, [`PROCURE_COUNT`]
@@ -854,38 +926,45 @@ fn wanted_categories(clusters: &[ClusterType]) -> Vec<ItemCategoryType> {
 /// hull is named once per board.
 ///
 /// Each slot's draws come off its own `WyRand`, seeded from the world seed,
-/// the station id, the slot and its posting, in a fixed number, so the board
-/// is the same in every process and after a Load while the postings and the
-/// field are, and a renewed slot draws afresh. A catalog with no item of the
-/// wanted categories draws from every item; an empty catalog posts nothing.
-/// A reward past a credit balance saturates.
+/// the station id, the slot and its posting, in a fixed number, so the same
+/// inputs draw the same offers in every process, and a renewed slot draws
+/// afresh. A catalog with no item of the wanted categories draws from every
+/// item. A reward past a credit balance saturates.
 ///
 /// # Panics
 ///
-/// When `slots` is not [`JOBS_PER_BOARD`] long: the caller reads them off
-/// [`JobPostings::open`].
+/// When `ids` is empty, spans stations, repeats a slot or names one past
+/// the board, and when the catalog is empty: a board always has an item to
+/// ask for.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one pure draw over the seed, the poster, its cell, the catalog, the mix, the field, the postings and the held jobs"
+    reason = "one pure draw over the seed, the slots, the poster's cell, the catalog, the mix, the field and the standing offers"
 )]
-pub fn station_job_board(
+pub fn station_job_offers(
     seed: u32,
-    station: &GeneratedBodyId,
+    ids: &[JobId],
     clusters: &[ClusterType],
     items: &GameItems,
     mix: JobMixType,
     field: &JobField,
-    slots: &[SlotPosting],
-    held: &Jobs,
+    standing: &[Job],
 ) -> Vec<Job> {
-    assert_eq!(
-        slots.len(),
-        JOBS_PER_BOARD as usize,
-        "station_job_board: '{station}' posts on {} slot(s)",
-        slots.len()
-    );
-    let taken: Vec<&GeneratedBodyId> = held.held().iter().filter_map(Job::located_body).collect();
+    let station = &ids
+        .first()
+        .expect("station_job_offers: no slot to draw")
+        .station;
+    for (index, id) in ids.iter().enumerate() {
+        assert!(
+            id.station == *station
+                && id.slot < JOBS_PER_BOARD
+                && ids[..index].iter().all(|other| other.slot != id.slot),
+            "station_job_offers: '{id}' is not a slot of its own on the board of '{station}'"
+        );
+    }
     let wanted = wanted_categories(clusters);
+    let standing_items: Vec<&ItemDesignId> = standing.iter().flat_map(Job::item_ids).collect();
+    let standing_bodies: Vec<&GeneratedBodyId> =
+        standing.iter().filter_map(Job::located_body).collect();
     let mut pool: Vec<&ItemDesignId> = items
         .iter()
         .filter(|design| wanted.contains(&design.category))
@@ -894,34 +973,35 @@ pub fn station_job_board(
     if pool.is_empty() {
         pool = items.iter().map(|design| &design.id).collect();
     }
-    if pool.is_empty() {
-        return Vec::new();
+    assert!(
+        !pool.is_empty(),
+        "station_job_offers: '{station}' draws from an empty catalog"
+    );
+    let unasked: Vec<&ItemDesignId> = pool
+        .iter()
+        .copied()
+        .filter(|item| !standing_items.contains(item))
+        .collect();
+    if !unasked.is_empty() {
+        pool = unasked;
     }
     let mut wrecks: Vec<&JobWreck> = field
         .wrecks
         .iter()
         .filter(|wreck| {
-            !taken.contains(&&wreck.id) && wreck.stacks.iter().any(|(_, count)| *count > 0)
+            !standing_bodies.contains(&&wreck.id)
+                && wreck.stacks.iter().any(|(_, count)| *count > 0)
         })
         .collect();
     let mut hostiles: Vec<&JobHull> = field
         .hostiles
         .iter()
-        .filter(|hull| !taken.contains(&&hull.id))
+        .filter(|hull| !standing_bodies.contains(&&hull.id))
         .collect();
     let reward = |base: u64, fee: u32| u32::try_from(base + u64::from(fee)).unwrap_or(u32::MAX);
-    slots
-        .iter()
-        .enumerate()
-        .map(|(slot, posting)| {
-            let id = JobId {
-                station: station.clone(),
-                slot: slot as u32,
-                posting: posting.posting,
-            };
-            if let Some(job) = held.job(&id) {
-                return job.clone();
-            }
+    ids.iter()
+        .map(|id| {
+            let id = id.clone();
             let key = Fnv64::new()
                 .write(&seed.to_le_bytes())
                 .write(b"station_jobs")
@@ -1340,13 +1420,18 @@ mod tests {
         }
     }
 
-    /// The first posting of every slot, posted at zero play.
-    fn first_postings() -> Vec<SlotPosting> {
-        let mut postings = JobPostings::default();
-        postings.open(&station(1), 0.0).to_vec()
+    /// The ids of `station`'s first postings, in slot order.
+    fn first_ids(station: &GeneratedBodyId) -> Vec<JobId> {
+        (0..JOBS_PER_BOARD)
+            .map(|slot| JobId {
+                station: station.clone(),
+                slot,
+                posting: 0,
+            })
+            .collect()
     }
 
-    /// A board on the first postings with nothing held.
+    /// A board on the first postings with nothing standing.
     fn board(
         seed: u32,
         station: &GeneratedBodyId,
@@ -1355,16 +1440,7 @@ mod tests {
         mix: JobMixType,
         field: &JobField,
     ) -> Vec<Job> {
-        station_job_board(
-            seed,
-            station,
-            clusters,
-            items,
-            mix,
-            field,
-            &first_postings(),
-            &Jobs::default(),
-        )
+        station_job_offers(seed, &first_ids(station), clusters, items, mix, field, &[])
     }
 
     /// The boards of many seeds for one mix, flattened.
@@ -1579,7 +1655,7 @@ mod tests {
     }
 
     #[test]
-    fn a_small_pool_repeats_an_item_and_an_empty_catalog_posts_nothing() {
+    fn a_small_pool_repeats_an_item_and_an_empty_catalog_is_a_fault() {
         let only_food = GameItems::new([item("Rations", ItemCategoryType::Food, 8)]);
         let posted = board(
             3,
@@ -1608,15 +1684,17 @@ mod tests {
             JOBS_PER_BOARD as usize,
             "no wanted item draws from every item"
         );
-        assert!(board(
-            3,
-            &station(1),
-            &[],
-            &GameItems::default(),
-            JobMixType::Trade,
-            &JobField::default()
-        )
-        .is_empty());
+        let empty = std::panic::catch_unwind(|| {
+            board(
+                3,
+                &station(1),
+                &[],
+                &GameItems::default(),
+                JobMixType::Trade,
+                &JobField::default(),
+            )
+        });
+        assert!(empty.is_err(), "an empty catalog has nothing to post");
     }
 
     /// The first procurement a trade board posts on seed 10.
@@ -1852,52 +1930,68 @@ mod tests {
     }
 
     /// A renewed slot posts under the next posting, a different offer whose
-    /// body ids differ from every earlier posting's; a slot the player holds
-    /// posts the held job as it is, and no slot names the body it is about.
+    /// body ids differ from every earlier posting's, beside the board's
+    /// standing offers, which keep their slots and their bodies.
     #[test]
-    fn a_renewed_slot_posts_a_new_offer_under_a_new_id_and_a_held_job_pins_its_slot() {
+    fn a_renewed_slot_posts_a_new_offer_under_a_new_id_beside_the_standing_offers() {
         let items = catalog();
         let poster = station(1);
         let field = field();
+        let before = board(10, &poster, &[], &items, JobMixType::Combat, &field);
         let mut postings = JobPostings::default();
-        let first = postings.open(&poster, 0.0).to_vec();
+        postings.post(before.clone(), 0.0);
+        let first: Vec<(u32, f64, &Job)> = postings
+            .board(&poster)
+            .unwrap()
+            .iter()
+            .map(|slot| (slot.posting, slot.posted_at, &slot.offer))
+            .collect();
         assert_eq!(
             first,
-            vec![
-                SlotPosting {
-                    posting: 0,
-                    posted_at: 0.0
-                };
-                JOBS_PER_BOARD as usize
-            ]
+            before
+                .iter()
+                .map(|offer| (0, 0.0, offer))
+                .collect::<Vec<_>>()
         );
-        let mut held = Jobs::default();
-        let before = station_job_board(
+        let renewed = JobId {
+            station: poster.clone(),
+            slot: 0,
+            posting: 1,
+        };
+        let standing = before[1..].to_vec();
+        let drawn = station_job_offers(
             10,
-            &poster,
+            std::slice::from_ref(&renewed),
             &[],
             &items,
             JobMixType::Combat,
             &field,
-            &first,
-            &held,
+            &standing,
         );
-        let pinned = before[1].clone();
-        held.accept(pinned.clone());
-        let renewed = postings.renew(&before[0].id, 30.0);
-        assert_eq!(
-            renewed,
-            JobId {
-                station: poster.clone(),
-                slot: 0,
-                posting: 1
+        assert_eq!(drawn.len(), 1);
+        assert_eq!(drawn[0].id, renewed);
+        assert_ne!(
+            (drawn[0].kind.clone(), drawn[0].reward_cr),
+            (before[0].kind.clone(), before[0].reward_cr),
+            "a renewed slot draws afresh"
+        );
+        drawn[0].validate().unwrap();
+        for job in &standing {
+            if let Some(body) = job.located_body() {
+                assert_ne!(
+                    drawn[0].located_body(),
+                    Some(body),
+                    "the new offer names no body a standing offer names"
+                );
             }
-        );
+        }
+        postings.post(drawn.clone(), 30.0);
         assert_eq!(
             postings.slot(&renewed),
             Some(&SlotPosting {
                 posting: 1,
-                posted_at: 30.0
+                posted_at: 30.0,
+                offer: drawn[0].clone(),
             })
         );
         assert_eq!(
@@ -1905,31 +1999,12 @@ mod tests {
             None,
             "the old posting is off the slot"
         );
-        let slots = postings.board(&poster).unwrap().to_vec();
-        let after = station_job_board(
-            10,
-            &poster,
-            &[],
-            &items,
-            JobMixType::Combat,
-            &field,
-            &slots,
-            &held,
-        );
-        assert_eq!(after.len(), JOBS_PER_BOARD as usize);
-        assert_eq!(after[0].id, renewed);
-        assert_ne!(
-            (after[0].kind.clone(), after[0].reward_cr),
-            (before[0].kind.clone(), before[0].reward_cr),
-            "a renewed slot draws afresh"
-        );
-        assert_eq!(after[1], pinned, "the held job pins its slot");
-        assert_eq!(
-            after[2], before[2],
-            "an untouched slot posts the same offer"
-        );
-        for job in &after {
-            job.validate().unwrap();
+        for job in &standing {
+            assert_eq!(
+                postings.slot(&job.id).map(|slot| &slot.offer),
+                Some(job),
+                "a standing slot keeps its offer"
+            );
         }
         let old_bodies = before[0].id.possible_bodies();
         for body in renewed.possible_bodies() {
@@ -1943,35 +2018,192 @@ mod tests {
             "sector_1_0_0_cluster_0_0_0_station_job_0_1_hauler_0"
         );
         assert_eq!(renewed.to_string(), format!("{poster}#0.1"));
-        if let Some(body) = pinned.located_body() {
-            for job in &after {
-                if job.id != pinned.id {
-                    assert_ne!(
-                        job.located_body(),
-                        Some(body),
-                        "no other slot names the held job's body"
-                    );
+        postings.validate(30.0).unwrap();
+    }
+
+    /// A posted offer is the record: a dropped recovery whose wreck is gone
+    /// stays on its slot as it was posted, refused at the accept, while
+    /// another slot renews over the changed field; at its own expiry the
+    /// slot renews and the new offer names the wreck no more.
+    #[test]
+    fn a_standing_offer_keeps_its_job_until_its_slot_renews_whatever_the_field_does() {
+        let items = catalog();
+        let poster = station(1);
+        let field = field();
+        let (before, k) = (0..200)
+            .find_map(|seed| {
+                let posted = board(seed, &poster, &[], &items, JobMixType::Salvage, &field);
+                let k = posted
+                    .iter()
+                    .position(|job| matches!(job.kind, JobType::Recover { .. }))?;
+                Some((posted, k))
+            })
+            .expect("a salvage board posts a recovery");
+        let recovery = before[k].clone();
+        let wreck = recovery.located_body().unwrap().clone();
+        let mut postings = JobPostings::default();
+        postings.post(before.clone(), 0.0);
+        let mut jobs = Jobs::default();
+        jobs.accept(recovery.clone());
+        assert_eq!(jobs.drop(&recovery.id), recovery);
+
+        let mut gone = field.clone();
+        gone.wrecks.retain(|candidate| candidate.id != wreck);
+        let other = (k + 1) % JOBS_PER_BOARD as usize;
+        let next = JobId {
+            posting: 1,
+            ..before[other].id.clone()
+        };
+        let standing: Vec<Job> = before
+            .iter()
+            .filter(|job| job.id != before[other].id)
+            .cloned()
+            .collect();
+        let drawn = station_job_offers(
+            7,
+            std::slice::from_ref(&next),
+            &[],
+            &items,
+            JobMixType::Salvage,
+            &gone,
+            &standing,
+        );
+        postings.post(drawn, 30.0);
+        for job in &standing {
+            assert_eq!(
+                postings.slot(&job.id).map(|slot| &slot.offer),
+                Some(job),
+                "a slot that did not renew keeps its offer over a changed field"
+            );
+        }
+        assert_eq!(
+            plan_job_accept(&recovery, Some(&poster), &jobs, false, false),
+            Err(JobAcceptRefusalType::TargetGone),
+            "the dropped recovery stays posted and greys on its gone wreck"
+        );
+
+        let renewed = JobId {
+            posting: 1,
+            ..recovery.id.clone()
+        };
+        let standing: Vec<Job> = postings
+            .board(&poster)
+            .unwrap()
+            .iter()
+            .map(|slot| slot.offer.clone())
+            .filter(|job| job.id != recovery.id)
+            .collect();
+        let drawn = station_job_offers(
+            7,
+            std::slice::from_ref(&renewed),
+            &[],
+            &items,
+            JobMixType::Salvage,
+            &gone,
+            &standing,
+        );
+        assert_ne!(drawn[0].located_body(), Some(&wreck));
+        postings.post(drawn, 120.0);
+        assert!(postings.slot(&recovery.id).is_none());
+        postings.validate(120.0).unwrap();
+    }
+
+    /// A new offer leaves out what each held job is about and every body it
+    /// put in the world, and what each unexpired offer on every board names;
+    /// an expired or handed-in offer frees its body, and a board left with
+    /// no candidate posts procurements.
+    #[test]
+    fn no_new_offer_names_a_body_a_held_job_or_an_unexpired_offer_names() {
+        let items = catalog();
+        let rule = JobOfferRule {
+            offer_seconds: 100.0,
+        };
+        let a = station(1);
+        let b = station(2);
+        let raider = |job: &Job| job.raider_ids();
+        let escort = (0..200)
+            .flat_map(|seed| board(seed, &station(3), &[], &items, JobMixType::Trade, &field()))
+            .find(|job| matches!(job.kind, JobType::Escort { .. }))
+            .expect("a trade board posts an escort");
+        let mut field = field();
+        for id in raider(&escort) {
+            field.hostiles.push(JobHull {
+                name: id.to_string(),
+                id,
+            });
+        }
+        let posted_a = board(4, &a, &[], &items, JobMixType::Salvage, &field);
+        let mut postings = JobPostings::default();
+        postings.post(posted_a.clone(), 0.0);
+        let mut jobs = Jobs::default();
+        jobs.accept(escort.clone());
+
+        let named = postings.named_bodies(rule, 50.0, &jobs);
+        for body in escort.spawned_bodies() {
+            assert!(named.contains(&body), "a held job's body is named: {body}");
+        }
+        for body in posted_a.iter().filter_map(Job::located_body) {
+            assert!(
+                named.contains(body),
+                "an unexpired offer's body is named: {body}"
+            );
+        }
+        let mut open = field.clone();
+        open.wrecks.retain(|wreck| !named.contains(&wreck.id));
+        open.hostiles.retain(|hull| !named.contains(&hull.id));
+        for seed in 0..60 {
+            for job in board(seed, &b, &[], &items, JobMixType::Salvage, &open) {
+                if let Some(body) = job.located_body() {
+                    assert!(!named.contains(body), "'{}' names '{body}' again", job.id);
                 }
             }
         }
-        postings.validate(30.0, &held).unwrap();
+
+        let none = JobField::default();
+        for job in board(4, &b, &[], &items, JobMixType::Combat, &none) {
+            job.validate().unwrap();
+            assert!(
+                matches!(
+                    job.kind,
+                    JobType::Procure { .. } | JobType::Escort { .. } | JobType::Distress { .. }
+                ),
+                "a board with no candidate names no body: {:?}",
+                job.kind
+            );
+        }
+
+        let expired = postings.named_bodies(rule, 100.0, &Jobs::default());
+        assert!(expired.is_empty(), "an expired offer frees its body");
+        if let Some(offer) = posted_a.iter().find(|job| job.located_body().is_some()) {
+            let mut handed = Jobs::default();
+            handed.accept(offer.clone());
+            handed.complete(&offer.id);
+            assert!(
+                !postings
+                    .named_bodies(rule, 50.0, &handed)
+                    .contains(offer.located_body().unwrap()),
+                "a handed-in offer frees its body"
+            );
+        }
     }
 
     /// An offer expires exactly at its stamp plus the window; an accept of an
     /// expired offer is refused before the target check.
     #[test]
     fn an_offer_expires_at_its_stamp_plus_the_window_and_the_accept_refuses_it() {
+        let (_, poster, job) = a_procurement();
         let rule = JobOfferRule {
             offer_seconds: 100.0,
         };
         let slot = SlotPosting {
-            posting: 2,
+            posting: 0,
             posted_at: 50.0,
+            offer: job.clone(),
         };
         assert_eq!(slot.remaining(rule, 60.0), 90.0);
         let noisy = SlotPosting {
-            posting: 0,
             posted_at: 40.081_234_5 + 1_201.0,
+            ..slot.clone()
         };
         assert_eq!(
             noisy.remaining(
@@ -1987,7 +2219,6 @@ mod tests {
         assert!(slot.is_expired(rule, 150.0));
         assert!(slot.is_expired(rule, 200.0));
 
-        let (_, poster, job) = a_procurement();
         let jobs = Jobs::default();
         assert_eq!(
             plan_job_accept(&job, Some(&poster), &jobs, true, false),
@@ -2011,54 +2242,52 @@ mod tests {
     }
 
     /// The postings refuse a record no session wrote: a stamp ahead of the
-    /// clock, a board of the wrong width, a held job off its slot's posting;
-    /// and a renewal of a posting the slot is not on is a fault.
+    /// clock, a board of the wrong width, an offer off its slot's posting or
+    /// one no board could post; and a post of any other shape than a whole
+    /// first board or a slot's next posting is a fault.
     #[test]
-    fn postings_validate_refuses_a_stale_held_posting_and_a_stamp_ahead_of_the_clock() {
-        let (_, poster, job) = a_procurement();
+    fn postings_validate_refuses_an_offer_off_its_slot_and_a_stamp_ahead_of_the_clock() {
+        let items = catalog();
+        let poster = station(1);
+        let first = board(10, &poster, &[], &items, JobMixType::Trade, &field());
         let mut postings = JobPostings::default();
-        postings.open(&poster, 10.0);
-        let mut held = Jobs::default();
-        held.accept(job.clone());
-        postings.validate(10.0, &held).unwrap();
+        postings.post(first.clone(), 10.0);
+        postings.validate(10.0).unwrap();
         assert!(
-            postings
-                .validate(9.0, &held)
-                .unwrap_err()
-                .contains("clock reads"),
+            postings.validate(9.0).unwrap_err().contains("clock reads"),
             "a stamp ahead of the clock is refused"
         );
-        postings.renew(&job.id, 20.0);
+        let mut moved = postings.clone();
+        moved.boards.get_mut(&poster).unwrap()[0].offer = first[1].clone();
         assert!(
-            postings
-                .validate(20.0, &held)
-                .unwrap_err()
-                .contains("not its slot's current posting"),
-            "a held job behind its slot's posting is refused"
+            moved.validate(10.0).unwrap_err().contains("on slot 0"),
+            "an offer off its slot is refused"
         );
-        let stale = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            postings.clone().renew(&job.id, 30.0)
-        }));
-        assert!(stale.is_err(), "renewing a stale posting panics");
-        let unposted = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            JobPostings::default().renew(&job.id, 30.0)
-        }));
-        assert!(unposted.is_err(), "renewing an unposted slot panics");
-        let mut narrow = JobPostings::default();
-        narrow.boards.insert(
-            poster.clone(),
-            vec![SlotPosting {
-                posting: 0,
-                posted_at: 0.0,
-            }],
-        );
+        let mut unpaid = postings.clone();
+        unpaid.boards.get_mut(&poster).unwrap()[0].offer.reward_cr = 0;
         assert!(
-            narrow
-                .validate(0.0, &Jobs::default())
-                .unwrap_err()
-                .contains("slot(s)"),
+            unpaid.validate(10.0).unwrap_err().contains("pays nothing"),
+            "an offer no board could post is refused"
+        );
+        let mut narrow = postings.clone();
+        narrow.boards.get_mut(&poster).unwrap().pop();
+        assert!(
+            narrow.validate(10.0).unwrap_err().contains("slot(s)"),
             "a board of the wrong width is refused"
         );
+        let again = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            postings.clone().post(first.clone(), 20.0);
+        }));
+        assert!(
+            again.is_err(),
+            "posting a slot's current posting again panics"
+        );
+        let partial = std::panic::catch_unwind(|| {
+            JobPostings::default().post(first[..1].to_vec(), 20.0);
+        });
+        assert!(partial.is_err(), "opening a board with one slot panics");
+        let nothing = std::panic::catch_unwind(|| JobPostings::default().post(Vec::new(), 20.0));
+        assert!(nothing.is_err(), "posting nothing panics");
         assert!(JobPostings::default().is_empty());
         postings.clear();
         assert!(postings.is_empty());

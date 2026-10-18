@@ -258,7 +258,7 @@ Docked at a living station in an Open World, the Station pane shows **This stati
 <!-- Pane: crates/nova_interface/src/jobs.rs. Board and gate: crates/nova_gameplay/src/jobs.rs
      (`plan_job_hull_fit`); starter board: crates/nova_world_base/src/jobs.rs `StarterBoardMarker`. -->
 
-Every living generated station posts a board of three jobs. The board is fixed by the world seed, the station and your start: a board slot's offer stands 20 minutes of play (the pause menu, the interface and a Load all stop that clock), then the slot posts a new offer. A job you hold never expires, and a job you hand in is replaced at once. Which kinds a board leans to follows your start role: a trader's boards post procurements and escorts, a scavenger's recoveries, a hunter's distress calls and bounties.
+Every living generated station posts a board of three jobs. The board is fixed by the world seed, the station and your start: a board slot's offer stands 20 minutes of play (the pause menu, the interface and a Load all stop that clock), then the slot posts a new offer. An offer does not change while it stands, and a Load shows the same offers. Two boards never offer the same wreck or hull at once. A job you hold never expires, and a job you hand in is replaced at once. Which kinds a board leans to follows your start role: a trader's boards post procurements and escorts, a scavenger's recoveries, a hunter's distress calls and bounties.
 
 | job | what to do |
 |---|---|
@@ -274,7 +274,7 @@ Every job asks something of your hull: a procurement needs hold room for the sta
 
 Click a row and the inspector reads the job: its task, its poster, its target and where that is, the hand-in station, the reward, the time left or your progress, and **Show on Map**, which opens the Map's chart view on the job's mark. A hand-in takes a procurement's goods out of your hold, pays the reward from the station's balance (`OnCreditsChanged` with cause `JobReward` on both sides) and moves the job to completed. The note line under the lists says `accepted: Bring 4 Iron ore` and `handed in Bring 4 Iron ore for 146 cr`.
 
-Held jobs stay on the pane undocked, and the Map's chart view marks each in the sector of its mark, the wreck, the hauler, the caller or the hull, or the posting station for a procurement; its note says what is left to do (see [the map](#the-map)). A saved Open World keeps the jobs you hold, have done and have completed; a Load brings them back. A held job never expires. A hauler you lose, neutralized or destroyed, takes its escort job with it.
+Held jobs stay on the pane undocked, and the Map's chart view marks each in the sector of its mark, the wreck, the hauler, the caller or the hull, or the posting station for a procurement; its note says what is left to do (see [the map](#the-map)). A saved Open World keeps the jobs you hold, have done and have completed; a Load brings them back. A held job never expires. You lose a job if its hauler is neutralized or destroyed, if its wreck or a genuine caller is destroyed before the job is done, or if its station dies. Its offer stays on the board until its 20 minutes end, and Accept is greyed while its target is gone.
 
 ## Stripping a wreck
 

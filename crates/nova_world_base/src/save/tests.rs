@@ -11,15 +11,16 @@ use bevy::prelude::*;
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack, LoadedSectionPacks};
 use nova_events::prelude::{EntityId, GeneratedBodyId, Meters3};
 use nova_gameplay::prelude::{
-    nova_blast, resumed_lifetime, AssetRef, CargoCanister, CargoCanisterIdAllocator,
-    CargoCanisterRuntimeId, Chart, CivilizationId, CivilizationStances, ClockFreeze, ClusterType,
-    DamageLevel, DamageMarks, DamageType, FreezeOwner, FrozenRoundFlight, GameItems, GoalLine,
-    GoalProgress, GoalRecord, Health, ImpactSparkMarker, ImpactSparkPlugin, ImpactSparks,
-    IntegrityDestroyMarker, ItemCategoryType, ItemDesign, ItemDesignId, ItemRoleType, Job, JobId,
-    JobPostings, JobType, Jobs, PlayerFleetMarker, PlayerSpaceshipMarker, PointRotationOutput,
-    ProjectileDamage, ProjectileOwner, RailgunSlugProjectileMarker, RoundRake, SavedBodyRef,
-    SavedLifetime, SavedOwner, SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits,
-    ShipInventory, SpaceshipRootMarker, StanceType, StationServiceType, StationSummary, TempEntity,
+    nova_blast, resumed_lifetime, station_job_offers, AssetRef, CargoCanister,
+    CargoCanisterIdAllocator, CargoCanisterRuntimeId, Chart, CivilizationId, CivilizationStances,
+    ClockFreeze, ClusterType, DamageLevel, DamageMarks, DamageType, FreezeOwner, FrozenRoundFlight,
+    GameItems, GoalLine, GoalProgress, GoalRecord, Health, ImpactSparkMarker, ImpactSparkPlugin,
+    ImpactSparks, IntegrityDestroyMarker, ItemCategoryType, ItemDesign, ItemDesignId, ItemRoleType,
+    Job, JobField, JobId, JobMixType, JobPostings, JobType, Jobs, PlayerFleetMarker,
+    PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage, ProjectileOwner,
+    RailgunSlugProjectileMarker, RoundRake, SavedBodyRef, SavedLifetime, SavedOwner,
+    SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory,
+    SpaceshipRootMarker, StanceType, StationServiceType, StationSummary, TempEntity,
     TorpedoProjectileMarker, TraderMarket, TurretBulletProjectileMarker,
 };
 use nova_scenario::prelude::{
@@ -1063,11 +1064,12 @@ fn a_saved_goal_record_resumes_and_a_stamp_ahead_of_the_clock_is_refused() {
     );
 }
 
-/// A station's slot postings are written with a leave save and come back
-/// on a Load; a held job whose slot moved past its posting is a save the
-/// Load refuses.
+/// A station's slot postings and their offers are written with a leave
+/// save and come back on a Load; a held job behind its slot's posting opens,
+/// as a held job outlives its offer's window and its slot's renewal; a
+/// posted offer naming an item the catalog lacks is a save the Load refuses.
 #[test]
-fn a_saved_posting_record_resumes_and_a_stale_held_posting_is_refused() {
+fn a_saved_posting_record_resumes_with_its_offers_and_a_held_job_outlives_its_slot() {
     let root = tempfile::tempdir().unwrap();
     let (mut world, _player) = armed_session(root.path());
     frame(&mut world);
@@ -1075,28 +1077,33 @@ fn a_saved_posting_record_resumes_and_a_stale_held_posting_is_refused() {
     run_until_idle(&mut world);
 
     let poster = GeneratedBodyId::new(SectorCoord::new(1, 0, 0), "cluster_1_0_0_station", 0);
-    let held = Job {
-        id: JobId {
-            station: poster.clone(),
-            slot: 1,
-            posting: 0,
-        },
-        kind: JobType::Procure {
-            item: items()
-                .iter()
-                .next()
-                .expect("the fixture catalog has an item")
-                .id
-                .clone(),
-            count: 2,
-        },
-        target: poster.clone(),
-        reward_cr: 120,
+    let draw = |posting: u32, slots: &[u32], standing: &[Job]| {
+        let ids: Vec<JobId> = slots
+            .iter()
+            .map(|&slot| JobId {
+                station: poster.clone(),
+                slot,
+                posting,
+            })
+            .collect();
+        station_job_offers(
+            7,
+            &ids,
+            &[],
+            &items(),
+            JobMixType::Trade,
+            &JobField::default(),
+            standing,
+        )
     };
+    let offers = draw(0, &[0, 1, 2], &[]);
+    let held = offers[1].clone();
     world.insert_resource(WorldClock {
         play_seconds: 200.0,
     });
-    world.resource_mut::<JobPostings>().open(&poster, 50.0);
+    world
+        .resource_mut::<JobPostings>()
+        .post(offers.clone(), 50.0);
     world.resource_mut::<Jobs>().accept(held.clone());
     world.resource_mut::<WorldSaveSession>().request_leave();
     run_until_idle(&mut world);
@@ -1120,10 +1127,17 @@ fn a_saved_posting_record_resumes_and_a_stale_held_posting_is_refused() {
         state.postings, postings,
         "the leave save wrote the postings"
     );
+    let saved: Vec<&Job> = state
+        .postings
+        .board(&poster)
+        .expect("the save holds the poster's board")
+        .iter()
+        .map(|slot| &slot.offer)
+        .collect();
     assert_eq!(
-        state.postings.slot(&held.id).map(|slot| slot.posted_at),
-        Some(50.0),
-        "the held job's slot is on its posting"
+        saved,
+        offers.iter().collect::<Vec<_>>(),
+        "the save holds each offer as posted"
     );
     drop(lock);
 
@@ -1139,23 +1153,51 @@ fn a_saved_posting_record_resumes_and_a_stale_held_posting_is_refused() {
     );
     drop(resumed);
 
-    // A held job behind its slot's posting is a record no session wrote: a
-    // held slot never renews.
+    let write = |state: &WorldSaveState| {
+        let text = ron::to_string(state).unwrap();
+        std::fs::write(root.path().join("session/state.2.ron"), text).unwrap();
+        open_world(
+            root.path(),
+            "session",
+            &catalog(digest),
+            &roles(),
+            &items(),
+            &scenarios(),
+        )
+    };
     let mut state = state;
-    state.postings.renew(&held.id, 100.0);
-    let text = ron::to_string(&state).unwrap();
-    std::fs::write(root.path().join("session/state.2.ron"), text).unwrap();
-    let refused = open_world(
-        root.path(),
-        "session",
-        &catalog(digest),
-        &roles(),
-        &items(),
-        &scenarios(),
+    let board = state.postings.clone();
+    let standing = [offers[0].clone(), offers[2].clone()];
+    state.postings.post(draw(1, &[1], &standing), 100.0);
+    let (_, lock, _, opened) = write(&state).unwrap_or_else(|refusal| {
+        panic!("a held job behind its slot's posting opens: {refusal:?}")
+    });
+    assert!(opened.jobs.holds(&held.id));
+    assert!(opened.postings.slot(&held.id).is_none());
+    drop(lock);
+
+    let offer = board.board(&poster).unwrap()[0].offer.clone();
+    state.postings = JobPostings::default();
+    state.postings.post(
+        std::iter::once(Job {
+            kind: JobType::Procure {
+                item: ItemDesignId::from("Unobtainium"),
+                count: 2,
+            },
+            ..offer
+        })
+        .chain(
+            board.board(&poster).unwrap()[1..]
+                .iter()
+                .map(|slot| slot.offer.clone()),
+        )
+        .collect(),
+        50.0,
     );
+    let refused = write(&state);
     assert!(
-        matches!(refused, Err(WorldRefusal::Unreadable(ref reason)) if reason.contains("not its slot's current posting")),
-        "a stale held posting refuses the save: {refused:?}"
+        matches!(refused, Err(WorldRefusal::Unreadable(ref reason)) if reason.contains("named by a posted offer")),
+        "a posted offer naming an unknown item refuses the save: {refused:?}"
     );
 }
 
