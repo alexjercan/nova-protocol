@@ -49,11 +49,11 @@ use nova_wfc::prelude::{WfcPlan, WfcZone};
 use crate::{
     bundle::{ask_to_open, ask_to_save, ask_to_save_as},
     config::{
-        ContextBreadcrumb, CrumbSelection, CrumbStep, EditorCamera, EditorFoot, EditorKeyLegend,
-        EditorOverlays, EditorRail, EditorStatus, HullPlanLine, InspectorHeader, PartChoice,
-        PartList, PartTick, PartZoneChip, PlacementStatus, PlayButton, RailTab, RailTabButton,
-        RebindButton, SceneList, SceneRow, SelectedNode, ShipReadout, ShipReadoutNote,
-        ShipSettings, SkinToggleCheckbox, StyleChoice, StyleList, StyleSwatch,
+        ContextBreadcrumb, EditorCamera, CrumbSelection, CrumbStep, EditorFoot, EditorKeyLegend, EditorOverlays,
+        EditorRail, EditorStatus, HullPlanLine, InspectorHeader, PartChoice, PartList, PartTick,
+        PartZoneChip, PlacementStatus, PlayButton, RailTab, RailTabButton, RebindButton, SceneList,
+        SceneRow, SelectedNode, ShipReadout, ShipReadoutNote, ShipSettings,
+        SkinToggleCheckbox, StyleChoice, StyleList, StyleSwatch,
     },
     event::{
         action_choice, add_script_node, event_label, filter_choice, handler_text, ActionChoice,
@@ -440,42 +440,40 @@ pub(crate) fn setup_editor_scene(
         Transform::from_xyz(5.0, -2.0, -7.0).looking_at(Vec3::ZERO, Vec3::Y),
     ));
 
-    let camera = commands
-        .spawn((
-            DespawnOnExit(ExampleStates::Editor),
-            Name::new("WASD Camera"),
-            Camera3d::default(),
-            PostProcessingCamera,
-            WASDCameraController,
-            // Opt in to mesh picking, which the transform gizmo rides on (see
-            // `crate::gizmo`). The stage itself is picked through avian's
-            // colliders, so this camera answers the pointer twice - once per
-            // backend - and the nearer hit wins.
-            MeshPickingCamera,
-            // The gallery parks this camera on its own stage while it is open, so
-            // it needs a handle that does not assume a single Camera3d.
-            EditorCamera,
-            Transform::from_xyz(0.0, 5.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
-            // Modelled parts are flat-Kd meshes; a touch of ambient keeps their
-            // shadow side readable without washing out the key light's form.
-            AmbientLight {
-                color: Color::WHITE,
-                brightness: 220.0,
-                affects_lightmapped_meshes: true,
-            },
-            // Direct SkyboxConfig insert (no PendingSkyboxSwap) is safe
-            // because `game_assets.cubemap` already has its Cube view.
-            // `prepare_cubemap_view` (nova_assets) sets it at startup, before any
-            // camera spawns, so the SkyboxPlugin observer - which only sets the
-            // view on its single-layer fallback branch - sees a ready 6-layer + Cube
-            // image and just attaches Skybox. Pinned by
-            // prepare_cubemap_view_sets_cube_view_on_the_game_assets_cubemap.
-            SkyboxConfig {
-                cubemap: game_assets.cubemap.clone(),
-                brightness: 1000.0,
-            },
-        ))
-        .id();
+    let camera = commands.spawn((
+        DespawnOnExit(ExampleStates::Editor),
+        Name::new("WASD Camera"),
+        Camera3d::default(),
+        PostProcessingCamera,
+        WASDCameraController,
+        // Opt in to mesh picking, which the transform gizmo rides on (see
+        // `crate::gizmo`). The stage itself is picked through avian's
+        // colliders, so this camera answers the pointer twice - once per
+        // backend - and the nearer hit wins.
+        MeshPickingCamera,
+        // The gallery parks this camera on its own stage while it is open, so
+        // it needs a handle that does not assume a single Camera3d.
+        EditorCamera,
+        Transform::from_xyz(0.0, 5.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
+        // Modelled parts are flat-Kd meshes; a touch of ambient keeps their
+        // shadow side readable without washing out the key light's form.
+        AmbientLight {
+            color: Color::WHITE,
+            brightness: 220.0,
+            affects_lightmapped_meshes: true,
+        },
+        // Direct SkyboxConfig insert (no PendingSkyboxSwap) is safe
+        // because `game_assets.cubemap` already has its Cube view.
+        // `prepare_cubemap_view` (nova_assets) sets it at startup, before any
+        // camera spawns, so the SkyboxPlugin observer - which only sets the
+        // view on its single-layer fallback branch - sees a ready 6-layer + Cube
+        // image and just attaches Skybox. Pinned by
+        // prepare_cubemap_view_sets_cube_view_on_the_game_assets_cubemap.
+        SkyboxConfig {
+            cubemap: game_assets.cubemap.clone(),
+            brightness: 1000.0,
+        },
+    )).id();
     // The parts gallery lays itself out over the whole window and draws its
     // tiles through this camera, parked on the stage while it is up.
     commands.spawn(gallery_host(camera));

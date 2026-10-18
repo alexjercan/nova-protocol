@@ -27,9 +27,10 @@ use nova_ship::prelude::*;
 
 use crate::{
     bundle::{insert_lifted_ship, lift_objects, DocumentSlot, FileDesigns},
-    config::{EditorCamera, EditorSays, SelectedNode},
+    config::{EditorSays, SelectedNode},
     event::lift,
     frame::{framed_extent, CameraFraming},
+    config::EditorCamera,
     preview::{insert_preview_object, PreviewArt},
     scenario::{DEFAULT_SCENARIO_DESCRIPTION, DEFAULT_SCENARIO_NAME, DEFAULT_SKY},
     template::ScenarioTemplate,
