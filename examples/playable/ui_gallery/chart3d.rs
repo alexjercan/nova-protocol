@@ -860,9 +860,10 @@ fn spawn_chart_label(
     }
 }
 
-/// A click on the chart's floor selects the cell under the pointer: the
-/// pointer's place in the node is the camera's viewport pixel, the ray from
-/// it meets the floor plane, and the floor is cells.
+/// A click on the chart's floor selects the cell under the pointer, or
+/// clears the selection when that cell is the selected one: the pointer's
+/// place in the node is the camera's viewport pixel, the ray from it meets
+/// the floor plane, and the floor is cells.
 fn on_chart_click(
     click: On<Pointer<bevy::picking::events::Click>>,
     scenes: Query<(&ChartScene, &SceneTarget, &ComputedNode)>,
@@ -900,9 +901,7 @@ fn on_chart_click(
         return;
     }
     let at = (scene.player.0 + dx, scene.player.1 + dz);
-    if chart.selected != Some(at) {
-        chart.selected = Some(at);
-    }
+    chart.selected = (chart.selected != Some(at)).then_some(at);
 }
 
 /// Despawn the camera and the scene a viewport node owned when the node

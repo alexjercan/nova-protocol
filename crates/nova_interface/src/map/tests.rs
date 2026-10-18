@@ -6,8 +6,9 @@ use bevy::{
     ecs::system::RunSystemOnce,
     state::app::StatesPlugin,
     ui::{ComputedNode, InteractionDisabled, UiGlobalTransform},
+    ui_widgets::Activate,
 };
-use nova_events::prelude::{EntityTypeName, ASTEROID_TYPE_NAME};
+use nova_events::prelude::{EntityTypeName, SectorCoord, ASTEROID_TYPE_NAME};
 use nova_gameplay::{prelude::*, PauseStates};
 use nova_input::prelude::{BindingSpec, InputBindings, InputSource, RegisterInputActions};
 use nova_ship::prelude::*;
@@ -1220,6 +1221,76 @@ fn map_orbit_drag_is_rmb_only() {
         orbit_angles(&mut app),
         before,
         "RMB drag must still orbit the map camera"
+    );
+}
+
+/// The chart view's way back to its overview: a first click on a mark
+/// selects it and moves the orbit centre onto its cell with the radius and
+/// angles kept, a second click clears it with the view kept, and Reframe
+/// clears a selection and frames the whole grid.
+#[test]
+fn a_second_click_on_the_selected_chart_mark_and_reframe_return_the_chart_to_its_overview() {
+    let mut app = map_input_app();
+    app.init_resource::<Jobs>();
+    {
+        let mut runtime = app.world_mut().resource_mut::<MapRuntime>();
+        runtime.chart = true;
+        runtime.chart_player_cell = Some(SectorCoord::new(4, 0, 4));
+    }
+    let mark = MapChartMarkType::Cell(SectorCoord::new(6, 0, 3));
+    let label = app
+        .world_mut()
+        .spawn(MapChartLabel {
+            anchor: Vec3::ZERO,
+            mark: Some(mark.clone()),
+        })
+        .observe(on_map_chart_label_click)
+        .id();
+    let orbit = |app: &mut App| {
+        app.world_mut()
+            .query_filtered::<&MapOrbit, With<MapCameraMarker>>()
+            .single(app.world())
+            .map(|orbit| (orbit.center, orbit.radius, orbit.theta, orbit.phi))
+            .unwrap()
+    };
+    let selected = |app: &App| app.world().resource::<MapRuntime>().chart_selected.clone();
+    let (_, radius, theta, phi) = orbit(&mut app);
+    let mark_cell = Vec3::new(2.0, 0.0, -1.0) * MAP_CHART_CELL;
+
+    app.world_mut().trigger(Activate { entity: label });
+    app.world_mut().flush();
+    assert_eq!(selected(&app), Some(mark.clone()), "a first click selects");
+    assert_eq!(
+        orbit(&mut app),
+        (mark_cell, radius, theta, phi),
+        "a first click moves the centre onto the mark's cell and keeps the zoom and angles"
+    );
+
+    app.world_mut().trigger(Activate { entity: label });
+    app.world_mut().flush();
+    assert_eq!(selected(&app), None, "a second click clears the selection");
+    assert_eq!(
+        orbit(&mut app),
+        (mark_cell, radius, theta, phi),
+        "a second click keeps the view"
+    );
+
+    app.world_mut().trigger(Activate { entity: label });
+    app.world_mut().flush();
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::KeyT);
+    app.world_mut().run_system_once(map_input).unwrap();
+    assert_eq!(selected(&app), None, "Reframe clears the selection");
+    assert_eq!(
+        orbit(&mut app),
+        (
+            Vec3::ZERO,
+            MAP_CHART_RADIUS,
+            MAP_THETA_DEFAULT,
+            MAP_PHI_DEFAULT
+        ),
+        "Reframe frames the whole grid"
     );
 }
 

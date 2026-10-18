@@ -704,7 +704,7 @@ pub fn on_click(
             *page = GalleryPage::Chart;
         }
         Click::Tile(at) => {
-            chart.selected = Some(at);
+            chart.selected = (chart.selected != Some(at)).then_some(at);
         }
         Click::Trade(side, i) => {
             market.selected = Some((side, i));

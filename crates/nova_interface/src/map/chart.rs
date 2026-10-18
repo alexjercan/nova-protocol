@@ -11,9 +11,10 @@
 //! ally colour, a ring under one that refuses the player a dock right now,
 //! and a `n JOBS` tag over one whose board posts jobs the player does not
 //! hold. Marks and cell tags are projected UI labels, like the local blips,
-//! and each selects what it names. A mark's label shows only a code minted
-//! from the chart's found order (or the jobs' accept order), never a name:
-//! the open world names a ship by whose it is.
+//! and each selects what it names and focuses the view on its cell; a click
+//! on the selected one, or Reframe, clears the selection. A mark's label
+//! shows only a code minted from the chart's found order (or the jobs'
+//! accept order), never a name: the open world names a ship by whose it is.
 //!
 //! The side panel carries the SECTOR block while a find is selected: the
 //! find's cell, the route to it from the player's cell, its contents as icon
@@ -332,12 +333,13 @@ pub(crate) fn frame_chart(orbit: &mut MapOrbit) {
 /// Chart button, while the map owns the screen. A scene with no streamed
 /// world has no chart: the switch writes a note and stays local. Each switch
 /// drops the chart selection and reframes the view it enters; a switch into
-/// the chart that a Show on Map asked for selects its mark instead
-/// ([`MapRuntime::chart_show`]).
+/// the chart that a Show on Map asked for selects its mark and focuses the
+/// view on it instead ([`MapRuntime::chart_show`]).
 pub(crate) fn toggle_map_chart(
     input: NovaOsAppInput,
     mut runtime: ResMut<MapRuntime>,
     edge: Option<Res<ChartSectorEdge>>,
+    jobs: Res<Jobs>,
     contacts: MapContacts,
     mut q_camera: Query<&mut MapOrbit, With<MapCameraMarker>>,
 ) {
@@ -346,16 +348,21 @@ pub(crate) fn toggle_map_chart(
     {
         return;
     }
-    if edge.is_none() {
+    let Some(edge) = edge else {
         runtime.chart_show = None;
         runtime.goto_note = Some(("NO CHART: NO OPEN WORLD".to_string(), 2.5));
         return;
-    }
+    };
     runtime.chart = !runtime.chart;
     runtime.chart_selected = runtime.chart_show.take().filter(|_| runtime.chart);
     if let Ok(mut orbit) = q_camera.single_mut() {
         if runtime.chart {
             frame_chart(&mut orbit);
+            if let Some(mark) = &runtime.chart_selected {
+                let player_cell =
+                    SectorCoord::containing(Meters3::from_engine(contacts.focus()), edge.0);
+                focus_chart_mark(&mut orbit, &jobs, mark, player_cell);
+            }
         } else {
             reframe_map(&mut orbit, &contacts, &mut runtime);
         }
@@ -817,25 +824,48 @@ fn spawn_chart_label(
     label.id()
 }
 
-/// Select `mark` in the chart view, with one click if the selection changes.
-fn select_chart_mark(
+/// Put the orbit centre on `mark`'s cell, keeping the radius and angles.
+/// A mark with no cell, a job the player no longer holds, leaves it.
+pub(crate) fn focus_chart_mark(
+    orbit: &mut MapOrbit,
+    jobs: &Jobs,
+    mark: &MapChartMarkType,
+    player_cell: SectorCoord,
+) {
+    if let Some(cell) = chart_mark_cell(jobs, mark) {
+        orbit.center = chart_cell_position(cell, player_cell);
+    }
+}
+
+/// Select `mark` in the chart view and focus the view on its cell, or clear
+/// the selection when `mark` is the selected one, so the panel returns to
+/// the overview and the view stays put. Either way one click.
+fn toggle_chart_mark(
     runtime: &mut MapRuntime,
+    orbit: Option<Mut<MapOrbit>>,
+    jobs: &Jobs,
     mark: &MapChartMarkType,
     bank: Option<&SoundBank<UiSfx>>,
     commands: &mut Commands,
 ) {
-    if runtime.chart_selected.as_ref() != Some(mark) {
+    if runtime.chart_selected.as_ref() == Some(mark) {
+        runtime.chart_selected = None;
+    } else {
         runtime.chart_selected = Some(mark.clone());
-        play_menu_select(commands, bank);
+        if let (Some(mut orbit), Some(player_cell)) = (orbit, runtime.chart_player_cell) {
+            focus_chart_mark(&mut orbit, jobs, mark, player_cell);
+        }
     }
+    play_menu_select(commands, bank);
 }
 
-/// Select a chart mark when its label is activated, with one click if the
-/// selection changes.
-fn on_map_chart_label_click(
+/// Toggle a chart mark's selection when its label is activated.
+pub(crate) fn on_map_chart_label_click(
     activate: On<Activate>,
     q_label: Query<&MapChartLabel>,
     mut runtime: ResMut<MapRuntime>,
+    jobs: Res<Jobs>,
+    mut q_camera: Query<&mut MapOrbit, With<MapCameraMarker>>,
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
 ) {
@@ -845,21 +875,38 @@ fn on_map_chart_label_click(
     else {
         return;
     };
-    select_chart_mark(&mut runtime, mark, bank.as_deref(), &mut commands);
+    toggle_chart_mark(
+        &mut runtime,
+        q_camera.single_mut().ok(),
+        &jobs,
+        mark,
+        bank.as_deref(),
+        &mut commands,
+    );
 }
 
-/// Select a find when its discovery log row or FINDS row is activated.
+/// Toggle a find's selection when its discovery log row, FINDS row or held
+/// job row is activated.
 fn on_map_chart_log_row_click(
     activate: On<Activate>,
     q_row: Query<&MapChartLogRow>,
     mut runtime: ResMut<MapRuntime>,
+    jobs: Res<Jobs>,
+    mut q_camera: Query<&mut MapOrbit, With<MapCameraMarker>>,
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
 ) {
     let Ok(MapChartLogRow(mark)) = q_row.get(activate.entity) else {
         return;
     };
-    select_chart_mark(&mut runtime, mark, bank.as_deref(), &mut commands);
+    toggle_chart_mark(
+        &mut runtime,
+        q_camera.single_mut().ok(),
+        &jobs,
+        mark,
+        bank.as_deref(),
+        &mut commands,
+    );
 }
 
 /// A section heading of a chart panel block.

@@ -236,6 +236,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Selecting a chart cell or mark opens a SECTOR block of icon rows: contents,
   entered time, finds, the stock and services seen at your last dock there
   and the jobs posted there.
+- A chart selection centres the view on its cell; click it again or press
+  Reframe to clear it and return to the overview.
 - The chart's discovery log lists finds as icon rows with relative times
   (`just now`, `4 min ago`) and hides while a selection stands; the legend is
   an icon row.

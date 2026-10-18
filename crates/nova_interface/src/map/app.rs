@@ -215,7 +215,7 @@ pub(crate) struct MapRuntime {
     /// The Chart button was activated.
     /// [`toggle_map_chart`](super::toggle_map_chart) takes it on its next run.
     pub(crate) chart_requested: bool,
-    /// The station or wreck selected in the chart view.
+    /// The cell, station, wreck or held job selected in the chart view.
     pub(crate) chart_selected: Option<super::MapChartMarkType>,
     /// A mark to open the chart view on, selected, the next time the map
     /// owns the screen: the Jobs pane's Show on Map. Taken with

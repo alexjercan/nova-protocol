@@ -366,9 +366,11 @@ pub(crate) fn map_input(
             let speed = orbit.radius * 0.8 * dt;
             orbit.center += (forward * pan.y + right * pan.x) * speed;
         }
-        // Re-frame on the selected object (or the player if nothing is picked).
+        // Re-frame on the selected object (or the player if nothing is picked);
+        // on the chart, drop the selection and return to the overview.
         if input.just_pressed("viewer_reframe") {
             if runtime.chart {
+                runtime.chart_selected = None;
                 frame_chart(&mut orbit);
             } else {
                 reframe_map(&mut orbit, &contacts, &mut runtime);
@@ -1208,8 +1210,9 @@ pub(crate) fn reframe_map(orbit: &mut MapOrbit, contacts: &MapContacts, runtime:
     runtime.focused_on = runtime.selected;
 }
 
-/// Reframe the map, or the chart while it shows, when the Reframe button is
-/// activated, with one click.
+/// Reframe the map, or drop the chart selection and return to the chart's
+/// overview while it shows, when the Reframe button is activated, with one
+/// click.
 pub(crate) fn on_map_reframe_button(
     _activate: On<Activate>,
     contacts: MapContacts,
@@ -1220,6 +1223,7 @@ pub(crate) fn on_map_reframe_button(
 ) {
     if let Ok(mut orbit) = q_camera.single_mut() {
         if runtime.chart {
+            runtime.chart_selected = None;
             frame_chart(&mut orbit);
         } else {
             reframe_map(&mut orbit, &contacts, &mut runtime);
