@@ -873,20 +873,8 @@ mod tests {
     #[test]
     fn the_editor_claims_escape_only_when_it_has_a_back_step() {
         let cases = [
-            (
-                ExampleStates::Editor,
-                false,
-                HeldPart(None),
-                false,
-                false,
-            ),
-            (
-                ExampleStates::Editor,
-                true,
-                HeldPart(None),
-                false,
-                true,
-            ),
+            (ExampleStates::Editor, false, HeldPart(None), false, false),
+            (ExampleStates::Editor, true, HeldPart(None), false, true),
             (
                 ExampleStates::Editor,
                 false,
@@ -895,13 +883,7 @@ mod tests {
                 true,
             ),
             // A rebind waiting for a key: Escape cancels it (see `keybind`).
-            (
-                ExampleStates::Editor,
-                false,
-                HeldPart(None),
-                true,
-                true,
-            ),
+            (ExampleStates::Editor, false, HeldPart(None), true, true),
             // Flying: the pause menu owns Escape whatever the editor left behind.
             (
                 ExampleStates::Scenario,

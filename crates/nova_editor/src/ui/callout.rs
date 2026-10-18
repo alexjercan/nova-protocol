@@ -13,8 +13,7 @@ use nova_ui::{
 };
 
 use crate::{
-    config::{Placement, PlacementPreview},
-    config::EditorCamera,
+    config::{EditorCamera, Placement, PlacementPreview},
     node::{EditContext, SectionNode, ShipNode},
     ui::layer,
 };
