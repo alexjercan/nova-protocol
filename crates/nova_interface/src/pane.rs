@@ -39,7 +39,7 @@ use crate::{
     jobs::jobs_body,
     map::{
         map_chart_button, on_map_chart_button, on_map_reframe_button, spawn_map_panel,
-        MapLegendMarker, MapViewportMarker,
+        MapLegendMarker, MapRuntime, MapViewportMarker,
     },
     ship::{
         on_ship_fit_button, on_ship_reset_button, on_ship_viewport_click, on_ship_viewport_enter,
@@ -660,6 +660,8 @@ pub(crate) enum HintWhenType {
     Rebindable,
     /// Shown only while the selected section can be deleted.
     Deletable,
+    /// Shown only while the Map shows live contacts, not the chart.
+    MapContacts,
 }
 
 /// A pointer gesture in a footer: the raw left click, right drag and wheel
@@ -697,9 +699,9 @@ const MAP_KEY_HINTS: &[PaneKeyHint] = &[
     (
         "Select",
         &["viewer_prev", "viewer_next"],
-        HintWhenType::Always,
+        HintWhenType::MapContacts,
     ),
-    ("GOTO", &["map_goto"], HintWhenType::Always),
+    ("GOTO", &["map_goto"], HintWhenType::MapContacts),
     ("Chart", &["map_chart"], HintWhenType::Always),
 ];
 
@@ -876,13 +878,15 @@ pub(crate) fn refresh_pane_input_hints(
     }
 }
 
-/// Show each footer hint by its [`HintWhenType`], from the part in hand and
-/// what the Ship pane cached for its selection and its dock. All hide while
-/// the parts gallery is open: it holds the keys and names its own.
+/// Show each footer hint by its [`HintWhenType`], from the part in hand,
+/// what the Ship pane cached for its selection and its dock, and whether the
+/// Map shows its chart. All hide while the parts gallery is open: it holds
+/// the keys and names its own.
 pub(crate) fn show_pane_input_hints(
     held: Option<Res<HeldPart>>,
     ship: Option<Res<ShipRuntime>>,
     gallery: Option<Res<GalleryState>>,
+    map: Option<Res<MapRuntime>>,
     mut q_key: Query<(&PaneInputHint, &mut Node), Without<PanePointerHint>>,
     mut q_pointer: Query<(&PanePointerHint, &mut Node), Without<PaneInputHint>>,
 ) {
@@ -890,6 +894,8 @@ pub(crate) fn show_pane_input_hints(
     // The open gallery holds the keys and names its own.
     let browsing = gallery.is_some_and(|gallery| gallery.open);
     let ship = ship.as_deref();
+    // The chart view selects by click and has nothing to fly to.
+    let contacts = map.is_some_and(|map| !map.chart);
     let shown = |when: HintWhenType| {
         !browsing
             && match when {
@@ -902,6 +908,7 @@ pub(crate) fn show_pane_input_hints(
                 HintWhenType::Deletable => {
                     ship.is_some_and(|ship| matches!(ship.delete_verdict(), Some(Ok(_))))
                 }
+                HintWhenType::MapContacts => contacts,
             }
     };
     let nodes = q_key

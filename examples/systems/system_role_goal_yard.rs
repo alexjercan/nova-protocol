@@ -37,7 +37,7 @@
 //! | 2 | `outcome: a bought station counts as the yard with nothing stocked` | after the buy, `Stations owned 1 / 1` and `Part families stocked 0 / 7`, not met, still no stamp |
 //! | 3 | `outcome: stocking a recipe of every part family meets the yard and stamps the record once` | stocking a recipe of every family reads `1 / 1` and `7 / 7`, met, with a stamp inside the play clock that does not move across two more frames |
 //! | 4 | `outcome: a frozen yard still reads met` | after the station's cell freezes, the frozen record is owned, its frozen storage still holds every stocked part, and the progress still reads `1 / 1`, `7 / 7`, met, with the same stamp |
-//! | 5 | `outcome: the map's chart view shows the yard charter met` | its OBJECTIVES block shows one `Met at` row in place of the milestones and no milestone row |
+//! | 5 | `outcome: the map's chart view shows the yard charter met` | its OBJECTIVES block shows one `Goal reached at` row in place of the milestones and no milestone row |
 //! | 6 | `outcome: the leave save keeps the met yard charter` | `open_world` reads the same met stamp from the leave save |
 //! | 7 | `outcome: a load restores the met yard charter` | after Load and a frame, the same stamp and met progress return |
 //!
@@ -1065,7 +1065,7 @@ mod walk {
         let shown = shown_texts(world);
         let met_row = shown
             .iter()
-            .find(|text| text.starts_with("Met at "))
+            .find(|text| text.starts_with("Goal reached at "))
             .cloned()
             .unwrap_or_else(|| {
                 panic!("role goal yard: the chart view shows its met stamp: {shown:?}")
@@ -1320,7 +1320,7 @@ mod walk {
             script,
             "the chart key",
             "map_chart",
-            a_text_reads(|text| text.starts_with("Met at ")),
+            a_text_reads(|text| text.starts_with("Goal reached at ")),
         )
         .step("role goal yard: settle the charter block")
         .until(frames(SETTLE_FRAMES))

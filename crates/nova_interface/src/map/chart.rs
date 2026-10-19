@@ -8,13 +8,14 @@
 //! generated them, and every held job ([`Jobs`]) as a mark in its target's
 //! cell. A station mark reads its state: a living station in the living
 //! colour, a dead one faint in the danger colour, the player's own in the
-//! ally colour, a ring under one that refuses the player a dock right now,
-//! and a `n JOBS` tag over one whose board posts jobs the player does not
-//! hold. Marks and cell tags are projected UI labels, like the local blips,
+//! ally colour, and a ring under one that refuses the player a dock right
+//! now. Marks and cell tags are projected UI labels, like the local blips,
 //! and each selects what it names and focuses the view on its cell; a click
 //! on the selected one, or Reframe, clears the selection. A mark's label
-//! shows only a code minted from the chart's found order (or the jobs'
-//! accept order), never a name: the open world names a ship by whose it is.
+//! shows a code minted from the chart's found order (or the jobs' accept
+//! order), never a name: the open world names a ship by whose it is. A
+//! station whose board posts jobs the player does not hold adds their count,
+//! `STN-1 (2)`.
 //!
 //! The side panel carries the SECTOR block while a find is selected: the
 //! find's cell, the route to it from the player's cell, its contents as icon
@@ -686,19 +687,6 @@ pub(crate) fn manage_map_chart(
                         Transform::from_translation(at - Vec3::Y * 4.0),
                     );
                 }
-                if live.posting > 0 {
-                    if let Some(code) = chart_mark_code(&chart, &jobs, mark) {
-                        labels.push((
-                            // Above every stacked label of the cell.
-                            at + Vec3::Y * (in_cell.len() as f32 * MAP_CHART_LABEL_STACK + 4.0),
-                            None,
-                            format!("{} JOBS", live.posting),
-                            format!("{code} jobs"),
-                            MAP_CHART_JOB_COLOR,
-                            10.0,
-                        ));
-                    }
-                }
             }
             MapChartMarkType::Wreck(_) => {
                 spawn_mesh(
@@ -717,14 +705,17 @@ pub(crate) fn manage_map_chart(
             MapChartMarkType::Cell(_) => unreachable!("a cell is drawn as a tile, not a mark"),
         }
         if let Some(code) = chart_mark_code(&chart, &jobs, mark) {
-            labels.push((
-                label_at,
-                Some(mark.clone()),
-                code.clone(),
-                code,
-                *color,
-                12.0,
-            ));
+            // A station with open jobs counts them on its own label.
+            // TODO: a docked ship's YOU tag stands under a station label
+            // wider than its code; remove when chart labels stack clear of it.
+            let text = match mark {
+                MapChartMarkType::Station(id) => match live_of(&runtime.chart_live, id).posting {
+                    0 => code.clone(),
+                    posting => format!("{code} ({posting})"),
+                },
+                _ => code.clone(),
+            };
+            labels.push((label_at, Some(mark.clone()), text, code, *color, 12.0));
         }
     }
 
@@ -1291,7 +1282,7 @@ pub(crate) fn update_map_chart_sector(
                 let state = if jobs.is_done(&job.id) {
                     "done"
                 } else {
-                    "held"
+                    "to do"
                 };
                 let mut row = spawn_icon_row(
                     block,
@@ -1517,7 +1508,7 @@ pub(crate) fn update_map_chart_objectives(
                 select_row(&mut row, format!("MapChartObjective{code}"), mark, false);
             }
             if held == 0 {
-                block_note(block, "No job held.");
+                block_note(block, "No jobs taken.");
             }
             for row in &rows {
                 match row {
@@ -1539,7 +1530,7 @@ pub(crate) fn update_map_chart_objectives(
                         spawn_icon_row(
                             block,
                             Some(milestone.clone()),
-                            &format!("Met at {}", play_time_text(*at)),
+                            &format!("Goal reached at {}", play_time_text(*at)),
                             UiColor::Accent,
                             &[],
                         )
@@ -1783,7 +1774,7 @@ pub(crate) fn chart_panel_field(
     };
     let found = |at: f64| format!("Found {}.", play_time_text(at));
     match (selected, field) {
-        (None, MapPanelField::Code) => ("DISCOVERY LOG".to_string(), UiColor::Label),
+        (None, MapPanelField::Code) => ("CHART".to_string(), UiColor::Label),
         (None, MapPanelField::Range) => (
             format!("Cells visited {}", chart.visited().count()),
             UiColor::Primary,
@@ -1798,7 +1789,7 @@ pub(crate) fn chart_panel_field(
             UiColor::Primary,
         ),
         (None, MapPanelField::Note) => (
-            "Click a log line, a cell or a mark to read it.".to_string(),
+            "Click a row, a cell or a label to select it.".to_string(),
             UiColor::Label,
         ),
         (None, _) => (String::new(), UiColor::Body),
@@ -1827,14 +1818,12 @@ pub(crate) fn chart_panel_field(
         ),
         (Some(MapChartMarkType::Cell(_)), MapPanelField::Note) => (String::new(), UiColor::Label),
         (Some(MapChartMarkType::Job(id)), MapPanelField::Name) => (
-            jobs.job(id).map_or_else(
-                || "Job no longer held".to_string(),
-                |job| job_title(job, items),
-            ),
+            jobs.job(id)
+                .map_or_else(|| "Job closed".to_string(), |job| job_title(job, items)),
             UiColor::Body,
         ),
         (Some(MapChartMarkType::Job(_)), MapPanelField::Kind) => {
-            ("HELD JOB".to_string(), MAP_CHART_JOB_COLOR)
+            ("JOB".to_string(), MAP_CHART_JOB_COLOR)
         }
         (Some(MapChartMarkType::Job(id)), MapPanelField::Range) => (
             jobs.job(id)

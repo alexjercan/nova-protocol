@@ -230,8 +230,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   type, outlines cells you never entered and rings the selected mark's cell
   in the accent.
 - Chart station marks show their state: dead marks fade, a station refusing
-  you docking wears a red ring, and one with open jobs reads `n JOBS` above
-  its code.
+  you docking wears a red ring, and one with open jobs adds their count to
+  its code, as `STN-1 (3)`.
 - Selecting a chart cell or mark opens a SECTOR block of icon rows: contents,
   entered time, finds, the stock and services seen at your last dock there
   and the jobs posted there.
@@ -260,9 +260,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The Map's chart view (`C`) draws the cells you entered by cluster type, the
   stations and wrecks you found by code, and a discovery log of every find
   with its play time; click any to read it.
-- The Map's chart view lists your OBJECTIVES: each held job with have / need
-  and its hand-in station, and the role's next unmet milestone. Click a job
-  to select its mark.
+- The Map's chart view lists your OBJECTIVES: each job you took with have /
+  need and its hand-in station, and the role's next unmet milestone. Click a
+  job to select its mark.
 - Alt-tab no longer pauses play by default. Settings > Graphics > Pause when
   unfocused turns the focus pause back on.
 - A Sandbox ship's Station box spawns it as a station. Station Check names

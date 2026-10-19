@@ -17,7 +17,7 @@
 //! | - | - | - |
 //! | 1 | `outcome: the charter opens standing with its lines at zero` | the bounty hunter's `A kill list` has 0 / 6 hulls and 0 / 2 rings, with no stamp |
 //! | 2 | `outcome: six neutralize hand-ins across two rings meet the kill list and stamp the record once` | six completed Neutralize jobs from two rings yield 6 / 6 and 2 / 2, and the record keeps its first stamp across two more frames |
-//! | 3 | `outcome: the map's chart view shows the charter met` | its text nodes show the charter heading, title, both met lines and a `Met at` row |
+//! | 3 | `outcome: the map's chart view shows the charter met` | its OBJECTIVES block shows one `Goal reached at` row in place of the milestones and no milestone row |
 //! | 4 | `outcome: the leave save keeps the met charter` | `open_world` reads the same met stamp from the leave save |
 //! | 5 | `outcome: a load restores the met charter` | after Load and a frame, the same stamp and met progress return |
 //!
@@ -29,7 +29,7 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 //! `NOVA_CAPTURE=1` also writes `role-goals-charter.png` of the chart view
-//! with the met CHARTER block.
+//! with the met goal's OBJECTIVES block.
 
 use bevy::prelude::*;
 use clap::Parser;
@@ -112,7 +112,7 @@ mod walk {
     const MAP_TAB: &str = "InterfaceTabMap";
     const SESSION_SECS: f32 = 240.0;
     const BEAT_SECS: f32 = 60.0;
-    /// The frame the capture path writes of the chart view's CHARTER block.
+    /// The frame the capture path writes of the chart view's OBJECTIVES block.
     const CHARTER_SHOT: &str = "role-goals-charter.png";
 
     /// The first stamp observed after the fixture meets the charter.
@@ -345,30 +345,36 @@ mod walk {
         info!("role goals: PASS six hand-ins meet the kill list at {expected} s");
     }
 
-    /// The chart view renders the met charter block.
+    /// The chart view's OBJECTIVES block holds the reached goal's stamp row
+    /// in place of the milestones.
     fn assert_map_charter(world: &mut World) {
         let shown = shown_texts(world);
-        for expected in [
-            "CHARTER",
-            "A kill list",
-            "Hulls neutralized  6 / 6",
-            "Rings hunted  2 / 2",
-        ] {
-            assert!(
-                shown.iter().any(|text| text == expected),
-                "role goals: the chart view shows '{expected}': {shown:?}"
-            );
-        }
         let met_row = shown
             .iter()
-            .find(|text| text.starts_with("Met at "))
+            .find(|text| text.starts_with("Goal reached at "))
+            .cloned()
             .unwrap_or_else(|| panic!("role goals: the chart view shows its met stamp: {shown:?}"));
+        assert!(
+            named_node(world, "MapChartObjectiveMet"),
+            "role goals: the OBJECTIVES block holds the met row"
+        );
+        assert!(
+            !named_node(world, "MapChartObjectiveMilestone"),
+            "role goals: a met role lists no milestone row: {shown:?}"
+        );
         nova_probe::probe_marker(
             world,
             "outcome: the map's chart view shows the charter met",
-            serde_json::json!({ "heading": "CHARTER", "title": "A kill list", "lines": ["Hulls neutralized  6 / 6", "Rings hunted  2 / 2"], "stamp": met_row }),
+            serde_json::json!({ "stamp": met_row }),
         );
         info!("role goals: the Map chart view shows the met charter: {met_row}");
+    }
+
+    fn named_node(world: &mut World, name: &str) -> bool {
+        world
+            .query::<&Name>()
+            .iter(world)
+            .any(|named| named.as_str() == name)
     }
 
     /// Read the leave save from disk and release its lock before the Load step.
@@ -522,15 +528,15 @@ mod walk {
             script,
             "chart key",
             "map_chart",
-            a_text_reads(|text| text == "CHARTER"),
+            a_text_reads(|text| text == "OBJECTIVES"),
         )
-        .step("role goals: settle the charter block")
+        .step("role goals: settle the objectives block")
         .until(frames(6))
         .add()
         .step("role goals: assert the Map charter")
         .on_enter(assert_map_charter)
         .add()
-        .step("role goals: shoot the charter block")
+        .step("role goals: shoot the objectives block")
         .on_enter(|world: &mut World| shoot(world, CHARTER_SHOT))
         .until(shot_written(CHARTER_SHOT))
         .deadline(BEAT_SECS)

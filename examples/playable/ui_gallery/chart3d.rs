@@ -693,25 +693,12 @@ pub fn spawn_chart_scene(
                             Transform::from_translation(at - Vec3::Y * 4.0),
                         );
                     }
-                    if let StationKind::Posting(n) = kind {
-                        labels.push((
-                            // Above every stacked label of the cell.
-                            at + Vec3::Y * (count as f32 * LABEL_STACK + 4.0),
-                            None,
-                            format!("{n} JOBS"),
-                            format!("{code} jobs"),
-                            UiColor::Accent,
-                            10.0,
-                        ));
-                    }
-                    labels.push((
-                        label_at,
-                        Some(cell.at),
-                        code.clone(),
-                        code.clone(),
-                        color,
-                        12.0,
-                    ));
+                    // A station with open jobs counts them on its own label.
+                    let text = match kind {
+                        StationKind::Posting(n) => format!("{code} ({n})"),
+                        _ => code.clone(),
+                    };
+                    labels.push((label_at, Some(cell.at), text, code.clone(), color, 12.0));
                 }
                 MarkView::Wreck(code) => {
                     spawn_mesh(

@@ -29,7 +29,7 @@
 //! | - | - | - |
 //! | 1 | `outcome: a docked station posts a seeded board` | the station root carries [`JOBS_PER_BOARD`] valid jobs of its own, one of them a procurement, and the Jobs tab lists every title; each escort or neutralize row greys its Accept with `accept: the hull has no weapon` in its tooltip, every other Accept stays live |
 //! | 2 | `outcome: an accept holds the job` | after the Accept click the job is held, gone from the posted list and listed under Your jobs |
-//! | 3 | `outcome: the chart view marks the held job` | undocked, the chart view labels the job `JOB-1`; a click shows HELD JOB, its title and its reward |
+//! | 3 | `outcome: the chart view marks the held job` | undocked, the chart view labels the job `JOB-1`; a click shows JOB, its title and its reward |
 //! | 4 | `outcome: the leave save holds the job` | the leave save, read with [`open_world`], holds the one job, no completed id and each slot's offer as the board posted it |
 //! | 5 | `outcome: a loaded world restores the job and the board` | after the Load the job is held again and the station posts the same board, the saved offers |
 //! | 6 | `outcome: a passed window renews the unheld offers and pins the held job` | docked again, once the clock passes the offer window the two unheld slots renew, stamped at the clock, and the tab lists them with their reward, while the held slot and job stand unchanged |
@@ -850,8 +850,8 @@ mod walk {
             "station jobs: the chart view labels the job JOB-1: {shown:?}"
         );
         assert!(
-            shown.contains(&"HELD JOB".to_string()),
-            "station jobs: the panel says HELD JOB: {shown:?}"
+            shown.contains(&"JOB".to_string()),
+            "station jobs: the panel says JOB: {shown:?}"
         );
         assert!(
             shown.contains(&title),
@@ -1543,7 +1543,7 @@ mod walk {
         .add()
         .step("station jobs: select the job on the chart")
         .on_enter(|world: &mut World| activate_named(world, "MapChartMarkJOB-1"))
-        .until(a_text_reads(|text| text == "HELD JOB"))
+        .until(a_text_reads(|text| text == "JOB"))
         .deadline(BEAT_SECS)
         .add()
         .step("station jobs: settle the panel")

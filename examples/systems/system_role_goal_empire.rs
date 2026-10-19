@@ -40,7 +40,7 @@
 //! | 2 | `outcome: two bought stations stand the charter at the escort line` | after both buys, `Stations owned 2 / 2` and `Escorts in fleet 0 / 2`, not met, still no stamp |
 //! | 3 | `outcome: hiring the second escort meets the empire charter and stamps the record once` | the first hire reads `1 / 2` escorts, not met; the second reads `2 / 2` and `2 / 2`, met, with a stamp inside the play clock that does not move across two more frames |
 //! | 4 | `outcome: a frozen station still counts toward the met empire charter` | after both stations' cells freeze, both frozen records are owned, both escorts still fly in the fleet, and the progress still reads `2 / 2`, `2 / 2`, met, with the same stamp |
-//! | 5 | `outcome: the map's chart view shows the empire charter met` | its OBJECTIVES block shows one `Met at` row in place of the milestones and no milestone row |
+//! | 5 | `outcome: the map's chart view shows the empire charter met` | its OBJECTIVES block shows one `Goal reached at` row in place of the milestones and no milestone row |
 //! | 6 | `outcome: the leave save keeps the met empire charter` | `open_world` reads the same met stamp from the leave save |
 //! | 7 | `outcome: a load restores the met empire charter` | after Load and a frame, the same stamp, met progress and both escorts in the fleet return |
 //!
@@ -1232,7 +1232,7 @@ mod walk {
         let shown = shown_texts(world);
         let met_row = shown
             .iter()
-            .find(|text| text.starts_with("Met at "))
+            .find(|text| text.starts_with("Goal reached at "))
             .cloned()
             .unwrap_or_else(|| {
                 panic!("role goal empire: the chart view shows its met stamp: {shown:?}")
@@ -1588,7 +1588,7 @@ mod walk {
             script,
             "the chart key",
             "map_chart",
-            a_text_reads(|text| text.starts_with("Met at ")),
+            a_text_reads(|text| text.starts_with("Goal reached at ")),
         )
         .step("role goal empire: settle the charter block")
         .until(frames(SETTLE_FRAMES))

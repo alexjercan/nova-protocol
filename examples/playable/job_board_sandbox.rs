@@ -944,7 +944,7 @@ mod smoke {
         .until(and(
             and(
                 the_interface_shows(Some(InterfacePaneType::Map)),
-                a_text_reads(|text| text == "HELD JOB"),
+                a_text_reads(|text| text == "JOB"),
             ),
             and(a_text_reads(|text| text == "JOB-1"), frames(SETTLE_FRAMES)),
         ))

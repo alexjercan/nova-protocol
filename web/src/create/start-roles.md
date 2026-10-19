@@ -2,7 +2,7 @@
 
 A `StartRole` is one New Game start: the catalog hull the player flies, the
 kit it starts with, a sum of credits and a hold of items, the job mix its
-station boards lean to, and its charter, one finite milestone. Roles are
+station boards lean to, and its goal, one finite milestone. Roles are
 content like ships and stations. Create a new id to add a role, or reuse a
 base id to replace that role. The New Game wizard lists
 the roles in merge order.
@@ -47,7 +47,7 @@ Every field is required.
 | `hull` | string | the id of a [ship design](../ships/) the player starts in: a base ship id, one of your mod's own, or one from a mod you depend on |
 | `kit` | kit | what the ship starts with, see below |
 | `jobs` | `Trade`, `Salvage` or `Combat` | the job mix every station board leans to for this start, see [Jobs](../stations/#jobs) |
-| `goal` | goal | the role's charter, one finite milestone, see [The goal](#the-goal) |
+| `goal` | goal | the role's goal, one finite milestone, see [The goal](#the-goal) |
 | `lore` | string | background text for the role |
 
 A `kit` has two fields, both required:
@@ -59,15 +59,16 @@ A `kit` has two fields, both required:
 
 ## The goal
 
-A `goal` is a charter: one finite milestone the role plays toward, read off
-the saved world and shown as the CHARTER block in the Map's chart view. It
-is not an ending: the world is an endless sandbox, a met charter stamps the
-save and nothing else, and there is no completion screen. It has two fields,
-both required:
+A `goal` is one finite milestone the role plays toward, read off the saved
+world. The Map's chart view OBJECTIVES block lists its next unmet line until
+it is met, then reads `Goal reached at` the play time it
+happened. It is not an ending: the world is an endless sandbox, a met goal
+stamps the save and nothing else, and there is no completion screen. It has
+two fields, both required:
 
 | field | type | meaning |
 |---|---|---|
-| `title` | string | the name the CHARTER block shows |
+| `title` | string | the name the New Game role step and the Load screen show |
 | `kind` | goal kind | what the save must show, one of the kinds below |
 
 | kind | fields | met when |
@@ -98,8 +99,8 @@ frozen in a sector you left, the escorts in your fleet, and the
 with the hulls you took from them since. A yard counts
 its best single station: two stations each stocked for some families do not
 add up. The frame the goal is met, the save records the play time; the
-CHARTER block then reads `Met at` that time, and a Load brings it back. The
-world does not change on a met goal.
+OBJECTIVES block then reads `Goal reached at` that time, and a Load brings
+it back. The world does not change on a met goal.
 
 ## Overlay and lint
 
@@ -128,8 +129,9 @@ role that:
 
 The second step of the New Game wizard lists the roles and selects the
 first. The details pane shows the selected role's `name`, `about`, the
-hull's design name, the kit and the `lore`. In the game the Map's chart view
-shows the role's `goal` as the CHARTER block. **Create** starts the base
+hull's design name, the kit, the goal's `title` as its milestone, and the
+`lore`. In the game the Map's chart view OBJECTIVES block lists the goal's
+next unmet line until it is met. **Create** starts the base
 `open_world` scenario, whose
 [`SpawnStartRole`](../actions/#spawnstartrole) action spawns the role's hull
 with its kit and binds its weapons, docked at the starting station: the

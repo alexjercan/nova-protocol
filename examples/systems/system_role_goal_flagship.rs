@@ -27,7 +27,7 @@
 //! | - | - | - |
 //! | 1 | `outcome: the flagship charter opens standing at the picket's value` | the charter reads the live picket's hull value against the Line Warship's recipe value, both recomputed, the picket short, the goal short of met and no stamp |
 //! | 2 | `outcome: buying a hull worth the line warship meets the flagship charter and stamps the record once` | buying the fixture lifts the player's live hull value to the Line Warship's, meets the charter, and the record keeps its first stamp across two more frames |
-//! | 3 | `outcome: the map's chart view shows the flagship charter met` | its OBJECTIVES block shows one `Met at` row in place of the milestones and no milestone row |
+//! | 3 | `outcome: the map's chart view shows the flagship charter met` | its OBJECTIVES block shows one `Goal reached at` row in place of the milestones and no milestone row |
 //! | 4 | `outcome: the leave save keeps the met flagship charter` | `open_world` reads the same met stamp from the leave save |
 //! | 5 | `outcome: a load restores the met flagship charter` | after Load and a frame, the same stamp and met progress return |
 //!
@@ -992,7 +992,7 @@ mod walk {
         let shown = shown_texts(world);
         let met_row = shown
             .iter()
-            .find(|text| text.starts_with("Met at "))
+            .find(|text| text.starts_with("Goal reached at "))
             .cloned()
             .unwrap_or_else(|| {
                 panic!("role goal flagship: the chart view shows its met stamp: {shown:?}")
@@ -1231,7 +1231,7 @@ mod walk {
             script,
             "chart key",
             "map_chart",
-            a_text_reads(|text| text.starts_with("Met at ")),
+            a_text_reads(|text| text.starts_with("Goal reached at ")),
         )
         .step("role goal flagship: settle the charter block")
         .until(frames(6))

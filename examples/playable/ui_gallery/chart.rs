@@ -120,7 +120,6 @@ pub fn chart_page(
                 ("R/F", "Tilt"),
                 ("WASD", "Pan"),
                 ("T", "Reframe"),
-                ("[ ]", "Select"),
                 ("C", "Chart"),
             ],
             &["Right-drag look", "Wheel zoom", "Click a sector"],
@@ -157,7 +156,7 @@ fn objectives(side: &mut ChildSpawnerCommands, icons: &GalleryIcons, jobs: &Jobs
         });
     }
     if jobs.held.is_empty() {
-        side.spawn(text("No job held.", 12.0, UiColor::Label));
+        side.spawn(text("No jobs taken.", 12.0, UiColor::Label));
     }
 }
 
@@ -308,7 +307,7 @@ fn sector_panel(
                 r.spawn(grow_cell(j.title, 13.0, UiColor::Primary));
                 r.spawn(text(
                     if jobs.held.contains(&id) {
-                        "held"
+                        "to do"
                     } else {
                         "open"
                     },
