@@ -442,8 +442,8 @@ pub(crate) fn map_input(
 
 /// Project each contact through the map camera into the viewport and keep a
 /// clickable UI blip per contact in sync: position, stance tint, the
-/// selection border and whether its [`MapBlipLabel`] shows. Writes only on a
-/// change, so still blips stay unchanged for the UI layout.
+/// selection border, its [`MapBlipLabel`]'s code and whether it shows. Writes
+/// only on a change, so still blips stay unchanged for the UI layout.
 #[expect(
     clippy::too_many_arguments,
     reason = "blips, their parts and the scene"
@@ -464,7 +464,8 @@ pub(crate) fn project_map_blips(
         &Children,
     )>,
     mut q_tint: Query<&mut ThemedImageTint>,
-    mut q_label: Query<&mut Visibility, (With<MapBlipLabel>, Without<MapBlip>)>,
+    mut q_label: Query<(&mut Visibility, &Children), (With<MapBlipLabel>, Without<MapBlip>)>,
+    mut q_text: Query<&mut Text>,
 ) {
     if !runtime.active {
         return;
@@ -552,9 +553,20 @@ pub(crate) fn project_map_blips(
         if *z != order {
             *z = order;
         }
+        let recode = marker.code != contact.code;
+        if recode {
+            marker.code.clone_from(&contact.code);
+        }
         for child in children.iter() {
-            if let Ok(mut visibility) = q_label.get_mut(child) {
+            if let Ok((mut visibility, texts)) = q_label.get_mut(child) {
                 visibility.set_if_neq(label);
+                if recode {
+                    for text in texts.iter() {
+                        if let Ok(mut text) = q_text.get_mut(text) {
+                            text.0.clone_from(&contact.code);
+                        }
+                    }
+                }
             }
         }
     }
@@ -930,6 +942,7 @@ pub(crate) fn spawn_blip(
                 contact: contact.entity,
                 body: contact.body,
                 kind: contact.kind,
+                code: contact.code.clone(),
             },
             Button,
             Node {
@@ -1148,7 +1161,8 @@ pub(crate) fn update_map_panel(
     }
 }
 
-/// Legend order: ships by stance, then rocks, planets and nav points.
+/// Legend order: ships by stance, stations by stance, then rocks, planets
+/// and nav points.
 fn legend_rank((body, kind): (BodyIconType, MapContactKind)) -> (usize, usize) {
     (body as usize, kind.code_slot())
 }
@@ -1160,6 +1174,9 @@ fn legend_label((body, kind): (BodyIconType, MapContactKind)) -> &'static str {
         (BodyIconType::Ship, MapContactKind::Ally) => "Ally ship",
         (BodyIconType::Ship, MapContactKind::Hostile) => "Hostile ship",
         (BodyIconType::Ship, _) => "Neutral ship",
+        (BodyIconType::Station, MapContactKind::Ally) => "Ally station",
+        (BodyIconType::Station, MapContactKind::Hostile) => "Hostile station",
+        (BodyIconType::Station, _) => "Neutral station",
         (BodyIconType::Asteroid, _) => "Asteroid",
         (BodyIconType::Planet, _) => "Planet",
         (BodyIconType::Objective, _) => "Objective",

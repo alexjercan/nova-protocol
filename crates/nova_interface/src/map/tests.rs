@@ -8,7 +8,9 @@ use bevy::{
     ui::{ComputedNode, InteractionDisabled, UiGlobalTransform},
     ui_widgets::Activate,
 };
-use nova_events::prelude::{EntityTypeName, GeneratedBodyId, SectorCoord, ASTEROID_TYPE_NAME};
+use nova_events::prelude::{
+    EntityId, EntityTypeName, GeneratedBodyId, SectorCoord, ASTEROID_TYPE_NAME,
+};
 use nova_gameplay::{prelude::*, PauseStates};
 use nova_input::prelude::{BindingSpec, InputBindings, InputSource, RegisterInputActions};
 use nova_ship::prelude::*;
@@ -72,6 +74,8 @@ fn map_range_renders_in_meters_and_kilometers() {
 /// hostile dead ahead, an objective to starboard, an asteroid astern.
 fn scripted_world() -> (World, Entity, Entity) {
     let mut world = World::new();
+    world.init_resource::<Chart>();
+    world.init_resource::<Jobs>();
     let player = world
         .spawn((
             SpaceshipRootMarker,
@@ -133,6 +137,8 @@ fn map_contacts_report_kinds_range_and_bearing() {
 /// per-kind indices actually count up and can collide if minting is wrong.
 fn crowded_world() -> World {
     let mut world = World::new();
+    world.init_resource::<Chart>();
+    world.init_resource::<Jobs>();
     world.spawn((
         SpaceshipRootMarker,
         PlayerSpaceshipMarker,
@@ -218,6 +224,128 @@ fn map_contact_codes_are_unique_and_stable() {
     assert_eq!(code(&world, streamed), "NEU-2");
 }
 
+/// A found station draws the chart's cube at every side: its code is its
+/// 1-based place in the chart's FOUND order, never spawn order, and it never
+/// mints a [`MapContactCode`]. A ship beside it still mints `HOST-1`.
+#[test]
+fn a_station_draws_its_cube_and_chart_code_at_every_side() {
+    let mut world = World::new();
+    world.init_resource::<Chart>();
+    world.init_resource::<Jobs>();
+    world.spawn((
+        SpaceshipRootMarker,
+        PlayerSpaceshipMarker,
+        GlobalTransform::default(),
+        Name::new("NOVA"),
+    ));
+    let spawn_station = |world: &mut World, id: GeneratedBodyId, allegiance: Allegiance| {
+        world
+            .spawn((
+                SpaceshipRootMarker,
+                StationMarker,
+                id,
+                allegiance,
+                GlobalTransform::default(),
+            ))
+            .id()
+    };
+    let ally_id = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
+    let hostile_id = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 1);
+    let neutral_id = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 2);
+    let ally = spawn_station(&mut world, ally_id.clone(), Allegiance::Player);
+    let hostile = spawn_station(&mut world, hostile_id.clone(), Allegiance::Enemy);
+    let neutral = spawn_station(&mut world, neutral_id.clone(), Allegiance::Neutral);
+    let raider = world
+        .spawn((
+            SpaceshipRootMarker,
+            Allegiance::Enemy,
+            GlobalTransform::default(),
+            Name::new("RAIDER"),
+        ))
+        .id();
+
+    // Found out of spawn order, so a correct index can only come from the
+    // chart's found order.
+    {
+        let mut chart = world.resource_mut::<Chart>();
+        chart.find_station(&neutral_id, false, false, None, 0.0);
+        chart.find_station(&ally_id, false, false, None, 0.0);
+        chart.find_station(&hostile_id, false, false, None, 0.0);
+    }
+
+    world.run_system_once(assign_map_contact_codes).unwrap();
+    let contacts = world.run_system_once(|c: MapContacts| c.collect()).unwrap();
+    let find = |entity: Entity| {
+        contacts
+            .iter()
+            .find(|c| c.entity == entity)
+            .unwrap_or_else(|| panic!("{entity:?} is not a contact"))
+    };
+
+    for (entity, want_kind, want_code) in [
+        (neutral, MapContactKind::Neutral, "STN-1"),
+        (ally, MapContactKind::Ally, "STN-2"),
+        (hostile, MapContactKind::Hostile, "STN-3"),
+    ] {
+        let contact = find(entity);
+        assert_eq!(contact.body, BodyIconType::Station, "{entity:?}");
+        assert_eq!(contact.kind, want_kind, "{entity:?}");
+        assert_eq!(contact.code, want_code, "{entity:?}");
+        assert!(
+            world.get::<MapContactCode>(entity).is_none(),
+            "a station mints no ship code: {entity:?}"
+        );
+    }
+
+    assert_eq!(
+        find(raider).code,
+        "HOST-1",
+        "a plain ship still mints its usual code"
+    );
+}
+
+/// An authored station - no [`GeneratedBodyId`], the chart only finds
+/// generated ones - is still a contact: it shows as a Station body with the
+/// bare `STN` stem, never hidden and never carrying a [`MapContactCode`],
+/// even while the chart holds other, generated stations.
+#[test]
+fn an_authored_station_reads_stn_on_the_map() {
+    let mut world = World::new();
+    world.init_resource::<Chart>();
+    world.init_resource::<Jobs>();
+    world.spawn((
+        SpaceshipRootMarker,
+        PlayerSpaceshipMarker,
+        GlobalTransform::default(),
+        Name::new("NOVA"),
+    ));
+    let generated_id = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
+    world
+        .resource_mut::<Chart>()
+        .find_station(&generated_id, false, false, None, 0.0);
+    let authored = world
+        .spawn((
+            SpaceshipRootMarker,
+            StationMarker,
+            EntityId::new("outpost_prime"),
+            GlobalTransform::default(),
+        ))
+        .id();
+
+    world.run_system_once(assign_map_contact_codes).unwrap();
+    let contacts = world.run_system_once(|c: MapContacts| c.collect()).unwrap();
+    let contact = contacts
+        .iter()
+        .find(|c| c.entity == authored)
+        .expect("the authored station is a contact");
+    assert_eq!(contact.body, BodyIconType::Station);
+    assert_eq!(contact.code, "STN");
+    assert!(
+        world.get::<MapContactCode>(authored).is_none(),
+        "a station mints no ship code"
+    );
+}
+
 /// The scene lives while the Map pane is on screen, including under the
 /// command modal that returns to it, and goes when the pane or the interface
 /// does (headless: no render assets, so only the active flag toggles - the
@@ -230,6 +358,7 @@ fn map_scene_lives_while_the_map_pane_is_shown() {
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
+    app.init_resource::<Jobs>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Ship);
@@ -278,6 +407,7 @@ fn map_scene_builds_and_drives_with_render_assets() {
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
+    app.init_resource::<Jobs>();
     app.init_resource::<ActiveUiTheme>();
     app.insert_resource(InterfaceIcons::blank());
     app.init_resource::<NovaOsCloseTransition>();
@@ -338,6 +468,7 @@ fn map_focus_follow_recenters_on_a_new_selection() {
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
+    app.init_resource::<Jobs>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Map);
@@ -401,6 +532,7 @@ fn a_rebound_goto_key_is_the_key_the_map_answers() {
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
+    app.init_resource::<Jobs>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Map);
 
@@ -465,6 +597,7 @@ fn map_goto_sets_autopilot_on_the_player_ship() {
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
+    app.init_resource::<Jobs>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Map);
 
@@ -1462,6 +1595,7 @@ fn map_input_app() -> App {
     app.register_input_actions(crate::bindings::interface_bindings());
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
+    app.init_resource::<Jobs>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Map);
@@ -1520,6 +1654,48 @@ fn map_orbit_drag_is_rmb_only() {
         orbit_angles(&mut app),
         before,
         "RMB drag must still orbit the map camera"
+    );
+}
+
+/// An uncharted generated station's blip reads the bare `STN` stem; once the
+/// chart finds it, [`project_map_blips`] relabels the same blip with its
+/// chart code `STN-n`.
+#[test]
+fn a_station_blip_relabels_from_stn_to_its_chart_code_when_the_chart_finds_it() {
+    let mut app = map_input_app();
+    app.insert_resource(InterfaceIcons::blank());
+    let station_id = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
+    app.world_mut().spawn((
+        SpaceshipRootMarker,
+        StationMarker,
+        station_id.clone(),
+        GlobalTransform::default(),
+    ));
+    app.world_mut()
+        .spawn((MapViewportMarker, Node::default(), ComputedNode::DEFAULT));
+
+    let station_codes = |app: &mut App| -> Vec<String> {
+        blip_label_texts(app.world_mut())
+            .into_iter()
+            .filter(|text| text.starts_with("STN"))
+            .collect()
+    };
+
+    app.world_mut().run_system_once(project_map_blips).unwrap();
+    assert_eq!(
+        station_codes(&mut app),
+        vec!["STN".to_string()],
+        "uncharted, the blip reads the bare stem"
+    );
+
+    app.world_mut()
+        .resource_mut::<Chart>()
+        .find_station(&station_id, false, false, None, 0.0);
+    app.world_mut().run_system_once(project_map_blips).unwrap();
+    assert_eq!(
+        station_codes(&mut app),
+        vec!["STN-1".to_string()],
+        "the chart's find relabels the live blip"
     );
 }
 
@@ -2003,6 +2179,7 @@ fn the_focus_hub_is_the_size_of_what_it_marks() {
     app.insert_state(PauseStates::Interface);
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
+    app.init_resource::<Jobs>();
     app.world_mut().resource_mut::<MapRuntime>().active = true;
 
     app.world_mut().spawn((

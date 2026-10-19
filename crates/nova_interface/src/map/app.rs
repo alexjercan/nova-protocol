@@ -221,6 +221,9 @@ pub(crate) struct MapBlip {
     pub(crate) body: BodyIconType,
     /// The stance its icon is tinted for.
     pub(crate) kind: MapContactKind,
+    /// The code its label shows: a station's turns from `STN` to `STN-n`
+    /// when the chart finds it.
+    pub(crate) code: String,
 }
 
 /// A blip's code label. An asteroid's label shows only while it is the

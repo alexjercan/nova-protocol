@@ -2,19 +2,21 @@
 //! [`MapContacts`] system param that derives the live list from the world.
 //!
 //! Codes are assigned per kind and held stable across frames, so a label names
-//! the same ship a moment later.
+//! the same ship a moment later. A station reads its chart code instead,
+//! `STN-n`, or a bare `STN` while the chart has not found it.
 //!
 //! Touch this module when adding a kind of thing the map can show.
 
 use bevy::{ecs::system::SystemParam, platform::collections::HashMap, prelude::*};
 use nova_events::{
-    prelude::{EntityId, EntityTypeName, ASTEROID_TYPE_NAME, PLANET_TYPE_NAME},
+    prelude::{EntityId, EntityTypeName, GeneratedBodyId, ASTEROID_TYPE_NAME, PLANET_TYPE_NAME},
     units::prelude::*,
 };
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::{BodyRadius, HullEnvelopeRadius};
 use nova_ui::theme::UiColor;
 
+use super::chart::{chart_mark_code, MapChartMarkType};
 use crate::icons::BodyIconType;
 
 /// What a map contact is, driving its color language and panel label.
@@ -128,6 +130,7 @@ pub(crate) fn ship_contact_kind(player: Entity, ship: RelationParty<'_>) -> MapC
 /// Minted once per entity per session by `assign_map_contact_codes` from the
 /// contact kind + a stable index; never reassigned. The own ship is always
 /// `SELF` (there is exactly one); every other kind gets a `PREFIX-n` code.
+/// A station gets none: it reads its chart code.
 #[derive(Component, Clone, Debug, PartialEq, Eq)]
 pub struct MapContactCode(pub String);
 
@@ -141,8 +144,9 @@ pub struct MapContact {
     pub kind: MapContactKind,
     /// What the contact is drawn as.
     pub(crate) body: BodyIconType,
-    /// The unique, typeable label (`SELF`, `HOST-1`, ...), as
-    /// `assign_map_contact_codes` minted it.
+    /// The label (`SELF`, `HOST-1`, ...), as `assign_map_contact_codes`
+    /// minted it, or a station's chart code. Unique except the bare `STN` of
+    /// every station the chart has not found.
     pub code: String,
     /// The contact's display name.
     pub name: String,
@@ -196,6 +200,8 @@ pub struct MapContacts<'w, 's> {
             Option<&'static Name>,
             Option<&'static Allegiance>,
             Option<&'static RetaliationTarget>,
+            Option<&'static GeneratedBodyId>,
+            Has<StationMarker>,
         ),
         (With<SpaceshipRootMarker>, Without<PlayerSpaceshipMarker>),
     >,
@@ -220,6 +226,10 @@ pub struct MapContacts<'w, 's> {
     /// The stable authored id of any contact that has one, used as the
     /// deterministic sort key when minting codes.
     pub(crate) ids: Query<'w, 's, &'static EntityId>,
+    /// The found order a generated station's `STN-n` code comes from.
+    pub(crate) chart: Res<'w, Chart>,
+    /// What `chart_mark_code` reads for a job mark; a station code ignores it.
+    pub(crate) jobs: Res<'w, Jobs>,
     /// A ship's live containment radius, published every fixed tick.
     pub(crate) envelopes: Query<'w, 's, &'static HullEnvelopeRadius>,
     /// An authored body's bounding radius - asteroids, planetoids, beacons.
@@ -251,7 +261,7 @@ impl MapContacts<'_, '_> {
     /// other contact has none until [`assign_map_contact_codes`] mints it.
     ///
     /// No fallback to the contact's name: a streamed ship's name says whose
-    /// it is, and a blip keeps the label it spawned with.
+    /// it is, and a ship's blip keeps the label it spawned with.
     pub(crate) fn code_for(&self, entity: Entity, kind: MapContactKind) -> Option<String> {
         match self.codes.get(entity) {
             Ok(code) => Some(code.0.clone()),
@@ -279,7 +289,11 @@ impl MapContacts<'_, '_> {
         if let Some(player) = player {
             out.push((player, MapContactKind::OwnShip, self.sort_key(player)));
         }
-        for (entity, _, _, allegiance, retaliation) in &self.ships {
+        for (entity, _, _, allegiance, retaliation, _, station) in &self.ships {
+            // A station reads its chart code, so it takes no ship index.
+            if station {
+                continue;
+            }
             let kind = ship_contact_kind(
                 player.unwrap_or(Entity::PLACEHOLDER),
                 RelationParty {
@@ -311,7 +325,7 @@ impl MapContacts<'_, '_> {
 
     /// Enumerate every contact with live range/bearing, own ship first. A
     /// contact waits for its minted code, so it shows on the pass after
-    /// [`assign_map_contact_codes`] first sees it.
+    /// [`assign_map_contact_codes`] first sees it. A station shows at once.
     pub fn collect(&self) -> Vec<MapContact> {
         let (player_entity, player_pos, player_rot) = match self.player_frame() {
             Some(frame) => frame,
@@ -352,7 +366,7 @@ impl MapContacts<'_, '_> {
                 mark_deg: 0.0,
             });
         }
-        for (entity, gt, name, allegiance, retaliation) in &self.ships {
+        for (entity, gt, name, allegiance, retaliation, generated, station) in &self.ships {
             let world_pos = gt.translation();
             let (range, brg, mark) = bearing(world_pos);
             let kind = ship_contact_kind(
@@ -363,8 +377,24 @@ impl MapContacts<'_, '_> {
                     retaliation,
                 },
             );
-            let Some(code) = self.code_for(entity, kind) else {
-                continue;
+            // A station keeps its stance colour but reads the chart's code.
+            // An authored station has no generated id and the chart finds
+            // only generated ones, so it reads the bare stem for good.
+            let code = if station {
+                generated
+                    .and_then(|id| {
+                        chart_mark_code(
+                            &self.chart,
+                            &self.jobs,
+                            &MapChartMarkType::Station(id.clone()),
+                        )
+                    })
+                    .unwrap_or_else(|| "STN".to_string())
+            } else {
+                let Some(code) = self.code_for(entity, kind) else {
+                    continue;
+                };
+                code
             };
             let name = name
                 .map(|n| n.as_str().to_string())
@@ -372,7 +402,11 @@ impl MapContacts<'_, '_> {
             contacts.push(MapContact {
                 entity,
                 kind,
-                body: BodyIconType::Ship,
+                body: if station {
+                    BodyIconType::Station
+                } else {
+                    BodyIconType::Ship
+                },
                 code,
                 name,
                 world_pos,

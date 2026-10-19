@@ -30,11 +30,12 @@ pub(crate) enum SectionIconType {
     CargoIntake,
 }
 
-/// What a map contact is, as the map draws it: a ship, a rock, a planet or a
-/// nav point.
+/// What a map contact is, as the map draws it: a ship, a station, a rock, a
+/// planet or a nav point.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum BodyIconType {
     Ship,
+    Station,
     Asteroid,
     Planet,
     Objective,
@@ -347,10 +348,17 @@ impl SectionIconType {
 }
 
 impl BodyIconType {
-    pub(crate) const ALL: [Self; 4] = [Self::Ship, Self::Asteroid, Self::Planet, Self::Objective];
+    pub(crate) const ALL: [Self; 5] = [
+        Self::Ship,
+        Self::Station,
+        Self::Asteroid,
+        Self::Planet,
+        Self::Objective,
+    ];
 
-    /// A chevron for a ship, a rough lump for an asteroid, a ringed disc for
-    /// a planet and a diamond for a nav point.
+    /// A chevron for a ship, the chart's cube for a station, a rough lump
+    /// for an asteroid, a ringed disc for a planet and a diamond for a nav
+    /// point.
     fn coverage(self, p: Vec2, px: f32) -> f32 {
         match self {
             Self::Ship => {
@@ -372,6 +380,7 @@ impl BodyIconType {
                 );
                 solid(starboard.min(port), px)
             }
+            Self::Station => ChartIconType::Station.coverage(p, px),
             Self::Asteroid => {
                 let lump = polygon(
                     p,

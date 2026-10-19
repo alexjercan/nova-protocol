@@ -1,11 +1,11 @@
 //! The TAB interface's Map pane: a schematic 3D view of local space.
 //!
-//! It reads the `MapContacts` model (player, allies, enemies, asteroids,
-//! objective markers with live range/bearing). The pane renders a small
-//! schematic 3D scene - concentric distance rings and a central hub - through
-//! a dedicated [`Camera3d`] on its own `RenderLayers` into an offscreen image
-//! shown in the pane; the interactive CONTACTS ride on top as projected
-//! clickable UI blips.
+//! It reads the `MapContacts` model (player, allies, enemies, stations,
+//! asteroids, objective markers with live range/bearing). The pane renders a
+//! small schematic 3D scene - concentric distance rings and a central hub -
+//! through a dedicated [`Camera3d`] on its own `RenderLayers` into an
+//! offscreen image shown in the pane; the interactive CONTACTS ride on top as
+//! projected clickable UI blips.
 //!
 //! The camera is a `MapOrbit` you drive with the `viewer_orbit_*` and
 //! `viewer_pan_*` actions plus the wheel (zoom); a wheel over the contact
