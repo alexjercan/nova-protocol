@@ -158,6 +158,8 @@ The corner inset renders a live, magnified 3D view of your locked target through
 
 Scenarios talk to you through a **comms stack**: broad story cards with a distinct speaker header above larger message text. Each card is drawn in its own **accent** colour, so you know what kind of voice it is before you read a word. They rise from the bottom-left like a chat transcript. A newly posted **objective** arrives in the **objective stack** at the top of the screen - a column of larger amber chips, newest on top. Both are notifications, not standing lists: each leaves once it has been read, so a quiet cockpit stays quiet.
 
+Flying the open world also keeps a standing **objective column** down the right edge, starting a little above the screen's vertical centre: quiet amber chips that never pop and never chime, and do not leave once read. It is not a notification and not the scenario stack above - the two never mix, and the column hides the moment you have nothing open.
+
 <details class="explain">
 <summary>Show explanation</summary>
 
@@ -168,6 +170,8 @@ Almost everything you hear is the traffic your shift is paid to answer, and that
 Several comms cards can stay visible at once; newest sits at the bottom, older lines push upward and fade. Each card has a large speaker icon slot, using authored scenario art when supplied and a cockpit placeholder otherwise - Basic Training gives Range Control its own green CRT portrait, and a mod ships as many faces as it has voices. A card fades in with a soft blip and leaves by timeout or explicit dismiss. A burst larger than the visible stack waits its turn in order; a backlog longer than the panel could ever show (two dozen lines) drops its oldest waiting cue rather than queueing a line that would come up after the scene it belongs to.
 
 An objective chip carries the objective itself behind a diamond; it pops the moment its objective posts and then breathes quietly, and it is read either after its dwell or the instant you open the [interface](../interface/). For the standing list, type `objectives` in the [command shell](../commands/) (or `log` for the combined comms and objective history); in flight, the larger gold **objective markers**, diamonds and edge chevrons on the targets themselves are the lasting "go here" cue. A **completed** objective chimes and its chip goes with it. Everything clears with the scenario rather than lingering over the menu.
+
+The open-world objective column holds fixed slots, top to bottom: your start role's next unmet milestone first (`Stations owned  0 / 1`), then up to three of your held jobs in accept order (`JOB-1  Bring 7 Water ice  0 / 7  > STN-1`), then one overflow chip once you hold more than three (`+2 JOBS ON MAP`). A job chip reads `DONE` in place of its meter once only the hand-in is left, and drops the `> STN-n` part while your chart has not found that station yet. A title longer than 32 characters cuts short with `...`. An empty slot hides but keeps its place, so no other chip moves up to fill it; handing a job in renumbers the rest, the same order the Map and the in-flight job marker use. The Map's own **OBJECTIVES** block lists the same milestone and jobs; see [the Map](../interface/#the-map).
 
 </details>
 

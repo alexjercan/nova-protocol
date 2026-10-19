@@ -57,6 +57,7 @@ pub mod math;
 pub mod mesh;
 pub mod narrative_accent;
 pub mod objectives;
+pub mod open_objectives;
 pub mod plugin;
 pub mod projectile_hooks;
 pub mod relations;
@@ -125,11 +126,12 @@ pub mod prelude {
         gravity::prelude::*, hash::prelude::*, impact_sound::prelude::*, impact_spark::prelude::*,
         integrity::prelude::*, inventory::prelude::*, jobs::prelude::*, juice::prelude::*,
         lifetime::prelude::*, markers::prelude::*, market::prelude::*, math::prelude::*,
-        mesh::prelude::*, narrative_accent::prelude::*, objectives::prelude::*, plugin::prelude::*,
-        projectile_hooks::prelude::*, relations::prelude::*, render_target::prelude::*,
-        role_icon::prelude::*, rounds::prelude::*, saved_refs::prelude::*, settings::prelude::*,
-        shake::prelude::*, soft_dot::prelude::*, transform::prelude::*,
-        transient_light::prelude::*, EscapeOwner, GameMode, GameStates, PauseStates,
+        mesh::prelude::*, narrative_accent::prelude::*, objectives::prelude::*,
+        open_objectives::prelude::*, plugin::prelude::*, projectile_hooks::prelude::*,
+        relations::prelude::*, render_target::prelude::*, role_icon::prelude::*,
+        rounds::prelude::*, saved_refs::prelude::*, settings::prelude::*, shake::prelude::*,
+        soft_dot::prelude::*, transform::prelude::*, transient_light::prelude::*, EscapeOwner,
+        GameMode, GameStates, PauseStates,
     };
 }
 

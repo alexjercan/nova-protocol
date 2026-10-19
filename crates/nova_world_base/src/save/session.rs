@@ -20,9 +20,9 @@ use bevy::{
 };
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_gameplay::prelude::{
-    CargoCanisterIdAllocator, CargoCanisterRuntimeId, Chart, CivilizationStances, GoalProgress,
-    GoalRecord, JobPostings, Jobs, OwnedShipMarker, PlayerFleetMarker, PlayerSpaceshipMarker,
-    ShipCredits, UnsettledBody,
+    open_objectives, CargoCanisterIdAllocator, CargoCanisterRuntimeId, Chart, CivilizationStances,
+    GoalProgress, GoalRecord, JobPostings, Jobs, OpenObjectiveType, OwnedShipMarker,
+    PlayerFleetMarker, PlayerSpaceshipMarker, ShipCredits, UnsettledBody,
 };
 use nova_scenario::prelude::{
     freeze_fleet, freeze_ship, CurrentScenario, GameShipDesigns, GeneratedMarks, NovaEventWorld,
@@ -573,7 +573,30 @@ pub(crate) fn snapshot_world(world: &mut World) {
             .filter(|station| station.owned)
             .count() as u32,
     };
-    let objectives = open_objectives(world, &jobs, &items, goal);
+    // A world with no derived goal progress yet lists no milestone.
+    let progress = world
+        .get_resource::<GoalProgress>()
+        .cloned()
+        .unwrap_or_default();
+    let objectives = open_objectives(&chart, &jobs, Some(&items), None, &progress, &goal)
+        .into_iter()
+        .map(|objective| match objective {
+            OpenObjectiveType::Job { title, .. } => SavedObjective {
+                kind: SavedObjectiveType::Job,
+                title,
+                lines: Vec::new(),
+            },
+            OpenObjectiveType::Milestone(line) => SavedObjective {
+                kind: SavedObjectiveType::Goal,
+                title: progress.title.clone(),
+                lines: vec![SavedObjectiveLine {
+                    label: line.label,
+                    have: line.have,
+                    need: line.need,
+                }],
+            },
+        })
+        .collect();
     let chart_summary = SavedChart::of(&chart, &jobs);
 
     let mut session = world.resource_mut::<WorldSaveSession>();
@@ -680,44 +703,6 @@ fn owned_ships(world: &mut World, sectors: &FrozenSectors) -> u32 {
         .filter(|hull| hull.terms() == ParkedHullType::Owned)
         .count();
     (live + frozen) as u32
-}
-
-/// Every objective still open, in HUD order: the jobs held, then the role
-/// goal while its progress stands unmet. A world with no derived progress
-/// yet lists no goal.
-fn open_objectives(
-    world: &World,
-    jobs: &Jobs,
-    items: &nova_gameplay::prelude::GameItems,
-    goal: GoalRecord,
-) -> Vec<SavedObjective> {
-    let mut objectives: Vec<SavedObjective> = jobs
-        .held()
-        .iter()
-        .map(|job| SavedObjective {
-            kind: SavedObjectiveType::Job,
-            title: job.title(items),
-            lines: Vec::new(),
-        })
-        .collect();
-    if let Some(progress) = world.get_resource::<GoalProgress>() {
-        if !progress.is_empty() && !goal.is_met() {
-            objectives.push(SavedObjective {
-                kind: SavedObjectiveType::Goal,
-                title: progress.title.clone(),
-                lines: progress
-                    .lines
-                    .iter()
-                    .map(|line| SavedObjectiveLine {
-                        label: line.label.clone(),
-                        have: line.have,
-                        need: line.need,
-                    })
-                    .collect(),
-            });
-        }
-    }
-    objectives
 }
 
 /// The loaded scenario's state for the save, or why it cannot be taken this

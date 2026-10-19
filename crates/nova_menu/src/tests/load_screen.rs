@@ -160,7 +160,10 @@ fn save_fixture_world(app: &mut App, root: &Path, name: &str) {
     }
     app.world_mut().insert_resource(GoalProgress {
         title: "A station network".to_string(),
-        lines: vec![GoalLine::new("Trade jobs", 1, 3)],
+        lines: vec![
+            GoalLine::new("Trade jobs", 3, 3),
+            GoalLine::new("Stations served", 1, 3),
+        ],
     });
     let (folder, lock) = create_world(root, name).expect("the root takes a new world");
     app.world_mut().insert_resource(WorldSaveSession::created(
@@ -465,8 +468,8 @@ fn delete_asks_first_then_removes_the_world_and_its_row() {
 /// A world's row draws its start role's icon and reads its play time, how
 /// long ago it was saved and how many objectives it holds open; its details
 /// draw the save's chart, name the hull in a FLEET block that lists only the
-/// fleet counts the save holds, and list the open objectives with their
-/// counts. A role a mod reload dropped keeps the icon slot empty and the
+/// fleet counts the save holds, and list the open objectives, the goal by
+/// its next unmet count only. A role a mod reload dropped keeps the icon slot empty and the
 /// row names the role by id.
 #[test]
 fn a_load_row_reads_play_time_save_age_and_open_count_and_its_details_the_fleet_and_objectives() {
@@ -542,7 +545,7 @@ fn a_load_row_reads_play_time_save_age_and_open_count_and_its_details_the_fleet_
     );
     assert_eq!(
         text_of(&mut app, "Load World Details Objective Counts"),
-        "Trade jobs 1 / 3"
+        "Stations served 1 / 3"
     );
     assert!(!has_named(&mut app, "Load World Details No Objectives"));
 

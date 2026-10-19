@@ -219,6 +219,16 @@ impl Chart {
         self.stations.iter().find(|station| station.id == *id)
     }
 
+    /// The code the Map, the HUD and the save call the found station `id`
+    /// by: `STN-n`, its 1-based place in the found order. None while the
+    /// player has not found it.
+    pub fn station_code(&self, id: &GeneratedBodyId) -> Option<String> {
+        self.stations
+            .iter()
+            .position(|station| station.id == *id)
+            .map(|index| format!("STN-{}", index + 1))
+    }
+
     /// Record that the player found the station `id` of `civilization` at
     /// `at` play seconds, dead or alive, owned or not. A station already
     /// found keeps its entry.

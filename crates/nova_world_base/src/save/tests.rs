@@ -761,7 +761,8 @@ fn the_first_frame_and_a_leave_each_write_a_save() {
 
 /// A save's header carries what the Load list and details show without the
 /// state file: the play time, the hull's name, the fleet counts, the open
-/// objectives with the goal's counts, and the chart's cells and marks.
+/// objectives with the goal's next unmet line only, and the chart's cells
+/// and marks.
 #[test]
 fn a_save_header_carries_the_play_time_hull_fleet_open_objectives_and_chart() {
     let root = tempfile::tempdir().unwrap();
@@ -777,7 +778,11 @@ fn a_save_header_carries_the_play_time_hull_fleet_open_objectives_and_chart() {
     }
     world.insert_resource(GoalProgress {
         title: "A station network".to_string(),
-        lines: vec![GoalLine::new("Trade jobs", 1, 3)],
+        lines: vec![
+            GoalLine::new("Trade jobs", 3, 3),
+            GoalLine::new("Stations served", 1, 3),
+            GoalLine::new("Rings worked", 0, 2),
+        ],
     });
     frame(&mut world);
     frame(&mut world);
@@ -814,7 +819,7 @@ fn a_save_header_carries_the_play_time_hull_fleet_open_objectives_and_chart() {
             kind: SavedObjectiveType::Goal,
             title: "A station network".to_string(),
             lines: vec![SavedObjectiveLine {
-                label: "Trade jobs".to_string(),
+                label: "Stations served".to_string(),
                 have: 1,
                 need: 3,
             }],

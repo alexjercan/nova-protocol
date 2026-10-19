@@ -128,9 +128,9 @@ pub struct WorldSaveHeader {
     pub hull: String,
     /// What the player keeps beside that hull.
     pub fleet: SavedFleet,
-    /// Every objective still open, in HUD order: the jobs held, then the
-    /// role goal while it stands. A met goal and a completed job are not
-    /// listed.
+    /// Every objective still open, in HUD order (`open_objectives`): the
+    /// jobs held, then the role goal's next unmet line. A met goal and a
+    /// completed job are not listed.
     pub objectives: Vec<SavedObjective>,
     /// The chart as the Load preview draws it: every visited cell and every
     /// find, round the player's cell.
@@ -167,8 +167,8 @@ pub struct SavedObjective {
     pub kind: SavedObjectiveType,
     /// Its one line: the job title or the goal title.
     pub title: String,
-    /// Its counts, `label  have / need` each: the goal's lines. A job has
-    /// none.
+    /// Its counts, `label  have / need` each: the goal's next unmet line,
+    /// as the HUD and the Map list it. A job has none.
     pub lines: Vec<SavedObjectiveLine>,
 }
 

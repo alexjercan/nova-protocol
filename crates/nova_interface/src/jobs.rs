@@ -381,20 +381,6 @@ fn board_listing(
     }
 }
 
-/// A held job's progress as `have / need`: the units in the hold against
-/// the stack for a procurement and a recovery, done or not for the rest.
-pub(crate) fn progress(job: &Job, hold: Option<&ShipInventory>, done: bool) -> (u32, u32) {
-    match &job.kind {
-        JobType::Procure { item, count } | JobType::Recover { item, count, .. } => {
-            let have = hold.map_or(0, |hold| hold.count(item)).min(*count);
-            (if done { *count } else { have }, *count)
-        }
-        JobType::Escort { .. } | JobType::Distress { .. } | JobType::Neutralize { .. } => {
-            (u32::from(done), 1)
-        }
-    }
-}
-
 /// One board row as the pane shows it.
 #[derive(Clone, Debug, PartialEq)]
 struct PostedRow {
@@ -617,7 +603,7 @@ fn update_jobs_pane(
                     },
                 ),
             };
-            let (have, need) = progress(job, hold, jobs.is_done(&job.id));
+            let (have, need) = job.progress(hold, jobs.is_done(&job.id));
             HeldRow {
                 id: job.id.clone(),
                 icon: JobIconType::of(&job.kind),
@@ -675,7 +661,7 @@ fn update_jobs_pane(
             hand_in: station_name(&chart, &job.target),
             reward: cr_text(job.reward_cr),
             time_left,
-            progress: held.then(|| progress(job, hold, done)),
+            progress: held.then(|| job.progress(hold, done)),
             refusal: held.then(|| hand_in_refusal(job, &title)).flatten(),
             show,
         }
@@ -1529,56 +1515,6 @@ mod tests {
             Some(None),
             "a fit, open job lists with Accept"
         );
-    }
-
-    #[test]
-    fn a_held_row_measures_the_stack_in_the_hold_and_a_located_job_by_done() {
-        let poster = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
-        let id = JobId {
-            station: poster.clone(),
-            slot: 0,
-            posting: 0,
-        };
-        let procure = Job {
-            id: id.clone(),
-            kind: JobType::Procure {
-                item: "IronOre".into(),
-                count: 4,
-            },
-            target: poster.clone(),
-            reward_cr: 100,
-        };
-        let items = GameItems::new([ItemDesign {
-            id: "IronOre".into(),
-            name: "Iron ore".into(),
-            about: String::new(),
-            category: ItemCategoryType::Raw,
-            mass_g: 1_000,
-            ask_cr: 16,
-            bid_cr: 12,
-        }]);
-        let hold = ShipInventory::new(&items, 10_000, [("IronOre".into(), 6)]);
-        assert_eq!(
-            progress(&procure, Some(&hold), false),
-            (4, 4),
-            "a hold past the stack reads full, never over"
-        );
-        assert_eq!(progress(&procure, None, false), (0, 4));
-        let escort = Job {
-            id,
-            kind: JobType::Escort {
-                hauler: GeneratedBodyId::new(
-                    SectorCoord::ORIGIN,
-                    "cluster_0_0_0_station_job_0_0_hauler",
-                    0,
-                ),
-                cargo_cr: 600,
-            },
-            target: poster,
-            reward_cr: 100,
-        };
-        assert_eq!(progress(&escort, Some(&hold), false), (0, 1));
-        assert_eq!(progress(&escort, Some(&hold), true), (1, 1));
     }
 
     #[test]

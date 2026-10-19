@@ -61,11 +61,11 @@ use crate::{
 /// Glob-import surface: `use nova_gameplay::jobs::prelude::*`.
 pub mod prelude {
     pub use super::{
-        escort_raiders, offer_deadline_text, plan_job_accept, plan_job_hand_in, plan_job_hull_fit,
-        station_job_offers, EscortLeg, Job, JobAcceptRefusalType, JobAccepted, JobBoard, JobField,
-        JobHandInPartner, JobHandInPlan, JobHandInRefusalType, JobHull, JobHullFit,
-        JobHullRefusalType, JobId, JobMixType, JobPostings, JobType, JobWreck, Jobs, SlotPosting,
-        StarterBoardMarker, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD, RAIDERS_PER_CARGO_CR,
+        escort_raiders, job_title, offer_deadline_text, plan_job_accept, plan_job_hand_in,
+        plan_job_hull_fit, station_job_offers, EscortLeg, Job, JobAcceptRefusalType, JobAccepted,
+        JobBoard, JobField, JobHandInPartner, JobHandInPlan, JobHandInRefusalType, JobHull,
+        JobHullFit, JobHullRefusalType, JobId, JobMixType, JobPostings, JobType, JobWreck, Jobs,
+        SlotPosting, StarterBoardMarker, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD, RAIDERS_PER_CARGO_CR,
     };
 }
 
@@ -528,6 +528,21 @@ impl Job {
         }
     }
 
+    /// The held job's progress as `have / need`: the units in `hold`
+    /// against the stack for a procurement and a recovery, `done` or not for
+    /// the rest.
+    pub fn progress(&self, hold: Option<&ShipInventory>, done: bool) -> (u32, u32) {
+        match &self.kind {
+            JobType::Procure { item, count } | JobType::Recover { item, count, .. } => {
+                let have = hold.map_or(0, |hold| hold.count(item)).min(*count);
+                (if done { *count } else { have }, *count)
+            }
+            JobType::Escort { .. } | JobType::Distress { .. } | JobType::Neutralize { .. } => {
+                (u32::from(done), 1)
+            }
+        }
+    }
+
     /// What the player has to do before the hand-in, for a list.
     pub fn task(&self) -> String {
         match &self.kind {
@@ -636,6 +651,26 @@ impl Job {
         }
         Ok(())
     }
+}
+
+/// The one line a job is called by: its title from the catalog, or by its
+/// kind and its item id while no catalog is loaded.
+pub fn job_title(job: &Job, items: Option<&GameItems>) -> String {
+    items.map_or_else(
+        || match &job.kind {
+            JobType::Procure { item, count } => format!("Bring {count} {item}"),
+            JobType::Recover {
+                wreck_name,
+                item,
+                count,
+                ..
+            } => format!("Recover {count} {item} from {wreck_name}"),
+            JobType::Escort { .. } | JobType::Distress { .. } | JobType::Neutralize { .. } => {
+                job.title(&GameItems::default())
+            }
+        },
+        |items| job.title(items),
+    )
 }
 
 /// How many raiders lie in wait for a hauler carrying `cargo_cr`: one, plus
@@ -2556,5 +2591,55 @@ mod tests {
             Err(JobHullRefusalType::NoClamp),
             "a weapon does not stand in for a clamp"
         );
+    }
+
+    #[test]
+    fn a_held_job_measures_the_stack_in_the_hold_and_a_located_job_by_done() {
+        let poster = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
+        let id = JobId {
+            station: poster.clone(),
+            slot: 0,
+            posting: 0,
+        };
+        let procure = Job {
+            id: id.clone(),
+            kind: JobType::Procure {
+                item: "IronOre".into(),
+                count: 4,
+            },
+            target: poster.clone(),
+            reward_cr: 100,
+        };
+        let items = GameItems::new([ItemDesign {
+            id: "IronOre".into(),
+            name: "Iron ore".into(),
+            about: String::new(),
+            category: ItemCategoryType::Raw,
+            mass_g: 1_000,
+            ask_cr: 16,
+            bid_cr: 12,
+        }]);
+        let hold = ShipInventory::new(&items, 10_000, [("IronOre".into(), 6)]);
+        assert_eq!(
+            procure.progress(Some(&hold), false),
+            (4, 4),
+            "a hold past the stack reads full, never over"
+        );
+        assert_eq!(procure.progress(None, false), (0, 4));
+        let escort = Job {
+            id,
+            kind: JobType::Escort {
+                hauler: GeneratedBodyId::new(
+                    SectorCoord::ORIGIN,
+                    "cluster_0_0_0_station_job_0_0_hauler",
+                    0,
+                ),
+                cargo_cr: 600,
+            },
+            target: poster,
+            reward_cr: 100,
+        };
+        assert_eq!(escort.progress(Some(&hold), false), (0, 1));
+        assert_eq!(escort.progress(Some(&hold), true), (1, 1));
     }
 }

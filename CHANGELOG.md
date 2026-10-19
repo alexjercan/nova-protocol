@@ -254,8 +254,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New Game's role rows draw each role's icon. The step turns the role's hull
   in 3D, plated and greebled as it flies, and lists the role's goal.
 - Load rows show the role icon, play time, saved-ago and open objectives.
-  Details draw the save's 3D chart with the Map's mark codes and YOU, a FLEET
-  block and only open objectives.
+  Details draw the save's chart with Map mark codes, YOU, a FLEET block and
+  open objectives: jobs, then the goal's next milestone.
 - The main menu offers Continue when a save stands: it opens the newest
   world, named under the button with how long ago it was saved.
 - Save notices show progress, success or failure; `~` hides them. Leaving
@@ -266,6 +266,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The Map's chart view lists your OBJECTIVES: each job you took with have /
   need and its hand-in station, and the role's next unmet milestone. Click a
   job to select its mark.
+- The open world keeps a quiet amber objective column on the right edge: the
+  goal's next unmet milestone, up to three held jobs with have / need and
+  hand-in, then one overflow chip.
 - Alt-tab no longer pauses play by default. Settings > Graphics > Pause when
   unfocused turns the focus pause back on.
 - A Sandbox ship's Station box spawns it as a station. Station Check names

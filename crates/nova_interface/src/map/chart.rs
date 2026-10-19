@@ -22,7 +22,7 @@
 //! rows, when the player entered it, the finds there, the stock last seen at
 //! a station docked there and the jobs held or posted there. With nothing
 //! selected it carries the OBJECTIVES block over the discovery log. The
-//! block lists what the player has to do now ([`objective_rows`]): each
+//! block lists what the player has to do now ([`open_objectives`]): each
 //! held job with its `have / need` and the code of the station it hands in
 //! at, and the role's next unmet milestone, or the play time the role met
 //! its last one. A held job's row selects its mark. The
@@ -51,7 +51,6 @@ use super::{app::*, contacts::*, tiles::ChartTileTextures, *};
 use crate::{
     icons::{icon_node, ChartIconType, InterfaceIcons, JobIconType},
     inventory::{category_color, cr_text},
-    jobs::progress,
     pane::{control_row, divider, legend_entry, play_menu_select, themed_label, InterfacePaneType},
     terminal::NovaOsAppInput,
     viewer::unlit,
@@ -154,11 +153,7 @@ pub(crate) fn chart_mark_code(
 ) -> Option<String> {
     match mark {
         MapChartMarkType::Cell(coord) => Some(coord.to_string()),
-        MapChartMarkType::Station(id) => chart
-            .stations()
-            .iter()
-            .position(|station| station.id == *id)
-            .map(|index| format!("STN-{}", index + 1)),
+        MapChartMarkType::Station(id) => chart.station_code(id),
         MapChartMarkType::Wreck(id) => chart
             .wrecks()
             .iter()
@@ -184,26 +179,6 @@ pub(crate) fn chart_mark_cell(jobs: &Jobs, mark: &MapChartMarkType) -> Option<Se
 pub(crate) fn job_cell(job: &Job) -> SectorCoord {
     job.located_body()
         .map_or(job.target.origin, |body| body.origin)
-}
-
-/// The one line a job is called by: its title from the catalog, or by its
-/// kind and its item id while no catalog is loaded.
-pub(crate) fn job_title(job: &Job, items: Option<&GameItems>) -> String {
-    items.map_or_else(
-        || match &job.kind {
-            JobType::Procure { item, count } => format!("Bring {count} {item}"),
-            JobType::Recover {
-                wreck_name,
-                item,
-                count,
-                ..
-            } => format!("Recover {count} {item} from {wreck_name}"),
-            JobType::Escort { .. } | JobType::Distress { .. } | JobType::Neutralize { .. } => {
-                job.title(&GameItems::default())
-            }
-        },
-        |items| job.title(items),
-    )
 }
 
 /// The colour a cluster type's tile layer, icon and word read in.
@@ -1368,71 +1343,10 @@ pub(crate) fn spawn_map_chart_objectives(panel: &mut ChildSpawnerCommands) {
     ));
 }
 
-/// One row of the OBJECTIVES block: something the player has to do now.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) enum ObjectiveRowType {
-    /// A held job.
-    Job {
-        /// The job its row selects the mark of.
-        id: JobId,
-        icon: JobIconType,
-        title: String,
-        /// The job's `have / need`, as the Jobs pane measures it.
-        have: u32,
-        need: u32,
-        /// Its work is done: only the hand-in is left.
-        done: bool,
-        /// The chart code of the station it hands in at; empty while the
-        /// chart has not found that station.
-        hand_in: String,
-    },
-    /// The role's first milestone whose `have` is short of its `need`.
-    Milestone(GoalLine),
-    /// The role met every milestone, at this play-time stamp.
-    Met(f64),
-}
-
-/// What the OBJECTIVES block lists, in its order: every held job in accept
-/// order with its `have / need` against `hold`, then the role's next unmet
-/// `goal` line. A met
-/// milestone is never listed; a met role lists one `Met` row in place of
-/// its milestones, and a role with no goal lists none.
-pub(crate) fn objective_rows(
-    chart: &Chart,
-    jobs: &Jobs,
-    items: Option<&GameItems>,
-    hold: Option<&ShipInventory>,
-    goal: &GoalProgress,
-    record: &GoalRecord,
-) -> Vec<ObjectiveRowType> {
-    let held = jobs.held().iter().map(|job| {
-        let done = jobs.is_done(&job.id);
-        let (have, need) = progress(job, hold, done);
-        ObjectiveRowType::Job {
-            id: job.id.clone(),
-            icon: JobIconType::of(&job.kind),
-            title: job_title(job, items),
-            have,
-            need,
-            done,
-            hand_in: chart_mark_code(chart, jobs, &MapChartMarkType::Station(job.target.clone()))
-                .unwrap_or_default(),
-        }
-    });
-    let milestone = match record.met_at {
-        Some(at) => Some(ObjectiveRowType::Met(at)),
-        None => goal
-            .lines
-            .iter()
-            .find(|line| line.have < line.need)
-            .map(|line| ObjectiveRowType::Milestone(line.clone())),
-    };
-    held.chain(milestone).collect()
-}
-
 /// Show the OBJECTIVES block while the chart view shows with nothing
-/// selected, rebuild its rows whenever what [`objective_rows`] lists
-/// changes, and hide it otherwise. A held job's row selects its JOB mark.
+/// selected, rebuild its rows whenever what [`open_objectives`] lists or
+/// the goal's met stamp changes, and hide it otherwise. A held job's row
+/// selects its JOB mark; a met goal reads one row with its stamp.
 #[expect(
     clippy::too_many_arguments,
     reason = "the records the rows read, the player's hold and the icons the rows draw"
@@ -1449,7 +1363,7 @@ pub(crate) fn update_map_chart_objectives(
     icons: Res<InterfaceIcons>,
     q_hold: Query<&ShipInventory, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
     mut q_block: Query<(Entity, &mut Node), With<MapChartObjectivesMarker>>,
-    mut built: Local<Option<Vec<ObjectiveRowType>>>,
+    mut built: Local<Option<(Vec<OpenObjectiveType>, Option<f64>)>>,
 ) {
     let Ok((block, mut node)) = q_block.single_mut() else {
         return;
@@ -1466,13 +1380,16 @@ pub(crate) fn update_map_chart_objectives(
         }
         return;
     }
-    let rows = objective_rows(
-        &chart,
-        &jobs,
-        items.as_deref(),
-        q_hold.single().ok(),
-        &progress,
-        &record,
+    let rows = (
+        open_objectives(
+            &chart,
+            &jobs,
+            items.as_deref(),
+            q_hold.single().ok(),
+            &progress,
+            &record,
+        ),
+        record.met_at,
     );
     if built.as_ref() == Some(&rows) {
         return;
@@ -1486,23 +1403,29 @@ pub(crate) fn update_map_chart_objectives(
         .despawn_related::<Children>()
         .with_children(|block| {
             block.spawn(themed_label("OBJECTIVES", 12.0, UiColor::Label));
+            let (objectives, met_at) = &rows;
             let mut held = 0;
-            for row in &rows {
-                let ObjectiveRowType::Job {
+            for objective in objectives {
+                let OpenObjectiveType::Job {
                     id,
-                    icon,
+                    code,
                     title,
                     have,
                     need,
                     done,
                     hand_in,
-                } = row
+                } = objective
                 else {
                     continue;
                 };
                 held += 1;
+                let icon = JobIconType::of(
+                    &jobs
+                        .job(id)
+                        .expect("an open job objective names a held job")
+                        .kind,
+                );
                 let mark = MapChartMarkType::Job(id.clone());
-                let code = chart_mark_code(&chart, &jobs, &mark).unwrap_or_default();
                 let (meter, meter_color) = match (*done, have >= need) {
                     (true, _) => ("done".to_string(), UiColor::Accent),
                     (false, true) => (format!("{have} / {need}"), UiColor::Accent),
@@ -1510,7 +1433,7 @@ pub(crate) fn update_map_chart_objectives(
                 };
                 let mut row = spawn_icon_row(
                     block,
-                    Some((icons.job(*icon), icon.color())),
+                    Some((icons.job(icon), icon.color())),
                     title,
                     UiColor::Primary,
                     &[(&meter, 12.0, meter_color), (hand_in, 12.0, UiColor::Label)],
@@ -1520,34 +1443,31 @@ pub(crate) fn update_map_chart_objectives(
             if held == 0 {
                 block_note(block, "No jobs taken.");
             }
-            for row in &rows {
-                match row {
-                    ObjectiveRowType::Milestone(line) => {
-                        spawn_icon_row(
-                            block,
-                            Some(milestone.clone()),
-                            &line.label,
-                            UiColor::Primary,
-                            &[(
-                                &format!("{} / {}", line.have, line.need),
-                                12.0,
-                                UiColor::Body,
-                            )],
-                        )
-                        .insert(Name::new("MapChartObjectiveMilestone"));
-                    }
-                    ObjectiveRowType::Met(at) => {
-                        spawn_icon_row(
-                            block,
-                            Some(milestone.clone()),
-                            &format!("Goal reached at {}", play_time_text(*at)),
-                            UiColor::Accent,
-                            &[],
-                        )
-                        .insert(Name::new("MapChartObjectiveMet"));
-                    }
-                    ObjectiveRowType::Job { .. } => {}
+            for objective in objectives {
+                if let OpenObjectiveType::Milestone(line) = objective {
+                    spawn_icon_row(
+                        block,
+                        Some(milestone.clone()),
+                        &line.label,
+                        UiColor::Primary,
+                        &[(
+                            &format!("{} / {}", line.have, line.need),
+                            12.0,
+                            UiColor::Body,
+                        )],
+                    )
+                    .insert(Name::new("MapChartObjectiveMilestone"));
                 }
+            }
+            if let Some(at) = met_at {
+                spawn_icon_row(
+                    block,
+                    Some(milestone.clone()),
+                    &format!("Goal reached at {}", play_time_text(*at)),
+                    UiColor::Accent,
+                    &[],
+                )
+                .insert(Name::new("MapChartObjectiveMet"));
             }
             block.spawn(divider());
         });
@@ -2051,120 +1971,6 @@ mod tests {
                 );
             }
         }
-    }
-
-    /// The OBJECTIVES block lists each held job with its `have / need` and
-    /// its hand-in station's code, and only the first unmet milestone; a met
-    /// role lists one `Met` row and no milestone.
-    #[test]
-    fn the_objectives_list_held_jobs_and_only_the_next_unmet_milestone() {
-        let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
-        let mut chart = Chart::default();
-        chart.find_station(&station, false, false, None, 0.0);
-        let job = |slot: u32, kind: JobType| Job {
-            id: JobId {
-                station: station.clone(),
-                slot,
-                posting: 0,
-            },
-            kind,
-            target: station.clone(),
-            reward_cr: 100,
-        };
-        let procure = job(
-            0,
-            JobType::Procure {
-                item: "IronOre".into(),
-                count: 4,
-            },
-        );
-        let distress = job(
-            1,
-            JobType::Distress {
-                caller: GeneratedBodyId::new(
-                    SectorCoord::ORIGIN,
-                    "cluster_0_0_0_station_job_1_0_caller",
-                    0,
-                ),
-                genuine: true,
-            },
-        );
-        let mut jobs = Jobs::default();
-        jobs.accept(procure.clone());
-        jobs.accept(distress.clone());
-        jobs.mark_done(&distress.id);
-        let items = GameItems::new([ItemDesign {
-            id: "IronOre".into(),
-            name: "Iron ore".into(),
-            about: String::new(),
-            category: ItemCategoryType::Raw,
-            mass_g: 1_000,
-            ask_cr: 16,
-            bid_cr: 12,
-        }]);
-        let hold = ShipInventory::new(&items, 10_000, [("IronOre".into(), 3)]);
-        let progress = GoalProgress {
-            title: "A station network".to_string(),
-            lines: vec![
-                GoalLine::new("Trade jobs handed in", 4, 4),
-                GoalLine::new("Stations served", 1, 3),
-                GoalLine::new("Rings worked", 0, 2),
-            ],
-        };
-        let rows = objective_rows(
-            &chart,
-            &jobs,
-            Some(&items),
-            Some(&hold),
-            &progress,
-            &GoalRecord::default(),
-        );
-        assert_eq!(
-            rows,
-            vec![
-                ObjectiveRowType::Job {
-                    id: procure.id.clone(),
-                    icon: JobIconType::Bring,
-                    title: procure.title(&items),
-                    have: 3,
-                    need: 4,
-                    done: false,
-                    hand_in: "STN-1".to_string(),
-                },
-                ObjectiveRowType::Job {
-                    id: distress.id.clone(),
-                    icon: JobIconType::Answer,
-                    title: distress.title(&items),
-                    have: 1,
-                    need: 1,
-                    done: true,
-                    hand_in: "STN-1".to_string(),
-                },
-                ObjectiveRowType::Milestone(GoalLine::new("Stations served", 1, 3)),
-            ]
-        );
-
-        let met = objective_rows(
-            &chart,
-            &Jobs::default(),
-            Some(&items),
-            None,
-            &progress,
-            &GoalRecord { met_at: Some(90.0) },
-        );
-        assert_eq!(met, vec![ObjectiveRowType::Met(90.0)]);
-        assert!(
-            objective_rows(
-                &chart,
-                &Jobs::default(),
-                None,
-                None,
-                &GoalProgress::default(),
-                &GoalRecord::default(),
-            )
-            .is_empty(),
-            "no job and no goal list nothing"
-        );
     }
 
     /// A find reads how long ago against the clock in whole minutes, then
