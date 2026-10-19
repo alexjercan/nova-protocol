@@ -21,10 +21,10 @@
 //! rows, when the player entered it, the finds there, the stock last seen at
 //! a station docked there and the jobs held or posted there. With nothing
 //! selected it carries the OBJECTIVES block over the discovery log. The
-//! block lists what the player has to do now ([`objective_rows`]): charter
-//! 0's open step, each held job with its `have / need` and the code of the
-//! station it hands in at, and the role's next unmet milestone, or the play
-//! time the role met its last one. A held job's row selects its mark. The
+//! block lists what the player has to do now ([`objective_rows`]): each
+//! held job with its `have / need` and the code of the station it hands in
+//! at, and the role's next unmet milestone, or the play time the role met
+//! its last one. A held job's row selects its mark. The
 //! log lists the chart's own finds ([`Chart::log`]) newest first, each an
 //! icon, a label, a cell and how long ago, and each a row that selects its
 //! find.
@@ -45,7 +45,6 @@ use nova_ui::{
     theme::{ActiveUiTheme, UiColor},
     widget::{ThemedBorder, ThemedFill},
 };
-use nova_world_base::prelude::{CHARTER_ZERO_OBJECTIVE_ID, CHARTER_ZERO_UNDOCK_OBJECTIVE_ID};
 
 use super::{app::*, contacts::*, tiles::ChartTileTextures, *};
 use crate::{
@@ -1371,8 +1370,6 @@ pub(crate) fn spawn_map_chart_objectives(panel: &mut ChildSpawnerCommands) {
 /// One row of the OBJECTIVES block: something the player has to do now.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum ObjectiveRowType {
-    /// Charter 0's open step, as the scenario posts its objective line.
-    Charter(String),
     /// A held job.
     Job {
         /// The job its row selects the mark of.
@@ -1394,9 +1391,9 @@ pub(crate) enum ObjectiveRowType {
     Met(f64),
 }
 
-/// What the OBJECTIVES block lists, in its order: charter 0's open step
-/// while the scenario lists one, every held job in accept order with its
-/// `have / need` against `hold`, then the role's next unmet `goal` line. A met
+/// What the OBJECTIVES block lists, in its order: every held job in accept
+/// order with its `have / need` against `hold`, then the role's next unmet
+/// `goal` line. A met
 /// milestone is never listed; a met role lists one `Met` row in place of
 /// its milestones, and a role with no goal lists none.
 pub(crate) fn objective_rows(
@@ -1404,17 +1401,9 @@ pub(crate) fn objective_rows(
     jobs: &Jobs,
     items: Option<&GameItems>,
     hold: Option<&ShipInventory>,
-    objectives: &[Objective],
     goal: &GoalProgress,
     record: &GoalRecord,
 ) -> Vec<ObjectiveRowType> {
-    let charter = objectives
-        .iter()
-        .filter(|objective| {
-            objective.id == CHARTER_ZERO_UNDOCK_OBJECTIVE_ID
-                || objective.id == CHARTER_ZERO_OBJECTIVE_ID
-        })
-        .map(|objective| ObjectiveRowType::Charter(objective.message.clone()));
     let held = jobs.held().iter().map(|job| {
         let done = jobs.is_done(&job.id);
         let (have, need) = progress(job, hold, done);
@@ -1437,7 +1426,7 @@ pub(crate) fn objective_rows(
             .find(|line| line.have < line.need)
             .map(|line| ObjectiveRowType::Milestone(line.clone())),
     };
-    charter.chain(held).chain(milestone).collect()
+    held.chain(milestone).collect()
 }
 
 /// Show the OBJECTIVES block while the chart view shows with nothing
@@ -1454,13 +1443,7 @@ pub(crate) fn objective_rows(
 pub(crate) fn update_map_chart_objectives(
     mut commands: Commands,
     runtime: Res<MapRuntime>,
-    (chart, jobs, objectives, progress, record): (
-        Res<Chart>,
-        Res<Jobs>,
-        Res<GameObjectives>,
-        Res<GoalProgress>,
-        Res<GoalRecord>,
-    ),
+    (chart, jobs, progress, record): (Res<Chart>, Res<Jobs>, Res<GoalProgress>, Res<GoalRecord>),
     items: Option<Res<GameItems>>,
     icons: Res<InterfaceIcons>,
     q_hold: Query<&ShipInventory, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
@@ -1487,7 +1470,6 @@ pub(crate) fn update_map_chart_objectives(
         &jobs,
         items.as_deref(),
         q_hold.single().ok(),
-        &objectives.objectives,
         &progress,
         &record,
     );
@@ -1503,19 +1485,6 @@ pub(crate) fn update_map_chart_objectives(
         .despawn_related::<Children>()
         .with_children(|block| {
             block.spawn(themed_label("OBJECTIVES", 12.0, UiColor::Label));
-            for row in &rows {
-                if let ObjectiveRowType::Charter(message) = row {
-                    spawn_icon_row_breaking(
-                        block,
-                        Some(milestone.clone()),
-                        message,
-                        UiColor::Primary,
-                        &[],
-                        LineBreak::WordBoundary,
-                    )
-                    .insert(Name::new("MapChartObjectiveCharter"));
-                }
-            }
             let mut held = 0;
             for row in &rows {
                 let ObjectiveRowType::Job {
@@ -1576,7 +1545,7 @@ pub(crate) fn update_map_chart_objectives(
                         )
                         .insert(Name::new("MapChartObjectiveMet"));
                     }
-                    ObjectiveRowType::Charter(_) | ObjectiveRowType::Job { .. } => {}
+                    ObjectiveRowType::Job { .. } => {}
                 }
             }
             block.spawn(divider());
@@ -1985,11 +1954,11 @@ pub(crate) fn map_chart_button() -> impl Bundle {
 mod tests {
     use super::*;
 
-    /// The OBJECTIVES block lists charter 0's open step, each held job with
-    /// its `have / need` and its hand-in station's code, and only the first
-    /// unmet milestone; a met role lists one `Met` row and no milestone.
+    /// The OBJECTIVES block lists each held job with its `have / need` and
+    /// its hand-in station's code, and only the first unmet milestone; a met
+    /// role lists one `Met` row and no milestone.
     #[test]
-    fn the_objectives_list_the_open_charter_step_held_jobs_and_only_the_next_unmet_milestone() {
+    fn the_objectives_list_held_jobs_and_only_the_next_unmet_milestone() {
         let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
         let mut chart = Chart::default();
         chart.find_station(&station, false, false, 0.0);
@@ -2035,10 +2004,6 @@ mod tests {
             bid_cr: 12,
         }]);
         let hold = ShipInventory::new(&items, 10_000, [("IronOre".into(), 3)]);
-        let objectives = [
-            Objective::new("story_beat", "Not a charter step"),
-            Objective::new(CHARTER_ZERO_OBJECTIVE_ID, "Dock at another living station"),
-        ];
         let progress = GoalProgress {
             title: "A station network".to_string(),
             lines: vec![
@@ -2052,14 +2017,12 @@ mod tests {
             &jobs,
             Some(&items),
             Some(&hold),
-            &objectives,
             &progress,
             &GoalRecord::default(),
         );
         assert_eq!(
             rows,
             vec![
-                ObjectiveRowType::Charter("Dock at another living station".to_string()),
                 ObjectiveRowType::Job {
                     id: procure.id.clone(),
                     icon: JobIconType::Bring,
@@ -2087,7 +2050,6 @@ mod tests {
             &Jobs::default(),
             Some(&items),
             None,
-            &[],
             &progress,
             &GoalRecord { met_at: Some(90.0) },
         );
@@ -2098,12 +2060,11 @@ mod tests {
                 &Jobs::default(),
                 None,
                 None,
-                &[],
                 &GoalProgress::default(),
                 &GoalRecord::default(),
             )
             .is_empty(),
-            "no charter step, no job and no goal list nothing"
+            "no job and no goal list nothing"
         );
     }
 

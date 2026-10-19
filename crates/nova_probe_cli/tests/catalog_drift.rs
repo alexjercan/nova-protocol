@@ -1135,13 +1135,13 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
     (
         "system_world_chart",
         &[
-            "charter 0 stands on a fresh start",
-            "docking at a station completes charter 0",
             "a docked station's summary reaches the chart",
+            "the player starts docked at the allied starting station",
+            "the chart's objectives list what the player has to do",
             "the chart records the three entered cells",
             "the map's chart view reads the station by its code",
             "the discovery log lists the station",
-            "the leave save holds the chart",
+            "the leave save holds the chart and the start",
             "a loaded world restores the chart",
         ],
     ),

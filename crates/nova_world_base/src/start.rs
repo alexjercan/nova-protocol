@@ -228,8 +228,7 @@ pub fn start_session(
 /// the station, the mouse rigs are pointed where the berth points the hull,
 /// and the dock is asked for. The marker comes off once the ship is docked.
 /// A station with no free port, or a ship with none, is logged as an error
-/// and the ship stays where it spawned, undocked: the charter then asks for
-/// an undock the player cannot give, which is the fault to read.
+/// and the ship stays where it spawned, undocked.
 pub(crate) fn berth_at_start(world: &mut World) {
     let Some(start_id) = world
         .get_resource::<OpenWorldSession>()

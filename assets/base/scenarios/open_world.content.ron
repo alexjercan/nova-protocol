@@ -97,10 +97,6 @@
                             shadows: false,
                         )),
                     )),
-                    Objective((
-                        id: "charter_0_undock",
-                        message: "Charter 0: undock from your starting station",
-                    )),
                 ],
             ),
             (
@@ -190,25 +186,6 @@
                             )),
                             shadows: false,
                         )),
-                    )),
-                ],
-            ),
-            (
-                name: OnUndocked,
-                once: true,
-                filters: [
-                    Entity((
-                        type_name: Some("living_station"),
-                        other_id: Some("player"),
-                    )),
-                ],
-                actions: [
-                    ObjectiveComplete((
-                        id: "charter_0_undock",
-                    )),
-                    Objective((
-                        id: "charter_0",
-                        message: "Charter 0: dock at another living station",
                     )),
                 ],
             ),

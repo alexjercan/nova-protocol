@@ -83,7 +83,7 @@ pub use transients::{
 /// nobody held live is recorded as an arrival there. Every cell the player
 /// never visited regenerates from the seed on Load, so another generator
 /// would change it silently.
-pub const WORLD_SAVE_FORMAT: u32 = 23;
+pub const WORLD_SAVE_FORMAT: u32 = 24;
 
 /// The most characters a world name has, after trimming.
 const WORLD_NAME_MAX: usize = 32;
@@ -128,9 +128,9 @@ pub struct WorldSaveHeader {
     pub hull: String,
     /// What the player keeps beside that hull.
     pub fleet: SavedFleet,
-    /// Every objective still open, in HUD order: the charter steps posted,
-    /// then the jobs held, then the role goal while it stands. A met goal
-    /// and a completed job are not listed.
+    /// Every objective still open, in HUD order: the jobs held, then the
+    /// role goal while it stands. A met goal and a completed job are not
+    /// listed.
     pub objectives: Vec<SavedObjective>,
     /// The chart as the Load preview draws it: every visited cell and every
     /// find, round the player's cell.
@@ -153,8 +153,6 @@ pub struct SavedFleet {
 /// What kind of open objective a [`SavedObjective`] is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SavedObjectiveType {
-    /// A charter step the open-world scenario posts.
-    Charter,
     /// A job the player holds.
     Job,
     /// The start role's goal, standing.
@@ -167,10 +165,10 @@ pub enum SavedObjectiveType {
 pub struct SavedObjective {
     /// What it is.
     pub kind: SavedObjectiveType,
-    /// Its one line: the objective text, the job title or the goal title.
+    /// Its one line: the job title or the goal title.
     pub title: String,
-    /// Its counts, `label  have / need` each: the goal's lines. A charter
-    /// step and a job have none.
+    /// Its counts, `label  have / need` each: the goal's lines. A job has
+    /// none.
     pub lines: Vec<SavedObjectiveLine>,
 }
 
@@ -307,8 +305,8 @@ pub struct WorldSaveState {
     pub stances: CivilizationStances,
     /// The start role's goal: standing, or the clock reading it was met at.
     pub goal: GoalRecord,
-    /// The allied station the player started docked at. The one board that
-    /// posts starter jobs, and the station charter 0 does not count.
+    /// The allied station the player started docked at: the one board that
+    /// posts starter jobs.
     pub start: StartingStation,
 }
 
@@ -666,10 +664,10 @@ fn check_saved_fleet(state: &WorldSaveState) -> Result<(), String> {
 /// clock and freezes the market the generator drew, so it never produces
 /// one.
 /// The saved starting station stands somewhere: its position and its spawn
-/// point are finite. Load checks on open: the jobs board and charter 0
-/// compare its id, and the spawn pose is read only by a fresh start, so a
-/// hand-edited save with a non-finite point must refuse here rather than
-/// carry one. The game's own writer copies the session's pick.
+/// point are finite. Load checks on open: the jobs board compares its id,
+/// and the spawn pose is read only by a fresh start, so a hand-edited save
+/// with a non-finite point must refuse here rather than carry one. The
+/// game's own writer copies the session's pick.
 fn check_saved_start(state: &WorldSaveState) -> Result<(), String> {
     let start = &state.start;
     if !start.position.get().is_finite() || !start.spawn.get().is_finite() {

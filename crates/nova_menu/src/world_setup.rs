@@ -42,8 +42,7 @@ use nova_ui::{
 #[cfg(not(target_arch = "wasm32"))]
 use nova_world_base::prelude::{create_world, world_slug, WorldSaveSession};
 use nova_world_base::prelude::{
-    start_preview, start_session, NovaLayeredWorld, CHARTER_ZERO_MESSAGE,
-    CHARTER_ZERO_UNDOCK_MESSAGE, START_PREVIEW_REACH,
+    start_preview, start_session, NovaLayeredWorld, START_PREVIEW_REACH,
 };
 use rand::Rng as _;
 
@@ -674,14 +673,9 @@ fn hull_sections(
     )
 }
 
-/// The milestones a role step lists, in play order: charter 0's two steps
-/// as the open world posts them, then the role's own goal.
-fn milestones(goal_title: &str) -> [String; 3] {
-    [
-        format!("1. {CHARTER_ZERO_UNDOCK_MESSAGE}"),
-        format!("2. {CHARTER_ZERO_MESSAGE}"),
-        format!("3. {goal_title}"),
-    ]
+/// The milestones a role step lists, in play order: the role's own goal.
+fn milestones(goal_title: &str) -> [String; 1] {
+    [format!("1. {goal_title}")]
 }
 
 /// Rebuild the details pane from the selected role: its name, how it plays,

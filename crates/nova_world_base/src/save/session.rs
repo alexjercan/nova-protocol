@@ -573,7 +573,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
             .filter(|station| station.owned)
             .count() as u32,
     };
-    let objectives = open_objectives(world, &scenario, &jobs, &items, goal);
+    let objectives = open_objectives(world, &jobs, &items, goal);
     let chart_summary = SavedChart::of(&chart, &jobs);
 
     let mut session = world.resource_mut::<WorldSaveSession>();
@@ -682,29 +682,23 @@ fn owned_ships(world: &mut World, sectors: &FrozenSectors) -> u32 {
     (live + frozen) as u32
 }
 
-/// Every objective still open, in HUD order: the charter steps `scenario`
-/// posts, the jobs held, then the role goal while its progress stands
-/// unmet. A world with no derived progress yet lists no goal.
+/// Every objective still open, in HUD order: the jobs held, then the role
+/// goal while its progress stands unmet. A world with no derived progress
+/// yet lists no goal.
 fn open_objectives(
     world: &World,
-    scenario: &SavedScenario,
     jobs: &Jobs,
     items: &nova_gameplay::prelude::GameItems,
     goal: GoalRecord,
 ) -> Vec<SavedObjective> {
-    let mut objectives: Vec<SavedObjective> = scenario
-        .objectives
+    let mut objectives: Vec<SavedObjective> = jobs
+        .held()
         .iter()
-        .map(|objective| SavedObjective {
-            kind: SavedObjectiveType::Charter,
-            title: objective.message.clone(),
-            lines: Vec::new(),
-        })
-        .chain(jobs.held().iter().map(|job| SavedObjective {
+        .map(|job| SavedObjective {
             kind: SavedObjectiveType::Job,
             title: job.title(items),
             lines: Vec::new(),
-        }))
+        })
         .collect();
     if let Some(progress) = world.get_resource::<GoalProgress>() {
         if !progress.is_empty() && !goal.is_met() {

@@ -157,9 +157,6 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The menu duel ends fast: the rival comes apart once a fifth of its hull is
   gone and its guns hit for less, the victor's PDCs hit for more, and the
   siege torpedo kills the victor in one hit.
-- Charter 0 is two steps: undock from your starting station, then dock at
-  another living station, which the `STATION` marker points at. The starting
-  station and a dead one do not count.
 - `OnDocked` and `OnUndocked` carry the docked-with hull's `type_name`; a
   station reads `living_station` or `derelict_station`, so a filter can ask
   for a living station.
@@ -251,8 +248,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New Game's first step draws the seed's sectors round your starting station
   as a 3D chart to turn and zoom, with YOU at the start, before the world
   exists.
-- New Game's role step turns the role's hull in 3D and lists its milestones:
-  charter 0's two steps, then the role's goal.
+- New Game's role step turns the role's hull in 3D and lists its one
+  milestone, the role's goal.
 - Load rows show play time, saved-ago and open objectives. The details draw
   the save's 3D chart with the Map's mark codes and YOU, a FLEET block of what
   the save holds and only its open objectives.
@@ -263,9 +260,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The Map's chart view (`C`) draws the cells you entered by cluster type, the
   stations and wrecks you found by code, and a discovery log of every find
   with its play time; click any to read it.
-- The Map's chart view lists your OBJECTIVES: charter 0's open step, each
-  held job with have / need and its hand-in station, and the next unmet
-  milestone. Click a job to select its mark.
+- The Map's chart view lists your OBJECTIVES: each held job with have / need
+  and its hand-in station, and the role's next unmet milestone. Click a job
+  to select its mark.
 - Alt-tab no longer pauses play by default. Settings > Graphics > Pause when
   unfocused turns the focus pause back on.
 - A Sandbox ship's Station box spawns it as a station. Station Check names

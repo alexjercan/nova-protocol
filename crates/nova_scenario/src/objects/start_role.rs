@@ -53,8 +53,7 @@ pub struct OpenWorldSession {
 
 impl OpenWorldSession {
     /// Whether the generated station `id` is the one the player started
-    /// docked at: the one station that posts starter jobs and the one
-    /// charter 0 does not count a dock at.
+    /// docked at: the one station that posts starter jobs.
     #[must_use]
     pub fn is_starting_station(&self, id: &GeneratedBodyId) -> bool {
         self.start.id == *id

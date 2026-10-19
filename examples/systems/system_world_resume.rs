@@ -188,14 +188,14 @@ const FIXTURE_TIMER_SECS: f64 = 60.0;
 const FIXTURE_MARK_LABEL: &str = "FIXTURE";
 
 /// The fixture's once handlers, by index in `resume_fixture`'s event list:
-/// `OnStart`, charter 0's `OnUndocked`, the self-counting `OnUpdate` and the
-/// timer-starting `OnUpdate` fire in the create phase.
+/// `OnStart`, the self-counting `OnUpdate` and the timer-starting `OnUpdate`
+/// fire in the create phase.
 #[cfg(feature = "debug")]
-const SPENT_BY_THE_LEAVE: [usize; 4] = [0, 2, 4, 6];
+const SPENT_BY_THE_LEAVE: [usize; 3] = [0, 3, 5];
 
 /// The index of the `OnTimerEnd` handler, spent only once the timer ends.
 #[cfg(feature = "debug")]
-const TIMER_END_HANDLER: usize = 5;
+const TIMER_END_HANDLER: usize = 4;
 
 /// The index of the once `OnResume` handler: spent in the load phase's live
 /// record once it fires, never listed by a save (the next resume needs it).
@@ -410,7 +410,7 @@ fn register_fixture_scenario(mut scenarios: ResMut<GameScenarios>) {
     ]);
     assert_eq!(
         scenario.events.len(),
-        SPENT_BY_THE_LEAVE[2],
+        SPENT_BY_THE_LEAVE[1],
         "world_resume: the open world's event list grew; re-pin the fixture handler indexes"
     );
     scenario.events.push(ScenarioEventConfig {
@@ -458,7 +458,7 @@ fn register_fixture_scenario(mut scenarios: ResMut<GameScenarios>) {
             seconds: number(FIXTURE_TIMER_SECS),
         })],
     });
-    assert_eq!(scenario.events.len(), SPENT_BY_THE_LEAVE[3] + 1);
+    assert_eq!(scenario.events.len(), SPENT_BY_THE_LEAVE[2] + 1);
     scenarios.insert(FIXTURE_SCENARIO_ID.to_string(), scenario);
 }
 

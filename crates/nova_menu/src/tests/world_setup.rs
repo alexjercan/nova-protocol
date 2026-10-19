@@ -350,14 +350,7 @@ fn new_game_previews_the_seed_s_start_and_lists_the_role_s_milestones() {
     );
     assert_eq!(
         row_values(&mut app, "Start Role Details Milestone"),
-        vec![
-            format!(
-                "1. {}",
-                nova_world_base::prelude::CHARTER_ZERO_UNDOCK_MESSAGE
-            ),
-            format!("2. {}", nova_world_base::prelude::CHARTER_ZERO_MESSAGE),
-            "3. A goal".to_string(),
-        ]
+        vec!["1. A goal".to_string()]
     );
     let mut hulls = app.world_mut().query::<&MenuHullPreview>();
     assert_eq!(

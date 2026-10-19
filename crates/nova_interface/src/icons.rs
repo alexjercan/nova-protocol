@@ -55,7 +55,7 @@ pub(crate) enum ChartIconType {
     Wreck,
     Job,
     You,
-    /// A charter step or a role milestone, in the OBJECTIVES block.
+    /// A role milestone, in the OBJECTIVES block.
     Milestone,
 }
 

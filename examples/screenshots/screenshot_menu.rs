@@ -120,7 +120,7 @@ const LOAD_ROW_PLAY_TIME: &str = "Load World Row Play Time";
 #[cfg(feature = "debug")]
 const LOAD_FLEET_SHIP: &str = "Load World Details Fleet Ship";
 
-/// One open objective in the Load details: charter 0 stands at the leave.
+/// One open objective in the Load details: the role goal stands at the leave.
 #[cfg(feature = "debug")]
 const LOAD_OBJECTIVE: &str = "Load World Details Objective";
 
