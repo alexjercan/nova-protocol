@@ -1,7 +1,7 @@
 //! system_job_neutralize: Neutralize a named hostile hull, from the board to the hand-in.
 //!
 //! Boots the shipped app (via [`editor_app`]), starts New Game on a pinned
-//! seed as the `military` start role, whose boards lean to this kind, and
+//! seed as the `bounty_hunter` start role, whose boards lean to this kind, and
 //! walks the shared located-job range in [`located_jobs`]: plant one intact
 //! Enemy hull in the spawn's cell before any board posts (generated hostiles
 //! keep to their own civilization, so no scanned seed put one beside a
@@ -14,8 +14,8 @@
 //! | - | - | - |
 //! | 1 | `outcome: a neutralize job is posted and accepted` | a living station's board posts the kind; after the Accept click the job is held and its bodies stand under the poster's cell root |
 //! | 2 | `outcome: the hand-in is refused until the neutralize job is done` | docked at the poster with the job held, Your jobs greys the Hand in button with the not-done reason in its tooltip |
-//! | 3 | `outcome: the world marks the neutralize job done` | after the work the job is listed done while still held |
-//! | 4 | `outcome: the hand-in pays the neutralize job` | docked again, the Hand in click pays the reward from the station and lists the job completed |
+//! | 3 | `outcome: the world marks the neutralize job done` | after the work the job is listed done while still held, and the kill list reads `Bounties handed in` 0 / 6 |
+//! | 4 | `outcome: the hand-in pays the neutralize job` | docked again, the Hand in click pays the reward from the station, lists the job completed, and the kill list reads `Bounties handed in` 1 / 6 |
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text

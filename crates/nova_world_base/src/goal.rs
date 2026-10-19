@@ -128,7 +128,7 @@ pub(crate) fn goal_progress(goal: &RoleGoal, facts: &GoalFacts<'_>) -> GoalProgr
             let (have_hulls, _, have_rings) =
                 counted(|kind| matches!(kind, JobType::Neutralize { .. }));
             vec![
-                GoalLine::new("Hulls neutralized", have_hulls, u64::from(*hulls)),
+                GoalLine::new("Bounties handed in", have_hulls, u64::from(*hulls)),
                 GoalLine::new("Rings hunted", have_rings, u64::from(*rings)),
             ]
         }

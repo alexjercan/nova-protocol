@@ -77,13 +77,14 @@ impl LocatedKindType {
     /// The start role whose boards lean to the kind and whose hull can do
     /// it. Escort plays the military start: the Trade starts that lean to
     /// it fly unarmed hulls, and the starting station's board hides a job
-    /// the hull cannot do.
+    /// the hull cannot do. Neutralize plays the bounty hunter, whose kill
+    /// list counts the hand-in.
     pub const fn role(self) -> &'static str {
         match self {
             LocatedKindType::Recover => "scavenger",
             LocatedKindType::Escort => "military",
             LocatedKindType::Distress => "bounty_hunter",
-            LocatedKindType::Neutralize => "military",
+            LocatedKindType::Neutralize => "bounty_hunter",
         }
     }
 
@@ -1125,6 +1126,13 @@ fn assert_the_done(world: &mut World) {
         jobs.completed().is_empty(),
         "{tag} job: nothing is completed before the hand-in"
     );
+    if kind(world) == LocatedKindType::Neutralize {
+        assert_eq!(
+            world.resource::<GoalProgress>().lines[0],
+            GoalLine::new("Bounties handed in", 0, 6),
+            "{tag} job: the kill alone counts no bounty"
+        );
+    }
     let body = located_body(world);
     let standing = body_wearing(world, &body).is_some();
     nova_probe::probe_marker(
@@ -1191,6 +1199,13 @@ fn assert_the_hand_in(world: &mut World) {
         buttons.is_empty(),
         "{tag} job: no Hand in button remains after the hand-in: {buttons:?}"
     );
+    if kind(world) == LocatedKindType::Neutralize {
+        assert_eq!(
+            world.resource::<GoalProgress>().lines[0],
+            GoalLine::new("Bounties handed in", 1, 6),
+            "{tag} job: the hand-in counts one bounty"
+        );
+    }
     nova_probe::probe_marker(
         world,
         markers(world).paid,

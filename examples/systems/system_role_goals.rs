@@ -270,7 +270,7 @@ mod walk {
 
     fn expected_lines() -> Vec<GoalLine> {
         vec![
-            GoalLine::new("Hulls neutralized", 6, 6),
+            GoalLine::new("Bounties handed in", 6, 6),
             GoalLine::new("Rings hunted", 2, 2),
         ]
     }
@@ -610,7 +610,7 @@ mod walk {
         assert_eq!(
             lines,
             vec![
-                GoalLine::new("Hulls neutralized", 0, 6),
+                GoalLine::new("Bounties handed in", 0, 6),
                 GoalLine::new("Rings hunted", 0, 2),
             ],
             "role goals: the charter opens with zero progress"
@@ -624,7 +624,7 @@ mod walk {
         nova_probe::probe_marker(
             world,
             "outcome: the charter opens standing with its lines at zero",
-            serde_json::json!({ "title": title, "lines": ["Hulls neutralized 0 / 6", "Rings hunted 0 / 2"], "met_at": None::<f64> }),
+            serde_json::json!({ "title": title, "lines": ["Bounties handed in 0 / 6", "Rings hunted 0 / 2"], "met_at": None::<f64> }),
         );
         info!("role goals: the kill list opens standing at zero");
     }
