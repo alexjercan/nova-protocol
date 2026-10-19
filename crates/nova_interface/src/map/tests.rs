@@ -8,7 +8,7 @@ use bevy::{
     ui::{ComputedNode, InteractionDisabled, UiGlobalTransform},
     ui_widgets::Activate,
 };
-use nova_events::prelude::{EntityTypeName, SectorCoord, ASTEROID_TYPE_NAME};
+use nova_events::prelude::{EntityTypeName, GeneratedBodyId, SectorCoord, ASTEROID_TYPE_NAME};
 use nova_gameplay::{prelude::*, PauseStates};
 use nova_input::prelude::{BindingSpec, InputBindings, InputSource, RegisterInputActions};
 use nova_ship::prelude::*;
@@ -16,15 +16,19 @@ use nova_ui::{
     theme::{ActiveUiTheme, UiColor},
     widget::ThemedFill,
 };
+use nova_world_base::prelude::{
+    enemy_neighbours, standing, CivilizationField, CivilizationStatusType,
+};
 
 use super::{app::*, contacts::*, scene::*, *};
 use crate::{
     icons::{BodyIconType, InterfaceIcons},
     pane::InterfacePaneType,
     pointer_rig::{
-        click_at, hear_ui_cues, pane_pointer_rig, settle, take_churn, take_cues, track_node_churn,
-        NodeChurn, PanePointerRig, RIG_PANEL_MIN,
+        click_at, hear_ui_cues, move_cursor_to, pane_pointer_rig, settle, take_churn, take_cues,
+        track_node_churn, NodeChurn, PanePointerRig, RIG_PANEL_MIN,
     },
+    station::{apply_station_settle_commands, StanceSettleCommand, StationRuntime},
     terminal::NovaOsCloseTransition,
 };
 
@@ -601,6 +605,93 @@ fn map_goto_sets_autopilot_on_the_player_ship() {
     );
 }
 
+/// A wheel notch over the contact panel scrolls the panel and leaves the
+/// view's zoom alone; a notch away from the panel zooms the view and leaves
+/// the panel where it is. A selected station's stock list pushes the STANCES
+/// block past a 720p panel, so its Pay fine is reached by the wheel.
+#[test]
+fn a_wheel_over_the_map_panel_scrolls_it_and_leaves_the_chart_zoom() {
+    use bevy::input::{
+        mouse::{MouseScrollUnit, MouseWheel},
+        touch::TouchPhase,
+    };
+
+    let mut rig = pane_pointer_rig();
+    let app = &mut rig.app;
+    app.add_plugins(StatesPlugin);
+    app.insert_state(PauseStates::Interface);
+    app.register_input_actions(crate::bindings::interface_bindings());
+    app.insert_resource(InterfaceIcons::blank());
+    app.init_resource::<MapRuntime>();
+    app.init_resource::<Chart>();
+    app.init_resource::<Jobs>();
+    app.init_resource::<NovaOsCloseTransition>();
+    app.insert_resource(InterfacePaneType::Map);
+    app.add_systems(Update, (scroll_map_panel, map_input).chain());
+    let content = rig.content_root;
+    app.world_mut()
+        .commands()
+        .entity(content)
+        .with_children(|content| spawn_map_panel(content, &InterfaceIcons::blank()));
+    app.world_mut().spawn((
+        SpaceshipRootMarker,
+        PlayerSpaceshipMarker,
+        GlobalTransform::default(),
+        Name::new("NOVA"),
+    ));
+    let camera = app
+        .world_mut()
+        .spawn((
+            MapCameraMarker,
+            MapOrbit {
+                theta: 0.0,
+                phi: 0.5,
+                radius: 400.0,
+                center: Vec3::ZERO,
+            },
+            Transform::default(),
+        ))
+        .id();
+    app.world_mut().resource_mut::<MapRuntime>().active = true;
+    settle(app);
+    let panel = app
+        .world_mut()
+        .query_filtered::<Entity, With<MapPanelMarker>>()
+        .single(app.world())
+        .expect("the map pane spawns one contact panel");
+    // Content taller than the panel, as a selected station's stock list is.
+    app.world_mut().entity_mut(panel).with_child(Node {
+        height: Val::Px(3000.0),
+        flex_shrink: 0.0,
+        ..default()
+    });
+    settle(&mut rig.app);
+    let wheel = |rig: &mut PanePointerRig| {
+        rig.app.world_mut().write_message(MouseWheel {
+            unit: MouseScrollUnit::Line,
+            x: 0.0,
+            y: -3.0,
+            window: Entity::PLACEHOLDER,
+            phase: TouchPhase::Moved,
+        });
+        settle(&mut rig.app);
+    };
+    let scrolled = |rig: &PanePointerRig| rig.app.world().get::<ScrollPosition>(panel).unwrap().0.y;
+    let radius = |rig: &PanePointerRig| rig.app.world().get::<MapOrbit>(camera).unwrap().radius;
+
+    let rect = rig_rect(&rig, panel);
+    move_cursor_to(&mut rig, rect.center());
+    wheel(&mut rig);
+    assert!(scrolled(&rig) > 0.0, "the wheel over the panel scrolls it");
+    assert_eq!(radius(&rig), 400.0, "and leaves the zoom");
+
+    let held = scrolled(&rig);
+    move_cursor_to(&mut rig, Vec2::new(rect.max.x + 200.0, rect.center().y));
+    wheel(&mut rig);
+    assert!(radius(&rig) > 400.0, "the wheel off the panel zooms out");
+    assert_eq!(scrolled(&rig), held, "and leaves the panel where it is");
+}
+
 /// The GOTO button is the `map_goto` key's request, not a second path: it is
 /// disabled on the own ship, and on a contact it sets the autopilot and travel
 /// lock the key sets, which the panel then names as the destination.
@@ -691,6 +782,214 @@ fn the_goto_button_sets_the_goto_the_key_sets() {
     assert_eq!(
         panel_text(rig.app.world_mut(), MapPanelField::Destination),
         "GOTO HOST-1  500 m"
+    );
+}
+
+/// A living civilization with a living neighbour its own seed drew Enemy,
+/// and the fine [`enemy_neighbours`] reads for it.
+fn civilization_with_enemy_neighbour() -> (CivilizationId, CivilizationId, u32) {
+    for seed in 0..64u32 {
+        let field = CivilizationField::new(seed);
+        for x in -2..=2i32 {
+            for y in -2..=2i32 {
+                for z in -2..=2i32 {
+                    let node = [x, y, z];
+                    let civilization = field.civilization(node);
+                    if civilization.status != CivilizationStatusType::Living {
+                        continue;
+                    }
+                    let Some(enemy) = field
+                        .neighbours(node)
+                        .into_iter()
+                        .find(|neighbour| neighbour.stance == StanceType::Enemy)
+                    else {
+                        continue;
+                    };
+                    let fine = enemy_neighbours(civilization.id, &CivilizationStances::default())
+                        .into_iter()
+                        .find_map(|(id, fine)| (id == enemy.id).then_some(fine))
+                        .expect("a found Enemy neighbour reads back from its own civilization");
+                    return (civilization.id, enemy.id, fine);
+                }
+            }
+        }
+    }
+    panic!("no seed in [0, 64) holds a living civilization with a living Enemy neighbour");
+}
+
+/// The table stance `civilization` reads in the rig's saved table.
+fn standing_table(rig: &PanePointerRig, civilization: CivilizationId) -> StanceType {
+    let stances = rig.app.world().resource::<CivilizationStances>();
+    let now = rig.app.world().resource::<WorldClock>().play_seconds;
+    standing(stances, &civilization, now).table
+}
+
+/// The STANCES block's Pay fine button only moves the fine while the ship is
+/// docked at the station that keeps the book: undocked, the button reads
+/// disabled and a click moves nothing and settles nothing; docked with the
+/// fine in hand, a click pays it both ways, reports a Settle credit change on
+/// each ship's reports, and settles the civilization to Neutral.
+#[test]
+fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station() {
+    let (civilization, enemy, fine) = civilization_with_enemy_neighbour();
+
+    let mut rig = pane_pointer_rig();
+    let app = &mut rig.app;
+    app.insert_resource(InterfaceIcons::blank());
+    app.init_resource::<MapRuntime>();
+    app.init_resource::<Chart>();
+    app.init_resource::<Jobs>();
+    app.init_resource::<WorldClock>();
+    app.init_resource::<CivilizationStances>();
+    app.init_resource::<StationRuntime>();
+    app.add_message::<StanceSettleCommand>();
+    app.add_systems(
+        Update,
+        (update_map_stance_block, apply_station_settle_commands).chain(),
+    );
+
+    let station_id = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
+    app.world_mut().resource_mut::<Chart>().find_station(
+        &station_id,
+        false,
+        false,
+        Some(civilization),
+        0.0,
+    );
+
+    let content = rig.content_root;
+    app.world_mut()
+        .commands()
+        .entity(content)
+        .with_children(|content| spawn_map_stance_block(content));
+
+    let player = app
+        .world_mut()
+        .spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            GlobalTransform::default(),
+            Name::new("NOVA"),
+            ShipCredits(fine),
+            ShipInventoryReports::default(),
+        ))
+        .id();
+    let station = app
+        .world_mut()
+        .spawn((
+            StationMarker,
+            TraderMarket {
+                cluster: ClusterType::AsteroidRich,
+                civilization,
+                role_preference: [0.0; 4],
+                target: std::collections::BTreeMap::new(),
+            },
+            station_id.clone(),
+            ShipCredits(0),
+            ShipInventoryReports::default(),
+            Name::new("STATION"),
+        ))
+        .id();
+
+    {
+        let mut runtime = app.world_mut().resource_mut::<MapRuntime>();
+        runtime.active = true;
+        runtime.chart = true;
+        runtime.chart_selected = Some(MapChartMarkType::Station(station_id.clone()));
+    }
+    settle(&mut rig.app);
+
+    let button = rig
+        .app
+        .world_mut()
+        .query::<(Entity, &Name)>()
+        .iter(rig.app.world())
+        .find_map(|(entity, name)| {
+            name.as_str()
+                .starts_with("MapStancePayFine")
+                .then_some(entity)
+        })
+        .expect("the Pay fine button spawned");
+    let disabled =
+        |rig: &PanePointerRig| rig.app.world().get::<InteractionDisabled>(button).is_some();
+    let credits = |rig: &PanePointerRig, entity: Entity| {
+        rig.app.world().get::<ShipCredits>(entity).unwrap().0
+    };
+
+    assert!(
+        disabled(&rig),
+        "undocked: the Pay fine button reads disabled"
+    );
+    let at = rig_rect(&rig, button).center();
+    click_at(&mut rig, at);
+    settle(&mut rig.app);
+    assert_eq!(
+        credits(&rig, player),
+        fine,
+        "a disabled button moves no credits"
+    );
+    assert_eq!(
+        credits(&rig, station),
+        0,
+        "a disabled button moves no credits"
+    );
+    assert_eq!(
+        standing_table(&rig, enemy),
+        StanceType::Enemy,
+        "a disabled button settles nothing"
+    );
+
+    // Dock the player at the station, as `SettleDock` reads it.
+    let connection = rig
+        .app
+        .world_mut()
+        .spawn(DockingConnection {
+            first_ship: player,
+            first_section: Entity::PLACEHOLDER,
+            second_ship: station,
+            second_section: Entity::PLACEHOLDER,
+            helm: DockedHelmType::Neutral,
+            measurement_fault: false,
+        })
+        .id();
+    rig.app.world_mut().entity_mut(player).insert(DockedShip {
+        connection,
+        helm: Quat::IDENTITY,
+        drives: false,
+    });
+    settle(&mut rig.app);
+    assert!(
+        !disabled(&rig),
+        "docked at the station with the fine in hand: the button reads enabled"
+    );
+
+    click_at(&mut rig, at);
+    settle(&mut rig.app);
+
+    assert_eq!(credits(&rig, player), 0, "the ship pays the whole fine");
+    assert_eq!(credits(&rig, station), fine, "the station takes the fine");
+    for entity in [player, station] {
+        let reports = rig
+            .app
+            .world()
+            .get::<ShipInventoryReports>(entity)
+            .unwrap()
+            .clone();
+        assert!(
+            reports.0.iter().any(|report| matches!(
+                report,
+                ShipInventoryReport::CreditsChanged {
+                    cause: CreditChangeCauseType::Settle,
+                    ..
+                }
+            )),
+            "{entity:?} carries a Settle credit change: {reports:?}"
+        );
+    }
+    assert_eq!(
+        standing_table(&rig, enemy),
+        StanceType::Neutral,
+        "the settled civilization reads Neutral"
     );
 }
 

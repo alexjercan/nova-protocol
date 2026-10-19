@@ -32,6 +32,7 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::{
     Allegiance, CivilizationId, CivilizationStances, NeutralizedMarker, OwnedStationMarker,
     PlayerFleetMarker, PlayerSpaceshipMarker, StanceStep, StanceType, TraderMarket,
+    ENEMY_DECAY_SECONDS, OFFENCE_WINDOW_SECONDS, PROVOKED_WINDOW_SECONDS,
 };
 use nova_ship::prelude::{LastAttacker, ShipProvoked};
 use nova_world::prelude::WorldClock;
@@ -106,6 +107,77 @@ pub fn settle(
     now: f64,
 ) -> Option<StanceStep> {
     stances.settle(civilization, seeded_stance(&civilization), now)
+}
+
+/// Where one civilization stands with the player at a play time, and what
+/// moves it next, as the Map's stance block shows it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct StanceStanding {
+    /// The table stance: the seed's, moved by the player's events.
+    pub table: StanceType,
+    /// The stance its bodies act on: Enemy while a provocation holds.
+    pub effective: StanceType,
+    /// Offences inside [`OFFENCE_WINDOW_SECONDS`] toward the next step down.
+    pub offences: u32,
+    /// Jobs handed in toward the next step up.
+    pub merits: u32,
+    /// Play seconds until a provocation stops reading Enemy, while one holds.
+    pub provoked_left: Option<f64>,
+    /// Play seconds with no new offence until an Enemy by events returns to
+    /// Neutral. `None` while not Enemy, and for an Enemy by the seed alone,
+    /// which time never clears: only the fine does.
+    pub decay_left: Option<f64>,
+}
+
+/// How `civilization` stands with the player at `now`.
+pub fn standing(
+    stances: &CivilizationStances,
+    civilization: &CivilizationId,
+    now: f64,
+) -> StanceStanding {
+    let seeded = seeded_stance(civilization);
+    let table = stances.stance(civilization, seeded);
+    let record = stances.record(civilization);
+    StanceStanding {
+        table,
+        effective: stances.effective(civilization, seeded, now),
+        offences: record.map_or(0, |record| {
+            record
+                .offences
+                .iter()
+                .filter(|at| now - **at < OFFENCE_WINDOW_SECONDS)
+                .count() as u32
+        }),
+        merits: record.map_or(0, |record| record.merits),
+        provoked_left: record
+            .and_then(|record| record.provoked_at)
+            .map(|at| PROVOKED_WINDOW_SECONDS - (now - at))
+            .filter(|left| *left > 0.0),
+        decay_left: record
+            .filter(|record| record.stance == StanceType::Enemy)
+            .and_then(|record| record.enemy_since)
+            .map(|since| (ENEMY_DECAY_SECONDS - (now - since)).max(0.0)),
+    }
+}
+
+/// The living neighbours of `civilization` whose table stance is Enemy,
+/// each with its fine ([`fine_cr`]) in the balance's unit: the fines a
+/// station of `civilization` takes. The table stance, not the effective
+/// one: a provocation reads Enemy for its window but [`settle`] steps only a
+/// true Enemy, and a fine must never move without a step.
+pub fn enemy_neighbours(
+    civilization: CivilizationId,
+    stances: &CivilizationStances,
+) -> Vec<(CivilizationId, u32)> {
+    CivilizationField::new(civilization.world_seed)
+        .neighbours(civilization.node)
+        .into_iter()
+        .filter(|neighbour| stances.stance(&neighbour.id, neighbour.stance) == StanceType::Enemy)
+        .map(|neighbour| {
+            let fine = u32::try_from(fine_cr(&neighbour.id)).expect("FINE_CR's ends fit a balance");
+            (neighbour.id, fine)
+        })
+        .collect()
 }
 
 /// Record an offence for a generated hull the player just neutralized: the
@@ -305,6 +377,47 @@ mod tests {
         assert!(
             swept >= 8,
             "the sweep found {swept} civilizations with neighbours"
+        );
+    }
+
+    /// A civilization the player's offences made Enemy reads the time left
+    /// on its decay, counted from the last offence; one the seed drew Enemy
+    /// reads none, since only the fine clears it.
+    #[test]
+    fn an_enemy_by_events_reads_time_left_and_a_seeded_enemy_reads_none() {
+        let living = |wanted: StanceType| {
+            SWEEP_SEEDS
+                .into_iter()
+                .find_map(|seed| {
+                    let field = CivilizationField::new(seed);
+                    sweep_nodes().into_iter().find_map(|node| {
+                        let civilization = field.civilization(node);
+                        (civilization.status == CivilizationStatusType::Living
+                            && civilization.stance == wanted)
+                            .then_some(civilization.id)
+                    })
+                })
+                .unwrap_or_else(|| panic!("the sweep holds a living {wanted:?} civilization"))
+        };
+        let mut stances = CivilizationStances::default();
+
+        let seeded_enemy = living(StanceType::Enemy);
+        let read = standing(&stances, &seeded_enemy, 100.0);
+        assert_eq!(read.table, StanceType::Enemy);
+        assert_eq!(read.decay_left, None, "time never clears a seeded Enemy");
+
+        let neutral = living(StanceType::Neutral);
+        for offence in 0..OFFENCE_STEP {
+            apply_offence(&mut stances, neutral, 10.0 * f64::from(offence));
+        }
+        let flipped_at = 10.0 * f64::from(OFFENCE_STEP - 1);
+        let read = standing(&stances, &neutral, flipped_at + 600.0);
+        assert_eq!(read.table, StanceType::Enemy);
+        assert_eq!(read.offences, 0, "the step clears the window's tally");
+        assert_eq!(
+            read.decay_left,
+            Some(ENEMY_DECAY_SECONDS - 600.0),
+            "the decay counts from the flipping offence"
         );
     }
 

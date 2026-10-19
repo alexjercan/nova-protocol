@@ -30,6 +30,7 @@
 //! | `hull_preview` | The 3D view of each hull on a "Ships for sale" or "Escorts for hire" card. |
 //! | `escorts` | The "Escorts for hire" list and the hire action handler. |
 //! | `hull_info` | A card's Info: the hull in the Ship pane's view, read-only. |
+//! | `settle` | The Settle action: the fine the Map chart's stance block pays at the docked station. |
 
 mod escorts;
 mod hull_info;
@@ -138,8 +139,7 @@ pub(crate) enum StationPanelField {
 }
 
 /// Build the Station pane body: one panel with the station block, the hull
-/// list, the escort list, the job lists, the settle block, the empty line
-/// and the note line.
+/// list, the escort list, the job lists, the empty line and the note line.
 pub(crate) fn station_body(body: &mut ChildSpawnerCommands) {
     body.spawn((
         StationPanelMarker,
@@ -164,7 +164,6 @@ pub(crate) fn station_body(body: &mut ChildSpawnerCommands) {
         spawn_station_sale_block(panel);
         spawn_station_hull_list(panel);
         spawn_station_escort_list(panel);
-        spawn_station_settle_block(panel);
         panel.spawn((
             StationPanelField::Empty,
             themed_label(
@@ -284,7 +283,6 @@ pub(crate) fn update_station_panel(
                 With<StationSaleBlock>,
                 With<StationHullList>,
                 With<StationEscortList>,
-                With<StationSettleBlock>,
             )>,
             Without<StationPanelField>,
         ),
@@ -347,7 +345,6 @@ impl Plugin for StationPanePlugin {
                 update_station_sale_block,
                 update_station_hull_list,
                 update_station_escort_list,
-                update_station_settle_block,
                 sync_hull_previews,
                 mirror_hull_previews,
                 update_station_panel,

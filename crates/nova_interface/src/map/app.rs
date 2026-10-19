@@ -3,17 +3,20 @@
 //! Touch this module when changing what the map pane remembers between frames
 //! or how its contact panel is laid out.
 
-use bevy::{prelude::*, ui::InteractionDisabled};
+use bevy::{
+    input::mouse::MouseWheel, picking::hover::Hovered, prelude::*, ui::InteractionDisabled,
+};
 use nova_events::prelude::{GeneratedBodyId, SectorCoord};
 use nova_ui::{
     prelude::{button, ButtonSpec},
+    screen::drive_wheel_scroll,
     theme::UiColor,
     widget::ThemedFill,
 };
 
 use super::{
     on_map_goto_button, spawn_map_chart_log, spawn_map_chart_objectives, spawn_map_chart_sector,
-    ChartStationLive, MapContactKind,
+    spawn_map_stance_block, ChartStationLive, MapContactKind,
 };
 use crate::{
     icons::{icon_node, BodyIconType, InterfaceIcons},
@@ -50,6 +53,11 @@ pub(crate) enum MapPanelField {
 #[derive(Component)]
 pub(crate) struct MapPanelIcon;
 
+/// The contact panel beside the map view. It scrolls: a selected station's
+/// stock list pushes the STANCES block past a 720p panel.
+#[derive(Component)]
+pub(crate) struct MapPanelMarker;
+
 /// The contact panel's GOTO button. It is disabled with no contact or the own
 /// ship selected; [`update_map_panel`](super::update_map_panel) toggles it.
 #[derive(Component)]
@@ -65,16 +73,43 @@ pub(crate) struct MapRouteLine;
 #[derive(Component)]
 pub(crate) struct MapGotoMarker;
 
+/// Wheel-scroll the contact panel while the pointer is over it, through the
+/// shared driver; `map_input` leaves the view's zoom alone then. A wheel
+/// notch away from the panel is the view's.
+pub(crate) fn scroll_map_panel(
+    mut wheel: MessageReader<MouseWheel>,
+    q_panel: Query<
+        (&mut ScrollPosition, Option<&ComputedNode>, Option<&Hovered>),
+        With<MapPanelMarker>,
+    >,
+) {
+    if !q_panel
+        .iter()
+        .any(|(_, _, hovered)| hovered.is_some_and(Hovered::get))
+    {
+        wheel.clear();
+        return;
+    }
+    drive_wheel_scroll(wheel, q_panel);
+}
+
 /// Build the contact panel beside the map view: the selection's icon, in a
 /// frame the chart view hides, over its code, name and kind; a rule; its range
 /// and bearing; a rule; its note; a rule; the SECTOR block, shown in the chart
 /// view with a find selected; the OBJECTIVES block and the discovery log under
-/// it, shown in the chart view with nothing selected; and the live GOTO
-/// destination over the GOTO button.
+/// it, shown in the chart view with nothing selected; the STANCES block, shown
+/// in the chart view with nothing selected or a living, unowned Station mark
+/// selected; and the live GOTO destination over the GOTO button.
 /// [`update_map_panel`](super::update_map_panel) fills it.
 pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     parent
-        .spawn(side_panel(Overflow::clip()))
+        .spawn((
+            MapPanelMarker,
+            Name::new("MapPanel"),
+            side_panel(Overflow::scroll_y()),
+            ScrollPosition::default(),
+            Hovered::default(),
+        ))
         .with_children(|panel| {
             panel.spawn(panel_preview_frame()).with_children(|frame| {
                 frame.spawn((
@@ -112,6 +147,7 @@ pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &Interfa
             spawn_map_chart_sector(panel);
             spawn_map_chart_objectives(panel);
             spawn_map_chart_log(panel);
+            spawn_map_stance_block(panel);
             panel.spawn((
                 MapPanelField::Destination,
                 themed_label("", 12.0, UiColor::Label),

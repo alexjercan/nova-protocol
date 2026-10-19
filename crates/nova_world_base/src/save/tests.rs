@@ -773,7 +773,7 @@ fn a_save_header_carries_the_play_time_hull_fleet_open_objectives_and_chart() {
         let mut chart = world.resource_mut::<Chart>();
         chart.visit(SectorCoord::ORIGIN, vec![ClusterType::RockOnly], 10.0);
         chart.visit(SectorCoord::new(1, 0, 0), Vec::new(), 40.0);
-        chart.find_station(&station, false, true, 45.0);
+        chart.find_station(&station, false, true, None, 45.0);
     }
     world.insert_resource(GoalProgress {
         title: "A station network".to_string(),
@@ -3177,6 +3177,7 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
         &GeneratedBodyId::new(east, "cluster_1_0_0_station", 0),
         false,
         false,
+        None,
         StationSummary {
             name: "Test station".to_string(),
             services: vec![StationServiceType::Trade],

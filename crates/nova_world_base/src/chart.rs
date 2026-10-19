@@ -14,7 +14,7 @@ use nova_events::prelude::GeneratedBodyId;
 use nova_gameplay::prelude::{
     Chart, ChartSectorEdge, CivilizationStances, DerelictShipMarker, GoalProgress, GoalRecord,
     JobPostings, Jobs, OwnedStationMarker, PlayerSpaceshipMarker, ShipInventory, StationMarker,
-    StationServices, StationStorage, StationSummary, WorldClock,
+    StationServices, StationStorage, StationSummary, TraderMarket, WorldClock,
 };
 use nova_ship::prelude::{DockedShip, DockingConnection, SensorContacts};
 use nova_world::prelude::{CurrentSector, SectorClusterTypes, SectorRoot, WorldConfig};
@@ -103,6 +103,7 @@ pub(crate) fn chart_sensor_finds(
             Has<StationMarker>,
             Has<DerelictShipMarker>,
             Has<OwnedStationMarker>,
+            Option<&TraderMarket>,
         ),
         Or<(With<StationMarker>, With<DerelictShipMarker>)>,
     >,
@@ -113,13 +114,14 @@ pub(crate) fn chart_sensor_finds(
         return;
     };
     for contact in contacts.iter() {
-        let Ok((id, station, derelict, owned)) = bodies.get(contact.entity) else {
+        let Ok((id, station, derelict, owned, market)) = bodies.get(contact.entity) else {
             continue;
         };
         if station {
             if chart.station(id).is_none() {
                 info!("nova_world_base: the chart finds the station '{id}'");
-                chart.find_station(id, derelict, owned, clock.play_seconds);
+                let civilization = market.map(|market| market.civilization);
+                chart.find_station(id, derelict, owned, civilization, clock.play_seconds);
             }
         } else if chart.wreck(id).is_none() {
             info!("nova_world_base: the chart finds the wreck '{id}'");
@@ -149,6 +151,7 @@ pub(crate) fn chart_docked_station(
             Option<&StationServices>,
             Has<DerelictShipMarker>,
             Has<OwnedStationMarker>,
+            Option<&TraderMarket>,
             Ref<ShipInventory>,
             Ref<StationStorage>,
         ),
@@ -179,7 +182,7 @@ pub(crate) fn chart_docked_station(
         (None, None) => (None, false),
     };
     last.0 = partner;
-    let Some(Ok((id, name, services, derelict, owned, hold, storage))) =
+    let Some(Ok((id, name, services, derelict, owned, market, hold, storage))) =
         station.map(|station| stations.get(station))
     else {
         return;
@@ -218,5 +221,13 @@ pub(crate) fn chart_docked_station(
         summary.stock.len(),
         summary.stored.len()
     );
-    chart.record_station(id, derelict, owned, summary, clock.play_seconds);
+    let civilization = market.map(|market| market.civilization);
+    chart.record_station(
+        id,
+        derelict,
+        owned,
+        civilization,
+        summary,
+        clock.play_seconds,
+    );
 }

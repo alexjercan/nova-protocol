@@ -1,59 +1,34 @@
-//! The Station pane's "Settle" block and the Settle action.
+//! The Settle action: the fine that returns an Enemy civilization to
+//! Neutral, paid at a docked station.
 //!
-//! While the ship is docked at a living station a civilization keeps, the
-//! block lists every living neighbour of that civilization whose table
-//! stance to the player is Enemy, each with the fine its advancement sets
-//! ([`fine_cr`]) and a Settle button or the reason the fine is refused. A
-//! click raises a [`StanceSettleCommand`]; [`apply_station_settle_commands`]
-//! charges the fine with a `Settle` credit change on the player ship, pays
-//! it to the docked station, and settles the civilization to Neutral
-//! ([`settle`]). A station the player owns keeps no civilization's book, and
-//! the docked station's own civilization cannot be Enemy, or it would not
-//! have admitted the ship.
+//! The Map chart's stance block raises a [`StanceSettleCommand`] for an
+//! Enemy neighbour of the selected station's civilization while the ship is
+//! docked there. [`apply_station_settle_commands`] charges the fine
+//! ([`fine_cr`](nova_world_base::prelude::fine_cr)) with a `Settle` credit
+//! change on the player ship, pays it to the docked station, and settles the
+//! civilization to Neutral ([`settle`]). A frozen station has no live
+//! balance to pay, so a fine is never paid undocked. A station the player
+//! owns keeps no civilization's book, and the docked station's own
+//! civilization cannot be Enemy, or it would not have admitted the ship.
 //!
-//! Touch this module when changing what the block shows or what Settle
-//! moves.
+//! Touch this module when changing what Settle moves.
 
-use bevy::{ecs::system::SystemParam, prelude::*, ui_widgets::Activate};
+use bevy::{ecs::system::SystemParam, prelude::*};
 use nova_events::prelude::CreditChangeCauseType;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
-use nova_ui::{theme::UiColor, widget::ButtonSpec};
-use nova_world_base::prelude::{fine_cr, settle, CivilizationField};
+use nova_world_base::prelude::{enemy_neighbours, settle};
 
-use super::{offer_cell, StationRuntime};
-use crate::{
-    inventory::cr_text,
-    pane::{compact_button, play_menu_select, themed_label},
-};
+use super::StationRuntime;
+use crate::inventory::cr_text;
 
 /// A request to settle with `civilization` at the docked station, raised by
-/// a Settle button.
+/// the Map chart's Pay fine button.
 #[derive(Message, Clone, Debug)]
 pub struct StanceSettleCommand {
     /// The civilization to settle with: a living neighbour of the docked
     /// station's that stands Enemy to the player.
     pub civilization: CivilizationId,
-}
-
-/// The block's container, hidden while no neighbour of the docked station's
-/// civilization stands Enemy.
-#[derive(Component)]
-pub(crate) struct StationSettleBlock;
-
-/// The rows inside [`StationSettleBlock`], and the rows they were built
-/// from, so the rows respawn only when one changes.
-#[derive(Component, Default)]
-pub(crate) struct StationSettleRows(Vec<SettleRow>);
-
-/// One Enemy neighbour as the block shows it.
-#[derive(Clone, Debug, PartialEq)]
-struct SettleRow {
-    civilization: CivilizationId,
-    /// "Settle with <name>: <fine>".
-    line: String,
-    /// The refusal line, or `None` when the fine can be paid.
-    refusal: Option<String>,
 }
 
 /// The player ship and the station it is docked with, with the
@@ -83,7 +58,7 @@ impl SettleDock<'_, '_> {
     /// The player ship, the docked station, its name and its civilization,
     /// or `None` while the ship is not docked at a station a civilization
     /// keeps.
-    fn docked(&self) -> Option<(Entity, Entity, String, CivilizationId)> {
+    pub(crate) fn docked(&self) -> Option<(Entity, Entity, String, CivilizationId)> {
         let (player, docked) = self.player.single().ok()?;
         let connection = self.connections.get(docked.connection).ok()?;
         let station = if connection.first_ship == player {
@@ -97,131 +72,13 @@ impl SettleDock<'_, '_> {
     }
 }
 
-/// The neighbours of `civilization` whose table stance is Enemy, with the
-/// fine of each in the balance's unit. The table stance, not the effective
-/// one: a provocation reads Enemy for its window but `settle` steps only a
-/// true Enemy, and a fine must never move without a step.
-fn enemy_neighbours(
-    civilization: CivilizationId,
-    stances: &CivilizationStances,
-) -> Vec<(CivilizationId, u32)> {
-    CivilizationField::new(civilization.world_seed)
-        .neighbours(civilization.node)
-        .into_iter()
-        .filter(|neighbour| stances.stance(&neighbour.id, neighbour.stance) == StanceType::Enemy)
-        .map(|neighbour| {
-            let fine = u32::try_from(fine_cr(&neighbour.id)).expect("FINE_CR's ends fit a balance");
-            (neighbour.id, fine)
-        })
-        .collect()
-}
-
 /// Why the fine of `name` is refused: the ship holds less than the fine.
-fn settle_refusal_text(name: &str, need: u32, have: u32) -> String {
+pub(crate) fn settle_refusal_text(name: &str, need: u32, have: u32) -> String {
     format!(
         "settle: {name} asks {}, the ship holds {}",
         cr_text(u64::from(need)),
         cr_text(u64::from(have))
     )
-}
-
-/// Build the block: a header and the rows [`update_station_settle_block`]
-/// fills.
-pub(crate) fn spawn_station_settle_block(panel: &mut ChildSpawnerCommands) {
-    panel
-        .spawn((
-            StationSettleBlock,
-            Name::new("StationSettleBlock"),
-            Node {
-                display: Display::None,
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(8.0),
-                flex_shrink: 0.0,
-                ..default()
-            },
-        ))
-        .with_children(|list| {
-            list.spawn(crate::pane::divider());
-            list.spawn(themed_label("Settle", 13.0, UiColor::Accent));
-            list.spawn((StationSettleRows::default(), offer_cell()));
-        });
-}
-
-/// Show the block while a neighbour of the docked station's civilization
-/// stands Enemy, and respawn its rows when a neighbour, a fine or a refusal
-/// changes.
-pub(crate) fn update_station_settle_block(
-    mut commands: Commands,
-    dock: SettleDock,
-    stances: Res<CivilizationStances>,
-    q_credits: Query<&ShipCredits>,
-    mut q_list: Query<&mut Node, With<StationSettleBlock>>,
-    mut q_rows: Query<(Entity, &mut StationSettleRows)>,
-) {
-    let Ok(mut list) = q_list.single_mut() else {
-        return;
-    };
-    let Ok((rows_entity, mut shown)) = q_rows.single_mut() else {
-        return;
-    };
-    let rows: Vec<SettleRow> = dock.docked().map_or_else(Vec::new, |(player, _, _, home)| {
-        let own_cr = q_credits.get(player).map_or(0, |credits| credits.0);
-        enemy_neighbours(home, &stances)
-            .into_iter()
-            .map(|(civilization, fine)| SettleRow {
-                civilization,
-                line: format!(
-                    "Settle with {}: {}",
-                    civilization.name(),
-                    cr_text(u64::from(fine))
-                ),
-                refusal: (own_cr < fine)
-                    .then(|| settle_refusal_text(&civilization.name(), fine, own_cr)),
-            })
-            .collect()
-    });
-    let display = if rows.is_empty() {
-        Display::None
-    } else {
-        Display::Flex
-    };
-    if list.display != display {
-        list.display = display;
-    }
-    if shown.0 == rows {
-        return;
-    }
-    commands.entity(rows_entity).despawn_children();
-    commands.entity(rows_entity).with_children(|cell| {
-        for (index, row) in rows.iter().enumerate() {
-            cell.spawn(themed_label(&row.line, 12.0, UiColor::Body));
-            match &row.refusal {
-                Some(refusal) => {
-                    cell.spawn(themed_label(refusal, 12.0, UiColor::Danger));
-                }
-                None => {
-                    cell.spawn((
-                        Name::new(format!("StanceSettle-{index}")),
-                        compact_button(ButtonSpec::new("Settle").fit().primary()),
-                    ))
-                    .observe(on_settle_button(row.civilization));
-                }
-            }
-        }
-    });
-    shown.0 = rows;
-}
-
-/// Raise a [`StanceSettleCommand`] for `civilization` when its Settle
-/// button is clicked.
-fn on_settle_button(
-    civilization: CivilizationId,
-) -> impl FnMut(On<Activate>, MessageWriter<StanceSettleCommand>, Option<Res<SoundBank<UiSfx>>>, Commands)
-{
-    move |_activate, mut settles, bank, mut commands| {
-        settles.write(StanceSettleCommand { civilization });
-        play_menu_select(&mut commands, bank.as_deref());
-    }
 }
 
 /// Apply [`StanceSettleCommand`]s: a civilization that is an Enemy

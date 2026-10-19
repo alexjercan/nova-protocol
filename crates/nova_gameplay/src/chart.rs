@@ -18,7 +18,10 @@ use std::collections::BTreeMap;
 use bevy::prelude::*;
 use nova_events::prelude::{GeneratedBodyId, Meters, SectorCoord};
 
-use crate::{inventory::prelude::ItemDesignId, markers::prelude::StationServiceType};
+use crate::{
+    civilization::CivilizationId, inventory::prelude::ItemDesignId,
+    markers::prelude::StationServiceType,
+};
 
 /// Glob-import surface: `use nova_gameplay::chart::prelude::*`.
 pub mod prelude {
@@ -95,6 +98,10 @@ pub struct ChartStation {
     /// The player's when last seen: bought from its civilization
     /// (`OwnedStationMarker`).
     pub owned: bool,
+    /// The civilization that keeps it, read off its market when found.
+    /// `None` on a station dead when found: it keeps no book and takes no
+    /// fine.
+    pub civilization: Option<CivilizationId>,
     /// What the player saw there on the last dock. `None` until the player
     /// docks: a station seen on sensors only shows no stock.
     pub summary: Option<StationSummary>,
@@ -212,14 +219,23 @@ impl Chart {
         self.stations.iter().find(|station| station.id == *id)
     }
 
-    /// Record that the player found the station `id` at `at` play seconds,
-    /// dead or alive, owned or not. A station already found keeps its entry.
-    pub fn find_station(&mut self, id: &GeneratedBodyId, derelict: bool, owned: bool, at: f64) {
+    /// Record that the player found the station `id` of `civilization` at
+    /// `at` play seconds, dead or alive, owned or not. A station already
+    /// found keeps its entry.
+    pub fn find_station(
+        &mut self,
+        id: &GeneratedBodyId,
+        derelict: bool,
+        owned: bool,
+        civilization: Option<CivilizationId>,
+        at: f64,
+    ) {
         if self.station(id).is_none() {
             self.stations.push(ChartStation {
                 id: id.clone(),
                 derelict,
                 owned,
+                civilization,
                 summary: None,
                 found_at: at,
             });
@@ -233,10 +249,11 @@ impl Chart {
         id: &GeneratedBodyId,
         derelict: bool,
         owned: bool,
+        civilization: Option<CivilizationId>,
         summary: StationSummary,
         at: f64,
     ) {
-        self.find_station(id, derelict, owned, at);
+        self.find_station(id, derelict, owned, civilization, at);
         let station = self
             .stations
             .iter_mut()
@@ -389,9 +406,9 @@ mod tests {
         let mut chart = Chart::default();
         chart.visit(SectorCoord::new(0, 0, 0), vec![], 0.0);
         chart.find_wreck(&body("wreck_a"), 12.5);
-        chart.find_station(&body("station_a"), false, false, 12.5);
+        chart.find_station(&body("station_a"), false, false, None, 12.5);
         chart.visit(SectorCoord::new(1, 0, 0), vec![ClusterType::RockOnly], 12.5);
-        chart.find_station(&body("station_b"), true, false, 4.0);
+        chart.find_station(&body("station_b"), true, false, None, 4.0);
         // A repeat find keeps the first stamp.
         chart.find_wreck(&body("wreck_a"), 40.0);
         chart.visit(

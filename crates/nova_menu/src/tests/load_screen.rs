@@ -155,7 +155,7 @@ fn save_fixture_world(app: &mut App, root: &Path, name: &str) {
     {
         let mut chart = app.world_mut().resource_mut::<Chart>();
         chart.visit(SectorCoord::ORIGIN, vec![ClusterType::RockOnly], 10.0);
-        chart.find_station(&start, false, false, 45.0);
+        chart.find_station(&start, false, false, None, 45.0);
     }
     app.world_mut().insert_resource(GoalProgress {
         title: "A station network".to_string(),

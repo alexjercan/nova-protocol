@@ -8,6 +8,7 @@
 
 use bevy::{
     camera::{visibility::RenderLayers, ImageRenderTarget, RenderTarget},
+    picking::hover::Hovered,
     prelude::*,
     ui::InteractionDisabled,
     // The activatable Button (fires `Activate` on click or keyboard
@@ -303,6 +304,7 @@ pub(crate) fn map_input(
     mut q_camera: Query<(&mut MapOrbit, &Transform), With<MapCameraMarker>>,
     q_docked: Query<&DockedShip>,
     q_connections: Query<&DockingConnection>,
+    q_panel: Query<&Hovered, With<MapPanelMarker>>,
 ) {
     // Taken before the gate: a request the map cannot act on now is dropped,
     // not held for a later frame.
@@ -335,7 +337,9 @@ pub(crate) fn map_input(
         }
         // Wheel zooms the focus distance, out to what the live scene needs:
         // a fixed ceiling left a contact 20 km out permanently off the map.
-        if wheel_delta != 0.0 {
+        // A notch over the panel scrolls it instead (`scroll_map_panel`).
+        let over_panel = q_panel.iter().any(Hovered::get);
+        if wheel_delta != 0.0 && !over_panel {
             let reach = if runtime.chart {
                 MAP_CHART_RADIUS_MAX
             } else {

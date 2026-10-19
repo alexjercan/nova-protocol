@@ -2060,7 +2060,7 @@ mod tests {
     fn the_objectives_list_held_jobs_and_only_the_next_unmet_milestone() {
         let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
         let mut chart = Chart::default();
-        chart.find_station(&station, false, false, 0.0);
+        chart.find_station(&station, false, false, None, 0.0);
         let job = |slot: u32, kind: JobType| Job {
             id: JobId {
                 station: station.clone(),

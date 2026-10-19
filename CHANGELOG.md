@@ -274,8 +274,11 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Docked at a living station, the TAB interface shows a Station tab with the
   station, its ships for sale and its escorts for hire. M steps to it only
   while docked.
-- The Station pane's Settle block lists each Enemy neighbour of the station's
-  civilization with its fine and a Settle button.
+- The Map's chart view lists STANCES: each civilization's stance, what moves
+  or clears it, and an Enemy's fine; Pay fine works docked at the selected
+  station that takes it. Save format 25.
+- The Map's side panel scrolls with the wheel while the pointer is over it;
+  the wheel zooms the view only away from the panel.
 - On the Ship pane a gun, torpedo bay, railgun or mining beam with no key
   reads UNBOUND, and B or Rebind gives it one.
 - Ship pane Rebind takes a key or a pad button and sets that device's half

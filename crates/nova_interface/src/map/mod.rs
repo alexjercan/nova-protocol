@@ -8,7 +8,8 @@
 //! clickable UI blips.
 //!
 //! The camera is a `MapOrbit` you drive with the `viewer_orbit_*` and
-//! `viewer_pan_*` actions plus the wheel (zoom). Selecting a contact fills the
+//! `viewer_pan_*` actions plus the wheel (zoom); a wheel over the contact
+//! panel scrolls the panel instead. Selecting a contact fills the
 //! contact panel beside the view with its code, name, kind, range and bearing;
 //! `map_goto` or the panel's GOTO button sets a flight
 //! [`Autopilot`](nova_ship::prelude::Autopilot) GOTO and the travel lock on the
@@ -25,7 +26,11 @@
 //! find shows its cell's SECTOR block: its contents, when the player entered
 //! it, the finds there, the stock last seen at a docked station and the jobs
 //! held or posted there; a station's head shows when it was found; a job's
-//! its title, reward and where it hands in.
+//! its title, reward and where it hands in. A STANCES block stands below:
+//! with nothing selected, every civilization met and where it stands; a
+//! living, unowned Station mark selected, that civilization's entry and a
+//! Pay fine row per civilization it stands Enemy with, paid only while
+//! docked at that station.
 //!
 //! # Module layout
 //!
@@ -34,12 +39,14 @@
 //! | `contacts` | The shared contact model. |
 //! | `app` | The pane's components and runtime state. |
 //! | `chart` | The chart view of the player's visited cells and finds. |
+//! | `stance` | The STANCES block: civilization standing and the Pay fine action. |
 //! | `scene` | The schematic 3D scene, its camera and the projected blips. |
 
 mod app;
 mod chart;
 mod contacts;
 mod scene;
+mod stance;
 mod tiles;
 
 #[cfg(test)]
@@ -51,7 +58,7 @@ use nova_gameplay::prelude::{Chart, JobPostings, Jobs, WorldClock};
 use nova_hud::prelude::PreviewPlugin;
 
 pub use self::contacts::{MapContactCode, MapContactKind, MapContacts};
-pub(crate) use self::{app::*, chart::*, contacts::*, scene::*};
+pub(crate) use self::{app::*, chart::*, contacts::*, scene::*, stance::*};
 
 /// Glob-import surface: `use nova_interface::map::prelude::*`.
 pub mod prelude {
@@ -175,12 +182,14 @@ impl Plugin for MapPanePlugin {
                 manage_map_scene,
                 reconcile_map_target,
                 toggle_map_chart,
+                scroll_map_panel,
                 map_input,
                 map_focus_follow,
                 manage_map_chart,
                 update_map_chart_sector,
                 update_map_chart_objectives,
                 update_map_chart_log,
+                update_map_stance_block,
                 drive_map_camera,
                 project_map_blips,
                 project_map_chart_labels,

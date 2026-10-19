@@ -106,7 +106,10 @@ pub use crate::{
         ShipPart, ShipPartExclusionType, ShipPartFamilyType, ShipPartFault, ShipPartPack,
         ShipPartSnapshot,
     },
-    stance::{apply_offence, fine_cr, record_merit, seeded_stance, settle, FINE_CR},
+    stance::{
+        apply_offence, enemy_neighbours, fine_cr, record_merit, seeded_stance, settle, standing,
+        StanceStanding, FINE_CR,
+    },
     start::{start_preview, start_session, starting_station, StartPreview, START_PREVIEW_REACH},
     station_layout::{
         generate_station, generated_station, station_archetype, station_ceiling,
@@ -122,17 +125,18 @@ pub use crate::{
 /// format into scope.
 pub mod prelude {
     pub use super::{
-        apply_offence, fine_cr, generate_ship, generate_station, generate_wreck, generated_station,
-        plan_ship, record_merit, role_style_id, sector_clusters, seeded_stance, settle, ship_stock,
-        start_preview, start_session, starting_station, station_archetype, station_ceiling,
-        Civilization, CivilizationField, CivilizationReach, CivilizationStatusType, ClusterSummary,
-        Environment, EnvironmentFieldType, EnvironmentFields, HullSlot, NovaLayeredWorld,
-        NovaWorldBasePlugin, PlannedShip, SectorClusters, ShipDriveLayoutType, ShipLayout,
-        ShipLayoutConstraintType, ShipLayoutFailure, ShipLayoutRequest, ShipPart,
-        ShipPartExclusionType, ShipPartFamilyType, ShipPartFault, ShipPartPack, ShipPartSnapshot,
-        StartPreview, StationArchetypeType, StationLayout, StationLayoutConstraintType,
-        StationLayoutFailure, StationLayoutRequest, ARMOURED_STYLE_ID, BLOCK_WAYSTATION_STATION_ID,
-        CIVILIAN_STYLE_ID, CLEARANCE_MARGIN, FINE_CR, INDUSTRIAL_STYLE_ID, MAX_SHIP_SECTIONS,
+        apply_offence, enemy_neighbours, fine_cr, generate_ship, generate_station, generate_wreck,
+        generated_station, plan_ship, record_merit, role_style_id, sector_clusters, seeded_stance,
+        settle, ship_stock, standing, start_preview, start_session, starting_station,
+        station_archetype, station_ceiling, Civilization, CivilizationField, CivilizationReach,
+        CivilizationStatusType, ClusterSummary, Environment, EnvironmentFieldType,
+        EnvironmentFields, HullSlot, NovaLayeredWorld, NovaWorldBasePlugin, PlannedShip,
+        SectorClusters, ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType,
+        ShipLayoutFailure, ShipLayoutRequest, ShipPart, ShipPartExclusionType, ShipPartFamilyType,
+        ShipPartFault, ShipPartPack, ShipPartSnapshot, StanceStanding, StartPreview,
+        StationArchetypeType, StationLayout, StationLayoutConstraintType, StationLayoutFailure,
+        StationLayoutRequest, ARMOURED_STYLE_ID, BLOCK_WAYSTATION_STATION_ID, CIVILIAN_STYLE_ID,
+        CLEARANCE_MARGIN, FINE_CR, INDUSTRIAL_STYLE_ID, MAX_SHIP_SECTIONS,
         OPEN_WORLD_BOUNDS_RADIUS_MAX, OPEN_WORLD_SCENARIO_ID, SALVAGE_STYLE_ID, STANCE_ALLY_SHARE,
         STANCE_ENEMY_SHARE, STANCE_NEIGHBOUR_RADIUS, START_PREVIEW_REACH, STATION_STYLE_ID,
     };
