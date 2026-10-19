@@ -14,7 +14,10 @@
 //! | `have / need` meter | hand-in | Hand in: HAND IN HERE at the job's
 //! target, else `hand in at <station>` docked and the station with its
 //! distance undocked; a refused Hand in is greyed with the reason in a
-//! tooltip. Clicking a row selects it and the inspector reads its task, its
+//! tooltip. Over the held rows, one row reads the start role's goal: its
+//! title, its next unmet line ([`open_objectives`]) and a `have / need`
+//! meter, or the play time the goal was met; a role with no goal has no row.
+//! Clicking a job row selects it and the inspector reads its task, its
 //! poster, its target, its hand-in station, its reward, its time left or
 //! progress and a Show on Map button, which opens the Map's chart view on
 //! the job's mark ([`MapRuntime::chart_show`]).
@@ -40,7 +43,7 @@ use nova_ui::{prelude::*, theme::UiColor, widget::ThemedBorder};
 use nova_world_base::prelude::record_merit;
 
 use crate::{
-    icons::{icon_node, InterfaceIcons, JobIconType},
+    icons::{icon_node, ChartIconType, InterfaceIcons, JobIconType},
     inventory::cr_text,
     map::{job_cell, MapChartMarkType, MapRuntime},
     pane::{
@@ -53,8 +56,8 @@ use crate::{
 /// Glob-import surface: `use nova_interface::jobs::prelude::*`.
 pub mod prelude {
     pub use super::{
-        JobAcceptCommand, JobHandInCommand, JobsRuntime, JOBS_BOARD, JOBS_HELD, JOBS_PANE,
-        JOB_ACCEPT_PREFIX, JOB_HAND_IN_PREFIX, JOB_SHOW_ON_MAP,
+        JobAcceptCommand, JobHandInCommand, JobsRuntime, JOBS_BOARD, JOBS_HELD, JOBS_MILESTONE,
+        JOBS_PANE, JOB_ACCEPT_PREFIX, JOB_HAND_IN_PREFIX, JOB_SHOW_ON_MAP,
     };
 }
 
@@ -65,6 +68,9 @@ pub const JOBS_PANE: &str = "JobsPane";
 pub const JOBS_BOARD: &str = "JobsBoard";
 /// The `Name` of the held jobs panel.
 pub const JOBS_HELD: &str = "JobsHeld";
+/// The `Name` of the held panel's milestone row, present while the start
+/// role has a goal.
+pub const JOBS_MILESTONE: &str = "JobsMilestone";
 /// The `Name` prefix of a board row's Accept button: `JobAccept-<row>`.
 pub const JOB_ACCEPT_PREFIX: &str = "JobAccept-";
 /// The `Name` prefix of a held row's Hand in button: `JobHandIn-<row>`.
@@ -455,15 +461,21 @@ struct InspectorView {
 struct JobsView {
     board: Option<BoardView>,
     held: Vec<HeldRow>,
+    /// The role goal's heading.
+    goal_title: String,
+    /// The role goal's next unmet line, as [`open_objectives`] lists it.
+    milestone: Option<GoalLine>,
+    /// The play time the role goal was met at.
+    goal_met_at: Option<f64>,
     docked: bool,
     inspector: Option<InspectorView>,
 }
 
 /// Rebuild the pane whenever what it shows changes: the board, the jobs,
-/// the hold, the hull, the dock, the clock or the selection.
+/// the hold, the hull, the dock, the clock, the role goal or the selection.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one system reading the catalog, the table, the chart, the jobs, the postings, the clock, the edge, the site, the hull, the boards, the targets, both balances and the pane"
+    reason = "one system reading the catalog, the table, the chart, the jobs, the postings, the clock, the edge, the goal, the site, the hull, the boards, the targets, both balances and the pane"
 )]
 #[expect(
     clippy::type_complexity,
@@ -475,12 +487,14 @@ fn update_jobs_pane(
     icons: Res<InterfaceIcons>,
     items: Option<Res<GameItems>>,
     table: Option<Res<GamePriceTable>>,
-    (chart, jobs, postings, clock, edge): (
+    (chart, jobs, postings, clock, edge, progress, record): (
         Res<Chart>,
         Res<Jobs>,
         Res<JobPostings>,
         Res<WorldClock>,
         Option<Res<ChartSectorEdge>>,
+        Res<GoalProgress>,
+        Res<GoalRecord>,
     ),
     site: StationSite,
     hull: PlayerHull,
@@ -667,9 +681,19 @@ fn update_jobs_pane(
         }
     });
 
+    let milestone = open_objectives(&chart, &jobs, Some(&items), hold, &progress, &record)
+        .into_iter()
+        .find_map(|objective| match objective {
+            OpenObjectiveType::Milestone(line) => Some(line),
+            OpenObjectiveType::Job { .. } => None,
+        });
+
     let view = JobsView {
         board,
         held,
+        goal_title: progress.title.clone(),
+        milestone,
+        goal_met_at: record.met_at,
         docked: partner.is_some(),
         inspector,
     };
@@ -838,7 +862,7 @@ fn bare_meter(width: f32, fraction: f32) -> impl Bundle {
 }
 
 /// A `have / need` meter: a display meter with the counts beside it.
-fn meter(have: u32, need: u32) -> impl Bundle {
+fn meter(have: u64, need: u64) -> impl Bundle {
     let fraction = if need == 0 {
         0.0
     } else {
@@ -1054,6 +1078,52 @@ fn held_panel(
                         UiColor::Label,
                     ));
                 });
+            let goal = match (&view.milestone, view.goal_met_at) {
+                (Some(line), _) => Some((
+                    format!("{}: {}", view.goal_title, line.label),
+                    UiColor::Primary,
+                    Some((line.have, line.need)),
+                )),
+                (None, Some(at)) => Some((
+                    format!(
+                        "{}: Goal reached at {}",
+                        view.goal_title,
+                        play_time_text(at)
+                    ),
+                    UiColor::Accent,
+                    None,
+                )),
+                (None, None) => None,
+            };
+            if let Some((text, color, progress)) = goal {
+                panel
+                    .spawn((
+                        Name::new(JOBS_MILESTONE),
+                        Node {
+                            padding: UiRect::axes(px(13), px(3)),
+                            column_gap: px(12),
+                            flex_shrink: 0.0,
+                            ..control_row(JustifyContent::FlexStart)
+                        },
+                    ))
+                    .with_children(|row| {
+                        row.spawn(fixed(
+                            ICON_PX,
+                            icon_node(
+                                icons.chart(ChartIconType::Milestone),
+                                ChartIconType::Milestone.color(),
+                                18.0,
+                            ),
+                        ));
+                        row.spawn(grow_cell(&text, 13.0, color));
+                        match progress {
+                            Some((have, need)) => row.spawn(fixed(PROGRESS_PX, meter(have, need))),
+                            None => row.spawn(fixed(PROGRESS_PX, ())),
+                        };
+                        row.spawn(fixed(PLACE_PX, ()));
+                        row.spawn(fixed(ACTION_PX, ()));
+                    });
+            }
             table_head(
                 panel,
                 &[
@@ -1077,7 +1147,7 @@ fn held_panel(
                         icon_node(icons.job(row.icon), row.icon.color(), 18.0),
                     ));
                     r.spawn(grow_cell(&row.title, 13.0, UiColor::Primary));
-                    r.spawn(fixed(PROGRESS_PX, meter(row.have, row.need)));
+                    r.spawn(fixed(PROGRESS_PX, meter(row.have.into(), row.need.into())));
                     match &row.hand_in {
                         HandInType::Here => {
                             r.spawn(fixed(PLACE_PX, badge(BadgeKind::Green, "HAND IN HERE")));
@@ -1186,7 +1256,7 @@ fn inspector_panel(
         })
         .with_children(|row| {
             row.spawn(cell(LABEL_PX, "Progress", 12.0, UiColor::Label));
-            row.spawn(meter(have, need));
+            row.spawn(meter(have.into(), need.into()));
         });
     }
     if let Some(refusal) = &job.refusal {

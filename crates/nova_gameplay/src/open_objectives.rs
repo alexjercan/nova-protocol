@@ -1,6 +1,6 @@
 //! The open objectives of a world: what the player has to do now. One rule
-//! ([`open_objectives`]) feeds the Map's OBJECTIVES block, the HUD's
-//! objective chips and the world save header, so the three never list
+//! ([`open_objectives`]) feeds the Map's OBJECTIVES block, the Jobs pane's
+//! milestone row and the world save header, so the three never list
 //! different things.
 //!
 //! It reads the session resources as they stand: the held [`Jobs`], the

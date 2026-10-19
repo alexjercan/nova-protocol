@@ -269,9 +269,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The Map's chart view lists your OBJECTIVES: each job you took with have /
   need and its hand-in station, and the role's next unmet milestone. Click a
   job to select its mark.
-- The open world keeps a quiet amber objective column on the right edge: the
-  goal's next unmet milestone, up to three held jobs with have / need and
-  hand-in, then one overflow chip.
+- The Jobs pane shows the start role's next unmet milestone with have / need
+  over your held jobs, or the play time the goal was reached.
 - Alt-tab no longer pauses play by default. Settings > Graphics > Pause when
   unfocused turns the focus pause back on.
 - A Sandbox ship's Station box spawns it as a station. Station Check names

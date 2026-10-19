@@ -43,7 +43,8 @@ pub(crate) enum BodyIconType {
 
 /// What the Map's chart view, its panel, its log and its legend draw a find
 /// as: a cell's contents by cluster type, a cell itself, the found marks and
-/// the own ship; and what the OBJECTIVES block draws a milestone as.
+/// the own ship; and what the OBJECTIVES block and the Jobs pane's
+/// milestone row draw a milestone as.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum ChartIconType {
     Asteroids,
@@ -56,7 +57,7 @@ pub(crate) enum ChartIconType {
     Wreck,
     Job,
     You,
-    /// A role milestone, in the OBJECTIVES block.
+    /// A role milestone, in the OBJECTIVES block and the Jobs pane.
     Milestone,
 }
 

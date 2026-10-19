@@ -11,16 +11,15 @@
 //! Jobs pane and opens the Map's chart view: its OBJECTIVES block must list
 //! the held job with its `have / need` and the starting station's code, and
 //! only the role's next unmet milestone; it is shot and the chart view
-//! closed. The walk undocks: in flight the HUD's objective chips must list
-//! the same job and milestone, and they are shot. Stations are a
-//! civilization apart, so no other
-//! one streams in round the start; the walk teleports to the pinned
-//! waystation's cell, picks the nearest living, non-Enemy station outside
-//! the start's cell other than the starting station, jumps beside it, and is
-//! put on a berth at its collar each frame until the dock takes; the walk
-//! never flies the approach (`system_station_docking` does). It undocks and
-//! teleports past the cell's +X edge into a third cell, so the player has
-//! entered exactly three cells.
+//! closed. The walk undocks: in flight the interface's Jobs pane must show
+//! the same milestone over the held job, and it is shot. Stations are a
+//! civilization apart, so no other one streams in round the start; the walk
+//! teleports to the pinned waystation's cell, picks the nearest living,
+//! non-Enemy station outside the start's cell other than the starting
+//! station, jumps beside it, and is put on a berth at its collar each frame
+//! until the dock takes; the walk never flies the approach
+//! (`system_station_docking` does). It undocks and teleports past the cell's
+//! +X edge into a third cell, so the player has entered exactly three cells.
 //!
 //! The chart must hold those three cells and the station with the summary
 //! seen on the undock: its name, services and the stock in its hold. The Map
@@ -42,7 +41,7 @@
 //! | 6 | `outcome: the leave save holds the chart and the start` | the leave save, read with [`open_world`], holds the three cells, the station's summary and the starting station's id |
 //! | 7 | `outcome: a loaded world restores the chart` | after Load the live chart holds the same three cells and the same station summary, and the session names the same starting station |
 //! | 8 | `outcome: the chart's objectives list what the player has to do` | at the start, with a procurement held, the OBJECTIVES block lists a `JOB-1` row with the job's title, `have / need` and the starting station's `STN-n`, and one milestone row: the role goal's first unmet line with its `have / need`; no other goal line and no `Goal reached at` row shows |
-//! | 9 | `outcome: the HUD's objective chips list what the Map lists` | after the undock, in flight, the objective chips column shows; its milestone slot reads the goal's first unmet line with `have / need`, the first job slot reads `JOB-1`, the job's title, `have / need` and `> STN-n`, and the other job slots and the overflow slot are hidden |
+//! | 9 | `outcome: the Jobs pane shows the next unmet milestone in flight` | after the undock, in flight, the interface's Jobs pane shows the `JobsMilestone` row reading the goal's title and first unmet line with its `have / need`, and the held row `JobRowHeld-0` with the job's title |
 //!
 //! ONE SUBJECT: the chart a streamed world keeps. The save's refusal of an
 //! unknown item named by a chart is unit-tested in `nova_world_base::save`.
@@ -56,9 +55,8 @@
 //! ```
 //! `NOVA_CAPTURE=1` also writes `start-docked-station.png` of the Station
 //! pane at the starting station, `map-objectives.png` of the chart view's
-//! OBJECTIVES block at the start, `hud-objectives.png` of the flight HUD's
-//! objective chips after the undock and `map-chart-view.png` of the chart
-//! view.
+//! OBJECTIVES block at the start, `jobs-milestone.png` of the Jobs pane's
+//! milestone row in flight and `map-chart-view.png` of the chart view.
 
 use bevy::prelude::*;
 use clap::Parser;
@@ -123,7 +121,7 @@ mod walk {
     use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
     use nova_protocol::{
         nova_debug::harness::{press_action, release_action, shoot, AutopilotPlugin, Predicate},
-        nova_interface::pane::InterfacePaneType,
+        nova_interface::{jobs::prelude::JOBS_MILESTONE, pane::InterfacePaneType},
         prelude::*,
     };
     use nova_ui::widget::TextFieldValue;
@@ -164,8 +162,8 @@ mod walk {
     const START_SHOT: &str = "start-docked-station.png";
     /// The shot of the chart view's OBJECTIVES block at the start.
     const OBJECTIVES_SHOT: &str = "map-objectives.png";
-    /// The shot of the flight HUD's objective chips after the undock.
-    const HUD_OBJECTIVES_SHOT: &str = "hud-objectives.png";
+    /// The shot of the Jobs pane's milestone row in flight.
+    const JOBS_MILESTONE_SHOT: &str = "jobs-milestone.png";
     /// The `Name` prefix of the OBJECTIVES block's rows.
     const OBJECTIVE_ROW_PREFIX: &str = "MapChartObjective";
 
@@ -905,91 +903,41 @@ mod walk {
         info!("world chart: PASS the objectives read {rows:?}");
     }
 
-    /// The texts and the visibility of each objective chip slot, in slot
-    /// order.
-    fn objective_chips(world: &mut World) -> Vec<(usize, Vec<String>, Visibility)> {
-        let slots: Vec<(Entity, usize, Visibility)> = world
-            .query::<(Entity, &ObjectiveChipSlot, &Visibility)>()
-            .iter(world)
-            .map(|(entity, slot, visibility)| (entity, slot.0, *visibility))
-            .collect();
-        let mut chips: Vec<_> = slots
-            .into_iter()
-            .map(|(entity, slot, visibility)| (slot, texts_under(world, entity), visibility))
-            .collect();
-        chips.sort_by_key(|(slot, _, _)| *slot);
-        chips
-    }
-
-    /// Claim 9: in flight, the HUD's objective chips list the held job and
-    /// the next unmet milestone the Map listed, in their fixed slots.
-    fn assert_the_hud_objectives(world: &mut World) {
-        let open = world
-            .query_filtered::<&HudContextGate, With<ObjectiveChipsHudMarker>>()
-            .single(world)
-            .map(|gate| gate.0)
-            .expect("world chart: the flight HUD holds the objective chips");
-        let chips = objective_chips(world);
+    /// Claim 9: in flight, the Jobs pane's held panel shows the role goal's
+    /// next unmet milestone the Map listed, over the held job's row.
+    fn assert_the_jobs_milestone(world: &mut World) {
         assert!(
-            open,
-            "world chart: the objective chips show in flight: {chips:?}"
+            the_player(world).is_some_and(|player| world.get::<DockedShip>(player).is_none()),
+            "world chart: the Jobs pane is read in flight"
         );
-        let job = world.resource::<Jobs>().held()[0].clone();
-        let title = job.title(world.resource::<GameItems>());
-        let hand_in = world
-            .resource::<Chart>()
-            .station_code(&job.target)
-            .expect("world chart: the chart holds the hand-in station");
         let goal = world.resource::<GoalProgress>().clone();
         let next = goal
             .lines
             .iter()
             .find(|line| line.have < line.need)
             .expect("world chart: a fresh role has an unmet milestone");
-        let text = |slot: usize| -> String {
-            let (_, texts, visibility) = chips
-                .iter()
-                .find(|(found, _, _)| *found == slot)
-                .unwrap_or_else(|| panic!("world chart: no chip slot {slot}: {chips:?}"));
-            assert_ne!(
-                *visibility,
-                Visibility::Hidden,
-                "world chart: chip slot {slot} shows: {chips:?}"
-            );
-            texts.concat()
-        };
-        let milestone = text(0);
+        let row = named_row(world, JOBS_MILESTONE)
+            .expect("world chart: the Jobs pane shows the milestone row");
+        let label = format!("{}: {}", goal.title, next.label);
+        let meter = format!("{} / {}", next.have, next.need);
         assert!(
-            milestone.starts_with(&next.label)
-                && milestone.ends_with(&format!("{} / {}", next.have, next.need)),
-            "world chart: the milestone chip reads '{}' {} / {}: {chips:?}",
-            next.label,
-            next.have,
-            next.need
+            row.contains(&label) && row.contains(&meter),
+            "world chart: the milestone row reads '{label}' {meter}: {row:?}"
         );
-        let job_chip = text(1);
+        let job = world.resource::<Jobs>().held()[0].clone();
+        let title = job.title(world.resource::<GameItems>());
+        let held = named_row(world, "JobRowHeld-0")
+            .expect("world chart: the Jobs pane lists the held job");
         assert!(
-            job_chip.starts_with("JOB-1")
-                && job_chip.contains(&title)
-                && job_chip.split("  ").any(have_need)
-                && job_chip.ends_with(&format!("> {hand_in}")),
-            "world chart: the job chip reads JOB-1, '{title}', have / need and {hand_in}: \
-             {chips:?}"
+            held.contains(&title),
+            "world chart: the held row reads '{title}': {held:?}"
         );
-        for (slot, _, visibility) in chips.iter().filter(|(slot, _, _)| *slot > 1) {
-            assert_eq!(
-                *visibility,
-                Visibility::Hidden,
-                "world chart: one held job leaves chip slot {slot} hidden: {chips:?}"
-            );
-        }
-        let read: Vec<String> = [milestone, job_chip].into();
         nova_probe::probe_marker(
             world,
-            "outcome: the HUD's objective chips list what the Map lists",
-            serde_json::json!({ "chips": read }),
+            "outcome: the Jobs pane shows the next unmet milestone in flight",
+            serde_json::json!({ "milestone": row, "held": held }),
         );
-        info!("world chart: PASS the HUD objective chips read {read:?}");
+        info!("world chart: PASS the Jobs pane milestone reads {row:?} over {held:?}");
     }
 
     /// Claim 3: the chart's visited cells are exactly the three entered.
@@ -1414,15 +1362,28 @@ mod walk {
             })
             .until(and(player_free(), frames(SETTLE_FRAMES)))
             .deadline(SESSION_SECS)
-            .add()
-            .step("world chart: assert the HUD objectives")
-            .on_enter(assert_the_hud_objectives)
-            .add()
-            .step("world chart: shoot the HUD objectives")
-            .on_enter(|world: &mut World| shoot(world, HUD_OBJECTIVES_SHOT))
-            .until(shot_written(HUD_OBJECTIVES_SHOT))
-            .deadline(BEAT_SECS)
-            .add()
+            .add();
+        let script = tap(
+            script,
+            "the interface key in flight",
+            "interface_toggle",
+            the_interface_shows(None),
+        )
+        .click_named(
+            "world chart: open the Jobs pane in flight",
+            "InterfaceTabJobs",
+            and(ui_node_present(JOBS_MILESTONE), frames(SETTLE_FRAMES)),
+            BEAT_SECS,
+        )
+        .step("world chart: assert the Jobs pane milestone")
+        .on_enter(assert_the_jobs_milestone)
+        .add()
+        .step("world chart: shoot the Jobs pane milestone")
+        .on_enter(|world: &mut World| shoot(world, JOBS_MILESTONE_SHOT))
+        .until(shot_written(JOBS_MILESTONE_SHOT))
+        .deadline(BEAT_SECS)
+        .add();
+        let script = tap(script, "the interface key", "interface_toggle", unpaused())
             .step("world chart: jump to the waystation's cell")
             .on_enter(jump_to_the_waystation_cell)
             .until(and(
