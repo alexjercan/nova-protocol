@@ -8,9 +8,10 @@
 //! generated them, and every held job ([`Jobs`]) as a mark in its target's
 //! cell. A station mark reads its state: a living station in the living
 //! colour, a dead one faint in the danger colour, the player's own in the
-//! ally colour, and a ring under one that refuses the player a dock right
-//! now. Marks and cell tags are projected UI labels, like the local blips,
-//! and each selects what it names and focuses the view on its cell; a click
+//! ally colour, and a ring under one hostile enough to refuse the player a
+//! dock right now. Marks and cell tags are projected UI labels, like the
+//! local blips, and each selects what it names and focuses the view on its
+//! cell; a click
 //! on the selected one, Reframe, or the selected job leaving the held list
 //! clears the selection. A mark's label shows a code minted from the
 //! chart's found order (or the jobs' accept order), never a name: the open
@@ -40,7 +41,7 @@
 use bevy::{camera::visibility::RenderLayers, prelude::*, ui_widgets::Activate};
 use nova_events::prelude::{GeneratedBodyId, SectorCoord};
 use nova_gameplay::prelude::*;
-use nova_ship::prelude::DockAdmission;
+use nova_ship::prelude::{DockAdmission, DockRefusalType};
 use nova_ui::{
     prelude::{button, ButtonSpec},
     theme::{ActiveUiTheme, UiColor},
@@ -98,7 +99,12 @@ pub(crate) enum MapChartMarkType {
 /// reads the default: it neither refuses nor posts.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct ChartStationLive {
-    /// It refuses the player a dock right now ([`DockAdmission`]).
+    /// It refuses the player a dock right now for hostility
+    /// ([`DockRefusalType::EnemyStation`] or
+    /// [`DockRefusalType::HostileStation`]). A station with every port held
+    /// answers [`DockRefusalType::StationOccupied`] first, whatever its side,
+    /// and does not count: a held port frees on undock, and the player's own
+    /// dock holds one.
     pub(crate) refusing: bool,
     /// How many jobs its board posts that the player neither holds nor has
     /// completed.
@@ -349,8 +355,8 @@ pub(crate) fn on_map_chart_button(_activate: On<Activate>, mut runtime: ResMut<M
 }
 
 /// The live facts of every found station standing in the streamed window,
-/// in id order: whether it refuses `player` a dock and how many jobs its
-/// board posts that `jobs` neither holds nor has completed.
+/// in id order: whether it refuses `player` a dock for hostility and how many
+/// jobs its board posts that `jobs` neither holds nor has completed.
 fn chart_station_live(
     chart: &Chart,
     jobs: &Jobs,
@@ -369,7 +375,12 @@ fn chart_station_live(
                     .filter(|job| !jobs.holds(&job.id) && !jobs.is_completed(&job.id))
                     .count() as u32
             });
-            let refusing = player.is_some_and(|player| admission.refusal(player, entity).is_some());
+            let refusing = player.is_some_and(|player| {
+                matches!(
+                    admission.refusal(player, entity),
+                    Some(DockRefusalType::EnemyStation | DockRefusalType::HostileStation)
+                )
+            });
             (id.clone(), ChartStationLive { refusing, posting })
         })
         .collect();
@@ -1933,7 +1944,74 @@ pub(crate) fn map_chart_button() -> impl Bundle {
 
 #[cfg(test)]
 mod tests {
+    use bevy::ecs::system::RunSystemOnce;
+    use nova_ship::prelude::{DockedPort, DockingSectionMarker};
+
     use super::*;
+
+    /// A found station refuses the player on the chart only for hostility: a
+    /// Player-side station whose one port the player's own dock holds and a
+    /// Neutral one with every port held stay clear, while an Enemy one with
+    /// a free port still refuses.
+    #[test]
+    fn the_chart_marks_a_station_refusing_only_for_hostility_not_for_held_ports() {
+        let mut world = World::new();
+        world.init_resource::<Chart>();
+        world.init_resource::<Jobs>();
+        let player = world
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Allegiance::Player,
+            ))
+            .id();
+        let mut station = |index: u32, allegiance: Allegiance, held: bool| {
+            let id = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", index);
+            world
+                .resource_mut::<Chart>()
+                .find_station(&id, false, false, None, 0.0);
+            let entity = world
+                .spawn((SpaceshipRootMarker, StationMarker, allegiance, id.clone()))
+                .id();
+            let port = world.spawn((DockingSectionMarker, ChildOf(entity))).id();
+            if held {
+                world
+                    .entity_mut(port)
+                    .insert(DockedPort(Entity::PLACEHOLDER));
+            }
+            id
+        };
+        let ally = station(0, Allegiance::Player, true);
+        let enemy = station(1, Allegiance::Enemy, false);
+        let neutral = station(2, Allegiance::Neutral, true);
+
+        let live = world
+            .run_system_once(
+                move |chart: Res<Chart>,
+                      jobs: Res<Jobs>,
+                      stations: Query<
+                    (Entity, &GeneratedBodyId, Option<&JobBoard>),
+                    With<StationMarker>,
+                >,
+                      admission: DockAdmission| {
+                    chart_station_live(&chart, &jobs, Some(player), &stations, &admission)
+                },
+            )
+            .expect("the chart reads the live stations");
+        let refusing = |id: &GeneratedBodyId| live_of(&live, id).refusing;
+        assert!(
+            !refusing(&ally),
+            "the player's own dock holding the ally's port is no refusal"
+        );
+        assert!(
+            refusing(&enemy),
+            "an Enemy station with a free port refuses"
+        );
+        assert!(
+            !refusing(&neutral),
+            "a Neutral station with every port held is no refusal"
+        );
+    }
 
     /// Chart labels lay out in screen space: a docked ship's YOU tag on its
     /// station's anchor moves just under the station's label, a label clear

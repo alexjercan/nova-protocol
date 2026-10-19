@@ -232,9 +232,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The Map's chart view draws each entered cell as a textured tile per cluster
   type, outlines cells you never entered and rings the selected mark's cell
   in the accent.
-- Chart station marks show their state: dead marks fade, a station refusing
-  you docking wears a red ring, and one with open jobs adds their count to
-  its code, as `STN-1 (3)`.
+- Chart station marks show their state: dead marks fade, an Enemy or hostile
+  station wears a red ring, and one with open jobs adds their count to its
+  code, as `STN-1 (3)`.
 - Selecting a chart cell or mark opens a SECTOR block of icon rows: contents,
   entered time, finds, the stock and services seen at your last dock there
   and the jobs posted there.
