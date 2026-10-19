@@ -28,6 +28,7 @@ use std::{
 // Bevy's platform Instant, not std's - `std::time::Instant::now` panics
 // on wasm32-unknown-unknown, which this crate ships to.
 use bevy::{platform::time::Instant, prelude::*};
+use nova_gameplay::prelude::SectionClass;
 use nova_ship::prelude::*;
 
 use crate::{
@@ -117,6 +118,7 @@ pub(crate) fn sync_editor_skin(
                     config.base.collider.unwrap_or_default(),
                 ),
                 exit: exit_normal(&config.kind),
+                port: config.kind.class() == SectionClass::Docking,
             })
         })
         .collect();
@@ -264,6 +266,7 @@ fn ghost_section<'a>(
         link_points: part.base.link_points.as_slice(),
         footprint: *SectionFootprint::from_collider(part.base.collider.unwrap_or_default()),
         exit: exit_normal(&part.kind),
+        port: part.kind.class() == SectionClass::Docking,
     })
 }
 

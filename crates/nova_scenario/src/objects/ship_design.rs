@@ -128,9 +128,10 @@ pub struct ShipPresentationConfig {
     /// structure at spawn, with nothing authored and nothing saved. See
     /// `ShipSkin`.
     ///
-    /// `false` by default, and off for every shipped design: the derivation
-    /// reads a hull as unit cells, which the catalog's cube sections are and
-    /// the modelled semantic parts are not.
+    /// `false` by default: the derivation reads a hull as unit cells, which
+    /// the catalog's cube sections are and the modelled semantic parts are
+    /// not. Designs built of cube sections set it: generated ships and
+    /// stations and the block-built base ships.
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "is_false"))]
     pub skin: bool,
     /// The LOOK the derived skin wears, by style id: the material of each

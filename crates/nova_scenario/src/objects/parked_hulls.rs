@@ -11,10 +11,13 @@
 //! A station's hulls arrive as [`PendingParkedHulls`]: the offers of a
 //! generated station's first spawn, or the records of a thaw.
 //! [`park_pending_hulls`] spawns them once the station's ports are live: a
-//! hull for sale at the first free station port where it stands clear
-//! ([`parked_hull_clear_pose`]), one port always kept free for the player,
-//! a thawed docked hull where it froze relative to the station, and every
-//! escort for hire on a line through the station ([`hire_offer_offsets`]).
+//! hull for sale at the first free station port where one of its own ports
+//! lets it stand clear of the station, plating included
+//! ([`parked_hull_clear_pose`]), one port always kept free for the player
+//! (at the starting station, the berth the fresh player ship takes,
+//! [`outward_berth`]), a thawed docked hull where it froze relative to the
+//! station, and every escort for hire on a line through the station
+//! ([`hire_offer_offsets`]).
 //! [`dock_parked_hulls`] then docks each hull for sale or owned with the port
 //! it lies on.
 //!
@@ -31,7 +34,7 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use nova_events::prelude::MetersPerSecond3;
+use nova_events::prelude::{GeneratedBodyId, MetersPerSecond3};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 
@@ -42,14 +45,15 @@ use crate::objects::{
         prelude::{FrozenShip, SpaceshipConfig, SpaceshipController},
         spaceship_scenario_object, thaw_ship,
     },
+    start_role::prelude::{GameStartRoles, OpenWorldSession},
     station_hulls::prelude::StationHullOffer,
 };
 
 /// The parked hull records, the pending list and the plugin.
 pub mod prelude {
     pub use super::{
-        freeze_parked_hulls, FrozenParkedHull, ParkedHullsPlugin, PendingParkedHull,
-        PendingParkedHulls,
+        freeze_parked_hulls, parked_envelopes, FrozenParkedHull, ParkedHullsPlugin,
+        PendingParkedHull, PendingParkedHulls,
     };
 }
 
@@ -234,18 +238,24 @@ fn offer_hull(offer: &StationHullOffer) -> impl Bundle {
 ///
 /// On a design that does not resolve: the manifest check and the catalog
 /// digest refuse one before a station carries it.
+/// The sections of hull `name`'s design `source`, and whether the design
+/// wears the derived skin (its `presentation.skin`, the root's [`ShipSkin`]).
+///
+/// # Panics
+///
+/// When the design does not resolve.
 fn resolve_hull(
     source: &ShipDesignSource,
     name: &str,
     game_designs: &GameShipDesigns,
     game_sections: &GameSections,
-) -> Vec<DesignSection> {
+) -> (Vec<DesignSection>, bool) {
     let (resolved, errors) = resolve_ship_design(source, game_designs, game_sections);
     assert!(
         errors.is_empty(),
         "park_pending_hulls: hull '{name}' does not resolve: {errors:?}"
     );
-    resolved
+    let sections = resolved
         .sections
         .into_iter()
         .map(|section| DesignSection {
@@ -254,16 +264,22 @@ fn resolve_hull(
             rotation: section.rotation,
             config: section.config,
         })
-        .collect()
+        .collect();
+    (sections, resolved.presentation.skin)
 }
 
 /// Park every station's pending hulls once its sections are live: a hull
-/// for sale, in catalogue order, on its first docking port at the first free
-/// station port in design order where it stands clear of the station, of
-/// the hulls parked before it and of the other free ports' approach lanes
+/// for sale, in catalogue order, at the first free station port in design
+/// order where one of its docking ports, tried in design order, lets it
+/// stand clear of the station, of the hulls parked before it and of the
+/// other free ports' approach lanes, plating included
 /// ([`parked_hull_clear_pose`]), while two ports are still free, so one
 /// stays free for the player; a hull that fits nowhere is dropped with a
-/// warning. A thawed docked hull parks where it froze relative to the
+/// warning. At the session's starting station new offers park round the
+/// fresh player ship: the berth it will take ([`outward_berth`], with
+/// nothing parked) is that port, out of the free ones, and its envelope
+/// stands in every sale's way, so `berth_at_start` finds the same berth
+/// once the sales are docked. A thawed docked hull parks where it froze relative to the
 /// station, moving as the station moves. Every escort for hire, new or
 /// thawed, coasts where [`hire_offer_place`] puts it.
 ///
@@ -273,31 +289,42 @@ fn resolve_hull(
 /// # Panics
 ///
 /// On new offers beside thawed hulls (a thawed station carries no new
-/// offers), and on an offer whose design does not resolve or a hull for sale
-/// with no docking port.
+/// offers), on an offer whose design does not resolve or a hull for sale
+/// with no docking port, and at the starting station on a session start role
+/// whose hull is not in the loaded content.
 #[expect(
     clippy::type_complexity,
-    reason = "the station's pending list, pose, motion and design in one query"
+    reason = "the station's pending list, id, pose, motion, design and skin in one query"
 )]
 fn park_pending_hulls(
     mut commands: Commands,
     game_designs: Res<GameShipDesigns>,
     game_sections: Res<GameSections>,
+    session: Option<Res<OpenWorldSession>>,
+    game_roles: Option<Res<GameStartRoles>>,
     q_stations: Query<(
         Entity,
         &PendingParkedHulls,
+        Option<&GeneratedBodyId>,
         &Transform,
         Option<&LinearVelocity>,
         Option<&AngularVelocity>,
         Option<&ShipDesignSections>,
+        Option<&ShipSkin>,
     )>,
     q_wells: Query<(&Transform, &GravityWell)>,
 ) {
-    for (station, pending, transform, velocity, spin, design) in &q_stations {
+    for (station, pending, id, transform, velocity, spin, design, skin) in &q_stations {
         // The section spawn has yet to run.
         let Some(design) = design else {
             continue;
         };
+        let ShipSkin(station_skin) = *skin.unwrap_or_else(|| {
+            panic!(
+                "park_pending_hulls: station {station:?} has its sections but no ShipSkin; the \
+                 section spawn inserts both"
+            )
+        });
         let velocity = velocity.copied().unwrap_or_default();
         let spin = spin.copied().unwrap_or_default();
         let mut free: Vec<usize> = (0..design.0.len())
@@ -322,7 +349,44 @@ fn park_pending_hulls(
             (&game_designs, &game_sections),
         )
         .into_iter();
+        // What a sale must stand clear of besides the station: the hulls
+        // parked before it and, at the starting station, the player ship.
         let mut parked: Vec<PlacedSectionCollider> = Vec::new();
+        let mut reserved = 0;
+        // Derived on the first sale: a clad station's envelope is its whole
+        // skin, and every sale tries it at every free port.
+        let mut station_envelope: Option<Vec<PlacedSectionCollider>> = None;
+        let starting = id
+            .zip(session.as_deref())
+            .is_some_and(|(id, session)| session.is_starting_station(id));
+        if offers > 0 && starting {
+            let role = session.as_deref().map(|session| &session.role);
+            let hull = game_roles
+                .as_deref()
+                .zip(role)
+                .and_then(|(roles, role)| roles.get_role(role))
+                .map(|role| role.hull.clone())
+                .unwrap_or_else(|| {
+                    panic!("park_pending_hulls: the session's start role {role:?} is not loaded")
+                });
+            let (ship, ship_skin) = resolve_hull(
+                &ShipDesignSource::prototype(hull.clone()),
+                &hull.to_string(),
+                &game_designs,
+                &game_sections,
+            );
+            match outward_berth(&design.0, station_skin, &ship, ship_skin, &[], &[]) {
+                Some((berth, _, at, turn)) => {
+                    free.retain(|&port| port != berth);
+                    reserved = 1;
+                    parked.extend(design_envelope(&ship, ship_skin, (at, turn)));
+                }
+                None => error!(
+                    "park_pending_hulls: the player ship '{hull}' stands clear of starting \
+                     station {station:?} at no port; its hulls park with no berth kept for it"
+                ),
+            }
+        }
         for hull in &pending.0 {
             match hull {
                 PendingParkedHull::Offer(offer) if offer.terms != HullOfferType::Sale => {
@@ -350,7 +414,8 @@ fn park_pending_hulls(
                     hull.insert((LinearVelocity(motion), AngularVelocity::ZERO));
                 }
                 PendingParkedHull::Offer(offer) => {
-                    if free.len() < 2 {
+                    // The player ship's berth is the port the rule keeps.
+                    if free.len() + reserved < 2 {
                         warn!(
                             "park_pending_hulls: station {station:?} keeps its last free port; \
                              '{}' is not parked",
@@ -358,21 +423,27 @@ fn park_pending_hulls(
                         );
                         continue;
                     }
-                    let sections = resolve_hull(
+                    let (sections, hull_skin) = resolve_hull(
                         &ShipDesignSource::Inline(offer.design.clone()),
                         &offer.name,
                         &game_designs,
                         &game_sections,
                     );
-                    let port = sections
-                        .iter()
-                        .position(|section| section.config.kind.class() == SectionClass::Docking)
-                        .unwrap_or_else(|| {
-                            panic!(
-                                "park_pending_hulls: hull '{}' has no docking port",
-                                offer.name
-                            )
-                        });
+                    let ports: Vec<usize> = (0..sections.len())
+                        .filter(|&index| {
+                            sections[index].config.kind.class() == SectionClass::Docking
+                        })
+                        .collect();
+                    assert!(
+                        !ports.is_empty(),
+                        "park_pending_hulls: hull '{}' has no docking port",
+                        offer.name
+                    );
+                    let station_envelope = station_envelope.get_or_insert_with(|| {
+                        design_envelope(&design.0, station_skin, (Vec3::ZERO, Quat::IDENTITY))
+                    });
+                    let hull_envelope =
+                        design_envelope(&sections, hull_skin, (Vec3::ZERO, Quat::IDENTITY));
                     let fit = free.iter().enumerate().find_map(|(slot, &berth)| {
                         let mut obstacles = parked.clone();
                         obstacles.extend(
@@ -380,8 +451,18 @@ fn park_pending_hulls(
                                 .filter(|&&other| other != berth)
                                 .map(|&other| approach_lane(&design.0[other])),
                         );
-                        parked_hull_clear_pose(&design.0, berth, &sections, port, &obstacles)
+                        ports.iter().find_map(|&port| {
+                            parked_hull_clear_pose(
+                                &design.0,
+                                station_envelope,
+                                berth,
+                                &sections,
+                                &hull_envelope,
+                                port,
+                                &obstacles,
+                            )
                             .map(|pose| (slot, pose))
+                        })
                     });
                     let Some((slot, (at, turn))) = fit else {
                         warn!(
@@ -392,7 +473,11 @@ fn park_pending_hulls(
                         continue;
                     };
                     let berth = free.remove(slot);
-                    parked.extend(posed_colliders(&sections, (at, turn)));
+                    parked.extend(hull_envelope.iter().map(|boxed| PlacedSectionCollider {
+                        position: at + turn * boxed.position,
+                        rotation: turn * boxed.rotation,
+                        collider: boxed.collider,
+                    }));
                     debug!(
                         "park_pending_hulls: station {station:?} parks '{}' at port '{}'",
                         offer.name, design.0[berth].id
@@ -420,6 +505,52 @@ fn park_pending_hulls(
         }
         commands.entity(station).remove::<PendingParkedHulls>();
     }
+}
+
+/// The envelope ([`design_envelope`]) of every hull parked at a port of
+/// `station`, for sale or owned, in the station root's frame: what a ship
+/// berthed at a free port must stand clear of. An escort for hire coasts
+/// away from the ports and is left out.
+///
+/// # Panics
+///
+/// On a station or a parked hull at a port with no pose, no design sections
+/// or no [`ShipSkin`]: a parked hull's spawn and its section spawn give it
+/// all three.
+pub fn parked_envelopes(world: &World, station: Entity) -> Vec<PlacedSectionCollider> {
+    let pose = |entity: Entity| -> (Vec3, Quat) {
+        match (world.get::<Position>(entity), world.get::<Rotation>(entity)) {
+            (Some(position), Some(rotation)) => (position.0, rotation.0),
+            _ => panic!("parked_envelopes: {entity:?} has no pose"),
+        }
+    };
+    let (station_at, station_turn) = pose(station);
+    let into_station = station_turn.inverse();
+    world
+        .get::<ParkedHulls>(station)
+        .into_iter()
+        .flat_map(|parked| parked.iter())
+        .filter(|&hull| {
+            !matches!(
+                world.get::<ParkedHullType>(hull),
+                Some(ParkedHullType::Hire { .. })
+            )
+        })
+        .flat_map(|hull| {
+            let (Some(design), Some(&ShipSkin(skin))) = (
+                world.get::<ShipDesignSections>(hull),
+                world.get::<ShipSkin>(hull),
+            ) else {
+                panic!("parked_envelopes: parked hull {hull:?} has no design sections or skin");
+            };
+            let (at, turn) = pose(hull);
+            design_envelope(
+                &design.0,
+                skin,
+                (into_station * (at - station_at), into_station * turn),
+            )
+        })
+        .collect()
 }
 
 /// Where each escort for hire of `pending` coasts, in list order, and its
@@ -451,7 +582,7 @@ fn hire_places(
             _ => None,
         })
         .map(|(source, name)| {
-            design_reach(&resolve_hull(&source, name, game_designs, game_sections))
+            design_reach(&resolve_hull(&source, name, game_designs, game_sections).0)
         })
         .collect();
     hire_offer_offsets(station_reach, &reaches)

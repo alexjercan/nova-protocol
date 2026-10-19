@@ -13,16 +13,17 @@
 use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
 use bevy::prelude::*;
 use nova_assets::prelude::LoadedSectionPacks;
-use nova_events::prelude::{GeneratedBodyId, Meters3, SectorCoord};
+use nova_events::prelude::{EntityId, GeneratedBodyId, Meters3, SectorCoord};
 use nova_gameplay::prelude::{
     ClusterType, GameItems, PointRotation, PointRotationOutput, SectionInactiveMarker, StanceType,
 };
 use nova_scenario::prelude::{
-    OpenWorldSession, PendingParkedHulls, StartBerthMarker, StartRoleDesignId, StartingStation,
+    parked_envelopes, OpenWorldSession, PendingParkedHulls, StartBerthMarker, StartRoleDesignId,
+    StartingStation,
 };
 use nova_ship::prelude::{
-    parked_hull_pose, DockedPort, DockedShip, DockingConnectionRequest, DockingSectionMarker,
-    GameStyles, ParkedHullType, ParkedHulls,
+    outward_berth, DockedPort, DockedShip, DockingConnectionRequest, DockingSectionMarker,
+    GameStyles, ParkedHullType, ParkedHulls, ShipDesignSections, ShipSkin,
 };
 use nova_world::prelude::{
     sector_id, SectorFault, SectorGenerationInput, SectorGenerator, WorldGeometry,
@@ -223,12 +224,14 @@ pub fn start_session(
 ///
 /// Each frame the ship carries a [`StartBerthMarker`] and the station with
 /// the session's start id stands, with every hull it parks for sale or owned
-/// docked so the berth takes the port left free, the ship is put on the
-/// station's free port that faces most squarely away from it, moving with
-/// the station, the mouse rigs are pointed where the berth points the hull,
-/// and the dock is asked for. The marker comes off once the ship is docked.
-/// A station with no free port, or a ship with none, is logged as an error
-/// and the ship stays where it spawned, undocked.
+/// docked round the berth the parking reserved for the ship, the ship is put
+/// on the berth [`outward_berth`] picks at the station's free ports, clear
+/// of the station and the parked hulls, plating included ([`clear_berth`]),
+/// moving with the station, the mouse rigs are pointed where the berth
+/// points the hull, and the dock is asked for. The marker comes off once
+/// the ship is docked. A ship that stands clear at no free port is logged
+/// as an error and stays where it spawned, undocked: never berthed into a
+/// hull.
 pub(crate) fn berth_at_start(world: &mut World) {
     let Some(start_id) = world
         .get_resource::<OpenWorldSession>()
@@ -269,13 +272,12 @@ pub(crate) fn berth_at_start(world: &mut World) {
             world.entity_mut(ship).remove::<StartBerthMarker>();
             continue;
         }
-        let (Some(station_port), Some(own_port)) = (
-            outward_port(world, station),
-            free_ports(world, ship).into_iter().next(),
-        ) else {
+        let free = free_ports(world, station);
+        let Some((at, turn)) = clear_berth(world, station, &free, ship, &start_id) else {
             error!(
-                "berth_at_start: starting station {start_id} or the player ship has no free \
-                 docking port; the ship stays undocked where it spawned"
+                "berth_at_start: the player ship stands clear of starting station {start_id} \
+                 and its parked hulls at no free port and roll; the ship stays undocked where \
+                 it spawned"
             );
             world.entity_mut(ship).remove::<StartBerthMarker>();
             continue;
@@ -290,11 +292,7 @@ pub(crate) fn berth_at_start(world: &mut World) {
         let spin = world
             .get::<AngularVelocity>(station)
             .map_or(Vec3::ZERO, |w| w.0);
-        let (at, turn) = parked_hull_pose(
-            (position, rotation),
-            local_pose(world, station_port, station),
-            local_pose(world, own_port, ship),
-        );
+        let (at, turn) = (position + rotation * at, (rotation * turn).normalize());
         world.entity_mut(ship).insert((
             Position(at),
             Rotation(turn),
@@ -320,23 +318,6 @@ pub(crate) fn berth_at_start(world: &mut World) {
             target: station,
         });
     }
-}
-
-/// `section`'s position and rotation in `root`'s frame, by its mount chain.
-fn local_pose(world: &World, section: Entity, root: Entity) -> (Vec3, Quat) {
-    let (mut position, mut rotation, mut at) = (Vec3::ZERO, Quat::IDENTITY, section);
-    while at != root {
-        let Some(transform) = world.get::<Transform>(at) else {
-            break;
-        };
-        position = transform.translation + transform.rotation * position;
-        rotation = transform.rotation * rotation;
-        let Some(parent) = world.get::<ChildOf>(at) else {
-            break;
-        };
-        at = parent.parent();
-    }
-    (position, rotation)
 }
 
 /// The free, live docking ports mounted under `root`, lowest first.
@@ -366,19 +347,92 @@ fn free_ports(world: &mut World, root: Entity) -> Vec<Entity> {
     ports
 }
 
-/// The free port of `station` that faces most squarely away from its root,
-/// so the berth sets the ship outside the hull: the lowest port can face into
-/// the station, where a berth crushes both hulls.
-fn outward_port(world: &mut World, station: Entity) -> Option<Entity> {
-    free_ports(world, station)
-        .into_iter()
-        .map(|port| {
-            let (at, rotation) = local_pose(world, port, station);
-            let facing = (rotation * Vec3::NEG_Z).dot(at.normalize_or_zero());
-            (port, facing)
+/// The berth `ship` takes at `station`, as `(position, rotation)` in the
+/// station root's frame: [`outward_berth`] at the station's `free` ports,
+/// clear of its parked hulls ([`parked_envelopes`]), or `None` when it
+/// stands clear at none.
+///
+/// The sale hulls parked round the berth the same rule picked at every
+/// port with nothing parked, so the two agree. When they do not, a hull
+/// took the reserved port or stands in the way, and the disagreement is
+/// logged as an error: the ship still takes the berth it stands clear at,
+/// never the reserved one.
+///
+/// # Panics
+///
+/// When the station or the ship has no design sections or no [`ShipSkin`],
+/// or a free port has no design section: the section spawn gives each root
+/// both and each port its [`EntityId`].
+fn clear_berth(
+    world: &World,
+    station: Entity,
+    free: &[Entity],
+    ship: Entity,
+    start_id: &GeneratedBodyId,
+) -> Option<(Vec3, Quat)> {
+    let design = |root: Entity| {
+        let (Some(design), Some(&ShipSkin(skin))) = (
+            world.get::<ShipDesignSections>(root),
+            world.get::<ShipSkin>(root),
+        ) else {
+            panic!("berth_at_start: {root:?} has no design sections or skin");
+        };
+        (&design.0, skin)
+    };
+    let ((station_sections, station_skin), (ship_sections, ship_skin)) =
+        (design(station), design(ship));
+    let free: Vec<usize> = free
+        .iter()
+        .map(|&port| {
+            world
+                .get::<EntityId>(port)
+                .and_then(|id| {
+                    station_sections
+                        .iter()
+                        .position(|section| section.id == id.0)
+                })
+                .unwrap_or_else(|| panic!("berth_at_start: port {port:?} has no design section"))
         })
-        .max_by(|a, b| a.1.total_cmp(&b.1).then_with(|| b.0.cmp(&a.0)))
-        .map(|(port, _)| port)
+        .collect();
+    let taken: Vec<usize> = (0..station_sections.len())
+        .filter(|index| !free.contains(index))
+        .collect();
+    let reserved = outward_berth(
+        station_sections,
+        station_skin,
+        ship_sections,
+        ship_skin,
+        &[],
+        &[],
+    );
+    let berth = outward_berth(
+        station_sections,
+        station_skin,
+        ship_sections,
+        ship_skin,
+        &taken,
+        &parked_envelopes(world, station),
+    );
+    if let Some((reserved_port, reserved_own, reserved_at, reserved_turn)) = reserved {
+        let same = berth.is_some_and(|(port, own, at, turn)| {
+            port == reserved_port
+                && own == reserved_own
+                && at.abs_diff_eq(reserved_at, 1e-4)
+                && turn.abs_diff_eq(reserved_turn, 1e-4)
+        });
+        if !same {
+            error!(
+                "berth_at_start: the player ship does not take the berth reserved for it at \
+                 port '{}' of starting station {start_id}; it takes {}",
+                station_sections[reserved_port].id,
+                berth.map_or("none".to_string(), |(port, ..)| format!(
+                    "port '{}'",
+                    station_sections[port].id
+                ))
+            );
+        }
+    }
+    berth.map(|(_, _, at, turn)| (at, turn))
 }
 
 #[cfg(test)]

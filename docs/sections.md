@@ -274,13 +274,29 @@ sells small hulls only. They ride `SectorStation.hulls` in the manifest
 `park_pending_hulls` (`nova_scenario/src/objects/parked_hulls.rs`) spawns each
 as a real ship once the station's sections are live, in list order: a hull
 for sale while two ports are free, docked by `dock_parked_hulls`. A hull takes
-the first free port in design order where it stands clear:
-`parked_hull_clear_pose` (`nova_ship/src/sections/hull_buy.rs`) poses it by
-`parked_hull_pose`, the hull's first port facing the station's, and rolls it
-a quarter turn at a time about the port axis until no section overlaps a
-station section, a hull parked before it or the three-cell approach lane of
-another free port (`section_colliders_overlap`). A hull that fits nowhere is
-not parked, with a warning, so a station sells at most its ports less one.
+the first free port in design order where one of its own ports, tried in
+design order, lets it stand clear: `parked_hull_clear_pose`
+(`nova_ship/src/sections/hull_buy.rs`) poses it by `parked_hull_pose`, the
+hull's port facing the station's, and rolls it a quarter turn at a time about
+the port axis until its envelope overlaps no box of the station's envelope,
+of a hull parked before it or of the three-cell approach lane of another free
+port (`section_colliders_overlap`). A design's envelope (`design_envelope`) is
+its section colliders plus, when it wears the derived skin (`ShipSkin`), the
+collider box of each plate `derive_skin` lays: a plate stands in the empty
+cell beside its section, so two clad hulls whose sections only touch clad
+into each other. The skin leaves a docking port's collar bare (the cells one
+step to the side of the port and of the cell in front of its mouth), so a
+mated hull's flank has room there.
+Only the docking pair may touch. A hull that fits nowhere is not parked, with
+a warning, so a station sells at most its ports less one. At the session's
+starting station the fresh player ship berths first: `outward_berth`
+(`hull_buy.rs`) picks its berth, the most outward port first, with nothing
+parked; the parking keeps that port as the free one and parks the sales round
+the ship's envelope. `berth_at_start` (`nova_world_base/src/start.rs`) then
+berths the ship by the same rule, clear of the parked hulls
+(`parked_envelopes`). A berth that differs from the reserved one is logged as
+an error; a ship that fits at no free port is logged as an error and stays
+undocked where it spawned.
 A parked hull is inert: no driver, Neutral, every capability off, not
 lootable, no credits. It carries `ParkedHull(station)` and `ParkedHullType`
 (`Sale`, `Owned` or `Hire { slot }`,
