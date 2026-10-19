@@ -1529,6 +1529,10 @@ mod tests {
         app.add_plugins(bevy::state::app::StatesPlugin);
         app.init_state::<nova_gameplay::PauseStates>();
         app.add_plugins(DockingSectionPlugin { render: false });
+        // Undock spawns an `UndockSeparation` with `JointCollisionDisabled`,
+        // whose avian `on_add` hook reads `JointGraph`. Physics is not in
+        // this app, so the resource is inserted here.
+        app.init_resource::<avian3d::dynamics::solver::joint_graph::JointGraph>();
         app.add_input_context::<FlightInputMarker>();
         app.add_observer(on_flight_burn_input)
             .add_observer(on_autopilot_stop_input)
