@@ -31,10 +31,15 @@
 //! starting station and reads its starter board on the Jobs tab: it lists
 //! exactly the jobs the hull can do (the transport has no weapon, so its
 //! escorts stay off). Then it moves to the chosen station, reads and accepts
-//! the first procurement, undocks, reads the held row and Show on Map in
-//! the chart view, docks again and hands it in. `NOVA_CAPTURE=1` shoots
+//! the first procurement and a second job at another reward, undocks,
+//! selects the second held row and reads its reward, not the first's, in
+//! the inspector and, after Show on Map, in the chart view. With the chart
+//! open it drops the second job, as the world does when its body is lost:
+//! the chart returns to its overview, and so does the Jobs inspector. It
+//! docks again and hands the procurement in. `NOVA_CAPTURE=1` shoots
 //! `sandbox-jobs-starter.png`, `sandbox-jobs-board.png`,
 //! `sandbox-jobs-held.png`, `sandbox-jobs-map.png`,
+//! `sandbox-jobs-map-dropped.png`, `sandbox-jobs-dropped.png`,
 //! `sandbox-jobs-hand-in.png` and `sandbox-jobs-done.png`. Unset, no walk and no deadline run.
 
 use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
@@ -631,6 +636,8 @@ mod smoke {
     const BOARD_SHOT: &str = "sandbox-jobs-board.png";
     const HELD_SHOT: &str = "sandbox-jobs-held.png";
     const MAP_SHOT: &str = "sandbox-jobs-map.png";
+    const MAP_DROPPED_SHOT: &str = "sandbox-jobs-map-dropped.png";
+    const DROPPED_SHOT: &str = "sandbox-jobs-dropped.png";
     const HAND_IN_SHOT: &str = "sandbox-jobs-hand-in.png";
     const DONE_SHOT: &str = "sandbox-jobs-done.png";
 
@@ -818,6 +825,55 @@ mod smoke {
             .expect("job sandbox: the board posts a procurement")
     }
 
+    /// No text node reads what `check` accepts.
+    fn no_text_reads(check: impl Fn(&str) -> bool + Send + Sync + 'static) -> Arc<Predicate> {
+        when(move |world| {
+            world
+                .try_query::<&Text>()
+                .is_none_or(|mut query| query.iter(world).all(|text| !check(&text.0)))
+        })
+    }
+
+    /// The first job on the chosen station's board that the player does not
+    /// hold, that the hull can do and that pays another reward than the held
+    /// procurement, so a reward read off the screen names one job only.
+    fn second_job(world: &mut World) -> JobId {
+        let board = station_root(world)
+            .and_then(|station| world.get::<JobBoard>(station).cloned())
+            .expect("job sandbox: the station posts a board");
+        let fit = player_fit(world);
+        let items = world.resource::<GameItems>();
+        let jobs = world.resource::<Jobs>();
+        let first = &jobs.held()[0];
+        board
+            .0
+            .iter()
+            .find(|job| {
+                !jobs.holds(&job.id)
+                    && job.reward_cr != first.reward_cr
+                    && plan_job_hull_fit(job, items, fit).is_ok()
+            })
+            .map(|job| job.id.clone())
+            .expect("job sandbox: the board posts a second job the hull can do at another reward")
+    }
+
+    /// A text reads the second held job's reward as `<prefix><reward> cr`
+    /// and none reads the first's.
+    fn reads_the_second_reward_only(prefix: &'static str) -> Arc<Predicate> {
+        when(move |world| {
+            let [first, second] = world.resource::<Jobs>().held() else {
+                return false;
+            };
+            let reads = |reward: String| {
+                world
+                    .try_query::<&Text>()
+                    .is_some_and(|mut query| query.iter(world).any(|text| text.0 == reward))
+            };
+            reads(format!("{prefix}{} cr", second.reward_cr))
+                && !reads(format!("{prefix}{} cr", first.reward_cr))
+        })
+    }
+
     /// Press and release a key action, one frame each.
     fn tap(
         script: AutopilotPlugin<GameStates>,
@@ -838,8 +894,9 @@ mod smoke {
     }
 
     /// The smoke walk: read the starter board, move to the chosen station,
-    /// accept the first procurement, undock, read the held row and Show on
-    /// Map, dock again and hand it in, shooting each surface.
+    /// accept the first procurement and a second job, undock, read the
+    /// second held row and Show on Map, drop it with the chart open, dock
+    /// again and hand the procurement in, shooting each surface.
     pub(super) fn script() -> AutopilotPlugin<GameStates> {
         let script = AutopilotPlugin::<GameStates>::new()
             .step("job sandbox: docked at the starting station on the Jobs tab")
@@ -898,6 +955,14 @@ mod smoke {
             })
             .until(and(held_count(1), frames(SETTLE_FRAMES)))
             .deadline(BEAT_SECS)
+            .add()
+            .step("job sandbox: accept a second job at another reward")
+            .on_enter(|world: &mut World| {
+                let id = second_job(world);
+                world.write_message(JobAcceptCommand { id });
+            })
+            .until(and(held_count(2), frames(SETTLE_FRAMES)))
+            .deadline(BEAT_SECS)
             .add();
         let script = tap(script, "the interface key", "interface_toggle", unpaused())
             .step("job sandbox: undock")
@@ -923,14 +988,14 @@ mod smoke {
             ),
             BEAT_SECS,
         )
-        .step("job sandbox: select the held job")
-        .on_enter(|world: &mut World| activate_named(world, "JobRowHeld-0"))
+        .step("job sandbox: select the second held job")
+        .on_enter(|world: &mut World| activate_named(world, "JobRowHeld-1"))
         .until(and(
             and(
                 ui_node_present(JOB_SHOW_ON_MAP),
                 a_text_reads(|text| text.contains("HELD") && !text.contains("JOB")),
             ),
-            frames(SETTLE_FRAMES),
+            and(reads_the_second_reward_only(""), frames(SETTLE_FRAMES)),
         ))
         .deadline(BEAT_SECS)
         .add()
@@ -946,13 +1011,59 @@ mod smoke {
                 the_interface_shows(Some(InterfacePaneType::Map)),
                 a_text_reads(|text| text == "JOB"),
             ),
-            and(a_text_reads(|text| text == "JOB-1"), frames(SETTLE_FRAMES)),
+            and(
+                and(
+                    a_text_reads(|text| text == "JOB-2"),
+                    reads_the_second_reward_only("Reward "),
+                ),
+                frames(SETTLE_FRAMES),
+            ),
         ))
         .deadline(BEAT_SECS)
         .add()
         .step("job sandbox: shoot the chart view")
         .on_enter(|world: &mut World| shoot(world, MAP_SHOT))
         .until(shot_written(MAP_SHOT))
+        .deadline(SHOT_SECS)
+        .add()
+        // The world drops a held job when its body is lost
+        // (`drop_on_loss`); the walk drops it by hand, with its mark
+        // selected in the open chart.
+        .step("job sandbox: drop the selected job with the chart open")
+        .on_enter(|world: &mut World| {
+            let id = world.resource::<Jobs>().held()[1].id.clone();
+            world.resource_mut::<Jobs>().drop(&id);
+        })
+        .until(and(held_count(1), frames(SETTLE_FRAMES)))
+        .deadline(BEAT_SECS)
+        .add()
+        .step("job sandbox: shoot the chart after the drop")
+        .on_enter(|world: &mut World| shoot(world, MAP_DROPPED_SHOT))
+        .until(shot_written(MAP_DROPPED_SHOT))
+        .deadline(SHOT_SECS)
+        .add()
+        .step("job sandbox: the chart returns to its overview")
+        .until(and(
+            and(
+                a_text_reads(|text| text == "OBJECTIVES"),
+                no_text_reads(|text| text.starts_with("Reward ")),
+            ),
+            frames(SETTLE_FRAMES),
+        ))
+        .deadline(BEAT_SECS)
+        .add()
+        .click_named(
+            "job sandbox: the Jobs inspector returns to its overview",
+            "InterfaceTabJobs",
+            and(
+                a_text_reads(|text| text.starts_with("Select a row")),
+                frames(SETTLE_FRAMES),
+            ),
+            BEAT_SECS,
+        )
+        .step("job sandbox: shoot the Jobs tab after the drop")
+        .on_enter(|world: &mut World| shoot(world, DROPPED_SHOT))
+        .until(shot_written(DROPPED_SHOT))
         .deadline(SHOT_SECS)
         .add();
         let script = tap(script, "the interface key", "interface_toggle", unpaused())

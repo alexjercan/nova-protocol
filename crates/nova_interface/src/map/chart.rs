@@ -11,11 +11,11 @@
 //! ally colour, and a ring under one that refuses the player a dock right
 //! now. Marks and cell tags are projected UI labels, like the local blips,
 //! and each selects what it names and focuses the view on its cell; a click
-//! on the selected one, or Reframe, clears the selection. A mark's label
-//! shows a code minted from the chart's found order (or the jobs' accept
-//! order), never a name: the open world names a ship by whose it is. A
-//! station whose board posts jobs the player does not hold adds their count,
-//! `STN-1 (2)`.
+//! on the selected one, Reframe, or the selected job leaving the held list
+//! clears the selection. A mark's label shows a code minted from the
+//! chart's found order (or the jobs' accept order), never a name: the open
+//! world names a ship by whose it is. A station whose board posts jobs the
+//! player does not hold adds their count, `STN-1 (2)`.
 //!
 //! The side panel carries the SECTOR block while a find is selected: the
 //! find's cell, the route to it from the player's cell, its contents as icon
@@ -421,7 +421,9 @@ pub(crate) struct ChartSceneBuild {
 /// Build the chart scene and its labels while the chart view shows, rebuild
 /// them when the chart, the jobs, the selection, the player's cell, a
 /// station's live facts or the theme changes, and tear them down when the
-/// view goes. Hides the local rings and hub meanwhile.
+/// view goes. Hides the local rings and hub meanwhile. Clears a selected
+/// job's mark once the player no longer holds the job, before the side
+/// panel reads the selection.
 #[expect(
     clippy::too_many_arguments,
     reason = "the chart, the live stations, the scene assets and the viewport its labels sit on"
@@ -443,6 +445,15 @@ pub(crate) fn manage_map_chart(
     mut q_anchor: Query<&mut Visibility, With<MapFocusAnchor>>,
     mut built_for: Local<Option<ChartSceneBuild>>,
 ) {
+    // A job dropped or handed in has no mark: a selection left on it would
+    // hide the SECTOR block, the OBJECTIVES block and the log at once.
+    if runtime
+        .chart_selected
+        .as_ref()
+        .is_some_and(|mark| chart_mark_cell(&jobs, mark).is_none())
+    {
+        runtime.chart_selected = None;
+    }
     let local = if runtime.chart {
         Visibility::Hidden
     } else {
@@ -1880,7 +1891,7 @@ pub(crate) fn chart_panel_field(
         (Some(MapChartMarkType::Cell(_)), MapPanelField::Note) => (String::new(), UiColor::Label),
         (Some(MapChartMarkType::Job(id)), MapPanelField::Name) => (
             jobs.job(id)
-                .map_or_else(|| "Job closed".to_string(), |job| job_title(job, items)),
+                .map_or_else(String::new, |job| job_title(job, items)),
             UiColor::Body,
         ),
         (Some(MapChartMarkType::Job(_)), MapPanelField::Kind) => {
