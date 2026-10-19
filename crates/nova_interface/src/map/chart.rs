@@ -9,10 +9,10 @@
 //! cell. A station mark reads its state: a living station in the living
 //! colour, a dead one faint in the danger colour, the player's own in the
 //! ally colour, and a ring under one hostile enough to refuse the player a
-//! dock right now. Marks and cell tags are projected UI labels, like the
-//! local blips, and each selects what it names and focuses the view on its
-//! cell; a click
-//! on the selected one, Reframe, or the selected job leaving the held list
+//! dock, whatever its ports hold. Marks and cell tags are projected UI
+//! labels, like the local blips, and each selects what it names and focuses
+//! the view on its cell; a click on the selected one, Reframe, or the
+//! selected job leaving the held list
 //! clears the selection. A mark's label shows a code minted from the
 //! chart's found order (or the jobs' accept order), never a name: the open
 //! world names a ship by whose it is. A station whose board posts jobs the
@@ -41,7 +41,7 @@
 use bevy::{camera::visibility::RenderLayers, prelude::*, ui_widgets::Activate};
 use nova_events::prelude::{GeneratedBodyId, SectorCoord};
 use nova_gameplay::prelude::*;
-use nova_ship::prelude::{DockAdmission, DockRefusalType};
+use nova_ship::prelude::DockAdmission;
 use nova_ui::{
     prelude::{button, ButtonSpec},
     theme::{ActiveUiTheme, UiColor},
@@ -99,12 +99,9 @@ pub(crate) enum MapChartMarkType {
 /// reads the default: it neither refuses nor posts.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct ChartStationLive {
-    /// It refuses the player a dock right now for hostility
-    /// ([`DockRefusalType::EnemyStation`] or
-    /// [`DockRefusalType::HostileStation`]). A station with every port held
-    /// answers [`DockRefusalType::StationOccupied`] first, whatever its side,
-    /// and does not count: a held port frees on undock, and the player's own
-    /// dock holds one.
+    /// It refuses the player a dock for hostility, whatever its ports hold
+    /// ([`DockAdmission::refuses_for_hostility`]): held ports alone are no
+    /// refusal, and they never hide an Enemy or hostile station.
     pub(crate) refusing: bool,
     /// How many jobs its board posts that the player neither holds nor has
     /// completed.
@@ -375,12 +372,8 @@ fn chart_station_live(
                     .filter(|job| !jobs.holds(&job.id) && !jobs.is_completed(&job.id))
                     .count() as u32
             });
-            let refusing = player.is_some_and(|player| {
-                matches!(
-                    admission.refusal(player, entity),
-                    Some(DockRefusalType::EnemyStation | DockRefusalType::HostileStation)
-                )
-            });
+            let refusing =
+                player.is_some_and(|player| admission.refuses_for_hostility(player, entity));
             (id.clone(), ChartStationLive { refusing, posting })
         })
         .collect();
@@ -1949,12 +1942,13 @@ mod tests {
 
     use super::*;
 
-    /// A found station refuses the player on the chart only for hostility: a
-    /// Player-side station whose one port the player's own dock holds and a
-    /// Neutral one with every port held stay clear, while an Enemy one with
-    /// a free port still refuses.
+    /// A found station refuses the player on the chart for hostility,
+    /// whatever its ports hold: an Enemy station refuses with a free port and
+    /// with every port held, while a Player-side station whose one port the
+    /// player's own dock holds and a Neutral one with every port held stay
+    /// clear.
     #[test]
-    fn the_chart_marks_a_station_refusing_only_for_hostility_not_for_held_ports() {
+    fn the_chart_marks_a_station_refusing_for_hostility_whatever_its_ports_hold() {
         let mut world = World::new();
         world.init_resource::<Chart>();
         world.init_resource::<Jobs>();
@@ -1984,6 +1978,7 @@ mod tests {
         let ally = station(0, Allegiance::Player, true);
         let enemy = station(1, Allegiance::Enemy, false);
         let neutral = station(2, Allegiance::Neutral, true);
+        let full_enemy = station(3, Allegiance::Enemy, true);
 
         let live = world
             .run_system_once(
@@ -2010,6 +2005,10 @@ mod tests {
         assert!(
             !refusing(&neutral),
             "a Neutral station with every port held is no refusal"
+        );
+        assert!(
+            refusing(&full_enemy),
+            "an Enemy station with every port held still refuses"
         );
     }
 

@@ -128,6 +128,24 @@ impl DockAdmission<'_, '_> {
     /// ship lets it in. A target that is not a ship root has no state to
     /// refuse with.
     pub fn refusal(&self, ship: Entity, target: Entity) -> Option<DockRefusalType> {
+        self.judge(ship, target, true)
+    }
+
+    /// Whether station `target` refuses `ship` for hostility
+    /// ([`DockRefusalType::EnemyStation`] or
+    /// [`DockRefusalType::HostileStation`]), whatever its ports hold.
+    /// [`refusal`](Self::refusal) answers [`DockRefusalType::StationOccupied`]
+    /// first, so a full Enemy station would read as merely full there.
+    pub fn refuses_for_hostility(&self, ship: Entity, target: Entity) -> bool {
+        matches!(
+            self.judge(ship, target, false),
+            Some(DockRefusalType::EnemyStation | DockRefusalType::HostileStation)
+        )
+    }
+
+    /// [`refusal`](Self::refusal), with a station's held ports counted only
+    /// when `count_occupied`.
+    fn judge(&self, ship: Entity, target: Entity, count_occupied: bool) -> Option<DockRefusalType> {
         let Ok((allegiance, answering, state, neutralized, station, derelict, owned, _)) =
             self.ships.get(target)
         else {
@@ -152,7 +170,7 @@ impl DockAdmission<'_, '_> {
             },
         ) == Relation::Hostile;
         if station {
-            let occupied = !self.free_ports.iter().any(|mount| mount.0 == target);
+            let occupied = count_occupied && !self.free_ports.iter().any(|mount| mount.0 == target);
             let berth = self.parked.get(ship).is_ok_and(|parked| parked.0 == target);
             return station_admission(
                 allegiance.copied(),
