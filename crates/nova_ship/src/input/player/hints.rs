@@ -25,13 +25,6 @@ pub struct VerbHint {
     /// The world entity the verb would act on (the aim lock for GOTO, the
     /// dominant well for ORBIT), for hints anchored on the object itself.
     pub anchor: Option<Entity>,
-    /// Whether only the docked pair's helm keeps the verb from being
-    /// available right now: the ship is docked and does not drive its pair,
-    /// and the verb's capability and its own conditions hold. False for a
-    /// withheld verb, and false while the pair has a
-    /// [`helm_fault`](FlightVerbHints::helm_fault), because HELM cannot take
-    /// the helm then.
-    pub helm_blocked: bool,
 }
 
 /// Optional playtest flag (adversarial round NIT): deny the fire PRESS while
@@ -88,8 +81,7 @@ pub struct FlightVerbHints {
     pub helm_fault: bool,
     /// Whether a living station holds the docked pair's helm
     /// ([`DockedHelmType::Station`]), so HELM is refused outright. The HELM
-    /// chip stays on the dock, dark, under the mode chip's `STATION HELM`; no
-    /// verb is `helm_blocked`, because nothing the player presses frees them.
+    /// chip stays on the dock, dark, under the mode chip's `STATION HELM`.
     pub helm_station: bool,
     /// The line the HUD posts once as a notice when the travel lock settles
     /// on a station that refuses a dock ([`DockRefusalType`]), naming the
@@ -235,13 +227,8 @@ pub(super) fn update_flight_verb_hints(
     );
     // A docked hull that does not drive its pair flies nothing: the input
     // observers refuse its drive, trim and maneuvers until it drives again.
-    // Each verb is split into what it needs with the helm, and whether the
-    // helm is what is missing, so the HUD keeps a blocked verb on the dock,
-    // dark, and a withheld one off it. A fault refuses HELM, so the helm is
-    // not all that is missing and the verb leaves the dock.
     let helm_gate = |ready: bool| VerbHint {
         available: ready && !docked_without_helm,
-        helm_blocked: ready && docked_without_helm && !helm_fault && !helm_station,
         ..default()
     };
     // The station's answer, read off the same admission the chip and the
@@ -580,7 +567,7 @@ mod tests {
     }
 
     #[test]
-    fn a_neutral_dock_blocks_only_the_verbs_the_helm_would_give_back() {
+    fn a_docked_hull_flies_nothing_until_it_drives_the_pair() {
         let mut world = hint_world();
         let (ship, _controller) = spawn_flyable_ship(&mut world);
         let lock = world.spawn_empty().id();
@@ -606,61 +593,33 @@ mod tests {
                 drives: false,
             },
         ));
-        let blocked = |world: &World| {
+        let flies = |world: &World| {
             let hints = world.resource::<FlightVerbHints>();
-            [&hints.stop, &hints.goto, &hints.orbit, &hints.rcs].map(|hint| {
-                assert!(!hint.available, "nothing flies off the helm");
-                hint.helm_blocked
-            })
+            [&hints.stop, &hints.goto, &hints.orbit, &hints.rcs].map(|hint| hint.available)
         };
 
         world.run_system_once(update_flight_verb_hints).unwrap();
-        assert_eq!(blocked(&world), [true; 4], "granted verbs wait on the helm");
-
-        world.entity_mut(ship).insert(ShipCapabilities {
-            stop_enabled: false,
-            goto_enabled: false,
-            orbit_enabled: false,
-            rcs_enabled: false,
-            ..default()
-        });
-        world.run_system_once(update_flight_verb_hints).unwrap();
-        assert_eq!(
-            blocked(&world),
-            [false; 4],
-            "the helm gives back no withheld verb"
-        );
+        assert_eq!(flies(&world), [false; 4], "nothing flies off the helm");
 
         // The helm is taken at once, but the pair drives only from the next
         // fixed tick, and never while it cannot be measured.
-        world.entity_mut(ship).insert(ShipCapabilities::default());
         world.get_mut::<DockingConnection>(connection).unwrap().helm = DockedHelmType::Held(ship);
         world.run_system_once(update_flight_verb_hints).unwrap();
         assert_eq!(
-            blocked(&world),
-            [true; 4],
-            "a held helm that does not drive yet keeps them blocked"
+            flies(&world),
+            [false; 4],
+            "a held helm that does not drive yet flies nothing"
         );
 
         world.get_mut::<DockedShip>(ship).unwrap().drives = true;
         world.run_system_once(update_flight_verb_hints).unwrap();
-        let hints = world.resource::<FlightVerbHints>();
-        for hint in [&hints.stop, &hints.goto, &hints.orbit, &hints.rcs] {
-            assert!(
-                hint.available && !hint.helm_blocked,
-                "the helm gives them back"
-            );
-        }
+        assert_eq!(flies(&world), [true; 4], "the helm gives them back");
 
         // A fault leaves the held helm free to hand back and refuses taking
-        // it; HELM is never one of the verbs the helm would give back.
+        // it.
         let helm = |world: &World| {
             let hints = world.resource::<FlightVerbHints>();
-            (
-                hints.helm.available,
-                hints.helm.helm_blocked,
-                hints.helm_fault,
-            )
+            (hints.helm.available, hints.helm_fault)
         };
         world
             .get_mut::<DockingConnection>(connection)
@@ -668,35 +627,17 @@ mod tests {
             .measurement_fault = true;
         world.get_mut::<DockedShip>(ship).unwrap().drives = false;
         world.run_system_once(update_flight_verb_hints).unwrap();
-        assert_eq!(helm(&world), (true, false, true), "held: release it");
-        assert_eq!(
-            blocked(&world),
-            [false; 4],
-            "HELM gives nothing back through a fault"
-        );
+        assert_eq!(helm(&world), (true, true), "held: release it");
+        assert_eq!(flies(&world), [false; 4], "nothing flies through a fault");
         world.get_mut::<DockingConnection>(connection).unwrap().helm = DockedHelmType::Neutral;
         world.run_system_once(update_flight_verb_hints).unwrap();
-        assert_eq!(helm(&world), (false, false, true), "neutral: not taken");
-        assert_eq!(
-            blocked(&world),
-            [false; 4],
-            "a faulted pair blocks nothing on the helm"
-        );
+        assert_eq!(helm(&world), (false, true), "neutral: not taken");
 
         world
             .get_mut::<DockingConnection>(connection)
             .unwrap()
             .measurement_fault = false;
-        world.entity_mut(ship).insert(ShipCapabilities {
-            rcs_enabled: false,
-            ..default()
-        });
         world.run_system_once(update_flight_verb_hints).unwrap();
-        assert_eq!(helm(&world), (true, false, false), "measured: take it");
-        assert_eq!(
-            blocked(&world),
-            [true, true, true, false],
-            "measured: the granted verbs wait on the helm again, a withheld one does not"
-        );
+        assert_eq!(helm(&world), (true, false), "measured: take it");
     }
 }

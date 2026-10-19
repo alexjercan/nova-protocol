@@ -756,7 +756,7 @@ ship, or a station answering the ship's fire); and admitted otherwise.
 `FlightVerbHints::dock_refusal` carries a station's line (`<NAME> REFUSES
 DOCKING`, `<NAME> DOCK OCCUPIED`) while the travel lock is on it; the HUD
 posts it once as a notice (`hud_notice`), not on the mode chip, and the DOCK
-chip draws nothing. A ship's refusal stays the dark chip.
+chip draws dim. A ship's refusal stays the dark chip.
 
 **A station is a hub.** A ship holds one connection (`DockedShip`); the port
 search names no pair for a ship that already has one. A station holds one
@@ -794,17 +794,17 @@ starts clear.
 writer, so pilot, AI and scripted order are all held by the same line on the
 root that is not driving: `thruster_impulse_system`, the manual balancer, the
 RCS writer, the autopilot, the scripted orders (paused, never judged) and the
-AI brains all skip it. The HUD mode chip and the blocked dock chips read it
-too, so a pair that is not driven never shows a live maneuver. The mode chip
+AI brains all skip it. The HUD mode chip and the dock chips read it too, so a
+pair that is not driven never shows a live maneuver. The mode chip
 reads `measurement_fault` first and shows `HELM FAULT`, because `drives` alone
 cannot tell a fault from a hull off the helm, and `STATION HELM` on a
 station-held pair. The HELM chip stays on the dock, dark, through
-`FlightVerbHints::helm_fault` and `helm_station`, and no verb is
-`helm_blocked` while either is set, because HELM cannot take the helm. The
-interface's Map GOTO refuses on both before it asks for the helm. On the driver, the autopilot, the
-flight authority, the manual balancer and the RCS budget read the assembly,
-never the root alone. An AI driver does not patrol, orbit or fight while
-docked: `update_passive_flight` holds the pair on a `Stop` maneuver instead,
+`FlightVerbHints::helm_fault` and `helm_station`, because HELM cannot take
+the helm. The interface's Map GOTO refuses on both before it asks for the
+helm. On the driver, the autopilot, the flight authority, the manual balancer
+and the RCS budget read the assembly, never the root alone. An AI driver does
+not patrol, orbit or fight while docked:
+`update_passive_flight` holds the pair on a `Stop` maneuver instead,
 and `update_ai_target` clears its target, until the undock hands its route
 back where it left off. A driver with no
 `DockedAssembly` moves nothing: `thruster_impulse_system` skips it, and the

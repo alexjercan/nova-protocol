@@ -14,7 +14,7 @@
 //! | - | - | - |
 //! | 1 | `outcome: a living station holds the helm` | docked, the helm is `Station(living)`, `HELM` leaves it there, a held burn leaves both roots at rest, and the HUD reads `STATION HELM` |
 //! | 2 | `outcome: a dead station hands the helm to the player` | docked, the helm is `Held(player)` from the capture and the held burn moves both roots on one joint |
-//! | 3 | `outcome: an enemy station refuses docking on the HUD` | with the travel lock on the Enemy station the hints carry `<NAME> REFUSES DOCKING`, the HUD notice shows it, the mode chip does not, the DOCK chip draws nothing, and a dock request builds no connection |
+//! | 3 | `outcome: an enemy station refuses docking on the HUD` | with the travel lock on the Enemy station the hints carry `<NAME> REFUSES DOCKING`, the HUD notice shows it, the mode chip does not, the DOCK chip draws dim, and a dock request builds no connection |
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
@@ -787,7 +787,7 @@ fn refusal_line_shown() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
 }
 
 /// Claim 3: the refusal is the HUD notice and nowhere else, the DOCK chip
-/// draws nothing in its slot, and the dock request built nothing.
+/// draws dim in its slot, and the dock request built nothing.
 #[cfg(feature = "debug")]
 fn assert_enemy_station_refused(world: &mut World) {
     let player = player_root(world).expect("station docking probe: the player is up");
@@ -814,14 +814,14 @@ fn assert_enemy_station_refused(world: &mut World) {
         "station docking probe: the refusal is a notice, not a mode"
     );
     let dock_chip = world
-        .query::<(&DockChip, &Visibility)>()
+        .query::<(&DockChip, &DockChipState, &Node, &Visibility)>()
         .iter(world)
-        .find(|(chip, _)| DOCK_VERBS[***chip] == "DOCK")
-        .map(|(_, visibility)| *visibility);
+        .find(|(chip, ..)| DOCK_VERBS[***chip] == "DOCK")
+        .map(|(_, state, node, visibility)| (*state, node.display, *visibility));
     assert_eq!(
         dock_chip,
-        Some(Visibility::Hidden),
-        "station docking probe: a refused DOCK keeps its slot and draws nothing"
+        Some((DockChipState::Dim, Display::Flex, Visibility::Inherited)),
+        "station docking probe: a refused DOCK draws dim in its slot"
     );
     assert!(
         world.get::<DockedShip>(player).is_none(),
