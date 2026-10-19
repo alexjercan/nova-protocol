@@ -1299,7 +1299,7 @@ Section((
         name: "Reinforced Hull Section (Example Mod)",
         description: "Base hull, up-armored by the example mod to show section overlay by id.",
         health: 400.0,
-        advancement: 0.3,
+        advancement: 0.0,
         draw_weight: 1.0,
         build: (
             credits: 160,

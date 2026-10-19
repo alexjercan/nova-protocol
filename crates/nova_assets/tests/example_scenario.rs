@@ -557,6 +557,8 @@ fn a_loaded_non_finite_stat_withdraws_the_section_packs() {
         base: nova_ship::prelude::BaseSectionConfig {
             id: "nan_hull".to_string(),
             health: f32::NAN,
+            advancement: 0.0,
+            draw_weight: 1.0,
             ..Default::default()
         },
         kind: nova_ship::prelude::SectionKind::Hull(Default::default()),

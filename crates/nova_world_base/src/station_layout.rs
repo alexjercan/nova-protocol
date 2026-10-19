@@ -175,7 +175,8 @@ impl fmt::Display for StationArchetypeType {
 pub struct StationLayoutRequest {
     /// The stable station seed. Every draw of the layout comes from it.
     pub seed: u32,
-    /// The civilization that builds the station. Only a failure reads it.
+    /// The civilization that builds the station: every draw comes from the
+    /// parts it knows.
     pub civilization: CivilizationId,
     /// The shape it is built in.
     pub archetype: StationArchetypeType,
@@ -414,9 +415,9 @@ pub fn generate_station(
 
 /// The station design `civilization` keeps, built on `layout`: the four dock
 /// services, storage and credits that rise with advancement, and an opening
-/// stock that fills a share of the hold, half goods and half the parts its
-/// own sections are built from. An extinct civilization's dead station keeps
-/// the same stock and credits as loot.
+/// stock that fills a share of the hold, half goods and half the parts every
+/// section its civilization knows is built from. An extinct civilization's
+/// dead station keeps the same stock and credits as loot.
 ///
 /// PURE: the same layout and civilization give the same design.
 ///

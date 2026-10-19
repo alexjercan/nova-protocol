@@ -1085,35 +1085,45 @@ mod tests {
         );
     }
 
+    /// The stat check walks every muzzle of a turret's joint tree: a twin
+    /// with two good muzzles builds, and one bad rate on a nested muzzle is
+    /// refused by name.
     #[test]
-    fn a_turret_scores_the_fire_rate_of_every_muzzle() {
-        let mut turret = TurretSectionConfig {
-            bullet_damage: 10.0,
-            ..default()
+    fn a_turret_refuses_a_bad_fire_rate_on_any_nested_muzzle() {
+        let twin = |right_rate: f32| {
+            let mut turret = TurretSectionConfig {
+                bullet_damage: 10.0,
+                ..default()
+            };
+            let muzzle = |id: &str, fire_rate| MuzzleConfig {
+                id: id.to_string(),
+                fire_rate,
+                muzzle_effect: None,
+            };
+            let mut left = turret.root.clone();
+            left.children.clear();
+            left.muzzle = Some(muzzle("left", 2.0));
+            let mut right = left.clone();
+            right.muzzle = Some(muzzle("right", right_rate));
+            turret.root.muzzle = None;
+            turret.root.children = vec![left, right];
+            let mut sections = floor();
+            sections.push(section("twin", SectionKind::Turret(turret), &[Vec3::NEG_Y]));
+            vec![pack("base", &[], sections)]
         };
-        let muzzle = |id: &str, fire_rate| MuzzleConfig {
-            id: id.to_string(),
-            fire_rate,
-            muzzle_effect: None,
-        };
-        let mut left = turret.root.clone();
-        left.children.clear();
-        left.muzzle = Some(muzzle("left", 2.0));
-        let mut right = left.clone();
-        right.muzzle = Some(muzzle("right", 3.0));
-        turret.root.muzzle = None;
-        turret.root.children = vec![left, right];
-        let mut sections = floor();
-        sections.push(section("twin", SectionKind::Turret(turret), &[Vec3::NEG_Y]));
 
-        let snapshot =
-            ShipPartSnapshot::build(&[pack("base", &[], sections)]).expect("the packs build");
-        let twin = snapshot
-            .parts()
-            .iter()
-            .find(|part| part.id() == "twin")
-            .expect("the twin is usable");
-        assert_eq!(twin.family, ShipPartFamilyType::Weapon);
+        let snapshot = ShipPartSnapshot::build(&twin(3.0)).expect("the packs build");
+        assert!(snapshot.parts().iter().any(|part| part.id() == "twin"));
+
+        assert_eq!(
+            faults(&twin(0.0)),
+            [ShipPartFault::InvalidStat {
+                pack: "base".to_string(),
+                id: "twin".to_string(),
+                stat: "muzzle fire_rate",
+                value: 0.0,
+            }]
+        );
     }
 
     #[test]

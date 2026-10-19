@@ -172,7 +172,8 @@ const FORWARD: usize = 5;
 pub struct ShipLayoutRequest {
     /// The stable hull seed. Every draw of the layout comes from it.
     pub seed: u32,
-    /// The civilization that builds the ship. Only a failure reads it.
+    /// The civilization that builds the ship: every draw comes from the
+    /// parts it knows.
     pub civilization: CivilizationId,
     /// The role the ship flies.
     pub role: ShipRoleType,

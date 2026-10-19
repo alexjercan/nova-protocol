@@ -15,9 +15,10 @@
 //! the generator used. Only the types of those clusters ride on a streamed
 //! cell's root, for the player's chart; a debug view asks for the rest.
 //! [`CivilizationField`] answers which seeded civilizations
-//! reach a place. [`ShipPartSnapshot`] validates and scores the section
-//! prototypes generated ships may use. The open world pins one to its
-//! generator when it arms, built from the loaded catalog, and refuses a
+//! reach a place. [`ShipPartSnapshot`] validates the section prototypes
+//! generated ships may use and carries each one's authored tier and draw
+//! weight. The open world pins one to its generator when it arms, built
+//! from the loaded catalog, and refuses a
 //! catalog that changes under it; the content lint and the `world_ships`
 //! debug example build their own. [`generate_ship`] lays out one ship from a
 //! snapshot and [`generate_wreck`] ruins that same ship. [`plan_ship`] picks
