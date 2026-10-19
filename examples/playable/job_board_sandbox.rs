@@ -34,9 +34,10 @@
 //! the first procurement and a second job at another reward, undocks,
 //! selects the second held row and reads its reward, not the first's, in
 //! the inspector and, after Show on Map, in the chart view. With the chart
-//! open it drops the second job, as the world does when its body is lost:
-//! the chart returns to its overview, and so does the Jobs inspector. It
-//! docks again and hands the procurement in. `NOVA_CAPTURE=1` shoots
+//! open it drops the second job by hand, where the world drops one whose
+//! body is lost: the chart returns to its overview, and so does the Jobs
+//! inspector. It docks again and hands the procurement in. `NOVA_CAPTURE=1`
+//! shoots
 //! `sandbox-jobs-starter.png`, `sandbox-jobs-board.png`,
 //! `sandbox-jobs-held.png`, `sandbox-jobs-map.png`,
 //! `sandbox-jobs-map-dropped.png`, `sandbox-jobs-dropped.png`,
@@ -858,16 +859,18 @@ mod smoke {
     }
 
     /// A text reads the second held job's reward as `<prefix><reward> cr`
-    /// and none reads the first's.
+    /// and none reads the first's, with the pane's thousands commas ignored.
     fn reads_the_second_reward_only(prefix: &'static str) -> Arc<Predicate> {
         when(move |world| {
             let [first, second] = world.resource::<Jobs>().held() else {
                 return false;
             };
             let reads = |reward: String| {
-                world
-                    .try_query::<&Text>()
-                    .is_some_and(|mut query| query.iter(world).any(|text| text.0 == reward))
+                world.try_query::<&Text>().is_some_and(|mut query| {
+                    query
+                        .iter(world)
+                        .any(|text| text.0.replace(',', "") == reward)
+                })
             };
             reads(format!("{prefix}{} cr", second.reward_cr))
                 && !reads(format!("{prefix}{} cr", first.reward_cr))
@@ -1027,8 +1030,9 @@ mod smoke {
         .deadline(SHOT_SECS)
         .add()
         // The world drops a held job when its body is lost
-        // (`drop_on_loss`); the walk drops it by hand, with its mark
-        // selected in the open chart.
+        // (`drop_on_loss`). The walk drops it by hand, with its mark
+        // selected in the open chart, and leaves the bodies the job spawned:
+        // the rest of the walk does not meet them.
         .step("job sandbox: drop the selected job with the chart open")
         .on_enter(|world: &mut World| {
             let id = world.resource::<Jobs>().held()[1].id.clone();
