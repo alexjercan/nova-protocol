@@ -24,15 +24,20 @@
 //! Distress call puts its caller there ([`spawn_job_bodies`]); every body is a
 //! generated hull under the poster's cell root with a [`GeneratedBodyId`] the
 //! job names, so the streaming layer adopts, freezes and saves it like any
-//! cell body. Each located kind is marked done by one observer over one
-//! existing `nova_events` kind: a recovery on `onundocked`
+//! cell body. The hauler waits off the poster until the player stands
+//! undocked from it, then flies its leg; the leg is kept in the jobs, so a
+//! thaw or a Load, which keep no helm order, gives the hauler its order again
+//! ([`fly_escort_legs`]). Each located kind is marked done by one observer
+//! over one existing `nova_events` kind: a recovery on `onundocked`
 //! ([`recover_on_undock`]), an escort on `onshipordercomplete`
 //! ([`escort_on_arrival`]), a distress call on `ondocked` or `onneutralized`
 //! ([`distress_on_answer`]), a neutralize on `onneutralized` or `ondestroyed`
 //! ([`neutralize_on_kill`]). A held job is dropped, and its spawned bodies
 //! taken out, on the `onneutralized` or `ondestroyed` of what retires it
 //! ([`drop_on_loss`]): its poster, done or not, or its hauler, its wreck or
-//! its genuine caller before the job is done. A done job keeps its hand-in.
+//! its genuine caller before the job is done, and an escort whose hauler's
+//! leg order fails (`onshiporderfailed`): a hauler that cannot fly its leg
+//! would hold the job for good. A done job keeps its hand-in.
 //! Every standing body a held job sends the player to wears the HUD's
 //! objective chip as `JOB-n` ([`mark_held_job_targets`]).
 
@@ -41,7 +46,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use bevy::{ecs::entity::EntityHashSet, prelude::*};
 use nova_events::prelude::{
     EventKind, GameEvent, GeneratedBodyId, Meters, Meters3, MetersPerSecond3, OnDestroyedEvent,
-    OnDockedEvent, OnNeutralizedEvent, OnShipOrderCompleteEvent, OnUndockedEvent, SectorCoord,
+    OnDockedEvent, OnNeutralizedEvent, OnShipOrderCompleteEvent, OnShipOrderFailedEvent,
+    OnUndockedEvent, SectorCoord,
 };
 use nova_gameplay::prelude::{
     station_job_offers, station_offers, unit_sphere_point, Allegiance, DerelictShipMarker, Fnv32,
@@ -55,7 +61,8 @@ use nova_scenario::prelude::{
     GameStartRoles, OpenWorldSession, ShipDesignSource, SpaceshipConfig, SpaceshipController,
 };
 use nova_ship::prelude::{
-    ShipCapabilities, ShipHelmOrder, ShipOrderDirective, ShipOrderHelmAuthority, ShipOrderReports,
+    DockedShip, DockingConnection, ShipCapabilities, ShipHelmOrder, ShipOrderDirective,
+    ShipOrderHelmAuthority, ShipOrderReports,
 };
 use nova_world::prelude::{
     PendingSectorShip, SectorClusterTypes, SectorRoot, SectorShipConditionType, WorldClock,
@@ -77,8 +84,17 @@ const JOB_LEG: Meters = Meters(10_000.0);
 const HAULER_STANDOFF: Meters = Meters(3_000.0);
 /// Where along the leg the raiders lie in wait, as a share of it.
 const RAIDER_AMBUSH_SHARE: f32 = 0.6;
-/// How far apart the raiders stand across the leg.
+/// How far apart the raiders stand along the leg.
 const RAIDER_SPACING: Meters = Meters(600.0);
+/// How far off the leg's line the raiders lie in wait: with the ambush
+/// share and the spacing, every raider waits beyond its engage range of the
+/// waiting hauler and within it of the leg.
+const RAIDER_LATERAL: Meters = Meters(2_000.0);
+/// How far a raider leaves its wait for a target.
+const RAIDER_ENGAGE_RANGE: Meters = Meters(3_000.0);
+/// Seconds of play a raider holds fire after it spawns, so a player who
+/// undocks at once is not met by fire on the leg's first frame.
+const RAIDER_ENGAGE_DELAY: f32 = 5.0;
 /// How far a job body must stand from every generated body when it spawns.
 const JOB_SPAWN_CLEARANCE: Meters = Meters(2_000.0);
 /// How many seeded directions a spawn tries before it takes the clearest.
@@ -377,8 +393,9 @@ fn job_field(
 }
 
 /// Put an accepted job's bodies in the world, under the poster's cell root:
-/// an escort's hauler beside the poster with a helm order to its mark, a
-/// [`JOB_LEG`] out past it, and its raiders lying in wait on the way; a
+/// an escort's hauler beside the poster with no helm order, its leg laid in
+/// the jobs to a mark a [`JOB_LEG`] out past it ([`Jobs::lay_leg`]), and its
+/// raiders lying in wait off the leg ([`raider_wait_points`]); a
 /// distress call's caller at the mark, a drifting hull when the call is
 /// genuine and a raider when it is not. The leg's direction is seeded by
 /// the job and chosen so every body stands [`JOB_SPAWN_CLEARANCE`] from
@@ -396,6 +413,7 @@ pub(crate) fn spawn_job_bodies(
     mut commands: Commands,
     config: Res<WorldConfig<NovaLayeredWorld>>,
     items: Res<GameItems>,
+    mut jobs: ResMut<Jobs>,
     stations: Query<(&GeneratedBodyId, &GlobalTransform, &ChildOf), With<StationMarker>>,
     bodies: Query<(&GeneratedBodyId, &GlobalTransform)>,
 ) {
@@ -494,6 +512,8 @@ pub(crate) fn spawn_job_bodies(
                 design: ShipDesignSource::Inline(design),
                 controller: SpaceshipController::AI(AIControllerConfig {
                     leash: Some(RAIDER_LEASH),
+                    engage_delay: Some(RAIDER_ENGAGE_DELAY),
+                    engage_range: Some(RAIDER_ENGAGE_RANGE),
                     ..AIControllerConfig::default()
                 }),
                 initial_velocity: MetersPerSecond3::ZERO,
@@ -539,23 +559,14 @@ pub(crate) fn spawn_job_bodies(
                     credits: 0,
                 }),
                 ChildOf(root),
-                ShipOrderReports::default(),
-                ShipHelmOrder::new(
-                    format!("{hauler}_leg"),
-                    ShipOrderDirective::Move {
-                        // Engine boundary: a helm mark counts engine units.
-                        position: mark.to_engine(),
-                        arrival_standoff: None,
-                    },
-                ),
-                ShipOrderHelmAuthority,
             ));
-            let across = direction.any_orthonormal_vector();
-            let raiders = job.raider_ids().len() as u32;
-            for index in 0..raiders {
-                let offset = (index as f32 - (raiders as f32 - 1.0) / 2.0) * RAIDER_SPACING.get();
-                let at = Meters3(along(RAIDER_AMBUSH_SHARE).get() + across * offset);
-                commands.spawn(raider(index, at));
+            jobs.lay_leg(&job.id, mark);
+            let raiders = job.raider_ids().len();
+            for (index, at) in raider_wait_points(station_at, direction, raiders)
+                .into_iter()
+                .enumerate()
+            {
+                commands.spawn(raider(index as u32, at));
             }
             info!(
                 "nova_world_base: '{}' puts the hauler '{hauler}' ({cargo_cr} cr) on a {} m leg \
@@ -651,12 +662,8 @@ fn leg_direction(seed: u32, from: Meters3, edge: Meters, job: &Job, standing: &[
         let mut points = vec![along(1.0)];
         if matches!(job.kind, JobType::Escort { .. }) {
             points.push(from.get() + direction * HAULER_STANDOFF.get());
-            let across = direction.any_orthonormal_vector();
-            let raiders = job.raider_ids().len();
-            for index in 0..raiders {
-                let offset = (index as f32 - (raiders as f32 - 1.0) / 2.0) * RAIDER_SPACING.get();
-                points.push(along(RAIDER_AMBUSH_SHARE) + across * offset);
-            }
+            let raiders = raider_wait_points(from, direction, job.raider_ids().len());
+            points.extend(raiders.iter().map(|at| at.get()));
         }
         let nearest = points
             .iter()
@@ -680,6 +687,107 @@ fn leg_direction(seed: u32, from: Meters3, edge: Meters, job: &Job, standing: &[
     direction
 }
 
+/// Where each of `raiders` raiders waits on the leg from `from` along
+/// `direction`: [`RAIDER_LATERAL`] off the leg's line, [`RAIDER_SPACING`]
+/// apart along it, centred at [`RAIDER_AMBUSH_SHARE`] of the leg.
+fn raider_wait_points(from: Meters3, direction: Vec3, raiders: usize) -> Vec<Meters3> {
+    let across = direction.any_orthonormal_vector();
+    (0..raiders)
+        .map(|index| {
+            let offset = (index as f32 - (raiders as f32 - 1.0) / 2.0) * RAIDER_SPACING.get();
+            let along = JOB_LEG.get() * RAIDER_AMBUSH_SHARE + offset;
+            Meters3(from.get() + direction * along + across * RAIDER_LATERAL.get())
+        })
+        .collect()
+}
+
+/// The key of the helm order that flies `hauler`'s leg.
+fn leg_order_key(hauler: &GeneratedBodyId) -> String {
+    format!("{hauler}_leg")
+}
+
+/// Fly every held escort's leg: start a leg not started once the player's
+/// hull stands and is not docked with the leg's poster, and give a standing
+/// hauler whose leg started and that carries no helm order a Move to its mark.
+/// A hauler carries none when the leg just started, and after a thaw or a
+/// Load, which keep no helm order; a completed or failed order stays on the
+/// hauler, so a leg is ordered once per spawn. A Load before the undock puts
+/// the player undocked, so the leg starts on the Load's first frame.
+#[expect(
+    clippy::type_complexity,
+    reason = "the hauler query reads its id and its reports and filters on two markers"
+)]
+pub(crate) fn fly_escort_legs(
+    mut commands: Commands,
+    mut jobs: ResMut<Jobs>,
+    player: Query<Option<&DockedShip>, With<PlayerSpaceshipMarker>>,
+    connections: Query<&DockingConnection>,
+    ids: Query<&GeneratedBodyId>,
+    haulers: Query<
+        (Entity, &GeneratedBodyId, Has<ShipOrderReports>),
+        (With<SpaceshipRootMarker>, Without<ShipHelmOrder>),
+    >,
+) {
+    let docked_at = player.single().ok().map(|docked| {
+        docked
+            .and_then(|docked| connections.get(docked.connection).ok())
+            .map(|connection| {
+                if player.contains(connection.first_ship) {
+                    connection.second_ship
+                } else {
+                    connection.first_ship
+                }
+            })
+            .and_then(|partner| ids.get(partner).ok())
+    });
+    // Read through the shared borrow: a mutable one would mark the jobs
+    // changed every frame and `mark_held_job_targets` gates on that.
+    let due: Vec<JobId> = jobs
+        .legs()
+        .filter(|(id, leg)| {
+            !leg.started
+                && docked_at
+                    .as_ref()
+                    .is_some_and(|partner| partner.is_none_or(|partner| *partner != id.station))
+        })
+        .map(|(id, _)| id.clone())
+        .collect();
+    for id in due {
+        jobs.start_leg(&id);
+        info!("nova_world_base: '{id}' starts its leg: the player stands undocked from its poster");
+    }
+    for (entity, body, reported) in &haulers {
+        let Some((job, leg)) = jobs.legs().find_map(|(id, leg)| {
+            let job = jobs.job(id).expect("a leg's escort is held");
+            matches!(&job.kind, JobType::Escort { hauler, .. } if hauler == body)
+                .then_some((job, leg))
+        }) else {
+            continue;
+        };
+        if !leg.started {
+            continue;
+        }
+        if !reported {
+            commands.entity(entity).insert(ShipOrderReports::default());
+        }
+        commands.entity(entity).insert((
+            ShipHelmOrder::new(
+                leg_order_key(body),
+                ShipOrderDirective::Move {
+                    // Engine boundary: a helm mark counts engine units.
+                    position: leg.mark.to_engine(),
+                    arrival_standoff: None,
+                },
+            ),
+            ShipOrderHelmAuthority,
+        ));
+        info!(
+            "nova_world_base: '{}' orders the hauler '{body}' to its mark",
+            job.id
+        );
+    }
+}
+
 /// The `id` field of a fired event's payload, when it carries one.
 fn event_subject(event: &GameEvent) -> Option<&str> {
     event.info().data.as_ref()?.get("id")?.as_str()
@@ -696,7 +804,10 @@ fn is_taken_out(event: &GameEvent, body: &GeneratedBodyId) -> bool {
 /// offers it again and a second accept can put them back: every job of the
 /// poster, done or not, since no hand-in is left; an escort whose hauler, a
 /// recovery whose wreck or a genuine distress call whose caller is taken out
-/// before the job is done. A done job keeps its hand-in: a hauler killed at
+/// before the job is done. An undone escort is also dropped on the
+/// `onshiporderfailed` of its hauler's leg order ([`leg_order_key`]): a
+/// hauler that lost its engines or its flight computer never reaches its
+/// mark. A done job keeps its hand-in: a hauler killed at
 /// its mark or a wreck shot after the lift still pays. A trap's caller taken
 /// out is [`distress_on_answer`]'s done and a neutralize's hull
 /// [`neutralize_on_kill`]'s.
@@ -706,16 +817,38 @@ pub(crate) fn drop_on_loss(
     mut jobs: ResMut<Jobs>,
     bodies: Query<(Entity, &GeneratedBodyId)>,
 ) {
-    if event.name() != OnNeutralizedEvent::name() && event.name() != OnDestroyedEvent::name() {
+    let failed = event.name() == OnShipOrderFailedEvent::name();
+    if !failed
+        && event.name() != OnNeutralizedEvent::name()
+        && event.name() != OnDestroyedEvent::name()
+    {
         return;
     }
     let Some(subject) = event_subject(&event) else {
         return;
     };
+    let order = event
+        .info()
+        .data
+        .as_ref()
+        .and_then(|data| data.get("order"))
+        .and_then(|order| order.as_str());
     let lost: Vec<(Job, &'static str)> = jobs
         .held()
         .iter()
         .filter_map(|job| {
+            if failed {
+                return match &job.kind {
+                    JobType::Escort { hauler, .. }
+                        if !jobs.is_done(&job.id)
+                            && hauler.to_string() == subject
+                            && order == Some(leg_order_key(hauler).as_str()) =>
+                    {
+                        Some((job.clone(), "hauler's leg order"))
+                    }
+                    _ => None,
+                };
+            }
             if job.posted_by().to_string() == subject {
                 return Some((job.clone(), "poster"));
             }
@@ -992,11 +1125,15 @@ pub(crate) fn mark_held_job_targets(
 #[cfg(test)]
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
-    use nova_events::prelude::{OnDestroyedEventInfo, OnShipOrderCompleteEventInfo, ShipOrderKind};
+    use nova_events::prelude::{
+        OnDestroyedEventInfo, OnShipOrderCompleteEventInfo, OnShipOrderFailedEventInfo,
+        ShipOrderKind,
+    };
     use nova_gameplay::{
-        prelude::{ItemDesignId, JobOfferRule},
+        prelude::{ItemDesignId, JobOfferRule, ESCORT_RAIDERS_MAX},
         test_support::test_items,
     };
+    use nova_ship::prelude::DockedHelmType;
 
     use super::*;
 
@@ -1120,7 +1257,20 @@ mod tests {
         GameEvent::new(
             OnShipOrderCompleteEvent::name(),
             OnShipOrderCompleteEventInfo {
-                order: format!("{hauler}_leg"),
+                order: leg_order_key(hauler),
+                id: hauler.to_string(),
+                type_name: "spaceship".to_string(),
+                kind: ShipOrderKind::Move,
+            }
+            .into(),
+        )
+    }
+
+    fn failed(hauler: &GeneratedBodyId, order: String) -> GameEvent {
+        GameEvent::new(
+            OnShipOrderFailedEvent::name(),
+            OnShipOrderFailedEventInfo {
+                order,
                 id: hauler.to_string(),
                 type_name: "spaceship".to_string(),
                 kind: ShipOrderKind::Move,
@@ -1206,6 +1356,177 @@ mod tests {
             0,
             "the remains and the raiders are taken out so a second accept can put them back"
         );
+    }
+
+    #[test]
+    fn an_escort_is_dropped_when_its_hauler_s_leg_order_fails() {
+        let escort = escort(0);
+        let JobType::Escort { hauler, .. } = &escort.kind else {
+            unreachable!()
+        };
+        let mut app = held_app([escort.clone()]);
+        app.world_mut()
+            .resource_mut::<Jobs>()
+            .lay_leg(&escort.id, Meters3::default());
+        let bodies = stand(&mut app, &escort.spawned_bodies());
+
+        fire(&mut app, failed(hauler, "another_order".to_string()));
+        assert!(
+            jobs(&app).holds(&escort.id),
+            "only the leg's order failing loses the job"
+        );
+
+        fire(&mut app, failed(hauler, leg_order_key(hauler)));
+        assert!(!jobs(&app).holds(&escort.id), "the slot is free");
+        assert_eq!(jobs(&app).legs().count(), 0, "the leg is over");
+        jobs(&app).validate().unwrap();
+        assert_eq!(
+            standing(&app, &bodies),
+            0,
+            "the stuck hauler and the raiders are taken out so a second accept can put them back"
+        );
+    }
+
+    #[test]
+    fn an_escort_leg_waits_while_the_player_is_docked_at_its_poster_and_flies_after_the_undock_a_thaw_and_a_load(
+    ) {
+        let escort = escort(0);
+        let JobType::Escort { hauler, .. } = escort.kind.clone() else {
+            unreachable!()
+        };
+        let mark = Meters3(Vec3::new(0.0, 0.0, -10_000.0));
+        let mut saved = Jobs::default();
+        saved.accept(escort.clone());
+        saved.lay_leg(&escort.id, mark);
+        let leg_app = |jobs: Jobs| {
+            let mut app = App::new();
+            app.insert_resource(jobs);
+            app.add_systems(Update, fly_escort_legs);
+            app.world_mut().spawn(poster());
+            let player = app.world_mut().spawn(PlayerSpaceshipMarker).id();
+            (app, player)
+        };
+        let stand_hauler = |app: &mut App| {
+            app.world_mut()
+                .spawn((hauler.clone(), SpaceshipRootMarker))
+                .id()
+        };
+        let started = |app: &App| {
+            app.world()
+                .resource::<Jobs>()
+                .legs()
+                .map(|(_, leg)| leg.started)
+                .collect::<Vec<_>>()
+        };
+        let flies_to_the_mark = |app: &App, entity: Entity| {
+            let order = app.world().get::<ShipHelmOrder>(entity)?;
+            let flies = order.key == leg_order_key(&hauler)
+                && order.directive
+                    == ShipOrderDirective::Move {
+                        position: mark.to_engine(),
+                        arrival_standoff: None,
+                    }
+                && app.world().get::<ShipOrderHelmAuthority>(entity).is_some()
+                && app.world().get::<ShipOrderReports>(entity).is_some();
+            Some(flies)
+        };
+
+        let (mut app, player) = leg_app(saved.clone());
+        let station = app
+            .world_mut()
+            .query_filtered::<Entity, With<GeneratedBodyId>>()
+            .single(app.world())
+            .unwrap();
+        let connection = app
+            .world_mut()
+            .spawn(DockingConnection {
+                first_ship: player,
+                first_section: player,
+                second_ship: station,
+                second_section: station,
+                helm: DockedHelmType::Neutral,
+                measurement_fault: false,
+            })
+            .id();
+        app.world_mut().entity_mut(player).insert(DockedShip {
+            connection,
+            helm: Quat::IDENTITY,
+            drives: false,
+        });
+        let first = stand_hauler(&mut app);
+        for _ in 0..3 {
+            app.update();
+        }
+        assert_eq!(started(&app), vec![false], "docked at the poster");
+        assert_eq!(
+            flies_to_the_mark(&app, first),
+            None,
+            "the hauler waits with no order while the player is docked"
+        );
+
+        app.world_mut().despawn(connection);
+        app.world_mut().entity_mut(player).remove::<DockedShip>();
+        app.update();
+        assert_eq!(started(&app), vec![true], "the undock starts the leg");
+        assert_eq!(flies_to_the_mark(&app, first), Some(true));
+
+        app.world_mut().despawn(first);
+        app.update();
+        let thawed = stand_hauler(&mut app);
+        app.update();
+        assert_eq!(
+            flies_to_the_mark(&app, thawed),
+            Some(true),
+            "a thawed hauler flies its started leg again"
+        );
+
+        let record = ron::to_string(&saved).unwrap();
+        let loaded: Jobs = ron::from_str(&record).unwrap();
+        assert_eq!(loaded, saved, "the save keeps the leg");
+        loaded.validate().unwrap();
+        let (mut app, _) = leg_app(loaded);
+        let reloaded = stand_hauler(&mut app);
+        app.update();
+        assert_eq!(
+            started(&app),
+            vec![true],
+            "a Load puts the player undocked, so a leg saved docked starts"
+        );
+        assert_eq!(flies_to_the_mark(&app, reloaded), Some(true));
+    }
+
+    #[test]
+    fn every_raider_waits_beyond_its_engage_range_of_the_hauler_s_start_and_within_it_of_the_leg() {
+        // One metre of slack for f32 rounding at ten kilometres.
+        const SLACK: f32 = 1.0;
+        let from = Meters3(Vec3::new(400.0, -250.0, 1_200.0));
+        let direction = Vec3::new(1.0, 2.0, -0.5).normalize();
+        let start = from.get() + direction * HAULER_STANDOFF.get();
+        let leg = JOB_LEG.get() - HAULER_STANDOFF.get();
+        for raiders in 1..=ESCORT_RAIDERS_MAX as usize {
+            let points = raider_wait_points(from, direction, raiders);
+            assert_eq!(points.len(), raiders);
+            for (index, at) in points.iter().enumerate() {
+                let at = at.get();
+                assert!(
+                    at.distance(start) > RAIDER_ENGAGE_RANGE.get(),
+                    "raider {index} of {raiders} waits {} m from the waiting hauler",
+                    at.distance(start)
+                );
+                let along = (at - start).dot(direction).clamp(0.0, leg);
+                let off_leg = at.distance(start + direction * along);
+                assert!(
+                    off_leg >= RAIDER_LATERAL.get() - SLACK && off_leg < RAIDER_ENGAGE_RANGE.get(),
+                    "raider {index} of {raiders} waits {off_leg} m off the leg"
+                );
+                for other in &points[..index] {
+                    assert!(
+                        at.distance(other.get()) >= RAIDER_SPACING.get() - SLACK,
+                        "raider {index} of {raiders} stands apart from the others"
+                    );
+                }
+            }
+        }
     }
 
     #[test]

@@ -927,8 +927,12 @@ fn assert_the_accept(world: &mut World) {
         JobType::Escort { hauler, cargo_cr } => {
             let entity = body_wearing(world, hauler).expect("the hauler stands");
             assert!(
-                world.get::<ShipHelmOrder>(entity).is_some(),
-                "{tag} job: the hauler carries its helm order"
+                world.get::<ShipHelmOrder>(entity).is_none(),
+                "{tag} job: the hauler waits with no helm order while the player is docked"
+            );
+            assert!(
+                jobs.legs().any(|(id, leg)| *id == job.id && !leg.started),
+                "{tag} job: the hauler's leg is laid and not started"
             );
             assert_eq!(
                 job.raider_ids().len() as u32,

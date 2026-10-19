@@ -46,7 +46,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
   undocking no longer shoves them apart.
 - **(breaking)** Stations post three seeded jobs by start role: bring,
   recover, escort, distress, neutralize. Jobs and offers save as posted; no
-  two boards offer one target. Save format 23.
+  two boards offer one target. Save format 26.
 - **(breaking)** Generated stations and ships now price each item by their
   stock, cluster type and civilization; the Inventory pane shows the factors.
   `PriceTable` content sets them. Save format 18.

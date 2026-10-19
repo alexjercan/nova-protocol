@@ -272,6 +272,9 @@ impl Plugin for NovaWorldBasePlugin {
                     jobs::post_station_boards,
                     // After the boards, so a renewal's despawns land first.
                     jobs::mark_held_job_targets,
+                    // A started leg orders a hauler that stands with no
+                    // order: just spawned, thawed or loaded this frame.
+                    jobs::fly_escort_legs,
                 )
                     .chain()
                     .after(NovaWorldSystems::Retire)

@@ -264,7 +264,7 @@ Every living generated station posts a board of three jobs. The board is fixed b
 |---|---|
 | `Bring 4 Iron ore` | bring that many units to the station that posted it. A station asks for what its sector lacks: raw material in an asteroid or rock sector, food and raw material near a planet, parts and plates in a derelict field |
 | `Recover 2 Hull plate from <wreck>` | dock with the named wreck nearby, take the stack aboard and undock with it |
-| `Escort a hauler carrying 1200 cr` | a hauler leaves the station for a mark 10 km out when you accept; see it there. Raiders wait on the way, more for a richer cargo |
+| `Escort a hauler carrying 1200 cr` | a hauler waits off the station and leaves for a mark 10 km out when you undock; see it there. Raiders wait beside the way, more for a richer cargo |
 | `Answer a distress call` | a caller 10 km out: dock with the drifting hull. One call in three is a trap: a raider waits there instead, and neutralizing it answers the call |
 | `Neutralize <hull>` | neutralize the named hostile hull nearby |
 

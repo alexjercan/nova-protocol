@@ -34,8 +34,8 @@
 //! and a Distress call put generated bodies in the world on the accept
 //! ([`JobAccepted`]), named by the job ([`Job::spawned_bodies`]).
 //!
-//! [`Jobs`] is the player's record: the jobs held, the ids done and the jobs
-//! completed. It is a session resource like the chart: a world save carries
+//! [`Jobs`] is the player's record: the jobs held, the ids done, the jobs
+//! completed and each undone escort's leg ([`EscortLeg`]). It is a session resource like the chart: a world save carries
 //! it, a Load puts it back, and the Map's chart view marks every held job in
 //! its target's cell. It lives here because the interface cannot depend on
 //! the world crates. It holds no entity: a job names bodies by
@@ -48,7 +48,7 @@ use std::{
 
 use bevy::prelude::*;
 use bevy_rand::prelude::WyRand;
-use nova_events::prelude::GeneratedBodyId;
+use nova_events::prelude::{GeneratedBodyId, Meters3};
 use rand::{RngExt, SeedableRng};
 
 use crate::{
@@ -62,7 +62,7 @@ use crate::{
 pub mod prelude {
     pub use super::{
         escort_raiders, offer_deadline_text, plan_job_accept, plan_job_hand_in, plan_job_hull_fit,
-        station_job_offers, Job, JobAcceptRefusalType, JobAccepted, JobBoard, JobField,
+        station_job_offers, EscortLeg, Job, JobAcceptRefusalType, JobAccepted, JobBoard, JobField,
         JobHandInPartner, JobHandInPlan, JobHandInRefusalType, JobHull, JobHullFit,
         JobHullRefusalType, JobId, JobMixType, JobPostings, JobType, JobWreck, Jobs, SlotPosting,
         StarterBoardMarker, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD, RAIDERS_PER_CARGO_CR,
@@ -675,21 +675,38 @@ pub struct JobAccepted {
     pub job: Job,
 }
 
+/// An undone escort's leg: the mark its hauler flies to and whether the
+/// hauler left. The hauler waits off its poster until the player stands
+/// undocked from the poster, then flies to the mark; the open world crate
+/// gives the hauler its order again from this record after a thaw or a
+/// Load, which keep no helm order.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct EscortLeg {
+    /// Where the hauler's leg ends.
+    pub mark: Meters3,
+    /// Whether the hauler left for its mark.
+    pub started: bool,
+}
+
 /// The player's jobs: the jobs held, in accept order, the ids of the held
-/// jobs whose work is done, and the jobs completed, in hand-in order. A
-/// completed job keeps its kind, its poster and its names: the role goal
-/// counts the hand-ins by kind and by the poster's cell.
+/// jobs whose work is done, the jobs completed, in hand-in order, and the leg
+/// of each held escort not yet done. A completed job keeps its kind, its
+/// poster and its names: the role goal counts the hand-ins by kind and by the
+/// poster's cell.
 ///
 /// Cleared with the chart whenever the world on hand goes: an unload, a
 /// Retry, a replaced scenario. A Load restores the saved record on the
 /// frame the world arms.
-#[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Resource, Clone, Debug, Default, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct Jobs {
     held: Vec<Job>,
     done: Vec<JobId>,
     completed: Vec<Job>,
+    legs: BTreeMap<JobId, EscortLeg>,
 }
 
 impl Jobs {
@@ -703,6 +720,7 @@ impl Jobs {
         self.held.clear();
         self.done.clear();
         self.completed.clear();
+        self.legs.clear();
     }
 
     /// The jobs held, in accept order.
@@ -765,7 +783,8 @@ impl Jobs {
         self.held.push(job);
     }
 
-    /// Record that the held job `id`'s work is done.
+    /// Record that the held job `id`'s work is done. An escort's leg is
+    /// over.
     ///
     /// # Panics
     ///
@@ -775,6 +794,52 @@ impl Jobs {
         assert!(self.holds(id), "Jobs marks '{id}' done, which is not held");
         assert!(!self.is_done(id), "Jobs marks '{id}' done twice");
         self.done.push(id.clone());
+        self.legs.remove(id);
+    }
+
+    /// Lay the leg of the held escort `id` to `mark`, not started.
+    ///
+    /// # Panics
+    ///
+    /// When `id` is not a held escort, is done, or has a leg: the world
+    /// crate lays a leg once, when the accept puts the hauler in the world.
+    pub fn lay_leg(&mut self, id: &JobId, mark: Meters3) {
+        assert!(
+            self.job(id)
+                .is_some_and(|job| matches!(job.kind, JobType::Escort { .. })),
+            "Jobs lays a leg for '{id}', which is not a held escort"
+        );
+        assert!(
+            !self.is_done(id),
+            "Jobs lays a leg for '{id}', which is done"
+        );
+        let laid = self.legs.insert(
+            id.clone(),
+            EscortLeg {
+                mark,
+                started: false,
+            },
+        );
+        assert!(laid.is_none(), "Jobs lays the leg of '{id}' twice");
+    }
+
+    /// Record that the hauler of the held escort `id` left for its mark.
+    ///
+    /// # Panics
+    ///
+    /// When `id` has no leg or its leg started already.
+    pub fn start_leg(&mut self, id: &JobId) {
+        let leg = self
+            .legs
+            .get_mut(id)
+            .unwrap_or_else(|| panic!("Jobs starts the leg of '{id}', which has none"));
+        assert!(!leg.started, "Jobs starts the leg of '{id}' twice");
+        leg.started = true;
+    }
+
+    /// The leg of every held escort not yet done, in id order.
+    pub fn legs(&self) -> impl Iterator<Item = (&JobId, &EscortLeg)> + '_ {
+        self.legs.iter()
     }
 
     /// Move the held job `id` to the completed list and give it back.
@@ -803,6 +868,7 @@ impl Jobs {
             .position(|job| job.id == *id)
             .unwrap_or_else(|| panic!("Jobs drops '{id}', which is not held"));
         self.done.retain(|done| done != id);
+        self.legs.remove(id);
         self.held.remove(at)
     }
 
@@ -812,7 +878,8 @@ impl Jobs {
     }
 
     /// Refuse a record a Load could not have built: a job held or completed
-    /// twice, held and completed at once, done but not held, or a job
+    /// twice, held and completed at once, done but not held, a leg no held,
+    /// undone escort has, a held, undone escort with no leg, or a job
     /// [`Job::validate`] refuses.
     pub fn validate(&self) -> Result<(), String> {
         for (index, job) in self.held.iter().enumerate() {
@@ -822,6 +889,20 @@ impl Jobs {
             }
             if self.is_completed(&job.id) {
                 return Err(format!("the jobs hold '{}' and list it completed", job.id));
+            }
+            let escort = matches!(job.kind, JobType::Escort { .. });
+            if escort && !self.is_done(&job.id) && !self.legs.contains_key(&job.id) {
+                return Err(format!("the jobs hold the escort '{}' with no leg", job.id));
+            }
+        }
+        for id in self.legs.keys() {
+            let escort = self
+                .job(id)
+                .is_some_and(|job| matches!(job.kind, JobType::Escort { .. }));
+            if !escort || self.is_done(id) {
+                return Err(format!(
+                    "the jobs lay a leg for '{id}', which is no held, undone escort"
+                ));
             }
         }
         for (index, id) in self.done.iter().enumerate() {
@@ -1863,6 +1944,8 @@ mod tests {
             .expect("an escort reads no target: its hauler spawns on the accept");
         jobs.accept(recover.clone());
         jobs.accept(escort.clone());
+        // The open world lays the leg when the accept spawns the hauler.
+        jobs.lay_leg(&escort.id, Meters3::default());
 
         let hold = ShipInventory::new(&items, 1_000_000, []);
         let here = JobHandInPartner {
@@ -1937,6 +2020,71 @@ mod tests {
             cargo_cr: 0,
         };
         assert!(foreign.validate().unwrap_err().contains("carries nothing"));
+    }
+
+    #[test]
+    fn validate_refuses_a_leg_no_undone_escort_holds_and_an_undone_escort_without_a_leg() {
+        let (_, poster, procurement) = a_procurement();
+        let id = JobId {
+            station: poster.clone(),
+            slot: 1,
+            posting: 0,
+        };
+        let escort = Job {
+            kind: JobType::Escort {
+                hauler: id.spawned_body("hauler", 0),
+                cargo_cr: 500,
+            },
+            id,
+            target: poster,
+            reward_cr: 300,
+        };
+        escort.validate().unwrap();
+        let mark = Meters3(Vec3::new(0.0, 0.0, -10_000.0));
+
+        let mut bare = Jobs::default();
+        bare.accept(escort.clone());
+        assert!(bare.validate().unwrap_err().contains("no leg"));
+
+        let mut laid = bare.clone();
+        laid.lay_leg(&escort.id, mark);
+        laid.validate().unwrap();
+        laid.start_leg(&escort.id);
+        laid.validate().unwrap();
+
+        let mut done = laid.clone();
+        done.mark_done(&escort.id);
+        assert_eq!(done.legs().count(), 0, "a done escort's leg is over");
+        done.validate().unwrap();
+        let mut stale = done.clone();
+        stale.legs.insert(
+            escort.id.clone(),
+            EscortLeg {
+                mark,
+                started: true,
+            },
+        );
+        assert!(stale
+            .validate()
+            .unwrap_err()
+            .contains("no held, undone escort"));
+
+        let mut dropped = laid.clone();
+        dropped.drop(&escort.id);
+        assert_eq!(dropped.legs().count(), 0, "a dropped escort's leg is over");
+        let mut loose = Jobs::default();
+        loose.accept(procurement.clone());
+        loose.legs.insert(
+            procurement.id.clone(),
+            EscortLeg {
+                mark,
+                started: false,
+            },
+        );
+        assert!(loose
+            .validate()
+            .unwrap_err()
+            .contains("no held, undone escort"));
     }
 
     /// A renewed slot posts under the next posting, a different offer whose

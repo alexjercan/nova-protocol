@@ -519,7 +519,7 @@ Each slot draws its kind by the start role's `jobs` mix (see
 |---|---|---|---|
 | `Procure` | `Bring 4 Iron ore` | bring that many units of the item to the poster | the goods at the ask plus half, plus a fee |
 | `Recover` | `Recover 2 Hull plate from <wreck>` | take that many off the named derelict in the cube and undock with them aboard, the wreck's stack gone | twice the ask, plus a fee |
-| `Escort` | `Escort a hauler carrying 1200 cr` | a civilian hauler spawns at the poster on a 10 km leg; see it reach its mark. `1 + cargo / 700` raiders, at most 3, lie in wait 60 % along the leg | half the cargo value, plus a fee |
+| `Escort` | `Escort a hauler carrying 1200 cr` | a civilian hauler spawns 3 km off the poster on a 10 km leg and leaves when you undock; see it reach its mark. `1 + cargo / 700` raiders, at most 3, lie in wait 2 km off the leg, 60 % along it, and engage within 3 km | half the cargo value, plus a fee |
 | `Distress` | `Answer a distress call` | a caller spawns 10 km out: dock with the drifting hull, or neutralize the raider waiting there instead (one call in three is a trap) | 200 cr plus twice a fee |
 | `Neutralize` | `Neutralize <hull>` | neutralize the named Enemy hull standing in the cube | 400 cr plus twice a fee |
 
@@ -547,12 +547,13 @@ offers `Jobs` (`plan_job_accept`, `plan_job_hand_in`). An accept is refused
 while the job is held or completed, while its offer's window has passed
 (`Expired`: the station no longer offers it), and for a `Recover` or
 `Neutralize` whose target is gone. An accept raises `JobAccepted`: an `Escort` spawns its
-hauler, under a `Move` helm order to its mark, and its raiders; a `Distress`
-spawns its caller. A job is DONE when the open world sees its completion
+hauler and its raiders, and the hauler waits with no helm order until the
+player stands undocked from the poster, then flies a `Move` to its mark; a
+`Distress` spawns its caller. A job is DONE when the open world sees its completion
 over the shipped event kinds: `onundocked` naming the wreck with the stack
 aboard and the wreck's stack gone (`Recover`), `onshipordercomplete` for the
-hauler's `Move` (`Escort`; the hauler neutralized or destroyed drops the job
-and its bodies), `ondocked` with the caller or the raider neutralized or
+hauler's `Move` (`Escort`; the hauler neutralized or destroyed, or its
+`Move` failed, drops the job and its bodies), `ondocked` with the caller or the raider neutralized or
 destroyed (`Distress`), `onneutralized` or `ondestroyed` naming the hull
 (`Neutralize`). A hand-in needs the posting station, the job done (a
 `Procure` is done with the goods in the hold), and a station balance that
@@ -560,14 +561,16 @@ covers the reward; it removes a `Procure`'s goods, pays `OnCreditsChanged`
 with cause `JobReward` on both sides and lists the job completed. Held, done
 and completed jobs are the `Jobs` session resource, and every board's slot
 postings and offers are the `JobPostings` session resource; both save in
-the world state's `jobs` and `postings` fields (save format 23) and are
+the world state's `jobs` and `postings` fields (save format 26) and are
 checked on load: a job held twice, held and completed, done but not held,
-with a zero count or reward, or naming an item the catalog lacks refuses the
+an undone escort with no leg or a leg with no undone escort, with a zero
+count or reward, or naming an item the catalog lacks refuses the
 world, as does a board with the wrong slot count, a posting stamp ahead of
 the clock, or an offer that is not its slot's posting or that no board could
 post. A held job is checked by its own rules, not against its slot. A
 frozen sector keeps a spawned hauler, caller or raider as any ship, but not
-the hauler's helm order: a hauler left mid-leg stands where it was thawed.
+the hauler's helm order: the jobs keep the hauler's mark and whether it left,
+so a thawed or loaded hauler that left flies to its mark again.
 Authored `Station` content with `Jobs` in its services posts no board: only
 generated stations have the id and sector the board is seeded from.
 
