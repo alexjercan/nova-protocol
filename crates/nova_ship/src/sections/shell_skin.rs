@@ -3002,31 +3002,6 @@ mod tests {
         );
     }
 
-    /// A ship naming a style nothing authored is clad and BARE, rather than
-    /// wearing whatever style happened to load first.
-    #[test]
-    fn an_unknown_style_leaves_a_ship_undecorated() {
-        let mut app = skin_app();
-        app.insert_resource(GameStyles(vec![test_style()]));
-        let ship = spawn_styled_ship(
-            &mut app,
-            true,
-            Some("nothing_authored_this"),
-            &[(Vec3::ZERO, Quat::IDENTITY)],
-        );
-        app.update();
-
-        assert_eq!(plates_of(&app, ship).len(), 6, "the skin is still derived");
-        assert_eq!(
-            app.world_mut()
-                .query_filtered::<(), With<ShipDecorMarker>>()
-                .iter(app.world())
-                .count(),
-            0,
-            "an unknown style must not fall back to another look",
-        );
-    }
-
     /// A style whose one fixture takes nearly every plate, for the spawn-path
     /// tests.
     fn test_style() -> ShipStyleConfig {

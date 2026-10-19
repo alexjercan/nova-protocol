@@ -425,6 +425,7 @@ fn load_row(
     snapshot: Res<Snapshot>,
     sections: Res<GameSections>,
     items: Res<GameItems>,
+    styles: Res<GameStyles>,
     game_assets: Res<GameAssets>,
     mut orbit: ResMut<Orbit>,
     mut generation: Local<u32>,
@@ -433,7 +434,14 @@ fn load_row(
         return;
     }
     *generation += 1;
-    let row = generate_row(&controls, *generation, &snapshot.0, &sections, &items);
+    let row = generate_row(
+        &controls,
+        *generation,
+        &snapshot.0,
+        &sections,
+        &items,
+        &styles,
+    );
     for failure in &row.failures {
         error!("generator_gallery: {failure}");
     }
@@ -531,6 +539,7 @@ fn generate_row(
     snapshot: &ShipPartSnapshot,
     sections: &GameSections,
     items: &GameItems,
+    styles: &GameStyles,
 ) -> Row {
     let civilization = CivilizationId {
         world_seed: WORLD_SEED,
@@ -589,7 +598,7 @@ fn generate_row(
         if let Some(style) = &controls.style {
             design.presentation.style = Some(style.clone());
         }
-        let errors = hull_errors(&design, sections, items);
+        let errors = hull_errors(&design, sections, items, styles);
         if !errors.is_empty() {
             failures.push(format!(
                 "{} at advancement {advancement:.2}, seed {}: the lint refuses it: {}",
@@ -634,7 +643,7 @@ fn generate_row(
         }
         let name = format!("station_{generation}_{index}");
         let errors: Vec<String> =
-            lint_station_design(&name, &station, &known, items, "generator_gallery")
+            lint_station_design(&name, &station, &known, items, styles, "generator_gallery")
                 .into_iter()
                 .filter(|issue| issue.severity == LintSeverity::Error)
                 .map(|issue| issue.message)

@@ -3,12 +3,13 @@
 //! its `generated_station`, pass the station lint at every advancement.
 
 use nova_authoring::{
-    generation::{build_items, build_section_catalog},
+    generation::{build_items, build_section_catalog, build_styles},
     lint_walk::repo_ship_part_packs,
 };
 use nova_events::prelude::Meters3;
 use nova_gameplay::prelude::{CivilizationId, GameItems, StanceType};
 use nova_scenario::prelude::{lint_station_design, KnownSections, LintSeverity};
+use nova_ship::prelude::GameStyles;
 use nova_world_base::prelude::{
     generate_station, generated_station, station_ceiling, Civilization, CivilizationStatusType,
     ShipPartSnapshot, StationArchetypeType, StationLayoutRequest,
@@ -24,6 +25,7 @@ fn every_base_station_passes_the_station_lint_at_every_advancement() {
     let catalog = build_section_catalog();
     let sections = KnownSections::from_configs(catalog.iter());
     let items = GameItems::new(build_items());
+    let styles = GameStyles(build_styles());
     let id = CivilizationId {
         world_seed: 11,
         node: [2, 0, -1],
@@ -55,7 +57,7 @@ fn every_base_station_passes_the_station_lint_at_every_advancement() {
                 );
                 let design = generated_station(&parts, &items, &layout, &civilization);
                 let errors: Vec<String> =
-                    lint_station_design(&context, &design, &sections, &items, "generated")
+                    lint_station_design(&context, &design, &sections, &items, &styles, "generated")
                         .into_iter()
                         .filter(|issue| issue.severity == LintSeverity::Error)
                         .map(|issue| issue.message)

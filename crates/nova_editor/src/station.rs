@@ -19,7 +19,7 @@ use nova_scenario::prelude::{
     ShipDesign, ShipDesignSource, ShipIntegrityConfig, StationDesign, StationDesignId,
     StationDesignPrototype, StationServiceType, STATION_COLLAPSE_THRESHOLD,
 };
-use nova_ship::prelude::GameSections;
+use nova_ship::prelude::{GameSections, GameStyles};
 
 use crate::scenario::{ship_design, HullForm, LoweredFleet, LoweredShip, SANDBOX_ID};
 
@@ -134,6 +134,7 @@ pub(crate) fn station_faults(
     design: &StationDesignPrototype,
     sections: &GameSections,
     items: &GameItems,
+    styles: &GameStyles,
 ) -> Vec<String> {
     let lead = format!("station '{}': ", design.id);
     lint_station_design(
@@ -141,6 +142,7 @@ pub(crate) fn station_faults(
         &design.design,
         &KnownSections::from_configs(&sections.0),
         items,
+        styles,
         LINT_SOURCE,
     )
     .into_iter()
@@ -169,16 +171,22 @@ pub(crate) fn short_fault(fault: &str) -> &str {
 pub(crate) struct StationCatalogs<'w> {
     sections: Option<Res<'w, GameSections>>,
     items: Option<Res<'w, GameItems>>,
+    styles: Option<Res<'w, GameStyles>>,
 }
 
 impl StationCatalogs<'_> {
-    /// Hand `read` the section and item catalogs, or empty ones in a rig that
-    /// merged none.
-    fn with<R>(&self, read: impl FnOnce(&GameSections, &GameItems) -> R) -> R {
-        let (no_sections, no_items) = (GameSections::default(), GameItems::default());
+    /// Hand `read` the section, item and style catalogs, or empty ones in a
+    /// rig that merged none.
+    fn with<R>(&self, read: impl FnOnce(&GameSections, &GameItems, &GameStyles) -> R) -> R {
+        let (no_sections, no_items, no_styles) = (
+            GameSections::default(),
+            GameItems::default(),
+            GameStyles::default(),
+        );
         read(
             self.sections.as_deref().unwrap_or(&no_sections),
             self.items.as_deref().unwrap_or(&no_items),
+            self.styles.as_deref().unwrap_or(&no_styles),
         )
     }
 
@@ -189,12 +197,12 @@ impl StationCatalogs<'_> {
         fleet: &LoweredFleet,
         form: HullForm,
     ) -> Vec<(StationDesignPrototype, Vec<String>)> {
-        self.with(|sections, items| {
+        self.with(|sections, items, styles| {
             fleet
                 .stations()
                 .map(|ship| {
                     let design = station_design(ship, form, sections, items);
-                    let faults = station_faults(&design, sections, items);
+                    let faults = station_faults(&design, sections, items, styles);
                     (design, faults)
                 })
                 .collect()
@@ -218,11 +226,12 @@ impl StationCatalogs<'_> {
     /// The faults of ONE lowered ship's station design: what the inspector's
     /// Station Check row reads.
     pub(crate) fn faults_of(&self, ship: &LoweredShip) -> Vec<String> {
-        self.with(|sections, items| {
+        self.with(|sections, items, styles| {
             station_faults(
                 &station_design(ship, HullForm::Inline, sections, items),
                 sections,
                 items,
+                styles,
             )
         })
     }

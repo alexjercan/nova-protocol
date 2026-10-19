@@ -77,9 +77,10 @@ fn load_orders(
     sections: Res<GameSections>,
     ships: Res<GameShipDesigns>,
     items: Res<GameItems>,
+    styles: Res<GameStyles>,
 ) {
     let scenario = orders(&game_assets);
-    refuse_broken(&scenario, &sections, &ships, &items);
+    refuse_broken(&scenario, &sections, &ships, &items, &styles);
     commands.trigger(LoadScenario(scenario));
 }
 
@@ -154,6 +155,7 @@ fn refuse_broken(
     sections: &GameSections,
     ships: &GameShipDesigns,
     items: &GameItems,
+    styles: &GameStyles,
 ) {
     let known = KnownSections::from_configs(sections.iter());
     let issues = lint_scenario(
@@ -163,6 +165,7 @@ fn refuse_broken(
         &KnownStationDesigns::default(),
         &HashSet::from([scenario.id.clone()]),
         items,
+        styles,
     );
     let errors: Vec<_> = issues
         .iter()

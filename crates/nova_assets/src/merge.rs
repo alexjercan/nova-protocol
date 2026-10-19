@@ -554,6 +554,10 @@ pub fn register_bundles(
         .map(|(id, _)| id.clone())
         .collect();
     let merged_items = GameItems::new(outcome.items);
+    // The same compiled catalog the game runs with: a style dropped here for
+    // bad greebles must show up as an unknown-style content issue below, not
+    // just panic later at `ShipStyle::resolve`.
+    let merged_styles = GameStyles(compiled_styles(outcome.styles));
     let mut content_issues = nova_scenario::prelude::ContentIssues::default();
     // Every MERGED ship, checked where it is authored: a scenario referencing
     // one only checks that the id resolves, so this is the pass that sees the
@@ -563,6 +567,7 @@ pub fn register_bundles(
             ship,
             &merged_sections,
             &merged_items,
+            &merged_styles,
             ship.id.as_str(),
         );
         for issue in &found {
@@ -606,6 +611,7 @@ pub fn register_bundles(
             &station.design,
             &merged_sections,
             &merged_items,
+            &merged_styles,
             station.id.as_str(),
         );
         for issue in &found {
@@ -654,6 +660,7 @@ pub fn register_bundles(
             &merged_stations,
             &merged_scenarios,
             &merged_items,
+            &merged_styles,
         );
         for issue in &found {
             warn!(
@@ -738,7 +745,7 @@ pub fn register_bundles(
     commands.insert_resource(GameSections(outcome.sections));
     publish_scenarios(&mut commands, outcome.scenarios);
     commands.insert_resource(outcome.campaigns);
-    commands.insert_resource(GameStyles(compiled_styles(outcome.styles)));
+    commands.insert_resource(merged_styles);
     commands.insert_resource(GameShipDesigns(outcome.ships));
     commands.insert_resource(GameStationDesigns(outcome.stations));
     commands.insert_resource(GameStartRoles(outcome.start_roles));
@@ -1090,9 +1097,9 @@ where
 }
 
 /// The merged styles whose greeble rules compile. A style that does not is
-/// logged with every fault and dropped, so a ship naming it wears no style
-/// rather than a style the greeble solve cannot run. Content lint refuses the
-/// same faults first.
+/// logged with every fault and dropped, so the greeble solve never runs it.
+/// Content lint refuses the same faults first; a ship that names a dropped
+/// style panics at `ShipStyle::resolve`.
 fn compiled_styles(styles: Vec<ShipStyleConfig>) -> Vec<ShipStyleConfig> {
     styles
         .into_iter()

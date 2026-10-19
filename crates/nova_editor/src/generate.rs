@@ -404,7 +404,8 @@ fn collapse(
         })
         .flatten();
     let hull = tiles.hull(seed, clad, style)?;
-    let errors = hull_errors(&hull, sections, items);
+    let no_styles = GameStyles::default();
+    let errors = hull_errors(&hull, sections, items, styles.unwrap_or(&no_styles));
     match errors.first() {
         Some(first) => Err(format!(
             "the collapse built a hull the game refuses: {first}"

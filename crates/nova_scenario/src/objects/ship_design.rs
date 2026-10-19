@@ -139,9 +139,9 @@ pub struct ShipPresentationConfig {
     /// `ShipStyleConfig`.
     ///
     /// `None` (omit the field) is the undressed derivation - built-in plate
-    /// colours and no greebles. A style named here but authored by nobody
-    /// leaves the ship bare rather than falling back to another look, so a
-    /// missing mod is visible instead of silently substituted.
+    /// colours and no greebles. A style named here must be in the style
+    /// catalog: the design lint refuses an unknown id, and `ShipStyle::resolve`
+    /// panics on one.
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub style: Option<String>,
     /// The sound this design makes when it COLLAPSES - the moment it stops

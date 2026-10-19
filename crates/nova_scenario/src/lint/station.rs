@@ -4,7 +4,7 @@
 use std::collections::HashSet;
 
 use nova_gameplay::prelude::{kg_text, GameItems};
-use nova_ship::prelude::SectionKind;
+use nova_ship::prelude::{GameStyles, SectionKind};
 
 use super::{ship::check_design_sections, KnownSections, LintIssue};
 use crate::prelude::*;
@@ -17,8 +17,8 @@ use crate::prelude::*;
 ///
 /// Errors:
 /// - the hull's section list fails the ship design checks: an unknown
-///   prototype, a reserved or duplicate section id, overlapping sections, a
-///   broken link graph ([`check_design_sections`]);
+///   prototype, a reserved or duplicate section id, a style `styles` lacks,
+///   overlapping sections, a broken link graph ([`check_design_sections`]);
 /// - the hull has no Docking section (nothing could dock), any Thruster
 ///   section (a station never flies) or no Controller section (nothing holds
 ///   its attitude);
@@ -36,6 +36,7 @@ pub fn lint_station_design(
     design: &StationDesign,
     sections: &KnownSections,
     items: &GameItems,
+    styles: &GameStyles,
     source: &str,
 ) -> Vec<LintIssue> {
     let mut issues = Vec::new();
@@ -46,6 +47,7 @@ pub fn lint_station_design(
         source,
         sections,
         items,
+        styles,
         &mut issues,
     );
 
@@ -249,17 +251,32 @@ mod tests {
     }
 
     fn errors(design: &StationDesign) -> Vec<String> {
-        lint_station_design("post", design, &sections(), &items(), "test")
-            .into_iter()
-            .filter(|issue| issue.severity == LintSeverity::Error)
-            .map(|issue| issue.message)
-            .collect()
+        lint_station_design(
+            "post",
+            design,
+            &sections(),
+            &items(),
+            &GameStyles::default(),
+            "test",
+        )
+        .into_iter()
+        .filter(|issue| issue.severity == LintSeverity::Error)
+        .map(|issue| issue.message)
+        .collect()
     }
 
     #[test]
     fn a_sound_station_design_lints_clean() {
         assert!(
-            lint_station_design("post", &sound(), &sections(), &items(), "test").is_empty(),
+            lint_station_design(
+                "post",
+                &sound(),
+                &sections(),
+                &items(),
+                &GameStyles::default(),
+                "test"
+            )
+            .is_empty(),
             "{:?}",
             errors(&sound())
         );
@@ -408,6 +425,7 @@ mod tests {
                 &stations(&["waystation"]),
                 &known(&["test_scenario"]),
                 &GameItems::default(),
+                &GameStyles::default(),
             )
         };
         let unknown = lint("no_such_station");
@@ -424,7 +442,14 @@ mod tests {
     fn a_service_listed_twice_warns_without_refusing() {
         let mut design = sound();
         design.services.push(StationServiceType::Trade);
-        let issues = lint_station_design("post", &design, &sections(), &items(), "test");
+        let issues = lint_station_design(
+            "post",
+            &design,
+            &sections(),
+            &items(),
+            &GameStyles::default(),
+            "test",
+        );
         assert!(issues
             .iter()
             .all(|issue| issue.severity == LintSeverity::Warn));

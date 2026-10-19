@@ -23,7 +23,7 @@ use nova_scenario::prelude::{
     KnownStationDesigns, LintIssue, LintSeverity, ScenarioConfig, ScenarioObjectKind,
     ScenarioWorldType, ShipDesignPrototype, SpaceshipController, StartRole, StationDesignPrototype,
 };
-use nova_ship::prelude::{flight_rig_reserved_sources, SectionConfig};
+use nova_ship::prelude::{flight_rig_reserved_sources, GameStyles, SectionConfig, ShipStyleConfig};
 use nova_training::prelude::{
     lint_lessons, unused_practice_ranges, Lesson, LessonIssue, LessonSeverity,
 };
@@ -64,6 +64,7 @@ struct WalkedBundle {
     campaigns: Vec<CampaignConfig>,
     lessons: Vec<Lesson>,
     ui_themes: Vec<UiThemeConfig>,
+    styles: Vec<ShipStyleConfig>,
     /// Every parsed content item paired with the bundle-relative file it was
     /// read from (a bundle lists several content files). Kept so the
     /// mod-relative `self://` resource-ref check can see every kind, and so
@@ -131,6 +132,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
     let mut campaigns = Vec::new();
     let mut lessons = Vec::new();
     let mut ui_themes = Vec::new();
+    let mut styles = Vec::new();
     for (_, item) in &content {
         match item {
             Content::Item(design) => items.push(design.clone()),
@@ -143,11 +145,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
             Content::Campaign(campaign) => campaigns.push(campaign.clone()),
             Content::Lesson(lesson) => lessons.push(lesson.clone()),
             Content::UiTheme(theme) => ui_themes.push(theme.as_ref().clone()),
-            // A style has no cross-content references of its own - it
-            // names asset paths and its own fixtures - so it is walked for
-            // its resource refs and greeble rules (below) and needs no bucket
-            // here.
-            Content::Style(_) => {}
+            Content::Style(style) => styles.push(style.clone()),
         }
     }
     WalkedBundle {
@@ -163,6 +161,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
         campaigns,
         lessons,
         ui_themes,
+        styles,
         content,
         acks: read_acks(dir),
     }
@@ -318,6 +317,20 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
             .flat_map(|walked| walked.items.iter().cloned()),
     );
 
+    // Visible styles, overlaid last-wins by id like the merge overlays styles:
+    // a dependent's restyle of a base id replaces it in place rather than
+    // shadowing a duplicate.
+    let mut visible_styles: Vec<ShipStyleConfig> = Vec::new();
+    for walked in effective_bundles(bundle, all) {
+        for style in &walked.styles {
+            match visible_styles.iter_mut().find(|s| s.id == style.id) {
+                Some(existing) => *existing = style.clone(),
+                None => visible_styles.push(style.clone()),
+            }
+        }
+    }
+    let known_styles = GameStyles(visible_styles);
+
     let mut issues = Vec::new();
     for scenario in &bundle.scenarios {
         for issue in lint_scenario(
@@ -327,6 +340,7 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
             &known_stations,
             &known_scenarios,
             &known_items,
+            &known_styles,
         ) {
             issues.push((bundle.id.clone(), issue));
         }
@@ -336,8 +350,13 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
     // disconnected or unresolvable ship is caught even when no scenario spawns
     // it. Same rule the section catalog follows below.
     for ship in &bundle.ships {
-        for issue in lint_ship_design_config(ship, &known_sections, &known_items, ship.id.as_str())
-        {
+        for issue in lint_ship_design_config(
+            ship,
+            &known_sections,
+            &known_items,
+            &known_styles,
+            ship.id.as_str(),
+        ) {
             issues.push((bundle.id.clone(), issue));
         }
     }
@@ -349,6 +368,7 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
             &station.design,
             &known_sections,
             &known_items,
+            &known_styles,
             station.id.as_str(),
         ) {
             issues.push((bundle.id.clone(), issue));
@@ -1311,6 +1331,7 @@ mod tests {
             campaigns,
             lessons,
             ui_themes,
+            styles: Vec::new(),
             // The tests do not exercise multi-file provenance; a single
             // synthetic file name carries every item.
             content: content

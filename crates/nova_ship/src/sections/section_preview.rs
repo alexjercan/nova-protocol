@@ -10,14 +10,17 @@
 //! all.
 
 use avian3d::prelude::Collider;
-use bevy::ecs::system::EntityCommands;
+use bevy::{
+    ecs::system::EntityCommands,
+    prelude::{ChildOf, Commands, Entity, Name, Transform, Visibility},
+};
 use nova_gameplay::markers::prelude::SectionMarker;
 
 use crate::prelude::*;
 
 /// Glob-import surface.
 pub mod prelude {
-    pub use super::{insert_preview_section, PreviewRole};
+    pub use super::{insert_preview_section, spawn_display_skin, PreviewRole};
 }
 
 /// What a preview entity IS to the rest of the game.
@@ -79,5 +82,67 @@ pub fn insert_preview_section(
         // Dropped rather than never inserted: the preview bundle is one shared
         // recipe, and a display copy is that recipe minus its identity.
         entity.remove::<(SectionMarker, Collider)>();
+    }
+}
+
+/// Clad a display copy of `sections` under `parent` in the skin a flown ship
+/// of them wears, dressed in `style`.
+///
+/// The same reading, derivation and greeble solve as the spawn's `lay_skin`,
+/// so the menu's hull view shows the plates the flown hull wears. Each plate
+/// and piece is a picture only: a marker, a pose and a visibility, with no
+/// collider, health or [`SectionFixture`]. The style goes on `parent` as a
+/// [`ShipStyle`], where the dressing observers' ancestor walk finds it, as
+/// they find a flown ship's on its root.
+pub fn spawn_display_skin(
+    commands: &mut Commands,
+    parent: Entity,
+    sections: &[DesignSection],
+    style: Option<&ShipStyleConfig>,
+) {
+    commands
+        .entity(parent)
+        .insert(ShipStyle(style.map(|style| style.id.clone())));
+    let placed: Vec<PlacedPart> = sections
+        .iter()
+        .map(|section| {
+            RefitPlacedSection {
+                position: section.position,
+                rotation: section.rotation,
+                config: &section.config,
+            }
+            .placed_part()
+        })
+        .collect();
+    let (structure, phase, _) = read_structure(&placed);
+    let mut plates = derive_skin(&structure);
+    let decor = style.map_or_else(Vec::new, |style| {
+        solve_decor(&structure, &mut plates, style)
+    });
+    let laid: Vec<Entity> = plates
+        .iter()
+        .map(|plate| {
+            commands
+                .spawn((
+                    Name::new("Display Skin Plate"),
+                    ShipSkinMarker(plate.shape),
+                    Transform::from_translation(plate.cell.as_vec3() + phase)
+                        .with_rotation(plate.rotation),
+                    Visibility::Inherited,
+                    ChildOf(parent),
+                ))
+                .id()
+        })
+        .collect();
+    if let Some(style) = style {
+        for placement in decor {
+            commands.spawn((
+                Name::new("Display Skin Decor"),
+                ShipDecorMarker(style.fixtures[placement.fixture].model.clone()),
+                decor_pose(&plates[placement.plate], placement.turns),
+                Visibility::Inherited,
+                ChildOf(laid[placement.plate]),
+            ));
+        }
     }
 }

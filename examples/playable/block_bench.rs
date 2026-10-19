@@ -402,6 +402,7 @@ fn bench_row(
     game_assets: &GameAssets,
     sections: &GameSections,
     items: &GameItems,
+    styles: &GameStyles,
     roster: Roster,
     style: StyleId,
 ) -> ScenarioConfig {
@@ -439,7 +440,7 @@ fn bench_row(
             game_assets.cubemap.clone().into(),
         )
     };
-    refuse_broken(&scenario, sections, items);
+    refuse_broken(&scenario, sections, items, styles);
     scenario
 }
 
@@ -491,7 +492,12 @@ fn refuse_blocked(subject: &Subject, sections: &GameSections) {
 /// Run the roster through the game's OWN content gate before posing it, the
 /// `wfc_ships` claim held to by the hand-placed cases too: what stands on the
 /// bench is a ship the game would accept.
-fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections, items: &GameItems) {
+fn refuse_broken(
+    scenario: &ScenarioConfig,
+    sections: &GameSections,
+    items: &GameItems,
+    styles: &GameStyles,
+) {
     let known = KnownSections::from_configs(sections.iter());
     let issues = lint_scenario(
         scenario,
@@ -500,6 +506,7 @@ fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections, items: &Gam
         &KnownStationDesigns::default(),
         &HashSet::from([scenario.id.clone()]),
         items,
+        styles,
     );
     let errors: Vec<&str> = issues
         .iter()
@@ -540,6 +547,7 @@ fn load_roster(
         &game_assets,
         &sections,
         &items,
+        &styles,
         *roster,
         style,
     )));
@@ -574,6 +582,7 @@ fn restyle_on_key(
         &game_assets,
         &sections,
         &items,
+        &styles,
         *roster,
         style,
     )));

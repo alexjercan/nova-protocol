@@ -1574,7 +1574,7 @@ fn arena(
             game_assets.cubemap.clone().into(),
         )
     };
-    refuse_broken_ships(&scenario, sections, items);
+    refuse_broken_ships(&scenario, sections, items, styles);
     scenario
 }
 
@@ -1584,8 +1584,13 @@ fn arena(
 /// same function the `content lint` gate and the runtime loader run, so a
 /// clean arena is one the game would accept. The combatants carry spare
 /// ammunition, so the gate reads the loaded item catalog.
-fn refuse_broken_ships(scenario: &ScenarioConfig, sections: &GameSections, items: &GameItems) {
-    let errors = lint_errors(scenario, sections, items);
+fn refuse_broken_ships(
+    scenario: &ScenarioConfig,
+    sections: &GameSections,
+    items: &GameItems,
+    styles: &GameStyles,
+) {
+    let errors = lint_errors(scenario, sections, items, styles);
     assert!(
         errors.is_empty(),
         "wfc_arena: the collapse produced content the game would refuse:\n  {}",
@@ -3491,7 +3496,7 @@ mod reserve_tests {
             )
         };
 
-        refuse_broken_ships(&scenario, &sections, &items);
+        refuse_broken_ships(&scenario, &sections, &items, &GameStyles::default());
     }
 
     /// A drafted hull resolved, with its hold cut to `hulls` hull sections and

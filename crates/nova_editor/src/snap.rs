@@ -756,6 +756,7 @@ mod tests {
             &saved,
             &KnownSections::from_configs(&configs),
             &nova_gameplay::prelude::GameItems::default(),
+            &GameStyles::default(),
             "editor",
         );
         assert!(issues.is_empty(), "{issues:?}");

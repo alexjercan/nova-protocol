@@ -30,7 +30,9 @@ use nova_events::prelude::SectorCoord;
 use nova_gameplay::prelude::{new_render_target_image, resize_render_target};
 use nova_hud::prelude::*;
 use nova_interface::prelude::{zoom_radius, OrbitGesture};
-use nova_ship::prelude::{insert_preview_section, DesignSection, PreviewRole};
+use nova_ship::prelude::{
+    insert_preview_section, spawn_display_skin, DesignSection, GameStyles, PreviewRole, ShipStyle,
+};
 use nova_ui::{
     theme::{ActiveUiTheme, UiColor},
     widget::{ThemedFill, ThemedText, UiText},
@@ -58,9 +60,18 @@ const MENU_PREVIEW_PX: UVec2 = UVec2::new(320, 200);
 #[derive(Component, Clone, Debug, PartialEq)]
 pub(crate) struct MenuChartPreview(pub(crate) ChartSceneView);
 
-/// A hull preview: the node draws a hull of these sections, turning.
+/// A hull preview: the node draws a hull of `sections`, clad as the flown
+/// hull is, turning.
 #[derive(Component, Clone, Debug)]
-pub(crate) struct MenuHullPreview(pub(crate) Vec<DesignSection>);
+pub(crate) struct MenuHullPreview {
+    /// The placed, finished sections.
+    pub(crate) sections: Vec<DesignSection>,
+    /// The design's `presentation.skin`: whether the hull wears the derived
+    /// skin.
+    pub(crate) skin: bool,
+    /// The design's `presentation.style`: the look the skin wears.
+    pub(crate) style: ShipStyle,
+}
 
 /// One label of a chart preview under its node: a mark's code or the own
 /// ship's tag, hidden until projected.
@@ -151,6 +162,7 @@ pub(crate) fn preview_node(name: &'static str, node: Node) -> impl Bundle {
 pub(crate) fn build_menu_previews(
     mut commands: Commands,
     theme: Res<ActiveUiTheme>,
+    styles: Res<GameStyles>,
     tiles: Option<Res<ChartTileTextures>>,
     images: Option<ResMut<Assets<Image>>>,
     meshes: Option<ResMut<Assets<Mesh>>>,
@@ -314,7 +326,7 @@ pub(crate) fn build_menu_previews(
                     &mut commands,
                     &mut images,
                     &theme,
-                    &hull.0,
+                    &hull.sections,
                     layer.clone(),
                     order,
                     true,
@@ -322,7 +334,7 @@ pub(crate) fn build_menu_previews(
                 // The sections' meshes arrive as children over the next
                 // frames; the propagated layer reaches them when they do.
                 commands.entity(scene.model).insert(Propagate(layer));
-                for section in &hull.0 {
+                for section in &hull.sections {
                     let mut entity = commands.spawn((
                         Name::new(format!("Menu Hull Preview {}", section.id)),
                         Transform::from_translation(section.position)
@@ -331,6 +343,14 @@ pub(crate) fn build_menu_previews(
                         ChildOf(scene.model),
                     ));
                     insert_preview_section(&mut entity, &section.config, PreviewRole::Display);
+                }
+                if hull.skin {
+                    spawn_display_skin(
+                        &mut commands,
+                        scene.model,
+                        &hull.sections,
+                        hull.style.resolve(&styles),
+                    );
                 }
                 MenuPreviewScene {
                     root: scene.root,

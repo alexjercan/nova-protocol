@@ -924,6 +924,7 @@ fn load_pending_scene(
     skin: Res<SkinType>,
     enabled: Res<EnabledMods>,
     sections: Res<GameSections>,
+    styles: Res<GameStyles>,
     game_assets: Res<GameAssets>,
 ) {
     let Some(pending) = pending else {
@@ -944,6 +945,7 @@ fn load_pending_scene(
     commands.trigger(LoadScenario(scenario(
         &game_assets,
         &sections,
+        &styles,
         &stage,
         scene,
         *skin,
@@ -1114,6 +1116,7 @@ fn dressed(mut design: ShipDesign, skin: SkinType) -> ShipDesign {
 fn scenario(
     game_assets: &GameAssets,
     sections: &GameSections,
+    styles: &GameStyles,
     stage: &Stage,
     scene: SceneType,
     skin: SkinType,
@@ -1196,7 +1199,7 @@ fn scenario(
             game_assets.cubemap.clone().into(),
         )
     };
-    let errors = lint_errors(&scenario, sections, &GameItems::default());
+    let errors = lint_errors(&scenario, sections, &GameItems::default(), styles);
     assert!(
         errors.is_empty(),
         "world_ships: a posed ship is content the game would refuse:\n  {}",

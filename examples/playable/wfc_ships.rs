@@ -322,6 +322,7 @@ fn load_row(
     commands.trigger(LoadScenario(wfc_row(
         &game_assets,
         &sections,
+        &styles,
         *roster,
         style,
     )));
@@ -357,6 +358,7 @@ fn reroll_on_key(
     commands.trigger(LoadScenario(wfc_row(
         &game_assets,
         &sections,
+        &styles,
         *roster,
         style,
     )));
@@ -382,6 +384,7 @@ fn stand_position(index: usize, ships: usize) -> Vec3 {
 fn wfc_row(
     game_assets: &GameAssets,
     sections: &GameSections,
+    styles: &GameStyles,
     roster: Roster,
     style: StyleId,
 ) -> ScenarioConfig {
@@ -428,7 +431,7 @@ fn wfc_row(
             game_assets.cubemap.clone().into(),
         )
     };
-    refuse_broken_ships(&scenario, sections);
+    refuse_broken_ships(&scenario, sections, styles);
     scenario
 }
 
@@ -438,8 +441,8 @@ fn wfc_row(
 /// "what came out is a ship the game would accept". Nothing here re-implements
 /// those checks - `lint_errors` runs `lint_scenario`, the same function the
 /// `content lint` gate and the runtime loader run.
-fn refuse_broken_ships(scenario: &ScenarioConfig, sections: &GameSections) {
-    let errors = lint_errors(scenario, sections, &GameItems::default());
+fn refuse_broken_ships(scenario: &ScenarioConfig, sections: &GameSections, styles: &GameStyles) {
+    let errors = lint_errors(scenario, sections, &GameItems::default(), styles);
     assert!(
         errors.is_empty(),
         "wfc_ships: the collapse produced content the game would refuse:\n  {}",
@@ -730,7 +733,9 @@ fn wfc_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
             };
             *world.resource_mut::<Roster>() = next;
             let style = style_at(&styles, next.style);
-            world.trigger(LoadScenario(wfc_row(&assets, &sections, next, style)));
+            world.trigger(LoadScenario(wfc_row(
+                &assets, &sections, &styles, next, style,
+            )));
         })
         .until(and(scenario_camera_present(), frames(SETTLE_FRAMES)))
         .deadline(STEP_DEADLINE_SECS)

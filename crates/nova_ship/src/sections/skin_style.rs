@@ -306,10 +306,19 @@ pub struct ShipStyle(pub Option<String>);
 
 impl ShipStyle {
     /// The style this ship wears, out of `styles`, or `None` when the ship names
-    /// none. A named style that nothing authored is a MISS, not a fallback:
-    /// quietly wearing another mod's look would be worse than wearing none.
+    /// none.
+    ///
+    /// # Panics
+    ///
+    /// When the ship names a style `styles` lacks: the design lint refuses
+    /// an unknown style, so a miss here is a catalog the lint never saw.
     pub fn resolve<'a>(&self, styles: &'a GameStyles) -> Option<&'a ShipStyleConfig> {
-        styles.get_style(self.0.as_deref()?)
+        let id = self.0.as_deref()?;
+        Some(
+            styles
+                .get_style(id)
+                .unwrap_or_else(|| panic!("ShipStyle::resolve: style '{id}' is not in GameStyles")),
+        )
     }
 }
 
@@ -421,10 +430,9 @@ mod tests {
         );
     }
 
-    /// A style resolves by id, and a name nothing authored resolves to nothing
-    /// rather than to whatever happened to be first.
+    /// A style resolves by id rather than to whatever happened to be first.
     #[test]
-    fn a_ship_resolves_its_style_by_id_or_not_at_all() {
+    fn a_ship_resolves_its_style_by_id() {
         let styles = GameStyles(vec![
             ShipStyleConfig {
                 id: "raider".to_string(),
@@ -442,11 +450,5 @@ mod tests {
             Some("clean")
         );
         assert!(ShipStyle(None).resolve(&styles).is_none());
-        assert!(
-            ShipStyle(Some("nothing".to_string()))
-                .resolve(&styles)
-                .is_none(),
-            "an unknown style must not fall back to another mod's look",
-        );
     }
 }

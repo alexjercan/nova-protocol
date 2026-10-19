@@ -192,6 +192,7 @@ pub(super) struct ContentGate<'w> {
     stations: Option<Res<'w, GameStationDesigns>>,
     scenarios: Option<Res<'w, GameScenarios>>,
     items: Option<Res<'w, GameItems>>,
+    styles: Option<Res<'w, GameStyles>>,
 }
 
 /// The Error-level findings against a scenario about to start: what the merge
@@ -243,6 +244,8 @@ fn start_errors(scenario: &ScenarioConfig, gate: &ContentGate) -> Vec<String> {
 
     let no_items = GameItems::default();
     let known_items = gate.items.as_deref().unwrap_or(&no_items);
+    let no_styles = GameStyles::default();
+    let known_styles = gate.styles.as_deref().unwrap_or(&no_styles);
     messages.extend(
         lint_scenario(
             scenario,
@@ -251,6 +254,7 @@ fn start_errors(scenario: &ScenarioConfig, gate: &ContentGate) -> Vec<String> {
             &known_stations,
             &known_scenarios,
             known_items,
+            known_styles,
         )
         .into_iter()
         .filter(|issue| issue.severity == LintSeverity::Error)

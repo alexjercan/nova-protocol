@@ -6,7 +6,7 @@ use nova_gameplay::prelude::{kg_text, GameItems, ItemCategoryType, ShipInventory
 use nova_ship::prelude::{
     candidate_link_point_mates, derive_link_point_graph, duplicate_muzzle_id, muzzle_ids,
     section_colliders_overlap, AmmoCapacity, CargoIntakeSectionConfig, ControllerSectionConfig,
-    DockingSectionConfig, LinkPointGraphError, LinkPointRef, MiningSectionConfig,
+    DockingSectionConfig, GameStyles, LinkPointGraphError, LinkPointRef, MiningSectionConfig,
     PlacedSectionCollider, PlacedSectionLinkPoints, RailgunSectionConfig, ReloadConfig,
     SectionAnimationCue, SectionCollider, SectionConfig, SectionKind, TorpedoSectionConfig,
     TurretJoint, TurretSectionConfig,
@@ -33,6 +33,7 @@ pub(super) fn check_object_prototypes(
     designs: &KnownShipDesigns,
     stations: &KnownStationDesigns,
     items: &GameItems,
+    styles: &GameStyles,
     issues: &mut Vec<LintIssue>,
 ) {
     if let ScenarioObjectKind::Station(station) = &config.kind {
@@ -53,6 +54,7 @@ pub(super) fn check_object_prototypes(
                 design,
                 sections,
                 items,
+                styles,
                 scenario,
             )),
         }
@@ -102,6 +104,7 @@ pub(super) fn check_object_prototypes(
             scenario,
             sections,
             items,
+            styles,
             issues,
         );
         return;
@@ -172,8 +175,9 @@ pub(super) fn check_stock(
 }
 
 /// Static checks over one design's section list: every prototype resolves,
-/// every patch applies, the sections do not interpenetrate, the link-point
-/// graph is sound, and every inline section config is well-formed.
+/// every patch applies, its style is in `styles`, the sections do not
+/// interpenetrate, the link-point graph is sound, and every inline section
+/// config is well-formed.
 ///
 /// Run on an inline design where the scenario spawns it, and on a catalog
 /// design where the design catalog is walked - so a design is checked exactly
@@ -186,6 +190,7 @@ pub(super) fn check_design_sections(
     source: &str,
     sections: &KnownSections,
     items: &GameItems,
+    styles: &GameStyles,
     issues: &mut Vec<LintIssue>,
 ) {
     // The design's OWN layer: each section reference resolved and patched, by
@@ -200,6 +205,15 @@ pub(super) fn check_design_sections(
             source,
             format!("{what} '{ship_id}': {error}"),
         ));
+    }
+    // `ShipStyle::resolve` panics on a style the catalog lacks.
+    if let Some(style) = &design.presentation.style {
+        if styles.get_style(style).is_none() {
+            issues.push(LintIssue::error(
+                source,
+                format!("{what} '{ship_id}': unknown style '{style}'"),
+            ));
+        }
     }
 
     check_section_overlaps(ship_id, &design.sections, source, sections, issues);
@@ -223,6 +237,7 @@ pub fn lint_ship_design_config(
     design: &ShipDesignPrototype,
     sections: &KnownSections,
     items: &GameItems,
+    styles: &GameStyles,
     source: &str,
 ) -> Vec<LintIssue> {
     let mut issues = Vec::new();
@@ -233,6 +248,7 @@ pub fn lint_ship_design_config(
         source,
         sections,
         items,
+        styles,
         &mut issues,
     );
     issues
@@ -1097,7 +1113,7 @@ fn check_section_overlaps(
 mod tests {
 
     use bevy::prelude::*;
-    use nova_ship::prelude::{SectionConfigPatch, SectionReloadConfig};
+    use nova_ship::prelude::{SectionConfigPatch, SectionReloadConfig, ShipStyleConfig};
 
     use super::*;
     use crate::lint::fixtures::*;
@@ -1112,6 +1128,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -1147,6 +1164,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -1160,6 +1178,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(issues.is_empty(), "a known ship lints clean: {issues:?}");
     }
@@ -1205,6 +1224,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -1219,6 +1239,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         )
         .is_empty());
     }
@@ -1252,6 +1273,7 @@ mod tests {
                 &ship(Quat::IDENTITY),
                 &sections(&["hull"]),
                 &GameItems::default(),
+                &GameStyles::default(),
                 "base"
             )
             .is_empty(),
@@ -1266,6 +1288,7 @@ mod tests {
                 &ship(rotation),
                 &sections(&["hull"]),
                 &GameItems::default(),
+                &GameStyles::default(),
                 "base",
             );
             assert!(
@@ -1336,6 +1359,7 @@ mod tests {
             &ship("no_such_proto"),
             &sections(&["hull"]),
             &GameItems::default(),
+            &GameStyles::default(),
             "base",
         );
         assert_eq!(issues.len(), 1, "{issues:?}");
@@ -1345,9 +1369,64 @@ mod tests {
             &ship("hull"),
             &sections(&["hull"]),
             &GameItems::default(),
+            &GameStyles::default(),
             "base"
         )
         .is_empty());
+    }
+
+    /// A ship may name a style, and the style has to be one the merged
+    /// catalog actually holds - the same rule as a section prototype.
+    #[test]
+    fn a_design_naming_an_unknown_style_is_refused() {
+        let ship = |proto: &str| ShipDesignPrototype {
+            id: "interceptor".into(),
+            name: "Gunship".to_string(),
+            design: ShipDesign {
+                sections: vec![SpaceshipSectionConfig {
+                    id: "fuselage".to_string(),
+                    position: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                    source: SectionSource::prototype(proto),
+                }],
+                ..default()
+            },
+        };
+        let styles = GameStyles(vec![ShipStyleConfig {
+            id: "armoured".into(),
+            ..default()
+        }]);
+
+        let mut design = ship("hull");
+        design.design.presentation.style = Some("nothing_authored".into());
+        let issues = lint_ship_design_config(
+            &design,
+            &sections(&["hull"]),
+            &GameItems::default(),
+            &styles,
+            "base",
+        );
+        assert!(
+            errors(&issues)
+                .iter()
+                .any(|issue| issue.message.contains("unknown style 'nothing_authored'")),
+            "{issues:?}"
+        );
+
+        design.design.presentation.style = Some("armoured".into());
+        let issues = lint_ship_design_config(
+            &design,
+            &sections(&["hull"]),
+            &GameItems::default(),
+            &styles,
+            "base",
+        );
+        assert!(
+            !issues
+                .iter()
+                .any(|issue| issue.message.contains("unknown style")),
+            "{issues:?}"
+        );
     }
 
     #[test]
@@ -1469,6 +1548,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             issues
@@ -1512,6 +1592,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -1562,6 +1643,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert_eq!(
             issues
@@ -1581,6 +1663,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(issues.is_empty(), "{issues:?}");
     }
@@ -1652,6 +1735,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert_eq!(
             issues
@@ -1677,6 +1761,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             issues
@@ -1701,6 +1786,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert_eq!(
             issues
@@ -1730,6 +1816,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             issues
@@ -1753,6 +1840,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             issues
@@ -1828,6 +1916,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(issues.is_empty(), "{issues:?}");
     }
@@ -1903,6 +1992,7 @@ mod tests {
             &ship,
             &KnownSections::from_configs(&configs),
             &GameItems::default(),
+            &GameStyles::default(),
             "base",
         );
         let overlaps: Vec<_> = issues

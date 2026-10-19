@@ -6,6 +6,7 @@ use bevy::prelude::Alpha;
 use nova_events::prelude::GeneratedBodyId;
 use nova_gameplay::prelude::{GameItems, SectionClass};
 use nova_input::prelude::InputSource;
+use nova_ship::prelude::GameStyles;
 
 use super::{
     ship::check_object_prototypes, KnownSections, KnownShipDesigns, KnownStationDesigns, LintIssue,
@@ -42,6 +43,7 @@ struct Catalog<'a> {
     stations: &'a KnownStationDesigns,
     scenarios: &'a HashSet<String>,
     items: &'a GameItems,
+    styles: &'a GameStyles,
 }
 
 /// What the lint knows about one ship a spawn declares.
@@ -119,8 +121,9 @@ pub fn lint_campaign(
 /// `sections` (the section-prototype catalog visible to this scenario's
 /// bundle), `ships` (the ship catalog it may spawn by id), `stations` (the
 /// station catalog it may spawn by id), `known_scenarios` (every scenario id
-/// a `NextScenario` may target) and `items` (every item a ship's stock may
-/// name) - all of them normally base + all installed bundles.
+/// a `NextScenario` may target), `items` (every item a ship's stock may
+/// name) and `styles` (every style an inline design may wear) - all of them
+/// normally base + all installed bundles.
 pub fn lint_scenario(
     scenario: &ScenarioConfig,
     sections: &KnownSections,
@@ -128,6 +131,7 @@ pub fn lint_scenario(
     stations: &KnownStationDesigns,
     known_scenarios: &HashSet<String>,
     items: &GameItems,
+    styles: &GameStyles,
 ) -> Vec<LintIssue> {
     let catalog = Catalog {
         sections,
@@ -135,6 +139,7 @@ pub fn lint_scenario(
         stations,
         scenarios: known_scenarios,
         items,
+        styles,
     };
     let id = scenario.id.as_str();
     let mut issues = Vec::new();
@@ -982,6 +987,7 @@ fn check_action(
                 catalog.ships,
                 catalog.stations,
                 catalog.items,
+                catalog.styles,
                 issues,
             );
             check_spawned_arrival_standoff(config, scenario, issues);
@@ -1001,6 +1007,7 @@ fn check_action(
                 catalog.ships,
                 catalog.stations,
                 catalog.items,
+                catalog.styles,
                 issues,
             );
             check_spawned_arrival_standoff(&config.template, scenario, issues);
@@ -2161,6 +2168,7 @@ mod tests {
             &stations(&[]),
             &known(&[]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         let messages: Vec<&str> = errors(&issues)
             .iter()
@@ -2212,6 +2220,7 @@ mod tests {
             &stations(&[]),
             &known(&[]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             errors(&issues).is_empty(),
@@ -2242,6 +2251,7 @@ mod tests {
             &stations(&[]),
             &known(&[]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert_eq!(
             issues
@@ -2278,6 +2288,7 @@ mod tests {
                 &stations(&[]),
                 &known(&[]),
                 &GameItems::default(),
+                &GameStyles::default(),
             );
             assert!(
                 issues.iter().any(|issue| {
@@ -2299,6 +2310,7 @@ mod tests {
             &stations(&[]),
             &known(&[]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             !issues
@@ -2333,6 +2345,7 @@ mod tests {
             &stations(&[]),
             &known(&[]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             issues.iter().any(|issue| {
@@ -2526,6 +2539,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario", "next_chapter"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(issues.is_empty(), "clean scenario flagged: {issues:?}");
     }
@@ -2561,6 +2575,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
 
         let errs = errors(&issues);
@@ -2588,6 +2603,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -2622,6 +2638,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 2, "{issues:?}");
@@ -2656,6 +2673,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 2, "{issues:?}");
@@ -2688,6 +2706,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -2735,6 +2754,7 @@ mod tests {
                 &stations(&[]),
                 &known(&["test_scenario"]),
                 &GameItems::default(),
+                &GameStyles::default(),
             )
         };
 
@@ -2811,6 +2831,7 @@ mod tests {
                 &stations(&[]),
                 &known(&["test_scenario"]),
                 &GameItems::default(),
+                &GameStyles::default(),
             )
         };
 
@@ -2862,6 +2883,7 @@ mod tests {
                 &stations(&[]),
                 &known(&["test_scenario"]),
                 &GameItems::default(),
+                &GameStyles::default(),
             )
         };
         let session_seeded = |role: ScenarioRole| {
@@ -2928,6 +2950,7 @@ mod tests {
                 &stations(&[]),
                 &known(&["test_scenario"]),
                 &GameItems::default(),
+                &GameStyles::default(),
             )
         };
 
@@ -3002,6 +3025,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -3026,6 +3050,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(errors(&issues).is_empty(), "{issues:?}");
 
@@ -3038,6 +3063,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(errors(&issues).is_empty(), "{issues:?}");
     }
@@ -3056,6 +3082,7 @@ mod tests {
                 &stations(&[]),
                 &known(&["test_scenario"]),
                 &GameItems::default(),
+                &GameStyles::default(),
             );
             errors(&issues)
                 .iter()
@@ -3134,6 +3161,7 @@ mod tests {
                 &stations(&[]),
                 &known(&["test_scenario"]),
                 &GameItems::default(),
+                &GameStyles::default(),
             );
             errors(&issues)
                 .into_iter()
@@ -3187,6 +3215,7 @@ mod tests {
                 &stations(&[]),
                 &known(&["test_scenario"]),
                 &test_items(),
+                &GameStyles::default(),
             );
             errors(&issues)
                 .into_iter()
@@ -3241,6 +3270,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &test_items(),
+            &GameStyles::default(),
         );
         let messages: Vec<&str> = errors(&issues)
             .into_iter()
@@ -3275,6 +3305,7 @@ mod tests {
                 &stations(&[]),
                 &known(&["test_scenario"]),
                 &GameItems::default(),
+                &GameStyles::default(),
             );
             let refusals: Vec<_> = errors(&issues)
                 .into_iter()
@@ -3309,6 +3340,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         let refusals: Vec<_> = errors(&issues)
             .into_iter()
@@ -3343,6 +3375,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             errors(&issues)
@@ -3385,6 +3418,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(errors(&issues).is_empty(), "{issues:?}");
     }
@@ -3421,6 +3455,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         let errs = errors(&issues);
         assert!(
@@ -3477,6 +3512,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -3546,6 +3582,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         let errs = errors(&issues);
         for id in [
@@ -3598,6 +3635,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(errors(&issues).is_empty(), "{issues:?}");
     }
@@ -3633,6 +3671,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 3, "{issues:?}");
@@ -3719,6 +3758,7 @@ mod tests {
                 &stations(&[]),
                 &known(&["test_scenario"]),
                 &GameItems::default(),
+                &GameStyles::default(),
             );
             errors(&issues)
                 .into_iter()
@@ -3805,6 +3845,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 2, "{issues:?}");
@@ -3844,6 +3885,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(errors(&issues).is_empty(), "{issues:?}");
 
@@ -3854,6 +3896,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             issues.is_empty(),
@@ -3867,6 +3910,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -3894,6 +3938,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 2, "{issues:?}");
@@ -3912,6 +3957,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -3937,6 +3983,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(errors(&issues).is_empty(), "warn-only: {issues:?}");
         assert_eq!(issues.len(), 1, "{issues:?}");
@@ -3976,6 +4023,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             errors(&issues)
@@ -3992,6 +4040,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             errors(&issues).is_empty(),
@@ -4065,6 +4114,7 @@ mod tests {
                 &stations(&[]),
                 &known(&["test_scenario"]),
                 &GameItems::default(),
+                &GameStyles::default(),
             )
         };
         let kinds: [(&str, fn(MetersPerSecond3) -> ScenarioObjectConfig); 2] =
@@ -4150,6 +4200,7 @@ mod tests {
                 &stations(&[]),
                 &known(&["test_scenario"]),
                 &GameItems::default(),
+                &GameStyles::default(),
             )
         };
         let paths: [(&str, fn(ScenarioObjectConfig) -> EventActionConfig); 2] =
@@ -4220,6 +4271,7 @@ mod tests {
                 &stations(&[]),
                 &known(&["test_scenario"]),
                 &GameItems::default(),
+                &GameStyles::default(),
             )
         };
 
@@ -4285,6 +4337,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             errors(&issues)
@@ -4334,6 +4387,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "only the ghost flags: {issues:?}");
@@ -4379,6 +4433,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             errors(&issues).iter().any(|i| i.message.contains("ghost")),
@@ -4412,6 +4467,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(errors(&issues).is_empty(), "warn-only: {issues:?}");
         assert_eq!(issues.len(), 2, "{issues:?}");
@@ -4447,6 +4503,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("non-lingering"));
@@ -4459,6 +4516,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert_eq!(issues.len(), 1, "delayed is the same trap: {issues:?}");
 
@@ -4470,6 +4528,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             issues.is_empty(),
@@ -4506,6 +4565,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("one line per beat"));
@@ -4518,6 +4578,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("never read"));
@@ -4530,6 +4591,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         )
         .is_empty());
     }
@@ -4563,6 +4625,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(errors(&issues).is_empty(), "warn-only: {issues:?}");
         assert_eq!(issues.len(), 2, "{issues:?}");
@@ -4578,6 +4641,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("auto_advance_secs"));
@@ -4593,6 +4657,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("auto_advance_secs"));
@@ -4604,6 +4669,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("outside (0, 60]"));
@@ -4617,6 +4683,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         )
         .is_empty());
         let s = scenario(vec![outcome_adv(Some(6.0))], vec![]);
@@ -4627,6 +4694,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         )
         .is_empty());
     }
@@ -4662,6 +4730,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(errors(&issues).is_empty(), "warn-only: {issues:?}");
         assert_eq!(issues.len(), 1, "{issues:?}");
@@ -4701,6 +4770,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             issues.is_empty(),
@@ -4725,6 +4795,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert_eq!(
             errors(&issues).len(),
@@ -4770,6 +4841,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             issues.is_empty(),
@@ -4797,6 +4869,7 @@ mod tests {
             &stations(&[]),
             &known(&["test_scenario"]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert_eq!(
             errors(&issues).len(),
@@ -4871,6 +4944,7 @@ mod tests {
             &stations(&[]),
             &known(&[]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             errors(&issues)
@@ -4898,6 +4972,7 @@ mod tests {
             &stations(&[]),
             &known(&[]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             errors(&issues)
@@ -4931,6 +5006,7 @@ mod tests {
             &stations(&[]),
             &known(&[]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             !issues
@@ -4972,6 +5048,7 @@ mod tests {
             &stations(&[]),
             &known(&[]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             errors(&issues).is_empty(),
@@ -5004,6 +5081,7 @@ mod tests {
             &stations(&[]),
             &known(&[]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             !issues.iter().any(|i| i.message.contains("NarrativeCues")),
@@ -5027,6 +5105,7 @@ mod tests {
             &stations(&[]),
             &known(&[]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             issues.iter().any(|i| i.message.contains("NarrativeCues")),
@@ -5064,6 +5143,7 @@ mod tests {
             &stations(&[]),
             &known(&[]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             issues
@@ -5109,6 +5189,7 @@ mod tests {
             &stations(&[]),
             &known(&[]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             issues
@@ -5153,6 +5234,7 @@ mod tests {
             &stations(&[]),
             &known(&[]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             !issues
@@ -5195,6 +5277,7 @@ mod tests {
             &stations(&[]),
             &known(&[]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             !issues
@@ -5232,6 +5315,7 @@ mod tests {
             &stations(&[]),
             &known(&[]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             errors(&issues).iter().any(|issue| {
@@ -5265,6 +5349,7 @@ mod tests {
                 &stations(&[]),
                 &known(&[]),
                 &GameItems::default(),
+                &GameStyles::default(),
             );
             errors(&issues)
                 .iter()
@@ -5303,6 +5388,7 @@ mod tests {
             &stations(&[]),
             &known(&[]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert_eq!(
             errors(&issues)
@@ -5343,6 +5429,7 @@ mod tests {
             &stations(&[]),
             &known(&[]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             errors(&issues)
@@ -5360,6 +5447,7 @@ mod tests {
             &stations(&[]),
             &known(&[]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             !errors(&issues)
@@ -5396,6 +5484,7 @@ mod tests {
             &stations(&[]),
             &known(&[]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             issues.iter().any(|issue| {
@@ -5419,6 +5508,7 @@ mod tests {
             &stations(&[]),
             &known(&[]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             errors(&issues).iter().any(|issue| {
@@ -5456,6 +5546,7 @@ mod tests {
             &stations(&[]),
             &known(&[]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             errors(&issues).iter().any(|issue| {
@@ -5497,6 +5588,7 @@ mod tests {
             &prototype,
             &sections(&["hull"]),
             &GameItems::default(),
+            &GameStyles::default(),
             "corvette",
         );
         assert!(
@@ -5527,6 +5619,7 @@ mod tests {
             &stations(&[]),
             &known(&[]),
             &GameItems::default(),
+            &GameStyles::default(),
         );
         assert!(
             errors(&issues)

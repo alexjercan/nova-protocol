@@ -118,7 +118,7 @@ fn a_marked_hull_writes_the_sandbox_station_defaults_cut_to_its_hold() {
         ]
     );
     assert!(
-        station_faults(&design, &sections(), &items()).is_empty(),
+        station_faults(&design, &sections(), &items(), &GameStyles::default()).is_empty(),
         "the station lint takes it"
     );
 }
@@ -135,7 +135,7 @@ fn a_marked_hull_with_no_hold_opens_with_no_stock() {
     );
 
     assert_eq!(design.design.stock.stacks().count(), 0);
-    assert!(station_faults(&design, &sections(), &items()).is_empty());
+    assert!(station_faults(&design, &sections(), &items(), &GameStyles::default()).is_empty());
 }
 
 /// The three ways a hull fails as a station are the station lint's, and the
@@ -144,7 +144,7 @@ fn a_marked_hull_with_no_hold_opens_with_no_stock() {
 fn a_drive_a_missing_port_or_a_missing_computer_refuses_the_station() {
     let short = |parts: &[&str]| -> Vec<String> {
         let design = station_design(&marked(parts), HullForm::Inline, &sections(), &items());
-        station_faults(&design, &sections(), &items())
+        station_faults(&design, &sections(), &items(), &GameStyles::default())
             .iter()
             .map(|fault| short_fault(fault).to_string())
             .collect()

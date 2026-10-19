@@ -23,7 +23,8 @@ use nova_scenario::prelude::{
     SpaceshipConfig, SpaceshipController,
 };
 use nova_ship::prelude::{
-    derive_link_point_graph, GameSections, LinkPointRef, PlacedSectionLinkPoints, SectionConfig,
+    derive_link_point_graph, GameSections, GameStyles, LinkPointRef, PlacedSectionLinkPoints,
+    SectionConfig,
 };
 
 use crate::{grid::FACES, tiles::rotated_half_extents};
@@ -233,6 +234,7 @@ pub fn lint_errors(
     scenario: &ScenarioConfig,
     sections: &GameSections,
     items: &GameItems,
+    styles: &GameStyles,
 ) -> Vec<String> {
     let known = KnownSections::from_configs(sections.iter());
     lint_scenario(
@@ -242,6 +244,7 @@ pub fn lint_errors(
         &KnownStationDesigns::default(),
         &HashSet::from([scenario.id.clone()]),
         items,
+        styles,
     )
     .into_iter()
     .filter(|issue| issue.severity == LintSeverity::Error)
@@ -262,7 +265,12 @@ const LINT_SCENARIO_ID: &str = "generated_hull";
 /// hands back what [`lint_errors`] found, so a hull is refused by exactly the
 /// rules that would refuse it in a mod file, against the `items` the game
 /// loaded.
-pub fn hull_errors(hull: &ShipDesign, sections: &GameSections, items: &GameItems) -> Vec<String> {
+pub fn hull_errors(
+    hull: &ShipDesign,
+    sections: &GameSections,
+    items: &GameItems,
+    styles: &GameStyles,
+) -> Vec<String> {
     let spawn = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: LINT_SCENARIO_ID.to_string(),
@@ -291,7 +299,7 @@ pub fn hull_errors(hull: &ShipDesign, sections: &GameSections, items: &GameItems
             AssetRef::from(LINT_CUBEMAP),
         )
     };
-    lint_errors(&scenario, sections, items)
+    lint_errors(&scenario, sections, items, styles)
 }
 
 /// The skybox the throwaway scenario names. The gate does not read it; a

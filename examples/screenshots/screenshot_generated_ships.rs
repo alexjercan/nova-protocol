@@ -255,11 +255,13 @@ fn load_lineup(
     mut commands: Commands,
     stage: Res<Stage>,
     sections: Res<GameSections>,
+    styles: Res<GameStyles>,
     game_assets: Res<GameAssets>,
 ) {
     commands.trigger(LoadScenario(build_scenario(
         &game_assets,
         &sections,
+        &styles,
         &stage,
     )));
 }
@@ -300,6 +302,7 @@ fn ship_action(name: &str, position: Vec3, ship: SpaceshipConfig) -> EventAction
 fn build_scenario(
     game_assets: &GameAssets,
     sections: &GameSections,
+    styles: &GameStyles,
     stage: &Stage,
 ) -> ScenarioConfig {
     let actions = stage
@@ -331,7 +334,7 @@ fn build_scenario(
             game_assets.cubemap.clone().into(),
         )
     };
-    let errors = lint_errors(&scenario, sections, &GameItems::default());
+    let errors = lint_errors(&scenario, sections, &GameItems::default(), styles);
     assert!(
         errors.is_empty(),
         "screenshot_generated_ships: a posed ship is content the game would refuse:\n  {}",

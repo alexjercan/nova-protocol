@@ -2228,6 +2228,7 @@ mod name_coverage {
 
     use nova_gameplay::prelude::{AssetRef, GameItems};
     use nova_scenario::prelude::*;
+    use nova_ship::prelude::GameStyles;
 
     use super::{ActionChoice, ActionChoiceExt, ActionKind};
 
@@ -2285,6 +2286,7 @@ mod name_coverage {
                 &KnownStationDesigns::default(),
                 &HashSet::new(),
                 &GameItems::default(),
+                &GameStyles::default(),
             );
             let dangling = issues
                 .iter()

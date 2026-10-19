@@ -29,7 +29,9 @@ use nova_scenario::prelude::{
     resolve_ship_design, GameShipDesigns, GameStartRoles, SectionSource, ShipDesignId,
     ShipDesignSource, StartRoleDesignId,
 };
-use nova_ship::prelude::{DesignSection, GameSections, GameStyles, SectionConfig, SectionKind};
+use nova_ship::prelude::{
+    DesignSection, GameSections, GameStyles, SectionConfig, SectionKind, ShipStyle,
+};
 use nova_ui::{
     prelude::REPORT_Z,
     theme,
@@ -645,22 +647,23 @@ fn hull_card(
     ]
 }
 
-/// The sections a role's hull places, resolved against the catalogs, for
-/// the hull view: `None` when the catalog lacks the hull. A placed section
-/// whose prototype the catalog lacks is skipped the way the spawn skips it.
-fn hull_sections(
+/// A role's hull for the hull view: the sections it places, resolved
+/// against the catalogs, and the skin and style it wears. `None` when the
+/// catalog lacks the hull. A placed section whose prototype the catalog
+/// lacks is skipped the way the spawn skips it.
+fn role_hull_preview(
     hull: &ShipDesignId,
     designs: &GameShipDesigns,
     sections: &GameSections,
-) -> Option<Vec<DesignSection>> {
+) -> Option<MenuHullPreview> {
     designs.get_design(hull)?;
     let source = ShipDesignSource::Prototype {
         id: hull.clone(),
         section_patches: Default::default(),
     };
     let (resolved, _) = resolve_ship_design(&source, designs, sections);
-    Some(
-        resolved
+    Some(MenuHullPreview {
+        sections: resolved
             .sections
             .into_iter()
             .map(|section| DesignSection {
@@ -670,7 +673,9 @@ fn hull_sections(
                 config: section.config,
             })
             .collect(),
-    )
+        skin: resolved.presentation.skin,
+        style: ShipStyle(resolved.presentation.style),
+    })
 }
 
 /// The milestones a role step lists, in play order: the role's own goal.
@@ -705,7 +710,7 @@ pub(crate) fn refresh_start_role_details(
         return;
     };
     let card = hull_card(&role.hull, &designs, &sections);
-    let hull = hull_sections(&role.hull, &designs, &sections);
+    let hull = role_hull_preview(&role.hull, &designs, &sections);
     let steps = milestones(&role.goal.title);
     // The lint refuses a kit item the catalog lacks; the id stands in only
     // if a mod reload dropped it since.
@@ -750,7 +755,7 @@ pub(crate) fn refresh_start_role_details(
         ));
         if let Some(hull) = hull {
             details.spawn((
-                MenuHullPreview(hull),
+                hull,
                 preview_node(
                     "Start Role Hull Preview",
                     Node {

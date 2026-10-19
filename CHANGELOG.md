@@ -166,6 +166,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Generated worlds place stations: each civilization builds a ring, spire or
   yard sized, armed and stocked by its advancement, solar panels from mid
   level. An extinct one leaves a dead lootable station.
+- **(breaking)** A ship or station design must name a style the catalog
+  holds. An unknown style fails at lint and stops the game at spawn instead of
+  leaving the hull bare.
 - **(breaking)** A scenario object id or a ship section id may not contain
   '/', and two sections of one ship may not share an id. Both fail at lint and
   at load.
@@ -248,8 +251,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New Game's first step draws the seed's sectors round your starting station
   as a 3D chart to turn and zoom, with YOU at the start, before the world
   exists.
-- New Game's role step turns the role's hull in 3D and lists its one
-  milestone, the role's goal.
+- New Game's role step turns the role's hull in 3D, plated and greebled as it
+  flies, and lists its one milestone, the role's goal.
 - Load rows show play time, saved-ago and open objectives. The details draw
   the save's 3D chart with the Map's mark codes and YOU, a FLEET block of what
   the save holds and only its open objectives.

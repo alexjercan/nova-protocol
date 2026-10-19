@@ -1066,8 +1066,10 @@ terms and a `max_count`. `ShipStyleConfig::compile_greebles` checks the rules
 and resolves each fixture id once; a fixture whose collider is wider than one
 cell across the plate (`x` or `z` above 1) does not compile, because no plate
 can seat it. A rule set that does not compile is an Error
-at `content lint`, and the merge drops the style with an `error!`, so a ship
-naming it flies clad and bare. A style with no greebles places no decoration.
+at `content lint`, and the merge drops the style with an `error!`. A design
+that names a style the catalog lacks is an Error at `content lint`, and
+`ShipStyle::resolve` panics on it at spawn. A style with no greebles places
+no decoration.
 
 The solve has three parts, each in its own module:
 
