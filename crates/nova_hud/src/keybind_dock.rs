@@ -701,6 +701,28 @@ fn update_dock(
             &mut q_glyph,
             &mut q_key_text,
         );
+        // COMPONENT swaps the portrait wheel (weapons raised) for the bracket
+        // cap (lowered). Its slot reserves the wheel's box in both states, so
+        // no other chip, and nothing stacked on the dock, moves when the
+        // weapons go up or down. The width is a minimum on the keycap node and
+        // the height a content-box minimum on the chip, so the bracket centres
+        // in the reserved box at its own aspect.
+        if dock_verb(**chip) == "COMPONENT" {
+            if let Some(wheel) = glyphs.and_then(|glyphs| glyphs.get("SCROLL")) {
+                let size = wheel.node_size(GLYPH_PX);
+                if node.min_height != Val::Px(size.y) {
+                    node.box_sizing = BoxSizing::ContentBox;
+                    node.min_height = Val::Px(size.y);
+                }
+                for &child in children {
+                    if let Ok((_, mut glyph)) = q_glyph.get_mut(child) {
+                        if glyph.min_width != Val::Px(size.x) {
+                            glyph.min_width = Val::Px(size.x);
+                        }
+                    }
+                }
+            }
+        }
         if !shown {
             // A hidden chip still tracks a state, so a pulse that was running
             // when it left the dock restores the RIGHT base. `Dim` IS that
