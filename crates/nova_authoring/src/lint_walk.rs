@@ -1252,7 +1252,7 @@ mod tests {
     /// A hull section whose render mesh is `render_mesh` (a resource ref).
     fn section(id: &str, render_mesh: &str) -> Content {
         let ron = format!(
-            r#"Section((base: (id: "{id}", name: "{id}", description: "", health: 100.0, build: (credits: 1, parts: {{}}, strip_yield: 0.5)), kind: Hull((render_mesh: Some("{render_mesh}")))))"#
+            r#"Section((base: (id: "{id}", name: "{id}", description: "", health: 100.0, advancement: 0.0, draw_weight: 1.0, build: (credits: 1, parts: {{}}, strip_yield: 0.5)), kind: Hull((render_mesh: Some("{render_mesh}")))))"#
         );
         ron::from_str(&ron).expect("section parses")
     }
@@ -1407,7 +1407,7 @@ mod tests {
     fn a_ship_part_stat_fault_is_reported_once_against_its_authoring_bundle() {
         let hull = |id: &str, health: f32| -> Content {
             let ron = format!(
-                r#"Section((base: (id: "{id}", name: "{id}", description: "", health: {health:?}, build: (credits: 1, parts: {{}}, strip_yield: 0.5)), kind: Hull((render_mesh: None))))"#
+                r#"Section((base: (id: "{id}", name: "{id}", description: "", health: {health:?}, advancement: 0.0, draw_weight: 1.0, build: (credits: 1, parts: {{}}, strip_yield: 0.5)), kind: Hull((render_mesh: None))))"#
             );
             ron::from_str(&ron).expect("section parses")
         };
@@ -1484,7 +1484,7 @@ mod tests {
                 })
                 .collect();
             let ron = format!(
-                r#"Section((base: (id: "{id}", name: "{id}", description: "", health: 100.0, build: (credits: 1, parts: {{}}, strip_yield: 0.5), link_points: [{}]), kind: {kind}))"#,
+                r#"Section((base: (id: "{id}", name: "{id}", description: "", health: 100.0, advancement: 0.0, draw_weight: 1.0, build: (credits: 1, parts: {{}}, strip_yield: 0.5), link_points: [{}]), kind: {kind}))"#,
                 links.join(", ")
             );
             ron::from_str(&ron).expect("section parses")
@@ -1566,7 +1566,7 @@ mod tests {
     fn an_unlaned_exit_is_reported_once_against_its_authoring_bundle() {
         let bay = |id: &str| -> Content {
             let ron = format!(
-                r#"Section((base: (id: "{id}", name: "{id}", description: "", health: 100.0, build: (credits: 1, parts: {{}}, strip_yield: 0.5), link_points: [(id: "socket", position: (0.0, 0.0, -0.5), normal: (0.0, 0.0, -1.0))]), kind: Torpedo((spawn_offset: (1.0, 1.0, 0.0), spawn_rotation: (0.0, 0.0, 0.0, 1.0), fire_rate: 1.0, spawner_speed: 80.0, projectile_lifetime: 100.0, arm_time: 0.5, arm_distance: 50.0, nav_constant: 3.0, linear_damping: 0.8, blast_radius: 300.0, blast_damage: 750.0))))"#
+                r#"Section((base: (id: "{id}", name: "{id}", description: "", health: 100.0, advancement: 0.0, draw_weight: 1.0, build: (credits: 1, parts: {{}}, strip_yield: 0.5), link_points: [(id: "socket", position: (0.0, 0.0, -0.5), normal: (0.0, 0.0, -1.0))]), kind: Torpedo((spawn_offset: (1.0, 1.0, 0.0), spawn_rotation: (0.0, 0.0, 0.0, 1.0), fire_rate: 1.0, spawner_speed: 80.0, projectile_lifetime: 100.0, arm_time: 0.5, arm_distance: 50.0, nav_constant: 3.0, linear_damping: 0.8, blast_radius: 300.0, blast_damage: 750.0))))"#
             );
             ron::from_str(&ron).expect("section parses")
         };

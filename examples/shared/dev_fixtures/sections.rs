@@ -58,6 +58,8 @@ pub fn siege_railgun_lance() -> SectionConfig {
                           catalog."
                 .to_string(),
             health: SIEGE_SECTION_HEALTH,
+            advancement: 1.0,
+            draw_weight: 1.0,
             // The catalog lance's row: the same casing and rails.
             build: recipe(
                 300,
@@ -115,6 +117,8 @@ pub fn siege_torpedo_bay() -> SectionConfig {
                           outside the balanced catalog."
                 .to_string(),
             health: 100.0,
+            advancement: 1.0,
+            draw_weight: 1.0,
             // The catalog bay's row: the same tube.
             build: recipe(
                 150,

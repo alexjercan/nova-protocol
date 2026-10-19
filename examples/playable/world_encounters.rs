@@ -221,7 +221,11 @@ fn generated_hull(
 ) -> ShipDesign {
     let advancement = (0..=ADVANCEMENT_STEPS)
         .map(|step| step as f32 / ADVANCEMENT_STEPS as f32)
-        .find(|advancement| snapshot.eligible_roles(*advancement).contains(&role))
+        .find(|advancement| {
+            snapshot
+                .eligible_roles(civilization, *advancement)
+                .contains(&role)
+        })
         .unwrap_or_else(|| {
             panic!(
                 "world_encounters: the snapshot serves no {} at any advancement",

@@ -231,16 +231,21 @@ fn generated_hull() -> ShipDesign {
     let snapshot = ShipPartSnapshot::build(&packs)
         .unwrap_or_else(|faults| panic!("station add: the base snapshot is refused: {faults:?}"));
     let role = ShipRoleType::Armored;
+    let civilization = CivilizationId {
+        world_seed: WORLD_SEED,
+        node: [0, 0, 0],
+    };
     let advancement = (0..=ADVANCEMENT_STEPS)
         .map(|step| step as f32 / ADVANCEMENT_STEPS as f32)
-        .find(|advancement| snapshot.eligible_roles(*advancement).contains(&role))
+        .find(|advancement| {
+            snapshot
+                .eligible_roles(civilization, *advancement)
+                .contains(&role)
+        })
         .expect("station add: the base snapshot fields an armored hull");
     let request = ShipLayoutRequest {
         seed: HULL_SEED,
-        civilization: CivilizationId {
-            world_seed: WORLD_SEED,
-            node: [0, 0, 0],
-        },
+        civilization,
         role,
         advancement,
     };

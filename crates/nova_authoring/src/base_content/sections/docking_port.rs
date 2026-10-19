@@ -76,6 +76,8 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
             // Light machinery behind a hatch: softer than the command core
             // it is bolted beside, tougher than exposed propulsion.
             health: DOCKING_BASE_HEALTH,
+            advancement: 0.0,
+            draw_weight: 1.0,
             build: recipes::docking_port(),
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
             collider: None,

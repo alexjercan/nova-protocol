@@ -86,7 +86,7 @@ use nova_world::prelude::SECTOR_SHIP_CLEARANCE_MAX;
 
 use crate::{
     role_style_id,
-    ship_parts::{ShipPart, ShipPartFamilyType, ShipPartSnapshot, PART_TIER_TOP},
+    ship_parts::{is_structural_cube, ShipPart, ShipPartFamilyType, ShipPartSnapshot},
 };
 
 /// How many seeded layouts a request draws before it fails.
@@ -118,8 +118,8 @@ pub const MAX_SHIP_SECTIONS: usize = 2000;
 /// a full-advancement armored hull.
 const FITTING_SECTIONS: usize = 100;
 
-/// How far below a request's advancement a drive or weapon may score and
-/// still be drawn before the weaker parts of its source, see [`tier_floor`].
+/// How far below a request's advancement a drive may be tiered and still be
+/// drawn before the lower parts of its source, see [`tier_floor`].
 const TIER_BAND: f32 = 0.25;
 
 /// The fewest stations a spine has: a nose, a body and a stern.
@@ -440,7 +440,12 @@ pub fn generate_ship(
     for family in ShipPartFamilyType::ALL {
         if family.required_by(request.role)
             && snapshot
-                .eligible(request.role, family, request.advancement)
+                .eligible(
+                    request.civilization,
+                    request.role,
+                    family,
+                    request.advancement,
+                )
                 .is_empty()
         {
             return Err(fail(0, ShipLayoutConstraintType::NoEligiblePart(family)));
@@ -460,6 +465,7 @@ pub fn generate_ship(
     let chance = MINING_CHANCE.0 + (MINING_CHANCE.1 - MINING_CHANCE.0) * advancement;
     let eligible = !snapshot
         .eligible(
+            request.civilization,
             request.role,
             ShipPartFamilyType::Mining,
             request.advancement,
@@ -810,23 +816,16 @@ fn joined(cells: &HashMap<IVec3, (usize, [bool; 6])>) -> bool {
     reached.len() == sections.len()
 }
 
-/// The lowest part tier a drive at `advancement` may score and still be
-/// drawn before the weaker parts of its source: [`TIER_BAND`] below the
-/// advancement, but never above [`PART_TIER_TOP`], which no part scores past.
-/// A request from `PART_TIER_TOP + TIER_BAND` up draws its family's best
-/// parts first.
-pub(crate) fn tier_floor(advancement: f32) -> f32 {
-    (advancement - TIER_BAND).min(PART_TIER_TOP)
-}
-
-/// The lowest part tier a weapon or mining beam at `advancement` may score
-/// and still be drawn before the weaker parts of its source: the
-/// [`tier_floor`] of the advancement held at [`PART_TIER_TOP`], never below
-/// 0. The weapon family scores turrets and fixed bores on one scale, and the
-/// base torpedo bays alone reach the top tier, so a floor that kept rising
-/// past the band would arm a high hull with torpedo bays and no turret.
-pub(crate) fn armament_tier_floor(advancement: f32) -> f32 {
-    tier_floor(advancement.min(PART_TIER_TOP)).max(0.0)
+/// The lowest advancement a part at `advancement` may be tiered at and
+/// still be drawn before the lower parts of its source: [`TIER_BAND`] below
+/// the advancement, but never above the highest advancement among `parts`,
+/// so a request past every part of a family still draws the best first.
+pub(crate) fn tier_floor(advancement: f32, parts: &[&ShipPart]) -> f32 {
+    let top = parts
+        .iter()
+        .map(|part| part.advancement)
+        .fold(0.0_f32, f32::max);
+    (advancement - TIER_BAND).min(top)
 }
 
 /// The hull clearance ceiling at `advancement`.
@@ -875,6 +874,31 @@ pub(crate) fn shuffled<T>(mut items: Vec<T>, stream: &mut SeedStream) -> Vec<T> 
         items.swap(index, pick);
     }
     items
+}
+
+/// `parts` in a seeded order drawn by [`ShipPart::draw_weight`] without
+/// replacement: each draw picks one remaining part with chance proportional
+/// to its weight, so a part of weight 0.1 leads a part of weight 1 about one
+/// time in eleven.
+pub(crate) fn weighted<'p>(
+    mut parts: Vec<&'p ShipPart>,
+    stream: &mut SeedStream,
+) -> Vec<&'p ShipPart> {
+    let mut drawn = Vec::with_capacity(parts.len());
+    while !parts.is_empty() {
+        let total: f32 = parts.iter().map(|part| part.draw_weight).sum();
+        let mut mark = stream.unit() * total;
+        let mut pick = parts.len() - 1;
+        for (index, part) in parts.iter().enumerate() {
+            if mark < part.draw_weight {
+                pick = index;
+                break;
+            }
+            mark -= part.draw_weight;
+        }
+        drawn.push(parts.remove(pick));
+    }
+    drawn
 }
 
 /// A signed index as a section id writes it: `n<abs>` when negative.
@@ -1170,8 +1194,8 @@ fn mining_aim(_: &SectionKind, aims: Option<usize>) -> Option<u32> {
 
 /// How many weapon slots a role fills at `advancement`, each a centred
 /// weapon or a mirrored pair. The first is required; a later slot that finds
-/// no room is left out. An armored hull's slots grow with its length, which
-/// keeps growing past [`PART_TIER_TOP`].
+/// no room is left out. An armored hull's slots grow with its length to full
+/// advancement.
 fn weapon_slots(role: ShipRoleType, advancement: f32) -> u32 {
     let advancement = advancement.clamp(0.0, 1.0);
     match role {
@@ -1376,10 +1400,9 @@ impl<'a> Draw<'a> {
 
     /// The eligible parts of `family` that pass `usable`, in the order this
     /// attempt tries them: the preferred source first for a coherent role,
-    /// then the other sources, each source's parts shuffled. A drive at or
-    /// above the request's [`tier_floor`], or a weapon or mining beam at or
-    /// above its [`armament_tier_floor`], comes before its source's weaker
-    /// parts.
+    /// then the other sources shuffled, each source's parts drawn by weight.
+    /// A drive at or above the request's [`tier_floor`] comes before its
+    /// source's lower parts; every other family draws by weight alone.
     fn ranked(
         &self,
         family: ShipPartFamilyType,
@@ -1391,7 +1414,12 @@ impl<'a> Draw<'a> {
         let coherent = self.request.role != ShipRoleType::Scavenger;
         let sources: Vec<(&str, Vec<&ShipPart>)> = self
             .snapshot
-            .eligible(self.request.role, family, self.request.advancement)
+            .eligible(
+                self.request.civilization,
+                self.request.role,
+                family,
+                self.request.advancement,
+            )
             .into_iter()
             .map(|(source, parts)| {
                 (
@@ -1405,13 +1433,13 @@ impl<'a> Draw<'a> {
             .filter(|(_, parts)| !parts.is_empty())
             .collect();
         let mut sources = shuffled(sources, &mut stream);
-        let floor = match family {
-            ShipPartFamilyType::Thruster => Some(tier_floor(self.request.advancement)),
-            ShipPartFamilyType::Weapon | ShipPartFamilyType::Mining => {
-                Some(armament_tier_floor(self.request.advancement))
-            }
-            _ => None,
-        };
+        let floor = (family == ShipPartFamilyType::Thruster).then(|| {
+            let parts: Vec<&ShipPart> = sources
+                .iter()
+                .flat_map(|(_, parts)| parts.iter().copied())
+                .collect();
+            tier_floor(self.request.advancement, &parts)
+        });
         if coherent {
             if let Some(index) = sources
                 .iter()
@@ -1424,10 +1452,10 @@ impl<'a> Draw<'a> {
         sources
             .into_iter()
             .flat_map(|(_, parts)| {
-                let (tier, weaker): (Vec<_>, Vec<_>) = shuffled(parts, &mut stream)
+                let (tier, lower): (Vec<_>, Vec<_>) = weighted(parts, &mut stream)
                     .into_iter()
                     .partition(|part| floor.is_none_or(|floor| part.advancement >= floor));
-                tier.into_iter().chain(weaker)
+                tier.into_iter().chain(lower)
             })
             .collect()
     }
@@ -1664,10 +1692,9 @@ impl<'a> Draw<'a> {
         }
 
         // Role equipment. Each weapon slot tries the hull's source first on a
-        // coherent role, then its tier's parts and, within a tier, the parts
-        // no earlier slot mounted.
+        // coherent role, then the parts no earlier slot mounted, in the
+        // weighted draw's order.
         let mut mounted: HashSet<&str> = HashSet::new();
-        let floor = armament_tier_floor(request.advancement);
         let coherent = request.role != ShipRoleType::Scavenger;
         for slot in 0..weapon_slots(request.role, request.advancement) {
             let aspect = format!("weapon_{slot}");
@@ -1680,7 +1707,6 @@ impl<'a> Draw<'a> {
             weapons.sort_by_key(|part| {
                 (
                     coherent && part.source != source,
-                    part.advancement < floor,
                     mounted.contains(part.id()),
                 )
             });
@@ -1925,17 +1951,6 @@ fn stations(
             }
         })
         .collect()
-}
-
-/// Whether a part can be the spine's structural cube: one cell, filled, with
-/// a socket on every face.
-fn is_structural_cube(part: &ShipPart) -> bool {
-    part.family == ShipPartFamilyType::Hull
-        && oriented_part(&part.config, Quat::IDENTITY).is_ok_and(|oriented| {
-            oriented.span == UVec3::ONE
-                && oriented.origin.abs_diff_eq(Vec3::ZERO, GRID_EPSILON)
-                && oriented.cells[0].faces == [true; 6]
-        })
 }
 
 /// How [`Draw::fit`] may mount a part.
@@ -2411,11 +2426,13 @@ pub(crate) mod fixture {
     use super::*;
     use crate::ship_parts::ShipPartPack;
 
-    /// A block of `size` cells with a socket on the centre of every cell
-    /// face it shows on each of `faces`.
+    /// A block of `size` cells open from `advancement` with the common draw
+    /// weight and a socket on the centre of every cell face it shows on each
+    /// of `faces`.
     pub(crate) fn block(
         id: &str,
         health: f32,
+        advancement: f32,
         kind: SectionKind,
         size: UVec3,
         faces: &[Vec3],
@@ -2444,6 +2461,8 @@ pub(crate) mod fixture {
             base: BaseSectionConfig {
                 id: id.to_string(),
                 health,
+                advancement,
+                draw_weight: 1.0,
                 collider: (size != UVec3::ONE).then_some(SectionCollider::Cuboid { size: extent }),
                 link_points,
                 ..default()
@@ -2454,25 +2473,25 @@ pub(crate) mod fixture {
 
     const ALL_FACES: [Vec3; 6] = CELL_FACES;
 
-    pub(crate) fn cube(id: &str, health: f32) -> SectionConfig {
+    pub(crate) fn cube(id: &str, health: f32, advancement: f32) -> SectionConfig {
         let kind = SectionKind::Hull(HullSectionConfig::default());
-        block(id, health, kind, UVec3::ONE, &ALL_FACES)
+        block(id, health, advancement, kind, UVec3::ONE, &ALL_FACES)
     }
 
     pub(crate) fn controller(id: &str) -> SectionConfig {
         let kind = SectionKind::Controller(ControllerSectionConfig::default());
-        block(id, 100.0, kind, UVec3::ONE, &ALL_FACES)
+        block(id, 100.0, 0.0, kind, UVec3::ONE, &ALL_FACES)
     }
 
-    pub(crate) fn drive(id: &str, magnitude: f32, size: UVec3) -> SectionConfig {
+    pub(crate) fn drive(id: &str, magnitude: f32, size: UVec3, advancement: f32) -> SectionConfig {
         let kind = SectionKind::Thruster(ThrusterSectionConfig {
             magnitude,
             ..default()
         });
-        block(id, 100.0, kind, size, &[Vec3::NEG_Z])
+        block(id, 100.0, advancement, kind, size, &[Vec3::NEG_Z])
     }
 
-    pub(crate) fn turret(id: &str, fire_rate: f32) -> SectionConfig {
+    pub(crate) fn turret(id: &str, fire_rate: f32, advancement: f32) -> SectionConfig {
         let mut turret = TurretSectionConfig {
             bullet_damage: 10.0,
             ..default()
@@ -2485,6 +2504,7 @@ pub(crate) mod fixture {
         block(
             id,
             100.0,
+            advancement,
             SectionKind::Turret(turret),
             UVec3::ONE,
             &[Vec3::NEG_Y],
@@ -2506,18 +2526,23 @@ pub(crate) mod fixture {
             eject_speed: MetersPerSecond(3.0),
         });
         let faces = [Vec3::X, Vec3::NEG_X, Vec3::Y, Vec3::NEG_Y, Vec3::Z];
-        block(id, 100.0, kind, UVec3::new(3, 2, 1), &faces)
+        block(id, 100.0, 0.0, kind, UVec3::new(3, 2, 1), &faces)
     }
 
     /// A port with a socket on each of `faces`; it docks through -Z.
     pub(crate) fn dock(id: &str, faces: &[Vec3]) -> SectionConfig {
         let kind = SectionKind::Docking(DockingSectionConfig::default());
-        block(id, 90.0, kind, UVec3::ONE, faces)
+        block(id, 90.0, 0.0, kind, UVec3::ONE, faces)
     }
 
-    /// A one-cell mining beam with a socket on each of `faces`; it fires
-    /// through -Z.
-    pub(crate) fn mining(id: &str, carve_radius_cells: f32, faces: &[Vec3]) -> SectionConfig {
+    /// A one-cell mining beam open from `advancement` with a socket on each
+    /// of `faces`; it fires through -Z.
+    pub(crate) fn mining(
+        id: &str,
+        carve_radius_cells: f32,
+        faces: &[Vec3],
+        advancement: f32,
+    ) -> SectionConfig {
         let kind = SectionKind::Mining(MiningSectionConfig {
             render_mesh: "beam.glb#Scene0".into(),
             render_mesh_transform: None,
@@ -2529,11 +2554,30 @@ pub(crate) mod fixture {
             pulse_interval_seconds: 1.0,
             carve_radius_cells,
         });
-        block(id, 90.0, kind, UVec3::ONE, faces)
+        block(id, 90.0, advancement, kind, UVec3::ONE, faces)
     }
 
     /// Every face but the mouth, so the port is its own mirror image.
     pub(crate) const DOCK_FACES: [Vec3; 5] = [Vec3::X, Vec3::NEG_X, Vec3::Y, Vec3::NEG_Y, Vec3::Z];
+
+    /// The first civilization on the x axis of world 7 that knows every
+    /// part in `ids` at full advancement. A civilization knows a seeded
+    /// subset of the parts, so a test that names a part must build for one
+    /// that knows it.
+    #[cfg(test)]
+    pub(crate) fn knowing(snapshot: &ShipPartSnapshot, ids: &[&str]) -> CivilizationId {
+        (0..256)
+            .map(|node| CivilizationId {
+                world_seed: 7,
+                node: [node, 0, 0],
+            })
+            .find(|civilization| {
+                let known = snapshot.known(*civilization, 1.0);
+                ids.iter()
+                    .all(|id| known.iter().any(|part| part.id() == *id))
+            })
+            .unwrap_or_else(|| panic!("no civilization in 256 knows {ids:?}"))
+    }
 
     pub(crate) fn pack(
         id: &str,
@@ -2547,34 +2591,35 @@ pub(crate) mod fixture {
         }
     }
 
-    /// Base content with a weak and a strong part of every family, and a mod
-    /// with its own hull, drive, turret and a stronger mining beam.
+    /// Base content with a part of every family open at advancement 0 and a
+    /// stronger one tiered at 0.5, and a mod with its own hull, drive and
+    /// turret at 0.25 and a stronger mining beam at 0.5.
     pub(crate) fn packs() -> Vec<ShipPartPack> {
         vec![
             pack(
                 "base",
                 &[],
                 vec![
-                    cube("cube", 100.0),
-                    cube("heavy_cube", 400.0),
+                    cube("cube", 100.0, 0.0),
+                    cube("heavy_cube", 400.0, 0.5),
                     controller("controller"),
-                    drive("small_drive", 1.0, UVec3::ONE),
-                    drive("wide_drive", 9.0, UVec3::new(3, 3, 2)),
-                    turret("turret", 1.0),
-                    turret("fast_turret", 4.0),
+                    drive("small_drive", 1.0, UVec3::ONE, 0.0),
+                    drive("wide_drive", 9.0, UVec3::new(3, 3, 2), 0.5),
+                    turret("turret", 1.0, 0.0),
+                    turret("fast_turret", 4.0, 0.5),
                     intake("intake"),
                     dock("dock", &DOCK_FACES),
-                    mining("mining_beam", 1.0, &DOCK_FACES),
+                    mining("mining_beam", 1.0, &DOCK_FACES, 0.0),
                 ],
             ),
             pack(
                 "mod",
                 &["base"],
                 vec![
-                    cube("mod_cube", 200.0),
-                    drive("mod_drive", 3.0, UVec3::ONE),
-                    turret("mod_turret", 2.0),
-                    mining("mod_mining_beam", 1.5, &DOCK_FACES),
+                    cube("mod_cube", 200.0, 0.25),
+                    drive("mod_drive", 3.0, UVec3::ONE, 0.25),
+                    turret("mod_turret", 2.0, 0.25),
+                    mining("mod_mining_beam", 1.5, &DOCK_FACES, 0.5),
                 ],
             ),
         ]
@@ -2590,12 +2635,26 @@ pub(crate) mod tests {
     use super::{fixture::*, *};
 
     fn request(seed: u32, role: ShipRoleType, advancement: f32) -> ShipLayoutRequest {
-        ShipLayoutRequest {
-            seed,
-            civilization: CivilizationId {
+        request_of(
+            CivilizationId {
                 world_seed: 7,
                 node: [1, -2, 0],
             },
+            seed,
+            role,
+            advancement,
+        )
+    }
+
+    fn request_of(
+        civilization: CivilizationId,
+        seed: u32,
+        role: ShipRoleType,
+        advancement: f32,
+    ) -> ShipLayoutRequest {
+        ShipLayoutRequest {
+            seed,
+            civilization,
             role,
             advancement,
         }
@@ -2613,9 +2672,10 @@ pub(crate) mod tests {
 
         let mut layouts = BTreeSet::new();
         let mut sources = BTreeSet::new();
+        let civilization = knowing(&forward, &["cube", "mod_cube"]);
         for seed in 0..12 {
             for role in ShipRoleType::ALL {
-                let request = request(seed, role, 1.0);
+                let request = request_of(civilization, seed, role, 1.0);
                 let one = generate_ship(&forward, request).expect("the ship generates");
                 let other = generate_ship(&backward, request).expect("the ship generates");
                 assert_eq!(
@@ -2643,11 +2703,13 @@ pub(crate) mod tests {
         // Industrial mining beam counts and prototypes seen, by advancement.
         let mut beams: BTreeSet<(u32, usize)> = BTreeSet::new();
         let mut beam_parts: BTreeSet<&str> = BTreeSet::new();
+        // Knows the mod cube too, so a mod-sourced hull prefers the mod beam.
+        let civilization = knowing(&snapshot, &["mining_beam", "mod_mining_beam", "mod_cube"]);
         for advancement in [0.0, 1.0] {
             for seed in 0..24 {
                 for role in ShipRoleType::ALL {
-                    let layout = generate_ship(&snapshot, request(seed, role, advancement))
-                        .expect("the ship generates");
+                    let request = request_of(civilization, seed, role, advancement);
+                    let layout = generate_ship(&snapshot, request).expect("the ship generates");
                     let carried: Vec<&ShipPart> = layout
                         .design
                         .sections
@@ -2717,9 +2779,9 @@ pub(crate) mod tests {
             "base",
             &[],
             vec![
-                cube("cube", 100.0),
+                cube("cube", 100.0, 0.0),
                 controller("controller"),
-                drive("huge_drive", 1.0, UVec3::new(15, 15, 1)),
+                drive("huge_drive", 1.0, UVec3::new(15, 15, 1), 0.0),
                 intake("intake"),
                 dock("dock", &DOCK_FACES),
             ],
@@ -2753,12 +2815,12 @@ pub(crate) mod tests {
             "base",
             &[],
             vec![
-                cube("cube", 100.0),
+                cube("cube", 100.0, 0.0),
                 controller("controller"),
-                drive("small_drive", 1.0, UVec3::ONE),
+                drive("small_drive", 1.0, UVec3::ONE, 0.0),
                 intake("intake"),
                 dock("dock", &DOCK_FACES),
-                mining("lopsided_beam", 1.0, &[Vec3::X, Vec3::Y]),
+                mining("lopsided_beam", 1.0, &[Vec3::X, Vec3::Y], 0.0),
             ],
         )])
         .expect("the packs build");
@@ -2966,12 +3028,13 @@ pub(crate) mod tests {
             "base",
             &[],
             vec![
-                cube("cube", 100.0),
+                cube("cube", 100.0, 0.0),
                 controller("controller"),
-                drive("deep_drive", 1.0, UVec3::new(1, 1, 10)),
+                drive("deep_drive", 1.0, UVec3::new(1, 1, 10), 0.0),
                 block(
                     "intake",
                     100.0,
+                    0.0,
                     intake("intake").kind,
                     UVec3::ONE,
                     &DOCK_FACES,
@@ -3147,7 +3210,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn a_high_advancement_ship_draws_its_drives_and_weapons_from_its_tier() {
+    fn a_high_advancement_ship_draws_its_drives_from_its_tier() {
         let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
         let parts: HashMap<&str, &ShipPart> = snapshot
             .parts()
@@ -3155,14 +3218,15 @@ pub(crate) mod tests {
             .map(|part| (part.id(), part))
             .collect();
         let mut drives = BTreeSet::new();
+        let civilization = knowing(&snapshot, &["small_drive", "wide_drive", "mod_drive"]);
         for seed in 0..12 {
             for role in ShipRoleType::ALL {
-                let layout =
-                    generate_ship(&snapshot, request(seed, role, 1.0)).expect("the ship generates");
+                let request = request_of(civilization, seed, role, 1.0);
+                let layout = generate_ship(&snapshot, request).expect("the ship generates");
                 for section in &layout.design.sections {
                     let part = parts[prototype_of(section).expect("a prototype")];
                     assert!(
-                        !matches!(part.id(), "small_drive" | "turret"),
+                        part.id() != "small_drive",
                         "seed {seed}, {role:?}: {} mounts {}",
                         section.id,
                         part.id()
@@ -3183,8 +3247,8 @@ pub(crate) mod tests {
     #[test]
     fn a_generated_hull_mixes_at_most_three_structural_cubes_from_its_source() {
         let mut packs = packs();
-        packs[0].sections.push(cube("plate_cube", 150.0));
-        packs[0].sections.push(cube("rib_cube", 300.0));
+        packs[0].sections.push(cube("plate_cube", 150.0, 0.25));
+        packs[0].sections.push(cube("rib_cube", 300.0, 0.4));
         let snapshot = ShipPartSnapshot::build(&packs).expect("the packs build");
         let parts: HashMap<&str, &ShipPart> = snapshot
             .parts()

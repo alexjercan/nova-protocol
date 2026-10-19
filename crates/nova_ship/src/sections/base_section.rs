@@ -359,6 +359,15 @@ pub struct BaseSectionConfig {
     /// credits, a `strip_yield` outside `(0, 1]` or a strip worth as much as
     /// the build (`lint_section_recipe`).
     pub build: BuildRecipe,
+    /// The lowest civilization advancement, in `[0, 1]`, that builds this
+    /// section as a generated-ship part. Required in RON; content lint and
+    /// the open world's part snapshot refuse a value outside the range.
+    pub advancement: f32,
+    /// How often a generator draws this section against the other known
+    /// parts of its family: 1.0 is the common weight, 0.1 is rare. Required
+    /// in RON; finite and positive, or content lint and the part snapshot
+    /// refuse it.
+    pub draw_weight: f32,
     /// The sound this section's destruction plays. Unlike the hit voice this
     /// stays per-target: a section failing is one event with one sound, and
     /// nothing about what killed it changes how the structure lets go.
@@ -916,7 +925,8 @@ mod tests {
         assert!(err.to_string().contains("build"), "{err}");
 
         let built = r#"(id: "s", name: "s", description: "", health: 100.0,
-            build: (credits: 80, parts: {"SectionPanel": 2}, strip_yield: 0.5))"#;
+            build: (credits: 80, parts: {"SectionPanel": 2}, strip_yield: 0.5),
+            advancement: 0.0, draw_weight: 1.0)"#;
         let config = ron::from_str::<BaseSectionConfig>(built).expect("recipe present");
         assert_eq!(config.build.credits, 80);
     }
@@ -930,6 +940,8 @@ mod tests {
             name: "s".to_string(),
             description: String::new(),
             health: 100.0,
+            advancement: 0.0,
+            draw_weight: 1.0,
             build: BuildRecipe::default(),
             destroy_sound: None,
             collider: Some(SectionCollider::Cuboid {
@@ -968,6 +980,8 @@ mod tests {
             name: "s".to_string(),
             description: String::new(),
             health: 100.0,
+            advancement: 0.0,
+            draw_weight: 1.0,
             build: BuildRecipe::default(),
             destroy_sound: None,
             collider: None,

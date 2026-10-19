@@ -76,6 +76,8 @@ pub(crate) fn sections(ids: &[&str]) -> KnownSections {
                 id: (*id).to_string(),
                 link_points: nova_ship::prelude::unit_cube_link_points(),
                 build: fixture_recipe(),
+                advancement: 0.0,
+                draw_weight: 1.0,
                 ..default()
             },
             kind: nova_ship::prelude::SectionKind::Hull(default()),
@@ -193,6 +195,8 @@ pub(crate) fn spawn_armed_ship(id: &str, controller: SpaceshipController) -> Eve
                     id: section_id.to_string(),
                     link_points: nova_ship::prelude::unit_cube_link_points(),
                     build: fixture_recipe(),
+                    advancement: 0.0,
+                    draw_weight: 1.0,
                     ..default()
                 },
                 kind,

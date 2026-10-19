@@ -2394,8 +2394,8 @@ mod generated_wreck {
     use nova_ship::{
         flight::prelude::NovaFlightPlugin,
         prelude::{
-            DockingConnectionRequest, GameSections, PDControllerPlugin, SectionConfig,
-            ShipCapabilities, SpaceshipSectionPlugin,
+            DockingConnectionRequest, GameSections, GameStyles, PDControllerPlugin, SectionConfig,
+            ShipCapabilities, ShipStyleConfig, SpaceshipSectionPlugin,
         },
     };
     use nova_world::{materialize_sector, prelude::*, ObserverBody};
@@ -2424,25 +2424,33 @@ mod generated_wreck {
     enum Entry {
         Section(SectionConfig),
         Ship(ShipDesignPrototype),
+        Style(ShipStyleConfig),
     }
 
-    /// The shipped section and ship catalogs.
-    fn catalog() -> (Vec<SectionConfig>, Vec<ShipDesignPrototype>) {
+    /// The shipped section, ship and style catalogs: a generated hull wears
+    /// its role's style, which the skin resolves against the loaded styles.
+    fn catalog() -> (
+        Vec<SectionConfig>,
+        Vec<ShipDesignPrototype>,
+        Vec<ShipStyleConfig>,
+    ) {
         let load = |path: &str| -> Vec<Entry> {
             let file = format!("{}/../../assets/base/{path}", env!("CARGO_MANIFEST_DIR"));
             ron::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap()
         };
-        let (mut sections, mut ships) = (Vec::new(), Vec::new());
+        let (mut sections, mut ships, mut styles) = (Vec::new(), Vec::new(), Vec::new());
         for entry in load("sections/base.content.ron")
             .into_iter()
             .chain(load("ships/base.content.ron"))
+            .chain(load("styles/base.content.ron"))
         {
             match entry {
                 Entry::Section(section) => sections.push(section),
                 Entry::Ship(ship) => ships.push(ship),
+                Entry::Style(style) => styles.push(style),
             }
         }
-        (sections, ships)
+        (sections, ships, styles)
     }
 
     /// A generator whose every cell holds one ship.
@@ -2499,7 +2507,7 @@ mod generated_wreck {
 
     #[test]
     fn a_docked_generated_wreck_gives_its_stock_by_take_and_takes_it_back_by_give() {
-        let (sections, ships) = catalog();
+        let (sections, ships, styles) = catalog();
         let snapshot = ShipPartSnapshot::build(&[ShipPartPack {
             id: "base".to_string(),
             dependencies: Vec::new(),
@@ -2590,6 +2598,7 @@ mod generated_wreck {
         ));
         app.insert_resource(GameSections(sections));
         app.insert_resource(GameShipDesigns(ships));
+        app.insert_resource(GameStyles(styles));
         app.insert_resource(test_items());
         app.init_resource::<nova_gameplay::inventory::CargoCanisterIdAllocator>();
         app.init_resource::<InventoryRuntime>();

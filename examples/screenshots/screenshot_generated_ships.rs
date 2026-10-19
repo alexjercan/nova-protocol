@@ -83,7 +83,7 @@ fn main() -> bevy::app::AppExit {
     let mut armored_request = None;
     let mut armored_sections = 0;
     for role in ShipRoleType::ALL {
-        let advancement = highest_eligible_advancement(&snapshot, role);
+        let advancement = highest_eligible_advancement(&snapshot, civilization, role);
         let (request, layout) = first_hull_layout(&snapshot, civilization, role, advancement);
         if role == ShipRoleType::Armored {
             armored_request = Some(request);
@@ -170,17 +170,26 @@ fn main() -> bevy::app::AppExit {
     app.run()
 }
 
-/// The highest advancement at which the snapshot serves `role`: full
-/// advancement if eligible there, else the highest step of
-/// [`ADVANCEMENT_STEPS`] below it that is. Panics when none serves the role.
-fn highest_eligible_advancement(snapshot: &ShipPartSnapshot, role: ShipRoleType) -> f32 {
-    if snapshot.eligible_roles(1.0).contains(&role) {
+/// The highest advancement at which the snapshot serves `role` for
+/// `civilization`: full advancement if eligible there, else the highest step
+/// of [`ADVANCEMENT_STEPS`] below it that is. Panics when none serves the
+/// role.
+fn highest_eligible_advancement(
+    snapshot: &ShipPartSnapshot,
+    civilization: CivilizationId,
+    role: ShipRoleType,
+) -> f32 {
+    if snapshot.eligible_roles(civilization, 1.0).contains(&role) {
         return 1.0;
     }
     (0..ADVANCEMENT_STEPS)
         .rev()
         .map(|step| step as f32 / ADVANCEMENT_STEPS as f32)
-        .find(|advancement| snapshot.eligible_roles(*advancement).contains(&role))
+        .find(|advancement| {
+            snapshot
+                .eligible_roles(civilization, *advancement)
+                .contains(&role)
+        })
         .unwrap_or_else(|| {
             panic!(
                 "screenshot_generated_ships: the base snapshot serves no {} at any advancement",

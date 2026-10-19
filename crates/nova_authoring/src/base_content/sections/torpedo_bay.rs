@@ -148,6 +148,9 @@ fn torpedo_bay_prototype(
             description: description.to_string(),
             // Torpedo bay: mid durability baseline.
             health: TORPEDO_BASE_HEALTH,
+            advancement: 0.0,
+            // Early, rare: a tenth of a turret's draw.
+            draw_weight: 0.1,
             build: recipes::torpedo_bay(),
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
             // Two cells long: the tube art earns its length, and the collider

@@ -76,7 +76,7 @@ pub(crate) fn station_hull_layouts(
     };
     // Civilian and industrial are always buildable, so the list is never
     // empty.
-    let roles = parts.eligible_roles(civilization.advancement);
+    let roles = parts.eligible_roles(civilization.id, civilization.advancement);
     let sales = seeded_roster(hull_key(seed, station, b"plan", 0), (sales, sales), &roles).map(
         |(slot, role)| {
             let mark = slot / roles.len() + 1;
@@ -265,7 +265,7 @@ mod tests {
                             .unwrap_or(hulls.len());
                         let escorts = &hulls[first_hire..];
                         let armed = parts
-                            .eligible_roles(civilization.advancement)
+                            .eligible_roles(civilization.id, civilization.advancement)
                             .into_iter()
                             .any(|role| {
                                 matches!(role, ShipRoleType::Scavenger | ShipRoleType::Armored)

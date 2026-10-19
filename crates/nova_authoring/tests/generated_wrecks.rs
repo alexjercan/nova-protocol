@@ -11,21 +11,19 @@ use nova_world_base::prelude::{
     generate_ship, generate_wreck, ShipLayoutRequest, ShipPartSnapshot, MAX_SHIP_SECTIONS,
 };
 
+/// The one civilization every sweep below builds for.
+const CIVILIZATION: CivilizationId = CivilizationId {
+    world_seed: 3,
+    node: [0, 0, 0],
+};
+
 #[test]
 fn every_base_wreck_at_advancement_zero_breaks_its_mirror() {
     let snapshot = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
         .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
     for seed in 0..12 {
-        for role in snapshot.eligible_roles(0.0) {
-            let request = ShipLayoutRequest {
-                seed,
-                civilization: CivilizationId {
-                    world_seed: 7,
-                    node: [0, 0, 0],
-                },
-                role,
-                advancement: 0.0,
-            };
+        for role in snapshot.eligible_roles(CIVILIZATION, 0.0) {
+            let request = request(seed, role, 0.0);
             let wreck = generate_wreck(&snapshot, request)
                 .unwrap_or_else(|failure| panic!("seed {seed}, {role:?}: {failure}"));
             let sections = &wreck.design.sections;
@@ -61,16 +59,8 @@ fn every_base_ship_carries_an_intake_clear_of_its_ports() {
     };
     for advancement in [0.0, 1.0] {
         for seed in 0..12 {
-            for role in snapshot.eligible_roles(advancement) {
-                let request = ShipLayoutRequest {
-                    seed,
-                    civilization: CivilizationId {
-                        world_seed: 1,
-                        node: [0, 0, 0],
-                    },
-                    role,
-                    advancement,
-                };
+            for role in snapshot.eligible_roles(CIVILIZATION, advancement) {
+                let request = request(seed, role, advancement);
                 let context = format!("seed {seed}, {role:?}, advancement {advancement}");
                 let ship = generate_ship(&snapshot, request)
                     .unwrap_or_else(|failure| panic!("{context}: {failure}"));
@@ -101,10 +91,7 @@ fn every_base_ship_carries_an_intake_clear_of_its_ports() {
 fn request(seed: u32, role: ShipRoleType, advancement: f32) -> ShipLayoutRequest {
     ShipLayoutRequest {
         seed,
-        civilization: CivilizationId {
-            world_seed: 3,
-            node: [0, 0, 0],
-        },
+        civilization: CIVILIZATION,
         role,
         advancement,
     }
@@ -119,7 +106,7 @@ fn the_capital_drive_mounts_from_mid_advancement_only() {
     for advancement in [0.0, 0.25, 0.45, 0.6, 0.8, 1.0] {
         let mut capital = 0;
         for seed in 0..32 {
-            for role in snapshot.eligible_roles(advancement) {
+            for role in snapshot.eligible_roles(CIVILIZATION, advancement) {
                 let context = format!("seed {seed}, {role:?}, advancement {advancement}");
                 let ship = generate_ship(&snapshot, request(seed, role, advancement))
                     .unwrap_or_else(|failure| panic!("{context}: {failure}"));
@@ -139,53 +126,13 @@ fn the_capital_drive_mounts_from_mid_advancement_only() {
     }
 }
 
-/// An armored hull at full advancement fights with both weapon kinds: every
-/// one mounts turrets beside its torpedo bays, though the base torpedo bays
-/// alone reach the top part tier.
-#[test]
-fn every_armored_ship_at_full_advancement_mounts_turrets_and_torpedo_bays() {
-    let snapshot = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
-        .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
-    let kind = |id: &str| {
-        &snapshot
-            .parts()
-            .iter()
-            .find(|part| part.id() == id)
-            .unwrap_or_else(|| panic!("'{id}' is a base part"))
-            .config
-            .kind
-    };
-    for seed in 0..12 {
-        let ship = generate_ship(&snapshot, request(seed, ShipRoleType::Armored, 1.0))
-            .unwrap_or_else(|failure| panic!("seed {seed}: {failure}"));
-        let kinds: Vec<&SectionKind> = ship
-            .design
-            .sections
-            .iter()
-            .map(|section| kind(section.source.prototype_id()))
-            .collect();
-        let turrets = kinds
-            .iter()
-            .filter(|kind| matches!(kind, SectionKind::Turret(_)))
-            .count();
-        let bays = kinds
-            .iter()
-            .filter(|kind| matches!(kind, SectionKind::Torpedo(_)))
-            .count();
-        assert!(
-            turrets > 0 && bays > 0,
-            "seed {seed}: {turrets} turrets, {bays} torpedo bays"
-        );
-    }
-}
-
 /// Every generated ship at full advancement, the largest it grows, stays
 /// within the per-ship section budget.
 #[test]
 fn generated_ships_at_full_advancement_stay_within_the_section_budget() {
     let snapshot = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
         .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
-    for role in snapshot.eligible_roles(1.0) {
+    for role in snapshot.eligible_roles(CIVILIZATION, 1.0) {
         for seed in 1..=32 {
             let ship = generate_ship(&snapshot, request(seed, role, 1.0))
                 .unwrap_or_else(|failure| panic!("seed {seed}, {role:?}: {failure}"));

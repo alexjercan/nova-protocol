@@ -9,30 +9,32 @@
 //! not depend on each other and define one id are a fault, not a load-order
 //! choice.
 //!
-//! Every usable part belongs to one [`ShipPartFamilyType`] and gets one
-//! capability score from its own stats. Scores are normalized log-linearly
-//! within a family, so the weakest usable part of a family needs advancement
-//! 0 and the strongest needs [`PART_TIER_TOP`]: a civilization reaches every
-//! part by mid advancement and grows its hulls above that. A valid part that a
-//! generator cannot place is excluded before normalization, so it can never
-//! define a family's floor. A socketed part that fires or docks down a
-//! non-cardinal lane, or through a face that carries one of its own sockets,
-//! is not excluded: it is an authoring fault, as a bad stat is, because a hull
-//! built around it fires or docks into whatever stands in its lane.
+//! Every usable part belongs to one [`ShipPartFamilyType`] and carries the
+//! advancement and draw weight its section authors: a civilization builds a
+//! part from the part's advancement up, and a generator draws it against the
+//! other parts of its family by weight. A civilization knows only a seeded
+//! subset of the parts its advancement opens, see [`ShipPartSnapshot::known`].
+//! A valid part that a generator cannot place is excluded. A socketed part
+//! that fires or docks down a non-cardinal lane, or through a face that
+//! carries one of its own sockets, is not excluded: it is an authoring fault,
+//! as a bad stat is, because a hull built around it fires or docks into
+//! whatever stands in its lane.
 //!
 //! PURE. The open world pins one to its generator when it arms, beside the
 //! digest of the loaded catalog it came from, and lays out every hull a cell
 //! owns from it; the content lint and the `world_ships` debug example build
-//! their own. Scoring is provisional until generated ships are reviewed.
+//! their own.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
 };
 
-use nova_gameplay::prelude::{Fnv64, ShipRoleType};
+use bevy::prelude::{Quat, UVec3, Vec3};
+use nova_gameplay::prelude::{CivilizationId, Fnv32, Fnv64, SeedStream, ShipRoleType};
 use nova_ship::prelude::{
-    cell_grid_fit, CellGridFault, SectionCollider, SectionConfig, SectionKind, TurretJoint,
+    cell_grid_fit, oriented_part, CellGridFault, SectionCollider, SectionConfig, SectionKind,
+    TurretJoint, GRID_EPSILON,
 };
 
 use crate::station_layout::StationArchetypeType;
@@ -42,10 +44,9 @@ use crate::station_layout::StationArchetypeType;
 /// written, so an old pin cannot match a new form.
 const SHIP_PART_HASH_VERSION: u32 = 1;
 
-/// The advancement the strongest part of a family needs. Below 1, so a
-/// civilization from mid advancement up builds with its family's best parts;
-/// only the size ceiling still grows with advancement above it.
-pub(crate) const PART_TIER_TOP: f32 = 0.5;
+/// The chance that a civilization knows one part its advancement opens,
+/// drawn once per civilization and part, see [`ShipPartSnapshot::known`].
+pub const KNOWN_CHANCE: f32 = 0.5;
 
 /// One content pack's sections as a snapshot reads them.
 #[derive(Clone, Debug)]
@@ -62,20 +63,19 @@ pub struct ShipPartPack {
 /// What a usable part does on a generated ship.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ShipPartFamilyType {
-    /// Structure, scored by health per volume.
+    /// Structure.
     Hull,
-    /// Flight computer, scored by torque.
+    /// Flight computer.
     Controller,
-    /// Drive, scored by thrust.
+    /// Drive.
     Thruster,
-    /// Turret, torpedo bay or railgun, scored by damage per second.
+    /// Turret, torpedo bay or railgun.
     Weapon,
-    /// Cargo intake, scored by door aperture.
+    /// Cargo intake.
     CargoIntake,
-    /// Docking port, scored by capture distance in engine units.
+    /// Docking port.
     Docking,
-    /// Mining beam, scored by carve volume per second: the cube of its carve
-    /// radius over its pulse interval.
+    /// Mining beam.
     Mining,
 }
 
@@ -155,12 +155,12 @@ pub struct ShipPart {
     pub source: String,
     /// What the part does on a ship.
     pub family: ShipPartFamilyType,
-    /// The raw score within its family, see [`ShipPartFamilyType`].
-    pub capability: f32,
     /// The lowest civilization advancement that may build the part, in
-    /// `[0, PART_TIER_TOP]`: 0 for the weakest part of its family,
-    /// [`PART_TIER_TOP`] for the strongest.
+    /// `[0, 1]`, as its section authors it.
     pub advancement: f32,
+    /// Its draw weight against the other known parts of its family, as its
+    /// section authors it: finite and positive.
+    pub draw_weight: f32,
     /// The effective section prototype.
     pub config: SectionConfig,
 }
@@ -178,8 +178,6 @@ impl ShipPart {
 pub enum ShipPartExclusionType {
     /// The section has no link point, so it cannot join one connected ship.
     MissingLinks,
-    /// A railgun with no charge time has no damage per second to score.
-    UnchargedRail,
     /// The section cannot stand on the cell grid. Never
     /// [`CellGridFault::ObliqueExit`] or [`CellGridFault::SocketOnExitFace`]:
     /// those two are [`ShipPartFault::UnlanedExit`] instead, because they are
@@ -230,8 +228,10 @@ pub enum ShipPartFault {
         /// The authored value.
         value: f32,
     },
-    /// No usable part of a family every minimum-advancement civilian or
-    /// industrial ship needs.
+    /// No usable part of a family every civilian or industrial ship needs
+    /// is open at advancement 0, so the least advanced civilization could
+    /// not build one. A hull counts only as a structural cube: a ship spine
+    /// and a station frame stand on nothing else.
     MissingFamily(ShipPartFamilyType),
     /// A weapon, thruster or mining beam fires down a lane the grid cannot
     /// keep clear, or one of those, a cargo intake or a docking port fires,
@@ -298,8 +298,8 @@ impl fmt::Display for ShipPartFault {
             ),
             Self::MissingFamily(family) => write!(
                 f,
-                "no usable {family} part: a minimum-advancement civilian and industrial ship \
-                 needs one"
+                "no usable {family} part at advancement 0, a structural cube for a hull: a \
+                 minimum-advancement civilian and industrial ship needs one"
             ),
             Self::UnlanedExit { pack, id, fault } => write!(f, "section '{id}' ({pack}) {fault}"),
             Self::MissingRoleStyle { role, style } => write!(
@@ -330,9 +330,9 @@ pub struct ShipPartSnapshot {
 }
 
 impl ShipPartSnapshot {
-    /// Validate `packs` as one effective catalog, in any order, and score its
-    /// usable parts. Returns every pack, definition and stat fault, not only
-    /// the first; family floors are checked once those are clear.
+    /// Validate `packs` as one effective catalog, in any order, and collect
+    /// its usable parts. Returns every pack, definition and stat fault, not
+    /// only the first; family floors are checked once those are clear.
     pub fn build(packs: &[ShipPartPack]) -> Result<Self, Vec<ShipPartFault>> {
         let mut faults = Vec::new();
 
@@ -411,7 +411,7 @@ impl ShipPartSnapshot {
             effective.push(*winner);
         }
 
-        let mut scored: Vec<ShipPart> = Vec::new();
+        let mut parts: Vec<ShipPart> = Vec::new();
         let mut excluded = BTreeMap::new();
         for (source, config) in &effective {
             let before = faults.len();
@@ -437,21 +437,11 @@ impl ShipPartSnapshot {
                     continue;
                 }
             }
-            let capability = capability(config);
-            if !(capability.is_finite() && capability > 0.0) {
-                faults.push(ShipPartFault::InvalidStat {
-                    pack: source.to_string(),
-                    id: config.base.id.clone(),
-                    stat: "capability",
-                    value: capability,
-                });
-                continue;
-            }
-            scored.push(ShipPart {
+            parts.push(ShipPart {
                 source: source.to_string(),
                 family,
-                capability,
-                advancement: 0.0,
+                advancement: config.base.advancement,
+                draw_weight: config.base.draw_weight,
                 config: (*config).clone(),
             });
         }
@@ -462,29 +452,15 @@ impl ShipPartSnapshot {
             return Err(faults);
         }
         for family in ShipPartFamilyType::ALL {
-            let scores = scored
-                .iter()
-                .filter(|part| part.family == family)
-                .map(|part| part.capability);
-            let (weakest, strongest) = scores
-                .fold((f32::INFINITY, 0.0_f32), |(low, high), score| {
-                    (low.min(score), high.max(score))
-                });
             let floor_needed = family.required_by(ShipRoleType::Civilian)
                 || family.required_by(ShipRoleType::Industrial);
-            if weakest > strongest {
-                if floor_needed {
-                    faults.push(ShipPartFault::MissingFamily(family));
-                }
-                continue;
-            }
-            let span = (strongest / weakest).ln();
-            for part in scored.iter_mut().filter(|part| part.family == family) {
-                part.advancement = if span > 0.0 {
-                    ((part.capability / weakest).ln() / span).clamp(0.0, 1.0) * PART_TIER_TOP
-                } else {
-                    0.0
-                };
+            let open = parts.iter().any(|part| {
+                part.family == family
+                    && part.advancement <= 0.0
+                    && (family != ShipPartFamilyType::Hull || is_structural_cube(part))
+            });
+            if floor_needed && !open {
+                faults.push(ShipPartFault::MissingFamily(family));
             }
         }
 
@@ -493,7 +469,7 @@ impl ShipPartSnapshot {
         }
         Ok(Self {
             sources: by_id.keys().map(|id| id.to_string()).collect(),
-            parts: scored,
+            parts,
             excluded,
             content_hash: content_hash(&effective),
         })
@@ -521,12 +497,72 @@ impl ShipPartSnapshot {
         self.content_hash
     }
 
-    /// The parts of `family` a ship of `role` may carry at `advancement`,
-    /// grouped by source. Each group is one equal-weight source: a generator
-    /// draws a source first and a part within it second, so a pack with many
-    /// near-identical parts does not crowd out the others.
+    /// The parts of `family` that `advancement` opens, in id order: every
+    /// part a civilization at that advancement could know.
+    pub(crate) fn open(
+        &self,
+        family: ShipPartFamilyType,
+        advancement: f32,
+    ) -> impl Iterator<Item = &ShipPart> {
+        self.parts
+            .iter()
+            .filter(move |part| part.family == family && part.advancement <= advancement)
+    }
+
+    /// Every part `civilization` builds at `advancement`, in id order: the
+    /// parts its advancement opens that it knows.
+    ///
+    /// Each open part is known with [`KNOWN_CHANCE`], drawn once from the
+    /// civilization's identity and the part id, so the same part is known
+    /// or not from every cell and at any advancement that opens it. A
+    /// family with an open part always has a known one: when no draw knows
+    /// one, the open part with the lowest draw is known. A structural cube
+    /// hull and a turret are guaranteed the same way before their families
+    /// are, so a ship spine and a station frame always have a cube and a
+    /// generated station, which carries turrets alone, always has a gun.
+    pub fn known(&self, civilization: CivilizationId, advancement: f32) -> Vec<&ShipPart> {
+        let mut known = Vec::new();
+        for family in ShipPartFamilyType::ALL {
+            let draws: Vec<(&ShipPart, f32)> = self
+                .open(family, advancement)
+                .map(|part| (part, known_draw(civilization, part.id())))
+                .collect();
+            let mut chosen: Vec<&ShipPart> = draws
+                .iter()
+                .filter(|(_, draw)| *draw < KNOWN_CHANCE)
+                .map(|(part, _)| *part)
+                .collect();
+            if family == ShipPartFamilyType::Weapon {
+                let turrets: Vec<(&ShipPart, f32)> = draws
+                    .iter()
+                    .filter(|(part, _)| matches!(part.config.kind, SectionKind::Turret(_)))
+                    .copied()
+                    .collect();
+                guarantee_one(&turrets, &mut chosen);
+            }
+            if family == ShipPartFamilyType::Hull {
+                let cubes: Vec<(&ShipPart, f32)> = draws
+                    .iter()
+                    .filter(|(part, _)| is_structural_cube(part))
+                    .copied()
+                    .collect();
+                guarantee_one(&cubes, &mut chosen);
+            }
+            guarantee_one(&draws, &mut chosen);
+            chosen.sort_by(|a, b| a.id().cmp(b.id()));
+            known.extend(chosen);
+        }
+        known
+    }
+
+    /// The parts of `family` a ship of `role` built by `civilization` at
+    /// `advancement` may carry, grouped by source. Each group is one
+    /// equal-weight source: a generator draws a source first and a part
+    /// within it second, so a pack with many near-identical parts does not
+    /// crowd out the others.
     pub fn eligible(
         &self,
+        civilization: CivilizationId,
         role: ShipRoleType,
         family: ShipPartFamilyType,
         advancement: f32,
@@ -535,61 +571,106 @@ impl ShipPartSnapshot {
         if !family.allowed_on(role) {
             return sources;
         }
-        for part in &self.parts {
-            if part.family == family && part.advancement <= advancement {
+        for part in self.known(civilization, advancement) {
+            if part.family == family {
                 sources.entry(part.source.as_str()).or_default().push(part);
             }
         }
         sources
     }
 
-    /// The parts of `family` a generated station may carry at `advancement`,
-    /// grouped by source as [`eligible`](Self::eligible) groups them. A
-    /// station never flies, mines or takes cargo in through an intake, so
-    /// those families are empty. Its only weapon is a turret: a turret
-    /// traverses, so it covers the station from any face, and a fixed bore
-    /// on a hull that never turns to aim cannot.
+    /// The parts of `family` a generated station of `civilization` at
+    /// `advancement` may carry, grouped by source as
+    /// [`eligible`](Self::eligible) groups them. A station never flies,
+    /// mines or takes cargo in through an intake, so those families are
+    /// empty. Its only weapon is a turret: a turret traverses, so it covers
+    /// the station from any face, and a fixed bore on a hull that never
+    /// turns to aim cannot, see [`station_carries`].
     pub fn station_parts(
         &self,
+        civilization: CivilizationId,
         family: ShipPartFamilyType,
         advancement: f32,
     ) -> BTreeMap<&str, Vec<&ShipPart>> {
         let mut sources: BTreeMap<&str, Vec<&ShipPart>> = BTreeMap::new();
-        let carried = matches!(
-            family,
-            ShipPartFamilyType::Hull
-                | ShipPartFamilyType::Controller
-                | ShipPartFamilyType::Docking
-                | ShipPartFamilyType::Weapon
-        );
-        if !carried {
-            return sources;
-        }
-        for part in &self.parts {
-            let turret_only = family != ShipPartFamilyType::Weapon
-                || matches!(part.config.kind, SectionKind::Turret(_));
-            if part.family == family && part.advancement <= advancement && turret_only {
+        for part in self.known(civilization, advancement) {
+            if part.family == family && station_carries(part) {
                 sources.entry(part.source.as_str()).or_default().push(part);
             }
         }
         sources
     }
 
-    /// The roles whose every required family has an eligible part at
-    /// `advancement`. Civilian and industrial are always among them: a
-    /// snapshot without their floor parts does not build. A fighting role is
-    /// absent until a weapon is eligible.
-    pub fn eligible_roles(&self, advancement: f32) -> Vec<ShipRoleType> {
+    /// The roles whose every required family has an eligible part for
+    /// `civilization` at `advancement`. Civilian and industrial are always
+    /// among them: a snapshot without their floor parts does not build. A
+    /// fighting role is absent until a weapon is open.
+    pub fn eligible_roles(
+        &self,
+        civilization: CivilizationId,
+        advancement: f32,
+    ) -> Vec<ShipRoleType> {
         ShipRoleType::ALL
             .into_iter()
             .filter(|role| {
                 ShipPartFamilyType::ALL.into_iter().all(|family| {
                     !family.required_by(*role)
-                        || !self.eligible(*role, family, advancement).is_empty()
+                        || !self
+                            .eligible(civilization, *role, family, advancement)
+                            .is_empty()
                 })
             })
             .collect()
     }
+}
+
+/// Keep one part of `pool` known: when `chosen` holds none of them, the one
+/// with the lowest draw joins it. An empty pool needs nothing.
+fn guarantee_one<'p>(pool: &[(&'p ShipPart, f32)], chosen: &mut Vec<&'p ShipPart>) {
+    if pool.is_empty() || pool.iter().any(|(part, _)| chosen.contains(part)) {
+        return;
+    }
+    let (lowest, _) = pool
+        .iter()
+        .min_by(|(_, a), (_, b)| a.total_cmp(b))
+        .expect("a non-empty pool has a lowest draw");
+    chosen.push(lowest);
+}
+
+/// Whether `part` can stand as a structural cube, the spine of a ship and
+/// the block of a station frame: one filled cell with a socket on every face.
+pub(crate) fn is_structural_cube(part: &ShipPart) -> bool {
+    part.family == ShipPartFamilyType::Hull
+        && oriented_part(&part.config, Quat::IDENTITY).is_ok_and(|oriented| {
+            oriented.span == UVec3::ONE
+                && oriented.origin.abs_diff_eq(Vec3::ZERO, GRID_EPSILON)
+                && oriented.cells[0].faces == [true; 6]
+        })
+}
+
+/// Whether a generated station may carry `part`: a hull, a flight computer,
+/// a docking port or a turret.
+pub(crate) fn station_carries(part: &ShipPart) -> bool {
+    match part.family {
+        ShipPartFamilyType::Hull | ShipPartFamilyType::Controller | ShipPartFamilyType::Docking => {
+            true
+        }
+        ShipPartFamilyType::Weapon => matches!(part.config.kind, SectionKind::Turret(_)),
+        ShipPartFamilyType::Thruster
+        | ShipPartFamilyType::CargoIntake
+        | ShipPartFamilyType::Mining => false,
+    }
+}
+
+/// The unit draw that decides whether `civilization` knows the part `id`:
+/// FNV-1a 32 over the civilization's identity and the id, so it is the same
+/// from every cell and does not depend on the other parts loaded.
+fn known_draw(civilization: CivilizationId, id: &str) -> f32 {
+    let mut hash = Fnv32::new().write(&civilization.world_seed.to_le_bytes());
+    for axis in civilization.node {
+        hash = hash.write(&axis.to_le_bytes());
+    }
+    SeedStream::new(hash.write(b"known_part").write(id.as_bytes()).finish()).unit()
 }
 
 /// Every pack `id` depends on, directly or through another pack. A missing
@@ -612,9 +693,17 @@ fn ancestors_of<'a>(id: &str, by_id: &BTreeMap<&'a str, &'a ShipPartPack>) -> BT
     found
 }
 
-/// Push a fault for every stat a generated part is scored or built from that
+/// Push a fault for every stat a generated part is drawn or built from that
 /// is not finite and in range.
 fn check_stats(source: &str, config: &SectionConfig, faults: &mut Vec<ShipPartFault>) {
+    if !(0.0..=1.0).contains(&config.base.advancement) {
+        faults.push(ShipPartFault::InvalidStat {
+            pack: source.to_string(),
+            id: config.base.id.clone(),
+            stat: "advancement",
+            value: config.base.advancement,
+        });
+    }
     let mut require = |stat: &'static str, value: f32, positive: bool| {
         let valid = value.is_finite() && if positive { value > 0.0 } else { value >= 0.0 };
         if !valid {
@@ -627,6 +716,7 @@ fn check_stats(source: &str, config: &SectionConfig, faults: &mut Vec<ShipPartFa
         }
     };
     require("health", config.base.health, true);
+    require("draw_weight", config.base.draw_weight, true);
     match config.base.collider.unwrap_or_default() {
         SectionCollider::Cuboid { size } => {
             require("collider size.x", size.x, true);
@@ -708,40 +798,10 @@ fn exclusion(config: &SectionConfig) -> Result<Option<ShipPartExclusionType>, Ce
     if config.base.link_points.is_empty() {
         return Ok(Some(ShipPartExclusionType::MissingLinks));
     }
-    if let SectionKind::Railgun(railgun) = &config.kind {
-        if railgun.charge_seconds == 0.0 {
-            return Ok(Some(ShipPartExclusionType::UnchargedRail));
-        }
-    }
     match cell_grid_fit(config) {
         Ok(()) => Ok(None),
         Err(fault @ (CellGridFault::ObliqueExit | CellGridFault::SocketOnExitFace)) => Err(fault),
         Err(fault) => Ok(Some(ShipPartExclusionType::OffGrid(fault))),
-    }
-}
-
-/// The raw family score of a section whose stats passed [`check_stats`].
-fn capability(config: &SectionConfig) -> f32 {
-    match &config.kind {
-        SectionKind::Hull(_) => {
-            config.base.health / collider_volume(config.base.collider.unwrap_or_default())
-        }
-        SectionKind::Thruster(thruster) => thruster.magnitude,
-        SectionKind::Controller(controller) => controller.max_torque,
-        SectionKind::Turret(turret) => {
-            let mut rate = 0.0;
-            for_each_muzzle_rate(&turret.root, &mut |muzzle| rate += muzzle);
-            rate * turret.bullet_damage
-        }
-        SectionKind::Torpedo(torpedo) => torpedo.fire_rate * torpedo.blast_damage,
-        SectionKind::Railgun(railgun) => railgun.slug_damage / railgun.charge_seconds,
-        SectionKind::CargoIntake(intake) => {
-            intake.aperture_width.get() * intake.aperture_height.get()
-        }
-        SectionKind::Docking(docking) => docking.capture_distance.to_engine(),
-        SectionKind::Mining(mining) => {
-            mining.carve_radius_cells.powi(3) / mining.pulse_interval_seconds
-        }
     }
 }
 
@@ -753,19 +813,6 @@ fn for_each_muzzle_rate(joint: &TurretJoint, visit: &mut impl FnMut(f32)) {
     }
     for child in &joint.children {
         for_each_muzzle_rate(child, visit);
-    }
-}
-
-/// The volume of a collider, in cubic cells.
-fn collider_volume(collider: SectionCollider) -> f32 {
-    use std::f32::consts::PI;
-    match collider {
-        SectionCollider::Cuboid { size } => size.x * size.y * size.z,
-        SectionCollider::Sphere { radius } => 4.0 / 3.0 * PI * radius.powi(3),
-        SectionCollider::Capsule { radius, length } => {
-            PI * radius * radius * (4.0 / 3.0 * radius + length)
-        }
-        SectionCollider::Cylinder { radius, height } => PI * radius * radius * height,
     }
 }
 
@@ -794,12 +841,15 @@ mod tests {
 
     use super::*;
 
-    /// A one-cell section with a socket on each of `faces`.
+    /// A one-cell section open at advancement 0 with the common draw weight
+    /// and a socket on each of `faces`.
     fn section(id: &str, kind: SectionKind, faces: &[Vec3]) -> SectionConfig {
         SectionConfig {
             base: BaseSectionConfig {
                 id: id.to_string(),
                 health: 100.0,
+                advancement: 0.0,
+                draw_weight: 1.0,
                 link_points: faces
                     .iter()
                     .enumerate()
@@ -955,27 +1005,28 @@ mod tests {
         }
     }
 
+    /// A hull open at advancement 0 that is not a structural cube does not
+    /// satisfy the hull family: a ship spine and a station frame need a cube.
     #[test]
-    fn a_docking_port_scores_its_capture_distance_and_refuses_a_bad_envelope_or_mouth() {
+    fn a_catalog_whose_only_hull_at_advancement_zero_is_not_a_cube_is_refused() {
+        let mut sections = floor();
+        sections.retain(|section| section.base.id != "hull");
+        let mut strut = hull("strut");
+        strut.base.link_points.truncate(2);
+        sections.push(strut);
+
+        assert_eq!(
+            faults(&[pack("base", &[], sections)]),
+            [ShipPartFault::MissingFamily(ShipPartFamilyType::Hull)]
+        );
+    }
+
+    #[test]
+    fn a_docking_port_refuses_a_bad_envelope_or_mouth() {
         let reach = |meters| DockingSectionConfig {
             capture_distance: Meters(meters),
             ..default()
         };
-        let mut sections = floor();
-        sections.push(dock("long_dock", reach(40.0)));
-        let snapshot =
-            ShipPartSnapshot::build(&[pack("base", &[], sections)]).expect("the packs build");
-        let scores: Vec<(&str, f32, f32)> = snapshot
-            .parts()
-            .iter()
-            .filter(|part| part.family == ShipPartFamilyType::Docking)
-            .map(|part| (part.id(), part.capability, part.advancement))
-            .collect();
-        assert_eq!(
-            scores,
-            [("dock", 1.0, 0.0), ("long_dock", 4.0, PART_TIER_TOP)]
-        );
-
         let mut sections = floor();
         sections.push(dock("short_dock", reach(0.0)));
         sections.push(dock(
@@ -1063,7 +1114,134 @@ mod tests {
             .find(|part| part.id() == "twin")
             .expect("the twin is usable");
         assert_eq!(twin.family, ShipPartFamilyType::Weapon);
-        assert_eq!(twin.capability, 50.0);
+    }
+
+    #[test]
+    fn a_part_carries_its_authored_tier_and_refuses_one_out_of_range() {
+        let tiered = |id: &str, advancement, draw_weight| {
+            let mut drive = thruster(id, 2.0);
+            drive.base.advancement = advancement;
+            drive.base.draw_weight = draw_weight;
+            drive
+        };
+        let mut sections = floor();
+        sections.push(tiered("rare_drive", 0.5, 0.1));
+        let snapshot =
+            ShipPartSnapshot::build(&[pack("base", &[], sections)]).expect("the packs build");
+        let rare = snapshot
+            .parts()
+            .iter()
+            .find(|part| part.id() == "rare_drive")
+            .expect("the drive is usable");
+        assert_eq!((rare.advancement, rare.draw_weight), (0.5, 0.1));
+
+        let mut sections = floor();
+        sections.push(tiered("late_drive", 1.5, 1.0));
+        sections.push(tiered("nan_drive", f32::NAN, 1.0));
+        sections.push(tiered("unweighted_drive", 0.0, 0.0));
+        sections.push(tiered("endless_drive", 0.0, f32::INFINITY));
+        let refused: Vec<(String, &str)> = faults(&[pack("base", &[], sections)])
+            .into_iter()
+            .map(|fault| match fault {
+                ShipPartFault::InvalidStat { id, stat, .. } => (id, stat),
+                other => panic!("{other:?}"),
+            })
+            .collect();
+        let expected = [
+            ("endless_drive", "draw_weight"),
+            ("late_drive", "advancement"),
+            ("nan_drive", "advancement"),
+            ("unweighted_drive", "draw_weight"),
+        ]
+        .map(|(id, stat)| (id.to_string(), stat));
+        assert_eq!(refused, expected);
+
+        // The floor is the parts open at advancement 0, not the weakest
+        // part: a family whose every part is tiered up is missing.
+        let mut sections = floor();
+        sections.retain(|section| section.base.id != "thruster");
+        sections.push(tiered("late_drive", 0.1, 1.0));
+        assert_eq!(
+            faults(&[pack("base", &[], sections)]),
+            [ShipPartFault::MissingFamily(ShipPartFamilyType::Thruster)]
+        );
+    }
+
+    /// Across many civilizations, every family with an open part has a known
+    /// one, a structural cube hull and a turret are known wherever one is
+    /// open, no part is known before its advancement, and the subset is a
+    /// real one: some civilization lacks some open part.
+    #[test]
+    fn every_civilization_knows_an_open_part_of_each_family_a_cube_and_a_turret() {
+        let turret = |id: &str| {
+            let kind = SectionKind::Turret(TurretSectionConfig {
+                bullet_damage: 10.0,
+                ..default()
+            });
+            section(id, kind, &[Vec3::NEG_Y])
+        };
+        let bay = |id: &str| {
+            let kind = SectionKind::Torpedo(TorpedoSectionConfig {
+                spawn_offset: Vec3::NEG_Z,
+                ..default()
+            });
+            section(id, kind, &[Vec3::Z])
+        };
+        let mut sections = floor();
+        let mut strut = hull("strut");
+        strut.base.link_points.truncate(2);
+        sections.extend([
+            strut,
+            thruster("big_drive", 9.0),
+            turret("turret"),
+            turret("twin_turret"),
+            bay("bay"),
+        ]);
+        let mut late = thruster("late_drive", 20.0);
+        late.base.advancement = 0.5;
+        sections.push(late);
+        let snapshot =
+            ShipPartSnapshot::build(&[pack("base", &[], sections)]).expect("the packs build");
+
+        let mut lacking = 0;
+        for world_seed in 0..4 {
+            for node in 0..8 {
+                let civilization = CivilizationId {
+                    world_seed,
+                    node: [node, -node, 1],
+                };
+                let known = snapshot.known(civilization, 0.25);
+                let ids: BTreeSet<&str> = known.iter().map(|part| part.id()).collect();
+                assert!(
+                    !ids.contains("late_drive"),
+                    "{civilization:?} knows a part above its advancement"
+                );
+                for family in ShipPartFamilyType::ALL {
+                    let open = snapshot.open(family, 0.25).count();
+                    let known = known.iter().filter(|part| part.family == family).count();
+                    assert!(
+                        open == 0 || known >= 1,
+                        "{civilization:?} knows no {family} part"
+                    );
+                }
+                assert!(
+                    ids.contains("turret") || ids.contains("twin_turret"),
+                    "{civilization:?} knows no turret"
+                );
+                assert!(ids.contains("hull"), "{civilization:?} knows no cube");
+                assert_eq!(
+                    snapshot.known(civilization, 0.25).len(),
+                    known.len(),
+                    "{civilization:?} draws the same subset twice"
+                );
+                let open: usize = ShipPartFamilyType::ALL
+                    .iter()
+                    .map(|family| snapshot.open(*family, 0.25).count())
+                    .sum();
+                lacking += usize::from(ids.len() < open);
+            }
+        }
+        assert!(lacking > 0, "every civilization knows every open part");
     }
 
     #[test]
@@ -1089,6 +1267,8 @@ mod tests {
             base: BaseSectionConfig {
                 id: "socketless_bay".to_string(),
                 health: 100.0,
+                advancement: 0.0,
+                draw_weight: 1.0,
                 ..default()
             },
             kind: oblique_exit(),

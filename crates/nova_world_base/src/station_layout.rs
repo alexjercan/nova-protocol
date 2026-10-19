@@ -66,8 +66,8 @@ use nova_ship::prelude::{
 
 use crate::{
     civilizations::Civilization,
-    ship_layout::{armament_tier_floor, placed_part, shuffled, signed, tier_floor, Grid, STEPS},
-    ship_parts::{ShipPart, ShipPartFamilyType, ShipPartSnapshot},
+    ship_layout::{placed_part, shuffled, signed, tier_floor, weighted, Grid, STEPS},
+    ship_parts::{is_structural_cube, ShipPart, ShipPartFamilyType, ShipPartSnapshot},
     ARMOURED_STYLE_ID, INDUSTRIAL_STYLE_ID, STATION_STYLE_ID,
 };
 
@@ -101,7 +101,7 @@ const SHRINK: (f32, u32) = (0.9, 24);
 
 /// The cargo hold share a station's opening stock fills, at advancement 0 and
 /// at advancement 1, read linearly between. Half is goods, half is the parts
-/// its own sections are built from.
+/// every section its civilization builds is built from.
 const STOCK_SHARE: (f32, f32) = (0.04, 0.08);
 
 /// The goods a station stocks, by weight. Rounds for the guns of the ships it
@@ -387,7 +387,10 @@ pub fn generate_station(
         constraint,
     };
     for family in STATION_FAMILIES {
-        if parts.station_parts(family, request.advancement).is_empty() {
+        if parts
+            .station_parts(request.civilization, family, request.advancement)
+            .is_empty()
+        {
             return Err(fail(0, StationLayoutConstraintType::NoEligiblePart(family)));
         }
     }
@@ -430,7 +433,6 @@ pub fn generated_station(
     let advancement = civilization.advancement.clamp(0.0, 1.0);
     let by_id: HashMap<&str, &ShipPart> =
         parts.parts().iter().map(|part| (part.id(), part)).collect();
-    let mut prototypes: BTreeMap<&str, &ShipPart> = BTreeMap::new();
     let mut hulls = 0_u64;
     for section in &layout.design.sections {
         let id = section.source.prototype_id();
@@ -438,7 +440,6 @@ pub fn generated_station(
             .get(id)
             .unwrap_or_else(|| panic!("generated section '{}' names no part '{id}'", section.id));
         hulls += u64::from(matches!(part.config.kind, SectionKind::Hull(_)));
-        prototypes.insert(id, part);
     }
     let hold = hulls * u64::from(HULL_SECTION_CARGO_G);
     let budget = (hold as f64 * f64::from(lerp(STOCK_SHARE, advancement)) / 2.0) as u64;
@@ -454,8 +455,10 @@ pub fn generated_station(
             *stock.entry(design.id.clone()).or_default() += units;
         }
     }
+    // The parts of every section the civilization builds, so a ship it
+    // fields can be refitted and rebuilt at its stations.
     let mut kit: BTreeMap<&ItemDesignId, u32> = BTreeMap::new();
-    for part in prototypes.values() {
+    for part in parts.known(civilization.id, civilization.advancement) {
         for (item, count) in &part.config.base.build.parts {
             *kit.entry(item).or_default() += count;
         }
@@ -563,9 +566,12 @@ enum StructureType {
 }
 
 /// How a hull part can stand in a frame, from its sockets and collider: a
-/// block has a socket on every face, a strut two on one axis, and a panel is
-/// a strut whose collider is under half a cell thick across it.
+/// block is a structural cube, a strut has two sockets on one axis, and a
+/// panel is a strut whose collider is under half a cell thick across it.
 fn structure_type(part: &ShipPart) -> Option<StructureType> {
+    if is_structural_cube(part) {
+        return Some(StructureType::Block);
+    }
     if part.family != ShipPartFamilyType::Hull {
         return None;
     }
@@ -574,12 +580,6 @@ fn structure_type(part: &ShipPart) -> Option<StructureType> {
         return None;
     }
     let faces = oriented.cells[0].faces;
-    if faces == [true; 6] {
-        return oriented
-            .origin
-            .abs_diff_eq(Vec3::ZERO, GRID_EPSILON)
-            .then_some(StructureType::Block);
-    }
     let axis = (0..3).find(|axis| faces[2 * axis] && faces[2 * axis + 1])?;
     if faces.iter().filter(|face| **face).count() != 2 {
         return None;
@@ -652,9 +652,9 @@ impl<'a> StationDraw<'a> {
     }
 
     /// The station parts of `family` that pass `usable`, in the order this
-    /// attempt tries them: sources shuffled, each source's parts shuffled,
-    /// those at or above the request's [`tier_floor`] before the weaker
-    /// ones. A turret's floor is the request's [`armament_tier_floor`].
+    /// attempt tries them: sources shuffled, each source's parts drawn by
+    /// weight, those at or above the request's [`tier_floor`] before the
+    /// lower ones.
     fn ranked(
         &self,
         family: ShipPartFamilyType,
@@ -664,7 +664,7 @@ impl<'a> StationDraw<'a> {
         let mut stream = self.stream(aspect);
         let sources: Vec<Vec<&ShipPart>> = self
             .parts
-            .station_parts(family, self.request.advancement)
+            .station_parts(self.request.civilization, family, self.request.advancement)
             .into_values()
             .map(|parts| {
                 parts
@@ -674,17 +674,15 @@ impl<'a> StationDraw<'a> {
             })
             .filter(|parts| !parts.is_empty())
             .collect();
-        let floor = match family {
-            ShipPartFamilyType::Weapon => armament_tier_floor(self.request.advancement),
-            _ => tier_floor(self.request.advancement),
-        };
+        let all: Vec<&ShipPart> = sources.iter().flatten().copied().collect();
+        let floor = tier_floor(self.request.advancement, &all);
         shuffled(sources, &mut stream)
             .into_iter()
             .flat_map(|parts| {
-                let (tier, weaker): (Vec<_>, Vec<_>) = shuffled(parts, &mut stream)
+                let (tier, lower): (Vec<_>, Vec<_>) = weighted(parts, &mut stream)
                     .into_iter()
                     .partition(|part| part.advancement >= floor);
-                tier.into_iter().chain(weaker)
+                tier.into_iter().chain(lower)
             })
             .collect()
     }
@@ -1136,7 +1134,11 @@ impl<'a> StationDraw<'a> {
             ShipPartFamilyType::Weapon,
         ]
         .into_iter()
-        .flat_map(|family| self.parts.station_parts(family, advancement).into_values())
+        .flat_map(|family| {
+            self.parts
+                .station_parts(self.request.civilization, family, advancement)
+                .into_values()
+        })
         .flatten()
         .map(|part| (part.id(), part))
         .collect();
@@ -1564,12 +1566,21 @@ mod tests {
     use super::*;
     use crate::{ship_layout::fixture, ship_parts::ShipPartPack};
 
-    /// A one-cell hull part with a socket on the centre of each of `faces`.
-    fn frame_part(id: &str, health: f32, faces: &[Vec3], collider: Vec3) -> SectionConfig {
+    /// A one-cell hull part open from `advancement` with a socket on the
+    /// centre of each of `faces`.
+    fn frame_part(
+        id: &str,
+        health: f32,
+        advancement: f32,
+        faces: &[Vec3],
+        collider: Vec3,
+    ) -> SectionConfig {
         SectionConfig {
             base: BaseSectionConfig {
                 id: id.to_string(),
                 health,
+                advancement,
+                draw_weight: 1.0,
                 collider: Some(SectionCollider::Cuboid { size: collider }),
                 link_points: faces
                     .iter()
@@ -1588,19 +1599,19 @@ mod tests {
     }
 
     /// The ship fixture plus a frame pack with a strut and a panel. As in
-    /// the base parts, the strut is eligible above advancement 0 and the
-    /// panel only from the top part tier, so advancement 0 builds blocks
-    /// only.
+    /// the base parts, the strut opens above advancement 0 and the panel
+    /// only at 0.5, so advancement 0 builds blocks only.
     fn snapshot() -> ShipPartSnapshot {
         let mut packs = fixture::packs();
         packs.push(ShipPartPack {
             id: "frame".to_string(),
             dependencies: vec!["base".to_string()],
             sections: vec![
-                frame_part("strut", 150.0, &[Vec3::Z, Vec3::NEG_Z], Vec3::ONE),
+                frame_part("strut", 150.0, 0.15, &[Vec3::Z, Vec3::NEG_Z], Vec3::ONE),
                 frame_part(
                     "panel",
                     50.0,
+                    0.5,
                     &[Vec3::X, Vec3::NEG_X],
                     Vec3::new(1.0, 0.1, 1.0),
                 ),
@@ -1614,12 +1625,26 @@ mod tests {
         archetype: StationArchetypeType,
         advancement: f32,
     ) -> StationLayoutRequest {
-        StationLayoutRequest {
-            seed,
-            civilization: CivilizationId {
+        request_of(
+            CivilizationId {
                 world_seed: 7,
                 node: [1, -2, 0],
             },
+            seed,
+            archetype,
+            advancement,
+        )
+    }
+
+    fn request_of(
+        civilization: CivilizationId,
+        seed: u32,
+        archetype: StationArchetypeType,
+        advancement: f32,
+    ) -> StationLayoutRequest {
+        StationLayoutRequest {
+            seed,
+            civilization,
             archetype,
             advancement,
         }
@@ -1637,11 +1662,13 @@ mod tests {
             id: "frame".to_string(),
             dependencies: vec!["base".to_string()],
             sections: vec![
-                frame_part("strut", 150.0, &[Vec3::Z, Vec3::NEG_Z], Vec3::ONE),
-                // As sturdy per volume as the weakest cube, so its tier is 0.
+                frame_part("strut", 150.0, 0.15, &[Vec3::Z, Vec3::NEG_Z], Vec3::ONE),
+                // Open from advancement 0, so the advancement rule alone
+                // keeps it off a low station.
                 frame_part(
                     "panel",
                     10.0,
+                    0.0,
                     &[Vec3::X, Vec3::NEG_X],
                     Vec3::new(1.0, 0.1, 1.0),
                 ),
@@ -1652,14 +1679,15 @@ mod tests {
             .parts()
             .iter()
             .any(|part| part.id() == "panel" && part.advancement == 0.0));
+        let civilization = fixture::knowing(&parts, &["cube", "strut", "panel"]);
         for archetype in StationArchetypeType::ALL {
             for advancement in [0.0, 0.25, 0.45, 0.5, 0.75, 1.0] {
                 let mut panels = 0;
                 for seed in 0..8 {
-                    let station = generate_station(&parts, request(seed, archetype, advancement))
-                        .unwrap_or_else(|failure| {
-                            panic!("{archetype} a {advancement} seed {seed}: {failure}")
-                        });
+                    let request = request_of(civilization, seed, archetype, advancement);
+                    let station = generate_station(&parts, request).unwrap_or_else(|failure| {
+                        panic!("{archetype} a {advancement} seed {seed}: {failure}")
+                    });
                     panels += station
                         .design
                         .sections
@@ -1675,6 +1703,100 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// A station's parts stock is the recipe parts of every section its
+    /// civilization builds, not only of its own sections: a known drive's
+    /// bell is stocked though no station mounts a drive, and an unknown
+    /// drive's part is not.
+    #[test]
+    fn a_station_stocks_the_recipe_parts_of_every_section_its_civilization_builds() {
+        use nova_gameplay::prelude::{BuildRecipe, ItemCategoryType, ItemDesign};
+
+        use crate::civilizations::CivilizationStatusType;
+
+        let mut packs = fixture::packs();
+        let recipe = |parts: &[(&str, u32)]| BuildRecipe {
+            credits: 10,
+            parts: parts
+                .iter()
+                .map(|&(item, count)| (ItemDesignId::from(item), count))
+                .collect(),
+            strip_yield: 0.5,
+        };
+        for section in &mut packs[0].sections {
+            section.base.build = match section.base.id.as_str() {
+                "cube" | "heavy_cube" => recipe(&[("SectionPanel", 2)]),
+                "small_drive" => recipe(&[("DriveBell", 1)]),
+                "wide_drive" => recipe(&[("WideBell", 4)]),
+                _ => recipe(&[("FrameSpar", 1)]),
+            };
+        }
+        let parts = ShipPartSnapshot::build(&packs).expect("the recipe fixture builds");
+        let goods = [
+            ItemRoleType::PdcRound,
+            ItemRoleType::HullPlate,
+            ItemRoleType::Rations,
+            ItemRoleType::SalvagedParts,
+        ];
+        let items = GameItems::new(
+            goods
+                .iter()
+                .map(|role| (role.id(), ItemCategoryType::Raw))
+                .chain(
+                    ["SectionPanel", "DriveBell", "WideBell", "FrameSpar"]
+                        .into_iter()
+                        .map(|id| (id, ItemCategoryType::Parts)),
+                )
+                .map(|(id, category)| ItemDesign {
+                    id: id.into(),
+                    name: id.to_string(),
+                    about: String::new(),
+                    category,
+                    mass_g: 1_000,
+                    ask_cr: 10,
+                    bid_cr: 5,
+                }),
+        );
+        // A civilization that knows the small drive but not the wide one.
+        let civilization = (0..256)
+            .map(|node| CivilizationId {
+                world_seed: 7,
+                node: [node, 0, 0],
+            })
+            .find(|civilization| {
+                let known: Vec<&str> = parts
+                    .known(*civilization, 1.0)
+                    .into_iter()
+                    .map(|part| part.id())
+                    .collect();
+                known.contains(&"small_drive") && !known.contains(&"wide_drive")
+            })
+            .expect("a civilization knows the small drive alone");
+        let living = Civilization {
+            id: civilization,
+            centroid: nova_events::prelude::Meters3::new(0.0, 0.0, 0.0),
+            status: CivilizationStatusType::Living,
+            advancement: 1.0,
+            role_preference: [1.0; 4],
+            stance: nova_gameplay::prelude::StanceType::Neutral,
+        };
+        let request = request_of(civilization, 1, StationArchetypeType::Ring, 1.0);
+        let layout = generate_station(&parts, request).expect("the station generates");
+        let station = generated_station(&parts, &items, &layout, &living);
+        let stocked: BTreeSet<&str> = station
+            .stock
+            .stacks()
+            .map(|(item, _)| item.as_str())
+            .collect();
+        for role in goods {
+            assert!(
+                stocked.contains(role.id()),
+                "{role:?} is stocked: {stocked:?}"
+            );
+        }
+        assert!(stocked.contains("DriveBell"), "{stocked:?}");
+        assert!(!stocked.contains("WideBell"), "{stocked:?}");
     }
 
     /// The same request gives the same station, and another seed another.

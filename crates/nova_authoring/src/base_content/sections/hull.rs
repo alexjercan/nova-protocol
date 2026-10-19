@@ -59,6 +59,8 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                 name: "Reinforced Hull Section".to_string(),
                 description: "A reinforced hull section for spaceships.".to_string(),
                 health: 200.0,
+                advancement: 0.3,
+                draw_weight: 1.0,
                 build: recipes::heavy_hull(),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
@@ -80,6 +82,8 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                 // A third of reinforced, so a hull plated with it comes apart
                 // in a short burst rather than in a slugging match.
                 health: 60.0,
+                advancement: 0.0,
+                draw_weight: 1.0,
                 build: recipes::light_hull(),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
@@ -105,6 +109,8 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                               face reads the same."
                     .to_string(),
                 health: 200.0,
+                advancement: 0.3,
+                draw_weight: 1.0,
                 build: recipes::heavy_hull(),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
@@ -126,6 +132,8 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                               open frame rails."
                     .to_string(),
                 health: 200.0,
+                advancement: 0.3,
+                draw_weight: 1.0,
                 build: recipes::heavy_hull(),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
@@ -149,6 +157,8 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                 // Between light and reinforced plate: a spoke takes a burst
                 // to cut, and cutting one is how a ring comes away.
                 health: 120.0,
+                advancement: 0.2,
+                draw_weight: 1.0,
                 build: recipes::truss_hull(),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
@@ -170,6 +180,8 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                               to side into a wing."
                     .to_string(),
                 health: 40.0,
+                advancement: 0.5,
+                draw_weight: 1.0,
                 build: recipes::solar_panel(),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: Some(SectionCollider::Cuboid {

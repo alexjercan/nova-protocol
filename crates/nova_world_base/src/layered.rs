@@ -17,7 +17,7 @@ use crate::{
     clusters::{plan_sector, validate_cluster_geometry},
     environment::EnvironmentFields,
     role_style_id,
-    ship_parts::{ShipPartFault, ShipPartPack, ShipPartSnapshot},
+    ship_parts::{station_carries, ShipPartFault, ShipPartPack, ShipPartSnapshot},
     station_layout::{StationArchetypeType, STATION_FAMILIES},
 };
 
@@ -123,7 +123,7 @@ impl NovaLayeredWorld {
                 faults.extend(
                     STATION_FAMILIES
                         .into_iter()
-                        .filter(|family| parts.station_parts(*family, 0.0).is_empty())
+                        .filter(|family| !parts.open(*family, 0.0).any(station_carries))
                         .map(|family| ShipPartFault::MissingStationPart { family }),
                 );
                 if faults.is_empty() {

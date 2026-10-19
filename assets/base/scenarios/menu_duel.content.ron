@@ -167,6 +167,8 @@
                                                     },
                                                     strip_yield: 0.5,
                                                 ),
+                                                advancement: 1.0,
+                                                draw_weight: 1.0,
                                                 destroy_sound: Some("self://sounds/explosion.wav"),
                                                 collider: Some(Cuboid(
                                                     size: (

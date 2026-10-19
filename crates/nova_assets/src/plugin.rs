@@ -369,6 +369,8 @@ mod tests {
             base: BaseSectionConfig {
                 id: id.to_string(),
                 health: 100.0,
+                advancement: 0.0,
+                draw_weight: 1.0,
                 ..default()
             },
             kind: SectionKind::Hull(HullSectionConfig::default()),
@@ -381,6 +383,8 @@ mod tests {
             base: BaseSectionConfig {
                 id: id.to_string(),
                 health: 10.0,
+                advancement: 0.0,
+                draw_weight: 1.0,
                 ..default()
             },
             kind: SectionKind::Mining(MiningSectionConfig {

@@ -407,8 +407,9 @@ every cell.
 | opening stock, share of the hold | 4% | 8% |
 
 Every generated station offers Rebuild, Refit, Trade, Storage and Jobs. Its stock
-is half goods and half the parts its own sections are built from. It draws
-parts its advancement allows, those within 0.25 below it first, and carries
+is half goods and half the recipe parts of every section its civilization
+builds. It draws the parts its civilization knows at its advancement, by draw
+weight, those within 0.25 below its advancement first, and carries
 flight computers for its mass, as a generated ship does. A dead station keeps the same stock
 and credits as loot.
 

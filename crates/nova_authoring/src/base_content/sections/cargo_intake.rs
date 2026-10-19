@@ -98,6 +98,8 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                           pane drops a canister out through the same door."
                 .to_string(),
             health: CARGO_INTAKE_BASE_HEALTH,
+            advancement: 0.0,
+            draw_weight: 1.0,
             build: recipes::cargo_intake(),
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
             collider: Some(SectionCollider::Cuboid { size: INTAKE_CELLS }),

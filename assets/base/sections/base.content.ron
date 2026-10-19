@@ -13,6 +13,8 @@
                 },
                 strip_yield: 0.5,
             ),
+            advancement: 0.3,
+            draw_weight: 1.0,
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -112,6 +114,8 @@
                 },
                 strip_yield: 0.5,
             ),
+            advancement: 0.0,
+            draw_weight: 1.0,
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -212,6 +216,8 @@
                 },
                 strip_yield: 0.5,
             ),
+            advancement: 0.3,
+            draw_weight: 1.0,
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -312,6 +318,8 @@
                 },
                 strip_yield: 0.5,
             ),
+            advancement: 0.3,
+            draw_weight: 1.0,
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -412,6 +420,8 @@
                 },
                 strip_yield: 0.5,
             ),
+            advancement: 0.2,
+            draw_weight: 1.0,
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -461,6 +471,8 @@
                 },
                 strip_yield: 0.5,
             ),
+            advancement: 0.5,
+            draw_weight: 1.0,
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -518,6 +530,8 @@
                 },
                 strip_yield: 0.5,
             ),
+            advancement: 0.0,
+            draw_weight: 1.0,
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -597,6 +611,8 @@
                 },
                 strip_yield: 0.3,
             ),
+            advancement: 0.25,
+            draw_weight: 1.0,
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -787,6 +803,8 @@
                 },
                 strip_yield: 0.3,
             ),
+            advancement: 0.5,
+            draw_weight: 1.0,
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -1184,6 +1202,8 @@
                 },
                 strip_yield: 0.5,
             ),
+            advancement: 0.0,
+            draw_weight: 1.0,
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -1292,6 +1312,8 @@
                 },
                 strip_yield: 0.5,
             ),
+            advancement: 0.25,
+            draw_weight: 1.0,
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -1486,6 +1508,8 @@
                 },
                 strip_yield: 0.5,
             ),
+            advancement: 0.0,
+            draw_weight: 1.0,
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -1680,6 +1704,8 @@
                 },
                 strip_yield: 0.5,
             ),
+            advancement: 0.25,
+            draw_weight: 1.0,
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -1885,6 +1911,8 @@
                 },
                 strip_yield: 0.5,
             ),
+            advancement: 0.0,
+            draw_weight: 1.0,
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -2090,6 +2118,8 @@
                 },
                 strip_yield: 0.5,
             ),
+            advancement: 0.0,
+            draw_weight: 0.1,
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -2294,6 +2324,8 @@
                 },
                 strip_yield: 0.5,
             ),
+            advancement: 0.0,
+            draw_weight: 0.1,
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -2497,6 +2529,8 @@
                 },
                 strip_yield: 0.5,
             ),
+            advancement: 0.5,
+            draw_weight: 1.0,
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -2735,6 +2769,8 @@
                 },
                 strip_yield: 0.5,
             ),
+            advancement: 0.0,
+            draw_weight: 1.0,
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -2846,6 +2882,8 @@
                 },
                 strip_yield: 0.5,
             ),
+            advancement: 0.0,
+            draw_weight: 1.0,
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -3110,6 +3148,8 @@
                 },
                 strip_yield: 0.5,
             ),
+            advancement: 0.0,
+            draw_weight: 1.0,
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (

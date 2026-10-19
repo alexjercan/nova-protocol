@@ -430,7 +430,11 @@ impl Matrix {
         for role in ShipRoleType::ALL {
             let lowest = (0..=ADVANCEMENT_STEPS)
                 .map(|step| step as f32 / ADVANCEMENT_STEPS as f32)
-                .find(|advancement| snapshot.eligible_roles(*advancement).contains(&role));
+                .find(|advancement| {
+                    snapshot
+                        .eligible_roles(civilization, *advancement)
+                        .contains(&role)
+                });
             for tier in TierType::ALL {
                 let advancement = match tier {
                     TierType::Low => lowest,
@@ -686,20 +690,24 @@ impl Report<'_> {
         );
 
         let _ = writeln!(out, "## Parts\n");
-        let _ = writeln!(out, "| part | source | family | advancement |");
-        let _ = writeln!(out, "| - | - | - | - |");
+        let _ = writeln!(
+            out,
+            "| part | source | family | advancement | draw weight |"
+        );
+        let _ = writeln!(out, "| - | - | - | - | - |");
         for part in snapshot.parts() {
             let _ = writeln!(
                 out,
-                "| `{}` | {} | {} | {:.3} |",
+                "| `{}` | {} | {} | {:.3} | {:.2} |",
                 part.id(),
                 part.source,
                 part.family,
-                part.advancement
+                part.advancement,
+                part.draw_weight
             );
         }
         for (id, why) in snapshot.excluded() {
-            let _ = writeln!(out, "| `{id}` | excluded | {why:?} | - |");
+            let _ = writeln!(out, "| `{id}` | excluded | {why:?} | - | - |");
         }
 
         let _ = writeln!(out, "\n## Matrix\n");

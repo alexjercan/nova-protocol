@@ -277,6 +277,8 @@ fn test_sections() -> GameSections {
     GameSections(vec![SectionConfig {
         base: BaseSectionConfig {
             id: TEST_HULL_SECTION_ID.to_string(),
+            advancement: 0.0,
+            draw_weight: 1.0,
             ..default()
         },
         kind: SectionKind::Hull(HullSectionConfig::default()),

@@ -97,6 +97,8 @@ fn siege_bay(assets: &BaseContentAssets) -> SectionConfig {
                           armored ordnance, ship-killing blast."
                 .to_string(),
             health: 100.0,
+            advancement: 1.0,
+            draw_weight: 1.0,
             // The standard bay's row: the battery is a bay with heavier
             // ordnance, not a different tube.
             build: recipes::torpedo_bay(),

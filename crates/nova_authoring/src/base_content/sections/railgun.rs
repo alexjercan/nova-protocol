@@ -105,6 +105,9 @@ fn railgun_lance_prototype(meshes: &BaseContentAssets, spec: LanceSpec<'_>) -> S
             name: spec.name.to_string(),
             description: spec.description.to_string(),
             health: RAILGUN_BASE_HEALTH,
+            // About 2,000 km out on the advancement curve.
+            advancement: 0.5,
+            draw_weight: 1.0,
             build: recipes::railgun_lance(),
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
             // Three cells long, and the collider has to claim all of it: the

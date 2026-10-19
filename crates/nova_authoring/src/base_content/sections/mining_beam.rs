@@ -86,6 +86,8 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                           the tip retracts before the doors shut."
                 .to_string(),
             health: MINING_BEAM_BASE_HEALTH,
+            advancement: 0.0,
+            draw_weight: 1.0,
             build: recipes::mining_beam(),
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
             collider: Some(SectionCollider::Cuboid { size: Vec3::ONE }),

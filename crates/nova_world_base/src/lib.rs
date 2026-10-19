@@ -104,7 +104,7 @@ pub use crate::{
     },
     ship_parts::{
         ShipPart, ShipPartExclusionType, ShipPartFamilyType, ShipPartFault, ShipPartPack,
-        ShipPartSnapshot,
+        ShipPartSnapshot, KNOWN_CHANCE,
     },
     stance::{
         apply_offence, enemy_neighbours, fine_cr, record_merit, seeded_stance, settle, standing,

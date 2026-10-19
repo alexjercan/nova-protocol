@@ -201,7 +201,7 @@ pub fn plan_ship(
         primary
     };
 
-    let buildable = parts.eligible_roles(civilization.advancement);
+    let buildable = parts.eligible_roles(civilization.id, civilization.advancement);
     let weights = civilization.role_weights(hull.environment);
     let roles: Vec<(ShipRoleType, f32)> = ShipRoleType::ALL
         .into_iter()

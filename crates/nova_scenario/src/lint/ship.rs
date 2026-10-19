@@ -333,12 +333,14 @@ pub fn lint_section_recipe(
 }
 
 /// Static well-formedness of one section's config that the RON parser cannot
-/// catch (a well-typed field can still be nonsense). Checks controller response,
-/// weapon reload, and the turret joint tree. Pure over the config, so every
-/// consumer - the author CLI's `lint`, the CI gate, the runtime merge - runs the SAME check on base +
-/// mod section catalogs, and `lint_scenario` runs it on inline turret sections.
+/// catch (a well-typed field can still be nonsense). Checks the generated-part
+/// tier, controller response, weapon reload, and the turret joint tree. Pure
+/// over the config, so every consumer - the author CLI's `lint`, the CI gate,
+/// the runtime merge - runs the SAME check on base + mod section catalogs, and
+/// `lint_scenario` runs it on inline turret sections.
 pub fn lint_section_config(config: &SectionConfig, source: &str) -> Vec<LintIssue> {
     let mut issues = Vec::new();
+    check_part_tier(config, source, &mut issues);
     match &config.kind {
         SectionKind::Controller(controller) => {
             check_controller_config(config.base.id.as_str(), controller, source, &mut issues);
@@ -386,6 +388,31 @@ pub fn lint_section_config(config: &SectionConfig, source: &str) -> Vec<LintIssu
     }
     check_link_point_config(config, source, &mut issues);
     issues
+}
+
+/// The generated-part tier every section authors: `advancement` finite in
+/// `[0, 1]` and `draw_weight` finite and positive. The open world's part
+/// snapshot refuses the same values at arming (`ShipPartFault::InvalidStat`).
+fn check_part_tier(config: &SectionConfig, source: &str, issues: &mut Vec<LintIssue>) {
+    let id = config.base.id.as_str();
+    let advancement = config.base.advancement;
+    if !(0.0..=1.0).contains(&advancement) {
+        issues.push(LintIssue::error(
+            source,
+            format!(
+                "section '{id}': advancement must be a finite number in [0, 1], got {advancement}"
+            ),
+        ));
+    }
+    let draw_weight = config.base.draw_weight;
+    if !(draw_weight.is_finite() && draw_weight > 0.0) {
+        issues.push(LintIssue::error(
+            source,
+            format!(
+                "section '{id}': draw_weight must be a finite positive number, got {draw_weight}"
+            ),
+        ));
+    }
 }
 
 fn check_controller_config(
@@ -1118,6 +1145,41 @@ mod tests {
     use super::*;
     use crate::lint::fixtures::*;
 
+    /// Every section authors its generated-part tier: an advancement outside
+    /// `[0, 1]` or a non-positive draw weight is an error, and the common
+    /// `0.0` / `1.0` pair passes.
+    #[test]
+    fn a_section_tier_outside_its_range_is_an_error() {
+        use nova_ship::prelude::{
+            BaseSectionConfig, HullSectionConfig, SectionConfig, SectionKind,
+        };
+
+        let tiered = |advancement: f32, draw_weight: f32| SectionConfig {
+            base: BaseSectionConfig {
+                id: "plate".to_string(),
+                advancement,
+                draw_weight,
+                ..default()
+            },
+            kind: SectionKind::Hull(HullSectionConfig::default()),
+        };
+        assert!(errors(&lint_section_config(&tiered(0.0, 1.0), "plate")).is_empty());
+        assert!(errors(&lint_section_config(&tiered(1.0, 0.1), "plate")).is_empty());
+        for (advancement, draw_weight, needle) in [
+            (1.5, 1.0, "advancement"),
+            (-0.1, 1.0, "advancement"),
+            (f32::NAN, 1.0, "advancement"),
+            (0.0, 0.0, "draw_weight"),
+            (0.0, -1.0, "draw_weight"),
+            (0.0, f32::INFINITY, "draw_weight"),
+        ] {
+            let issues = lint_section_config(&tiered(advancement, draw_weight), "plate");
+            let errs = errors(&issues);
+            assert_eq!(errs.len(), 1, "{advancement} / {draw_weight}: {issues:?}");
+            assert!(errs[0].message.contains(needle), "{issues:?}");
+        }
+    }
+
     #[test]
     fn unknown_prototype_is_an_error() {
         let s = scenario(vec![spawn_ship("player", "no_such_proto")], vec![]);
@@ -1312,6 +1374,8 @@ mod tests {
         let bay = |fire_rate: f32| SectionConfig {
             base: BaseSectionConfig {
                 id: "bay".to_string(),
+                advancement: 0.0,
+                draw_weight: 1.0,
                 ..default()
             },
             kind: SectionKind::Torpedo(TorpedoSectionConfig {
@@ -1436,6 +1500,8 @@ mod tests {
         let controller = |steering_lag| SectionConfig {
             base: BaseSectionConfig {
                 id: "computer".to_string(),
+                advancement: 0.0,
+                draw_weight: 1.0,
                 ..default()
             },
             kind: SectionKind::Controller(ControllerSectionConfig {
@@ -1498,6 +1564,8 @@ mod tests {
                         skin: LinkPointSkinType::Clad,
                     },
                 ],
+                advancement: 0.0,
+                draw_weight: 1.0,
                 ..default()
             },
             kind: SectionKind::Hull(HullSectionConfig::default()),
@@ -1519,6 +1587,8 @@ mod tests {
         let no_points = SectionConfig {
             base: BaseSectionConfig {
                 id: "empty".to_string(),
+                advancement: 0.0,
+                draw_weight: 1.0,
                 ..default()
             },
             kind: SectionKind::Hull(HullSectionConfig::default()),
@@ -1686,6 +1756,8 @@ mod tests {
                     base: BaseSectionConfig {
                         collider,
                         link_points: nova_ship::prelude::unit_cube_link_points(),
+                        advancement: 0.0,
+                        draw_weight: 1.0,
                         ..Default::default()
                     },
                     kind: SectionKind::Hull(HullSectionConfig {
@@ -1869,6 +1941,8 @@ mod tests {
                     normal,
                     skin: LinkPointSkinType::Clad,
                 }],
+                advancement: 0.0,
+                draw_weight: 1.0,
                 ..default()
             },
             kind: SectionKind::Hull(HullSectionConfig::default()),
@@ -1949,6 +2023,8 @@ mod tests {
                     normal,
                     skin: LinkPointSkinType::Clad,
                 }],
+                advancement: 0.0,
+                draw_weight: 1.0,
                 ..default()
             },
             kind: SectionKind::Hull(HullSectionConfig::default()),
@@ -1959,6 +2035,8 @@ mod tests {
             base: BaseSectionConfig {
                 id: "loose".to_string(),
                 collider: box_collider,
+                advancement: 0.0,
+                draw_weight: 1.0,
                 ..default()
             },
             kind: SectionKind::Hull(HullSectionConfig::default()),
@@ -2045,6 +2123,8 @@ mod tests {
         let turret = |root: TurretJoint| SectionConfig {
             base: BaseSectionConfig {
                 id: "t".to_string(),
+                advancement: 0.0,
+                draw_weight: 1.0,
                 ..Default::default()
             },
             kind: SectionKind::Turret(TurretSectionConfig {
@@ -2170,6 +2250,8 @@ mod tests {
                 collider: Some(SectionCollider::Cuboid {
                     size: Vec3::splat(size),
                 }),
+                advancement: 0.0,
+                draw_weight: 1.0,
                 ..default()
             },
             kind: SectionKind::Hull(HullSectionConfig::default()),
@@ -2217,6 +2299,8 @@ mod tests {
                 id: "intake".to_string(),
                 collider,
                 animations,
+                advancement: 0.0,
+                draw_weight: 1.0,
                 ..default()
             },
             kind: SectionKind::CargoIntake(intake),
@@ -2299,6 +2383,8 @@ mod tests {
                         .collect(),
                     strip_yield,
                 },
+                advancement: 0.0,
+                draw_weight: 1.0,
                 ..default()
             },
             kind: SectionKind::Hull(HullSectionConfig::default()),

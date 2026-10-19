@@ -3707,6 +3707,8 @@ mod tests {
                     id: id.to_string(),
                     link_points: nova_ship::prelude::unit_cube_link_points(),
                     build: fixture_recipe(),
+                    advancement: 0.0,
+                    draw_weight: 1.0,
                     ..default()
                 },
                 kind: nova_ship::prelude::SectionKind::Mining(

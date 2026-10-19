@@ -25,6 +25,8 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
             description: "A basic controller section for spaceships.".to_string(),
             // Command core: mid durability baseline.
             health: CONTROLLER_BASE_HEALTH,
+            advancement: 0.0,
+            draw_weight: 1.0,
             build: recipes::controller(),
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
             collider: None,

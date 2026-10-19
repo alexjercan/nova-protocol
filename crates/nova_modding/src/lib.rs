@@ -605,6 +605,8 @@ mod tests {
                     name: "Basic Hull",
                     description: "a hull",
                     health: 100.0,
+                    advancement: 0.0,
+                    draw_weight: 1.0,
                     build: (credits: 1, parts: {}, strip_yield: 0.5),
                 ),
                 kind: Hull((

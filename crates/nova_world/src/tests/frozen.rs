@@ -204,6 +204,8 @@ fn load_docking_section(app: &mut App) {
         .push(SectionConfig {
             base: BaseSectionConfig {
                 id: TEST_DOCKING_SECTION_ID.to_string(),
+                advancement: 0.0,
+                draw_weight: 1.0,
                 ..default()
             },
             kind: SectionKind::Docking(DockingSectionConfig::default()),
@@ -783,6 +785,8 @@ fn wreck_home(app: &mut App) -> (Entity, Entity) {
         .push(SectionConfig {
             base: BaseSectionConfig {
                 id: TEST_TURRET_SECTION_ID.to_string(),
+                advancement: 0.0,
+                draw_weight: 1.0,
                 ..default()
             },
             kind: SectionKind::Turret(TurretSectionConfig::default()),
@@ -1197,6 +1201,8 @@ fn a_snapshot_of_the_live_world_reads_back_as_the_same_world() {
         .push(SectionConfig {
             base: BaseSectionConfig {
                 id: TEST_TURRET_SECTION_ID.to_string(),
+                advancement: 0.0,
+                draw_weight: 1.0,
                 ..default()
             },
             kind: SectionKind::Turret(TurretSectionConfig::default()),

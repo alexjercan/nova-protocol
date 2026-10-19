@@ -2210,10 +2210,10 @@ mod tests {
             "base",
             &[],
             vec![
-                cube("cube", 100.0),
+                cube("cube", 100.0, 0.0),
                 controller("controller"),
-                drive("deep_drive", 1.0, bevy::math::UVec3::new(1, 1, 50)),
-                turret("turret", 1.0),
+                drive("deep_drive", 1.0, bevy::math::UVec3::new(1, 1, 50), 0.0),
+                turret("turret", 1.0, 0.0),
                 intake("intake"),
                 dock("dock", &DOCK_FACES),
             ],

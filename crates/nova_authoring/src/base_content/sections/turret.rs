@@ -390,6 +390,9 @@ fn pdc_turret_prototype(
     description: &str,
     bullet_kind: DamageType,
     bullet_damage: f32,
+    // The lowest civilization advancement, in `[0, 1]`, that builds this
+    // mount as a generated-ship part.
+    advancement: f32,
 ) -> SectionConfig {
     SectionConfig {
         base: BaseSectionConfig {
@@ -397,6 +400,8 @@ fn pdc_turret_prototype(
             name: name.to_string(),
             description: description.to_string(),
             health: TURRET_BASE_HEALTH,
+            advancement,
+            draw_weight: 1.0,
             build: recipes::pdc_turret(art.muzzles_at.len() as u32),
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
             // A turret is all function - the barrel has to point and the mount
@@ -479,6 +484,7 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
              anything they cannot destroy.",
             DamageType::Kinetic,
             KINETIC_PDC_BULLET_DAMAGE,
+            0.25,
         ),
         pdc_turret_prototype(
             meshes,
@@ -493,6 +499,7 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
              one.",
             DamageType::Pierce,
             PIERCE_PDC_BULLET_DAMAGE,
+            0.0,
         ),
         pdc_turret_prototype(
             meshes,
@@ -506,6 +513,7 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
              trade is two offset streams instead of one dense one.",
             DamageType::Kinetic,
             KINETIC_PDC_BULLET_DAMAGE,
+            0.25,
         ),
         pdc_turret_prototype(
             meshes,
@@ -519,6 +527,7 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
              total rate.",
             DamageType::Pierce,
             PIERCE_PDC_BULLET_DAMAGE,
+            0.0,
         ),
     ]
 }

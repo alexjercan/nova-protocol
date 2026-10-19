@@ -130,6 +130,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Docked with a wreck, Strip in the Inventory pane takes its hold and credits,
   then strips the hull into parts, port last (`OnStripped`); no room disables
   it. Take all loots what fits.
+- **(breaking)** Torpedo bays are a rare draw and railgun lances need mid
+  advancement; stations now stock the recipe parts of every section their
+  civilization builds.
 
 ### Scenarios & Objectives
 
@@ -204,6 +207,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A `StartRole` content kind names a New Game start: icon, hull and kit of
   credits and items. Lint refuses an unknown hull or item, an overweight kit,
   a hull with no intake or one a docked ship blocks.
+- **(breaking)** Section `base` now authors `advancement` and `draw_weight`;
+  each civilization knows a seeded subset of parts it can build, drawn by
+  weight.
 
 - **(breaking)** A style places greebles by `greeble_rules`: link types,
   greebles with four link points, `near` terms and caps. `placement` is gone;

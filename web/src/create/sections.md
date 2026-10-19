@@ -39,6 +39,8 @@ shared `base` block and one kind-specific block:
             name: "Compact Thruster",
             description: "A light engine for small ships.",
             health: 70.0,
+            advancement: 0.0,
+            draw_weight: 1.0,
             build: (
                 credits: 60,
                 parts: {"DriveBell": 1, "SectionPanel": 2},
@@ -60,6 +62,8 @@ shared `base` block and one kind-specific block:
 | `base.name` | string | required | Display name in the editor palette and ship UI. |
 | `base.description` | string | required | Editor and tooltip description. |
 | `base.health` | number | required | Hit points before the section is destroyed. Positive and finite. |
+| `base.advancement` | number | required | Lowest civilization advancement, `0` to `1`, that builds this part in the open world. Content lint rejects a non-finite value or one outside `0..=1`. |
+| `base.draw_weight` | number | required | How often a generator draws this part against the other known parts of its family: `1.0` is common, `0.1` is rare. Positive and finite. |
 | `base.build` | build recipe | required | What a station charges to rebuild this section. See [Build recipe](#build-recipe). |
 | `base.destroy_sound` | `Option` asset ref | `None` | Sound played when this section is destroyed. Omitted means silent. |
 | `base.collider` | `Option` collider | `None` | Physics shape. Omitted means a 1 x 1 x 1 cube. |
@@ -161,11 +165,12 @@ railgun `slug_damage`, or intake aperture is not positive and finite, and a
 railgun `charge_seconds` that is negative or not finite. It also rejects one
 section id defined by two mods in that catalog when neither depends on the
 other; replace a section only from a mod that depends on the one you replace.
-The catalog must also keep at least one hull, controller, thruster and cargo
-intake that a procedurally generated ship can use. A generated ship does not
-use a docking port, a part without link points, a railgun with no charge time,
-or a part that cannot stand on the one-part-per-cell build grid. Such a part
-still loads and still works on authored ships. A weapon or thruster that
+The catalog must also keep, at `advancement: 0.0`, at least one structural
+cube hull (one cell with a socket on every face), controller, thruster, cargo
+intake and docking port that a procedurally generated ship can use. A
+generated ship does not use a part without link points or a part that cannot
+stand on the one-part-per-cell build grid. Such a part still loads and still
+works on authored ships. A weapon or thruster that
 otherwise stands on the grid must fire straight out of one of its own faces and
 carry no socket on that face. A cargo intake's door face is its `-Z` face, and
 it must carry no socket either. Content lint rejects a part that breaks either
@@ -417,6 +422,8 @@ Section((
         name: "Reinforced Hull Section",
         description: "A reinforced hull section for spaceships.",
         health: 200.0,
+        advancement: 0.3,
+        draw_weight: 1.0,
         build: (
             credits: 160,
             parts: {"SectionPanel": 6, "FrameSpar": 2},
@@ -603,6 +610,8 @@ between fights:
 base: (
     id: "pdc_kinetic_turret_section",
     health: 130.0,
+    advancement: 0.25,
+    draw_weight: 1.0,
     collider: Some(Cuboid(size: (0.5, 0.5, 0.5))),
     link_points: [(id: "base", position: (0.0, -0.25, 0.0), normal: (0.0, -1.0, 0.0))],
     damage_effects: ([Cracks, Sparks]),
@@ -1290,6 +1299,8 @@ Section((
         name: "Reinforced Hull Section (Example Mod)",
         description: "Base hull, up-armored by the example mod to show section overlay by id.",
         health: 400.0,
+        advancement: 0.3,
+        draw_weight: 1.0,
         build: (
             credits: 160,
             parts: {"SectionPanel": 6, "FrameSpar": 2},
