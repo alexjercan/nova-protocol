@@ -31,14 +31,14 @@ use nova_scenario::prelude::{
 };
 use nova_ship::prelude::{
     cargo_canister, freeze_canister, freeze_wreck_fragment, thaw_round, thaw_torpedo, AIFollow,
-    BaseSectionConfig, BodyRadius, CameraView, CargoIntakeEjectionQueue, ChaseZoom,
-    DamageSparkMarker, DamageSparks, DamageSparksPlugin, DestroySound, FrozenRound, FrozenTorpedo,
-    HullSectionConfig, LockSignature, RoundSourceType, SavedTorpedoTarget, SectionAnimations,
-    SectionBuildConfig, SectionConfig, SectionKind, SectionReload, SectionReloadConfig,
-    ShipWreckFragmentMarker, SpaceshipCameraController, SpaceshipCameraInputMarker,
-    SpaceshipCameraNormalInputMarker, SuspendedSectionAmmo, TorpedoArming, TorpedoControllerMarker,
-    TorpedoSectionConfig, TorpedoTargetChosen, TorpedoTargetEntity, TorpedoTargetPosition,
-    TorpedoWeave,
+    Autopilot, AutopilotAction, BaseSectionConfig, BodyRadius, CameraView,
+    CargoIntakeEjectionQueue, ChaseZoom, DamageSparkMarker, DamageSparks, DamageSparksPlugin,
+    DestroySound, FrozenRound, FrozenTorpedo, HullSectionConfig, LockSignature, RoundSourceType,
+    SavedTorpedoTarget, SectionAnimations, SectionBuildConfig, SectionConfig, SectionKind,
+    SectionReload, SectionReloadConfig, ShipWreckFragmentMarker, SpaceshipCameraController,
+    SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker, SuspendedSectionAmmo,
+    TorpedoArming, TorpedoControllerMarker, TorpedoSectionConfig, TorpedoTargetChosen,
+    TorpedoTargetEntity, TorpedoTargetPosition, TorpedoWeave, TravelLock,
 };
 use nova_world::{
     prelude::{CurrentSector, FrozenBodyType, FrozenSectors, SectorCoord, WorldClock, WorldConfig},
@@ -757,6 +757,50 @@ fn the_first_frame_and_a_leave_each_write_a_save() {
     .unwrap();
     assert_eq!((header.generation, header.credits), (2, 410));
     assert_eq!(state.player.id.0, "player");
+}
+
+/// A GOTO order and its travel lock are live navigation state, not saved
+/// progress: a leave save written while one is engaged succeeds, and the
+/// player ship a Load restores flies nothing and is locked on nothing.
+#[test]
+fn a_goto_order_is_not_saved_and_a_load_starts_without_one() {
+    let root = tempfile::tempdir().unwrap();
+    let (mut world, player) = armed_session(root.path());
+    frame(&mut world);
+    frame(&mut world);
+
+    let waypoint = world
+        .spawn(GlobalTransform::from(Transform::from_xyz(0.0, 0.0, -50.0)))
+        .id();
+    world.entity_mut(player).insert((
+        Autopilot::engage(AutopilotAction::Goto { target: waypoint }),
+        TravelLock(Some(waypoint)),
+    ));
+    world.resource_mut::<WorldSaveSession>().request_leave();
+    run_until_idle(&mut world);
+    assert_eq!(
+        world.resource::<WorldSaveSession>().status(),
+        &WorldSaveStatus::Saved { generation: 2 }
+    );
+
+    let digest = world.resource::<LoadedSectionPacks>().digest.0;
+    drop(world);
+
+    let mut world = load(root.path(), digest);
+    let player = world
+        .query_filtered::<Entity, With<PlayerSpaceshipMarker>>()
+        .single(&world)
+        .unwrap();
+    assert_eq!(
+        world.get::<Autopilot>(player),
+        None,
+        "a Load starts the player ship flying nothing"
+    );
+    assert_eq!(
+        world.get::<TravelLock>(player).and_then(|lock| lock.0),
+        None,
+        "a Load starts the player ship locked on nothing"
+    );
 }
 
 /// A save's header carries what the Load list and details show without the

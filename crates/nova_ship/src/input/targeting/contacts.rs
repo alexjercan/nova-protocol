@@ -48,8 +48,8 @@ impl LockFocus {
 const TARGET_CANDIDATE_COUNT: usize = 5;
 
 /// Per-frame lock upkeep, always on: hold the LOCKS only while their targets
-/// stay in sight (death/despawn, range and cover clear them - stickiness
-/// never needs a re-pick because NOTHING re-picks), clear the combat lock
+/// stay in sight (death/despawn, range and cover clear them), give an empty
+/// travel lock to an engaged GOTO's target in sight, clear the combat lock
 /// when a hostile target turns non-hostile, and maintain the ranked hostile
 /// [`ThreatContacts`] for the edge indicators.
 ///
@@ -74,11 +74,12 @@ pub(super) fn update_contacts_and_locks(
             &mut TravelLock,
             &mut CombatLock,
             &mut ThreatContacts,
+            Option<&Autopilot>,
         ),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
 ) {
-    for (transform, ship_allegiance, contacts, mut travel, mut combat, mut threats) in
+    for (transform, ship_allegiance, contacts, mut travel, mut combat, mut threats, autopilot) in
         &mut spaceship
     {
         let origin = contacts.origin;
@@ -88,8 +89,20 @@ pub(super) fn update_contacts_and_locks(
         // place you were shown stays shown, and the two slots behaving
         // differently under the same rock is exactly the inconsistency the one
         // sensor pass exists to retire. Neither re-locks on its own when the
-        // line clears - a fresh dwell is what takes a lock.
-        let travel_now = travel.0.filter(|target| contacts.in_sight(*target));
+        // line clears - a fresh dwell is what takes a lock - except that an
+        // empty travel lock goes to an engaged GOTO's target the frame it is
+        // in sight, with no dwell: a Map GOTO set beyond sensor range is locked
+        // for DOCK when the ship closes. A lock held on another body stays.
+        let travel_now = travel
+            .0
+            .filter(|target| contacts.in_sight(*target))
+            .or_else(|| match autopilot {
+                Some(Autopilot {
+                    action: AutopilotAction::Goto { target },
+                    ..
+                }) if contacts.in_sight(*target) => Some(*target),
+                _ => None,
+            });
         if travel.0 != travel_now {
             travel.0 = travel_now;
         }
@@ -579,6 +592,99 @@ mod tests {
             world.get::<CombatLock>(player).unwrap().0,
             Some(combat_target),
             "combat mode is combat mode - deliberate neutral locks are legal"
+        );
+    }
+
+    /// A GOTO is the only thing that locks passively: an empty travel lock
+    /// takes the engaged target the frame it comes into sight, with no dwell,
+    /// stays off it while held on another in-sight body, and drops it the
+    /// same way any other lock drops - on target loss.
+    #[test]
+    fn an_engaged_goto_locks_its_target_in_sight_and_drops_it_when_lost() {
+        let mut world = World::new();
+        world.insert_resource(Time::<()>::default());
+        world.init_resource::<TargetingSettings>();
+        world.init_resource::<avian3d::collider_tree::ColliderTrees>();
+        world.init_resource::<Messages<CombatLockDropped>>();
+
+        let goto_target = world
+            .spawn((
+                RigidBody::Static,
+                LockSignature(20.0),
+                Transform::from_translation(Vec3::new(0.0, 0.0, -50_000.0)),
+            ))
+            .id();
+        let other = world
+            .spawn((
+                RigidBody::Static,
+                LockSignature(20.0),
+                Transform::from_translation(Vec3::new(0.0, 0.0, -300.0)),
+            ))
+            .id();
+        let player = world
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::IDENTITY,
+                targeting_state(),
+            ))
+            .id();
+        let signature_id =
+            world.register_system(crate::sections::signature::publish_ship_signatures);
+        let sensing_id = world.register_system(super::super::sensing::update_sensor_contacts);
+        let upkeep_id = world.register_system(update_contacts_and_locks);
+        world.insert_resource(UpkeepSystem(signature_id, sensing_id, upkeep_id));
+
+        // No GOTO engaged: an in-sight body is never locked on its own.
+        upkeep(&mut world);
+        assert_eq!(
+            world.get::<TravelLock>(player).unwrap().0,
+            None,
+            "nothing locks passively without an engaged GOTO"
+        );
+
+        // Engage a GOTO on a target out of sensor range: nothing to lock yet.
+        world
+            .entity_mut(player)
+            .insert(Autopilot::engage(AutopilotAction::Goto {
+                target: goto_target,
+            }));
+        upkeep(&mut world);
+        assert_eq!(
+            world.get::<TravelLock>(player).unwrap().0,
+            None,
+            "the GOTO target is still out of sensor range"
+        );
+
+        // Bring it into sight: the lock takes it the same frame, no dwell.
+        world
+            .entity_mut(goto_target)
+            .insert(Transform::from_translation(Vec3::new(0.0, 0.0, -300.0)));
+        upkeep(&mut world);
+        assert_eq!(
+            world.get::<TravelLock>(player).unwrap().0,
+            Some(goto_target),
+            "an in-sight GOTO target locks with no dwell"
+        );
+
+        // A lock already held on another in-sight body is not stolen back.
+        world.get_mut::<TravelLock>(player).unwrap().0 = Some(other);
+        upkeep(&mut world);
+        assert_eq!(
+            world.get::<TravelLock>(player).unwrap().0,
+            Some(other),
+            "a lock held on another body stays, GOTO or not"
+        );
+
+        // Put the lock back on the GOTO target, then lose it: the lock drops,
+        // exactly as any other lock drops on a despawned target.
+        world.get_mut::<TravelLock>(player).unwrap().0 = Some(goto_target);
+        world.despawn(goto_target);
+        upkeep(&mut world);
+        assert_eq!(
+            world.get::<TravelLock>(player).unwrap().0,
+            None,
+            "a despawned GOTO target drops the lock like any other"
         );
     }
 

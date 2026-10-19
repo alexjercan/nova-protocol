@@ -619,6 +619,15 @@ fn map_goto_sets_autopilot_on_the_player_ship() {
             Name::new("RAIDER"),
         ))
         .id();
+    let alt_target = app
+        .world_mut()
+        .spawn((
+            SpaceshipRootMarker,
+            Allegiance::Enemy,
+            GlobalTransform::from(Transform::from_xyz(50.0, 0.0, 0.0)),
+            Name::new("RAIDER2"),
+        ))
+        .id();
 
     app.world_mut()
         .run_system_once(assign_map_contact_codes)
@@ -682,60 +691,135 @@ fn map_goto_sets_autopilot_on_the_player_ship() {
         keys.release(KeyCode::KeyG);
         keys.press(KeyCode::KeyG);
     };
+    let press_goto = |app: &mut App| press_goto_in(app, PauseStates::Interface);
+    // Re-arm the standing order the next press must either keep or replace.
+    let reset_order = |app: &mut App| {
+        app.world_mut()
+            .entity_mut(player)
+            .insert((standing, TravelLock(Some(prior))));
+    };
+    let flying_to = |app: &App, target: Entity| {
+        assert_eq!(
+            app.world().get::<Autopilot>(player).map(|a| a.action),
+            Some(AutopilotAction::Goto { target }),
+            "the autopilot targets the queued contact",
+        );
+        assert_eq!(
+            app.world().get::<TravelLock>(player),
+            Some(&TravelLock(Some(target))),
+            "an accepted GOTO designates its target"
+        );
+    };
+
     // Under the command modal over the pane the key is text, not GOTO.
     press_goto_in(&mut app, PauseStates::Commands);
     app.world_mut().run_system_once(map_input).unwrap();
     kept(&app);
     assert_eq!(note(&app), None, "the modal over the pane takes no GOTO");
-    press_goto_in(&mut app, PauseStates::Interface);
-    app.world_mut().run_system_once(map_input).unwrap();
-    kept(&app);
-    assert_eq!(note(&app).as_deref(), Some("GOTO REFUSED: TAKE THE HELM"));
 
-    // A pair that cannot be measured is refused for the fault, whoever holds
-    // the helm.
-    for helm in [DockedHelmType::Neutral, DockedHelmType::Held(player)] {
-        let mut record = app
-            .world_mut()
-            .get_mut::<DockingConnection>(connection)
-            .unwrap();
-        record.helm = helm;
-        record.measurement_fault = true;
-        app.world_mut().run_system_once(map_input).unwrap();
-        kept(&app);
-        assert_eq!(note(&app).as_deref(), Some("GOTO REFUSED: HELM FAULT"));
-    }
-    app.world_mut()
-        .get_mut::<DockingConnection>(connection)
-        .unwrap()
-        .measurement_fault = false;
-
-    // Holding the helm, the selected contact is still the docked partner.
-    app.world_mut()
-        .get_mut::<DockedShip>(player)
-        .unwrap()
-        .drives = true;
+    // Docked to the selected contact: refused, whatever holds the pair's
+    // helm or whether it can be measured - a trip to the partner never
+    // closes.
+    press_goto(&mut app);
     app.world_mut().run_system_once(map_input).unwrap();
     kept(&app);
     assert_eq!(note(&app).as_deref(), Some("GOTO REFUSED: DOCKED PARTNER"));
 
-    app.world_mut().entity_mut(player).remove::<DockedShip>();
+    app.world_mut()
+        .get_mut::<DockedShip>(player)
+        .unwrap()
+        .drives = true;
+    press_goto(&mut app);
     app.world_mut().run_system_once(map_input).unwrap();
-    assert_eq!(note(&app).as_deref(), Some("GOTO SET: RAIDER"));
+    kept(&app);
+    assert_eq!(note(&app).as_deref(), Some("GOTO REFUSED: DOCKED PARTNER"));
 
-    let autopilot = app
-        .world()
-        .get::<Autopilot>(player)
-        .expect("GOTO inserts an Autopilot on the player ship");
-    assert!(
-        matches!(autopilot.action, AutopilotAction::Goto { target: t } if t == target),
-        "the autopilot targets the selected contact",
+    app.world_mut()
+        .get_mut::<DockingConnection>(connection)
+        .unwrap()
+        .measurement_fault = true;
+    press_goto(&mut app);
+    app.world_mut().run_system_once(map_input).unwrap();
+    kept(&app);
+    assert_eq!(note(&app).as_deref(), Some("GOTO REFUSED: DOCKED PARTNER"));
+
+    // Docked to another body, without the helm: the GOTO is accepted and
+    // waits for the undock (whoever, or nothing, holds that pair's helm).
+    let partner = app.world_mut().spawn_empty().id();
+    {
+        let mut record = app
+            .world_mut()
+            .get_mut::<DockingConnection>(connection)
+            .unwrap();
+        record.second_ship = partner;
+        record.measurement_fault = false;
+    }
+    app.world_mut()
+        .get_mut::<DockedShip>(player)
+        .unwrap()
+        .drives = false;
+    for (helm, fault) in [
+        (DockedHelmType::Neutral, false),
+        (DockedHelmType::Station(partner), false),
+        (DockedHelmType::Neutral, true),
+    ] {
+        {
+            let mut record = app
+                .world_mut()
+                .get_mut::<DockingConnection>(connection)
+                .unwrap();
+            record.helm = helm;
+            record.measurement_fault = fault;
+        }
+        reset_order(&mut app);
+        press_goto(&mut app);
+        app.world_mut().run_system_once(map_input).unwrap();
+        assert_eq!(note(&app).as_deref(), Some("GOTO SET: RAIDER"));
+        flying_to(&app, target);
+    }
+
+    // Pressing GOTO again on the same selection cancels the queued order.
+    press_goto(&mut app);
+    app.world_mut().run_system_once(map_input).unwrap();
+    assert_eq!(note(&app).as_deref(), Some("GOTO CANCELLED"));
+    assert_eq!(
+        app.world().get::<Autopilot>(player),
+        None,
+        "the toggle removes the autopilot"
     );
     assert_eq!(
         app.world().get::<TravelLock>(player),
-        Some(&TravelLock(Some(target))),
-        "an accepted GOTO designates its target"
+        Some(&TravelLock(None)),
+        "the lock named the cancelled target, so it clears too"
     );
+
+    // A GOTO on the selected contact, but a lock naming a different body:
+    // the toggle still cancels the autopilot, and leaves that lock alone.
+    app.world_mut().entity_mut(player).insert((
+        Autopilot::engage(AutopilotAction::Goto { target }),
+        TravelLock(Some(prior)),
+    ));
+    press_goto(&mut app);
+    app.world_mut().run_system_once(map_input).unwrap();
+    assert_eq!(note(&app).as_deref(), Some("GOTO CANCELLED"));
+    assert_eq!(app.world().get::<Autopilot>(player), None);
+    assert_eq!(
+        app.world().get::<TravelLock>(player),
+        Some(&TravelLock(Some(prior))),
+        "the lock does not name the cancelled target, so it stays"
+    );
+
+    // A GOTO on one contact, another selected: a press retargets instead of
+    // cancelling, with the lock moved to the new selection.
+    app.world_mut().entity_mut(player).insert((
+        Autopilot::engage(AutopilotAction::Goto { target }),
+        TravelLock(Some(target)),
+    ));
+    app.world_mut().resource_mut::<MapRuntime>().selected = Some(alt_target);
+    press_goto(&mut app);
+    app.world_mut().run_system_once(map_input).unwrap();
+    assert_eq!(note(&app).as_deref(), Some("GOTO SET: RAIDER2"));
+    flying_to(&app, alt_target);
 }
 
 /// A wheel notch over the contact panel scrolls the panel and leaves the
@@ -880,8 +964,19 @@ fn the_goto_button_sets_the_goto_the_key_sets() {
         .query_filtered::<Entity, With<MapGotoButton>>()
         .single(app.world())
         .unwrap();
+    let cancel_button = app
+        .world_mut()
+        .query_filtered::<Entity, With<MapCancelButton>>()
+        .single(app.world())
+        .unwrap();
     let disabled =
         |rig: &PanePointerRig| rig.app.world().get::<InteractionDisabled>(button).is_some();
+    let cancel_disabled = |rig: &PanePointerRig| {
+        rig.app
+            .world()
+            .get::<InteractionDisabled>(cancel_button)
+            .is_some()
+    };
     let goto = |rig: &PanePointerRig| {
         (
             rig.app.world().get::<Autopilot>(player).map(|a| a.action),
@@ -889,6 +984,10 @@ fn the_goto_button_sets_the_goto_the_key_sets() {
         )
     };
     assert!(disabled(&rig), "nothing selected: no GOTO to request");
+    assert!(
+        cancel_disabled(&rig),
+        "no GOTO flies: CANCEL has nothing to end"
+    );
 
     rig.app.world_mut().resource_mut::<MapRuntime>().selected = Some(player);
     settle(&mut rig.app);
@@ -916,6 +1015,31 @@ fn the_goto_button_sets_the_goto_the_key_sets() {
         panel_text(rig.app.world_mut(), MapPanelField::Destination),
         "GOTO HOST-1  500 m"
     );
+    assert!(!cancel_disabled(&rig), "a flying GOTO is CANCEL's to end");
+
+    // The target leaves the map (destroyed, docked, out of range - whatever
+    // the reason, the flown-to entity is no longer a contact); the panel
+    // still names the queued order, and CANCEL still has it to end.
+    rig.app.world_mut().entity_mut(raider).despawn();
+    settle(&mut rig.app);
+    assert_eq!(
+        panel_text(rig.app.world_mut(), MapPanelField::Destination),
+        "GOTO target lost"
+    );
+    assert!(!cancel_disabled(&rig), "CANCEL still ends the lost GOTO");
+
+    let cancel_at = rig_rect(&rig, cancel_button).center();
+    click_at(&mut rig, cancel_at);
+    assert_eq!(
+        rig.app.world().get::<Autopilot>(player),
+        None,
+        "CANCEL removes the autopilot even with its target gone"
+    );
+    assert_eq!(
+        panel_text(rig.app.world_mut(), MapPanelField::Destination),
+        "No GOTO set"
+    );
+    assert!(cancel_disabled(&rig), "nothing left to cancel");
 }
 
 /// A living civilization with a living neighbour its own seed drew Enemy,

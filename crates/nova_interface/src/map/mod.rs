@@ -17,6 +17,8 @@
 //! live, the view tags its target `GOTO`, draws the ship's
 //! [`FlightPrediction`](nova_ship::prelude::FlightPrediction) path from the
 //! player blip while one exists, and the panel names the destination.
+//! `map_goto` on that target cancels the GOTO, on another contact retargets
+//! it, and the panel's CANCEL button ends it in either view.
 //!
 //! `map_chart` or the Chart button swaps the local scene for the chart view
 //! while a streamed world runs: the player's [`Chart`] of visited cells,

@@ -469,6 +469,20 @@ pub(super) fn on_autopilot_goto_input(
     }
 
     let (entity, autopilot, travel, docked) = ship.into_inner();
+    // Already flying somewhere? G toggles the trip off. Disengage stays
+    // ungated, ahead of the docked gate too: a verb disabled mid-trip can never
+    // strand the ship in GOTO, and a GOTO the Map set while docked waits for
+    // the undock and is still cancelled here.
+    if let Some(Autopilot {
+        action: AutopilotAction::Goto { .. },
+        ..
+    }) = autopilot
+    {
+        debug!("on_autopilot_goto_input: disengaging GOTO");
+        commands.entity(entity).remove::<Autopilot>();
+        return;
+    }
+
     if let Some(docked) = docked.filter(|docked| !docked.drives) {
         if q_connections
             .get(docked.connection)
@@ -478,18 +492,6 @@ pub(super) fn on_autopilot_goto_input(
         } else {
             debug!("on_autopilot_goto_input: a docked hull flies GOTO only with the helm");
         }
-        return;
-    }
-
-    // Already flying somewhere? G toggles the trip off. Disengage stays
-    // ungated so a verb disabled mid-trip can never strand the ship in GOTO.
-    if let Some(Autopilot {
-        action: AutopilotAction::Goto { .. },
-        ..
-    }) = autopilot
-    {
-        debug!("on_autopilot_goto_input: disengaging GOTO");
-        commands.entity(entity).remove::<Autopilot>();
         return;
     }
 
@@ -1721,6 +1723,32 @@ mod tests {
         assert!(
             app.world().get::<DockedShip>(ship).is_some(),
             "and keeps the dock"
+        );
+    }
+
+    /// The disengage branch runs AHEAD of the docked gate: a GOTO a docked
+    /// hull is holding - whether engaged before the dock or set by the Map
+    /// while docked - still answers to G. Once it is gone, the gate underneath
+    /// is unchanged: a fresh engage still waits for the helm.
+    #[test]
+    fn g_cancels_a_goto_held_while_docked_without_the_helm() {
+        let (mut app, ship, _) = docked_rig_app();
+        let target = app.world_mut().spawn_empty().id();
+        app.world_mut().entity_mut(ship).insert((
+            TravelLock(Some(target)),
+            Autopilot::engage(AutopilotAction::Goto { target }),
+        ));
+
+        tap(&mut app, KeyCode::KeyG);
+        assert!(
+            app.world().get::<Autopilot>(ship).is_none(),
+            "G cancels the held GOTO even though the hull is docked without the helm"
+        );
+
+        tap(&mut app, KeyCode::KeyG);
+        assert!(
+            app.world().get::<Autopilot>(ship).is_none(),
+            "the docked gate still refuses a fresh GOTO without the helm"
         );
     }
 }

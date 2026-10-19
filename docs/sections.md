@@ -816,9 +816,10 @@ reads `measurement_fault` first and shows `HELM FAULT`, because `drives` alone
 cannot tell a fault from a hull off the helm, and `STATION HELM` on a
 station-held pair. The HELM chip stays on the dock, dark, through
 `FlightVerbHints::helm_fault` and `helm_station`, because HELM cannot take
-the helm. The interface's Map GOTO refuses on both before it asks for the
-helm. On the driver, the autopilot, the flight authority, the manual balancer
-and the RCS budget read the assembly, never the root alone. An AI driver does
+the helm. The interface's Map GOTO refuses only the docking partner: on a
+pair the player does not drive, the autopilot's skip holds the GOTO it sets
+until the undock. On the driver, the autopilot, the flight authority, the
+manual balancer and the RCS budget read the assembly, never the root alone. An AI driver does
 not patrol, orbit or fight while docked:
 `update_passive_flight` holds the pair on a `Stop` maneuver instead,
 and `update_ai_target` clears its target, until the undock hands its route

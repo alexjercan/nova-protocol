@@ -73,6 +73,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Only an Ally civilization's station sells itself or hires out escorts.
   Settle with an Enemy neighbour at an admitting station for a fine by its
   advancement; an Enemy you made thaws after 2 h of play.
+- A GOTO's target takes your empty travel lock the moment it comes into
+  sight, with no dwell, so a Map GOTO set out of range is locked for DOCK as
+  you arrive.
 
 ### Combat & Weapons
 
@@ -320,6 +323,13 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Settings: Graphics has a Low/Medium/High/Custom preset over particle,
   resolution, flash-light and shake levers (a moved lever reads Custom), plus
   VSync, UI scale and Invert Y. Panels share one look.
+- Map GOTO while docked now waits and flies once you undock, instead of
+  refusing until you take the helm; your docking partner is still refused.
+  G cancels a waiting GOTO.
+- Map GOTO on the contact you fly to cancels it, on another retargets; a
+  CANCEL button ends any GOTO, even one whose target is gone, and clears its
+  travel lock.
+
 ### Web & Platform
 
 - The web build keeps no saved worlds: New Game stays a one-off session

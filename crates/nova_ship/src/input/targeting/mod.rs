@@ -16,8 +16,11 @@
 //! - Tap CTRL (`RadarClearInput`, a `Tap` condition) = staged clear: the
 //!   combat lock first, then the travel lock (disengaging an engaged GOTO);
 //!   while raised, only ever the combat lock.
-//! - NOTHING locks passively: the old aim-assist cone auto-pick and the
-//!   close-range signature auto-acquire are gone. Locks clear naturally on
+//! - Only an engaged GOTO locks passively: an empty travel lock takes the
+//!   GOTO's target the frame that target is in sight, with no dwell, so a
+//!   Map GOTO set beyond sensor range is locked for DOCK on the approach.
+//!   The old aim-assist cone auto-pick and the close-range signature
+//!   auto-acquire are gone. Locks clear naturally on
 //!   death/despawn, out-of-range and a hostile target turning non-hostile.
 //!   A lock never times out: hold one through a long approach and it is still
 //!   there. Every one of those drops names itself: a `debug!` line plus a
@@ -29,9 +32,11 @@
 //!   scanner and a candidate takes that candidate out of the picker's set, and
 //!   breaks BOTH held slots on the `Occluded` branch. Neither re-locks on its
 //!   own when the line clears: a radar sweep held through cover may acquire
-//!   again after a fresh dwell. An already engaged GOTO is not a designation
-//!   and keeps flying - [`AutopilotAction::Goto`](crate::flight::prelude::AutopilotAction)
-//!   owns its target - so only the player's own tap-clear ends a trip.
+//!   again after a fresh dwell, and only an engaged GOTO takes back its own
+//!   target. An already engaged GOTO is not a designation and keeps flying -
+//!   [`AutopilotAction::Goto`](crate::flight::prelude::AutopilotAction) owns
+//!   its target - so losing the lock never ends a trip; the player's tap-clear
+//!   does.
 //!
 //! [`SensorContacts`] is where "what can this ship see" is decided, ONCE per
 //! observing ship per frame, under one range/visibility/relation policy that

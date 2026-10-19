@@ -1,6 +1,6 @@
 # Targeting & radar
 
-Locking is deliberate: there is no passive auto-targeting. You sweep the radar yourself, your stance decides what kind of lock you get, and you need a clear line to the body to take one at all.
+Locking is deliberate: there is no passive auto-targeting, except that a GOTO you fly takes back its own target. You sweep the radar yourself, your stance decides what kind of lock you get, and you need a clear line to the body to take one at all.
 
 <figure class="figure">
     <!-- Capture: assets/wiki-radar.png -->
@@ -73,7 +73,7 @@ A lock does **not** time out. Nothing else takes it: hold one through a long qui
 
 A lock needs to SEE its target. Asteroids and planets block the radar the same way they block a bullet, and while one sits on the line the radar will not hand you that body at all: holding <kbd>Ctrl</kbd> on a hostile you can plainly see through a gap in the rocks does nothing, with no buzz and no hollow box, because as far as the sweep is concerned there is nothing there. The off-screen threat arrows go quiet on the same rule - they are built from the same sweep - so a hostile behind a rock stops being marked for you.
 
-A lock you ALREADY hold goes the same way, whichever slot it is in. A lock is a radio link, and the white crosshair is the same link the red reticle is, so the moment cover crosses the line **both** slots let go, and the flight log names cover as the reason it lost the weapons lock. Nothing re-locks by itself when the line clears: hold <kbd>Ctrl</kbd> again and earn a fresh dwell.
+A lock you ALREADY hold goes the same way, whichever slot it is in. A lock is a radio link, and the white crosshair is the same link the red reticle is, so the moment cover crosses the line **both** slots let go, and the flight log names cover as the reason it lost the weapons lock. Nothing re-locks by itself when the line clears: hold <kbd>Ctrl</kbd> again and earn a fresh dwell. The one exception is the target of a GOTO you fly: while your white slot is empty, it locks that target the moment it is in sight, with no dwell, so a GOTO set on the map from beyond sensor range is locked for DOCK as you close. A white lock you hold on something else stays.
 
 A **trip you have already engaged** is the exception, because it is not a lock. Once you press <kbd>G</kbd> the computer owns the destination, so a rock drifting across it cannot strand you - the burn flies on and the status line keeps reading GOTO. Only your own tap-clear ends a trip.
 

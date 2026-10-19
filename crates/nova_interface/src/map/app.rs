@@ -15,8 +15,8 @@ use nova_ui::{
 };
 
 use super::{
-    on_map_goto_button, spawn_map_chart_log, spawn_map_chart_objectives, spawn_map_chart_sector,
-    spawn_map_stance_block, ChartStationLive, MapContactKind,
+    on_map_cancel_button, on_map_goto_button, spawn_map_chart_log, spawn_map_chart_objectives,
+    spawn_map_chart_sector, spawn_map_stance_block, ChartStationLive, MapContactKind,
 };
 use crate::{
     icons::{icon_node, BodyIconType, InterfaceIcons},
@@ -63,6 +63,12 @@ pub(crate) struct MapPanelMarker;
 #[derive(Component)]
 pub(crate) struct MapGotoButton;
 
+/// The contact panel's CANCEL button. It is enabled while the player ship
+/// flies a GOTO, in both views and whether or not its target is still on the
+/// map; [`update_map_panel`](super::update_map_panel) toggles it.
+#[derive(Component)]
+pub(crate) struct MapCancelButton;
+
 /// One pooled stroke of the predicted GOTO path, drawn under the blips. The
 /// strokes are interchangeable; unused ones stay hidden. It takes no clicks.
 #[derive(Component)]
@@ -99,7 +105,7 @@ pub(crate) fn scroll_map_panel(
 /// view with a find selected; the OBJECTIVES block and the discovery log under
 /// it, shown in the chart view with nothing selected; the STANCES block, shown
 /// in the chart view with nothing selected or a living, unowned Station mark
-/// selected; and the live GOTO destination over the GOTO button.
+/// selected; and the live GOTO destination over the GOTO and CANCEL buttons.
 /// [`update_map_panel`](super::update_map_panel) fills it.
 pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     parent
@@ -161,6 +167,14 @@ pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &Interfa
                     Name::new("MapGoto"),
                 ))
                 .observe(on_map_goto_button);
+            panel
+                .spawn((
+                    MapCancelButton,
+                    button(ButtonSpec::new("CANCEL").fit()),
+                    InteractionDisabled,
+                    Name::new("MapCancel"),
+                ))
+                .observe(on_map_cancel_button);
         });
 }
 
@@ -249,6 +263,9 @@ pub(crate) struct MapRuntime {
     /// The GOTO button was activated. [`map_input`](super::map_input) takes it
     /// on its next run and validates it with the `map_goto` key.
     pub(crate) goto_requested: bool,
+    /// The CANCEL button was activated. [`map_input`](super::map_input) takes
+    /// it on its next run.
+    pub(crate) cancel_requested: bool,
     /// The chart view shows instead of the local scene.
     pub(crate) chart: bool,
     /// The Chart button was activated.

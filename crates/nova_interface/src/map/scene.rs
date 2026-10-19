@@ -67,6 +67,7 @@ pub(crate) fn manage_map_scene(
         runtime.focused_on = None;
         runtime.goto_note = None;
         runtime.goto_requested = false;
+        runtime.cancel_requested = false;
         // The chart root went with the scene; its labels sit on the viewport.
         drop_map_chart(&mut commands, &mut runtime);
         runtime.chart = false;
@@ -295,23 +296,23 @@ pub(crate) fn map_focus_follow(
 /// zoom are raw pointer gestures; everything else is a named action -
 /// `viewer_pan_*`, `viewer_orbit_*`, `viewer_reframe`, `viewer_next` /
 /// `viewer_prev`, and `map_goto`. The GOTO button's request joins `map_goto`
-/// here, so both pass the same checks.
+/// here, so both pass the same checks; the CANCEL button's request ends the
+/// player's GOTO here too.
 pub(crate) fn map_input(
     mut input: NovaOsAppInput,
     mut runtime: ResMut<MapRuntime>,
     contacts: MapContacts,
     mut commands: Commands,
     mut q_camera: Query<(&mut MapOrbit, &Transform), With<MapCameraMarker>>,
+    q_ship: Query<(Option<&Autopilot>, Option<&TravelLock>)>,
     q_docked: Query<&DockedShip>,
     q_connections: Query<&DockingConnection>,
     q_panel: Query<&Hovered, With<MapPanelMarker>>,
 ) {
     // Taken before the gate: a request the map cannot act on now is dropped,
     // not held for a later frame.
-    let button_goto = runtime.goto_requested;
-    if button_goto {
-        runtime.goto_requested = false;
-    }
+    let button_goto = std::mem::take(&mut runtime.goto_requested);
+    let button_cancel = std::mem::take(&mut runtime.cancel_requested);
     // Only touch input while the map owns the screen; at the terminal the mouse
     // and keys belong to the prompt (history scroll, PageUp/PageDown, etc.).
     let Some((motion_delta, wheel_delta)) = input.active_pointer(InterfacePaneType::Map) else {
@@ -382,6 +383,35 @@ pub(crate) fn map_input(
         }
     }
 
+    // Cancel the player's GOTO: CANCEL in either view, whatever became of its
+    // target, or GOTO on the selected contact the GOTO already flies to. The
+    // travel lock clears only while it names the cancelled target; a lock the
+    // pilot holds on another body stays.
+    let goto_pressed = input.just_pressed("map_goto") || button_goto;
+    let flying = contacts
+        .player_frame()
+        .and_then(|(player, _, _)| match q_ship.get(player) {
+            Ok((
+                Some(Autopilot {
+                    action: AutopilotAction::Goto { target },
+                    ..
+                }),
+                travel,
+            )) => Some((player, *target, travel)),
+            _ => None,
+        });
+    let toggled = !runtime.chart
+        && goto_pressed
+        && flying.is_some_and(|(_, target, _)| runtime.selected == Some(target));
+    if let Some((player, target, travel)) = flying.filter(|_| button_cancel || toggled) {
+        let mut ship = commands.entity(player);
+        ship.remove::<Autopilot>();
+        if travel.is_some_and(|travel| travel.0 == Some(target)) {
+            ship.insert(TravelLock(None));
+        }
+        runtime.goto_note = Some(("GOTO CANCELLED".to_string(), 2.5));
+    }
+
     // The chart view selects by its own labels and has nothing to fly to.
     if runtime.chart {
         return;
@@ -402,29 +432,24 @@ pub(crate) fn map_input(
         }
     }
 
-    // GOTO on the selected contact (skip own ship). Sets a flight autopilot
-    // and the travel lock on the player ship directly - this intentionally
-    // bypasses the normal GOTO capability check (fine for the PoC nav
-    // computer). The docked rule is NOT bypassed: a GOTO set without the helm
-    // would fly the pair the moment the player takes it, and a pair that
-    // cannot be measured is flown by no one. A refusal writes only the note.
-    if input.just_pressed("map_goto") || button_goto {
+    // GOTO on the selected contact (skip own ship), or onto it from the GOTO
+    // flown to another. Sets a flight autopilot and the travel lock on the
+    // player ship directly - this intentionally bypasses the normal GOTO
+    // capability check (fine for the PoC nav computer). Docked without the
+    // helm, the GOTO waits: `autopilot_system` holds a hull that does not
+    // drive its pair, so the trip starts at the undock. The docked partner
+    // moves with the pair, so a trip to it never closes and is refused; a
+    // refusal writes only the note.
+    if goto_pressed && !toggled {
         if let (Some(sel), Some((player, _, _))) = (runtime.selected, contacts.player_frame()) {
             if let Some(contact) = list.iter().find(|c| c.entity == sel) {
                 if contact.kind != MapContactKind::OwnShip {
-                    let docked = q_docked.get(player).ok();
-                    let connection =
-                        docked.and_then(|docked| q_connections.get(docked.connection).ok());
-                    let note = if connection.is_some_and(|connection| connection.measurement_fault)
-                    {
-                        "GOTO REFUSED: HELM FAULT".to_string()
-                    } else if connection.is_some_and(|connection| {
-                        matches!(connection.helm, DockedHelmType::Station(_))
-                    }) {
-                        "GOTO REFUSED: STATION HELM".to_string()
-                    } else if docked.is_some_and(|docked| !docked.drives) {
-                        "GOTO REFUSED: TAKE THE HELM".to_string()
-                    } else if connection.is_some_and(|connection| connection.joins(sel)) {
+                    let partner = q_docked
+                        .get(player)
+                        .ok()
+                        .and_then(|docked| q_connections.get(docked.connection).ok())
+                        .is_some_and(|connection| connection.joins(sel));
+                    let note = if partner {
                         "GOTO REFUSED: DOCKED PARTNER".to_string()
                     } else {
                         commands.entity(player).insert((
@@ -1023,12 +1048,18 @@ pub(crate) fn on_map_goto_button(_activate: On<Activate>, mut runtime: ResMut<Ma
     runtime.goto_requested = true;
 }
 
+/// Request the player's GOTO cancelled when the CANCEL button is activated.
+/// [`map_input`] takes the request.
+pub(crate) fn on_map_cancel_button(_activate: On<Activate>, mut runtime: ResMut<MapRuntime>) {
+    runtime.cancel_requested = true;
+}
+
 /// Fill the contact panel from the selection, with a GOTO result on the note
-/// while it shows, the player's live GOTO destination, and the GOTO button
-/// enabled only on a contact other than the own ship, and the head frame
-/// hidden in the chart view. Rewrites text, colour, the icon, the frame and
-/// the button state in place and only on a difference, so a held
-/// selection writes nothing.
+/// while it shows, the player's live GOTO destination, the GOTO button
+/// enabled only on a contact other than the own ship, the CANCEL button
+/// enabled while a GOTO flies, and the head frame hidden in the chart view.
+/// Rewrites text, colour, the icon, the frame and the button state in place
+/// and only on a difference, so a held selection writes nothing.
 #[expect(
     clippy::too_many_arguments,
     reason = "the panel's text, icon, frame and button, and the autopilot it reads"
@@ -1054,6 +1085,7 @@ pub(crate) fn update_map_panel(
     >,
     mut q_frame: Query<&mut Node, Without<MapPanelIcon>>,
     q_goto_button: Query<(Entity, Has<InteractionDisabled>), With<MapGotoButton>>,
+    q_cancel_button: Query<(Entity, Has<InteractionDisabled>), With<MapCancelButton>>,
 ) {
     if !runtime.active {
         return;
@@ -1062,21 +1094,27 @@ pub(crate) fn update_map_panel(
     let selected = runtime
         .selected
         .and_then(|sel| list.iter().find(|c| c.entity == sel));
-    let destination =
+    let goto_target =
         contacts
             .player_frame()
             .and_then(|(player, _, _)| match q_autopilot.get(player) {
                 Ok(Autopilot {
                     action: AutopilotAction::Goto { target },
                     ..
-                }) => list.iter().find(|c| c.entity == *target),
+                }) => Some(*target),
                 _ => None,
             });
-    let destination = match destination {
-        Some(contact) => (
-            format!("GOTO {}  {}", contact.code, contact.range_text()),
-            UiColor::Accent,
-        ),
+    // A GOTO whose target left the map still reads as set, so CANCEL under it
+    // has something to end: docked without the helm the autopilot is held,
+    // and nothing notices a lost target until the undock.
+    let destination = match goto_target {
+        Some(target) => match list.iter().find(|c| c.entity == target) {
+            Some(contact) => (
+                format!("GOTO {}  {}", contact.code, contact.range_text()),
+                UiColor::Accent,
+            ),
+            None => ("GOTO target lost".to_string(), UiColor::Accent),
+        },
         None => ("No GOTO set".to_string(), UiColor::Label),
     };
     let note = match (&runtime.goto_note, &selected) {
@@ -1125,10 +1163,15 @@ pub(crate) fn update_map_panel(
 
     let goto_ready =
         !runtime.chart && selected.is_some_and(|contact| contact.kind != MapContactKind::OwnShip);
-    for (button, disabled) in &q_goto_button {
-        if goto_ready && disabled {
+    let cancel_ready = goto_target.is_some();
+    for (ready, (button, disabled)) in q_goto_button
+        .iter()
+        .map(|button| (goto_ready, button))
+        .chain(q_cancel_button.iter().map(|button| (cancel_ready, button)))
+    {
+        if ready && disabled {
             commands.entity(button).remove::<InteractionDisabled>();
-        } else if !goto_ready && !disabled {
+        } else if !ready && !disabled {
             commands.entity(button).insert(InteractionDisabled);
         }
     }

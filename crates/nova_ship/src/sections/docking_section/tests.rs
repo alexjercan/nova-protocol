@@ -953,6 +953,94 @@ fn a_suppressed_partner_keeps_its_order_and_autopilot_until_released() {
         .is_empty());
 }
 
+/// A player's own GOTO is frozen exactly like a partner's order while the
+/// player's root is docked without driving the pair: the autopilot stays
+/// engaged but the root's own engine burns nothing until the undock, then the
+/// same trip flies.
+#[test]
+fn a_player_goto_waits_while_docked_and_flies_after_the_undock() {
+    let mut app = unfinished_integrity_physics_app();
+    app.add_plugins((DockingSectionPlugin { render: false }, NovaFlightPlugin));
+    app.finish();
+    let (first, .., second, _) = facing_pair(&mut app, NOMINAL_GAP);
+    app.world_mut()
+        .entity_mut(first)
+        .insert(PlayerSpaceshipMarker);
+    for ship in [first, second] {
+        app.world_mut().spawn((
+            ChildOf(ship),
+            ControllerSectionMarker,
+            ControllerSectionRotationInput::default(),
+            PDController {
+                frequency: 4.0,
+                damping_ratio: 4.0,
+                max_angular_acceleration: 100.0,
+                sustained_angular_speed: f32::INFINITY,
+            },
+            Transform::default(),
+        ));
+    }
+    let engine = app
+        .world_mut()
+        .spawn((
+            ChildOf(first),
+            ThrusterSectionMarker,
+            ThrusterSectionMagnitude(1.0),
+            ThrusterSectionInput(0.0),
+            Transform::default(),
+        ))
+        .id();
+    let target = app
+        .world_mut()
+        .spawn(Transform::from_translation(Vec3::new(0.0, 0.0, -100_000.0)))
+        .id();
+
+    request_dock(&mut app, first, second);
+    // Two plain ships dock Neutral, and the fallback driver is whichever root
+    // is NOT the player - this picks the "player does not drive" case without
+    // a DockingHelmRequest the other way.
+    assert!(
+        !app.world().get::<DockedShip>(first).unwrap().drives,
+        "precondition: the player's root does not drive the pair"
+    );
+
+    app.world_mut()
+        .entity_mut(first)
+        .insert(Autopilot::engage(AutopilotAction::Goto { target }));
+    let throttle =
+        |app: &App, engine: Entity| **app.world().get::<ThrusterSectionInput>(engine).unwrap();
+
+    for _ in 0..30 {
+        app.update();
+    }
+    assert_eq!(
+        app.world()
+            .get::<Autopilot>(first)
+            .map(|autopilot| autopilot.action),
+        Some(AutopilotAction::Goto { target }),
+        "the GOTO is frozen, not dropped, while docked without the helm"
+    );
+    assert_eq!(
+        throttle(&app, engine),
+        0.0,
+        "a root that does not drive the pair burns nothing"
+    );
+
+    app.world_mut()
+        .trigger(DockingReleaseRequest { entity: first });
+    for _ in 0..10 {
+        app.update();
+    }
+    assert_eq!(
+        app.world()
+            .get::<Autopilot>(first)
+            .map(|autopilot| autopilot.action),
+        Some(AutopilotAction::Goto { target }),
+        "undocked, the same GOTO is still the order"
+    );
+    assert!(throttle(&app, engine) > 0.0, "and now it flies the trip");
+}
+
 #[test]
 fn release_and_port_destruction_clear_the_helm_and_the_assembly() {
     let mut app = docking_app();
