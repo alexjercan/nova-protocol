@@ -7,7 +7,8 @@ use bevy::{prelude::*, tasks::IoTaskPool, ui::InteractionDisabled, ui_widgets::A
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPacks};
 use nova_events::prelude::SectorCoord;
 use nova_gameplay::prelude::*;
-use nova_scenario::prelude::OpenWorldSession;
+use nova_interface::prelude::InterfaceIcons;
+use nova_scenario::prelude::{GameStartRoles, OpenWorldSession};
 use nova_world_base::{
     prelude::{create_world, ResumedWorld, WorldRefusal, WorldSaveSession, WorldSaveStatus},
     test_support::{arm_save_fixture, WorldSaveTestPlugin, FIXTURE_ROLE_ID, FIXTURE_SCENARIO_ID},
@@ -461,10 +462,12 @@ fn delete_asks_first_then_removes_the_world_and_its_row() {
     );
 }
 
-/// A world's row reads its play time, how long ago it was saved and how many
-/// objectives it holds open; its details draw the save's chart, name the
-/// hull in a FLEET block that lists only the fleet counts the save holds,
-/// and list the open objectives with their counts.
+/// A world's row draws its start role's icon and reads its play time, how
+/// long ago it was saved and how many objectives it holds open; its details
+/// draw the save's chart, name the hull in a FLEET block that lists only the
+/// fleet counts the save holds, and list the open objectives with their
+/// counts. A role a mod reload dropped keeps the icon slot empty and the
+/// row names the role by id.
 #[test]
 fn a_load_row_reads_play_time_save_age_and_open_count_and_its_details_the_fleet_and_objectives() {
     let mut app = menu();
@@ -478,6 +481,20 @@ fn a_load_row_reads_play_time_save_age_and_open_count_and_its_details_the_fleet_
     assert_eq!(text_of(&mut app, "Load World Row Play Time"), "0:01:30");
     assert_eq!(text_of(&mut app, "Load World Row Saved"), "just now");
     assert_eq!(text_of(&mut app, "Load World Row Open"), "1 open");
+    let role_icon = app
+        .world()
+        .resource::<GameStartRoles>()
+        .get_role(&FIXTURE_ROLE_ID.into())
+        .expect("the fixture save's role is loaded")
+        .icon;
+    let icon = named(&mut app, "Load World Row Icon");
+    assert_eq!(
+        app.world()
+            .get::<ImageNode>(icon)
+            .expect("the row draws its role icon")
+            .image,
+        app.world().resource::<InterfaceIcons>().role(role_icon)
+    );
 
     let row = named(&mut app, "Load World Row: good-world");
     app.world_mut().trigger(Activate { entity: row });
@@ -528,6 +545,18 @@ fn a_load_row_reads_play_time_save_age_and_open_count_and_its_details_the_fleet_
         "Trade jobs 1 / 3"
     );
     assert!(!has_named(&mut app, "Load World Details No Objectives"));
+
+    app.world_mut().resource_mut::<GameStartRoles>().0.clear();
+    app.world_mut()
+        .resource_mut::<crate::load_screen::WorldListings>()
+        .set_changed();
+    app.update();
+    let slot = named(&mut app, "Load World Row Icon Slot");
+    assert!(
+        app.world().get::<Children>(slot).is_none(),
+        "a dropped role draws no icon"
+    );
+    assert_eq!(text_of(&mut app, "Load World Row Status"), FIXTURE_ROLE_ID);
 }
 
 /// The `Saved` line's UTC stamp, read back from the selected world's header

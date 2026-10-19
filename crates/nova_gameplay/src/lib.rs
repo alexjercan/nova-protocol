@@ -61,6 +61,7 @@ pub mod plugin;
 pub mod projectile_hooks;
 pub mod relations;
 pub mod render_target;
+pub mod role_icon;
 pub mod rounds;
 pub mod saved_refs;
 pub mod settings;
@@ -126,9 +127,9 @@ pub mod prelude {
         lifetime::prelude::*, markers::prelude::*, market::prelude::*, math::prelude::*,
         mesh::prelude::*, narrative_accent::prelude::*, objectives::prelude::*, plugin::prelude::*,
         projectile_hooks::prelude::*, relations::prelude::*, render_target::prelude::*,
-        rounds::prelude::*, saved_refs::prelude::*, settings::prelude::*, shake::prelude::*,
-        soft_dot::prelude::*, transform::prelude::*, transient_light::prelude::*, EscapeOwner,
-        GameMode, GameStates, PauseStates,
+        role_icon::prelude::*, rounds::prelude::*, saved_refs::prelude::*, settings::prelude::*,
+        shake::prelude::*, soft_dot::prelude::*, transform::prelude::*,
+        transient_light::prelude::*, EscapeOwner, GameMode, GameStates, PauseStates,
     };
 }
 

@@ -51,9 +51,11 @@ pub(crate) fn dummy_roles() -> GameStartRoles {
     GameStartRoles(
         TEST_ROLE_IDS
             .iter()
-            .map(|id| StartRole {
+            .zip([RoleIconType::Drill, RoleIconType::Blades])
+            .map(|(id, icon)| StartRole {
                 id: (*id).into(),
                 name: id.to_string(),
+                icon,
                 about: format!("How {id} plays."),
                 hull: format!("{id}_hull").as_str().into(),
                 kit: StartKit {
@@ -188,6 +190,10 @@ pub(crate) fn app_storing_settings_at(root: impl Into<std::path::PathBuf>) -> Ap
     // when the app has none. A test that saves or lists worlds inserts a
     // scratch folder over this.
     app.insert_resource(crate::world_setup::WorldsRoot(None));
+    // The icon masks the New Game role rows and the Load rows draw;
+    // `InterfacePlugin` draws them in production.
+    app.init_resource::<Assets<Image>>();
+    app.add_systems(Startup, nova_interface::prelude::init_interface_icons);
     app.add_plugins(NovaMenuPlugin);
     app
 }

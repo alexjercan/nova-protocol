@@ -198,9 +198,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - At a living station the Inventory pane trades with `Trade` and stores
   items with `Storage`, kept through retire and save, firing `OnStored` and
   `OnWithdrawn`. Stock scales with advancement.
-- A `StartRole` content kind names a New Game start: a hull and a kit of
-  credits and items. Lint refuses an unknown hull or item, an overweight kit
-  and a hull with no intake or one a docked ship blocks.
+- A `StartRole` content kind names a New Game start: icon, hull and kit of
+  credits and items. Lint refuses an unknown hull or item, an overweight kit,
+  a hull with no intake or one a docked ship blocks.
 
 - **(breaking)** A style places greebles by `greeble_rules`: link types,
   greebles with four link points, `near` terms and caps. `placement` is gone;
@@ -251,11 +251,11 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New Game's first step draws the seed's sectors round your starting station
   as a 3D chart to turn and zoom, with YOU at the start, before the world
   exists.
-- New Game's role step turns the role's hull in 3D, plated and greebled as it
-  flies, and lists its one milestone, the role's goal.
-- Load rows show play time, saved-ago and open objectives. The details draw
-  the save's 3D chart with the Map's mark codes and YOU, a FLEET block of what
-  the save holds and only its open objectives.
+- New Game's role rows draw each role's icon. The step turns the role's hull
+  in 3D, plated and greebled as it flies, and lists the role's goal.
+- Load rows show the role icon, play time, saved-ago and open objectives.
+  Details draw the save's 3D chart with the Map's mark codes and YOU, a FLEET
+  block and only open objectives.
 - The main menu offers Continue when a save stands: it opens the newest
   world, named under the button with how long ago it was saved.
 - Save notices show progress, success or failure; `~` hides them. Leaving

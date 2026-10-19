@@ -13,8 +13,8 @@ use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack, LoadedSectio
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
     CargoCanisterIdAllocator, Chart, CivilizationStances, ClockFreeze, DamageMarks, GoalRecord,
-    JobMixType, JobPostings, Jobs, PlayerSpaceshipMarker, PointRotationOutput, ShipInventory,
-    ShipInventoryStock, ShipRoleType,
+    JobMixType, JobPostings, Jobs, PlayerSpaceshipMarker, PointRotationOutput, RoleIconType,
+    ShipInventory, ShipInventoryStock, ShipRoleType,
 };
 use nova_scenario::prelude::{
     spaceship_scenario_object, CurrentScenario, GameShipDesigns, GameStartRoles, GeneratedMarks,
@@ -46,6 +46,7 @@ pub fn fixture_roles() -> GameStartRoles {
     GameStartRoles(vec![StartRole {
         id: FIXTURE_ROLE_ID.into(),
         name: "Fixture Role".to_string(),
+        icon: RoleIconType::Container,
         about: "A role the save fixtures name.".to_string(),
         hull: "fixture_hull".into(),
         kit: StartKit {

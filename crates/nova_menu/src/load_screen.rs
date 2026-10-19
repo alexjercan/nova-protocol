@@ -31,6 +31,7 @@ use bevy::{
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::{ChartSceneCell, ChartSceneMark, ChartSceneMarkType, ChartSceneView};
+use nova_interface::prelude::{icon_node, InterfaceIcons};
 use nova_scenario::prelude::{GameScenarios, GameStartRoles};
 use nova_ui::{
     theme,
@@ -50,7 +51,7 @@ use crate::{
     preview::{preview_node, MenuChartPreview},
     scenarios::NewGameScenario,
     widgets::{actions_row, button_slot, danger_button, detail_row, MAIN_SLOT_W, SIDE_SLOT_W},
-    world_setup::WorldsRoot,
+    world_setup::{WorldsRoot, ROLE_ICON_PX},
 };
 
 /// How many cells the Load preview reaches out from the save's cell.
@@ -515,6 +516,7 @@ pub(crate) fn refresh_load_list(
     listings: Res<WorldListings>,
     checks: Res<WorldChecks>,
     roles: Res<GameStartRoles>,
+    icons: Res<InterfaceIcons>,
     mut selected: ResMut<SelectedWorldSlug>,
     lists: Query<Entity, With<LoadWorldList>>,
 ) {
@@ -560,7 +562,7 @@ pub(crate) fn refresh_load_list(
         for row in rows {
             let is_selected = selected.0.as_deref() == Some(row.folder.slug.as_str());
             let checking = checks.pending(&row.folder.slug);
-            spawn_load_row(list, row, &roles, is_selected, checking, now);
+            spawn_load_row(list, row, &roles, &icons, is_selected, checking, now);
         }
     });
 }
@@ -693,7 +695,8 @@ const ROW_BADGE_SLOT_W: f32 = 84.0;
 /// is one line in the details pane, not in the row.
 const ROW_INVALID_TEXT: &str = "Cannot load";
 
-/// Spawn one clickable world row at [`ROW_H`]: the world's name (or slug,
+/// Spawn one clickable world row at [`ROW_H`]: the start role's icon, then
+/// the world's name (or slug,
 /// when the header did not read) over one status line - the start role's name
 /// when the header read, [`ROW_INVALID_TEXT`] when it refused - then, when
 /// the header read, its play time, how long ago it was saved and how many
@@ -703,6 +706,7 @@ fn spawn_load_row(
     list: &mut ChildSpawnerCommands,
     listing: &WorldListing,
     roles: &GameStartRoles,
+    icons: &InterfaceIcons,
     selected: bool,
     checking: bool,
     now: u64,
@@ -711,13 +715,17 @@ fn spawn_load_row(
         Ok(header) => header.name.clone(),
         Err(_) => listing.folder.slug.clone(),
     };
-    let status = match &listing.header {
-        // The listing refused a role `roles` lacked; the id stands in only if
-        // a mod reload dropped the role since.
-        Ok(header) => roles
-            .get_role(&header.role)
-            .map_or_else(|| header.role.to_string(), |role| role.name.clone()),
-        Err(_) => ROW_INVALID_TEXT.to_string(),
+    // The listing refused a role `roles` lacked; a header role resolves to
+    // nothing only if a mod reload dropped the role since.
+    let role = listing
+        .header
+        .as_ref()
+        .ok()
+        .and_then(|header| roles.get_role(&header.role));
+    let status = match (&listing.header, role) {
+        (Ok(_), Some(role)) => role.name.clone(),
+        (Ok(header), None) => header.role.to_string(),
+        (Err(_), _) => ROW_INVALID_TEXT.to_string(),
     };
     let mut row = list.spawn((
         Name::new(format!("Load World Row: {}", listing.folder.slug)),
@@ -739,6 +747,22 @@ fn spawn_load_row(
         row.insert(Selected);
     }
     row.with_children(|row| {
+        // The slot keeps its width without an icon, so the names stay in one
+        // column over a row whose role is unknown or whose header refused.
+        let mut slot = row.spawn((
+            Name::new("Load World Row Icon Slot"),
+            Node {
+                width: px(ROLE_ICON_PX),
+                flex_shrink: 0.0,
+                ..default()
+            },
+        ));
+        if let Some(role) = role {
+            slot.with_child((
+                Name::new("Load World Row Icon"),
+                icon_node(icons.role(role.icon), UiColor::Accent, ROLE_ICON_PX),
+            ));
+        }
         row.spawn((
             Name::new("Load World Row Info"),
             Node {

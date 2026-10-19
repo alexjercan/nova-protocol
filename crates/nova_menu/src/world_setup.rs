@@ -25,6 +25,7 @@ use nova_assets::prelude::LoadedSectionPacks;
 use nova_events::prelude::{Meters, SectorCoord};
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::{ChartSceneCell, ChartSceneMark, ChartSceneMarkType, ChartSceneView};
+use nova_interface::prelude::{icon_node, InterfaceIcons};
 use nova_scenario::prelude::{
     resolve_ship_design, GameShipDesigns, GameStartRoles, SectionSource, ShipDesignId,
     ShipDesignSource, StartRoleDesignId,
@@ -66,6 +67,9 @@ const ROLE_STEP_W: f32 = 760.0;
 
 /// The role list's width on the role step.
 const ROLE_LIST_W: f32 = 240.0;
+
+/// The edge of a role icon on a role row and a Load row, in px.
+pub(crate) const ROLE_ICON_PX: f32 = 18.0;
 
 /// The widest seed: `u32::MAX` is ten digits.
 const SEED_DIGITS: usize = 10;
@@ -201,6 +205,7 @@ pub(crate) fn on_new_game(
     mut commands: Commands,
     mut rng: Single<&mut WyRand, With<GlobalRng>>,
     roles: Res<GameStartRoles>,
+    icons: Res<InterfaceIcons>,
     #[cfg(not(target_arch = "wasm32"))] root: Res<WorldsRoot>,
 ) {
     let seed = rng.next_u32().to_string();
@@ -274,7 +279,7 @@ pub(crate) fn on_new_game(
                         .with_children(spawn_world_step(seed, name));
                     parent
                         .spawn((Name::new("Role Step"), RoleStep, step_node(Display::None)))
-                        .with_children(spawn_role_step(&roles, first_role.as_ref()));
+                        .with_children(spawn_role_step(&roles, &icons, first_role.as_ref()));
                 });
         });
 }
@@ -400,16 +405,17 @@ fn spawn_world_step(seed: String, name: String) -> impl FnOnce(&mut ChildSpawner
     }
 }
 
-/// The role step: one row per role beside the selected role's details, then
-/// Back, Cancel and Create in fixed slots. Create is greyed when there is no
-/// role.
+/// The role step: one row per role, its icon before its name, beside the
+/// selected role's details, then Back, Cancel and Create in fixed slots.
+/// Create is greyed when there is no role.
 fn spawn_role_step(
     roles: &GameStartRoles,
+    icons: &InterfaceIcons,
     selected: Option<&StartRoleDesignId>,
 ) -> impl FnOnce(&mut ChildSpawnerCommands) {
-    let rows: Vec<(StartRoleDesignId, String)> = roles
+    let rows: Vec<(StartRoleDesignId, String, Handle<Image>)> = roles
         .iter()
-        .map(|role| (role.id.clone(), role.name.clone()))
+        .map(|role| (role.id.clone(), role.name.clone(), icons.role(role.icon)))
         .collect();
     let selected = selected.cloned();
     move |parent| {
@@ -435,7 +441,7 @@ fn spawn_role_step(
                 ))
                 .with_children(|list| {
                     list.spawn(label("Start Role Label", "Start role"));
-                    for (id, name) in rows {
+                    for (id, name, icon) in rows {
                         // `MenuSfxButton` gives the row the menu click and
                         // hover cues, as the Mods checkbox row has them.
                         let mut row = list.spawn((
@@ -450,17 +456,23 @@ fn spawn_role_step(
                         if selected.as_ref() == Some(&id) {
                             row.insert(Selected);
                         }
-                        row.with_child((
-                            Name::new("Start Role Button Name"),
-                            UiText,
-                            Text::new(name),
-                            TextFont {
-                                font_size: FontSize::Px(15.0),
-                                ..default()
-                            },
-                            TextColor(Color::NONE),
-                            ThemedText::new(UiColor::Body),
-                        ));
+                        row.with_children(|row| {
+                            row.spawn((
+                                Name::new("Start Role Button Icon"),
+                                icon_node(icon, UiColor::Accent, ROLE_ICON_PX),
+                            ));
+                            row.spawn((
+                                Name::new("Start Role Button Name"),
+                                UiText,
+                                Text::new(name),
+                                TextFont {
+                                    font_size: FontSize::Px(15.0),
+                                    ..default()
+                                },
+                                TextColor(Color::NONE),
+                                ThemedText::new(UiColor::Body),
+                            ));
+                        });
                     }
                 });
                 body.spawn((

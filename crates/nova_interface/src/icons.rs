@@ -1,20 +1,20 @@
 //! The icon masks the interface panes draw: one silhouette per section
-//! family, per kind of map body, per item category, per chart mark and per
-//! job kind.
+//! family, per kind of map body, per item category, per chart mark, per
+//! job kind and per start role shape.
 //!
 //! Each mask is a white shape whose alpha is its coverage, drawn once at
 //! startup and tinted by the theme where it is shown, so a theme change never
 //! redraws a mask.
 //!
 //! Touch this module when changing what a section family, a map body, a
-//! chart mark or a job kind looks like.
+//! chart mark, a job kind or a role icon looks like.
 
 use bevy::{
     asset::RenderAssetUsages,
     prelude::*,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
 };
-use nova_gameplay::prelude::{ClusterType, ItemCategoryType, JobType, SectionClass};
+use nova_gameplay::prelude::{ClusterType, ItemCategoryType, JobType, RoleIconType, SectionClass};
 use nova_ui::{theme::UiColor, widget::ThemedImageTint};
 
 /// How the panes draw a section kind: one icon, tint and legend word per
@@ -70,14 +70,16 @@ pub(crate) enum JobIconType {
     Neutralize,
 }
 
-/// Every icon mask the panes draw, in each family's `ALL` order.
+/// Every icon mask the panes and the menu draw, each family in the order of
+/// its list: an `ALL`, `ITEM_CATEGORIES` or `ROLE_ICONS`.
 #[derive(Resource)]
-pub(crate) struct InterfaceIcons {
+pub struct InterfaceIcons {
     pub(crate) sections: [Handle<Image>; SectionIconType::ALL.len()],
     pub(crate) bodies: [Handle<Image>; BodyIconType::ALL.len()],
     pub(crate) categories: [Handle<Image>; ITEM_CATEGORIES.len()],
     pub(crate) charts: [Handle<Image>; ChartIconType::ALL.len()],
     pub(crate) jobs: [Handle<Image>; JobIconType::ALL.len()],
+    pub(crate) roles: [Handle<Image>; ROLE_ICONS.len()],
 }
 
 impl InterfaceIcons {
@@ -106,6 +108,11 @@ impl InterfaceIcons {
         self.jobs[icon as usize].clone()
     }
 
+    /// The mask of a start role's icon.
+    pub fn role(&self, icon: RoleIconType) -> Handle<Image> {
+        self.roles[icon as usize].clone()
+    }
+
     /// Default handles for every mask, for tests that build pane markup
     /// without drawing images.
     #[cfg(test)]
@@ -116,6 +123,7 @@ impl InterfaceIcons {
             categories: std::array::from_fn(|_| Handle::default()),
             charts: std::array::from_fn(|_| Handle::default()),
             jobs: std::array::from_fn(|_| Handle::default()),
+            roles: std::array::from_fn(|_| Handle::default()),
         }
     }
 }
@@ -788,6 +796,137 @@ fn category_coverage(category: ItemCategoryType, p: Vec2, px: f32) -> f32 {
     }
 }
 
+/// Every role icon, in declaration order, which is the order its mask is
+/// stored in: [`InterfaceIcons::role`] indexes by `icon as usize`.
+const ROLE_ICONS: [RoleIconType; 6] = [
+    RoleIconType::Drill,
+    RoleIconType::Claw,
+    RoleIconType::Container,
+    RoleIconType::Star,
+    RoleIconType::Shield,
+    RoleIconType::Blades,
+];
+
+// A role icon listed out of declaration order would draw another icon's
+// mask, so the build fails instead.
+const _: () = {
+    let mut index = 0;
+    while index < ROLE_ICONS.len() {
+        assert!(
+            ROLE_ICONS[index] as usize == index,
+            "ROLE_ICONS must list RoleIconType in declaration order"
+        );
+        index += 1;
+    }
+};
+
+/// A grooved drill bit, a three-pronged grabber, a ribbed freight container,
+/// a five-pointed star, a shield with a rank chevron and two crossed blades.
+/// None repeats a job icon's shape, so a role never reads as a job kind.
+fn role_coverage(icon: RoleIconType, p: Vec2, px: f32) -> f32 {
+    match icon {
+        RoleIconType::Drill => {
+            let shank = polygon(
+                p,
+                &[
+                    Vec2::new(-0.2, -0.95),
+                    Vec2::new(0.2, -0.95),
+                    Vec2::new(0.2, -0.5),
+                    Vec2::new(-0.2, -0.5),
+                ],
+            );
+            let bit = polygon(
+                p,
+                &[
+                    Vec2::new(-0.55, -0.42),
+                    Vec2::new(0.55, -0.42),
+                    Vec2::new(0.0, 0.95),
+                ],
+            );
+            let grooves = [-0.2f32, 0.2, 0.55]
+                .into_iter()
+                .map(|y| segment(p, Vec2::new(-0.6, y - 0.12), Vec2::new(0.6, y + 0.12), 0.1))
+                .fold(f32::INFINITY, f32::min);
+            solid(shank.min(bit.max(-grooves)), px)
+        }
+        RoleIconType::Claw => {
+            let hub = Vec2::new(0.0, -0.35);
+            let stem = segment(p, Vec2::new(0.0, -0.95), hub, 0.16);
+            let prong = |side: f32| {
+                let knee = Vec2::new(0.6 * side, 0.15);
+                segment(p, hub, knee, 0.14).min(segment(p, knee, Vec2::new(0.3 * side, 0.8), 0.14))
+            };
+            let middle = segment(p, hub, Vec2::new(0.0, 0.55), 0.14);
+            let claw = stem
+                .min(circle(p, hub, 0.2))
+                .min(prong(-1.0))
+                .min(prong(1.0))
+                .min(middle);
+            solid(claw, px)
+        }
+        RoleIconType::Container => {
+            let shell = box_outline(p, Vec2::ZERO, Vec2::new(0.85, 0.55), 0.14);
+            let ribs = [-0.42f32, 0.0, 0.42]
+                .into_iter()
+                .map(|x| segment(p, Vec2::new(x, -0.55), Vec2::new(x, 0.55), 0.08))
+                .fold(f32::INFINITY, f32::min);
+            let corners = [
+                Vec2::new(-0.85, -0.55),
+                Vec2::new(0.85, -0.55),
+                Vec2::new(0.85, 0.55),
+                Vec2::new(-0.85, 0.55),
+            ]
+            .into_iter()
+            .map(|corner| circle(p, corner, 0.13))
+            .fold(f32::INFINITY, f32::min);
+            solid(shell.min(ribs).min(corners), px)
+        }
+        RoleIconType::Star => {
+            // Points in increasing screen angle wind each piece clockwise.
+            let at = |degrees: f32, radius: f32| Vec2::from_angle(degrees.to_radians()) * radius;
+            let inner: [Vec2; 5] = std::array::from_fn(|k| at(-54.0 + 72.0 * k as f32, 0.4));
+            let points = (0..5)
+                .map(|k| {
+                    let tip = at(-90.0 + 72.0 * k as f32, 0.95);
+                    polygon(p, &[tip, inner[k], inner[(k + 4) % 5]])
+                })
+                .fold(polygon(p, &inner), f32::min);
+            solid(points, px)
+        }
+        RoleIconType::Shield => {
+            let shield = polygon(
+                p,
+                &[
+                    Vec2::new(-0.75, -0.8),
+                    Vec2::new(0.75, -0.8),
+                    Vec2::new(0.75, 0.05),
+                    Vec2::new(0.0, 0.95),
+                    Vec2::new(-0.75, 0.05),
+                ],
+            );
+            let rim = shield.abs() - 0.07;
+            let chevron = segment(p, Vec2::new(-0.4, -0.3), Vec2::new(0.0, 0.1), 0.15)
+                .min(segment(p, Vec2::new(0.0, 0.1), Vec2::new(0.4, -0.3), 0.15));
+            solid(rim.min(chevron), px)
+        }
+        RoleIconType::Blades => {
+            let blade = |side: f32| {
+                let flip = Vec2::new(side, 1.0);
+                let hilt = Vec2::new(-0.5, 0.5) * flip;
+                segment(p, hilt, Vec2::new(0.82, -0.82) * flip, 0.14)
+                    .min(segment(
+                        p,
+                        Vec2::new(-0.72, 0.28) * flip,
+                        Vec2::new(-0.28, 0.72) * flip,
+                        0.12,
+                    ))
+                    .min(segment(p, hilt, Vec2::new(-0.82, 0.82) * flip, 0.13))
+            };
+            solid(blade(1.0).min(blade(-1.0)), px)
+        }
+    }
+}
+
 /// Icon mask edge, in texels.
 const ICON_TEXELS: u32 = 64;
 
@@ -816,7 +955,7 @@ fn icon_mask(images: &mut Assets<Image>, coverage: impl Fn(Vec2, f32) -> f32) ->
 }
 
 /// Draw every icon mask once.
-pub(crate) fn init_interface_icons(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
+pub fn init_interface_icons(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     commands.insert_resource(InterfaceIcons {
         sections: SectionIconType::ALL
             .map(|icon| icon_mask(&mut images, |p, px| icon.coverage(p, px))),
@@ -825,11 +964,12 @@ pub(crate) fn init_interface_icons(mut commands: Commands, mut images: ResMut<As
             .map(|category| icon_mask(&mut images, |p, px| category_coverage(category, p, px))),
         charts: ChartIconType::ALL.map(|icon| icon_mask(&mut images, |p, px| icon.coverage(p, px))),
         jobs: JobIconType::ALL.map(|icon| icon_mask(&mut images, |p, px| icon.coverage(p, px))),
+        roles: ROLE_ICONS.map(|icon| icon_mask(&mut images, |p, px| role_coverage(icon, p, px))),
     });
 }
 
 /// An icon mask tinted by the theme, `size` px square.
-pub(crate) fn icon_node(image: Handle<Image>, tint: UiColor, size: f32) -> impl Bundle {
+pub fn icon_node(image: Handle<Image>, tint: UiColor, size: f32) -> impl Bundle {
     (
         ImageNode::new(image),
         Node {

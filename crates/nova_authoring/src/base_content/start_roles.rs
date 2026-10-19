@@ -20,7 +20,7 @@
 //! and six more of its hulls while it stands Enemy is twice that. A charter
 //! is a milestone, not an ending: the world plays on past it.
 
-use nova_gameplay::prelude::{ItemRoleType, JobMixType, ShipInventoryStock};
+use nova_gameplay::prelude::{ItemRoleType, JobMixType, RoleIconType, ShipInventoryStock};
 use nova_scenario::prelude::{RoleGoal, RoleGoalType, StartKit, StartRole};
 
 use super::ships::{
@@ -34,6 +34,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
         role(
             "industrial",
             "Industrial",
+            RoleIconType::Drill,
             "A mining tug with a bow mining beam and a cargo intake, unarmed. Cut ore from \
              rocks and sell it.",
             MINING_TUG_SHIP_ID,
@@ -53,6 +54,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
         role(
             "scavenger",
             "Scavenger",
+            RoleIconType::Claw,
             "A salvage hauler with the largest start hold, a cargo intake and one \
              point-defense mount. Pick wrecks clean and sell what you take.",
             SALVAGE_HAULER_SHIP_ID,
@@ -68,6 +70,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
         role(
             "transport",
             "Transport",
+            RoleIconType::Container,
             "A light freighter with freight cubes, a tank pod and no weapons. Buy cargo at \
              one station and sell it at another.",
             LIGHT_FREIGHTER_SHIP_ID,
@@ -88,6 +91,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
         role(
             "bounty_hunter",
             "Bounty Hunter",
+            RoleIconType::Star,
             "An interceptor with two point-defense mounts and a bow torpedo bay. Hunt armed \
              ships for the price on them.",
             INTERCEPTOR_SHIP_ID,
@@ -107,6 +111,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
         role(
             "military",
             "Military",
+            RoleIconType::Shield,
             "A patrol picket with two point-defense mounts on reinforced plate: the lightest \
              armed start. The Line Warship class is its later goal.",
             PATROL_PICKET_SHIP_ID,
@@ -124,6 +129,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
         role(
             "pirate",
             "Pirate",
+            RoleIconType::Blades,
             "A raider with a nose railgun and two point-defense mounts. Attack cargo ships \
              and take their holds.",
             RAIDER_SHIP_ID,
@@ -143,8 +149,8 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
     ]
 }
 
-/// One role: `hull` with a kit of `credits` and `stock`, whose boards lean
-/// to `jobs`, with its charter `goal`.
+/// One role drawn as `icon`: `hull` with a kit of `credits` and `stock`,
+/// whose boards lean to `jobs`, with its charter `goal`.
 #[expect(
     clippy::too_many_arguments,
     reason = "one row of the role table; every field is authored here"
@@ -152,6 +158,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
 fn role(
     id: &str,
     name: &str,
+    icon: RoleIconType,
     about: &str,
     hull: &str,
     credits: u32,
@@ -163,6 +170,7 @@ fn role(
     StartRole {
         id: id.into(),
         name: name.to_string(),
+        icon,
         about: about.to_string(),
         hull: hull.into(),
         kit: StartKit {

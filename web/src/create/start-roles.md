@@ -1,11 +1,11 @@
 # Start roles for mods
 
-A `StartRole` is one New Game start: the catalog hull the player flies, the
-kit it starts with, a sum of credits and a hold of items, the job mix its
-station boards lean to, and its goal, one finite milestone. Roles are
-content like ships and stations. Create a new id to add a role, or reuse a
-base id to replace that role. The New Game wizard lists
-the roles in merge order.
+A `StartRole` is one New Game start: the icon its row shows, the catalog
+hull the player flies, the kit it starts with, a sum of credits and a hold
+of items, the job mix its station boards lean to, and its goal, one finite
+milestone. Roles are content like ships and stations. Create a new id to
+add a role, or reuse a base id to replace that role. The New Game wizard
+lists the roles in merge order.
 
 This page is the field-by-field start role reference. For general RON
 spelling rules, see
@@ -18,6 +18,7 @@ spelling rules, see
     StartRole((
         id: "my_courier",
         name: "Courier",
+        icon: Container,
         about: "A light freighter with no weapons. Carry cargo between stations.",
         hull: "light_freighter",
         kit: (
@@ -43,6 +44,7 @@ Every field is required.
 |---|---|---|
 | `id` | string | the id the role is picked by. A mod reusing a base id REPLACES that role |
 | `name` | string | the name a picker shows |
+| `icon` | `Drill`, `Claw`, `Container`, `Star`, `Shield` or `Blades` | the shape drawn beside the name in the New Game role list and on the Load list. Lint refuses any other value |
 | `about` | string | how the role plays, for a reader |
 | `hull` | string | the id of a [ship design](../ships/) the player starts in: a base ship id, one of your mod's own, or one from a mod you depend on |
 | `kit` | kit | what the ship starts with, see below |

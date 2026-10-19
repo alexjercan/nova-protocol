@@ -186,7 +186,7 @@ fn check_intake(
 
 #[cfg(test)]
 mod tests {
-    use nova_gameplay::prelude::{JobMixType, ShipInventoryStock};
+    use nova_gameplay::prelude::{JobMixType, RoleIconType, ShipInventoryStock};
 
     use super::*;
     use crate::lint::{
@@ -198,6 +198,7 @@ mod tests {
         StartRole {
             id: "military".into(),
             name: "Military".to_string(),
+            icon: RoleIconType::Shield,
             about: String::new(),
             hull: hull.into(),
             kit: StartKit {
@@ -239,6 +240,7 @@ mod tests {
         let role = StartRole {
             id: "industrial".into(),
             name: "Industrial".to_string(),
+            icon: RoleIconType::Drill,
             about: String::new(),
             hull: "no_such_hull".into(),
             kit: StartKit {

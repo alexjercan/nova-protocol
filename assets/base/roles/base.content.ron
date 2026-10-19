@@ -2,6 +2,7 @@
     StartRole((
         id: "industrial",
         name: "Industrial",
+        icon: Drill,
         about: "A mining tug with a bow mining beam and a cargo intake, unarmed. Cut ore from rocks and sell it.",
         hull: "mining_tug",
         kit: (
@@ -24,6 +25,7 @@
     StartRole((
         id: "scavenger",
         name: "Scavenger",
+        icon: Claw,
         about: "A salvage hauler with the largest start hold, a cargo intake and one point-defense mount. Pick wrecks clean and sell what you take.",
         hull: "salvage_hauler",
         kit: (
@@ -43,6 +45,7 @@
     StartRole((
         id: "transport",
         name: "Transport",
+        icon: Container,
         about: "A light freighter with freight cubes, a tank pod and no weapons. Buy cargo at one station and sell it at another.",
         hull: "light_freighter",
         kit: (
@@ -66,6 +69,7 @@
     StartRole((
         id: "bounty_hunter",
         name: "Bounty Hunter",
+        icon: Star,
         about: "An interceptor with two point-defense mounts and a bow torpedo bay. Hunt armed ships for the price on them.",
         hull: "interceptor",
         kit: (
@@ -89,6 +93,7 @@
     StartRole((
         id: "military",
         name: "Military",
+        icon: Shield,
         about: "A patrol picket with two point-defense mounts on reinforced plate: the lightest armed start. The Line Warship class is its later goal.",
         hull: "patrol_picket",
         kit: (
@@ -110,6 +115,7 @@
     StartRole((
         id: "pirate",
         name: "Pirate",
+        icon: Blades,
         about: "A raider with a nose railgun and two point-defense mounts. Attack cargo ships and take their holds.",
         hull: "raider",
         kit: (

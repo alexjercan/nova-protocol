@@ -63,6 +63,7 @@ mod pointer_rig;
 pub mod prelude {
     pub use super::{
         bindings::interface_bindings,
+        icons::{icon_node, init_interface_icons, InterfaceIcons},
         inventory::prelude::*,
         jobs::prelude::*,
         map::prelude::*,

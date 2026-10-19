@@ -4,7 +4,8 @@
 
 use bevy::{prelude::*, ui::InteractionDisabled, ui_widgets::Activate};
 use nova_gameplay::prelude::*;
-use nova_scenario::prelude::OpenWorldSession;
+use nova_interface::prelude::InterfaceIcons;
+use nova_scenario::prelude::{GameStartRoles, OpenWorldSession};
 use nova_ui::widget::{TextFieldError, TextFieldValue};
 use nova_world_base::{
     prelude::{create_world, start_session, WorldSaveSession},
@@ -306,8 +307,9 @@ fn row_values(app: &mut App, name: &str) -> Vec<String> {
 /// Step 1 draws the typed seed's chart: the cells round its starting
 /// station with the station marked and the start inside its cell, and a
 /// caption counting the stations in reach; a seed with no start draws an
-/// empty chart and says why. Step 2 lists the role's three milestones as the
-/// game states them, and shows no hull view when the catalog lacks the hull.
+/// empty chart and says why. Step 2 draws each role row with its role's
+/// icon, lists the role's milestones as the game states them, and shows no
+/// hull view when the catalog lacks the hull.
 #[test]
 fn new_game_previews_the_seed_s_start_and_lists_the_role_s_milestones() {
     let mut app = menu();
@@ -344,6 +346,33 @@ fn new_game_previews_the_seed_s_start_and_lists_the_role_s_milestones() {
     );
 
     press(&mut app, "World Next Button");
+    let roles = app.world().resource::<GameStartRoles>().clone();
+    let mut drawn = Vec::new();
+    for role in roles.iter() {
+        let row = named(&mut app, &format!("Start Role Button: {}", role.id));
+        let icon = app
+            .world()
+            .get::<Children>(row)
+            .expect("a role row has children")[0];
+        let image = app
+            .world()
+            .get::<ImageNode>(icon)
+            .expect("a role row leads with its icon")
+            .image
+            .clone();
+        assert_eq!(
+            image,
+            app.world().resource::<InterfaceIcons>().role(role.icon),
+            "role '{}' draws its own icon",
+            role.id
+        );
+        drawn.push(image);
+    }
+    assert_ne!(
+        drawn[0], drawn[1],
+        "two roles with two icons draw two masks"
+    );
+
     press(
         &mut app,
         &format!("Start Role Button: {}", TEST_ROLE_IDS[0]),

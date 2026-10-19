@@ -206,9 +206,15 @@ eleven item kinds:
     StartRole((
         id: "my_courier",
         name: "Courier",
+        icon: Container,
         about: "A light freighter with no weapons.",
         hull: "light_freighter",
         kit: (credits: 2000, stock: {"Rations": 50}),
+        jobs: Trade,
+        goal: (
+            title: "A courier network",
+            kind: StationNetwork(jobs: 8, stations: 4, rings: 2),
+        ),
         lore: "Couriers carry what stations cannot make.",
     )),
     Style((

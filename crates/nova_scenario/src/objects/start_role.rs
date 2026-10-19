@@ -18,7 +18,7 @@ use std::collections::BTreeMap;
 
 use bevy::prelude::*;
 use nova_events::prelude::{GeneratedBodyId, Meters3};
-use nova_gameplay::prelude::{JobMixType, ShipInventoryStock};
+use nova_gameplay::prelude::{JobMixType, RoleIconType, ShipInventoryStock};
 use nova_input::prelude::InputSource;
 use nova_ship::prelude::{SectionKind, ADDED_MINING_KEYS};
 
@@ -182,6 +182,8 @@ pub struct StartRole {
     pub id: StartRoleDesignId,
     /// The name a picker shows.
     pub name: String,
+    /// The shape a picker and the Load list draw beside the name.
+    pub icon: RoleIconType,
     /// How the role plays, for a reader.
     pub about: String,
     /// The catalog ship design the player starts in.
