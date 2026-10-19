@@ -160,8 +160,9 @@ fn sync_cinematic_prompt(
 /// Both surfaces are bottom-centre and the dock is the taller of the two, so a
 /// prompt parked on its own floor prints straight over the verb chips. The
 /// dock's height is MEASURED, not assumed: the row is as tall as the keycap
-/// pictures in it, and a dock that is hidden or has no available verb to show
-/// measures zero, which drops the prompt back to the floor.
+/// pictures in it, and a dock that is hidden or has no flight rig measures
+/// zero, which drops the prompt back to the floor. A rig with no verb to press
+/// keeps its slots laid out, so the prompt stays above them.
 ///
 /// One frame stale by construction - it reads the last layout pass. That is
 /// invisible here, because control is suspended for the scene the prompt is
@@ -363,8 +364,9 @@ mod tests {
         assert_eq!(prompt_bottom(&mut app), Val::Px(PROMPT_BOTTOM_PX));
     }
 
-    /// An empty dock measures zero: every verb is `Display::None`, so the row
-    /// collapses and the prompt takes the floor back.
+    /// An empty dock measures zero: with no flight rig every verb is
+    /// `Display::None`, so the row collapses and the prompt takes the floor
+    /// back.
     #[test]
     fn an_empty_dock_gives_the_floor_back() {
         let mut app = prompt_app();

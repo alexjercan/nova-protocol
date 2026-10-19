@@ -207,11 +207,12 @@ fn when(
     std::sync::Arc::new(check)
 }
 
-/// Advance once the HELM chip's own label reads `label` ("TAKE HELM",
-/// "RELEASE HELM"), as the player reads it on screen.
+/// Advance once the HELM chip is on screen in `state`: `Available` offers the
+/// helm, `Hot` says the player holds it. The label reads `HELM` in both, so
+/// the paint is what the player reads.
 #[cfg(feature = "debug")]
-fn helm_chip_reads(
-    label: &'static str,
+fn helm_chip_is(
+    state: DockChipState,
 ) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
     let index = DOCK_VERBS
         .iter()
@@ -219,13 +220,10 @@ fn helm_chip_reads(
         .expect("loop_docked_helm: HELM is a dock verb");
     when(move |world| {
         world
-            .try_query::<(&DockChip, &Children)>()
+            .try_query::<(&DockChip, &DockChipState, &Visibility)>()
             .is_some_and(|mut chips| {
-                chips.iter(world).any(|(chip, children)| {
-                    chip.0 == index
-                        && children.iter().any(|child| {
-                            world.get::<Text>(child).is_some_and(|text| text.0 == label)
-                        })
+                chips.iter(world).any(|(chip, chip_state, visibility)| {
+                    chip.0 == index && *chip_state == state && *visibility != Visibility::Hidden
                 })
             })
     })
@@ -408,8 +406,8 @@ fn helm_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
     .on_enter(|world: &mut World| assert_helm(world, false))
     .until(frames(1))
     .add()
-    .step("wait for the HELM chip to offer TAKE HELM")
-    .until(helm_chip_reads("TAKE HELM"))
+    .step("wait for the HELM chip to offer the helm")
+    .until(helm_chip_is(DockChipState::Available))
     .deadline(STEP_DEADLINE)
     .add()
     .step("lock the beacon")
@@ -440,7 +438,7 @@ fn helm_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         script,
         "the helm key",
         "dock_helm",
-        helm_chip_reads("RELEASE HELM"),
+        helm_chip_is(DockChipState::Hot),
     )
     .step("check the HELM is taken")
     .on_enter(|world: &mut World| assert_helm(world, true))
@@ -468,7 +466,7 @@ fn helm_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         script,
         "the helm key",
         "dock_helm",
-        helm_chip_reads("TAKE HELM"),
+        helm_chip_is(DockChipState::Available),
     )
     .step("check the HELM is handed back")
     .on_enter(|world: &mut World| {

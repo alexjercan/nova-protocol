@@ -113,7 +113,7 @@ differs is who the station lets in and who flies the pair.
 | rule | what happens |
 |---|---|
 | admission | a living station reads its `allegiance`: `Enemy` refuses every dock, and any side refuses a ship it is hostile to (a `Player` station and an Enemy-flagged ship, or a station answering that ship's fire). A generated station's side is its civilization's [stance](#civilization-stances) to you, so an Enemy civilization's stations refuse you. A derelict admits whatever its side; it is a hull to loot. A station you [own](#buy-the-station) admits you whatever your side |
-| the refusal | while the travel lock is on a station that refuses, the HUD mode chip reads `<NAME> REFUSES DOCKING` with the station object's `name`; the DOCK chip reads `DOCK REFUSED`, and `DOCK` builds nothing |
+| the refusal | while the travel lock is on a station that refuses, the HUD posts a notice (`<NAME> REFUSES DOCKING` with the station object's `name`) once; the mode chip does not show it, the DOCK chip draws nothing in its slot, and `DOCK` builds nothing |
 | one ship per port | a ship holds one connection; a station holds one per docking port. A ship docks while any port is free; once every port is held the next ship meets `<NAME> DOCK OCCUPIED` until one lets go. The station and every ship docked at it move as one body |
 | a living station's helm | the station owns the helm of everything docked at it. `HELM` is refused, the HUD reads `STATION HELM`, and each docked ship's drive, RCS and maneuvers are held. The station has no thruster, so the assembly never moves; its bridge holds it level on the station's parked attitude |
 | a dead station's helm | the docked player holds the helm from the capture, as after `HELM` on a ship, because the dead station's bridge is inactive (derelict or neutralized alike), and gets it the moment a living station it is docked to turns dead. The player's burn tows the station and every ship docked at it |
@@ -121,8 +121,9 @@ differs is who the station lets in and who flies the pair.
 | leaving | `DOCK` again, from the ship, as always |
 
 The proof is `system_station_docking`: a living station holds the helm under
-a held burn, a dead station hands it over, an Enemy station refuses with the
-line on the HUD.
+a held burn, a dead station hands it over, and an Enemy station refuses -
+the HUD notice shows the refusal, the mode chip does not, and the DOCK chip
+draws nothing.
 
 ## Trade and storage
 

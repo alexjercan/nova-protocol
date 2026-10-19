@@ -159,6 +159,9 @@ pub enum UiSfx {
     /// A comms line just SHOWED on the panel - a soft radio blip so a story
     /// beat registers mid-fight.
     CommsLine,
+    /// A line posted to the HUD notice slot (a station refusing docking) - a
+    /// flat ping, played by `nova_hud::hud_notice`.
+    HudNotice,
     /// The pause overlay or TAB interface opening or closing - a soft
     /// two-state UI blip.
     UiToggle,
@@ -191,7 +194,7 @@ pub enum UiSfx {
 /// `nova_assets::register_sounds` via `SoundBank::load`, whose
 /// `sounds/<name>.wav` convention maps these to the root `assets/sounds/` -
 /// engine chrome, outside every mod.
-pub const UI_SFX_FILES: [(UiSfx, &str); 23] = [
+pub const UI_SFX_FILES: [(UiSfx, &str); 24] = [
     (UiSfx::ObjectiveNew, "objective_new"),
     (UiSfx::ObjectiveComplete, "objective_complete"),
     (UiSfx::ObjectiveFail, "objective_fail"),
@@ -201,6 +204,7 @@ pub const UI_SFX_FILES: [(UiSfx, &str); 23] = [
     (UiSfx::UiToggle, "ui_toggle"),
     (UiSfx::UiTick, "ui_tick"),
     (UiSfx::CommsLine, "comms_line"),
+    (UiSfx::HudNotice, "hud_notice"),
     (UiSfx::EditorPlace, "editor_place"),
     (UiSfx::EditorRemove, "editor_remove"),
     (UiSfx::EditorRotate, "editor_rotate"),
@@ -391,6 +395,7 @@ mod tests {
             ObjectiveComplete,
             MenuSelect,
             CommsLine,
+            HudNotice,
             UiToggle,
             NovaOsKey,
             NovaOsBack,

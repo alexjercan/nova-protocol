@@ -187,8 +187,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   services stop, its hold opens to Take and a docked player gets the helm. Its
   stock stays.
 - A station docks one ship per port and turns with them as one body. An Enemy
-  station refuses with `<NAME> REFUSES DOCKING`; a living one holds the helm,
-  a dead one hands it to the player.
+  station refuses with a `<NAME> REFUSES DOCKING` HUD notice; a living one
+  holds the helm, a dead one hands it to the player.
 - **(breaking)** Every section needs a `build` recipe of credits and `Parts`
   items. Docked at a station with `Rebuild`, the Ship pane rebuilds a lost
   section with its old code and key.
@@ -304,6 +304,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The Map's mouse wheel no longer zooms the Ship pane when you switch to it.
 - An armed Ship pane rebind lights Rebind and names the section in a banner.
   The captured key binds and does nothing else.
+- The keybind dock keeps a fixed slot per verb, so no chip moves; HELM always
+  reads HELM and paints hot while held. A one-line HUD notice with a sound
+  reports a dock refusal.
 
 - Settings: Graphics has a Low/Medium/High/Custom preset over particle,
   resolution, flash-light and shake levers (a moved lever reads Custom), plus

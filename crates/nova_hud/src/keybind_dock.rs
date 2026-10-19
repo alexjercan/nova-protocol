@@ -5,12 +5,13 @@
 //! the input layer's [`FlightVerbHints`] resource - availability and key labels
 //! are resolved where the verbs live, this module is a dumb view.
 //!
-//! - **Dock**: a single row of icon chips docked bottom-centre, one per
-//!   AVAILABLE flight verb, each a real keycap PICTURE (see
-//!   [`super::key_glyphs`]) plus a short verb word. It replaces the
+//! - **Dock**: a single row of icon chips docked bottom-centre, one fixed
+//!   slot per flight verb, each a real keycap PICTURE (see
+//!   [`super::key_glyphs`]) plus the verb's fixed word. It replaces the
 //!   lower-left text cluster, which carried the bulk of the HUD's on-screen
-//!   text. A verb you cannot press right now is not on screen at all (see
-//!   `chip_visible`), so the dock reads as "these are your options NOW".
+//!   text. A verb you cannot press right now is not on screen (see
+//!   `chip_visible`), so the dock reads as "these are your options NOW", but
+//!   its slot stays laid out, so no chip moves when another comes or goes.
 //!   In normal play a docked chip reads in two states - available (full
 //!   phosphor) and hot (inverted, the verb is what the ship is doing) - plus
 //!   the dim band a scenario spotlight can reveal (below).
@@ -119,8 +120,8 @@ const HOT_CHIP_EMPHASIS: f32 = 1.08;
 pub struct KeybindDockMarker;
 
 /// One dock chip; the index picks the verb (see [`DOCK_VERBS`] and
-/// `verb_hint`). Public so range examples and screenshot rigs can assert on
-/// the dock's contents.
+/// `verb_hint`), and its label is that verb's name. Public so range examples
+/// and screenshot rigs can assert on the dock's contents.
 #[derive(Component, Debug, Clone, Copy, Deref, DerefMut, Reflect)]
 pub struct DockChip(pub usize);
 
@@ -129,8 +130,8 @@ pub struct DockChip(pub usize);
 /// situational-emphasis driver can read and drive it.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default, Reflect)]
 pub enum DockChipState {
-    /// Pressing it now would do nothing. In the normal path such a chip is not
-    /// rendered at all (`chip_visible`); it stays a state rather than becoming
+    /// Pressing it now would do nothing. In the normal path such a chip is
+    /// invisible in its slot (`chip_visible`); it stays a state rather than becoming
     /// "absent" because a scenario spotlight can still show it, pulsing in the
     /// unavailable alpha band, and because a hidden chip must remember the base
     /// paint a running pulse has to restore.
@@ -253,7 +254,7 @@ fn glyph_tint(state: DockChipState) -> Color {
 /// UI bundle for the keybind dock: one row of icon chips, bottom-centre (demo 2
 /// `.dock`).
 ///
-/// The chips spawn EMPTY - no keycap, no key text, collapsed. `update_dock`
+/// The chips spawn EMPTY - no keycap, no key text, collapsed, invisible. `update_dock`
 /// fills them, and its `Added<DockChip>` gate makes that happen on the same
 /// frame they appear. Resolving the art here as well would mean guessing each
 /// verb's key at spawn time, and the binding is only knowable from the live
@@ -266,6 +267,7 @@ pub fn keybind_dock_hud() -> impl Bundle {
             // A hot chip grows a little as well as inverting (demo 2's
             // `.vchip.hot`), driven by `grow_hot_chips` from the state above.
             HudEmphasis::settle(HOT_CHIP_EMPHASIS),
+            Visibility::Hidden,
             Node {
                 display: Display::None,
                 align_items: AlignItems::Center,
@@ -506,15 +508,17 @@ fn chip_state(hints: &FlightVerbHints, situations: &HudSituations, index: usize)
     DockChipState::Available
 }
 
-/// Whether chip `index` is on screen at all - the dock's ONE answer to "is this
-/// chip rendered", so nothing can hide a chip the paint still treats as visible.
+/// Whether chip `index` is visible in its slot - the dock's ONE answer to "is
+/// this chip rendered", so nothing can hide a chip the paint still treats as
+/// visible.
 ///
 /// The rule: a verb you cannot press right now is not on screen. The dock's
-/// first cut kept unavailable verbs docked and dimmed, so the row's chip
-/// positions never moved; playtested, that read as a wall of mostly-dead keys
-/// rather than "these are your options NOW".
+/// first cut kept unavailable verbs docked and dimmed; playtested, that read as
+/// a wall of mostly-dead keys rather than "these are your options NOW". Its
+/// second cut took them out of the row, and every chip moved whenever one came
+/// or went. An unavailable verb now keeps its slot and draws nothing there.
 ///
-/// Four verbs survive the hide:
+/// These verbs survive the hide:
 ///
 /// - a [`DockChipState::Hot`] chip, because hot means "this is what the ship is
 ///   doing" and the engaged maneuver's own offer is retired while it runs (see
@@ -527,11 +531,12 @@ fn chip_state(hints: &FlightVerbHints, situations: &HudSituations, index: usize)
 ///   verbs the docked helm blocks rather than a dock that looks as if the ship
 ///   lost them. A verb the ship withholds stays off the dock;
 /// - HELM on a pair with a [`FlightVerbHints::helm_fault`] or a
-///   [`FlightVerbHints::helm_station`], so the chip says why the helm cannot
-///   be taken rather than leaving the dock;
-/// - DOCK while the lock is on a station that refuses
-///   ([`FlightVerbHints::dock_refusal`]), so the chip reads `DOCK REFUSED`
-///   under the station's own line on the mode chip.
+///   [`FlightVerbHints::helm_station`], dark, under the mode chip's
+///   `HELM FAULT` or `STATION HELM` that says why the helm cannot be taken.
+///
+/// A station's dock refusal is not one of them: DOCK goes dark like any
+/// unavailable verb, and the refusal posts once to the notice slot
+/// (`hud_notice`).
 fn chip_visible(
     state: DockChipState,
     hints: &FlightVerbHints,
@@ -547,7 +552,6 @@ fn chip_visible(
     state != DockChipState::Dim
         || hint.helm_blocked
         || (verb == "HELM" && (hints.helm_fault || hints.helm_station))
-        || (verb == "DOCK" && hints.dock_refusal.is_some())
         || emphasis.contains(verb)
 }
 
@@ -614,13 +618,14 @@ fn paint_key_visual<FG, FT>(
 }
 
 /// Paint every dock chip from availability, and decide which chips are on
-/// screen at all via [`chip_visible`] - the dock shows the verbs you can press
-/// NOW, so the row shrinks and grows as the situation changes. The first cut
-/// kept unavailable verbs docked and dimmed for constant chip positions; that
-/// lost the playtest.
+/// screen via [`chip_visible`] - the dock shows the verbs you can press NOW.
 ///
-/// The row is `justify_content: Center`, so it re-centres as verbs come and go.
-/// That is the accepted price of the rule.
+/// Hiding is `Visibility::Hidden`, never `Display::None`: the row is
+/// `justify_content: Center`, so a chip that left the layout re-centred every
+/// other chip. A hidden chip keeps its keycap and its fixed label, so its slot
+/// is as wide as when it shows. It draws nothing, and the dock is
+/// `Pickable::IGNORE` throughout, so an empty slot is no target either. Only a
+/// missing flight rig takes the chips out of the layout.
 #[expect(clippy::type_complexity, reason = "one query per chip part")]
 fn update_dock(
     hints: Res<FlightVerbHints>,
@@ -632,6 +637,7 @@ fn update_dock(
         &DockChip,
         &mut DockChipState,
         &mut Node,
+        &mut Visibility,
         &mut BackgroundColor,
         &mut BorderColor,
         &Children,
@@ -642,7 +648,6 @@ fn update_dock(
         (With<ChipKeyText>, Without<DockChip>, Without<ChipGlyph>),
     >,
     mut q_text_color: Query<&mut TextColor, Or<(With<ChipLabel>, With<ChipKeyText>)>>,
-    mut q_label: Query<&mut Text, (With<ChipLabel>, Without<ChipKeyText>)>,
     q_added: Query<(), Added<DockChip>>,
 ) {
     // Skip quiet frames, but never skip freshly spawned chips (a respawned HUD
@@ -666,14 +671,36 @@ fn update_dock(
     }
     let glyphs = assets.as_ref().map(|a| &a.key_glyphs);
 
-    for (chip, mut state, mut node, mut fill, mut border, children) in &mut q_chip {
+    for (chip, mut state, mut node, mut visibility, mut fill, mut border, children) in &mut q_chip {
         let hint = verb_hint(&hints, **chip);
         let next = chip_state(&hints, &situations, **chip);
         let shown = chip_visible(next, &hints, &emphasis, **chip);
-        let display = if shown { Display::Flex } else { Display::None };
+        // No key means no flight rig: the whole row leaves the layout.
+        let display = if hint.key.is_empty() {
+            Display::None
+        } else {
+            Display::Flex
+        };
         if node.display != display {
             node.display = display;
         }
+        visibility.set_if_neq(if shown {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        });
+
+        // Painted hidden or not: the keycap is half the slot's width.
+        let cap = glyphs.and_then(|glyphs| glyphs.get(&hint.key));
+        paint_key_visual(
+            &hint.key,
+            cap,
+            GLYPH_PX,
+            glyph_tint(next),
+            children,
+            &mut q_glyph,
+            &mut q_key_text,
+        );
         if !shown {
             // A hidden chip still tracks a state, so a pulse that was running
             // when it left the dock restores the RIGHT base. `Dim` IS that
@@ -693,35 +720,9 @@ fn update_dock(
         let (fill_color, border_color, text_color) = chip_paint(next, &theme);
         fill.set_if_neq(BackgroundColor(fill_color));
         border.set_if_neq(BorderColor::all(border_color));
-
-        let cap = glyphs.and_then(|glyphs| glyphs.get(&hint.key));
-        paint_key_visual(
-            &hint.key,
-            cap,
-            GLYPH_PX,
-            glyph_tint(next),
-            children,
-            &mut q_glyph,
-            &mut q_key_text,
-        );
-        // HELM says which way the key goes: take the pair, or hand it back,
-        // or why it cannot be taken.
-        let label = match dock_verb(**chip) {
-            "HELM" if hints.helm_station => "STATION HELM",
-            "HELM" if hints.helm_held => "RELEASE HELM",
-            "HELM" if hints.helm_fault => "HELM FAULT",
-            "HELM" => "TAKE HELM",
-            "DOCK" if hints.dock_refusal.is_some() => "DOCK REFUSED",
-            verb => verb,
-        };
         for &child in children {
             if let Ok(mut color) = q_text_color.get_mut(child) {
                 color.set_if_neq(TextColor(text_color));
-            }
-            if let Ok(mut text) = q_label.get_mut(child) {
-                if **text != label {
-                    **text = label.to_string();
-                }
             }
         }
     }
@@ -1044,8 +1045,18 @@ mod tests {
         dock.get::<Children>().unwrap().to_vec()
     }
 
+    /// Whether `chip` draws: in the layout and not hidden in its slot.
+    fn seen(app: &App, chip: Entity) -> bool {
+        let entity = app.world().entity(chip);
+        entity.get::<Node>().unwrap().display == Display::Flex
+            && entity.get::<Visibility>() != Some(&Visibility::Hidden)
+    }
+
+    /// HELM keeps one word through every helm state - the paint says which way
+    /// the key goes, and the mode chip says why it cannot be taken - so its
+    /// slot never changes width.
     #[test]
-    fn the_helm_chip_reads_take_then_release() {
+    fn the_helm_chip_reads_helm_and_paints_the_held_helm_hot() {
         let mut app = glyph_app();
         app.init_resource::<HintEmphasis>();
         app.add_systems(Update, update_dock);
@@ -1065,9 +1076,6 @@ mod tests {
                 })
                 .unwrap()
         };
-        let shown = |app: &App, chip: Entity| {
-            app.world().entity(chip).get::<Node>().unwrap().display == Display::Flex
-        };
         let state =
             |app: &App, chip: Entity| *app.world().entity(chip).get::<DockChipState>().unwrap();
 
@@ -1084,45 +1092,46 @@ mod tests {
             ..default()
         });
         app.update();
-        assert_eq!(label(&app, helm), "TAKE HELM");
+        assert_eq!(label(&app, helm), "HELM");
         assert_eq!(state(&app, helm), DockChipState::Available);
-        assert!(shown(&app, chips[0]), "STOP is blocked, not gone");
+        assert!(seen(&app, chips[0]), "STOP is blocked, not gone");
         assert_eq!(state(&app, chips[0]), DockChipState::Dim);
-        assert!(!shown(&app, chips[6]), "a withheld RCS stays off the dock");
+        assert!(!seen(&app, chips[6]), "a withheld RCS stays off the dock");
 
         // A pair that cannot be measured: the helm cannot be taken, and the
-        // chip stays on the dock to say why. HELM would give nothing back, so
-        // the verbs it blocked leave the dock.
+        // chip stays on the dock, dark. HELM would give nothing back, so the
+        // verbs it blocked leave the dock.
         let mut faulted = neutral.clone();
         faulted.helm.available = false;
         faulted.helm_fault = true;
         faulted.stop.helm_blocked = false;
         app.insert_resource(faulted);
         app.update();
-        assert!(shown(&app, helm), "a faulted HELM stays on the dock");
-        assert_eq!(label(&app, helm), "HELM FAULT");
+        assert!(seen(&app, helm), "a faulted HELM stays on the dock");
+        assert_eq!(label(&app, helm), "HELM");
         assert_eq!(state(&app, helm), DockChipState::Dim);
-        assert!(!shown(&app, chips[0]), "a fault blocks no STOP on the helm");
-        assert!(!shown(&app, chips[6]), "a withheld RCS stays off the dock");
+        assert!(!seen(&app, chips[0]), "a fault blocks no STOP on the helm");
 
         // Measured again: the helm is on offer and STOP waits on it.
         app.insert_resource(neutral.clone());
         app.update();
-        assert_eq!(label(&app, helm), "TAKE HELM");
-        assert!(shown(&app, chips[0]), "STOP is blocked again, not gone");
+        assert_eq!(label(&app, helm), "HELM");
+        assert_eq!(state(&app, helm), DockChipState::Available);
+        assert!(seen(&app, chips[0]), "STOP is blocked again, not gone");
 
         let mut held = neutral;
         held.helm_held = true;
         held.stop.available = true;
         held.stop.helm_blocked = false;
         app.insert_resource(held.clone());
-        app.insert_resource(HudSituations {
-            docked: true,
-            ..default()
-        });
         app.update();
-        assert_eq!(label(&app, helm), "RELEASE HELM");
+        assert_eq!(label(&app, helm), "HELM");
         assert_eq!(state(&app, helm), DockChipState::Hot);
+        assert_ne!(
+            app.world().entity(helm).get::<BackgroundColor>().unwrap().0,
+            chip_paint(DockChipState::Available, &ActiveUiTheme::default()).0,
+            "the held helm is painted hot, not just marked"
+        );
         assert_eq!(state(&app, chips[0]), DockChipState::Available);
 
         // Held through a fault: the helm can still be handed back.
@@ -1131,15 +1140,15 @@ mod tests {
         held_faulted.stop.available = false;
         app.insert_resource(held_faulted);
         app.update();
-        assert_eq!(label(&app, helm), "RELEASE HELM");
+        assert_eq!(label(&app, helm), "HELM");
         assert_eq!(state(&app, helm), DockChipState::Hot);
-        assert!(!shown(&app, chips[0]), "a held fault blocks no STOP either");
+        assert!(!seen(&app, chips[0]), "a held fault blocks no STOP either");
 
         // Undocked: no helm to take.
         app.insert_resource(hints(false, false, None));
         app.insert_resource(HudSituations::default());
         app.update();
-        assert!(!shown(&app, helm), "the chip leaves the dock with the pair");
+        assert!(!seen(&app, helm), "the chip leaves the dock with the pair");
     }
 
     /// DoD 1: the dock renders ONE chip per verb, each carrying the keycap
@@ -1176,13 +1185,8 @@ mod tests {
                 Some(format!("{KEY_GLYPH_DIR}/{stem}.png").as_str()),
                 "{verb} draws the keycap its binding maps to"
             );
-            assert_eq!(
-                app.world()
-                    .entity(chips[index])
-                    .get::<Node>()
-                    .unwrap()
-                    .display,
-                Display::Flex,
+            assert!(
+                seen(&app, chips[index]),
                 "{verb} is docked while it is actionable"
             );
         }
@@ -1348,12 +1352,13 @@ mod tests {
         app.world().entity(chip).get::<Node>().unwrap().display
     }
 
-    /// A verb you cannot press right now is not on screen at all - the dock
-    /// answers "these are your options NOW".
+    /// A verb you cannot press right now is not on screen - the dock answers
+    /// "these are your options NOW" - but its slot stays in the layout, so no
+    /// other chip moves.
     /// A `Hot` chip stays docked even when its own offer has been retired,
     /// because hot means "this is what the ship is doing".
     #[test]
-    fn unavailable_verbs_leave_the_dock() {
+    fn unavailable_verbs_keep_an_unseen_slot() {
         let mut app = glyph_app();
         app.init_resource::<HintEmphasis>();
         // STOP/ORBIT/RADAR available; GOTO/CANCEL/COMPONENT/RCS not.
@@ -1368,18 +1373,22 @@ mod tests {
 
         let chips = chips(&app);
         for index in [0, 2, 4] {
-            assert_eq!(
-                display(&app, chips[index]),
-                Display::Flex,
+            assert!(
+                seen(&app, chips[index]),
                 "{} is actionable, so it is docked",
                 DOCK_VERBS[index]
             );
         }
         for index in [1, 3, 5, 6] {
+            assert!(
+                !seen(&app, chips[index]),
+                "{} is not actionable, so it is off screen",
+                DOCK_VERBS[index]
+            );
             assert_eq!(
                 display(&app, chips[index]),
-                Display::None,
-                "{} is not actionable, so it is off screen entirely",
+                Display::Flex,
+                "{} keeps its slot in the row",
                 DOCK_VERBS[index]
             );
         }
@@ -1394,16 +1403,14 @@ mod tests {
             DockChipState::Hot,
             "delivery guard: the parked ship's ORBIT chip is hot"
         );
-        assert_eq!(
-            display(&app, chips[2]),
-            Display::Flex,
+        assert!(
+            seen(&app, chips[2]),
             "a hot chip stays docked even though its offer was retired"
         );
 
         // ...and a verb that becomes available comes BACK.
-        assert_eq!(
-            display(&app, chips[3]),
-            Display::Flex,
+        assert!(
+            seen(&app, chips[3]),
             "CANCEL returns to the dock once something is engaged"
         );
     }
@@ -1430,9 +1437,8 @@ mod tests {
         app.update();
 
         let chips = chips(&app);
-        assert_eq!(
-            display(&app, chips[1]),
-            Display::None,
+        assert!(
+            !seen(&app, chips[1]),
             "delivery guard: GOTO has no lock, so it starts off screen"
         );
 
@@ -1442,9 +1448,8 @@ mod tests {
         app.world_mut().resource_mut::<HintEmphasis>().set("GOTO");
         app.update();
 
-        assert_eq!(
-            display(&app, chips[1]),
-            Display::Flex,
+        assert!(
+            seen(&app, chips[1]),
             "the spotlight shows the chip even though the verb is not available"
         );
         let gold = OBJECTIVE_GOLD.to_srgba();
@@ -1472,9 +1477,8 @@ mod tests {
         // not keep its gold for the next time it is shown.
         app.world_mut().resource_mut::<HintEmphasis>().clear("GOTO");
         app.update();
-        assert_eq!(
-            display(&app, chips[1]),
-            Display::None,
+        assert!(
+            !seen(&app, chips[1]),
             "the cleared chip leaves the dock again"
         );
         assert_eq!(

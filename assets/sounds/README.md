@@ -59,6 +59,7 @@ unfinished hook, not an error.
 | `objective_complete.wav` | an objective is completed | `nova_hud::objective_feedback` |
 | `objective_fail.wav` | a scenario is lost | `nova_menu::outcome` |
 | `comms_line.wav` | a dialogue line opens | `nova_hud::comms_panel` |
+| `hud_notice.wav` | a transient HUD notice posts (e.g. a station refuses docking) | `nova_hud::hud_notice` |
 | `editor_place.wav` | a part is placed | `nova_editor::cues` |
 | `editor_remove.wav` | a part is removed | `nova_editor::cues` |
 | `editor_rotate.wav` | the ghost's pose moves | `nova_editor::cues` |

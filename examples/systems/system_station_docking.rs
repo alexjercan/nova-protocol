@@ -7,14 +7,14 @@
 //! At the living station the dock opens on the station's helm: `HELM` is
 //! refused and a full burn held on the player's hull moves nothing. At the
 //! dead station the dock opens on the player's helm and the same burn tows
-//! the pair. At the Enemy station the travel lock alone puts the station's
-//! refusal on the HUD, and `DOCK` builds nothing.
+//! the pair. At the Enemy station the travel lock alone posts the station's
+//! refusal as a HUD notice, and `DOCK` builds nothing.
 //!
 //! | # | marker | claim |
 //! | - | - | - |
 //! | 1 | `outcome: a living station holds the helm` | docked, the helm is `Station(living)`, `HELM` leaves it there, a held burn leaves both roots at rest, and the HUD reads `STATION HELM` |
 //! | 2 | `outcome: a dead station hands the helm to the player` | docked, the helm is `Held(player)` from the capture and the held burn moves both roots on one joint |
-//! | 3 | `outcome: an enemy station refuses docking on the HUD` | with the travel lock on the Enemy station the hints carry `<NAME> REFUSES DOCKING`, the mode chip shows it, and a dock request builds no connection |
+//! | 3 | `outcome: an enemy station refuses docking on the HUD` | with the travel lock on the Enemy station the hints carry `<NAME> REFUSES DOCKING`, the HUD notice shows it, the mode chip does not, the DOCK chip draws nothing, and a dock request builds no connection |
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
@@ -191,7 +191,7 @@ fn station_script() -> Script {
         .deadline(15.0)
         .diagnose(describe_ports)
         .add()
-        .step("wait for the refusal line")
+        .step("wait for the refusal notice")
         .on_enter(lock_enemy_station)
         .until(refusal_line_shown())
         .deadline(15.0)
@@ -761,7 +761,18 @@ fn refusal_line() -> String {
     format!("{ENEMY_NAME} REFUSES DOCKING")
 }
 
-/// The hints carry the refusal line and the mode chip shows it.
+/// What the HUD notice reads, empty while the slot is empty.
+#[cfg(feature = "debug")]
+fn notice_text(world: &mut World) -> String {
+    world
+        .query_filtered::<&Text, With<HudNoticeText>>()
+        .iter(world)
+        .map(|text| text.0.clone())
+        .next()
+        .unwrap_or_default()
+}
+
+/// The hints carry the refusal line and the HUD notice shows it.
 #[cfg(feature = "debug")]
 fn refusal_line_shown() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
     Arc::new(|world: &World| {
@@ -770,13 +781,13 @@ fn refusal_line_shown() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
         };
         hints.dock_refusal.as_deref() == Some(refusal_line().as_str())
             && world
-                .try_query_filtered::<&Text, With<ModeChipUIMarker>>()
-                .is_some_and(|mut chips| chips.iter(world).any(|text| text.0 == refusal_line()))
+                .try_query_filtered::<&Text, With<HudNoticeText>>()
+                .is_some_and(|mut lines| lines.iter(world).any(|text| text.0 == refusal_line()))
     })
 }
 
-/// Claim 3: the refusal is on the HUD, the DOCK chip is dark, and the dock
-/// request built nothing.
+/// Claim 3: the refusal is the HUD notice and nowhere else, the DOCK chip
+/// draws nothing in its slot, and the dock request built nothing.
 #[cfg(feature = "debug")]
 fn assert_enemy_station_refused(world: &mut World) {
     let player = player_root(world).expect("station docking probe: the player is up");
@@ -790,11 +801,27 @@ fn assert_enemy_station_refused(world: &mut World) {
         !hints.dock.available,
         "station docking probe: DOCK must not be offered on a refusing station"
     );
-    let chip = mode_chip_text(world);
+    let notice = notice_text(world);
     assert_eq!(
+        notice,
+        refusal_line(),
+        "station docking probe: the HUD notice must show the refusal"
+    );
+    let chip = mode_chip_text(world);
+    assert_ne!(
         chip,
         refusal_line(),
-        "station docking probe: the mode chip must show the refusal"
+        "station docking probe: the refusal is a notice, not a mode"
+    );
+    let dock_chip = world
+        .query::<(&DockChip, &Visibility)>()
+        .iter(world)
+        .find(|(chip, _)| DOCK_VERBS[***chip] == "DOCK")
+        .map(|(_, visibility)| *visibility);
+    assert_eq!(
+        dock_chip,
+        Some(Visibility::Hidden),
+        "station docking probe: a refused DOCK keeps its slot and draws nothing"
     );
     assert!(
         world.get::<DockedShip>(player).is_none(),
@@ -806,10 +833,10 @@ fn assert_enemy_station_refused(world: &mut World) {
         "station docking probe: a refused dock built a connection"
     );
     let elapsed = world.resource::<Time>().elapsed_secs();
-    info!("station docking probe: the enemy station refuses on the HUD ({chip})");
+    info!("station docking probe: the enemy station refuses on the HUD ({notice})");
     nova_probe::probe_marker(
         world,
         "outcome: an enemy station refuses docking on the HUD",
-        serde_json::json!({ "t": elapsed, "line": chip, "connections": connections }),
+        serde_json::json!({ "t": elapsed, "line": notice, "connections": connections }),
     );
 }

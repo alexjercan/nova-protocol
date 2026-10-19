@@ -754,9 +754,9 @@ the player, written every frame by `nova_world_base`'s
 is hostile to by `ship_relation` (a Player station and an Enemy-flagged
 ship, or a station answering the ship's fire); and admitted otherwise.
 `FlightVerbHints::dock_refusal` carries a station's line (`<NAME> REFUSES
-DOCKING`, `<NAME> DOCK OCCUPIED`) while the travel lock is on it; the mode
-chip shows it and the DOCK chip reads `DOCK REFUSED`. A ship's refusal stays
-the dark chip.
+DOCKING`, `<NAME> DOCK OCCUPIED`) while the travel lock is on it; the HUD
+posts it once as a notice (`hud_notice`), not on the mode chip, and the DOCK
+chip draws nothing. A ship's refusal stays the dark chip.
 
 **A station is a hub.** A ship holds one connection (`DockedShip`); the port
 search names no pair for a ship that already has one. A station holds one
@@ -798,7 +798,7 @@ AI brains all skip it. The HUD mode chip and the blocked dock chips read it
 too, so a pair that is not driven never shows a live maneuver. The mode chip
 reads `measurement_fault` first and shows `HELM FAULT`, because `drives` alone
 cannot tell a fault from a hull off the helm, and `STATION HELM` on a
-station-held pair. The HELM chip reads them through
+station-held pair. The HELM chip stays on the dock, dark, through
 `FlightVerbHints::helm_fault` and `helm_station`, and no verb is
 `helm_blocked` while either is set, because HELM cannot take the helm. The
 interface's Map GOTO refuses on both before it asks for the helm. On the driver, the autopilot, the

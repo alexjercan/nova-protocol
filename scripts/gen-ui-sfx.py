@@ -203,6 +203,17 @@ def comms_line(rng):
     return bandpass(out, 320.0, 3200.0, order=2)
 
 
+def hud_notice(rng):
+    """A transient HUD notice posting (e.g. a station refusing docking). A
+    single flat ping - plainer than `objective_new`, with no slide and no
+    triangle bed, so it reads as a notice rather than an objective or a line
+    of dialogue."""
+    out = silence(0.20)
+    out = place(out, blip(0.028, 2000.0, 1.6, 0.40, rng), 0.0)
+    out = place(out, tone(0.110, 988.0, 0.30, "square"), 0.0)
+    return out
+
+
 def warn_lock(rng):
     """Someone has locked you. Three fast pips on a detuned pair.
 
@@ -367,6 +378,7 @@ CUES = {
     "objective_complete": (objective_complete, "assets/sounds/objective_complete.wav"),
     "objective_fail": (objective_fail, "assets/sounds/objective_fail.wav"),
     "comms_line": (comms_line, "assets/sounds/comms_line.wav"),
+    "hud_notice": (hud_notice, "assets/sounds/hud_notice.wav"),
     "warn_lock": (warn_lock, "assets/base/sounds/warn_lock.wav"),
     "warn_hull": (warn_hull, "assets/base/sounds/warn_hull.wav"),
     "editor_place": (editor_place, "assets/sounds/editor_place.wav"),

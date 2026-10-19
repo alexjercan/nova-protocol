@@ -54,6 +54,7 @@ pub mod edge_indicators;
 pub mod emphasis;
 pub mod flight_status;
 pub mod holo_instruments;
+pub mod hud_notice;
 pub mod hull_shell;
 pub mod key_glyphs;
 pub mod keybind_dock;
@@ -85,14 +86,15 @@ pub mod prelude {
         cinematic_prompt::prelude::*, cinematic_title::prelude::*, comms_panel::prelude::*,
         component_lock::prelude::*, docking_sight::prelude::*, edge_indicators::prelude::*,
         emphasis::prelude::*, flight_status::prelude::*, holo_instruments::prelude::*,
-        hull_shell::prelude::*, key_glyphs::prelude::*, keybind_dock::prelude::*,
-        lock_crosshairs::prelude::*, lock_dwell_ring::prelude::*, maneuver_instruments::prelude::*,
-        objective_feedback::prelude::*, objective_markers::prelude::*, objective_stack::prelude::*,
-        pickup_sight::prelude::*, preview::prelude::*, readout::prelude::*,
-        screen_indicator::prelude::*, situation::prelude::*, target_inset::prelude::*,
-        torpedo_target::prelude::*, velocity::prelude::*, HudContextGate, HudInterfaceExempt,
-        HudSelfDrivenVisibility, HudSituationSensingSystems, HudTier, HudVisibility, NovaHudAssets,
-        NovaHudPlugin, NovaHudSystems,
+        hud_notice::prelude::*, hull_shell::prelude::*, key_glyphs::prelude::*,
+        keybind_dock::prelude::*, lock_crosshairs::prelude::*, lock_dwell_ring::prelude::*,
+        maneuver_instruments::prelude::*, objective_feedback::prelude::*,
+        objective_markers::prelude::*, objective_stack::prelude::*, pickup_sight::prelude::*,
+        preview::prelude::*, readout::prelude::*, screen_indicator::prelude::*,
+        situation::prelude::*, target_inset::prelude::*, torpedo_target::prelude::*,
+        velocity::prelude::*, HudContextGate, HudInterfaceExempt, HudSelfDrivenVisibility,
+        HudSituationSensingSystems, HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin,
+        NovaHudSystems,
     };
 }
 
@@ -364,6 +366,7 @@ impl Plugin for NovaHudPlugin {
         // replacing both the top-right status-bar hint and the diegetic
         // cockpit reveal card.
         app.add_plugins(objective_stack::ObjectiveStackPlugin);
+        app.add_plugins(hud_notice::HudNoticePlugin);
 
         // Screen indicators project through the spaceship chase camera. The
         // widget is camera-agnostic (its own marker keeps it promotable), so
@@ -379,6 +382,7 @@ impl Plugin for NovaHudPlugin {
         add_player_hud::<AmmoReadoutHudMarker, _>(app, HudTier::Instrument, ammo_readout_hud);
         add_player_hud::<ComponentLockHudMarker, _>(app, HudTier::Chrome, component_lock_hud);
         add_player_hud::<EdgeIndicatorsHudMarker, _>(app, HudTier::Chrome, edge_indicators_hud);
+        add_player_hud::<HudNoticeMarker, _>(app, HudTier::Chrome, hud_notice_hud);
 
         app.add_observer(setup_hud_lock_dwell_ring);
         app.add_observer(despawn_player_hud::<LockDwellRingHudMarker>);

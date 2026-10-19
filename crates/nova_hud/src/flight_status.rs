@@ -17,10 +17,9 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
-use nova_gameplay::prelude::{HullStripPauseType, PlayerSpaceshipMarker};
+use nova_gameplay::prelude::HullStripPauseType;
 use nova_ship::{
     flight::prelude::*,
-    input::prelude::FlightVerbHints,
     prelude::{
         CameraAuthoritySystems, DockedHelmType, DockedShip, DockingConnection, HullStripJob,
     },
@@ -551,10 +550,8 @@ fn emphasize_speed_on_burn(
 /// [`DockingConnection::measurement_fault`]: neither root drives then, and
 /// `drives` alone would show that as an ordinary `NEUTRAL`. A pair a living
 /// station holds reads `STATION HELM` ([`DockedHelmType::Station`]), because
-/// `NEUTRAL` would promise a helm the player can take. An undocked player
-/// hull whose travel lock is on a station that refuses a dock reads the
-/// station's own line ([`FlightVerbHints::dock_refusal`]), ahead of a
-/// maneuver: the lock is the question and the refusal is the answer. A hull
+/// `NEUTRAL` would promise a helm the player can take. A station's dock
+/// refusal is a notice, not a mode (`hud_notice`). A hull
 /// stripping a docked wreck reads `STRIP <percent>%` from its
 /// [`HullStripJob`], or `STRIP HELD: HOLD FULL` while a full hold holds it,
 /// so the strip shows in flight with the interface shut.
@@ -564,11 +561,9 @@ fn drive_mode_chip(
     q_ship: Query<(
         Option<&Autopilot>,
         Option<&DockedShip>,
-        Has<PlayerSpaceshipMarker>,
         Option<&HullStripJob>,
     )>,
     q_connections: Query<&DockingConnection>,
-    hints: Option<Res<FlightVerbHints>>,
 ) {
     for (mut anchor, mut text, &ChildOf(parent)) in &mut q_ui {
         let Ok(ship) = q_hud.get(parent) else {
@@ -579,14 +574,6 @@ fn drive_mode_chip(
         let faulted = |docked: &DockedShip| connection(docked).is_some_and(|c| c.measurement_fault);
         let station_held = |docked: &DockedShip| {
             connection(docked).is_some_and(|c| matches!(c.helm, DockedHelmType::Station(_)))
-        };
-        // The hints are the player's, so the refusal line is drawn on the
-        // player's hull only.
-        let refusal = |player: bool| {
-            hints
-                .as_deref()
-                .filter(|_| player)
-                .and_then(|hints| hints.dock_refusal.clone())
         };
         match q_ship.get(**ship) {
             Ok((_, Some(docked), ..)) if faulted(docked) => {
@@ -609,10 +596,6 @@ fn drive_mode_chip(
             Ok((_, Some(docked), ..)) if !docked.drives => {
                 **anchor = Some(ScreenIndicatorAnchorKind::Entity(**ship));
                 **text = "NEUTRAL".to_string();
-            }
-            Ok((_, None, player, _)) if refusal(player).is_some() => {
-                **anchor = Some(ScreenIndicatorAnchorKind::Entity(**ship));
-                **text = refusal(player).unwrap_or_default();
             }
             Ok((Some(autopilot), ..)) => {
                 **anchor = Some(ScreenIndicatorAnchorKind::Entity(**ship));

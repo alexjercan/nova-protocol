@@ -78,22 +78,23 @@ pub struct FlightVerbHints {
     /// helm back while the pair has a [`helm_fault`](Self::helm_fault).
     pub helm: VerbHint,
     /// Whether the player holds its docked pair's helm, so the HELM chip
-    /// offers to hand it back rather than to take it.
+    /// paints hot: pressing it hands the helm back.
     pub helm_held: bool,
     /// Whether the docked pair cannot be measured
     /// ([`DockingConnection::measurement_fault`]), so HELM refuses to take
-    /// it. The HELM chip stays on the dock and reads `HELM FAULT` unless the
-    /// player holds the helm and can still hand it back.
+    /// it. The HELM chip stays on the dock, dark, under the mode chip's
+    /// `HELM FAULT`, unless the player holds the helm and can still hand it
+    /// back.
     pub helm_fault: bool,
     /// Whether a living station holds the docked pair's helm
     /// ([`DockedHelmType::Station`]), so HELM is refused outright. The HELM
-    /// chip stays on the dock and reads `STATION HELM`; no verb is
-    /// `helm_blocked`, because nothing the player presses frees them.
+    /// chip stays on the dock, dark, under the mode chip's `STATION HELM`; no
+    /// verb is `helm_blocked`, because nothing the player presses frees them.
     pub helm_station: bool,
-    /// The line the HUD shows while the travel lock is on a station that
-    /// refuses a dock ([`DockRefusalType`]), naming the station: `<NAME>
-    /// REFUSES DOCKING` for a living Enemy or hostile station, `<NAME> DOCK
-    /// OCCUPIED` for one already holding its connection. `None` while the
+    /// The line the HUD posts once as a notice when the travel lock settles
+    /// on a station that refuses a dock ([`DockRefusalType`]), naming the
+    /// station: `<NAME> REFUSES DOCKING` for a living Enemy or hostile
+    /// station, `<NAME> DOCK OCCUPIED` for one already holding its connection. `None` while the
     /// lock is clear, on a ship, or on a station that admits; a ship's
     /// refusal keeps the dark chip it always had.
     pub dock_refusal: Option<String>,
@@ -103,8 +104,8 @@ pub struct FlightVerbHints {
     pub engaged: bool,
 }
 
-/// The HUD line for a station's refusal, or `None` for a ship's, which stays
-/// a dark chip: a ship under fire is a situation the player can read off the
+/// The HUD notice line for a station's refusal, or `None` for a ship's, which
+/// stays a dark chip: a ship under fire is a situation the player can read off the
 /// world, a station's side is not.
 pub fn dock_refusal_line(name: &str, refusal: DockRefusalType) -> Option<String> {
     match refusal {
