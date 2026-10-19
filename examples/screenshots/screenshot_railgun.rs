@@ -84,8 +84,8 @@ const LANCE_ID: &str = "lance";
 /// Scenario id of the hull that is shot at.
 const TARGET_ID: &str = "target_raider";
 
-/// The catalog hull downrange. A base Raider: about 90 m from its railgun nose
-/// to its drives, long enough that a bow-on shot has something to bore THROUGH,
+/// The catalog hull downrange. A base Raider: about 70 m from its nose stub to
+/// its drives, long enough that a bow-on shot has something to bore THROUGH,
 /// which is the claim the corridor figure makes.
 const TARGET_HULL: &str = "raider";
 
@@ -622,8 +622,8 @@ const SIGHT: RangeShot = RangeShot {
 /// was a few sparks around a silhouette.
 ///
 /// So: off the starboard bow instead, 150 m out. The lens spans 1.47 times its
-/// distance, so the frame is some 220 m wide and the 90 m hull fills about two
-/// fifths of it. The slug crosses from the right, the entry is on a face the camera can
+/// distance, so the frame is some 220 m wide and the 70 m hull fills about a
+/// third of it. The slug crosses from the right, the entry is on a face the camera can
 /// see, and the sections the rake condemns die down the spine AWAY from the
 /// lens - a chain of fireballs walking into the hull, which is the one thing a
 /// still of a lance hit has to say.

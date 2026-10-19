@@ -175,8 +175,9 @@ pub(super) fn mining_tug() -> BlockShip {
 }
 
 /// The scavenger start: a deep three-by-three hold of freight cubes, a cab on
-/// the nose, a cargo intake on the dorsal deck, one point-defense mount, and
-/// one vectoring drive on the square transom.
+/// the nose with a mining emitter ahead of it, a cargo intake on the dorsal
+/// deck, one point-defense mount, and eight bell drives round the second
+/// computer on the square transom.
 ///
 /// The biggest hold of the start hulls: salvage is bulky and the hauler has
 /// to bring it home.
@@ -198,14 +199,49 @@ pub(super) fn salvage_hauler() -> BlockShip {
                 BASIC_CONTROLLER_SECTION_ID,
                 IVec3::new(0, 0, 3),
             ),
-            part(
-                MAIN_DRIVE_SECTION_ID,
-                VECTOR_THRUSTER_SECTION_ID,
-                Vec3::new(0.0, 0.0, 4.5),
-                Quat::IDENTITY,
-            ),
+            cell_part("mining_beam", MINING_BEAM_SECTION_ID, IVec3::new(0, 0, -5)),
             door_up_intake("cargo_intake", Vec3::new(0.0, 2.0, 0.5)),
             turret("pdc_dorsal", IVec3::new(0, 2, -2)),
+            cell_part(
+                DRIVE_PORT_SECTION_ID,
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(-1, 0, 3),
+            ),
+            cell_part(
+                DRIVE_STARBOARD_SECTION_ID,
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(1, 0, 3),
+            ),
+            cell_part(
+                "drive_dorsal",
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(0, 1, 3),
+            ),
+            cell_part(
+                "drive_ventral",
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(0, -1, 3),
+            ),
+            cell_part(
+                "drive_port_dorsal",
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(-1, 1, 3),
+            ),
+            cell_part(
+                "drive_starboard_dorsal",
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(1, 1, 3),
+            ),
+            cell_part(
+                "drive_port_ventral",
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(-1, -1, 3),
+            ),
+            cell_part(
+                "drive_starboard_ventral",
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(1, -1, 3),
+            ),
             flank_collar(
                 BLOCK_PORT_COLLAR_SECTION_ID,
                 FlankType::Port,
@@ -320,9 +356,9 @@ pub(super) fn freighter_derelict() -> BlockShip {
     }
 }
 
-/// The bounty hunter start: a compact two-deck body with stub wings, a torpedo
-/// bay on the bow centreline, two point-defense mounts on the top deck, a
-/// cargo intake aft of them and three bell drives.
+/// The bounty hunter start: a compact two-deck body with stub wings, two
+/// point-defense mounts on the top deck, a cargo intake aft of them and three
+/// bell drives.
 pub(super) fn interceptor() -> BlockShip {
     BlockShip {
         cells: union(vec![
@@ -335,12 +371,6 @@ pub(super) fn interceptor() -> BlockShip {
                 BLOCK_BRIDGE_SECTION_ID,
                 BASIC_CONTROLLER_SECTION_ID,
                 IVec3::new(0, 1, -1),
-            ),
-            part(
-                "torpedo_bow",
-                TORPEDO_SECTION_ID,
-                Vec3::new(0.0, 0.0, -3.5),
-                Quat::IDENTITY,
             ),
             turret("pdc_port", IVec3::new(-1, 2, -1)),
             turret("pdc_starboard", IVec3::new(1, 2, -1)),
@@ -372,9 +402,10 @@ pub(super) fn interceptor() -> BlockShip {
     }
 }
 
-/// The pirate start: a short hull with a railgun on the nose, an outrigger
-/// and a gun boom on the starboard side, a dorsal mount, a cargo intake on
-/// the aft deck, and four bell drives. Its lopsided silhouette reads as a refit, not a yard design.
+/// The pirate start: a short hull with a nose stub, an outrigger and a gun
+/// boom on the starboard side, a dorsal mount, a cargo intake on the aft
+/// deck, and four bell drives. Its lopsided silhouette reads as a refit, not
+/// a yard design.
 pub(super) fn raider() -> BlockShip {
     BlockShip {
         cells: union(vec![
@@ -389,12 +420,6 @@ pub(super) fn raider() -> BlockShip {
                 BLOCK_BRIDGE_SECTION_ID,
                 BASIC_CONTROLLER_SECTION_ID,
                 IVec3::new(0, 1, -2),
-            ),
-            part(
-                "railgun_nose",
-                RAILGUN_LANCE_SECTION_ID,
-                Vec3::new(0.0, 0.0, -5.0),
-                Quat::IDENTITY,
             ),
             turret("pdc_dorsal", IVec3::new(0, 2, -1)),
             turret("pdc_boom", IVec3::new(2, 2, 0)),
@@ -431,10 +456,10 @@ pub(super) fn raider() -> BlockShip {
     }
 }
 
-/// The military start, and the lightest armed start hull: a slim dart of
-/// reinforced plate with one point-defense mount on the nose face, where the
-/// hull cannot mask its forward arc, a second mount on the dorsal spine, a
-/// cargo intake on the aft deck and two bell drives.
+/// The military start: a slim dart of reinforced plate with one
+/// point-defense mount on the nose face, where the hull cannot mask its
+/// forward arc, a second mount on the dorsal spine, a torpedo bay under the
+/// nose, a cargo intake on the aft deck and two bell drives.
 pub(super) fn patrol_picket() -> BlockShip {
     BlockShip {
         cells: union(vec![
@@ -457,6 +482,14 @@ pub(super) fn patrol_picket() -> BlockShip {
                 Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
             ),
             turret("pdc_dorsal", IVec3::new(0, 2, -2)),
+            // Hung under the nose by its top sockets: a bay beside the nose
+            // would mask the nose mount's arc on that flank.
+            part(
+                "torpedo_keel",
+                TORPEDO_SECTION_ID,
+                Vec3::new(0.0, -1.0, -2.5),
+                Quat::IDENTITY,
+            ),
             door_up_intake("cargo_intake", Vec3::new(0.0, 1.0, 1.5)),
             cell_part(
                 DRIVE_PORT_SECTION_ID,

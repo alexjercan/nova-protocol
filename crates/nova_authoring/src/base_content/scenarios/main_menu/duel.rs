@@ -222,14 +222,12 @@ const DUELIST_BRIDGE_HEALTH: f32 = 500.0;
 /// act's first half ends on the first good pass instead of a long chase of a
 /// hull at half health.
 const RIVAL_COLLAPSE_THRESHOLD: f32 = 0.8;
-/// What each side's guns hit for. The catalog PDC round is 4 and the lance
-/// slug 300: the victor's mounts land twice the round, the rival's half of it,
-/// and the lance a third of its slug, so the rival cannot strip the victor's
-/// mounts or computer before it dies and the finisher still has a whole ship
-/// to kill.
+/// What each side's guns hit for. The catalog PDC round is 4: the victor's
+/// mounts land twice the round and the rival's half of it, so the rival
+/// cannot strip the victor's mounts or computer before it dies and the
+/// finisher still has a whole ship to kill.
 const VICTOR_PDC_DAMAGE: f32 = 8.0;
 const RIVAL_PDC_DAMAGE: f32 = 2.0;
-const RIVAL_LANCE_DAMAGE: f32 = 100.0;
 
 /// A spawn patch that sets one PDC mount's per-hit damage and nothing else.
 fn turret_damage(bullet_damage: f32) -> SpaceshipSectionConfigPatch {
@@ -237,20 +235,6 @@ fn turret_damage(bullet_damage: f32) -> SpaceshipSectionConfigPatch {
         config: SectionConfigPatch {
             kind: Some(SectionKindPatch::Turret(TurretSectionConfigPatch {
                 bullet_damage: Some(bullet_damage),
-                ..Default::default()
-            })),
-            ..Default::default()
-        },
-        ..Default::default()
-    }
-}
-
-/// A spawn patch that sets one lance's slug damage and nothing else.
-fn railgun_damage(slug_damage: f32) -> SpaceshipSectionConfigPatch {
-    SpaceshipSectionConfigPatch {
-        config: SectionConfigPatch {
-            kind: Some(SectionKindPatch::Railgun(RailgunSectionConfigPatch {
-                slug_damage: Some(slug_damage),
                 ..Default::default()
             })),
             ..Default::default()
@@ -468,7 +452,6 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
             [
                 ("pdc_dorsal", turret_damage(RIVAL_PDC_DAMAGE)),
                 ("pdc_boom", turret_damage(RIVAL_PDC_DAMAGE)),
-                ("railgun_nose", railgun_damage(RIVAL_LANCE_DAMAGE)),
             ],
         ),
         None,

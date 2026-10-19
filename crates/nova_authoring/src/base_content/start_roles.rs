@@ -55,8 +55,8 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             "scavenger",
             "Scavenger",
             RoleIconType::Claw,
-            "A salvage hauler with the largest start hold, a cargo intake and one \
-             point-defense mount. Pick wrecks clean and sell what you take.",
+            "A salvage hauler with the largest start hold, a cargo intake, a bow mining \
+             beam and one point-defense mount. Pick wrecks clean and sell what you take.",
             SALVAGE_HAULER_SHIP_ID,
             1_800,
             &[(ItemRoleType::PdcRound, 200), (ItemRoleType::HullPlate, 10)],
@@ -92,15 +92,11 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             "bounty_hunter",
             "Bounty Hunter",
             RoleIconType::Star,
-            "An interceptor with two point-defense mounts and a bow torpedo bay. Hunt armed \
-             ships for the price on them.",
+            "An interceptor with two point-defense mounts. Hunt armed ships for the price \
+             on them.",
             INTERCEPTOR_SHIP_ID,
-            1_000,
-            &[
-                (ItemRoleType::Torpedo, 2),
-                (ItemRoleType::PdcRound, 200),
-                (ItemRoleType::HullPlate, 10),
-            ],
+            1_600,
+            &[(ItemRoleType::PdcRound, 250), (ItemRoleType::HullPlate, 10)],
             JobMixType::Combat,
             RoleGoal {
                 title: "A kill list".to_string(),
@@ -112,11 +108,15 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             "military",
             "Military",
             RoleIconType::Shield,
-            "A patrol picket with two point-defense mounts on reinforced plate: the lightest \
-             armed start. The Line Warship class is its later goal.",
+            "A patrol picket with two point-defense mounts and a torpedo bay on reinforced \
+             plate. The Line Warship class is its later goal.",
             PATROL_PICKET_SHIP_ID,
-            1_600,
-            &[(ItemRoleType::PdcRound, 250), (ItemRoleType::HullPlate, 10)],
+            1_000,
+            &[
+                (ItemRoleType::Torpedo, 2),
+                (ItemRoleType::PdcRound, 200),
+                (ItemRoleType::HullPlate, 10),
+            ],
             JobMixType::Combat,
             RoleGoal {
                 title: "The Line Warship".to_string(),
@@ -130,15 +130,11 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             "pirate",
             "Pirate",
             RoleIconType::Blades,
-            "A raider with a nose railgun and two point-defense mounts. Attack cargo ships \
-             and take their holds.",
+            "A raider with two point-defense mounts. Attack cargo ships and take their \
+             holds.",
             RAIDER_SHIP_ID,
-            1_200,
-            &[
-                (ItemRoleType::RailSlug, 15),
-                (ItemRoleType::PdcRound, 200),
-                (ItemRoleType::HullPlate, 10),
-            ],
+            1_800,
+            &[(ItemRoleType::PdcRound, 200), (ItemRoleType::HullPlate, 10)],
             JobMixType::Combat,
             RoleGoal {
                 title: "An outlaw's name".to_string(),

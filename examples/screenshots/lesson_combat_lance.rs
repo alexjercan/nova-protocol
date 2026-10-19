@@ -176,8 +176,8 @@ const BOAT_ID: &str = "lance_boat";
 const LANCE_ID: &str = "lance";
 const TARGET_ID: &str = "target_raider";
 
-/// The catalog hull downrange: a base Raider, whose railgun nose and hull run
-/// about 90 m, so a bow-on shot has something to bore THROUGH.
+/// The catalog hull downrange: a base Raider, whose hull runs about 70 m, so
+/// a bow-on shot has something to bore THROUGH.
 const TARGET_HULL: &str = "raider";
 
 /// How far downrange the target stands, in meters.

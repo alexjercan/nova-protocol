@@ -198,7 +198,7 @@ const CONTROLLER_MAX_TORQUE = 9760; // controller.rs
 // The GOTO widget flies this hull. `hullState(INTERCEPTOR_CELLS)` re-derives it
 // from the ship's own cells and agrees, which is the check that the assembly
 // model below is the game's; `web/tests/widgets.test.ts` holds them together.
-export const INTERCEPTOR_ARM_U = 4.81;
+export const INTERCEPTOR_ARM_U = 3.513;
 
 // Thrust is authored as an IMPULSE PER FIXED TICK and handed to avian with no
 // `dt` factor, so a hull's acceleration is its summed magnitude times the tick
@@ -2715,11 +2715,10 @@ function cell(
 
 // The Interceptor (`interceptor` in assets/base/ships/base.content.ron), the
 // small military boat and the hull the drydock figures pose. A two-deck
-// armoured body with a torpedo bay on the bow, two aft sponsons, two PDC
-// mounts on the upper deck, a cargo intake on the top deck aft, three bell
-// drives in the stern row and a docking collar off the port flank. Nothing
-// here is a mesh: every cell is a section on the same build grid a player
-// builds on.
+// armoured body with two aft sponsons, two PDC mounts on the upper deck, a
+// cargo intake on the top deck aft, three bell drives in the stern row and a
+// docking collar off the port flank. Nothing here is a mesh: every cell is a
+// section on the same build grid a player builds on.
 export const INTERCEPTOR_CELLS: ShipPart[] = [
     cell("plate_0", -1, 0, -2, HULL_CELL, "hull"),
     cell("plate_1", -1, 0, -1, HULL_CELL, "hull"),
@@ -2752,7 +2751,6 @@ export const INTERCEPTOR_CELLS: ShipPart[] = [
     cell("plate_28", 2, 0, 1, HULL_CELL, "sponsons"),
     cell("plate_29", 2, 0, 2, HULL_CELL, "sponsons"),
     cell("bridge", 0, 1, -1, CONTROLLER_CELL, "bridge"),
-    cell("torpedo_bow", 0, 0, -3.5, TORPEDO_BAY, "bow"),
     cell("pdc_port", -1, 1.75, -1, PDC_MOUNT, "guns"),
     cell("pdc_starboard", 1, 1.75, -1, PDC_MOUNT, "guns"),
     // Door up: the 3x2x1 box turned a quarter about x, so it lies 3 wide,
@@ -3394,9 +3392,9 @@ function initControllerArm(host: HTMLElement): void {
         }
     };
 
-    // One button per named structure rather than one per cell: thirty-nine
-    // toggles would not fit under the plot, and a reader shoots "the bow",
-    // not "torpedo_bow".
+    // One button per named structure rather than one per cell: thirty-eight
+    // toggles would not fit under the plot, and a reader shoots the named
+    // structure, not the individual cell id.
     const groups: string[] = [];
     for (const part of INTERCEPTOR_CELLS)
         if (!groups.includes(part.group)) groups.push(part.group);
@@ -3446,8 +3444,8 @@ function initControllerArm(host: HTMLElement): void {
             "the reach to the outer FACE of the furthest section, not to its " +
             "centre. Mass is not authored anywhere - a section weighs its " +
             "own authored box - so both the balance point and the arm are " +
-            "read off the interceptor's own cells and nothing else. The bow " +
-            "torpedo bay sets the arm, so that button moves the reading " +
+            "read off the interceptor's own cells and nothing else. The " +
+            "sponsons set the arm, so that button moves the reading " +
             "hardest. Cut the hull and the " +
             "structures beyond it are no longer attached to a flight " +
             "computer, so they stop being this ship."
@@ -6130,11 +6128,10 @@ const DRIVE_RIGS: DriveRig[] = [
     },
     {
         name: "interceptor",
-        detail: "interceptor, 39 sections",
+        detail: "interceptor, 38 sections",
         bom: [
             { proto: HULL_CELL, count: 30 },
             { proto: CONTROLLER_CELL, count: 1 },
-            { proto: TORPEDO_BAY, count: 1 },
             { proto: PDC_MOUNT, count: 2 },
             { proto: CARGO_INTAKE, count: 1 },
             { proto: BASIC_DRIVE, count: 3 },
@@ -8564,10 +8561,9 @@ function arrowPoints(x: number, y: number, dx: number, dy: number): string {
 // density 1), the impulse is mass x world units per second, and only the
 // readout converts.
 export const LANCE_RECOIL_IMPULSE = 45; // railgun.rs
-// Where the widget's lance stands on the interceptor: ahead of the bow
-// torpedo bay, which ends at z = -4.5 (`torpedo_bow` above), so the part runs
-// z -7.5..-4.5.
-const LANCE_MOUNT_Z = -6;
+// Where the widget's lance stands on the interceptor: on the nose face at
+// z = -2.5, so the part runs z -5.5..-2.5.
+const LANCE_MOUNT_Z = -4;
 // The mount slides across the interceptor's BALANCE line, not its centreline:
 // the port collar pulls the balance point 0.5 m to port, and "on the axis"
 // has to mean a muzzle with no lever arm at all.
@@ -8872,7 +8868,7 @@ function initRailgunRecoil(host: HTMLElement): void {
             "p",
             "widget__note",
             "The hull is the Interceptor of the drydock figures with a " +
-                "1x1x3 lance bolted ahead of its bow torpedo bay. Mass is box volume, " +
+                "1x1x3 lance bolted ahead of its bow. Mass is box volume, " +
                 "as avian measures it, and the yaw inertia sums each box's own " +
                 "moment and its offset from the balance point - the same " +
                 "tensor the turn scopes use, taken about the vertical axis " +
@@ -10670,16 +10666,25 @@ function initArrivalStandoff(host: HTMLElement): void {
     const target = control("target radius", 10, 2250, 10, 950, targetName, () =>
         update()
     );
-    const lo = Math.round(picketRadius);
-    const hi = Math.round(interceptorRadius);
+    // The slider spans the two shipped hulls, whichever is the larger.
+    const [[lo, loName], [hi, hiName]] = [
+        [Math.round(picketRadius), "training picket"] as const,
+        [Math.round(interceptorRadius), "interceptor"] as const,
+    ].sort((a, b) => a[0] - b[0]);
     const hullName = (r: number): string =>
         r <= lo
-            ? `${meters(r)} (training picket)`
+            ? `${meters(r)} (${loName})`
             : r >= hi
-              ? `${meters(r)} (interceptor)`
+              ? `${meters(r)} (${hiName})`
               : meters(r);
-    const hull = control("your hull radius", lo, hi, 1, hi, hullName, () =>
-        update()
+    const hull = control(
+        "your hull radius",
+        lo,
+        hi,
+        1,
+        Math.round(interceptorRadius),
+        hullName,
+        () => update()
     );
     const margin = control(
         "arrival margin",

@@ -609,8 +609,8 @@
                     id: "plate_6",
                     position: (
                         -1.0,
-                        -1.0,
-                        3.0,
+                        0.0,
+                        -3.0,
                     ),
                     rotation: (
                         0.0,
@@ -627,7 +627,7 @@
                     position: (
                         -1.0,
                         0.0,
-                        -3.0,
+                        -2.0,
                     ),
                     rotation: (
                         0.0,
@@ -636,7 +636,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "light_hull_section",
+                        id: "cargo_hull_section",
                     ),
                 ),
                 (
@@ -644,7 +644,7 @@
                     position: (
                         -1.0,
                         0.0,
-                        -2.0,
+                        -1.0,
                     ),
                     rotation: (
                         0.0,
@@ -661,7 +661,7 @@
                     position: (
                         -1.0,
                         0.0,
-                        -1.0,
+                        0.0,
                     ),
                     rotation: (
                         0.0,
@@ -678,7 +678,7 @@
                     position: (
                         -1.0,
                         0.0,
-                        0.0,
+                        1.0,
                     ),
                     rotation: (
                         0.0,
@@ -695,23 +695,6 @@
                     position: (
                         -1.0,
                         0.0,
-                        1.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "cargo_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_12",
-                    position: (
-                        -1.0,
-                        0.0,
                         2.0,
                     ),
                     rotation: (
@@ -725,24 +708,7 @@
                     ),
                 ),
                 (
-                    id: "plate_13",
-                    position: (
-                        -1.0,
-                        0.0,
-                        3.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "light_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_14",
+                    id: "plate_12",
                     position: (
                         -1.0,
                         1.0,
@@ -759,11 +725,45 @@
                     ),
                 ),
                 (
-                    id: "plate_15",
+                    id: "plate_13",
                     position: (
                         -1.0,
                         1.0,
                         -2.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "cargo_hull_section",
+                    ),
+                ),
+                (
+                    id: "plate_14",
+                    position: (
+                        -1.0,
+                        1.0,
+                        -1.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "cargo_hull_section",
+                    ),
+                ),
+                (
+                    id: "plate_15",
+                    position: (
+                        -1.0,
+                        1.0,
+                        0.0,
                     ),
                     rotation: (
                         0.0,
@@ -780,7 +780,7 @@
                     position: (
                         -1.0,
                         1.0,
-                        -1.0,
+                        1.0,
                     ),
                     rotation: (
                         0.0,
@@ -797,40 +797,6 @@
                     position: (
                         -1.0,
                         1.0,
-                        0.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "cargo_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_18",
-                    position: (
-                        -1.0,
-                        1.0,
-                        1.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "cargo_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_19",
-                    position: (
-                        -1.0,
-                        1.0,
                         2.0,
                     ),
                     rotation: (
@@ -844,24 +810,7 @@
                     ),
                 ),
                 (
-                    id: "plate_20",
-                    position: (
-                        -1.0,
-                        1.0,
-                        3.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "light_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_21",
+                    id: "plate_18",
                     position: (
                         0.0,
                         -1.0,
@@ -878,11 +827,62 @@
                     ),
                 ),
                 (
-                    id: "plate_22",
+                    id: "plate_19",
                     position: (
                         0.0,
                         -1.0,
                         -2.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "cargo_hull_section",
+                    ),
+                ),
+                (
+                    id: "plate_20",
+                    position: (
+                        0.0,
+                        -1.0,
+                        -1.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "cargo_hull_section",
+                    ),
+                ),
+                (
+                    id: "plate_21",
+                    position: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "cargo_hull_section",
+                    ),
+                ),
+                (
+                    id: "plate_22",
+                    position: (
+                        0.0,
+                        -1.0,
+                        1.0,
                     ),
                     rotation: (
                         0.0,
@@ -899,57 +899,6 @@
                     position: (
                         0.0,
                         -1.0,
-                        -1.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "cargo_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_24",
-                    position: (
-                        0.0,
-                        -1.0,
-                        0.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "cargo_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_25",
-                    position: (
-                        0.0,
-                        -1.0,
-                        1.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "cargo_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_26",
-                    position: (
-                        0.0,
-                        -1.0,
                         2.0,
                     ),
                     rotation: (
@@ -963,24 +912,7 @@
                     ),
                 ),
                 (
-                    id: "plate_27",
-                    position: (
-                        0.0,
-                        -1.0,
-                        3.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "light_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_28",
+                    id: "plate_24",
                     position: (
                         0.0,
                         0.0,
@@ -997,7 +929,7 @@
                     ),
                 ),
                 (
-                    id: "plate_29",
+                    id: "plate_25",
                     position: (
                         0.0,
                         0.0,
@@ -1014,7 +946,7 @@
                     ),
                 ),
                 (
-                    id: "plate_30",
+                    id: "plate_26",
                     position: (
                         0.0,
                         0.0,
@@ -1031,11 +963,79 @@
                     ),
                 ),
                 (
-                    id: "plate_31",
+                    id: "plate_27",
                     position: (
                         0.0,
                         0.0,
                         0.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "cargo_hull_section",
+                    ),
+                ),
+                (
+                    id: "plate_28",
+                    position: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "cargo_hull_section",
+                    ),
+                ),
+                (
+                    id: "plate_29",
+                    position: (
+                        0.0,
+                        0.0,
+                        2.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "cargo_hull_section",
+                    ),
+                ),
+                (
+                    id: "plate_30",
+                    position: (
+                        0.0,
+                        1.0,
+                        -3.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "light_hull_section",
+                    ),
+                ),
+                (
+                    id: "plate_31",
+                    position: (
+                        0.0,
+                        1.0,
+                        -2.0,
                     ),
                     rotation: (
                         0.0,
@@ -1051,8 +1051,8 @@
                     id: "plate_32",
                     position: (
                         0.0,
-                        0.0,
                         1.0,
+                        -1.0,
                     ),
                     rotation: (
                         0.0,
@@ -1068,8 +1068,8 @@
                     id: "plate_33",
                     position: (
                         0.0,
+                        1.0,
                         0.0,
-                        2.0,
                     ),
                     rotation: (
                         0.0,
@@ -1086,7 +1086,7 @@
                     position: (
                         0.0,
                         1.0,
-                        -3.0,
+                        1.0,
                     ),
                     rotation: (
                         0.0,
@@ -1095,79 +1095,11 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "light_hull_section",
+                        id: "cargo_hull_section",
                     ),
                 ),
                 (
                     id: "plate_35",
-                    position: (
-                        0.0,
-                        1.0,
-                        -2.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "cargo_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_36",
-                    position: (
-                        0.0,
-                        1.0,
-                        -1.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "cargo_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_37",
-                    position: (
-                        0.0,
-                        1.0,
-                        0.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "cargo_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_38",
-                    position: (
-                        0.0,
-                        1.0,
-                        1.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "cargo_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_39",
                     position: (
                         0.0,
                         1.0,
@@ -1184,24 +1116,7 @@
                     ),
                 ),
                 (
-                    id: "plate_40",
-                    position: (
-                        0.0,
-                        1.0,
-                        3.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "light_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_41",
+                    id: "plate_36",
                     position: (
                         1.0,
                         -1.0,
@@ -1218,7 +1133,7 @@
                     ),
                 ),
                 (
-                    id: "plate_42",
+                    id: "plate_37",
                     position: (
                         1.0,
                         -1.0,
@@ -1235,11 +1150,96 @@
                     ),
                 ),
                 (
-                    id: "plate_43",
+                    id: "plate_38",
                     position: (
                         1.0,
                         -1.0,
                         -1.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "cargo_hull_section",
+                    ),
+                ),
+                (
+                    id: "plate_39",
+                    position: (
+                        1.0,
+                        -1.0,
+                        0.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "cargo_hull_section",
+                    ),
+                ),
+                (
+                    id: "plate_40",
+                    position: (
+                        1.0,
+                        -1.0,
+                        1.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "cargo_hull_section",
+                    ),
+                ),
+                (
+                    id: "plate_41",
+                    position: (
+                        1.0,
+                        -1.0,
+                        2.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "cargo_hull_section",
+                    ),
+                ),
+                (
+                    id: "plate_42",
+                    position: (
+                        1.0,
+                        0.0,
+                        -3.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "light_hull_section",
+                    ),
+                ),
+                (
+                    id: "plate_43",
+                    position: (
+                        1.0,
+                        0.0,
+                        -2.0,
                     ),
                     rotation: (
                         0.0,
@@ -1255,8 +1255,8 @@
                     id: "plate_44",
                     position: (
                         1.0,
-                        -1.0,
                         0.0,
+                        -1.0,
                     ),
                     rotation: (
                         0.0,
@@ -1272,8 +1272,8 @@
                     id: "plate_45",
                     position: (
                         1.0,
-                        -1.0,
-                        1.0,
+                        0.0,
+                        0.0,
                     ),
                     rotation: (
                         0.0,
@@ -1289,8 +1289,8 @@
                     id: "plate_46",
                     position: (
                         1.0,
-                        -1.0,
-                        2.0,
+                        0.0,
+                        1.0,
                     ),
                     rotation: (
                         0.0,
@@ -1306,8 +1306,8 @@
                     id: "plate_47",
                     position: (
                         1.0,
-                        -1.0,
-                        3.0,
+                        0.0,
+                        2.0,
                     ),
                     rotation: (
                         0.0,
@@ -1316,14 +1316,14 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "light_hull_section",
+                        id: "cargo_hull_section",
                     ),
                 ),
                 (
                     id: "plate_48",
                     position: (
                         1.0,
-                        0.0,
+                        1.0,
                         -3.0,
                     ),
                     rotation: (
@@ -1340,7 +1340,7 @@
                     id: "plate_49",
                     position: (
                         1.0,
-                        0.0,
+                        1.0,
                         -2.0,
                     ),
                     rotation: (
@@ -1357,7 +1357,7 @@
                     id: "plate_50",
                     position: (
                         1.0,
-                        0.0,
+                        1.0,
                         -1.0,
                     ),
                     rotation: (
@@ -1374,7 +1374,7 @@
                     id: "plate_51",
                     position: (
                         1.0,
-                        0.0,
+                        1.0,
                         0.0,
                     ),
                     rotation: (
@@ -1391,7 +1391,7 @@
                     id: "plate_52",
                     position: (
                         1.0,
-                        0.0,
+                        1.0,
                         1.0,
                     ),
                     rotation: (
@@ -1408,7 +1408,7 @@
                     id: "plate_53",
                     position: (
                         1.0,
-                        0.0,
+                        1.0,
                         2.0,
                     ),
                     rotation: (
@@ -1423,142 +1423,6 @@
                 ),
                 (
                     id: "plate_54",
-                    position: (
-                        1.0,
-                        0.0,
-                        3.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "light_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_55",
-                    position: (
-                        1.0,
-                        1.0,
-                        -3.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "light_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_56",
-                    position: (
-                        1.0,
-                        1.0,
-                        -2.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "cargo_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_57",
-                    position: (
-                        1.0,
-                        1.0,
-                        -1.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "cargo_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_58",
-                    position: (
-                        1.0,
-                        1.0,
-                        0.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "cargo_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_59",
-                    position: (
-                        1.0,
-                        1.0,
-                        1.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "cargo_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_60",
-                    position: (
-                        1.0,
-                        1.0,
-                        2.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "cargo_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_61",
-                    position: (
-                        1.0,
-                        1.0,
-                        3.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "light_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_62",
                     position: (
                         0.0,
                         0.0,
@@ -1609,11 +1473,11 @@
                     ),
                 ),
                 (
-                    id: "main_drive",
+                    id: "mining_beam",
                     position: (
                         0.0,
                         0.0,
-                        4.5,
+                        -5.0,
                     ),
                     rotation: (
                         0.0,
@@ -1622,7 +1486,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "vector_thruster_section",
+                        id: "mining_beam_section",
                     ),
                 ),
                 (
@@ -1657,6 +1521,142 @@
                     ),
                     source: Prototype(
                         id: "pdc_kinetic_turret_section",
+                    ),
+                ),
+                (
+                    id: "drive_port",
+                    position: (
+                        -1.0,
+                        0.0,
+                        3.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "basic_thruster_section",
+                    ),
+                ),
+                (
+                    id: "drive_starboard",
+                    position: (
+                        1.0,
+                        0.0,
+                        3.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "basic_thruster_section",
+                    ),
+                ),
+                (
+                    id: "drive_dorsal",
+                    position: (
+                        0.0,
+                        1.0,
+                        3.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "basic_thruster_section",
+                    ),
+                ),
+                (
+                    id: "drive_ventral",
+                    position: (
+                        0.0,
+                        -1.0,
+                        3.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "basic_thruster_section",
+                    ),
+                ),
+                (
+                    id: "drive_port_dorsal",
+                    position: (
+                        -1.0,
+                        1.0,
+                        3.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "basic_thruster_section",
+                    ),
+                ),
+                (
+                    id: "drive_starboard_dorsal",
+                    position: (
+                        1.0,
+                        1.0,
+                        3.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "basic_thruster_section",
+                    ),
+                ),
+                (
+                    id: "drive_port_ventral",
+                    position: (
+                        -1.0,
+                        -1.0,
+                        3.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "basic_thruster_section",
+                    ),
+                ),
+                (
+                    id: "drive_starboard_ventral",
+                    position: (
+                        1.0,
+                        -1.0,
+                        3.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "basic_thruster_section",
                     ),
                 ),
                 (
@@ -3100,23 +3100,6 @@
                     ),
                 ),
                 (
-                    id: "torpedo_bow",
-                    position: (
-                        0.0,
-                        0.0,
-                        -3.5,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "torpedo_section",
-                    ),
-                ),
-                (
                     id: "pdc_port",
                     position: (
                         -1.0,
@@ -3769,23 +3752,6 @@
                     ),
                 ),
                 (
-                    id: "railgun_nose",
-                    position: (
-                        0.0,
-                        0.0,
-                        -5.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "railgun_lance_section",
-                    ),
-                ),
-                (
                     id: "pdc_dorsal",
                     position: (
                         0.0,
@@ -4299,6 +4265,23 @@
                     ),
                     source: Prototype(
                         id: "pdc_kinetic_turret_section",
+                    ),
+                ),
+                (
+                    id: "torpedo_keel",
+                    position: (
+                        0.0,
+                        -1.0,
+                        -2.5,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "torpedo_section",
                     ),
                 ),
                 (

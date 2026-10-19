@@ -1093,28 +1093,6 @@
                                         ),
                                     ),
                                     (
-                                        id: "railgun_nose",
-                                        position: (
-                                            0.0,
-                                            0.0,
-                                            -5.0,
-                                        ),
-                                        rotation: (
-                                            0.0,
-                                            0.0,
-                                            0.0,
-                                            1.0,
-                                        ),
-                                        source: Prototype(
-                                            id: "railgun_lance_section",
-                                            patch: (
-                                                kind: Some(Railgun((
-                                                    slug_damage: Some(100.0),
-                                                ))),
-                                            ),
-                                        ),
-                                    ),
-                                    (
                                         id: "pdc_dorsal",
                                         position: (
                                             0.0,

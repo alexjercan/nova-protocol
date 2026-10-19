@@ -158,24 +158,24 @@ function rustNumber(rel: string, pattern: RegExp): number {
 {
     assert.equal(METERS_PER_UNIT, 10);
     assert.equal(engineMeters(30), "300 m", "30 u is a 300 m blast radius");
-    assert.equal(engineMeters(4.81, 1), "48.1 m", "the interceptor's arm");
+    assert.equal(engineMeters(3.513, 1), "35.1 m", "the interceptor's arm");
     assert.equal(engineKilometers(328.6, 1), "3.3 km", "a planetoid SOI");
     assert.equal(engineMetersPerSec(100), "1,000 m/s", "the reference speed");
     assert.equal(engineMetersPerSec2(64, 0), "640 m/s^2", "one bare drive");
 }
 
 // The attitude model's one crossing: the arm arrives in world units off the
-// collider boxes and the 8 G limit is SI, so 4.81 u is 48.1 m and the ceiling
-// is 78.48 / 48.1 - the same rad/s^2 the game reads.
+// collider boxes and the 8 G limit is SI, so 3.513 u is 35.13 m and the ceiling
+// is 78.48 / 35.13 - the same rad/s^2 the game reads.
 {
     const ceiling = structuralCeiling(INTERCEPTOR_ARM_U);
     assert.ok(
-        Math.abs(ceiling - (8 * 9.81) / 48.1) < 1e-9,
+        Math.abs(ceiling - (8 * 9.81) / 35.13) < 1e-9,
         `the interceptor's structural ceiling, got ${ceiling}`
     );
     assert.ok(
-        Math.abs(ceiling - 1.63) < 5e-3,
-        `~1.63 rad/s^2 as the widget prints it, got ${ceiling}`
+        Math.abs(ceiling - 2.23) < 5e-3,
+        `~2.23 rad/s^2 as the widget prints it, got ${ceiling}`
     );
     assert.equal(structuralCeiling(0), Infinity, "a point mass has no arm");
 }
@@ -191,15 +191,15 @@ function rustNumber(rel: string, pattern: RegExp): number {
         Math.abs(state.arm - INTERCEPTOR_ARM_U) < 5e-3,
         `the constant against the derived arm, got ${state.arm}`
     );
-    // assets/base/ships/base.content.ron, interceptor: 39 sections and the
+    // assets/base/ships/base.content.ron, interceptor: 38 sections and the
     // volume of their boxes, with nothing anywhere authoring a mass.
     assert.equal(
         INTERCEPTOR_CELLS.length,
-        39,
+        38,
         "the interceptor's section count"
     );
     assert.ok(
-        Math.abs(state.mass - 43.25) < 1e-9,
+        Math.abs(state.mass - 41.25) < 1e-9,
         `the interceptor's mass, got ${state.mass}`
     );
 }
@@ -214,7 +214,7 @@ function rustNumber(rel: string, pattern: RegExp): number {
         new Set<string>(),
         INTERCEPTOR_COMPUTERS
     );
-    assert.equal(whole.held.length, 39, "the intact hull is one body");
+    assert.equal(whole.held.length, 38, "the intact hull is one body");
     assert.equal(whole.adrift.length, 0, "and nothing is adrift on it");
 }
 
@@ -229,23 +229,25 @@ function rustNumber(rel: string, pattern: RegExp): number {
     );
     assert.deepEqual(INTERCEPTOR_COMPUTERS, ["bridge"], "one computer");
     assert.equal(none.held.length, 0, "no computer, no ship");
-    assert.equal(none.adrift.length, 38, "all of it is adrift");
+    assert.equal(none.adrift.length, 37, "all of it is adrift");
 }
 
-// Shooting the bow torpedo bay off shortens the arm and RAISES the turn ceiling,
+// Shooting the aft sponsons off shortens the arm and RAISES the turn ceiling,
 // which is the whole claim the controller-arm widget makes.
 {
-    const bow = INTERCEPTOR_CELLS.filter((part) => part.group === "bow");
+    const sponsons = INTERCEPTOR_CELLS.filter(
+        (part) => part.group === "sponsons"
+    );
     const cut = severedParts(
         INTERCEPTOR_CELLS,
         INTERCEPTOR_MATES,
-        new Set(bow.map((part) => part.id)),
+        new Set(sponsons.map((part) => part.id)),
         INTERCEPTOR_COMPUTERS
     );
-    assert.equal(cut.adrift.length, 0, "the bow is the last thing out there");
+    assert.equal(cut.adrift.length, 0, "nothing hangs off the sponsons");
     assert.ok(
         hullState(cut.held).arm < INTERCEPTOR_ARM_U,
-        "the arm shortens without the bow"
+        "the arm shortens without the sponsons"
     );
 }
 
@@ -951,10 +953,13 @@ console.log("widgets: the corridor scope reproduces the stand bank");
         Math.abs(interceptor - INTERCEPTOR_ARM_U * METERS_PER_UNIT) < 0.1,
         `the interceptor's radius is its pinned structural arm: ${interceptor}`
     );
+    // The arrival scope's hull slider runs between the two shipped radii, so
+    // they must round to different whole meters or the slider has no travel.
     const picket = hullRadiusMeters(PICKET_CELLS);
-    assert.ok(
-        picket < interceptor,
-        `picket ${picket} < interceptor ${interceptor}`
+    assert.notEqual(
+        Math.round(picket),
+        Math.round(interceptor),
+        `picket ${picket} and interceptor ${interceptor} leave the slider a span`
     );
     assert.equal(PICKET_CELLS.length, 21, "training_picket's 21 sections");
     const park = arrivalPark(950, 100, 500);

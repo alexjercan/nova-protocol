@@ -154,9 +154,9 @@ Each base kit is worth 3,000 cr at ask: the credits plus the items at their
 | `industrial` | `mining_tug` | 2,200 cr, 15 `HullPlate`, 25 `Rations` |
 | `scavenger` | `salvage_hauler` | 1,800 cr, 200 `PdcRound`, 10 `HullPlate` |
 | `transport` | `light_freighter` | 2,000 cr, 50 `Rations`, 50 `WaterIce` |
-| `bounty_hunter` | `interceptor` | 1,000 cr, 2 `Torpedo`, 200 `PdcRound`, 10 `HullPlate` |
-| `military` | `patrol_picket` | 1,600 cr, 250 `PdcRound`, 10 `HullPlate` |
-| `pirate` | `raider` | 1,200 cr, 15 `RailSlug`, 200 `PdcRound`, 10 `HullPlate` |
+| `bounty_hunter` | `interceptor` | 1,600 cr, 250 `PdcRound`, 10 `HullPlate` |
+| `military` | `patrol_picket` | 1,000 cr, 2 `Torpedo`, 200 `PdcRound`, 10 `HullPlate` |
+| `pirate` | `raider` | 1,800 cr, 200 `PdcRound`, 10 `HullPlate` |
 
 The roles are generated into `assets/base/roles/base.content.ron`.
 

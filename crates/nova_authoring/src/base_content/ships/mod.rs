@@ -33,19 +33,17 @@ pub use block::{
 /// boom, a cargo intake and a flank collar. Unarmed.
 pub const MINING_TUG_SHIP_ID: &str = "mining_tug";
 /// The scavenger start hull: the biggest start hold, a cargo intake, one
-/// point-defense mount and a flank collar.
+/// point-defense mount, a mining emitter and a flank collar.
 pub const SALVAGE_HAULER_SHIP_ID: &str = "salvage_hauler";
 /// The transport start hull: freight cubes and a tank pod on one vectoring
 /// drive, a cargo intake, a flank collar, unarmed.
 pub const LIGHT_FREIGHTER_SHIP_ID: &str = "light_freighter";
-/// The bounty hunter start hull: two point-defense mounts, a bow torpedo bay
-/// and a cargo intake.
+/// The bounty hunter start hull: two point-defense mounts and a cargo intake.
 pub const INTERCEPTOR_SHIP_ID: &str = "interceptor";
-/// The pirate start hull: a nose railgun, two point-defense mounts and a
-/// cargo intake.
+/// The pirate start hull: two point-defense mounts and a cargo intake.
 pub const RAIDER_SHIP_ID: &str = "raider";
-/// The military start hull, the lightest armed start: two point-defense
-/// mounts and a cargo intake on reinforced plate.
+/// The military start hull: two point-defense mounts, a torpedo bay and a
+/// cargo intake on reinforced plate.
 pub const PATROL_PICKET_SHIP_ID: &str = "patrol_picket";
 /// The tutorial range's hull: one nose point-defense mount on light plate.
 /// Scenario-only, with no cargo intake.
