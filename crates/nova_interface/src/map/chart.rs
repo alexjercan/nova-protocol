@@ -72,9 +72,11 @@ pub(crate) const MAP_CHART_RADIUS_MAX: f32 = 680.0;
 const MAP_CHART_MARK_SPACING: f32 = 14.0;
 /// Height of a mark over its cell's floor, in map units.
 const MAP_CHART_MARK_LIFT: f32 = 8.0;
-/// Vertical step between the labels of marks that share a cell: a 14 unit
-/// sideways shift is narrower than a label, so stacked labels never overlap.
-const MAP_CHART_LABEL_STACK: f32 = 16.0;
+/// Where a chart label's top-left corner sits from its projected anchor, in
+/// logical pixels: beside the anchor, centred on its line.
+const MAP_CHART_LABEL_OFFSET: Vec2 = Vec2::new(6.0, -9.0);
+/// Gap between two stacked chart labels, in logical pixels.
+const MAP_CHART_LABEL_GAP: f32 = 2.0;
 /// Side of a tile, as a share of its cell: a gap keeps the grid readable.
 const MAP_CHART_TILE_SHARE: f32 = 0.92;
 
@@ -109,8 +111,8 @@ pub(crate) struct ChartStationLive {
 pub(crate) struct MapChartRoot;
 
 /// One label of the chart view over the viewport: a mark's code or a
-/// visited cell's coordinate, which selects what it names, or a tag that
-/// takes no clicks: the own-ship tag and a station's job count.
+/// visited cell's coordinate, which selects what it names, or the own-ship
+/// tag, which takes no clicks.
 #[derive(Component)]
 pub(crate) struct MapChartLabel {
     /// Where the label points, in chart space.
@@ -665,7 +667,6 @@ pub(crate) fn manage_map_chart(
         let shift = (slot as f32 - (in_cell.len() - 1) as f32 * 0.5) * MAP_CHART_MARK_SPACING;
         let at =
             chart_cell_position(*cell, player_cell) + Vec3::new(shift, MAP_CHART_MARK_LIFT, 0.0);
-        let label_at = at + Vec3::Y * (slot as f32 * MAP_CHART_LABEL_STACK);
         match mark {
             MapChartMarkType::Station(id) => {
                 let dead = chart.station(id).is_some_and(|station| station.derelict);
@@ -706,8 +707,6 @@ pub(crate) fn manage_map_chart(
         }
         if let Some(code) = chart_mark_code(&chart, &jobs, mark) {
             // A station with open jobs counts them on its own label.
-            // TODO: a docked ship's YOU tag stands under a station label
-            // wider than its code; remove when chart labels stack clear of it.
             let text = match mark {
                 MapChartMarkType::Station(id) => match live_of(&runtime.chart_live, id).posting {
                     0 => code.clone(),
@@ -715,7 +714,7 @@ pub(crate) fn manage_map_chart(
                 },
                 _ => code.clone(),
             };
-            labels.push((label_at, Some(mark.clone()), text, code, *color, 12.0));
+            labels.push((at, Some(mark.clone()), text, code, *color, 12.0));
         }
     }
 
@@ -1697,14 +1696,48 @@ pub(crate) fn update_map_chart_log(
     }
 }
 
-/// Place each chart label over its anchor through the map camera, hide the
-/// ones off the viewport, and mark the selected one with the accent edge.
+/// Lay chart labels out in screen space. Each `(anchor, size)`, in logical
+/// pixels and in placing order, answers its label's top-left corner: beside
+/// its anchor, or just under the placed labels it would overlap. No two
+/// answered labels overlap; a label takes the first free top of its own and
+/// each placed label's bottom, so each costs at most one try per placed label.
+pub fn stack_chart_labels(labels: &[(Vec2, Vec2)]) -> Vec<Vec2> {
+    let mut placed: Vec<Rect> = Vec::with_capacity(labels.len());
+    for &(anchor, size) in labels {
+        let start = anchor + MAP_CHART_LABEL_OFFSET;
+        let rect_at = |top: f32| {
+            let min = Vec2::new(start.x, top);
+            Rect::from_corners(min, min + size)
+        };
+        let mut tops: Vec<f32> = placed
+            .iter()
+            .map(|other| other.max.y + MAP_CHART_LABEL_GAP)
+            .filter(|top| *top > start.y)
+            .collect();
+        tops.push(start.y);
+        tops.sort_by(f32::total_cmp);
+        let rect = tops
+            .into_iter()
+            .map(rect_at)
+            .find(|rect| placed.iter().all(|other| rect.intersect(*other).is_empty()))
+            .expect("the top under every placed label is free");
+        placed.push(rect);
+    }
+    placed.iter().map(|rect| rect.min).collect()
+}
+
+/// Place each chart label beside its anchor through the map camera, stacked
+/// clear of the others ([`stack_chart_labels`]), hide the ones whose anchor
+/// is off the viewport or whose stack runs past its bottom, and mark the
+/// selected one with the accent edge.
 pub(crate) fn project_map_chart_labels(
     runtime: Res<MapRuntime>,
-    q_camera: Query<(&Camera, &GlobalTransform), With<MapCameraMarker>>,
+    q_camera: Query<(&Camera, &Transform), With<MapCameraMarker>>,
     q_viewport: Query<&ComputedNode, With<MapViewportMarker>>,
     mut q_label: Query<(
+        Entity,
         &MapChartLabel,
+        &ComputedNode,
         &mut Node,
         &mut Visibility,
         &mut ThemedBorder,
@@ -1713,25 +1746,53 @@ pub(crate) fn project_map_chart_labels(
     if !runtime.active || !runtime.chart {
         return;
     }
-    let (Ok((camera, cam_gt)), Ok(computed)) = (q_camera.single(), q_viewport.single()) else {
+    let (Ok((camera, transform)), Ok(computed)) = (q_camera.single(), q_viewport.single()) else {
         return;
     };
     if camera.physical_target_size() != Some(computed.size().round().as_uvec2()) {
         return;
     }
+    // `drive_map_camera` moved the camera this frame, but its
+    // `GlobalTransform` propagates after the UI lays these labels out, so it
+    // would place every label a frame behind a turning view. The camera's
+    // parent, the scene root, stands at the origin.
+    let pose = GlobalTransform::from(*transform);
     let to_logical = computed.inverse_scale_factor();
     let size = computed.size() * to_logical;
-    for (label, mut node, mut visibility, mut border) in &mut q_label {
+    let mut shown: Vec<(Entity, Vec2, Vec2)> = Vec::new();
+    for (entity, label, label_node, _, mut visibility, _) in &mut q_label {
         let projected = camera
-            .world_to_viewport(cam_gt, label.anchor)
+            .world_to_viewport(&pose, label.anchor)
             .ok()
             .map(|p| p * to_logical)
             .filter(|p| p.x >= 0.0 && p.y >= 0.0 && p.x <= size.x && p.y <= size.y);
-        let Some(p) = projected else {
-            visibility.set_if_neq(Visibility::Hidden);
+        match projected {
+            Some(p) => shown.push((
+                entity,
+                p,
+                label_node.size() * label_node.inverse_scale_factor(),
+            )),
+            None => {
+                visibility.set_if_neq(Visibility::Hidden);
+            }
+        }
+    }
+    // Top to bottom, then left to right: a crowded label moves down under
+    // the ones above it on screen.
+    shown.sort_by(|a, b| a.1.y.total_cmp(&b.1.y).then(a.1.x.total_cmp(&b.1.x)));
+    let placing: Vec<(Vec2, Vec2)> = shown.iter().map(|&(_, p, extent)| (p, extent)).collect();
+    for (&(entity, _, extent), corner) in shown.iter().zip(stack_chart_labels(&placing)) {
+        let Ok((_, label, _, mut node, mut visibility, mut border)) = q_label.get_mut(entity)
+        else {
             continue;
         };
-        let (left, top) = (Val::Px(p.x + 6.0), Val::Px(p.y - 9.0));
+        // The viewport clips its children: a label stacked past its bottom
+        // would show cut, so it hides.
+        if corner.y + extent.y > size.y {
+            visibility.set_if_neq(Visibility::Hidden);
+            continue;
+        }
+        let (left, top) = (Val::Px(corner.x), Val::Px(corner.y));
         if node.left != left || node.top != top {
             node.left = left;
             node.top = top;
@@ -1942,6 +2003,44 @@ pub(crate) fn map_chart_button() -> impl Bundle {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Chart labels lay out in screen space: a docked ship's YOU tag on its
+    /// station's anchor moves just under the station's label, a label clear
+    /// of the others keeps its place beside its anchor, and six labels on one
+    /// anchor stack with no two overlapping.
+    #[test]
+    fn chart_labels_that_would_overlap_stack_below_each_other_and_apart_labels_keep_their_place() {
+        let station = (Vec2::new(300.0, 200.0), Vec2::new(70.0, 18.0));
+        let you = (Vec2::new(302.0, 201.0), Vec2::new(32.0, 17.0));
+        let apart = (Vec2::new(40.0, 40.0), Vec2::new(50.0, 18.0));
+        let corners = stack_chart_labels(&[station, you, apart]);
+        assert_eq!(corners[0], station.0 + MAP_CHART_LABEL_OFFSET);
+        assert_eq!(
+            corners[1],
+            Vec2::new(
+                you.0.x + MAP_CHART_LABEL_OFFSET.x,
+                corners[0].y + station.1.y + MAP_CHART_LABEL_GAP
+            ),
+            "YOU stands just under the station's label"
+        );
+        assert_eq!(corners[2], apart.0 + MAP_CHART_LABEL_OFFSET);
+
+        let crowd = [(Vec2::new(500.0, 300.0), Vec2::new(60.0, 18.0)); 6];
+        let corners = stack_chart_labels(&crowd);
+        let rects: Vec<Rect> = corners
+            .iter()
+            .zip(&crowd)
+            .map(|(corner, (_, size))| Rect::from_corners(*corner, *corner + *size))
+            .collect();
+        for (index, rect) in rects.iter().enumerate() {
+            for other in &rects[index + 1..] {
+                assert!(
+                    rect.intersect(*other).is_empty(),
+                    "{rect:?} overlaps {other:?}"
+                );
+            }
+        }
+    }
 
     /// The OBJECTIVES block lists each held job with its `have / need` and
     /// its hand-in station's code, and only the first unmet milestone; a met

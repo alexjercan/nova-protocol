@@ -59,6 +59,7 @@ pub mod prelude {
     // `pub(crate)` (the module glob above), which rustc rejects as an
     // ambiguous import visibility through `super::`.
     pub use super::{
+        chart::stack_chart_labels,
         contacts::{MapContactCode, MapContactKind, MapContacts},
         map_radius_default, map_radius_max, map_ring_radii, map_spread, MAP_RADIUS_MIN,
     };

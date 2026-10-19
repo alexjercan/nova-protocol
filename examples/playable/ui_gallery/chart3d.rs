@@ -28,6 +28,7 @@ use bevy::{
     prelude::*,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
 };
+use nova_protocol::nova_interface::prelude::stack_chart_labels;
 use nova_ui::{
     prelude::{TextFieldFocused, UiText},
     theme::{ActiveUiTheme, UiColor},
@@ -45,8 +46,6 @@ pub const CELL: f32 = 60.0;
 const MARK_SPACING: f32 = 14.0;
 /// Height of a mark over its cell's floor.
 const MARK_LIFT: f32 = 8.0;
-/// Vertical step between the labels of marks that share a cell.
-const LABEL_STACK: f32 = 16.0;
 const THETA_DEFAULT: f32 = 0.8;
 const PHI_DEFAULT: f32 = 0.62;
 /// The elevation rails: short of straight overhead, where the look-at up
@@ -672,9 +671,6 @@ pub fn spawn_chart_scene(
         for (slot, mark) in cell.marks.iter().enumerate() {
             let shift = (slot as f32 - (count - 1) as f32 * 0.5) * MARK_SPACING;
             let at = cell_position(cell.at, view.player) + Vec3::new(shift, MARK_LIFT, 0.0);
-            // Labels of marks that share a cell stack upward, or they overlap
-            // on screen: a 14 unit sideways shift is narrower than a label.
-            let label_at = at + Vec3::Y * (slot as f32 * LABEL_STACK);
             match mark {
                 MarkView::Station { kind, code } => {
                     let color = station_color(*kind);
@@ -698,7 +694,7 @@ pub fn spawn_chart_scene(
                         StationKind::Posting(n) => format!("{code} ({n})"),
                         _ => code.clone(),
                     };
-                    labels.push((label_at, Some(cell.at), text, code.clone(), color, 12.0));
+                    labels.push((at, Some(cell.at), text, code.clone(), color, 12.0));
                 }
                 MarkView::Wreck(code) => {
                     spawn_mesh(
@@ -710,7 +706,7 @@ pub fn spawn_chart_scene(
                         Transform::from_translation(at).with_scale(Vec3::splat(10.0)),
                     );
                     labels.push((
-                        label_at,
+                        at,
                         Some(cell.at),
                         code.clone(),
                         code.clone(),
@@ -726,7 +722,7 @@ pub fn spawn_chart_scene(
                         Transform::from_translation(at + Vec3::Y * 3.0),
                     );
                     labels.push((
-                        label_at,
+                        at,
                         Some(cell.at),
                         code.clone(),
                         code.clone(),
@@ -1057,19 +1053,29 @@ pub fn drive_chart_cameras(
     }
 }
 
-/// Place each label over its anchor through its scene's camera, and hide
-/// the ones off the viewport. The selected cell's labels wear the accent.
+/// Place each label beside its anchor through its scene's camera, stacked
+/// clear of its scene's other labels the way the game's chart stacks them,
+/// and hide the ones whose anchor is off the viewport or whose stack runs
+/// past its bottom. The selected cell's labels wear the accent.
 pub fn project_chart_labels(
     chart: Res<ChartState>,
     scenes: Query<(&SceneTarget, &ComputedNode), With<ChartScene>>,
-    cameras: Query<(&Camera, &GlobalTransform)>,
-    mut labels: Query<(&ChartLabel, &mut Node, &mut Visibility, &mut ThemedBorder)>,
+    cameras: Query<(&Camera, &Transform)>,
+    mut labels: Query<(
+        Entity,
+        &ChartLabel,
+        &ComputedNode,
+        &mut Node,
+        &mut Visibility,
+        &mut ThemedBorder,
+    )>,
 ) {
-    for (label, mut node, mut visibility, mut border) in &mut labels {
+    let mut shown: HashMap<Entity, (Vec2, Vec<(Entity, Vec2, Vec2)>)> = HashMap::default();
+    for (entity, label, label_node, _, mut visibility, _) in &mut labels {
         let Ok((target, computed)) = scenes.get(label.scene) else {
             continue;
         };
-        let Ok((camera, cam_gt)) = cameras.get(target.camera) else {
+        let Ok((camera, transform)) = cameras.get(target.camera) else {
             continue;
         };
         // The camera re-derives its target size a frame after a resize; a
@@ -1078,10 +1084,13 @@ pub fn project_chart_labels(
             visibility.set_if_neq(Visibility::Hidden);
             continue;
         }
+        // A chart camera stands at the root and turns this frame; its
+        // `GlobalTransform` propagates after the UI lays the labels out.
+        let pose = GlobalTransform::from(*transform);
         let to_logical = computed.inverse_scale_factor();
         let size = computed.size() * to_logical;
         let projected = camera
-            .world_to_viewport(cam_gt, label.anchor)
+            .world_to_viewport(&pose, label.anchor)
             .ok()
             .map(|p| p * to_logical)
             .filter(|p| p.x >= 0.0 && p.y >= 0.0 && p.x <= size.x && p.y <= size.y);
@@ -1089,22 +1098,45 @@ pub fn project_chart_labels(
             visibility.set_if_neq(Visibility::Hidden);
             continue;
         };
-        let (left, top) = (Val::Px(p.x + 6.0), Val::Px(p.y - 9.0));
-        if node.left != left || node.top != top {
-            node.left = left;
-            node.top = top;
-        }
-        visibility.set_if_neq(Visibility::Inherited);
-        if label.selects.is_some() {
-            let selected = label.selects == chart.selected;
-            let (color, alpha) = if selected {
-                (UiColor::Accent, 1.0)
-            } else {
-                (UiColor::Secondary, 0.3)
+        shown
+            .entry(label.scene)
+            .or_insert_with(|| (size, Vec::new()))
+            .1
+            .push((
+                entity,
+                p,
+                label_node.size() * label_node.inverse_scale_factor(),
+            ));
+    }
+    for (size, mut group) in shown.into_values() {
+        group.sort_by(|a, b| a.1.y.total_cmp(&b.1.y).then(a.1.x.total_cmp(&b.1.x)));
+        let placing: Vec<(Vec2, Vec2)> = group.iter().map(|&(_, p, extent)| (p, extent)).collect();
+        for (&(entity, _, extent), corner) in group.iter().zip(stack_chart_labels(&placing)) {
+            let Ok((_, label, _, mut node, mut visibility, mut border)) = labels.get_mut(entity)
+            else {
+                continue;
             };
-            if border.color != color || border.alpha != alpha {
-                border.color = color;
-                border.alpha = alpha;
+            if corner.y + extent.y > size.y {
+                visibility.set_if_neq(Visibility::Hidden);
+                continue;
+            }
+            let (left, top) = (Val::Px(corner.x), Val::Px(corner.y));
+            if node.left != left || node.top != top {
+                node.left = left;
+                node.top = top;
+            }
+            visibility.set_if_neq(Visibility::Inherited);
+            if label.selects.is_some() {
+                let selected = label.selects == chart.selected;
+                let (color, alpha) = if selected {
+                    (UiColor::Accent, 1.0)
+                } else {
+                    (UiColor::Secondary, 0.3)
+                };
+                if border.color != color || border.alpha != alpha {
+                    border.color = color;
+                    border.alpha = alpha;
+                }
             }
         }
     }
