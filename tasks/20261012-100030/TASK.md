@@ -227,11 +227,21 @@ the menu screens that feed a charter (New Game, Load) are text too. Ideas:
   and Load, and asserts the Load row's open count, the FLEET ship line and an
   open objective. Frames: `news-0150-world-setup.png`, `menu-role-step.png`,
   `menu-continue.png`, `menu-load-screen.png`.
-- Open: the role icon on Load rows and on the role list is not drawn; the
-  game has no role icon yet. Options: (a) an explicit icon field on
-  `StartRole` content, linted; (b) derive it from the role's `JobMixType`
-  with the job icons, three icons for six roles. Either needs the icon masks
-  shared out of `nova_interface/src/icons.rs`.
+- Claim (a94bbc96c): each start role draws its own icon on the New Game role
+  rows and on the Load rows. `StartRole` takes a required
+  `icon: RoleIconType` (Drill, Claw, Container, Star, Shield, Blades); a
+  missing or unknown icon fails lint and load. Evidence:
+  `crates/nova_gameplay/src/role_icon.rs:19`,
+  `crates/nova_scenario/src/objects/start_role.rs:186`;
+  `crates/nova_interface/src/icons.rs:112` (`InterfaceIcons::role`), `:801`
+  (`ROLE_ICONS`), `:826` (one procedural mask per shape);
+  `crates/nova_menu/src/world_setup.rs:72` (18 px), `:462`;
+  `crates/nova_menu/src/load_screen.rs:763`. A Load row whose role a mod
+  reload dropped keeps an empty icon slot. Verification:
+  `cargo test -p nova_menu --lib` filtered to
+  `a_load_row_reads_play_time_save_age_and_open_count_and_its_details_the_fleet_and_objectives`
+  and `new_game_previews_the_seed_s_start_and_lists_the_role_s_milestones`,
+  2 passed (2026-10-19).
 
 ## Design 2026-10-19: cross-sector station GOTO (owner review pending)
 - Agent design for the round 3 owner idea, not approved: `STATION-GOTO.md`.
