@@ -707,10 +707,10 @@ not warn you about:
 A lock is a radio link, so cover takes the ones already held too: a rock
 crossing the line drops BOTH of the player's slots, the white travel
 designation as well as the red combat lock, and neither re-locks by itself when
-the line clears, except that an empty travel slot takes an engaged GOTO's
-target once it is in sight. A trip the player has already ENGAGED is the exception - the
+the line clears. A trip the player has already ENGAGED is the exception - the
 autopilot owns its destination once it is flying - so a rock is still not a way
-to cancel someone's burn.
+to cancel someone's burn. Separately, an empty travel slot takes an engaged
+GOTO's target whenever that target is in sight, with no dwell.
 
 ## Traps for the unwary
 
