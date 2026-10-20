@@ -206,8 +206,6 @@ pub(crate) enum InventoryInspectorField {
     Weight,
     /// The mass of the draft's quantity.
     TotalWeight,
-    /// What moving items takes where the player ship is now.
-    Context,
     /// The last transfer result.
     Note,
     /// Which way the open draft moves items, and with which ship.
@@ -676,11 +674,6 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                 ))
                 .with_children(|hint| {
                     hint.spawn(themed_label(
-                        "Click an item to inspect it.",
-                        13.0,
-                        UiColor::Body,
-                    ));
-                    hint.spawn(themed_label(
                         "Docked, double-click an item to move its stack, Shift for one.",
                         12.0,
                         UiColor::Label,
@@ -800,10 +793,6 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                     ))
                     .with_children(draft_form);
                 });
-            panel.spawn((
-                InventoryInspectorField::Context,
-                themed_label("", 12.0, UiColor::Label),
-            ));
             panel.spawn((
                 Name::new("InventoryNote"),
                 InventoryInspectorField::Note,
@@ -3369,27 +3358,6 @@ pub(crate) fn update_inventory_panel(
         }
     }
 
-    let context = match terms.as_ref() {
-        None if has_intake => "Jettison from your ship, or dock with a ship to move items.",
-        None => "Dock with a ship to move items.",
-        Some(terms) if terms.lootable => "Take from the docked ship or give from yours.",
-        Some(PartnerTerms { own: true, .. }) => "Store from yours, or withdraw from your ship.",
-        Some(PartnerTerms {
-            trades: true,
-            stores: true,
-            ..
-        }) => "Buy from the station, give, sell or store from yours, or withdraw from storage.",
-        Some(PartnerTerms { trades: true, .. }) => {
-            "Buy from the docked ship, or give or sell from yours."
-        }
-        Some(PartnerTerms { stores: true, .. }) => {
-            "Give or store from yours, or withdraw from storage."
-        }
-        Some(PartnerTerms { holds, .. }) if !holds.is_empty() => {
-            "Give or store from yours, or withdraw from your ships."
-        }
-        Some(_) => "The docked station does not trade or store; give from yours.",
-    };
     let note = runtime
         .note
         .as_ref()
@@ -3589,7 +3557,6 @@ pub(crate) fn update_inventory_panel(
     });
     for (field, mut text, mut themed) in &mut q_field {
         let (value, color) = match (field, picked.as_ref(), form.as_ref()) {
-            (InventoryInspectorField::Context, ..) => (context.to_string(), UiColor::Label),
             (InventoryInspectorField::Note, ..) => (note.clone(), UiColor::Accent),
             (InventoryInspectorField::Name, Some((item, _)), _) => {
                 (items.design(item).name.clone(), UiColor::Primary)
