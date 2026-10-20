@@ -1006,14 +1006,6 @@ fn board_panel(
                         head.spawn(badge(BadgeKind::Amber, "STARTER BOARD"));
                     }
                 });
-            if board.starter {
-                panel.spawn(themed_label(
-                    "Your starting station posts only the jobs your hull can do; refit or buy a \
-                     ship and more open.",
-                    12.0,
-                    UiColor::Body,
-                ));
-            }
             table_head(
                 panel,
                 &[
@@ -1068,16 +1060,7 @@ fn held_panel(
 ) {
     col.spawn((Name::new(JOBS_HELD), column_panel()))
         .with_children(|panel| {
-            panel
-                .spawn(control_row(JustifyContent::SpaceBetween))
-                .with_children(|head| {
-                    head.spawn(themed_label("Your jobs", 15.0, UiColor::Primary));
-                    head.spawn(themed_label(
-                        &format!("{} held", view.held.len()),
-                        12.0,
-                        UiColor::Label,
-                    ));
-                });
+            panel.spawn(themed_label("Your jobs", 15.0, UiColor::Primary));
             let goal = match (&view.milestone, view.goal_met_at) {
                 (Some(line), _) => Some((
                     format!("{}: {}", view.goal_title, line.label),

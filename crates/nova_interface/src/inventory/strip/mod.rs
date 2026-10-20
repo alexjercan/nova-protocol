@@ -386,7 +386,7 @@ fn strip_plan_text(items: &GameItems, partner: &StripPartner<'_>, strip: &HullSt
         .map(|(item, &count)| items.design(item).stack_mass_g(count))
         .sum();
     format!(
-        "{} section{} left, port last. Expected yield: {} ({})",
+        "{} section{} left. Expected yield: {} ({})",
         partner.live.len(),
         if partner.live.len() == 1 { "" } else { "s" },
         strip_parts_text(items, &strip.parts),

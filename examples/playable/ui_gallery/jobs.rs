@@ -17,10 +17,6 @@ use crate::{
 const TABS_DOCKED: [&str; 5] = ["Map", "Ship", "Inventory", "Jobs", "Station"];
 const TABS_UNDOCKED: [&str; 4] = ["Map", "Ship", "Inventory", "Jobs"];
 
-/// The note under the starter board's tag.
-const STARTER_NOTE: &str = "Near the start a station posts only jobs your current hull can do; \
-every job unlocks after the first upgrade, after 30 min of play, or at any station past 500 km.";
-
 pub fn jobs_page(
     body: &mut ChildSpawnerCommands,
     icons: &GalleryIcons,
@@ -94,9 +90,6 @@ fn board_panel(
             11.0,
             UiColor::Label,
         ));
-        if tier == BoardTier::Starter {
-            panel.spawn(text(STARTER_NOTE, 12.0, UiColor::Body));
-        }
         table_head(
             panel,
             &[
@@ -208,16 +201,7 @@ fn held_panel(
     docked: bool,
 ) {
     col.spawn(column_panel()).with_children(|panel| {
-        panel
-            .spawn(control_row(JustifyContent::SpaceBetween))
-            .with_children(|head| {
-                head.spawn(text("Your jobs", 15.0, UiColor::Primary));
-                head.spawn(text(
-                    &format!("{} held", jobs.held.len()),
-                    12.0,
-                    UiColor::Label,
-                ));
-            });
+        panel.spawn(text("Your jobs", 15.0, UiColor::Primary));
         table_head(
             panel,
             &[
