@@ -24,7 +24,6 @@ use nova_world_base::prelude::{enemy_neighbours, standing};
 
 use super::{chart_mark_code, MapChartMarkType, MapRuntime};
 use crate::{
-    inventory::cr_text,
     pane::{compact_button, divider, play_menu_select, themed_label},
     station::{settle_refusal_text, SettleDock, StanceSettleCommand},
 };

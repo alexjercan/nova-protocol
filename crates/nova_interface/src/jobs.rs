@@ -44,11 +44,10 @@ use nova_world_base::prelude::record_merit;
 
 use crate::{
     icons::{icon_node, ChartIconType, InterfaceIcons, JobIconType},
-    inventory::cr_text,
     map::{job_cell, MapChartMarkType, MapRuntime},
     pane::{
-        compact_button, control_row, divider, panel_paint, play_menu_select, themed_label,
-        view_split, InterfacePaneType,
+        compact_button, control_row, divider, panel_paint, play_menu_select, spawn_credit_figure,
+        themed_label, view_split, InterfacePaneType,
     },
     ship::StationSite,
 };
@@ -393,7 +392,7 @@ struct PostedRow {
     id: JobId,
     icon: JobIconType,
     title: String,
-    reward: String,
+    reward_cr: u64,
     target: String,
     /// The offer's window left: the share and the minutes.
     time_left: (f32, String),
@@ -444,7 +443,7 @@ struct InspectorView {
     poster: String,
     target: String,
     hand_in: String,
-    reward: String,
+    reward_cr: u64,
     /// A posted offer's window left: the share and the minutes.
     time_left: Option<(f32, String)>,
     /// A held job's `have / need`.
@@ -559,7 +558,7 @@ fn update_jobs_pane(
                     id: job.id.clone(),
                     icon: JobIconType::of(&job.kind),
                     title: job.title(&items),
-                    reward: cr_text(job.reward_cr),
+                    reward_cr: job.reward_cr.into(),
                     target: place(job_cell(job)),
                     time_left: time_left(remaining),
                     refusal,
@@ -667,7 +666,7 @@ fn update_jobs_pane(
             poster: station_name(&chart, job.posted_by()),
             target: format!("{}, {}", target_name(job, &chart), place(job_cell(job))),
             hand_in: station_name(&chart, &job.target),
-            reward: cr_text(job.reward_cr),
+            reward_cr: job.reward_cr.into(),
             time_left: postings
                 .slot(&job.id)
                 .filter(|_| !held)
@@ -1027,7 +1026,24 @@ fn board_panel(
                         icon_node(icons.job(row.icon), row.icon.color(), 18.0),
                     ));
                     r.spawn(grow_cell(&row.title, 13.0, UiColor::Primary));
-                    r.spawn(cell(REWARD_PX, &row.reward, 13.0, UiColor::Accent));
+                    r.spawn((
+                        Node {
+                            width: px(REWARD_PX),
+                            flex_shrink: 0.0,
+                            ..default()
+                        },
+                        Pickable::IGNORE,
+                    ))
+                    .with_children(|reward| {
+                        spawn_credit_figure(
+                            reward,
+                            icons,
+                            row.reward_cr,
+                            13.0,
+                            UiColor::Accent,
+                            (),
+                        );
+                    });
                     r.spawn(cell(PLACE_PX, &row.target, 12.0, UiColor::Body));
                     r.spawn(fixed(
                         TIME_PX,
@@ -1226,7 +1242,14 @@ fn inspector_panel(
     kv(side, "Poster", &job.poster);
     kv(side, "Target", &job.target);
     kv(side, "Hand in", &job.hand_in);
-    kv(side, "Reward", &job.reward);
+    side.spawn(Node {
+        column_gap: px(8),
+        ..control_row(JustifyContent::FlexStart)
+    })
+    .with_children(|row| {
+        row.spawn(cell(LABEL_PX, "Reward", 12.0, UiColor::Label));
+        spawn_credit_figure(row, icons, job.reward_cr, 13.0, UiColor::Accent, ());
+    });
     if let Some((fraction, minutes)) = &job.time_left {
         side.spawn(Node {
             column_gap: px(8),

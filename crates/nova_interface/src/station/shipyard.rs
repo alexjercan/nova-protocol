@@ -28,7 +28,6 @@ use super::{
     StationRuntime,
 };
 use crate::{
-    inventory::cr_text,
     pane::{compact_button, play_menu_select, themed_label},
     ship::{ResolvedSite, ShipRuntime, StationSite},
 };

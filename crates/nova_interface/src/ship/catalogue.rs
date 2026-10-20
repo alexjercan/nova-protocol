@@ -151,7 +151,7 @@ fn station_listing(
 /// station sells into it. The focus card names the parts from the hold.
 fn tile_price_text(payment: &RecipePayment) -> String {
     let bought: u32 = payment.bought.values().sum();
-    format!("{} cr, {bought} bought", payment.price_cr)
+    format!("{}, {bought} bought", cr_text(payment.price_cr))
 }
 
 /// Why a part cannot be paid, in the few words its gallery tile has room for.
@@ -159,7 +159,9 @@ fn tile_price_text(payment: &RecipePayment) -> String {
 pub(crate) fn tile_refusal_text(refusal: &RecipePaymentRefusalType) -> String {
     match refusal {
         RecipePaymentRefusalType::MissingParts { .. } => "Short of parts".to_string(),
-        RecipePaymentRefusalType::InsufficientCredits { need, .. } => format!("Needs {need} cr"),
+        RecipePaymentRefusalType::InsufficientCredits { need, .. } => {
+            format!("Needs {}", cr_text(*need))
+        }
         RecipePaymentRefusalType::CreditOverflow => "Price too high".to_string(),
     }
 }

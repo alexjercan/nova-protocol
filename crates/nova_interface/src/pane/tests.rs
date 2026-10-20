@@ -639,3 +639,49 @@ fn the_title_row_clock_reads_the_play_time_only_while_a_world_is_armed() {
         .expect("the clock system runs");
     assert_eq!(clock_of(rig.app.world_mut()), ("1:01:01".to_string(), true));
 }
+
+#[test]
+fn the_title_row_shows_the_player_balance_grouped_and_hides_it_without_a_player_ship() {
+    use bevy::ecs::system::RunSystemOnce;
+
+    let mut rig = card_rig();
+    let balance_of = |world: &mut World| {
+        let (text, row) = world
+            .query_filtered::<(&Text, &ChildOf), With<InterfacePaneBalance>>()
+            .single(world)
+            .map(|(text, child_of)| (text.0.clone(), child_of.parent()))
+            .expect("the title row has one balance");
+        let shown = world
+            .get::<Node>(row)
+            .expect("the balance digits sit in a figure row")
+            .display
+            != Display::None;
+        (text, shown)
+    };
+    let run = |app: &mut App| {
+        app.world_mut()
+            .run_system_once(show_pane_balance)
+            .expect("the balance system runs");
+    };
+
+    // No player ship: hidden.
+    run(&mut rig.app);
+    assert!(!balance_of(rig.app.world_mut()).1);
+
+    // A player ship: its balance shows, grouped by thousands.
+    let player = rig
+        .app
+        .world_mut()
+        .spawn((PlayerSpaceshipMarker, ShipCredits(22_980)))
+        .id();
+    run(&mut rig.app);
+    assert_eq!(
+        balance_of(rig.app.world_mut()),
+        ("22,980".to_string(), true)
+    );
+
+    // The player ship gone: hidden again.
+    rig.app.world_mut().despawn(player);
+    run(&mut rig.app);
+    assert!(!balance_of(rig.app.world_mut()).1);
+}

@@ -20,8 +20,9 @@
 use bevy::{prelude::*, ui_widgets::Activate};
 use nova_gameplay::{
     prelude::{
-        play_time_text, AudioRoute, Chart, PlayerSpaceshipMarker, SfxCommandsExt, SoundBank, UiSfx,
-        WorldClock, MENU_SELECT_VOLUME, UI_TOGGLE_VOLUME,
+        cr_digits, play_time_text, AudioRoute, Chart, PlayerSpaceshipMarker, SfxCommandsExt,
+        ShipCredits, SoundBank, SpaceshipRootMarker, UiSfx, WorldClock, MENU_SELECT_VOLUME,
+        UI_TOGGLE_VOLUME,
     },
     PauseStates,
 };
@@ -284,7 +285,8 @@ mod tests;
 /// Widest the interface grows, in logical px.
 const INTERFACE_MAX_PX: f32 = 1520.0;
 
-/// The card's title row, which holds the pane title and the pane tabs.
+/// The card's title row, which holds the pane title, the pane tabs, the
+/// player balance and the play clock.
 #[derive(Component)]
 pub(crate) struct InterfacePaneHead;
 
@@ -326,6 +328,82 @@ pub(crate) fn show_pane_clock(
         node.display = display;
     }
     if let Some(shown) = shown {
+        if text.0 != shown {
+            text.0 = shown;
+        }
+    }
+}
+
+/// The `Name` of a credit figure's digits, for tests and captures.
+pub const CREDIT_FIGURE: &str = "CreditFigure";
+
+/// The credit mask, then `credits` as [`cr_digits`], both `size` px in `tone`.
+/// `marker` goes on the digits node for callers that rewrite it in place; a
+/// `Name` in it replaces [`CREDIT_FIGURE`]. The figure ignores the pointer, so
+/// a row under it keeps its clicks.
+pub(crate) fn spawn_credit_figure(
+    parent: &mut ChildSpawnerCommands,
+    icons: &InterfaceIcons,
+    credits: u64,
+    size: f32,
+    tone: UiColor,
+    marker: impl Bundle,
+) {
+    parent
+        .spawn((
+            Node {
+                align_items: AlignItems::Center,
+                column_gap: px(size * 0.3),
+                flex_shrink: 0.0,
+                ..default()
+            },
+            Pickable::IGNORE,
+        ))
+        .with_children(|figure| {
+            figure.spawn(icon_node(icons.credit(), tone, size));
+            figure
+                .spawn((
+                    themed_label(&cr_digits(credits), size, tone),
+                    TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                    Name::new(CREDIT_FIGURE),
+                    Pickable::IGNORE,
+                ))
+                .insert(marker);
+        });
+}
+
+/// The digits of the player balance in the title row, left of the play clock.
+#[derive(Component)]
+pub(crate) struct InterfacePaneBalance;
+
+/// The `Name` of the title row's player balance, for tests and captures.
+pub const INTERFACE_PANE_BALANCE: &str = "InterfacePaneBalance";
+
+/// Write the player ship's [`ShipCredits`] into the title row, and hide the
+/// balance figure while there is not exactly one player ship root. Runs with
+/// the pane shut too, as [`show_pane_clock`] does.
+pub(crate) fn show_pane_balance(
+    q_player: Query<&ShipCredits, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+    mut q_balance: Query<(&mut Text, &ChildOf), With<InterfacePaneBalance>>,
+    mut q_row: Query<&mut Node>,
+) {
+    let Ok((mut text, child_of)) = q_balance.single_mut() else {
+        return;
+    };
+    let mut row = q_row
+        .get_mut(child_of.parent())
+        .expect("the balance digits sit in their credit figure row");
+    let credits = q_player.single().ok();
+    let display = if credits.is_some() {
+        Display::Flex
+    } else {
+        Display::None
+    };
+    if row.display != display {
+        row.display = display;
+    }
+    if let Some(credits) = credits {
+        let shown = cr_digits(credits.0.into());
         if text.0 != shown {
             text.0 = shown;
         }
@@ -432,6 +510,14 @@ fn spawn_interface_card(
                             }
                         }
                     });
+                    spawn_credit_figure(
+                        head,
+                        icons,
+                        0,
+                        12.0,
+                        UiColor::Primary,
+                        (InterfacePaneBalance, Name::new(INTERFACE_PANE_BALANCE)),
+                    );
                     head.spawn((
                         InterfacePaneClock,
                         Name::new(INTERFACE_PANE_CLOCK),

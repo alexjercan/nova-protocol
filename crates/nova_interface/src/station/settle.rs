@@ -20,7 +20,6 @@ use nova_ship::prelude::*;
 use nova_world_base::prelude::{enemy_neighbours, settle};
 
 use super::StationRuntime;
-use crate::inventory::cr_text;
 
 /// A request to settle with `civilization` at the docked station, raised by
 /// the Map chart's Pay fine button.

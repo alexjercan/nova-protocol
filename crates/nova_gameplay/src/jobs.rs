@@ -54,7 +54,7 @@ use rand::{RngExt, SeedableRng};
 use crate::{
     chart::prelude::ClusterType,
     hash::Fnv64,
-    inventory::prelude::{GameItems, ItemCategoryType, ItemDesignId, ShipInventory},
+    inventory::prelude::{cr_text, GameItems, ItemCategoryType, ItemDesignId, ShipInventory},
     market::prelude::JobOfferRule,
 };
 
@@ -522,7 +522,9 @@ impl Job {
                 count,
                 ..
             } => format!("Recover {count} {} from {wreck_name}", item_name(item)),
-            JobType::Escort { cargo_cr, .. } => format!("Escort a hauler carrying {cargo_cr} cr"),
+            JobType::Escort { cargo_cr, .. } => {
+                format!("Escort a hauler carrying {}", cr_text(*cargo_cr))
+            }
             JobType::Distress { .. } => "Answer a distress call".to_string(),
             JobType::Neutralize { hull_name, .. } => format!("Neutralize {hull_name}"),
         }

@@ -40,8 +40,8 @@ pub mod prelude {
     pub use nova_events::prelude::{CreditChangeCauseType, ItemTradeType};
 
     pub use super::{
-        kg_text, plan_credit_take, plan_hull_strip, plan_item_jettison, plan_item_storage,
-        plan_item_trade, plan_item_transfer, plan_loot_take, plan_plate_repair,
+        cr_digits, cr_text, kg_text, plan_credit_take, plan_hull_strip, plan_item_jettison,
+        plan_item_storage, plan_item_trade, plan_item_transfer, plan_loot_take, plan_plate_repair,
         plan_recipe_payment, plan_section_rebuild, plan_section_yield, strip_duration_secs,
         BuildRecipe, CargoCanister, CargoCanisterIdAllocator, CargoCanisterRuntimeId,
         CreditTakeRefusalType, GameItems, HullStrip, HullStripPartner, HullStripPauseType,
@@ -281,6 +281,24 @@ pub fn kg_text(grams: u64) -> String {
         let fraction = format!("{rest:03}");
         format!("{kg}.{} kg", fraction.trim_end_matches('0'))
     }
+}
+
+/// Credits grouped by thousands, no unit: `22,980`.
+pub fn cr_digits(credits: u64) -> String {
+    let digits = credits.to_string();
+    let mut grouped = String::new();
+    for (index, digit) in digits.chars().enumerate() {
+        if index > 0 && (digits.len() - index).is_multiple_of(3) {
+            grouped.push(',');
+        }
+        grouped.push(digit);
+    }
+    grouped
+}
+
+/// Credits as sentences and notes write them: `22,980 cr`.
+pub fn cr_text(credits: impl Into<u64>) -> String {
+    format!("{} cr", cr_digits(credits.into()))
 }
 
 /// What an item is for. There is no fuel category: thrust never consumes

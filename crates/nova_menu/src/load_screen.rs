@@ -1178,7 +1178,7 @@ pub(crate) fn refresh_load_details(
                 for (label, value) in [
                     ("Seed", header.seed.to_string()),
                     ("Sector", header.player_sector.to_string()),
-                    ("Credits", format!("{} cr", header.credits)),
+                    ("Credits", cr_text(header.credits)),
                     ("Play time", play_time_text(header.play_seconds)),
                     (
                         "Saved",

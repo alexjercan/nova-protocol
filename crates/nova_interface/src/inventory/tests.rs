@@ -175,15 +175,12 @@ fn inventory_columns_show_the_player_and_docked_partner_stacks() {
     let root = app.world_mut().spawn(Node::default()).id();
     spawn_inventory_body(&mut app, root);
     let player = spawn_player(app.world_mut(), 12);
-    app.world_mut()
-        .entity_mut(player)
-        .insert(ShipCredits(2_000));
 
     // Undocked: the player's own stack, and no partner to read.
     app.update();
     let world = app.world_mut();
-    // The player's title is its name; its load against its capacity and its
-    // credits, grouped by thousands, are labelled facts under it.
+    // The player's title is its name; its load against its capacity is a
+    // labelled fact under it.
     assert_eq!(column_title(world, InventorySideType::Own), "NOVA");
     assert_eq!(
         column_fact(
@@ -191,13 +188,6 @@ fn inventory_columns_show_the_player_and_docked_partner_stacks() {
             InventoryColumnFact(InventorySideType::Own, InventoryColumnFactType::Cargo)
         ),
         "120 kg / 400 kg"
-    );
-    assert_eq!(
-        column_fact(
-            world,
-            InventoryColumnFact(InventorySideType::Own, InventoryColumnFactType::Credits)
-        ),
-        "2,000 cr"
     );
     assert_eq!(
         column_texts(world, InventorySideType::Own),
@@ -215,12 +205,12 @@ fn inventory_columns_show_the_player_and_docked_partner_stacks() {
             world,
             InventoryColumnFact(InventorySideType::Partner, InventoryColumnFactType::Credits)
         ),
-        "0 cr"
+        "0"
     );
     // A ship partner trades at reference: its row carries the ask of one.
     assert_eq!(
         column_texts(world, InventorySideType::Partner),
-        ["Hull plate", "x40", "40 cr"]
+        ["Hull plate", "x40", "40"]
     );
 
     // A ship with no stacks says so rather than drawing nothing.
@@ -593,7 +583,7 @@ fn clicking_a_row_inspects_it_and_a_filter_chip_hides_other_categories() {
     );
     assert_eq!(
         column_texts(rig.app.world_mut(), InventorySideType::Own),
-        ["Hull plate", "x12", "30 cr"]
+        ["Hull plate", "x12", "30"]
     );
 }
 
@@ -2789,21 +2779,15 @@ fn a_market_trader_prices_its_rows_against_the_reference_and_sells_the_whole_sta
     // The player's rows show the bid a Sell earns, the partner's the ask a
     // Buy pays, with the heading over each.
     let own = column_texts(rig.app.world_mut(), Own);
-    assert!(
-        own.windows(2).any(|pair| pair == ["x12", "45 cr"]),
-        "{own:?}"
-    );
-    assert!(
-        own.windows(2).any(|pair| pair == ["x10", "24 cr"]),
-        "{own:?}"
-    );
+    assert!(own.windows(2).any(|pair| pair == ["x12", "45"]), "{own:?}");
+    assert!(own.windows(2).any(|pair| pair == ["x10", "24"]), "{own:?}");
     let partner = column_texts(rig.app.world_mut(), Partner);
     assert!(
-        partner.windows(2).any(|pair| pair == ["x1", "60 cr"]),
+        partner.windows(2).any(|pair| pair == ["x1", "60"]),
         "{partner:?}"
     );
     assert!(
-        partner.windows(2).any(|pair| pair == ["x40", "32 cr"]),
+        partner.windows(2).any(|pair| pair == ["x40", "32"]),
         "{partner:?}"
     );
     let heading_shown = |world: &mut World, side: InventorySideType| {

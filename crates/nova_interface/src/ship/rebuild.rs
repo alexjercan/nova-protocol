@@ -379,7 +379,11 @@ pub(crate) fn payment_refusal_text(
             items.design(item).name
         ),
         RecipePaymentRefusalType::InsufficientCredits { need, have } => {
-            format!("{code} costs {need} cr, the ship holds {have} cr")
+            format!(
+                "{code} costs {}, the ship holds {}",
+                cr_text(*need),
+                cr_text(*have)
+            )
         }
         RecipePaymentRefusalType::CreditOverflow => {
             format!("the station cannot take the price of {code}")
@@ -392,8 +396,8 @@ pub(crate) fn rebuild_price_text(rebuild: &RecipePayment) -> String {
     let held: u32 = rebuild.from_hold.values().sum();
     let bought: u32 = rebuild.bought.values().sum();
     format!(
-        "{} cr: {held} parts from the hold, {bought} bought",
-        rebuild.price_cr
+        "{}: {held} parts from the hold, {bought} bought",
+        cr_text(rebuild.price_cr)
     )
 }
 

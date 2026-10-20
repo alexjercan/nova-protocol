@@ -793,7 +793,7 @@ pub(crate) fn refresh_start_role_details(
         details.spawn(detail_row(
             "Start Role Details Credits",
             "Credits",
-            format!("{} cr", role.kit.credits),
+            cr_text(role.kit.credits),
             UiColor::Body,
         ));
         details.spawn(detail_row(

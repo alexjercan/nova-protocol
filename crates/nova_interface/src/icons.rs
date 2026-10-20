@@ -72,7 +72,7 @@ pub(crate) enum JobIconType {
 }
 
 /// Every icon mask the panes and the menu draw, each family in the order of
-/// its list: an `ALL`, `ITEM_CATEGORIES` or `ROLE_ICONS`.
+/// its list: an `ALL`, `ITEM_CATEGORIES` or `ROLE_ICONS`, then the credit mask.
 #[derive(Resource)]
 pub struct InterfaceIcons {
     pub(crate) sections: [Handle<Image>; SectionIconType::ALL.len()],
@@ -81,6 +81,7 @@ pub struct InterfaceIcons {
     pub(crate) charts: [Handle<Image>; ChartIconType::ALL.len()],
     pub(crate) jobs: [Handle<Image>; JobIconType::ALL.len()],
     pub(crate) roles: [Handle<Image>; ROLE_ICONS.len()],
+    pub(crate) credit: Handle<Image>,
 }
 
 impl InterfaceIcons {
@@ -114,6 +115,11 @@ impl InterfaceIcons {
         self.roles[icon as usize].clone()
     }
 
+    /// The credit mask: a ring cut by a vertical bar.
+    pub fn credit(&self) -> Handle<Image> {
+        self.credit.clone()
+    }
+
     /// Default handles for every mask, for tests that build pane markup
     /// without drawing images.
     #[cfg(test)]
@@ -125,6 +131,7 @@ impl InterfaceIcons {
             charts: std::array::from_fn(|_| Handle::default()),
             jobs: std::array::from_fn(|_| Handle::default()),
             roles: std::array::from_fn(|_| Handle::default()),
+            credit: Handle::default(),
         }
     }
 }
@@ -928,6 +935,14 @@ fn role_coverage(icon: RoleIconType, p: Vec2, px: f32) -> f32 {
     }
 }
 
+/// A ring cut by a vertical bar that runs past it top and bottom, so the
+/// mark reads as a currency sign beside digits at 12 px.
+fn credit_coverage(p: Vec2, px: f32) -> f32 {
+    let ring = ring(p, Vec2::ZERO, 0.55, 0.2);
+    let bar = segment(p, Vec2::new(0.0, -0.95), Vec2::new(0.0, 0.95), 0.18);
+    solid(ring.min(bar), px)
+}
+
 /// Icon mask edge, in texels.
 const ICON_TEXELS: u32 = 64;
 
@@ -966,6 +981,7 @@ pub fn init_interface_icons(mut commands: Commands, mut images: ResMut<Assets<Im
         charts: ChartIconType::ALL.map(|icon| icon_mask(&mut images, |p, px| icon.coverage(p, px))),
         jobs: JobIconType::ALL.map(|icon| icon_mask(&mut images, |p, px| icon.coverage(p, px))),
         roles: ROLE_ICONS.map(|icon| icon_mask(&mut images, |p, px| role_coverage(icon, p, px))),
+        credit: icon_mask(&mut images, credit_coverage),
     });
 }
 

@@ -20,10 +20,7 @@ use nova_ship::prelude::*;
 use nova_ui::{theme::UiColor, widget::ButtonSpec};
 
 use super::{offer_cell, StationRuntime};
-use crate::{
-    inventory::cr_text,
-    pane::{compact_button, play_menu_select, themed_label},
-};
+use crate::pane::{compact_button, play_menu_select, themed_label};
 
 /// The name of the station Buy button.
 pub const STATION_BUY_BUTTON: &str = "StationBuy";

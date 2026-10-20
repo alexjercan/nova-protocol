@@ -338,6 +338,11 @@ does NOT get an entry. Another page that states a different rule is wrong.
   travel lock.
 - The target inset names a generated asteroid by its kind, as `Rock asteroid`,
   not its internal id.
+- The interface title row shows your credit balance beside the play clock on
+  every pane. Inventory prices, Jobs rewards and balances show a credit mark
+  and grouped digits.
+- Ship pane prices, the Escort job title and the menu's Credits lines group
+  thousands, as `1,200 cr`.
 
 ### Web & Platform
 

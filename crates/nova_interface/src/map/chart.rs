@@ -51,7 +51,7 @@ use nova_ui::{
 use super::{app::*, contacts::*, tiles::ChartTileTextures, *};
 use crate::{
     icons::{icon_node, ChartIconType, InterfaceIcons, JobIconType},
-    inventory::{category_color, cr_text},
+    inventory::category_color,
     pane::{control_row, divider, legend_entry, play_menu_select, themed_label, InterfacePaneType},
     terminal::NovaOsAppInput,
     viewer::unlit,

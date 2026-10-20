@@ -209,7 +209,7 @@ pub(crate) fn update_ship_held_block(
     };
     let (price, from_hold, bought, price_color) = match &payment {
         Some(Ok(payment)) => (
-            format!("{} cr", payment.price_cr),
+            cr_text(payment.price_cr),
             parts(payment.from_hold.values().sum()),
             parts(payment.bought.values().sum()),
             UiColor::Primary,

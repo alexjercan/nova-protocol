@@ -39,8 +39,8 @@ use super::{
 use crate::{
     icons::{icon_node, InterfaceIcons},
     pane::{
-        compact_button, control_row, divider, play_menu_select, themed_label, InterfacePaneType,
-        SUMMARY_LINES,
+        compact_button, control_row, divider, play_menu_select, spawn_credit_figure, themed_label,
+        InterfacePaneType, SUMMARY_LINES,
     },
     terminal::NovaOsAppInput,
     viewer::cycle_index,
@@ -92,8 +92,8 @@ pub(crate) struct InventoryColumn {
 pub(crate) struct InventoryColumnTitle(pub(crate) InventorySideType);
 
 /// One labelled number under a column title. The player's column shows its
-/// cargo and credits, the partner's its credits, and the storage column its
-/// stored mass against the cap.
+/// cargo, the partner's its credits, and the storage column its stored mass
+/// against the cap. The player's balance is in the title row.
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) struct InventoryColumnFact(
     pub(crate) InventorySideType,
@@ -335,19 +335,6 @@ pub(crate) fn category_color(category: ItemCategoryType) -> UiColor {
     }
 }
 
-/// Credits as the panes show them, grouped by thousands: `2,000 cr`.
-pub(crate) fn cr_text(credits: impl Into<u64>) -> String {
-    let digits = credits.into().to_string();
-    let mut grouped = String::new();
-    for (index, digit) in digits.chars().enumerate() {
-        if index > 0 && (digits.len() - index).is_multiple_of(3) {
-            grouped.push(',');
-        }
-        grouped.push(digit);
-    }
-    format!("{grouped} cr")
-}
-
 /// Fill and border alpha of a row, selected or not.
 fn row_alphas(selected: bool) -> (f32, f32) {
     if selected {
@@ -413,7 +400,7 @@ pub(crate) fn inventory_body(body: &mut ChildSpawnerCommands, icons: &InterfaceI
                             InventorySideType::Partner,
                             InventorySideType::Storage,
                         ] {
-                            inventory_column(columns, side);
+                            inventory_column(columns, side, icons);
                         }
                     });
                 spawn_market_strip(stores);
@@ -463,7 +450,11 @@ fn filter_chip(
 }
 
 /// One side's panel: its title, the column headings and the row list.
-fn inventory_column(columns: &mut ChildSpawnerCommands, side: InventorySideType) {
+fn inventory_column(
+    columns: &mut ChildSpawnerCommands,
+    side: InventorySideType,
+    icons: &InterfaceIcons,
+) {
     columns
         .spawn((
             InventoryColumnPanel(side),
@@ -531,10 +522,7 @@ fn inventory_column(columns: &mut ChildSpawnerCommands, side: InventorySideType)
                 })
                 .with_children(|facts| {
                     let shown: &[InventoryColumnFactType] = match side {
-                        InventorySideType::Own => &[
-                            InventoryColumnFactType::Cargo,
-                            InventoryColumnFactType::Credits,
-                        ],
+                        InventorySideType::Own => &[InventoryColumnFactType::Cargo],
                         InventorySideType::Partner => &[InventoryColumnFactType::Credits],
                         InventorySideType::Storage => &[InventoryColumnFactType::Storage],
                         InventorySideType::Hold(_) => {
@@ -554,11 +542,22 @@ fn inventory_column(columns: &mut ChildSpawnerCommands, side: InventorySideType)
                             })
                             .with_children(|pair| {
                                 pair.spawn(themed_label(label, 11.0, UiColor::Label));
-                                pair.spawn((
-                                    InventoryColumnFact(side, fact),
-                                    themed_label("", 13.0, UiColor::Primary),
-                                    TextLayout::new(Justify::Left, LineBreak::NoWrap),
-                                ));
+                                if fact == InventoryColumnFactType::Credits {
+                                    spawn_credit_figure(
+                                        pair,
+                                        icons,
+                                        0,
+                                        13.0,
+                                        UiColor::Primary,
+                                        InventoryColumnFact(side, fact),
+                                    );
+                                } else {
+                                    pair.spawn((
+                                        InventoryColumnFact(side, fact),
+                                        themed_label("", 13.0, UiColor::Primary),
+                                        TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                                    ));
+                                }
                             });
                     }
                 });
@@ -1184,15 +1183,17 @@ fn inventory_row(
         ));
         if let Some(price) = price {
             row.spawn((
-                themed_label(&cr_text(price.cr), 12.0, UiColor::Accent),
                 Node {
                     width: px(PRICE_PX),
                     flex_shrink: 0.0,
+                    justify_content: JustifyContent::FlexEnd,
                     ..default()
                 },
-                TextLayout::new(Justify::Right, LineBreak::NoWrap),
                 Pickable::IGNORE,
-            ));
+            ))
+            .with_children(|cell| {
+                spawn_credit_figure(cell, icons, price.cr.into(), 12.0, UiColor::Accent, ());
+            });
             row.spawn((
                 Node {
                     width: px(DELTA_PX),
@@ -2870,11 +2871,10 @@ fn jettison_items(
     ))
 }
 
-/// One side as the pane draws it: its title, its credits and its stacks, or
-/// `None` for a partner that is not there.
+/// One side as the pane draws it: its title and its stacks, or `None` for a
+/// partner that is not there.
 struct SideView {
     title: String,
-    credits: String,
     stacks: Option<Vec<(ItemDesignId, u32)>>,
 }
 
@@ -2970,7 +2970,6 @@ pub(crate) fn update_inventory_panel(
     );
     let own = SideView {
         title: own_title,
-        credits: cr_text(own_cr),
         stacks: Some(
             own_inventory
                 .stacks()
@@ -2986,7 +2985,6 @@ pub(crate) fn update_inventory_panel(
             partner_credits = Some(credits);
             SideView {
                 title,
-                credits: cr_text(credits),
                 stacks: Some(
                     inventory
                         .stacks()
@@ -2997,7 +2995,6 @@ pub(crate) fn update_inventory_panel(
         }
         None => SideView {
             title: "Docked ship".to_string(),
-            credits: String::new(),
             stacks: None,
         },
     };
@@ -3016,7 +3013,6 @@ pub(crate) fn update_inventory_panel(
             );
             let view = SideView {
                 title: ships.title(ship, InventorySideType::Hold(ship)),
-                credits: String::new(),
                 stacks: Some(
                     inventory
                         .stacks()
@@ -3037,11 +3033,11 @@ pub(crate) fn update_inventory_panel(
     });
     let stored = SideView {
         title: "Storage".to_string(),
-        credits: String::new(),
         stacks: ships.side_stacks(pair, InventorySideType::Storage),
     };
     let has_intake = ships.intake(pair.own).is_some();
     let lootable = terms.as_ref().is_some_and(|terms| terms.lootable);
+    let partner_cr = partner_credits.map_or_else(String::new, |credits| cr_digits(credits.into()));
     let take_credits_shown = lootable && partner_credits.unwrap_or(0) > 0;
     let take_all_shown = take_credits_shown
         || lootable
@@ -3219,10 +3215,8 @@ pub(crate) fn update_inventory_panel(
             InventoryColumnFact(InventorySideType::Own, InventoryColumnFactType::Cargo) => {
                 &own_cargo
             }
-            InventoryColumnFact(which, InventoryColumnFactType::Credits) => {
-                &side(*which)
-                    .expect("a column fact names a column, never a hold")
-                    .credits
+            InventoryColumnFact(InventorySideType::Partner, InventoryColumnFactType::Credits) => {
+                &partner_cr
             }
             InventoryColumnFact(InventorySideType::Storage, InventoryColumnFactType::Storage) => {
                 &storage_fact
