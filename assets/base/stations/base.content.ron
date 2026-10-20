@@ -354,6 +354,18 @@
                 Trade,
                 Storage,
             ],
+            builds: [
+                "light_hull_section",
+                "basic_thruster_section",
+                "basic_controller_section",
+                "pdc_pierce_turret_section",
+                "pdc_twin_pierce_turret_section",
+                "torpedo_section",
+                "lance_torpedo_section",
+                "docking_port_section",
+                "cargo_intake_section",
+                "mining_beam_section",
+            ],
             storage_cap_g: 100000,
             stock: {
                 "ActuatorPack": 2,

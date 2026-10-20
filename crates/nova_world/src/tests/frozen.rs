@@ -22,8 +22,8 @@ use nova_gameplay::{
 use nova_scenario::prelude::{
     freeze_ship, AsteroidCarvePlugin, AsteroidField, AsteroidMarker, AsteroidPlugin,
     MinedCanisterQueue, MinedOreDrop, MiningPlugin, SectionSource, ShipDesign, ShipDesignSource,
-    SpaceshipController, SpaceshipDesign, SpaceshipPlugin, SpaceshipSectionConfig, StationMarker,
-    StationServices, StationStorage, WreckCargoPlugin,
+    SpaceshipController, SpaceshipDesign, SpaceshipPlugin, SpaceshipSectionConfig, StationBuilds,
+    StationMarker, StationServices, StationStorage, WreckCargoPlugin,
 };
 use nova_ship::prelude::{
     cargo_canister, docking_section, thruster_section, AINonCombatant, BaseSectionConfig,
@@ -1047,6 +1047,12 @@ fn a_generated_station_retires_and_thaws_with_its_cell() {
     );
     let transform = *root.get::<Transform>().expect("a station has a pose");
     let services = root.get::<StationServices>().cloned().expect("services");
+    let builds = root.get::<StationBuilds>().cloned().expect("builds");
+    assert_eq!(
+        builds,
+        StationBuilds(vec![TEST_HULL_SECTION_ID.to_string()]),
+        "a generated station builds what its manifest design lists"
+    );
     let storage = root.get::<StationStorage>().cloned().expect("storage");
     let held: Vec<String> = world
         .query::<&PendingSectorStation>()
@@ -1121,6 +1127,11 @@ fn a_generated_station_retires_and_thaws_with_its_cell() {
     assert_eq!(
         thawed_root.get::<StationServices>().cloned(),
         Some(services)
+    );
+    assert_eq!(
+        thawed_root.get::<StationBuilds>().cloned(),
+        Some(builds),
+        "a thawed station builds what it froze with"
     );
     assert_eq!(thawed_root.get::<StationStorage>().cloned(), Some(storage));
     let thawed_transform = *thawed_root.get::<Transform>().unwrap();

@@ -50,6 +50,7 @@ capability set) off it.
                 integrity: (collapse_threshold: Some(0.5)),
             ),
             services: [Trade, Storage],
+            builds: [],
             storage_cap_g: 50000,
             stock: {"HullPlate": 4},
             credits: 1000,
@@ -66,9 +67,10 @@ Every field is required. `id`, `name` and `about` name the catalog entry;
 | `id` | string | what a spawn names this design by. A mod reusing a base id REPLACES that station everywhere |
 | `name` | string | the name a picker shows. A parked station is named by the scenario object that placed it |
 | `about` | string | what this station is, for a reader |
-| `design` | station | the station itself: the five fields below. A spawn can also carry one inline, see [Spawning one](#spawning-one) |
+| `design` | station | the station itself: the six fields below. A spawn can also carry one inline, see [Spawning one](#spawning-one) |
 | `hull` | design | the same fields a [ship design](../ships/#the-design) takes: `sections`, `integrity`, `presentation`. It must hold a `Docking` section and a `Controller` section and no `Thruster` section, and author `integrity.collapse_threshold`: the share of its hull a station collapses at, see below |
 | `services` | list | what a docked ship may do here, from the closed set `Rebuild`, `Refit`, `Trade`, `Storage`, `Jobs`, `Roster`. At least one |
+| `builds` | list | the section prototype ids this station crafts, each listed once. Nonempty exactly when `services` lists `Refit` or `Rebuild`, empty otherwise |
 | `storage_cap_g` | whole number | how many grams the station's storage takes. Above zero exactly when `services` lists `Storage` |
 | `stock` | stock | what the hull's own hold opens with, in the [stock format](../objects/#inventory). It must fit the hull's hold (100 kg per hull section) |
 | `credits` | whole number | the credits the station trades with at spawn |
@@ -151,7 +153,10 @@ over-cap refusal, and finds the storage in the leave save and after a Load.
 A ship docked to a living station that offers `Rebuild` can rebuild a section
 it lost. The Ship pane lists each lost section under its old code (`PDC-1`)
 with a price or the reason it cannot be built. A lost section is one the
-ship's design places and the ship no longer has.
+ship's design places and the ship no longer has. A station crafts only what
+its `builds` lists, whatever its hold carries: a generated station builds the
+sections its civilization knows, and the base waystation builds the sections
+open at advancement 0.
 
 | rule | what happens |
 |---|---|
@@ -159,7 +164,7 @@ ship's design places and the ship no longer has.
 | the recipe | the section's [build recipe](../sections/#build-recipe): its `credits` plus every part |
 | parts | taken from the ship's hold first; the rest are bought from the station's stock at ask |
 | credits | the ship pays the recipe's `credits` plus the bought parts. The station receives all of it |
-| refusals | in this order: not docked, no `Rebuild` service, section not lost, no live section to attach to where the design places it, a part neither hold can cover, too few credits |
+| refusals | in this order: not docked, no `Rebuild` service, the station does not build the section, section not lost, no live section to attach to where the design places it, a part neither hold can cover, too few credits |
 | the result | the section spawns where the design places it, at full health, with the key binding it had when it was lost |
 | events | `OnRebuilt` and one `OnCreditsChanged` per party with `cause: Rebuild`, see [Hold events](../events/#hold-events) |
 
@@ -181,11 +186,11 @@ cannot be paid.
 | rule | what happens |
 |---|---|
 | the gate | docked to a living station whose `services` list `Refit`. A dead station and a ship offer no swap |
-| the family | the same kind of section (a turret for a turret) that fills the same cells, read from its `collider`, and not the part the section already is. Parts marked `hide_in_editor` are not offered |
+| the family | the same kind of section (a turret for a turret) that fills the same cells, read from its `collider`, and not the part the section already is. Parts marked `hide_in_editor`, or that the station does not build, are not offered |
 | the recipe | the new part's [build recipe](../sections/#build-recipe): its `credits` plus every part, paid as a rebuild pays it |
 | the old part | it is removed. Nothing is refunded |
 | the build checks | the ship the swap leaves must still join into one ship, keep every firing and exhaust lane clear, and keep enough thrust and flight computers for its mass. A swap is refused only for a check it breaks, not for one the ship already failed |
-| refusals | in this order: not docked, no `Refit` service, another kind of section, another size, the part the section already is, a part neither hold can cover, too few credits, a build check |
+| refusals | in this order: not docked, no `Refit` service, the station does not build the part, another kind of section, another size, the part the section already is, a part neither hold can cover, too few credits, a build check |
 | the result | the new part spawns where the old one stood, at full health, under the same code and with the old part's key binding. The ship keeps the new part across a save |
 | events | `OnSwapped` and one `OnCreditsChanged` per party with `cause: Swap`, see [Hold events](../events/#hold-events) |
 
@@ -206,11 +211,11 @@ chosen point with a price or the reason it cannot be added.
 |---|---|
 | the gate | docked to a living station whose `services` list `Refit` |
 | the point | a socket no design section mates. A lost section's socket stays reserved for its rebuild |
-| the fit | the part mates the point with the socket that keeps it as drawn, and must not overlap a section it does not mate. Parts marked `hide_in_editor` are not offered |
+| the fit | the part mates the point with the socket that keeps it as drawn, and must not overlap a section it does not mate. Parts marked `hide_in_editor`, or that the station does not build, are not offered |
 | the recipe | the part's [build recipe](../sections/#build-recipe), paid as a rebuild pays it |
 | the build checks | the ship the add leaves must still join into one ship, keep every firing and exhaust lane clear, and keep enough thrust and flight computers for its mass. Only a check the add breaks refuses it |
 | the binding | the key of the first live section of its kind that has one. With none, a weapon takes an empty binding to set with Rebind and a thruster none. A mining emitter takes the first free key of `V`, `B`, `N`, `C`, refused when all are held |
-| refusals | in this order: not docked, no `Refit` service, a taken point, a part with no socket, an overlap, a build check, no free mining key, a part neither hold can cover, too few credits |
+| refusals | in this order: not docked, no `Refit` service, the station does not build the part, a taken point, a part with no socket, an overlap, a build check, no free mining key, a part neither hold can cover, too few credits |
 | the result | the part spawns at full health under the next code of its kind. The ship keeps it across a save |
 | events | `OnAdded` and one `OnCreditsChanged` per party with `cause: Add`, see [Hold events](../events/#hold-events) |
 

@@ -890,6 +890,7 @@ fn a_living_station_stores_and_withdraws_and_a_derelict_one_only_loots() {
         ShipCredits(1_000),
         StationMarker,
         StationServices(vec![StationServiceType::Storage]),
+        StationBuilds(Vec::new()),
         StationStorage::new(100_000),
     ));
     let plate = ItemDesignId::from(ItemRoleType::HullPlate);
@@ -1037,6 +1038,7 @@ fn dock_station(
         ShipCredits(1_000),
         StationMarker,
         StationServices(services),
+        StationBuilds(Vec::new()),
         StationStorage::new(cap_g),
     ));
     settle(&mut rig.app);

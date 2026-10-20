@@ -400,7 +400,7 @@ pub(crate) fn update_ship_placement(
                         .expect("a live design section has a code");
                     let partner = resolved
                         .partner
-                        .and_then(|(partner, _)| q_holds.get(partner).ok())
+                        .and_then(|(partner, ..)| q_holds.get(partner).ok())
                         .map(|(stock, credits)| (stock, credits.0));
                     let (anchor, normal) =
                         link_point_pose(target.position, target.rotation, &sockets[free]);

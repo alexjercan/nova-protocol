@@ -3,10 +3,10 @@
 //!
 //! The builder authors only the hull and the mark. Everything else a
 //! [`StationDesignPrototype`] states is a sandbox default, chosen to match what the
-//! generated stations offer: the four dock services, the waystation's storage
-//! cap and credits, and the waystation's role goods cut to the hull's hold.
-//! The editor has no panel for those; a save rewrites them from these
-//! defaults every time.
+//! generated stations offer: the four dock services, every non-hidden
+//! catalog part as what it builds, the waystation's storage cap and credits,
+//! and the waystation's role goods cut to the hull's hold. The editor has no
+//! panel for those; a save rewrites them from these defaults every time.
 //!
 //! The faults are [`lint_station_design`]'s own errors, so the editor refuses
 //! exactly what the content lint refuses: no docking port, a thruster, no
@@ -100,6 +100,14 @@ pub(crate) fn station_design(
         design: StationDesign {
             hull,
             services: SERVICES.to_vec(),
+            // The sandbox builds every part its palette shows: a station
+            // built here has no civilization to know a subset.
+            builds: sections
+                .0
+                .iter()
+                .filter(|section| !section.base.hide_in_editor)
+                .map(|section| section.base.id.clone())
+                .collect(),
             storage_cap_g: STORAGE_CAP_G,
             stock: stock_within(u64::from(resolved.cargo_capacity_g()), items),
             credits: CREDITS,

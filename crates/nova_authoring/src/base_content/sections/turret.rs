@@ -43,7 +43,7 @@ const STOW_LID_NODE_PREFIX: &str = "stow_lid_";
 /// The two authoring-owned mount ids. Both single mounts are named by the
 /// generator, so their ids come from `nova_ship` instead.
 const PDC_TWIN_KINETIC_TURRET_SECTION_ID: &str = "pdc_twin_kinetic_turret_section";
-const PDC_TWIN_PIERCE_TURRET_SECTION_ID: &str = "pdc_twin_pierce_turret_section";
+pub(crate) const PDC_TWIN_PIERCE_TURRET_SECTION_ID: &str = "pdc_twin_pierce_turret_section";
 
 /// Authored per-hit damage of the Pierce PDC: HALF the Kinetic one.
 ///

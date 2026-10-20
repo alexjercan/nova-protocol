@@ -190,7 +190,7 @@ pub(crate) fn update_ship_held_block(
         let (own, own_cr) = q_holds.get(resolved.player).ok()?;
         let (stock, stock_cr) = resolved
             .partner
-            .and_then(|(partner, _)| q_holds.get(partner).ok())?;
+            .and_then(|(partner, ..)| q_holds.get(partner).ok())?;
         Some(plan_recipe_payment(
             items,
             &offered.base.build,

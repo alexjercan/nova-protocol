@@ -25,6 +25,9 @@ use crate::prelude::*;
 /// - the hull authors no `integrity.collapse_threshold` in `0..=1`: a
 ///   station states the share of its hull it collapses at;
 /// - `services` is empty;
+/// - `builds` names a section `sections` lacks, lists one twice, is empty
+///   while `services` lists Refit or Rebuild, or is nonempty while it lists
+///   neither;
 /// - `stock` names an item `items` does not hold, or weighs more than the
 ///   hull's hold;
 /// - `storage_cap_g` is above zero without a Storage service, or zero with
@@ -113,6 +116,42 @@ pub fn lint_station_design(
             issues.push(LintIssue::warn(
                 source,
                 format!("station '{id}': service {service:?} is listed more than once"),
+            ));
+        }
+    }
+    let crafts = design.services.contains(&StationServiceType::Refit)
+        || design.services.contains(&StationServiceType::Rebuild);
+    if crafts && design.builds.is_empty() {
+        issues.push(LintIssue::error(
+            source,
+            format!(
+                "station '{id}': builds is empty but services lists Refit or Rebuild; a \
+                 station crafts only what it builds"
+            ),
+        ));
+    }
+    if !crafts && !design.builds.is_empty() {
+        issues.push(LintIssue::error(
+            source,
+            format!(
+                "station '{id}': builds lists {} sections but services lists neither Refit \
+                 nor Rebuild",
+                design.builds.len()
+            ),
+        ));
+    }
+    let mut built = HashSet::new();
+    for prototype in &design.builds {
+        if sections.get(prototype).is_none() {
+            issues.push(LintIssue::error(
+                source,
+                format!("station '{id}': builds names unknown section '{prototype}'"),
+            ));
+        }
+        if !built.insert(prototype) {
+            issues.push(LintIssue::error(
+                source,
+                format!("station '{id}': builds lists '{prototype}' more than once"),
             ));
         }
     }
@@ -244,6 +283,7 @@ mod tests {
                 ..default()
             },
             services: vec![StationServiceType::Trade, StationServiceType::Storage],
+            builds: Vec::new(),
             storage_cap_g: 100_000,
             stock: ShipInventoryStock::new([(ItemDesignId::from("crate"), 1)]),
             credits: 100,
@@ -436,6 +476,47 @@ mod tests {
             .contains("unknown station design 'no_such_station'"));
         let clean = lint("waystation");
         assert!(errors(&clean).is_empty(), "{clean:?}");
+    }
+
+    /// `builds` is knowledge, not stock: each id a known prototype listed
+    /// once, present exactly when the station crafts (Refit or Rebuild).
+    #[test]
+    fn builds_are_known_listed_once_and_match_the_crafting_services() {
+        let mut idle = sound();
+        idle.builds = vec![PLATE.to_string()];
+        let found = errors(&idle);
+        assert!(
+            found
+                .iter()
+                .any(|error| error.contains("services lists neither Refit nor Rebuild")),
+            "{found:?}"
+        );
+
+        let mut crafts = sound();
+        crafts.services.push(StationServiceType::Refit);
+        let found = errors(&crafts);
+        assert!(
+            found.iter().any(|error| error.contains("builds is empty")),
+            "{found:?}"
+        );
+
+        crafts.builds = vec![PLATE.to_string(), "laser".to_string(), PLATE.to_string()];
+        let found = errors(&crafts);
+        assert!(
+            found
+                .iter()
+                .any(|error| error.contains("unknown section 'laser'")),
+            "{found:?}"
+        );
+        assert!(
+            found
+                .iter()
+                .any(|error| error.contains("lists 'plate' more than once")),
+            "{found:?}"
+        );
+
+        crafts.builds = vec![PLATE.to_string(), DOCK.to_string()];
+        assert_eq!(errors(&crafts), Vec::<String>::new());
     }
 
     #[test]

@@ -264,7 +264,7 @@ fn jobs_partner(
     q_ids: &Query<&GeneratedBodyId>,
 ) -> Option<(Entity, Entity, GeneratedBodyId)> {
     let resolved = site.resolve(StationServiceType::Jobs)?;
-    let (station, true) = resolved.partner? else {
+    let (station, true, _) = resolved.partner? else {
         return None;
     };
     let id = q_ids.get(station).ok()?.clone();

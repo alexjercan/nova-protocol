@@ -27,7 +27,8 @@ use nova_scenario::prelude::{
     freeze_asteroid, freeze_fleet, freeze_ore_drop, freeze_ship, freeze_station,
     spaceship_scenario_object, AsteroidKind, AsteroidKindId, AsteroidMarker, AsteroidRadius,
     AsteroidSeed, AsteroidTexture, CurrentScenario, GameStartRoles, MinedCanisterQueue, MinedOre,
-    MinedOreDrop, SpaceshipConfig, StartingStation, StationMarker, StationServices, StationStorage,
+    MinedOreDrop, SpaceshipConfig, StartingStation, StationBuilds, StationMarker, StationServices,
+    StationStorage,
 };
 use nova_ship::prelude::{
     cargo_canister, freeze_canister, freeze_wreck_fragment, thaw_round, thaw_torpedo, AIFollow,
@@ -3122,6 +3123,7 @@ fn frozen_item_holders(item: &ItemDesignId) -> Vec<(Option<&'static str>, Frozen
             DamageMarks::default(),
             StationMarker,
             StationServices(vec![StationServiceType::Storage]),
+            StationBuilds(Vec::new()),
             ron::from_str::<StationStorage>(&format!(
                 "(cap_g: 10000, items: {{{}: 1}})",
                 ron::to_string(item).unwrap()
@@ -3449,6 +3451,7 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
                 DamageMarks::default(),
                 StationMarker,
                 StationServices(vec![StationServiceType::Storage]),
+                StationBuilds(Vec::new()),
                 ron::from_str::<StationStorage>(&format!(
                     "(cap_g: {cap_g}, items: {{{iron}: {ore}}})"
                 ))

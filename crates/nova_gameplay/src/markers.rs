@@ -29,8 +29,8 @@ pub mod prelude {
         station_offers, ControllerSectionMarker, DerelictShipMarker, GunRoundMarker,
         OwnedShipMarker, OwnedStationMarker, PlayerFleetMarker, PlayerSpaceshipMarker,
         RailgunSectionMarker, RailgunSlugProjectileMarker, SectionInactiveMarker, SectionMarker,
-        SpaceshipRootMarker, StationDesignId, StationMarker, StationServiceType, StationServices,
-        ThrusterSectionMarker, TorpedoProjectileMarker, TorpedoSectionMarker,
+        SpaceshipRootMarker, StationBuilds, StationDesignId, StationMarker, StationServiceType,
+        StationServices, ThrusterSectionMarker, TorpedoProjectileMarker, TorpedoSectionMarker,
         TurretBulletProjectileMarker, TurretSectionMarker,
     };
 }
@@ -193,6 +193,26 @@ impl StationServices {
     /// Whether the design offers `service`.
     pub fn offers(&self, service: StationServiceType) -> bool {
         self.0.contains(&service)
+    }
+}
+
+/// The section prototype ids a station knows how to build: what its
+/// catalogue lists and what a swap, an add or a rebuild of a lost section
+/// may craft there. Inserted beside [`StationServices`] by the spawn from
+/// its design and by the thaw from its frozen record; a station root
+/// without it is invalid, and the site that reads it panics.
+///
+/// Knowledge, not materials: a part whose recipe both holds could cover is
+/// still refused when the station does not build it. A generated station
+/// writes the parts its civilization knows; the editor sandbox writes every
+/// non-hidden catalog part.
+#[derive(Component, Clone, Debug, PartialEq, Eq, Reflect)]
+pub struct StationBuilds(pub Vec<String>);
+
+impl StationBuilds {
+    /// Whether the station builds the section prototype `prototype`.
+    pub fn builds(&self, prototype: &str) -> bool {
+        self.0.iter().any(|known| known == prototype)
     }
 }
 

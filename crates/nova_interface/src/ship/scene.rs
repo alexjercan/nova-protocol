@@ -555,7 +555,7 @@ pub(crate) fn sync_ship_station_blocks(
     let partner = resolved
         .as_ref()
         .and_then(|resolved| resolved.partner)
-        .map(|(partner, _)| partner);
+        .map(|(partner, ..)| partner);
     if runtime.station_drawn == Some((root, partner)) {
         return;
     }

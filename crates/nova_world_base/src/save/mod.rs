@@ -83,7 +83,7 @@ pub use transients::{
 /// nobody held live is recorded as an arrival there. Every cell the player
 /// never visited regenerates from the seed on Load, so another generator
 /// would change it silently.
-pub const WORLD_SAVE_FORMAT: u32 = 26;
+pub const WORLD_SAVE_FORMAT: u32 = 27;
 
 /// The most characters a world name has, after trimming.
 const WORLD_NAME_MAX: usize = 32;

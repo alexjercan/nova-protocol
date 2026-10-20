@@ -1574,7 +1574,9 @@
     // spawned by id with `kind: Station((design: Prototype("example_outpost"),
     // ..))`. `design` holds the station, and every field is required.
     // `services` is the closed set Rebuild, Refit, Trade, Storage, Jobs,
-    // Roster; at least one, each once. `storage_cap_g`
+    // Roster; at least one, each once. `builds` lists the section prototype
+    // ids the station crafts (swap, add, rebuild): nonempty exactly when
+    // Refit or Rebuild is listed, each a known id, each once. `storage_cap_g`
     // is above zero exactly when Storage is listed. `stock` seeds the hull's
     // own hold (four plates here = 400 kg) and `credits` is what it trades
     // with. The hull takes the same fields a `Ship` design does, and on a
@@ -1629,6 +1631,7 @@
                 integrity: (collapse_threshold: Some(0.5)),
             ),
             services: [Trade, Storage],
+            builds: [],
             storage_cap_g: 50000,
             stock: {"example_survey_core": 4},
             credits: 1000,

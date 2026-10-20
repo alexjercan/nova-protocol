@@ -91,8 +91,8 @@ impl ResolvedSite<'_> {
     ) -> Result<SectionDelete, SectionDeleteRefusalType> {
         match self.partner {
             None => return Err(SectionDeleteRefusalType::NotDocked),
-            Some((_, false)) => return Err(SectionDeleteRefusalType::NoRefitService),
-            Some((_, true)) => {}
+            Some((_, false, _)) => return Err(SectionDeleteRefusalType::NoRefitService),
+            Some((_, true, _)) => {}
         }
         if self.port == Some(self.live[index].entity) {
             return Err(SectionDeleteRefusalType::DockedPort);
@@ -479,6 +479,12 @@ mod tests {
                 SpaceshipRootMarker,
                 StationMarker,
                 StationServices(services),
+                StationBuilds(
+                    sections
+                        .iter()
+                        .map(|section| section.config.base.id.clone())
+                        .collect(),
+                ),
             ))
             .id();
         let station_port = world.spawn(ChildOf(station)).id();

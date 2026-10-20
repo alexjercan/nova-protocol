@@ -47,7 +47,8 @@ use nova_gameplay::prelude::{
     ShipInventoryStock, UnsettledBody,
 };
 pub use nova_gameplay::prelude::{
-    StationDesignId, StationMarker, StationServiceType, StationServices, StationStorage,
+    StationBuilds, StationDesignId, StationMarker, StationServiceType, StationServices,
+    StationStorage,
 };
 use nova_ship::prelude::{AISpaceshipMarker, SectionBuildConfig, ShipCapabilities};
 
@@ -69,10 +70,10 @@ use crate::objects::{
 pub mod prelude {
     pub use super::{
         freeze_station, station_orbit_velocity, station_scenario_object, thaw_station,
-        FrozenStation, GameStationDesigns, StationConfig, StationDesign, StationDesignId,
-        StationDesignPrototype, StationDesignSource, StationMarker, StationServiceType,
-        StationServices, StationStorage, STATION_COLLAPSE_THRESHOLD, STATION_LEVEL_TOLERANCE_RAD,
-        STATION_ORBIT_TOLERANCE,
+        FrozenStation, GameStationDesigns, StationBuilds, StationConfig, StationDesign,
+        StationDesignId, StationDesignPrototype, StationDesignSource, StationMarker,
+        StationServiceType, StationServices, StationStorage, STATION_COLLAPSE_THRESHOLD,
+        STATION_LEVEL_TOLERANCE_RAD, STATION_ORBIT_TOLERANCE,
     };
 }
 
@@ -150,6 +151,11 @@ pub struct StationDesign {
     pub hull: ShipDesign,
     /// The services a docked ship may use here. At least one.
     pub services: Vec<StationServiceType>,
+    /// The section prototype ids the station builds: what its catalogue
+    /// lists and what a swap, an add or a rebuild may craft here, whatever
+    /// parts the holds carry. Each a known prototype, listed once; nonempty
+    /// exactly when `services` lists Refit or Rebuild.
+    pub builds: Vec<String>,
     /// How many grams [`StationStorage`] takes. Above zero exactly when
     /// `services` lists [`StationServiceType::Storage`].
     pub storage_cap_g: u32,
@@ -292,6 +298,7 @@ pub fn station_scenario_object(
         }),
         StationMarker,
         StationServices(design.services.clone()),
+        StationBuilds(design.builds.clone()),
         StationStorage::new(design.storage_cap_g),
     ));
     // Its own insert: the spaceship bundle above already names the hull
@@ -387,6 +394,7 @@ fn station_capabilities(living: bool) -> ShipCapabilities {
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct FrozenStation {
     services: Vec<StationServiceType>,
+    builds: Vec<String>,
     ship: FrozenShip,
     storage: StationStorage,
     parked: Vec<FrozenParkedHull>,
@@ -397,6 +405,11 @@ impl FrozenStation {
     /// The services the station offers.
     pub fn services(&self) -> &[StationServiceType] {
         &self.services
+    }
+
+    /// The section prototype ids the station builds.
+    pub fn builds(&self) -> &[String] {
+        &self.builds
     }
 
     /// The hull record: sections, hold, damage and balance.
@@ -441,8 +454,9 @@ impl FrozenStation {
 ///
 /// # Panics
 ///
-/// On an entity that carries no [`StationMarker`], no [`StationServices`] or
-/// no [`StationStorage`]: not a station root this module spawned.
+/// On an entity that carries no [`StationMarker`], no [`StationServices`],
+/// no [`StationBuilds`] or no [`StationStorage`]: not a station root this
+/// module spawned.
 pub fn freeze_station(world: &World, station: Entity) -> Result<FrozenStation, UnsettledBody> {
     let root = world.entity(station);
     if !root.contains::<StationMarker>() {
@@ -451,11 +465,15 @@ pub fn freeze_station(world: &World, station: Entity) -> Result<FrozenStation, U
     let Some(services) = root.get::<StationServices>() else {
         panic!("freeze_station: station {station} has no services");
     };
+    let Some(builds) = root.get::<StationBuilds>() else {
+        panic!("freeze_station: station {station} has no builds");
+    };
     let Some(storage) = root.get::<StationStorage>() else {
         panic!("freeze_station: station {station} has no storage");
     };
     Ok(FrozenStation {
         services: services.0.clone(),
+        builds: builds.0.clone(),
         ship: freeze_ship(world, station)?,
         storage: storage.clone(),
         parked: freeze_parked_hulls(world, station)?,
@@ -472,6 +490,7 @@ pub fn freeze_station(world: &World, station: Entity) -> Result<FrozenStation, U
 pub fn thaw_station(entity: &mut EntityCommands, frozen: FrozenStation) {
     let FrozenStation {
         services,
+        builds,
         ship,
         storage,
         parked,
@@ -479,7 +498,12 @@ pub fn thaw_station(entity: &mut EntityCommands, frozen: FrozenStation) {
     } = frozen;
     let living = !ship.is_derelict();
     thaw_ship(entity, ship);
-    entity.insert((StationMarker, StationServices(services), storage));
+    entity.insert((
+        StationMarker,
+        StationServices(services),
+        StationBuilds(builds),
+        storage,
+    ));
     entity.insert(station_type_name(living));
     if !parked.is_empty() {
         entity.insert(PendingParkedHulls(

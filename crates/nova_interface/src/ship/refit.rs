@@ -68,6 +68,7 @@ pub(crate) fn swap_refusal_text(
     match refusal {
         SectionSwapRefusalType::NotDocked => "swap: dock at a station that refits".to_string(),
         SectionSwapRefusalType::NoRefitService => "swap: this dock offers no refit".to_string(),
+        SectionSwapRefusalType::NotBuilt => format!("swap: this station does not build {name}"),
         SectionSwapRefusalType::Family(SectionFamilyFaultType::OtherKind { have, offered }) => {
             format!(
                 "swap: {code} is a {}, {name} is a {}",
@@ -142,14 +143,17 @@ impl ResolvedSite<'_> {
         own_cr: u32,
         partner: Option<(&ShipInventory, u32)>,
     ) -> Result<RecipePayment, SectionSwapRefusalType> {
-        let partner = self
-            .partner
-            .zip(partner)
-            .map(|((_, offers), (stock, credits_cr))| StationPartner {
-                offers,
-                stock,
-                credits_cr,
-            });
+        let partner =
+            self.partner
+                .zip(partner)
+                .map(
+                    |((_, offers, builds), (stock, credits_cr))| StationPartner {
+                        offers,
+                        builds,
+                        stock,
+                        credits_cr,
+                    },
+                );
         plan_section_swap(items, &section.config, offered, partner, own, own_cr)
     }
 
@@ -255,7 +259,7 @@ pub(crate) fn apply_ship_swap_commands(
                 .expect("the player ship carries a ShipInventory and ShipCredits");
             let partner = resolved
                 .partner
-                .and_then(|(partner, _)| q_holds.get(partner).ok())
+                .and_then(|(partner, ..)| q_holds.get(partner).ok())
                 .map(|(stock, credits, _)| (stock, credits.0));
             resolved
                 .plan_swap(&items, section, offered, own, own_cr.0, partner)
@@ -274,7 +278,7 @@ pub(crate) fn apply_ship_swap_commands(
                 continue;
             }
         };
-        let (station, _) = resolved
+        let (station, ..) = resolved
             .partner
             .expect("a planned swap has a docked partner");
         let Ok(
@@ -411,6 +415,7 @@ pub(crate) fn add_refusal_text(
     match refusal {
         SectionAddRefusalType::NotDocked => "add: dock at a station that refits".to_string(),
         SectionAddRefusalType::NoRefitService => "add: this dock offers no refit".to_string(),
+        SectionAddRefusalType::NotBuilt => format!("add: this station does not build {name}"),
         SectionAddRefusalType::Fit(SectionAddFaultType::Occupied) => {
             format!("add: that point on {code} is taken")
         }
@@ -502,14 +507,17 @@ impl ResolvedSite<'_> {
         own_cr: u32,
         partner: Option<(&ShipInventory, u32)>,
     ) -> Result<SectionAddPlan, SectionAddRefusalType> {
-        let partner = self
-            .partner
-            .zip(partner)
-            .map(|((_, offers), (stock, credits_cr))| StationPartner {
-                offers,
-                stock,
-                credits_cr,
-            });
+        let partner =
+            self.partner
+                .zip(partner)
+                .map(
+                    |((_, offers, builds), (stock, credits_cr))| StationPartner {
+                        offers,
+                        builds,
+                        stock,
+                        credits_cr,
+                    },
+                );
         plan_section_add(
             items,
             offered,
@@ -607,7 +615,7 @@ pub(crate) fn apply_ship_add_commands(
                 .expect("the player ship carries a ShipInventory and ShipCredits");
             let partner = resolved
                 .partner
-                .and_then(|(partner, _)| q_holds.get(partner).ok())
+                .and_then(|(partner, ..)| q_holds.get(partner).ok())
                 .map(|(stock, credits, _)| (stock, credits.0));
             resolved.plan_add(&items, offered, fit, &bound, own, own_cr.0, partner)
         };
@@ -621,7 +629,7 @@ pub(crate) fn apply_ship_add_commands(
                 continue;
             }
         };
-        let (station, _) = resolved
+        let (station, ..) = resolved
             .partner
             .expect("a planned add has a docked partner");
         let Ok(

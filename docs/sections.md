@@ -69,7 +69,10 @@ action and is refused.
 The Ship pane (`nova_interface/src/ship/rebuild.rs`)
 lists lost sections while docked to a station that offers `Rebuild`, by
 `station_offers` (`nova_gameplay::markers`), the one gate the Inventory pane's
-Trade and Storage also read. Its plan
+Trade and Storage also read. A lost section whose prototype is not in the
+station's `StationBuilds` (`nova_gameplay::markers`, read through
+`StationPartner.builds`) is refused before payment, knowledge rather than
+materials. Its plan
 is `plan_section_rebuild` (`nova_gameplay::inventory`): hold parts first, the
 rest bought at ask, refused when the station lacks stock, the ship lacks
 credits, or `rebuild_anchored` finds no live mate for the lost section's
@@ -86,7 +89,9 @@ Catalogue button, left of Fit and Reset, opens the parts gallery
 (`nova_interface/src/ship/catalogue.rs`). A part the selected
 live section can be swapped for gets a Swap line in its note and Swap as the
 focus card's second verb (`GalleryAlternate`) when `section_swap_family`
-accepts the part. The family rule is
+accepts the part, and only when the part's prototype is in the station's
+`StationBuilds` (`nova_gameplay::markers`, read through
+`StationPartner.builds`). The family rule is
 the same `SectionKind::class` and the same `SectionFootprint` read from the
 authored collider, and another prototype. `plan_section_swap` checks the
 gate, the family and the payment;

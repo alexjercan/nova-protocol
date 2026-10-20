@@ -378,6 +378,8 @@ pub enum SectionAddRefusalType {
     NotDocked,
     /// The partner is not a living station that offers Refit.
     NoRefitService,
+    /// The station does not build the part, whatever parts the holds carry.
+    NotBuilt,
     /// The part does not fit at the point, see [`section_add_fit`].
     Fit(SectionAddFaultType),
     /// The part is a mining emitter and every mining key is held, see
@@ -422,6 +424,9 @@ pub fn plan_section_add<'a>(
     let partner = partner.ok_or(SectionAddRefusalType::NotDocked)?;
     if !partner.offers {
         return Err(SectionAddRefusalType::NoRefitService);
+    }
+    if !partner.builds.iter().any(|known| *known == offered.base.id) {
+        return Err(SectionAddRefusalType::NotBuilt);
     }
     let (position, rotation) = fit.map_err(SectionAddRefusalType::Fit)?;
     let bindings = added_section_binds(offered.kind.class(), bound)?;
@@ -691,6 +696,7 @@ mod tests {
         let own = hold(&[("SectionPanel", 1)]);
         let stock = hold(&[("SectionPanel", 5), ("TurretBody", 5)]);
         let bare = hold(&[("SectionPanel", 5)]);
+        let built = vec![gun.base.id.clone()];
         let price = 100
             + items.design(&"SectionPanel".into()).ask_cr
             + items.design(&"TurretBody".into()).ask_cr;
@@ -702,6 +708,7 @@ mod tests {
                 [],
                 Some(StationPartner {
                     offers: true,
+                    builds: &built,
                     stock,
                     credits_cr: 0,
                 }),
@@ -738,6 +745,38 @@ mod tests {
                 }
             ))
         );
+    }
+
+    /// Knowledge before materials: a station that does not build the part
+    /// refuses the add before the fit and the payment, however well the
+    /// holds could pay for it.
+    #[test]
+    fn an_add_is_refused_before_payment_for_a_part_the_station_does_not_build() {
+        use nova_gameplay::{prelude::ItemDesignId, test_support::test_items};
+
+        let items = test_items();
+        let gun = hull();
+        let stocked = ShipInventory::new(
+            &items,
+            10_000_000,
+            [(ItemDesignId::from("SectionPanel"), 50)],
+        );
+        let other = vec!["drive".to_string()];
+        let refused = plan_section_add(
+            &items,
+            &gun,
+            Err(SectionAddFaultType::Occupied),
+            [],
+            Some(StationPartner {
+                offers: true,
+                builds: &other,
+                stock: &stocked,
+                credits_cr: 0,
+            }),
+            &stocked,
+            u32::MAX,
+        );
+        assert_eq!(refused.err(), Some(SectionAddRefusalType::NotBuilt));
     }
 
     /// The generator's floors judge the ship the add leaves: one more cell of

@@ -146,7 +146,7 @@ fn plan_offer(
     let own_cr = q_credits
         .get(resolved.player)
         .expect("the player ship carries ShipCredits");
-    let partner = resolved.partner.and_then(|(partner, offers)| {
+    let partner = resolved.partner.and_then(|(partner, offers, _)| {
         Some(HullBuyPartner {
             offers,
             credits_cr: q_credits.get(partner).ok()?.0,
@@ -229,7 +229,7 @@ pub(crate) fn update_station_hull_list(
     if let (Some(resolved), Some(items)) = (resolved, items) {
         let parked = resolved
             .partner
-            .and_then(|(partner, _)| q_parked.get(partner).ok());
+            .and_then(|(partner, ..)| q_parked.get(partner).ok());
         if let Some(parked) = parked {
             rows = parked
                 .iter()
@@ -376,7 +376,7 @@ pub(crate) fn apply_station_hull_buy_commands(
     let Some(command) = messages.read().last().cloned() else {
         return;
     };
-    let Some((station, _)) = resolved.partner else {
+    let Some((station, ..)) = resolved.partner else {
         runtime.say(hull_refusal_text("", &HullBuyRefusalType::NotDocked));
         return;
     };

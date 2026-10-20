@@ -108,6 +108,7 @@ fn station_design() -> StationDesign {
             ..default()
         },
         services: vec![StationServiceType::Trade],
+        builds: Vec::new(),
         storage_cap_g: 0,
         stock: ShipInventoryStock::default(),
         credits: 100,

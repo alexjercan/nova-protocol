@@ -207,9 +207,9 @@ fn market() -> TraderMarket {
 }
 
 /// A one-section living station at `position`, built from the section
-/// prototype `prototype`, with a 20 m clearance, a trade counter, no stock
-/// and no credits, kept by a Neutral civilization, with a [`market`]. `stem`
-/// names its cluster.
+/// prototype `prototype`, with a 20 m clearance, a trade counter, a refit
+/// that builds only `prototype`, no stock and no credits, kept by a Neutral
+/// civilization, with a [`market`]. `stem` names its cluster.
 fn station(id: GeneratedBodyId, position: Meters3, prototype: &str) -> SectorStation {
     let design = StationDesign {
         hull: ShipDesign {
@@ -224,7 +224,8 @@ fn station(id: GeneratedBodyId, position: Meters3, prototype: &str) -> SectorSta
             },
             ..default()
         },
-        services: vec![StationServiceType::Trade],
+        services: vec![StationServiceType::Trade, StationServiceType::Refit],
+        builds: vec![prototype.to_string()],
         storage_cap_g: 0,
         stock: ShipInventoryStock::default(),
         credits: 0,

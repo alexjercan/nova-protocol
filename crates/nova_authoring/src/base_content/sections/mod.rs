@@ -35,6 +35,8 @@ pub(crate) use hull::{
 };
 pub(crate) use mining_beam::MINING_BEAM_SECTION_ID;
 pub(crate) use thruster::VECTOR_THRUSTER_SECTION_ID;
+pub(crate) use torpedo_bay::LANCE_TORPEDO_SECTION_ID;
+pub(crate) use turret::PDC_TWIN_PIERCE_TURRET_SECTION_ID;
 
 /// Complete built-in prototype catalog in stable generated-content order.
 pub(crate) fn section_catalog(assets: &BaseContentAssets) -> Vec<SectionConfig> {

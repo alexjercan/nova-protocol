@@ -1696,11 +1696,15 @@ pub fn plan_section_yield(
 }
 
 /// The docked partner a station service reads: whether it offers the
-/// service, the stock missing parts are bought from and its balance.
+/// service, which section prototypes it builds, the stock missing parts
+/// are bought from and its balance.
 #[derive(Clone, Copy, Debug)]
 pub struct StationPartner<'a> {
     /// The partner is a living station whose design offers the service.
     pub offers: bool,
+    /// The section prototype ids the partner builds (its `StationBuilds`);
+    /// empty for a partner that is no station, which `offers` nothing.
+    pub builds: &'a [String],
     /// The partner's hold.
     pub stock: &'a ShipInventory,
     /// The partner's credits.
@@ -1803,6 +1807,9 @@ pub enum SectionRebuildRefusalType {
     NotDocked,
     /// The partner is not a living station that offers Rebuild.
     NoRebuildService,
+    /// The station does not build the section's prototype, whatever parts
+    /// the holds carry.
+    NotBuilt,
     /// The section is live on the ship.
     SectionNotLost,
     /// No live section mates with the section where the design places it.
@@ -1811,17 +1818,23 @@ pub enum SectionRebuildRefusalType {
     Payment(RecipePaymentRefusalType),
 }
 
-/// Plan rebuilding one lost section from its `recipe` while docked with
-/// `partner`.
+/// Plan rebuilding one lost section, built from the prototype `prototype`
+/// by its `recipe`, while docked with `partner`.
 ///
 /// `partner` is `None` while the ship is not docked; its `offers` is whether
-/// it is a living station that offers Rebuild. `lost` is true when the design
-/// section is not live on the ship, and `anchored` when a live section mates
-/// with it where the design places it. The recipe is paid by
-/// [`plan_recipe_payment`]. Checks run in [`SectionRebuildRefusalType`]
-/// order, and a refusal changes nothing.
+/// it is a living station that offers Rebuild, and its `builds` must name
+/// `prototype`: a lost section is crafted again, and a station crafts only
+/// what it builds. `lost` is true when the design section is not live on the
+/// ship, and `anchored` when a live section mates with it where the design
+/// places it. The recipe is paid by [`plan_recipe_payment`]. Checks run in
+/// [`SectionRebuildRefusalType`] order, and a refusal changes nothing.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the recipe, its prototype, the partner, the section's state and the hold"
+)]
 pub fn plan_section_rebuild(
     items: &GameItems,
+    prototype: &str,
     recipe: &BuildRecipe,
     partner: Option<StationPartner<'_>>,
     lost: bool,
@@ -1832,6 +1845,9 @@ pub fn plan_section_rebuild(
     let partner = partner.ok_or(SectionRebuildRefusalType::NotDocked)?;
     if !partner.offers {
         return Err(SectionRebuildRefusalType::NoRebuildService);
+    }
+    if !partner.builds.iter().any(|known| known == prototype) {
+        return Err(SectionRebuildRefusalType::NotBuilt);
     }
     if !lost {
         return Err(SectionRebuildRefusalType::SectionNotLost);
@@ -2556,15 +2572,25 @@ mod rebuild_tests {
             &items,
             &[("TurretBody", 1), ("TurretBarrel", 3), ("ActuatorPack", 2)],
         );
+        let built = vec!["pdc".to_string()];
         let partner = StationPartner {
             offers: true,
+            builds: &built,
             stock: &station,
             credits_cr: 1_000,
         };
 
-        let rebuild =
-            plan_section_rebuild(&items, &pdc_recipe(), Some(partner), true, true, &own, 500)
-                .expect("a docked, lost, anchored section with parts and credits rebuilds");
+        let rebuild = plan_section_rebuild(
+            &items,
+            "pdc",
+            &pdc_recipe(),
+            Some(partner),
+            true,
+            true,
+            &own,
+            500,
+        )
+        .expect("a docked, lost, anchored section with parts and credits rebuilds");
 
         assert_eq!(rebuild.from_hold, [("SectionPanel".into(), 2)].into());
         assert_eq!(
@@ -2596,32 +2622,48 @@ mod rebuild_tests {
                 ("SectionPanel", 2),
             ],
         );
-        let station = |offers, stock, credits_cr| {
+        let built = vec!["pdc".to_string()];
+        let other: Vec<String> = vec!["hull".to_string()];
+        let station = |offers, builds, stock, credits_cr| {
             Some(StationPartner {
                 offers,
+                builds,
                 stock,
                 credits_cr,
             })
         };
         let plan = |partner, lost, anchored, own_cr| {
-            plan_section_rebuild(&items, &recipe, partner, lost, anchored, &empty, own_cr)
+            plan_section_rebuild(
+                &items, "pdc", &recipe, partner, lost, anchored, &empty, own_cr,
+            )
         };
 
         assert_eq!(plan(None, false, false, 0), Err(NotDocked));
         assert_eq!(
-            plan(station(false, &stocked, 0), false, false, 0),
+            plan(station(false, &built, &stocked, 0), false, false, 0),
             Err(NoRebuildService)
         );
+        // Knowledge before materials: the stock covers the whole recipe and
+        // the section is lost and anchored, and the station still refuses.
         assert_eq!(
-            plan(station(true, &stocked, 0), false, false, 0),
+            plan(
+                station(true, &other, &stocked, u32::MAX),
+                true,
+                true,
+                u32::MAX
+            ),
+            Err(NotBuilt)
+        );
+        assert_eq!(
+            plan(station(true, &built, &stocked, 0), false, false, 0),
             Err(SectionNotLost)
         );
         assert_eq!(
-            plan(station(true, &stocked, 0), true, false, 0),
+            plan(station(true, &built, &stocked, 0), true, false, 0),
             Err(Unanchored)
         );
         assert_eq!(
-            plan(station(true, &empty, 0), true, true, 0),
+            plan(station(true, &built, &empty, 0), true, true, 0),
             Err(Payment(RecipePaymentRefusalType::MissingParts {
                 item: "ActuatorPack".into(),
                 short: 1,
@@ -2629,18 +2671,18 @@ mod rebuild_tests {
         );
         let price = 100 + 200 + 60 + 80 + 2 * 20;
         assert_eq!(
-            plan(station(true, &stocked, 0), true, true, price - 1),
+            plan(station(true, &built, &stocked, 0), true, true, price - 1),
             Err(Payment(RecipePaymentRefusalType::InsufficientCredits {
                 need: u64::from(price),
                 have: price - 1,
             }))
         );
         assert_eq!(
-            plan(station(true, &stocked, u32::MAX), true, true, price),
+            plan(station(true, &built, &stocked, u32::MAX), true, true, price),
             Err(Payment(RecipePaymentRefusalType::CreditOverflow))
         );
         assert_eq!(
-            plan(station(true, &stocked, 0), true, true, price).map(|plan| plan.price_cr),
+            plan(station(true, &built, &stocked, 0), true, true, price).map(|plan| plan.price_cr),
             Ok(price)
         );
     }

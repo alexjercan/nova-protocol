@@ -12,6 +12,10 @@ use nova_scenario::prelude::{
     ShipDesign, ShipIntegrityConfig, StationDesign, StationDesignPrototype, StationServiceType,
     STATION_COLLAPSE_THRESHOLD,
 };
+use nova_ship::prelude::{
+    BASIC_CONTROLLER_SECTION_ID, BASIC_THRUSTER_SECTION_ID, DOCKING_PORT_SECTION_ID,
+    LIGHT_HULL_SECTION_ID, PDC_PIERCE_TURRET_SECTION_ID, TORPEDO_SECTION_ID,
+};
 use nova_world_base::prelude::BLOCK_WAYSTATION_STATION_ID;
 
 use super::{
@@ -20,12 +24,33 @@ use super::{
         ACTUATOR_PACK, DRIVE_BELL, FLIGHT_CORE, FRAME_SPAR, SECTION_PANEL, TURRET_BARREL,
         TURRET_BODY,
     },
+    sections::{
+        CARGO_INTAKE_SECTION_ID, LANCE_TORPEDO_SECTION_ID, MINING_BEAM_SECTION_ID,
+        PDC_TWIN_PIERCE_TURRET_SECTION_ID,
+    },
     ships,
 };
 
 /// Grams the waystation stores for the ships that dock with it: ten hull
 /// plates' worth, a tenth of its own 1.7 t hold.
 const WAYSTATION_STORAGE_CAP_G: u32 = 100_000;
+
+/// The sections the waystation builds: every base section open at
+/// advancement 0. It has no civilization to know a subset, and it must not
+/// craft a mid-advancement railgun lance or capital drive for a ring-0
+/// hull, whatever parts its hold carries.
+const WAYSTATION_BUILDS: [&str; 10] = [
+    LIGHT_HULL_SECTION_ID,
+    BASIC_THRUSTER_SECTION_ID,
+    BASIC_CONTROLLER_SECTION_ID,
+    PDC_PIERCE_TURRET_SECTION_ID,
+    PDC_TWIN_PIERCE_TURRET_SECTION_ID,
+    TORPEDO_SECTION_ID,
+    LANCE_TORPEDO_SECTION_ID,
+    DOCKING_PORT_SECTION_ID,
+    CARGO_INTAKE_SECTION_ID,
+    MINING_BEAM_SECTION_ID,
+];
 
 /// Every shipped station, in stable generated-content order.
 pub(crate) fn station_catalog(assets: &BaseContentAssets) -> Vec<StationDesignPrototype> {
@@ -45,8 +70,8 @@ fn waystation(assets: &BaseContentAssets) -> StationDesignPrototype {
     }
 }
 
-/// The waystation's design: the block hull, the four dock services and a
-/// repair and trade stock.
+/// The waystation's design: the block hull, the four dock services, the
+/// advancement-0 sections it builds and a repair and trade stock.
 fn waystation_design(assets: &BaseContentAssets) -> StationDesign {
     StationDesign {
         hull: ShipDesign {
@@ -61,6 +86,7 @@ fn waystation_design(assets: &BaseContentAssets) -> StationDesign {
             StationServiceType::Trade,
             StationServiceType::Storage,
         ],
+        builds: WAYSTATION_BUILDS.iter().map(ToString::to_string).collect(),
         storage_cap_g: WAYSTATION_STORAGE_CAP_G,
         // Repair stock, the two trade goods and enough section parts to
         // rebuild a PDC, a small drive, a controller and a few hull blocks:

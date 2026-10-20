@@ -73,9 +73,10 @@ pub(crate) struct ShipGalleryHost {
     image: Handle<Image>,
 }
 
-/// The listing for the docked refit station: each listed part with its price
-/// or refusal, and Swap when it can replace the selected section. `None`
-/// while the ship is not docked at a living station that refits.
+/// The listing for the docked refit station: each part the station builds
+/// with its price or refusal, and Swap when it can replace the selected
+/// section. `None` while the ship is not docked at a living station that
+/// refits.
 fn station_listing(
     runtime: &ShipRuntime,
     items: &GameItems,
@@ -92,15 +93,17 @@ fn station_listing(
         .expect("the player ship carries a ShipInventory and ShipCredits");
     let partner = resolved
         .partner
-        .and_then(|(partner, _)| q_holds.get(partner).ok())
+        .and_then(|(partner, ..)| q_holds.get(partner).ok())
         .map(|(stock, credits)| (stock, credits.0));
     let (stock, stock_cr) = partner?;
+    let (_, _, builds) = resolved.partner.expect("a partner with a hold is docked");
     let selected = resolved.selected_section(runtime.selected);
     let mut entries = Vec::new();
-    for offered in sections
-        .iter()
-        .filter(|offered| !offered.base.hide_in_editor)
-    {
+    // What the station builds, never what the holds could pay for: a part
+    // the station does not know is absent, whatever parts are in stock.
+    for offered in sections.iter().filter(|offered| {
+        !offered.base.hide_in_editor && builds.iter().any(|known| *known == offered.base.id)
+    }) {
         let recipe = &offered.base.build;
         if matches!(
             plan_recipe_payment(items, recipe, stock, stock_cr, own, u32::MAX),

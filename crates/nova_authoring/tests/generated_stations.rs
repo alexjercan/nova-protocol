@@ -17,7 +17,7 @@ use nova_scenario::prelude::{
     lint_station_design, resolve_ship_design, GameShipDesigns, KnownSections, LintSeverity,
     ShipDesignSource,
 };
-use nova_ship::prelude::{GameSections, GameStyles};
+use nova_ship::prelude::{GameSections, GameStyles, RAILGUN_LANCE_SECTION_ID};
 use nova_world_base::prelude::{
     generate_station, generated_station, station_ceiling, Civilization, CivilizationStatusType,
     ShipPartSnapshot, StationArchetypeType, StationLayoutRequest,
@@ -182,5 +182,74 @@ fn a_seeded_station_stocks_its_known_weapons_ammunition_within_its_hold() {
             ItemRoleType::Torpedo,
         ]),
         "the stations between them stock every kind"
+    );
+}
+
+/// A generated station builds exactly what its civilization knows, never
+/// what its stock could pay for: a ring-0 station lists no railgun lance,
+/// whose recipe shares its panels and spars with parts it does build, and a
+/// civilization at advancement 0.5 that knows the lance lists it.
+#[test]
+fn a_generated_station_builds_what_its_civilization_knows_and_no_more() {
+    let parts = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
+        .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
+    let items = GameItems::new(build_items());
+    let station = |id: CivilizationId, advancement: f32| {
+        let civilization = Civilization {
+            id,
+            centroid: Meters3::ZERO,
+            status: CivilizationStatusType::Living,
+            advancement,
+            role_preference: [1.0; 4],
+            stance: StanceType::Neutral,
+        };
+        let request = StationLayoutRequest {
+            seed: 1,
+            civilization: id,
+            archetype: StationArchetypeType::Ring,
+            advancement,
+        };
+        let layout = generate_station(&parts, request)
+            .unwrap_or_else(|failure| panic!("{id} at {advancement}: {failure}"));
+        generated_station(&parts, &items, &layout, &civilization)
+            .unwrap_or_else(|constraint| panic!("{id} at {advancement}: {constraint}"))
+    };
+
+    let ring0 = station(CIVILIZATIONS[0], 0.0);
+    let known: BTreeSet<&str> = parts
+        .known(CIVILIZATIONS[0], 0.0)
+        .into_iter()
+        .map(|part| part.id())
+        .collect();
+    let built: BTreeSet<&str> = ring0.builds.iter().map(String::as_str).collect();
+    assert_eq!(
+        built, known,
+        "a ring-0 station builds what its civilization knows"
+    );
+    assert_eq!(
+        ring0.builds.len(),
+        built.len(),
+        "each id once: {:?}",
+        ring0.builds
+    );
+    assert!(
+        !built.contains(RAILGUN_LANCE_SECTION_ID),
+        "a ring-0 station does not build the railgun lance: {built:?}"
+    );
+
+    let advanced = CIVILIZATIONS
+        .into_iter()
+        .find(|id| {
+            parts
+                .known(*id, 0.5)
+                .iter()
+                .any(|part| part.id() == RAILGUN_LANCE_SECTION_ID)
+        })
+        .expect("a sweep civilization knows the railgun lance at advancement 0.5");
+    let advanced_station = station(advanced, 0.5);
+    let built: BTreeSet<&str> = advanced_station.builds.iter().map(String::as_str).collect();
+    assert!(
+        built.contains(RAILGUN_LANCE_SECTION_ID),
+        "{advanced} at 0.5 builds the railgun lance it knows: {built:?}"
     );
 }

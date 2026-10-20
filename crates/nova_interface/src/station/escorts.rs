@@ -128,7 +128,7 @@ fn plan_offer(
         .get(resolved.player)
         .expect("the player ship carries ShipCredits")
         .0;
-    let partner = resolved.partner.and_then(|(partner, offers)| {
+    let partner = resolved.partner.and_then(|(partner, offers, _)| {
         Some(EscortHirePartner {
             offers,
             allied: q_sides.get(partner).ok() == Some(&Allegiance::Player),
@@ -193,7 +193,7 @@ pub(crate) fn update_station_escort_list(
     if let (Some(resolved), Some(items)) = (resolved, items) {
         let parked = resolved
             .partner
-            .and_then(|(partner, _)| q_parked.get(partner).ok());
+            .and_then(|(partner, ..)| q_parked.get(partner).ok());
         if let Some(parked) = parked {
             let held = held_sides(resolved.player, &q_fleet);
             rows = parked
@@ -314,7 +314,7 @@ pub(crate) fn apply_station_escort_hire_commands(
     let Some(command) = messages.read().last().cloned() else {
         return;
     };
-    let Some((station, _)) = resolved.partner else {
+    let Some((station, ..)) = resolved.partner else {
         runtime.say(escort_refusal_text("", &EscortHireRefusalType::NotDocked));
         return;
     };

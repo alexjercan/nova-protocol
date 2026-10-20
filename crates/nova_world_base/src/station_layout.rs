@@ -430,9 +430,10 @@ pub fn generate_station(
 }
 
 /// The station design `civilization` keeps, built on `layout`: the four dock
-/// services, storage and credits that rise with advancement, and an opening
-/// stock that fills a share of the hold, half goods and half the parts every
-/// section its civilization knows is built from. The goods hold at least one
+/// services, every section the civilization knows as what it builds,
+/// storage and credits that rise with advancement, and an opening stock that
+/// fills a share of the hold, half goods and half the parts every section
+/// its civilization knows is built from. The goods hold at least one
 /// unit of each item a weapon the civilization knows reloads from, and no
 /// other ammunition. An extinct civilization's dead station keeps the same
 /// stock and credits as loot.
@@ -497,7 +498,7 @@ pub fn generated_station(
     // The parts of every section the civilization builds, so a ship it
     // fields can be refitted and rebuilt at its stations.
     let mut kit: BTreeMap<&ItemDesignId, u32> = BTreeMap::new();
-    for part in known {
+    for part in &known {
         for (item, count) in &part.config.base.build.parts {
             *kit.entry(item).or_default() += count;
         }
@@ -529,6 +530,7 @@ pub fn generated_station(
     Ok(StationDesign {
         hull: layout.design.clone(),
         services: SERVICES.to_vec(),
+        builds: known.iter().map(|part| part.id().to_string()).collect(),
         storage_cap_g: lerp(STORAGE_CAP_G, advancement).round() as u32,
         stock,
         credits: lerp(CREDITS, advancement).round() as u32,

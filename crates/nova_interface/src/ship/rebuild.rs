@@ -78,7 +78,11 @@ pub(crate) struct StationSite<'w, 's> {
     stations: Query<
         'w,
         's,
-        (Option<&'static StationServices>, Has<DerelictShipMarker>),
+        (
+            Option<&'static StationServices>,
+            Option<&'static StationBuilds>,
+            Has<DerelictShipMarker>,
+        ),
         With<StationMarker>,
     >,
     sections: Query<
@@ -116,26 +120,34 @@ pub(crate) struct StationSite<'w, 's> {
 pub(crate) const PARTNER_REACH_MARGIN: f32 = 4.0;
 
 /// What [`StationSite::resolve`] found: the player ship, its design, its
-/// live sections, and the partner it is docked with and whether that partner
-/// is a living station offering the service asked about.
+/// live sections, and the partner it is docked with, whether that partner
+/// is a living station offering the service asked about, and the section
+/// prototypes it builds.
 pub(crate) struct ResolvedSite<'a> {
     pub(crate) player: Entity,
     pub(crate) design: &'a ShipDesignSections,
     pub(crate) live: Vec<LiveSection>,
-    pub(crate) partner: Option<(Entity, bool)>,
+    pub(crate) partner: Option<(Entity, bool, &'a [String])>,
     /// The player ship's port the dock holds by, while it is docked.
     pub(crate) port: Option<Entity>,
 }
 
 impl StationSite<'_, '_> {
     /// The partner the player ship `player` is docked with through `docked`,
-    /// and whether it is a living station that offers `service`.
+    /// whether it is a living station that offers `service`, and the section
+    /// prototypes it builds: its [`StationBuilds`], none for a partner that
+    /// is no station.
+    ///
+    /// # Panics
+    ///
+    /// On a station that carries [`StationServices`] without
+    /// [`StationBuilds`]: every station root spawns and thaws with both.
     fn partner(
         &self,
         player: Entity,
         docked: &DockedShip,
         service: StationServiceType,
-    ) -> (Entity, bool) {
+    ) -> (Entity, bool, &[String]) {
         let connection = self.connections.get(docked.connection).unwrap_or_else(|_| {
             panic!(
                 "player ship {player:?} is docked through {:?}, which has no DockingConnection",
@@ -147,11 +159,20 @@ impl StationSite<'_, '_> {
         } else {
             connection.first_ship
         };
-        let offers = self
-            .stations
-            .get(other)
-            .is_ok_and(|(services, derelict)| station_offers(services, derelict, service));
-        (other, offers)
+        let (offers, builds) = match self.stations.get(other) {
+            Ok((services, builds, derelict)) => {
+                let builds = match (services, builds) {
+                    (Some(_), None) => {
+                        panic!("station {other:?} carries StationServices but no StationBuilds")
+                    }
+                    (_, Some(builds)) => builds.0.as_slice(),
+                    (None, None) => &[],
+                };
+                (station_offers(services, derelict, service), builds)
+            }
+            Err(_) => (false, &[][..]),
+        };
+        (other, offers, builds)
     }
 
     /// Whether the `service` gate holds: the player ship has a design and is
@@ -213,7 +234,7 @@ impl StationSite<'_, '_> {
         &self,
         resolved: &ResolvedSite<'_>,
     ) -> Vec<PlacedSectionCollider> {
-        let Some((partner, _)) = resolved.partner else {
+        let Some((partner, ..)) = resolved.partner else {
             return Vec::new();
         };
         let Ok(ship) = self.roots.get(resolved.player) else {
@@ -295,16 +316,20 @@ impl ResolvedSite<'_> {
                 link_points: &section.config.base.link_points,
             },
         );
-        let partner = self
-            .partner
-            .zip(partner)
-            .map(|((_, offers), (stock, credits_cr))| StationPartner {
-                offers,
-                stock,
-                credits_cr,
-            });
+        let partner =
+            self.partner
+                .zip(partner)
+                .map(
+                    |((_, offers, builds), (stock, credits_cr))| StationPartner {
+                        offers,
+                        builds,
+                        stock,
+                        credits_cr,
+                    },
+                );
         plan_section_rebuild(
             items,
+            &section.config.base.id,
             &section.config.base.build,
             partner,
             lost,
@@ -327,6 +352,9 @@ fn rebuild_refusal_text(
         }
         SectionRebuildRefusalType::NoRebuildService => {
             "rebuild: this dock offers no rebuild".to_string()
+        }
+        SectionRebuildRefusalType::NotBuilt => {
+            format!("rebuild: this station does not build {code}")
         }
         SectionRebuildRefusalType::SectionNotLost => format!("rebuild: {code} is not lost"),
         SectionRebuildRefusalType::Unanchored => {
@@ -425,7 +453,7 @@ pub(crate) fn update_ship_rebuild_list(
                 .expect("the player ship carries a ShipInventory and ShipCredits");
             let partner = resolved
                 .partner
-                .and_then(|(partner, _)| q_holds.get(partner).ok())
+                .and_then(|(partner, ..)| q_holds.get(partner).ok())
                 .map(|(stock, credits)| (stock, credits.0));
             resolved
                 .lost()
@@ -543,7 +571,7 @@ pub(crate) fn apply_ship_rebuild_commands(
                 .expect("the player ship carries a ShipInventory and ShipCredits");
             let partner = resolved
                 .partner
-                .and_then(|(partner, _)| q_holds.get(partner).ok())
+                .and_then(|(partner, ..)| q_holds.get(partner).ok())
                 .map(|(stock, credits, _)| (stock, credits.0));
             resolved.plan(&items, section, own, own_cr.0, partner)
         };
@@ -554,7 +582,7 @@ pub(crate) fn apply_ship_rebuild_commands(
                 continue;
             }
         };
-        let (station, _) = resolved
+        let (station, ..) = resolved
             .partner
             .expect("a planned rebuild has a docked partner");
         let Ok(

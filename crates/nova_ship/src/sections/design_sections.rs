@@ -201,6 +201,9 @@ pub enum SectionSwapRefusalType {
     NotDocked,
     /// The partner is not a living station that offers Refit.
     NoRefitService,
+    /// The station does not build the offered part, whatever parts the
+    /// holds carry.
+    NotBuilt,
     /// The offered part is not of the section's family.
     Family(SectionFamilyFaultType),
     /// The offered part's recipe cannot be paid, see [`plan_recipe_payment`].
@@ -214,11 +217,12 @@ pub enum SectionSwapRefusalType {
 /// while docked with `partner`, paid by the offered part's recipe.
 ///
 /// `partner` is `None` while the ship is not docked; its `offers` is whether
-/// it is a living station that offers Refit. The recipe is paid by
-/// [`plan_recipe_payment`]: hold parts first, the rest bought at ask. Checks
-/// run in [`SectionSwapRefusalType`] order up to the payment; the post-build
-/// checks are [`swap_build_fault`], which the caller runs last. A refusal
-/// changes nothing.
+/// it is a living station that offers Refit, and its `builds` must name
+/// `offered`'s prototype. The recipe is paid by [`plan_recipe_payment`]:
+/// hold parts first, the rest bought at ask. Checks run in
+/// [`SectionSwapRefusalType`] order up to the payment; the post-build checks
+/// are [`swap_build_fault`], which the caller runs last. A refusal changes
+/// nothing.
 pub fn plan_section_swap(
     items: &GameItems,
     current: &SectionConfig,
@@ -230,6 +234,9 @@ pub fn plan_section_swap(
     let partner = partner.ok_or(SectionSwapRefusalType::NotDocked)?;
     if !partner.offers {
         return Err(SectionSwapRefusalType::NoRefitService);
+    }
+    if !partner.builds.iter().any(|known| *known == offered.base.id) {
+        return Err(SectionSwapRefusalType::NotBuilt);
     }
     section_swap_family(current, offered).map_err(SectionSwapRefusalType::Family)?;
     plan_recipe_payment(
@@ -628,6 +635,45 @@ mod tests {
         assert_eq!(
             section_swap_family(&current, &current.clone()),
             Err(SectionFamilyFaultType::SamePart)
+        );
+    }
+
+    /// Knowledge before materials: a station that does not build the offered
+    /// part refuses the swap before the family check and the payment, and
+    /// one that builds it plans the same swap.
+    #[test]
+    fn a_swap_is_refused_before_payment_for_a_part_the_station_does_not_build() {
+        use nova_gameplay::test_support::test_items;
+
+        let items = test_items();
+        let current = part("pdc_kinetic", turret(), Vec3::ONE, cube_points());
+        let offered = part("pdc_pierce", turret(), Vec3::ONE, cube_points());
+        let empty = ShipInventory::new(&items, 10_000_000, []);
+        let known = vec![offered.base.id.clone()];
+        let other = vec![current.base.id.clone()];
+        let partner = |builds| {
+            Some(StationPartner {
+                offers: true,
+                builds,
+                stock: &empty,
+                credits_cr: 0,
+            })
+        };
+
+        assert_eq!(
+            plan_section_swap(
+                &items,
+                &current,
+                &offered,
+                partner(&other),
+                &empty,
+                u32::MAX
+            ),
+            Err(SectionSwapRefusalType::NotBuilt)
+        );
+        assert!(
+            plan_section_swap(&items, &current, &offered, partner(&known), &empty, 0).is_ok(),
+            "a free recipe at a station that builds the part plans"
         );
     }
 

@@ -53,7 +53,7 @@ pub(super) const TORPEDO_BASE_HEALTH: f32 = 100.0;
 
 /// The Lance bay's id. The Serpent bay is named by the generator, so its id
 /// comes from `nova_ship` instead.
-const LANCE_TORPEDO_SECTION_ID: &str = "lance_torpedo_section";
+pub(crate) const LANCE_TORPEDO_SECTION_ID: &str = "lance_torpedo_section";
 
 /// The node prefix of the iris petals inside `bay_tube.glb`. Producer and test
 /// read the same name, so a renamed node fails loudly.
