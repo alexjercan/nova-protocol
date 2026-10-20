@@ -364,6 +364,8 @@ The static lint and the load gate both refuse a station that:
 - authors no `integrity.collapse_threshold`, or one outside `0..=1` (a
   station states the share it collapses at);
 - lists no service;
+- has a `builds` entry that no loaded content declares or that repeats, an
+  empty `builds` with `Refit` or `Rebuild`, or a nonempty one with neither;
 - lists `Storage` with `storage_cap_g: 0`, or sets `storage_cap_g` above zero
   without `Storage`;
 - seeds its `stock` with an unknown item, or more than the hull's hold takes.
