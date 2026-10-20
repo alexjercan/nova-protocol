@@ -1945,7 +1945,7 @@ impl InventoryShips<'_, '_> {
     /// A resolved ship's name, inventory, whether a docked ship may Take from
     /// it (it is neutralized or carries [`LootableShipMarker`]; otherwise it
     /// trades), and its credits.
-    fn ship(&self, ship: Entity) -> (Option<&Name>, &ShipInventory, bool, u32) {
+    pub(crate) fn ship(&self, ship: Entity) -> (Option<&Name>, &ShipInventory, bool, u32) {
         let (name, inventory, neutralized, lootable, credits, _) = self
             .ships
             .get(ship)

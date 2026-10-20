@@ -391,3 +391,86 @@ fn a_strip_takes_the_whole_hold_first_or_does_nothing() {
         )
     );
 }
+
+#[test]
+fn the_strip_block_counts_sections_and_parts_and_names_a_held_strip() {
+    let block_text = |app: &mut App, field: StripBlockField| {
+        let mut q = app
+            .world_mut()
+            .query::<(&StripBlockField, &Text, &ThemedText)>();
+        q.iter(app.world())
+            .find(|(each, ..)| **each == field)
+            .map(|(_, text, themed)| (text.0.clone(), themed.color))
+            .expect("the block has every field")
+    };
+    let block_tiles = |app: &mut App| {
+        let mut q = app.world_mut().query::<&StripYieldTiles>();
+        q.single(app.world()).expect("one tile row").0.clone()
+    };
+    let step_row_shown = |app: &mut App| {
+        let mut q = app
+            .world_mut()
+            .query_filtered::<&Node, With<StripStepRow>>();
+        q.single(app.world()).expect("one step row").display != Display::None
+    };
+    let mut app = strip_app();
+    app.insert_resource(InterfaceIcons::blank());
+    app.add_systems(Update, update_strip_block.after(advance_hull_strip));
+    app.world_mut()
+        .commands()
+        .spawn(Node::default())
+        .with_children(spawn_strip_block);
+    // Room for hull B's one 10 kg panel, not for the turret's 70 kg.
+    let (player, wreck) = dock_with_a_wreck(app.world_mut(), 15_000);
+    app.update();
+
+    // Ready: no step row, and each tile shows the plan alone.
+    assert_eq!(block_text(&mut app, StripBlockField::Sections).0, "0 / 4");
+    assert!(block_text(&mut app, StripBlockField::Time)
+        .0
+        .ends_with("to strip"));
+    assert!(!step_row_shown(&mut app));
+    let ready = block_tiles(&mut app);
+    let panel = ItemDesignId::from("SectionPanel");
+    let planned = ready
+        .iter()
+        .find(|tile| tile.item == panel)
+        .expect("the hull gives section panels")
+        .planned;
+    assert!(ready.iter().all(|tile| tile.yielded.is_none()));
+
+    // One section off: the panel it gave counts against the same plan.
+    app.world_mut().write_message(HullStripCommand);
+    app.update();
+    run_until(&mut app, 200, |app| {
+        app.world().get_entity(wreck.b).is_err()
+    });
+    app.update();
+    assert_eq!(block_text(&mut app, StripBlockField::Sections).0, "1 / 4");
+    assert!(step_row_shown(&mut app));
+    let running = block_tiles(&mut app);
+    let tile = running
+        .iter()
+        .find(|tile| tile.item == panel)
+        .expect("the panel tile stays");
+    assert_eq!((tile.yielded, tile.planned), (Some(1), planned));
+
+    // The turret's parts do not fit: the block names the held strip.
+    run_until(&mut app, 200, |app| {
+        job(app, player).is_some_and(|job| job.paused.is_some())
+    });
+    app.update();
+    assert_eq!(
+        block_text(&mut app, StripBlockField::Time),
+        ("Held".to_string(), UiColor::Danger)
+    );
+    let (hold_text, hold_color) = block_text(&mut app, StripBlockField::Hold);
+    assert!(hold_text.contains("needs"), "{hold_text}");
+    assert_eq!(hold_color, UiColor::Danger);
+    let mut q = app.world_mut().query::<(&StripBlockFill, &ThemedFill)>();
+    let hold_fill = q
+        .iter(app.world())
+        .find(|(fill, _)| **fill == StripBlockFill::Hold)
+        .map(|(_, themed)| themed.color);
+    assert_eq!(hold_fill, Some(UiColor::Danger));
+}

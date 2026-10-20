@@ -3,11 +3,15 @@
 //!
 //! While the player ship is docked with a partner it may loot (neutralized,
 //! or a derelict carrying [`LootableShipMarker`]) that is not a living
-//! station, a compact block above the partner column shows the Strip button,
-//! the progress bar, the sections left, the time and the expected parts. A
-//! click raises a [`HullStripCommand`]; [`apply_hull_strip_commands`] plans
-//! it with [`plan_strip_press`], takes the partner's whole hold and balance
-//! as Take all does, and starts a [`HullStripJob`] on the player ship. When
+//! station, a compact block above the partner column shows the Strip button
+//! and four meters: the whole strip and its time, the running section, the
+//! sections taken and the hold with the mass still to come. Under them, one
+//! tile per part names what the strip recovered so far over what it plans to
+//! give. The plan of the sections still live is an estimate at their current
+//! health, so it changes as they take damage. A click raises a
+//! [`HullStripCommand`]; [`apply_hull_strip_commands`] plans it with
+//! [`plan_strip_press`], takes the partner's whole hold and balance as Take
+//! all does, and starts a [`HullStripJob`] on the player ship. When
 //! that take would leave anything behind, the strip does not start and
 //! nothing moves: the button is disabled by the same rule, and its tooltip
 //! names what has no room. [`advance_hull_strip`] runs the job on the game clock, with the pane
@@ -30,7 +34,7 @@
 #[cfg(test)]
 mod tests;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use bevy::{ecs::system::SystemParam, prelude::*, ui::InteractionDisabled, ui_widgets::Activate};
 use nova_events::prelude::EntityId;
@@ -38,11 +42,12 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
     theme::UiColor,
-    widget::{ButtonSpec, ThemedBorder, ThemedFill, Tooltip},
+    widget::{ButtonSpec, ThemedBorder, ThemedFill, ThemedText, Tooltip},
 };
 
-use super::{loot_text, take_loot, InventoryRuntime, InventoryShips};
+use super::{category_color, loot_text, take_loot, InventoryRuntime, InventoryShips};
 use crate::{
+    icons::{icon_node, InterfaceIcons},
     pane::{compact_button, play_menu_select, themed_label},
     ship::design_section_code,
 };
@@ -53,7 +58,7 @@ pub const INVENTORY_STRIP_BLOCK: &str = "InventoryStripBlock";
 /// The name of the Strip button.
 pub const INVENTORY_STRIP_BUTTON: &str = "InventoryStripButton";
 
-/// The name of the strip block's progress line.
+/// The name of the strip block's whole-strip time text.
 pub const INVENTORY_STRIP_PROGRESS: &str = "InventoryStripProgress";
 
 /// A request to strip the whole docked partner, raised by the strip block's
@@ -69,16 +74,44 @@ pub(crate) struct StripBlock;
 /// A text of the strip block that [`update_strip_block`] refreshes.
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum StripBlockField {
-    /// The sections left and the expected parts, or a held strip's reason.
-    Plan,
-    /// The time a strip takes, or the running strip's share, section and
-    /// time left.
-    Progress,
+    /// The time a strip takes, the time left, or `Held`.
+    Time,
+    /// The running section's code and its time left.
+    Step,
+    /// Sections taken over the hull's sections.
+    Sections,
+    /// The hold, used over capacity, with the mass still to come or a held
+    /// section's need.
+    Hold,
 }
 
-/// The progress bar's fill.
+/// A meter fill of the strip block.
+#[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum StripBlockFill {
+    Total,
+    Step,
+    Sections,
+    Hold,
+}
+
+/// The running section's row, shown while a strip job exists.
 #[derive(Component)]
-pub(crate) struct StripBlockFill;
+pub(crate) struct StripStepRow;
+
+/// The part tiles, with what they last drew so they rebuild only on a change.
+#[derive(Component, Default)]
+pub(crate) struct StripYieldTiles(Vec<StripYieldTile>);
+
+/// One part a strip gives.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub(crate) struct StripYieldTile {
+    item: ItemDesignId,
+    /// Parts recovered so far (the job's `yielded` sum; the player may have
+    /// moved them since); `None` before the strip starts.
+    yielded: Option<u32>,
+    /// `yielded` plus the plan of the sections still live.
+    planned: u32,
+}
 
 /// The Strip button: hidden while a strip runs or the partner is not a wreck,
 /// disabled with a tooltip while the loot it takes first has no room.
@@ -333,17 +366,6 @@ fn no_room_text(items: &GameItems, loot: &LootTake) -> String {
     )
 }
 
-/// The line for a strip held at a finished section.
-fn strip_pause_text(code: &str, pause: HullStripPauseType) -> String {
-    match pause {
-        HullStripPauseType::HoldFull { need_g, free_g } => format!(
-            "Held: hold full. {code} needs {} of hold, {} free",
-            kg_text(need_g),
-            kg_text(u64::from(free_g))
-        ),
-    }
-}
-
 /// The list order of a pane code: its prefix, then its number, so `HULL-2`
 /// sorts before `HULL-10`. A code with no number sorts by its text alone.
 fn code_order(code: &str) -> (String, u32) {
@@ -377,26 +399,32 @@ fn duration_text(secs: f32) -> String {
     format!("{} min {:02} s", secs / 60, secs % 60)
 }
 
-/// The plan line: the sections left and the parts they are expected to give,
-/// with their mass.
-fn strip_plan_text(items: &GameItems, partner: &StripPartner<'_>, strip: &HullStrip) -> String {
-    let mass_g: u64 = strip
-        .parts
-        .iter()
-        .map(|(item, &count)| items.design(item).stack_mass_g(count))
-        .sum();
-    format!(
-        "{} section{} left. Expected yield: {} ({})",
-        partner.live.len(),
-        if partner.live.len() == 1 { "" } else { "s" },
-        strip_parts_text(items, &strip.parts),
-        kg_text(mass_g),
-    )
+/// The tiles of `plan` (the live sections) and a running `job`'s yield,
+/// in item id order.
+fn yield_tiles(
+    plan: &BTreeMap<ItemDesignId, u32>,
+    job: Option<&HullStripJob>,
+) -> Vec<StripYieldTile> {
+    let yielded = job.map(|job| &job.yielded);
+    let ids: BTreeSet<&ItemDesignId> = plan
+        .keys()
+        .chain(yielded.into_iter().flat_map(BTreeMap::keys))
+        .collect();
+    ids.into_iter()
+        .map(|item| {
+            let got = yielded.map(|yielded| yielded.get(item).copied().unwrap_or(0));
+            StripYieldTile {
+                item: item.clone(),
+                yielded: got,
+                planned: got.unwrap_or(0) + plan.get(item).copied().unwrap_or(0),
+            }
+        })
+        .collect()
 }
 
 /// Build the strip block, hidden until [`update_strip_block`] finds a wreck:
-/// the Strip button, the progress bar and the time on one row, and the plan
-/// line under them.
+/// the Strip button beside the Total meter, the Step meter shown while a
+/// strip runs, the Sections and Hold meters, and the part tiles.
 pub(crate) fn spawn_strip_block(panel: &mut ChildSpawnerCommands) {
     panel
         .spawn((
@@ -431,49 +459,143 @@ pub(crate) fn spawn_strip_block(panel: &mut ChildSpawnerCommands) {
                         Tooltip::default(),
                     ))
                     .observe(on_strip_button);
-                    row.spawn((
-                        Node {
-                            flex_grow: 1.0,
-                            min_width: Val::Px(24.0),
-                            height: Val::Px(6.0),
-                            border_radius: BorderRadius::all(Val::Px(3.0)),
-                            overflow: Overflow::clip(),
-                            ..default()
-                        },
-                        BackgroundColor(Color::NONE),
-                        ThemedFill::alpha(UiColor::Secondary, 0.25),
-                    ))
-                    .with_children(|track| {
-                        track.spawn((
-                            StripBlockFill,
-                            Node {
-                                width: Val::Percent(0.0),
-                                height: Val::Percent(100.0),
-                                ..default()
-                            },
-                            BackgroundColor(Color::NONE),
-                            ThemedFill::new(UiColor::Accent),
-                        ));
-                    });
-                    row.spawn((
-                        StripBlockField::Progress,
-                        Name::new(INVENTORY_STRIP_PROGRESS),
-                        themed_label("", 12.0, UiColor::Primary),
-                        TextLayout::new(Justify::Right, LineBreak::NoWrap),
-                    ));
+                    spawn_meter_row(row, "Total", StripBlockFill::Total, StripBlockField::Time);
                 });
-            block.spawn((StripBlockField::Plan, themed_label("", 12.0, UiColor::Body)));
+            block
+                .spawn((
+                    StripStepRow,
+                    Node {
+                        display: Display::None,
+                        flex_direction: FlexDirection::Column,
+                        ..default()
+                    },
+                ))
+                .with_children(|row| {
+                    spawn_meter_row(row, "Step", StripBlockFill::Step, StripBlockField::Step);
+                });
+            spawn_meter_row(
+                block,
+                "Sections",
+                StripBlockFill::Sections,
+                StripBlockField::Sections,
+            );
+            spawn_meter_row(block, "Hold", StripBlockFill::Hold, StripBlockField::Hold);
+            block.spawn((
+                StripYieldTiles::default(),
+                Node {
+                    flex_direction: FlexDirection::Row,
+                    flex_wrap: FlexWrap::Wrap,
+                    column_gap: Val::Px(12.0),
+                    row_gap: Val::Px(4.0),
+                    ..default()
+                },
+            ));
+        });
+}
+
+/// A labelled meter row: `label`, a track holding `fill`, and `field`.
+fn spawn_meter_row(
+    block: &mut ChildSpawnerCommands,
+    label: &str,
+    fill: StripBlockFill,
+    field: StripBlockField,
+) {
+    block
+        .spawn(Node {
+            flex_grow: 1.0,
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::Center,
+            column_gap: Val::Px(8.0),
+            ..default()
+        })
+        .with_children(|row| {
+            row.spawn((
+                themed_label(label, 11.0, UiColor::Label),
+                TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                Node {
+                    width: Val::Px(64.0),
+                    flex_shrink: 0.0,
+                    ..default()
+                },
+            ));
+            row.spawn((
+                Node {
+                    flex_grow: 1.0,
+                    min_width: Val::Px(24.0),
+                    height: Val::Px(8.0),
+                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                    overflow: Overflow::clip(),
+                    ..default()
+                },
+                BackgroundColor(Color::NONE),
+                ThemedFill::alpha(UiColor::Secondary, 0.25),
+            ))
+            .with_children(|track| {
+                track.spawn((
+                    fill,
+                    Node {
+                        width: Val::Percent(0.0),
+                        height: Val::Percent(100.0),
+                        ..default()
+                    },
+                    BackgroundColor(Color::NONE),
+                    ThemedFill::new(UiColor::Accent),
+                ));
+            });
+            let mut value = row.spawn((
+                field,
+                themed_label("", 12.0, UiColor::Primary),
+                TextLayout::new(Justify::Right, LineBreak::NoWrap),
+            ));
+            if field == StripBlockField::Time {
+                value.insert(Name::new(INVENTORY_STRIP_PROGRESS));
+            }
+        });
+}
+
+/// One tile: the category icon, `2/23` or `23`, and the part name.
+fn spawn_yield_tile(
+    tiles: &mut ChildSpawnerCommands,
+    icons: &InterfaceIcons,
+    items: &GameItems,
+    tile: &StripYieldTile,
+) {
+    let design = items.design(&tile.item);
+    let count = match tile.yielded {
+        Some(yielded) => format!("{yielded}/{}", tile.planned),
+        None => tile.planned.to_string(),
+    };
+    tiles
+        .spawn(Node {
+            align_items: AlignItems::Center,
+            column_gap: Val::Px(4.0),
+            ..default()
+        })
+        .with_children(|tile| {
+            tile.spawn(icon_node(
+                icons.category(design.category),
+                category_color(design.category),
+                18.0,
+            ));
+            tile.spawn((
+                themed_label(&count, 12.0, UiColor::Primary),
+                TextLayout::new(Justify::Left, LineBreak::NoWrap),
+            ));
+            tile.spawn((
+                themed_label(&design.name, 11.0, UiColor::Body),
+                TextLayout::new(Justify::Left, LineBreak::NoWrap),
+            ));
         });
 }
 
 /// Keep the strip block on the docked partner and the running job: shown only
 /// at a wreck, the Strip button while no strip runs, disabled with its
-/// tooltip while [`plan_strip_press`] refuses for room, the time or the
-/// running strip's progress, the bar, and the plan line, which a held strip
-/// replaces with its reason.
+/// tooltip while [`plan_strip_press`] refuses for room, the four meters, and
+/// the part tiles. A held strip reads `Held` on the Total row and names what
+/// its section needs on the Hold row, both in Danger.
 #[expect(
     clippy::type_complexity,
-    reason = "the block, its texts, its button and its bar fill"
+    reason = "the block, its texts, its button, its fills and its tiles"
 )]
 #[expect(
     clippy::too_many_arguments,
@@ -481,30 +603,28 @@ pub(crate) fn spawn_strip_block(panel: &mut ChildSpawnerCommands) {
 )]
 pub(crate) fn update_strip_block(
     items: Option<Res<GameItems>>,
+    icons: Res<InterfaceIcons>,
     site: StripSite,
     ships: InventoryShips,
     mut commands: Commands,
     mut q_button: Query<(Entity, &mut Tooltip, Has<InteractionDisabled>), With<StripBlockButton>>,
     q_job: Query<&HullStripJob, With<PlayerSpaceshipMarker>>,
-    mut q_field: Query<(&StripBlockField, &mut Text)>,
-    mut q_nodes: Query<
+    mut q_field: Query<(&StripBlockField, &mut Text, &mut ThemedText)>,
+    mut q_fill: Query<(&StripBlockFill, &mut Node, &mut ThemedFill)>,
+    mut q_shown: Query<
+        (&mut Node, Has<StripBlock>, Has<StripBlockButton>),
         (
-            &mut Node,
-            Has<StripBlock>,
-            Has<StripBlockButton>,
-            Has<StripBlockFill>,
+            Or<(With<StripBlock>, With<StripBlockButton>, With<StripStepRow>)>,
+            Without<StripBlockFill>,
         ),
-        Or<(
-            With<StripBlock>,
-            With<StripBlockButton>,
-            With<StripBlockFill>,
-        )>,
     >,
+    mut q_tiles: Query<(Entity, &mut StripYieldTiles)>,
 ) {
     let Some(items) = items else {
         return;
     };
-    let job = site.player().and_then(|player| q_job.get(player).ok());
+    let player = site.player();
+    let job = player.and_then(|player| q_job.get(player).ok());
     let partner = site.partner().filter(StripPartner::recyclable);
     let (hull, verdict) = plan_strip_press(&items, &ships, partner.as_ref(), job.is_some());
     let no_room = verdict == Err(HullStripRefusalType::NoRoom);
@@ -523,59 +643,154 @@ pub(crate) fn update_strip_block(
             commands.entity(button).remove::<InteractionDisabled>();
         }
     }
-    let (progress_line, plan_line) = match (&partner, hull.as_ref().map(HullStripPartner::plan)) {
-        (Some(partner), Some(strip)) => {
-            let plan = strip_plan_text(&items, partner, &strip);
-            match job {
-                None => (
-                    format!("{} to strip", duration_text(strip.duration_secs)),
-                    plan,
-                ),
-                Some(job) => match (job.paused, job.step.as_ref()) {
-                    (Some(pause), Some(step)) => (
-                        "Held: hold full".to_string(),
-                        strip_pause_text(&step.code, pause),
+    // Each meter as (fill share, fill colour, text, text colour).
+    let empty = (0.0, UiColor::Accent, String::new(), UiColor::Primary);
+    let (mut total, mut step, mut sections, mut hold) =
+        (empty.clone(), empty.clone(), empty.clone(), empty);
+    let mut tiles = Vec::new();
+    if let (Some(partner), Some(hull), Some(player)) = (&partner, &hull, player) {
+        let strip = hull.plan();
+        let held = job.and_then(|job| job.paused);
+        total = match job {
+            None => (
+                0.0,
+                UiColor::Accent,
+                format!("{} to strip", duration_text(strip.duration_secs)),
+                UiColor::Primary,
+            ),
+            Some(job) if held.is_some() => (
+                job.progress(),
+                UiColor::Accent,
+                "Held".to_string(),
+                UiColor::Danger,
+            ),
+            Some(job) => (
+                job.progress(),
+                UiColor::Accent,
+                format!("{} left", duration_text(job.remaining_secs())),
+                UiColor::Primary,
+            ),
+        };
+        if let Some(running) = job.and_then(|job| job.step.as_ref()) {
+            let (share, text) = if held.is_some() {
+                (1.0, running.code.clone())
+            } else if running.duration_secs > 0.0 {
+                (
+                    running.elapsed_secs / running.duration_secs,
+                    format!(
+                        "{}, {} left",
+                        running.code,
+                        duration_text(running.duration_secs - running.elapsed_secs)
                     ),
-                    (_, step) => (
-                        format!(
-                            "{:.0}%{}, {} left",
-                            job.progress() * 100.0,
-                            step.map(|step| format!(" {}", step.code))
-                                .unwrap_or_default(),
-                            duration_text(job.remaining_secs())
-                        ),
-                        plan,
-                    ),
-                },
-            }
+                )
+            } else {
+                (1.0, running.code.clone())
+            };
+            step = (share, UiColor::Accent, text, UiColor::Primary);
         }
-        _ => (String::new(), String::new()),
-    };
-    for (field, mut text) in &mut q_field {
-        let line = match field {
-            StripBlockField::Plan => &plan_line,
-            StripBlockField::Progress => &progress_line,
+        let taken = job.map_or(0, |job| job.taken);
+        let all = taken + partner.live.len() as u32;
+        sections = (
+            if all > 0 {
+                taken as f32 / all as f32
+            } else {
+                0.0
+            },
+            UiColor::Accent,
+            format!("{taken} / {all}"),
+            UiColor::Primary,
+        );
+        let (_, own, _, _) = ships.ship(player);
+        let used_g = own.used_g(&items);
+        let capacity_g = own.capacity_g();
+        let share = if capacity_g > 0 {
+            (used_g as f32 / capacity_g as f32).min(1.0)
+        } else {
+            1.0
+        };
+        let used = format!(
+            "{} / {}",
+            kg_text(u64::from(used_g)),
+            kg_text(u64::from(capacity_g))
+        );
+        hold = match held {
+            Some(HullStripPauseType::HoldFull { need_g, .. }) => (
+                share,
+                UiColor::Danger,
+                format!("{used}  needs {}", kg_text(need_g)),
+                UiColor::Danger,
+            ),
+            None => {
+                let mass_g: u64 = strip
+                    .parts
+                    .iter()
+                    .map(|(item, &count)| items.design(item).stack_mass_g(count))
+                    .sum();
+                (
+                    share,
+                    UiColor::Accent,
+                    format!("{used}  +{}", kg_text(mass_g)),
+                    UiColor::Primary,
+                )
+            }
+        };
+        tiles = yield_tiles(&strip.parts, job);
+    }
+    for (field, mut text, mut themed) in &mut q_field {
+        let (_, _, line, color) = match field {
+            StripBlockField::Time => &total,
+            StripBlockField::Step => &step,
+            StripBlockField::Sections => &sections,
+            StripBlockField::Hold => &hold,
         };
         if text.0 != *line {
             text.0.clone_from(line);
         }
+        if themed.color != *color {
+            themed.color = *color;
+        }
     }
-    let flex = |shown: bool| if shown { Display::Flex } else { Display::None };
-    let width = Val::Percent(job.map_or(0.0, HullStripJob::progress) * 100.0);
-    for (mut node, block, button, fill) in &mut q_nodes {
-        if block {
-            let display = flex(partner.is_some());
-            if node.display != display {
-                node.display = display;
-            }
-        } else if button {
-            let display = flex(button_shown);
-            if node.display != display {
-                node.display = display;
-            }
-        } else if fill && node.width != width {
+    for (fill, mut node, mut themed) in &mut q_fill {
+        let (share, color, ..) = match fill {
+            StripBlockFill::Total => &total,
+            StripBlockFill::Step => &step,
+            StripBlockFill::Sections => &sections,
+            StripBlockFill::Hold => &hold,
+        };
+        let width = Val::Percent(share.clamp(0.0, 1.0) * 100.0);
+        if node.width != width {
             node.width = width;
         }
+        if themed.color != *color {
+            themed.color = *color;
+        }
+    }
+    let flex = |shown: bool| if shown { Display::Flex } else { Display::None };
+    for (mut node, block, button) in &mut q_shown {
+        let display = if block {
+            flex(partner.is_some())
+        } else if button {
+            flex(button_shown)
+        } else {
+            flex(partner.is_some() && job.is_some())
+        };
+        if node.display != display {
+            node.display = display;
+        }
+    }
+    for (entity, mut drawn) in &mut q_tiles {
+        if drawn.0 == tiles {
+            continue;
+        }
+        commands
+            .entity(entity)
+            .despawn_related::<Children>()
+            .with_children(|row| {
+                for tile in &tiles {
+                    spawn_yield_tile(row, &icons, &items, tile);
+                }
+            });
+        drawn.0.clone_from(&tiles);
     }
 }
 
