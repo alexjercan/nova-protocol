@@ -132,9 +132,18 @@ fn board_panel(
                     UiColor::Body,
                     false,
                 ));
-                r.spawn(bare_meter(
-                    120.0,
-                    j.minutes_left as f32 / j.window.max(1) as f32,
+                r.spawn((
+                    Node {
+                        width: px(120),
+                        flex_shrink: 0.0,
+                        align_items: AlignItems::Center,
+                        column_gap: px(8),
+                        ..default()
+                    },
+                    children![
+                        bare_meter(72.0, j.minutes_left as f32 / j.window.max(1) as f32),
+                        text_nowrap(&format!("{} min", j.minutes_left), 12.0, UiColor::Body),
+                    ],
                 ));
                 r.spawn((
                     Name::new(format!("{ACCEPT_PREFIX} {id}")),

@@ -5,8 +5,8 @@
 //! Docked at a living station that offers Jobs, the column starts with the
 //! station's board ("Jobs posted here"): one line per offer the player
 //! neither holds nor completed and whose window has not passed, as kind
-//! icon | title | reward | target sector and distance | time-left meter |
-//! Accept. Every offer asks something of the hull ([`plan_job_hull_fit`]):
+//! icon | title | reward | target sector and distance | time-left meter
+//! with its minutes | Accept. Every offer asks something of the hull ([`plan_job_hull_fit`]):
 //! the starting station's board ([`StarterBoardMarker`]) leaves out what the
 //! hull cannot do, every other board lists it with a greyed Accept and the
 //! reason in a tooltip, as it does for an offer whose target is gone. Under
@@ -395,8 +395,8 @@ struct PostedRow {
     title: String,
     reward: String,
     target: String,
-    /// The offer's window left, as a share of the whole.
-    time_left: f32,
+    /// The offer's window left: the share and the minutes.
+    time_left: (f32, String),
     /// Why Accept is greyed, if it is.
     refusal: Option<String>,
 }
@@ -526,6 +526,12 @@ fn update_jobs_pane(
     };
     let now = clock.play_seconds;
     let rule = table.0.jobs;
+    let time_left = |remaining: f64| {
+        (
+            (remaining / f64::from(rule.offer_seconds)) as f32,
+            format!("{} min", (remaining.max(0.0) / 60.0).ceil()),
+        )
+    };
 
     let board = partner.as_ref().and_then(|(_, station, station_id)| {
         let (board, starter) = q_boards.get(*station).ok()?;
@@ -555,7 +561,7 @@ fn update_jobs_pane(
                     title: job.title(&items),
                     reward: cr_text(job.reward_cr),
                     target: place(job_cell(job)),
-                    time_left: (remaining / f64::from(rule.offer_seconds)) as f32,
+                    time_left: time_left(remaining),
                     refusal,
                 })
             })
@@ -644,16 +650,6 @@ fn update_jobs_pane(
     let inspector = selected.map(|(job, held)| {
         let title = job.title(&items);
         let done = jobs.is_done(&job.id);
-        let time_left = postings
-            .slot(&job.id)
-            .filter(|_| !held)
-            .map(|slot| slot.remaining(rule, now))
-            .map(|remaining| {
-                (
-                    (remaining / f64::from(rule.offer_seconds)) as f32,
-                    format!("{} min", (remaining.max(0.0) / 60.0).ceil()),
-                )
-            });
         let show = if held {
             MapChartMarkType::Job(job.id.clone())
         } else if chart.station(job.posted_by()).is_some() {
@@ -672,7 +668,10 @@ fn update_jobs_pane(
             target: format!("{}, {}", target_name(job, &chart), place(job_cell(job))),
             hand_in: station_name(&chart, &job.target),
             reward: cr_text(job.reward_cr),
-            time_left,
+            time_left: postings
+                .slot(&job.id)
+                .filter(|_| !held)
+                .map(|slot| time_left(slot.remaining(rule, now))),
             progress: held.then(|| job.progress(hold, done)),
             refusal: held.then(|| hand_in_refusal(job, &title)).flatten(),
             show,
@@ -742,6 +741,9 @@ const REWARD_PX: f32 = 90.0;
 const PLACE_PX: f32 = 190.0;
 /// Width of the time-left column.
 const TIME_PX: f32 = 120.0;
+/// Width of the meter inside the time-left column, so its minutes fit beside
+/// it.
+const TIME_METER_PX: f32 = 72.0;
 /// Width of the progress column.
 const PROGRESS_PX: f32 = 200.0;
 /// Width of a row's action button column.
@@ -1027,7 +1029,21 @@ fn board_panel(
                     r.spawn(grow_cell(&row.title, 13.0, UiColor::Primary));
                     r.spawn(cell(REWARD_PX, &row.reward, 13.0, UiColor::Accent));
                     r.spawn(cell(PLACE_PX, &row.target, 12.0, UiColor::Body));
-                    r.spawn(bare_meter(TIME_PX, row.time_left));
+                    r.spawn(fixed(
+                        TIME_PX,
+                        (
+                            Node {
+                                align_items: AlignItems::Center,
+                                column_gap: px(8),
+                                ..default()
+                            },
+                            Pickable::IGNORE,
+                            children![
+                                bare_meter(TIME_METER_PX, row.time_left.0),
+                                text_nowrap(&row.time_left.1, 12.0, UiColor::Body),
+                            ],
+                        ),
+                    ));
                     action_button(
                         r,
                         format!("{JOB_ACCEPT_PREFIX}{index}"),

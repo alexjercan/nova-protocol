@@ -394,8 +394,7 @@ mod walk {
 
     /// Whether one of a posted row's texts is its Reward cell `<n> cr` for
     /// `reward_cr`. The pane groups thousands with commas, so the digits are
-    /// compared with the commas stripped. The row's time left is a meter
-    /// with no text, so no deadline is read off the pane.
+    /// compared with the commas stripped.
     fn reward_shown(row: &[String], reward_cr: u32) -> bool {
         row.iter().any(|text| {
             text.strip_suffix(" cr")

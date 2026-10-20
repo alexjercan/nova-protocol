@@ -93,7 +93,8 @@ button per row. Ideas, cheapest first, all on widgets `nova_ui` already has:
   draws icons as procedural masks in `crates/nova_interface/src/icons.rs`;
   add job-kind icons there).
 - Keep every column. Time left is the meter only, no text and no badge. An
-  expired offer is not shown at all.
+  expired offer is not shown at all. (Superseded 2026-10-20: the row shows
+  `N min` beside a shorter meter, as the inspector does.)
 - Drop the Track idea; nothing backs it.
 - Held jobs must stay visible after undocking: a Jobs pane in the interface
   that works undocked, with the board only while docked.
