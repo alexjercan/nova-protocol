@@ -1312,6 +1312,47 @@ fn a_world_that_disarms_and_rearms_never_overwrites_its_save() {
     }
 }
 
+/// A New Game that starts in the sector the last world ended in never changes
+/// `CurrentSector`, and its first armed frame still saves it.
+#[test]
+fn a_new_world_in_the_last_worlds_sector_wants_its_first_save() {
+    let root = tempfile::tempdir().unwrap();
+    let (mut world, _) = armed_session(root.path());
+    run_until_idle(&mut world);
+    assert_eq!(
+        world.resource::<WorldSaveSession>().status(),
+        &WorldSaveStatus::Saved { generation: 1 }
+    );
+
+    // Back to Main Menu ends the session and the world; `CurrentSector` stays.
+    world.remove_resource::<WorldSaveSession>();
+    let config = world
+        .remove_resource::<WorldConfig<NovaLayeredWorld>>()
+        .unwrap();
+    frame(&mut world);
+    let sector = world.resource::<CurrentSector>().0;
+
+    let (folder, lock) = create_world(root.path(), "Second").unwrap();
+    world.insert_resource(WorldSaveSession::created(
+        folder,
+        lock,
+        "Second".to_string(),
+        42,
+        FIXTURE_ROLE_ID.into(),
+    ));
+    world.insert_resource(config);
+    run_until_idle(&mut world);
+    assert_eq!(world.resource::<CurrentSector>().0, sector);
+    assert_eq!(
+        world.resource::<WorldSaveSession>().status(),
+        &WorldSaveStatus::Saved { generation: 1 }
+    );
+    assert_eq!(
+        files(&root.path().join("second")),
+        ["state.1.ron", "world.lock", "world.ron"]
+    );
+}
+
 /// With no player ship there is nothing to save: a crossing writes nothing
 /// and keeps the status, and a leave goes idle FAILED, never saved.
 #[test]

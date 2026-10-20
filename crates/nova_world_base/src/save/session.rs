@@ -386,7 +386,13 @@ pub(crate) fn request_world_save(
     }
     match config {
         Some(config) if session.armed && config.is_changed() => session.spent = true,
-        Some(_) => session.armed = true,
+        Some(_) if !session.armed => {
+            session.armed = true;
+            // Not left to the crossing below: a world that starts in the
+            // sector the last world ended in never changes `CurrentSector`.
+            session.wanted.get_or_insert(SaveReason::Crossing);
+        }
+        Some(_) => {}
         None if session.armed => session.spent = true,
         None => {}
     }
