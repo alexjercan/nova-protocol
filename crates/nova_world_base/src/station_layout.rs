@@ -52,7 +52,8 @@ use std::{
 use bevy::prelude::*;
 use nova_events::prelude::Meters;
 use nova_gameplay::prelude::{
-    CivilizationId, Fnv32, GameItems, ItemDesignId, ItemRoleType, SeedStream, ShipInventoryStock,
+    CivilizationId, Fnv32, GameItems, ItemCategoryType, ItemDesignId, ItemRoleType, SeedStream,
+    ShipInventoryStock,
 };
 use nova_scenario::prelude::{
     SectionSource, ShipDesign, ShipIntegrityConfig, ShipPresentationConfig, SpaceshipSectionConfig,
@@ -104,10 +105,14 @@ const SHRINK: (f32, u32) = (0.9, 24);
 /// every section its civilization builds is built from.
 const STOCK_SHARE: (f32, f32) = (0.04, 0.08);
 
-/// The goods a station stocks, by weight. Rounds for the guns of the ships it
-/// serves, plates to patch them, food and salvage to trade.
-const GOODS: [(ItemRoleType, f32); 4] = [
+/// The goods a station stocks, by weight. Ammunition for the weapons of the
+/// ships it serves, plates to patch them, food and salvage to trade. An
+/// ammunition item is stocked only when a weapon its civilization knows
+/// reloads from it.
+const GOODS: [(ItemRoleType, f32); 6] = [
     (ItemRoleType::PdcRound, 2.0),
+    (ItemRoleType::RailSlug, 2.0),
+    (ItemRoleType::Torpedo, 2.0),
     (ItemRoleType::HullPlate, 3.0),
     (ItemRoleType::Rations, 3.0),
     (ItemRoleType::SalvagedParts, 2.0),
@@ -267,6 +272,13 @@ pub enum StationLayoutConstraintType {
         /// The ceiling.
         ceiling: Meters,
     },
+    /// The opening stock weighs more than the hull holds.
+    StockOverHold {
+        /// The stock's mass in grams.
+        stock_g: u64,
+        /// The hold's capacity in grams.
+        hold_g: u64,
+    },
 }
 
 impl fmt::Display for StationLayoutConstraintType {
@@ -309,6 +321,10 @@ impl fmt::Display for StationLayoutConstraintType {
                 f,
                 "the station clearance radius is {:.0} m, above the {:.0} m ceiling",
                 clearance.0, ceiling.0
+            ),
+            Self::StockOverHold { stock_g, hold_g } => write!(
+                f,
+                "the station stock of {stock_g} g exceeds its {hold_g} g hold"
             ),
         }
     }
@@ -416,10 +432,18 @@ pub fn generate_station(
 /// The station design `civilization` keeps, built on `layout`: the four dock
 /// services, storage and credits that rise with advancement, and an opening
 /// stock that fills a share of the hold, half goods and half the parts every
-/// section its civilization knows is built from. An extinct civilization's
-/// dead station keeps the same stock and credits as loot.
+/// section its civilization knows is built from. The goods hold at least one
+/// unit of each item a weapon the civilization knows reloads from, and no
+/// other ammunition. An extinct civilization's dead station keeps the same
+/// stock and credits as loot.
 ///
 /// PURE: the same layout and civilization give the same design.
+///
+/// # Errors
+///
+/// [`StationLayoutConstraintType::StockOverHold`] when the stock weighs more
+/// than the hull holds: a known weapon's single unit of ammunition can
+/// outweigh a small hold, and the spawn cannot load it.
 ///
 /// # Panics
 ///
@@ -430,7 +454,7 @@ pub fn generated_station(
     items: &GameItems,
     layout: &StationLayout,
     civilization: &Civilization,
-) -> StationDesign {
+) -> Result<StationDesign, StationLayoutConstraintType> {
     let advancement = civilization.advancement.clamp(0.0, 1.0);
     let by_id: HashMap<&str, &ShipPart> =
         parts.parts().iter().map(|part| (part.id(), part)).collect();
@@ -445,13 +469,27 @@ pub fn generated_station(
     let hold = hulls * u64::from(HULL_SECTION_CARGO_G);
     let budget = (hold as f64 * f64::from(lerp(STOCK_SHARE, advancement)) / 2.0) as u64;
 
+    let known = parts.known(civilization.id, civilization.advancement);
+    let reloads: BTreeSet<ItemRoleType> = known
+        .iter()
+        .filter_map(|part| part.config.kind.reload_item())
+        .collect();
+    let goods: Vec<(ItemRoleType, f32)> = GOODS
+        .into_iter()
+        .filter(|(role, _)| role.category() != ItemCategoryType::Ammo || reloads.contains(role))
+        .collect();
     let mut stock: BTreeMap<ItemDesignId, u32> = BTreeMap::new();
-    let total: f32 = GOODS.iter().map(|(_, weight)| weight).sum();
-    for (role, weight) in GOODS {
+    let total: f32 = goods.iter().map(|(_, weight)| weight).sum();
+    for (role, weight) in goods {
         let design = items.role(role);
         let portion = (budget as f64 * f64::from(weight / total)) as u64;
-        let units = u32::try_from(portion / u64::from(design.mass_g))
+        let mut units = u32::try_from(portion / u64::from(design.mass_g))
             .expect("a station hold's units fit a u32");
+        // A heavy round whose share rounds to nothing is still stocked, so
+        // every weapon the civilization fields can rearm here.
+        if role.category() == ItemCategoryType::Ammo {
+            units = units.max(1);
+        }
         if units > 0 {
             *stock.entry(design.id.clone()).or_default() += units;
         }
@@ -459,7 +497,7 @@ pub fn generated_station(
     // The parts of every section the civilization builds, so a ship it
     // fields can be refitted and rebuilt at its stations.
     let mut kit: BTreeMap<&ItemDesignId, u32> = BTreeMap::new();
-    for part in parts.known(civilization.id, civilization.advancement) {
+    for part in known {
         for (item, count) in &part.config.base.build.parts {
             *kit.entry(item).or_default() += count;
         }
@@ -480,13 +518,21 @@ pub fn generated_station(
         }
     }
 
-    StationDesign {
+    let stock = ShipInventoryStock::new(stock);
+    let stock_g = stock.mass_g(items);
+    if stock_g > hold {
+        return Err(StationLayoutConstraintType::StockOverHold {
+            stock_g,
+            hold_g: hold,
+        });
+    }
+    Ok(StationDesign {
         hull: layout.design.clone(),
         services: SERVICES.to_vec(),
         storage_cap_g: lerp(STORAGE_CAP_G, advancement).round() as u32,
-        stock: ShipInventoryStock::new(stock),
+        stock,
         credits: lerp(CREDITS, advancement).round() as u32,
-    }
+    })
 }
 
 /// What a frame cell is planned as.
@@ -1734,8 +1780,9 @@ mod tests {
             };
         }
         let parts = ShipPartSnapshot::build(&packs).expect("the recipe fixture builds");
+        // The fixture turret is unlimited, so no known weapon reloads and the
+        // station stocks no ammunition.
         let goods = [
-            ItemRoleType::PdcRound,
             ItemRoleType::HullPlate,
             ItemRoleType::Rations,
             ItemRoleType::SalvagedParts,
@@ -1784,7 +1831,8 @@ mod tests {
         };
         let request = request_of(civilization, 1, StationArchetypeType::Ring, 1.0);
         let layout = generate_station(&parts, request).expect("the station generates");
-        let station = generated_station(&parts, &items, &layout, &living);
+        let station =
+            generated_station(&parts, &items, &layout, &living).expect("the stock fits the hold");
         let stocked: BTreeSet<&str> = station
             .stock
             .stacks()
@@ -1798,6 +1846,63 @@ mod tests {
         }
         assert!(stocked.contains("DriveBell"), "{stocked:?}");
         assert!(!stocked.contains("WideBell"), "{stocked:?}");
+    }
+
+    /// A known weapon's ammunition is stocked at one unit even where its share
+    /// rounds to nothing, so a round heavier than the whole hold fails the
+    /// station with the stock and the hold it overfills.
+    #[test]
+    fn a_station_whose_ammunition_outweighs_its_hold_fails_with_stock_over_hold() {
+        use nova_gameplay::prelude::ItemDesign;
+        use nova_ship::prelude::{AmmoCapacity, ReloadConfig, SectionReloadConfig};
+
+        use crate::civilizations::CivilizationStatusType;
+
+        let mut packs = fixture::packs();
+        for section in packs.iter_mut().flat_map(|pack| &mut pack.sections) {
+            if let SectionKind::Turret(turret) = &mut section.kind {
+                turret.ammunition = AmmoCapacity::Limited(10);
+                turret.reload = ReloadConfig::Batch(SectionReloadConfig {
+                    delay: 1.0,
+                    amount: 1,
+                });
+            }
+        }
+        let parts = ShipPartSnapshot::build(&packs).expect("the reloading fixture builds");
+        let items = GameItems::new(GOODS.map(|(role, _)| ItemDesign {
+            id: role.id().into(),
+            name: role.id().to_string(),
+            about: String::new(),
+            category: role.category(),
+            mass_g: if role == ItemRoleType::PdcRound {
+                u32::MAX
+            } else {
+                1_000
+            },
+            ask_cr: 10,
+            bid_cr: 5,
+        }));
+        let request = request(1, StationArchetypeType::Ring, 0.0);
+        let living = Civilization {
+            id: request.civilization,
+            centroid: nova_events::prelude::Meters3::new(0.0, 0.0, 0.0),
+            status: CivilizationStatusType::Living,
+            advancement: 0.0,
+            role_preference: [1.0; 4],
+            stance: nova_gameplay::prelude::StanceType::Neutral,
+        };
+        let layout = generate_station(&parts, request).expect("the station generates");
+
+        let failure = generated_station(&parts, &items, &layout, &living)
+            .expect_err("one PDC round outweighs the hold");
+
+        let StationLayoutConstraintType::StockOverHold { stock_g, hold_g } = failure else {
+            panic!("{failure}");
+        };
+        assert!(
+            stock_g >= u64::from(u32::MAX) && stock_g > hold_g,
+            "{stock_g} g against {hold_g} g"
+        );
     }
 
     /// The same request gives the same station, and another seed another.

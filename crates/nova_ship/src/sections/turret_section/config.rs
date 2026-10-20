@@ -233,6 +233,13 @@ pub struct TurretSectionConfig {
     pub reload: ReloadConfig,
 }
 
+impl TurretSectionConfig {
+    /// The item a reloading turret draws from its ship's hold. Kinetic and
+    /// Pierce mounts load the same round: the mount, not the item, decides
+    /// the damage type.
+    pub const RELOAD_ITEM: ItemRoleType = ItemRoleType::PdcRound;
+}
+
 /// The stock muzzle speed [`REFERENCE_CLOSING_SPEED`](nova_gameplay::prelude::REFERENCE_CLOSING_SPEED)
 /// is anchored at, and therefore the speed the default turret's representative
 /// damage is computed from - one constant, so the two cannot disagree.

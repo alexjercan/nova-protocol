@@ -35,11 +35,13 @@
 //! Every chance here is provisional until generated ships are reviewed in
 //! travel.
 
+use std::collections::BTreeSet;
+
 use bevy::prelude::{Quat, Vec3};
 use nova_events::prelude::{Meters, Meters3, MetersPerSecond3};
 use nova_gameplay::prelude::{
-    Allegiance, CivilizationId, ClusterType, Fnv32, GameItems, ItemDesignId, ItemRoleType,
-    SeedStream, ShipInventoryStock, ShipRoleType, TraderMarket,
+    Allegiance, CivilizationId, ClusterType, Fnv32, GameItems, ItemCategoryType, ItemDesignId,
+    ItemRoleType, SeedStream, ShipInventoryStock, ShipRoleType, TraderMarket,
 };
 use nova_scenario::prelude::{
     AIControllerConfig, ShipDesign, ShipDesignSource, SpaceshipConfig, SpaceshipController,
@@ -398,8 +400,10 @@ pub(crate) fn plan_patrol(
 /// [`HULL_SECTION_CARGO_G`] each, the rule the spawn sizes it by, so a
 /// wreck's is what its remaining hull holds. The stock aims for a share of it
 /// drawn from [`STOCK_SHARE`] at `advancement`, scaled by
-/// [`WRECK_STOCK_SCALE`] for a derelict. Up to [`STOCK_STACKS`] distinct items
-/// of the role's mix are drawn by weight and split the target by seeded
+/// [`WRECK_STOCK_SCALE`] for a derelict. The role's mix keeps an ammunition
+/// item only when a section of `design` reloads from it
+/// ([`SectionKind::reload_item`]). Up to [`STOCK_STACKS`] distinct items
+/// of that mix are drawn by weight and split the target by seeded
 /// shares; each takes the whole units its share holds, so a heavy item may
 /// take none. Stock that rounds to nothing is one unit of the role's lightest
 /// item, so every ship carries goods. Never heavier than the hold.
@@ -422,23 +426,19 @@ pub fn ship_stock(
     advancement: f32,
     draw: u32,
 ) -> Option<ShipInventoryStock> {
-    let hulls = design
-        .sections
-        .iter()
-        .filter(|section| {
-            let id = section.source.prototype_id();
-            let part = parts
-                .parts()
-                .iter()
-                .find(|part| part.id() == id)
-                .unwrap_or_else(|| {
-                    panic!("generated section '{}' names no part '{id}'", section.id)
-                });
-            matches!(part.config.kind, SectionKind::Hull(_))
-        })
-        .count() as u64;
+    let mut hulls = 0_u64;
+    let mut reloads = BTreeSet::new();
+    for section in &design.sections {
+        let id = section.source.prototype_id();
+        let part = parts
+            .parts()
+            .iter()
+            .find(|part| part.id() == id)
+            .unwrap_or_else(|| panic!("generated section '{}' names no part '{id}'", section.id));
+        hulls += u64::from(matches!(part.config.kind, SectionKind::Hull(_)));
+        reloads.extend(part.config.kind.reload_item());
+    }
     let hold = hulls * u64::from(HULL_SECTION_CARGO_G);
-    // Ammunition of every kind on an armed ship, whichever its weapons fire.
     let mix: &[(ItemRoleType, f32)] = match role {
         ShipRoleType::Industrial => &[
             (ItemRoleType::StoneOre, 2.0),
@@ -471,6 +471,14 @@ pub fn ship_stock(
             (ItemRoleType::Rations, 1.0),
         ],
     };
+    // Ammunition only for the reloading weapons the design mounts: an armed
+    // ship carries no item a weapon of its own cannot draw. Every role keeps
+    // at least `STOCK_STACKS` other items, so the draw below never runs dry.
+    let mix: Vec<(ItemRoleType, f32)> = mix
+        .iter()
+        .copied()
+        .filter(|(item, _)| item.category() != ItemCategoryType::Ammo || reloads.contains(item))
+        .collect();
     let lightest = mix
         .iter()
         .map(|(item, _)| *item)
@@ -492,7 +500,7 @@ pub fn ship_stock(
     let target = (hold as f64 * f64::from(share)) as u64;
 
     let kinds = (1 + (stream.unit() * STOCK_STACKS as f32) as usize).min(STOCK_STACKS);
-    let mut left = mix.to_vec();
+    let mut left = mix;
     let mut drawn = Vec::with_capacity(kinds);
     for _ in 0..kinds {
         let item = pick(&left, stream.unit());

@@ -1,15 +1,23 @@
 //! Generated stations from the real base catalog: the snapshot the content
 //! lint checks, laid out by the world's own `generate_station` and stocked by
-//! its `generated_station`, pass the station lint at every advancement.
+//! its `generated_station`, pass the station lint at every advancement and
+//! stock the ammunition of every weapon their civilization knows.
+
+use std::collections::BTreeSet;
 
 use nova_authoring::{
     generation::{build_items, build_section_catalog, build_styles},
     lint_walk::repo_ship_part_packs,
 };
 use nova_events::prelude::Meters3;
-use nova_gameplay::prelude::{CivilizationId, GameItems, StanceType};
-use nova_scenario::prelude::{lint_station_design, KnownSections, LintSeverity};
-use nova_ship::prelude::GameStyles;
+use nova_gameplay::prelude::{
+    CivilizationId, GameItems, ItemCategoryType, ItemRoleType, StanceType,
+};
+use nova_scenario::prelude::{
+    lint_station_design, resolve_ship_design, GameShipDesigns, KnownSections, LintSeverity,
+    ShipDesignSource,
+};
+use nova_ship::prelude::{GameSections, GameStyles};
 use nova_world_base::prelude::{
     generate_station, generated_station, station_ceiling, Civilization, CivilizationStatusType,
     ShipPartSnapshot, StationArchetypeType, StationLayoutRequest,
@@ -71,7 +79,8 @@ fn every_base_station_passes_the_station_lint_at_every_advancement() {
                         "{context}: {:?}",
                         layout.clearance
                     );
-                    let design = generated_station(&parts, &items, &layout, &civilization);
+                    let design = generated_station(&parts, &items, &layout, &civilization)
+                        .unwrap_or_else(|constraint| panic!("{context}: {constraint}"));
                     let errors: Vec<String> = lint_station_design(
                         &context,
                         &design,
@@ -89,4 +98,89 @@ fn every_base_station_passes_the_station_lint_at_every_advancement() {
             }
         }
     }
+}
+
+/// Every seeded station of every archetype, at every quarter of advancement
+/// and for three civilizations, stocks at least one unit of each item its
+/// civilization's known reloading weapons draw, no other ammunition, and no
+/// more than its hull holds; between them they stock every kind, the rare
+/// torpedo too.
+#[test]
+fn a_seeded_station_stocks_its_known_weapons_ammunition_within_its_hold() {
+    let parts = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
+        .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
+    let sections = GameSections(build_section_catalog());
+    let items = GameItems::new(build_items());
+    let mut stocked = BTreeSet::new();
+    for id in CIVILIZATIONS {
+        for archetype in StationArchetypeType::ALL {
+            for advancement in [0.0, 0.25, 0.5, 0.75, 1.0] {
+                let civilization = Civilization {
+                    id,
+                    centroid: Meters3::ZERO,
+                    status: CivilizationStatusType::Living,
+                    advancement,
+                    role_preference: [1.0; 4],
+                    stance: StanceType::Neutral,
+                };
+                let known: BTreeSet<ItemRoleType> = parts
+                    .known(id, advancement)
+                    .into_iter()
+                    .filter_map(|part| part.config.kind.reload_item())
+                    .collect();
+                for seed in 0..2 {
+                    let context =
+                        format!("{id}, {archetype}, advancement {advancement}, seed {seed}");
+                    let request = StationLayoutRequest {
+                        seed,
+                        civilization: id,
+                        archetype,
+                        advancement,
+                    };
+                    let layout = generate_station(&parts, request)
+                        .unwrap_or_else(|failure| panic!("{context}: {failure}"));
+                    let design = generated_station(&parts, &items, &layout, &civilization)
+                        .unwrap_or_else(|constraint| panic!("{context}: {constraint}"));
+                    for ammunition in &known {
+                        assert!(
+                            design
+                                .stock
+                                .stacks()
+                                .any(|(item, count)| item.as_str() == ammunition.id() && count > 0),
+                            "{context}: no {ammunition:?} for a known weapon"
+                        );
+                    }
+                    for (item, _) in design.stock.stacks() {
+                        if let Some(ammunition) = ItemRoleType::ALL.into_iter().find(|role| {
+                            role.id() == item.as_str() && role.category() == ItemCategoryType::Ammo
+                        }) {
+                            assert!(
+                                known.contains(&ammunition),
+                                "{context}: stocks {ammunition:?}, its weapons reload {known:?}"
+                            );
+                            stocked.insert(ammunition);
+                        }
+                    }
+                    let (resolved, _) = resolve_ship_design(
+                        &ShipDesignSource::Inline(design.hull.clone()),
+                        &GameShipDesigns::default(),
+                        &sections,
+                    );
+                    assert!(
+                        design.stock.mass_g(&items) <= u64::from(resolved.cargo_capacity_g()),
+                        "{context}: the stock overfills the hold"
+                    );
+                }
+            }
+        }
+    }
+    assert_eq!(
+        stocked,
+        BTreeSet::from([
+            ItemRoleType::PdcRound,
+            ItemRoleType::RailSlug,
+            ItemRoleType::Torpedo,
+        ]),
+        "the stations between them stock every kind"
+    );
 }

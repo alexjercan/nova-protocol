@@ -76,7 +76,9 @@ pub(crate) struct CivilizationStation {
 /// [`SectorFault::Generation`] naming the seed, the civilization, the
 /// archetype, the advancement and the constraint the last layout failed:
 /// the parts cannot build this civilization a station, and that is a bug
-/// in the generator or the catalog, not a world to quietly generate.
+/// in the generator or the catalog, not a world to quietly generate. A
+/// `station_stock` fault names the civilization and a stock the laid-out
+/// hull cannot hold, for the same reason.
 fn civilization_station(
     parts: &ShipPartSnapshot,
     items: &GameItems,
@@ -93,8 +95,15 @@ fn civilization_station(
         field: "station",
         value: failure.to_string(),
     })?;
+    let design = generated_station(parts, items, &layout, civilization).map_err(|constraint| {
+        SectorFault::Generation {
+            id: civilization.id.to_string(),
+            field: "station_stock",
+            value: constraint.to_string(),
+        }
+    })?;
     Ok(CivilizationStation {
-        design: generated_station(parts, items, &layout, civilization),
+        design,
         clearance: layout.clearance,
         ports: layout.ports,
     })

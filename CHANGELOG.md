@@ -129,9 +129,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Docked with a wreck, Strip in the Inventory pane takes its hold and credits,
   then strips the hull into parts, port last (`OnStripped`); no room disables
   it. Take all loots what fits.
-- **(breaking)** Torpedo bays are a rare draw and railgun lances need mid
-  advancement; stations now stock the recipe parts of every section their
-  civilization builds.
+- **(breaking)** Torpedo bays are rare and railgun lances need mid
+  advancement. Ships hold only ammo their weapons reload; stations stock the
+  parts and reload ammo of what their civilization builds.
 
 ### Scenarios & Objectives
 

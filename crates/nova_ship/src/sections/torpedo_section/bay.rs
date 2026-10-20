@@ -163,12 +163,10 @@ pub(super) fn insert_torpedo_section(
     if let Some(capacity) = config.ammunition.rounds() {
         commands.entity(entity).insert(SectionAmmo::new(capacity));
         // Auto-reload rides on the magazine: only a finite bay can rearm.
-        // Every bay type loads the same torpedo: the bay, not the item,
-        // decides its flight.
         if let Some(reload) = config.reload.batch() {
             commands.entity(entity).insert(SectionReload::from_config(
                 reload,
-                ItemRoleType::Torpedo.into(),
+                TorpedoSectionConfig::RELOAD_ITEM.into(),
             ));
         }
     }

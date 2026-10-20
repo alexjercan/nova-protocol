@@ -408,7 +408,9 @@ every cell.
 
 Every generated station offers Rebuild, Refit, Trade, Storage and Jobs. Its stock
 is half goods and half the recipe parts of every section its civilization
-builds. It draws the parts its civilization knows at its advancement, by draw
+builds. Its goods hold at least one unit of each ammunition item that a
+reloading weapon its civilization knows draws (`PdcRound`, `RailSlug`,
+`Torpedo`), and no other ammunition. It draws the parts its civilization knows at its advancement, by draw
 weight, those within 0.25 below its advancement first, and carries
 flight computers for its mass, as a generated ship does. A dead station keeps the same stock
 and credits as loot.
@@ -417,6 +419,8 @@ The open world refuses to arm when no loaded style authors an archetype's
 style, or when no station hull, flight computer, docking port or turret part
 is open at advancement 0. A station that no layout fits fails its sector
 with the seed, civilization, archetype, advancement and failed constraint.
+A station whose opening stock weighs more than its hull holds fails its
+sector with a `station_stock` fault.
 `block_waystation` is for scenarios; the generator never places it. A
 mod's `Station` items are for its scenarios too.
 

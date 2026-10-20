@@ -246,6 +246,12 @@ pub struct TorpedoSectionConfig {
     pub reload: ReloadConfig,
 }
 
+impl TorpedoSectionConfig {
+    /// The item a reloading bay draws from its ship's hold. Every bay type
+    /// loads the same torpedo: the bay, not the item, decides its flight.
+    pub const RELOAD_ITEM: ItemRoleType = ItemRoleType::Torpedo;
+}
+
 impl Default for TorpedoSectionConfig {
     fn default() -> Self {
         Self {

@@ -21,7 +21,8 @@ use nova_gameplay::{
     asset_ref::AssetRef,
     markers::prelude::*,
     prelude::{
-        destructible_body, BuildRecipe, ConnectedTo, ExplodableEntity, ImpactSurface, SectionClass,
+        destructible_body, BuildRecipe, ConnectedTo, ExplodableEntity, ImpactSurface, ItemRoleType,
+        SectionClass,
     },
 };
 
@@ -498,6 +499,37 @@ impl SectionKind {
             SectionKind::CargoIntake(_) => SectionClass::CargoIntake,
             SectionKind::Mining(_) => SectionClass::Mining,
         }
+    }
+
+    /// The item this section's magazine reloads from its ship's hold, the
+    /// weapon config's `RELOAD_ITEM`: `None` for a section that is not a
+    /// weapon, an [`AmmoCapacity::Unlimited`] weapon or a
+    /// [`ReloadConfig::Disabled`] one, none of which draws on the hold.
+    pub fn reload_item(&self) -> Option<ItemRoleType> {
+        let (ammunition, reload, item) = match self {
+            SectionKind::Turret(turret) => (
+                turret.ammunition,
+                turret.reload,
+                TurretSectionConfig::RELOAD_ITEM,
+            ),
+            SectionKind::Torpedo(torpedo) => (
+                torpedo.ammunition,
+                torpedo.reload,
+                TorpedoSectionConfig::RELOAD_ITEM,
+            ),
+            SectionKind::Railgun(railgun) => (
+                railgun.ammunition,
+                railgun.reload,
+                RailgunSectionConfig::RELOAD_ITEM,
+            ),
+            SectionKind::Hull(_)
+            | SectionKind::Thruster(_)
+            | SectionKind::Controller(_)
+            | SectionKind::Docking(_)
+            | SectionKind::CargoIntake(_)
+            | SectionKind::Mining(_) => return None,
+        };
+        (ammunition.rounds().is_some() && reload.batch().is_some()).then_some(item)
     }
 }
 

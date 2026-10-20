@@ -179,6 +179,9 @@ pub struct RailgunSectionConfig {
 }
 
 impl RailgunSectionConfig {
+    /// The item a reloading lance draws from its ship's hold.
+    pub const RELOAD_ITEM: ItemRoleType = ItemRoleType::RailSlug;
+
     /// The rake this lance actually fires with, in meters.
     ///
     /// Authored-or-narrow: an omitted `rake_radius` and an authored zero are
