@@ -184,9 +184,9 @@ struct StreamingPlan {
     arrival: SectorCoord,
     trailing_root: Entity,
     trailing_body: Entity,
-    trailing_body_name: String,
+    trailing_body_id: String,
     arriving_coord: SectorCoord,
-    arriving_body_name: String,
+    arriving_body_id: String,
     arriving_body_position: Meters3,
     arriving_body_radius: Meters,
 }
@@ -387,7 +387,7 @@ fn berth_short_of_face(
 }
 
 /// The live largest asteroid or planet whose `SectorRoot` is in `coords`:
-/// its root, its own entity, its name, and its `BodyRadius`.
+/// its root, its own entity, its `EntityId`, and its `BodyRadius`.
 #[cfg(feature = "debug")]
 fn pick_largest_live_body(
     world: &mut World,
@@ -400,18 +400,18 @@ fn pick_largest_live_body(
         .filter(|(_, coord)| coords.contains(coord))
         .collect();
     let bodies: Vec<(Entity, String, BodyRadius, Entity)> = world
-        .query_filtered::<(Entity, &Name, &BodyRadius, &ChildOf), Or<(
+        .query_filtered::<(Entity, &EntityId, &BodyRadius, &ChildOf), Or<(
             With<AsteroidMarker>,
             With<PlanetMarker>,
         )>>()
         .iter(world)
-        .map(|(entity, name, radius, parent)| (entity, name.to_string(), *radius, parent.parent()))
+        .map(|(entity, id, radius, parent)| (entity, id.0.clone(), *radius, parent.parent()))
         .collect();
     bodies
         .into_iter()
-        .filter_map(|(entity, name, radius, parent)| {
+        .filter_map(|(entity, id, radius, parent)| {
             let (root, _) = roots.iter().find(|(root, _)| *root == parent)?;
-            Some((*root, entity, name, radius))
+            Some((*root, entity, id, radius))
         })
         .max_by(|a, b| a.3 .0.total_cmp(&b.3 .0))
 }
@@ -487,11 +487,11 @@ fn berth_and_plan_crossing(world: &mut World) {
         .copied()
         .collect();
 
-    let (trailing_root, trailing_body, trailing_body_name, _) =
+    let (trailing_root, trailing_body, trailing_body_id, _) =
         pick_largest_live_body(world, &retiring).unwrap_or_else(|| {
             panic!("world start: no asteroid or planet stands in the retiring cells {retiring:?}")
         });
-    let (arriving_coord, arriving_body_name, arriving_body_position, arriving_body_radius) =
+    let (arriving_coord, arriving_body_id, arriving_body_position, arriving_body_radius) =
         predict_arrival_body(&config, arrival, &arriving).unwrap_or_else(|| {
             panic!(
                 "world start: no asteroid or planet is predicted in the arriving cells {arriving:?}"
@@ -499,8 +499,8 @@ fn berth_and_plan_crossing(world: &mut World) {
         });
 
     info!(
-        "world start: leaving {departure} for {arrival}; trailing body '{trailing_body_name}' \
-         in the retiring cells {retiring:?}; predicted arrival '{arriving_body_name}' at \
+        "world start: leaving {departure} for {arrival}; trailing body '{trailing_body_id}' \
+         in the retiring cells {retiring:?}; predicted arrival '{arriving_body_id}' at \
          {arriving_coord}"
     );
 
@@ -508,9 +508,9 @@ fn berth_and_plan_crossing(world: &mut World) {
         arrival,
         trailing_root,
         trailing_body,
-        trailing_body_name,
+        trailing_body_id,
         arriving_coord,
-        arriving_body_name,
+        arriving_body_id,
         arriving_body_position,
         arriving_body_radius,
     });
@@ -548,11 +548,11 @@ fn assert_trailing_body_retired(world: &mut World) {
     assert!(
         world.get_entity(plan.trailing_body).is_err(),
         "world start: the trailing body '{}' outlived its retired cell",
-        plan.trailing_body_name
+        plan.trailing_body_id
     );
     info!(
         "world start: the trailing body '{}' retired with its cell",
-        plan.trailing_body_name
+        plan.trailing_body_id
     );
 }
 
@@ -576,7 +576,7 @@ fn window_slid_to_arrival() -> std::sync::Arc<nova_protocol::nova_debug::harness
 }
 
 /// Advance once the planned arrival cell has a live `SectorRoot` and the
-/// predicted body's name is live.
+/// predicted body's `EntityId` is live.
 #[cfg(feature = "debug")]
 fn arrival_cell_and_body_present() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate>
 {
@@ -587,11 +587,9 @@ fn arrival_cell_and_body_present() -> std::sync::Arc<nova_protocol::nova_debug::
         let root_present = world
             .try_query::<&SectorRoot>()
             .is_some_and(|mut roots| roots.iter(world).any(|root| root.0 == plan.arriving_coord));
-        let body_present = world.try_query::<&Name>().is_some_and(|mut names| {
-            names
-                .iter(world)
-                .any(|name| name.as_str() == plan.arriving_body_name)
-        });
+        let body_present = world
+            .try_query::<&EntityId>()
+            .is_some_and(|mut ids| ids.iter(world).any(|id| id.0 == plan.arriving_body_id));
         root_present && body_present
     })
 }

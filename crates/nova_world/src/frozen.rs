@@ -259,8 +259,10 @@ pub(crate) fn hold_unsettled(
     let frames = wait.frames;
     if frames > SETTLING_FRAMES_MAX {
         let label = world
-            .get::<Name>(entity)
-            .map_or_else(|| "<unnamed>".to_string(), ToString::to_string);
+            .get::<EntityId>(entity)
+            .map(|id| id.0.clone())
+            .or_else(|| world.get::<Name>(entity).map(ToString::to_string))
+            .unwrap_or_else(|| "<unnamed>".to_string());
         panic!(
             "nova_world: '{label}' ({entity}) in {coord} stayed unsettled for {frames} advancing \
              frames, more than {SETTLING_FRAMES_MAX}: {unsettled}"
@@ -551,7 +553,11 @@ pub fn freeze_body(
         });
     }
     let name = body.get::<Name>().map(ToString::to_string);
-    let label = name.clone().unwrap_or_else(|| entity.to_string());
+    let label = body
+        .get::<EntityId>()
+        .map(|id| id.0.clone())
+        .or_else(|| name.clone())
+        .unwrap_or_else(|| entity.to_string());
     let Some(mut transform) = body.get::<Transform>().copied() else {
         panic!("nova_world: persistent body '{label}' has no transform to freeze");
     };
@@ -941,8 +947,10 @@ pub fn snapshot_sectors<G: SectorGenerator>(
     let edge = world.resource::<WorldConfig<G>>().sector_edge;
     let label = |world: &World, entity: Entity| {
         world
-            .get::<Name>(entity)
-            .map_or_else(|| entity.to_string(), ToString::to_string)
+            .get::<EntityId>(entity)
+            .map(|id| id.0.clone())
+            .or_else(|| world.get::<Name>(entity).map(ToString::to_string))
+            .unwrap_or_else(|| entity.to_string())
     };
 
     let unowned: Option<Entity> = world

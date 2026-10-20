@@ -28,7 +28,7 @@ use nova_gameplay::prelude::{
 };
 use nova_scenario::prelude::{
     asteroid_scenario_object_prepared, base_scenario_object, planet_scenario_object_prepared,
-    resolve_ship_design, spaceship_scenario_object, station_scenario_object,
+    resolve_ship_design, spaceship_scenario_object, station_scenario_object, AsteroidKindId,
     BaseScenarioObjectConfig, GameShipDesigns, PendingParkedHull, PendingParkedHulls, PlanetMarker,
     ShipDesignSource, StationMarker,
 };
@@ -282,7 +282,7 @@ pub fn materialize_sector(
         let mut entity = commands.spawn((
             base_scenario_object(&BaseScenarioObjectConfig {
                 id: body.id.to_string(),
-                name: body.id.to_string(),
+                name: generated_asteroid_name(&body.config.kind),
                 position: body.position,
                 rotation: Quat::IDENTITY,
             }),
@@ -416,6 +416,23 @@ fn generated_station_name(civilization: &str, dead: bool) -> String {
     } else {
         format!("{civilization} {LIVING_STATION_SUFFIX}")
     }
+}
+
+/// The name a generated asteroid of `kind` carries, as `Rock asteroid`, so
+/// the target inset names what the rock is. Its id stays in `EntityId` and
+/// `GeneratedBodyId`.
+fn generated_asteroid_name(kind: &AsteroidKindId) -> String {
+    let words: Vec<String> = kind
+        .as_str()
+        .split(['_', '-'])
+        .map(|word| {
+            let mut chars = word.chars();
+            chars.next().map_or_else(String::new, |first| {
+                first.to_uppercase().chain(chars).collect()
+            })
+        })
+        .collect();
+    format!("{} asteroid", words.join(" "))
 }
 
 const LIVING_STATION_SUFFIX: &str = "station";
@@ -1225,7 +1242,7 @@ pub fn clear_sector_work<G: SectorGenerator>(
 }
 
 #[cfg(test)]
-mod station_name_tests {
+mod generated_name_tests {
     use nova_ship::prelude::OWNED_STATION_NAME;
 
     use super::*;
@@ -1250,5 +1267,21 @@ mod station_name_tests {
             None
         );
         assert!(std::panic::catch_unwind(|| dead_station_name("Outpost 9")).is_err());
+    }
+
+    /// A generated asteroid is named by its kind, one capitalised word per
+    /// part of the id. `deep_ice` is no shipped kind and does not load; it
+    /// shows how a multi-word id reads.
+    #[test]
+    fn a_generated_asteroid_is_named_by_its_kind() {
+        for (kind, name) in [
+            ("rock", "Rock asteroid"),
+            ("metal", "Metal asteroid"),
+            ("ice", "Ice asteroid"),
+            ("carbon", "Carbon asteroid"),
+            ("deep_ice", "Deep Ice asteroid"),
+        ] {
+            assert_eq!(generated_asteroid_name(&AsteroidKindId::from(kind)), name);
+        }
     }
 }

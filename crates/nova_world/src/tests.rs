@@ -20,7 +20,7 @@ use std::collections::BTreeMap;
 
 use avian3d::prelude::{LinearVelocity, RigidBody};
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
-use nova_events::prelude::{Meters, Meters3, MetersPerSecond3};
+use nova_events::prelude::{EntityId, Meters, Meters3, MetersPerSecond3};
 use nova_gameplay::{
     prelude::{
         Allegiance, AssetRef, CivilizationId, ClusterType, DerelictShipMarker, GravityAffected,
@@ -993,7 +993,7 @@ fn a_materialized_asteroid_opts_into_gravity() {
     app.update();
 
     let mut mobile = app.world_mut().query_filtered::<(
-        &Name,
+        &EntityId,
         &RigidBody,
         &LinearVelocity,
         &ChildOf,
@@ -1002,9 +1002,9 @@ fn a_materialized_asteroid_opts_into_gravity() {
     ), With<AsteroidMarker>>();
     let materialized: Vec<_> = mobile
         .iter(app.world())
-        .map(|(name, body, velocity, owner, affected, well)| {
+        .map(|(id, body, velocity, owner, affected, well)| {
             (
-                name.to_string(),
+                id.0.clone(),
                 *body,
                 **velocity,
                 owner.parent(),

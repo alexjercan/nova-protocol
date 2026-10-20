@@ -336,6 +336,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Map GOTO on the contact you fly to cancels it, on another retargets; a
   CANCEL button ends any GOTO, even one whose target is gone, and clears its
   travel lock.
+- The target inset names a generated asteroid by its kind, as `Rock asteroid`,
+  not its internal id.
 
 ### Web & Platform
 
