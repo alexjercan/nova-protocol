@@ -13,10 +13,11 @@
 //! it picks the nearest generated station that is living, not on the Enemy
 //! side, offers Rebuild, and stands outside the origin's cell. The walk picks
 //! the scavenger start role. THE LOSS AND THE PARTS ARE DISCLOSED FIXTURE
-//! STATE: the salvage hauler's `pdc_dorsal` is set
+//! STATE: the salvage hauler's `mining_beam` is set
 //! to zero health with the depletion marker, the state the damage path leaves
-//! a dead section in, and the PDC recipe's parts are added to the hold, so
-//! the rebuild takes every part from the hold and costs the recipe's work.
+//! a dead section in, and the mining beam recipe's parts are added to the
+//! hold, so the rebuild takes every part from the hold and costs the
+//! recipe's work.
 //! Once docked, three section panels are put straight into the station's
 //! storage, so the round trip has storage to keep.
 //! The player jumps beside the station and is put on a berth at its collar
@@ -131,7 +132,7 @@ mod walk {
     const CREATE_WORLD_BUTTON: &str = "Create World Button";
     const WORLD_NEXT_BUTTON: &str = "World Next Button";
     /// The start role the walk picks: the scavenger's salvage hauler carries the
-    /// point-defense mount the walk loses and the hold its recipe parts go in.
+    /// mining beam the walk loses and the hold its recipe parts go in.
     const START_ROLE_BUTTON: &str = "Start Role Button: scavenger";
     const START_ROLE: &str = "scavenger";
     const PAUSE_EXIT_BUTTON: &str = "Pause Exit Button";
@@ -139,11 +140,16 @@ mod walk {
     const LOAD_BUTTON: &str = "Load Button";
     const LOAD_WORLD_BUTTON: &str = "Load World Button";
 
-    /// The salvage hauler section the player loses and rebuilds: its one PDC,
-    /// a leaf whose loss severs nothing else.
-    const LOST_SECTION: &str = "pdc_dorsal";
-    /// Its design code, the Rebuild button's name: the hauler's only PDC.
-    const LOST_CODE: &str = "PDC-1";
+    /// The salvage hauler section the player loses and rebuilds: its one
+    /// mining beam, a leaf whose loss severs nothing else. Its prototype is
+    /// advancement 0 and the Mining family's only part, so
+    /// `ShipPartSnapshot::known` guarantees it known by every civilization at
+    /// every advancement, and every generated station's `StationBuilds`
+    /// lists it, so the rebuild never meets `NotBuilt`.
+    const LOST_SECTION: &str = "mining_beam";
+    /// Its design code, the Rebuild button's name: the hauler's only mining
+    /// beam.
+    const LOST_CODE: &str = "MNG-1";
 
     /// The disclosed fixture stack put in the station's storage while docked.
     const STORED_ITEM: &str = "SectionPanel";
@@ -357,6 +363,20 @@ mod walk {
             .config
             .base
             .build
+            .clone()
+    }
+
+    /// The lost section's prototype id, from the player ship's design: what a
+    /// station's `StationBuilds` must list for the rebuild to run.
+    fn lost_prototype_id(world: &World) -> String {
+        world
+            .get::<ShipDesignSections>(player(world))
+            .expect("station round trip: the player ship has a design")
+            .get(LOST_SECTION)
+            .unwrap_or_else(|| panic!("station round trip: the design has no '{LOST_SECTION}'"))
+            .config
+            .base
+            .id
             .clone()
     }
 
@@ -781,6 +801,17 @@ mod walk {
             Meters3::from_engine(pose.velocity)
                 .distance(Meters3::ZERO)
                 .get()
+        );
+        let prototype = lost_prototype_id(world);
+        let builds = world
+            .get::<StationBuilds>(entity)
+            .expect("station round trip: a station root carries StationBuilds");
+        assert!(
+            builds.0.contains(&prototype),
+            "station round trip: chose '{id}' ({name}), which builds {:?}, not '{LOST_SECTION}''s \
+             prototype '{prototype}': a content change moved it out of the generated station's \
+             reach",
+            builds.0
         );
         let mut watch = world.resource_mut::<RoundTripWatch>();
         watch.id = Some(id);

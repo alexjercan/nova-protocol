@@ -6,9 +6,9 @@
 //! content marks it. Two rounds share one run. In the first, the player flies
 //! the base `mining_tug` (unarmed) and docks at a living waystation. The
 //! walk lists every free socket of a live section, in design order, that a
-//! kinetic PDC fits at, by the pane's own rule. An add at a mated socket of
+//! pierce PDC fits at, by the pane's own rule. An add at a mated socket of
 //! the first one's section is refused with its reason and changes nothing.
-//! Then the player opens the Ship pane's Catalogue, clicks the kinetic PDC's
+//! Then the player opens the Ship pane's Catalogue, clicks the pierce PDC's
 //! tile and Place on its card, points at the free sockets in turn until the
 //! ghost stands valid at one, and clicks the view. In the second round the scenario is swapped
 //! for one where the player flies a generated armored hull whose turrets are
@@ -17,7 +17,7 @@
 //! cell does it.
 //!
 //! THE HOLD AND THE BALANCE ARE DISCLOSED FIXTURE STATE: each hold carries
-//! the kinetic PDC recipe's parts (two panels, an actuator, a turret body and
+//! the pierce PDC recipe's parts (two panels, an actuator, a turret body and
 //! a barrel) and 1,000 cr, so the price is the recipe's 100 cr of work.
 //!
 //! | # | marker | claim |
@@ -48,7 +48,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "system_station_add")]
 #[command(version = "1.0.0")]
-#[command(about = "A PDC is placed at a free socket of a base hull with the Ship pane's ghost and of a generated hull, an add at a taken socket is refused, and each add survives a freeze and thaw. Autopilot-only correctness range", long_about = None)]
+#[command(about = "A pierce PDC is placed at a free socket of a base hull with the Ship pane's ghost and of a generated hull, an add at a taken socket is refused, and each add survives a freeze and thaw. Autopilot-only correctness range", long_about = None)]
 struct Cli;
 
 /// The waystation's park, down -Z from the player.
@@ -71,7 +71,7 @@ const ADVANCEMENT_STEPS: u32 = 20;
 /// The key the generated hull's turrets fly on.
 const TURRET_KEY: InputSource = InputSource::Mouse(MouseButton::Left);
 
-/// The player's balance and the kinetic PDC recipe's parts the hold carries.
+/// The player's balance and the pierce PDC recipe's parts the hold carries.
 const PLAYER_CREDITS: u32 = 1_000;
 const HOLD: [(&str, u32); 4] = [
     ("SectionPanel", 2),
@@ -79,7 +79,7 @@ const HOLD: [(&str, u32); 4] = [
     ("TurretBody", 1),
     ("TurretBarrel", 1),
 ];
-/// The kinetic PDC recipe's work; the hold covers its parts.
+/// The pierce PDC recipe's work; the hold covers its parts.
 const PRICE: u32 = 100;
 
 /// The PNG the capture path shoots of the catalogue gallery.
@@ -295,13 +295,13 @@ mod walk {
     /// How far the aim sits from the socket toward its section's centre, as
     /// a share of the way: on the section's face, beside the socket.
     const AIM_INSET: f32 = 0.15;
-    /// The kinetic PDC's tile in the catalogue gallery, named by its
+    /// The pierce PDC's tile in the catalogue gallery, named by its
     /// catalogue name.
     fn pdc_tile(world: &World) -> String {
         let sections = world.resource::<GameSections>();
         let pdc = sections
-            .get_section(PDC_KINETIC_TURRET_SECTION_ID)
-            .expect("station add: the catalogue lists the kinetic PDC");
+            .get_section(PDC_PIERCE_TURRET_SECTION_ID)
+            .expect("station add: the catalogue lists the pierce PDC");
         format!("Gallery Tile {}", pdc.base.name)
     }
     /// The PNG of the Map pane the tab click opens after the add.
@@ -646,7 +646,7 @@ mod walk {
     }
 
     /// List the round's points by the pane's rule: every free socket of a
-    /// live section, in design order, the kinetic PDC fits at. The first one
+    /// live section, in design order, the pierce PDC fits at. The first one
     /// is the round's point until the ghost is aimed. Record the counts and
     /// balances before the add, and the events so far.
     fn pick_the_point(world: &mut World) {
@@ -656,8 +656,8 @@ mod walk {
         let design = design(world, player);
         let offered = world
             .resource::<GameSections>()
-            .get_section(PDC_KINETIC_TURRET_SECTION_ID)
-            .expect("station add probe: the catalogue has the kinetic PDC");
+            .get_section(PDC_PIERCE_TURRET_SECTION_ID)
+            .expect("station add probe: the catalogue has the pierce PDC");
         let placed: Vec<RefitPlacedSection<'_>> = design
             .0
             .iter()
@@ -725,7 +725,7 @@ mod walk {
         }
         assert!(
             !candidates.is_empty(),
-            "station add probe: the kinetic PDC fits at a free socket of the hull"
+            "station add probe: the pierce PDC fits at a free socket of the hull"
         );
         let before = (design.0.len(), live.len(), credits(world, station));
         info!(
@@ -741,13 +741,13 @@ mod walk {
         watch.before = Some(before);
     }
 
-    /// Ask the pane to add the kinetic PDC at a socket another section mates.
+    /// Ask the pane to add the pierce PDC at a socket another section mates.
     fn ask_at_the_taken_point(world: &mut World) {
         let target = target(world);
         world.write_message(SectionAddCommand {
             section: target.section,
             point: target.taken,
-            prototype: PDC_KINETIC_TURRET_SECTION_ID.to_string(),
+            prototype: PDC_PIERCE_TURRET_SECTION_ID.to_string(),
             mount: MountPose::default(),
         });
     }
@@ -828,7 +828,7 @@ mod walk {
     }
 
     fn pdc_in_hand() -> Arc<Predicate> {
-        when(|world| world.resource::<HeldPart>().id() == Some(PDC_KINETIC_TURRET_SECTION_ID))
+        when(|world| world.resource::<HeldPart>().id() == Some(PDC_PIERCE_TURRET_SECTION_ID))
     }
 
     /// Point at the round's free sockets in turn, `AIM_FRAMES` frames each,
@@ -881,8 +881,8 @@ mod walk {
         let target = target(world);
         let name = world
             .resource::<GameSections>()
-            .get_section(PDC_KINETIC_TURRET_SECTION_ID)
-            .expect("station add probe: the catalogue has the kinetic PDC")
+            .get_section(PDC_PIERCE_TURRET_SECTION_ID)
+            .expect("station add probe: the catalogue has the pierce PDC")
             .base
             .name
             .clone();
@@ -916,7 +916,7 @@ mod walk {
         world.write_message(SectionAddCommand {
             section: target.section,
             point: target.point,
-            prototype: PDC_KINETIC_TURRET_SECTION_ID.to_string(),
+            prototype: PDC_PIERCE_TURRET_SECTION_ID.to_string(),
             mount: MountPose::default(),
         });
     }
@@ -968,7 +968,7 @@ mod walk {
         let added = design
             .get(&target.id)
             .expect("station add probe: the design carries the PDC");
-        assert_eq!(added.config.base.id, PDC_KINETIC_TURRET_SECTION_ID);
+        assert_eq!(added.config.base.id, PDC_PIERCE_TURRET_SECTION_ID);
         assert!(
             added.position.abs_diff_eq(target.position, 1e-4)
                 && added.rotation.abs_diff_eq(target.rotation, 1e-4),
@@ -1012,8 +1012,8 @@ mod walk {
             .find(|section| section.id == target.id)
             .expect("station add probe: the owned design names the PDC");
         assert!(
-            matches!(&authored.source, SectionSource::Prototype { id, .. } if id == PDC_KINETIC_TURRET_SECTION_ID),
-            "station add probe: the owned design names the kinetic PDC: {:?}",
+            matches!(&authored.source, SectionSource::Prototype { id, .. } if id == PDC_PIERCE_TURRET_SECTION_ID),
+            "station add probe: the owned design names the pierce PDC: {:?}",
             authored.source
         );
 
@@ -1033,7 +1033,7 @@ mod walk {
         let event = added_events[0].clone();
         assert_eq!(event["id"], PLAYER_ID);
         assert_eq!(event["section"], target.new_code);
-        assert_eq!(event["part"], PDC_KINETIC_TURRET_SECTION_ID);
+        assert_eq!(event["part"], PDC_PIERCE_TURRET_SECTION_ID);
         assert_eq!(event["at"], target.code);
         assert_eq!(event["point"], target.point);
         assert_eq!(event["price_cr"], PRICE);
@@ -1126,8 +1126,8 @@ mod walk {
             design(world, player)
                 .get(&id)
                 .map(|section| section.config.base.id.as_str()),
-            Some(PDC_KINETIC_TURRET_SECTION_ID),
-            "station add probe: the thawed design carries the kinetic PDC"
+            Some(PDC_PIERCE_TURRET_SECTION_ID),
+            "station add probe: the thawed design carries the pierce PDC"
         );
         assert!(
             full_health(world, pdc),
@@ -1265,18 +1265,18 @@ mod walk {
             .until(shot_written(OFFER_SHOT))
             .deadline(SHOT_DEADLINE_SECS)
             .add()
-            .step("station add: press the kinetic PDC's tile")
+            .step("station add: press the pierce PDC's tile")
             .on_enter(|world: &mut World| click_named(pdc_tile(world))(world))
             .until(pointer_pressed())
             .deadline(SESSION_SECS)
             .add()
-            .step("station add: release the kinetic PDC's tile")
+            .step("station add: release the pierce PDC's tile")
             .on_enter(release_mouse(MouseButton::Left))
             .until(ui_node_present("Gallery Place Button"))
             .deadline(SESSION_SECS)
             .add()
             .click_named(
-                "station add: take the kinetic PDC in hand",
+                "station add: take the pierce PDC in hand",
                 "Gallery Place Button",
                 pdc_in_hand(),
                 SESSION_SECS,
