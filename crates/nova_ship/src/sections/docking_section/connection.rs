@@ -249,6 +249,7 @@ pub struct DockedStation {
 /// would otherwise start a contact the step after the undock and shove both
 /// hulls apart. [`end_undock_separations`] despawns it once no collider of
 /// one hull overlaps the other, which gives the pair its collisions back.
+/// [`on_separated_body_removed`] despawns it as either hull's body leaves.
 ///
 /// The joint is what filters the pair: avian 0.7 filters a pair only through
 /// a joint in its joint graph, and `JointDisabled` takes a joint out of the
@@ -568,8 +569,8 @@ pub(super) fn release_broken_docking_connections(
     }
 }
 
-/// Despawn every [`UndockSeparation`] whose hulls no longer overlap, or that
-/// lost a hull.
+/// Despawn every [`UndockSeparation`] whose hulls no longer overlap. A hull
+/// with no collider overlaps nothing.
 ///
 /// The hulls overlap while any non-sensor collider box of one meets the
 /// merged collider box of the other, taken from the hull with fewer colliders
@@ -586,7 +587,7 @@ pub(super) fn end_undock_separations(
     for (entity, separation) in &q_separations {
         let (first, second) = (separation.first_ship, separation.second_ship);
         let Ok([first_colliders, second_colliders]) = q_roots.get_many([first, second]) else {
-            debug!("end_undock_separations: {first:?}/{second:?} lost a hull");
+            debug!("end_undock_separations: {first:?}/{second:?} has a hull with no colliders");
             commands.entity(entity).try_despawn();
             continue;
         };
@@ -604,6 +605,29 @@ pub(super) fn end_undock_separations(
             .any(|aabb| aabb.intersects(&merged));
         if !overlapping {
             debug!("end_undock_separations: {first:?}/{second:?} separated, collisions restored");
+            commands.entity(entity).try_despawn();
+        }
+    }
+}
+
+/// Despawn every [`UndockSeparation`] that names a body as the body leaves.
+///
+/// avian 0.7 frees an island when its last body leaves without unlinking the
+/// island's joints. A separation joint that outlives its hulls then keeps a
+/// dead island id, and once a new body takes that island slot, despawning the
+/// joint panics in `PhysicsIslands::remove_joint`. A world teardown or a load
+/// does exactly that while [`end_undock_separations`] waits for the fixed
+/// clock. The despawn queued here runs in the same command flush as the body
+/// removal, before any new body can take the slot.
+pub(super) fn on_separated_body_removed(
+    removed: On<Remove, RigidBody>,
+    mut commands: Commands,
+    q_separations: Query<(Entity, &UndockSeparation)>,
+) {
+    let body = removed.entity;
+    for (entity, separation) in &q_separations {
+        if separation.first_ship == body || separation.second_ship == body {
+            debug!("on_separated_body_removed: {body:?} left, its separation {entity:?} ends");
             commands.entity(entity).try_despawn();
         }
     }

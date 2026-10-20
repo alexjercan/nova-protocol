@@ -7,7 +7,7 @@
 //! the facing ends, so a gap in these tests is a gap in engine units and the
 //! authored `capture_distance` (10 m, one cell) is the number under test.
 
-use avian3d::prelude::*;
+use avian3d::{dynamics::solver::solver_body::SolverBody, prelude::*};
 use bevy::ecs::system::RunSystemOnce;
 use nova_events::prelude::EntityId;
 use nova_gameplay::test_support::{settle, unfinished_integrity_physics_app};
@@ -612,6 +612,38 @@ fn an_undocked_pair_stays_collision_free_until_its_hulls_separate() {
     assert!(
         island_linked_contact(&app, first, second),
         "the greeble collides with the first hull again"
+    );
+}
+
+#[test]
+fn an_undock_separation_ends_with_its_hulls() {
+    let mut app = docking_app();
+    let (first, _, second, _) = facing_pair(&mut app, 0.0);
+    request_dock(&mut app, first, second);
+    settle(&mut app);
+    app.world_mut()
+        .trigger(DockingReleaseRequest { entity: second });
+    app.update();
+    assert_eq!(separations(&mut app), 1, "the touching pair stays apart");
+
+    // A world teardown: both hulls leave in one pass, and the next world's
+    // first body takes the island slot they freed before the docking pass
+    // runs. avian gives a new body its `SolverBody` on its next step; it is
+    // inserted here so the slot is taken first. A separation joint still
+    // alive then unlinks itself from that new island and avian panics.
+    for ship in [first, second] {
+        app.world_mut().despawn(ship);
+    }
+    let next = spawn_hull(&mut app, Vec3::X * 20.0, Quat::IDENTITY);
+    app.world_mut()
+        .entity_mut(next)
+        .insert(SolverBody::default());
+    settle(&mut app);
+
+    assert_eq!(
+        separations(&mut app),
+        0,
+        "the separation leaves with its hulls"
     );
 }
 

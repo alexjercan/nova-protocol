@@ -42,8 +42,9 @@ pub use assembly::DockedAssembly;
 use assembly::{apply_docked_helm_wrench, measure_docked_assemblies};
 use connection::{
     end_undock_separations, on_docking_connection_request, on_docking_helm_request,
-    on_docking_port_removed_release, on_docking_release_request, on_station_derelict_release_helm,
-    on_station_docks_emptied, park_suppressed_docked_helms, release_broken_docking_connections,
+    on_docking_port_removed_release, on_docking_release_request, on_separated_body_removed,
+    on_station_derelict_release_helm, on_station_docks_emptied, park_suppressed_docked_helms,
+    release_broken_docking_connections,
 };
 pub use connection::{
     helm_on_capture, helm_request_admitted, DockPartnerType, DockedHelmType, DockedPort,
@@ -318,6 +319,7 @@ impl Plugin for DockingSectionPlugin {
         app.add_observer(on_docking_port_removed_release);
         app.add_observer(on_station_derelict_release_helm);
         app.add_observer(on_station_docks_emptied);
+        app.add_observer(on_separated_body_removed);
 
         app.add_systems(
             FixedUpdate,
