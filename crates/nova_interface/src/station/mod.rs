@@ -12,9 +12,13 @@
 //! - "Ships for sale": a card per hull the station sells, with its 3D view,
 //!   its name, length and price, a Buy button that raises a `HullBuyCommand`,
 //!   and Info.
-//! - "Escorts for hire": a card per escort the station hires out, with its
-//!   3D view, its name, length and price, a Hire button that raises an
-//!   `EscortHireCommand`, and Info.
+//! - "Escorts for hire": the fleet's slots in its header, then a card per
+//!   escort the station hires out, with its 3D view, its name, length and
+//!   price, a Hire button that raises an `EscortHireCommand`, and Info.
+//!
+//! A card's price is a credit figure, with the shortfall beside it while the
+//! balance is short. A refused action keeps its button, greyed, with the
+//! reason as its tooltip.
 //!
 //! A line says so when the station offers none of the lists and parks none
 //! of the player's ships. Refit (rebuild, swap, add) stays in the Ship pane,
@@ -56,7 +60,10 @@ pub use self::{
 pub(crate) use self::{
     escorts::*, hull_info::*, hull_preview::*, settle::*, shipyard::*, station_buy::*,
 };
-use crate::pane::{panel_paint, themed_label};
+use crate::{
+    icons::InterfaceIcons,
+    pane::{panel_paint, spawn_credit_figure, themed_label},
+};
 
 /// Glob-import surface: `use nova_interface::station::prelude::*`.
 pub mod prelude {
@@ -190,21 +197,21 @@ pub(crate) fn offer_rows() -> Node {
     }
 }
 
-/// Spawn the head of a hull card in `cell`: the 3D view of `hull` and one
-/// line, the hull's `name` then `detail`, wrapping only when the two do not
-/// fit the card.
+/// Spawn the head of a hull card in `cell`: the 3D view of `hull`, the
+/// hull's `name` line and its `length` line.
 pub(crate) fn spawn_hull_card_head(
     cell: &mut ChildSpawnerCommands,
     hull: Entity,
     name: &str,
-    detail: &str,
+    length: &str,
 ) {
     // `sync_hull_previews` hands the image its hull's view. The frame takes
     // the card's width: a fixed width here makes taffy measure the labels at
     // min-content width and grow the list by hundreds of px. The image is
-    // absolute so its measure cannot size the card either.
+    // absolute so its measure cannot size the card either. The height keeps
+    // the render target's aspect at the card's width.
     cell.spawn(Node {
-        height: px(HULL_PREVIEW_PX.y as f32),
+        height: px(OFFER_CELL_PX * HULL_PREVIEW_PX.y as f32 / HULL_PREVIEW_PX.x as f32),
         flex_shrink: 0.0,
         ..default()
     })
@@ -218,16 +225,43 @@ pub(crate) fn spawn_hull_card_head(
             ..default()
         },
     ));
+    cell.spawn(themed_label(name, 13.0, UiColor::Primary));
+    cell.spawn(themed_label(length, 12.0, UiColor::Body));
+}
+
+/// A card's price block: the figure at 15 px, muted while short, then
+/// `short` and the gap in Danger.
+pub(crate) fn spawn_card_price(
+    cell: &mut ChildSpawnerCommands,
+    icons: &InterfaceIcons,
+    price_cr: u64,
+    short_cr: Option<u64>,
+) {
     cell.spawn(Node {
         flex_direction: FlexDirection::Row,
         flex_wrap: FlexWrap::Wrap,
+        align_items: AlignItems::Center,
         column_gap: px(10),
-        align_items: AlignItems::Baseline,
         ..default()
     })
     .with_children(|line| {
-        line.spawn(themed_label(name, 13.0, UiColor::Primary));
-        line.spawn(themed_label(detail, 12.0, UiColor::Body));
+        let tone = if short_cr.is_some() {
+            UiColor::Label
+        } else {
+            UiColor::Accent
+        };
+        spawn_credit_figure(line, icons, price_cr, 15.0, tone, ());
+        if let Some(short_cr) = short_cr {
+            line.spawn(Node {
+                align_items: AlignItems::Center,
+                column_gap: px(5),
+                ..default()
+            })
+            .with_children(|short| {
+                short.spawn(themed_label("short", 12.0, UiColor::Danger));
+                spawn_credit_figure(short, icons, short_cr, 12.0, UiColor::Danger, ());
+            });
+        }
     });
 }
 
@@ -241,7 +275,7 @@ pub(crate) fn offer_cell() -> Node {
     }
 }
 
-/// The row of a card's buttons: Buy or Hire while allowed, then Info.
+/// The row of a card's buttons: Buy, Board or Hire, then Info.
 pub(crate) fn card_actions() -> Node {
     Node {
         flex_direction: FlexDirection::Row,
@@ -250,8 +284,8 @@ pub(crate) fn card_actions() -> Node {
     }
 }
 
-/// Width of one offer card, in logical px: a refusal line wraps in two.
-const OFFER_CELL_PX: f32 = 320.0;
+/// Width of one offer card, in logical px: three fit a 1024 px window.
+const OFFER_CELL_PX: f32 = 280.0;
 
 /// Wheel-scroll the panel while the pointer is over it.
 pub(crate) fn scroll_station_panel(

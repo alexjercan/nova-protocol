@@ -3,11 +3,11 @@
 //!
 //! While the ship is docked at a living station that offers Refit and has
 //! hulls parked at its ports ([`ParkedHulls`]), the pane lists every one as
-//! a card: the hull's own model turning (`hull_preview`) and one line with
-//! its name, length and price. A ship the player owns
-//! ([`ParkedHullType::Owned`]) lists under "Your ships", above the hulls for
-//! sale, and says "your ship" in place of a price. Each list shows only
-//! while it has a card. A hull for sale has a Buy button, or the reason the
+//! a card: the hull's own model turning (`hull_preview`), its name, its
+//! length and its price. A ship the player owns ([`ParkedHullType::Owned`])
+//! lists under "Your ships", above the hulls for sale, and says "your ship"
+//! in place of a price. Each list shows only while it has a card. A hull for
+//! sale has a Buy button, greyed with the reason as its tooltip while the
 //! buy is refused; an owned ship has a Board button. A click
 //! raises a [`HullBuyCommand`]; [`apply_station_hull_buy_commands`] plans a
 //! buy with [`plan_hull_buy`] and moves the price, or boards for free, and
@@ -21,14 +21,15 @@ use bevy::{prelude::*, ui_widgets::Activate};
 use nova_events::prelude::{CreditChangeCauseType, Meters};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
-use nova_ui::{theme::UiColor, widget::ButtonSpec};
+use nova_ui::theme::UiColor;
 
 use super::{
-    card_actions, offer_cell, offer_rows, spawn_hull_card_head, spawn_hull_info_button,
-    StationRuntime,
+    card_actions, offer_cell, offer_rows, spawn_card_price, spawn_hull_card_head,
+    spawn_hull_info_button, StationRuntime,
 };
 use crate::{
-    pane::{compact_button, play_menu_select, themed_label},
+    icons::InterfaceIcons,
+    pane::{play_menu_select, refusable_button, themed_label},
     ship::{ResolvedSite, ShipRuntime, StationSite},
 };
 
@@ -41,7 +42,8 @@ pub struct HullBuyCommand {
     pub hull: Entity,
 }
 
-/// The card line after an owned ship's length, in place of a price.
+/// The length line's part after an owned ship's length, in place of a
+/// price.
 const OWNED_DETAIL: &str = "your ship";
 
 /// The hull list container, hidden while the refit gate does not hold or
@@ -81,10 +83,16 @@ struct HullRow {
     index: usize,
     terms: ParkedHullType,
     name: String,
-    /// The card line after the name: length and price, or "your ship".
-    detail: String,
-    /// The card's action button label, Buy or Board, or the refusal line.
-    action: Result<&'static str, String>,
+    /// The length, then "your ship" for an owned ship.
+    length: String,
+    /// The price of a hull for sale, or `None` for an owned ship.
+    price_cr: Option<u64>,
+    /// What the balance lacks of the price, or `None` while it is not short.
+    short_cr: Option<u64>,
+    /// The action button's label: Buy or Board.
+    label: &'static str,
+    /// Why the action is refused, or `None` when it is allowed.
+    refusal: Option<String>,
 }
 
 /// The hull's length: the span of its section centres along its longest
@@ -203,7 +211,7 @@ pub(crate) fn spawn_station_hull_list(panel: &mut ChildSpawnerCommands) {
 /// section's rows when a hull, a price or a refusal changes.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one system reading the parked hulls, the site, both balances and the list"
+    reason = "one system reading the parked hulls, the site, both balances, the icons and the list"
 )]
 pub(crate) fn update_station_hull_list(
     mut commands: Commands,
@@ -212,6 +220,7 @@ pub(crate) fn update_station_hull_list(
     q_parked: Query<&ParkedHulls>,
     q_hulls: ParkedHullQuery,
     q_credits: Query<&ShipCredits>,
+    icons: Res<InterfaceIcons>,
     mut q_list: Query<&mut Node, (With<StationHullList>, Without<StationHullSection>)>,
     mut q_sections: Query<&mut Node, (With<StationHullSection>, Without<StationHullList>)>,
     mut q_rows: Query<(Entity, &ChildOf, &mut StationHullRows)>,
@@ -240,27 +249,41 @@ pub(crate) fn update_station_hull_list(
                 .enumerate()
                 .map(|(index, (hull, name, terms, design))| {
                     let length = hull_length_text(&design.0);
-                    let (detail, action) = match terms {
+                    let name = name.to_string();
+                    match terms {
                         ParkedHullType::Sale => {
                             let price_cr = parked_price_cr(&items, design);
-                            let planned = plan_offer(&resolved, price_cr, &q_credits);
-                            (
-                                format!("{length}, {}", cr_text(price_cr)),
-                                planned
-                                    .map(|_| "Buy")
-                                    .map_err(|refusal| hull_refusal_text(name.as_str(), &refusal)),
-                            )
+                            let refusal = plan_offer(&resolved, price_cr, &q_credits).err();
+                            HullRow {
+                                hull,
+                                index,
+                                terms,
+                                length,
+                                price_cr: Some(price_cr),
+                                short_cr: match refusal {
+                                    Some(HullBuyRefusalType::InsufficientCredits {
+                                        need,
+                                        have,
+                                    }) => Some(need - u64::from(have)),
+                                    _ => None,
+                                },
+                                label: "Buy",
+                                refusal: refusal.map(|refusal| hull_refusal_text(&name, &refusal)),
+                                name,
+                            }
                         }
-                        ParkedHullType::Owned => (format!("{length}, {OWNED_DETAIL}"), Ok("Board")),
+                        ParkedHullType::Owned => HullRow {
+                            hull,
+                            index,
+                            terms,
+                            name,
+                            length: format!("{length}, {OWNED_DETAIL}"),
+                            price_cr: None,
+                            short_cr: None,
+                            label: "Board",
+                            refusal: None,
+                        },
                         ParkedHullType::Hire { .. } => unreachable!("hires are filtered out above"),
-                    };
-                    HullRow {
-                        hull,
-                        index,
-                        terms,
-                        name: name.to_string(),
-                        detail,
-                        action,
                     }
                 })
                 .collect();
@@ -282,7 +305,7 @@ pub(crate) fn update_station_hull_list(
         commands.entity(rows_entity).despawn_children();
         commands.entity(rows_entity).with_children(|parent| {
             for row in &section_rows {
-                spawn_hull_card(parent, row);
+                spawn_hull_card(parent, &icons, row);
             }
         });
         shown.rows = section_rows;
@@ -297,30 +320,28 @@ fn show(node: &mut Node, shown: bool) {
     }
 }
 
-/// One hull card: the head, the refusal line if any, and the Buy or Board
-/// button beside Info, named by the row's index.
-fn spawn_hull_card(parent: &mut ChildSpawnerCommands, row: &HullRow) {
+/// One hull card: the head, the price block of a hull for sale, and the Buy
+/// or Board button beside Info, named by the row's index.
+fn spawn_hull_card(parent: &mut ChildSpawnerCommands, icons: &InterfaceIcons, row: &HullRow) {
     let index = row.index;
     parent.spawn(offer_cell()).with_children(|cell| {
-        spawn_hull_card_head(cell, row.hull, &row.name, &row.detail);
-        if let Err(refusal) = &row.action {
-            cell.spawn(themed_label(refusal, 12.0, UiColor::Danger));
-        }
-        cell.spawn(card_actions()).with_children(|actions| {
-            if let Ok(label) = row.action {
-                actions
-                    .spawn((
-                        Name::new(format!("Hull{label}-{index}")),
-                        compact_button(ButtonSpec::new(label).fit().primary()),
-                    ))
-                    .observe(on_hull_buy_button(row.hull));
+        spawn_hull_card_head(cell, row.hull, &row.name, &row.length);
+        let line = match row.price_cr {
+            Some(price_cr) => {
+                spawn_card_price(cell, icons, price_cr, row.short_cr);
+                format!("{}  {}, {}", row.name, row.length, cr_text(price_cr))
             }
-            spawn_hull_info_button(
+            None => format!("{}  {}", row.name, row.length),
+        };
+        cell.spawn(card_actions()).with_children(|actions| {
+            refusable_button(
                 actions,
-                format!("HullInfo-{index}"),
-                row.hull,
-                format!("{}  {}", row.name, row.detail),
-            );
+                format!("Hull{}-{index}", row.label),
+                row.label,
+                row.refusal.as_deref(),
+            )
+            .observe(on_hull_buy_button(row.hull));
+            spawn_hull_info_button(actions, format!("HullInfo-{index}"), row.hull, line);
         });
     });
 }

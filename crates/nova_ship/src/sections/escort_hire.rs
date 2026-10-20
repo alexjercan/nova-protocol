@@ -26,11 +26,26 @@ pub const ESCORT_HIRE_FACTOR: (u64, u64) = (3, 2);
 /// The fleet cap is their count.
 pub const FLEET_SIDES: [Vec3; 2] = [Vec3::X, Vec3::NEG_X];
 
+/// The fleet slot label of `side`: `STBD` for `Vec3::X`, `PORT` for
+/// `Vec3::NEG_X`.
+///
+/// # Panics
+///
+/// On a side outside [`FLEET_SIDES`]: a fleet escort on an unknown side is
+/// invalid content.
+pub fn fleet_side_label(side: Vec3) -> &'static str {
+    match FLEET_SIDES.iter().position(|slot| *slot == side) {
+        Some(0) => "STBD",
+        Some(1) => "PORT",
+        _ => panic!("fleet: side {side} is not one of FLEET_SIDES"),
+    }
+}
+
 /// The offers' terms, the price rule, the plan and the hire request.
 pub mod prelude {
     pub use super::{
-        escort_id, escort_price_cr, plan_escort_hire, EscortHirePartner, EscortHirePlan,
-        EscortHireRefusalType, EscortHireRequest, ESCORT_HIRE_FACTOR, FLEET_SIDES,
+        escort_id, escort_price_cr, fleet_side_label, plan_escort_hire, EscortHirePartner,
+        EscortHirePlan, EscortHireRefusalType, EscortHireRequest, ESCORT_HIRE_FACTOR, FLEET_SIDES,
     };
 }
 
@@ -221,6 +236,16 @@ mod tests {
                 need: recipes * 3 / 2,
                 have: 1
             })
+        );
+    }
+
+    /// Slot labels name `FLEET_SIDES` in fill order; any other side panics.
+    #[test]
+    fn fleet_side_labels_follow_fleet_sides_order() {
+        assert_eq!(FLEET_SIDES.map(fleet_side_label), ["STBD", "PORT"]);
+        assert!(
+            std::panic::catch_unwind(|| fleet_side_label(Vec3::Y)).is_err(),
+            "a side outside FLEET_SIDES has no label"
         );
     }
 }

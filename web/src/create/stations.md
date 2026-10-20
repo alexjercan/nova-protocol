@@ -239,9 +239,9 @@ Every hull for sale is a real ship parked at one of the station's ports. A
 parked hull is inert: nobody flies it, it is Neutral, it does not shoot, and
 it cannot be looted or stripped. Docked to a living station that offers
 `Refit`, the Station pane lists the parked hulls under **Ships for sale**:
-each a card with the real hull turning slowly, one line with its name,
-length and price, and a Buy button or the reason it is refused, beside an
-Info button that shows the hull in the Ship pane, read-only. A ship the
+each a card with the real hull turning slowly, its name, length and price,
+and a Buy button, greyed with the reason as its tooltip while refused, beside
+an Info button that shows the hull in the Ship pane, read-only. A ship the
 player owns, parked there, lists above them under **Your ships** and says
 "your ship" in place of the price, over a Board button. Each list shows only
 while it has a card.
@@ -275,7 +275,8 @@ places hires none. Each escort waits outside the station, undocked and
 Neutral, coasting on the station's course a little ahead or behind it, clear
 of the station and of each other. The Station pane lists them under
 **Escorts for hire**, on the same cards as the hulls for sale, with a Hire
-button or the reason it is refused. The escorts stay with
+button greyed the same way, under a header with the fleet's slots. The
+escorts stay with
 the station when its sector unloads, and in the world save.
 
 | rule | what happens |
@@ -298,7 +299,7 @@ and Load.
 
 A living station that a generated world places is for sale to the ship docked
 with it. The Station pane shows it under **This station**: its name, its price
-and a **Buy station** button or the reason it is refused. A station a
+and a **Buy station** button, greyed with the reason while refused. A station a
 scenario places and a derelict are not for sale.
 
 | rule | what happens |

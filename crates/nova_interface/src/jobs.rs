@@ -32,10 +32,7 @@
 //! Touch this module when changing what the lists show, what gates an
 //! offer, or what a hand-in moves.
 
-use bevy::{
-    ecs::system::SystemParam, picking::hover::Hovered, prelude::*, ui::InteractionDisabled,
-    ui_widgets::Activate,
-};
+use bevy::{ecs::system::SystemParam, picking::hover::Hovered, prelude::*, ui_widgets::Activate};
 use nova_events::prelude::{CreditChangeCauseType, GeneratedBodyId, Meters, Meters3, SectorCoord};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::DockingSectionMarker;
@@ -46,8 +43,8 @@ use crate::{
     icons::{icon_node, ChartIconType, InterfaceIcons, JobIconType},
     map::{job_cell, MapChartMarkType, MapRuntime},
     pane::{
-        compact_button, control_row, divider, panel_paint, play_menu_select, spawn_credit_figure,
-        themed_label, view_split, InterfacePaneType,
+        compact_button, control_row, divider, panel_paint, play_menu_select, refusable_button,
+        spawn_credit_figure, themed_label, view_split, InterfacePaneType,
     },
     ship::StationSite,
 };
@@ -958,15 +955,9 @@ fn action_button(
         Pickable::IGNORE,
     ))
     .with_children(|column| {
-        let mut action = column.spawn((
-            Name::new(name),
-            button,
-            compact_button(ButtonSpec::new(label).fit().primary()),
-        ));
-        action.observe(on_job_button);
-        if let Some(why) = refusal {
-            action.insert((InteractionDisabled, Tooltip(why.clone())));
-        }
+        refusable_button(column, name, label, refusal.map(String::as_str))
+            .insert(button)
+            .observe(on_job_button);
     });
 }
 

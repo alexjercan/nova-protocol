@@ -287,9 +287,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New armed cheats `credits give <ship-id> <amount>` (signed) and `credits set
   <ship-id> <amount>` change a ship's credits, never below zero. Each change
   fires `OnCreditsChanged` with cause `Cheat`.
-- Docked at a living station, the TAB interface shows a Station tab with the
-  station, its ships for sale and its escorts for hire. M steps to it only
-  while docked.
+- Docked at a living station, a Station tab lists the station, ships for sale
+  and escorts for hire with your fleet slots. A refused buy or hire is greyed
+  with its reason. M steps to it while docked.
 - The Map's chart view lists STANCES: each civilization's stance, what moves
   or clears it, and an Enemy's fine; Pay fine works docked at the selected
   station that takes it. Save format 25.

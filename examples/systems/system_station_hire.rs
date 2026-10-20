@@ -60,7 +60,8 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 //! Add `NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=<dir>` to shoot the hire list as
-//! `station-hire-list.png`, the two escorts as they spawned from above as
+//! `station-hire-list.png`, the list with the fleet full as
+//! `station-hire-full.png`, the two escorts as they spawned from above as
 //! `station-hire-pair.png`, the start from rest from above as
 //! `station-hire-start-0.png` to `station-hire-start-3.png`, the escort in
 //! formation as
@@ -130,6 +131,7 @@ mod walk {
     use avian3d::prelude::{
         AngularVelocity, ComputedCenterOfMass, ComputedMass, LinearVelocity, Position, Rotation,
     };
+    use bevy::ui::InteractionDisabled;
     use nova_protocol::{
         nova_debug::harness::{
             pose_camera, press_action, release_action, shoot, AutopilotPlugin, Predicate,
@@ -139,7 +141,7 @@ mod walk {
         nova_interface::pane::InterfacePaneType,
         prelude::*,
     };
-    use nova_ui::widget::TextFieldValue;
+    use nova_ui::widget::{TextFieldValue, Tooltip};
     use nova_world::prelude::{
         desired_sectors, FrozenBodyType, FrozenSectors, SectorRoot, WorldClock, WorldConfig,
     };
@@ -181,6 +183,7 @@ mod walk {
 
     /// The PNGs the capture path shoots.
     const LIST_SHOT: &str = "station-hire-list.png";
+    const FULL_SHOT: &str = "station-hire-full.png";
     const ESCORT_SHOT: &str = "station-hire-escort.png";
     const CROSSED_SHOT: &str = "station-hire-crossed.png";
     const PAIR_SHOT: &str = "station-hire-pair.png";
@@ -1129,6 +1132,72 @@ mod walk {
         );
         let offer = in_station_frame(world, station, hull);
         world.resource_mut::<HireWatch>().second = Some((id, price, offer));
+    }
+
+    /// With the fleet full, the list's header names each escort in its slot
+    /// box, and every Hire left is greyed with the full-fleet refusal as its
+    /// tooltip.
+    fn assert_the_full_list(world: &mut World) {
+        let player = player(world);
+        let held: Vec<(&str, String)> = world
+            .query_filtered::<(&AIFollow, &Name), With<PlayerFleetMarker>>()
+            .iter(world)
+            .filter(|(follow, _)| follow.leader == player)
+            .map(|(follow, name)| (fleet_side_label(follow.side), name.to_string()))
+            .collect();
+        assert_eq!(
+            held.len(),
+            FLEET_SIDES.len(),
+            "station hire: both fleet slots are held"
+        );
+        for (label, name) in &held {
+            let slot = world
+                .query::<(&Text, &ChildOf)>()
+                .iter(world)
+                .find(|(text, _)| text.0 == *label)
+                .map(|(_, child_of)| child_of.parent())
+                .unwrap_or_else(|| panic!("station hire: no {label} slot box"));
+            let shown: Vec<String> = world
+                .get::<Children>(slot)
+                .expect("station hire: a slot box holds its texts")
+                .iter()
+                .filter_map(|child| world.get::<Text>(child).map(|text| text.0.clone()))
+                .collect();
+            assert_eq!(
+                shown,
+                [label.to_string(), name.clone()],
+                "station hire: the {label} slot box names its escort"
+            );
+        }
+        let refusal = format!("hire: the fleet holds its {} escorts", FLEET_SIDES.len());
+        let hires: Vec<(String, bool, Option<String>)> = world
+            .query::<(&Name, Has<InteractionDisabled>, Option<&Tooltip>)>()
+            .iter(world)
+            .filter(|(name, ..)| name.as_str().starts_with("EscortHire-"))
+            .map(|(name, disabled, tooltip)| {
+                (name.to_string(), disabled, tooltip.map(|tip| tip.0.clone()))
+            })
+            .collect();
+        assert!(
+            !hires.is_empty(),
+            "station hire: the station still lists an escort for hire after both hires"
+        );
+        for (name, disabled, tooltip) in &hires {
+            assert!(
+                *disabled,
+                "station hire: {name} is greyed with the fleet full"
+            );
+            assert_eq!(
+                tooltip.as_deref(),
+                Some(refusal.as_str()),
+                "station hire: {name} says why in its tooltip"
+            );
+        }
+        info!(
+            "station hire: PASS the fleet row names {held:?}, and {} Hire button(s) are greyed \
+             with '{refusal}'",
+            hires.len()
+        );
     }
 
     /// Claim 1b: each escort spawned where its offer coasted, clear of the
@@ -2558,7 +2627,18 @@ mod walk {
             HIRE_BUTTON,
             when(|world| second_root(world).is_some()),
             SESSION_SECS,
-        );
+        )
+        .step("station hire: settle the full list")
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("station hire: assert the full fleet's list")
+        .on_enter(assert_the_full_list)
+        .add()
+        .step("station hire: shoot the full list")
+        .on_enter(|world: &mut World| shoot(world, FULL_SHOT))
+        .until(shot_written(FULL_SHOT))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add();
         // The pane pushed its reports under the interface pause; the tracker
         // drains them once the clock runs again.
         let script = tap(script, "the interface key", "interface_toggle", unpaused())

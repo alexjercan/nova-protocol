@@ -2,15 +2,16 @@
 //!
 //! While the ship is docked at a living station that offers Refit and hires
 //! out escorts (hulls it holds listed [`ParkedHullType::Hire`], coasting
-//! beside it), the pane lists them under the hulls for sale, each as a card:
-//! the escort's own model turning (`hull_preview`), one line with its name,
-//! length and price, and a Hire button or the reason the hire is refused; a
-//! station whose side is not the player's (its civilization no Ally) shows
-//! every escort refused. A
-//! click raises an
-//! [`EscortHireCommand`]; [`apply_station_escort_hire_commands`] plans it with
-//! [`plan_escort_hire`], moves the credits, and raises the
-//! [`EscortHireRequest`] the scenario crate makes the escort from.
+//! beside it), the pane lists them under the hulls for sale. The header
+//! shows the fleet's slots, one box per [`FLEET_SIDES`] entry with the
+//! escort that holds it. Each escort is a card: its own model turning
+//! (`hull_preview`), its name, its length, its price and a Hire button,
+//! greyed with the reason as its tooltip while the hire is refused; a
+//! station whose side is not the player's (its civilization no Ally) refuses
+//! every escort. A click raises an [`EscortHireCommand`];
+//! [`apply_station_escort_hire_commands`] plans it with [`plan_escort_hire`],
+//! moves the credits, and raises the [`EscortHireRequest`] the scenario
+//! crate makes the escort from.
 //!
 //! Touch this module when changing what the list shows or what Hire moves.
 
@@ -18,14 +19,15 @@ use bevy::{prelude::*, ui_widgets::Activate};
 use nova_events::prelude::{CreditChangeCauseType, GeneratedBodyId};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
-use nova_ui::{theme::UiColor, widget::ButtonSpec};
+use nova_ui::{theme::UiColor, widget::ThemedBorder};
 
 use super::{
-    card_actions, offer_cell, offer_rows, shipyard::hull_length_text, spawn_hull_card_head,
-    spawn_hull_info_button, StationRuntime,
+    card_actions, offer_cell, offer_rows, shipyard::hull_length_text, spawn_card_price,
+    spawn_hull_card_head, spawn_hull_info_button, StationRuntime,
 };
 use crate::{
-    pane::{compact_button, play_menu_select, themed_label},
+    icons::InterfaceIcons,
+    pane::{play_menu_select, refusable_button, themed_label},
     ship::{ResolvedSite, StationSite},
 };
 
@@ -43,15 +45,19 @@ pub struct EscortHireCommand {
 #[derive(Component)]
 pub(crate) struct StationEscortList;
 
-/// The rows inside [`StationEscortList`], and the row texts they were built
-/// from, so the rows respawn only when one changes.
+/// The header and rows inside [`StationEscortList`], and what they were
+/// built from, so they respawn only when one changes.
 #[derive(Component, Default)]
-pub(crate) struct StationEscortRows(Vec<EscortRow>);
+pub(crate) struct StationEscortRows {
+    /// The name of the escort in each fleet slot, in [`FLEET_SIDES`] order.
+    slots: Vec<Option<String>>,
+    rows: Vec<EscortRow>,
+}
 
 impl StationEscortRows {
     /// The escorts for hire the rows list, in list order.
     pub(crate) fn hulls(&self) -> impl Iterator<Item = Entity> + '_ {
-        self.0.iter().map(|row| row.hull)
+        self.rows.iter().map(|row| row.hull)
     }
 }
 
@@ -60,9 +66,11 @@ impl StationEscortRows {
 struct EscortRow {
     hull: Entity,
     name: String,
-    /// The card line after the name: length and price.
-    detail: String,
-    /// The refusal line, or `None` when the hire is allowed.
+    length: String,
+    price_cr: u64,
+    /// What the balance lacks of the price, or `None` while it is not short.
+    short_cr: Option<u64>,
+    /// Why the hire is refused, or `None` when it is allowed.
     refusal: Option<String>,
 }
 
@@ -104,12 +112,39 @@ type HireQuery<'w, 's> = Query<
     With<ParkedHull>,
 >;
 
-/// The fleet sides the escorts of `player` hold now.
-fn held_sides(player: Entity, q_fleet: &Query<&AIFollow, With<PlayerFleetMarker>>) -> Vec<Vec3> {
-    q_fleet
+/// Each fleet slot in [`FLEET_SIDES`] order with the name of the escort of
+/// `player` that holds it.
+///
+/// # Panics
+///
+/// On an escort whose side is not one of [`FLEET_SIDES`]: invalid content.
+fn held_slots(
+    player: Entity,
+    q_fleet: &Query<(&AIFollow, &Name), With<PlayerFleetMarker>>,
+) -> Vec<Option<String>> {
+    let mut slots = vec![None; FLEET_SIDES.len()];
+    for (follow, name) in q_fleet.iter().filter(|(follow, _)| follow.leader == player) {
+        let slot = FLEET_SIDES
+            .iter()
+            .position(|side| *side == follow.side)
+            .unwrap_or_else(|| {
+                panic!(
+                    "fleet: escort {name} flies side {}, not one of FLEET_SIDES",
+                    follow.side
+                )
+            });
+        slots[slot] = Some(name.to_string());
+    }
+    slots
+}
+
+/// The sides of the filled `slots`, as [`plan_escort_hire`] reads them.
+fn held_sides(slots: &[Option<String>]) -> Vec<Vec3> {
+    FLEET_SIDES
         .iter()
-        .filter(|follow| follow.leader == player)
-        .map(|follow| follow.side)
+        .zip(slots)
+        .filter(|(_, name)| name.is_some())
+        .map(|(side, _)| *side)
         .collect()
 }
 
@@ -137,7 +172,7 @@ fn plan_offer(
     plan_escort_hire(price, partner, held, own_cr)
 }
 
-/// Build the escort list under the hull list: a header and the rows
+/// Build the escort list under the hull list: the header and rows
 /// [`update_station_escort_list`] fills.
 pub(crate) fn spawn_station_escort_list(panel: &mut ChildSpawnerCommands) {
     panel
@@ -153,9 +188,57 @@ pub(crate) fn spawn_station_escort_list(panel: &mut ChildSpawnerCommands) {
         ))
         .with_children(|list| {
             list.spawn(crate::pane::divider());
-            list.spawn(themed_label("Escorts for hire", 13.0, UiColor::Accent));
-            list.spawn((StationEscortRows::default(), offer_rows()));
+            list.spawn((
+                StationEscortRows::default(),
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    row_gap: Val::Px(8.0),
+                    ..default()
+                },
+            ));
         });
+}
+
+/// `FLEET  [STBD name] [PORT --]`: one bordered box per [`FLEET_SIDES`]
+/// entry.
+fn spawn_fleet_row(list: &mut ChildSpawnerCommands, slots: &[Option<String>]) {
+    list.spawn(Node {
+        flex_direction: FlexDirection::Row,
+        flex_wrap: FlexWrap::Wrap,
+        align_items: AlignItems::Center,
+        column_gap: px(8),
+        row_gap: px(4),
+        ..default()
+    })
+    .with_children(|row| {
+        row.spawn(themed_label("FLEET", 11.0, UiColor::Label));
+        for (side, name) in FLEET_SIDES.iter().zip(slots) {
+            let border = if name.is_some() {
+                ThemedBorder::new(UiColor::Accent)
+            } else {
+                ThemedBorder::alpha(UiColor::Secondary, 0.35)
+            };
+            row.spawn((
+                Node {
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Baseline,
+                    column_gap: px(8),
+                    padding: UiRect::axes(px(8), px(3)),
+                    border: UiRect::all(px(1)),
+                    ..default()
+                },
+                BorderColor::all(Color::NONE),
+                border,
+            ))
+            .with_children(|slot| {
+                slot.spawn(themed_label(fleet_side_label(*side), 11.0, UiColor::Label));
+                match name {
+                    Some(name) => slot.spawn(themed_label(name, 12.0, UiColor::Primary)),
+                    None => slot.spawn(themed_label("--", 12.0, UiColor::Label)),
+                };
+            });
+        }
+    });
 }
 
 /// Show the escort list while the refit gate holds and the docked station
@@ -163,7 +246,7 @@ pub(crate) fn spawn_station_escort_list(panel: &mut ChildSpawnerCommands) {
 /// refusal changes.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one system reading the hulls, the site, the balances, the sides, the fleet and the list"
+    reason = "one system reading the hulls, the site, the balances, the sides, the fleet, the icons and the list"
 )]
 pub(crate) fn update_station_escort_list(
     mut commands: Commands,
@@ -173,7 +256,8 @@ pub(crate) fn update_station_escort_list(
     q_hires: HireQuery,
     q_credits: Query<&ShipCredits>,
     q_sides: Query<&Allegiance>,
-    q_fleet: Query<&AIFollow, With<PlayerFleetMarker>>,
+    q_fleet: Query<(&AIFollow, &Name), With<PlayerFleetMarker>>,
+    icons: Res<InterfaceIcons>,
     mut q_list: Query<&mut Node, With<StationEscortList>>,
     mut q_rows: Query<(Entity, &mut StationEscortRows)>,
 ) {
@@ -188,13 +272,15 @@ pub(crate) fn update_station_escort_list(
     } else {
         None
     };
+    let mut slots = Vec::new();
     let mut rows = Vec::new();
     if let (Some(resolved), Some(items)) = (resolved, items) {
+        slots = held_slots(resolved.player, &q_fleet);
         let parked = resolved
             .partner
             .and_then(|(partner, ..)| q_parked.get(partner).ok());
         if let Some(parked) = parked {
-            let held = held_sides(resolved.player, &q_fleet);
+            let held = held_sides(&slots);
             rows = parked
                 .iter()
                 .filter_map(|hull| {
@@ -202,13 +288,21 @@ pub(crate) fn update_station_escort_list(
                     if !matches!(terms, ParkedHullType::Hire { .. }) {
                         return None;
                     }
-                    let price = escort_price_cr(&items, &design.0);
+                    let price_cr = escort_price_cr(&items, &design.0);
+                    let refusal =
+                        plan_offer(&resolved, price_cr, &held, &q_credits, &q_sides).err();
                     Some(EscortRow {
                         hull,
                         name: name.to_string(),
-                        detail: format!("{}, {}", hull_length_text(&design.0), cr_text(price)),
-                        refusal: plan_offer(&resolved, price, &held, &q_credits, &q_sides)
-                            .err()
+                        length: hull_length_text(&design.0),
+                        price_cr,
+                        short_cr: match refusal {
+                            Some(EscortHireRefusalType::InsufficientCredits { need, have }) => {
+                                Some(need - u64::from(have))
+                            }
+                            _ => None,
+                        },
+                        refusal: refusal
                             .map(|refusal| escort_refusal_text(name.as_str(), &refusal)),
                     })
                 })
@@ -223,37 +317,50 @@ pub(crate) fn update_station_escort_list(
     if list.display != display {
         list.display = display;
     }
-    if shown.0 == rows {
+    if shown.slots == slots && shown.rows == rows {
         return;
     }
     commands.entity(rows_entity).despawn_children();
     commands.entity(rows_entity).with_children(|parent| {
-        for (index, row) in rows.iter().enumerate() {
-            parent.spawn(offer_cell()).with_children(|cell| {
-                spawn_hull_card_head(cell, row.hull, &row.name, &row.detail);
-                if let Some(refusal) = &row.refusal {
-                    cell.spawn(themed_label(refusal, 12.0, UiColor::Danger));
-                }
-                cell.spawn(card_actions()).with_children(|actions| {
-                    if row.refusal.is_none() {
-                        actions
-                            .spawn((
-                                Name::new(format!("EscortHire-{index}")),
-                                compact_button(ButtonSpec::new("Hire").fit().primary()),
-                            ))
-                            .observe(on_escort_hire_button(row.hull));
-                    }
-                    spawn_hull_info_button(
-                        actions,
-                        format!("EscortInfo-{index}"),
-                        row.hull,
-                        format!("{}  {}", row.name, row.detail),
-                    );
-                });
+        parent
+            .spawn(Node {
+                flex_direction: FlexDirection::Row,
+                flex_wrap: FlexWrap::Wrap,
+                align_items: AlignItems::Center,
+                column_gap: px(24),
+                row_gap: px(4),
+                ..default()
+            })
+            .with_children(|header| {
+                header.spawn(themed_label("Escorts for hire", 13.0, UiColor::Accent));
+                spawn_fleet_row(header, &slots);
             });
-        }
+        parent.spawn(offer_rows()).with_children(|cards| {
+            for (index, row) in rows.iter().enumerate() {
+                cards.spawn(offer_cell()).with_children(|cell| {
+                    spawn_hull_card_head(cell, row.hull, &row.name, &row.length);
+                    spawn_card_price(cell, &icons, row.price_cr, row.short_cr);
+                    cell.spawn(card_actions()).with_children(|actions| {
+                        refusable_button(
+                            actions,
+                            format!("EscortHire-{index}"),
+                            "Hire",
+                            row.refusal.as_deref(),
+                        )
+                        .observe(on_escort_hire_button(row.hull));
+                        spawn_hull_info_button(
+                            actions,
+                            format!("EscortInfo-{index}"),
+                            row.hull,
+                            format!("{}  {}, {}", row.name, row.length, cr_text(row.price_cr)),
+                        );
+                    });
+                });
+            }
+        });
     });
-    shown.0 = rows;
+    shown.slots = slots;
+    shown.rows = rows;
 }
 
 /// Raise an [`EscortHireCommand`] for the escort for hire `hull` when its
@@ -277,7 +384,8 @@ fn on_escort_hire_button(
 ///
 /// On a hull that is not an escort for hire of the docked station, or a
 /// station with no generated id: the list only shows a Hire button for an
-/// escort for hire of a generated station.
+/// escort for hire of a generated station. On an escort whose side is not
+/// one of [`FLEET_SIDES`].
 #[expect(
     clippy::too_many_arguments,
     reason = "one system reading the hulls, the site, the fleet, the ids, the sides and both balances"
@@ -295,7 +403,7 @@ pub(crate) fn apply_station_escort_hire_commands(
     q_hires: Query<(&ParkedHull, &Name, &ParkedHullType, &ShipDesignSections)>,
     q_ids: Query<&GeneratedBodyId>,
     q_sides: Query<&Allegiance>,
-    q_fleet: Query<&AIFollow, With<PlayerFleetMarker>>,
+    q_fleet: Query<(&AIFollow, &Name), With<PlayerFleetMarker>>,
     mut q_credits: ParamSet<(
         Query<&ShipCredits>,
         Query<(&mut ShipCredits, &mut ShipInventoryReports)>,
@@ -330,7 +438,7 @@ pub(crate) fn apply_station_escort_hire_commands(
         command.hull
     );
     let name = name.to_string();
-    let held = held_sides(resolved.player, &q_fleet);
+    let held = held_sides(&held_slots(resolved.player, &q_fleet));
     let price = escort_price_cr(&items, &design.0);
     let plan = match plan_offer(&resolved, price, &held, &q_credits.p0(), &q_sides) {
         Ok(plan) => plan,

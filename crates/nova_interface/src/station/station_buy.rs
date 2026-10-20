@@ -3,7 +3,9 @@
 //! While the player ship is docked at a living station a civilization keeps
 //! (generated with the world, so it wears a [`GeneratedBodyId`]), the pane
 //! shows the station's name, its price ([`station_price_cr`]) and a Buy
-//! button or the reason the buy is refused. A click raises a
+//! button, greyed with the reason as its tooltip while the buy is refused.
+//! A station a civilization sells to its allies only says so, with its Buy
+//! greyed. A click raises a
 //! [`StationBuyCommand`]; [`apply_station_buy_commands`] plans it with
 //! [`plan_station_buy`], charges the price as a `StationBuy` credit change,
 //! queues one `StationBought` report and makes the station the player's
@@ -17,10 +19,13 @@ use bevy::{ecs::system::SystemParam, prelude::*, ui_widgets::Activate};
 use nova_events::prelude::{CreditChangeCauseType, EntityId, GeneratedBodyId};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
-use nova_ui::{theme::UiColor, widget::ButtonSpec};
+use nova_ui::theme::UiColor;
 
-use super::{offer_cell, StationRuntime};
-use crate::pane::{compact_button, play_menu_select, themed_label};
+use super::{card_actions, offer_cell, spawn_card_price, StationRuntime};
+use crate::{
+    icons::InterfaceIcons,
+    pane::{play_menu_select, refusable_button, themed_label},
+};
 
 /// The name of the station Buy button.
 pub const STATION_BUY_BUTTON: &str = "StationBuy";
@@ -44,10 +49,14 @@ pub(crate) struct StationSaleRows(Option<StationRow>);
 #[derive(Clone, Debug, PartialEq)]
 struct StationRow {
     name: String,
-    /// The price line, or the owned line.
+    /// The price rule, the allies-only line, or the owned line.
     line: String,
-    /// The refusal line, or `None` when the buy is allowed or the station is
-    /// already owned.
+    /// The price of a station for sale, or `None` while it is not for sale.
+    price_cr: Option<u64>,
+    /// What the balance lacks of the price, or `None` while it is not short.
+    short_cr: Option<u64>,
+    /// Why the buy is refused, or `None` when it is allowed or the station
+    /// is already owned.
     refusal: Option<String>,
     owned: bool,
 }
@@ -178,6 +187,7 @@ pub(crate) fn update_station_sale_block(
     mut commands: Commands,
     sale: StationSale,
     q_credits: Query<&ShipCredits>,
+    icons: Res<InterfaceIcons>,
     mut q_list: Query<&mut Node, With<StationSaleBlock>>,
     mut q_rows: Query<(Entity, &mut StationSaleRows)>,
 ) {
@@ -191,6 +201,8 @@ pub(crate) fn update_station_sale_block(
         StationSaleType::NotForSale => None,
         StationSaleType::NotAllied => Some(StationRow {
             line: "Sold to allies only".to_string(),
+            price_cr: None,
+            short_cr: None,
             refusal: Some(station_refusal_text(
                 &docked.name,
                 &StationBuyRefusalType::NotAllied,
@@ -200,20 +212,25 @@ pub(crate) fn update_station_sale_block(
         }),
         StationSaleType::Owned => Some(StationRow {
             line: "Yours: it refuses no hull, and its stock sells to you at bid".to_string(),
+            price_cr: None,
+            short_cr: None,
             name: docked.name,
             refusal: None,
             owned: true,
         }),
         StationSaleType::ForSale => {
             let own_cr = q_credits.get(docked.player).map_or(0, |credits| credits.0);
+            let refusal = plan_station_buy(docked.price_cr, Some(docked.sale), own_cr).err();
             Some(StationRow {
-                line: format!(
-                    "{}: twice its sections, stock and credits at ask",
-                    cr_text(docked.price_cr)
-                ),
-                refusal: plan_station_buy(docked.price_cr, Some(docked.sale), own_cr)
-                    .err()
-                    .map(|refusal| station_refusal_text(&docked.name, &refusal)),
+                line: "twice its sections, stock and credits at ask".to_string(),
+                price_cr: Some(docked.price_cr),
+                short_cr: match refusal {
+                    Some(StationBuyRefusalType::InsufficientCredits { need, have }) => {
+                        Some(need - u64::from(have))
+                    }
+                    _ => None,
+                },
+                refusal: refusal.map(|refusal| station_refusal_text(&docked.name, &refusal)),
                 name: docked.name,
                 owned: false,
             })
@@ -240,18 +257,19 @@ pub(crate) fn update_station_sale_block(
                 UiColor::Body
             };
             cell.spawn(themed_label(&row.line, 12.0, tone));
-            match &row.refusal {
-                Some(refusal) => {
-                    cell.spawn(themed_label(refusal, 12.0, UiColor::Danger));
-                }
-                None if !row.owned => {
-                    cell.spawn((
-                        Name::new(STATION_BUY_BUTTON),
-                        compact_button(ButtonSpec::new("Buy station").fit().primary()),
-                    ))
+            if let Some(price_cr) = row.price_cr {
+                spawn_card_price(cell, &icons, price_cr, row.short_cr);
+            }
+            if !row.owned {
+                cell.spawn(card_actions()).with_children(|actions| {
+                    refusable_button(
+                        actions,
+                        STATION_BUY_BUTTON.to_string(),
+                        "Buy station",
+                        row.refusal.as_deref(),
+                    )
                     .observe(on_station_buy_button);
-                }
-                None => {}
+                });
             }
         });
     }

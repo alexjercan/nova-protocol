@@ -17,7 +17,7 @@
 //! Touch this module when changing how the interface opens, which pane shows,
 //! or the layout around the panes.
 
-use bevy::{prelude::*, ui_widgets::Activate};
+use bevy::{prelude::*, ui::InteractionDisabled, ui_widgets::Activate};
 use nova_gameplay::{
     prelude::{
         cr_digits, play_time_text, AudioRoute, Chart, PlayerSpaceshipMarker, SfxCommandsExt,
@@ -704,6 +704,24 @@ pub(crate) fn compact_button(spec: ButtonSpec) -> impl Bundle {
         font_size: 12.0,
         ..spec
     })
+}
+
+/// A compact primary button named `name`; `refusal` greys it with the
+/// reason as its tooltip. The caller observes `On<Activate>` on the result.
+pub(crate) fn refusable_button<'a>(
+    parent: &'a mut ChildSpawnerCommands,
+    name: String,
+    label: &str,
+    refusal: Option<&str>,
+) -> EntityCommands<'a> {
+    let mut button = parent.spawn((
+        Name::new(name),
+        compact_button(ButtonSpec::new(label).fit().primary()),
+    ));
+    if let Some(why) = refusal {
+        button.insert((InteractionDisabled, Tooltip(why.to_string())));
+    }
+    button
 }
 
 /// Height of the Map and Ship footer, in logical px. Fixed, so a legend or a
