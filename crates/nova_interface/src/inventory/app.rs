@@ -48,6 +48,8 @@ use crate::{
 
 /// Height of one inventory row, in logical px.
 const ROW_PX: f32 = 28.0;
+/// Height of a row that also shows its price line, in logical px.
+const PRICED_ROW_PX: f32 = 44.0;
 /// Width of the quantity column, in logical px.
 const QTY_PX: f32 = 64.0;
 /// Width of the Pays or Asks price column, in logical px.
@@ -575,29 +577,35 @@ fn inventory_column(
             panel.spawn(divider());
             panel
                 .spawn(Node {
-                    flex_direction: FlexDirection::Row,
+                    flex_direction: FlexDirection::Column,
                     padding: UiRect::axes(px(8), px(0)),
-                    column_gap: px(8),
                     flex_shrink: 0.0,
                     ..default()
                 })
                 .with_children(|headings| {
-                    headings.spawn((
-                        themed_label("Item", 11.0, UiColor::Label),
-                        Node {
-                            flex_grow: 1.0,
-                            margin: UiRect::left(px(27)),
+                    headings
+                        .spawn(Node {
+                            column_gap: px(8),
                             ..default()
-                        },
-                    ));
-                    headings.spawn((
-                        themed_label("Qty", 11.0, UiColor::Label),
-                        Node {
-                            width: px(QTY_PX),
-                            ..default()
-                        },
-                        TextLayout::new(Justify::Right, LineBreak::NoWrap),
-                    ));
+                        })
+                        .with_children(|line| {
+                            line.spawn((
+                                themed_label("Item", 11.0, UiColor::Label),
+                                Node {
+                                    flex_grow: 1.0,
+                                    margin: UiRect::left(px(27)),
+                                    ..default()
+                                },
+                            ));
+                            line.spawn((
+                                themed_label("Qty", 11.0, UiColor::Label),
+                                Node {
+                                    width: px(QTY_PX),
+                                    ..default()
+                                },
+                                TextLayout::new(Justify::Right, LineBreak::NoWrap),
+                            ));
+                        });
                     let price_heading = match side {
                         InventorySideType::Own => Some("Pays"),
                         InventorySideType::Partner => Some("Asks"),
@@ -610,6 +618,7 @@ fn inventory_column(
                                 Node {
                                     display: Display::None,
                                     flex_direction: FlexDirection::Row,
+                                    justify_content: JustifyContent::FlexEnd,
                                     column_gap: px(8),
                                     ..default()
                                 },
@@ -1137,7 +1146,8 @@ pub(crate) fn action_chip_name(action: InventoryActionType) -> String {
 }
 
 /// One stack's row: the category icon, the item name and the count, then
-/// at a trading partner the price of one and its `vs ref` badge.
+/// at a trading partner a second line with the price of one and its `vs ref`
+/// badge.
 fn inventory_row(
     list: &mut ChildSpawnerCommands,
     side: InventorySideType,
@@ -1155,11 +1165,15 @@ fn inventory_row(
         Button,
         InventoryRow { side, item },
         Node {
-            height: px(ROW_PX),
+            height: px(if price.is_some() {
+                PRICED_ROW_PX
+            } else {
+                ROW_PX
+            }),
             flex_shrink: 0.0,
-            flex_direction: FlexDirection::Row,
-            align_items: AlignItems::Center,
-            column_gap: px(8),
+            flex_direction: FlexDirection::Column,
+            justify_content: JustifyContent::Center,
+            row_gap: px(2),
             padding: UiRect::axes(px(8), px(0)),
             border: UiRect::left(px(3)),
             overflow: Overflow::clip(),
@@ -1172,50 +1186,88 @@ fn inventory_row(
     ))
     .observe(on_inventory_row)
     .with_children(|row| {
-        row.spawn(icon_node(icons.category(category), tone, 18.0));
         row.spawn((
-            themed_label(&design.name, 13.0, UiColor::Body),
             Node {
-                flex_grow: 1.0,
-                min_width: px(0),
+                column_gap: px(8),
+                align_items: AlignItems::Center,
                 ..default()
             },
-            TextLayout::new(Justify::Left, LineBreak::NoWrap),
             Pickable::IGNORE,
-        ));
-        row.spawn((
-            themed_label(&format!("x{count}"), 13.0, tone),
-            Node {
-                width: px(QTY_PX),
-                ..default()
-            },
-            TextLayout::new(Justify::Right, LineBreak::NoWrap),
-            Pickable::IGNORE,
-        ));
+        ))
+        .with_children(|line| {
+            line.spawn(icon_node(icons.category(category), tone, 18.0));
+            // Bevy clips a text by its parent's overflow, not its own.
+            line.spawn((
+                Node {
+                    flex_grow: 1.0,
+                    flex_basis: px(0),
+                    min_width: px(0),
+                    overflow: Overflow::clip(),
+                    ..default()
+                },
+                Pickable::IGNORE,
+            ))
+            .with_children(|cell| {
+                cell.spawn((
+                    themed_label(&design.name, 13.0, UiColor::Body),
+                    TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                    Pickable::IGNORE,
+                ));
+            });
+            line.spawn((
+                themed_label(&format!("x{count}"), 13.0, tone),
+                Node {
+                    width: px(QTY_PX),
+                    flex_shrink: 0.0,
+                    ..default()
+                },
+                TextLayout::new(Justify::Right, LineBreak::NoWrap),
+                Pickable::IGNORE,
+            ));
+        });
         if let Some(price) = price {
             row.spawn((
                 Node {
-                    width: px(PRICE_PX),
-                    flex_shrink: 0.0,
+                    column_gap: px(8),
                     justify_content: JustifyContent::FlexEnd,
                     ..default()
                 },
                 Pickable::IGNORE,
             ))
-            .with_children(|cell| {
-                spawn_credit_figure(cell, icons, price.cr.into(), 12.0, UiColor::Accent, ());
-            });
-            row.spawn((
-                Node {
-                    width: px(DELTA_PX),
-                    flex_shrink: 0.0,
-                    justify_content: JustifyContent::FlexEnd,
-                    ..default()
-                },
-                Pickable::IGNORE,
-            ))
-            .with_children(|cell| {
-                cell.spawn((delta_badge(price.delta_percent), Pickable::IGNORE));
+            .with_children(|figures| {
+                figures
+                    .spawn((
+                        Node {
+                            width: px(PRICE_PX),
+                            flex_shrink: 0.0,
+                            justify_content: JustifyContent::FlexEnd,
+                            ..default()
+                        },
+                        Pickable::IGNORE,
+                    ))
+                    .with_children(|cell| {
+                        spawn_credit_figure(
+                            cell,
+                            icons,
+                            price.cr.into(),
+                            12.0,
+                            UiColor::Accent,
+                            (),
+                        );
+                    });
+                figures
+                    .spawn((
+                        Node {
+                            width: px(DELTA_PX),
+                            flex_shrink: 0.0,
+                            justify_content: JustifyContent::FlexEnd,
+                            ..default()
+                        },
+                        Pickable::IGNORE,
+                    ))
+                    .with_children(|cell| {
+                        cell.spawn((delta_badge(price.delta_percent), Pickable::IGNORE));
+                    });
             });
         }
     });
