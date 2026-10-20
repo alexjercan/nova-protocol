@@ -37,8 +37,8 @@ use nova_ui::{
     theme,
     theme::UiColor,
     widget::{
-        badge, list_row, separator, themed_button, BadgeKind, Selected, ThemedBorder, ThemedRadius,
-        ThemedText, UiText,
+        badge, list_row, separator, themed_button, BadgeKind, ButtonVariant, Selected,
+        ThemedBorder, ThemedRadius, ThemedText, UiText,
     },
 };
 use nova_world_base::prelude::{
@@ -50,7 +50,10 @@ use nova_world_base::prelude::{
 use crate::{
     preview::{preview_node, MenuChartPreview},
     scenarios::NewGameScenario,
-    widgets::{actions_row, button_slot, danger_button, detail_row, MAIN_SLOT_W, SIDE_SLOT_W},
+    widgets::{
+        actions_row, button_slot, button_variant, danger_button, detail_row, MAIN_SLOT_W,
+        SIDE_SLOT_W,
+    },
     world_setup::{WorldsRoot, ROLE_ICON_PX},
 };
 
@@ -378,6 +381,69 @@ pub(crate) fn latest_world(listings: &[WorldListing]) -> Option<&WorldListing> {
 /// The world the menu's Continue button opens, on the button.
 #[derive(Component, Clone, Debug)]
 pub(crate) struct ContinueWorld(pub(crate) String);
+
+/// The menu panel's node that holds Continue and its caption.
+/// [`refresh_continue`] redraws it when [`WorldListings`] changes, so a
+/// deleted or refused save does not stay named there.
+#[derive(Component)]
+pub(crate) struct ContinueSlot;
+
+/// Draw Continue and its caption in `slot` for the newest readable save of
+/// `listings` ([`latest_world`]), its age read against `now`. Draws nothing
+/// when no listed world has a readable header.
+pub(crate) fn spawn_continue(slot: &mut ChildSpawnerCommands, listings: &[WorldListing], now: u64) {
+    let Some(latest) = latest_world(listings) else {
+        return;
+    };
+    let Ok(header) = &latest.header else {
+        return;
+    };
+    slot.spawn((
+        Name::new("Continue Button"),
+        ContinueWorld(latest.folder.slug.clone()),
+        button_variant("Continue", ButtonVariant::Primary, None),
+        observe(on_continue_world),
+    ));
+    slot.spawn((
+        Name::new("Continue Caption"),
+        UiText,
+        Text::new(format!(
+            "{}, saved {}",
+            header.name,
+            saved_ago_text(now, header.saved_at_unix)
+        )),
+        TextFont {
+            font_size: FontSize::Px(12.0),
+            ..default()
+        },
+        TextColor(Color::NONE),
+        ThemedText::new(UiColor::Label),
+        Node {
+            margin: UiRect::bottom(px(6)),
+            ..default()
+        },
+    ));
+}
+
+/// Redraw [`ContinueSlot`] from [`WorldListings`]. A refused root draws no
+/// Continue.
+pub(crate) fn refresh_continue(
+    mut commands: Commands,
+    listings: Res<WorldListings>,
+    slots: Query<Entity, With<ContinueSlot>>,
+) {
+    let Ok(slot) = slots.single() else {
+        return;
+    };
+    commands.entity(slot).despawn_related::<Children>();
+    let Ok(rows) = &listings.0 else {
+        return;
+    };
+    let now = now_unix();
+    commands
+        .entity(slot)
+        .with_children(|slot| spawn_continue(slot, rows, now));
+}
 
 /// Open the newest saved world from the menu's Continue button: read the
 /// list as the Load button does, so a refusal has a row to land on, select

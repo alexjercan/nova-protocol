@@ -88,7 +88,7 @@ use ambience::{
 };
 #[cfg(not(target_arch = "wasm32"))]
 use load_screen::{
-    poll_world_checks, poll_world_open, refresh_load_details, refresh_load_list,
+    poll_world_checks, poll_world_open, refresh_continue, refresh_load_details, refresh_load_list,
     refuse_resumed_world, SelectedWorldSlug, WorldChecks, WorldDeleteStep, WorldListings,
     WorldOpen,
 };
@@ -375,10 +375,11 @@ impl Plugin for NovaMenuPlugin {
         );
         // The Load picker's list and details, chained the same way: the list
         // writes the default/repaired selection, the details pane renders it
-        // in the same frame. Both run off `resource_changed`, not a dirty
+        // in the same frame. Each runs off `resource_changed`, not a dirty
         // function - nothing here has a live registry to watch, only the
         // three resources `on_load_screen`, `poll_world_open`, the delete
-        // flow and `poll_world_checks` write.
+        // flow and `poll_world_checks` write. Continue redraws last, from the
+        // same `WorldListings` a delete or a refusal wrote this frame.
         #[cfg(not(target_arch = "wasm32"))]
         app.add_systems(
             Update,
@@ -391,6 +392,7 @@ impl Plugin for NovaMenuPlugin {
                         .or_else(resource_changed::<SelectedWorldSlug>)
                         .or_else(resource_changed::<WorldDeleteStep>),
                 ),
+                refresh_continue.run_if(resource_changed::<WorldListings>),
             )
                 .chain()
                 .run_if(in_state(GameStates::MainMenu)),

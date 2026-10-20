@@ -635,3 +635,51 @@ fn continue_names_the_newest_save_and_resumes_it() {
     assert!(app.world().get_resource::<ResumedWorld>().is_some());
     assert_eq!(state(&app), GameStates::Playing);
 }
+
+/// Deleting the save Continue names from the Load screen moves Continue to
+/// the next newest save, and deleting the last save removes Continue.
+#[test]
+fn deleting_a_save_moves_continue_to_the_next_save_and_the_last_removes_it() {
+    let root = tempfile::tempdir().expect("a scratch worlds root");
+    // The fixture arms one player per app, so the older save comes from an
+    // app of its own.
+    let mut older = menu();
+    older.insert_resource(WorldsRoot(Some(root.path().to_path_buf())));
+    save_fixture_world(&mut older, root.path(), "Older World");
+    drop(older);
+    thread::sleep(Duration::from_millis(1_100));
+    let mut app = menu();
+    app.insert_resource(WorldsRoot(Some(root.path().to_path_buf())));
+    save_fixture_world(&mut app, root.path(), "Newest World");
+    app.world_mut()
+        .resource_mut::<NextState<GameStates>>()
+        .set(GameStates::Loading);
+    app.update();
+    app.world_mut()
+        .resource_mut::<NextState<GameStates>>()
+        .set(GameStates::MainMenu);
+    app.update();
+    assert_eq!(
+        text_of(&mut app, "Continue Caption"),
+        "Newest World, saved just now"
+    );
+
+    press(&mut app, "Load Button");
+    press(&mut app, "Load World Row: newest-world");
+    press(&mut app, "Load World Delete Button");
+    press(&mut app, "Load World Delete Confirm Button");
+    assert_eq!(
+        text_of(&mut app, "Continue Caption"),
+        "Older World, saved just now",
+        "Continue moves to the next newest save after a delete"
+    );
+
+    press(&mut app, "Load World Row: older-world");
+    press(&mut app, "Load World Delete Button");
+    press(&mut app, "Load World Delete Confirm Button");
+    assert!(
+        !has_named(&mut app, "Continue Button"),
+        "deleting the last save removes Continue"
+    );
+    assert!(!has_named(&mut app, "Continue Caption"));
+}

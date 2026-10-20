@@ -30,8 +30,8 @@ use nova_world_base::prelude::{list_worlds, WorldSaveSession};
 use crate::{
     leave::{begin_leave, LeaveTarget},
     load_screen::{
-        latest_world, now_unix, on_continue_world, on_load_back, on_load_screen, saved_ago_text,
-        ContinueWorld, LoadPanel, LoadWorldDetails, LoadWorldList,
+        now_unix, on_load_back, on_load_screen, spawn_continue, ContinueSlot, LoadPanel,
+        LoadWorldDetails, LoadWorldList, WorldChecks,
     },
     world_setup::WorldsRoot,
 };
@@ -57,7 +57,9 @@ use crate::{
 /// The menu panel: title on top, buttons below, anchored bottom-right per the
 /// spike's layout call (the center of the screen stays free for the background
 /// scene). On desktop a Continue button heads the buttons when the worlds
-/// folder holds a readable save, naming the newest one.
+/// folder holds a readable save, naming the newest one. The folder is read
+/// here for Continue only; `WorldListings` stays as it is, so the hidden Load
+/// panel is not rebuilt. The checks of an earlier Load are dropped.
 #[cfg_attr(
     not(target_arch = "wasm32"),
     expect(
@@ -77,9 +79,16 @@ pub(crate) fn setup_menu_ui(
     #[cfg(not(target_arch = "wasm32"))] root: Res<WorldsRoot>,
     #[cfg(not(target_arch = "wasm32"))] packs: Res<LoadedSectionPacks>,
     #[cfg(not(target_arch = "wasm32"))] roles: Res<GameStartRoles>,
+    #[cfg(not(target_arch = "wasm32"))] mut checks: ResMut<WorldChecks>,
 ) {
     #[cfg(not(target_arch = "wasm32"))]
-    let latest = latest_save(&root, &packs, &roles);
+    let saves = root
+        .0
+        .as_deref()
+        .and_then(|root| list_worlds(root, &packs, &roles).ok())
+        .unwrap_or_default();
+    #[cfg(not(target_arch = "wasm32"))]
+    checks.0.clear();
     commands
         .spawn((
             DespawnOnExit(GameStates::MainMenu),
@@ -128,29 +137,18 @@ pub(crate) fn setup_menu_ui(
                 ThemedFill::new(UiColor::Label),
             ));
             #[cfg(not(target_arch = "wasm32"))]
-            if let Some((slug, name, ago)) = latest {
-                parent.spawn((
-                    Name::new("Continue Button"),
-                    ContinueWorld(slug),
-                    button_variant("Continue", ButtonVariant::Primary, None),
-                    observe(on_continue_world),
-                ));
-                parent.spawn((
-                    Name::new("Continue Caption"),
-                    UiText,
-                    Text::new(format!("{name}, saved {ago}")),
-                    TextFont {
-                        font_size: FontSize::Px(12.0),
-                        ..default()
-                    },
-                    TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Label),
+            parent
+                .spawn((
+                    Name::new("Continue Slot"),
+                    ContinueSlot,
                     Node {
-                        margin: UiRect::bottom(px(6)),
+                        width: percent(100),
+                        flex_direction: FlexDirection::Column,
+                        align_items: AlignItems::Center,
                         ..default()
                     },
-                ));
-            }
+                ))
+                .with_children(|slot| spawn_continue(slot, &saves, now_unix()));
             parent.spawn((
                 Name::new("New Game Button"),
                 button_variant("New Game", ButtonVariant::Primary, None),
@@ -713,24 +711,4 @@ pub(crate) fn start_new_game_scenario(
             exit.write(AppExit::error());
         }
     }
-}
-
-/// The newest readable save under the worlds folder, as Continue names it:
-/// its slug, its world name and how long ago it was saved. `None` with no
-/// folder, an unreadable folder or no readable save in it.
-#[cfg(not(target_arch = "wasm32"))]
-fn latest_save(
-    root: &WorldsRoot,
-    packs: &LoadedSectionPacks,
-    roles: &GameStartRoles,
-) -> Option<(String, String, String)> {
-    let listings = list_worlds(root.0.as_deref()?, packs, roles).ok()?;
-    let latest = latest_world(&listings)?;
-    let header = latest.header.as_ref().ok()?;
-    let now = now_unix();
-    Some((
-        latest.folder.slug.clone(),
-        header.name.clone(),
-        saved_ago_text(now, header.saved_at_unix),
-    ))
 }
