@@ -711,6 +711,18 @@ fn carve(
     corners
 }
 
+/// The emitter's own beam and spark node ids, held so a kill can despawn them
+/// by id regardless of observer order against `detach_destroyed_body`: the
+/// wreck detach reparents every child onto the wreck piece before despawning
+/// the section, and the piece's freeze refuses to save a raw mesh node that
+/// names no saved art type (`frozen_piece::collect_art_nodes`), which is
+/// exactly what the beam is.
+#[derive(Component, Debug)]
+struct MiningBeamNodes {
+    laser: Entity,
+    sparks: Option<Entity>,
+}
+
 /// Give every new live emitter its drawn beam, hidden, and its idle spark
 /// emitter. An app with no particle effects gets the beam alone.
 fn insert_mining_beam_laser(
@@ -732,37 +744,68 @@ fn insert_mining_beam_laser(
             )
         })
         .clone();
-    commands.spawn((
-        Name::new("Mining Beam"),
-        MiningBeamLaser { flash: 0.0 },
-        Mesh3d(mesh),
-        MeshMaterial3d(materials.add(MiningBeamMaterial {
-            glow: MINING_BEAM_GLOW,
-            core: MINING_BEAM_CORE,
-            axis: Vec3::Y,
-            length: 1.0,
-            flash: 0.0,
-        })),
-        NotShadowCaster,
-        Transform::default(),
-        Visibility::Hidden,
-        ChildOf(add.entity),
-    ));
+    let laser = commands
+        .spawn((
+            Name::new("Mining Beam"),
+            MiningBeamLaser { flash: 0.0 },
+            Mesh3d(mesh),
+            MeshMaterial3d(materials.add(MiningBeamMaterial {
+                glow: MINING_BEAM_GLOW,
+                core: MINING_BEAM_CORE,
+                axis: Vec3::Y,
+                length: 1.0,
+                flash: 0.0,
+            })),
+            NotShadowCaster,
+            Transform::default(),
+            Visibility::Hidden,
+            ChildOf(add.entity),
+        ))
+        .id();
     let Some(mut effects) = effects else {
+        commands.entity(add.entity).insert(MiningBeamNodes {
+            laser,
+            sparks: None,
+        });
         return;
     };
     let effect = sparks
         .get_or_insert_with(|| effects.add(build_spark_effect()))
         .clone();
-    commands.spawn((
-        Name::new("Mining Beam Sparks"),
-        MiningBeamSparks,
-        ParticleEffect::new(effect),
-        EffectProperties::default(),
-        EffectSpawner::new(&idle_spark_spawner()),
-        Transform::default(),
-        ChildOf(add.entity),
-    ));
+    let sparks_entity = commands
+        .spawn((
+            Name::new("Mining Beam Sparks"),
+            MiningBeamSparks,
+            ParticleEffect::new(effect),
+            EffectProperties::default(),
+            EffectSpawner::new(&idle_spark_spawner()),
+            Transform::default(),
+            ChildOf(add.entity),
+        ))
+        .id();
+    commands.entity(add.entity).insert(MiningBeamNodes {
+        laser,
+        sparks: Some(sparks_entity),
+    });
+}
+
+/// Despawn the destroyed emitter's drawn beam and spark emitter by id before
+/// the wreck detach can carry them onto the piece. Targeting ids rather than
+/// the current child tree means this does not depend on running before or
+/// after `detach_destroyed_body`: whichever runs first, the beam is gone by
+/// the time anything freezes the piece.
+fn despawn_mining_beam_on_destroy(
+    add: On<Add, IntegrityDestroyMarker>,
+    mut commands: Commands,
+    q_nodes: Query<&MiningBeamNodes>,
+) {
+    let Ok(nodes) = q_nodes.get(add.entity) else {
+        return;
+    };
+    commands.entity(nodes.laser).try_despawn();
+    if let Some(sparks) = nodes.sparks {
+        commands.entity(sparks).try_despawn();
+    }
 }
 
 /// The idle spawner every spark emitter is minted with: one burst, held until
@@ -1150,6 +1193,7 @@ impl Plugin for MiningPlugin {
         if self.render {
             app.add_plugins(MaterialPlugin::<MiningBeamMaterial>::default());
             app.add_observer(insert_mining_beam_laser);
+            app.add_observer(despawn_mining_beam_on_destroy);
             app.add_observer(flash_mining_beam);
             app.add_systems(
                 Update,
@@ -1167,6 +1211,7 @@ impl Plugin for MiningPlugin {
 #[cfg(test)]
 mod tests {
     use avian3d::prelude::*;
+    use bevy_rand::prelude::*;
     use nova_events::prelude::*;
     use nova_gameplay::test_support::{settle, test_items, unfinished_integrity_physics_app};
 
@@ -1251,6 +1296,45 @@ mod tests {
         app.add_observer(|_: On<AsteroidRemeshed>, mut remeshes: ResMut<Remeshes>| {
             remeshes.0 += 1;
         });
+        app.finish();
+        app
+    }
+
+    /// A separate, smaller rig for the one test that kills a mining section.
+    ///
+    /// `freeze_detached_piece` refuses a piece with no `DetachedPieceSource`,
+    /// and `stamp_detached_piece_source` - the only thing that stamps one -
+    /// is registered inside `SpaceshipSectionPlugin`, not exposed any
+    /// narrower, so this pulls that plugin in instead of the bare
+    /// `MiningSectionPlugin` the other mining tests share.
+    ///
+    /// `MiningPlugin { render: true }` is not added: it also wires
+    /// `check_mined_canister_mesh`, a headless safety check that loads a real
+    /// glb this harness carries no asset source for. The laser observer only
+    /// needs `Assets<MiningBeamMaterial>` to exist, not the material's own
+    /// `MaterialPlugin`, so both are registered by hand.
+    ///
+    /// Kept apart from [`mining_app`] so none of this reaches the rest of
+    /// this module's tests.
+    fn mining_render_app() -> App {
+        let mut app = unfinished_integrity_physics_app();
+        app.add_plugins((
+            AsteroidPlugin { render: false },
+            AsteroidCarvePlugin { render: false },
+            SpaceshipSectionPlugin { render: false },
+            MiningPlugin { render: false },
+            // The destroyed-section wreck path needs the one seeded GlobalRng
+            // `detach_destroyed_body` requires to leave a piece behind.
+            EntropyPlugin::<WyRand>::with_seed(0u64.to_ne_bytes()),
+        ));
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<CargoCanisterIdAllocator>();
+        app.insert_resource(test_items());
+        app.init_asset::<AudioSource>();
+        app.init_asset::<MiningBeamMaterial>();
+        app.add_observer(insert_mining_beam_laser);
+        app.add_observer(despawn_mining_beam_on_destroy);
         app.finish();
         app
     }
@@ -1948,5 +2032,83 @@ mod tests {
         );
         let counts: Vec<u32> = born.iter().map(|(_, count)| *count).collect();
         assert_eq!(counts, [20, 20, 5], "the thawed drop pays its queue once");
+    }
+
+    /// A destroyed mining section's wreck freezes clean. The wreck detach
+    /// reparents every child - the drawn beam among them - onto the piece
+    /// before despawning the section, and a piece's freeze refuses to save a
+    /// raw mesh node that names no saved art type, so the beam must not ride
+    /// along.
+    #[test]
+    fn a_destroyed_mining_section_freezes_without_its_beam_laser() {
+        let mut app = mining_render_app();
+        let ship = app
+            .world_mut()
+            .spawn((Name::new("ship"), RigidBody::Dynamic, Transform::default()))
+            .id();
+        let section = app
+            .world_mut()
+            .spawn((
+                ChildOf(ship),
+                Transform::default(),
+                base_section(BaseSectionConfig {
+                    id: "mining_fixture".to_string(),
+                    name: "Mining section".to_string(),
+                    health: 10.0,
+                    collider: Some(SectionCollider::Cuboid { size: Vec3::ONE }),
+                    ..Default::default()
+                }),
+                mining_section(emitter_config(1.0)),
+            ))
+            .id();
+        settle(&mut app);
+
+        let laser = {
+            let mut lasers = app
+                .world_mut()
+                .query_filtered::<Entity, With<MiningBeamLaser>>();
+            let found: Vec<_> = lasers.iter(app.world()).collect();
+            assert_eq!(
+                found.len(),
+                1,
+                "a live emitter wears exactly one beam laser"
+            );
+            found[0]
+        };
+        assert_eq!(
+            app.world().get::<ChildOf>(laser).map(|child_of| child_of.0),
+            Some(section),
+            "the laser is a child of the emitter section"
+        );
+
+        app.world_mut()
+            .entity_mut(section)
+            .insert(IntegrityDestroyMarker);
+        app.update();
+
+        let piece = {
+            let mut pieces = app
+                .world_mut()
+                .query_filtered::<Entity, With<DetachedPieceMarker>>();
+            let found: Vec<_> = pieces.iter(app.world()).collect();
+            assert_eq!(
+                found.len(),
+                1,
+                "the destroyed section leaves exactly one wreck piece"
+            );
+            found[0]
+        };
+
+        freeze_detached_piece(app.world(), piece)
+            .expect("a detached piece has no unsettled process");
+
+        let mut lasers = app
+            .world_mut()
+            .query_filtered::<Entity, With<MiningBeamLaser>>();
+        assert_eq!(
+            lasers.iter(app.world()).count(),
+            0,
+            "no beam laser survives the section it was destroyed with"
+        );
     }
 }

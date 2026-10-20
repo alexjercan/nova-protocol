@@ -461,7 +461,10 @@ fn detach_destroyed_body(
     if let Some(children) = children {
         let mut stack: Vec<Entity> = children.iter().collect();
         for child in &stack {
-            commands.entity(*child).insert(ChildOf(piece));
+            // try_insert: observer order on this same Add is unspecified, and
+            // another destroy observer (the mining beam's) may already have
+            // despawned a runtime-only child in this same flush.
+            commands.entity(*child).try_insert(ChildOf(piece));
         }
         while let Some(node) = stack.pop() {
             commands.entity(node).try_remove::<Collider>();
