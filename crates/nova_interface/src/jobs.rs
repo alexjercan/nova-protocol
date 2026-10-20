@@ -32,7 +32,12 @@
 //! Touch this module when changing what the lists show, what gates an
 //! offer, or what a hand-in moves.
 
-use bevy::{ecs::system::SystemParam, picking::hover::Hovered, prelude::*, ui_widgets::Activate};
+use bevy::{
+    ecs::system::SystemParam,
+    picking::hover::Hovered,
+    prelude::*,
+    ui_widgets::{Activate, Button},
+};
 use nova_events::prelude::{CreditChangeCauseType, GeneratedBodyId, Meters, Meters3, SectorCoord};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::DockingSectionMarker;
@@ -1617,5 +1622,55 @@ mod tests {
             place_text(here, Some("80 km".to_string())),
             "(1, 0, -2), 80 km"
         );
+    }
+
+    #[test]
+    fn a_click_on_a_job_row_selects_its_job() {
+        use crate::pointer_rig::{click_at, pane_pointer_rig, settle};
+
+        let mut rig = pane_pointer_rig();
+        rig.app.init_resource::<JobsRuntime>();
+        let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
+        let job = |slot| JobId {
+            station: station.clone(),
+            slot,
+            posting: 0,
+        };
+        // One row as each list names it: both lists spawn rows through
+        // `spawn_row`, so the posted and the held row take the same path.
+        let rows = [("JobRowPosted-0", job(0)), ("JobRowHeld-0", job(1))];
+        let content = rig.content_root;
+        rig.app
+            .world_mut()
+            .commands()
+            .entity(content)
+            .with_children(|content| {
+                content.spawn(column_panel()).with_children(|panel| {
+                    for (name, id) in &rows {
+                        spawn_row(panel, id, name.to_string(), false);
+                    }
+                });
+            });
+        settle(&mut rig.app);
+
+        for (name, id) in &rows {
+            let centre = rig
+                .app
+                .world_mut()
+                .query::<(&Name, &ComputedNode, &UiGlobalTransform)>()
+                .iter(rig.app.world())
+                .find(|(each, ..)| each.as_str() == *name)
+                .map(|(_, node, xf)| {
+                    assert!(node.size().min_element() > 0.0, "{name} has no area");
+                    xf.translation
+                })
+                .expect("the row is laid out");
+            click_at(&mut rig, centre);
+            assert_eq!(
+                rig.app.world().resource::<JobsRuntime>().selected.as_ref(),
+                Some(id),
+                "a click on {name} selects its job"
+            );
+        }
     }
 }
