@@ -29,7 +29,7 @@
 //! [`plan_item_trade`](nova_gameplay::prelude::plan_item_trade),
 //! [`plan_item_storage`](nova_gameplay::prelude::plan_item_storage) or
 //! [`plan_item_jettison`](nova_gameplay::prelude::plan_item_jettison) rule, or
-//! refuses with no change. The partner column header also carries a
+//! refuses with no change. The partner column's Credits row also carries a
 //! separate Take credits button, shown only while the partner is neutralized
 //! or lootable and holds a credit above zero, even with an empty hold; one
 //! click writes a [`CreditTakeCommand`] and
@@ -49,7 +49,7 @@
 //!
 //! Docked with a wreck the player may loot (neutralized, or a derelict
 //! carrying `LootableShipMarker`) that is not a living station, the partner
-//! column carries two more controls. Take all, in its header, writes a
+//! column carries two more controls. Take all, in its Credits row, writes a
 //! [`TakeAllCommand`]: [`apply_take_all_commands`] takes as much of every
 //! stack as the hold has room for through the Take path, then the credits,
 //! and names on the note line what stayed. Over the column, the strip block
@@ -285,14 +285,14 @@ pub(crate) struct InventoryActionCommand {
 }
 
 /// Take the docked partner's whole credit balance, written only by the
-/// partner column header's Take credits button and applied by
+/// partner column's Take credits button and applied by
 /// [`apply_credit_take_commands`]. No item and no quantity: the balance moves
 /// whole on one click, unlike an item Take or Give.
 #[derive(Message, Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) struct CreditTakeCommand;
 
 /// Take everything the docked lootable partner holds, written only by the
-/// partner column header's Take all button and applied by
+/// partner column's Take all button and applied by
 /// [`apply_take_all_commands`]: as much of each stack as fits, then the
 /// credits.
 #[derive(Message, Clone, Copy, PartialEq, Eq, Debug)]

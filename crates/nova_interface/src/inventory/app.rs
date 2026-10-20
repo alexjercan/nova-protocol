@@ -111,14 +111,14 @@ pub(crate) enum InventoryColumnFactType {
     Storage,
 }
 
-/// The partner column header's Take credits button: a click moves its whole
-/// balance in one confirmation, no item and no quantity. Shown only while the
-/// partner is eligible (neutralized or lootable) and holds a credit above
-/// zero, so it offers the action even with an empty hold.
+/// The partner column's Take credits button, in its Credits row: a click
+/// moves its whole balance in one confirmation, no item and no quantity.
+/// Shown only while the partner is eligible (neutralized or lootable) and
+/// holds a credit above zero, so it offers the action even with an empty hold.
 #[derive(Component, Clone, Copy, Debug)]
 pub(crate) struct InventoryTakeCreditsButton;
 
-/// The name of the partner column header's Take all button.
+/// The name of the partner column's Take all button.
 pub const INVENTORY_TAKE_ALL: &str = "InventoryTakeAll";
 
 /// The name of the form's Buy all button.
@@ -139,9 +139,9 @@ pub(crate) struct InventoryTradeAllButton(pub(crate) ItemTradeType);
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) struct InventoryPriceHeadings(pub(crate) InventorySideType);
 
-/// The partner column header's Take all button: one click takes every stack
-/// and the credits. Shown only while the partner is eligible (neutralized or
-/// lootable) and holds a stack or a credit.
+/// The partner column's Take all button, in its Credits row: one click takes
+/// every stack and the credits. Shown only while the partner is eligible
+/// (neutralized or lootable) and holds a stack or a credit.
 #[derive(Component, Clone, Copy, Debug)]
 pub(crate) struct InventoryTakeAllButton;
 
@@ -484,34 +484,21 @@ fn inventory_column(
             if side == InventorySideType::Partner {
                 spawn_strip_block(panel);
             }
+            // The title text node's own `overflow` clips only its children,
+            // never its glyphs: a name wider than the column is clipped at
+            // the panel edge, so the row holds nothing it could draw under.
             panel
-                .spawn(control_row(JustifyContent::SpaceBetween))
+                .spawn(control_row(JustifyContent::FlexStart))
                 .with_children(|head| {
                     head.spawn((
                         InventoryColumnTitle(side),
                         themed_label("", 15.0, UiColor::Primary),
                         TextLayout::new(Justify::Left, LineBreak::NoWrap),
                         Node {
-                            flex_grow: 1.0,
                             min_width: px(0),
-                            overflow: Overflow::clip(),
                             ..default()
                         },
                     ));
-                    if side == InventorySideType::Partner {
-                        head.spawn((
-                            Name::new(INVENTORY_TAKE_ALL),
-                            InventoryTakeAllButton,
-                            compact_button(ButtonSpec::new("Take all").fit()),
-                        ))
-                        .observe(on_take_all_button);
-                        head.spawn((
-                            Name::new("InventoryTakeCredits"),
-                            InventoryTakeCreditsButton,
-                            compact_button(ButtonSpec::new("Take credits").fit().ghost()),
-                        ))
-                        .observe(on_take_credits_button);
-                    }
                 });
             panel
                 .spawn(Node {
@@ -558,6 +545,30 @@ fn inventory_column(
                                         TextLayout::new(Justify::Left, LineBreak::NoWrap),
                                     ));
                                 }
+                            });
+                    }
+                    if side == InventorySideType::Partner {
+                        // `control_row` keeps the group at its natural width,
+                        // so each label stays on one line; the row's wrap
+                        // moves the group under the Credits pair when narrow.
+                        facts
+                            .spawn(Node {
+                                margin: UiRect::left(Val::Auto),
+                                ..control_row(JustifyContent::FlexEnd)
+                            })
+                            .with_children(|take| {
+                                take.spawn((
+                                    Name::new(INVENTORY_TAKE_ALL),
+                                    InventoryTakeAllButton,
+                                    compact_button(ButtonSpec::new("Take all").fit()),
+                                ))
+                                .observe(on_take_all_button);
+                                take.spawn((
+                                    Name::new("InventoryTakeCredits"),
+                                    InventoryTakeCreditsButton,
+                                    compact_button(ButtonSpec::new("Take credits").fit().ghost()),
+                                ))
+                                .observe(on_take_credits_button);
                             });
                     }
                 });

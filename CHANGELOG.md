@@ -342,6 +342,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The interface title row shows your credit balance beside the play clock on
   every pane. Inventory prices, Jobs rewards and balances show a credit mark
   and grouped digits.
+- Inventory: Take credits moves from the docked ship's title row to its
+  Credits row, beside Take all, so the whole ship name shows at 1024 px.
 - Ship pane prices, the Escort job title and the menu's Credits lines group
   thousands, as `1,200 cr`.
 

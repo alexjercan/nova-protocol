@@ -1556,7 +1556,7 @@ fn take_credits_moves_the_whole_balance_once_and_a_refusal_changes_nothing() {
     );
 }
 
-/// The partner header's Take credits button shows only while the partner is
+/// The partner column's Take credits button shows only while the partner is
 /// eligible (neutralized or lootable) and holds a credit above zero, even
 /// with an empty hold, and never for an intact trading partner.
 #[test]
@@ -1718,7 +1718,7 @@ fn take_all_with_a_nearly_full_hold_takes_what_fits_and_names_what_stayed() {
     assert_eq!(holds(&app, partner), (vec![(plate, 6)], 0));
 }
 
-/// The strip block over the partner column and the header's Take all show
+/// The strip block over the partner column and its Take all button show
 /// only while docked with a wreck the player may loot: never at an intact
 /// ship or a living station, and again once that station is derelict.
 #[test]

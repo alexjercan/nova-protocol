@@ -22,8 +22,8 @@
 //!    free;
 //! 4. on another run, undock part-way (the docking key): the strip stops and
 //!    what it took stays taken; dock again and Strip takes the rest;
-//! 5. Take all in the wreck's column header takes every stack that fits and
-//!    the credits, and names what stayed; Take credits takes the credits.
+//! 5. Take all in the wreck's Credits row takes every stack that fits and the
+//!    credits, and names what stayed; Take credits takes the credits.
 //!
 //! ```text
 //! nix develop --command cargo run --example recycle_sandbox --features debug

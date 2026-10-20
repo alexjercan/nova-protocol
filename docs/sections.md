@@ -228,7 +228,7 @@ with the plan's mass or a held section's need). Part tiles show the job's
 `yielded` over `yielded` plus the plan of the live sections at their current
 health, recomputed each frame; `yielded` is what the strip recovered, not
 what the hold carries now. The
-column header's Take all writes `TakeAllCommand`: `plan_loot_take` plans
+Credits row's Take all writes `TakeAllCommand`: `plan_loot_take` plans
 what fits of every stack in id order, then the credits, and each moves
 through the Take rule. A strip runs the same take first, so it never
 demolishes a hull with loot in it. `plan_hull_strip`
