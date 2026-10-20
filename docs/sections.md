@@ -163,10 +163,10 @@ no part in hand, a click on a block selects its section. While a part is in
 hand, the Ship panel shows the Placing block (`ship/held.rs`) in place of the
 selection: the part's icon and name, its price (the aimed placement's
 `RecipePayment`, else `plan_recipe_payment` of its recipe), the socket and
-roll of `ShipRuntime::mount`, the keys and the note line; Delete is hidden.
+roll of `ShipRuntime::mount`, and the note line; Delete is hidden.
 Q over empty space or Esc (`close_surface_from_menu_keys`, before it closes
-anything) puts the part away. `plan_section_add`
-checks the gate, the fit, the binding and the payment (`plan_recipe_payment`,
+anything) puts the part away, and the footer names `Q/Esc Put away`.
+`plan_section_add` checks the gate, the fit, the binding and the payment (`plan_recipe_payment`,
 the full recipe). The new section's binding is `added_section_binds`: the
 first live bound section of its class by id lends its binding; with none, a
 weapon takes an empty binding for Rebind, a thruster none (it fires on the

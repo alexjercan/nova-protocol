@@ -1807,11 +1807,21 @@ mod smoke {
             .add()
             .step("station sandbox: the panel shows the part in hand")
             .until(Arc::new(|world: &World| {
-                held_panel_lines(world).is_some_and(|lines| {
-                    lines.first().is_some_and(|line| line == "Placing")
-                        && lines.iter().any(|line| line.ends_with(" cr"))
-                        && lines.iter().any(|line| line == "LMB place, R roll, F socket, Q/Esc put away")
-                })
+                // The put-away cue sits in the footer, matched by text: the
+                // hint component is private to nova_interface.
+                let footer_shows_put_away = world
+                    .try_query::<(&Text, &Node)>()
+                    .is_some_and(|mut texts| {
+                        texts.iter(world).any(|(text, node)| {
+                            text.0 == "Q/Esc Put away" && node.display == Display::Flex
+                        })
+                    });
+                footer_shows_put_away
+                    && held_panel_lines(world).is_some_and(|lines| {
+                        lines.first().is_some_and(|line| line == "Placing")
+                            && lines.iter().any(|line| line.ends_with(" cr"))
+                            && !lines.iter().any(|line| line.contains("put away"))
+                    })
             }))
             .diagnose(|world| format!("placing block {:?}", held_panel_lines(world)))
             .deadline(BEAT_SECS)

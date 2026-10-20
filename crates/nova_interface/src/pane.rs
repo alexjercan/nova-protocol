@@ -742,6 +742,9 @@ pub(crate) struct InterfacePaneFooter;
 pub(crate) struct PaneInputHint {
     verb: &'static str,
     actions: &'static [&'static str],
+    /// A key the pane reads raw, outside [`InputBindings`], named after the
+    /// bound keys; `None` names the bound keys only.
+    raw_key: Option<&'static str>,
     when: HintWhenType,
 }
 
@@ -773,20 +776,27 @@ pub(crate) enum HintWhenType {
 #[derive(Component)]
 pub(crate) struct PanePointerHint(HintWhenType);
 
-/// One footer hint: a verb, the actions whose keys it names, and when it
-/// shows.
-type PaneKeyHint = (&'static str, &'static [&'static str], HintWhenType);
+/// One footer hint: a verb, the actions whose keys it names, a raw key named
+/// after them, and when it shows.
+type PaneKeyHint = (
+    &'static str,
+    &'static [&'static str],
+    Option<&'static str>,
+    HintWhenType,
+);
 
 /// The keys the Map pane answers to. Every name must be registered.
 const MAP_KEY_HINTS: &[PaneKeyHint] = &[
     (
         "Turn",
         &["viewer_orbit_left", "viewer_orbit_right"],
+        None,
         HintWhenType::Always,
     ),
     (
         "Tilt",
         &["viewer_orbit_up", "viewer_orbit_down"],
+        None,
         HintWhenType::Always,
     ),
     (
@@ -797,16 +807,18 @@ const MAP_KEY_HINTS: &[PaneKeyHint] = &[
             "viewer_pan_back",
             "viewer_pan_right",
         ],
+        None,
         HintWhenType::Always,
     ),
-    ("Reframe", &["viewer_reframe"], HintWhenType::Always),
+    ("Reframe", &["viewer_reframe"], None, HintWhenType::Always),
     (
         "Select",
         &["viewer_prev", "viewer_next"],
+        None,
         HintWhenType::MapContacts,
     ),
-    ("GOTO", &["map_goto"], HintWhenType::MapContacts),
-    ("Chart", &["map_chart"], HintWhenType::Always),
+    ("GOTO", &["map_goto"], None, HintWhenType::MapContacts),
+    ("Chart", &["map_chart"], None, HintWhenType::Always),
 ];
 
 /// The keys the Ship pane answers to. Every name must be registered. The
@@ -814,18 +826,38 @@ const MAP_KEY_HINTS: &[PaneKeyHint] = &[
 /// footer names the keys that act on the selection or the part in hand, and
 /// the Fit and Reset buttons sit beside it.
 const SHIP_KEY_HINTS: &[PaneKeyHint] = &[
-    ("Pick part", &["ship_pick"], HintWhenType::Refitting),
-    ("Roll part", &["ship_part_roll"], HintWhenType::Placing),
-    ("Cycle socket", &["ship_part_socket"], HintWhenType::Placing),
+    ("Pick part", &["ship_pick"], None, HintWhenType::Refitting),
+    (
+        "Roll part",
+        &["ship_part_roll"],
+        None,
+        HintWhenType::Placing,
+    ),
+    (
+        "Cycle socket",
+        &["ship_part_socket"],
+        None,
+        HintWhenType::Placing,
+    ),
+    // Q over empty space or Esc empties the hand (ghost.rs `pick_ship_part`,
+    // terminal/input.rs `close_surface_from_menu_keys`); Esc stays off the
+    // registry.
+    (
+        "Put away",
+        &["ship_pick"],
+        Some("Esc"),
+        HintWhenType::Placing,
+    ),
     (
         "Select",
         &["viewer_prev", "viewer_next"],
+        None,
         HintWhenType::Always,
     ),
-    ("Repair", &["ship_repair"], HintWhenType::Repairable),
-    ("Rebind", &["ship_rebind"], HintWhenType::Rebindable),
+    ("Repair", &["ship_repair"], None, HintWhenType::Repairable),
+    ("Rebind", &["ship_rebind"], None, HintWhenType::Rebindable),
     // The keycap already reads `Delete`.
-    ("Remove", &["ship_delete"], HintWhenType::Deletable),
+    ("Remove", &["ship_delete"], None, HintWhenType::Deletable),
 ];
 
 /// The pointer gestures both viewers read raw, outside [`InputBindings`]:
@@ -907,11 +939,12 @@ fn pane_footer(
                                 Display::None
                             }
                         };
-                        for &(verb, actions, when) in keys {
+                        for &(verb, actions, raw_key, when) in keys {
                             hints.spawn((
                                 PaneInputHint {
                                     verb,
                                     actions,
+                                    raw_key,
                                     when,
                                 },
                                 themed_label("", 12.0, UiColor::Body),
@@ -973,6 +1006,7 @@ pub(crate) fn refresh_pane_input_hints(
                     })
                     .keyboard_display()
             })
+            .chain(hint.raw_key.map(str::to_owned))
             .collect::<Vec<_>>()
             .join("/");
         let value = format!("{keys} {}", hint.verb);

@@ -2,8 +2,7 @@
 //! the panel shows that part in place of the selection. The block names the
 //! part under its family icon, gives its price (the credits, the parts from
 //! the hold and the parts the station sells into it), the socket it mates by
-//! and its roll, and one line of the keys that place it. When the hand
-//! empties, the selection comes back.
+//! and its roll. When the hand empties, the selection comes back.
 //!
 //! Touch this module when changing what the panel shows for a part in hand.
 
@@ -29,9 +28,6 @@ use crate::{
 
 /// The `Name` of the Placing block, for driven runs.
 pub const SHIP_HELD_PANEL: &str = "ShipHeldPanel";
-
-/// The keys that act on a part in hand, under the Placing block.
-const SHIP_HELD_HINT: &str = "LMB place, R roll, F socket, Q/Esc put away";
 
 /// The panel's selection content, hidden while a part is in hand.
 #[derive(Component)]
@@ -124,7 +120,6 @@ pub(crate) fn spawn_ship_held_block(panel: &mut ChildSpawnerCommands, icons: &In
                         ));
                     });
             }
-            block.spawn(themed_label(SHIP_HELD_HINT, 12.0, UiColor::Body));
             block.spawn((ShipPanelField::Note, themed_label("", 12.0, UiColor::Label)));
         });
 }
