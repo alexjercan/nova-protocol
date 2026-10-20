@@ -1,7 +1,8 @@
 //! Staging for the hand-played open-world examples: start New Game as the
 //! Create World modal does, wait for the window to stream in and the start
-//! to dock the player at its starting station, undock, jump the player, and
-//! berth it at another generated station until the dock takes.
+//! to dock the player at its starting station, undock, jump the player to
+//! the origin, choose a generated station in the origin's window, and berth
+//! the player there until the dock takes.
 //!
 //! Include it with `#[path = "shared/open_world_stage.rs"] mod
 //! open_world_stage;`. [`isolate_the_profile`] runs first in `main`;
@@ -462,6 +463,9 @@ pub enum StationDockPhaseType {
     Streaming,
     /// The player was asked to let go of the starting station.
     Undocking,
+    /// The player jumped to the origin, the spawn before the docked start;
+    /// the origin's window is streaming in.
+    Returning,
     /// The player jumped beside the station; its window is streaming in.
     Jumped,
     /// The player is put on the berth each frame until the dock takes.
@@ -484,15 +488,16 @@ pub struct StationDock {
 const PARK_DISTANCE: Meters = Meters(2_000.0);
 
 /// Advance `dock` one step: once the start's window is in and the start has
-/// docked the player at its starting station, undock, choose the station,
-/// park beside it, wait for its window and for its parked hulls to dock,
-/// then berth the player each call until the dock takes. Returns the player
-/// and the station once docked.
+/// docked the player at its starting station, undock, jump to the origin,
+/// choose the station once the origin's window is in, park beside it, wait
+/// for its window and for its parked hulls to dock, then berth the player
+/// each call until the dock takes. Returns the player and the station once
+/// docked.
 ///
 /// # Panics
 ///
-/// When the start's window holds no station `accept` takes outside the
-/// start's cell: `what` names the station the example needs.
+/// When the origin's window holds no station `accept` takes outside the
+/// origin's cell: `what` names the station the example needs.
 pub fn advance_station_dock(
     world: &mut World,
     dock: &mut StationDock,
@@ -513,8 +518,18 @@ pub fn advance_station_dock(
         StationDockPhaseType::Undocking => {
             let player = the_player(world)?;
             if world.get::<DockedShip>(player).is_none() {
+                // Stations are a civilization apart: the station an example
+                // wants never streams in round the start.
+                jump_to(world, player, Meters3::ZERO);
+                dock.phase = StationDockPhaseType::Returning;
+            }
+            None
+        }
+        StationDockPhaseType::Returning => {
+            let player = the_player(world)?;
+            if window_is(world, SectorCoord::ORIGIN) {
                 let chosen = nearest_station(world, accept).unwrap_or_else(|| {
-                    panic!("open world stage: the start's window holds no {what}")
+                    panic!("open world stage: the origin's window holds no {what}")
                 });
                 park_beside(world, player, chosen.position, PARK_DISTANCE);
                 dock.station = Some(chosen);

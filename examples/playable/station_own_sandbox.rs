@@ -3,10 +3,11 @@
 //!
 //! Boots the shipped app and starts New Game on a pinned seed as the
 //! scavenger, as the Create World modal does after the role page, but
-//! without a save folder: nothing this run does is saved. When the window
-//! has streamed in, it picks the nearest generated station that is living
-//! and on the Neutral side, outside the spawn's cell. The player jumps beside
-//! it and is put on a berth at its collar each frame until the dock takes.
+//! without a save folder: nothing this run does is saved. When the origin's
+//! window has streamed in, it picks the nearest generated station that is
+//! living and on the Neutral side, outside the origin's cell. The player
+//! jumps beside it and is put on a berth at its collar each frame until the
+//! dock takes.
 //! Then the fixture lands, once: the station's civilization is warmed to
 //! Ally by merits, the way a player who hands in its jobs would, since the
 //! buy gate needs an Ally; the player's balance is set to the station's
@@ -63,8 +64,8 @@ use open_world_stage::{advance_station_dock, OpenWorldStartPlugin, StationDock};
 )]
 struct Cli;
 
-/// The world seed: `system_station_own`'s, whose window around the spawn
-/// holds a living Neutral station outside the spawn's cell.
+/// The world seed: `system_station_own`'s, whose window around the origin
+/// holds a living Neutral station outside the origin's cell.
 const SANDBOX_SEED: u32 = 10;
 /// The start role the player spawns as: the scavenger's salvage hauler.
 const SANDBOX_ROLE: &str = "scavenger";

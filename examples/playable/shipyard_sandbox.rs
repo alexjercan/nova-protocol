@@ -4,9 +4,9 @@
 //!
 //! Boots the shipped app and starts New Game on a pinned seed as the
 //! scavenger, as the Create World modal does, but without a save folder. When
-//! the window has streamed in, it picks the nearest generated station that
-//! is living, not on the Enemy side, offers Refit, parks hulls for sale and
-//! has escorts for hire,
+//! the origin's window has streamed in, it picks the nearest generated
+//! station that is living, not on the Enemy side, offers Refit, parks hulls
+//! for sale and has escorts for hire,
 //! waits for every parked hull to dock, and berths the player at the port
 //! left free until the dock takes. Then the fixture lands, once:
 //!
@@ -103,8 +103,8 @@ use open_world_stage::{advance_station_dock, the_player, OpenWorldStartPlugin, S
 )]
 struct Cli;
 
-/// The world seed: `system_station_buy`'s, whose window holds a living
-/// Neutral station that parks hulls for sale.
+/// The world seed: `system_station_buy`'s, whose window around the
+/// origin holds a living Neutral station that parks hulls for sale.
 const SANDBOX_SEED: u32 = 10;
 /// The start role the player flies.
 const SANDBOX_ROLE: &str = "scavenger";

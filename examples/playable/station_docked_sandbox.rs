@@ -3,10 +3,12 @@
 //!
 //! Boots the shipped app and starts New Game on a pinned seed, as the Create
 //! World modal does, but without a save folder: nothing this run does is
-//! saved. When the window has streamed in, it picks the nearest generated
-//! station that is living, not on the Enemy side, offers Refit and sells
-//! hulls. The player jumps beside it and is put on a berth at its collar each
-//! frame until the dock takes. Then the fixture lands, once:
+//! saved. When the window has streamed in, the player lets go of the
+//! starting station and jumps to the origin. When the origin's window has
+//! streamed in, it picks the nearest generated station that is living, not
+//! on the Enemy side, offers Refit and sells hulls. The player jumps beside
+//! it and is put on a berth at its collar each frame until the dock takes.
+//! Then the fixture lands, once:
 //!
 //! - the player holds [`PLAYER_CREDITS`], enough to buy the station, and
 //!   the station holds [`STATION_CREDITS`], a fixed balance its price counts;
@@ -102,7 +104,7 @@ use nova_world::prelude::{desired_sectors, SectorRoot, WorldConfig};
 )]
 struct Cli;
 
-/// The world seed: `system_station_buy`'s, whose window around the spawn
+/// The world seed: `system_station_buy`'s, whose window around the origin
 /// holds a living Neutral station that refits and sells hulls.
 const SANDBOX_SEED: u32 = 10;
 /// The start role the player spawns as: the scavenger's salvage hauler has
@@ -180,6 +182,9 @@ enum SandboxPhaseType {
     Streaming,
     /// The player was asked to let go of the starting station.
     Undocking,
+    /// The player jumped to the origin, the spawn before the docked start;
+    /// the origin's window is streaming in.
+    Returning,
     /// The player jumped beside the station; its window is streaming in.
     Jumped,
     /// The player is put on the berth each frame until the dock takes.
@@ -246,6 +251,18 @@ fn drive_the_sandbox(world: &mut World) {
                 return;
             };
             if world.get::<DockedShip>(player).is_none() {
+                // Stations are a civilization apart: the station the sandbox
+                // wants never streams in round the start.
+                world.entity_mut(player).insert((
+                    Position(Vec3::ZERO),
+                    LinearVelocity::ZERO,
+                    AngularVelocity::ZERO,
+                ));
+                world.resource_mut::<Sandbox>().phase = SandboxPhaseType::Returning;
+            }
+        }
+        SandboxPhaseType::Returning => {
+            if window_is(world, Some(SectorCoord::ORIGIN)) {
                 choose_the_station(world);
                 park_beside(world);
                 world.resource_mut::<Sandbox>().phase = SandboxPhaseType::Jumped;
@@ -332,7 +349,7 @@ fn window_is(world: &mut World, centre: Option<SectorCoord>) -> bool {
 }
 
 /// Pick the nearest station that is living, not on the Enemy side, offers
-/// Refit and sells hulls, outside the spawn's cell.
+/// Refit and sells hulls, outside the origin's cell.
 fn choose_the_station(world: &mut World) {
     let edge = world
         .resource::<WorldConfig<NovaLayeredWorld>>()
@@ -374,8 +391,8 @@ fn choose_the_station(world: &mut World) {
     stations.sort_by(|a, b| a.0.total_cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
     let Some((distance, id, at)) = stations.into_iter().next() else {
         panic!(
-            "station sandbox: the window on seed {SANDBOX_SEED} holds no living, non-Enemy \
-             station with Refit and hulls outside the spawn's cell"
+            "station sandbox: the origin's window on seed {SANDBOX_SEED} holds no living, \
+             non-Enemy station with Refit and hulls outside the origin's cell"
         );
     };
     let position = Meters3::from_engine(at);

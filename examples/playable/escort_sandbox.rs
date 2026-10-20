@@ -3,10 +3,10 @@
 //!
 //! Boots the shipped app and starts New Game on a pinned seed as the bounty
 //! hunter, as the Create World modal does, but without a save folder. When
-//! the window has streamed in, it picks the nearest generated station that
-//! is living, not on the Enemy side, offers Refit and hires out escorts, and
-//! berths the player at it until the dock takes. Then the fixture lands,
-//! once:
+//! the origin's window has streamed in, it picks the nearest generated
+//! station that is living, not on the Enemy side, offers Refit and hires out
+//! escorts, and berths the player at it until the dock takes. Then the
+//! fixture lands, once:
 //!
 //! - the player holds [`PLAYER_CREDITS`], enough for two hires;
 //! - two escorts are hired through [`EscortHireCommand`], the message the
@@ -67,8 +67,8 @@ use open_world_stage::{
 )]
 struct Cli;
 
-/// The world seed: `system_station_hire`'s, whose window holds a living
-/// Neutral station that hires out escorts.
+/// The world seed: `system_station_hire`'s, whose window around the
+/// origin holds a living Neutral station that hires out escorts.
 const SANDBOX_SEED: u32 = 10;
 /// The start role the player flies.
 const SANDBOX_ROLE: &str = "bounty_hunter";
