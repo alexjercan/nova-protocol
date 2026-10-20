@@ -111,9 +111,10 @@ and a save keep the inline design, so the swap persists.
 
 ### Adding a section
 
-The catalogue lists each part that is not `hide_in_editor` and whose recipe
-the player's hold and the station's stock together carry
-(`plan_recipe_payment` finds no missing part). Credits do not filter: a part
+The catalogue lists each part that is not `hide_in_editor`, that the
+station's `StationBuilds` names, and whose recipe the player's hold and the
+station's stock together carry (`plan_recipe_payment` finds no missing part).
+Credits do not filter: a part
 the ship cannot pay for shows the credit refusal. Each `GalleryEntry` carries
 a short `tile` line (`180 cr, 2 bought`, or `Needs 400 cr`) that wraps inside
 its tile, and the whole price or refusal as the focus card's `note`. Place on

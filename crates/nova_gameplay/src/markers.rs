@@ -209,13 +209,6 @@ impl StationServices {
 #[derive(Component, Clone, Debug, PartialEq, Eq, Reflect)]
 pub struct StationBuilds(pub Vec<String>);
 
-impl StationBuilds {
-    /// Whether the station builds the section prototype `prototype`.
-    pub fn builds(&self, prototype: &str) -> bool {
-        self.0.iter().any(|known| known == prototype)
-    }
-}
-
 /// Whether a docked partner offers `service` now: it is a living station
 /// whose design lists it. `services` is the partner's [`StationServices`],
 /// `None` for a partner that is not a station, and `derelict` is whether it

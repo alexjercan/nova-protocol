@@ -648,6 +648,7 @@ mod tests {
         let items = test_items();
         let current = part("pdc_kinetic", turret(), Vec3::ONE, cube_points());
         let offered = part("pdc_pierce", turret(), Vec3::ONE, cube_points());
+        let drive = part("drive", thruster(1.0), Vec3::ONE, cube_points());
         let empty = ShipInventory::new(&items, 10_000_000, []);
         let known = vec![offered.base.id.clone()];
         let other = vec![current.base.id.clone()];
@@ -660,6 +661,11 @@ mod tests {
             })
         };
 
+        assert_eq!(
+            plan_section_swap(&items, &current, &drive, partner(&other), &empty, u32::MAX),
+            Err(SectionSwapRefusalType::NotBuilt),
+            "a drive offered for a gun is refused as not built before its family"
+        );
         assert_eq!(
             plan_section_swap(
                 &items,
