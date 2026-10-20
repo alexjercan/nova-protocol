@@ -3,7 +3,9 @@
 //!
 //! `news-0150-release-lead`: New Game into a live window, a burn on the
 //! player's own `main_drive` under the game's own chase camera, then the
-//! nearest generated ship travel-locked so the inset names it.
+//! nearest generated ship travel-locked so the inset names it. New Game
+//! starts docked at the nearest allied station, and a docked hull has no
+//! drive, so the walk undocks before the loop opens.
 //!
 //! `news-0150-sector-streaming`: a STAGED, parked view - not the ship's own
 //! camera. The player is berthed 1 km short of the current cell's +X face
@@ -198,6 +200,22 @@ fn the_player(world: &World) -> Option<Entity> {
     let mut players = players.iter(world);
     let player = players.next()?;
     players.next().is_none().then_some(player)
+}
+
+/// Advance once the player ship is docked.
+#[cfg(feature = "debug")]
+fn player_docked() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        the_player(world).is_some_and(|player| world.get::<DockedShip>(player).is_some())
+    })
+}
+
+/// Advance once the player ship is undocked.
+#[cfg(feature = "debug")]
+fn player_free() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        the_player(world).is_some_and(|player| world.get::<DockedShip>(player).is_none())
+    })
 }
 
 /// The player's current speed, read off its avian velocity.
@@ -676,6 +694,18 @@ fn world_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
             hide_dev_overlays(world);
             hide_status_bar(world);
         })
+        .add()
+        .step("the start docks the player at its starting station")
+        .until(player_docked())
+        .deadline(MENU_SESSION_SECS)
+        .add()
+        .step("undock from the starting station")
+        .on_enter(|world: &mut World| {
+            let player = the_player(world).expect("world start: exactly one player ship");
+            world.trigger(DockingReleaseRequest { entity: player });
+        })
+        .until(player_free())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         // ---- Loop 1: news-0150-release-lead ----
         .step("sample speed before the burn")
