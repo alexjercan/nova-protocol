@@ -310,9 +310,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - With a part in hand, the Ship panel shows it under Placing in place of the
   selection: its icon, name, price, parts from the hold, socket and roll; the
   footer adds Q/Esc Put away.
-- At a refit dock, Delete names and takes a selected section's strip
-  yield; it is disabled, its reason in a tooltip, for a split hull, the last
-  flight computer or the docked port; `OnStripped` fires.
+- At a refit dock, Delete takes a selected section off; a Salvage block shows
+  its strip yield as part tiles, or why it is refused (split hull, last flight
+  computer, docked port). `OnStripped` fires.
 - The Ship pane shows the docked station and ships at its docks as dim
   outlines and refuses a part that would hit them. The add callout counts the
   parts bought at the station.

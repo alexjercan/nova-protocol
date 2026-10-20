@@ -19,7 +19,7 @@ use nova_gameplay::prelude::*;
 use nova_ui::{
     screen::drive_wheel_scroll,
     theme::UiColor,
-    widget::{button, slider_track, text_field, ButtonSpec, TextFieldSpec, ThemedFill, Tooltip},
+    widget::{button, slider_track, text_field, ButtonSpec, TextFieldSpec, ThemedFill},
 };
 
 use super::{
@@ -58,8 +58,8 @@ pub(crate) fn scroll_ship_panel(
 }
 
 /// Build the section panel: the selected section's icon over its code, name
-/// and condition bar; its binding; Rebind and Delete, with the reason Delete
-/// is refused in the Delete button's tooltip; the note line; the repair form;
+/// and condition bar; its binding; Rebind and Delete; the Salvage block with
+/// what Delete gives back or why it is refused; the note line; the repair form;
 /// and the lost-section list, beside the view. While a part is in hand the
 /// Placing block (`super::held`) stands in place of all of it. The parts a station builds are
 /// in the gallery the footer's Catalogue button opens (`super::catalogue`).
@@ -189,11 +189,40 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                         .observe(on_ship_rebind_button);
                         row.spawn((
                             ShipPanelButton::Delete,
-                            button(ButtonSpec::new("Delete").fit()),
+                            button(ButtonSpec::new("Delete").fit().danger()),
                             Name::new("ShipDelete"),
-                            Tooltip::default(),
                         ))
                         .observe(on_ship_delete_button);
+                    });
+                panel
+                    .spawn((
+                        ShipPanelField::Salvage,
+                        Name::new("ShipSalvage"),
+                        Node {
+                            display: Display::None,
+                            flex_direction: FlexDirection::Column,
+                            row_gap: Val::Px(6.0),
+                            flex_shrink: 0.0,
+                            ..default()
+                        },
+                    ))
+                    .with_children(|block| {
+                        block.spawn(themed_label("Salvage", 12.0, UiColor::Label));
+                        block.spawn((
+                            ShipSalvageTiles::default(),
+                            Node {
+                                flex_direction: FlexDirection::Row,
+                                flex_wrap: FlexWrap::Wrap,
+                                column_gap: Val::Px(12.0),
+                                row_gap: Val::Px(4.0),
+                                ..default()
+                            },
+                        ));
+                        block.spawn((
+                            ShipPanelField::DeleteReason,
+                            Name::new("ShipDeleteReason"),
+                            themed_label("", 12.0, UiColor::Danger),
+                        ));
                     });
                 // Under the actions: a result shows where the press was.
                 panel.spawn((ShipPanelField::Note, themed_label("", 12.0, UiColor::Label)));

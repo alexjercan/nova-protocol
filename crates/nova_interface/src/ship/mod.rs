@@ -22,10 +22,10 @@
 //! restores the opening angles; `G` toggles structural mates; `P` repairs,
 //! `B` replaces the selected bindable section's input, and Delete takes the
 //! selected section off while docked at a station that refits, its parts back
-//! in the hold. The Delete button names what it gives back, or is disabled
-//! with the reason in its hover tooltip. While the form's quantity field has the caret,
-//! these keys type into it instead. The footer names only the keys that apply
-//! now.
+//! in the hold. The Salvage block under it lists what it gives back, or why
+//! it is refused under a disabled Delete. While the form's quantity field has
+//! the caret, these keys type into it instead. The footer names only the keys
+//! that apply now.
 //!
 //! While [`ShipViewSubject`] names a hull (the Station pane's Info), the view
 //! draws that hull in place of the player ship, read-only: it turns, zooms
@@ -89,7 +89,7 @@ pub(crate) use self::{
     sections::*,
 };
 pub use self::{
-    delete::SectionDeleteCommand,
+    delete::{delete_yield_text, SectionDeleteCommand},
     ghost::{
         ship_ghost_aim, ship_hovered_section, ship_placement, ship_view_window_px,
         socket_lane_open, ShipPlacement, SHIP_GHOST_CALLOUT,
@@ -106,7 +106,7 @@ pub mod prelude {
     // `pub(crate)` (the module glob above), which rustc rejects as an
     // ambiguous import visibility through `super::`.
     pub use super::{
-        delete::SectionDeleteCommand,
+        delete::{delete_yield_text, SectionDeleteCommand},
         ghost::{
             ship_ghost_aim, ship_hovered_section, ship_placement, ship_view_window_px,
             socket_lane_open, ShipPlacement, SHIP_GHOST_CALLOUT,

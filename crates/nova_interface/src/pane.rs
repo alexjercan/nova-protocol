@@ -20,9 +20,9 @@
 use bevy::{prelude::*, ui::InteractionDisabled, ui_widgets::Activate};
 use nova_gameplay::{
     prelude::{
-        cr_digits, play_time_text, AudioRoute, Chart, PlayerSpaceshipMarker, SfxCommandsExt,
-        ShipCredits, SoundBank, SpaceshipRootMarker, UiSfx, WorldClock, MENU_SELECT_VOLUME,
-        UI_TOGGLE_VOLUME,
+        cr_digits, play_time_text, AudioRoute, Chart, GameItems, ItemDesignId,
+        PlayerSpaceshipMarker, SfxCommandsExt, ShipCredits, SoundBank, SpaceshipRootMarker, UiSfx,
+        WorldClock, MENU_SELECT_VOLUME, UI_TOGGLE_VOLUME,
     },
     PauseStates,
 };
@@ -36,7 +36,7 @@ use nova_ui::{
 
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
-    inventory::inventory_body,
+    inventory::{category_color, inventory_body},
     jobs::jobs_body,
     map::{
         map_chart_button, on_map_chart_button, on_map_reframe_button, spawn_map_panel,
@@ -1194,6 +1194,42 @@ pub(crate) fn themed_label(value: &str, size: f32, color: UiColor) -> impl Bundl
         TextColor(Color::NONE),
         ThemedText::new(color),
     )
+}
+
+/// One part tile: its category glyph, `count` (`+3`, `2/23` or `23`) and its
+/// name. The Inventory strip block and the Ship Salvage block draw it.
+///
+/// # Panics
+///
+/// On a part id the catalog does not hold.
+pub(crate) fn spawn_part_tile(
+    row: &mut ChildSpawnerCommands,
+    icons: &InterfaceIcons,
+    items: &GameItems,
+    item: &ItemDesignId,
+    count: &str,
+) {
+    let design = items.design(item);
+    row.spawn(Node {
+        align_items: AlignItems::Center,
+        column_gap: Val::Px(4.0),
+        ..default()
+    })
+    .with_children(|tile| {
+        tile.spawn(icon_node(
+            icons.category(design.category),
+            category_color(design.category),
+            18.0,
+        ));
+        tile.spawn((
+            themed_label(count, 12.0, UiColor::Primary),
+            TextLayout::new(Justify::Left, LineBreak::NoWrap),
+        ));
+        tile.spawn((
+            themed_label(&design.name, 11.0, UiColor::Body),
+            TextLayout::new(Justify::Left, LineBreak::NoWrap),
+        ));
+    });
 }
 
 /// Raise the viewer contexts to match the interface: `Viewer` while the

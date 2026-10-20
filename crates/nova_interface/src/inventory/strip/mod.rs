@@ -45,10 +45,10 @@ use nova_ui::{
     widget::{ButtonSpec, ThemedBorder, ThemedFill, ThemedText, Tooltip},
 };
 
-use super::{category_color, loot_text, take_loot, InventoryRuntime, InventoryShips};
+use super::{loot_text, take_loot, InventoryRuntime, InventoryShips};
 use crate::{
-    icons::{icon_node, InterfaceIcons},
-    pane::{compact_button, play_menu_select, themed_label},
+    icons::InterfaceIcons,
+    pane::{compact_button, play_menu_select, spawn_part_tile, themed_label},
     ship::design_section_code,
 };
 
@@ -553,41 +553,6 @@ fn spawn_meter_row(
         });
 }
 
-/// One tile: the category icon, `2/23` or `23`, and the part name.
-fn spawn_yield_tile(
-    tiles: &mut ChildSpawnerCommands,
-    icons: &InterfaceIcons,
-    items: &GameItems,
-    tile: &StripYieldTile,
-) {
-    let design = items.design(&tile.item);
-    let count = match tile.yielded {
-        Some(yielded) => format!("{yielded}/{}", tile.planned),
-        None => tile.planned.to_string(),
-    };
-    tiles
-        .spawn(Node {
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(4.0),
-            ..default()
-        })
-        .with_children(|tile| {
-            tile.spawn(icon_node(
-                icons.category(design.category),
-                category_color(design.category),
-                18.0,
-            ));
-            tile.spawn((
-                themed_label(&count, 12.0, UiColor::Primary),
-                TextLayout::new(Justify::Left, LineBreak::NoWrap),
-            ));
-            tile.spawn((
-                themed_label(&design.name, 11.0, UiColor::Body),
-                TextLayout::new(Justify::Left, LineBreak::NoWrap),
-            ));
-        });
-}
-
 /// Keep the strip block on the docked partner and the running job: shown only
 /// at a wreck, the Strip button while no strip runs, disabled with its
 /// tooltip while [`plan_strip_press`] refuses for room, the four meters, and
@@ -787,7 +752,11 @@ pub(crate) fn update_strip_block(
             .despawn_related::<Children>()
             .with_children(|row| {
                 for tile in &tiles {
-                    spawn_yield_tile(row, &icons, &items, tile);
+                    let count = match tile.yielded {
+                        Some(yielded) => format!("{yielded}/{}", tile.planned),
+                        None => tile.planned.to_string(),
+                    };
+                    spawn_part_tile(row, &icons, &items, &tile.item, &count);
                 }
             });
         drawn.0.clone_from(&tiles);

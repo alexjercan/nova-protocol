@@ -31,8 +31,8 @@
 //!    side) and aim a Cargo Intake end-on (F) at a plate facing it to see it
 //!    refused, rebind a gun or a thruster with B (Backspace sends a
 //!    thruster back to the Main Drive), and delete a selected section with Delete
-//!    (the button names what goes back in the hold, or is disabled with the
-//!    reason in its hover tooltip);
+//!    (the Salvage block under it lists what goes back in the hold, or why the
+//!    disabled button is refused);
 //! 2. the Station tab: buy a hull, hire an escort, buy the station;
 //! 3. switch tabs after a change, and check the schematic, the plating and
 //!    the greebles follow it.
@@ -61,11 +61,10 @@
 //! shows the part in hand under Placing, presses Esc and checks the hand is
 //! empty, the panel back on the selection and the interface still open, rebinds the new
 //! gun to `T` and checks the selection did not step,
-//! checks the Delete button names the gun's yield, deletes the gun with
+//! checks the Salvage block lists the gun's yield, deletes the gun with
 //! Delete and checks the note names the parts that went to the hold, selects
 //! the port the dock holds by and checks its Delete is disabled with the
-//! reason in its tooltip, that the Delete key leaves it on and that hovering
-//! it shows the tooltip, picks a
+//! reason under Salvage and that the Delete key leaves it on, picks a
 //! hull part off the ship with Q, puts it away with Q over empty space and
 //! checks the hand is empty, takes the Cargo Intake from the Catalogue, drags the
 //! view to the station and points the intake at the sockets nearest it, through every
@@ -604,8 +603,8 @@ const INTRO: &str = "Docked at a Refit station: edit the ship on the Ship tab.";
 mod ship_overlay {
     use bevy::{camera::visibility::RenderLayers, ecs::system::SystemState};
     use nova_protocol::nova_interface::ship::{
-        ship_hovered_section, ship_placement, socket_lane_open, ShipPlacement, ShipRuntime,
-        ShipSectionView, ShipSections,
+        delete_yield_text, ship_hovered_section, ship_placement, socket_lane_open, ShipPlacement,
+        ShipRuntime, ShipSectionView, ShipSections,
     };
 
     use super::{diagnostics, diagnostics::palette, *};
@@ -714,7 +713,7 @@ mod ship_overlay {
         let selected = runtime.selected();
         let delete = runtime
             .delete_verdict()
-            .map(|verdict| verdict.map(str::to_string).map_err(str::to_string));
+            .map(|verdict| verdict.cloned().map_err(str::to_string));
         let station: Vec<(Vec3, Vec3)> = runtime
             .station_colliders()
             .iter()
@@ -792,7 +791,10 @@ mod ship_overlay {
             let binding = view.binding_text(world.resource::<nova_input::prelude::InputBindings>());
             if let Some(verdict) = &delete {
                 details.push(match verdict {
-                    Ok(salvage) => format!("delete: {salvage}"),
+                    Ok(parts) => format!(
+                        "delete: {}",
+                        delete_yield_text(world.resource::<GameItems>(), parts)
+                    ),
                     Err(line) => line.clone(),
                 });
             }
@@ -946,17 +948,21 @@ mod smoke {
     const REBIND_SHOT: &str = "sandbox-rebind.png";
     /// The PNG of the armed rebind: the lit button and the prompt banner.
     const REBIND_ARMED_SHOT: &str = "sandbox-rebind-armed.png";
-    /// The PNG of the rebound gun's enabled Delete, its label naming the
-    /// parts it gives back.
+    /// The PNG of the rebound gun's enabled Delete, the Salvage block under it
+    /// naming the parts it gives back.
     const DELETE_YIELD_SHOT: &str = "sandbox-delete-yield.png";
     /// The PNG of the Ship tab once the rebound gun is deleted: the gun gone,
     /// the note naming the parts that went to the hold.
     const DELETE_SHOT: &str = "sandbox-delete.png";
-    /// The PNG of the docked port's disabled Delete under the pointer, its
-    /// reason in the tooltip under it.
+    /// The PNG of the docked port's disabled Delete, its reason under
+    /// Salvage.
     const DELETE_REFUSED_SHOT: &str = "sandbox-delete-refused.png";
     /// The Ship panel's Delete button.
     const DELETE_BUTTON: &str = "ShipDelete";
+    /// The Ship panel's Salvage block under Delete.
+    const SALVAGE_BLOCK: &str = "ShipSalvage";
+    /// The Salvage block's reason line.
+    const DELETE_REASON: &str = "ShipDeleteReason";
     /// The PNG of the Catalogue open on the pierce PDC's category.
     const CATALOGUE_SHOT: &str = "sandbox-catalogue.png";
     /// The PNG of the Catalogue as it opens, on every part the station
@@ -1613,34 +1619,37 @@ mod smoke {
         Some((label, enabled))
     }
 
-    /// The Delete button's tooltip: why it is refused, empty while it holds.
+    /// The Salvage block's reason line: why Delete is refused, empty while
+    /// it holds.
     fn delete_reason(world: &World) -> Option<String> {
-        let mut buttons = world.try_query::<(&Name, &nova_ui::widget::Tooltip)>()?;
-        buttons
+        let mut lines = world.try_query::<(&Name, &Text)>()?;
+        lines
             .iter(world)
-            .find(|(name, _)| name.as_str() == DELETE_BUTTON)
-            .map(|(_, tooltip)| tooltip.0.clone())
+            .find(|(name, _)| name.as_str() == DELETE_REASON)
+            .map(|(_, text)| text.0.clone())
     }
 
-    /// Whether the Delete button's tooltip panel is up and laid out.
-    fn delete_tooltip_shown(world: &World) -> bool {
-        let Some(button) = world.try_query::<(Entity, &Name)>().and_then(|mut names| {
-            names
-                .iter(world)
-                .find(|(_, name)| name.as_str() == DELETE_BUTTON)
-                .map(|(button, _)| button)
-        }) else {
-            return false;
-        };
-        world
-            .try_query_filtered::<(&ChildOf, &Node, &ComputedNode), With<nova_ui::widget::TooltipPanel>>()
-            .is_some_and(|mut panels| {
-                panels.iter(world).any(|(parent, node, computed)| {
-                    parent.parent() == button
-                        && node.display == Display::Flex
-                        && computed.size().x > 0.0
-                })
-            })
+    /// The Salvage block's texts in tree order while the panel shows it;
+    /// `None` while it is hidden.
+    fn salvage_texts(world: &World) -> Option<Vec<String>> {
+        let mut blocks = world.try_query::<(Entity, &Name, &Node)>()?;
+        let (block, _, node) = blocks
+            .iter(world)
+            .find(|(_, name, _)| name.as_str() == SALVAGE_BLOCK)?;
+        if node.display != Display::Flex {
+            return None;
+        }
+        let mut lines = Vec::new();
+        let mut stack = vec![block];
+        while let Some(entity) = stack.pop() {
+            if let Some(text) = world.get::<Text>(entity).filter(|text| !text.0.is_empty()) {
+                lines.push(text.0.clone());
+            }
+            if let Some(children) = world.get::<Children>(entity) {
+                stack.extend(children.iter().rev());
+            }
+        }
+        Some(lines)
     }
 
     /// The Placing block's texts in tree order while the panel shows it in
@@ -2004,17 +2013,21 @@ mod smoke {
             })
             .deadline(BEAT_SECS)
             .add()
-            .step("station sandbox: the Delete button names the yield")
+            .step("station sandbox: the Salvage block names the yield")
             .until(Arc::new(|world: &World| {
-                delete_button(world)
-                    .is_some_and(|(label, enabled)| enabled && label.starts_with("Delete: +"))
+                delete_button(world).is_some_and(|(label, enabled)| enabled && label == "Delete")
                     && delete_reason(world).is_some_and(|reason| reason.is_empty())
+                    && salvage_texts(world).is_some_and(|texts| {
+                        texts.iter().any(|text| text == "+1")
+                            && texts.iter().any(|text| text == "Section panel")
+                    })
             }))
             .diagnose(|world| {
                 format!(
-                    "button {:?}, reason {:?}",
+                    "button {:?}, reason {:?}, salvage {:?}",
                     delete_button(world),
-                    delete_reason(world)
+                    delete_reason(world),
+                    salvage_texts(world)
                 )
             })
             .deadline(BEAT_SECS)
@@ -2024,7 +2037,11 @@ mod smoke {
             .add()
             .step("station sandbox: shoot the enabled Delete")
             .on_enter(|world: &mut World| {
-                info!("station sandbox: delete button {:?}", delete_button(world));
+                info!(
+                    "station sandbox: delete button {:?}, salvage {:?}",
+                    delete_button(world),
+                    salvage_texts(world)
+                );
                 shoot(world, DELETE_YIELD_SHOT);
             })
             .until(shot_written(DELETE_YIELD_SHOT))
@@ -2102,12 +2119,15 @@ mod smoke {
                 delete_button(world).is_some_and(|(label, enabled)| !enabled && label == "Delete")
                     && delete_reason(world)
                         .is_some_and(|reason| reason.starts_with("delete: the dock holds"))
+                    && salvage_texts(world)
+                        .is_some_and(|texts| !texts.iter().any(|text| text.starts_with('+')))
             }))
             .diagnose(|world| {
                 format!(
-                    "button {:?}, reason {:?}",
+                    "button {:?}, reason {:?}, salvage {:?}",
                     delete_button(world),
-                    delete_reason(world)
+                    delete_reason(world),
+                    salvage_texts(world)
                 )
             })
             .deadline(BEAT_SECS)
@@ -2149,19 +2169,16 @@ mod smoke {
             })
             .deadline(BEAT_SECS)
             .add()
-            .step("station sandbox: hover the disabled Delete for its reason")
-            .on_enter(hover_named(DELETE_BUTTON))
-            .each(|world, _, _| keep_hovering_named(DELETE_BUTTON)(world))
-            .until(Arc::new(delete_tooltip_shown))
-            .deadline(BEAT_SECS)
+            .step("station sandbox: settle the disabled Delete")
+            .until(frames(SETTLE_FRAMES))
             .add()
             .step("station sandbox: shoot the disabled Delete")
             .on_enter(|world: &mut World| {
                 info!(
-                    "station sandbox: delete button {:?}, tooltip {:?}, shown {}",
+                    "station sandbox: delete button {:?}, reason {:?}, salvage {:?}",
                     delete_button(world),
                     delete_reason(world),
-                    delete_tooltip_shown(world)
+                    salvage_texts(world)
                 );
                 shoot(world, DELETE_REFUSED_SHOT);
             })

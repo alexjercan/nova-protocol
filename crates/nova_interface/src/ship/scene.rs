@@ -8,7 +8,7 @@
 //!
 //! Touch this module when changing how the ship is drawn or selected in.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use bevy::{
     asset::RenderAssetUsages,
@@ -27,8 +27,8 @@ use nova_ship::prelude::{
 use nova_ui::{
     theme::{ActiveUiTheme, UiColor},
     widget::{
-        ButtonLabel, Selected, TextFieldError, TextFieldFocused, TextFieldValue, ThemedBorder,
-        ThemedFill, ThemedImageTint, ThemedText, Tooltip,
+        Selected, TextFieldError, TextFieldFocused, TextFieldValue, ThemedBorder, ThemedFill,
+        ThemedImageTint, ThemedText,
     },
 };
 
@@ -40,7 +40,7 @@ use super::{
 };
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
-    pane::{interface_shown, play_menu_select, themed_label, InterfacePaneType},
+    pane::{interface_shown, play_menu_select, spawn_part_tile, themed_label, InterfacePaneType},
     terminal::{NovaOsAppInput, NovaOsCloseTransition},
     viewer::{cycle_index, orbit_eye, solid, unlit, zoom_radius, OrbitGesture},
 };
@@ -68,7 +68,16 @@ pub(crate) enum ShipPanelField {
     /// The banner over the view while a rebind is armed. The banner row and
     /// its text both carry it: the row is shown or hidden, the text is set.
     RebindPrompt,
+    /// The Salvage block under the actions, shown while Delete has a verdict.
+    Salvage,
+    /// Why the delete is refused, under the Salvage head; empty on Ok.
+    DeleteReason,
 }
+/// The Salvage tiles, with what they last drew so they rebuild only on a
+/// change: `None` while they draw nothing (hidden or refused), else the
+/// positive parts drawn; an empty map drew the `nothing to salvage` line.
+#[derive(Component, Default)]
+pub(crate) struct ShipSalvageTiles(Option<BTreeMap<ItemDesignId, u32>>);
 /// The selected section's family icon in the panel head.
 #[derive(Component)]
 pub(crate) struct ShipPreviewIcon;
@@ -202,7 +211,7 @@ pub struct ShipRuntime {
     /// Whether the selection can be deleted now, cached by
     /// `update_ship_delete_verdict`: `None` while there is no selection,
     /// else the parts a delete gives back or why it is refused.
-    pub(crate) delete_verdict: Option<Result<String, String>>,
+    pub(crate) delete_verdict: Option<Result<BTreeMap<ItemDesignId, u32>, String>>,
     /// Draft quantity belongs to this section; changing selection starts at All.
     /// A full section, or any section before the player ship's inventory
     /// exists, does not take the draft, so damage or arriving stock starts it
@@ -271,12 +280,12 @@ impl ShipRuntime {
     }
 
     /// Whether the selection can be deleted now: `None` while there is no
-    /// selection, else the parts a delete gives back (`+1 Section panel`, or
-    /// `nothing to salvage`) or the reason line it is refused with.
-    pub fn delete_verdict(&self) -> Option<Result<&str, &str>> {
+    /// selection, else the parts a delete gives back (zero counts included)
+    /// or the reason line it is refused with.
+    pub fn delete_verdict(&self) -> Option<Result<&BTreeMap<ItemDesignId, u32>, &str>> {
         self.delete_verdict
             .as_ref()
-            .map(|verdict| verdict.as_deref().map_err(String::as_str))
+            .map(|verdict| verdict.as_ref().map_err(String::as_str))
     }
 
     /// The transient note the panel shows, such as why an action was
@@ -1393,14 +1402,15 @@ pub(crate) fn on_ship_rebind_button(
 }
 
 /// Refresh the section panel from the current selection: title, family icon,
-/// condition bar, binding row, the repair form, button state, the Delete
-/// label and reason, and the note line (the rebind prompt or a transient
-/// action result). Caches the enabled flags for the observers and the footer.
+/// condition bar, binding row, the repair form, button state, the Salvage
+/// block, and the note line (the rebind prompt or a transient action result).
+/// Caches the enabled flags for the observers and the footer.
 ///
-/// Delete shows while a section is selected. While
-/// [`plan_ship_delete`](super::delete::plan_ship_delete) holds, its label
-/// names the yield; while it refuses, it is disabled with the reason in its
-/// hover tooltip.
+/// Delete and the Salvage block show while the selection has a delete
+/// verdict. While [`plan_ship_delete`](super::delete::plan_ship_delete)
+/// holds, the block draws one tile per part it gives back, or
+/// `nothing to salvage`; while it refuses, Delete is disabled and the block
+/// shows the reason.
 ///
 /// The repair form shows only while the selection has repairable damage, and
 /// disables Repair with the reason in its summary while the draft is refused.
@@ -1418,9 +1428,9 @@ pub(crate) fn update_ship_panel(
     mut runtime: ResMut<ShipRuntime>,
     sections: ShipSections,
     icons: Res<InterfaceIcons>,
+    items: Option<Res<GameItems>>,
     input_bindings: Res<InputBindings>,
     mut q_text: Query<(&ShipPanelField, &mut Text, &mut ThemedText)>,
-    mut q_label: Query<(&ChildOf, &mut Text), (With<ButtonLabel>, Without<ShipPanelField>)>,
     mut q_part: Query<
         (&ShipPanelField, &mut Node),
         (
@@ -1437,10 +1447,10 @@ pub(crate) fn update_ship_panel(
             Has<InteractionDisabled>,
             Has<Selected>,
             &mut Node,
-            Option<&mut Tooltip>,
         ),
         (Without<ShipConditionFill>, Without<ShipRepairQuantity>),
     >,
+    mut q_tiles: Query<(Entity, &mut ShipSalvageTiles)>,
     mut q_preview: Query<
         (&mut ImageNode, &mut ThemedImageTint, &mut Visibility),
         With<ShipPreviewIcon>,
@@ -1547,10 +1557,9 @@ pub(crate) fn update_ship_panel(
         .as_ref()
         .filter(|_| !read_only)
         .and_then(|view| view.binding_text(&input_bindings));
-    let (delete_label, delete_reason) = match runtime.delete_verdict() {
-        Some(Ok(salvage)) => (format!("Delete: {salvage}"), None),
-        Some(Err(reason)) => ("Delete".to_string(), Some(reason.to_string())),
-        None => ("Delete".to_string(), None),
+    let delete_reason = match runtime.delete_verdict() {
+        Some(Err(reason)) => reason.to_string(),
+        _ => String::new(),
     };
 
     runtime.panel_repair_enabled = actions.repair_enabled;
@@ -1595,6 +1604,7 @@ pub(crate) fn update_ship_panel(
             ShipPanelField::Control => control.is_some(),
             ShipPanelField::RepairForm => form.is_some(),
             ShipPanelField::RebindPrompt => prompt.is_some(),
+            ShipPanelField::Salvage => runtime.delete_verdict.is_some(),
             _ => true,
         };
         let display = if shown { Display::Flex } else { Display::None };
@@ -1620,7 +1630,8 @@ pub(crate) fn update_ship_panel(
             ShipPanelField::RebindPrompt => {
                 (prompt.as_deref().unwrap_or_default(), UiColor::Accent)
             }
-            ShipPanelField::RepairForm => continue,
+            ShipPanelField::DeleteReason => (delete_reason.as_str(), UiColor::Danger),
+            ShipPanelField::RepairForm | ShipPanelField::Salvage => continue,
         };
         if text.0 != value {
             text.0 = value.to_string();
@@ -1630,11 +1641,11 @@ pub(crate) fn update_ship_panel(
         }
     }
 
-    for (entity, button, disabled, lit, mut node, tooltip) in &mut q_button {
+    for (entity, button, disabled, lit, mut node) in &mut q_button {
         let enabled = match button {
             ShipPanelButton::Repair => actions.repair_enabled,
             ShipPanelButton::Rebind => runtime.panel_rebind_enabled,
-            // A refused delete is disabled: its reason is its tooltip.
+            // A refused delete is disabled: the Salvage block shows why.
             ShipPanelButton::Delete => matches!(runtime.delete_verdict, Some(Ok(_))),
         };
         if *button == ShipPanelButton::Delete {
@@ -1645,17 +1656,6 @@ pub(crate) fn update_ship_panel(
             };
             if node.display != wanted {
                 node.display = wanted;
-            }
-            if let Some(mut tooltip) = tooltip {
-                let reason = delete_reason.as_deref().unwrap_or_default();
-                if tooltip.0 != reason {
-                    tooltip.0 = reason.to_string();
-                }
-            }
-            for (parent, mut text) in &mut q_label {
-                if parent.parent() == entity && text.0 != delete_label {
-                    text.0 = delete_label.clone();
-                }
             }
         }
         if *button == ShipPanelButton::Rebind {
@@ -1681,6 +1681,41 @@ pub(crate) fn update_ship_panel(
             commands.entity(entity).remove::<InteractionDisabled>();
         } else if !enabled && !disabled {
             commands.entity(entity).insert(InteractionDisabled);
+        }
+    }
+
+    // `GameItems` is absent only before content loads, when there is no
+    // verdict to draw either (`update_ship_delete_verdict`).
+    if let Some(items) = items.as_deref() {
+        let salvage = match runtime.delete_verdict() {
+            Some(Ok(parts)) => Some(
+                parts
+                    .iter()
+                    .filter(|(_, count)| **count > 0)
+                    .map(|(item, count)| (item.clone(), *count))
+                    .collect::<BTreeMap<_, _>>(),
+            ),
+            _ => None,
+        };
+        for (entity, mut drawn) in &mut q_tiles {
+            if drawn.0 == salvage {
+                continue;
+            }
+            commands
+                .entity(entity)
+                .despawn_related::<Children>()
+                .with_children(|row| match &salvage {
+                    Some(parts) if parts.is_empty() => {
+                        row.spawn(themed_label("nothing to salvage", 12.0, UiColor::Body));
+                    }
+                    Some(parts) => {
+                        for (item, count) in parts {
+                            spawn_part_tile(row, &icons, items, item, &format!("+{count}"));
+                        }
+                    }
+                    None => {}
+                });
+            drawn.0.clone_from(&salvage);
         }
     }
 

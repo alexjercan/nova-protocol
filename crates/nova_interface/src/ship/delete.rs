@@ -6,8 +6,8 @@
 //! by, [`remove_build_fault`] must find no new fault, and the parts the strip
 //! rule gives back ([`plan_section_yield`] at the section's health share)
 //! must fit in the hold. [`update_ship_delete_verdict`] runs it for the
-//! selection every frame: the panel's Delete button names the yield while it
-//! holds, and is disabled with the reason in its tooltip while it refuses.
+//! selection every frame: the panel's Salvage block lists the parts while it
+//! holds, and the reason under a disabled Delete button while it refuses.
 //!
 //! The `ship_delete` key and the enabled button raise a
 //! [`SectionDeleteCommand`]; a refused selection raises none, and so shows no
@@ -113,8 +113,8 @@ impl ResolvedSite<'_> {
     }
 }
 
-/// The tooltip of the disabled Delete button for a refused delete of
-/// section `code`, the part named `name`.
+/// The Salvage block's reason line for a refused delete of section `code`,
+/// the part named `name`.
 pub(crate) fn delete_refusal_text(
     code: &str,
     name: &str,
@@ -152,9 +152,9 @@ fn health_share(health: Option<&Health>) -> f32 {
     }
 }
 
-/// The parts a delete gives back, as the Delete button and the note name
-/// them: `+1 Frame spar, +3 Section panel`, or `nothing to salvage`.
-pub(crate) fn delete_yield_text(items: &GameItems, parts: &BTreeMap<ItemDesignId, u32>) -> String {
+/// The parts a delete gives back, as the note and the log name them:
+/// `+1 Frame spar, +3 Section panel`, or `nothing to salvage`.
+pub fn delete_yield_text(items: &GameItems, parts: &BTreeMap<ItemDesignId, u32>) -> String {
     if parts.values().all(|count| *count == 0) {
         return "nothing to salvage".to_string();
     }
@@ -211,9 +211,10 @@ pub(crate) fn on_ship_delete_button(
 }
 
 /// Cache [`plan_ship_delete`] for the selection, for the panel's Delete
-/// button, the `ship_delete` key and [`ShipRuntime::delete_verdict`]: the
-/// yield text, or the reason. `None` while there is no selection, a part is
-/// in hand or the pane is closed: the button hides and the key does nothing.
+/// button and Salvage block, the `ship_delete` key and
+/// [`ShipRuntime::delete_verdict`]: the parts, or the reason. `None` while
+/// there is no selection, a part is in hand or the pane is closed: the button
+/// and the block hide and the key does nothing.
 pub(crate) fn update_ship_delete_verdict(
     mut runtime: ResMut<ShipRuntime>,
     held: Res<HeldPart>,
@@ -232,7 +233,7 @@ pub(crate) fn update_ship_delete_verdict(
         let own = q_hold.get(resolved.player).ok()?;
         let (_, planned) =
             plan_ship_delete(&resolved, items, target, q_health.get(target).ok(), own)?;
-        Some(planned.map(|delete| delete_yield_text(items, &delete.parts)))
+        Some(planned.map(|delete| delete.parts))
     })();
     if runtime.delete_verdict != verdict {
         runtime.delete_verdict = verdict;
@@ -528,13 +529,16 @@ mod tests {
     }
 
     /// The cached verdict for `target` once it is selected.
-    fn verdict(app: &mut App, target: Entity) -> Option<Result<String, String>> {
+    fn verdict(
+        app: &mut App,
+        target: Entity,
+    ) -> Option<Result<BTreeMap<ItemDesignId, u32>, String>> {
         app.world_mut().resource_mut::<ShipRuntime>().selected = Some(target);
         app.update();
         app.world()
             .resource::<ShipRuntime>()
             .delete_verdict()
-            .map(|verdict| verdict.map(str::to_string).map_err(str::to_string))
+            .map(|verdict| verdict.cloned().map_err(str::to_string))
     }
 
     fn reports(app: &App, player: Entity) -> &[ShipInventoryReport] {
@@ -566,7 +570,10 @@ mod tests {
         app.update();
         assert_eq!(
             app.world().resource::<ShipRuntime>().delete_verdict(),
-            Some(Ok("+1 Frame spar, +3 Section panel"))
+            Some(Ok(&BTreeMap::from([
+                ("FrameSpar".into(), 1),
+                ("SectionPanel".into(), 3)
+            ])))
         );
         assert_eq!(
             delete_yield_text(&test_items(), &BTreeMap::new()),

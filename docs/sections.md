@@ -210,10 +210,12 @@ mates, lowers the root's pinned health by its pool and despawns it.
 re-clads only the cells round the hole. No credits move. The per-frame
 `update_ship_delete_verdict` caches what a delete of the selection gives
 back or why it is refused (`ShipRuntime::delete_verdict`), with or without a
-Refit dock. The Delete button shows while there is a verdict. It names the
-yield (`Delete: +1 Section panel`, or `Delete: nothing to salvage`) when the
-delete can go, and is disabled when it refuses, with the reason in its hover
-tooltip (`nova_ui`'s `Tooltip`); the Delete key then does nothing. The note
+Refit dock. The Delete button, labelled `Delete` in the Danger variant, and
+the Salvage block under it show while there is a verdict. When the delete
+can go, the block draws one part tile per part it gives back
+(`pane::spawn_part_tile`, the tile the Inventory strip block draws), or
+`nothing to salvage`. When it refuses, the button is disabled and the block
+shows the reason line in Danger; the Delete key then does nothing. The note
 after a delete names the parts that went to the hold.
 
 ### Stripping a docked wreck
