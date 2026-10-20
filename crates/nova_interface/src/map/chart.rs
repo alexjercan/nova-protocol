@@ -1170,9 +1170,6 @@ pub(crate) fn update_map_chart_sector(
                 if live.refusing {
                     facts.push("refuses docking".to_string());
                 }
-                if live.posting > 0 {
-                    facts.push(format!("posts {} jobs", live.posting));
-                }
                 if facts.is_empty() {
                     facts.push("living".to_string());
                 }
@@ -1749,12 +1746,12 @@ pub(crate) fn project_map_chart_labels(
 }
 
 /// What the contact panel's head says in the chart view, field by field:
-/// the selected mark's code, its last-seen name, what it is, its cell, the
-/// services seen on the last dock, and when the player found it and whether
-/// it was docked at; for a visited cell, what its clusters hold and when the
-/// player entered it; for a held job, its title, reward and where it hands
-/// in. The SECTOR block lists the cell's finds, stock and jobs. With nothing
-/// selected it heads the discovery log and counts the chart.
+/// the selected mark's code, its last-seen name, what it is, its cell, and
+/// when the player found it, with a note for a station never docked at; for
+/// a visited cell, what its clusters hold and when the player entered it; for
+/// a held job, its title, reward and where it hands in. The SECTOR block
+/// lists the cell's finds, services, stock and jobs. With nothing selected it
+/// heads the discovery log and counts the visited cells.
 pub(crate) fn chart_panel_field(
     chart: &Chart,
     jobs: &Jobs,
@@ -1774,19 +1771,6 @@ pub(crate) fn chart_panel_field(
         (None, MapPanelField::Range) => (
             format!("Cells visited {}", chart.visited().count()),
             UiColor::Primary,
-        ),
-        (None, MapPanelField::Bearing) => (
-            format!(
-                "Stations {}  Wrecks {}  Jobs {}",
-                chart.stations().len(),
-                chart.wrecks().len(),
-                jobs.held().len()
-            ),
-            UiColor::Primary,
-        ),
-        (None, MapPanelField::Note) => (
-            "Click a row, a cell or a label to select it.".to_string(),
-            UiColor::Label,
         ),
         (None, _) => (String::new(), UiColor::Body),
         (Some(mark), MapPanelField::Code) => (
@@ -1872,44 +1856,22 @@ pub(crate) fn chart_panel_field(
             Some(MapChartMarkType::Station(id) | MapChartMarkType::Wreck(id)),
             MapPanelField::Range,
         ) => (format!("Cell {}", id.origin), UiColor::Primary),
-        (Some(MapChartMarkType::Station(id)), MapPanelField::Bearing) => {
-            match station(id).and_then(|station| station.summary.as_ref()) {
-                Some(summary) if summary.services.is_empty() => {
-                    ("Services: none".to_string(), UiColor::Primary)
-                }
-                Some(summary) => (
-                    format!(
-                        "Services: {}",
-                        summary
-                            .services
-                            .iter()
-                            .map(|service| format!("{service:?}").to_lowercase())
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ),
-                    UiColor::Primary,
-                ),
-                None => (String::new(), UiColor::Primary),
-            }
-        }
         (Some(MapChartMarkType::Station(id)), MapPanelField::Note) => {
             let Some(station) = station(id) else {
                 return (String::new(), UiColor::Label);
             };
-            let seen = if station.summary.is_some() {
-                "Last seen docked."
+            let found = found(station.found_at);
+            let note = if station.summary.is_some() {
+                found
             } else {
-                "Not docked: no stock seen."
+                format!("{found}\nNot docked: no stock seen.")
             };
-            (
-                format!("{}\n{seen}", found(station.found_at)),
-                UiColor::Label,
-            )
+            (note, UiColor::Label)
         }
         (Some(MapChartMarkType::Wreck(id)), MapPanelField::Note) => (
-            chart.wreck(id).map_or_else(String::new, |wreck| {
-                format!("{}\nFound on sensors.", found(wreck.found_at))
-            }),
+            chart
+                .wreck(id)
+                .map_or_else(String::new, |wreck| found(wreck.found_at)),
             UiColor::Label,
         ),
         (Some(_), _) => (String::new(), UiColor::Body),

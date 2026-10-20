@@ -997,11 +997,11 @@ mod walk {
             shown.contains(&summary.name),
             "world chart: the panel names the station: {shown:?}"
         );
-        let note = shown
-            .iter()
-            .find(|text| text.contains("Last seen docked."))
-            .unwrap_or_else(|| panic!("world chart: the panel shows the last dock: {shown:?}"))
-            .clone();
+        let last_seen = format!("{} LAST SEEN", summary.name.to_uppercase());
+        assert!(
+            shown.contains(&last_seen),
+            "world chart: the panel shows the last dock: {shown:?}"
+        );
         let (item, count) = summary.stock.first().expect("checked non-empty");
         let item_name = world.resource::<GameItems>().design(item).name.clone();
         let stock_row = sector_rows(world)
@@ -1015,9 +1015,9 @@ mod walk {
         nova_probe::probe_marker(
             world,
             "outcome: the map's chart view reads the station by its code",
-            serde_json::json!({ "code": code, "name": summary.name, "note": note, "stock_row": stock_row }),
+            serde_json::json!({ "code": code, "name": summary.name, "last_seen": last_seen, "stock_row": stock_row }),
         );
-        info!("world chart: the chart view shows {code}: {note:?}, {stock_row:?}");
+        info!("world chart: the chart view shows {code}: {last_seen:?}, {stock_row:?}");
     }
 
     /// Every text under `root`, depth first.
@@ -1475,7 +1475,7 @@ mod walk {
                 .unwrap_or_else(|| panic!("world chart: no label named '{target}'"));
             world.trigger(bevy::ui_widgets::Activate { entity: label });
         })
-        .until(a_text_reads(|text| text.contains("Last seen docked.")))
+        .until(a_text_reads(|text| text.ends_with(" LAST SEEN")))
         .deadline(BEAT_SECS)
         .add()
         .step("world chart: settle the panel")
