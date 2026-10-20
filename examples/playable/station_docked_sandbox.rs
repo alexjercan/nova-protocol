@@ -28,7 +28,7 @@
 //!    its mating socket; a click buys the parts the hold lacks at the
 //!    station's ask), pick a part off the ship with Q, drag the view with the
 //!    right button to the docked station (dim outlines, on the ship's -X
-//!    side) and aim a Railgun Lance end-on (F) at a plate facing it to see it
+//!    side) and aim a Cargo Intake end-on (F) at a plate facing it to see it
 //!    refused, rebind a gun or a thruster with B (Backspace sends a
 //!    thruster back to the Main Drive), and delete a selected section with Delete
 //!    (the button names what goes back in the hold, or is disabled with the
@@ -53,7 +53,7 @@
 //!
 //! It needs `--features debug`, which owns the diagnostics layer. Under
 //! `NOVA_AUTOPILOT=1` a smoke walk waits for
-//! the docked Ship tab, opens the Catalogue on the kinetic PDC's category and
+//! the docked Ship tab, opens the Catalogue on the pierce PDC's category and
 //! places it in hand,
 //! points at free sockets until the ghost stands valid, rolls the part and
 //! steps its socket, steps the socket back and rolls until it fits, clicks the
@@ -67,11 +67,12 @@
 //! reason in its tooltip, that the Delete key leaves it on and that hovering
 //! it shows the tooltip, picks a
 //! hull part off the ship with Q, puts it away with Q over empty space and
-//! checks the hand is empty, takes the Railgun Lance from the Catalogue, drags the
-//! view to the station and points the lance at the sockets nearest it, through every
+//! checks the hand is empty, takes the Cargo Intake from the Catalogue, drags the
+//! view to the station and points the intake at the sockets nearest it, through every
 //! mating socket, until the station refuses it (or warns that none reaches),
 //! and switches tabs after it: a Map tab click, an Inventory tab click and the
-//! next-tab key, which steps on to the Station tab while docked. Last it
+//! next-tab key twice, which steps on to the Jobs tab and then the Station
+//! tab while docked. Last it
 //! selects the first thruster and checks its Control line names the Main
 //! Drive keys, rebinds it to `J` and checks the binding, closes the
 //! interface, lets go of the dock with `dock`, holds `J` and checks the
@@ -81,7 +82,7 @@
 //! `sandbox-rebind-armed.png`, `sandbox-rebind.png`, `sandbox-delete-yield.png`,
 //! `sandbox-delete.png`,
 //! `sandbox-delete-refused.png`,
-//! `sandbox-pick.png`, `sandbox-catalogue-lance.png`,
+//! `sandbox-pick.png`, `sandbox-catalogue-intake.png`,
 //! `sandbox-station-refusal.png`,
 //! `sandbox-map-after.png`, `sandbox-station.png`,
 //! `sandbox-thruster-default.png`, `sandbox-thruster-own-key.png` and
@@ -105,7 +106,8 @@ use nova_world::prelude::{desired_sectors, SectorRoot, WorldConfig};
 struct Cli;
 
 /// The world seed: `system_station_buy`'s, whose window around the origin
-/// holds a living Neutral station that refits and sells hulls.
+/// holds a living Neutral station that refits, sells hulls and builds every
+/// part in [`WALK_PARTS`].
 const SANDBOX_SEED: u32 = 10;
 /// The start role the player spawns as: the scavenger's salvage hauler has
 /// the largest start hold, so it takes the most recipe parts.
@@ -117,6 +119,12 @@ const PLAYER_CREDITS: u32 = 50_000_000;
 const STATION_CREDITS: u32 = 1_000_000;
 /// The most of each recipe part the hold is given.
 const PARTS_PER_ITEM: u32 = 4;
+/// The three-cell intake the walk aims into the docked station. `nova_ship`
+/// exports no id for it: fixture ids stay local.
+const CARGO_INTAKE_SECTION_ID: &str = "cargo_intake_section";
+/// The parts the walk takes from the Catalogue. The chosen station must
+/// build every one: the Catalogue hides the tiles of parts it does not.
+const WALK_PARTS: [&str; 2] = [PDC_PIERCE_TURRET_SECTION_ID, CARGO_INTAKE_SECTION_ID];
 /// How far from the station the player parks before the berth.
 const PARK_DISTANCE: Meters = Meters(2_000.0);
 /// The gap the berth leaves between the two port faces, engine units: half a
@@ -349,7 +357,8 @@ fn window_is(world: &mut World, centre: Option<SectorCoord>) -> bool {
 }
 
 /// Pick the nearest station that is living, not on the Enemy side, offers
-/// Refit and sells hulls, outside the origin's cell.
+/// Refit, sells hulls and builds every part in [`WALK_PARTS`], outside the
+/// origin's cell.
 fn choose_the_station(world: &mut World) {
     let edge = world
         .resource::<WorldConfig<NovaLayeredWorld>>()
@@ -358,7 +367,8 @@ fn choose_the_station(world: &mut World) {
     let start = world
         .get_resource::<OpenWorldSession>()
         .map(|session| session.start.id.clone());
-    let mut stations: Vec<(f32, GeneratedBodyId, Vec3)> = world
+    let mut rejected: Vec<(GeneratedBodyId, Vec<String>)> = Vec::new();
+    let mut stations: Vec<(f32, GeneratedBodyId, Vec3, Vec<String>)> = world
         .query_filtered::<(
             &GeneratedBodyId,
             &Position,
@@ -367,37 +377,63 @@ fn choose_the_station(world: &mut World) {
             Option<&Allegiance>,
             Option<&ParkedHulls>,
             Option<&PendingParkedHulls>,
+            Option<&StationBuilds>,
         ), With<StationMarker>>()
         .iter(world)
         .filter(
-            |(id, position, services, derelict, allegiance, parked, pending)| {
-                station_offers(*services, *derelict, StationServiceType::Refit)
+            |(id, position, services, derelict, allegiance, parked, pending, builds)| {
+                let passes = station_offers(*services, *derelict, StationServiceType::Refit)
                     && (parked.is_some() || pending.is_some())
                     && *allegiance != Some(&Allegiance::Enemy)
                     && SectorCoord::containing(Meters3::from_engine(position.0), edge) != home
-                    && start.as_ref() != Some(*id)
+                    && start.as_ref() != Some(*id);
+                if !passes {
+                    return false;
+                }
+                // A living station without the component is invalid content:
+                // the site that reads it panics, as its contract says.
+                let builds = builds
+                    .unwrap_or_else(|| {
+                        panic!("station sandbox: station '{id}' has no StationBuilds")
+                    })
+                    .0
+                    .clone();
+                let builds_every_part = WALK_PARTS
+                    .iter()
+                    .all(|part| builds.iter().any(|known| known == part));
+                if !builds_every_part {
+                    rejected.push(((*id).clone(), builds));
+                }
+                builds_every_part
             },
         )
-        .map(|(id, position, ..)| {
+        .map(|(id, position, _, _, _, _, _, builds)| {
             (
                 Meters3::from_engine(position.0)
                     .distance(Meters3::ZERO)
                     .get(),
                 id.clone(),
                 position.0,
+                builds
+                    .expect("station sandbox: the filter read the station's StationBuilds")
+                    .0
+                    .clone(),
             )
         })
         .collect();
     stations.sort_by(|a, b| a.0.total_cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
-    let Some((distance, id, at)) = stations.into_iter().next() else {
+    let Some((distance, id, at, builds)) = stations.into_iter().next() else {
         panic!(
             "station sandbox: the origin's window on seed {SANDBOX_SEED} holds no living, \
-             non-Enemy station with Refit and hulls outside the origin's cell"
+             non-Enemy station with Refit and hulls outside the origin's cell that builds \
+             {WALK_PARTS:?}; rejected: {rejected:?}"
         );
     };
     let position = Meters3::from_engine(at);
     let cell = SectorCoord::containing(position, edge);
-    info!("station sandbox: chose '{id}' in cell {cell}, {distance:.0} m out");
+    info!(
+        "station sandbox: chose '{id}' in cell {cell}, {distance:.0} m out; it builds {builds:?}"
+    );
     world.resource_mut::<Sandbox>().station = Some((id, cell, position));
 }
 
@@ -921,13 +957,13 @@ mod smoke {
     const DELETE_REFUSED_SHOT: &str = "sandbox-delete-refused.png";
     /// The Ship panel's Delete button.
     const DELETE_BUTTON: &str = "ShipDelete";
-    /// The PNG of the Catalogue open on the kinetic PDC's category.
+    /// The PNG of the Catalogue open on the pierce PDC's category.
     const CATALOGUE_SHOT: &str = "sandbox-catalogue.png";
     /// The PNG of the Catalogue as it opens, on every part the station
     /// builds: each tile's name, kind and price line inside the tile.
     const CATALOGUE_ALL_SHOT: &str = "sandbox-catalogue-all.png";
-    /// The PNG of the Catalogue open on the Railgun Lance's category.
-    const CATALOGUE_LANCE_SHOT: &str = "sandbox-catalogue-lance.png";
+    /// The PNG of the Catalogue open on the cargo intake's category.
+    const CATALOGUE_INTAKE_SHOT: &str = "sandbox-catalogue-intake.png";
     /// The PNG of the hull part the pipette took off the ship.
     const PICK_SHOT: &str = "sandbox-pick.png";
     /// Mouse travel per frame while the walk drags the view, in pixels:
@@ -936,7 +972,7 @@ mod smoke {
     /// The PNG of the ghost refused against the docked station.
     const STATION_REFUSAL_SHOT: &str = "sandbox-station-refusal.png";
     /// How far from the station a free socket's aim may be for the walk to
-    /// try it: the railgun lance's length.
+    /// try it: the cargo intake's length end-on.
     const STATION_REACH_CELLS: f32 = 3.0;
     /// How far the Ship view turns toward the station before the walk aims:
     /// the camera looks along ship-local +X at least this much.
@@ -952,7 +988,8 @@ mod smoke {
     const FACING_EPSILON: f32 = 1e-4;
     /// The PNG of the Map tab a click opens after the add.
     const MAP_AFTER_SHOT: &str = "sandbox-map-after.png";
-    /// The Station tab, reached with the next-tab key from Inventory.
+    /// The Station tab, reached with two next-tab presses from Inventory,
+    /// through Jobs.
     const STATION_SHOT: &str = "sandbox-station.png";
     /// Seconds a click or a key gets to land.
     const BEAT_SECS: f32 = 60.0;
@@ -1007,10 +1044,10 @@ mod smoke {
         design.get(&id.0).map(|section| section.position)
     }
 
-    /// Where the placed kinetic PDC stands, once the add selected it.
+    /// Where the placed pierce PDC stands, once the add selected it.
     fn placed_position(world: &World) -> Option<Vec3> {
         let section = world.resource::<ShipRuntime>().selected()?;
-        if built_part(world, section).as_deref() != Some(PDC_KINETIC_TURRET_SECTION_ID) {
+        if built_part(world, section).as_deref() != Some(PDC_PIERCE_TURRET_SECTION_ID) {
             return None;
         }
         design_position(world, section)
@@ -1697,7 +1734,7 @@ mod smoke {
             .add();
         let script = take_the_part(
             script,
-            PDC_KINETIC_TURRET_SECTION_ID,
+            PDC_PIERCE_TURRET_SECTION_ID,
             Some(CATALOGUE_ALL_SHOT),
             CATALOGUE_SHOT,
         );
@@ -1731,7 +1768,7 @@ mod smoke {
             .on_enter(release_action("ship_part_roll"))
             .until(frames(2))
             .add()
-            // The kinetic PDC mounts by one socket, so F leaves it in place;
+            // The pierce PDC mounts by one socket, so F leaves it in place;
             // the frame after it shows the view did not tilt.
             .step("station sandbox: press the socket key")
             .on_enter(press_action("ship_part_socket"))
@@ -2223,12 +2260,13 @@ mod smoke {
             })
             .until(frames(SETTLE_FRAMES))
             .add();
-        // The three-cell railgun lance: the fixture's berth leaves 2.5 cells
-        // between the station-facing plates and the station's boxes, so a
-        // one- or two-cell part never reaches them. The station is on the
-        // ship's -X side, away from the opening view, so the view turns
-        // first, by the right-button drag the editor's camera looks with.
-        let script = take_the_part(script, RAILGUN_LANCE_SECTION_ID, None, CATALOGUE_LANCE_SHOT);
+        // The cargo intake is three cells long when mated by an end socket:
+        // the fixture's berth leaves 2.5 cells between the station-facing
+        // plates and the station's boxes, so a one- or two-cell part never
+        // reaches them. The station is on the ship's -X side, away from the
+        // opening view, so the view turns first, by the right-button drag
+        // the editor's camera looks with.
+        let script = take_the_part(script, CARGO_INTAKE_SECTION_ID, None, CATALOGUE_INTAKE_SHOT);
         let script = script
             // Over the view first: the drag looks only while the pointer is
             // on it.
@@ -2307,7 +2345,16 @@ mod smoke {
             .on_enter(press_action("interface_next_tab"))
             .until(frames(1))
             .add()
-            .step("station sandbox: let the next-tab key up")
+            .step("station sandbox: let the next-tab key up on the Jobs tab")
+            .on_enter(release_action("interface_next_tab"))
+            .until(the_interface_shows(InterfacePaneType::Jobs))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: press the next-tab key again")
+            .on_enter(press_action("interface_next_tab"))
+            .until(frames(1))
+            .add()
+            .step("station sandbox: let the next-tab key up on the Station tab")
             .on_enter(release_action("interface_next_tab"))
             .until(the_interface_shows(InterfacePaneType::Station))
             .deadline(BEAT_SECS)

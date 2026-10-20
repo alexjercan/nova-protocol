@@ -8,9 +8,11 @@
 //! escorts, and berths the player at it until the dock takes. Then the
 //! fixture lands, once:
 //!
+//! - the station's civilization is warmed to Ally by merits, the way a player
+//!   who hands in its jobs would, since the hire gate needs an Ally;
 //! - the player holds [`PLAYER_CREDITS`], enough for two hires;
 //! - two escorts are hired through [`EscortHireCommand`], the message the
-//!   Station tab's Hire button writes, one per frame;
+//!   Station tab's Hire button writes, one at a time;
 //! - the player undocks, and the player and both escorts jump
 //!   [`CLEAR_DISTANCE`] straight out from the station together, at rest, so
 //!   the formation starts in open space.
@@ -52,10 +54,13 @@ use bevy::prelude::*;
 use clap::Parser;
 use diagnostics::{palette, DiagnosticsGizmos, DiagnosticsPanel, DiagnosticsSystems};
 use nova_protocol::{
-    nova_debug::diagnostics, nova_interface::station::EscortHireCommand, prelude::*,
+    nova_debug::diagnostics,
+    nova_interface::station::{EscortHireCommand, StationRuntime},
+    prelude::*,
 };
 use open_world_stage::{
-    advance_station_dock, the_player, OpenWorldStartPlugin, StationCandidate, StationDock,
+    advance_station_dock, the_player, warm_to_ally, OpenWorldStartPlugin, StationCandidate,
+    StationDock, StationDockPhaseType,
 };
 
 #[derive(Parser)]
@@ -68,7 +73,8 @@ use open_world_stage::{
 struct Cli;
 
 /// The world seed: `system_station_hire`'s, whose window around the
-/// origin holds a living Neutral station that hires out escorts.
+/// origin holds a living station that hires out escorts, warmed to Ally by
+/// the fixture.
 const SANDBOX_SEED: u32 = 10;
 /// The start role the player flies.
 const SANDBOX_ROLE: &str = "bounty_hunter";
@@ -135,7 +141,8 @@ enum SandboxPhaseType {
     /// Streaming in and docking at the station.
     #[default]
     Docking,
-    /// Docked; hiring one escort per frame.
+    /// Docked; hiring one escort at a time, once the station is on the
+    /// Player side.
     Hiring,
     /// Both escorts hired; undocking.
     Undocking,
@@ -148,6 +155,8 @@ enum SandboxPhaseType {
 struct Sandbox {
     phase: SandboxPhaseType,
     dock: StationDock,
+    /// The chosen station's civilization has been warmed to Ally, once.
+    warmed: bool,
     /// Hires asked for so far.
     asked: usize,
 }
@@ -188,7 +197,22 @@ fn drive_the_sandbox(world: &mut World) {
                         && station.hires_escorts
                 },
             );
+            let phase = dock.phase;
+            let station = dock.station.clone();
             world.resource_mut::<Sandbox>().dock = dock;
+            if !world.resource::<Sandbox>().warmed
+                && matches!(
+                    phase,
+                    StationDockPhaseType::Docking | StationDockPhaseType::Docked
+                )
+            {
+                if let Some(station) =
+                    station.and_then(|chosen| open_world_stage::body_by_id(world, &chosen.id))
+                {
+                    warm_to_ally(world, station, "escort sandbox");
+                    world.resource_mut::<Sandbox>().warmed = true;
+                }
+            }
             if let Some((player, _)) = docked {
                 if let Some(mut credits) = world.get_mut::<ShipCredits>(player) {
                     credits.0 = PLAYER_CREDITS;
@@ -208,6 +232,14 @@ fn drive_the_sandbox(world: &mut World) {
                 world.trigger(DockingReleaseRequest { entity: player });
                 world.resource_mut::<Sandbox>().phase = SandboxPhaseType::Undocking;
                 info!("escort sandbox: {hired} escorts hired; undocking");
+                return;
+            }
+            if let Some(note) = world.resource::<StationRuntime>().note() {
+                if note.starts_with("hire:") {
+                    panic!("escort sandbox: the station refused the hire: '{note}'");
+                }
+            }
+            if world.get::<Allegiance>(station) != Some(&Allegiance::Player) {
                 return;
             }
             // One hire at a time, each once the last escort stands: a hire

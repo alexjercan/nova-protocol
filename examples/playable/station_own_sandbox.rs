@@ -51,8 +51,7 @@ use bevy::prelude::*;
 use clap::Parser;
 use diagnostics::{palette, DiagnosticsGizmos, DiagnosticsPanel, DiagnosticsSystems};
 use nova_protocol::{nova_debug::diagnostics, prelude::*};
-use nova_world::prelude::WorldClock;
-use open_world_stage::{advance_station_dock, OpenWorldStartPlugin, StationDock};
+use open_world_stage::{advance_station_dock, warm_to_ally, OpenWorldStartPlugin, StationDock};
 
 #[derive(Parser)]
 #[command(name = "station_own_sandbox")]
@@ -137,7 +136,7 @@ fn drive_the_sandbox(world: &mut World) {
     let Some((player, station)) = docked else {
         return;
     };
-    warm_to_ally(world, station);
+    warm_to_ally(world, station, "station own sandbox");
     let price = station_price(world, station);
     let credits = u32::try_from(price)
         .ok()
@@ -149,32 +148,6 @@ fn drive_the_sandbox(world: &mut World) {
     world.resource_mut::<Sandbox>().station = Some(station);
     info!(
         "station own sandbox: docked; fixture sets the balance to {credits} cr ({price} cr price)"
-    );
-}
-
-/// Warm the station's civilization to Ally the way a player does: one merit
-/// per handed-in job, `MERIT_STEP` merits per step. Nothing when it is Ally.
-fn warm_to_ally(world: &mut World, station: Entity) {
-    let civ = world
-        .get::<TraderMarket>(station)
-        .expect("station own sandbox: the chosen station prices goods")
-        .civilization;
-    let now = world.resource::<WorldClock>().play_seconds;
-    let seeded = seeded_stance(&civ);
-    let mut stances = world.resource_mut::<CivilizationStances>();
-    let mut merits = 0;
-    while stances.effective(&civ, seeded, now) != StanceType::Ally {
-        record_merit(&mut stances, civ, now);
-        merits += 1;
-        assert!(
-            merits <= 2 * MERIT_STEP,
-            "station own sandbox: '{}' never warmed to Ally",
-            civ.name()
-        );
-    }
-    info!(
-        "station own sandbox: '{}' warmed to Ally after {merits} merit(s)",
-        civ.name()
     );
 }
 

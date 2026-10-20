@@ -18,7 +18,7 @@
 use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
 use bevy::prelude::*;
 use nova_protocol::prelude::*;
-use nova_world::prelude::{desired_sectors, SectorRoot, WorldConfig};
+use nova_world::prelude::{desired_sectors, SectorRoot, WorldClock, WorldConfig};
 
 /// The gap a berth leaves between the two port faces, engine units: half a
 /// cell, inside the 10 m capture distance.
@@ -576,6 +576,38 @@ pub fn advance_station_dock(
             Some((the_player(world)?, body_by_id(world, &chosen.id)?))
         }
     }
+}
+
+/// Warm the station's civilization to Ally the way a player does: one merit
+/// per handed-in job, `MERIT_STEP` merits per step. Nothing when it is Ally.
+/// `label` prefixes its messages with the calling example's name.
+///
+/// # Panics
+///
+/// On a station with no [`TraderMarket`], or a civilization that never warms
+/// to Ally in twice its step: `label` names the caller in the message.
+pub fn warm_to_ally(world: &mut World, station: Entity, label: &str) {
+    let civ = world
+        .get::<TraderMarket>(station)
+        .unwrap_or_else(|| panic!("{label}: the chosen station prices goods"))
+        .civilization;
+    let now = world.resource::<WorldClock>().play_seconds;
+    let seeded = seeded_stance(&civ);
+    let mut stances = world.resource_mut::<CivilizationStances>();
+    let mut merits = 0;
+    while stances.effective(&civ, seeded, now) != StanceType::Ally {
+        record_merit(&mut stances, civ, now);
+        merits += 1;
+        assert!(
+            merits <= 2 * MERIT_STEP,
+            "{label}: '{}' never warmed to Ally",
+            civ.name()
+        );
+    }
+    info!(
+        "{label}: '{}' warmed to Ally after {merits} merit(s)",
+        civ.name()
+    );
 }
 
 /// Hold the virtual clock's clamp every frame under the software rasterizer:

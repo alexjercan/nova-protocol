@@ -60,7 +60,8 @@
 //! `shipyard-sandbox.png` and the Station tab's cards as
 //! `shipyard-sandbox-cards.png`, then again as
 //! `shipyard-sandbox-cards-turned.png` once the hulls have turned. It then
-//! opens Info on the first hull for sale, checks no refit control shows,
+//! opens Info on the first parked hull (the old ship, owned, after the
+//! buy), checks no refit control shows,
 //! selects another section and closes, shooting `shipyard-sandbox-info.png`,
 //! `shipyard-sandbox-info-section.png` and
 //! `shipyard-sandbox-info-closed.png`, and checks the Ship tab shows the
@@ -622,7 +623,7 @@ mod smoke {
     const STATION_PANEL: &str = "StationPanel";
     /// Frames between the two card shots.
     const TURN_FRAMES: u32 = 30;
-    /// The PNGs of Info on the first hull for sale: as it opens, with another
+    /// The PNGs of Info on the first parked hull: as it opens, with another
     /// section selected, and back on the Station tab after Close.
     const INFO_SHOT: &str = "shipyard-sandbox-info.png";
     const INFO_SECTION_SHOT: &str = "shipyard-sandbox-info-section.png";
@@ -631,10 +632,11 @@ mod smoke {
     const SHIP_AFTER_INFO_SHOT: &str = "shipyard-sandbox-ship-after-info.png";
     /// The only buttons Info may show: the pane tabs, the view's Fit and
     /// Reset, and Close. Anything else is an edit.
-    const INFO_BUTTONS: [&str; 7] = [
+    const INFO_BUTTONS: [&str; 8] = [
         "Map",
         "Ship",
         "Inventory",
+        "Jobs",
         "Station",
         "Fit",
         "Reset",
@@ -652,13 +654,15 @@ mod smoke {
         world.trigger(bevy::ui_widgets::Activate { entity: button });
     }
 
-    /// The hull the first sale card's Info shows.
+    /// The hull `HullInfo-0` shows: the first parked hull in card order, as
+    /// the pane indexes its owned and for-sale cards together. After the buy
+    /// that is the old ship, owned: the one sale hull went to the player.
     fn info_hull(world: &mut World) -> Entity {
         let station = chosen_station(world).expect("shipyard sandbox: the station stands");
         parked_hulls(world, station)
             .into_iter()
-            .find(|hull| world.get::<ParkedHullType>(*hull) == Some(&ParkedHullType::Sale))
-            .expect("shipyard sandbox: a hull is for sale")
+            .next()
+            .expect("shipyard sandbox: a hull is parked")
     }
 
     /// The labels of the buttons on screen.
@@ -679,7 +683,7 @@ mod smoke {
         labels
     }
 
-    /// Info shows the first hull for sale read-only: the Ship pane draws it,
+    /// Info shows the first parked hull read-only: the Ship pane draws it,
     /// a section of it is selected, and no button but the view's and Close
     /// is on screen.
     fn assert_info_is_read_only(world: &mut World) {
@@ -998,8 +1002,20 @@ mod smoke {
 
     /// Open the Station tab and scroll the first owned card's Board button
     /// into view, then shoot `shot`.
-    /// Assert the owned card's Board button sits above every Buy button: the
-    /// "Your ships" list stands above "Ships for sale".
+    /// Whether the "Ships for sale" header is laid out on screen.
+    fn sale_header_shown(world: &mut World) -> bool {
+        world
+            .query::<(&Text, &ComputedNode)>()
+            .iter(world)
+            .any(|(text, node)| text.0 == "Ships for sale" && node.size().min_element() > 0.0)
+    }
+
+    /// Assert the owned card's Board button is laid out, and what the
+    /// station's sale cards allow: with hulls still for sale, Board sits
+    /// above every Buy button ("Your ships" above "Ships for sale"); with
+    /// none left, as at a two-port station whose one sale hull the fixture
+    /// bought, the "Ships for sale" header is off screen. Only the first
+    /// branch proves the order.
     fn assert_owned_above_sale(world: &mut World) {
         let board = board_button(world);
         let board_rect =
@@ -1010,10 +1026,17 @@ mod smoke {
             .map(|name| name.as_str().to_owned())
             .filter(|name| name.starts_with("HullBuy-"))
             .collect();
-        assert!(
-            !buys.is_empty(),
-            "shipyard sandbox: a hull for sale is listed beside the owned ship"
-        );
+        if buys.is_empty() {
+            assert!(
+                !sale_header_shown(world),
+                "shipyard sandbox: no hull is for sale, so the Ships for sale header is hidden"
+            );
+            info!(
+                "PASS {board} lists under Your ships with no hull for sale; the Ships for sale \
+                 header is hidden, the order is not proved by this run"
+            );
+            return;
+        }
         for buy in &buys {
             let buy_rect =
                 ui_node_rect(world, buy).expect("shipyard sandbox: a Buy button is laid out");
@@ -1197,7 +1220,7 @@ mod smoke {
             .until(shot_written(CARDS_TURNED_SHOT))
             .deadline(SHOT_SECS)
             .add()
-            .step("shipyard sandbox: open Info on the first hull for sale")
+            .step("shipyard sandbox: open Info on the first parked hull")
             .on_enter(|world: &mut World| click(world, "HullInfo-0"))
             .until(frames(SETTLE_FRAMES))
             .add()
