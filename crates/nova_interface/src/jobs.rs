@@ -429,7 +429,6 @@ struct HeldRow {
 #[derive(Clone, Debug, PartialEq)]
 struct BoardView {
     station: String,
-    starter: bool,
     rows: Vec<PostedRow>,
 }
 
@@ -563,7 +562,6 @@ fn update_jobs_pane(
             .collect();
         Some(BoardView {
             station: station_name(&chart, station_id),
-            starter,
             rows,
         })
     });
@@ -1002,9 +1000,6 @@ fn board_panel(
                         15.0,
                         UiColor::Primary,
                     ));
-                    if board.starter {
-                        head.spawn(badge(BadgeKind::Amber, "STARTER BOARD"));
-                    }
                 });
             table_head(
                 panel,
@@ -1177,7 +1172,7 @@ fn kv(side: &mut ChildSpawnerCommands, label: &str, value: &str) {
     });
 }
 
-/// The inspector: the selected job, or how to select one.
+/// The inspector: the selected job, or only its heading.
 fn inspector_panel(
     side: &mut ChildSpawnerCommands,
     icons: &InterfaceIcons,
@@ -1185,11 +1180,6 @@ fn inspector_panel(
 ) {
     let Some(job) = inspector else {
         side.spawn(themed_label("JOB", 11.0, UiColor::Label));
-        side.spawn(themed_label(
-            "Select a row to read the job, its poster and where it pays.",
-            12.0,
-            UiColor::Label,
-        ));
         return;
     };
     side.spawn(Node {

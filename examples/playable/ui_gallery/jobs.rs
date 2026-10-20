@@ -63,11 +63,6 @@ fn board_panel(
                 })
                 .with_children(|left| {
                     left.spawn(text("Dust Gate board", 15.0, UiColor::Primary));
-                    let (kind, label) = match tier {
-                        BoardTier::Starter => (BadgeKind::Amber, "STARTER BOARD"),
-                        BoardTier::Core => (BadgeKind::Blue, "CORE BOARD"),
-                    };
-                    left.spawn(tag(kind, label));
                 });
                 head.spawn(segmented_container()).with_children(|seg| {
                     for (value, label) in [
@@ -286,11 +281,6 @@ fn job_inspector(
 ) {
     let Some(j) = jobs.selected.map(job) else {
         section(side, "Job");
-        side.spawn(text(
-            "Select a row to read the job, its poster and where it pays.",
-            12.0,
-            UiColor::Label,
-        ));
         return;
     };
     side.spawn(Node {

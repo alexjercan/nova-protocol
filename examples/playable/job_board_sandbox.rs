@@ -777,21 +777,15 @@ mod smoke {
         Some((fits, board.0.len() - fits))
     }
 
-    /// The starter board lists exactly the jobs the hull can do, with the
-    /// STARTER BOARD badge, and leaves at least one off: the transport's
-    /// board leans to escorts and the transport carries no weapon.
+    /// The starter board lists exactly the jobs the hull can do and leaves
+    /// at least one off: the transport's board leans to escorts and the
+    /// transport carries no weapon.
     fn starter_board_gated() -> Arc<Predicate> {
         when(|world| {
             let Some((fits, unfit)) = starter_split(world) else {
                 return false;
             };
-            let rows = named_count(world, "JobRowPosted-");
-            let badge = world.try_query::<&Text>().is_some_and(|mut texts| {
-                texts
-                    .iter(world)
-                    .any(|text| text.0.contains("STARTER BOARD"))
-            });
-            badge && rows == fits && unfit > 0
+            named_count(world, "JobRowPosted-") == fits && unfit > 0
         })
     }
 
@@ -1060,8 +1054,11 @@ mod smoke {
             "job sandbox: the Jobs inspector returns to its overview",
             "InterfaceTabJobs",
             and(
-                a_text_reads(|text| text.starts_with("Select a row")),
-                frames(SETTLE_FRAMES),
+                and(
+                    the_interface_shows(Some(InterfacePaneType::Jobs)),
+                    a_text_reads(|text| text == "JOB"),
+                ),
+                and(no_text_reads(|text| text == "TASK"), frames(SETTLE_FRAMES)),
             ),
             BEAT_SECS,
         )
