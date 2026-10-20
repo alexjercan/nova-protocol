@@ -12,7 +12,8 @@
 //! The same plate still reaches into the other hull the step after the
 //! release, so a contact there would shove both hulls apart. The release
 //! therefore leaves an [`UndockSeparation`] that keeps the pair free of
-//! collisions until no collider of one hull overlaps the other.
+//! collisions until no collider of one hull overlaps the other, or until
+//! either hull's body leaves.
 //!
 //! # Ships hold one dock, a station is a hub
 //!
