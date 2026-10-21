@@ -17,7 +17,7 @@
 //! Touch this module when changing how the interface opens, which pane shows,
 //! or the layout around the panes.
 
-use bevy::{prelude::*, ui::InteractionDisabled, ui_widgets::Activate};
+use bevy::{prelude::*, ui::InteractionDisabled, ui_widgets::Activate, window::PrimaryWindow};
 use nova_gameplay::{
     prelude::{
         cr_digits, play_time_text, AudioRoute, Chart, GameItems, ItemDesignId,
@@ -760,9 +760,29 @@ pub(crate) fn refusable_button<'a>(
 /// hint that wraps cannot push the view up.
 const PANE_FOOTER_PX: f32 = 96.0;
 
-/// The footer under the Map and Ship panes: the legend on the left, the view
-/// controls and the input hints in the centre, and the selection summary on
-/// the right.
+/// Window width, in logical px, from which the Map and Ship footer lays out
+/// on one row: the legend, the hints at half the width and the buttons. Under
+/// it the hints take a second row, because at 640 px the legend and the
+/// buttons leave them 79 px.
+const PANE_FOOTER_SPLIT_PX: f32 = 800.0;
+
+/// Height of the footer under [`PANE_FOOTER_SPLIT_PX`], in logical px: the
+/// three legend rows beside the buttons, then up to three lines of hints.
+/// Fixed per window width, so a hint set cannot push the view up.
+const PANE_FOOTER_NARROW_PX: f32 = 144.0;
+
+/// Which footer zone a node is, so [`fit_pane_footer`] can place it on the
+/// footer grid for the window width.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PaneFooterZoneType {
+    Legend,
+    Hints,
+    Controls,
+}
+
+/// The footer under the Map and Ship panes: the legend, the key hints and the
+/// view controls, on one row or with the hints on a second row by the window
+/// width ([`fit_pane_footer`]).
 #[derive(Component)]
 pub(crate) struct InterfacePaneFooter;
 
@@ -902,19 +922,55 @@ const POINTER_HINTS: [(&str, HintWhenType); 4] = [
     ("Wheel zoom", HintWhenType::Always),
 ];
 
-/// The footer under a viewer pane: legend left, live key hints center, and
-/// clickable view controls right. Selection identity stays in the side panel.
-fn pane_footer(
-    body: &mut ChildSpawnerCommands,
-    legend: impl FnOnce(&mut ChildSpawnerCommands),
-    controls: impl FnOnce(&mut ChildSpawnerCommands),
-    keys: &'static [PaneKeyHint],
-) {
+/// The footer's own node for the window band: a grid, so each zone sits by
+/// `grid_column` and `grid_row` and the band changes fields only, never the
+/// spawn order. Wide is one row, legend | hints | buttons; narrow is legend |
+/// buttons over the hints.
+fn footer_node(narrow: bool) -> Node {
+    let (height, columns, rows) = if narrow {
+        (
+            PANE_FOOTER_NARROW_PX,
+            vec![GridTrack::fr(1.0), GridTrack::fr(1.0)],
+            vec![GridTrack::auto(), GridTrack::auto()],
+        )
+    } else {
+        (
+            PANE_FOOTER_PX,
+            // The hints track caps at half the footer here, not by a
+            // `max_width` on the zone: taffy resolves an item's percent
+            // against its own track, a track's fit-content limit against
+            // the footer.
+            vec![
+                GridTrack::fr(1.0),
+                GridTrack::fit_content_percent(50.0),
+                GridTrack::fr(1.0),
+            ],
+            vec![GridTrack::auto()],
+        )
+    };
+    Node {
+        display: Display::Grid,
+        height: px(height),
+        flex_shrink: 0.0,
+        grid_template_columns: columns,
+        grid_template_rows: rows,
+        align_items: AlignItems::Center,
+        align_content: AlignContent::Center,
+        column_gap: px(16),
+        row_gap: px(6),
+        padding: UiRect::axes(px(12), px(8)),
+        border: UiRect::top(px(1)),
+        ..default()
+    }
+}
+
+/// A footer zone's node for the window band. The legend and the buttons keep
+/// their content width, so they never clip; the hints wrap in their track
+/// instead: at most half the footer wide, or the whole second row when narrow.
+fn footer_zone_node(zone: PaneFooterZoneType, narrow: bool) -> Node {
+    // No `height: percent(100)`: on the two-row grid that would size the
+    // first row to the whole footer and push the hints out of it.
     let side = || Node {
-        flex_grow: 1.0,
-        flex_basis: px(0),
-        min_width: px(0),
-        height: percent(100),
         flex_direction: FlexDirection::Row,
         flex_wrap: FlexWrap::Wrap,
         align_items: AlignItems::Center,
@@ -924,33 +980,63 @@ fn pane_footer(
         overflow: Overflow::clip(),
         ..default()
     };
-    body.spawn((
-        InterfacePaneFooter,
-        Node {
-            height: px(PANE_FOOTER_PX),
-            flex_shrink: 0.0,
-            flex_direction: FlexDirection::Row,
-            align_items: AlignItems::Center,
-            column_gap: px(16),
-            padding: UiRect::axes(px(12), px(8)),
-            border: UiRect::top(px(1)),
-            ..default()
+    match zone {
+        PaneFooterZoneType::Legend => Node {
+            grid_column: GridPlacement::start(1),
+            grid_row: GridPlacement::start(1),
+            ..side()
         },
-        BorderColor::all(Color::NONE),
-        ThemedBorder::alpha(UiColor::Secondary, 0.5),
-    ))
-    .with_children(|footer| {
-        footer.spawn(side()).with_children(legend);
-        footer
-            .spawn(Node {
-                flex_shrink: 1.0,
-                min_width: px(0),
-                max_width: percent(50),
+        PaneFooterZoneType::Hints => {
+            let (grid_column, grid_row) = if narrow {
+                (GridPlacement::start_span(1, 2), GridPlacement::start(2))
+            } else {
+                (GridPlacement::start(2), GridPlacement::start(1))
+            };
+            Node {
+                grid_column,
+                grid_row,
                 flex_direction: FlexDirection::Column,
                 align_items: AlignItems::Center,
                 row_gap: px(4),
                 ..default()
-            })
+            }
+        }
+        PaneFooterZoneType::Controls => Node {
+            grid_column: GridPlacement::start(if narrow { 2 } else { 3 }),
+            grid_row: GridPlacement::start(1),
+            justify_content: JustifyContent::FlexEnd,
+            ..side()
+        },
+    }
+}
+
+/// The footer under a viewer pane: legend left, live key hints center, and
+/// clickable view controls right. Selection identity stays in the side panel.
+/// Spawned in the wide band; [`fit_pane_footer`] places it for the window.
+fn pane_footer(
+    body: &mut ChildSpawnerCommands,
+    legend: impl FnOnce(&mut ChildSpawnerCommands),
+    controls: impl FnOnce(&mut ChildSpawnerCommands),
+    keys: &'static [PaneKeyHint],
+) {
+    body.spawn((
+        InterfacePaneFooter,
+        footer_node(false),
+        BorderColor::all(Color::NONE),
+        ThemedBorder::alpha(UiColor::Secondary, 0.5),
+    ))
+    .with_children(|footer| {
+        footer
+            .spawn((
+                PaneFooterZoneType::Legend,
+                footer_zone_node(PaneFooterZoneType::Legend, false),
+            ))
+            .with_children(legend);
+        footer
+            .spawn((
+                PaneFooterZoneType::Hints,
+                footer_zone_node(PaneFooterZoneType::Hints, false),
+            ))
             .with_children(|centre| {
                 centre
                     .spawn(Node {
@@ -999,16 +1085,47 @@ fn pane_footer(
                     });
             });
         footer
-            .spawn(Node {
-                justify_content: JustifyContent::FlexEnd,
-                ..side()
-            })
+            .spawn((
+                PaneFooterZoneType::Controls,
+                footer_zone_node(PaneFooterZoneType::Controls, false),
+            ))
             .with_children(|right| {
                 right
                     .spawn(control_row(JustifyContent::FlexEnd))
                     .with_children(controls);
             });
     });
+}
+
+/// Place the Map and Ship footer for the window: one row at
+/// [`PANE_FOOTER_SPLIT_PX`] and up, else the legend and the buttons on the
+/// first row and the hints across the second at [`PANE_FOOTER_NARROW_PX`].
+/// Keyed on the window alone, never on a hint set, so the view never jumps
+/// on a pick. Writes a `Node` only when a field differs, so an idle frame
+/// causes no relayout. Skips when there is no primary window (a headless
+/// probe), which leaves the footer in the wide band it spawned in.
+pub(crate) fn fit_pane_footer(
+    q_window: Query<&Window, With<PrimaryWindow>>,
+    mut q_footer: Query<(&mut Node, &Children), With<InterfacePaneFooter>>,
+    mut q_zone: Query<(&PaneFooterZoneType, &mut Node), Without<InterfacePaneFooter>>,
+) {
+    let Ok(window) = q_window.single() else {
+        return;
+    };
+    let narrow = window.width() < PANE_FOOTER_SPLIT_PX;
+    for (mut node, zones) in &mut q_footer {
+        let target = footer_node(narrow);
+        if *node != target {
+            *node = target;
+        }
+        let mut zones = q_zone.iter_many_mut(zones);
+        while let Some((zone, mut node)) = zones.fetch_next() {
+            let target = footer_zone_node(*zone, narrow);
+            if *node != target {
+                *node = target;
+            }
+        }
+    }
 }
 
 /// Write each footer hint from the live bindings when the hint is new or the

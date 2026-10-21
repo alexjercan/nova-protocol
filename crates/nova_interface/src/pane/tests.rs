@@ -1,7 +1,10 @@
 //! Live-tree tests for the TAB interface card: a pane switch keeps the card,
 //! its title row and its tabs and replaces only the pane body.
 
-use bevy::ui::{ComputedNode, UiGlobalTransform};
+use bevy::{
+    camera::{Camera, RenderTargetInfo},
+    ui::{ComputedNode, IsDefaultUiCamera, UiGlobalTransform},
+};
 use nova_input::prelude::{BindingSpec, InputSource, RegisterInputActions};
 use nova_ui::widget::button_on_setting;
 
@@ -114,8 +117,10 @@ fn card_rig() -> PanePointerRig {
         (
             leave_station_pane,
             rebuild_interface_body,
+            fit_pane_footer,
             show_station_tab,
             refresh_pane_input_hints,
+            show_pane_input_hints,
         )
             .chain(),
     );
@@ -266,6 +271,200 @@ fn map_and_ship_share_a_fixed_footer_under_the_view_and_inventory_has_none() {
     *rig.app.world_mut().resource_mut::<InterfacePaneType>() = InterfacePaneType::Inventory;
     settle(&mut rig.app);
     assert_eq!(footer(rig.app.world_mut()), None, "Inventory has no footer");
+}
+
+/// Resize the rig's window and its camera target together, as a real resize
+/// does; the UI root is 100% of the camera target.
+fn resize_window(app: &mut App, size: UVec2) {
+    let world = app.world_mut();
+    let mut window = world
+        .query_filtered::<&mut Window, With<PrimaryWindow>>()
+        .single_mut(world)
+        .expect("the rig has a primary window");
+    window.resolution.set(size.x as f32, size.y as f32);
+    let mut camera = world
+        .query_filtered::<&mut Camera, With<IsDefaultUiCamera>>()
+        .single_mut(world)
+        .expect("the rig has a UI camera");
+    camera.computed.target_info = Some(RenderTargetInfo {
+        physical_size: size,
+        scale_factor: 1.0,
+    });
+}
+
+/// The rect of every footer hint that is shown.
+fn shown_hint_rects(world: &mut World) -> Vec<Rect> {
+    let shown: Vec<Entity> = world
+        .query_filtered::<(Entity, &Node), Or<(With<PaneInputHint>, With<PanePointerHint>)>>()
+        .iter(world)
+        .filter(|(_, node)| node.display == Display::Flex)
+        .map(|(entity, _)| entity)
+        .collect();
+    shown.into_iter().map(|hint| rect_of(world, hint)).collect()
+}
+
+/// The rect of the node named `name`.
+fn rect_named(world: &mut World, name: &str) -> Rect {
+    let entity = world
+        .query::<(Entity, &Name)>()
+        .iter(world)
+        .find(|(_, n)| n.as_str() == name)
+        .map(|(entity, _)| entity)
+        .unwrap_or_else(|| panic!("a node named {name}"));
+    rect_of(world, entity)
+}
+
+/// The footer zone of `kind`.
+fn zone(world: &mut World, kind: PaneFooterZoneType) -> Entity {
+    world
+        .query::<(Entity, &PaneFooterZoneType)>()
+        .iter(world)
+        .find(|(_, z)| **z == kind)
+        .map(|(entity, _)| entity)
+        .unwrap_or_else(|| panic!("a {kind:?} footer zone"))
+}
+
+/// The rect of every text label under `root`.
+fn label_rects(world: &mut World, root: Entity) -> Vec<Rect> {
+    let mut labels = Vec::new();
+    let mut stack = vec![root];
+    while let Some(entity) = stack.pop() {
+        if world.get::<Text>(entity).is_some() {
+            labels.push(rect_of(world, entity));
+        }
+        if let Some(children) = world.get::<Children>(entity) {
+            stack.extend(children.iter());
+        }
+    }
+    labels
+}
+
+/// Whether `inner` lies in `outer`, to half a pixel.
+fn inside(inner: Rect, outer: Rect) -> bool {
+    inner.min.x >= outer.min.x - 0.5
+        && inner.min.y >= outer.min.y - 0.5
+        && inner.max.x <= outer.max.x + 0.5
+        && inner.max.y <= outer.max.y + 0.5
+}
+
+/// Whether two rects share any area.
+fn overlap(a: Rect, b: Rect) -> bool {
+    let shared = a.intersect(b);
+    shared.width() > 0.5 && shared.height() > 0.5
+}
+
+#[test]
+fn a_narrow_window_puts_the_footer_hints_under_the_legend_and_nothing_overlaps() {
+    let mut rig = card_rig();
+    // Ship pane, 640x600, a part in hand at a refit dock with a repairable,
+    // rebindable, deletable selection: the widest hint set the footer shows.
+    *rig.app.world_mut().resource_mut::<InterfacePaneType>() = InterfacePaneType::Ship;
+    rig.app
+        .insert_resource(HeldPart(Some("pdc_pierce_turret_section".into())));
+    rig.app.insert_resource(ShipRuntime {
+        refits: true,
+        panel_repairable: true,
+        panel_rebind_enabled: true,
+        delete_verdict: Some(Ok(std::collections::BTreeMap::new())),
+        ..default()
+    });
+    resize_window(&mut rig.app, UVec2::new(640, 600));
+    settle(&mut rig.app);
+    let world = rig.app.world_mut();
+    let footer_id = footer(world).expect("Ship has a footer");
+    let foot = rect_of(world, footer_id);
+    assert_eq!(foot.height(), PANE_FOOTER_NARROW_PX, "narrow footer height");
+    let legend_id = zone(world, PaneFooterZoneType::Legend);
+    let legend = rect_of(world, legend_id);
+    let hints = shown_hint_rects(world);
+    let placing = SHIP_KEY_HINTS
+        .iter()
+        .filter(|(.., when)| *when != HintWhenType::Selecting)
+        .count()
+        + POINTER_HINTS
+            .iter()
+            .filter(|(_, when)| *when != HintWhenType::Selecting)
+            .count();
+    assert_eq!(
+        hints.len(),
+        placing,
+        "every hint but the Selecting ones shows"
+    );
+    for hint in &hints {
+        assert!(inside(*hint, foot), "hint {hint:?} in the footer {foot:?}");
+        assert!(
+            hint.min.y >= legend.max.y - 0.5,
+            "hint {hint:?} under the legend {legend:?}"
+        );
+    }
+    let labels = label_rects(world, legend_id);
+    assert_eq!(
+        labels.len(),
+        SectionIconType::ALL.len(),
+        "one word per legend icon"
+    );
+    for label in &labels {
+        assert!(
+            inside(*label, legend),
+            "legend word {label:?} in its zone {legend:?}"
+        );
+    }
+    let buttons: Vec<Rect> = ["ShipCatalogue", "ShipFit", "ShipReset"]
+        .into_iter()
+        .map(|name| rect_named(world, name))
+        .collect();
+    for button in &buttons {
+        assert!(
+            inside(*button, foot),
+            "button {button:?} in the footer {foot:?}"
+        );
+    }
+    let rects: Vec<Rect> = hints
+        .iter()
+        .chain(&labels)
+        .chain(&buttons)
+        .copied()
+        .collect();
+    for (i, a) in rects.iter().enumerate() {
+        for b in &rects[i + 1..] {
+            assert!(!overlap(*a, *b), "{a:?} overlaps {b:?}");
+        }
+    }
+    let body_id = card_ids(world).body;
+    let split = world.get::<Children>(body_id).unwrap()[0];
+    let [view, panel] = world.get::<Children>(split).unwrap()[..] else {
+        panic!("the Ship pane splits into a view and a panel");
+    };
+    let (view, panel) = (rect_of(world, view), rect_of(world, panel));
+    assert!(
+        view.max.y <= foot.min.y + 0.5 && panel.max.y <= foot.min.y + 0.5,
+        "view {view:?} and panel {panel:?} sit above the footer {foot:?}"
+    );
+    assert!(
+        panel.width() >= SIDE_PANEL_MIN_PX,
+        "panel is {} wide",
+        panel.width()
+    );
+
+    // Back to a wide window: one row, and the legend's longest word whole.
+    resize_window(&mut rig.app, UVec2::new(1024, 768));
+    settle(&mut rig.app);
+    let world = rig.app.world_mut();
+    let foot = rect_of(world, footer_id);
+    assert_eq!(foot.height(), PANE_FOOTER_PX, "wide footer height");
+    let legend_id = zone(world, PaneFooterZoneType::Legend);
+    let legend = rect_of(world, legend_id);
+    let controller = world
+        .query::<(Entity, &Text)>()
+        .iter(world)
+        .find(|(_, text)| text.0 == "Controller")
+        .map(|(entity, _)| entity)
+        .expect("the legend names the Controller");
+    let controller = rect_of(world, controller);
+    assert!(
+        inside(controller, legend),
+        "Controller {controller:?} whole in the legend {legend:?}"
+    );
 }
 
 #[test]

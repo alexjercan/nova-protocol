@@ -222,6 +222,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Interface & HUD
 
+- In windows under 800 px wide the Map and Ship footer puts its key hints on
+  a second row, so the legend, the hints and Catalogue, Fit and Reset all
+  show whole at 640x600.
 - A Jobs pane: Your jobs with a `have / need` meter and where to hand in;
   docked, Jobs posted here with reward, target, distance, time left and
   Accept. A refused button greys with the reason.
@@ -367,6 +370,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - The editor's planet hit box matches the drawn planet. It was far larger, so
   F framed a scenario with a planet from too far away to see its ships.
+- The Ship footer legend reads Controller in full at 1024x768. It was clipped
+  when the key hints took two rows.
 
 ### Internals & Tooling
 
