@@ -508,15 +508,16 @@ thaw or a Load never changes it. A job's id is the posting station's id, its
 board slot and its posting number (`<station>#<slot>.<posting>`).
 
 A slot renews - moves to its next posting, stamped now - when its job is
-handed in, or when an unheld offer stands past the price table's
+handed in, dropped, or when an unheld offer stands past the price table's
 `jobs.offer_seconds`: the bodies the old posting could have put in the world
 (a hauler, its raiders, a caller, each named
 `<station stem>_job_<slot>_<posting>_<part>`) are despawned first, then the
-slot posts again under the next posting number. Stations draw in id order.
-A job you hold is pinned: its slot never renews under it, so a held job never
-expires. A dropped job (a lost hauler, wreck or genuine caller, or a dead
-poster) stays posted under its own id until its own window passes; its
-Accept is refused while its target is gone.
+slot posts again under the next posting number, with fresh body ids.
+Stations draw in id order. A job you hold is pinned: its slot never renews
+under it, so a held job never expires. A dropped job (a lost hauler, wreck
+or genuine caller, or a dead poster) retires its posting at once: the slot
+renews under the next posting number and the old offer's Accept is refused
+as expired.
 
 Each slot draws its kind by the start role's `jobs` mix (see
 [start roles](../start-roles/)), as weights over `Procure`, `Recover`,
@@ -574,13 +575,13 @@ covers the reward; it removes a `Procure`'s goods, pays `OnCreditsChanged`
 with cause `JobReward` on both sides and lists the job completed. Held, done
 and completed jobs are the `Jobs` session resource, and every board's slot
 postings and offers are the `JobPostings` session resource; both save in
-the world state's `jobs` and `postings` fields (save format 26) and are
-checked on load: a job held twice, held and completed, done but not held,
-an undone escort with no leg or a leg with no undone escort, with a zero
-count or reward, or naming an item the catalog lacks refuses the
-world, as does a board with the wrong slot count, a posting stamp ahead of
-the clock, or an offer that is not its slot's posting or that no board could
-post. A held job is checked by its own rules, not against its slot. A
+the world state's `jobs` and `postings` fields (save format 28) and are
+checked on load: a job held twice, held and completed, held or completed
+and dropped, done but not held, an undone escort with no leg or a leg with
+no undone escort, with a zero count or reward, or naming an item the
+catalog lacks refuses the world, as does a board with the wrong slot count,
+a posting stamp ahead of the clock, or an offer that is not its slot's
+posting or that no board could post. A held job is checked by its own rules, not against its slot. A
 frozen sector keeps a spawned hauler, caller or raider as any ship, but not
 the hauler's helm order: the jobs keep the hauler's mark and whether it left,
 so a thawed or loaded hauler that left flies to its mark again.

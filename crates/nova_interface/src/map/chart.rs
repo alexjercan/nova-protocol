@@ -369,7 +369,11 @@ fn chart_station_live(
                 board
                     .0
                     .iter()
-                    .filter(|job| !jobs.holds(&job.id) && !jobs.is_completed(&job.id))
+                    .filter(|job| {
+                        !jobs.holds(&job.id)
+                            && !jobs.is_completed(&job.id)
+                            && !jobs.is_dropped(&job.id)
+                    })
                     .count() as u32
             });
             let refusing =

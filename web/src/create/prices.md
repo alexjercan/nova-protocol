@@ -52,8 +52,7 @@ A living station's job board has three slots, each on its own posting. An
 offer the player does not hold expires `jobs.offer_seconds` of play after it
 was posted, and the slot then posts a new offer under a new id. A held job
 is pinned to its slot and never expires, however long you hold it; handing
-one in renews the slot at once, and a job you drop (its hauler lost) stays
-posted under its own id until its own window passes. The clock
+one in, or losing it (its hauler lost), renews the slot at once. The clock
 is play time, so the pause menu, the interface and a Load all freeze every
 offer's countdown along with everything else. See [Jobs](../stations/#jobs)
 for the full posting and renewal rule.

@@ -1251,6 +1251,83 @@ fn a_saved_posting_record_resumes_with_its_offers_and_a_held_job_outlives_its_sl
     );
 }
 
+/// A dropped job's id outlives the save, so the posting it retired is never
+/// offered again.
+#[test]
+fn a_dropped_job_id_is_saved_and_load_restores_it() {
+    let root = tempfile::tempdir().unwrap();
+    let (mut world, _player) = armed_session(root.path());
+    frame(&mut world);
+    frame(&mut world);
+    run_until_idle(&mut world);
+
+    let poster = GeneratedBodyId::new(SectorCoord::new(1, 0, 0), "cluster_1_0_0_station", 0);
+    let draw = |posting: u32, slots: &[u32], standing: &[Job]| {
+        let ids: Vec<JobId> = slots
+            .iter()
+            .map(|&slot| JobId {
+                station: poster.clone(),
+                slot,
+                posting,
+            })
+            .collect();
+        station_job_offers(
+            7,
+            &ids,
+            &[],
+            &items(),
+            JobMixType::Trade,
+            &JobField::default(),
+            standing,
+        )
+    };
+    let offers = draw(0, &[0, 1, 2], &[]);
+    let held = offers[1].clone();
+    world.insert_resource(WorldClock {
+        play_seconds: 200.0,
+    });
+    world
+        .resource_mut::<JobPostings>()
+        .post(offers.clone(), 50.0);
+    world.resource_mut::<Jobs>().accept(held.clone());
+    world.resource_mut::<Jobs>().drop(&held.id);
+    assert!(world.resource::<Jobs>().is_dropped(&held.id));
+    assert!(!world.resource::<Jobs>().holds(&held.id));
+    world.resource_mut::<WorldSaveSession>().request_leave();
+    run_until_idle(&mut world);
+    assert_eq!(
+        world.resource::<WorldSaveSession>().status(),
+        &WorldSaveStatus::Saved { generation: 2 }
+    );
+    let digest = world.resource::<LoadedSectionPacks>().digest.0;
+    world.remove_resource::<WorldSaveSession>();
+    let (_, lock, _, state) = open_world(
+        root.path(),
+        "session",
+        &catalog(digest),
+        &roles(),
+        &items(),
+        &scenarios(),
+    )
+    .unwrap();
+    assert!(
+        state.jobs.is_dropped(&held.id),
+        "the leave save wrote the dropped id"
+    );
+    assert!(
+        !state.jobs.holds(&held.id),
+        "the save no longer holds the dropped job"
+    );
+    drop(lock);
+
+    let resumed = load(root.path(), digest);
+    assert!(
+        resumed.resource::<Jobs>().is_dropped(&held.id),
+        "the Load restored the dropped id on the arming frame"
+    );
+    drop(resumed);
+}
+
 /// Once the world it armed with arms again from the seed - disarmed and
 /// re-armed, or its scenario reloaded under the same config - the session
 /// never writes: a crossing after the re-arm leaves the last good save as it

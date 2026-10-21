@@ -17,8 +17,11 @@
 //! [`JobOfferRule::offer_seconds`] of play after its stamp; the open world
 //! crate then posts the slot's next offer under a new [`JobId`]
 //! ([`JobPostings::post`]). A held job never expires: its slot is pinned
-//! until it is handed in or dropped. A dropped job's offer stays posted,
-//! refused at the accept once its target is gone, until its window passes. The open world crate puts the board on the station root as a
+//! until it is handed in or dropped. A dropped job retires its posting: its
+//! id is recorded ([`Jobs::is_dropped`]), its accept is refused and the open
+//! world crate renews its slot on its next board pass, so no later body ever
+//! carries the ids its bodies and their wrecks took. The open world crate
+//! puts the board on the station root as a
 //! [`JobBoard`]; the Jobs pane lists it while the player is docked there,
 //! with each offer's remaining time ([`offer_deadline_text`]), and offers
 //! Accept and Hand in. Both happen docked only ([`plan_job_accept`],
@@ -278,7 +281,7 @@ impl JobPostings {
     /// Every body a new offer must not name at `now` under `rule`: what each
     /// job held in `jobs` is about and every body it put in the world, and
     /// what each offer on every board is about while its window stands and
-    /// the player has not handed it in.
+    /// the player has not handed it in or dropped it.
     pub fn named_bodies(
         &self,
         rule: JobOfferRule,
@@ -295,7 +298,10 @@ impl JobPostings {
             .boards
             .values()
             .flatten()
-            .filter(|slot| !slot.is_expired(rule, now) && !jobs.is_completed(&slot.offer.id))
+            .filter(|slot| {
+                let id = &slot.offer.id;
+                !slot.is_expired(rule, now) && !jobs.is_completed(id) && !jobs.is_dropped(id)
+            })
             .filter_map(|slot| slot.offer.located_body().cloned());
         held.chain(offered).collect()
     }
@@ -752,8 +758,9 @@ pub struct EscortLeg {
 }
 
 /// The player's jobs: the jobs held, in accept order, the ids of the held
-/// jobs whose work is done, the jobs completed, in hand-in order, and the leg
-/// of each held escort not yet done. A completed job keeps its kind, its
+/// jobs whose work is done, the jobs completed, in hand-in order, the leg of
+/// each held escort not yet done and the id of every job dropped, whose
+/// posting is retired. A completed job keeps its kind, its
 /// poster and its names: the role goal counts the hand-ins by kind and by the
 /// poster's cell.
 ///
@@ -768,6 +775,7 @@ pub struct Jobs {
     done: Vec<JobId>,
     completed: Vec<Job>,
     legs: BTreeMap<JobId, EscortLeg>,
+    dropped: BTreeSet<JobId>,
 }
 
 impl Jobs {
@@ -782,6 +790,7 @@ impl Jobs {
         self.done.clear();
         self.completed.clear();
         self.legs.clear();
+        self.dropped.clear();
     }
 
     /// The jobs held, in accept order.
@@ -829,16 +838,27 @@ impl Jobs {
         self.completed.iter().any(|job| job.id == *id)
     }
 
+    /// Whether the player dropped the job `id`: it is over without a hand-in
+    /// and its posting is retired, never offered or accepted again.
+    pub fn is_dropped(&self, id: &JobId) -> bool {
+        self.dropped.contains(id)
+    }
+
     /// Hold `job`.
     ///
     /// # Panics
     ///
-    /// When the job is already held or completed: the caller plans an accept
-    /// first ([`plan_job_accept`]).
+    /// When the job is already held, completed or dropped: the caller plans
+    /// an accept first ([`plan_job_accept`]).
     pub fn accept(&mut self, job: Job) {
         assert!(
             !self.holds(&job.id) && !self.is_completed(&job.id),
             "Jobs accepts '{}' twice",
+            job.id
+        );
+        assert!(
+            !self.is_dropped(&job.id),
+            "Jobs accepts '{}', which was dropped",
             job.id
         );
         self.held.push(job);
@@ -910,24 +930,37 @@ impl Jobs {
     /// When the job is not held: the caller plans a hand-in first
     /// ([`plan_job_hand_in`]).
     pub fn complete(&mut self, id: &JobId) -> Job {
-        let job = self.drop(id);
+        let job = self.take(id);
         self.completed.push(job.clone());
         job
     }
 
     /// Take the held job `id` off the list, done or not, and give it back:
-    /// the job is over without a hand-in, as when its hauler is lost. Its
-    /// offer stays on the board until its window passes.
+    /// the job is over without a hand-in, as when its hauler is lost. Its id
+    /// is recorded ([`Jobs::is_dropped`]): the posting is retired, so the
+    /// open world crate renews its slot and never puts its bodies, or
+    /// their wrecks, in the world under the same ids again.
     ///
     /// # Panics
     ///
     /// When the job is not held.
     pub fn drop(&mut self, id: &JobId) -> Job {
+        let job = self.take(id);
+        self.dropped.insert(id.clone());
+        job
+    }
+
+    /// Take the held job `id` off the list with its done mark and its leg.
+    ///
+    /// # Panics
+    ///
+    /// When the job is not held.
+    fn take(&mut self, id: &JobId) -> Job {
         let at = self
             .held
             .iter()
             .position(|job| job.id == *id)
-            .unwrap_or_else(|| panic!("Jobs drops '{id}', which is not held"));
+            .unwrap_or_else(|| panic!("Jobs takes '{id}', which is not held"));
         self.done.retain(|done| done != id);
         self.legs.remove(id);
         self.held.remove(at)
@@ -939,9 +972,9 @@ impl Jobs {
     }
 
     /// Refuse a record a Load could not have built: a job held or completed
-    /// twice, held and completed at once, done but not held, a leg no held,
-    /// undone escort has, a held, undone escort with no leg, or a job
-    /// [`Job::validate`] refuses.
+    /// twice, held and completed at once, held or completed and dropped at
+    /// once, done but not held, a leg no held, undone escort has, a held,
+    /// undone escort with no leg, or a job [`Job::validate`] refuses.
     pub fn validate(&self) -> Result<(), String> {
         for (index, job) in self.held.iter().enumerate() {
             job.validate()?;
@@ -950,6 +983,9 @@ impl Jobs {
             }
             if self.is_completed(&job.id) {
                 return Err(format!("the jobs hold '{}' and list it completed", job.id));
+            }
+            if self.is_dropped(&job.id) {
+                return Err(format!("the jobs hold '{}' and list it dropped", job.id));
             }
             let escort = matches!(job.kind, JobType::Escort { .. });
             if escort && !self.is_done(&job.id) && !self.legs.contains_key(&job.id) {
@@ -981,6 +1017,9 @@ impl Jobs {
                 .any(|other| other.id == job.id)
             {
                 return Err(format!("the jobs list '{}' completed twice", job.id));
+            }
+            if self.is_dropped(&job.id) {
+                return Err(format!("the jobs list '{}' completed and dropped", job.id));
             }
         }
         Ok(())
@@ -1256,8 +1295,8 @@ pub enum JobAcceptRefusalType {
     AlreadyHeld,
     /// The player completed the job already.
     AlreadyDone,
-    /// The offer's window passed, or its slot renewed since the board was
-    /// read: the station no longer offers it.
+    /// The offer's window passed, its slot renewed since the board was
+    /// read, or the player dropped the job: the station no longer offers it.
     Expired,
     /// The wreck no longer carries the stack, or the hull is gone or
     /// neutralized already: the job cannot be done.
@@ -1288,7 +1327,7 @@ pub fn plan_job_accept(
     if jobs.is_completed(&job.id) {
         return Err(JobAcceptRefusalType::AlreadyDone);
     }
-    if expired {
+    if expired || jobs.is_dropped(&job.id) {
         return Err(JobAcceptRefusalType::Expired);
     }
     let located = matches!(
@@ -2034,12 +2073,36 @@ mod tests {
         let dropped = jobs.drop(&escort.id);
         assert_eq!(dropped, escort);
         assert!(jobs.held().is_empty());
+        assert!(!jobs.is_completed(&escort.id));
+        assert!(jobs.is_dropped(&escort.id), "a dropped job is recorded");
         assert!(
-            !jobs.is_completed(&escort.id),
-            "a dropped job is posted again"
+            !jobs.is_dropped(&recover.id),
+            "a completed job is not dropped"
         );
-        plan_job_accept(&escort, Some(&poster), &jobs, false, false).unwrap();
+        assert_eq!(
+            plan_job_accept(&escort, Some(&poster), &jobs, false, false),
+            Err(JobAcceptRefusalType::Expired),
+            "a dropped job's posting is retired"
+        );
         jobs.validate().unwrap();
+        jobs.clear();
+        assert!(!jobs.is_dropped(&escort.id), "a clear forgets the drops");
+    }
+
+    #[test]
+    fn validate_refuses_a_dropped_job_held_or_completed() {
+        let (_, _, job) = a_procurement();
+        let mut held = Jobs::default();
+        held.held.push(job.clone());
+        held.dropped.insert(job.id.clone());
+        assert!(held.validate().unwrap_err().contains("list it dropped"));
+        let mut completed = Jobs::default();
+        completed.completed.push(job.clone());
+        completed.dropped.insert(job.id.clone());
+        assert!(completed
+            .validate()
+            .unwrap_err()
+            .contains("completed and dropped"));
     }
 
     #[test]
@@ -2297,8 +2360,8 @@ mod tests {
         }
         assert_eq!(
             plan_job_accept(&recovery, Some(&poster), &jobs, false, false),
-            Err(JobAcceptRefusalType::TargetGone),
-            "the dropped recovery stays posted and greys on its gone wreck"
+            Err(JobAcceptRefusalType::Expired),
+            "the dropped recovery's posting is retired"
         );
 
         let renewed = JobId {
@@ -2402,6 +2465,15 @@ mod tests {
                     .named_bodies(rule, 50.0, &handed)
                     .contains(offer.located_body().unwrap()),
                 "a handed-in offer frees its body"
+            );
+            let mut dropped = Jobs::default();
+            dropped.accept(offer.clone());
+            dropped.drop(&offer.id);
+            assert!(
+                !postings
+                    .named_bodies(rule, 50.0, &dropped)
+                    .contains(offer.located_body().unwrap()),
+                "a dropped offer frees its body for the renewed slot"
             );
         }
     }

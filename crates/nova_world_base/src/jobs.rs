@@ -12,13 +12,16 @@
 //! offer. The board is put on the station root on the first frame every one
 //! of those 27 cells is live and settled, and again whenever a slot renews:
 //! an offer the player does not hold that stood longer than the price
-//! table's `jobs.offer_seconds` of play, or whose job was handed in, moves
-//! to its next posting, the bodies its old posting could have put in the
-//! world are taken out, and the slot posts a new offer under a new id
-//! ([`post_station_boards`]). A held job pins its slot; a dropped job's
-//! offer stands until its window passes. The player's record of the jobs
-//! taken off it is [`nova_gameplay::prelude::Jobs`]; the postings and the
-//! jobs are saved with the world and `chart::clear_chart` clears both.
+//! table's `jobs.offer_seconds` of play, or whose job was handed in or
+//! dropped, moves to its next posting, the bodies its old posting could have
+//! put in the world are taken out, and the slot posts a new offer under a
+//! new id ([`post_station_boards`]). A held job pins its slot. A dropped
+//! job's posting is retired and never accepted again: a second hauler under
+//! the first one's id would sever wrecks under the first one's wreck ids,
+//! and a wreck frozen in another cell makes the save refuse the duplicate.
+//! The player's record of the jobs taken off it is
+//! [`nova_gameplay::prelude::Jobs`]; the postings and the jobs are saved
+//! with the world and `chart::clear_chart` clears both.
 //!
 //! An Escort puts a hauler and its raiders in the world on the accept and a
 //! Distress call puts its caller there ([`spawn_job_bodies`]); every body is a
@@ -45,16 +48,17 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use bevy::{ecs::entity::EntityHashSet, prelude::*};
 use nova_events::prelude::{
-    EventKind, GameEvent, GeneratedBodyId, Meters, Meters3, MetersPerSecond3, OnDestroyedEvent,
-    OnDockedEvent, OnNeutralizedEvent, OnShipOrderCompleteEvent, OnShipOrderFailedEvent,
-    OnUndockedEvent, SectorCoord,
+    EntityId, EventKind, GameEvent, GeneratedBodyId, Meters, Meters3, MetersPerSecond3,
+    OnDestroyedEvent, OnDockedEvent, OnNeutralizedEvent, OnShipOrderCompleteEvent,
+    OnShipOrderFailedEvent, OnUndockedEvent, SectorCoord,
 };
 use nova_gameplay::prelude::{
     station_job_offers, station_offers, unit_sphere_point, Allegiance, DerelictShipMarker, Fnv32,
     GameItems, GamePriceTable, Job, JobAccepted, JobBoard, JobField, JobHull, JobId, JobMixType,
-    JobPostings, JobType, JobWreck, Jobs, NeutralizedMarker, ObjectiveMarkerTarget,
-    PlayerSpaceshipMarker, SeedStream, ShipInventory, ShipRoleType, SpaceshipRootMarker,
-    StarterBoardMarker, StationMarker, StationServiceType, StationServices, JOBS_PER_BOARD,
+    JobOfferRule, JobPostings, JobType, JobWreck, Jobs, NeutralizedMarker, ObjectiveMarkerTarget,
+    PlayerSpaceshipMarker, SeedStream, ShipInventory, ShipRoleType, SlotPosting,
+    SpaceshipRootMarker, StarterBoardMarker, StationMarker, StationServiceType, StationServices,
+    JOBS_PER_BOARD,
 };
 use nova_scenario::prelude::{
     base_scenario_object, spaceship_scenario_object, AIControllerConfig, BaseScenarioObjectConfig,
@@ -238,11 +242,17 @@ pub(crate) fn post_station_boards(
             Some(slots) => {
                 for (slot, posting) in slots.iter().enumerate() {
                     let job_id = &posting.offer.id;
-                    let handed_in = jobs.is_completed(job_id);
-                    if jobs.holds(job_id) || (!handed_in && !posting.is_expired(rule, now)) {
+                    if !slot_renews(&jobs, posting, rule, now) {
                         standing.push(posting.offer.clone());
                         continue;
                     }
+                    let why = if jobs.is_completed(job_id) {
+                        "handed in"
+                    } else if jobs.is_dropped(job_id) {
+                        "dropped"
+                    } else {
+                        "expired"
+                    };
                     let mut taken_out = 0;
                     for body_id in job_id.possible_bodies() {
                         if let Some(body) = worn.get(&body_id) {
@@ -257,8 +267,7 @@ pub(crate) fn post_station_boards(
                     };
                     info!(
                         "nova_world_base: the station '{id}' renews slot {slot} at {now:.1} s of \
-                         play ({}): '{job_id}' -> '{next}', {taken_out} body(ies) taken out",
-                        if handed_in { "handed in" } else { "expired" }
+                         play ({why}): '{job_id}' -> '{next}', {taken_out} body(ies) taken out"
                     );
                     renewing.push(next);
                 }
@@ -315,6 +324,17 @@ pub(crate) fn post_station_boards(
             station.remove::<StarterBoardMarker>();
         }
     }
+}
+
+/// Whether the slot on `posting` renews at `now` of play under `rule`: its
+/// job was handed in or dropped, or the offer the player does not hold stood
+/// past its window. A held job pins its slot.
+fn slot_renews(jobs: &Jobs, posting: &SlotPosting, rule: JobOfferRule, now: f64) -> bool {
+    let id = &posting.offer.id;
+    if jobs.holds(id) {
+        return false;
+    }
+    jobs.is_completed(id) || jobs.is_dropped(id) || posting.is_expired(rule, now)
 }
 
 /// The cell `centre` and the 26 cells around it.
@@ -405,9 +425,13 @@ fn job_field(
 ///
 /// # Panics
 ///
-/// When the poster is not a live station, when a body the job names already
-/// stands, when no civilization reaches the poster, or when the layout or
-/// the stock fails: every one is an assembly fault, not a world state.
+/// When the poster is not a live station, when a body the job names or a
+/// wreck severed off one already stands, when no civilization reaches the
+/// poster, or when the layout or the stock fails: every one is an assembly
+/// fault, not a world state. A posting is accepted once ([`Jobs::accept`]),
+/// so a live `<body>/wreck/<section>` of a named body means a posting's ids
+/// were minted twice; the sever would leave the new wreck id-less and the
+/// save would refuse the duplicate.
 pub(crate) fn spawn_job_bodies(
     accepted: On<JobAccepted>,
     mut commands: Commands,
@@ -416,11 +440,25 @@ pub(crate) fn spawn_job_bodies(
     mut jobs: ResMut<Jobs>,
     stations: Query<(&GeneratedBodyId, &GlobalTransform, &ChildOf), With<StationMarker>>,
     bodies: Query<(&GeneratedBodyId, &GlobalTransform)>,
+    live_ids: Query<&EntityId>,
 ) {
     let job = &accepted.event().job;
     let spawned = job.spawned_bodies();
     if spawned.is_empty() {
         return;
+    }
+    for live in &live_ids {
+        let taken = spawned.iter().find(|id| {
+            let id = id.to_string();
+            live.0 == id || live.0.starts_with(&format!("{id}/wreck/"))
+        });
+        if let Some(id) = taken {
+            panic!(
+                "spawn_job_bodies: the body '{id}' of '{}' or a wreck off it already stands as \
+                 '{}'",
+                job.id, live.0
+            );
+        }
     }
     let (_, station_at, parent) = stations
         .iter()
@@ -433,13 +471,6 @@ pub(crate) fn spawn_job_bodies(
             )
         });
     let root = parent.parent();
-    for (id, _) in &bodies {
-        assert!(
-            !spawned.contains(id),
-            "spawn_job_bodies: the body '{id}' of '{}' already stands",
-            job.id
-        );
-    }
     // Engine boundary: a transform counts engine units.
     let station_at = Meters3::from_engine(station_at.translation());
     let standing: Vec<Meters3> = bodies
@@ -1130,7 +1161,7 @@ mod tests {
         ShipOrderKind,
     };
     use nova_gameplay::{
-        prelude::{ItemDesignId, JobOfferRule, ESCORT_RAIDERS_MAX},
+        prelude::{ItemDesignId, ESCORT_RAIDERS_MAX},
         test_support::test_items,
     };
     use nova_ship::prelude::DockedHelmType;
@@ -1385,6 +1416,51 @@ mod tests {
             0,
             "the stuck hauler and the raiders are taken out so a second accept can put them back"
         );
+    }
+
+    /// A lost hauler ends its posting: the slot renews and posts under the
+    /// next number with fresh body ids, so a second hauler and its wrecks
+    /// never carry the ids of the first. A held slot and a standing,
+    /// unexpired slot stay.
+    #[test]
+    fn a_dropped_escort_renews_its_slot_while_held_and_standing_slots_stay() {
+        let rule = JobOfferRule {
+            offer_seconds: 1_200.0,
+        };
+        let slot = |job: &Job| SlotPosting {
+            posting: 0,
+            posted_at: 0.0,
+            offer: job.clone(),
+        };
+        let escort = escort(0);
+        let JobType::Escort { hauler, .. } = &escort.kind else {
+            unreachable!()
+        };
+        let held = procure(1);
+        let standing = neutralize(2);
+        let mut app = held_app([escort.clone(), held.clone()]);
+        stand(&mut app, &escort.spawned_bodies());
+        assert!(!slot_renews(jobs(&app), &slot(&escort), rule, 10.0));
+
+        fire(&mut app, taken_out(hauler));
+        assert!(
+            jobs(&app).is_dropped(&escort.id),
+            "the lost job is recorded"
+        );
+        assert!(
+            slot_renews(jobs(&app), &slot(&escort), rule, 10.0),
+            "a dropped job's slot renews before its window passes"
+        );
+        assert!(
+            !slot_renews(jobs(&app), &slot(&held), rule, 10.0),
+            "a held job pins its slot"
+        );
+        assert!(
+            !slot_renews(jobs(&app), &slot(&standing), rule, 10.0),
+            "an unheld offer stands until its window passes"
+        );
+        assert!(slot_renews(jobs(&app), &slot(&standing), rule, 1_200.0));
+        jobs(&app).validate().unwrap();
     }
 
     #[test]

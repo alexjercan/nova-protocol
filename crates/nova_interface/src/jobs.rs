@@ -536,7 +536,9 @@ fn update_jobs_pane(
         let rows = board
             .0
             .iter()
-            .filter(|job| !jobs.holds(&job.id) && !jobs.is_completed(&job.id))
+            .filter(|job| {
+                !jobs.holds(&job.id) && !jobs.is_completed(&job.id) && !jobs.is_dropped(&job.id)
+            })
             .filter_map(|job| {
                 let remaining = postings.slot(&job.id)?.remaining(rule, now);
                 if remaining <= 0.0 {
@@ -638,7 +640,7 @@ fn update_jobs_pane(
             let (board, _) = q_boards.get(*station).ok()?;
             board
                 .job(id)
-                .filter(|job| !jobs.is_completed(&job.id))
+                .filter(|job| !jobs.is_completed(&job.id) && !jobs.is_dropped(&job.id))
                 .map(|job| (job, false))
         })
     });
