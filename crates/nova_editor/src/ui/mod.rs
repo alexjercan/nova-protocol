@@ -26,7 +26,7 @@ use bevy::{
     picking::{hover::Hovered, mesh_picking::MeshPickingCamera},
     prelude::*,
     ui::InteractionDisabled,
-    ui_widgets::{observe, Activate},
+    ui_widgets::{observe, Activate, Button},
 };
 use nova_assets::prelude::*;
 use nova_scenario::prelude::ScenarioObjectKind;
@@ -4497,6 +4497,124 @@ mod tests {
             .expect("the step is on the bar")
     }
 
+    /// Stand up the real UI, picking and widget stack over one window camera,
+    /// so a click at a window pixel goes through the shipped hit test and the
+    /// shipped `Button` -> `Activate` path. A trimmed copy of nova_interface's
+    /// pane pointer rig, which is private to that crate's tests.
+    fn add_pointer_stack(app: &mut App) {
+        use bevy::{
+            camera::{ComputedCameraValues, RenderTargetInfo},
+            image::TextureAtlasLayout,
+            text::TextPlugin,
+            ui::UiPlugin,
+            ui_widgets::ButtonPlugin,
+            window::{PrimaryWindow, WindowEvent, WindowResolution},
+        };
+
+        const WINDOW: UVec2 = UVec2::new(1280, 720);
+        app.add_plugins((
+            MinimalPlugins,
+            AssetPlugin::default(),
+            TransformPlugin,
+            bevy::a11y::AccessibilityPlugin,
+            // `ui_picking` refuses a node whose `InheritedVisibility` is not
+            // computed-true, and nothing else here propagates it.
+            bevy::camera::visibility::VisibilityPlugin,
+            bevy::input::InputPlugin,
+            bevy::picking::input::PointerInputPlugin,
+            bevy::picking::PickingPlugin,
+            bevy::picking::InteractionPlugin,
+            TextPlugin,
+            UiPlugin,
+            // The game gets this with `UiWidgetsPlugins`; the group's text
+            // input wants IME messages this app has no window backend for.
+            ButtonPlugin,
+        ));
+        // `WindowPlugin` registers this in the game; the mouse pointer reads it.
+        app.add_message::<WindowEvent>();
+        app.init_asset::<Image>()
+            .init_asset::<TextureAtlasLayout>()
+            .init_asset::<Mesh>()
+            .init_asset::<bevy::mesh::skinning::SkinnedMeshInverseBindposes>();
+        app.world_mut().spawn((
+            Window {
+                resolution: WindowResolution::new(WINDOW.x, WINDOW.y),
+                ..default()
+            },
+            PrimaryWindow,
+        ));
+        app.world_mut().spawn((
+            Camera2d,
+            Camera {
+                computed: ComputedCameraValues {
+                    target_info: Some(RenderTargetInfo {
+                        physical_size: WINDOW,
+                        scale_factor: 1.0,
+                    }),
+                    ..default()
+                },
+                ..default()
+            },
+            IsDefaultUiCamera,
+        ));
+    }
+
+    /// Run enough frames for layout, the UI stack and picking to settle.
+    fn settle(app: &mut App) {
+        for _ in 0..4 {
+            app.update();
+        }
+    }
+
+    /// Move the mouse to `window_px`, then press and release the left button,
+    /// as `bevy_winit` reports a real click to `bevy_picking`.
+    fn click_at(app: &mut App, window_px: Vec2) {
+        use bevy::{
+            input::{
+                mouse::{MouseButton, MouseButtonInput},
+                ButtonState,
+            },
+            window::{CursorMoved, PrimaryWindow, WindowEvent},
+        };
+
+        let (window, mut cursor) = app
+            .world_mut()
+            .query_filtered::<(Entity, &mut Window), With<PrimaryWindow>>()
+            .single_mut(app.world_mut())
+            .expect("the app has a primary window");
+        cursor.set_physical_cursor_position(Some(window_px.as_dvec2()));
+        app.world_mut()
+            .write_message(WindowEvent::CursorMoved(CursorMoved {
+                window,
+                position: window_px,
+                delta: None,
+            }));
+        settle(app);
+        for state in [ButtonState::Pressed, ButtonState::Released] {
+            app.world_mut()
+                .write_message(WindowEvent::MouseButtonInput(MouseButtonInput {
+                    button: MouseButton::Left,
+                    state,
+                    window,
+                }));
+            settle(app);
+        }
+    }
+
+    /// The window-space centre of a laid-out node with area.
+    fn centre_of(app: &mut App, entity: Entity) -> Vec2 {
+        let size = app
+            .world()
+            .get::<ComputedNode>(entity)
+            .expect("a laid-out node")
+            .size();
+        assert!(size.x > 0.0 && size.y > 0.0, "the node has no area");
+        app.world()
+            .get::<UiGlobalTransform>(entity)
+            .expect("a laid-out node")
+            .translation
+    }
+
     /// The readout says WHAT is being edited before it says where: the level
     /// in capitals, the path in the names the tree shows, and the selection.
     /// The bare path never answered "will this click select, enter or place".
@@ -4563,6 +4681,45 @@ mod tests {
             Some(ship),
             "and stays where it was"
         );
+    }
+
+    /// A real mouse click on the scenario step leaves the ship. The chips once
+    /// wore bevy_ui's old `Button` marker: they painted a hover, but no click
+    /// ever reached `Activate`, and the direct-trigger tests above bypass that.
+    #[test]
+    fn a_click_on_the_root_crumb_leaves_the_ship() {
+        let (mut app, scenario, ship) = crumb_app();
+        add_pointer_stack(&mut app);
+        app.world_mut().resource_mut::<EditContext>().enter(ship);
+        app.world_mut().resource_mut::<SelectedNode>().0 = Some(ship);
+        settle(&mut app);
+
+        let root = crumb(&mut app, scenario);
+        let at = centre_of(&mut app, root);
+        click_at(&mut app, at);
+
+        assert_eq!(app.world().resource::<EditContext>().ship(), None);
+        assert_eq!(app.world().resource::<SelectedNode>().0, None);
+    }
+
+    /// A real mouse click on the selection chip frames what it names.
+    #[test]
+    fn a_click_on_the_selection_crumb_frames_it() {
+        let (mut app, _, ship) = crumb_app();
+        add_pointer_stack(&mut app);
+        app.world_mut().resource_mut::<EditContext>().enter(ship);
+        app.world_mut().resource_mut::<SelectedNode>().0 = Some(ship);
+        settle(&mut app);
+
+        let chip = app
+            .world_mut()
+            .query_filtered::<Entity, With<CrumbSelection>>()
+            .single(app.world())
+            .expect("the selection chip is on the bar");
+        let at = centre_of(&mut app, chip);
+        click_at(&mut app, at);
+
+        assert_eq!(app.world().resource::<FrameRequest>().node, Some(ship));
     }
 
     /// Rebind is greyed until the selection can actually take a binding - the

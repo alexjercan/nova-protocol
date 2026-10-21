@@ -372,6 +372,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   F framed a scenario with a planet from too far away to see its ships.
 - The Ship footer legend reads Controller in full at 1024x768. It was clipped
   when the key hints took two rows.
+- A mouse click on an editor breadcrumb chip now goes to that step. The chips
+  used the wrong button marker, so a click did nothing.
 
 ### Internals & Tooling
 
