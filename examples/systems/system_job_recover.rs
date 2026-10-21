@@ -22,7 +22,9 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 //! `NOVA_CAPTURE=1` also writes `job-recover-board.png` of the Jobs tab
-//! with the held job and `job-recover-done.png` after the hand-in.
+//! with the held job selected in the inspector, `job-recover-inspector-done.png`
+//! of the inspector with the job done before the hand-in, and
+//! `job-recover-done.png` after the hand-in.
 
 use bevy::prelude::*;
 use clap::Parser;

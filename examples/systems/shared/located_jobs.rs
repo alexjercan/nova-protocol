@@ -1282,6 +1282,7 @@ pub fn script(kind: LocatedKindType) -> AutopilotPlugin<GameStates> {
     let tag = kind.label();
     let board_shot = format!("job-{tag}-board.png");
     let done_shot = format!("job-{tag}-done.png");
+    let inspector_shot = format!("job-{tag}-inspector-done.png");
     let role_button = format!("Start Role Button: {}", kind.role());
     let script = AutopilotPlugin::<GameStates>::new()
         .step("located jobs: reach the main menu")
@@ -1380,6 +1381,19 @@ pub fn script(kind: LocatedKindType) -> AutopilotPlugin<GameStates> {
         .step(format!("{tag} job: assert the hand-in refusal"))
         .on_enter(assert_the_refusal)
         .add()
+        .step("located jobs: select the held job")
+        .on_enter(|world: &mut World| activate_named(world, "JobRowHeld-0"))
+        // The inspector draws its TASK heading only for a selected job.
+        .until(and(
+            when(|world| {
+                world
+                    .try_query::<&Text>()
+                    .is_some_and(|mut texts| texts.iter(world).any(|text| text.0 == "TASK"))
+            }),
+            frames(SETTLE_FRAMES),
+        ))
+        .deadline(BEAT_SECS)
+        .add()
         .step("located jobs: shoot the board")
         .on_enter(move |world: &mut World| shoot(world, &board_shot_name))
         .until(shot_written(board_shot))
@@ -1456,9 +1470,32 @@ pub fn script(kind: LocatedKindType) -> AutopilotPlugin<GameStates> {
         .on_enter(note_the_balances)
         .add();
     let done_shot_name = done_shot.clone();
+    let inspector_shot_name = inspector_shot.clone();
     open_the_jobs_tab(script)
         .step("located jobs: the Hand in button shows")
         .until(ui_node_named("JobHandIn-0"))
+        .deadline(BEAT_SECS)
+        .add()
+        .step("located jobs: select the done job")
+        .on_enter(|world: &mut World| activate_named(world, "JobRowHeld-0"))
+        // The theme draws the DONE badge as `DONE` or `[DONE]`.
+        .until(and(
+            when(|world| {
+                world.try_query::<&Text>().is_some_and(|mut texts| {
+                    let texts: Vec<&Text> = texts.iter(world).collect();
+                    texts.iter().any(|text| text.0 == "TASK")
+                        && texts
+                            .iter()
+                            .any(|text| text.0 == "DONE" || text.0 == "[DONE]")
+                })
+            }),
+            frames(SETTLE_FRAMES),
+        ))
+        .deadline(BEAT_SECS)
+        .add()
+        .step("located jobs: shoot the done job's inspector")
+        .on_enter(move |world: &mut World| shoot(world, &inspector_shot_name))
+        .until(shot_written(inspector_shot))
         .deadline(BEAT_SECS)
         .add()
         .step("located jobs: click Hand in")

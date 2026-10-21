@@ -26,8 +26,10 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 //! `NOVA_CAPTURE=1` also writes `job-distress-board.png` of the Jobs tab
-//! with the held job, `job-distress-inflight.png` of the caller in flight
-//! wearing its marker chip, and `job-distress-done.png` after the hand-in.
+//! with the held job selected in the inspector, `job-distress-inflight.png`
+//! of the caller in flight wearing its marker chip,
+//! `job-distress-inspector-done.png` of the inspector with the job done
+//! before the hand-in, and `job-distress-done.png` after the hand-in.
 
 use bevy::prelude::*;
 use clap::Parser;
