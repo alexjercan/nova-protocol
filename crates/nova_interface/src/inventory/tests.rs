@@ -375,10 +375,18 @@ fn a_narrow_window_stacks_storage_under_the_partner() {
 
     resize_window(&mut rig.app, UVec2::new(1280, 720));
     settle(&mut rig.app);
-    let [_, partner, storage] = rects(rig.app.world_mut());
+    let [own, partner, storage] = rects(rig.app.world_mut());
     assert!(
         storage.min.x >= partner.max.x && (storage.min.y - partner.min.y).abs() <= 0.5,
         "three columns: Storage {storage:?} is right of Partner {partner:?}"
+    );
+    assert!(
+        (own.width() - partner.width()).abs() <= 1.0
+            && (storage.width() - partner.width()).abs() <= 1.0,
+        "three equal thirds: Own {}, Partner {}, Storage {}",
+        own.width(),
+        partner.width(),
+        storage.width()
     );
 }
 

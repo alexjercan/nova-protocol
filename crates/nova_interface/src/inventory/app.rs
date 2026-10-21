@@ -59,15 +59,11 @@ const PRICE_PX: f32 = 48.0;
 const DEAL_PX: f32 = 44.0;
 /// Gap between the cells of a row and of its heading line, in logical px.
 const CELL_GAP_PX: f32 = 6.0;
-/// The Storage column's grid share against 1.0 for the player and the
-/// partner, in three columns. Its rows have no price, so the priced columns
-/// take the width.
-const STORAGE_COLUMN_GROW: f32 = 0.65;
 /// Window width, in logical px, from which the Inventory stores lay out
-/// Own, Partner and Storage as three columns. Under it, with Storage drawn
-/// beside the partner, Storage stacks under Partner so the priced columns
-/// keep one-line rows with whole names: three columns at 1200 px leave a
-/// 14-character name, and at 1024 px only 4.
+/// Own, Partner and Storage as three equal columns. Under it, with Storage
+/// drawn beside the partner, Storage stacks under Partner so the priced
+/// columns keep one-line rows with whole names: three equal columns at
+/// 1200 px leave a 9-character name, and at 1024 px none.
 const INVENTORY_STACK_SPLIT_PX: f32 = 1200.0;
 /// The Partner column's grid share of the height against 1.0 for Storage
 /// stacked under it: a 7-item board stays whole at 1024x768, and Storage
@@ -607,14 +603,22 @@ fn inventory_column(
                     ..default()
                 })
                 .with_children(|line| {
-                    line.spawn((
-                        themed_label("Item", 11.0, UiColor::Label),
-                        Node {
-                            flex_grow: 1.0,
-                            margin: UiRect::left(px(27)),
-                            ..default()
-                        },
-                    ));
+                    // Bevy clips a text by its parent's overflow, not its
+                    // own: the cell shrinks with the row's name cell.
+                    line.spawn(Node {
+                        flex_grow: 1.0,
+                        flex_basis: px(0),
+                        min_width: px(0),
+                        margin: UiRect::left(px(27)),
+                        overflow: Overflow::clip(),
+                        ..default()
+                    })
+                    .with_children(|cell| {
+                        cell.spawn((
+                            themed_label("Item", 11.0, UiColor::Label),
+                            TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                        ));
+                    });
                     line.spawn(fixed_cell(QTY_PX)).with_children(|cell| {
                         cell.spawn((
                             themed_label("Qty", 11.0, UiColor::Label),
@@ -669,9 +673,9 @@ fn inventory_column(
 #[derive(Component)]
 pub(crate) struct InventoryColumnsRow;
 
-/// Lay the stores columns out for the window width: three columns from
-/// [`INVENTORY_STACK_SPLIT_PX`], else Storage under Partner while both are
-/// drawn. Reads the panels' `Display`, which [`update_inventory_panel`]
+/// Lay the stores columns out for the window width: the drawn columns at
+/// equal widths from [`INVENTORY_STACK_SPLIT_PX`], else Storage under
+/// Partner while both are drawn. Reads the panels' `Display`, which [`update_inventory_panel`]
 /// owns, and writes grid fields only when they differ, so an idle frame
 /// causes no relayout. No window, as in a headless run, lays out wide.
 pub(crate) fn fit_inventory_columns(
@@ -691,21 +695,18 @@ pub(crate) fn fit_inventory_columns(
         let partner = drawn(InventorySideType::Partner);
         let storage = drawn(InventorySideType::Storage);
         let stacked = narrow && partner && storage;
-        let (columns, rows) = if stacked {
+        let (count, rows) = if stacked {
             (
-                vec![GridTrack::flex(1.0), GridTrack::flex(1.0)],
+                2,
                 vec![GridTrack::flex(PARTNER_STACK_GROW), GridTrack::flex(1.0)],
             )
         } else {
-            let mut columns = vec![GridTrack::flex(1.0)];
-            if partner {
-                columns.push(GridTrack::flex(1.0));
-            }
-            if storage {
-                columns.push(GridTrack::flex(STORAGE_COLUMN_GROW));
-            }
-            (columns, vec![GridTrack::flex(1.0)])
+            (
+                1 + usize::from(partner) + usize::from(storage),
+                vec![GridTrack::flex(1.0)],
+            )
         };
+        let columns = vec![GridTrack::flex(1.0); count];
         if row.grid_template_columns != columns {
             row.grid_template_columns = columns;
         }

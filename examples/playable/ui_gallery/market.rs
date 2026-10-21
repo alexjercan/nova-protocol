@@ -246,100 +246,94 @@ fn trade_column(
 /// `InventorySideType::Storage` column. Only the station's rows select;
 /// an own hold is listed to read.
 fn storage_column(columns: &mut ChildSpawnerCommands, icons: &GalleryIcons, market: &MarketState) {
-    columns
-        .spawn(column_panel())
-        .insert(Node {
-            flex_grow: 0.65,
-            ..column_panel_node()
-        })
-        .with_children(|panel| {
-            panel.spawn(text("Storage: Dust Gate", 15.0, UiColor::Primary));
+    columns.spawn(column_panel()).with_children(|panel| {
+        panel.spawn(text("Storage: Dust Gate", 15.0, UiColor::Primary));
+        panel
+            .spawn(Node {
+                column_gap: px(18),
+                ..control_row(JustifyContent::FlexStart)
+            })
+            .with_children(|facts| {
+                fact(
+                    facts,
+                    "Stored",
+                    &format!(
+                        "{} / {}",
+                        kg_text(market.stored_kg()),
+                        kg_text(STORAGE_CAP_KG)
+                    ),
+                );
+            });
+        table_head(
+            panel,
+            &[(18.0, ""), (0.0, "Item"), (48.0, "Qty"), (58.0, "Mass")],
+        );
+        let mut any = false;
+        for (i, w) in WARES.iter().enumerate() {
+            if !listed(market, TradeSide::Storage, i, w) {
+                continue;
+            }
+            any = true;
+            let qty = market.storage[i];
+            spawn_row(
+                panel,
+                Click::Trade(TradeSide::Storage, i),
+                format!("{TRADE_ROW_PREFIX} Storage {i}"),
+                market.selected == Some((TradeSide::Storage, i)),
+            )
+            .insert(Node {
+                padding: UiRect::axes(px(8), px(3)),
+                border: UiRect::all(px(1)),
+                column_gap: px(8),
+                ..row_node()
+            })
+            .with_children(|r| stack_cells(r, icons, w, qty));
+        }
+        if !any {
+            panel.spawn((
+                Node {
+                    padding: UiRect::axes(px(8), px(8)),
+                    ..default()
+                },
+                children![text(
+                    "Nothing stored in this category.",
+                    12.0,
+                    UiColor::Label
+                )],
+            ));
+        }
+        for hold in &OWN_HOLDS {
+            let load: u32 = hold.stacks.iter().map(|(i, q)| WARES[*i].kg * q).sum();
             panel
                 .spawn(Node {
-                    column_gap: px(18),
-                    ..control_row(JustifyContent::FlexStart)
+                    column_gap: px(8),
+                    margin: UiRect::top(px(8)),
+                    padding: UiRect::axes(px(8), px(2)),
+                    ..control_row(JustifyContent::SpaceBetween)
                 })
-                .with_children(|facts| {
-                    fact(
-                        facts,
-                        "Stored",
-                        &format!(
-                            "{} / {}",
-                            kg_text(market.stored_kg()),
-                            kg_text(STORAGE_CAP_KG)
-                        ),
-                    );
+                .with_children(|head| {
+                    head.spawn(text(hold.ship, 13.0, UiColor::Primary));
+                    head.spawn(text(
+                        &format!("{} / {}", kg_text(load), kg_text(hold.cap_kg)),
+                        12.0,
+                        UiColor::Label,
+                    ));
                 });
-            table_head(
-                panel,
-                &[(18.0, ""), (0.0, "Item"), (48.0, "Qty"), (58.0, "Mass")],
-            );
-            let mut any = false;
-            for (i, w) in WARES.iter().enumerate() {
-                if !listed(market, TradeSide::Storage, i, w) {
+            for (i, qty) in hold.stacks {
+                let w = &WARES[*i];
+                if !market.filter.is_none_or(|c| c == w.category) {
                     continue;
                 }
-                any = true;
-                let qty = market.storage[i];
-                spawn_row(
-                    panel,
-                    Click::Trade(TradeSide::Storage, i),
-                    format!("{TRADE_ROW_PREFIX} Storage {i}"),
-                    market.selected == Some((TradeSide::Storage, i)),
-                )
-                .insert(Node {
-                    padding: UiRect::axes(px(8), px(3)),
-                    border: UiRect::all(px(1)),
-                    column_gap: px(8),
-                    ..row_node()
-                })
-                .with_children(|r| stack_cells(r, icons, w, qty));
-            }
-            if !any {
-                panel.spawn((
-                    Node {
-                        padding: UiRect::axes(px(8), px(8)),
-                        ..default()
-                    },
-                    children![text(
-                        "Nothing stored in this category.",
-                        12.0,
-                        UiColor::Label
-                    )],
-                ));
-            }
-            for hold in &OWN_HOLDS {
-                let load: u32 = hold.stacks.iter().map(|(i, q)| WARES[*i].kg * q).sum();
                 panel
                     .spawn(Node {
+                        padding: UiRect::axes(px(9), px(4)),
                         column_gap: px(8),
-                        margin: UiRect::top(px(8)),
-                        padding: UiRect::axes(px(8), px(2)),
-                        ..control_row(JustifyContent::SpaceBetween)
+                        ..row_node()
                     })
-                    .with_children(|head| {
-                        head.spawn(text(hold.ship, 13.0, UiColor::Primary));
-                        head.spawn(text(
-                            &format!("{} / {}", kg_text(load), kg_text(hold.cap_kg)),
-                            12.0,
-                            UiColor::Label,
-                        ));
-                    });
-                for (i, qty) in hold.stacks {
-                    let w = &WARES[*i];
-                    if !market.filter.is_none_or(|c| c == w.category) {
-                        continue;
-                    }
-                    panel
-                        .spawn(Node {
-                            padding: UiRect::axes(px(9), px(4)),
-                            column_gap: px(8),
-                            ..row_node()
-                        })
-                        .with_children(|r| stack_cells(r, icons, w, *qty));
-                }
+                    .with_children(|r| stack_cells(r, icons, w, *qty));
             }
-        });
+        }
+    });
 }
 
 /// The cells of a storage or own-hold row: the icon, the name, the count
