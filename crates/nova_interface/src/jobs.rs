@@ -346,6 +346,7 @@ fn hand_in_refusal_text(
     title: &str,
     refusal: &JobHandInRefusalType,
     chart: &Chart,
+    items: &GameItems,
 ) -> String {
     match refusal {
         JobHandInRefusalType::NotDocked => {
@@ -355,7 +356,10 @@ fn hand_in_refusal_text(
             format!("hand in at {}", station_name(chart, needed))
         }
         JobHandInRefusalType::ShortItems { item, need, have } => {
-            format!("the hold carries {have} of {need} {item}")
+            format!(
+                "the hold carries {have} of {need} {}",
+                items.design(item).name
+            )
         }
         JobHandInRefusalType::NotDone => format!("{title}: not done yet"),
         JobHandInRefusalType::StationCannotPay { need, have } => format!(
@@ -578,6 +582,7 @@ fn update_jobs_pane(
                 title,
                 &JobHandInRefusalType::NotDocked,
                 &chart,
+                &items,
             ));
         };
         plan_job_hand_in(
@@ -588,7 +593,7 @@ fn update_jobs_pane(
             jobs.is_done(&job.id),
         )
         .err()
-        .map(|refusal| hand_in_refusal_text(job, title, &refusal, &chart))
+        .map(|refusal| hand_in_refusal_text(job, title, &refusal, &chart, &items))
     };
     let held: Vec<HeldRow> = jobs
         .held()
@@ -1411,6 +1416,7 @@ fn apply_job_commands(
                 &title,
                 &JobHandInRefusalType::NotDocked,
                 &chart,
+                &items,
             ));
             continue;
         };
@@ -1427,7 +1433,7 @@ fn apply_job_commands(
         let plan = match plan_job_hand_in(&job, hand_in_partner.as_ref(), hold, own_cr, done) {
             Ok(plan) => plan,
             Err(refusal) => {
-                runtime.say(hand_in_refusal_text(&job, &title, &refusal, &chart));
+                runtime.say(hand_in_refusal_text(&job, &title, &refusal, &chart, &items));
                 continue;
             }
         };
@@ -1528,6 +1534,49 @@ mod tests {
             board_listing(true, Ok(()), Ok(())),
             Some(None),
             "a fit, open job lists with Accept"
+        );
+    }
+
+    #[test]
+    fn a_short_hold_hand_in_refusal_names_the_item_not_its_id() {
+        let item = ItemDesignId::from("CarbonOre");
+        let items = GameItems::new([ItemDesign {
+            id: item.clone(),
+            name: "Carbon ore".to_string(),
+            about: "Ore.".to_string(),
+            category: ItemCategoryType::Raw,
+            mass_g: 1_000,
+            ask_cr: 10,
+            bid_cr: 8,
+        }]);
+        let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
+        let job = Job {
+            id: JobId {
+                station: station.clone(),
+                slot: 0,
+                posting: 0,
+            },
+            kind: JobType::Procure {
+                item: item.clone(),
+                count: 4,
+            },
+            target: station,
+            reward_cr: 100,
+        };
+        let refusal = JobHandInRefusalType::ShortItems {
+            item,
+            need: 4,
+            have: 2,
+        };
+        assert_eq!(
+            hand_in_refusal_text(
+                &job,
+                "Bring 4 Carbon ore",
+                &refusal,
+                &Chart::default(),
+                &items
+            ),
+            "the hold carries 2 of 4 Carbon ore"
         );
     }
 
