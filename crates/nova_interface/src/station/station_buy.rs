@@ -49,8 +49,9 @@ pub(crate) struct StationSaleRows(Option<StationRow>);
 #[derive(Clone, Debug, PartialEq)]
 struct StationRow {
     name: String,
-    /// The price rule, the allies-only line, or the owned line.
-    line: String,
+    /// The allies-only line or the owned line; `None` for a station for
+    /// sale, whose price block speaks for it.
+    line: Option<String>,
     /// The price of a station for sale, or `None` while it is not for sale.
     price_cr: Option<u64>,
     /// What the balance lacks of the price, or `None` while it is not short.
@@ -200,7 +201,7 @@ pub(crate) fn update_station_sale_block(
     let row = sale.docked().and_then(|docked| match docked.sale {
         StationSaleType::NotForSale => None,
         StationSaleType::NotAllied => Some(StationRow {
-            line: "Sold to allies only".to_string(),
+            line: Some("Sold to allies only".to_string()),
             price_cr: None,
             short_cr: None,
             refusal: Some(station_refusal_text(
@@ -211,7 +212,7 @@ pub(crate) fn update_station_sale_block(
             owned: false,
         }),
         StationSaleType::Owned => Some(StationRow {
-            line: "Yours: it refuses no hull, and its stock sells to you at bid".to_string(),
+            line: Some("Yours: it refuses no hull, and its stock sells to you at bid".to_string()),
             price_cr: None,
             short_cr: None,
             name: docked.name,
@@ -222,7 +223,7 @@ pub(crate) fn update_station_sale_block(
             let own_cr = q_credits.get(docked.player).map_or(0, |credits| credits.0);
             let refusal = plan_station_buy(docked.price_cr, Some(docked.sale), own_cr).err();
             Some(StationRow {
-                line: "twice its sections, stock and credits at ask".to_string(),
+                line: None,
                 price_cr: Some(docked.price_cr),
                 short_cr: match refusal {
                     Some(StationBuyRefusalType::InsufficientCredits { need, have }) => {
@@ -256,7 +257,9 @@ pub(crate) fn update_station_sale_block(
             } else {
                 UiColor::Body
             };
-            cell.spawn(themed_label(&row.line, 12.0, tone));
+            if let Some(line) = &row.line {
+                cell.spawn(themed_label(line, 12.0, tone));
+            }
             if let Some(price_cr) = row.price_cr {
                 spawn_card_price(cell, &icons, price_cr, row.short_cr);
             }

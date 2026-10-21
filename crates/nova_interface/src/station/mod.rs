@@ -16,8 +16,8 @@
 //!   escort the station hires out, with its 3D view, its name, length and
 //!   price, a Hire button that raises an `EscortHireCommand`, and Info.
 //!
-//! A card's price is a credit figure, with the shortfall beside it while the
-//! balance is short. A refused action keeps its button, greyed, with the
+//! A card's price is a credit figure, with `(missing <figure>)` in red beside
+//! it while the balance is short. A refused action keeps its button, greyed, with the
 //! reason as its tooltip.
 //!
 //! A line says so when the station offers none of the lists and parks none
@@ -230,7 +230,7 @@ pub(crate) fn spawn_hull_card_head(
 }
 
 /// A card's price block: the figure at 15 px, muted while short, then
-/// `short` and the gap in Danger.
+/// `(missing <figure>)` in Danger at the same size.
 pub(crate) fn spawn_card_price(
     cell: &mut ChildSpawnerCommands,
     icons: &InterfaceIcons,
@@ -252,14 +252,25 @@ pub(crate) fn spawn_card_price(
         };
         spawn_credit_figure(line, icons, price_cr, 15.0, tone, ());
         if let Some(short_cr) = short_cr {
+            // The ")" sits flush on the digits; the gap only splits the word
+            // from the figure.
             line.spawn(Node {
                 align_items: AlignItems::Center,
-                column_gap: px(5),
+                flex_shrink: 0.0,
                 ..default()
             })
-            .with_children(|short| {
-                short.spawn(themed_label("short", 12.0, UiColor::Danger));
-                spawn_credit_figure(short, icons, short_cr, 12.0, UiColor::Danger, ());
+            .with_children(|missing| {
+                missing
+                    .spawn(Node {
+                        align_items: AlignItems::Center,
+                        column_gap: px(5),
+                        ..default()
+                    })
+                    .with_children(|word| {
+                        word.spawn(themed_label("(missing", 15.0, UiColor::Danger));
+                        spawn_credit_figure(word, icons, short_cr, 15.0, UiColor::Danger, ());
+                    });
+                missing.spawn(themed_label(")", 15.0, UiColor::Danger));
             });
         }
     });
