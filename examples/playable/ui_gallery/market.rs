@@ -180,15 +180,8 @@ fn trade_column(
                 (18.0, ""),
                 (0.0, "Item"),
                 (48.0, "Qty"),
-                (
-                    66.0,
-                    if side == TradeSide::Tender {
-                        "Pays"
-                    } else {
-                        "Asks"
-                    },
-                ),
-                (58.0, "vs ref"),
+                (66.0, "Price"),
+                (58.0, "Markup"),
             ],
         );
         let mut any = false;
@@ -358,7 +351,7 @@ fn stack_cells(r: &mut ChildSpawnerCommands, icons: &GalleryIcons, w: &Ware, qty
     r.spawn(cell(58.0, &kg_text(qty * w.kg), 12.0, UiColor::Body, true));
 }
 
-/// The `vs ref` badge: green under the reference, amber over, mute at it.
+/// The `Markup` badge: green under the reference, amber over, mute at it.
 fn delta_badge(delta: i32) -> impl Bundle {
     let kind = if delta < 0 {
         BadgeKind::Green

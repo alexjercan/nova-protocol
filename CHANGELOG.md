@@ -231,7 +231,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Job rows carry a kind icon: crate, hook, chevrons, beacon or reticle.
 - In flight, a held job's wreck, hauler, caller or hull wears a gold `JOB-n`
   chip with its distance; a done job's chip moves to the station that pays it.
-- Inventory rows at a trader show the price of one with a `vs ref` badge of
+- Inventory rows at a trader show the Price of one with a Markup badge of
   the percent off the reference, green under and amber over; the inspector
   reads Reference, Pays and Asks.
 - Buy all and Sell all beside Confirm trade the whole stack in one click,

@@ -337,6 +337,12 @@ pub(crate) fn show_pane_clock(
 /// The `Name` of a credit figure's digits, for tests and captures.
 pub const CREDIT_FIGURE: &str = "CreditFigure";
 
+/// The share of a credit figure's `size` that the mask rises, so its centre
+/// meets the digits' centre. Measured on Iosevka Term at 12, 13 and 15 px:
+/// the centred mask sat 0 to 2 px under the digits, by the row's rounding,
+/// and a larger lift put the 15 px Station price mask 2 px high.
+const CREDIT_MASK_LIFT: f32 = 0.10;
+
 /// The credit mask, then `credits` as [`cr_digits`], both `size` px in `tone`.
 /// `marker` goes on the digits node for callers that rewrite it in place; a
 /// `Name` in it replaces [`CREDIT_FIGURE`]. The figure ignores the pointer, so
@@ -360,7 +366,17 @@ pub(crate) fn spawn_credit_figure(
             Pickable::IGNORE,
         ))
         .with_children(|figure| {
-            figure.spawn(icon_node(icons.credit(), tone, size));
+            figure
+                .spawn((
+                    Node {
+                        top: px(-size * CREDIT_MASK_LIFT),
+                        ..default()
+                    },
+                    Pickable::IGNORE,
+                ))
+                .with_children(|lift| {
+                    lift.spawn(icon_node(icons.credit(), tone, size));
+                });
             figure
                 .spawn((
                     themed_label(&cr_digits(credits), size, tone),
@@ -617,6 +633,22 @@ pub(crate) fn control_row(justify: JustifyContent) -> Node {
         flex_shrink: 0.0,
         ..default()
     }
+}
+
+/// A fixed-width row cell that holds its content at its left edge, so the
+/// heading and every value of a column share one left edge. A fixed-width
+/// `Justify::Right` text does not right-align in Bevy 0.19 (its `NoWrap`
+/// bounds are unbounded); flex placement is what aligns a cell.
+pub(crate) fn fixed_cell(width: f32) -> impl Bundle {
+    (
+        Node {
+            width: px(width),
+            flex_shrink: 0.0,
+            align_items: AlignItems::Center,
+            ..default()
+        },
+        Pickable::IGNORE,
+    )
 }
 
 /// Least width of a viewer pane's side panel, in logical px: the widest note,
