@@ -545,16 +545,40 @@ impl Job {
         }
     }
 
-    /// What the player has to do before the hand-in, for a list.
-    pub fn task(&self) -> String {
+    /// What the player has to do before the hand-in, for the Jobs inspector
+    /// and the chart's job note. The hand-in itself is their own line. An
+    /// item the catalog lacks reads by its id, as in [`Job::title`].
+    pub fn task(&self, items: &GameItems) -> String {
+        let item_name = |item: &ItemDesignId| {
+            items
+                .get(item)
+                .map_or_else(|| item.to_string(), |design| design.name.clone())
+        };
         match &self.kind {
-            JobType::Procure { .. } => "bring the goods".to_string(),
-            JobType::Recover { wreck_name, .. } => {
-                format!("dock at {wreck_name}, take the stack and undock")
+            JobType::Procure { item, count } => format!(
+                "Bring {count} {} in your hold. Hand-in takes them from the hold.",
+                item_name(item)
+            ),
+            JobType::Recover {
+                wreck_name,
+                item,
+                count,
+                ..
+            } => format!(
+                "Dock with {wreck_name}, take all {count} {} from it, and undock with them \
+                 aboard.",
+                item_name(item)
+            ),
+            JobType::Escort { .. } => "Undock, then follow the hauler to its destination. \
+                Protect it from raiders; the job is lost if the hauler is neutralized or \
+                destroyed before arrival."
+                .to_string(),
+            JobType::Distress { .. } => "Dock with the stranded caller. If it is a trap, \
+                neutralize or destroy the raider instead."
+                .to_string(),
+            JobType::Neutralize { hull_name, .. } => {
+                format!("Find {hull_name} and neutralize or destroy it.")
             }
-            JobType::Escort { .. } => "see the hauler to its mark".to_string(),
-            JobType::Distress { .. } => "reach the caller".to_string(),
-            JobType::Neutralize { hull_name, .. } => format!("neutralize {hull_name}"),
         }
     }
 

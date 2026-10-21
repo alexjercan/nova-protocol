@@ -22,10 +22,10 @@ use nova_ui::widget::{TextFieldError, TextFieldValue};
 use super::*;
 use crate::{
     icons::InterfaceIcons,
-    pane::InterfacePaneType,
+    pane::{InterfacePaneType, SIDE_PANEL_PX},
     pointer_rig::{
-        click_at, double_click_at, hear_ui_cues, move_cursor_to, pane_pointer_rig, settle,
-        take_churn, take_cues, track_node_churn, PanePointerRig,
+        click_at, double_click_at, hear_ui_cues, move_cursor_to, pane_pointer_rig, resize_window,
+        settle, take_churn, take_cues, track_node_churn, PanePointerRig,
     },
 };
 
@@ -292,22 +292,17 @@ fn undocked_the_partner_slot_is_blank_and_both_columns_keep_equal_width() {
     assert!(own_w > 0.0 && own_w == partner_w, "{own_w} != {partner_w}");
     assert!(column_texts(rig.app.world_mut(), InventorySideType::Partner).is_empty());
 
-    // The inspector takes 20% of the row beside the stores.
+    // The inspector is as wide as every pane's side panel.
     let world = rig.app.world_mut();
-    let (inspector_w, row) = world
-        .query::<(&Name, &ComputedNode, &ChildOf)>()
+    let inspector_w = world
+        .query::<(&Name, &ComputedNode)>()
         .iter(world)
-        .find(|(name, ..)| name.as_str() == "InventoryInspector")
-        .map(|(_, node, child_of)| (node.size().x, child_of.parent()))
+        .find(|(name, _)| name.as_str() == "InventoryInspector")
+        .map(|(_, node)| node.size().x)
         .expect("the pane has an inspector");
-    let row_w = world
-        .get::<ComputedNode>(row)
-        .expect("a laid-out row")
-        .size()
-        .x;
     assert!(
-        (inspector_w - row_w * 0.2).abs() <= 1.0,
-        "inspector {inspector_w} is not 20% of row {row_w}"
+        (inspector_w - SIDE_PANEL_PX).abs() <= 0.5,
+        "inspector {inspector_w} is not {SIDE_PANEL_PX}"
     );
 
     // Idle: nothing is spawned, despawned or rewritten.
@@ -326,6 +321,67 @@ fn undocked_the_partner_slot_is_blank_and_both_columns_keep_equal_width() {
 
 /// A dock that ends with a trade form open, as the player's hit on a docked
 /// Neutral ends it, hides the partner column and closes its Buy form.
+#[test]
+fn a_narrow_window_stacks_storage_under_the_partner() {
+    let (mut rig, player) = inventory_rig();
+    dock_station(&mut rig, player, vec![StationServiceType::Storage], 100_000);
+    let rects = |world: &mut World| {
+        [
+            InventorySideType::Own,
+            InventorySideType::Partner,
+            InventorySideType::Storage,
+        ]
+        .map(|side| {
+            world
+                .query::<(&InventoryColumnPanel, &ComputedNode, &UiGlobalTransform)>()
+                .iter(world)
+                .find(|(panel, ..)| panel.0 == side)
+                .map(|(_, node, xf)| Rect::from_center_size(xf.translation, node.size()))
+                .expect("the pane has a panel per side")
+        })
+    };
+
+    resize_window(&mut rig.app, UVec2::new(1024, 768));
+    settle(&mut rig.app);
+    let [own, partner, storage] = rects(rig.app.world_mut());
+    assert!(
+        (storage.min.x - partner.min.x).abs() <= 0.5
+            && (storage.width() - partner.width()).abs() <= 0.5
+            && storage.min.y >= partner.max.y,
+        "Storage {storage:?} stacks under Partner {partner:?}"
+    );
+    assert!(
+        (own.width() - partner.width()).abs() <= 0.5
+            && (own.min.y - partner.min.y).abs() <= 0.5
+            && (own.max.y - storage.max.y).abs() <= 0.5,
+        "Own {own:?} is as wide as Partner and spans both rows"
+    );
+    assert!(
+        (partner.height() - 2.0 * storage.height()).abs() <= 1.0,
+        "Partner {} takes twice Storage's {}",
+        partner.height(),
+        storage.height()
+    );
+    let world = rig.app.world_mut();
+    let heights: Vec<f32> = world
+        .query_filtered::<&ComputedNode, With<InventoryRow>>()
+        .iter(world)
+        .map(|node| node.size().y)
+        .collect();
+    assert!(
+        !heights.is_empty() && heights.iter().all(|height| (height - ROW_PX).abs() <= 0.5),
+        "every row stays one {ROW_PX} px line: {heights:?}"
+    );
+
+    resize_window(&mut rig.app, UVec2::new(1280, 720));
+    settle(&mut rig.app);
+    let [_, partner, storage] = rects(rig.app.world_mut());
+    assert!(
+        storage.min.x >= partner.max.x && (storage.min.y - partner.min.y).abs() <= 0.5,
+        "three columns: Storage {storage:?} is right of Partner {partner:?}"
+    );
+}
+
 #[test]
 fn a_dock_ending_mid_trade_hides_the_partner_column_and_closes_its_form() {
     let (mut rig, player) = inventory_rig();

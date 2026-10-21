@@ -1,17 +1,14 @@
 //! Live-tree tests for the TAB interface card: a pane switch keeps the card,
 //! its title row and its tabs and replaces only the pane body.
 
-use bevy::{
-    camera::{Camera, RenderTargetInfo},
-    ui::{ComputedNode, IsDefaultUiCamera, UiGlobalTransform},
-};
+use bevy::ui::{ComputedNode, UiGlobalTransform};
 use nova_input::prelude::{BindingSpec, InputSource, RegisterInputActions};
 use nova_ui::widget::button_on_setting;
 
 use super::*;
 use crate::pointer_rig::{
-    click_at, hear_ui_cues, pane_pointer_rig, settle, take_churn, take_cues, track_node_churn,
-    NodeChurn, PanePointerRig,
+    click_at, hear_ui_cues, pane_pointer_rig, resize_window, settle, take_churn, take_cues,
+    track_node_churn, NodeChurn, PanePointerRig,
 };
 
 /// The card's lasting entities: the card, the title row, the title text, and
@@ -258,7 +255,7 @@ fn map_and_ship_share_a_fixed_footer_under_the_view_and_inventory_has_none() {
             "{pane:?} view {view:?} and panel {panel:?} sit above the footer {foot:?}"
         );
         assert!(
-            panel.width() >= SIDE_PANEL_MIN_PX,
+            (panel.width() - SIDE_PANEL_PX).abs() <= 0.5,
             "{pane:?} panel is {} wide",
             panel.width()
         );
@@ -271,25 +268,6 @@ fn map_and_ship_share_a_fixed_footer_under_the_view_and_inventory_has_none() {
     *rig.app.world_mut().resource_mut::<InterfacePaneType>() = InterfacePaneType::Inventory;
     settle(&mut rig.app);
     assert_eq!(footer(rig.app.world_mut()), None, "Inventory has no footer");
-}
-
-/// Resize the rig's window and its camera target together, as a real resize
-/// does; the UI root is 100% of the camera target.
-fn resize_window(app: &mut App, size: UVec2) {
-    let world = app.world_mut();
-    let mut window = world
-        .query_filtered::<&mut Window, With<PrimaryWindow>>()
-        .single_mut(world)
-        .expect("the rig has a primary window");
-    window.resolution.set(size.x as f32, size.y as f32);
-    let mut camera = world
-        .query_filtered::<&mut Camera, With<IsDefaultUiCamera>>()
-        .single_mut(world)
-        .expect("the rig has a UI camera");
-    camera.computed.target_info = Some(RenderTargetInfo {
-        physical_size: size,
-        scale_factor: 1.0,
-    });
 }
 
 /// The rect of every footer hint that is shown.
@@ -441,7 +419,7 @@ fn a_narrow_window_puts_the_footer_hints_under_the_legend_and_nothing_overlaps()
         "view {view:?} and panel {panel:?} sit above the footer {foot:?}"
     );
     assert!(
-        panel.width() >= SIDE_PANEL_MIN_PX,
+        (panel.width() - SIDE_PANEL_PX).abs() <= 0.5,
         "panel is {} wide",
         panel.width()
     );

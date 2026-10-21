@@ -651,22 +651,20 @@ pub(crate) fn fixed_cell(width: f32) -> impl Bundle {
     )
 }
 
-/// Least width of a viewer pane's side panel, in logical px: the widest note,
-/// the section rebind prompt, fits on one line at this width. A small window
-/// keeps this width rather than the panel's 20% share.
-const SIDE_PANEL_MIN_PX: f32 = 300.0;
+/// Width of a pane's side panel and inspector, in logical px, the same on
+/// the Map, Ship, Inventory and Jobs panes. Fixed: the card caps at
+/// [`INTERFACE_MAX_PX`], so a share of the row never passed this width.
+pub(crate) const SIDE_PANEL_PX: f32 = 300.0;
 
 /// Side of the preview frame at the head of a side panel, in logical px.
 pub(crate) const PANEL_PREVIEW_PX: f32 = 96.0;
 
-/// A viewer pane's side panel: 20% of the row beside the view, never
-/// narrower than [`SIDE_PANEL_MIN_PX`], whose content past its height takes
-/// `overflow`.
+/// A pane's side panel or inspector: [`SIDE_PANEL_PX`] wide beside the
+/// view or the lists, whose content past its height takes `overflow`.
 pub(crate) fn side_panel(overflow: Overflow) -> impl Bundle {
     (
         Node {
-            width: percent(20),
-            min_width: px(SIDE_PANEL_MIN_PX),
+            width: px(SIDE_PANEL_PX),
             flex_shrink: 0.0,
             flex_direction: FlexDirection::Column,
             row_gap: px(10),

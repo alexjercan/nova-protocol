@@ -603,7 +603,7 @@ mod jobs_overlay {
                     "{} - {} cr - {state} - {}",
                     job.title(&items),
                     job.reward_cr,
-                    job.task()
+                    job.task(&items)
                 ));
             }
         }
@@ -852,9 +852,11 @@ mod smoke {
             .expect("job sandbox: the board posts a second job the hull can do at another reward")
     }
 
-    /// A text reads the second held job's reward as `<prefix><reward> cr`
-    /// and none reads the first's, with the pane's thousands commas ignored.
-    fn reads_the_second_reward_only(prefix: &'static str) -> Arc<Predicate> {
+    /// A text reads the second held job's reward as `<prefix><reward><suffix>`
+    /// and none reads the first's, with the pane's thousands commas ignored:
+    /// the inspector's credit figure is digits beside an icon, the chart's
+    /// note `Reward <n> cr`.
+    fn reads_the_second_reward_only(prefix: &'static str, suffix: &'static str) -> Arc<Predicate> {
         when(move |world| {
             let [first, second] = world.resource::<Jobs>().held() else {
                 return false;
@@ -866,8 +868,8 @@ mod smoke {
                         .any(|text| text.0.replace(',', "") == reward)
                 })
             };
-            reads(format!("{prefix}{} cr", second.reward_cr))
-                && !reads(format!("{prefix}{} cr", first.reward_cr))
+            reads(format!("{prefix}{}{suffix}", second.reward_cr))
+                && !reads(format!("{prefix}{}{suffix}", first.reward_cr))
         })
     }
 
@@ -990,9 +992,12 @@ mod smoke {
         .until(and(
             and(
                 ui_node_present(JOB_SHOW_ON_MAP),
-                a_text_reads(|text| text.contains("HELD") && !text.contains("JOB")),
+                and(
+                    a_text_reads(|text| text == "Progress"),
+                    no_text_reads(|text| text == "HELD"),
+                ),
             ),
-            and(reads_the_second_reward_only(""), frames(SETTLE_FRAMES)),
+            and(reads_the_second_reward_only("", ""), frames(SETTLE_FRAMES)),
         ))
         .deadline(BEAT_SECS)
         .add()
@@ -1011,7 +1016,7 @@ mod smoke {
             and(
                 and(
                     a_text_reads(|text| text == "JOB-2"),
-                    reads_the_second_reward_only("Reward "),
+                    reads_the_second_reward_only("Reward ", " cr"),
                 ),
                 frames(SETTLE_FRAMES),
             ),

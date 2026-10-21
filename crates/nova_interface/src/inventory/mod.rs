@@ -76,6 +76,7 @@ use nova_gameplay::prelude::{
 };
 use nova_ui::{
     input_mode::prelude::{in_input_mode, InputMode},
+    screen::clamp_stored_scroll,
     widget::DoubleClick,
 };
 
@@ -129,6 +130,10 @@ impl Plugin for InventoryPanePlugin {
                 advance_hull_strip,
                 type_inventory_draft,
                 update_inventory_panel,
+                fit_inventory_columns,
+                // Last frame's layout, before the wheel subtracts from it.
+                clamp_stored_scroll::<InventoryColumn>,
+                scroll_inventory_columns,
                 update_inventory_trade_controls,
                 update_market_strip,
                 update_strip_block,

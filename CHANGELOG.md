@@ -228,9 +228,12 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A Jobs pane: Your jobs with a `have / need` meter and where to hand in;
   docked, Jobs posted here with reward, target, distance, time left and
   Accept. A refused button greys with the reason.
-- Clicking a job row opens it in the pane's inspector: task, poster, target,
+- Clicking a job row opens it in the pane's inspector: what to do, target,
   hand-in station, reward, time left or progress, and Show on Map, which
   opens the Map's chart view on the job's mark.
+- The Inventory inspector is a fixed 300 px, as the Map, Ship and Jobs side
+  panels. Under 1200 px Storage stacks under the station's column, and a
+  column scrolls with the wheel.
 - Job rows carry a kind icon: crate, hook, chevrons, beacon or reticle.
 - In flight, a held job's wreck, hauler, caller or hull wears a gold `JOB-n`
   chip with its distance; a done job's chip moves to the station that pays it.

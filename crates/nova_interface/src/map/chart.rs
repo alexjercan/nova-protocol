@@ -1819,12 +1819,12 @@ pub(crate) fn chart_panel_field(
         (Some(MapChartMarkType::Job(id)), MapPanelField::Note) => (
             jobs.job(id).map_or_else(String::new, |job| {
                 let state = if jobs.is_done(id) {
-                    "Done".to_string()
+                    "Done.".to_string()
                 } else {
-                    format!("To do: {}", job.task())
+                    job.task(items.unwrap_or(&GameItems::default()))
                 };
                 format!(
-                    "Posted by {}.\n{state}.\nHand in at {} while docked.",
+                    "Posted by {}.\n{state}\nHand in at {} while docked.",
                     station_name(job.posted_by()),
                     station_name(&job.target)
                 )

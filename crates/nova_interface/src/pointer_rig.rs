@@ -226,6 +226,25 @@ pub(super) fn settle(app: &mut App) {
     }
 }
 
+/// Resize the rig's window and its camera target together, as a real resize
+/// does; the UI root is 100% of the camera target.
+pub(super) fn resize_window(app: &mut App, size: UVec2) {
+    let world = app.world_mut();
+    let mut window = world
+        .query_filtered::<&mut Window, With<PrimaryWindow>>()
+        .single_mut(world)
+        .expect("the rig has a primary window");
+    window.resolution.set(size.x as f32, size.y as f32);
+    let mut camera = world
+        .query_filtered::<&mut Camera, With<IsDefaultUiCamera>>()
+        .single_mut(world)
+        .expect("the rig has a UI camera");
+    camera.computed.target_info = Some(RenderTargetInfo {
+        physical_size: size,
+        scale_factor: 1.0,
+    });
+}
+
 /// Move the real mouse to a window pixel. The mouse pointer reads the
 /// `CursorMoved` event, which `bevy_winit` writes for a real move beside the
 /// window's cursor position.

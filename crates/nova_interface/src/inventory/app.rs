@@ -10,6 +10,7 @@ use std::collections::{BTreeMap, VecDeque};
 
 use bevy::{
     ecs::system::SystemParam,
+    input::mouse::MouseWheel,
     picking::hover::Hovered,
     prelude::*,
     ui::InteractionDisabled,
@@ -17,6 +18,7 @@ use bevy::{
         Activate, Button, Slider, SliderPrecision, SliderRange, SliderStep, SliderValue,
         TrackClick, ValueChange,
     },
+    window::PrimaryWindow,
 };
 use nova_gameplay::prelude::*;
 use nova_input::prelude::InputBindings;
@@ -24,6 +26,7 @@ use nova_ship::prelude::{
     CargoIntakeEjectionQueue, CargoIntakeSectionMarker, DockedShip, DockingConnection,
 };
 use nova_ui::{
+    screen::drive_wheel_scroll,
     theme::UiColor,
     widget::{
         badge, slider_track, text_field, BadgeKind, ButtonSpec, TextFieldError, TextFieldFocused,
@@ -39,15 +42,15 @@ use super::{
 use crate::{
     icons::{icon_node, InterfaceIcons},
     pane::{
-        compact_button, control_row, divider, fixed_cell, play_menu_select, spawn_credit_figure,
-        themed_label, InterfacePaneType, SUMMARY_LINES,
+        compact_button, control_row, divider, fixed_cell, play_menu_select, side_panel,
+        spawn_credit_figure, themed_label, InterfacePaneType, SUMMARY_LINES,
     },
     terminal::NovaOsAppInput,
     viewer::cycle_index,
 };
 
 /// Height of one inventory row, in logical px.
-const ROW_PX: f32 = 28.0;
+pub(crate) const ROW_PX: f32 = 28.0;
 /// Width of the quantity column, in logical px: `x99999` at 13 px.
 const QTY_PX: f32 = 40.0;
 /// Width of the `Price` column, in logical px: a four-digit price at 12 px.
@@ -56,10 +59,20 @@ const PRICE_PX: f32 = 48.0;
 const DEAL_PX: f32 = 44.0;
 /// Gap between the cells of a row and of its heading line, in logical px.
 const CELL_GAP_PX: f32 = 6.0;
-/// The Storage column's share of the stores row against 1.0 for the player
-/// and the partner. Its rows have no price, so the priced columns take the
-/// width: at 1024 px a priced name gets about 66 px.
+/// The Storage column's grid share against 1.0 for the player and the
+/// partner, in three columns. Its rows have no price, so the priced columns
+/// take the width.
 const STORAGE_COLUMN_GROW: f32 = 0.65;
+/// Window width, in logical px, from which the Inventory stores lay out
+/// Own, Partner and Storage as three columns. Under it, with Storage drawn
+/// beside the partner, Storage stacks under Partner so the priced columns
+/// keep one-line rows with whole names: three columns at 1200 px leave a
+/// 14-character name, and at 1024 px only 4.
+const INVENTORY_STACK_SPLIT_PX: f32 = 1200.0;
+/// The Partner column's grid share of the height against 1.0 for Storage
+/// stacked under it: a 7-item board stays whole at 1024x768, and Storage
+/// keeps its heading and a row, the rest by the wheel.
+const PARTNER_STACK_GROW: f32 = 2.0;
 /// Seconds a transfer result stays on the note line, as on the Ship pane.
 pub(crate) const NOTE_SECONDS: f32 = 2.5;
 /// Font size of the item description, in logical px.
@@ -362,8 +375,10 @@ fn chip_paint(current: bool) -> (UiColor, f32, f32) {
     }
 }
 
-/// The inventory: the filters over the two columns, and the inspector beside
-/// them. [`update_inventory_panel`] fills the columns and the inspector.
+/// The inventory: the filters over the stores columns, and the inspector
+/// beside them. [`update_inventory_panel`] fills the columns and the
+/// inspector; [`fit_inventory_columns`] lays the columns out by the window
+/// width.
 pub(crate) fn inventory_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     body.spawn(Node {
         flex_grow: 1.0,
@@ -396,13 +411,17 @@ pub(crate) fn inventory_body(body: &mut ChildSpawnerCommands, icons: &InterfaceI
                         }
                     });
                 stores
-                    .spawn(Node {
-                        flex_grow: 1.0,
-                        min_height: px(0),
-                        flex_direction: FlexDirection::Row,
-                        column_gap: px(12),
-                        ..default()
-                    })
+                    .spawn((
+                        InventoryColumnsRow,
+                        Node {
+                            display: Display::Grid,
+                            flex_grow: 1.0,
+                            min_height: px(0),
+                            column_gap: px(12),
+                            row_gap: px(12),
+                            ..default()
+                        },
+                    ))
                     .with_children(|columns| {
                         for side in [
                             InventorySideType::Own,
@@ -473,12 +492,6 @@ fn inventory_column(
                 } else {
                     Display::Flex
                 },
-                flex_grow: if side == InventorySideType::Storage {
-                    STORAGE_COLUMN_GROW
-                } else {
-                    1.0
-                },
-                flex_basis: px(0),
                 min_width: px(0),
                 min_height: px(0),
                 flex_direction: FlexDirection::Column,
@@ -634,6 +647,7 @@ fn inventory_column(
                         });
                     }
                 });
+            // Scrolls: a stacked Partner or Storage column shows a few rows.
             panel.spawn((
                 InventoryColumn { side, drawn: None },
                 Node {
@@ -641,36 +655,118 @@ fn inventory_column(
                     min_height: px(0),
                     flex_direction: FlexDirection::Column,
                     row_gap: px(4),
+                    overflow: Overflow::scroll_y(),
                     ..default()
                 },
+                ScrollPosition::default(),
+                Hovered::default(),
             ));
         });
 }
 
+/// The row of stores columns, which [`fit_inventory_columns`] lays out on a
+/// grid by the window width and the drawn columns.
+#[derive(Component)]
+pub(crate) struct InventoryColumnsRow;
+
+/// Lay the stores columns out for the window width: three columns from
+/// [`INVENTORY_STACK_SPLIT_PX`], else Storage under Partner while both are
+/// drawn. Reads the panels' `Display`, which [`update_inventory_panel`]
+/// owns, and writes grid fields only when they differ, so an idle frame
+/// causes no relayout. No window, as in a headless run, lays out wide.
+pub(crate) fn fit_inventory_columns(
+    q_window: Query<&Window, With<PrimaryWindow>>,
+    mut q_row: Query<(&mut Node, &Children), With<InventoryColumnsRow>>,
+    mut q_panel: Query<(&InventoryColumnPanel, &mut Node), Without<InventoryColumnsRow>>,
+) {
+    let narrow = q_window
+        .single()
+        .is_ok_and(|window| window.width() < INVENTORY_STACK_SPLIT_PX);
+    for (mut row, panels) in &mut q_row {
+        let drawn = |side| {
+            q_panel
+                .iter_many(panels)
+                .any(|(panel, node)| panel.0 == side && node.display != Display::None)
+        };
+        let partner = drawn(InventorySideType::Partner);
+        let storage = drawn(InventorySideType::Storage);
+        let stacked = narrow && partner && storage;
+        let (columns, rows) = if stacked {
+            (
+                vec![GridTrack::flex(1.0), GridTrack::flex(1.0)],
+                vec![GridTrack::flex(PARTNER_STACK_GROW), GridTrack::flex(1.0)],
+            )
+        } else {
+            let mut columns = vec![GridTrack::flex(1.0)];
+            if partner {
+                columns.push(GridTrack::flex(1.0));
+            }
+            if storage {
+                columns.push(GridTrack::flex(STORAGE_COLUMN_GROW));
+            }
+            (columns, vec![GridTrack::flex(1.0)])
+        };
+        if row.grid_template_columns != columns {
+            row.grid_template_columns = columns;
+        }
+        if row.grid_template_rows != rows {
+            row.grid_template_rows = rows;
+        }
+        let mut panels = q_panel.iter_many_mut(panels);
+        while let Some((panel, mut node)) = panels.fetch_next() {
+            let (column, row) = match panel.0 {
+                InventorySideType::Own if stacked => (1, GridPlacement::start_span(1, 2)),
+                InventorySideType::Own => (1, GridPlacement::start(1)),
+                InventorySideType::Partner => (2, GridPlacement::start(1)),
+                InventorySideType::Storage if stacked => (2, GridPlacement::start(2)),
+                InventorySideType::Storage => {
+                    (if partner { 3 } else { 2 }, GridPlacement::start(1))
+                }
+                InventorySideType::Hold(_) => {
+                    unreachable!("a hold is a section of the storage column, not a column")
+                }
+            };
+            let column = GridPlacement::start(column);
+            if node.grid_column != column {
+                node.grid_column = column;
+            }
+            if node.grid_row != row {
+                node.grid_row = row;
+            }
+        }
+    }
+}
+
+/// Wheel-scroll a stores column while the pointer is over it, through the
+/// shared driver. A wheel elsewhere, as over the draft quantity, is left
+/// alone.
+pub(crate) fn scroll_inventory_columns(
+    mut wheel: MessageReader<MouseWheel>,
+    q_list: Query<
+        (&mut ScrollPosition, Option<&ComputedNode>, Option<&Hovered>),
+        With<InventoryColumn>,
+    >,
+) {
+    if !q_list
+        .iter()
+        .any(|(_, _, hovered)| hovered.is_some_and(Hovered::get))
+    {
+        wheel.clear();
+        return;
+    }
+    drive_wheel_scroll(wheel, q_list);
+}
+
 /// The inspector: a hint with nothing selected, else the item's icon, name,
-/// category, description and stock. It takes 20% of the row beside the
-/// stores. Each part keeps its height as the selection changes: the name and
-/// the stock clip on one line, the description clips to [`ABOUT_LINES`], and
-/// rows that come and go with the draft hide without giving up their space.
+/// category, description and stock, beside the stores. Each part keeps its
+/// height as the selection changes: the name and the stock clip on one line,
+/// the description clips to [`ABOUT_LINES`], and rows that come and go with
+/// the draft hide without giving up their space.
 fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     split
         .spawn((
             Name::new("InventoryInspector"),
-            Node {
-                width: percent(20),
-                flex_shrink: 0.0,
-                flex_direction: FlexDirection::Column,
-                row_gap: px(10),
-                padding: UiRect::all(px(12)),
-                border: UiRect::all(px(1)),
-                border_radius: BorderRadius::all(px(4)),
-                overflow: Overflow::clip(),
-                ..default()
-            },
-            BackgroundColor(Color::NONE),
-            ThemedFill::alpha(UiColor::Secondary, 0.08),
-            BorderColor::all(Color::NONE),
-            ThemedBorder::new(UiColor::Secondary),
+            side_panel(Overflow::clip()),
         ))
         .with_children(|panel| {
             panel

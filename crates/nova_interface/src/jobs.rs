@@ -18,9 +18,9 @@
 //! title, its next unmet line ([`open_objectives`]) and a `have / need`
 //! meter, or the play time the goal was met; a role with no goal has no row.
 //! Clicking a job row selects it and the inspector reads its task, its
-//! poster, its target, its hand-in station, its reward, its time left or
-//! progress and a Show on Map button, which opens the Map's chart view on
-//! the job's mark ([`MapRuntime::chart_show`]).
+//! target, its hand-in station, its reward, its time left or progress and a
+//! Show on Map button, which opens the Map's chart view on the job's mark
+//! ([`MapRuntime::chart_show`]).
 //!
 //! A click on Accept or Hand in raises a [`JobAcceptCommand`] or a
 //! [`JobHandInCommand`]; [`apply_job_commands`] plans it with
@@ -48,7 +48,7 @@ use crate::{
     icons::{icon_node, ChartIconType, InterfaceIcons, JobIconType},
     map::{job_cell, MapChartMarkType, MapRuntime},
     pane::{
-        compact_button, control_row, divider, panel_paint, play_menu_select, refusable_button,
+        compact_button, control_row, divider, play_menu_select, refusable_button, side_panel,
         spawn_credit_figure, themed_label, view_split, InterfacePaneType,
     },
     ship::StationSite,
@@ -333,7 +333,7 @@ fn accept_refusal_text(refusal: &JobAcceptRefusalType) -> String {
     match refusal {
         JobAcceptRefusalType::NotDocked => "accept: dock at a station that posts jobs".to_string(),
         JobAcceptRefusalType::NotPostedHere => "accept: this station did not post it".to_string(),
-        JobAcceptRefusalType::AlreadyHeld => "accept: you hold it already".to_string(),
+        JobAcceptRefusalType::AlreadyHeld => "accept: you took it already".to_string(),
         JobAcceptRefusalType::AlreadyDone => "accept: you completed it already".to_string(),
         JobAcceptRefusalType::Expired => "accept: this offer expired".to_string(),
         JobAcceptRefusalType::TargetGone => "accept: its target is gone".to_string(),
@@ -438,11 +438,8 @@ struct BoardView {
 struct InspectorView {
     icon: JobIconType,
     title: String,
-    kind: &'static str,
-    held: bool,
     done: bool,
     task: String,
-    poster: String,
     target: String,
     hand_in: String,
     reward_cr: u64,
@@ -661,11 +658,8 @@ fn update_jobs_pane(
         InspectorView {
             icon: JobIconType::of(&job.kind),
             title: title.clone(),
-            kind: job.kind.label(),
-            held,
             done,
-            task: job.task(),
-            poster: station_name(&chart, job.posted_by()),
+            task: job.task(&items),
             target: format!("{}, {}", target_name(job, &chart), place(job_cell(job))),
             hand_in: station_name(&chart, &job.target),
             reward_cr: job.reward_cr.into(),
@@ -713,29 +707,12 @@ fn update_jobs_pane(
             held_panel(col, &icons, &view, runtime.selected.as_ref());
         });
         split
-            .spawn((
-                Node {
-                    width: percent(26),
-                    min_width: px(SIDE_PANEL_MIN_PX),
-                    flex_shrink: 0.0,
-                    flex_direction: FlexDirection::Column,
-                    row_gap: px(10),
-                    padding: UiRect::all(px(12)),
-                    border: UiRect::all(px(1)),
-                    border_radius: BorderRadius::all(px(4)),
-                    overflow: Overflow::clip(),
-                    ..default()
-                },
-                panel_paint(),
-            ))
+            .spawn(side_panel(Overflow::clip()))
             .with_children(|side| inspector_panel(side, &icons, view.inspector.as_ref()));
     });
     *built = Some(view);
 }
 
-/// Least width of the inspector, in logical px, as the viewer panes' side
-/// panel.
-const SIDE_PANEL_MIN_PX: f32 = 300.0;
 /// Width of the reward column.
 const REWARD_PX: f32 = 90.0;
 /// Width of the target and the hand-in columns.
@@ -1183,7 +1160,7 @@ fn held_panel(
                 });
             }
             if view.held.is_empty() {
-                empty_line(panel, "No job held.");
+                empty_line(panel, "No jobs taken.");
             }
         });
 }
@@ -1217,25 +1194,14 @@ fn inspector_panel(
     .with_children(|head| {
         head.spawn(icon_node(icons.job(job.icon), job.icon.color(), 24.0));
         head.spawn(themed_label(&job.title, 15.0, UiColor::Primary));
-    });
-    side.spawn(Node {
-        column_gap: px(6),
-        ..control_row(JustifyContent::FlexStart)
-    })
-    .with_children(|tags| {
-        tags.spawn(badge(BadgeKind::Mute, job.kind));
-        if job.held {
-            tags.spawn(badge(BadgeKind::Blue, "HELD"));
-        }
         if job.done {
-            tags.spawn(badge(BadgeKind::Green, "DONE"));
+            head.spawn(badge(BadgeKind::Green, "DONE"));
         }
     });
     side.spawn(divider());
     side.spawn(themed_label("TASK", 11.0, UiColor::Label));
     side.spawn(themed_label(&job.task, 12.0, UiColor::Body));
     side.spawn(divider());
-    kv(side, "Poster", &job.poster);
     kv(side, "Target", &job.target);
     kv(side, "Hand in", &job.hand_in);
     side.spawn(Node {
