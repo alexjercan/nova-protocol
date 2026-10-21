@@ -473,9 +473,6 @@ pub fn freeze_shed_fixture(
 /// save collector inserts one from its own `FrozenTransient::lifetime` once
 /// every transient's refs have resolved, the same as it does for a resumed
 /// round.
-/// Carries no [`Health`] either: a shed fixture can never take another hit
-/// (its collider is already gone), and a fresh `Health` insert on a brand new
-/// entity is exactly the shape a "this just happened" observer would read.
 pub fn thaw_shed_fixture(commands: &mut Commands, record: &FrozenShedFixture) -> Entity {
     let pose = Transform::from_translation(record.translation).with_rotation(record.rotation);
     let style = ShipStyle(record.style.clone());
@@ -509,7 +506,6 @@ pub fn thaw_shed_fixture(commands: &mut Commands, record: &FrozenShedFixture) ->
             AngularVelocity(record.angular),
         )),
     };
-    entity.remove::<Health>();
     entity.queue(|mut entity: EntityWorldMut| {
         let id = entity.id();
         let Some(collider) = entity.get::<Collider>() else {
@@ -638,8 +634,8 @@ mod tests {
     /// A plate and a piece of decor shed off a STYLED ship through the real
     /// `shed_dead_fixtures` path, each saved and brought back, must keep the
     /// art they wore, the countdown they were partway through, and the pose
-    /// they drifted to - and must NOT come back with `Health`, since neither
-    /// can ever take another hit with its collider already gone.
+    /// they drifted to - and each must freeze back to exactly the record it
+    /// thawed from.
     #[test]
     fn a_resumed_shed_fixture_keeps_its_art_style_and_grace() {
         use avian3d::prelude::{Collider, SimpleCollider};
@@ -881,9 +877,17 @@ mod tests {
             Entity::PLACEHOLDER
         );
 
-        // Neither thawed fixture can take another hit - its collider has
-        // already been given up - so neither carries `Health`.
-        assert!(app.world().get::<Health>(thawed_plate).is_none());
-        assert!(app.world().get::<Health>(thawed_decor).is_none());
+        // A resumed shed fixture is saved again by the next save: it freezes
+        // back to exactly the record it thawed from.
+        for (thawed, frozen) in [(thawed_plate, &frozen_plate), (thawed_decor, &frozen_decor)] {
+            assert_eq!(
+                ron::to_string(
+                    &freeze_shed_fixture(app.world(), thawed)
+                        .expect("a resumed shed fixture is settled"),
+                )
+                .expect("a re-frozen shed fixture serializes"),
+                ron::to_string(frozen).expect("a frozen shed fixture serializes"),
+            );
+        }
     }
 }
