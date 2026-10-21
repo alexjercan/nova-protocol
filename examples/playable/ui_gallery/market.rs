@@ -179,9 +179,9 @@ fn trade_column(
             &[
                 (18.0, ""),
                 (0.0, "Item"),
-                (48.0, "Qty"),
-                (66.0, "Price"),
-                (58.0, "Markup"),
+                (40.0, "Qty"),
+                (48.0, "Price"),
+                (44.0, "Deal"),
             ],
         );
         let mut any = false;
@@ -210,22 +210,22 @@ fn trade_column(
             .with_children(|r| {
                 r.spawn(icon(icons, w.category.icon(), 16.0));
                 r.spawn(grow_cell(w.name, 13.0, UiColor::Primary));
-                r.spawn(cell(48.0, &format!("x{qty}"), 12.0, UiColor::Body, true));
+                r.spawn(cell(40.0, &format!("x{qty}"), 12.0, UiColor::Body, true));
                 r.spawn(cell(
-                    66.0,
+                    48.0,
                     &format!("{} cr", thousands(price)),
                     12.0,
                     UiColor::Accent,
                     true,
                 ));
                 r.spawn(Node {
-                    width: px(58.0),
+                    width: px(44.0),
                     flex_shrink: 0.0,
                     justify_content: JustifyContent::FlexEnd,
                     ..default()
                 })
                 .with_children(|c| {
-                    c.spawn(delta_badge(delta));
+                    c.spawn(deal_badge(side, delta));
                 });
             });
         }
@@ -249,7 +249,7 @@ fn storage_column(columns: &mut ChildSpawnerCommands, icons: &GalleryIcons, mark
     columns
         .spawn(column_panel())
         .insert(Node {
-            flex_grow: 0.72,
+            flex_grow: 0.65,
             ..column_panel_node()
         })
         .with_children(|panel| {
@@ -351,14 +351,19 @@ fn stack_cells(r: &mut ChildSpawnerCommands, icons: &GalleryIcons, w: &Ware, qty
     r.spawn(cell(58.0, &kg_text(qty * w.kg), 12.0, UiColor::Body, true));
 }
 
-/// The `Markup` badge: green under the reference, amber over, mute at it.
-fn delta_badge(delta: i32) -> impl Bundle {
-    let kind = if delta < 0 {
-        BadgeKind::Green
-    } else if delta > 0 {
-        BadgeKind::Amber
-    } else {
-        BadgeKind::Mute
+/// The `Deal` badge: the percent off the reference, green when it favours
+/// the player (a Tender bid over the reference, a Trader ask under it),
+/// amber when not, mute at it.
+fn deal_badge(side: TradeSide, delta: i32) -> impl Bundle {
+    let gain = match side {
+        TradeSide::Tender => delta.signum(),
+        TradeSide::Trader => -delta.signum(),
+        TradeSide::Storage => unreachable!("the storage column shows no price"),
+    };
+    let kind = match gain {
+        1 => BadgeKind::Green,
+        -1 => BadgeKind::Amber,
+        _ => BadgeKind::Mute,
     };
     badge(kind, &format!("{delta:+}%"))
 }

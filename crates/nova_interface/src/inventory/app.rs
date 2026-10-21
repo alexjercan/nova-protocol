@@ -48,14 +48,18 @@ use crate::{
 
 /// Height of one inventory row, in logical px.
 const ROW_PX: f32 = 28.0;
-/// Height of a row that also shows its price line, in logical px.
-const PRICED_ROW_PX: f32 = 44.0;
-/// Width of the quantity column, in logical px.
-const QTY_PX: f32 = 64.0;
-/// Width of the `Price` column, in logical px.
-const PRICE_PX: f32 = 66.0;
-/// Width of the `Markup` column, in logical px.
-const DELTA_PX: f32 = 58.0;
+/// Width of the quantity column, in logical px: `x99999` at 13 px.
+const QTY_PX: f32 = 40.0;
+/// Width of the `Price` column, in logical px: a four-digit price at 12 px.
+const PRICE_PX: f32 = 48.0;
+/// Width of the `Deal` column, in logical px: the `+100%` pill.
+const DEAL_PX: f32 = 44.0;
+/// Gap between the cells of a row and of its heading line, in logical px.
+const CELL_GAP_PX: f32 = 6.0;
+/// The Storage column's share of the stores row against 1.0 for the player
+/// and the partner. Its rows have no price, so the priced columns take the
+/// width: at 1024 px a priced name gets about 66 px.
+const STORAGE_COLUMN_GROW: f32 = 0.65;
 /// Seconds a transfer result stays on the note line, as on the Ship pane.
 pub(crate) const NOTE_SECONDS: f32 = 2.5;
 /// Font size of the item description, in logical px.
@@ -136,7 +140,7 @@ pub const INVENTORY_SELL_ALL: &str = "InventorySellAll";
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) struct InventoryTradeAllButton(pub(crate) ItemTradeType);
 
-/// The `Price` and `Markup` headings over a trade column's rows,
+/// The `Price` and `Deal` headings over a trade column's rows,
 /// shown only while the docked partner trades.
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) struct InventoryPriceHeadings(pub(crate) InventorySideType);
@@ -305,7 +309,7 @@ struct RowStack {
     price: Option<RowPrice>,
 }
 
-/// A row's price cell and its `Markup` badge.
+/// A row's price cell and its `Deal` badge.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 struct RowPrice {
     /// The price of one, in credits.
@@ -313,6 +317,9 @@ struct RowPrice {
     /// The price against the reference on the same side, by
     /// [`delta_percent`].
     delta_percent: i32,
+    /// The trade the row's price deals: a Sell on the player's rows, a Buy
+    /// on the partner's.
+    trade: ItemTradeType,
 }
 
 /// The filter and inspector word for a category.
@@ -466,7 +473,11 @@ fn inventory_column(
                 } else {
                     Display::Flex
                 },
-                flex_grow: 1.0,
+                flex_grow: if side == InventorySideType::Storage {
+                    STORAGE_COLUMN_GROW
+                } else {
+                    1.0
+                },
                 flex_basis: px(0),
                 min_width: px(0),
                 min_height: px(0),
@@ -577,59 +588,50 @@ fn inventory_column(
             panel.spawn(divider());
             panel
                 .spawn(Node {
-                    flex_direction: FlexDirection::Column,
+                    column_gap: px(CELL_GAP_PX),
                     padding: UiRect::axes(px(8), px(0)),
                     flex_shrink: 0.0,
                     ..default()
                 })
-                .with_children(|headings| {
-                    headings
-                        .spawn(Node {
-                            column_gap: px(8),
+                .with_children(|line| {
+                    line.spawn((
+                        themed_label("Item", 11.0, UiColor::Label),
+                        Node {
+                            flex_grow: 1.0,
+                            margin: UiRect::left(px(27)),
                             ..default()
-                        })
-                        .with_children(|line| {
-                            line.spawn((
-                                themed_label("Item", 11.0, UiColor::Label),
-                                Node {
-                                    flex_grow: 1.0,
-                                    margin: UiRect::left(px(27)),
-                                    ..default()
-                                },
-                            ));
-                            line.spawn(fixed_cell(QTY_PX)).with_children(|cell| {
+                        },
+                    ));
+                    line.spawn(fixed_cell(QTY_PX)).with_children(|cell| {
+                        cell.spawn((
+                            themed_label("Qty", 11.0, UiColor::Label),
+                            TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                        ));
+                    });
+                    if matches!(side, InventorySideType::Own | InventorySideType::Partner) {
+                        line.spawn((
+                            InventoryPriceHeadings(side),
+                            Node {
+                                display: Display::None,
+                                column_gap: px(CELL_GAP_PX),
+                                flex_shrink: 0.0,
+                                ..default()
+                            },
+                        ))
+                        .with_children(|prices| {
+                            prices.spawn(fixed_cell(PRICE_PX)).with_children(|cell| {
                                 cell.spawn((
-                                    themed_label("Qty", 11.0, UiColor::Label),
+                                    themed_label("Price", 11.0, UiColor::Label),
+                                    TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                                ));
+                            });
+                            prices.spawn(fixed_cell(DEAL_PX)).with_children(|cell| {
+                                cell.spawn((
+                                    themed_label("Deal", 11.0, UiColor::Label),
                                     TextLayout::new(Justify::Left, LineBreak::NoWrap),
                                 ));
                             });
                         });
-                    if matches!(side, InventorySideType::Own | InventorySideType::Partner) {
-                        headings
-                            .spawn((
-                                InventoryPriceHeadings(side),
-                                Node {
-                                    display: Display::None,
-                                    flex_direction: FlexDirection::Row,
-                                    justify_content: JustifyContent::FlexEnd,
-                                    column_gap: px(8),
-                                    ..default()
-                                },
-                            ))
-                            .with_children(|prices| {
-                                prices.spawn(fixed_cell(PRICE_PX)).with_children(|cell| {
-                                    cell.spawn((
-                                        themed_label("Price", 11.0, UiColor::Label),
-                                        TextLayout::new(Justify::Left, LineBreak::NoWrap),
-                                    ));
-                                });
-                                prices.spawn(fixed_cell(DELTA_PX)).with_children(|cell| {
-                                    cell.spawn((
-                                        themed_label("Markup", 11.0, UiColor::Label),
-                                        TextLayout::new(Justify::Left, LineBreak::NoWrap),
-                                    ));
-                                });
-                            });
                     }
                 });
             panel.spawn((
@@ -911,15 +913,20 @@ fn priced_text(price_cr: u32, reference_cr: u32) -> String {
     )
 }
 
-/// The `Markup` badge of a price: green under the reference, amber over,
-/// mute at it.
-fn delta_badge(delta_percent: i32) -> impl Bundle {
-    let kind = match delta_percent.signum() {
-        -1 => BadgeKind::Green,
-        1 => BadgeKind::Amber,
+/// The `Deal` badge of a row price: its percent off the reference, green
+/// when it favours the player (a Sell bid over the reference, a Buy ask
+/// under it), amber when not, mute at it.
+fn deal_badge(price: RowPrice) -> impl Bundle {
+    let gain = match price.trade {
+        ItemTradeType::Sell => price.delta_percent.signum(),
+        ItemTradeType::Buy => -price.delta_percent.signum(),
+    };
+    let kind = match gain {
+        1 => BadgeKind::Green,
+        -1 => BadgeKind::Amber,
         _ => BadgeKind::Mute,
     };
-    badge(kind, &format!("{delta_percent:+}%"))
+    badge(kind, &format!("{:+}%", price.delta_percent))
 }
 
 /// A price factor as the inspector shows it: one multiplier when ask and bid
@@ -1134,9 +1141,8 @@ pub(crate) fn action_chip_name(action: InventoryActionType) -> String {
     }
 }
 
-/// One stack's row: the category icon, the item name and the count, then
-/// at a trading partner a second line with the price of one and its `Markup`
-/// badge.
+/// One stack's row on one line: the category icon, the item name and the
+/// count, then at a trading partner the price of one and its `Deal` badge.
 fn inventory_row(
     list: &mut ChildSpawnerCommands,
     side: InventorySideType,
@@ -1154,15 +1160,10 @@ fn inventory_row(
         Button,
         InventoryRow { side, item },
         Node {
-            height: px(if price.is_some() {
-                PRICED_ROW_PX
-            } else {
-                ROW_PX
-            }),
+            height: px(ROW_PX),
             flex_shrink: 0.0,
-            flex_direction: FlexDirection::Column,
-            justify_content: JustifyContent::Center,
-            row_gap: px(2),
+            column_gap: px(CELL_GAP_PX),
+            align_items: AlignItems::Center,
             padding: UiRect::axes(px(8), px(0)),
             border: UiRect::left(px(3)),
             overflow: Overflow::clip(),
@@ -1175,58 +1176,38 @@ fn inventory_row(
     ))
     .observe(on_inventory_row)
     .with_children(|row| {
+        row.spawn(icon_node(icons.category(category), tone, 18.0));
+        // Bevy clips a text by its parent's overflow, not its own.
         row.spawn((
             Node {
-                column_gap: px(8),
-                align_items: AlignItems::Center,
+                flex_grow: 1.0,
+                flex_basis: px(0),
+                min_width: px(0),
+                overflow: Overflow::clip(),
                 ..default()
             },
             Pickable::IGNORE,
         ))
-        .with_children(|line| {
-            line.spawn(icon_node(icons.category(category), tone, 18.0));
-            // Bevy clips a text by its parent's overflow, not its own.
-            line.spawn((
-                Node {
-                    flex_grow: 1.0,
-                    flex_basis: px(0),
-                    min_width: px(0),
-                    overflow: Overflow::clip(),
-                    ..default()
-                },
+        .with_children(|cell| {
+            cell.spawn((
+                themed_label(&design.name, 13.0, UiColor::Body),
+                TextLayout::new(Justify::Left, LineBreak::NoWrap),
                 Pickable::IGNORE,
-            ))
-            .with_children(|cell| {
-                cell.spawn((
-                    themed_label(&design.name, 13.0, UiColor::Body),
-                    TextLayout::new(Justify::Left, LineBreak::NoWrap),
-                    Pickable::IGNORE,
-                ));
-            });
-            line.spawn(fixed_cell(QTY_PX)).with_children(|cell| {
-                cell.spawn((
-                    themed_label(&format!("x{count}"), 13.0, tone),
-                    TextLayout::new(Justify::Left, LineBreak::NoWrap),
-                    Pickable::IGNORE,
-                ));
-            });
+            ));
+        });
+        row.spawn(fixed_cell(QTY_PX)).with_children(|cell| {
+            cell.spawn((
+                themed_label(&format!("x{count}"), 13.0, tone),
+                TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                Pickable::IGNORE,
+            ));
         });
         if let Some(price) = price {
-            row.spawn((
-                Node {
-                    column_gap: px(8),
-                    justify_content: JustifyContent::FlexEnd,
-                    ..default()
-                },
-                Pickable::IGNORE,
-            ))
-            .with_children(|figures| {
-                figures.spawn(fixed_cell(PRICE_PX)).with_children(|cell| {
-                    spawn_credit_figure(cell, icons, price.cr.into(), 12.0, UiColor::Accent, ());
-                });
-                figures.spawn(fixed_cell(DELTA_PX)).with_children(|cell| {
-                    cell.spawn((delta_badge(price.delta_percent), Pickable::IGNORE));
-                });
+            row.spawn(fixed_cell(PRICE_PX)).with_children(|cell| {
+                spawn_credit_figure(cell, icons, price.cr.into(), 12.0, UiColor::Accent, ());
+            });
+            row.spawn(fixed_cell(DEAL_PX)).with_children(|cell| {
+                cell.spawn((deal_badge(price), Pickable::IGNORE));
             });
         }
     });
@@ -1891,23 +1872,24 @@ impl InventoryShips<'_, '_> {
     ) -> Option<RowPrice> {
         let prices = self.prices(pair, item)?;
         let reference = self.items.design(item).reference_price();
-        let (cr, reference_cr) = match (side, prices) {
+        let (cr, reference_cr, trade) = match (side, prices) {
             (
                 InventorySideType::Own,
                 TradePriceType::Market(price) | TradePriceType::Owned(price),
-            ) => (price.bid_cr, reference.bid_cr),
+            ) => (price.bid_cr, reference.bid_cr, ItemTradeType::Sell),
             (InventorySideType::Partner, TradePriceType::Market(price)) => {
-                (price.ask_cr, reference.ask_cr)
+                (price.ask_cr, reference.ask_cr, ItemTradeType::Buy)
             }
             // A Buy at an owned station pays its bid.
             (InventorySideType::Partner, TradePriceType::Owned(price)) => {
-                (price.bid_cr, reference.bid_cr)
+                (price.bid_cr, reference.bid_cr, ItemTradeType::Buy)
             }
             (InventorySideType::Storage | InventorySideType::Hold(_), _) => return None,
         };
         Some(RowPrice {
             cr,
             delta_percent: delta_percent(cr, reference_cr),
+            trade,
         })
     }
 
@@ -3701,7 +3683,7 @@ pub(crate) fn update_inventory_panel(
 }
 
 /// Show the trade controls the docked partner earns: the `Price` and
-/// `Markup` headings over the player's and the partner's rows while it
+/// `Deal` headings over the player's and the partner's rows while it
 /// trades, and beside Confirm the Buy all or Sell all of the open draft's
 /// trade, enabled while [`plan_item_trade`] takes the whole source stack
 /// against the live stock, room and credits. Runs after
