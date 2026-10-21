@@ -2,9 +2,9 @@
 //! over the pane while the ship is docked at a station that refits.
 //!
 //! The footer's Catalogue button opens it. [`manage_ship_gallery`] then puts a
-//! [`GalleryHost`] node over the view and the panel, with its own camera on
-//! [`GALLERY_LAYER`] rendering the part tiles into an image the node shows
-//! 1:1, and takes both away when the gallery closes or the pane goes.
+//! [`GalleryHost`] node over the view, the panel and the footer, with its own
+//! camera on [`GALLERY_LAYER`] rendering the part tiles into an image the node
+//! shows 1:1, and takes both away when the gallery closes or the pane goes.
 //!
 //! [`update_ship_gallery_listing`] lists the parts the station can build: a
 //! part not hidden from the editor palette whose recipe the player's hold and
@@ -56,7 +56,8 @@ const GALLERY_KEY: (Vec3, f32) = (Vec3::new(-6.0, 8.0, 6.0), 9_000.0);
 const GALLERY_RIM: (Vec3, f32) = (Vec3::new(5.0, -2.0, -7.0), 2_500.0);
 const GALLERY_AMBIENT: f32 = 220.0;
 
-/// Marks the pane's split, the node the catalogue covers while it is open.
+/// Marks the Ship pane's split. The catalogue covers the split's parent, the
+/// pane body, so the view, the panel and the footer while it is open.
 #[derive(Component)]
 pub(crate) struct ShipSplitMarker;
 
@@ -207,8 +208,8 @@ pub(crate) fn update_ship_gallery_listing(
 
 /// Put the gallery over the pane while it is open and the ship is docked at
 /// a station that refits, and take it away otherwise: the host node over the
-/// split, showing the image its camera renders the tiles into. A gallery this
-/// pane left open when the pane went away, or the dock ended, is closed.
+/// pane body, showing the image its camera renders the tiles into. A gallery
+/// this pane left open when the pane went away, or the dock ended, is closed.
 #[expect(
     clippy::too_many_arguments,
     reason = "one system owning the host node, its camera and its image"
@@ -221,7 +222,7 @@ pub(crate) fn manage_ship_gallery(
     theme: Res<ActiveUiTheme>,
     site: StationSite,
     images: Option<ResMut<Assets<Image>>>,
-    q_split: Query<Entity, With<ShipSplitMarker>>,
+    q_split: Query<&ChildOf, With<ShipSplitMarker>>,
     mut q_host: Query<(Entity, &ShipGalleryHost, &ComputedNode, &mut ImageNode)>,
     mut q_camera: Query<&mut Projection>,
 ) {
@@ -265,6 +266,7 @@ pub(crate) fn manage_ship_gallery(
     let Ok(split) = q_split.single() else {
         return;
     };
+    let body = split.parent();
     let image = images.add(new_render_target_image(UVec2::splat(64)));
     let layers = RenderLayers::layer(GALLERY_LAYER);
     let eye = Transform::default();
@@ -328,9 +330,9 @@ pub(crate) fn manage_ship_gallery(
             ..default()
         },
         ImageNode::new(image),
-        // Above the view's badges and the panel, its siblings.
+        // Above the split and the footer, its siblings.
         ZIndex(10),
-        ChildOf(split),
+        ChildOf(body),
     ));
 }
 

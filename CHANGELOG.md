@@ -374,6 +374,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   when the key hints took two rows.
 - A mouse click on an editor breadcrumb chip now goes to that step. The chips
   used the wrong button marker, so a click did nothing.
+- The parts gallery fits a 640x600 window: its header wraps, so Close and
+  paging stay on screen, and the focus card keeps Place and Back in view.
 
 ### Internals & Tooling
 

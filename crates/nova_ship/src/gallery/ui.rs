@@ -156,8 +156,12 @@ pub(crate) fn rebuild_gallery(
                 Node {
                     width: percent(100),
                     flex_direction: FlexDirection::Row,
+                    // The fixed slots need about 1380 px on one row, so at a
+                    // 640 px window Close and paging left the host.
+                    flex_wrap: FlexWrap::Wrap,
                     align_items: AlignItems::Center,
                     column_gap: px(10),
+                    row_gap: px(6),
                     padding: UiRect::axes(px(14), px(8)),
                     border: UiRect::bottom(px(theme::BORDER_W)),
                     ..default()
@@ -529,6 +533,9 @@ fn focus_body(
         Node {
             width: percent(100),
             flex_grow: 1.0,
+            // Shrinks to the host's remaining height instead of growing to the
+            // card, which pushed Place under the Ship pane footer at 640x600.
+            min_height: px(0),
             flex_direction: FlexDirection::Row,
             padding: UiRect::all(px(12)),
             column_gap: px(12),
@@ -576,61 +583,68 @@ fn focus_body(
                     TextColor(Color::NONE),
                     ThemedText::new(UiColor::Primary),
                 ));
+                // The details take the free height and clip, so the actions
+                // sit on the card floor and stay inside a short host.
                 card.spawn((
-                    UiText,
-                    Text::new(section.base.description.clone()),
-                    TextFont {
-                        font_size: FontSize::Px(12.0),
-                        ..default()
-                    },
-                    TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Label),
+                    Name::new("Gallery Focus Details"),
                     Node {
-                        margin: UiRect::bottom(px(6)),
+                        width: percent(100),
+                        flex_grow: 1.0,
+                        min_height: px(0),
+                        flex_direction: FlexDirection::Column,
+                        row_gap: px(6),
+                        overflow: Overflow::clip_y(),
                         ..default()
                     },
-                ));
-
-                for (label, value) in catalog::stats(section) {
-                    card.spawn((
-                        Node {
-                            width: percent(100),
-                            flex_direction: FlexDirection::Row,
-                            justify_content: JustifyContent::SpaceBetween,
+                ))
+                .with_children(|details| {
+                    details.spawn((
+                        UiText,
+                        Text::new(section.base.description.clone()),
+                        TextFont {
+                            font_size: FontSize::Px(12.0),
                             ..default()
                         },
-                        children![
-                            (
-                                UiText,
-                                Text::new(label),
-                                TextFont {
-                                    font_size: FontSize::Px(12.0),
-                                    ..default()
-                                },
-                                TextColor(Color::NONE),
-                                ThemedText::new(UiColor::Label),
-                            ),
-                            (
-                                UiText,
-                                Text::new(value),
-                                TextFont {
-                                    font_size: FontSize::Px(12.0),
-                                    ..default()
-                                },
-                                TextColor(Color::NONE),
-                                ThemedText::new(UiColor::Body),
-                            ),
-                        ],
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColor::Label),
+                        Node {
+                            margin: UiRect::bottom(px(6)),
+                            ..default()
+                        },
                     ));
-                }
 
-                // The actions sit on the FLOOR of the card. A stat block is a
-                // dozen lines and the card is the height of the screen, so
-                // buttons that followed the stats left the bottom half of the
-                // panel empty and the card looking half-drawn.
-                card.spawn(Node {
-                    flex_grow: 1.0,
-                    ..default()
+                    for (label, value) in catalog::stats(section) {
+                        details.spawn((
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Row,
+                                justify_content: JustifyContent::SpaceBetween,
+                                ..default()
+                            },
+                            children![
+                                (
+                                    UiText,
+                                    Text::new(label),
+                                    TextFont {
+                                        font_size: FontSize::Px(12.0),
+                                        ..default()
+                                    },
+                                    TextColor(Color::NONE),
+                                    ThemedText::new(UiColor::Label),
+                                ),
+                                (
+                                    UiText,
+                                    Text::new(value),
+                                    TextFont {
+                                        font_size: FontSize::Px(12.0),
+                                        ..default()
+                                    },
+                                    TextColor(Color::NONE),
+                                    ThemedText::new(UiColor::Body),
+                                ),
+                            ],
+                        ));
+                    }
                 });
                 if let Some(entry) = entry {
                     card.spawn((
