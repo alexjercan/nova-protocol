@@ -643,7 +643,7 @@ fn update_jobs_pane(
             title: title.clone(),
             done,
             task: job.task(&items),
-            target: format!("{}, {}", target_name(job, &chart), place(job_cell(job))),
+            target: format!("{}\n{}", target_name(job, &chart), place(job_cell(job))),
             hand_in: station_name(&chart, &job.target),
             reward_cr: job.reward_cr.into(),
             time_left: postings
@@ -1140,15 +1140,25 @@ fn held_panel(
         });
 }
 
-/// A `label  value` line of the inspector.
+/// A `label  value` line of the inspector. The value wraps under itself, and
+/// the label stays level with its first line.
 fn kv(side: &mut ChildSpawnerCommands, label: &str, value: &str) {
     side.spawn(Node {
         column_gap: px(8),
+        align_items: AlignItems::FlexStart,
         ..control_row(JustifyContent::FlexStart)
     })
     .with_children(|row| {
         row.spawn(cell(LABEL_PX, label, 12.0, UiColor::Label));
-        row.spawn(grow_cell(value, 13.0, UiColor::Primary));
+        row.spawn((
+            Node {
+                flex_grow: 1.0,
+                flex_basis: px(0),
+                min_width: px(0),
+                ..default()
+            },
+            children![themed_label(value, 13.0, UiColor::Primary)],
+        ));
     });
 }
 

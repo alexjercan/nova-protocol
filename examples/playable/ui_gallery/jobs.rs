@@ -275,17 +275,35 @@ fn job_inspector(
     section(side, "Task");
     side.spawn(text(j.task, 12.0, UiColor::Body));
     side.spawn(divider());
-    kv(
-        side,
-        "Target",
-        &format!(
-            "{} ({},{}), {}",
-            j.target_name,
-            j.target.0,
-            j.target.1,
-            distance_hint(j.target)
-        ),
-    );
+    // The live inspector's wrapping Target row; `chrome::kv` stays one line
+    // for its other pages.
+    side.spawn(Node {
+        column_gap: px(8),
+        align_items: AlignItems::FlexStart,
+        ..control_row(JustifyContent::FlexStart)
+    })
+    .with_children(|r| {
+        r.spawn(cell(84.0, "Target", 12.0, UiColor::Label, false));
+        r.spawn((
+            Node {
+                flex_grow: 1.0,
+                flex_basis: px(0),
+                min_width: px(0),
+                ..default()
+            },
+            children![text(
+                &format!(
+                    "{}\n({}, {}), {}",
+                    j.target_name,
+                    j.target.0,
+                    j.target.1,
+                    distance_hint(j.target)
+                ),
+                13.0,
+                UiColor::Primary,
+            )],
+        ));
+    });
     kv(side, "Hand in", j.hand_in);
     kv(side, "Reward", &format!("{} cr", thousands(j.reward)));
     let taken = jobs.held.contains(&j.id);
