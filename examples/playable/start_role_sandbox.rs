@@ -20,7 +20,7 @@
 //!    turret, `R` the railgun, `F` the torpedo bay, `V` the mining beam;
 //! 2. TAB opens the interface: the Ship tab shows the hull, `M` steps to the
 //!    Map, and `C` there draws the chart of the cells entered;
-//! 3. `:` opens the shell: `cheats enable`, then `credits give <ship-id>
+//! 3. `;` opens the shell: `cheats enable`, then `credits give <ship-id>
 //!    1000` or `credits set <ship-id> 0`, with the ship id from the detail
 //!    list (`Shift+F3`);
 //! 4. Esc opens the pause menu; Settings > Graphics has Pause when

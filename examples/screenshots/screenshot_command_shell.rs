@@ -1,8 +1,8 @@
-//! screenshot_command_shell: the `:` NOVA COMMANDS modal with a command answered
+//! screenshot_command_shell: the `;` NOVA COMMANDS modal with a command answered
 //! and an inline-completion ghost on it (`wiki-command-shell.png`).
 //!
 //! It boots the one-ship range from `shared/computer.rs`, opens the shell over
-//! flight with `:` and types through the real keyboard path, so a modal that
+//! flight with `;` and types through the real keyboard path, so a modal that
 //! stopped reading the keyboard fails the run instead of shooting an empty
 //! prompt.
 //!
@@ -38,12 +38,12 @@ use computer::{run_command, type_char, type_word};
 #[derive(Parser)]
 #[command(name = "screenshot_command_shell")]
 #[command(version = "1.0.0")]
-#[command(about = "Capture the `:` NOVA COMMANDS modal with output and a completion ghost. Autopilot-only: a scripted command walk", long_about = None)]
+#[command(about = "Capture the `;` NOVA COMMANDS modal with output and a completion ghost. Autopilot-only: a scripted command walk", long_about = None)]
 struct Cli;
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
-    // NovaMenuPlugin explicitly: the `:` gesture lives in nova_menu, and
+    // NovaMenuPlugin explicitly: the `;` gesture lives in nova_menu, and
     // `with_game_plugins` turns the menu plugin off. It stands alone in a slim
     // app; the boot-into-MainMenu handoff it normally owns is not taken (this
     // run goes Loading -> Playing).
@@ -69,10 +69,10 @@ fn main() -> bevy::app::AppExit {
                 .until(player_ship_present())
                 .deadline(30.0)
                 .add()
-                // `:` is read as a TYPED CHARACTER, not a key code, so the walk
+                // `;` is read as a TYPED CHARACTER, not a key code, so the walk
                 // sends it the way a player's layout does.
                 .step("open the command shell over flight")
-                .on_enter(|world| type_char(world, ":"))
+                .on_enter(|world| type_char(world, ";"))
                 .until(nova_os_raster_open())
                 .deadline(STEP_DEADLINE_SECS)
                 .add()

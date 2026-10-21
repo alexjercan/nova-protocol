@@ -1,4 +1,4 @@
-//! The `:` command modal: the retained CRT monitor (casing, bezel, phosphor
+//! The `;` command modal: the retained CRT monitor (casing, bezel, phosphor
 //! screen and overlays) titled `NOVA COMMANDS`, over any surface except
 //! Loading and an armed rebind capture.
 //!
@@ -115,7 +115,7 @@ pub enum CommandsSystems {
     Paint,
 }
 
-/// Wires the `:` command modal: the back-out, the slide and the terminal.
+/// Wires the `;` command modal: the back-out, the slide and the terminal.
 /// Registered by [`crate::InterfacePlugin`].
 pub(crate) struct CommandsPlugin;
 

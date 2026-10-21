@@ -357,7 +357,7 @@ None of this is fixed: in the editor, click a section to bind it to any key or m
                 the flight log, armed cheats; works with no ship, and over the
                 menus and the interface)
             </td>
-            <td><kbd>:</kbd></td>
+            <td><kbd>;</kbd></td>
             <td>-</td>
         </tr>
         <tr>

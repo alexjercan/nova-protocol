@@ -1,8 +1,8 @@
 //! system_command_shell: the `cmd>` NOVA COMMANDS modal driven end to end,
 //! off-screen.
 //!
-//! This range proves that what is typed at the `:` modal REACHES the live world
-//! and comes back, and that `:` is a GLOBAL gesture - flight, the pause menu,
+//! This range proves that what is typed at the `;` modal REACHES the live world
+//! and comes back, and that `;` is a GLOBAL gesture - flight, the pause menu,
 //! the main menu and the TAB interface - which gives back the exact surface it
 //! covered.
 //!
@@ -21,12 +21,12 @@
 //! under it are unreachable until it closes, and reachable again the moment it
 //! does.
 //!
-//! One surface refuses `:` on purpose: over the Ship pane, a section rebind
-//! that is waiting for its key owns the next key, so a typed `:` goes to the
-//! capture (which binds `;`) and the modal stays shut. TAB and M are held
+//! One surface refuses `;` on purpose: over the Ship pane, a section rebind
+//! that is waiting for its key owns the next key, so a typed `;` goes to the
+//! capture (which binds it) and the modal stays shut. TAB and M are held
 //! back the same way: TAB is refused as the interface toggle and the capture
 //! waits on, and M binds without switching the pane. Once the capture is
-//! spent, `:` opens over the pane again.
+//! spent, `;` opens over the pane again.
 //!
 //! Run (no display needed):
 //! ```text
@@ -166,10 +166,10 @@ fn main() -> bevy::app::AppExit {
             .until(state_is(GameStates::Playing))
             .deadline(STEP_DEADLINE_SECS)
             .add()
-            // `:` is read as the CHARACTER, so a layout where the colon is not
-            // Shift+Semicolon opens the shell with the key that prints one.
-            .step("command shell: `:` opens the computer")
-            .on_enter(type_text(":"))
+            // `;` is read as the CHARACTER, so a layout where `;` is not the
+            // bare Semicolon key opens the shell with the key that prints one.
+            .step("command shell: `;` opens the computer")
+            .on_enter(type_text(";"))
             .until(resource_where::<State<PauseStates>>(|pause| {
                 *pause.get() == PauseStates::Commands
             }))
@@ -263,7 +263,7 @@ fn main() -> bevy::app::AppExit {
             })
             .add()
             // The rebind gate. A section waiting for its key owns the next
-            // key, so `:` typed then goes to the capture and must not open the
+            // key, so `;` typed then goes to the capture and must not open the
             // shell over the pane.
             .step("command shell: TAB opens the interface over flight")
             .on_enter(press_key(KeyCode::Tab))
@@ -317,14 +317,14 @@ fn main() -> bevy::app::AppExit {
             .on_enter(release_key(KeyCode::Tab))
             .on_enter(assert_tab_kept_the_armed_rebind)
             .add()
-            .step("command shell: Shift+; while the rebind is armed")
+            .step("command shell: `;` while the rebind is armed")
             .on_enter(record_section_bindings)
-            .on_enter(shift_semicolon(ButtonState::Pressed))
+            .on_enter(semicolon(ButtonState::Pressed))
             .until(frames(SETTLE_FRAMES))
             .deadline(BEAT_DEADLINE_SECS)
             .add()
             .step("command shell: the armed rebind took the key, not the shell")
-            .on_enter(shift_semicolon(ButtonState::Released))
+            .on_enter(semicolon(ButtonState::Released))
             .on_enter(assert_the_armed_rebind_took_the_key)
             .add()
             .step("command shell: B arms the rebind again")
@@ -347,8 +347,8 @@ fn main() -> bevy::app::AppExit {
             .on_enter(release_key(KeyCode::KeyM))
             .on_enter(assert_the_armed_rebind_took_m)
             .add()
-            .step("command shell: `:` opens the shell over the Ship pane")
-            .on_enter(type_text(":"))
+            .step("command shell: `;` opens the shell over the Ship pane")
+            .on_enter(type_text(";"))
             .until(the_pause_axis_is(PauseStates::Commands))
             .deadline(BEAT_DEADLINE_SECS)
             .add()
@@ -356,7 +356,7 @@ fn main() -> bevy::app::AppExit {
             .on_enter(|world: &mut World| {
                 nova_probe::probe_marker(
                     world,
-                    "outcome: `:` opens the command shell over the Ship pane once the rebind is spent",
+                    "outcome: `;` opens the command shell over the Ship pane once the rebind is spent",
                     serde_json::json!({}),
                 );
             })
@@ -379,7 +379,7 @@ fn main() -> bevy::app::AppExit {
             .step("command shell: release TAB again")
             .on_enter(release_key(KeyCode::Tab))
             .add()
-            // SURFACE TWO: the pause menu. ESC first, then `:` over it.
+            // SURFACE TWO: the pause menu. ESC first, then `;` over it.
             .step("command shell: ESC opens the pause menu")
             .on_enter(press_key(KeyCode::Escape))
             .until(the_pause_axis_is(PauseStates::Paused))
@@ -405,8 +405,8 @@ fn main() -> bevy::app::AppExit {
             .step("command shell: record the pause menu's own layers")
             .on_enter(record_pause_layers)
             .add()
-            .step("command shell: `:` opens the computer over the pause menu")
-            .on_enter(type_text(":"))
+            .step("command shell: `;` opens the computer over the pause menu")
+            .on_enter(type_text(";"))
             .until(the_pause_axis_is(PauseStates::Commands))
             .deadline(BEAT_DEADLINE_SECS)
             .add()
@@ -414,7 +414,7 @@ fn main() -> bevy::app::AppExit {
             .on_enter(|world: &mut World| {
                 nova_probe::probe_marker(
                     world,
-                    "outcome: `:` opens the command shell from the pause menu",
+                    "outcome: `;` opens the command shell from the pause menu",
                     serde_json::json!({}),
                 );
             })
@@ -460,8 +460,8 @@ fn main() -> bevy::app::AppExit {
             .until(resource_where::<ClockFreeze>(|freeze| !freeze.is_held()))
             .deadline(SESSION_SECS)
             .add()
-            .step("command shell: `:` opens the computer on the main menu")
-            .on_enter(type_text(":"))
+            .step("command shell: `;` opens the computer on the main menu")
+            .on_enter(type_text(";"))
             .until(the_pause_axis_is(PauseStates::Commands))
             .deadline(BEAT_DEADLINE_SECS)
             .add()
@@ -596,32 +596,24 @@ fn record_section_bindings(world: &mut World) {
     world.insert_resource(bound);
 }
 
-/// Shift and `;` as one chord: a `KeyboardInput` per key, the `;` carrying the
-/// `:` the layout prints for it.
+/// The bare `;` key: one `KeyboardInput` that names the physical key and
+/// carries the `;` the layout prints for it.
 ///
 /// [`type_text`] reports an unidentified key code, which is right for a
-/// character and wrong here: a capture reads the PHYSICAL keys, so the chord
-/// has to name them.
+/// character and wrong here: a capture reads the PHYSICAL key, so the press
+/// has to name it.
 #[cfg(feature = "debug")]
-fn shift_semicolon(state: ButtonState) -> impl Fn(&mut World) + Send + Sync + 'static {
+fn semicolon(state: ButtonState) -> impl Fn(&mut World) + Send + Sync + 'static {
     move |world: &mut World| {
         let window = world
             .query_filtered::<Entity, With<PrimaryWindow>>()
             .single(world)
             .expect("the range spawns one primary window");
         world.write_message(KeyboardInput {
-            key_code: KeyCode::ShiftLeft,
-            logical_key: Key::Shift,
-            state,
-            text: None,
-            repeat: false,
-            window,
-        });
-        world.write_message(KeyboardInput {
             key_code: KeyCode::Semicolon,
-            logical_key: Key::Character(":".into()),
+            logical_key: Key::Character(";".into()),
             state,
-            text: (state == ButtonState::Pressed).then(|| ":".into()),
+            text: (state == ButtonState::Pressed).then(|| ";".into()),
             repeat: false,
             window,
         });
@@ -673,19 +665,19 @@ fn assert_tab_kept_the_armed_rebind(world: &mut World) {
     );
 }
 
-/// Shift+; over an armed Ship rebind goes to the capture: the shell stays shut
+/// `;` over an armed Ship rebind goes to the capture: the shell stays shut
 /// and exactly one section takes the `;` key.
 #[cfg(feature = "debug")]
 fn assert_the_armed_rebind_took_the_key(world: &mut World) {
     assert_eq!(
         *world.resource::<State<PauseStates>>().get(),
         PauseStates::Interface,
-        "`:` typed over an armed section rebind must not open the command shell"
+        "`;` typed over an armed section rebind must not open the command shell"
     );
     assert_the_armed_section_took(world, KeyCode::Semicolon);
     nova_probe::probe_marker(
         world,
-        "outcome: an armed Ship rebind takes `:` as its key and opens no shell",
+        "outcome: an armed Ship rebind takes `;` as its key and opens no shell",
         serde_json::json!({}),
     );
 }
@@ -841,7 +833,7 @@ fn assert_the_pause_menu_came_back(world: &mut World) {
     );
 }
 
-/// `:` reaches the main menu, and opens over the menu rather than a game.
+/// `;` reaches the main menu, and opens over the menu rather than a game.
 #[cfg(feature = "debug")]
 fn assert_the_menu_shell_opened(world: &mut World) {
     assert_eq!(
@@ -849,10 +841,10 @@ fn assert_the_menu_shell_opened(world: &mut World) {
         GameStates::MainMenu,
         "the main-menu shell must open while the main menu owns the screen"
     );
-    info!("command shell: `:` opened the shell on the main menu");
+    info!("command shell: `;` opened the shell on the main menu");
     nova_probe::probe_marker(
         world,
-        "outcome: `:` opens the command shell on the main menu",
+        "outcome: `;` opens the command shell on the main menu",
         serde_json::json!({}),
     );
 }

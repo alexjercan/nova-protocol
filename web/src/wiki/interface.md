@@ -37,7 +37,7 @@ Every ship carries a second seat of control: the **interface**. Press <kbd>Tab</
 | <kbd>Tab</kbd> again, <kbd>Esc</kbd>, or gamepad Start | Close it and return to flight. |
 | <kbd>M</kbd> (or gamepad <kbd>Y</kbd>) | Step to the next pane: Map, Ship, Inventory, Jobs, Station while you are docked at a living station, then Map again. While a text field has the caret, such as the Inventory quantity, <kbd>M</kbd> types instead. |
 | Click **Map**, **Ship**, **Inventory**, **Jobs** or **Station** | Switch to that pane. The **Station** tab shows only while you are docked at a living station; undock and the interface opens on Ship instead. |
-| <kbd>:</kbd> | Open the [command shell](../commands/) over the pane. Close it and you are back on the same pane, with its camera and selection as you left them. |
+| <kbd>;</kbd> | Open the [command shell](../commands/) over the pane. Close it and you are back on the same pane, with its camera and selection as you left them. |
 
 <details class="explain">
 <summary>Show explanation</summary>
@@ -51,7 +51,7 @@ While the interface is open the game is frozen: the clocks stop, so combat, phys
 
 Opening the interface hides the flight instruments behind it and marks every posted objective chip as read. The standing list is the `objectives` command, and `log` prints the comms and objective history.
 
-The interface and the command shell share one freeze. Opening `:` over a pane, and closing it again, never runs a frame of the world and never lets a key reach flight or the pane on the way.
+The interface and the command shell share one freeze. Opening `;` over a pane, and closing it again, never runs a frame of the world and never lets a key reach flight or the pane on the way.
 
 </details>
 
@@ -195,7 +195,7 @@ Your weapon, thruster and mining beam sections answer rebindable keys, and the S
 
 A reserved flight control is refused on the spot - `Space is already bound to flight control: Main Drive` - and the capture stays armed for another try. <kbd>LMB</kbd> is refused too, with `Left Mouse stays the pointer`: it is the button you click the blips with. Several sections may share one input (one key can fire every tube). <kbd>Esc</kbd> backs out with `Rebind cancelled` and leaves you on the pane.
 
-A thruster with its own key or button fires on that only: the Main Drive no longer fires it, from the keyboard or the controller, until you put it back. To put it back, press <kbd>B</kbd> and then <kbd>Backspace</kbd>: `engine_port fires on the Main Drive`, which clears both halves. The Main Drive inputs stay reserved, the controller's Right Trigger included, so the thruster's own input is any other free one. Every other common controller button already flies the ship or opens the interface, so a thruster's controller button is Right Trigger 2, which it then shares with your guns. While a capture is armed, <kbd>:</kbd> does not open the command shell, <kbd>Tab</kbd> is refused as the interface toggle and does not close the interface, and <kbd>M</kbd> binds like any other key instead of switching the pane. The key you bind does nothing else: binding <kbd>T</kbd> does not also reset the view.
+A thruster with its own key or button fires on that only: the Main Drive no longer fires it, from the keyboard or the controller, until you put it back. To put it back, press <kbd>B</kbd> and then <kbd>Backspace</kbd>: `engine_port fires on the Main Drive`, which clears both halves. The Main Drive inputs stay reserved, the controller's Right Trigger included, so the thruster's own input is any other free one. Every other common controller button already flies the ship or opens the interface, so a thruster's controller button is Right Trigger 2, which it then shares with your guns. While a capture is armed, <kbd>;</kbd> does not open the command shell, <kbd>Tab</kbd> is refused as the interface toggle and does not close the interface, and <kbd>M</kbd> binds like any other key instead of switching the pane. The key you bind does nothing else: binding <kbd>T</kbd> does not also reset the view.
 
 ## Swapping a section
 
@@ -406,4 +406,4 @@ Once you close the interface, the intake's door folds open and the canisters lea
 
 ## The command shell
 
-Press <kbd>:</kbd> for `NOVA COMMANDS`: a text prompt on the ship's CRT monitor, over the interface, flight, the menus and the editor. It reads the run, changes your settings and prints the flight log. The [Commands](../commands/) page has the whole catalog, and the monitor's own knobs and sounds.
+Press <kbd>;</kbd> for `NOVA COMMANDS`: a text prompt on the ship's CRT monitor, over the interface, flight, the menus and the editor. It reads the run, changes your settings and prints the flight log. The [Commands](../commands/) page has the whole catalog, and the monitor's own knobs and sounds.

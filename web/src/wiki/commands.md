@@ -1,6 +1,6 @@
 # Commands
 
-Press <kbd>:</kbd> anywhere - the main menu, the ship editor, mid-flight, on the pause screen, over the [interface](../interface/) - and the ship's CRT monitor opens on **NOVA COMMANDS**: one prompt that can read the run, change your settings, print the flight log, and, once you deliberately arm it, cheat.
+Press <kbd>;</kbd> anywhere - the main menu, the ship editor, mid-flight, on the pause screen, over the [interface](../interface/) - and the ship's CRT monitor opens on **NOVA COMMANDS**: one prompt that can read the run, change your settings, print the flight log, and, once you deliberately arm it, cheat.
 
 <figure class="figure">
     <!-- Capture: assets/loops/command-shell-open.webm -->
@@ -30,7 +30,7 @@ Press <kbd>:</kbd> anywhere - the main menu, the ship editor, mid-flight, on the
 
 | You do | What happens |
 | --- | --- |
-| <kbd>:</kbd> | The monitor opens on the prompt. It needs no ship, so it works in the menu and the editor too. Close it and you are back on exactly what it covered - the menu, the pause screen, the interface pane or your flight. |
+| <kbd>;</kbd> | The monitor opens on the prompt. It needs no ship, so it works in the menu and the editor too. Close it and you are back on exactly what it covered - the menu, the pause screen, the interface pane or your flight. |
 | <kbd>Esc</kbd> (or gamepad Start) | Power the monitor off and return to what was underneath. |
 | Type `close` | The same animated power-off. |
 | Click the **PWR** button | The same again, on the monitor's chin. |
@@ -45,7 +45,7 @@ Press <kbd>:</kbd> anywhere - the main menu, the ship editor, mid-flight, on the
 
 Opened over the game, the monitor freezes it: the clocks stop, the cursor is freed, and <kbd>Esc</kbd> belongs to the monitor rather than the pause menu. Opened over the interface, it shares the interface's freeze - the world never runs a frame between the two, and closing the monitor puts you back on the same pane with its camera and selection intact. Opened on the main menu it stops nothing - the backdrop behind it keeps flying, because that is a view and not a game you are being kept out of - but the monitor is still the front-most thing on the screen, so the menu buttons under it wait until you close it.
 
-Two places refuse the key. Mid-load there is nothing yet to inspect. While a ship section or a settings control waits for you to press a key to bind, <kbd>:</kbd> is the key being bound, so it does not open the monitor.
+Two places refuse the key. Mid-load there is nothing yet to inspect. While a ship section or a settings control waits for you to press a key to bind, <kbd>;</kbd> is the key being bound, so it does not open the monitor.
 
 While the monitor is open, nothing you type reaches flight or the pane behind it.
 

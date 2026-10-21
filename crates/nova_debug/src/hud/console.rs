@@ -29,7 +29,7 @@ const NO_SHELL: &str = "this app has no command shell";
 
 /// While the window is open and an egui widget has the keyboard (the prompt,
 /// the item field, an inspector field), keys are text: claim
-/// [`InputMode::Insert`] so `:`, TAB-pane keys and other verbs stay quiet.
+/// [`InputMode::Insert`] so `;`, TAB-pane keys and other verbs stay quiet.
 ///
 /// Reads the previous frame's [`EguiWantsInput`]: `bevy_egui` writes it in
 /// `PostUpdate`, after the window drew.
@@ -318,27 +318,27 @@ mod tests {
     }
 
     /// A stand-in for `nova_menu`'s `open_command_shell` under that system's
-    /// own gate: it reads every frame, and `:` opens the CRT in
+    /// own gate: it reads every frame, and `;` opens the CRT in
     /// [`InputMode::Normal`] only.
-    fn open_shell_on_colon(
+    fn open_shell_on_semicolon(
         mut keyboard: MessageReader<KeyboardInput>,
         mode: Res<InputMode>,
         mut next: ResMut<NextState<PauseStates>>,
     ) {
-        let typed_colon = keyboard
+        let typed_semicolon = keyboard
             .read()
-            .any(|event| event.state == ButtonState::Pressed && event.text.as_deref() == Some(":"));
-        if typed_colon && *mode == InputMode::Normal {
+            .any(|event| event.state == ButtonState::Pressed && event.text.as_deref() == Some(";"));
+        if typed_semicolon && *mode == InputMode::Normal {
             next.set(PauseStates::Commands);
         }
     }
 
-    fn type_colon(app: &mut App) {
+    fn type_semicolon(app: &mut App) {
         app.world_mut().write_message(KeyboardInput {
             key_code: KeyCode::Semicolon,
-            logical_key: Key::Character(":".into()),
+            logical_key: Key::Character(";".into()),
             state: ButtonState::Pressed,
-            text: Some(":".into()),
+            text: Some(";".into()),
             repeat: false,
             window: Entity::PLACEHOLDER,
         });
@@ -346,7 +346,7 @@ mod tests {
     }
 
     #[test]
-    fn a_colon_typed_into_the_window_does_not_open_the_command_shell() {
+    fn a_semicolon_typed_into_the_window_does_not_open_the_command_shell() {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, StatesPlugin, InputPlugin, NovaUiPlugin));
         app.insert_state(GameStates::Playing);
@@ -358,7 +358,7 @@ mod tests {
             PreUpdate,
             write_egui_wants_input_system.before(crate::hud::DebugHudSystems::Claim),
         );
-        app.add_systems(Update, open_shell_on_colon);
+        app.add_systems(Update, open_shell_on_semicolon);
         // An egui context whose text field has the keyboard, as the prompt
         // does once clicked.
         let mut context = EguiContext::default();
@@ -372,22 +372,22 @@ mod tests {
         app.world_mut().resource_mut::<DebugHud>().open = true;
         app.update();
 
-        type_colon(&mut app);
+        type_semicolon(&mut app);
         assert_eq!(*app.world().resource::<InputMode>(), InputMode::Insert);
         assert_eq!(
             *app.world().resource::<State<PauseStates>>().get(),
             PauseStates::Debug,
-            "the colon is text in the window's field"
+            "the semicolon is text in the window's field"
         );
 
         app.world_mut().resource_mut::<DebugHud>().open = false;
         app.update();
-        type_colon(&mut app);
+        type_semicolon(&mut app);
         app.update();
         assert_eq!(
             *app.world().resource::<State<PauseStates>>().get(),
             PauseStates::Commands,
-            "with the window closed, the colon opens the shell"
+            "with the window closed, the semicolon opens the shell"
         );
     }
 }

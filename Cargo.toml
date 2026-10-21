@@ -1072,7 +1072,7 @@ path = "examples/screenshots/screenshot_railgun.rs"
 name = "screenshot_mining_beam"
 path = "examples/screenshots/screenshot_mining_beam.rs"
 
-# The `:` command modal on the CRT, then the TAB interface's Map and Ship panes.
+# The `;` command modal on the CRT, then the TAB interface's Map and Ship panes.
 [[example]]
 name = "screenshot_command_shell"
 path = "examples/screenshots/screenshot_command_shell.rs"
@@ -1422,7 +1422,7 @@ path = "examples/screenshots/loop_round_types.rs"
 name = "loop_cockpit"
 path = "examples/screenshots/loop_cockpit.rs"
 
-# The commands wiki page's opening figure: `:` dropping the computer over live
+# The commands wiki page's opening figure: `;` dropping the computer over live
 # flight. `system_command_shell` is the same gesture with no renderer at all.
 [[example]]
 name = "loop_command_shell"

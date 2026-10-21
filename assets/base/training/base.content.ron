@@ -1165,9 +1165,9 @@
             rows: 5,
             frames: 20,
             frames_per_second: 10.0,
-            alt: "`:` bringing the NOVA COMMANDS monitor up over flight, then Escape returning to the same flight",
+            alt: "`;` bringing the NOVA COMMANDS monitor up over flight, then Escape returning to the same flight",
         ),
-        body: "Type `:` to open NOVA COMMANDS over flight, the interface, the pause menu, the main menu, or the editor. In a run the game stays frozen while it is open. Escape returns you to where you were.",
+        body: "Type `;` to open NOVA COMMANDS over flight, the interface, the pause menu, the main menu, or the editor. In a run the game stays frozen while it is open. Escape returns you to where you were.",
         wiki_path: "wiki/commands#getting-in-and-out",
         field_notes: [
             "Escape closes NOVA COMMANDS and returns you to where you were.",

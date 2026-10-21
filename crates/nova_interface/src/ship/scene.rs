@@ -257,7 +257,7 @@ pub struct ShipRuntime {
 impl ShipRuntime {
     /// Whether a section rebind capture owns the keys: waiting for its key,
     /// or holding the key it just took until it is released. While it does,
-    /// global keys such as `:` and the view's own keys must refuse it.
+    /// global keys such as `;` and the view's own keys must refuse it.
     pub fn rebind_armed(&self) -> bool {
         self.rebinding.is_some() || self.rebind_swallow
     }

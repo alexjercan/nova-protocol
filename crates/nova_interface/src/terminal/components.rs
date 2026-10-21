@@ -256,7 +256,7 @@ pub(crate) struct NovaOsOpenness(pub(super) f32);
 /// True after the user requested close; gameplay remains paused until the
 /// real-time close animation reaches zero.
 ///
-/// Public because the CRT is opened from outside this crate as well: the `:`
+/// Public because the CRT is opened from outside this crate as well: the `;`
 /// gesture that opens the Command shell lives with the other global modal keys
 /// in `nova_menu`, and an open must clear a close that is still running.
 #[derive(Resource)]
@@ -267,8 +267,8 @@ pub struct NovaOsCloseTransition {
     /// to.
     ///
     /// The modal is a surface on top of whatever was there, so closing it
-    /// restores that surface: `:` from the pause menu comes back to the pause
-    /// menu, and `:` over the TAB interface comes back to the same pane.
+    /// restores that surface: `;` from the pause menu comes back to the pause
+    /// menu, and `;` over the TAB interface comes back to the same pane.
     /// Whoever opens the CRT records what it covered.
     pub return_to: PauseStates,
 }

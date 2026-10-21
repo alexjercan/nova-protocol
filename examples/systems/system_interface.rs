@@ -1,8 +1,8 @@
-//! system_interface: the TAB interface and the `:` command modal over it, driven
+//! system_interface: the TAB interface and the `;` command modal over it, driven
 //! the way a player drives them - keys only, one walk.
 //!
 //! ONE SUBJECT: the round trip pane -> modal -> pane. TAB opens the themed
-//! interface on its Map pane, M switches to Ship, `:` opens NOVA COMMANDS over
+//! interface on its Map pane, M switches to Ship, `;` opens NOVA COMMANDS over
 //! the pane, and Escape closes the modal back to the SAME pane, with the world
 //! held still the whole way. The parts are unit-tested
 //! (`crates/nova_interface/src/pane.rs` and `terminal/tests/`); what no test
@@ -34,7 +34,7 @@
 //! NOVA_AUTOPILOT=1 cargo run --example system_interface --features debug
 //! # named beats, each waiting on the world rather than on a dwell: load the
 //! # range; TAB and wait for the interface and the freeze; M and wait for the
-//! # Ship scene; type `:` and assert the modal covers a KEPT pane; Escape and
+//! # Ship scene; type `;` and assert the modal covers a KEPT pane; Escape and
 //! # assert the same pane is back with the clocks never having run; Escape
 //! # again and assert flight is released. A beat that never resolves inside its
 //! # deadline is an error exit naming it.
@@ -75,12 +75,12 @@ const SETTLE_FRAMES: u32 = 30;
 #[derive(Parser)]
 #[command(name = "system_interface")]
 #[command(version = "1.0.0")]
-#[command(about = "The TAB interface and the `:` command modal over it. Autopilot-only correctness range", long_about = None)]
+#[command(about = "The TAB interface and the `;` command modal over it. Autopilot-only correctness range", long_about = None)]
 struct Cli;
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
-    // NovaMenuPlugin explicitly: the interface's clock hold and the `:` gesture
+    // NovaMenuPlugin explicitly: the interface's clock hold and the `;` gesture
     // live in nova_menu, and `with_game_plugins` turns the menu plugin off. They
     // are the subject here, so the plugin has to be present; it stands alone in
     // a slim app, and the run goes Loading -> Playing without the menu handoff.
@@ -186,8 +186,8 @@ fn interface_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
         .step("interface: M switches to the Ship pane")
         .on_enter(assert_m_switched_and_record)
         .add()
-        .step("interface: type `:` over the pane")
-        .on_enter(type_text(":"))
+        .step("interface: type `;` over the pane")
+        .on_enter(type_text(";"))
         .until(state_is(PauseStates::Commands))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
@@ -372,7 +372,7 @@ fn assert_m_switched_and_record(world: &mut World) {
     );
 }
 
-/// `:` over the pane opened the modal, recorded the pane as its return, and
+/// `;` over the pane opened the modal, recorded the pane as its return, and
 /// left the pane and its scene standing under it.
 #[cfg(feature = "debug")]
 fn assert_modal_keeps_pane(world: &mut World) {
@@ -381,7 +381,7 @@ fn assert_modal_keeps_pane(world: &mut World) {
     assert_eq!(
         world.resource::<NovaOsCloseTransition>().return_to,
         PauseStates::Interface,
-        "`:` over the interface must record the interface as the state to return to"
+        "`;` over the interface must record the interface as the state to return to"
     );
     assert_eq!(
         the_named(world, INTERFACE_ROOT),

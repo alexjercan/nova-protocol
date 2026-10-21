@@ -1,10 +1,10 @@
-//! loop_command_shell: the `command-shell-open` webm loop - `:` over live
+//! loop_command_shell: the `command-shell-open` webm loop - `;` over live
 //! flight, and the computer answering.
 //!
 //! The commands wiki page opens on a claim the page cannot make in prose: that
 //! the shell is not a menu but a surface that drops over whatever you were
 //! doing. So the loop starts on flight - a ship under thrust, a holo ring, a
-//! HUD - types `:`, and lets the CRT come up over it: the monitor, the COMMANDS
+//! HUD - types `;`, and lets the CRT come up over it: the monitor, the COMMANDS
 //! header, the introduction typing itself out, then a real command typed at the
 //! prompt and answered off the live world.
 //!
@@ -43,7 +43,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "loop_command_shell")]
 #[command(version = "1.0.0")]
-#[command(about = "The command-shell-open webm loop: `:` drops the computer over live flight and it answers. Autopilot-only: the walk types the gesture", long_about = None)]
+#[command(about = "The command-shell-open webm loop: `;` drops the computer over live flight and it answers. Autopilot-only: the walk types the gesture", long_about = None)]
 struct Cli;
 
 /// The loop this example records - the webm's file stem.
@@ -83,8 +83,8 @@ const TYPING_DEADLINE_SECS: f32 = 45.0;
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
-    // NovaMenuPlugin explicitly: the `:` gesture lives in nova_menu, and
-    // `with_game_plugins` turns the menu plugin off. `:` IS the subject of this
+    // NovaMenuPlugin explicitly: the `;` gesture lives in nova_menu, and
+    // `with_game_plugins` turns the menu plugin off. `;` IS the subject of this
     // figure, so the plugin has to be here; it stands alone in a slim app, and
     // the boot-into-MainMenu handoff it normally owns is not taken (this run
     // goes Loading -> Playing).
@@ -213,10 +213,10 @@ fn shell_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .step("hold the live frame")
         .until(elapsed(0.8))
         .add()
-        // `:` is read as the CHARACTER, so this is the gesture a player makes
-        // whatever their layout puts a colon on.
+        // `;` is read as the CHARACTER, so this is the gesture a player makes
+        // whatever their layout puts a semicolon on.
         .step("drop the computer over it")
-        .on_enter(type_text(":"))
+        .on_enter(type_text(";"))
         .until(resource_where::<State<PauseStates>>(|pause| {
             *pause.get() == PauseStates::Commands
         }))
@@ -230,7 +230,7 @@ fn shell_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .until(the_introduction_has_landed())
         .deadline(20.0)
         .add()
-        // FRAMES, not seconds, from here on. `:` freezes the simulation - that
+        // FRAMES, not seconds, from here on. `;` freezes the simulation - that
         // is what the pause axis is for - so `elapsed` stops advancing the
         // moment the computer is up, and every hold behind it would wait for a
         // clock that has stopped. The loop records one frame per update at

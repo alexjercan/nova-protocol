@@ -37,7 +37,7 @@ pub enum LessonCategory {
     Combat,
     /// The editor: sections, mass, and what a hull is made of.
     Shipbuilding,
-    /// The TAB interface panes and the `:` command modal.
+    /// The TAB interface panes and the `;` command modal.
     Interface,
     /// Everything that needs the rest first.
     Advanced,

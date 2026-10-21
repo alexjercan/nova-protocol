@@ -1,4 +1,4 @@
-//! lesson_command: the two NOVA COMMANDS demonstrations - `command_open` (`:`
+//! lesson_command: the two NOVA COMMANDS demonstrations - `command_open` (`;`
 //! bringing the monitor up over flight, then Escape returning to the same
 //! flight) and `command_prompt` (half a ship id typed at the `cmd>` prompt, Tab
 //! completing it from the live world, and the answer printing under it).
@@ -9,7 +9,7 @@
 //!
 //! ## Both are ACTION loops, and the camera never moves
 //!
-//! What is being demonstrated here is a KEY DOING SOMETHING - `:` dropping a
+//! What is being demonstrated here is a KEY DOING SOMETHING - `;` dropping a
 //! monitor over the flight, Escape putting it back, Tab turning half an id into
 //! a whole one, Enter turning a line into a printed answer. That is the
 //! definition of an action loop in `shared/lesson.rs`: the eye holds still and
@@ -32,9 +32,9 @@
 //!
 //! ## What is typed and what is pressed
 //!
-//! `:` is read as the CHARACTER a player types, so it goes through
-//! `type_text` and is the gesture whatever layout puts a colon on. Tab is an
-//! EDIT the prompt reads off a `KeyboardInput` message
+//! `;` is read as the CHARACTER a player types, so it goes through
+//! `type_text` and is the gesture whatever layout puts a semicolon on. Tab is
+//! an EDIT the prompt reads off a `KeyboardInput` message
 //! (`nova_interface/src/terminal/input.rs`), so it goes through
 //! `press_edit_key(Key::Tab)`, which sends the release with the press; a Tab
 //! that only moved the `ButtonInput<KeyCode>` table would complete nothing.
@@ -82,7 +82,7 @@ const OPEN_LESSON: &str = "command_open";
 #[cfg(feature = "debug")]
 const PROMPT_LESSON: &str = "command_prompt";
 
-/// Cells of the open sheet that show the flight before `:` goes down.
+/// Cells of the open sheet that show the flight before `;` goes down.
 ///
 /// The lesson's claim is that the monitor drops over the SAME flight it then
 /// returns to, so the sheet carries the flight before as well as after.
@@ -121,8 +121,8 @@ struct AnswerBaseline(u64);
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
-    // NovaMenuPlugin explicitly: the `:` gesture lives in nova_menu, and
-    // `with_game_plugins` turns the menu plugin off. `:` IS the subject of this
+    // NovaMenuPlugin explicitly: the `;` gesture lives in nova_menu, and
+    // `with_game_plugins` turns the menu plugin off. `;` IS the subject of this
     // producer, so the plugin has to be here; it stands alone in a slim app,
     // and the boot-into-MainMenu handoff it normally owns is not taken (this
     // run goes Loading -> Playing).
@@ -237,8 +237,8 @@ fn command_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .add()
         // Inside the recording, so the bloom is cells of the sheet rather than
         // something that happened before it.
-        .step("type the colon")
-        .on_enter(type_text(":"))
+        .step("type the semicolon")
+        .on_enter(type_text(";"))
         .until(the_pause_state_is(PauseStates::Commands))
         .deadline(STEP_DEADLINE_SECS)
         .add()
@@ -267,7 +267,7 @@ fn command_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         // THE PROMPT: raised outside the recording, so the sheet opens on a
         // finished introduction and an empty line.
         .step("raise the monitor again")
-        .on_enter(type_text(":"))
+        .on_enter(type_text(";"))
         .until(the_pause_state_is(PauseStates::Commands))
         .deadline(STEP_DEADLINE_SECS)
         .add()

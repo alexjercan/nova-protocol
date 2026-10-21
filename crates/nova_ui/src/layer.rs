@@ -51,7 +51,7 @@ pub const PAUSE_Z: i32 = 60;
 pub const PAUSE_SETTINGS_Z: i32 = 70;
 
 /// The dim field behind an open NOVA OS. Above the pause Settings panel
-/// because `:` opens the shell OVER the pause menu, and the covering surface
+/// because `;` opens the shell OVER the pause menu, and the covering surface
 /// is the one on top. The pause overlay is `DespawnOnExit(Paused)`, so today
 /// it is gone before the monitor is visible and the old shared number never
 /// showed - a traversal order nobody chose is not the same as a decision, and

@@ -6,7 +6,7 @@
 //! Keyboard M and gamepad Y step Map -> Ship -> Inventory -> Jobs -> Station
 //! -> Map, Station only while docked, and the buttons in the card's title
 //! row pick a pane. The first open shows Map; after that TAB reopens the
-//! last pane. The `:` command modal opens over the pane without tearing it
+//! last pane. The `;` command modal opens over the pane without tearing it
 //! down, so closing the modal returns to the same pane with its scene, camera
 //! and selection.
 //!
@@ -54,7 +54,7 @@ use crate::{
 /// Which pane the TAB interface shows.
 ///
 /// A resource, not a state: the pane is remembered while the interface is
-/// closed, and it must survive the `:` modal opening over it.
+/// closed, and it must survive the `;` modal opening over it.
 #[derive(Resource, Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum InterfacePaneType {
     /// The local-space map: contacts, range and bearing, and GOTO.

@@ -123,20 +123,20 @@ pub(crate) fn toggle_pause(
     }
 }
 
-/// `:` opens the game command shell over whatever is on screen.
+/// `;` opens the game command shell over whatever is on screen.
 ///
 /// It lives beside [`toggle_pause`] rather than with the CRT because it is a
 /// GLOBAL modal gesture, and this crate is the one that already owns those: it
 /// can see the rebind capture that must swallow the key, and it runs over the
 /// main menu, the editor and flight alike.
 ///
-/// Read as a logical character, not a key code, so a layout where `:` is not
-/// Shift+Semicolon still opens the shell with the key that prints one.
+/// Read as a logical character, not a key code, so a layout where `;` is not
+/// the bare Semicolon key still opens the shell with the key that prints one.
 ///
 /// It reads the keyboard EVERY frame and checks the input mode itself. A run
 /// condition would leave the reader behind while a field holds the keyboard,
 /// and a frozen world runs no fixed step, so Bevy keeps those messages: the
-/// first Normal frame would read a colon typed into the field and open the
+/// first Normal frame would read a semicolon typed into the field and open the
 /// shell.
 pub(crate) fn open_command_shell(
     mut keyboard: MessageReader<KeyboardInput>,
@@ -148,20 +148,20 @@ pub(crate) fn open_command_shell(
     mut next: ResMut<NextState<PauseStates>>,
     mut close: ResMut<NovaOsCloseTransition>,
 ) {
-    let typed_colon = keyboard
+    let typed_semicolon = keyboard
         .read()
-        .any(|event| event.state == ButtonState::Pressed && event.text.as_deref() == Some(":"));
-    if !typed_colon {
+        .any(|event| event.state == ButtonState::Pressed && event.text.as_deref() == Some(";"));
+    if !typed_semicolon {
         return;
     }
     // In a focused text field - the editor's inspector, a rename, the Nova
-    // Debug prompt - a `:` is a character the player is typing, not a gesture.
+    // Debug prompt - a `;` is a character the player is typing, not a gesture.
     if mode.is_some_and(|mode| *mode != InputMode::Normal) {
         return;
     }
     // Inside the CRT the key is text: the shell is already open and the player
     // is typing into it. Same for a settings chip or a ship section waiting to
-    // capture a key: the colon is the key being bound.
+    // capture a key: the semicolon is the key being bound.
     if *current.get() == PauseStates::Commands {
         return;
     }
@@ -177,7 +177,7 @@ pub(crate) fn open_command_shell(
     }
     close.closing = false;
     // The modal is a surface OVER what is already there, so closing it puts
-    // that back: `:` from the pause menu returns to the pause menu, and `:`
+    // that back: `;` from the pause menu returns to the pause menu, and `;`
     // over the TAB interface returns to the same pane.
     close.return_to = *current.get();
     next.set(PauseStates::Commands);
@@ -274,7 +274,7 @@ pub(crate) fn pause_on_focus_loss(
 /// clock, so nothing integrates regardless of which clock a system reads.
 ///
 /// The hold is named rather than unconditional. The CRT terminal freezes the
-/// same clocks, and the two surfaces overlap: `:` opens the command shell over
+/// same clocks, and the two surfaces overlap: `;` opens the command shell over
 /// a paused game, and an unconditional unpause on its close handed a paused
 /// player a running world.
 pub(crate) fn hold_clocks_for_pause_menu(mut clocks: Clocks) {
@@ -291,7 +291,7 @@ pub(crate) fn release_clocks_for_pause_menu(mut clocks: Clocks) {
 /// states share [`FreezeOwner::Interface`], so a hop between them re-takes a
 /// hold that was never dropped.
 ///
-/// GAMEPLAY only. `:` opens the command modal over the main menu as well, and
+/// GAMEPLAY only. `;` opens the command modal over the main menu as well, and
 /// what runs behind it there is the menu's own ambience backdrop - a cinematic
 /// the modal is drawn over, not a game the player is being kept out of.
 /// Stopping it would leave the front door on a still frame for as long as the

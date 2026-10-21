@@ -1197,10 +1197,10 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "Opening NOVA COMMANDS",
             looping(
                 "command_open",
-                "`:` bringing the NOVA COMMANDS monitor up over flight, then Escape returning to \
+                "`;` bringing the NOVA COMMANDS monitor up over flight, then Escape returning to \
                  the same flight",
             ),
-            "Type `:` to open NOVA COMMANDS over flight, the interface, the pause menu, the main \
+            "Type `;` to open NOVA COMMANDS over flight, the interface, the pause menu, the main \
              menu, or the editor. In a run the game stays frozen while it is open. Escape returns \
              you to where you were.",
             &[],

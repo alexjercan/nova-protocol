@@ -179,7 +179,7 @@ pub(crate) const NOVA_OS_CRT_OVERSCAN: f32 = 0.93;
 /// Global stacking-context z for the OPEN NOVA OS, straight out of the one
 /// table every full-screen surface is numbered in (`nova_ui::layer`): the
 /// backdrop and the monitor rise above the flight HUD chrome, above the pause
-/// menu and above its Settings panel, because `:` opens the shell OVER all
+/// menu and above its Settings panel, because `;` opens the shell OVER all
 /// three and the covering surface is the one on top. The tab handle stays at
 /// the HUD z (it is chrome).
 pub(crate) const DRAWER_BACKDROP_Z: i32 = NOVA_OS_BACKDROP_Z;

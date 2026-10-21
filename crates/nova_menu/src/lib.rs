@@ -474,7 +474,7 @@ impl Plugin for NovaMenuPlugin {
             (release_clocks_for_pause_menu, restore_cursor),
         );
         // The interface and the command modal freeze the same clocks, but
-        // WITHOUT `setup_pause_ui` - each draws its own surface. `:` opens the
+        // WITHOUT `setup_pause_ui` - each draws its own surface. `;` opens the
         // modal over the pause menu too, so `Paused <-> Commands` is a live
         // transition: the `Paused` hooks run on the way in and again on the
         // way back, rebuilding the overlay the CRT covered.

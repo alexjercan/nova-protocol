@@ -648,13 +648,13 @@ fn the_command_shell_over_the_menu_leaves_the_backdrop_flying() {
     );
 }
 
-/// A `:` typed into a focused field does not open the command shell later,
+/// A `;` typed into a focused field does not open the command shell later,
 /// when the field lets the keyboard go. A frozen world runs no fixed step,
 /// and without one Bevy keeps every message, so a reader that skipped the
-/// colon while the field held the keyboard used to read it on the first
+/// semicolon while the field held the keyboard used to read it on the first
 /// Normal frame: closing the Nova Debug window opened the shell.
 #[test]
-fn a_colon_typed_into_a_field_does_not_open_the_shell_when_the_field_lets_go() {
+fn a_semicolon_typed_into_a_field_does_not_open_the_shell_when_the_field_lets_go() {
     use bevy::{
         ecs::message::{MessageRegistry, ShouldUpdateMessages},
         input::{keyboard::KeyboardInput, ButtonState},
@@ -674,15 +674,15 @@ fn a_colon_typed_into_a_field_does_not_open_the_shell_when_the_field_lets_go() {
         .should_update = ShouldUpdateMessages::Waiting;
 
     let window = app.world_mut().spawn_empty().id();
-    let colon = KeyboardInput {
+    let semicolon = KeyboardInput {
         key_code: KeyCode::Semicolon,
-        logical_key: bevy::input::keyboard::Key::Character(":".into()),
+        logical_key: bevy::input::keyboard::Key::Character(";".into()),
         state: ButtonState::Pressed,
-        text: Some(":".into()),
+        text: Some(";".into()),
         repeat: false,
         window,
     };
-    app.world_mut().write_message(colon.clone());
+    app.world_mut().write_message(semicolon.clone());
     // The focused field claims the keyboard each frame it holds it.
     for _ in 0..3 {
         app.world_mut()
@@ -693,7 +693,7 @@ fn a_colon_typed_into_a_field_does_not_open_the_shell_when_the_field_lets_go() {
     assert_eq!(
         pause_state(&app),
         PauseStates::Unpaused,
-        "the field takes the colon"
+        "the field takes the semicolon"
     );
 
     // The field lets go: no claim, so the keyboard is Normal again.
@@ -703,11 +703,11 @@ fn a_colon_typed_into_a_field_does_not_open_the_shell_when_the_field_lets_go() {
     assert_eq!(
         pause_state(&app),
         PauseStates::Unpaused,
-        "the colon went into the field, not to the shell"
+        "the semicolon went into the field, not to the shell"
     );
 
-    // A colon typed now is the gesture.
-    app.world_mut().write_message(colon);
+    // A semicolon typed now is the gesture.
+    app.world_mut().write_message(semicolon);
     app.update();
     app.update();
     assert_eq!(pause_state(&app), PauseStates::Commands);

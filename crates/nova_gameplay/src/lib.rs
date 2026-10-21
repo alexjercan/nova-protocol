@@ -155,7 +155,7 @@ pub enum GameStates {
 }
 
 /// Whether gameplay is frozen behind a modal overlay. Owned UI-wise by
-/// `nova_menu` (ESC toggle + overlay and the `:` gesture) and
+/// `nova_menu` (ESC toggle + overlay and the `;` gesture) and
 /// `nova_interface` (the TAB interface); `nova_gameplay` gates the spaceship
 /// input/section system sets on `Unpaused`, and the clocks (`Time<Virtual>` +
 /// `Time<Physics>`) pause on entering any frozen variant. Init'd by

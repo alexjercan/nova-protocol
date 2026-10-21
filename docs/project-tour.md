@@ -36,7 +36,7 @@ for responsibilities and the dependency graph.
 | `nova_wfc` | Generated hulls: a catalog plus a code-owned `WfcPlan` in, a `ShipDesign` out. Owns the plan types; every caller builds its own plan. No `App`, no systems - the editor's Generate verb and the `wfc_*` examples call it. |
 | `nova_hud` | The flight HUD: one module per widget (crosshairs, target inset, ammo readout, objective markers, comms panel, keybind dock). Reads the ship, never drives it. |
 | `nova_command` | The command language and the `NOVA COMMANDS` terminal model: catalog, parser, prompt state. No bevy UI. |
-| `nova_interface` | The TAB interface (Map, Ship and Inventory panes) and the `:` CRT command modal: pointer forwarding, casing, the back-out owner. A peer of the HUD, added by `nova_core`. |
+| `nova_interface` | The TAB interface (Map, Ship and Inventory panes) and the `;` CRT command modal: pointer forwarding, casing, the back-out owner. A peer of the HUD, added by `nova_core`. |
 | `nova_console` | The command shell's dispatcher: the executor behind the `cmd>` prompt and the channel's `command` lane. Sits above `nova_menu` because a setting command writes the resources the settings screen owns. |
 | `nova_scenario` | Scenario engine: events, filters, actions, variables, world, loader, objects. |
 | `nova_world` | The streamed open world: a cell generated from its coordinate alone by a `SectorGenerator` type, checked, and a 5x5x5 active window streamed around one live scenario. Names no content; the game gets it through `nova_world_base`. Examples with their own game plugins install their own generator. |
@@ -79,7 +79,7 @@ The highest-value table. Verified paths; follow the linked page for depth.
 | Gravity wells | `crates/nova_gameplay/src/gravity.rs` | -- |
 | A unit, or what a field is measured in | `crates/nova_events/src/units.rs` + `crates/nova_events/src/scale.rs` | [Architecture](architecture.md#units-and-scale) |
 | The HUD (widgets) | `crates/nova_hud/src/` | -- |
-| The TAB interface, its panes, and the `:` command modal | `crates/nova_interface/src/` | -- |
+| The TAB interface, its panes, and the `;` command modal | `crates/nova_interface/src/` | -- |
 | The command catalog and parser | `crates/nova_command/src/commands.rs` | [Architecture](architecture.md) |
 | A scenario event/filter/action | `crates/nova_scenario/src/{events.rs,filters.rs,actions/}` | [Scenario engine](scenario-system.md), [Extend the scenario engine](guide-extend-scenarios.md) |
 | Scenario objects / loading | `crates/nova_scenario/src/{objects/,loader/}` | [Scenario engine](scenario-system.md) |

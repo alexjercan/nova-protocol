@@ -111,7 +111,7 @@ entity, resource and asset. Cheats and Command drive the game's command shell
 its scrollback, TAB completion and history, and each cheat button submits a
 command line with the player ship's id, so an unarmed run shows the shell's
 refusal until "Arm cheats" (`cheats enable`). While a field in the window has
-the keyboard, the window claims `InputMode::Insert`, so `:` types a colon.
+the keyboard, the window claims `InputMode::Insert`, so `;` types a semicolon.
 Entities lists the top-level entities by sector (the observer's cell first)
 or by type (`crates/nova_debug/src/hud/entities.rs`). An entity under a
 sector root is in that root's cell; a top-level body in a streaming world is
@@ -360,11 +360,11 @@ What is on disk today, in reading order:
   cut that severs a rock, and what the main thread pays to SWAP the result in -
   the range counts grids rather than milliseconds, so it reads the same on
   every box),
-  `system_interface` (the Tab interface and the `:` modal over it, driven with
-  keys only: TAB, M and `:` must return through Escape to the same pane with the
+  `system_interface` (the Tab interface and the `;` modal over it, driven with
+  keys only: TAB, M and `;` must return through Escape to the same pane with the
   clocks frozen and no pane or flight action firing on the transition frames),
   `system_command_shell` (the modal over flight, the pause menu, the main menu
-  and the interface, including the rebind gate that keeps `:` shut while a ship
+  and the interface, including the rebind gate that keeps `;` shut while a ship
   section waits for its key) and `system_headless_map_goto` (a click on a Map
   blip in window space, then GOTO, asserted on the ship's autopilot with no GPU).
   Finally the STRESS ranges, one file

@@ -222,6 +222,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Interface & HUD
 
+- `;` opens NOVA COMMANDS, with no Shift on US layouts; `:` no longer does.
 - In windows under 800 px wide the Map and Ship footer puts its key hints on
   a second row, so the legend, the hints and Catalogue, Fit and Reset all
   show whole at 640x600.
@@ -328,7 +329,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Double-click an Inventory item to sell, store, withdraw or buy its whole
   stack, Shift for one. Your own ships docked at the station list their holds
   as storage sections.
-- A `:` typed into a text field, such as an Inventory quantity, no longer
+- A `;` typed into a text field, such as an Inventory quantity, no longer
   opens the command shell when the field loses focus.
 - The Map's mouse wheel no longer zooms the Ship pane when you switch to it.
 - An armed Ship pane rebind lights Rebind and names the section in a banner.

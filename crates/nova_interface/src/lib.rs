@@ -1,8 +1,8 @@
-//! The TAB interface and the `:` command modal.
+//! The TAB interface and the `;` command modal.
 //!
 //! TAB opens a themed full-screen interface with a Map pane, a Ship pane, an
 //! Inventory pane and a Jobs pane, plus a Station pane while docked, over the
-//! frozen world. `:` opens `NOVA COMMANDS`, a
+//! frozen world. `;` opens `NOVA COMMANDS`, a
 //! command-only modal on the retained CRT monitor, over any surface -
 //! including the interface, which it returns to on close. The flight HUD
 //! (`nova_hud`) hides while either is open; the two share only the
@@ -101,7 +101,7 @@ use crate::{
     terminal::CommandsSystems,
 };
 
-/// Wires the TAB interface, its four panes, and the `:` command modal.
+/// Wires the TAB interface, its four panes, and the `;` command modal.
 ///
 /// Added by the assembly crate (`nova_core`), not by the HUD - the interface
 /// and the flight HUD are peers, and the plugin that orders them belongs above

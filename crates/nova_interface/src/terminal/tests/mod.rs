@@ -206,7 +206,7 @@ fn nova_os_sound_app() -> App {
 }
 
 /// Open the command modal over flight, the way `nova_menu::open_command_shell`
-/// does after a typed `:`.
+/// does after a typed `;`.
 fn open_commands(app: &mut App) {
     app.world_mut()
         .resource_mut::<NextState<PauseStates>>()
