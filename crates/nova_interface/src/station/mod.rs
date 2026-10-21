@@ -246,7 +246,7 @@ pub(crate) fn spawn_card_price(
     })
     .with_children(|line| {
         let tone = if short_cr.is_some() {
-            UiColor::Label
+            UiColor::Secondary
         } else {
             UiColor::Accent
         };

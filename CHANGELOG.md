@@ -346,6 +346,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   Credits row, beside Take all, so the whole ship name shows at 1024 px.
 - Ship pane prices, the Escort job title and the menu's Credits lines group
   thousands, as `1,200 cr`.
+- Greyed buttons read clearer in both themes: a refused button's label and
+  Phosphor outline are brighter, still dimmer than a live button.
 
 ### Web & Platform
 

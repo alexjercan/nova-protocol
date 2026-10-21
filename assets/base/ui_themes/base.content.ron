@@ -121,11 +121,11 @@
                     )),
                     border: (
                         value: Variable("primary"),
-                        alpha: 0.12,
+                        alpha: 0.25,
                     ),
                     text: (
                         value: Variable("primary"),
-                        alpha: 0.3,
+                        alpha: 0.5,
                     ),
                     effect: None,
                 ),
@@ -234,11 +234,11 @@
                     )),
                     border: (
                         value: Variable("primary"),
-                        alpha: 0.12,
+                        alpha: 0.25,
                     ),
                     text: (
                         value: Variable("primary"),
-                        alpha: 0.3,
+                        alpha: 0.5,
                     ),
                     effect: None,
                 ),
@@ -333,11 +333,11 @@
                     )),
                     border: (
                         value: Variable("primary"),
-                        alpha: 0.12,
+                        alpha: 0.25,
                     ),
                     text: (
                         value: Variable("primary"),
-                        alpha: 0.3,
+                        alpha: 0.5,
                     ),
                     effect: None,
                 ),
@@ -432,11 +432,11 @@
                     )),
                     border: (
                         value: Variable("primary"),
-                        alpha: 0.12,
+                        alpha: 0.25,
                     ),
                     text: (
                         value: Variable("primary"),
-                        alpha: 0.3,
+                        alpha: 0.5,
                     ),
                     effect: None,
                 ),
@@ -1034,7 +1034,7 @@
                     ),
                     text: (
                         value: Variable("case_text"),
-                        alpha: 0.34,
+                        alpha: 0.4,
                     ),
                     effect: Some((
                         color: (
@@ -1310,7 +1310,7 @@
                     ),
                     text: (
                         value: Variable("case_text"),
-                        alpha: 0.34,
+                        alpha: 0.4,
                     ),
                     effect: Some((
                         color: (
@@ -1572,7 +1572,7 @@
                     ),
                     text: (
                         value: Variable("case_text"),
-                        alpha: 0.34,
+                        alpha: 0.4,
                     ),
                     effect: Some((
                         color: (
@@ -1756,7 +1756,7 @@
                     ),
                     text: (
                         value: Variable("case_text"),
-                        alpha: 0.34,
+                        alpha: 0.4,
                     ),
                     effect: Some((
                         color: (

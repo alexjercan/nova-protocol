@@ -352,8 +352,8 @@ fn phosphor_inverted_pressed() -> StatePaint {
 fn phosphor_disabled() -> StatePaint {
     state(
         solid(va("primary", 0.02)),
-        va("primary", 0.12),
-        va("primary", 0.3),
+        va("primary", 0.25),
+        va("primary", 0.5),
         None,
     )
 }
@@ -630,7 +630,7 @@ fn hardware_button(normal: StatePaint, hovered: StatePaint, pressed: StatePaint)
         pressed,
         selected: hardware_amber(),
         selected_pressed: hardware_amber_pressed(),
-        disabled: hardware_face(va("case_text", 0.34)),
+        disabled: hardware_face(va("case_text", 0.4)),
     }
 }
 
@@ -675,6 +675,6 @@ fn hardware_primary_button() -> ButtonRole {
         ),
         selected: hardware_amber(),
         selected_pressed: hardware_amber_pressed(),
-        disabled: hardware_face(va("case_text", 0.34)),
+        disabled: hardware_face(va("case_text", 0.4)),
     }
 }
