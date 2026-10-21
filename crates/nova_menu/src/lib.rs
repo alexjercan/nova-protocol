@@ -142,8 +142,9 @@ use widgets::{on_menu_button_activate, play_menu_focus_cue, MenuCueSystems};
 /// runs later in the frame. This is the one owner of the cursor in those
 /// states; `nova_debug` does not touch it.
 ///
-/// [`NovaMenuPlugin`] adds it. `nova_core`'s `AppBuilder` adds it alone to an
-/// app with its own game plugins: that app has no menu, but it has the TAB
+/// [`NovaMenuPlugin`] adds it. `nova_core`'s `AppBuilder` adds it to an app
+/// with its own game plugins unless that app already has it, alone or through
+/// [`NovaMenuPlugin`]: that app has no menu screens, but it has the TAB
 /// interface, and without this rule the interface opens over a locked,
 /// hidden cursor.
 pub struct SurfaceCursorPlugin;
