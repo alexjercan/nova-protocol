@@ -225,8 +225,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - In windows under 800 px wide the Map and Ship footer puts its key hints on
   a second row, so the legend, the hints and Catalogue, Fit and Reset all
   show whole at 640x600.
-- A Jobs pane: Your jobs with a `have / need` meter and where to hand in;
-  docked, Jobs posted here with reward, target, distance, time left and
+- A Jobs pane: Your jobs with a `have / need` meter and HAND IN HERE at the
+  hand-in station; docked, Jobs posted here with reward, time left and
   Accept. A refused button greys with the reason.
 - Clicking a job row opens it in the pane's inspector: what to do, target,
   hand-in station, reward, time left or progress, and Show on Map, which

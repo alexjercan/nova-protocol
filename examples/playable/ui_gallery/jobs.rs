@@ -1,7 +1,6 @@
 //! The Jobs page: the JOBS pane in the interface shell. Docked, the station
-//! board sits over the player's own jobs; undocked, only the own jobs show
-//! and each held row says how far its hand-in is. The inspector at the right
-//! reads the selected job.
+//! board sits over the player's own jobs; undocked, only the own jobs show.
+//! The inspector at the right reads the selected job.
 
 use bevy::{prelude::*, ui::InteractionDisabled};
 use nova_ui::{prelude::*, theme::UiColor};
@@ -91,7 +90,6 @@ fn board_panel(
                 (28.0, ""),
                 (0.0, "Job"),
                 (90.0, "Reward"),
-                (190.0, "Target"),
                 (120.0, "Time left"),
                 (78.0, ""),
             ],
@@ -117,19 +115,6 @@ fn board_panel(
                     &format!("{} cr", thousands(j.reward)),
                     13.0,
                     UiColor::Accent,
-                    false,
-                ));
-                r.spawn(cell(
-                    190.0,
-                    &format!(
-                        "{} ({},{}), {}",
-                        j.target_name,
-                        j.target.0,
-                        j.target.1,
-                        distance_hint(j.target)
-                    ),
-                    12.0,
-                    UiColor::Body,
                     false,
                 ));
                 r.spawn((
@@ -206,8 +191,8 @@ fn held_panel(
             &[
                 (28.0, ""),
                 (0.0, "Job"),
-                (200.0, "Progress"),
-                (190.0, if docked { "Hand-in" } else { "Hand-in at" }),
+                (130.0, "Progress"),
+                (90.0, "Hand-in"),
                 (78.0, ""),
             ],
         );
@@ -223,33 +208,21 @@ fn held_panel(
                 r.spawn(icon(icons, j.kind.icon(), 18.0));
                 r.spawn(grow_cell(j.title, 13.0, UiColor::Primary));
                 r.spawn(Node {
-                    width: px(200.0),
+                    width: px(130.0),
                     flex_shrink: 0.0,
                     ..default()
                 })
                 .with_children(|c| {
-                    c.spawn(meter(110.0, j.have, j.need));
+                    c.spawn(meter(72.0, j.have, j.need));
                 });
                 r.spawn(Node {
-                    width: px(190.0),
+                    width: px(90.0),
                     flex_shrink: 0.0,
                     ..default()
                 })
                 .with_children(|c| {
                     if docked && j.hand_in_here {
                         c.spawn(tag(BadgeKind::Green, "HAND IN HERE"));
-                    } else if docked {
-                        c.spawn(text_nowrap(
-                            &format!("hand in at {}", j.hand_in),
-                            12.0,
-                            UiColor::Body,
-                        ));
-                    } else {
-                        c.spawn(text_nowrap(
-                            &format!("{}, {}", j.hand_in, distance_hint(j.target)),
-                            12.0,
-                            UiColor::Body,
-                        ));
                     }
                 });
                 let refusal = hand_in_refusal(j, docked);

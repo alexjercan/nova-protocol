@@ -5,16 +5,15 @@
 //! Docked at a living station that offers Jobs, the column starts with the
 //! station's board ("Jobs posted here"): one line per offer the player
 //! neither holds nor completed and whose window has not passed, as kind
-//! icon | title | reward | target sector and distance | time-left meter
-//! with its minutes | Accept. Every offer asks something of the hull ([`plan_job_hull_fit`]):
-//! the starting station's board ([`StarterBoardMarker`]) leaves out what the
+//! icon | title | reward | time-left meter with its minutes | Accept. Every
+//! offer asks something of the hull ([`plan_job_hull_fit`]): the starting
+//! station's board ([`StarterBoardMarker`]) leaves out what the
 //! hull cannot do, every other board lists it with a greyed Accept and the
 //! reason in a tooltip, as it does for an offer whose target is gone. Under
 //! it, docked or not, "Your jobs" lists every held job as kind icon | title
-//! | `have / need` meter | hand-in | Hand in: HAND IN HERE at the job's
-//! target, else `hand in at <station>` docked and the station with its
-//! distance undocked; a refused Hand in is greyed with the reason in a
-//! tooltip. Over the held rows, one row reads the start role's goal: its
+//! | `have / need` meter | hand-in | Hand in: HAND IN HERE docked at the
+//! job's target, else blank; a refused Hand in is greyed with the reason in
+//! a tooltip. Over the held rows, one row reads the start role's goal: its
 //! title, its next unmet line ([`open_objectives`]) and a `have / need`
 //! meter, or the play time the goal was met; a role with no goal has no row.
 //! Clicking a job row selects it and the inspector reads its task, its
@@ -395,22 +394,10 @@ struct PostedRow {
     icon: JobIconType,
     title: String,
     reward_cr: u64,
-    target: String,
     /// The offer's window left: the share and the minutes.
     time_left: (f32, String),
     /// Why Accept is greyed, if it is.
     refusal: Option<String>,
-}
-
-/// Where a held job hands in, as its row says it.
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum HandInType {
-    /// The docked station is the target.
-    Here,
-    /// Docked elsewhere: the target's name.
-    At(String),
-    /// Undocked: the target's name and its distance.
-    Away(String),
 }
 
 /// One held row as the pane shows it.
@@ -421,7 +408,8 @@ struct HeldRow {
     title: String,
     have: u32,
     need: u32,
-    hand_in: HandInType,
+    /// Docked at the station this job hands in at: the row shows HAND IN HERE.
+    hand_in_here: bool,
     /// Why Hand in is greyed, if it is.
     refusal: Option<String>,
 }
@@ -560,7 +548,6 @@ fn update_jobs_pane(
                     icon: JobIconType::of(&job.kind),
                     title: job.title(&items),
                     reward_cr: job.reward_cr.into(),
-                    target: place(job_cell(job)),
                     time_left: time_left(remaining),
                     refusal,
                 })
@@ -608,19 +595,8 @@ fn update_jobs_pane(
         .iter()
         .map(|job| {
             let title = job.title(&items);
-            let target = station_name(&chart, &job.target);
-            let hand_in = match &partner {
-                Some((_, _, station_id)) if *station_id == job.target => HandInType::Here,
-                Some(_) => HandInType::At(target),
-                None => HandInType::Away(
-                    match edge
-                        .and_then(|edge| cell_distance_text(player_cell, job.target.origin, edge))
-                    {
-                        Some(distance) => format!("{target}, {distance}"),
-                        None => target,
-                    },
-                ),
-            };
+            let hand_in_here =
+                matches!(&partner, Some((_, _, station_id)) if *station_id == job.target);
             let (have, need) = job.progress(hold, jobs.is_done(&job.id));
             HeldRow {
                 id: job.id.clone(),
@@ -628,7 +604,7 @@ fn update_jobs_pane(
                 title: title.clone(),
                 have,
                 need,
-                hand_in,
+                hand_in_here,
                 refusal: hand_in_refusal(job, &title),
             }
         })
@@ -717,20 +693,19 @@ fn update_jobs_pane(
 
 /// Width of the reward column.
 const REWARD_PX: f32 = 90.0;
-/// Width of the target and the hand-in columns.
-const PLACE_PX: f32 = 190.0;
+/// Width of a held row's hand-in column: the HAND IN HERE badge.
+const HAND_IN_PX: f32 = 90.0;
 /// Width of the time-left column.
 const TIME_PX: f32 = 120.0;
-/// Width of the meter inside the time-left column, so its minutes fit beside
-/// it.
-const TIME_METER_PX: f32 = 72.0;
-/// Width of the progress column.
-const PROGRESS_PX: f32 = 200.0;
+/// Width of a meter inside a row column, so its text fits beside it.
+const ROW_METER_PX: f32 = 72.0;
+/// Width of the progress column: a row meter and the widest `nn / nn`.
+const PROGRESS_PX: f32 = 130.0;
 /// Width of a row's action button column.
 const ACTION_PX: f32 = 78.0;
 /// Width of a row's icon column.
 const ICON_PX: f32 = 28.0;
-/// Width of a meter inside its column.
+/// Width of a meter in the inspector.
 const METER_PX: f32 = 110.0;
 /// Width of an inspector's label column.
 const LABEL_PX: f32 = 84.0;
@@ -841,8 +816,9 @@ fn bare_meter(width: f32, fraction: f32) -> impl Bundle {
     )
 }
 
-/// A `have / need` meter: a display meter with the counts beside it.
-fn meter(have: u64, need: u64) -> impl Bundle {
+/// A `have / need` meter: a display meter `width` wide with the counts beside
+/// it.
+fn meter(width: f32, have: u64, need: u64) -> impl Bundle {
     let fraction = if need == 0 {
         0.0
     } else {
@@ -858,7 +834,7 @@ fn meter(have: u64, need: u64) -> impl Bundle {
         },
         Pickable::IGNORE,
         children![
-            bare_meter(METER_PX, fraction),
+            bare_meter(width, fraction),
             text_nowrap(&format!("{have} / {need}"), 12.0, UiColor::Body),
         ],
     )
@@ -983,7 +959,6 @@ fn board_panel(
                     (ICON_PX, ""),
                     (0.0, "Job"),
                     (REWARD_PX, "Reward"),
-                    (PLACE_PX, "Target"),
                     (TIME_PX, "Time left"),
                     (ACTION_PX, ""),
                 ],
@@ -1019,7 +994,6 @@ fn board_panel(
                             (),
                         );
                     });
-                    r.spawn(cell(PLACE_PX, &row.target, 12.0, UiColor::Body));
                     r.spawn(fixed(
                         TIME_PX,
                         (
@@ -1030,7 +1004,7 @@ fn board_panel(
                             },
                             Pickable::IGNORE,
                             children![
-                                bare_meter(TIME_METER_PX, row.time_left.0),
+                                bare_meter(ROW_METER_PX, row.time_left.0),
                                 text_nowrap(&row.time_left.1, 12.0, UiColor::Body),
                             ],
                         ),
@@ -1102,10 +1076,12 @@ fn held_panel(
                         ));
                         row.spawn(grow_cell(&text, 13.0, color));
                         match progress {
-                            Some((have, need)) => row.spawn(fixed(PROGRESS_PX, meter(have, need))),
+                            Some((have, need)) => {
+                                row.spawn(fixed(PROGRESS_PX, meter(ROW_METER_PX, have, need)))
+                            }
                             None => row.spawn(fixed(PROGRESS_PX, ())),
                         };
-                        row.spawn(fixed(PLACE_PX, ()));
+                        row.spawn(fixed(HAND_IN_PX, ()));
                         row.spawn(fixed(ACTION_PX, ()));
                     });
             }
@@ -1115,7 +1091,7 @@ fn held_panel(
                     (ICON_PX, ""),
                     (0.0, "Job"),
                     (PROGRESS_PX, "Progress"),
-                    (PLACE_PX, if view.docked { "Hand-in" } else { "Hand-in at" }),
+                    (HAND_IN_PX, "Hand-in"),
                     (ACTION_PX, ""),
                 ],
             );
@@ -1132,22 +1108,14 @@ fn held_panel(
                         icon_node(icons.job(row.icon), row.icon.color(), 18.0),
                     ));
                     r.spawn(grow_cell(&row.title, 13.0, UiColor::Primary));
-                    r.spawn(fixed(PROGRESS_PX, meter(row.have.into(), row.need.into())));
-                    match &row.hand_in {
-                        HandInType::Here => {
-                            r.spawn(fixed(PLACE_PX, badge(BadgeKind::Green, "HAND IN HERE")));
-                        }
-                        HandInType::At(station) => {
-                            r.spawn(cell(
-                                PLACE_PX,
-                                &format!("hand in at {station}"),
-                                12.0,
-                                UiColor::Body,
-                            ));
-                        }
-                        HandInType::Away(place) => {
-                            r.spawn(cell(PLACE_PX, place, 12.0, UiColor::Body));
-                        }
+                    r.spawn(fixed(
+                        PROGRESS_PX,
+                        meter(ROW_METER_PX, row.have.into(), row.need.into()),
+                    ));
+                    if row.hand_in_here {
+                        r.spawn(fixed(HAND_IN_PX, badge(BadgeKind::Green, "HAND IN HERE")));
+                    } else {
+                        r.spawn(fixed(HAND_IN_PX, ()));
                     }
                     action_button(
                         r,
@@ -1232,7 +1200,7 @@ fn inspector_panel(
         })
         .with_children(|row| {
             row.spawn(cell(LABEL_PX, "Progress", 12.0, UiColor::Label));
-            row.spawn(meter(have.into(), need.into()));
+            row.spawn(meter(METER_PX, have.into(), need.into()));
         });
     }
     if let Some(refusal) = &job.refusal {
