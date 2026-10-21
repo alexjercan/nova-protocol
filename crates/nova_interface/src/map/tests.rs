@@ -45,6 +45,7 @@ fn map_range_renders_in_meters_and_kilometers() {
         kind: MapContactKind::Hostile,
         code: "HOST-1".to_string(),
         name: "RAIDER".to_string(),
+        marker: None,
         world_pos: Vec3::ZERO,
         range: 50.0,
         bearing_deg: 0.0,
@@ -222,6 +223,117 @@ fn map_contact_codes_are_unique_and_stable() {
     let code = |world: &World, entity| world.get::<MapContactCode>(entity).unwrap().0.clone();
     assert_eq!(code(&world, answering), "NEU-1");
     assert_eq!(code(&world, streamed), "NEU-2");
+}
+
+/// A ship, a rock and a station that wear an objective marker are each one
+/// Objective contact that keeps its body icon and carries the label: the
+/// ship and the rock read `OBJ-n`, the station its chart code.
+#[test]
+fn a_marked_body_is_one_objective_contact() {
+    let mut world = World::new();
+    world.init_resource::<Chart>();
+    world.init_resource::<Jobs>();
+    world.spawn((
+        SpaceshipRootMarker,
+        PlayerSpaceshipMarker,
+        GlobalTransform::default(),
+        Name::new("NOVA"),
+    ));
+    let ship = world
+        .spawn((
+            SpaceshipRootMarker,
+            Allegiance::Neutral,
+            EntityId::new("caller"),
+            GlobalTransform::from(Transform::from_xyz(0.0, 0.0, -50.0)),
+            Name::new("CALLER"),
+            ObjectiveMarkerTarget {
+                label: "JOB-1 Answer".into(),
+            },
+        ))
+        .id();
+    let rock = world
+        .spawn((
+            EntityTypeName::new(ASTEROID_TYPE_NAME),
+            EntityId::new("rock"),
+            GlobalTransform::from(Transform::from_xyz(30.0, 0.0, 0.0)),
+            ObjectiveMarkerTarget {
+                label: "JOB-2 Recover".into(),
+            },
+        ))
+        .id();
+    let station = world
+        .spawn((
+            SpaceshipRootMarker,
+            StationMarker,
+            EntityId::new("outpost_prime"),
+            GlobalTransform::from(Transform::from_xyz(0.0, 40.0, 0.0)),
+            ObjectiveMarkerTarget {
+                label: "JOB-3 Hand in".into(),
+            },
+        ))
+        .id();
+
+    world.run_system_once(assign_map_contact_codes).unwrap();
+    let contacts = world.run_system_once(|c: MapContacts| c.collect()).unwrap();
+    for (entity, body, code, label) in [
+        (ship, BodyIconType::Ship, "OBJ-1", "JOB-1 Answer"),
+        (rock, BodyIconType::Asteroid, "OBJ-2", "JOB-2 Recover"),
+        (station, BodyIconType::Station, "STN", "JOB-3 Hand in"),
+    ] {
+        let found: Vec<&MapContact> = contacts.iter().filter(|c| c.entity == entity).collect();
+        assert_eq!(found.len(), 1, "{code} is one contact");
+        let contact = found[0];
+        assert_eq!(
+            (contact.kind, contact.body, contact.code.as_str()),
+            (MapContactKind::Objective, body, code)
+        );
+        assert_eq!(contact.marker.as_deref(), Some(label));
+    }
+    let codes: Vec<&String> = contacts.iter().map(|c| &c.code).collect();
+    let unique: std::collections::HashSet<&&String> = codes.iter().collect();
+    assert_eq!(unique.len(), codes.len(), "every code is unique: {codes:?}");
+}
+
+/// A ship's code crosses the objective boundary with its marker: a marked
+/// `NEU-1` reads `OBJ-1`, and once unmarked it takes the next free `NEU`
+/// index. Its neighbour's code never moves.
+#[test]
+fn a_contact_code_follows_its_marker() {
+    let mut world = World::new();
+    world.init_resource::<Chart>();
+    world.init_resource::<Jobs>();
+    world.spawn((
+        SpaceshipRootMarker,
+        PlayerSpaceshipMarker,
+        GlobalTransform::default(),
+    ));
+    let neutral = |world: &mut World, id: &str| {
+        world
+            .spawn((
+                SpaceshipRootMarker,
+                Allegiance::Neutral,
+                EntityId::new(id),
+                GlobalTransform::default(),
+            ))
+            .id()
+    };
+    let marked = neutral(&mut world, "a");
+    let neighbour = neutral(&mut world, "b");
+    let codes = |world: &mut World| {
+        world.run_system_once(assign_map_contact_codes).unwrap();
+        let code = |entity| world.get::<MapContactCode>(entity).unwrap().0.clone();
+        (code(marked), code(neighbour))
+    };
+    assert_eq!(codes(&mut world), ("NEU-1".into(), "NEU-2".into()));
+
+    world.entity_mut(marked).insert(ObjectiveMarkerTarget {
+        label: "JOB-1 Answer".into(),
+    });
+    assert_eq!(codes(&mut world), ("OBJ-1".into(), "NEU-2".into()));
+    assert_eq!(codes(&mut world), ("OBJ-1".into(), "NEU-2".into()));
+
+    world.entity_mut(marked).remove::<ObjectiveMarkerTarget>();
+    assert_eq!(codes(&mut world), ("NEU-3".into(), "NEU-2".into()));
 }
 
 /// A found station draws the chart's cube at every side: its code is its
@@ -1971,6 +2083,7 @@ fn rig_contact(entity: Entity, code: &str) -> MapContact {
         kind: MapContactKind::Hostile,
         code: code.to_string(),
         name: code.to_string(),
+        marker: None,
         world_pos: Vec3::ZERO,
         range: 100.0,
         bearing_deg: 0.0,
@@ -2421,6 +2534,150 @@ fn a_selected_contact_fills_the_panel_in_place() {
     // A held selection writes nothing.
     settle(app);
     assert_eq!(take_churn(app), NodeChurn::default());
+}
+
+/// A marked contact's Note is its marker label, then one line per held job
+/// that sends the player to that body, in accept order: a poster lists each
+/// done job it pays, a caller its undone job. A scenario marker on a body
+/// with no generated id reads its label alone.
+#[test]
+fn a_marked_job_body_lists_every_matching_job() {
+    let mut rig = pane_pointer_rig();
+    let app = &mut rig.app;
+    app.insert_resource(InterfaceIcons::blank());
+    app.init_resource::<MapRuntime>();
+    app.init_resource::<Chart>();
+    app.init_resource::<Jobs>();
+    app.add_systems(Update, (assign_map_contact_codes, update_map_panel).chain());
+    let content = rig.content_root;
+    app.world_mut()
+        .commands()
+        .entity(content)
+        .with_children(|content| spawn_map_panel(content, &InterfaceIcons::blank()));
+    app.world_mut().spawn((
+        SpaceshipRootMarker,
+        PlayerSpaceshipMarker,
+        GlobalTransform::default(),
+        Name::new("NOVA"),
+    ));
+    let poster = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
+    let caller = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_derelict", 0);
+    let job = |slot, kind| Job {
+        id: JobId {
+            station: poster.clone(),
+            slot,
+            posting: 0,
+        },
+        kind,
+        target: poster.clone(),
+        reward_cr: 100,
+    };
+    let ore = |slot, count| {
+        job(
+            slot,
+            JobType::Procure {
+                item: ItemDesignId::from("CarbonOre"),
+                count,
+            },
+        )
+    };
+    let first = ore(0, 4);
+    let distress = job(
+        1,
+        JobType::Distress {
+            caller: caller.clone(),
+            genuine: true,
+        },
+    );
+    let second = ore(2, 2);
+    let mut jobs = app.world_mut().resource_mut::<Jobs>();
+    for held in [&first, &distress, &second] {
+        jobs.accept(held.clone());
+    }
+    jobs.mark_done(&first.id);
+    jobs.mark_done(&second.id);
+
+    let station = app
+        .world_mut()
+        .spawn((
+            SpaceshipRootMarker,
+            StationMarker,
+            Allegiance::Neutral,
+            poster.clone(),
+            GlobalTransform::from(Transform::from_xyz(0.0, 0.0, -50.0)),
+            Name::new("KESTREL"),
+            ObjectiveMarkerTarget {
+                label: "JOB-1, JOB-3 Hand in".into(),
+            },
+        ))
+        .id();
+    let caller_ship = app
+        .world_mut()
+        .spawn((
+            SpaceshipRootMarker,
+            Allegiance::Neutral,
+            caller,
+            EntityId::new("caller"),
+            GlobalTransform::from(Transform::from_xyz(0.0, 0.0, 50.0)),
+            Name::new("CALLER"),
+            ObjectiveMarkerTarget {
+                label: "JOB-2 Answer".into(),
+            },
+        ))
+        .id();
+    let drone = app
+        .world_mut()
+        .spawn((
+            SpaceshipRootMarker,
+            Allegiance::Enemy,
+            EntityId::new("drone"),
+            GlobalTransform::from(Transform::from_xyz(50.0, 0.0, 0.0)),
+            Name::new("DRONE"),
+            ObjectiveMarkerTarget {
+                label: "Disable the drone".into(),
+            },
+        ))
+        .id();
+    app.world_mut().resource_mut::<MapRuntime>().active = true;
+
+    for (entity, code, name, note) in [
+        (
+            station,
+            "STN",
+            "KESTREL",
+            "Objective: JOB-1, JOB-3 Hand in\n\
+             JOB-1 Bring 4 CarbonOre: hand in.\n\
+             JOB-3 Bring 2 CarbonOre: hand in."
+                .to_string(),
+        ),
+        (
+            caller_ship,
+            "OBJ-1",
+            "CALLER",
+            format!(
+                "Objective: JOB-2 Answer\nJOB-2 Answer a distress call: {}",
+                distress.task(&GameItems::default())
+            ),
+        ),
+        (
+            drone,
+            "OBJ-2",
+            "DRONE",
+            "Objective: Disable the drone".to_string(),
+        ),
+    ] {
+        app.world_mut().resource_mut::<MapRuntime>().selected = Some(entity);
+        settle(app);
+        let world = app.world_mut();
+        for (field, want) in [
+            (MapPanelField::Code, code),
+            (MapPanelField::Name, name),
+            (MapPanelField::Kind, "OBJECTIVE"),
+            (MapPanelField::Note, note.as_str()),
+        ] {
+            assert_eq!(panel_text(world, field), want, "{name} {field:?}");
+        }
+    }
 }
 
 /// Every label text under the map blips, read from the live tree.

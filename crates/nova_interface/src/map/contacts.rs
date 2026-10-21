@@ -2,8 +2,15 @@
 //! [`MapContacts`] system param that derives the live list from the world.
 //!
 //! Codes are assigned per kind and held stable across frames, so a label names
-//! the same ship a moment later. A station reads its chart code instead,
-//! `STN-n`, or a bare `STN` while the chart has not found it.
+//! the same ship a moment later. A code changes only across the objective
+//! boundary: a body that takes an objective marker reads `OBJ-n`, and one that
+//! loses it takes a fresh code of its kind. A station reads its chart code
+//! instead, `STN-n`, or a bare `STN` while the chart has not found it.
+//!
+//! A ship or a piece of terrain that wears an [`ObjectiveMarkerTarget`] is one
+//! Objective contact that keeps its body icon and name and carries the marker
+//! label. A scenario marker carries only that label: no content field links it
+//! to a [`GameObjectives`] entry, so the map names none.
 //!
 //! Touch this module when adding a kind of thing the map can show.
 
@@ -28,7 +35,8 @@ pub enum MapContactKind {
     Ally,
     /// A ship on the enemy side.
     Hostile,
-    /// A mission objective marker.
+    /// Anything that wears an objective marker: a marked ship, station or
+    /// body, or a standalone nav marker.
     Objective,
     /// An asteroid.
     Terrain,
@@ -127,10 +135,10 @@ pub(crate) fn ship_contact_kind(player: Entity, ship: RelationParty<'_>) -> MapC
 
 /// A short, stable, human-readable handle for a map contact (`SELF`, `HOST-1`,
 /// `AST-2`), the LABEL shown on its blip and in the contact panel.
-/// Minted once per entity per session by `assign_map_contact_codes` from the
-/// contact kind + a stable index; never reassigned. The own ship is always
-/// `SELF` (there is exactly one); every other kind gets a `PREFIX-n` code.
-/// A station gets none: it reads its chart code.
+/// Minted by `assign_map_contact_codes` from the contact kind + a stable
+/// index, and reminted only when the entity crosses the objective boundary.
+/// The own ship is always `SELF` (there is exactly one); every other kind gets
+/// a `PREFIX-n` code. A station gets none: it reads its chart code.
 #[derive(Component, Clone, Debug, PartialEq, Eq)]
 pub struct MapContactCode(pub String);
 
@@ -150,6 +158,9 @@ pub struct MapContact {
     pub code: String,
     /// The contact's display name.
     pub name: String,
+    /// The objective marker label on the entity, as the HUD chip shows it;
+    /// none when it wears no marker.
+    pub(crate) marker: Option<String>,
     /// The contact's live world position, in engine units.
     pub world_pos: Vec3,
     /// Range from the player ship in world units - it is measured off live
@@ -220,6 +231,11 @@ pub struct MapContacts<'w, 's> {
         (Entity, &'static GlobalTransform, &'static EntityTypeName),
         Without<SpaceshipRootMarker>,
     >,
+    /// The marker on a ship or a piece of terrain, which the stance and
+    /// terrain loops plot as an Objective.
+    pub(crate) markers: Query<'w, 's, &'static ObjectiveMarkerTarget>,
+    /// The generated id the panel looks up held jobs by.
+    pub(crate) generated: Query<'w, 's, &'static GeneratedBodyId>,
     /// The minted label of any contact that has one; read-only. Minting itself
     /// happens in [`assign_map_contact_codes`] via `Commands`.
     pub(crate) codes: Query<'w, 's, &'static MapContactCode>,
@@ -247,6 +263,16 @@ impl MapContacts<'_, '_> {
             .ok()
             .or_else(|| self.bodies.get(entity).map(|body| **body).ok())
             .filter(|radius| *radius > 0.0)
+    }
+
+    /// Whether the stance or terrain loop plots `entity`, so the objective
+    /// loop leaves its marker to that one contact.
+    fn plots_as_body(&self, entity: Entity) -> bool {
+        self.ships.contains(entity)
+            || self
+                .terrain
+                .get(entity)
+                .is_ok_and(|(_, _, type_name)| is_terrain(type_name))
     }
 
     /// The player ship's entity, world position and orientation, if one exists.
@@ -294,24 +320,36 @@ impl MapContacts<'_, '_> {
             if station {
                 continue;
             }
-            let kind = ship_contact_kind(
-                player.unwrap_or(Entity::PLACEHOLDER),
-                RelationParty {
-                    entity,
-                    allegiance,
-                    retaliation,
-                },
-            );
+            let kind = if self.markers.contains(entity) {
+                MapContactKind::Objective
+            } else {
+                ship_contact_kind(
+                    player.unwrap_or(Entity::PLACEHOLDER),
+                    RelationParty {
+                        entity,
+                        allegiance,
+                        retaliation,
+                    },
+                )
+            };
             out.push((entity, kind, self.sort_key(entity)));
         }
         for (entity, _, _) in &self.objectives {
+            if self.plots_as_body(entity) {
+                continue;
+            }
             out.push((entity, MapContactKind::Objective, self.sort_key(entity)));
         }
         for (entity, _, type_name) in &self.terrain {
             if !is_terrain(type_name) {
                 continue;
             }
-            out.push((entity, terrain_kind(type_name), self.sort_key(entity)));
+            let kind = if self.markers.contains(entity) {
+                MapContactKind::Objective
+            } else {
+                terrain_kind(type_name)
+            };
+            out.push((entity, kind, self.sort_key(entity)));
         }
         out
     }
@@ -360,6 +398,7 @@ impl MapContacts<'_, '_> {
                 body: BodyIconType::Ship,
                 code,
                 name,
+                marker: None,
                 world_pos: player_pos,
                 range: 0.0,
                 bearing_deg: 0.0,
@@ -369,14 +408,19 @@ impl MapContacts<'_, '_> {
         for (entity, gt, name, allegiance, retaliation, generated, station) in &self.ships {
             let world_pos = gt.translation();
             let (range, brg, mark) = bearing(world_pos);
-            let kind = ship_contact_kind(
-                player_entity,
-                RelationParty {
-                    entity,
-                    allegiance,
-                    retaliation,
-                },
-            );
+            let marker = self.markers.get(entity).ok().map(|tag| tag.label.clone());
+            let kind = if marker.is_some() {
+                MapContactKind::Objective
+            } else {
+                ship_contact_kind(
+                    player_entity,
+                    RelationParty {
+                        entity,
+                        allegiance,
+                        retaliation,
+                    },
+                )
+            };
             // A station keeps its stance colour but reads the chart's code.
             // An authored station has no generated id and the chart finds
             // only generated ones, so it reads the bare stem for good.
@@ -409,6 +453,7 @@ impl MapContacts<'_, '_> {
                 },
                 code,
                 name,
+                marker,
                 world_pos,
                 range,
                 bearing_deg: brg,
@@ -416,6 +461,9 @@ impl MapContacts<'_, '_> {
             });
         }
         for (entity, gt, marker) in &self.objectives {
+            if self.plots_as_body(entity) {
+                continue;
+            }
             let world_pos = gt.translation();
             let Some(code) = self.code_for(entity, MapContactKind::Objective) else {
                 continue;
@@ -428,6 +476,7 @@ impl MapContacts<'_, '_> {
                 body: BodyIconType::Objective,
                 code,
                 name,
+                marker: Some(marker.label.clone()),
                 world_pos,
                 range,
                 bearing_deg: brg,
@@ -440,7 +489,12 @@ impl MapContacts<'_, '_> {
             }
             let world_pos = gt.translation();
             let (range, brg, mark) = bearing(world_pos);
-            let kind = terrain_kind(type_name);
+            let marker = self.markers.get(entity).ok().map(|tag| tag.label.clone());
+            let kind = if marker.is_some() {
+                MapContactKind::Objective
+            } else {
+                terrain_kind(type_name)
+            };
             let Some(code) = self.code_for(entity, kind) else {
                 continue;
             };
@@ -448,13 +502,14 @@ impl MapContacts<'_, '_> {
             contacts.push(MapContact {
                 entity,
                 kind,
-                body: if kind == MapContactKind::Planet {
+                body: if type_name.0 == PLANET_TYPE_NAME {
                     BodyIconType::Planet
                 } else {
                     BodyIconType::Asteroid
                 },
                 code,
                 name,
+                marker,
                 world_pos,
                 range,
                 bearing_deg: brg,
@@ -467,27 +522,33 @@ impl MapContacts<'_, '_> {
 
 /// Mint a stable [`MapContactCode`] for every contact that lacks one. Runs as a
 /// system (like `assign_section_codes`) so it sees entities spawned this frame;
-/// existing codes are never reassigned, and a new contact takes the next free
-/// index for its prefix. The own ship is always the bare `SELF` prefix (exactly
-/// one); every other kind gets `PREFIX-n`.
+/// a new contact takes the next free index for its prefix. An existing code
+/// changes only across the objective boundary: an Objective contact whose code
+/// is not `OBJ-n`, or another contact whose code is, takes the next free index
+/// of its kind. The own ship is always the bare `SELF` prefix (exactly one);
+/// every other kind gets `PREFIX-n`.
 pub(crate) fn assign_map_contact_codes(mut commands: Commands, contacts: MapContacts) {
     // The highest index already handed out per prefix, so new contacts continue
     // the sequence rather than colliding. Counted by the stored prefix, not the
     // live kind: a retaliating Neutral reads Hostile but keeps its `NEU-n`.
     let mut next: HashMap<&str, u32> = HashMap::new();
     let mut unassigned: Vec<(Entity, MapContactKind, String)> = Vec::new();
+    let objective = MapContactKind::Objective.code_prefix();
     for (entity, kind, sort_key) in contacts.classified() {
-        if let Ok(existing) = contacts.codes.get(entity) {
-            if let Some((prefix, index)) = existing
-                .0
-                .rsplit_once('-')
-                .and_then(|(prefix, tail)| Some((prefix, tail.parse::<u32>().ok()?)))
-            {
-                let slot = next.entry(prefix).or_default();
-                *slot = (*slot).max(index);
-            }
-        } else {
+        let Ok(existing) = contacts.codes.get(entity) else {
             unassigned.push((entity, kind, sort_key));
+            continue;
+        };
+        if let Some((prefix, index)) = existing
+            .0
+            .rsplit_once('-')
+            .and_then(|(prefix, tail)| Some((prefix, tail.parse::<u32>().ok()?)))
+        {
+            let slot = next.entry(prefix).or_default();
+            *slot = (*slot).max(index);
+            if (kind == MapContactKind::Objective) != (prefix == objective) {
+                unassigned.push((entity, kind, sort_key));
+            }
         }
     }
     if unassigned.is_empty() {

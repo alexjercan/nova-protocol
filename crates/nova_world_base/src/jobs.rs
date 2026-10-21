@@ -1104,12 +1104,13 @@ pub(crate) fn mark_held_job_targets(
     }
     let mut wanted: BTreeMap<&GeneratedBodyId, Vec<(String, &'static str)>> = BTreeMap::new();
     for job in jobs.held() {
-        let (body, verb) = if jobs.is_done(&job.id) {
-            (job.posted_by(), "Hand in")
-        } else if let Some(body) = job.located_body() {
-            (body, job.kind.label())
-        } else {
+        let Some(body) = jobs.marked_body(job) else {
             continue;
+        };
+        let verb = if jobs.is_done(&job.id) {
+            "Hand in"
+        } else {
+            job.kind.label()
         };
         let code = jobs.mark_code(&job.id).expect("a held job has a mark code");
         wanted.entry(body).or_default().push((code, verb));

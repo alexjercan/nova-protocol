@@ -11,6 +11,9 @@
 //! `viewer_pan_*` actions plus the wheel (zoom); a wheel over the contact
 //! panel scrolls the panel instead. Selecting a contact fills the
 //! contact panel beside the view with its code, name, kind, range and bearing;
+//! a contact that wears an objective marker reads its label in the Note, then
+//! each held job that sends the player to that body. A scenario marker reads
+//! its label alone: no content field links it to an objective entry.
 //! `map_goto` or the panel's GOTO button sets a flight
 //! [`Autopilot`](nova_ship::prelude::Autopilot) GOTO and the travel lock on the
 //! player ship, which persist after the interface closes. While that GOTO is

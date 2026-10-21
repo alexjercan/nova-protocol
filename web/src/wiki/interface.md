@@ -69,14 +69,14 @@ The interface and the command shell share one freeze. Opening `:` over a pane, a
      crates/nova_interface/src/map/chart.rs; what feeds the chart:
      crates/nova_world_base/src/chart.rs (`Chart` in nova_gameplay). -->
 
-The Map pane is a schematic 3D chart of local space: distance rings, a hub, and every contact as an icon - a chevron for a ship, a lump for an asteroid, a ringed disc for a planet, a diamond for an objective - tinted by what it is to you. Click one, or step through them with <kbd>[</kbd> / <kbd>]</kbd>, and the contact panel beside the chart gives its code, name and kind, then its range and bearing. Under them, the panel names your live GOTO destination over a **GOTO** button. An unselected contact has a faint frame; the selected one has a bright frame and always shows its label. The footer under the chart holds the legend of the icons on the chart now and **Reframe** with the keys the pane answers to. The key hints follow your bindings.
+The Map pane is a schematic 3D chart of local space: distance rings, a hub, and every contact as an icon - a chevron for a ship, a lump for an asteroid, a ringed disc for a planet, a diamond for an objective - tinted by what it is to you. Click one, or step through them with <kbd>[</kbd> / <kbd>]</kbd>, and the contact panel beside the chart gives its code, name and kind, then its range and bearing. A ship, station, rock or planet that wears a gold objective chip is one gold objective contact that keeps its own icon and name; its note shows the chip's text, then each job you hold that sends you there, such as `JOB-1 Bring 4 Iron ore: hand in.` A scenario objective shows its chip's text alone. Under them, the panel names your live GOTO destination over a **GOTO** button. An unselected contact has a faint frame; the selected one has a bright frame and always shows its label. The footer under the chart holds the legend of the icons on the chart now and **Reframe** with the keys the pane answers to. The key hints follow your bindings.
 
 | Label | Contact |
 | --- | --- |
 | `SELF` | Your own ship. |
 | `ALLY-1` | A friendly ship. |
 | `HOST-1` | A hostile ship, in the danger colour. |
-| `OBJ-1` | A mission objective. |
+| `OBJ-1` | An objective, in gold: a marked ship, rock or planet, or a nav point. A marked station keeps its `STN-1` code. |
 | `NEU-1` | A ship on no side. |
 | `PLN-1` | A planet. |
 | `AST-1` | Terrain: an asteroid mass. Its code shows only while it is selected. |

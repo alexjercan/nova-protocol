@@ -823,6 +823,17 @@ impl Jobs {
             .map(|index| format!("JOB-{}", index + 1))
     }
 
+    /// The standing body the held job `job` sends the player to: its poster
+    /// once done, else the body its work is about; none for an undone
+    /// procurement.
+    pub fn marked_body<'a>(&self, job: &'a Job) -> Option<&'a GeneratedBodyId> {
+        if self.is_done(&job.id) {
+            Some(job.posted_by())
+        } else {
+            job.located_body()
+        }
+    }
+
     /// Whether the player holds the job `id`.
     pub fn holds(&self, id: &JobId) -> bool {
         self.job(id).is_some()

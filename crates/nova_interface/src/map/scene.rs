@@ -1119,7 +1119,35 @@ pub(crate) fn update_map_panel(
     };
     let note = match (&runtime.goto_note, &selected) {
         (Some((goto, _)), _) => (goto.clone(), UiColor::Accent),
-        (None, Some(contact)) => (contact.kind.note().to_string(), UiColor::Label),
+        (None, Some(contact)) => match &contact.marker {
+            // The marker label, then each held job that sends the player to
+            // this body. A scenario marker names no job and no objective
+            // entry, so it reads its label alone.
+            Some(label) => {
+                let body = contacts.generated.get(contact.entity).ok();
+                let lines = jobs
+                    .held()
+                    .iter()
+                    .filter(|job| body.is_some_and(|id| jobs.marked_body(job) == Some(id)))
+                    .map(|job| {
+                        let code = jobs.mark_code(&job.id).expect("a held job has a mark code");
+                        let state = if jobs.is_done(&job.id) {
+                            "hand in.".to_string()
+                        } else {
+                            job.task(items.as_deref().unwrap_or(&GameItems::default()))
+                        };
+                        format!("{code} {}: {state}", job_title(job, items.as_deref()))
+                    });
+                (
+                    std::iter::once(format!("Objective: {label}"))
+                        .chain(lines)
+                        .collect::<Vec<_>>()
+                        .join("\n"),
+                    UiColor::Label,
+                )
+            }
+            None => (contact.kind.note().to_string(), UiColor::Label),
+        },
         (None, None) => ("Click a contact to select it.".to_string(), UiColor::Label),
     };
 
@@ -1216,10 +1244,15 @@ fn legend_label((body, kind): (BodyIconType, MapContactKind)) -> &'static str {
         (BodyIconType::Ship, MapContactKind::OwnShip) => "Own ship",
         (BodyIconType::Ship, MapContactKind::Ally) => "Ally ship",
         (BodyIconType::Ship, MapContactKind::Hostile) => "Hostile ship",
+        (BodyIconType::Ship, MapContactKind::Objective) => "Objective ship",
         (BodyIconType::Ship, _) => "Neutral ship",
         (BodyIconType::Station, MapContactKind::Ally) => "Ally station",
         (BodyIconType::Station, MapContactKind::Hostile) => "Hostile station",
+        (BodyIconType::Station, MapContactKind::Objective) => "Objective station",
         (BodyIconType::Station, _) => "Neutral station",
+        (BodyIconType::Asteroid | BodyIconType::Planet, MapContactKind::Objective) => {
+            "Objective body"
+        }
         (BodyIconType::Asteroid, _) => "Asteroid",
         (BodyIconType::Planet, _) => "Planet",
         (BodyIconType::Objective, _) => "Objective",
