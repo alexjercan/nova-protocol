@@ -146,17 +146,20 @@ first, so a role that a mod change removed shows `content changed`.
 
 ## Base start roles
 
-Each base kit is worth 3,000 cr at ask: the credits plus the items at their
-`ask_cr`.
+Each base kit is worth 3,000 cr at ask, not counting PDC rounds: the credits
+plus the other items at their `ask_cr`. A PDC-armed hull also carries 1,000
+`PdcRound` (4,000 cr at ask) in its shared hold, not per mount. So an armed
+kit is worth 6,000 to 6,200 cr at ask, and its rounds sell for up to 3,000 cr
+at their `bid_cr`.
 
 | id | hull | kit |
 |---|---|---|
 | `industrial` | `mining_tug` | 2,200 cr, 15 `HullPlate`, 25 `Rations` |
-| `scavenger` | `salvage_hauler` | 1,800 cr, 200 `PdcRound`, 10 `HullPlate` |
+| `scavenger` | `salvage_hauler` | 1,800 cr, 1,000 `PdcRound`, 10 `HullPlate` |
 | `transport` | `light_freighter` | 2,000 cr, 50 `Rations`, 50 `WaterIce` |
-| `bounty_hunter` | `interceptor` | 1,600 cr, 250 `PdcRound`, 10 `HullPlate` |
-| `military` | `patrol_picket` | 1,000 cr, 2 `Torpedo`, 200 `PdcRound`, 10 `HullPlate` |
-| `pirate` | `raider` | 1,800 cr, 200 `PdcRound`, 10 `HullPlate` |
+| `bounty_hunter` | `interceptor` | 1,600 cr, 1,000 `PdcRound`, 10 `HullPlate` |
+| `military` | `patrol_picket` | 1,000 cr, 2 `Torpedo`, 1,000 `PdcRound`, 10 `HullPlate` |
+| `pirate` | `raider` | 1,800 cr, 1,000 `PdcRound`, 10 `HullPlate` |
 
 The roles are generated into `assets/base/roles/base.content.ron`.
 

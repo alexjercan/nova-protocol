@@ -32,7 +32,7 @@
             credits: 1800,
             stock: {
                 "HullPlate": 10,
-                "PdcRound": 200,
+                "PdcRound": 1000,
             },
         ),
         jobs: Salvage,
@@ -76,7 +76,7 @@
             credits: 1600,
             stock: {
                 "HullPlate": 10,
-                "PdcRound": 250,
+                "PdcRound": 1000,
             },
         ),
         jobs: Combat,
@@ -99,7 +99,7 @@
             credits: 1000,
             stock: {
                 "HullPlate": 10,
-                "PdcRound": 200,
+                "PdcRound": 1000,
                 "Torpedo": 2,
             },
         ),
@@ -122,7 +122,7 @@
             credits: 1800,
             stock: {
                 "HullPlate": 10,
-                "PdcRound": 200,
+                "PdcRound": 1000,
             },
         ),
         jobs: Combat,

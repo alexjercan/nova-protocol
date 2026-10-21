@@ -1,8 +1,10 @@
 //! Built-in START ROLE content: the six New Game starts.
 //!
 //! `content gen` serializes this builder into
-//! `assets/base/roles/base.content.ron`. Each kit is worth 3,000 cr at ask:
-//! the credits plus the items at their base `ask_cr`.
+//! `assets/base/roles/base.content.ron`. Each kit is worth 3,000 cr at ask,
+//! not counting PDC rounds: the credits plus the other items at their base
+//! `ask_cr`. A PDC-armed hull also carries 1,000 PDC rounds (4,000 cr at ask)
+//! in its shared hold, not per mount.
 //!
 //! Goals are the roles' finite milestones over saved facts (decision 13 of
 //! `tasks/20261012-095526`). The transport and bounty hunter counts rest on
@@ -59,7 +61,10 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
              beam and one point-defense mount. Pick wrecks clean and sell what you take.",
             SALVAGE_HAULER_SHIP_ID,
             1_800,
-            &[(ItemRoleType::PdcRound, 200), (ItemRoleType::HullPlate, 10)],
+            &[
+                (ItemRoleType::PdcRound, 1_000),
+                (ItemRoleType::HullPlate, 10),
+            ],
             JobMixType::Salvage,
             RoleGoal {
                 title: "A yard of your own".to_string(),
@@ -96,7 +101,10 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
              on them.",
             INTERCEPTOR_SHIP_ID,
             1_600,
-            &[(ItemRoleType::PdcRound, 250), (ItemRoleType::HullPlate, 10)],
+            &[
+                (ItemRoleType::PdcRound, 1_000),
+                (ItemRoleType::HullPlate, 10),
+            ],
             JobMixType::Combat,
             RoleGoal {
                 title: "A kill list".to_string(),
@@ -114,7 +122,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             1_000,
             &[
                 (ItemRoleType::Torpedo, 2),
-                (ItemRoleType::PdcRound, 200),
+                (ItemRoleType::PdcRound, 1_000),
                 (ItemRoleType::HullPlate, 10),
             ],
             JobMixType::Combat,
@@ -134,7 +142,10 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
              holds.",
             RAIDER_SHIP_ID,
             1_800,
-            &[(ItemRoleType::PdcRound, 200), (ItemRoleType::HullPlate, 10)],
+            &[
+                (ItemRoleType::PdcRound, 1_000),
+                (ItemRoleType::HullPlate, 10),
+            ],
             JobMixType::Combat,
             RoleGoal {
                 title: "An outlaw's name".to_string(),
