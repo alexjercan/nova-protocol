@@ -8,7 +8,7 @@ use nova_ui::{prelude::*, theme::UiColor};
 
 use crate::{
     chrome::*,
-    data::{distance_hint, job, offset_hint, thousands, JobCard, JobKind},
+    data::{distance_hint, job, thousands, JobCard, JobKind},
     icons::{icon, GalleryIcons},
     BoardTier, Click, DockState, JobsState, ACCEPT_PREFIX, EMPTY_STATE, HAND_IN_PREFIX,
     HELD_ROW_PREFIX, POSTED_ROW_PREFIX, SHOW_ON_MAP, TIER_PREFIX,
@@ -35,7 +35,7 @@ pub fn jobs_page(
                 held_panel(col, icons, jobs, docked);
             });
             split
-                .spawn(side_panel_wide(26.0, Overflow::scroll_y()))
+                .spawn(side_panel(Overflow::clip()))
                 .with_children(|side| job_inspector(side, icons, jobs, docked));
         });
     });
@@ -171,31 +171,26 @@ fn board_panel(
     });
 }
 
-/// Why a held job cannot be handed in here, if it cannot.
+/// Why a taken job cannot be handed in here, if it cannot, in the game's
+/// order and words: the dock, the station, then the goods or the work.
 fn hand_in_refusal(j: &JobCard, docked: bool) -> Option<String> {
-    if !j.done {
-        return Some(format!(
-            "Not done: {} of {} {}",
-            j.have,
-            j.need,
-            match j.kind {
-                JobKind::Bring => "t delivered",
-                JobKind::Recover => "recovered",
-                _ => "complete",
-            }
-        ));
-    }
     if !docked {
-        return Some(format!("Dock at {} to hand in", j.hand_in));
+        return Some(format!("dock at {} to hand in", j.hand_in));
     }
     if !j.hand_in_here {
-        return Some(format!(
-            "Hand in at {}, {}",
-            j.hand_in,
-            offset_hint(j.target)
-        ));
+        return Some(format!("hand in at {}", j.hand_in));
     }
-    None
+    if j.done {
+        return None;
+    }
+    Some(match j.kind {
+        JobKind::Bring => format!(
+            "the hold carries {} of {}",
+            j.have,
+            j.title.trim_start_matches("Bring ")
+        ),
+        _ => format!("{}: not done yet", j.title),
+    })
 }
 
 fn held_panel(
@@ -276,7 +271,7 @@ fn held_panel(
                     padding: UiRect::axes(px(13), px(10)),
                     ..default()
                 },
-                children![text("No job held.", 12.0, UiColor::Label)],
+                children![text("No jobs taken.", 12.0, UiColor::Label)],
             ));
         }
     });
@@ -299,25 +294,14 @@ fn job_inspector(
     .with_children(|head| {
         head.spawn(icon(icons, j.kind.icon(), 24.0));
         head.spawn(text(j.title, 15.0, UiColor::Primary));
-    });
-    side.spawn(Node {
-        column_gap: px(6),
-        ..control_row(JustifyContent::FlexStart)
-    })
-    .with_children(|tags| {
-        tags.spawn(tag(BadgeKind::Mute, &j.kind.label().to_uppercase()));
-        if jobs.held.contains(&j.id) {
-            tags.spawn(tag(BadgeKind::Blue, "HELD"));
-        }
         if j.done {
-            tags.spawn(tag(BadgeKind::Green, "DONE"));
+            head.spawn(tag(BadgeKind::Green, "DONE"));
         }
     });
     side.spawn(divider());
     section(side, "Task");
     side.spawn(text(j.task, 12.0, UiColor::Body));
     side.spawn(divider());
-    kv(side, "Poster", j.poster);
     kv(
         side,
         "Target",
@@ -331,23 +315,26 @@ fn job_inspector(
     );
     kv(side, "Hand in", j.hand_in);
     kv(side, "Reward", &format!("{} cr", thousands(j.reward)));
-    side.spawn(Node {
-        column_gap: px(8),
-        ..control_row(JustifyContent::FlexStart)
-    })
-    .with_children(|r| {
-        r.spawn(cell(84.0, "Time left", 12.0, UiColor::Label, false));
-        r.spawn(bare_meter(
-            110.0,
-            j.minutes_left as f32 / j.window.max(1) as f32,
-        ));
-        r.spawn(text(
-            &format!("{} min", j.minutes_left),
-            12.0,
-            UiColor::Body,
-        ));
-    });
-    if jobs.held.contains(&j.id) {
+    let taken = jobs.held.contains(&j.id);
+    if !taken {
+        side.spawn(Node {
+            column_gap: px(8),
+            ..control_row(JustifyContent::FlexStart)
+        })
+        .with_children(|r| {
+            r.spawn(cell(84.0, "Time left", 12.0, UiColor::Label, false));
+            r.spawn(bare_meter(
+                110.0,
+                j.minutes_left as f32 / j.window.max(1) as f32,
+            ));
+            r.spawn(text(
+                &format!("{} min", j.minutes_left),
+                12.0,
+                UiColor::Body,
+            ));
+        });
+    }
+    if taken {
         side.spawn(Node {
             column_gap: px(8),
             ..control_row(JustifyContent::FlexStart)

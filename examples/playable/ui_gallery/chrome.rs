@@ -22,8 +22,9 @@ use crate::{
 const INTERFACE_MAX_PX: f32 = 1520.0;
 /// Height of a pane footer, as the game's `PANE_FOOTER_PX`.
 const PANE_FOOTER_PX: f32 = 96.0;
-/// Least width of a side panel, as the game's `SIDE_PANEL_MIN_PX`.
-const SIDE_PANEL_MIN_PX: f32 = 300.0;
+/// Width of a side panel, as the game's `SIDE_PANEL_PX`; a
+/// [`side_panel_wide`] takes it as its least width.
+const SIDE_PANEL_PX: f32 = 300.0;
 
 /// A themed text bundle.
 pub fn text(value: &str, size: f32, color: UiColor) -> impl Bundle {
@@ -195,13 +196,12 @@ pub fn panel_paint() -> impl Bundle {
     )
 }
 
-/// A viewer pane's side panel: 20% of the row beside the view, never
-/// narrower than the game's minimum.
+/// A pane's side panel or inspector: [`SIDE_PANEL_PX`] wide beside the
+/// view or the lists, as the game's Map and Jobs panes draw it.
 pub fn side_panel(overflow: Overflow) -> impl Bundle {
     (
         Node {
-            width: percent(20),
-            min_width: px(SIDE_PANEL_MIN_PX),
+            width: px(SIDE_PANEL_PX),
             flex_shrink: 0.0,
             flex_direction: FlexDirection::Column,
             row_gap: px(10),
@@ -220,7 +220,7 @@ pub fn side_panel_wide(share: f32, overflow: Overflow) -> impl Bundle {
     (
         Node {
             width: percent(share),
-            min_width: px(SIDE_PANEL_MIN_PX),
+            min_width: px(SIDE_PANEL_PX),
             flex_shrink: 0.0,
             flex_direction: FlexDirection::Column,
             row_gap: px(10),
