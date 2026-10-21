@@ -230,6 +230,12 @@ const MENU_EDIT: &str = "Edit Menu Button";
 #[cfg(feature = "debug")]
 const MENU_SHIP: &str = "Ship Menu Button";
 
+/// The sky picker's scrolling list, and the row the walk picks from it.
+#[cfg(feature = "debug")]
+const SKY_LIST: &str = "Ref Window Body";
+#[cfg(feature = "debug")]
+const OTHER_SKY: &str = "Ref Option dep://base/textures/cubemap_alt.png";
+
 /// What a beat measured, so a later beat can say whether the gesture changed
 /// anything.
 #[cfg(feature = "debug")]
@@ -339,10 +345,30 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // one a save needs; the sandbox is merged with nothing, so Play has to
         // resolve it or the range comes up with no sky at all.
         .click_a_widget("editor: open the sky picker", "Inspector Ref Cubemap")
-        .click_a_widget(
-            "editor: pick the other sky",
-            "Ref Option dep://base/textures/cubemap_alt.png",
-        )
+        // The picker offers every image the bundles ship, so the other sky sits
+        // below the list's fold. The wheel goes to whatever the pointer is
+        // over, and the pick map sees a move one PreUpdate late, so the aim is
+        // its own beat.
+        .step("editor: aim the wheel at the sky list")
+        .on_enter(hover_named(SKY_LIST))
+        .until(pointer_over_node(SKY_LIST))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: wheel the other sky into view")
+        .on_enter(|world: &mut World| {
+            let (Some(list), Some(row)) =
+                (ui_node_rect(world, SKY_LIST), ui_node_rect(world, OTHER_SKY))
+            else {
+                return;
+            };
+            // `scroll_viewports` subtracts the delta from the offset, so a
+            // negative delta moves a row below the fold up into the list.
+            scroll_pixels(list.center().y - row.center().y)(world);
+        })
+        .until(the_sky_list_shows(OTHER_SKY))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .click_a_widget("editor: pick the other sky", OTHER_SKY)
         .step("editor: the root took the sky the picker offered")
         .on_enter(|world: &mut World| {
             let picked = inspector_reading(world, "Cubemap");
@@ -3035,6 +3061,21 @@ fn sections_grew_by(delta: usize) -> Wait {
 fn sections_shrank_by(delta: usize) -> Wait {
     std::sync::Arc::new(move |world: &World| {
         count_sections(world) + delta == world.resource::<EditorWalk>().sections
+    })
+}
+
+/// Advance once the whole `row` stands inside the sky list's viewport.
+///
+/// The aim goes to the row's raw rect, which the list does not clip. A row
+/// half under the fold takes the pointer on its hidden half.
+#[cfg(feature = "debug")]
+fn the_sky_list_shows(row: &'static str) -> Wait {
+    std::sync::Arc::new(move |world: &World| {
+        let (Some(list), Some(row)) = (ui_node_rect(world, SKY_LIST), ui_node_rect(world, row))
+        else {
+            return false;
+        };
+        list.contains(row.min) && list.contains(row.max)
     })
 }
 
