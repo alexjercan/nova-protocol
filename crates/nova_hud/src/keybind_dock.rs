@@ -6,11 +6,12 @@
 //! are resolved where the verbs live, this module is a dumb view.
 //!
 //! - **Dock**: a single row of icon chips docked bottom-centre, one fixed
-//!   slot per flight verb, each a real keycap PICTURE (see
+//!   slot per main flight verb, each a real keycap PICTURE (see
 //!   [`super::key_glyphs`]) plus the verb's fixed word. It replaces the
 //!   lower-left text cluster, which carried the bulk of the HUD's on-screen
-//!   text. Every verb draws in its slot, so no chip moves when a verb comes
-//!   or goes. A chip reads in three states - dim (pressing it now does
+//!   text. Every main verb draws in its slot, so no chip moves when a verb
+//!   comes or goes. HELM shows right of the row only while docked, outside
+//!   the row's layout. A chip reads in three states - dim (pressing it now does
 //!   nothing), available (full phosphor) and hot (inverted, the verb is what
 //!   the ship is doing).
 //! - **Anchored cues**: the hint sits on the thing you would act on - ORBIT
@@ -80,19 +81,13 @@ use nova_ui::{
 /// rather than assuming one (see `cinematic_prompt`).
 pub const DOCK_BOTTOM_PX: f32 = 14.0;
 
-/// The verb names, in dock display order (left to right). The component-cycle
-/// chip shows the wheel while the weapons are raised, when the wheel steps the
-/// component fine-lock, and the cycle key otherwise, when the wheel zooms.
-pub const DOCK_VERBS: [&str; 9] = [
-    "STOP",
-    "GOTO",
-    "ORBIT",
-    "CANCEL",
-    "RADAR",
-    "COMPONENT",
-    "RCS",
-    "DOCK",
-    "HELM",
+/// Space between dock chips, and between the main row and the HELM slot.
+const DOCK_CHIP_GAP_PX: f32 = 7.0;
+
+/// The verb names, in dock display order (left to right). HELM must stay last:
+/// `keybind_dock_hud` spawns the last chip outside the centred row.
+pub const DOCK_VERBS: [&str; 8] = [
+    "STOP", "GOTO", "ORBIT", "CANCEL", "RADAR", "RCS", "DOCK", "HELM",
 ];
 
 /// Emphasis pulse rate and the alpha bands it sweeps. The emphasized chip
@@ -255,22 +250,23 @@ fn glyph_tint(state: DockChipState) -> Color {
 /// verb's key at spawn time, and the binding is only knowable from the live
 /// [`FlightVerbHints`] the update system already reads.
 pub fn keybind_dock_hud() -> impl Bundle {
-    let chip_of = |index: usize| {
+    let chip_node = || Node {
+        display: Display::None,
+        align_items: AlignItems::Center,
+        column_gap: Val::Px(6.0),
+        padding: UiRect::new(Val::Px(4.0), Val::Px(8.0), Val::Px(3.0), Val::Px(3.0)),
+        border: UiRect::all(Val::Px(1.0)),
+        border_radius: BorderRadius::all(Val::Px(4.0)),
+        ..default()
+    };
+    let chip_of = |index: usize, node: Node| {
         (
             DockChip(index),
             DockChipState::Dim,
             // A hot chip grows a little as well as inverting (demo 2's
             // `.vchip.hot`), driven by `grow_hot_chips` from the state above.
             HudEmphasis::settle(HOT_CHIP_EMPHASIS),
-            Node {
-                display: Display::None,
-                align_items: AlignItems::Center,
-                column_gap: Val::Px(6.0),
-                padding: UiRect::new(Val::Px(4.0), Val::Px(8.0), Val::Px(3.0), Val::Px(3.0)),
-                border: UiRect::all(Val::Px(1.0)),
-                border_radius: BorderRadius::all(Val::Px(4.0)),
-                ..default()
-            },
+            node,
             // Unpainted: `update_dock` paints every chip, and its `Added` gate
             // makes that the frame the chip appears.
             BackgroundColor(Color::NONE),
@@ -319,21 +315,38 @@ pub fn keybind_dock_hud() -> impl Bundle {
             left: Val::Px(0.0),
             width: Val::Percent(100.0),
             justify_content: JustifyContent::Center,
-            column_gap: Val::Px(7.0),
             ..default()
         },
         Pickable::IGNORE,
-        children![
-            chip_of(0),
-            chip_of(1),
-            chip_of(2),
-            chip_of(3),
-            chip_of(4),
-            chip_of(5),
-            chip_of(6),
-            chip_of(7),
-            chip_of(8),
-        ],
+        children![(
+            Name::new("KeybindDockRow"),
+            Node {
+                column_gap: Val::Px(DOCK_CHIP_GAP_PX),
+                ..default()
+            },
+            Pickable::IGNORE,
+            children![
+                chip_of(0, chip_node()),
+                chip_of(1, chip_node()),
+                chip_of(2, chip_node()),
+                chip_of(3, chip_node()),
+                chip_of(4, chip_node()),
+                chip_of(5, chip_node()),
+                chip_of(6, chip_node()),
+                // HELM hangs off the row's right edge. Absolute, so it showing
+                // while docked never re-centres the main verbs.
+                chip_of(
+                    7,
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Percent(100.0),
+                        top: Val::Px(0.0),
+                        margin: UiRect::left(Val::Px(DOCK_CHIP_GAP_PX)),
+                        ..chip_node()
+                    }
+                ),
+            ],
+        )],
     )
 }
 
@@ -455,9 +468,8 @@ fn verb_hint(hints: &FlightVerbHints, index: usize) -> &VerbHint {
         2 => &hints.orbit,
         3 => &hints.cancel,
         4 => &hints.radar,
-        5 => &hints.component_cycle,
-        6 => &hints.rcs,
-        7 => &hints.dock,
+        5 => &hints.rcs,
+        6 => &hints.dock,
         _ => &hints.helm,
     }
 }
@@ -564,12 +576,12 @@ fn paint_key_visual<FG, FT>(
     }
 }
 
-/// Paint every dock chip from availability. Every chip draws while the flight
-/// rig exists, an unavailable verb in the muted [`DockChipState::Dim`] paint:
-/// the row is `justify_content: Center`, so a chip that left the layout
-/// re-centred every other chip. The dock is `Pickable::IGNORE` throughout, so a
-/// dim chip is no target. Only a missing flight rig takes the chips out of the
-/// layout.
+/// Paint every dock chip from availability. Every main chip draws while the
+/// flight rig exists, an unavailable verb in the muted [`DockChipState::Dim`]
+/// paint: the row is centred, so a chip that left the layout re-centred every
+/// other chip. The dock is `Pickable::IGNORE` throughout, so a dim chip is no
+/// target. A missing flight rig takes every chip out of the layout; HELM also
+/// leaves it while undocked, from its slot outside the row.
 #[expect(clippy::type_complexity, reason = "one query per chip part")]
 fn update_dock(
     hints: Res<FlightVerbHints>,
@@ -613,9 +625,11 @@ fn update_dock(
     for (chip, mut state, mut node, mut fill, mut border, children) in &mut q_chip {
         let hint = verb_hint(&hints, **chip);
         let next = chip_state(&hints, &situations, **chip);
-        // No key means no flight rig: the whole row leaves the layout.
-        let keyed = !hint.key.is_empty();
-        let display = if keyed { Display::Flex } else { Display::None };
+        // No key means no flight rig: the whole row leaves the layout. HELM
+        // answers a docked pair only; its slot is outside the row, so it
+        // leaving the layout moves nothing.
+        let shown = !hint.key.is_empty() && (dock_verb(**chip) != "HELM" || situations.docked);
+        let display = if shown { Display::Flex } else { Display::None };
         if node.display != display {
             node.display = display;
         }
@@ -630,34 +644,12 @@ fn update_dock(
             &mut q_glyph,
             &mut q_key_text,
         );
-        // COMPONENT swaps the portrait wheel (weapons raised) for the bracket
-        // cap (lowered). Its slot reserves the wheel's box in both states, so
-        // no other chip, and nothing stacked on the dock, moves when the
-        // weapons go up or down. The width is a minimum on the keycap node and
-        // the height a content-box minimum on the chip, so the bracket centres
-        // in the reserved box at its own aspect.
-        if dock_verb(**chip) == "COMPONENT" {
-            if let Some(wheel) = glyphs.and_then(|glyphs| glyphs.get("SCROLL")) {
-                let size = wheel.node_size(GLYPH_PX);
-                if node.min_height != Val::Px(size.y) {
-                    node.box_sizing = BoxSizing::ContentBox;
-                    node.min_height = Val::Px(size.y);
-                }
-                for &child in children {
-                    if let Ok((_, mut glyph)) = q_glyph.get_mut(child) {
-                        if glyph.min_width != Val::Px(size.x) {
-                            glyph.min_width = Val::Px(size.x);
-                        }
-                    }
-                }
-            }
-        }
-        if !keyed {
-            // A keyless chip still tracks a state, so a pulse that was running
-            // when the rig left restores the RIGHT base. Writing `Dim` rather
-            // than `next` keeps a keyless chip from staying `Hot` while
+        if !shown {
+            // A hidden chip still tracks a state, so a pulse that was running
+            // when it left restores the RIGHT base. Writing `Dim` rather than
+            // `next` keeps a hidden chip from staying `Hot` while
             // `HudSituations` still claims a maneuver, which `grow_hot_chips`
-            // would hold grown until the rig came back.
+            // would hold grown until the chip came back.
             state.set_if_neq(DockChipState::Dim);
             continue;
         }
@@ -880,11 +872,6 @@ mod tests {
                 available: engaged,
                 anchor: None,
             },
-            component_cycle: VerbHint {
-                key: "SCROLL".into(),
-                available: false,
-                anchor: None,
-            },
             radar: VerbHint {
                 key: "CTRL".into(),
                 available: true,
@@ -920,7 +907,6 @@ mod tests {
         for hint in [
             &mut resource.goto,
             &mut resource.cancel,
-            &mut resource.component_cycle,
             &mut resource.rcs,
             &mut resource.dock,
             &mut resource.helm,
@@ -972,7 +958,8 @@ mod tests {
             .iter_entities()
             .find(|e| e.contains::<KeybindDockMarker>())
             .expect("a dock");
-        dock.get::<Children>().unwrap().to_vec()
+        let row = dock.get::<Children>().unwrap()[0];
+        app.world().entity(row).get::<Children>().unwrap().to_vec()
     }
 
     /// Whether `chip` draws: in the layout.
@@ -990,7 +977,7 @@ mod tests {
         app.add_systems(Update, update_dock);
         app.world_mut().spawn(keybind_dock_hud());
         let chips = chips(&app);
-        let helm = chips[8];
+        let helm = chips[7];
         let label = |app: &App, chip: Entity| {
             app.world()
                 .entity(chip)
@@ -1022,8 +1009,8 @@ mod tests {
         assert_eq!(state(&app, helm), DockChipState::Available);
         assert!(seen(&app, chips[0]), "STOP is blocked, not gone");
         assert_eq!(state(&app, chips[0]), DockChipState::Dim);
-        assert!(seen(&app, chips[6]), "a withheld RCS keeps its slot");
-        assert_eq!(state(&app, chips[6]), DockChipState::Dim);
+        assert!(seen(&app, chips[5]), "a withheld RCS keeps its slot");
+        assert_eq!(state(&app, chips[5]), DockChipState::Dim);
 
         // A pair that cannot be measured: the helm cannot be taken, and the
         // chip stays on the dock, dark, beside the verbs it would not give
@@ -1074,8 +1061,11 @@ mod tests {
         app.insert_resource(hints(false, false, None));
         app.insert_resource(HudSituations::default());
         app.update();
-        assert!(seen(&app, helm), "HELM keeps its slot without a pair");
+        assert!(!seen(&app, helm), "HELM leaves the dock without a pair");
         assert_eq!(state(&app, helm), DockChipState::Dim);
+        for chip in &chips[..7] {
+            assert!(seen(&app, *chip), "the main verbs keep their slots");
+        }
     }
 
     /// DoD 1: the dock renders ONE chip per verb, each carrying the keycap
@@ -1088,7 +1078,12 @@ mod tests {
         app.init_resource::<HintEmphasis>();
         // Every verb available, so the keycap sweep below sees every chip lit;
         // the dim rule itself is `unavailable_verbs_draw_dim_in_their_slot`.
+        // Docked, so HELM is on the dock too.
         app.insert_resource(all_available_hints());
+        app.insert_resource(HudSituations {
+            docked: true,
+            ..default()
+        });
         app.add_systems(Update, update_dock);
         let glyphs = real_glyphs(&app);
         // The dock spawns with the preloaded glyphs, exactly like the HUD
@@ -1104,7 +1099,7 @@ mod tests {
         let chips = chips(&app);
         assert_eq!(chips.len(), DOCK_VERBS.len(), "one chip per verb");
 
-        let expected_key = ["X", "G", "O", "Z", "CTRL", "SCROLL", "SHIFT", "D", "H"];
+        let expected_key = ["X", "G", "O", "Z", "CTRL", "SHIFT", "D", "H"];
         for (index, verb) in DOCK_VERBS.iter().enumerate() {
             let stem = key_glyph_stem(expected_key[index]).unwrap();
             assert_eq!(
@@ -1144,7 +1139,7 @@ mod tests {
             DockChipState::Dim,
             "CANCEL: nothing engaged"
         );
-        assert_eq!(state(&app, 6), DockChipState::Dim, "RCS is not available");
+        assert_eq!(state(&app, 5), DockChipState::Dim, "RCS is not available");
 
         // Engaging a maneuver makes CANCEL the hot verb.
         app.insert_resource(hints(false, true, None));
@@ -1287,7 +1282,7 @@ mod tests {
     fn unavailable_verbs_draw_dim_in_their_slot() {
         let mut app = glyph_app();
         app.init_resource::<HintEmphasis>();
-        // STOP/ORBIT/RADAR available; GOTO/CANCEL/COMPONENT/RCS not.
+        // STOP/ORBIT/RADAR available; GOTO/CANCEL/RCS not.
         app.insert_resource(hints(true, false, None));
         app.add_systems(Update, update_dock);
         app.insert_resource(NovaHudAssets {
@@ -1305,7 +1300,7 @@ mod tests {
                 DOCK_VERBS[index]
             );
         }
-        for index in [1, 3, 5, 6] {
+        for index in [1, 3, 5] {
             assert!(
                 seen(&app, chips[index]),
                 "{} keeps its slot in the row",
@@ -1769,7 +1764,7 @@ mod tests {
     /// regression of the whole point of this dock.
     #[test]
     fn every_dock_verb_has_a_keycap_for_its_live_key() {
-        for key in ["X", "G", "O", "Z", "CTRL", "SCROLL", "SHIFT"] {
+        for key in ["X", "G", "O", "Z", "CTRL", "SHIFT"] {
             assert!(
                 key_glyph_stem(key).is_some(),
                 "the dock's live key '{key}' must have keycap art"
@@ -1885,6 +1880,48 @@ mod keycap_sizing_tests {
     /// The `ChipGlyph` node inside dock chip `index`.
     fn chip_glyph(app: &mut App, chips: &[Entity], index: usize) -> Entity {
         only_descendant_with::<ChipGlyph>(app, chips[index])
+    }
+
+    /// HELM hangs off the row's right edge, outside its layout, so docking adds
+    /// it beside DOCK and no main verb moves.
+    #[test]
+    fn the_main_verbs_hold_still_when_helm_comes_and_goes() {
+        let (mut app, chips) = dock_app();
+        let main_rects = |app: &App| -> Vec<Rect> {
+            chips[..7]
+                .iter()
+                .map(|&chip| measure(app, chip).rect)
+                .collect()
+        };
+        let undocked = main_rects(&app);
+        assert_eq!(
+            app.world().entity(chips[7]).get::<Node>().unwrap().display,
+            Display::None,
+            "delivery guard: undocked, HELM is off the dock"
+        );
+
+        app.insert_resource(HudSituations {
+            docked: true,
+            ..default()
+        });
+        settle(&mut app);
+        assert_eq!(
+            main_rects(&app),
+            undocked,
+            "no main verb moves when HELM shows"
+        );
+        let dock = measure(&app, chips[6]).rect;
+        let helm = measure(&app, chips[7]).rect;
+        assert!(
+            helm.min.x >= dock.max.x,
+            "HELM sits right of DOCK: {helm:?} vs {dock:?}"
+        );
+        // The rig lays out a 1280 px wide target.
+        assert!(helm.max.x <= 1280.0, "HELM stays on screen: {helm:?}");
+        assert!(
+            (helm.height() - dock.height()).abs() <= 0.5,
+            "HELM matches the row height: {helm:?} vs {dock:?}"
+        );
     }
 
     /// A wide cap renders at the aspect its ART carries, with the cap filling

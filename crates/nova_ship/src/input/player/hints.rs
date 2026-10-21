@@ -48,11 +48,6 @@ pub struct FlightVerbHints {
     pub orbit: VerbHint,
     /// The CANCEL verb hint (disengage the autopilot, resume manual).
     pub cancel: VerbHint,
-    /// Component fine-lock cycle. While the weapons are raised the wheel
-    /// cycles, and the label is the fixed string "SCROLL": the wheel is not
-    /// rebindable, so no table read would tell the player anything more.
-    /// Otherwise the wheel zooms, and the label is the `component_next` key.
-    pub component_cycle: VerbHint,
     /// The radar gesture (hold = radar, tap = clear), labelled off
     /// `radar_hold`; available while the computer grants Lock.
     pub radar: VerbHint,
@@ -109,16 +104,6 @@ pub fn dock_refusal_line(name: &str, refusal: DockRefusalType) -> Option<String>
     }
 }
 
-/// The fixed label of the wheel-gesture hint, empty while the flight rig is
-/// missing so the row vanishes with the other verbs'.
-fn cycle_label(label: &str, rig_exists: bool) -> String {
-    if rig_exists {
-        label.to_string()
-    } else {
-        String::new()
-    }
-}
-
 /// Resolve the verb hints from the live world: availability from the same
 /// state the input observers AND the autopilot gate on (lock, dominant
 /// well, engagement, and a flyable ship - a live flight computer plus at
@@ -128,17 +113,13 @@ fn cycle_label(label: &str, rig_exists: bool) -> String {
 #[expect(clippy::type_complexity, reason = "one query per private action type")]
 pub(super) fn update_flight_verb_hints(
     mut hints: ResMut<FlightVerbHints>,
-    q_sections: Query<&ChildOf, With<SectionMarker>>,
     q_ship: Query<
         (
             Entity,
             Option<&Autopilot>,
             Option<&DominantWell>,
             Option<&TravelLock>,
-            Option<&CombatLock>,
-            Option<&LockFocus>,
             Option<&DockedShip>,
-            Option<&WeaponsRaised>,
         ),
         With<PlayerSpaceshipMarker>,
     >,
@@ -153,7 +134,7 @@ pub(super) fn update_flight_verb_hints(
     bindings: Option<Res<InputBindings>>,
 ) {
     // The rig is the gate, not the source: a row is drawn only while the rig
-    // that answers it exists, so all nine vanish together on a ship with no
+    // that answers it exists, so all eight vanish together on a ship with no
     // flight computer.
     let rig_exists = !q_rig.is_empty();
     // The keycap an action draws, off the LIVE table. Reading the rig's own
@@ -173,20 +154,12 @@ pub(super) fn update_flight_verb_hints(
     };
 
     // Exactly one player ship, same rule as the Single-based observers.
-    let (ship, autopilot, dominant, travel, combat, focus, docked, raised) = match q_ship.single() {
-        Ok((entity, autopilot, dominant, travel, combat, focus, docked, raised)) => (
-            Some(entity),
-            autopilot,
-            dominant,
-            travel,
-            combat,
-            focus,
-            docked,
-            raised,
-        ),
-        Err(_) => (None, None, None, None, None, None, None, None),
+    let (ship, autopilot, dominant, travel, docked) = match q_ship.single() {
+        Ok((entity, autopilot, dominant, travel, docked)) => {
+            (Some(entity), autopilot, dominant, travel, docked)
+        }
+        Err(_) => (None, None, None, None, None),
     };
-    let raised = raised.is_some_and(|raised| raised.0);
     let connection = docked.and_then(|docked| q_connections.get(docked.connection).ok());
     let helm_held = ship.is_some_and(|ship| {
         connection.is_some_and(|connection| connection.helm == DockedHelmType::Held(ship))
@@ -202,7 +175,6 @@ pub(super) fn update_flight_verb_hints(
     // The partner flies with the pair, so GOTO has nothing to close on it.
     let partner_lock =
         travel.is_some_and(|target| connection.is_some_and(|connection| connection.joins(target)));
-    let combat = combat.and_then(|combat| combat.0);
     // The autopilot needs a live flight computer and at least one live
     // engine or it disengages on its next tick; a hint below that bar
     // would light a key that visibly does nothing.
@@ -262,27 +234,6 @@ pub(super) fn update_flight_verb_hints(
             key: label("autopilot_off"),
             // Z always answers while engaged, even on a crippled ship.
             available: engaged,
-            ..default()
-        },
-        // A literal while the weapons are raised: the wheel cycles then, and
-        // no rebind can move it. Gated on the rig existing to keep the "no
-        // rig, no keys, no hints" invariant. Component cycling needs the
-        // COMBAT focus dwell complete and at least two attached sections to
-        // step between.
-        component_cycle: VerbHint {
-            key: if raised {
-                cycle_label("SCROLL", rig_exists)
-            } else {
-                label("component_next")
-            },
-            available: combat.is_some_and(|target| {
-                focus.is_some_and(|focus| focus.focused_on(target))
-                    && q_sections
-                        .iter()
-                        .filter(|&&ChildOf(parent)| parent == target)
-                        .count()
-                        >= 2
-            }),
             ..default()
         },
         radar: VerbHint {
@@ -418,53 +369,6 @@ mod tests {
         assert!(
             !world.resource::<FlightVerbHints>().rcs.available,
             "RCS off hides the SHIFT hint"
-        );
-    }
-
-    #[test]
-    fn cycle_hints_track_the_combat_focus() {
-        let mut world = hint_world();
-        let (ship, _) = spawn_flyable_ship(&mut world);
-
-        // No lock: the cycle row is present but dim. With the weapons lowered
-        // the wheel zooms, so the row names the cycle key's glyph.
-        world.run_system_once(update_flight_verb_hints).unwrap();
-        let hints = world.resource::<FlightVerbHints>().clone();
-        assert_eq!(hints.component_cycle.key, "BracketRight");
-        assert!(!hints.component_cycle.available);
-
-        // Raised weapons give the wheel back to the lock.
-        world.entity_mut(ship).insert(WeaponsRaised(true));
-        world.run_system_once(update_flight_verb_hints).unwrap();
-        assert_eq!(
-            world.resource::<FlightVerbHints>().component_cycle.key,
-            "SCROLL"
-        );
-
-        // COMPONENT lights once the dwell completes on a combat lock with at
-        // least two attached sections.
-        let target = world.spawn_empty().id();
-        world.spawn((SectionMarker, ChildOf(target)));
-        world.spawn((SectionMarker, ChildOf(target)));
-        world.get_mut::<CombatLock>(ship).unwrap().0 = Some(target);
-        world.run_system_once(update_flight_verb_hints).unwrap();
-        assert!(
-            !world
-                .resource::<FlightVerbHints>()
-                .component_cycle
-                .available,
-            "no focus yet"
-        );
-        *world.get_mut::<LockFocus>(ship).unwrap() = LockFocus {
-            target: Some(target),
-            seconds: f32::MAX,
-        };
-        world.run_system_once(update_flight_verb_hints).unwrap();
-        assert!(
-            world
-                .resource::<FlightVerbHints>()
-                .component_cycle
-                .available
         );
     }
 

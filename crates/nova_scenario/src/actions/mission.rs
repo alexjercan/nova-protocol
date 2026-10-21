@@ -366,8 +366,8 @@ impl EventAction<NovaEventWorld> for ObjectiveMarkerDetachActionConfig {
 /// `DOCK_VERBS` names are valid; the resource refuses unknown verbs with a
 /// warning.
 ///
-/// The dock hides verbs the player cannot use, so emphasizing an unavailable
-/// verb REVEALS its chip and pulses it in the dim band - that is how a tutorial
+/// The dock draws verbs the player cannot use dim, so emphasizing an
+/// unavailable verb pulses its chip in the dim band - that is how a tutorial
 /// points at a key before it lights up. Emphasis is still a spotlight, never a
 /// grant: it does not make the verb pressable.
 #[derive(Clone, Debug, Reflect)]

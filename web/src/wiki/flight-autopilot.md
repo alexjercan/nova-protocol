@@ -95,4 +95,4 @@ Every push draws from the magazine by the velocity change it actually delivers, 
 
 </details>
 
-RCS is a capability granted per ship, like the autopilot verbs, and a scenario may **withhold** it: Basic Training starts without it and hands it over at the beat that teaches it, while Season 1's first chapter flies on it from the opening. The RCS chip only appears in the keybind dock when a scenario grants it, so you know when it is available.
+RCS is a capability granted per ship, like the autopilot verbs, and a scenario may **withhold** it: Basic Training starts without it and hands it over at the beat that teaches it, while Season 1's first chapter flies on it from the opening. The RCS chip in the keybind dock stays dark until a scenario grants it, so you know when it is available.

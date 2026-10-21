@@ -333,9 +333,11 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The Map's mouse wheel no longer zooms the Ship pane when you switch to it.
 - An armed Ship pane rebind lights Rebind and names the section in a banner.
   The captured key binds and does nothing else.
-- The keybind dock keeps a fixed slot per verb, so no chip moves; a verb you
-  cannot press draws dim. HELM always reads HELM and paints hot while held. A
+- The keybind dock keeps a fixed slot per main verb; a verb you cannot press
+  draws dim. HELM shows right of the row only while docked, hot while held. A
   HUD notice with a sound reports a dock refusal.
+- The keybind dock drops its COMPONENT chip; ] and [ and the wheel (weapons
+  raised) still step the component lock.
 
 - Settings: Graphics has a Low/Medium/High/Custom preset over particle,
   resolution, flash-light and shake levers (a moved lever reads Custom), plus

@@ -459,10 +459,10 @@ HintEmphasisSet((verb: "RADAR")),
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `verb` | string | required | one of `"STOP"`, `"GOTO"`, `"ORBIT"`, `"CANCEL"`, `"RADAR"`, `"COMPONENT"`, `"RCS"`, `"DOCK"`, `"HELM"`; unknown verbs warn and do nothing |
+| `verb` | string | required | one of `"STOP"`, `"GOTO"`, `"ORBIT"`, `"CANCEL"`, `"RADAR"`, `"RCS"`, `"DOCK"`, `"HELM"`; unknown verbs warn and do nothing |
 
-The dock normally hides verbs the player cannot use yet, so emphasizing an
-unavailable verb REVEALS its chip dimmed and pulses it. Emphasis never
+The dock draws a verb the player cannot use yet dim, so emphasizing an
+unavailable verb pulses its dim chip. Emphasis never
 grants the capability (the
 [`SetShipCapability*`](#ship-capabilities) actions do).
 

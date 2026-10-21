@@ -384,8 +384,8 @@ difference is engine behaviour rather than authored syntax:
   scenario-advance input or an outcome-overlay button, which is how Continue
   and Retry ride a queued switch.
 
-`HintEmphasisSet` is worth one line for the same reason: the keybind dock hides
-verbs the ship cannot use, so an emphasis on an unavailable verb REVEALS its
+`HintEmphasisSet` is worth one line for the same reason: the keybind dock draws
+verbs the ship cannot use dim, so an emphasis on an unavailable verb pulses its
 chip in the dim band rather than doing nothing. That is how a tutorial points
 at a key before it lights up.
 

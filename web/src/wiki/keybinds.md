@@ -119,7 +119,7 @@ Dock and Helm appear in **Settings > Controls > FLIGHT** with <kbd>D</kbd> and <
 
 Mining has no flight key. Each mining beam section has its own key, like a weapon or a thruster: the mining tug's bow beam answers <kbd>V</kbd>, and a beam placed in the editor starts on <kbd>V</kbd> with no gamepad button. Hold a beam's key with an ore rock travel-locked, in front of that emitter and within 100 m; it opens, runs its tip out and cuts the rock once a second where it hits. Release the key and that beam retracts. Rebind each beam on the [Ship pane](../interface/#rebinding-a-section). See [Mining beam](../sections/mining-beam/).
 
-RCS is a docking aid, not standard flight: it appears only when a scenario grants it (the RCS chip appears in the keybind dock only when it is available), and the training range hands it over for one leg of its pattern. See [Flight & autopilot](../flight-autopilot/#rcs-fine-docking-thrusters).
+RCS is a docking aid, not standard flight: it appears only when a scenario grants it (the RCS chip in the keybind dock stays dark until it is available), and the training range hands it over for one leg of its pattern. See [Flight & autopilot](../flight-autopilot/#rcs-fine-docking-thrusters).
 
 ## Targeting and camera
 
