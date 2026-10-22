@@ -51,9 +51,10 @@
 //! carrying `LootableShipMarker`) that is not a living station, the partner
 //! column carries two more controls. Take all, in its Credits row, writes a
 //! [`TakeAllCommand`]: [`apply_take_all_commands`] takes as much of every
-//! stack as the hold has room for through the Take path, then the credits,
-//! and names on the note line what stayed. Over the column, the strip block
-//! strips the whole hull (see the `strip` module).
+//! stack as the hold has room for through the Take path, then as much of a
+//! dead station's storage (one `Withdrawn` report per stack), then the
+//! credits, and names on the note line what stayed. Over the column, the
+//! strip block strips the whole hull (see the `strip` module).
 //!
 //! # Module layout
 //!
@@ -298,7 +299,7 @@ pub(crate) struct CreditTakeCommand;
 
 /// Take everything the docked lootable partner holds, written only by the
 /// partner column's Take all button and applied by
-/// [`apply_take_all_commands`]: as much of each stack as fits, then the
-/// credits.
+/// [`apply_take_all_commands`]: as much of each stack as fits, of the hold
+/// then of a dead station's storage, then the credits.
 #[derive(Message, Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) struct TakeAllCommand;

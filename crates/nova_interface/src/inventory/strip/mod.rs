@@ -10,13 +10,14 @@
 //! give. The plan of the sections still live is an estimate at their current
 //! health, so it changes as they take damage. A click raises a
 //! [`HullStripCommand`]; [`apply_hull_strip_commands`] plans it with
-//! [`plan_strip_press`], takes the partner's whole hold and balance as Take
-//! all does, and starts a [`HullStripJob`] on the player ship. When
-//! that take would leave anything behind, the strip does not start and
-//! nothing moves: the button is disabled by the same rule, and its tooltip
-//! names what has no room. [`advance_hull_strip`] runs the job on the game clock, with the pane
-//! open or shut, so the player starts it and flies on; the TAB interface's
-//! pause holds it like any other game work.
+//! [`plan_strip_press`], takes the partner's whole hold, a dead station's
+//! whole storage and its balance as Take all does, and starts a
+//! [`HullStripJob`] on the player ship. When that take would leave anything
+//! behind, the strip does not start and nothing moves: the button is
+//! disabled by the same rule, and its tooltip names what has no room.
+//! [`advance_hull_strip`] runs the job on the game clock, with the pane open
+//! or shut, so the player starts it and flies on; the TAB interface's pause
+//! holds it like any other game work.
 //!
 //! The job takes one live section at a time, the one [`next_strip_section`]
 //! names: the farthest from the berth, the berth port last. When a section's

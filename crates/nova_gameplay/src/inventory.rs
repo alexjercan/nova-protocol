@@ -1614,8 +1614,8 @@ pub struct HullStripPartner<'a> {
     pub lootable: bool,
     /// Every live section of the partner, the berth port included.
     pub sections: Vec<StripTarget<'a>>,
-    /// The Take all of the partner's hold and balance a strip runs first,
-    /// by [`plan_loot_take`].
+    /// The Take all of the partner's hold, a dead station's storage and its
+    /// balance a strip runs first, by [`plan_loot_take`].
     pub loot: LootTake,
 }
 
@@ -1662,8 +1662,9 @@ pub enum HullStripRefusalType {
     /// The partner is neither neutralized nor lootable.
     NotLootable,
     /// The Take all a strip runs first would leave part of the partner's
-    /// hold or balance behind: [`HullStripPartner::loot`] is not whole. A
-    /// strip never demolishes a hull with loot still in it.
+    /// hold, a dead station's storage or its balance behind:
+    /// [`HullStripPartner::loot`] is not whole. A strip never demolishes a
+    /// hull with loot still in it.
     NoRoom,
 }
 

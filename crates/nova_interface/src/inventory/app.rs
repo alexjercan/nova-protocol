@@ -2488,8 +2488,7 @@ pub(crate) fn apply_take_all_commands(
 
 /// Take what fits of every stack `partner` holds, a dead station's storage
 /// after its hold, then its credits, by the [`plan_loot_take`] rule, or say
-/// why nothing moved. Both texts are the note
-/// line.
+/// why nothing moved. Both texts are the note line.
 fn take_all(
     items: &GameItems,
     ships: &mut InventoryShips,
