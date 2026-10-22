@@ -2063,6 +2063,23 @@ impl InventoryShips<'_, '_> {
         plan_loot_take(items, hold, own_cr, theirs, partner_cr)
     }
 
+    /// The hold and report queue of `ship`, to write.
+    ///
+    /// # Panics
+    ///
+    /// On an entity that is not a ship root: callers pass a root they
+    /// resolved.
+    pub(crate) fn hold_mut(
+        &mut self,
+        ship: Entity,
+    ) -> (Mut<'_, ShipInventory>, Mut<'_, ShipInventoryReports>) {
+        let (_, hold, _, _, _, reports) = self
+            .ships
+            .get_mut(ship)
+            .expect("InventoryShips::hold_mut takes a resolved ship root");
+        (hold, reports)
+    }
+
     /// What the source ship of `draft` carries of its item, and never less than
     /// one, so the wheel's range is never empty.
     fn draft_stock(&self, draft: &InventoryDraft) -> u32 {

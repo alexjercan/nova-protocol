@@ -58,8 +58,8 @@ pub struct HullStripJob {
     pub paused: Option<HullStripPauseType>,
     /// Sections taken so far.
     pub taken: u32,
-    /// What the strip took from the hull's hold and balance before its first
-    /// section, for the note that ends it.
+    /// What the strip took from the hull's hold and balance, before its first
+    /// section and at the berth, for the note that ends it.
     pub looted: LootTake,
     /// The parts every section taken so far put in the hold, summed.
     pub yielded: BTreeMap<ItemDesignId, u32>,

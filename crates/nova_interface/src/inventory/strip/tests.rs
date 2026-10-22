@@ -392,6 +392,79 @@ fn a_strip_takes_the_whole_hold_first_or_does_nothing() {
     );
 }
 
+/// Cargo and credits that reach the wreck during a strip, as a Give leaves
+/// them, come off at the port: what fits at once, and the strip holds there
+/// until the rest fits. The wreck never leaves the world with loot in it.
+#[test]
+fn a_strip_sweeps_what_the_wreck_holds_at_the_port_and_holds_until_it_fits() {
+    let plate = ItemDesignId::from(ItemRoleType::HullPlate.id());
+    let items = test_items();
+    let mut app = strip_app();
+    let (player, wreck) = dock_with_a_wreck(app.world_mut(), 1_000_000);
+    app.world_mut().write_message(HullStripCommand);
+    app.update();
+    run_until(&mut app, 200, |app| {
+        app.world().get_entity(wreck.b).is_err()
+    });
+    app.world_mut().entity_mut(wreck.root).insert((
+        ShipInventory::new(&items, 10_000_000, [(plate.clone(), 6)]),
+        ShipCredits(50),
+    ));
+    // Room for the 90 kg of parts before the port and 5 kg more: none for
+    // one 10 kg plate.
+    let with_capacity = |app: &App, capacity_g: u32| {
+        ShipInventory::new(
+            &items,
+            capacity_g,
+            hold(app, player)
+                .stacks()
+                .map(|(item, count)| (item.clone(), count))
+                .collect::<Vec<_>>(),
+        )
+    };
+    let tight = with_capacity(&app, 95_000);
+    app.world_mut().entity_mut(player).insert(tight);
+    run_until(&mut app, 200, |app| {
+        job(app, player).is_some_and(|job| job.paused.is_some())
+    });
+    let held = job(&app, player).expect("the strip holds, it does not stop");
+    assert_eq!(
+        held.paused,
+        Some(HullStripPauseType::HoldFull {
+            need_g: 60_000,
+            free_g: 5_000
+        })
+    );
+    assert_eq!(
+        held.step.as_ref().map(|step| step.section),
+        Some(wreck.berth)
+    );
+    assert!(app.world().get_entity(wreck.root).is_ok());
+    assert_eq!(hold(&app, player).count(&plate), 0);
+    assert_eq!(
+        app.world().get::<ShipCredits>(player),
+        Some(&ShipCredits(50))
+    );
+
+    let roomy = with_capacity(&app, 1_000_000);
+    app.world_mut().entity_mut(player).insert(roomy);
+    run_until(&mut app, 200, |app| {
+        app.world().get_entity(wreck.root).is_err()
+    });
+    assert_eq!(hold(&app, player).count(&plate), 6);
+    assert_eq!(
+        app.world().get::<ShipCredits>(player),
+        Some(&ShipCredits(50))
+    );
+    assert_eq!(
+        app.world().resource::<InventoryRuntime>().note(),
+        Some(
+            "the wreck is stripped and gone: took 6 Hull plate and 50 cr, \
+             stripped 1 Frame spar, 6 Section panel"
+        )
+    );
+}
+
 #[test]
 fn the_strip_block_counts_sections_and_parts_and_names_a_held_strip() {
     let block_text = |app: &mut App, field: StripBlockField| {

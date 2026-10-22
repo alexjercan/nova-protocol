@@ -23,8 +23,11 @@
 //! timer ends, [`plan_section_yield`] plans its parts: they go into the
 //! player's hold, one `Stripped` report is queued, and a
 //! [`SectionStripRequest`] takes the section off. A hold too full for them
-//! holds the job at that section until there is room. The berth's parts end
-//! the strip: the player lets go of the dock and the wreck despawns. The job
+//! holds the job at that section until there is room. Before the berth's
+//! parts, the job takes what fits of anything put into the wreck's hold or
+//! balance during the strip, and holds there until the rest fits, so the
+//! wreck never despawns with loot in it. The berth's parts end the strip:
+//! the player lets go of the dock and the wreck despawns. The job
 //! stops when the player undocks or docks with another hull; every section
 //! already taken stays taken.
 //!
@@ -843,7 +846,9 @@ pub(crate) fn apply_hull_strip_commands(
 /// [`plan_section_yield`] plans its parts: on a pause the job holds there;
 /// otherwise the parts go into the hold, one `Stripped` report is queued, and
 /// the section comes off by a [`SectionStripRequest`], or, for the berth, by
-/// letting go of the dock and despawning the wreck.
+/// letting go of the dock and despawning the wreck. Before the berth's parts
+/// the job takes what fits of the wreck's hold and balance, as Take all does,
+/// and holds while any of it stays.
 ///
 /// # Panics
 ///
@@ -855,20 +860,14 @@ pub(crate) fn advance_hull_strip(
     mut commands: Commands,
     items: Option<Res<GameItems>>,
     site: StripSite,
+    mut ships: InventoryShips,
     q_ids: Query<&EntityId>,
-    mut q_player: Query<
-        (
-            &mut HullStripJob,
-            &mut ShipInventory,
-            &mut ShipInventoryReports,
-        ),
-        With<PlayerSpaceshipMarker>,
-    >,
+    mut q_job: Query<&mut HullStripJob, With<PlayerSpaceshipMarker>>,
 ) {
     let Some(player) = site.player() else {
         return;
     };
-    let Ok((mut job, mut own, mut reports)) = q_player.get_mut(player) else {
+    let Ok(mut job) = q_job.get_mut(player) else {
         return;
     };
     let Some(partner) = site
@@ -920,6 +919,44 @@ pub(crate) fn advance_hull_strip(
         }
     }
     let section = partner.live(step.section).expect("the step is live");
+    let hull = q_ids
+        .get(partner.entity)
+        .unwrap_or_else(|_| panic!("strip: partner {:?} has no scenario id", partner.entity));
+    // Cargo and credits put into the wreck during the strip come off before
+    // its berth, so the wreck never leaves the world with loot in it.
+    if step.section == partner.berth {
+        let sweep = ships.loot(&items, player, partner.entity);
+        if !sweep.is_empty() {
+            let pair = ships.pair().expect("a docked partner has a player ship");
+            take_loot(&items, &mut ships, pair, partner.entity, &sweep);
+            info!(
+                "strip: swept {} from '{}'",
+                loot_text(&items, &sweep.taken, sweep.taken_cr),
+                hull.0
+            );
+            for (item, &count) in &sweep.taken {
+                *job.looted.taken.entry(item.clone()).or_insert(0) += count;
+            }
+            job.looted.taken_cr += sweep.taken_cr;
+        }
+        if !sweep.is_whole() {
+            // Credits stay only when the player's balance would overflow;
+            // the hold then reads full with only the items' mass to come.
+            let need_g = sweep
+                .stayed
+                .iter()
+                .map(|(item, &count)| items.design(item).stack_mass_g(count))
+                .sum();
+            let free_g = ships.ship(player).1.free_g(&items);
+            let pause = HullStripPauseType::HoldFull { need_g, free_g };
+            if job.paused != Some(pause) {
+                info!("strip: held at {}: {pause:?}", step.code);
+                job.paused = Some(pause);
+            }
+            return;
+        }
+    }
+    let (mut own, mut reports) = ships.hold_mut(player);
     let parts = match plan_section_yield(&items, partner.target(section), &own) {
         Ok(parts) => parts,
         Err(pause) => {
@@ -930,9 +967,6 @@ pub(crate) fn advance_hull_strip(
             return;
         }
     };
-    let hull = q_ids
-        .get(partner.entity)
-        .unwrap_or_else(|_| panic!("strip: partner {:?} has no scenario id", partner.entity));
     for (item, &count) in &parts {
         own.add(&items, item, count);
         *job.yielded.entry(item.clone()).or_insert(0) += count;
@@ -966,9 +1000,9 @@ pub(crate) fn advance_hull_strip(
     runtime.say(strip_done_text(&items, &job));
 }
 
-/// The note that ends a strip: the loot it took first and every part its
-/// sections gave, such as `the wreck is stripped and gone: took 6 Hull plate
-/// and 50 cr, stripped 3 Section panel`.
+/// The note that ends a strip: the loot it took, first and at the berth, and
+/// every part its sections gave, such as `the wreck is stripped and gone:
+/// took 6 Hull plate and 50 cr, stripped 3 Section panel`.
 fn strip_done_text(items: &GameItems, job: &HullStripJob) -> String {
     let took = if job.looted.is_empty() {
         String::new()

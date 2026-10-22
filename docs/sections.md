@@ -232,8 +232,8 @@ health, recomputed each frame; `yielded` is what the strip recovered, not
 what the hold carries now. The
 Credits row's Take all writes `TakeAllCommand`: `plan_loot_take` plans
 what fits of every stack in id order, then the credits, and each moves
-through the Take rule. A strip runs the same take first, so it never
-demolishes a hull with loot in it. `plan_hull_strip`
+through the Take rule. A strip runs the same take first and again before
+the berth, so it never demolishes a hull with loot in it. `plan_hull_strip`
 (`nova_gameplay/src/inventory.rs`) refuses, in order: not docked, a strip
 already running, a living station, a partner the player may not loot, and a
 take that would leave a stack or the credits behind (`NoRoom`, read from
@@ -265,9 +265,13 @@ no burst, no `OnDestroyed`, no canister drop and no floating piece: it prunes
 the section from its neighbours' `ConnectedTo`, lowers the root's pinned
 health maximum by the section's pool, and despawns it. A stripped section is
 then a design section with no live entity, as a destroyed one is, so a
-freeze, a thaw and a save keep it stripped with no save field. The berth's
-parts end the strip: the job triggers `DockingReleaseRequest` for the player
-and despawns the wreck, with its hold and credits; a retiring cell freezes
+freeze, a thaw and a save keep it stripped with no save field. Before the
+berth's parts, the job plans `plan_loot_take` again over what a Give put
+into the wreck during the strip, moves what fits through `take_loot`, folds
+it into `HullStripJob::looted` for the end note, and holds under `HoldFull`
+(`need_g` the mass that stayed) until the rest fits. The berth's parts end
+the strip: the job triggers `DockingReleaseRequest` for the player and
+despawns the wreck, its hold and balance empty; a retiring cell freezes
 only the bodies still live in it, so the wreck stays gone. An undock, or a
 dock with another hull, stops the job and keeps what it took; the job is not
 saved.

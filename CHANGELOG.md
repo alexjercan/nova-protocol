@@ -126,9 +126,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Buy a living generated station on the Station pane for twice its worth at
   ask (`OnStationBought`). It leaves its civilization for your side, admits you
   on any side and sells its hold at bid.
-- Docked with a wreck, Strip in the Inventory pane takes its hold and credits,
-  then strips the hull into parts, port last (`OnStripped`); no room disables
-  it. Take all loots what fits.
+- Strip in the Inventory pane loots a docked wreck, strips it into parts,
+  port last (`OnStripped`), and loots late cargo before the port. No room
+  disables it. Take all loots what fits.
 - **(breaking)** Torpedo bays are rare and railgun lances need mid
   advancement. Ships hold only ammo their weapons reload; stations stock the
   parts and reload ammo of what their civilization builds.
