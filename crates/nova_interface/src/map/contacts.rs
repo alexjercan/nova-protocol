@@ -9,7 +9,8 @@
 //!
 //! A ship or a piece of terrain that wears an [`ObjectiveMarkerTarget`] is one
 //! Objective contact that keeps its body icon and name and carries the marker
-//! label. A scenario marker carries only that label: no content field links it
+//! label. A marked own ship stays the one `SELF` contact and carries the label.
+//! A scenario marker carries only that label: no content field links it
 //! to a [`GameObjectives`] entry, so the map names none.
 //!
 //! Touch this module when adding a kind of thing the map can show.
@@ -35,8 +36,8 @@ pub enum MapContactKind {
     Ally,
     /// A ship on the enemy side.
     Hostile,
-    /// Anything that wears an objective marker: a marked ship, station or
-    /// body, or a standalone nav marker.
+    /// Anything other than the own ship that wears an objective marker: a
+    /// marked ship, station or body, or a standalone nav marker.
     Objective,
     /// An asteroid.
     Terrain,
@@ -265,10 +266,11 @@ impl MapContacts<'_, '_> {
             .filter(|radius| *radius > 0.0)
     }
 
-    /// Whether the stance or terrain loop plots `entity`, so the objective
-    /// loop leaves its marker to that one contact.
+    /// Whether the own-ship, stance or terrain loop plots `entity`, so the
+    /// objective loop leaves its marker to that one contact.
     fn plots_as_body(&self, entity: Entity) -> bool {
-        self.ships.contains(entity)
+        self.player.contains(entity)
+            || self.ships.contains(entity)
             || self
                 .terrain
                 .get(entity)
@@ -398,7 +400,11 @@ impl MapContacts<'_, '_> {
                 body: BodyIconType::Ship,
                 code,
                 name,
-                marker: None,
+                marker: self
+                    .markers
+                    .get(player_entity)
+                    .ok()
+                    .map(|tag| tag.label.clone()),
                 world_pos: player_pos,
                 range: 0.0,
                 bearing_deg: 0.0,

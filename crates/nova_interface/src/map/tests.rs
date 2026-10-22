@@ -32,6 +32,7 @@ use crate::{
     },
     station::{apply_station_settle_commands, StanceSettleCommand, StationRuntime},
     terminal::NovaOsCloseTransition,
+    viewer::cycle_index,
 };
 
 /// The contact panel crosses the stored world-unit range to meters and
@@ -227,18 +228,25 @@ fn map_contact_codes_are_unique_and_stable() {
 
 /// A ship, a rock and a station that wear an objective marker are each one
 /// Objective contact that keeps its body icon and carries the label: the
-/// ship and the rock read `OBJ-n`, the station its chart code.
+/// ship and the rock read `OBJ-n`, the station its chart code. A marked own
+/// ship stays the one `SELF` contact with the label and takes no `OBJ` index,
+/// so the codes hold on the next pass and cycling reaches every contact.
 #[test]
 fn a_marked_body_is_one_objective_contact() {
     let mut world = World::new();
     world.init_resource::<Chart>();
     world.init_resource::<Jobs>();
-    world.spawn((
-        SpaceshipRootMarker,
-        PlayerSpaceshipMarker,
-        GlobalTransform::default(),
-        Name::new("NOVA"),
-    ));
+    let player = world
+        .spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            GlobalTransform::default(),
+            Name::new("NOVA"),
+            ObjectiveMarkerTarget {
+                label: "JOB-0 Survive".into(),
+            },
+        ))
+        .id();
     let ship = world
         .spawn((
             SpaceshipRootMarker,
@@ -274,24 +282,72 @@ fn a_marked_body_is_one_objective_contact() {
         .id();
 
     world.run_system_once(assign_map_contact_codes).unwrap();
+    let first = world.run_system_once(|c: MapContacts| c.collect()).unwrap();
+    world.run_system_once(assign_map_contact_codes).unwrap();
     let contacts = world.run_system_once(|c: MapContacts| c.collect()).unwrap();
-    for (entity, body, code, label) in [
-        (ship, BodyIconType::Ship, "OBJ-1", "JOB-1 Answer"),
-        (rock, BodyIconType::Asteroid, "OBJ-2", "JOB-2 Recover"),
-        (station, BodyIconType::Station, "STN", "JOB-3 Hand in"),
+    for (entity, kind, body, code, label) in [
+        (
+            player,
+            MapContactKind::OwnShip,
+            BodyIconType::Ship,
+            "SELF",
+            "JOB-0 Survive",
+        ),
+        (
+            ship,
+            MapContactKind::Objective,
+            BodyIconType::Ship,
+            "OBJ-1",
+            "JOB-1 Answer",
+        ),
+        (
+            rock,
+            MapContactKind::Objective,
+            BodyIconType::Asteroid,
+            "OBJ-2",
+            "JOB-2 Recover",
+        ),
+        (
+            station,
+            MapContactKind::Objective,
+            BodyIconType::Station,
+            "STN",
+            "JOB-3 Hand in",
+        ),
     ] {
-        let found: Vec<&MapContact> = contacts.iter().filter(|c| c.entity == entity).collect();
-        assert_eq!(found.len(), 1, "{code} is one contact");
-        let contact = found[0];
-        assert_eq!(
-            (contact.kind, contact.body, contact.code.as_str()),
-            (MapContactKind::Objective, body, code)
-        );
-        assert_eq!(contact.marker.as_deref(), Some(label));
+        for (pass, list) in [(1, &first), (2, &contacts)] {
+            let found: Vec<&MapContact> = list.iter().filter(|c| c.entity == entity).collect();
+            assert_eq!(found.len(), 1, "{code} is one contact on pass {pass}");
+            let contact = found[0];
+            assert_eq!(
+                (contact.kind, contact.body, contact.code.as_str()),
+                (kind, body, code),
+                "pass {pass}"
+            );
+            assert_eq!(contact.marker.as_deref(), Some(label));
+        }
     }
     let codes: Vec<&String> = contacts.iter().map(|c| &c.code).collect();
     let unique: std::collections::HashSet<&&String> = codes.iter().collect();
     assert_eq!(unique.len(), codes.len(), "every code is unique: {codes:?}");
+
+    // Forward cycling from the own ship, as `map_input` selects, visits every
+    // contact once before it comes back.
+    let mut selected = player;
+    let mut visited = Vec::new();
+    for _ in 0..contacts.len() {
+        let current = contacts.iter().position(|c| c.entity == selected);
+        let next = cycle_index(current, contacts.len(), true).unwrap();
+        selected = contacts[next].entity;
+        visited.push(selected);
+    }
+    assert_eq!(selected, player, "cycling returns to the own ship");
+    let reached: std::collections::HashSet<Entity> = visited.iter().copied().collect();
+    assert_eq!(
+        reached.len(),
+        contacts.len(),
+        "cycling reaches every contact"
+    );
 }
 
 /// A ship's code crosses the objective boundary with its marker: a marked

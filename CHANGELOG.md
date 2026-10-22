@@ -240,7 +240,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
   chip with its distance; a done job's chip moves to the station that pays it.
 - A Map contact that wears an objective chip is one gold contact with its own
   icon and name; its note shows the chip and each held job that sends you
-  there.
+  there. Your own ship stays SELF.
 - Inventory rows at a trader show the Price of one with a Deal badge of the
   percent off the reference, green when it favours you, amber when not; the
   inspector reads Reference, Pays and Asks.
